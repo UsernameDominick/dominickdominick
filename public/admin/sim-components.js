@@ -1,7 +1,8 @@
-// Mirrors worker/simulation-render.js's SIM_COMPONENTS registry — kept in
-// sync by hand, since a worker ES module can't be imported by this plain
-// script and vice versa. Any new component type needs to be added in both
-// places.
+// Mirrors worker/simulation-render.js's SIM_COMPONENTS registry and its
+// computePoweredSet() function — kept in sync by hand, since a worker ES
+// module can't be imported by this plain script and vice versa. Any new
+// component type, or any change to how "powered" is computed, needs to be
+// made in both places.
 (function () {
   "use strict";
 
@@ -14,6 +15,25 @@
   }
 
   window.SIM_COMPONENTS = {
+    outlet: {
+      label: "Wall Outlet",
+      w: 40,
+      h: 60,
+      isSource: true,
+      pins: [{ id: "plug", x: 20, y: 60 }],
+      render: () =>
+        `<rect class="outlet-body" x="0" y="0" width="40" height="60" rx="4"/><rect class="outlet-slot" x="10" y="16" width="4" height="14"/><rect class="outlet-slot" x="26" y="16" width="4" height="14"/><circle class="outlet-ground" cx="20" cy="42" r="3"/>`,
+    },
+    power_supply: {
+      label: "Power Supply",
+      w: 70,
+      h: 40,
+      pins: [
+        { id: "in", x: 0, y: 20 },
+        { id: "out", x: 70, y: 20 },
+      ],
+      render: () => `<rect class="ps-body" x="0" y="0" width="70" height="40" rx="4"/><text class="ps-label" x="35" y="24" text-anchor="middle">PSU</text>`,
+    },
     breadboard: {
       label: "Breadboard",
       w: 340,
@@ -57,6 +77,7 @@
       label: "Battery",
       w: 50,
       h: 26,
+      isSource: true,
       pins: [
         { id: "pos", x: 0, y: 13 },
         { id: "neg", x: 50, y: 13 },
@@ -82,5 +103,49 @@
       render: () =>
         `<rect class="tv-body" x="0" y="0" width="130" height="84" rx="6"/><rect class="tv-screen" x="6" y="6" width="118" height="72"/>`,
     },
+  };
+
+  // Everything wired (directly or transitively) to an outlet or battery is
+  // "powered" — a plain graph-reachability walk, nothing more.
+  window.computeSimPoweredSet = function (data) {
+    const components = (data && data.components) || [];
+    const wires = (data && data.wires) || [];
+    const adjacency = new Map();
+    const link = (a, b) => {
+      if (!adjacency.has(a)) adjacency.set(a, new Set());
+      adjacency.get(a).add(b);
+    };
+    wires.forEach((w) => {
+      link(w.from.compId, w.to.compId);
+      link(w.to.compId, w.from.compId);
+    });
+
+    const poweredComps = new Set();
+    const queue = [];
+    components.forEach((c) => {
+      const def = window.SIM_COMPONENTS[c.type];
+      if (def && def.isSource) {
+        poweredComps.add(c.id);
+        queue.push(c.id);
+      }
+    });
+    while (queue.length) {
+      const current = queue.shift();
+      const neighbors = adjacency.get(current);
+      if (!neighbors) continue;
+      neighbors.forEach((n) => {
+        if (!poweredComps.has(n)) {
+          poweredComps.add(n);
+          queue.push(n);
+        }
+      });
+    }
+
+    const poweredWires = new Set();
+    wires.forEach((w) => {
+      if (poweredComps.has(w.from.compId) && poweredComps.has(w.to.compId)) poweredWires.add(w.id);
+    });
+
+    return { poweredComps, poweredWires };
   };
 })();

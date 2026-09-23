@@ -1,9 +1,11 @@
-// Component library for the simulation builder/renderer. This is an
-// intentionally simple "animated diagram" system, not an electrically
-// accurate simulator: each component has a manually-set "powered"
-// flag and each wire a manually-set "animated" flag, and a single
-// power toggle on the public page flips a CSS class that changes
-// their appearance. There's no computed circuit continuity.
+// Component library for the simulation builder/renderer. This is a
+// wiring-accurate *diagram*, not an electrically accurate simulator: it
+// has no notion of voltage, current, resistance, or polarity. What it
+// does model for real is connectivity — a component only lights up when
+// the power toggle is on AND it's actually reachable, via a chain of
+// wires, from a power source (outlet or battery). Wire it wrong and
+// nothing lights up further down the chain, same as it wouldn't in life;
+// there's just no computation of *why* beyond "is there a path."
 //
 // Kept in sync by hand with public/admin/sim-components.js, which
 // defines the identical registry for the admin builder (a plain
@@ -18,6 +20,25 @@ function escXml(s) {
 }
 
 export const SIM_COMPONENTS = {
+  outlet: {
+    label: "Wall Outlet",
+    w: 40,
+    h: 60,
+    isSource: true,
+    pins: [{ id: "plug", x: 20, y: 60 }],
+    render: () =>
+      `<rect class="outlet-body" x="0" y="0" width="40" height="60" rx="4"/><rect class="outlet-slot" x="10" y="16" width="4" height="14"/><rect class="outlet-slot" x="26" y="16" width="4" height="14"/><circle class="outlet-ground" cx="20" cy="42" r="3"/>`,
+  },
+  power_supply: {
+    label: "Power Supply",
+    w: 70,
+    h: 40,
+    pins: [
+      { id: "in", x: 0, y: 20 },
+      { id: "out", x: 70, y: 20 },
+    ],
+    render: () => `<rect class="ps-body" x="0" y="0" width="70" height="40" rx="4"/><text class="ps-label" x="35" y="24" text-anchor="middle">PSU</text>`,
+  },
   breadboard: {
     label: "Breadboard",
     w: 340,
@@ -61,6 +82,7 @@ export const SIM_COMPONENTS = {
     label: "Battery",
     w: 50,
     h: 26,
+    isSource: true,
     pins: [
       { id: "pos", x: 0, y: 13 },
       { id: "neg", x: 50, y: 13 },
@@ -87,6 +109,53 @@ export const SIM_COMPONENTS = {
   },
 };
 
+// Everything wired (directly or transitively) to an outlet or battery is
+// "powered" — a plain graph-reachability walk over the wires, nothing
+// more. This is what makes wiring order matter (outlet -> power supply ->
+// breadboard -> Teensy, Teensy -> breadboard) without simulating any
+// actual electrical behavior.
+export function computePoweredSet(data) {
+  const components = (data && data.components) || [];
+  const wires = (data && data.wires) || [];
+  const adjacency = new Map();
+  const link = (a, b) => {
+    if (!adjacency.has(a)) adjacency.set(a, new Set());
+    adjacency.get(a).add(b);
+  };
+  wires.forEach((w) => {
+    link(w.from.compId, w.to.compId);
+    link(w.to.compId, w.from.compId);
+  });
+
+  const poweredComps = new Set();
+  const queue = [];
+  components.forEach((c) => {
+    const def = SIM_COMPONENTS[c.type];
+    if (def && def.isSource) {
+      poweredComps.add(c.id);
+      queue.push(c.id);
+    }
+  });
+  while (queue.length) {
+    const current = queue.shift();
+    const neighbors = adjacency.get(current);
+    if (!neighbors) continue;
+    neighbors.forEach((n) => {
+      if (!poweredComps.has(n)) {
+        poweredComps.add(n);
+        queue.push(n);
+      }
+    });
+  }
+
+  const poweredWires = new Set();
+  wires.forEach((w) => {
+    if (poweredComps.has(w.from.compId) && poweredComps.has(w.to.compId)) poweredWires.add(w.id);
+  });
+
+  return { poweredComps, poweredWires };
+}
+
 function pinPosition(comp, pinId) {
   const def = SIM_COMPONENTS[comp.type];
   if (!def) return null;
@@ -95,15 +164,15 @@ function pinPosition(comp, pinId) {
   return { x: comp.x + pin.x, y: comp.y + pin.y };
 }
 
-function renderComponentSvg(comp) {
+function renderComponentSvg(comp, poweredComps) {
   const def = SIM_COMPONENTS[comp.type];
   if (!def) return "";
   return `<g class="sim-comp sim-comp-${escXml(comp.type)}" data-id="${escXml(comp.id)}" data-powered="${
-    comp.powered ? "true" : "false"
+    poweredComps.has(comp.id) ? "true" : "false"
   }" transform="translate(${comp.x},${comp.y})">${def.render(comp)}</g>`;
 }
 
-function renderWireSvg(wire, components) {
+function renderWireSvg(wire, components, poweredWires) {
   const fromComp = components.find((c) => c.id === wire.from.compId);
   const toComp = components.find((c) => c.id === wire.to.compId);
   if (!fromComp || !toComp) return "";
@@ -112,13 +181,14 @@ function renderWireSvg(wire, components) {
   if (!p1 || !p2) return "";
   return `<path class="sim-wire sim-wire-${escXml(wire.kind || "wire")}" data-id="${escXml(
     wire.id
-  )}" data-animated="${wire.animated ? "true" : "false"}" d="M${p1.x},${p1.y} L${p2.x},${p2.y}"/>`;
+  )}" data-animated="${poweredWires.has(wire.id) ? "true" : "false"}" d="M${p1.x},${p1.y} L${p2.x},${p2.y}"/>`;
 }
 
 export function renderSimulationSvg(data, { width = 900, height = 500 } = {}) {
   const components = (data && data.components) || [];
   const wires = (data && data.wires) || [];
-  const wiresSvg = wires.map((w) => renderWireSvg(w, components)).join("");
-  const compsSvg = components.map((c) => renderComponentSvg(c)).join("");
+  const { poweredComps, poweredWires } = computePoweredSet(data);
+  const wiresSvg = wires.map((w) => renderWireSvg(w, components, poweredWires)).join("");
+  const compsSvg = components.map((c) => renderComponentSvg(c, poweredComps)).join("");
   return `<svg class="sim-svg" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">${wiresSvg}${compsSvg}</svg>`;
 }

@@ -11,6 +11,23 @@
   let wireStart = null; // { compId, pin }
   let previewOn = false;
   let localIdCounter = 1;
+  let placeX = 20;
+  let placeY = 20;
+  const PLACE_ROW_HEIGHT = 70;
+  const PLACE_CANVAS_WIDTH = 860;
+
+  // Where the next palette-added part lands — walks left to right, wrapping
+  // to a new row by actual part width so a 340px breadboard doesn't overlap
+  // the very next (tiny) part the way a fixed-step stagger would.
+  function nextPlacement(def) {
+    if (placeX + def.w > PLACE_CANVAS_WIDTH) {
+      placeX = 20;
+      placeY += PLACE_ROW_HEIGHT;
+    }
+    const pos = { x: placeX, y: placeY };
+    placeX += def.w + 20;
+    return pos;
+  }
 
   function escapeXml(s) {
     const d = document.createElement("div");
@@ -66,6 +83,9 @@
     selected = null;
     wireStart = null;
     previewOn = false;
+    zoomLevel = 1;
+    placeX = 20;
+    placeY = 20;
     if (id) {
       const sim = await window.adminApi(`/simulations/${id}`);
       $("simulation-name").value = sim.name;
@@ -92,18 +112,18 @@
     return pin ? { x: comp.x + pin.x, y: comp.y + pin.y } : null;
   }
 
-  function renderComponentSvg(comp) {
+  function renderComponentSvg(comp, poweredComps) {
     const def = REG[comp.type];
     if (!def) return "";
     const sel = selected && selected.kind === "component" && selected.id === comp.id;
     return `<g class="sim-comp sim-comp-${comp.type}${
       sel ? " sim-selected" : ""
-    }" data-id="${comp.id}" data-powered="${comp.powered ? "true" : "false"}" transform="translate(${comp.x},${comp.y})">${def.render(
-      comp
-    )}${sel ? `<rect class="sim-select-box" x="-4" y="-4" width="${def.w + 8}" height="${def.h + 8}" />` : ""}</g>`;
+    }" data-id="${comp.id}" data-powered="${poweredComps.has(comp.id) ? "true" : "false"}" transform="translate(${comp.x},${
+      comp.y
+    })">${def.render(comp)}${sel ? `<rect class="sim-select-box" x="-4" y="-4" width="${def.w + 8}" height="${def.h + 8}" />` : ""}</g>`;
   }
 
-  function renderWireSvg(wire) {
+  function renderWireSvg(wire, poweredWires) {
     const fromComp = simData.components.find((c) => c.id === wire.from.compId);
     const toComp = simData.components.find((c) => c.id === wire.to.compId);
     if (!fromComp || !toComp) return "";
@@ -113,7 +133,7 @@
     const sel = selected && selected.kind === "wire" && selected.id === wire.id;
     return `<path class="sim-wire sim-wire-${wire.kind || "wire"}${
       sel ? " sim-selected" : ""
-    }" data-id="${wire.id}" data-animated="${wire.animated ? "true" : "false"}" d="M${p1.x},${p1.y} L${p2.x},${p2.y}"/>`;
+    }" data-id="${wire.id}" data-animated="${poweredWires.has(wire.id) ? "true" : "false"}" d="M${p1.x},${p1.y} L${p2.x},${p2.y}"/>`;
   }
 
   function renderPinDots(comp) {
@@ -129,13 +149,15 @@
   }
 
   function renderBuilder() {
-    const wiresSvg = simData.wires.map(renderWireSvg).join("");
-    const compsSvg = simData.components.map(renderComponentSvg).join("");
+    const { poweredComps, poweredWires } = window.computeSimPoweredSet(simData);
+    const wiresSvg = simData.wires.map((w) => renderWireSvg(w, poweredWires)).join("");
+    const compsSvg = simData.components.map((c) => renderComponentSvg(c, poweredComps)).join("");
     const pinsSvg = simData.components.map(renderPinDots).join("");
     $("sim-builder-canvas").innerHTML = `<svg id="sim-builder-svg" viewBox="0 0 900 500" xmlns="http://www.w3.org/2000/svg" class="sim-svg${
       previewOn ? " is-on" : ""
     }">${wiresSvg}${compsSvg}${pinsSvg}</svg>`;
     attachBuilderEvents();
+    applyZoom();
   }
 
   function svgPoint(evt) {
@@ -250,7 +272,6 @@
       from: { compId: wireStart.compId, pin: wireStart.pin },
       to: { compId, pin },
       kind: "wire",
-      animated: false,
     });
     wireStart = null;
     renderBuilder();
@@ -261,16 +282,12 @@
     btn.addEventListener("click", () => {
       const type = btn.dataset.simType;
       const def = REG[type];
-      // Stagger by total part count (not per-type) so the first LED doesn't
-      // land on top of the first resistor — each new part is just offset
-      // from whatever was placed before it, of any type.
-      const n = simData.components.length;
+      const pos = nextPlacement(def);
       simData.components.push({
         id: newLocalId(type),
         type,
-        x: 20 + (n % 10) * 30,
-        y: 20 + Math.floor(n / 10) * 60,
-        powered: false,
+        x: pos.x,
+        y: pos.y,
         label: def.label,
       });
       renderBuilder();
@@ -281,17 +298,25 @@
   function renderInspector() {
     const box = $("sim-inspector");
     if (!selected) {
-      box.innerHTML = "<p style='color:var(--text-dim);font-size:0.85rem;'>Click a part or a wire to edit it. Click a pin, then another pin, to wire them.</p>";
+      box.innerHTML =
+        "<p style='color:var(--text-dim);font-size:0.85rem;'>Click a part or a wire to edit it. Click a pin, then another pin, to wire them.</p><p style='color:var(--text-dim);font-size:0.85rem;'>Power flows automatically along wires from any Wall Outlet or Battery — wire outlet → power supply → breadboard → Teensy, and anything actually connected lights up when you hit \"Preview: power on\".</p>";
       return;
     }
     if (selected.kind === "component") {
       const comp = simData.components.find((c) => c.id === selected.id);
       if (!comp) return;
       const def = REG[comp.type];
+      const { poweredComps } = window.computeSimPoweredSet(simData);
+      const isPowered = poweredComps.has(comp.id);
+      const statusLine = def.isSource
+        ? "⚡ Power source"
+        : isPowered
+        ? "⚡ Connected to a power source"
+        : "Not connected to a power source";
       box.innerHTML = `
         <p><strong>${escapeXml(def.label)}</strong></p>
+        <p class="sim-power-status ${isPowered || def.isSource ? "is-powered" : ""}">${statusLine}</p>
         ${comp.type === "mcu_teensy" ? `<label>Label<input id="sim-comp-label" type="text" value="${escapeXml(comp.label || "")}"></label>` : ""}
-        <label><input type="checkbox" id="sim-comp-powered" ${comp.powered ? "checked" : ""}> Powered (glows/changes when the sim is switched on)</label>
         <button type="button" id="sim-delete-selected" class="danger">Delete part</button>
       `;
       const labelInput = $("sim-comp-label");
@@ -301,10 +326,6 @@
           renderBuilder();
         });
       }
-      $("sim-comp-powered").addEventListener("change", (e) => {
-        comp.powered = e.target.checked;
-        renderBuilder();
-      });
       $("sim-delete-selected").addEventListener("click", () => {
         simData.components = simData.components.filter((c) => c.id !== comp.id);
         simData.wires = simData.wires.filter((w) => w.from.compId !== comp.id && w.to.compId !== comp.id);
@@ -315,23 +336,21 @@
     } else if (selected.kind === "wire") {
       const wire = simData.wires.find((w) => w.id === selected.id);
       if (!wire) return;
+      const { poweredWires } = window.computeSimPoweredSet(simData);
+      const isPowered = poweredWires.has(wire.id);
       box.innerHTML = `
         <p><strong>Wire</strong></p>
+        <p class="sim-power-status ${isPowered ? "is-powered" : ""}">${isPowered ? "⚡ Carries power" : "Not carrying power"}</p>
         <label>Style
           <select id="sim-wire-kind">
             <option value="wire" ${wire.kind === "wire" ? "selected" : ""}>Wire</option>
             <option value="hdmi" ${wire.kind === "hdmi" ? "selected" : ""}>Cable (HDMI-style)</option>
           </select>
         </label>
-        <label><input type="checkbox" id="sim-wire-animated" ${wire.animated ? "checked" : ""}> Animate signal flow when powered</label>
         <button type="button" id="sim-delete-selected" class="danger">Delete wire</button>
       `;
       $("sim-wire-kind").addEventListener("change", (e) => {
         wire.kind = e.target.value;
-        renderBuilder();
-      });
-      $("sim-wire-animated").addEventListener("change", (e) => {
-        wire.animated = e.target.checked;
         renderBuilder();
       });
       $("sim-delete-selected").addEventListener("click", () => {
@@ -342,6 +361,41 @@
       });
     }
   }
+
+  // ---------- Zoom ----------
+  // The canvas defaults to fitting the container (CSS width:100%); zooming
+  // sets an explicit pixel size instead, and the wrapping .sim-builder-canvas
+  // (overflow: auto) turns into a native scroll area for panning around.
+  const ZOOM_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
+  let zoomLevel = 1;
+
+  function applyZoom() {
+    const svg = $("sim-builder-svg");
+    if (svg) {
+      if (zoomLevel === 1) {
+        svg.style.width = "";
+        svg.style.height = "";
+      } else {
+        svg.style.width = `${900 * zoomLevel}px`;
+        svg.style.height = `${500 * zoomLevel}px`;
+      }
+    }
+    $("sim-zoom-reset").textContent = `${Math.round(zoomLevel * 100)}%`;
+  }
+
+  function stepZoom(dir) {
+    const i = ZOOM_STEPS.indexOf(zoomLevel);
+    const next = ZOOM_STEPS[Math.max(0, Math.min(ZOOM_STEPS.length - 1, (i === -1 ? 2 : i) + dir))];
+    zoomLevel = next;
+    applyZoom();
+  }
+
+  $("sim-zoom-in").addEventListener("click", () => stepZoom(1));
+  $("sim-zoom-out").addEventListener("click", () => stepZoom(-1));
+  $("sim-zoom-reset").addEventListener("click", () => {
+    zoomLevel = 1;
+    applyZoom();
+  });
 
   // ---------- Preview power toggle ----------
   $("sim-preview-power").addEventListener("click", () => {

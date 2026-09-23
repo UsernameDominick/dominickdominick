@@ -66,14 +66,22 @@ Worker secret, not stored in this repo). From there:
   them reachable from elsewhere
 - "Redirects" sends an old URL to a new one (301 or 302) — handy after
   renaming or deleting a page or post so old links don't just 404
-- "Simulations" is a small builder for animated circuit/AV diagrams —
-  drag parts (breadboard, LED, resistor, battery, a Teensy-style
-  microcontroller, a TV/display) onto a canvas, click one pin then
-  another to wire them, mark a part "powered" or a wire "animated", and
-  save it with a name. It's a hand-authored animated diagram, not an
-  electrically accurate simulator — nothing is computed from continuity.
-  Add it to any page/article via the Simulation block; readers get a
-  "Power on" button that toggles the on/off appearance.
+- "Simulations" is a small builder for wiring-accurate circuit/AV
+  diagrams — drag parts (wall outlet, power supply, breadboard, LED,
+  resistor, battery, a Teensy-style microcontroller, a TV/display) onto
+  a canvas and click one pin then another to wire them. What lights up
+  is computed, not manually flagged: anything connected — directly or
+  through a chain of wires — back to an outlet or battery lights up when
+  powered, and anything not wired in stays dark. Wire outlet → power
+  supply → breadboard → Teensy, then Teensy → breadboard, and the whole
+  chain lights together; leave a part unwired and it won't. There's
+  still no real electrical modeling underneath (no voltage, current, or
+  polarity) — just "is there a wire path to a power source," which is
+  enough to make wiring order and mistakes actually show up in the
+  diagram. The canvas has zoom controls and larger pins on touchscreens
+  so it's usable on a phone, though precise wiring is still easier on a
+  bigger screen. Add a saved simulation to any page/article via the
+  Simulation block; readers get a "Power on" button.
 - Press **Ctrl/Cmd+K** anywhere in the admin for a search/command palette —
   jump to a page, article, or block by text match, or open any panel.
   Ctrl/Cmd+S saves the current form; with a block selected, Delete removes

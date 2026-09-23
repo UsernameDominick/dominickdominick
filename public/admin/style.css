@@ -917,11 +917,52 @@
   margin-top: 8px;
 }
 
+.sim-canvas-wrap {
+  position: relative;
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
 .sim-builder-canvas {
   flex: 1;
   overflow: auto;
   padding: 16px;
   background: repeating-conic-gradient(#2a2a2c 0% 25%, #1c1c1e 0% 50%) 50% / 20px 20px;
+}
+
+.sim-zoom-controls {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  display: flex;
+  gap: 4px;
+  z-index: 5;
+}
+
+.sim-zoom-controls button {
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+#sim-zoom-reset {
+  min-width: 52px;
+}
+
+.sim-power-status {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin: -4px 0 10px;
+}
+
+.sim-power-status.is-powered {
+  color: #ffbf4d;
 }
 
 .sim-builder-canvas svg {
@@ -1005,9 +1046,24 @@
     white-space: nowrap;
   }
 
-  .sim-builder-canvas {
+  .sim-canvas-wrap {
     flex: 1 1 auto;
     min-height: 260px;
+  }
+
+  /* Zoom matters even more on a phone, since pins are small relative to
+     a touch fingertip — keep the controls reachable and roomy. */
+  .sim-zoom-controls button {
+    padding: 8px 12px;
+    font-size: 0.95rem;
+  }
+}
+
+@media (pointer: coarse) {
+  /* Bigger tap target for wiring pins on touchscreens, without changing
+     how they look on a mouse-driven desktop. */
+  .sim-pin {
+    r: 10;
   }
 }
 
