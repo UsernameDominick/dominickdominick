@@ -45,6 +45,34 @@ export async function deletePage(env, id) {
   await env.DB.prepare("DELETE FROM pages WHERE id = ?").bind(id).run();
 }
 
+// Copies a page's settings and every block onto a fresh page with a
+// "-copy" (or "-copy-2", etc.) slug — a starting point to branch from
+// without touching the original. Nav label is deliberately dropped so
+// the copy doesn't silently double up an entry in the site nav.
+export async function duplicatePage(env, id) {
+  const source = await env.DB.prepare("SELECT * FROM pages WHERE id = ?").bind(id).first();
+  if (!source) return null;
+  let slug = `${source.slug}-copy`;
+  let n = 2;
+  while (await slugExists(env, "pages", slug)) {
+    slug = `${source.slug}-copy-${n}`;
+    n++;
+  }
+  const newId = await createPage(env, {
+    slug,
+    title: `${source.title} (copy)`,
+    meta_description: source.meta_description,
+    nav_label: null,
+    nav_order: null,
+    og_image: source.og_image,
+  });
+  const blocks = await listBlocks(env, id);
+  for (const b of blocks) {
+    await createBlock(env, newId, b);
+  }
+  return newId;
+}
+
 export async function listBlocks(env, pageId) {
   const { results } = await env.DB
     .prepare("SELECT * FROM blocks WHERE page_id = ? ORDER BY row ASC, col ASC")

@@ -370,6 +370,12 @@
   line-height: 1.5;
 }
 
+.article-word-count {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin-top: -6px;
+}
+
 .article-actions {
   display: flex;
   align-items: center;
@@ -1576,6 +1582,21 @@
   border-color: var(--accent);
 }
 
+#export-analytics-btn {
+  background: var(--bg) !important;
+  color: var(--text-dim) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 6px !important;
+  padding: 5px 10px !important;
+  font-size: 0.8rem !important;
+  cursor: pointer;
+}
+
+#export-analytics-btn:hover {
+  color: var(--text) !important;
+  border-color: var(--accent) !important;
+}
+
 .analytics-body {
   padding: 20px;
   overflow-y: auto;
@@ -1688,5 +1709,20 @@
   }
   .analytics-columns {
     grid-template-columns: 1fr;
+  }
+
+  /* The range buttons + Export CSV push the × close button off-screen at
+     phone widths — wrap them onto their own row below the title instead. */
+  .analytics-modal-inner header {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+  .analytics-range {
+    margin-left: 0;
+    order: 3;
+    flex: 1 1 100%;
+  }
+  #export-analytics-btn {
+    order: 2;
   }
 }

@@ -221,6 +221,17 @@
     }
   });
 
+  el("duplicate-page-btn").addEventListener("click", async () => {
+    if (!currentPage) return;
+    try {
+      const res = await api(`/pages/${currentPage.id}/duplicate`, { method: "POST" });
+      await loadPages();
+      await selectPage(res.id);
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
   el("delete-page-btn").addEventListener("click", async () => {
     if (!currentPage) return;
     if (!confirm(`Delete "${currentPage.title}" and all its blocks? This can't be undone.`)) return;
@@ -841,7 +852,18 @@
       previewLink.hidden = true;
       historyBtn.hidden = true;
     }
+    updateWordCount();
   }
+
+  // Matches the reading-time math in worker/render.js (200 words/min) so
+  // what you see while writing matches what the published article shows.
+  function updateWordCount() {
+    const text = el("article-body").value.trim();
+    const words = text ? text.split(/\s+/).length : 0;
+    const mins = Math.max(1, Math.round(words / 200));
+    el("article-word-count").textContent = `${words} word${words === 1 ? "" : "s"} · ${mins} min read`;
+  }
+  el("article-body").addEventListener("input", updateWordCount);
 
   function clearArticleForm() {
     currentArticleId = null;
@@ -1327,9 +1349,11 @@
 
   // ---------- Analytics ----------
   let analyticsRange = 7;
+  let lastAnalyticsData = null;
 
   async function loadAnalytics() {
     const data = await api(`/analytics?days=${analyticsRange}`);
+    lastAnalyticsData = data;
     el("stat-today").textContent = data.today;
     el("stat-7d").textContent = data.last7;
     el("stat-30d").textContent = data.last30;
@@ -1359,6 +1383,39 @@
     await loadAnalytics();
   });
   closeModalOnClick("close-analytics", "analytics-modal");
+
+  // Builds one CSV with a section per breakdown, rather than a single flat
+  // table — the shapes (day/count, path/count, referrer/count) don't share
+  // columns, and a human is going to open this in a spreadsheet, not parse it.
+  function toCsvRow(cells) {
+    return cells.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",") + "\r\n";
+  }
+
+  el("export-analytics-btn").addEventListener("click", () => {
+    if (!lastAnalyticsData) return;
+    const data = lastAnalyticsData;
+    let csv = toCsvRow(["Summary"]);
+    csv += toCsvRow(["Today", data.today]);
+    csv += toCsvRow(["Last 7 days", data.last7]);
+    csv += toCsvRow(["Last 30 days", data.last30]);
+    csv += toCsvRow(["All time", data.allTime]);
+    csv += "\r\n" + toCsvRow(["Views per day"]) + toCsvRow(["Day", "Views"]);
+    data.byDay.forEach((r) => (csv += toCsvRow([r.day, r.n])));
+    csv += "\r\n" + toCsvRow(["Top pages"]) + toCsvRow(["Path", "Views"]);
+    data.topPaths.forEach((r) => (csv += toCsvRow([r.path, r.n])));
+    csv += "\r\n" + toCsvRow(["Top referrers"]) + toCsvRow(["Referrer", "Views"]);
+    data.topReferrers.forEach((r) => (csv += toCsvRow([r.referrer, r.n])));
+    csv += "\r\n" + toCsvRow(["Top countries"]) + toCsvRow(["Country", "Views"]);
+    data.topCountries.forEach((r) => (csv += toCsvRow([r.country, r.n])));
+
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `analytics-${analyticsRange}d-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
 
   document.querySelectorAll(".range-btn").forEach((btn) => {
     if (Number(btn.dataset.days) === analyticsRange) btn.classList.add("active");

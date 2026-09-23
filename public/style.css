@@ -165,6 +165,49 @@ body {
   margin-top: 8px;
 }
 
+/* Article extras: reading progress bar, reading time + copy-link row */
+.reading-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  width: 0%;
+  background: var(--accent);
+  z-index: 200;
+  transition: width 0.1s linear;
+}
+
+.article-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  margin-bottom: 8px;
+}
+
+.article-meta-sep {
+  opacity: 0.6;
+}
+
+.copy-link-btn {
+  margin-left: auto;
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.copy-link-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
 .tag {
   display: inline-block;
   background: var(--bg-elevated);

@@ -74,6 +74,7 @@
         </label>
         <button id="save-page-settings">Save page settings</button>
         <button id="page-history-btn">History</button>
+        <button id="duplicate-page-btn">Duplicate this page</button>
         <button id="delete-page-btn" class="danger">Delete this page</button>
       </aside>
 
@@ -110,6 +111,7 @@
             <button type="button" class="upload-trigger" data-target="#article-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#article-og-image">Browse…</button>
           </div>
           <textarea id="article-body" placeholder="Write here. Blank line = new paragraph. **bold**, *italic*, [link](url)." rows="16"></textarea>
+          <div id="article-word-count" class="article-word-count">0 words · 0 min read</div>
           <div class="article-actions">
             <label><input type="checkbox" id="article-published"> Published</label>
             <label>Publish at (blank = immediately)<input type="datetime-local" id="article-publish-at"></label>
@@ -133,6 +135,7 @@
           <button class="range-btn" data-days="30">30d</button>
           <button class="range-btn" data-days="90">90d</button>
         </div>
+        <button id="export-analytics-btn" title="Download this range as a CSV file">Export CSV</button>
         <button id="close-analytics">×</button>
       </header>
       <div class="analytics-body">

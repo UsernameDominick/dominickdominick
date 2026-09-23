@@ -4,6 +4,7 @@ import {
   createPage,
   updatePage,
   deletePage,
+  duplicatePage,
   getPageBySlug,
   listBlocks,
   createBlock,
@@ -174,6 +175,12 @@ async function routeAdminApi(request, env, url, ctx) {
   if (pageMatch && method === "DELETE") {
     await deletePage(env, Number(pageMatch[1]));
     return json({ ok: true });
+  }
+  const pageDuplicateMatch = path.match(/^\/pages\/(\d+)\/duplicate$/);
+  if (pageDuplicateMatch && method === "POST") {
+    const newId = await duplicatePage(env, Number(pageDuplicateMatch[1]));
+    if (!newId) return json({ error: "Page not found" }, { status: 404 });
+    return json({ id: newId });
   }
 
   // /pages/:id/blocks

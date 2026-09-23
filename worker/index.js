@@ -10,7 +10,7 @@ import {
   getRedirect,
 } from "./db.js";
 import { isAuthenticated } from "./auth.js";
-import { renderShell, renderBlocks, renderTags, excerpt, esc, paragraphsHtml } from "./render.js";
+import { renderShell, renderBlocks, renderTags, excerpt, readingTime, esc, paragraphsHtml } from "./render.js";
 import { handleAdminApi } from "./admin-api.js";
 
 async function getTheme(env) {
@@ -68,8 +68,15 @@ async function renderPage(env, page, url) {
 async function renderArticle(env, article, navItems) {
   const description = excerpt(article.body) || article.title;
   const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
-  const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 2;">
-    <time datetime="${esc(article.published_at)}">${esc((article.published_at || "").slice(0, 10))}</time>
+  const mins = readingTime(article.body);
+  const bodyHtml = `<div class="reading-progress"></div>
+  <div class="block" style="grid-column:1 / span 24;grid-row:1 / span 2;">
+    <div class="article-meta">
+      <time datetime="${esc(article.published_at)}">${esc((article.published_at || "").slice(0, 10))}</time>
+      <span class="article-meta-sep">·</span>
+      <span>${mins} min read</span>
+      <button type="button" class="copy-link-btn" data-copy-text="Copy link" data-copied-text="Copied!">Copy link</button>
+    </div>
     <h1>${esc(article.title)}</h1>
     ${renderTags(article.tags)}
   </div>

@@ -27,6 +27,18 @@ export function paragraphsHtml(text) {
     .join("\n");
 }
 
+// A rough, standard estimate (200 words/minute) — good enough to give a
+// reader a sense of length, not meant to be precise to the second.
+export function readingTime(text) {
+  const flat = String(text ?? "")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .trim();
+  const words = flat ? flat.split(/\s+/).length : 0;
+  return Math.max(1, Math.round(words / 200));
+}
+
 export function excerpt(text, maxLen = 155) {
   const flat = String(text ?? "")
     .replace(/\*\*(.+?)\*\*/g, "$1")
@@ -275,6 +287,7 @@ ${ogImage ? `<meta name="twitter:image" content="${esc(ogImage)}">` : ""}
 <link rel="stylesheet" href="/style.css">
 ${themeStyle}
 <script src="/sim-player.js" defer></script>
+<script src="/article-extras.js" defer></script>
 ${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>` : ""}
 ${customHead || ""}
 </head>
