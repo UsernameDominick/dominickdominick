@@ -275,7 +275,8 @@
       const style = blockPixelStyle(b);
       maxBottom = Math.max(maxBottom, style.top + style.height + 100);
       const div = document.createElement("div");
-      div.className = "admin-block" + (b.id === selectedBlockId ? " selected" : "");
+      div.className =
+        "admin-block" + (b.id === selectedBlockId ? " selected" : "") + (b.style && b.style.hidden ? " block-is-hidden" : "");
       div.style.left = style.left + "px";
       div.style.top = style.top + "px";
       div.style.width = style.width + "px";
@@ -494,6 +495,7 @@
     { key: "borderWidth", label: "Border width (px)", type: "number" },
     { key: "borderColor", label: "Border color", type: "color" },
     { key: "borderRadius", label: "Border radius (px)", type: "number" },
+    { key: "hidden", label: "Hide from live site", type: "checkbox" },
   ];
 
   function fieldHtml(f, val, idPrefix) {
@@ -723,17 +725,38 @@
     el("articles-list").querySelectorAll(".article-list-item").forEach((item) => {
       item.addEventListener("click", () => {
         const article = articles.find((a) => a.id === Number(item.dataset.id));
-        currentArticleId = article.id;
-        el("article-title").value = article.title;
-        el("article-slug").value = article.slug;
-        el("article-tags").value = (article.tags || []).join(", ");
-        el("article-og-image").value = article.og_image || "";
-        el("article-body").value = article.body;
-        el("article-published").checked = !!article.published_at;
-        el("article-publish-at").value = isoToLocalInput(article.published_at);
+        populateArticleForm(article);
         renderArticlesList();
       });
     });
+  }
+
+  function populateArticleForm(article) {
+    currentArticleId = article.id;
+    el("article-title").value = article.title;
+    el("article-slug").value = article.slug;
+    el("article-tags").value = (article.tags || []).join(", ");
+    el("article-og-image").value = article.og_image || "";
+    el("article-body").value = article.body;
+    el("article-published").checked = !!article.published_at;
+    el("article-publish-at").value = isoToLocalInput(article.published_at);
+    updateArticleExtras();
+  }
+
+  // Shows/hides the Preview and History controls, which only make sense
+  // once an article has been saved (so it has a slug and a real id).
+  function updateArticleExtras() {
+    const slug = el("article-slug").value;
+    const previewLink = el("preview-article-link");
+    const historyBtn = el("article-history-btn");
+    if (currentArticleId && slug) {
+      previewLink.href = `/random/${slug}?preview=1`;
+      previewLink.hidden = false;
+      historyBtn.hidden = false;
+    } else {
+      previewLink.hidden = true;
+      historyBtn.hidden = true;
+    }
   }
 
   function clearArticleForm() {
@@ -745,6 +768,7 @@
     el("article-body").value = "";
     el("article-published").checked = false;
     el("article-publish-at").value = "";
+    updateArticleExtras();
   }
 
   el("new-article").addEventListener("click", clearArticleForm);
@@ -776,8 +800,10 @@
       } else {
         const res = await api("/articles", { method: "POST", body: JSON.stringify(body) });
         currentArticleId = res.id;
+        el("article-slug").value = res.slug;
       }
       articles = await api("/articles");
+      updateArticleExtras();
       renderArticlesList();
     } catch (err) {
       alert(err.message);
@@ -919,6 +945,9 @@
     el("settings-bg").value = settings.theme_bg || "#0b0b0c";
     el("settings-font").value = settings.theme_font || "";
     el("settings-footer").value = settings.site_footer || "";
+    el("settings-custom-head").value = settings.custom_head || "";
+    el("settings-webhook-url").value = settings.webhook_url || "";
+    el("link-check-results").innerHTML = "";
     el("settings-modal").hidden = false;
   });
   el("close-settings").addEventListener("click", () => (el("settings-modal").hidden = true));
@@ -932,11 +961,226 @@
           theme_bg: el("settings-bg").value,
           theme_font: el("settings-font").value,
           site_footer: el("settings-footer").value,
+          custom_head: el("settings-custom-head").value,
+          webhook_url: el("settings-webhook-url").value,
         }),
       });
       el("settings-modal").hidden = true;
     } catch (err) {
       alert(err.message);
+    }
+  });
+
+  el("check-links-btn").addEventListener("click", async () => {
+    const btn = el("check-links-btn");
+    const originalText = btn.textContent;
+    btn.textContent = "Checking…";
+    btn.disabled = true;
+    try {
+      const results = await api("/link-check");
+      el("link-check-results").innerHTML =
+        results
+          .map(
+            (r) =>
+              `<div class="link-check-row ${r.ok === false ? "broken" : r.ok ? "ok" : ""}"><span class="link-check-url">${escapeHtml(
+                r.url
+              )}</span><span class="link-check-source">${escapeHtml(r.source)}</span><span class="link-check-status">${escapeHtml(
+                r.status
+              )}</span></div>`
+          )
+          .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No links found.</p>";
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      btn.textContent = originalText;
+      btn.disabled = false;
+    }
+  });
+
+  // ---------- Revisions ----------
+  async function openRevisions(kind, entityId) {
+    el("revisions-modal").hidden = false;
+    const revisions = await api(`/revisions?kind=${kind}&id=${entityId}`);
+    el("revisions-list").innerHTML =
+      revisions
+        .map(
+          (r) =>
+            `<div class="revision-row"><span>${new Date(r.created_at.replace(" ", "T") + "Z").toLocaleString()}</span><button type="button" class="restore-revision" data-id="${
+              r.id
+            }">Restore</button></div>`
+        )
+        .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No history yet.</p>";
+
+    el("revisions-list")
+      .querySelectorAll(".restore-revision")
+      .forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          if (!confirm("Restore this version? The current state is saved first, so this can be undone too.")) return;
+          try {
+            await api(`/revisions/${btn.dataset.id}/restore`, {
+              method: "POST",
+              body: JSON.stringify({ kind, entity_id: entityId }),
+            });
+            el("revisions-modal").hidden = true;
+            if (kind === "page") {
+              await loadBlocks();
+            } else {
+              articles = await api("/articles");
+              const a = articles.find((x) => x.id === entityId);
+              if (a) populateArticleForm(a);
+              renderArticlesList();
+            }
+          } catch (err) {
+            alert(err.message);
+          }
+        });
+      });
+  }
+
+  el("close-revisions").addEventListener("click", () => (el("revisions-modal").hidden = true));
+  el("page-history-btn").addEventListener("click", () => {
+    if (currentPage) openRevisions("page", currentPage.id);
+  });
+  el("article-history-btn").addEventListener("click", () => {
+    if (currentArticleId) openRevisions("article", currentArticleId);
+  });
+
+  // ---------- Command palette (Ctrl/Cmd+K) ----------
+  let commandItems = [];
+  let commandActiveIndex = 0;
+
+  function quickActions() {
+    const actions = [
+      { label: "Add new page", sub: "", run: () => { closeCommandPalette(); el("new-page-btn").click(); } },
+      { label: "Open Articles", sub: "", run: () => { closeCommandPalette(); el("articles-btn").click(); } },
+      { label: "Open Media Library", sub: "", run: () => { closeCommandPalette(); el("media-btn").click(); } },
+      { label: "Open Redirects", sub: "", run: () => { closeCommandPalette(); el("redirects-btn").click(); } },
+      { label: "Open Analytics", sub: "", run: () => { closeCommandPalette(); el("analytics-btn").click(); } },
+      { label: "Open Site Settings", sub: "", run: () => { closeCommandPalette(); el("site-settings-btn").click(); } },
+    ];
+    pages.forEach((p) => {
+      actions.push({
+        label: `Go to page: ${p.title || p.slug}`,
+        sub: p.slug === "home" ? "/" : `/${p.slug}`,
+        run: () => {
+          closeCommandPalette();
+          selectPage(p.id);
+        },
+      });
+    });
+    return actions;
+  }
+
+  async function openArticleEditorById(id) {
+    el("articles-modal").hidden = false;
+    articles = await api("/articles");
+    const article = articles.find((a) => a.id === id);
+    if (article) populateArticleForm(article);
+    renderArticlesList();
+  }
+
+  async function goToBlock(pageId, blockId) {
+    await selectPage(pageId);
+    selectedBlockId = blockId;
+    renderCanvas();
+    renderInspector();
+    if (isMobile()) openDrawer(el("inspector"));
+  }
+
+  function setCommandActive(index) {
+    commandActiveIndex = index;
+    el("command-results")
+      .querySelectorAll(".command-result")
+      .forEach((row, i) => row.classList.toggle("active", i === index));
+  }
+
+  function renderCommandResults(items) {
+    commandItems = items;
+    commandActiveIndex = 0;
+    el("command-results").innerHTML = items.length
+      ? items
+          .map(
+            (it, i) =>
+              `<div class="command-result${i === 0 ? " active" : ""}" data-index="${i}"><span>${escapeHtml(
+                it.label
+              )}</span><span class="command-result-sub">${escapeHtml(it.sub || "")}</span></div>`
+          )
+          .join("")
+      : "<p class='command-empty'>No results.</p>";
+    el("command-results")
+      .querySelectorAll(".command-result")
+      .forEach((row) => {
+        row.addEventListener("click", () => commandItems[Number(row.dataset.index)].run());
+        row.addEventListener("mousemove", () => setCommandActive(Number(row.dataset.index)));
+      });
+  }
+
+  let commandSearchTimer = null;
+  function runCommandSearch(q) {
+    const localMatches = q ? quickActions().filter((a) => a.label.toLowerCase().includes(q.toLowerCase())) : quickActions();
+    renderCommandResults(localMatches);
+    if (!q) return;
+    clearTimeout(commandSearchTimer);
+    commandSearchTimer = setTimeout(async () => {
+      try {
+        const results = await api(`/search?q=${encodeURIComponent(q)}`);
+        const items = [...localMatches];
+        results.pages.forEach((p) =>
+          items.push({
+            label: `Page: ${p.title}`,
+            sub: `/${p.slug}`,
+            run: () => {
+              closeCommandPalette();
+              selectPage(p.id);
+            },
+          })
+        );
+        results.articles.forEach((a) =>
+          items.push({
+            label: `Article: ${a.title}`,
+            sub: a.published_at ? "" : "(draft)",
+            run: () => openArticleEditorById(a.id),
+          })
+        );
+        results.blocks.forEach((b) =>
+          items.push({
+            label: `Block: ${blockLabel(b.type)}`,
+            sub: `page #${b.page_id}`,
+            run: () => goToBlock(b.page_id, b.id),
+          })
+        );
+        renderCommandResults(items);
+      } catch {
+        // leave the local matches showing
+      }
+    }, 200);
+  }
+
+  function openCommandPalette() {
+    el("command-modal").hidden = false;
+    el("command-input").value = "";
+    el("command-input").focus();
+    renderCommandResults(quickActions());
+  }
+  function closeCommandPalette() {
+    el("command-modal").hidden = true;
+  }
+
+  el("command-btn").addEventListener("click", openCommandPalette);
+  el("command-input").addEventListener("input", (e) => runCommandSearch(e.target.value.trim()));
+  el("command-input").addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeCommandPalette();
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setCommandActive(Math.min(commandActiveIndex + 1, commandItems.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setCommandActive(Math.max(commandActiveIndex - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (commandItems[commandActiveIndex]) commandItems[commandActiveIndex].run();
     }
   });
 
@@ -1028,6 +1272,54 @@
       analyticsRange = Number(btn.dataset.days);
       await loadAnalytics();
     });
+  });
+
+  // ---------- Keyboard shortcuts ----------
+  document.addEventListener("keydown", (e) => {
+    const tag = document.activeElement && document.activeElement.tagName;
+    const isTyping =
+      tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (document.activeElement && document.activeElement.isContentEditable);
+    const mod = e.metaKey || e.ctrlKey;
+
+    if (mod && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      openCommandPalette();
+      return;
+    }
+
+    if (mod && e.key.toLowerCase() === "s") {
+      e.preventDefault();
+      if (!el("articles-modal").hidden) el("save-article").click();
+      else if (!el("settings-modal").hidden) el("save-settings").click();
+      else if (currentPage) el("save-page-settings").click();
+      return;
+    }
+
+    if (isTyping || app.hidden) return;
+
+    if ((e.key === "Delete" || e.key === "Backspace") && selectedBlockId) {
+      e.preventDefault();
+      el("delete-block-btn").click();
+      return;
+    }
+
+    if (selectedBlockId && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
+      const block = blocks.find((b) => b.id === selectedBlockId);
+      if (!block) return;
+      e.preventDefault();
+      let { col, row } = block;
+      if (e.key === "ArrowUp") row = Math.max(1, row - 1);
+      if (e.key === "ArrowDown") row = row + 1;
+      if (e.key === "ArrowLeft") col = Math.max(1, col - 1);
+      if (e.key === "ArrowRight") col = Math.min(COLS - block.col_span + 1, col + 1);
+      if (col === block.col && row === block.row) return;
+      const trial = { ...block, col, row };
+      if (wouldOverlap(trial)) return;
+      block.col = col;
+      block.row = row;
+      renderCanvas();
+      api(`/blocks/${block.id}`, { method: "PATCH", body: JSON.stringify({ col, row }) }).catch((err) => alert(err.message));
+    }
   });
 
   // ---------- Boot ----------

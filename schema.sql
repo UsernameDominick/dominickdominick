@@ -54,6 +54,14 @@ CREATE TABLE redirects (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE revisions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL,
+  entity_id INTEGER NOT NULL,
+  snapshot TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE pageviews (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   path TEXT NOT NULL,
@@ -63,6 +71,7 @@ CREATE TABLE pageviews (
 );
 
 CREATE INDEX idx_blocks_page ON blocks(page_id);
+CREATE INDEX idx_revisions_kind_entity ON revisions(kind, entity_id);
 CREATE INDEX idx_articles_published ON articles(published_at);
 CREATE INDEX idx_login_attempts_ip_time ON login_attempts(ip, attempted_at);
 CREATE INDEX idx_pageviews_created ON pageviews(created_at);

@@ -28,6 +28,7 @@
         <button id="new-page-btn" title="New page">+ Page</button>
       </div>
       <div class="admin-header-right">
+        <button id="command-btn" title="Search / jump to anything (Ctrl+K)">Search ⌘K</button>
         <button id="articles-btn">Articles</button>
         <button id="media-btn">Media</button>
         <button id="redirects-btn">Redirects</button>
@@ -66,6 +67,7 @@
           <button type="button" class="upload-trigger" data-target="#page-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#page-og-image">Browse…</button>
         </label>
         <button id="save-page-settings">Save page settings</button>
+        <button id="page-history-btn">History</button>
         <button id="delete-page-btn" class="danger">Delete this page</button>
       </aside>
 
@@ -105,6 +107,8 @@
           <div class="article-actions">
             <label><input type="checkbox" id="article-published"> Published</label>
             <label>Publish at (blank = immediately)<input type="datetime-local" id="article-publish-at"></label>
+            <a id="preview-article-link" href="#" target="_blank" class="preview-link" hidden>Preview ↗</a>
+            <button id="article-history-btn" type="button" hidden>History</button>
             <button id="save-article">Save</button>
             <button id="new-article">New</button>
             <button id="delete-article" class="danger">Delete</button>
@@ -214,13 +218,42 @@
         <label>Shown at the bottom of every page. Blank = no footer. Supports **bold**, *italic*, [link](url).
           <textarea id="settings-footer" rows="3" placeholder="© 2026 Dominick"></textarea>
         </label>
+        <h2>Advanced</h2>
+        <label>Custom &lt;head&gt; code<br>Inserted as-is on every page — for a script tag, verification meta tag, etc. Trusted content only.
+          <textarea id="settings-custom-head" rows="3" placeholder="&lt;script&gt;...&lt;/script&gt;"></textarea>
+        </label>
+        <label>Webhook URL<br>Called with a POST when an article is published. Blank = off.
+          <input id="settings-webhook-url" type="text" placeholder="https://...">
+        </label>
         <button id="save-settings">Save</button>
+        <h2>Link Checker</h2>
+        <label style="margin-bottom:0;">Scans every button/project-card link and article link for broken URLs.</label>
+        <button type="button" id="check-links-btn">Check links</button>
+        <div id="link-check-results" class="link-check-results"></div>
         <h2>Backup</h2>
         <label style="margin-bottom:0;">Download everything — pages, blocks, articles, settings — as one file.</label>
         <button type="button" id="export-btn">Download backup</button>
         <label style="margin-bottom:0;">Restore from a backup file. <strong>Replaces all current content.</strong></label>
         <button type="button" id="import-btn" class="danger">Restore from file…</button>
       </div>
+    </div>
+  </div>
+
+  <div id="command-modal" class="modal command-modal" hidden>
+    <div class="modal-inner command-modal-inner">
+      <input id="command-input" class="command-input" placeholder="Search pages, articles, blocks… or jump to an action">
+      <div id="command-results" class="command-results"></div>
+    </div>
+  </div>
+
+  <div id="revisions-modal" class="modal" hidden>
+    <div class="modal-inner revisions-modal-inner">
+      <header>
+        <h1>History</h1>
+        <button id="close-revisions">×</button>
+      </header>
+      <p class="redirects-hint">Restoring saves the current state first, so restoring is itself undoable.</p>
+      <div id="revisions-list" class="revisions-list"></div>
     </div>
   </div>
 

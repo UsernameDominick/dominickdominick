@@ -13,9 +13,11 @@ A Cloudflare Worker + D1 site with a built-in visual page editor.
   content, positioned on a 24-column grid, plus a per-block `style`
   override: color, background, font, font size, border), `articles`
   (posts under Random), `settings` (site-wide config: default share
-  image, theme accent/background/font), `login_attempts` (rate limiting),
-  `redirects` (old path → new path), and `pageviews` (self-hosted
-  analytics — path, referrer domain, country, no cookies or IPs stored).
+  image, theme accent/background/font, custom `<head>` code, a webhook
+  URL), `login_attempts` (rate limiting), `redirects` (old path → new
+  path), `revisions` (undo history for pages and articles), and
+  `pageviews` (self-hosted analytics — path, referrer domain, country,
+  no cookies or IPs stored).
 - **R2 bucket** (`dominickdominick-media`) — uploaded images. Served back
   through the Worker at `/media/:key` rather than R2's public dev URLs,
   which Cloudflare doesn't consider production-ready.
@@ -56,6 +58,25 @@ Worker secret, not stored in this repo). From there:
   them reachable from elsewhere
 - "Redirects" sends an old URL to a new one (301 or 302) — handy after
   renaming or deleting a page or post so old links don't just 404
+- Press **Ctrl/Cmd+K** anywhere in the admin for a search/command palette —
+  jump to a page, article, or block by text match, or open any panel.
+  Ctrl/Cmd+S saves the current form; with a block selected, Delete removes
+  it and arrow keys nudge it a grid unit at a time (both blocked from
+  overlapping, same as dragging)
+- Every page and article keeps a **History** — the last 20 versions, each
+  restorable, and restoring itself saves the current state first so it's
+  undoable
+- A draft or scheduled article's editor shows a **Preview** link that
+  works while logged in, even though the article isn't public yet
+- A block's Style panel has a "Hide from live site" checkbox — keeps the
+  block (and its position) without publishing it
+- Under "Site" → Advanced: custom `<head>` code (a verification meta tag,
+  a script, anything trusted) injected on every page, and a webhook URL
+  that gets POSTed `{title, slug, url, published_at}` the moment an
+  article is published
+- Under "Site" → Link Checker: scans every button/project-card/article
+  link — internal paths are checked against real pages/articles/redirects,
+  external ones get a live request — and flags anything broken
 
 Changes save immediately — no separate publish step.
 

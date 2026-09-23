@@ -1,4 +1,5 @@
 import { getPageBySlug, listNavPages, listBlocks, listArticles, getArticleBySlug, getSetting, recordPageview, getRedirect } from "./db.js";
+import { isAuthenticated } from "./auth.js";
 
 async function getTheme(env) {
   const [accent, bg, font] = await Promise.all([
@@ -12,12 +13,13 @@ import { renderShell, renderBlocks, renderTags, excerpt, esc, paragraphsHtml } f
 import { handleAdminApi } from "./admin-api.js";
 
 async function renderPage(env, page, url) {
-  const [navItems, blocks, defaultOgImage, theme, footerText] = await Promise.all([
+  const [navItems, blocks, defaultOgImage, theme, footerText, customHead] = await Promise.all([
     listNavPages(env),
     listBlocks(env, page.id),
     getSetting(env, "default_og_image"),
     getTheme(env),
     getSetting(env, "site_footer"),
+    getSetting(env, "custom_head"),
   ]);
   const activeTagFilter = url.searchParams.get("tag") || null;
   const bodyHtml = await renderBlocks(env, blocks, { activeTagFilter });
@@ -42,16 +44,18 @@ async function renderPage(env, page, url) {
     ogImage: page.og_image || defaultOgImage || null,
     theme,
     footerText,
+    customHead,
   });
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
 async function renderArticle(env, article, navItems) {
   const description = excerpt(article.body) || article.title;
-  const [defaultOgImage, theme, footerText] = await Promise.all([
+  const [defaultOgImage, theme, footerText, customHead] = await Promise.all([
     getSetting(env, "default_og_image"),
     getTheme(env),
     getSetting(env, "site_footer"),
+    getSetting(env, "custom_head"),
   ]);
   const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 2;">
     <time datetime="${esc(article.published_at)}">${esc((article.published_at || "").slice(0, 10))}</time>
@@ -85,6 +89,7 @@ async function renderArticle(env, article, navItems) {
     ogImage: article.og_image || defaultOgImage || null,
     theme,
     footerText,
+    customHead,
   });
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
@@ -176,7 +181,7 @@ async function route(request, env, ctx) {
     const path = url.pathname;
 
     if (path.startsWith("/api/admin")) {
-      return handleAdminApi(request, env, url);
+      return handleAdminApi(request, env, url, ctx);
     }
 
     if (path === "/sitemap.xml") {
@@ -216,11 +221,13 @@ async function route(request, env, ctx) {
     const articleMatch = path.match(/^\/random\/([a-z0-9-]+)$/);
     if (articleMatch) {
       const article = await getArticleBySlug(env, articleMatch[1]);
-      if (!article || !article.published_at || article.published_at > new Date().toISOString()) {
+      const isPublished = article && article.published_at && article.published_at <= new Date().toISOString();
+      const isPreview = url.searchParams.get("preview") === "1" && (await isAuthenticated(request, env));
+      if (!article || (!isPublished && !isPreview)) {
         return env.ASSETS.fetch(request);
       }
       const navItems = await listNavPages(env);
-      trackView(ctx, env, request, path);
+      if (isPublished) trackView(ctx, env, request, path);
       return renderArticle(env, article, navItems);
     }
 

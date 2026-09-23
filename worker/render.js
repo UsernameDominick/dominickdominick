@@ -168,10 +168,12 @@ async function renderBlockInner(env, block, ctx) {
 
 export async function renderBlocks(env, blocks, ctx = {}) {
   const parts = await Promise.all(
-    blocks.map(async (b) => {
-      const gridStyle = `grid-column:${b.col} / span ${b.col_span};grid-row:${b.row} / span ${b.row_span};`;
-      return `<div class="block" style="${gridStyle}${blockStyleAttr(b.style)}">${await renderBlockInner(env, b, ctx)}</div>`;
-    })
+    blocks
+      .filter((b) => !(b.style && b.style.hidden))
+      .map(async (b) => {
+        const gridStyle = `grid-column:${b.col} / span ${b.col_span};grid-row:${b.row} / span ${b.row_span};`;
+        return `<div class="block" style="${gridStyle}${blockStyleAttr(b.style)}">${await renderBlockInner(env, b, ctx)}</div>`;
+      })
   );
   return parts.join("\n");
 }
@@ -194,6 +196,7 @@ export function renderShell({
   ogImage = null,
   theme = {},
   footerText = null,
+  customHead = null,
 }) {
   const canonical = `https://dominickdominick.com${path}`;
   const themeVars = [];
@@ -239,6 +242,7 @@ ${ogImage ? `<meta name="twitter:image" content="${esc(ogImage)}">` : ""}
 <link rel="stylesheet" href="/style.css">
 ${themeStyle}
 ${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>` : ""}
+${customHead || ""}
 </head>
 <body>
   <div class="page">

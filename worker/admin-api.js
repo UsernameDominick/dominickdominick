@@ -25,6 +25,13 @@ import {
   createRedirect,
   updateRedirect,
   deleteRedirect,
+  maybeSnapshotPage,
+  snapshotArticle,
+  listRevisions,
+  restorePageRevision,
+  restoreArticleRevision,
+  search,
+  checkLinks,
 } from "./db.js";
 import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated } from "./auth.js";
 
@@ -58,15 +65,36 @@ function slugify(str) {
     .slice(0, 80);
 }
 
-export async function handleAdminApi(request, env, url) {
+export async function handleAdminApi(request, env, url, ctx) {
   try {
-    return await routeAdminApi(request, env, url);
+    return await routeAdminApi(request, env, url, ctx);
   } catch (err) {
     return json({ error: err.message || "Something went wrong" }, { status: 500 });
   }
 }
 
-async function routeAdminApi(request, env, url) {
+// A configured webhook fires (best-effort, non-blocking) the moment an
+// article transitions into "published" — not on every subsequent edit.
+async function maybeFireWebhook(env, ctx, { wasPublished, article }) {
+  if (wasPublished || !article.published_at || article.published_at > new Date().toISOString()) return;
+  const webhookUrl = await getSetting(env, "webhook_url");
+  if (!webhookUrl) return;
+  const payload = {
+    title: article.title,
+    slug: article.slug,
+    url: `https://dominickdominick.com/random/${article.slug}`,
+    published_at: article.published_at,
+  };
+  ctx.waitUntil(
+    fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).catch(() => {})
+  );
+}
+
+async function routeAdminApi(request, env, url, ctx) {
   const path = url.pathname.replace(/^\/api\/admin/, "");
   const method = request.method;
 
@@ -147,7 +175,9 @@ async function routeAdminApi(request, env, url) {
   }
   if (blocksMatch && method === "POST") {
     const body = await request.json().catch(() => ({}));
-    const id = await createBlock(env, Number(blocksMatch[1]), body);
+    const pageId = Number(blocksMatch[1]);
+    await maybeSnapshotPage(env, pageId);
+    const id = await createBlock(env, pageId, body);
     return json({ id });
   }
 
@@ -155,11 +185,17 @@ async function routeAdminApi(request, env, url) {
   const blockMatch = path.match(/^\/blocks\/(\d+)$/);
   if (blockMatch && method === "PATCH") {
     const body = await request.json().catch(() => ({}));
-    await updateBlock(env, Number(blockMatch[1]), body);
+    const id = Number(blockMatch[1]);
+    const row = await env.DB.prepare("SELECT page_id FROM blocks WHERE id = ?").bind(id).first();
+    if (row) await maybeSnapshotPage(env, row.page_id);
+    await updateBlock(env, id, body);
     return json({ ok: true });
   }
   if (blockMatch && method === "DELETE") {
-    await deleteBlock(env, Number(blockMatch[1]));
+    const id = Number(blockMatch[1]);
+    const row = await env.DB.prepare("SELECT page_id FROM blocks WHERE id = ?").bind(id).first();
+    if (row) await maybeSnapshotPage(env, row.page_id);
+    await deleteBlock(env, id);
     return json({ ok: true });
   }
 
@@ -176,6 +212,10 @@ async function routeAdminApi(request, env, url) {
       return json({ error: "An article with that slug already exists" }, { status: 409 });
     }
     const id = await createArticle(env, { ...body, slug });
+    await maybeFireWebhook(env, ctx, {
+      wasPublished: false,
+      article: { title: body.title, slug, published_at: body.published_at },
+    });
     return json({ id, slug });
   }
   const articleMatch = path.match(/^\/articles\/(\d+)$/);
@@ -188,7 +228,19 @@ async function routeAdminApi(request, env, url) {
         return json({ error: "An article with that slug already exists" }, { status: 409 });
       }
     }
+    const before = await env.DB.prepare("SELECT slug, title, published_at FROM articles WHERE id = ?").bind(id).first();
+    await snapshotArticle(env, id);
     await updateArticle(env, id, body);
+    const wasPublished = !!(before && before.published_at && before.published_at <= new Date().toISOString());
+    const newPublishedAt = "published_at" in body ? body.published_at : before && before.published_at;
+    await maybeFireWebhook(env, ctx, {
+      wasPublished,
+      article: {
+        title: body.title || (before && before.title),
+        slug: body.slug || (before && before.slug),
+        published_at: newPublishedAt,
+      },
+    });
     return json({ ok: true });
   }
   if (articleMatch && method === "DELETE") {
@@ -277,6 +329,42 @@ async function routeAdminApi(request, env, url) {
     return json({ ok: true });
   }
 
+  // /search — pages, articles, and blocks matching a text query
+  if (path === "/search" && method === "GET") {
+    const q = (url.searchParams.get("q") || "").trim();
+    if (!q) return json({ pages: [], articles: [], blocks: [] });
+    return json(await search(env, q));
+  }
+
+  // /link-check — walks every button/project-card/article link and reports status
+  if (path === "/link-check" && method === "GET") {
+    return json(await checkLinks(env));
+  }
+
+  // /revisions?kind=page|article&id=N — history for a page's blocks or an article
+  if (path === "/revisions" && method === "GET") {
+    const kind = url.searchParams.get("kind");
+    const id = Number(url.searchParams.get("id"));
+    if (!["page", "article"].includes(kind) || !id) {
+      return json({ error: "Invalid kind/id" }, { status: 400 });
+    }
+    return json(await listRevisions(env, kind, id));
+  }
+  const restoreMatch = path.match(/^\/revisions\/(\d+)\/restore$/);
+  if (restoreMatch && method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    const revisionId = Number(restoreMatch[1]);
+    const entityId = Number(body.entity_id);
+    try {
+      if (body.kind === "page") await restorePageRevision(env, entityId, revisionId);
+      else if (body.kind === "article") await restoreArticleRevision(env, entityId, revisionId);
+      else return json({ error: "Invalid kind" }, { status: 400 });
+    } catch (err) {
+      return json({ error: err.message || "Restore failed" }, { status: 400 });
+    }
+    return json({ ok: true });
+  }
+
   // /export — a full JSON backup, downloaded straight from the browser
   if (path === "/export" && method === "GET") {
     const data = await exportAll(env);
@@ -308,12 +396,14 @@ async function routeAdminApi(request, env, url) {
 
   // /settings
   if (path === "/settings" && method === "GET") {
-    const [default_og_image, theme_accent, theme_bg, theme_font, site_footer] = await Promise.all([
+    const [default_og_image, theme_accent, theme_bg, theme_font, site_footer, custom_head, webhook_url] = await Promise.all([
       getSetting(env, "default_og_image"),
       getSetting(env, "theme_accent"),
       getSetting(env, "theme_bg"),
       getSetting(env, "theme_font"),
       getSetting(env, "site_footer"),
+      getSetting(env, "custom_head"),
+      getSetting(env, "webhook_url"),
     ]);
     return json({
       default_og_image: default_og_image || "",
@@ -321,6 +411,8 @@ async function routeAdminApi(request, env, url) {
       theme_bg: theme_bg || "",
       theme_font: theme_font || "",
       site_footer: site_footer || "",
+      custom_head: custom_head || "",
+      webhook_url: webhook_url || "",
     });
   }
   if (path === "/settings" && method === "PUT") {
@@ -331,6 +423,8 @@ async function routeAdminApi(request, env, url) {
       setSetting(env, "theme_bg", body.theme_bg || ""),
       setSetting(env, "theme_font", body.theme_font || ""),
       setSetting(env, "site_footer", body.site_footer || ""),
+      setSetting(env, "custom_head", body.custom_head || ""),
+      setSetting(env, "webhook_url", body.webhook_url || ""),
     ]);
     return json({ ok: true });
   }

@@ -231,6 +231,125 @@ export async function deleteRedirect(env, id) {
   await env.DB.prepare("DELETE FROM redirects WHERE id = ?").bind(id).run();
 }
 
+// ---------- Revisions ----------
+// A snapshot of a page's blocks, or an article's row, kept so a bad editing
+// session can be undone. Page snapshots are throttled (see maybeSnapshotPage)
+// since block edits autosave on every drag/resize/field change.
+
+const REVISION_KEEP = 20;
+
+async function pruneRevisions(env, kind, entityId) {
+  await env.DB
+    .prepare(
+      `DELETE FROM revisions WHERE kind = ? AND entity_id = ? AND id NOT IN (
+         SELECT id FROM revisions WHERE kind = ? AND entity_id = ? ORDER BY id DESC LIMIT ?
+       )`
+    )
+    .bind(kind, entityId, kind, entityId, REVISION_KEEP)
+    .run();
+}
+
+async function snapshotPageBlocks(env, pageId) {
+  const { results } = await env.DB.prepare("SELECT * FROM blocks WHERE page_id = ? ORDER BY id").bind(pageId).all();
+  if (!results.length) return;
+  await env.DB
+    .prepare("INSERT INTO revisions (kind, entity_id, snapshot) VALUES ('page', ?, ?)")
+    .bind(pageId, JSON.stringify(results))
+    .run();
+  await pruneRevisions(env, "page", pageId);
+}
+
+const PAGE_SNAPSHOT_THROTTLE_MS = 3 * 60 * 1000;
+
+export async function maybeSnapshotPage(env, pageId) {
+  const last = await env.DB
+    .prepare("SELECT created_at FROM revisions WHERE kind = 'page' AND entity_id = ? ORDER BY id DESC LIMIT 1")
+    .bind(pageId)
+    .first();
+  if (last) {
+    const lastMs = new Date(last.created_at.replace(" ", "T") + "Z").getTime();
+    if (Date.now() - lastMs < PAGE_SNAPSHOT_THROTTLE_MS) return;
+  }
+  await snapshotPageBlocks(env, pageId);
+}
+
+export async function snapshotArticle(env, articleId) {
+  const row = await env.DB.prepare("SELECT * FROM articles WHERE id = ?").bind(articleId).first();
+  if (!row) return;
+  await env.DB
+    .prepare("INSERT INTO revisions (kind, entity_id, snapshot) VALUES ('article', ?, ?)")
+    .bind(articleId, JSON.stringify(row))
+    .run();
+  await pruneRevisions(env, "article", articleId);
+}
+
+export async function listRevisions(env, kind, entityId) {
+  const { results } = await env.DB
+    .prepare("SELECT id, created_at FROM revisions WHERE kind = ? AND entity_id = ? ORDER BY id DESC")
+    .bind(kind, entityId)
+    .all();
+  return results;
+}
+
+async function getRevision(env, id) {
+  const row = await env.DB.prepare("SELECT * FROM revisions WHERE id = ?").bind(id).first();
+  if (!row) return null;
+  return { ...row, snapshot: JSON.parse(row.snapshot) };
+}
+
+export async function restorePageRevision(env, pageId, revisionId) {
+  const rev = await getRevision(env, revisionId);
+  if (!rev || rev.kind !== "page" || rev.entity_id !== pageId) throw new Error("Revision not found");
+  // Unconditional (not throttled) so restoring is itself undoable.
+  await snapshotPageBlocks(env, pageId);
+  const stmts = [env.DB.prepare("DELETE FROM blocks WHERE page_id = ?").bind(pageId)];
+  for (const b of rev.snapshot) {
+    stmts.push(
+      env.DB
+        .prepare(
+          `INSERT INTO blocks (id, page_id, type, content, style, col, col_span, row, row_span, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(b.id, pageId, b.type, b.content, b.style, b.col, b.col_span, b.row, b.row_span, b.updated_at)
+    );
+  }
+  await env.DB.batch(stmts);
+}
+
+export async function restoreArticleRevision(env, articleId, revisionId) {
+  const rev = await getRevision(env, revisionId);
+  if (!rev || rev.kind !== "article" || rev.entity_id !== articleId) throw new Error("Revision not found");
+  await snapshotArticle(env, articleId);
+  const a = rev.snapshot;
+  await env.DB
+    .prepare(
+      "UPDATE articles SET title = ?, body = ?, tags = ?, og_image = ?, published_at = ?, updated_at = datetime('now') WHERE id = ?"
+    )
+    .bind(a.title, a.body, a.tags, a.og_image, a.published_at, articleId)
+    .run();
+}
+
+// ---------- Search ----------
+export async function search(env, q) {
+  const like = `%${q}%`;
+  const [pages, articles, blocks] = await Promise.all([
+    env.DB
+      .prepare(
+        "SELECT id, slug, title FROM pages WHERE title LIKE ? OR meta_description LIKE ? OR nav_label LIKE ? OR slug LIKE ? LIMIT 15"
+      )
+      .bind(like, like, like, like)
+      .all(),
+    env.DB
+      .prepare(
+        "SELECT id, slug, title FROM articles WHERE title LIKE ? OR body LIKE ? OR tags LIKE ? OR slug LIKE ? LIMIT 15"
+      )
+      .bind(like, like, like, like)
+      .all(),
+    env.DB.prepare("SELECT id, page_id, type FROM blocks WHERE content LIKE ? LIMIT 15").bind(like).all(),
+  ]);
+  return { pages: pages.results, articles: articles.results, blocks: blocks.results };
+}
+
 export async function getSetting(env, key) {
   const row = await env.DB.prepare("SELECT value FROM settings WHERE key = ?").bind(key).first();
   return row ? row.value : null;
@@ -454,4 +573,70 @@ export async function importAll(env, data) {
   // lands, or (on any failure) none of it does, so a bad file can't leave
   // the site half-wiped.
   await env.DB.batch(stmts);
+}
+
+// ---------- Link checker ----------
+// Walks every button/project-card link and every article body link, and
+// checks each one: internal paths (starting with "/") are checked against
+// known pages/articles/redirects (no network call); external links get a
+// live HEAD/GET request with a short timeout.
+
+async function checkOneLink(env, rawUrl) {
+  if (!rawUrl) return { ok: null, status: "Empty" };
+  if (rawUrl.startsWith("/")) {
+    if (rawUrl === "/" || (await getPageBySlug(env, rawUrl.replace(/^\/+/, "").replace(/\/+$/, "") || "home"))) {
+      return { ok: true, status: "OK" };
+    }
+    const articleMatch = rawUrl.match(/^\/random\/([a-z0-9-]+)$/);
+    if (articleMatch) {
+      const article = await getArticleBySlug(env, articleMatch[1]);
+      if (article) return { ok: true, status: "OK" };
+    }
+    const redirect = await getRedirect(env, rawUrl);
+    if (redirect) return { ok: true, status: `Redirects to ${redirect.to_path}` };
+    return { ok: false, status: "Not found" };
+  }
+  if (!/^https?:\/\//i.test(rawUrl)) return { ok: null, status: "Skipped" };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 6000);
+  try {
+    let res = await fetch(rawUrl, { method: "HEAD", redirect: "follow", signal: controller.signal });
+    if (res.status === 405 || res.status === 501) {
+      res = await fetch(rawUrl, { method: "GET", redirect: "follow", signal: controller.signal });
+    }
+    return { ok: res.ok, status: String(res.status) };
+  } catch {
+    return { ok: false, status: "Unreachable" };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function checkLinks(env) {
+  const pages = await listPages(env);
+  const pageBlocks = await Promise.all(pages.map((p) => listBlocks(env, p.id)));
+  const articles = await listArticles(env);
+
+  const found = [];
+  pages.forEach((p, i) => {
+    for (const b of pageBlocks[i]) {
+      const c = b.content || {};
+      if ((b.type === "button" || b.type === "project-card") && c.url) {
+        found.push({ url: c.url, source: `Page "${p.title}" — ${b.type === "button" ? "Button" : "Project Card"} block` });
+      }
+    }
+  });
+  for (const a of articles) {
+    const links = [...(a.body || "").matchAll(/\[[^\]]+\]\(([^)]+)\)/g)];
+    for (const m of links) found.push({ url: m[1], source: `Article "${a.title}"` });
+  }
+
+  const uniqueUrls = [...new Set(found.map((f) => f.url))];
+  const statusByUrl = {};
+  await Promise.all(
+    uniqueUrls.map(async (u) => {
+      statusByUrl[u] = await checkOneLink(env, u);
+    })
+  );
+  return found.map((f) => ({ ...f, ...statusByUrl[f.url] }));
 }
