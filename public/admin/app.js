@@ -77,6 +77,12 @@
     });
   }
 
+  // Wires any <button class="browse-trigger" data-target="#id"> to open the
+  // media library in picker mode, filling the target input on click.
+  function wireBrowseButton(btn) {
+    btn.addEventListener("click", () => openMediaModal(btn.dataset.target));
+  }
+
   async function api(path, opts = {}) {
     const res = await fetch("/api/admin" + path, {
       ...opts,
@@ -492,7 +498,7 @@
       const fieldId = `${idPrefix}-${f.key}`;
       return `<label>${f.label}<input id="${fieldId}" data-key="${f.key}" type="text" value="${escapeHtml(
         val ?? ""
-      )}"><button type="button" class="upload-trigger" data-target="#${fieldId}">Upload image</button></label>`;
+      )}"><button type="button" class="upload-trigger" data-target="#${fieldId}">Upload image</button> <button type="button" class="browse-trigger" data-target="#${fieldId}">Browse…</button></label>`;
     }
     return `<label>${f.label}<input data-key="${f.key}" type="${f.type}" value="${escapeHtml(val ?? "")}"></label>`;
   }
@@ -527,6 +533,7 @@
     styleContainer.innerHTML = STYLE_FIELDS.map((f) => fieldHtml(f, block.style[f.key], `style-${block.id}`)).join("");
 
     container.querySelectorAll(".upload-trigger").forEach(wireUploadButton);
+    container.querySelectorAll(".browse-trigger").forEach(wireBrowseButton);
 
     function save() {
       renderCanvas();
@@ -732,6 +739,75 @@
     clearArticleForm();
   });
 
+  // ---------- Media library ----------
+  let mediaPickTarget = null;
+
+  function formatBytes(n) {
+    if (n < 1024) return n + " B";
+    if (n < 1024 * 1024) return (n / 1024).toFixed(0) + " KB";
+    return (n / (1024 * 1024)).toFixed(1) + " MB";
+  }
+
+  async function loadMediaLibrary() {
+    const items = await api("/media");
+    el("media-grid").innerHTML =
+      items
+        .map(
+          (item) =>
+            `<div class="media-item" data-url="${escapeHtml(item.url)}" data-key="${escapeHtml(item.key)}" title="${formatBytes(
+              item.size
+            )}"><img src="${escapeHtml(item.url)}" loading="lazy"><button type="button" class="media-delete" data-key="${escapeHtml(
+              item.key
+            )}" title="Delete">×</button></div>`
+        )
+        .join("") || "<p style='color:var(--text-dim);'>No uploads yet.</p>";
+
+    el("media-grid")
+      .querySelectorAll(".media-item")
+      .forEach((div) => {
+        div.addEventListener("click", (e) => {
+          if (e.target.classList.contains("media-delete")) return;
+          if (!mediaPickTarget) return;
+          const input = document.querySelector(mediaPickTarget);
+          if (input) {
+            input.value = div.dataset.url;
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+          closeMediaModal();
+        });
+      });
+
+    el("media-grid")
+      .querySelectorAll(".media-delete")
+      .forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          if (!confirm("Delete this file? Anything still using it will break.")) return;
+          try {
+            await api(`/media/${btn.dataset.key}`, { method: "DELETE" });
+            await loadMediaLibrary();
+          } catch (err) {
+            alert(err.message);
+          }
+        });
+      });
+  }
+
+  function openMediaModal(pickTarget) {
+    mediaPickTarget = pickTarget || null;
+    el("media-hint").hidden = !mediaPickTarget;
+    el("media-modal").hidden = false;
+    loadMediaLibrary().catch((err) => alert(err.message));
+  }
+
+  function closeMediaModal() {
+    el("media-modal").hidden = true;
+    mediaPickTarget = null;
+  }
+
+  el("media-btn").addEventListener("click", () => openMediaModal(null));
+  el("close-media").addEventListener("click", closeMediaModal);
+
   // ---------- Site settings ----------
   el("site-settings-btn").addEventListener("click", async () => {
     const settings = await api("/settings");
@@ -863,6 +939,7 @@
   }
 
   document.querySelectorAll(".upload-trigger").forEach(wireUploadButton);
+  document.querySelectorAll(".browse-trigger").forEach(wireBrowseButton);
 
   window.addEventListener("resize", () => renderCanvas());
   boot();

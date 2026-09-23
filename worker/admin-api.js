@@ -197,6 +197,20 @@ async function routeAdminApi(request, env, url) {
     return json({ url: `/media/${key}` });
   }
 
+  // /media — list/delete uploaded files, for the media library picker
+  if (path === "/media" && method === "GET") {
+    const listed = await env.MEDIA.list({ prefix: "uploads/", limit: 500 });
+    const items = listed.objects
+      .sort((a, b) => new Date(b.uploaded) - new Date(a.uploaded))
+      .map((o) => ({ key: o.key, url: `/media/${o.key}`, size: o.size, uploaded: o.uploaded }));
+    return json(items);
+  }
+  const mediaKeyMatch = path.match(/^\/media\/(.+)$/);
+  if (mediaKeyMatch && method === "DELETE") {
+    await env.MEDIA.delete(mediaKeyMatch[1]);
+    return json({ ok: true });
+  }
+
   // /export — a full JSON backup, downloaded straight from the browser
   if (path === "/export" && method === "GET") {
     const data = await exportAll(env);

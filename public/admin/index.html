@@ -29,6 +29,7 @@
       </div>
       <div class="admin-header-right">
         <button id="articles-btn">Articles</button>
+        <button id="media-btn">Media</button>
         <button id="analytics-btn">Analytics</button>
         <button id="site-settings-btn">Site</button>
         <a href="/" target="_blank" class="admin-view-live">View live ↗</a>
@@ -58,7 +59,7 @@
         <label>Nav order<input id="page-nav-order" type="number"></label>
         <label>Share image URL (og:image, blank = site default)
           <input id="page-og-image" type="text">
-          <button type="button" class="upload-trigger" data-target="#page-og-image">Upload image</button>
+          <button type="button" class="upload-trigger" data-target="#page-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#page-og-image">Browse…</button>
         </label>
         <button id="save-page-settings">Save page settings</button>
         <button id="delete-page-btn" class="danger">Delete this page</button>
@@ -94,7 +95,7 @@
           <input id="article-tags" placeholder="Tags, comma separated (e.g. life, code)">
           <div class="input-with-upload">
             <input id="article-og-image" placeholder="Share image URL (og:image, blank = site default)">
-            <button type="button" class="upload-trigger" data-target="#article-og-image">Upload image</button>
+            <button type="button" class="upload-trigger" data-target="#article-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#article-og-image">Browse…</button>
           </div>
           <textarea id="article-body" placeholder="Write here. Blank line = new paragraph. **bold**, *italic*, [link](url)." rows="16"></textarea>
           <div class="article-actions">
@@ -146,6 +147,17 @@
     </div>
   </div>
 
+  <div id="media-modal" class="modal" hidden>
+    <div class="modal-inner media-modal-inner">
+      <header>
+        <h1 id="media-modal-title">Media Library</h1>
+        <button id="close-media">×</button>
+      </header>
+      <p id="media-hint" class="media-hint" hidden>Click an image to use it.</p>
+      <div id="media-grid" class="media-grid"></div>
+    </div>
+  </div>
+
   <div id="settings-modal" class="modal" hidden>
     <div class="modal-inner settings-modal-inner">
       <header>
@@ -168,7 +180,7 @@
         <h2>Share image</h2>
         <label>Default share image (og:image)<br>Used on any page/article that doesn't set its own.
           <input id="settings-og-image" type="text" placeholder="https://...">
-          <button type="button" class="upload-trigger" data-target="#settings-og-image">Upload image</button>
+          <button type="button" class="upload-trigger" data-target="#settings-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#settings-og-image">Browse…</button>
         </label>
         <h2>Footer</h2>
         <label>Shown at the bottom of every page. Blank = no footer. Supports **bold**, *italic*, [link](url).
