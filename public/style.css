@@ -234,6 +234,66 @@ h6 { font-size: 0.9rem; }
   line-height: 1.6;
 }
 
+.empty-hint {
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.video-embed {
+  position: relative;
+  width: 100%;
+  height: 0;
+  padding-bottom: 56.25%;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg-elevated);
+}
+
+.video-embed iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.block-quote {
+  margin: 0;
+  padding: 4px 0 4px 20px;
+  border-left: 3px solid var(--accent);
+  color: var(--text-dim);
+  font-size: 1.05rem;
+  font-style: italic;
+}
+
+.block-quote p:first-child {
+  margin-top: 0;
+}
+
+.block-quote footer {
+  margin-top: 8px;
+  font-style: normal;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.block-quote footer::before {
+  content: "— ";
+}
+
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.gallery img {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
 .thought {
   border-bottom: 1px solid var(--border);
   padding-bottom: 16px;

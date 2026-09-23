@@ -84,6 +84,34 @@ function headingLevel(c) {
   return Number.isInteger(lvl) && lvl >= 1 && lvl <= 6 ? lvl : 1;
 }
 
+// Turns a pasted YouTube/Vimeo link into a privacy-friendly embed URL, or
+// null if the link isn't recognized (the caller falls back to a plain link).
+function videoEmbedUrl(rawUrl) {
+  if (!rawUrl) return null;
+  let u;
+  try {
+    u = new URL(rawUrl);
+  } catch {
+    return null;
+  }
+  const host = u.hostname.replace(/^www\./, "").replace(/^m\./, "");
+  if (host === "youtube.com") {
+    const id = u.searchParams.get("v");
+    if (id) return `https://www.youtube-nocookie.com/embed/${id}`;
+    const m = u.pathname.match(/^\/(shorts|embed)\/([\w-]+)/);
+    if (m) return `https://www.youtube-nocookie.com/embed/${m[2]}`;
+  }
+  if (host === "youtu.be") {
+    const id = u.pathname.slice(1);
+    if (id) return `https://www.youtube-nocookie.com/embed/${id}`;
+  }
+  if (host === "vimeo.com") {
+    const id = u.pathname.split("/").filter(Boolean)[0];
+    if (id && /^\d+$/.test(id)) return `https://player.vimeo.com/video/${id}`;
+  }
+  return null;
+}
+
 async function renderBlockInner(env, block, ctx) {
   const c = block.content || {};
   switch (block.type) {
@@ -101,6 +129,20 @@ async function renderBlockInner(env, block, ctx) {
       return `<hr>`;
     case "spacer":
       return "";
+    case "video": {
+      const embed = videoEmbedUrl(c.url);
+      if (!embed) return c.url ? `<p class="empty-hint">Unsupported video link — use a YouTube or Vimeo URL.</p>` : "";
+      return `<div class="video-embed"><iframe src="${esc(
+        embed
+      )}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>`;
+    }
+    case "quote":
+      return `<blockquote class="block-quote">${paragraphsHtml(c.text)}${c.cite ? `<footer>${esc(c.cite)}</footer>` : ""}</blockquote>`;
+    case "gallery": {
+      const images = Array.isArray(c.images) ? c.images.filter(Boolean) : [];
+      if (!images.length) return `<p class="empty-hint">No images yet.</p>`;
+      return `<div class="gallery">${images.map((url) => `<img src="${esc(url)}" loading="lazy">`).join("")}</div>`;
+    }
     case "project-card":
       return `<div class="project-card"><h2>${esc(c.title)}</h2>${c.description ? `<p>${esc(c.description)}</p>` : ""}${c.url ? `<a href="${esc(c.url)}"${c.external ? ' target="_blank" rel="noopener"' : ""}>${esc(c.label || c.url)}</a>` : ""}</div>`;
     case "article-list": {

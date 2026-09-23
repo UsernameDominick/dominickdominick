@@ -34,6 +34,11 @@ Worker secret, not stored in this repo). From there:
   else so it never overlaps.
 - Text blocks and article bodies support minimal markdown: `**bold**`,
   `*italic*`, `[label](url)`.
+- Block types include Heading, Text, Image, Button, Project Card, Article
+  List, Video Embed (paste a YouTube or Vimeo URL), Quote, and Gallery
+  (a grid of images).
+- Use the "Media" button, or "Browse…" next to any image field, to reuse
+  a previously uploaded image instead of uploading it again.
 - Manage Random posts under the "Articles" button — tags, drafts, a share
   image, an "Upload image" button that goes straight to R2
 - Under "Site": theme accent/background color, site-wide font, a

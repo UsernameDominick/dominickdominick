@@ -47,8 +47,17 @@
     return url;
   }
 
+  // Fills a field with a URL — either replacing its value (used by single
+  // image fields) or appending it as a new line (used by the gallery block's
+  // one-URL-per-line textarea).
+  function setFieldUrl(input, url, append) {
+    input.value = append ? (input.value ? input.value + "\n" + url : url) : url;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
   // Wires any <button class="upload-trigger" data-target="#id"> to open a file
-  // picker and fill the target input with the uploaded file's URL.
+  // picker and fill the target input with the uploaded file's URL. A
+  // data-append="1" attribute appends instead of replacing.
   function wireUploadButton(btn) {
     const targetInput = document.querySelector(btn.dataset.target);
     const fileInput = document.createElement("input");
@@ -65,8 +74,7 @@
       btn.disabled = true;
       try {
         const url = await uploadFile(file);
-        targetInput.value = url;
-        targetInput.dispatchEvent(new Event("change", { bubbles: true }));
+        setFieldUrl(targetInput, url, btn.dataset.append === "1");
       } catch (err) {
         alert(err.message);
       } finally {
@@ -80,7 +88,7 @@
   // Wires any <button class="browse-trigger" data-target="#id"> to open the
   // media library in picker mode, filling the target input on click.
   function wireBrowseButton(btn) {
-    btn.addEventListener("click", () => openMediaModal(btn.dataset.target));
+    btn.addEventListener("click", () => openMediaModal(btn.dataset.target, btn.dataset.append === "1"));
   }
 
   async function api(path, opts = {}) {
@@ -232,7 +240,7 @@
   }
 
   function blockLabel(type) {
-    return { heading: "Heading", text: "Text", image: "Image", button: "Button", "project-card": "Project Card", "article-list": "Article List", divider: "Divider", spacer: "Spacer", links: "Links" }[type] || type;
+    return { heading: "Heading", text: "Text", image: "Image", button: "Button", "project-card": "Project Card", "article-list": "Article List", video: "Video", quote: "Quote", gallery: "Gallery", divider: "Divider", spacer: "Spacer", links: "Links" }[type] || type;
   }
 
   function blockPreview(b) {
@@ -244,6 +252,9 @@
       case "button": return `Button: ${escapeHtml(c.label || "(no label)")}`;
       case "project-card": return `<strong>${escapeHtml(c.title || "(untitled)")}</strong>`;
       case "article-list": return `Shows latest ${c.limit || 10} posts`;
+      case "video": return c.url ? escapeHtml(c.url) : "(no video url)";
+      case "quote": return c.text ? `“${escapeHtml(c.text.slice(0, 60))}”` : "(empty)";
+      case "gallery": return `${(c.images || []).length} image(s)`;
       case "divider": return "—";
       case "spacer": return "(spacer)";
       case "links": return `${(c.items || []).length} link(s)`;
@@ -401,6 +412,9 @@
         button: { content: { label: "Click me", url: "#", external: false }, col_span: 6, row_span: 2 },
         "project-card": { content: { title: "Project", description: "", url: "", label: "View" }, col_span: 12, row_span: 6 },
         "article-list": { content: { limit: 10 }, col_span: 24, row_span: 12 },
+        video: { content: { url: "" }, col_span: 16, row_span: 12 },
+        quote: { content: { text: "Quote text here.", cite: "" }, col_span: 16, row_span: 6 },
+        gallery: { content: { images: [] }, col_span: 24, row_span: 12 },
         divider: { content: {}, col_span: 24, row_span: 2 },
         spacer: { content: {}, col_span: 24, row_span: 2 },
       }[type] || { content: {}, col_span: 12, row_span: 4 };
@@ -451,6 +465,12 @@
       { key: "external", label: "Open in new tab", type: "checkbox" },
     ],
     "article-list": [{ key: "limit", label: "How many posts", type: "number" }, { key: "tag", label: "Only show this tag (blank = all)", type: "text" }],
+    video: [{ key: "url", label: "YouTube or Vimeo URL", type: "text" }],
+    quote: [
+      { key: "text", label: "Quote text", type: "textarea" },
+      { key: "cite", label: "Attribution (optional)", type: "text" },
+    ],
+    gallery: [{ key: "images", label: "Images", type: "gallery-urls" }],
     divider: [],
     spacer: [],
   };
@@ -500,6 +520,13 @@
         val ?? ""
       )}"><button type="button" class="upload-trigger" data-target="#${fieldId}">Upload image</button> <button type="button" class="browse-trigger" data-target="#${fieldId}">Browse…</button></label>`;
     }
+    if (f.type === "gallery-urls") {
+      const fieldId = `${idPrefix}-${f.key}`;
+      const text = (Array.isArray(val) ? val : []).join("\n");
+      return `<label>${f.label} (one URL per line)<textarea id="${fieldId}" data-key="${f.key}" data-gallery="1" rows="5">${escapeHtml(
+        text
+      )}</textarea><button type="button" class="upload-trigger" data-target="#${fieldId}" data-append="1">Add image (upload)</button> <button type="button" class="browse-trigger" data-target="#${fieldId}" data-append="1">Add from library…</button></label>`;
+    }
     return `<label>${f.label}<input data-key="${f.key}" type="${f.type}" value="${escapeHtml(val ?? "")}"></label>`;
   }
 
@@ -507,6 +534,12 @@
     if (input.type === "checkbox") return input.checked;
     if (input.type === "number") return input.value === "" ? null : Number(input.value);
     if (input.dataset.numeric) return Number(input.value);
+    if (input.dataset.gallery) {
+      return input.value
+        .split("\n")
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
     return input.value;
   }
 
@@ -741,6 +774,7 @@
 
   // ---------- Media library ----------
   let mediaPickTarget = null;
+  let mediaPickAppend = false;
 
   function formatBytes(n) {
     if (n < 1024) return n + " B";
@@ -769,10 +803,7 @@
           if (e.target.classList.contains("media-delete")) return;
           if (!mediaPickTarget) return;
           const input = document.querySelector(mediaPickTarget);
-          if (input) {
-            input.value = div.dataset.url;
-            input.dispatchEvent(new Event("change", { bubbles: true }));
-          }
+          if (input) setFieldUrl(input, div.dataset.url, mediaPickAppend);
           closeMediaModal();
         });
       });
@@ -793,8 +824,9 @@
       });
   }
 
-  function openMediaModal(pickTarget) {
+  function openMediaModal(pickTarget, append) {
     mediaPickTarget = pickTarget || null;
+    mediaPickAppend = !!append;
     el("media-hint").hidden = !mediaPickTarget;
     el("media-modal").hidden = false;
     loadMediaLibrary().catch((err) => alert(err.message));
@@ -803,6 +835,7 @@
   function closeMediaModal() {
     el("media-modal").hidden = true;
     mediaPickTarget = null;
+    mediaPickAppend = false;
   }
 
   el("media-btn").addEventListener("click", () => openMediaModal(null));
