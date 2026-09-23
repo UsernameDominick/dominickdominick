@@ -6,6 +6,7 @@ CREATE TABLE pages (
   nav_label TEXT,
   nav_order INTEGER,
   og_image TEXT,
+  deleted_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -31,6 +32,7 @@ CREATE TABLE articles (
   tags TEXT NOT NULL DEFAULT '[]',
   og_image TEXT,
   published_at TEXT,
+  deleted_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

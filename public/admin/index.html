@@ -36,6 +36,7 @@
         <button id="redirects-btn">Redirects</button>
         <button id="simulations-btn">Simulations</button>
         <button id="analytics-btn">Analytics</button>
+        <button id="trash-btn">Trash</button>
         <button id="site-settings-btn">Site</button>
         <a href="/" target="_blank" class="admin-view-live">View live ↗</a>
         <button id="logout-btn">Log out</button>
@@ -110,7 +111,7 @@
             <input id="article-og-image" placeholder="Share image URL (og:image, blank = site default)">
             <button type="button" class="upload-trigger" data-target="#article-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#article-og-image">Browse…</button>
           </div>
-          <textarea id="article-body" placeholder="Write here. Blank line = new paragraph. **bold**, *italic*, [link](url)." rows="16"></textarea>
+          <textarea id="article-body" placeholder="Write here. Blank line = new paragraph. **bold**, *italic*, [link](url). ## Heading, ### Subheading (two or more headings add a table of contents)." rows="16"></textarea>
           <div id="article-word-count" class="article-word-count">0 words · 0 min read</div>
           <div class="article-actions">
             <label><input type="checkbox" id="article-published"> Published</label>
@@ -195,6 +196,22 @@
           <button id="add-redirect-btn">Add</button>
         </div>
         <div id="redirects-list" class="redirects-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="trash-modal" class="modal" hidden>
+    <div class="modal-inner redirects-modal-inner">
+      <header>
+        <h1>Trash</h1>
+        <button id="close-trash">×</button>
+      </header>
+      <div class="redirects-body">
+        <p class="redirects-hint">Deleted pages and articles land here first — restore them or delete forever. Nothing here is reachable on the live site.</p>
+        <h2>Pages</h2>
+        <div id="trash-pages-list" class="redirects-list"></div>
+        <h2>Articles</h2>
+        <div id="trash-articles-list" class="redirects-list"></div>
       </div>
     </div>
   </div>

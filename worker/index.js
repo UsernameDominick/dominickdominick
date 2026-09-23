@@ -10,7 +10,7 @@ import {
   getRedirect,
 } from "./db.js";
 import { isAuthenticated } from "./auth.js";
-import { renderShell, renderBlocks, renderTags, excerpt, readingTime, esc, paragraphsHtml } from "./render.js";
+import { renderShell, renderBlocks, renderTags, excerpt, readingTime, esc, paragraphsHtml, extractHeadings, tableOfContentsHtml } from "./render.js";
 import { handleAdminApi } from "./admin-api.js";
 
 async function getTheme(env) {
@@ -69,6 +69,8 @@ async function renderArticle(env, article, navItems) {
   const description = excerpt(article.body) || article.title;
   const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
   const mins = readingTime(article.body);
+  const headings = extractHeadings(article.body);
+  const tocHtml = tableOfContentsHtml(headings);
   const bodyHtml = `<div class="reading-progress"></div>
   <div class="block" style="grid-column:1 / span 24;grid-row:1 / span 2;">
     <div class="article-meta">
@@ -80,7 +82,8 @@ async function renderArticle(env, article, navItems) {
     <h1>${esc(article.title)}</h1>
     ${renderTags(article.tags)}
   </div>
-  <div class="block" style="grid-column:1 / span 24;grid-row:3 / span 12;">
+  ${tocHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:3 / span 6;">${tocHtml}</div>` : ""}
+  <div class="block" style="grid-column:1 / span 24;grid-row:${tocHtml ? 9 : 3} / span 12;">
     ${paragraphsHtml(article.body)}
   </div>`;
   const jsonLd = {

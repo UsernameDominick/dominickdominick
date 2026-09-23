@@ -1054,6 +1054,48 @@
     }
   });
 
+  // ---------- Trash ----------
+  function renderTrashList(elId, items, kind, basePath) {
+    el(elId).innerHTML =
+      items
+        .map(
+          (item) =>
+            `<div class="redirect-row" data-id="${item.id}"><span class="redirect-paths">${escapeHtml(item.title)}</span><button type="button" class="restore-trash-item" data-id="${item.id}">Restore</button><button type="button" class="danger delete-trash-item" data-id="${item.id}">Delete forever</button></div>`
+        )
+        .join("") || `<p style='color:var(--text-dim);font-size:0.85rem;'>Nothing trashed.</p>`;
+
+    el(elId)
+      .querySelectorAll(".restore-trash-item")
+      .forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          await api(`${basePath}/${btn.dataset.id}/restore`, { method: "POST" });
+          await loadTrash();
+          if (kind === "page") await loadPages();
+        });
+      });
+    el(elId)
+      .querySelectorAll(".delete-trash-item")
+      .forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          if (!confirm(`Permanently delete this ${kind}? This can't be undone.`)) return;
+          await api(`${basePath}/${btn.dataset.id}/permanent`, { method: "DELETE" });
+          await loadTrash();
+        });
+      });
+  }
+
+  async function loadTrash() {
+    const [pages, articles] = await Promise.all([api("/pages/trash"), api("/articles/trash")]);
+    renderTrashList("trash-pages-list", pages, "page", "/pages");
+    renderTrashList("trash-articles-list", articles, "article", "/articles");
+  }
+
+  el("trash-btn").addEventListener("click", async () => {
+    el("trash-modal").hidden = false;
+    await loadTrash();
+  });
+  closeModalOnClick("close-trash", "trash-modal");
+
   // ---------- Site settings ----------
   el("site-settings-btn").addEventListener("click", async () => {
     const settings = await api("/settings");

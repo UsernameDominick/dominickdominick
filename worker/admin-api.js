@@ -4,8 +4,10 @@ import {
   createPage,
   updatePage,
   deletePage,
+  restorePage,
+  hardDeletePage,
+  listTrashedPages,
   duplicatePage,
-  getPageBySlug,
   listBlocks,
   createBlock,
   updateBlock,
@@ -14,6 +16,9 @@ import {
   createArticle,
   updateArticle,
   deleteArticle,
+  restoreArticle,
+  hardDeleteArticle,
+  listTrashedArticles,
   slugExists,
   checkLoginRateLimit,
   recordLoginAttempt,
@@ -144,8 +149,10 @@ async function routeAdminApi(request, env, url, ctx) {
     if (!slug || RESERVED_SLUGS.has(slug)) {
       return json({ error: "Invalid or reserved slug" }, { status: 400 });
     }
-    const existing = await getPageBySlug(env, slug);
-    if (existing) return json({ error: "Slug already exists" }, { status: 409 });
+    // Checked against every page regardless of trash status — the slug
+    // column is unique at the DB level whether or not a page using it is
+    // currently trashed, so a trashed page's slug can't be silently reused.
+    if (await slugExists(env, "pages", slug)) return json({ error: "Slug already exists" }, { status: 409 });
     const id = await createPage(env, {
       slug,
       title: body.title || slug,
@@ -181,6 +188,19 @@ async function routeAdminApi(request, env, url, ctx) {
     const newId = await duplicatePage(env, Number(pageDuplicateMatch[1]));
     if (!newId) return json({ error: "Page not found" }, { status: 404 });
     return json({ id: newId });
+  }
+  if (path === "/pages/trash" && method === "GET") {
+    return json(await listTrashedPages(env));
+  }
+  const pageRestoreMatch = path.match(/^\/pages\/(\d+)\/restore$/);
+  if (pageRestoreMatch && method === "POST") {
+    await restorePage(env, Number(pageRestoreMatch[1]));
+    return json({ ok: true });
+  }
+  const pagePermanentMatch = path.match(/^\/pages\/(\d+)\/permanent$/);
+  if (pagePermanentMatch && method === "DELETE") {
+    await hardDeletePage(env, Number(pagePermanentMatch[1]));
+    return json({ ok: true });
   }
 
   // /pages/:id/blocks
@@ -260,6 +280,19 @@ async function routeAdminApi(request, env, url, ctx) {
   }
   if (articleMatch && method === "DELETE") {
     await deleteArticle(env, Number(articleMatch[1]));
+    return json({ ok: true });
+  }
+  if (path === "/articles/trash" && method === "GET") {
+    return json(await listTrashedArticles(env));
+  }
+  const articleRestoreMatch = path.match(/^\/articles\/(\d+)\/restore$/);
+  if (articleRestoreMatch && method === "POST") {
+    await restoreArticle(env, Number(articleRestoreMatch[1]));
+    return json({ ok: true });
+  }
+  const articlePermanentMatch = path.match(/^\/articles\/(\d+)\/permanent$/);
+  if (articlePermanentMatch && method === "DELETE") {
+    await hardDeleteArticle(env, Number(articlePermanentMatch[1]));
     return json({ ok: true });
   }
 

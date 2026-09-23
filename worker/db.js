@@ -1,17 +1,22 @@
 export const RESERVED_SLUGS = new Set(["admin", "api", "sitemap.xml", "robots.txt"]);
 
 export async function getPageBySlug(env, slug) {
-  return env.DB.prepare("SELECT * FROM pages WHERE slug = ?").bind(slug).first();
+  return env.DB.prepare("SELECT * FROM pages WHERE slug = ? AND deleted_at IS NULL").bind(slug).first();
 }
 
 export async function listPages(env) {
-  const { results } = await env.DB.prepare("SELECT * FROM pages ORDER BY id ASC").all();
+  const { results } = await env.DB.prepare("SELECT * FROM pages WHERE deleted_at IS NULL ORDER BY id ASC").all();
+  return results;
+}
+
+export async function listTrashedPages(env) {
+  const { results } = await env.DB.prepare("SELECT * FROM pages WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC").all();
   return results;
 }
 
 export async function listNavPages(env) {
   const { results } = await env.DB
-    .prepare("SELECT slug, nav_label FROM pages WHERE nav_label IS NOT NULL ORDER BY nav_order ASC, id ASC")
+    .prepare("SELECT slug, nav_label FROM pages WHERE nav_label IS NOT NULL AND deleted_at IS NULL ORDER BY nav_order ASC, id ASC")
     .all();
   return results;
 }
@@ -41,7 +46,18 @@ export async function updatePage(env, id, fields) {
   await env.DB.prepare(`UPDATE pages SET ${cols.join(", ")} WHERE id = ?`).bind(...vals).run();
 }
 
+// "Delete" moves a page to the trash rather than actually removing it —
+// recoverable by default. hardDeletePage is the real, permanent removal,
+// used only from the trash view itself.
 export async function deletePage(env, id) {
+  await env.DB.prepare("UPDATE pages SET deleted_at = datetime('now') WHERE id = ?").bind(id).run();
+}
+
+export async function restorePage(env, id) {
+  await env.DB.prepare("UPDATE pages SET deleted_at = NULL WHERE id = ?").bind(id).run();
+}
+
+export async function hardDeletePage(env, id) {
   await env.DB.prepare("DELETE FROM pages WHERE id = ?").bind(id).run();
 }
 
@@ -148,12 +164,12 @@ function parseArticleRow(row) {
 }
 
 export async function listArticles(env, { publishedOnly = false, limit = null, tag = null } = {}) {
-  let sql = "SELECT * FROM articles";
+  let sql = "SELECT * FROM articles WHERE deleted_at IS NULL";
   const params = [];
   // "Published" means published_at is set AND not in the future — a
   // scheduled article stays hidden from public listings until its time.
   if (publishedOnly) {
-    sql += " WHERE published_at IS NOT NULL AND published_at <= ?";
+    sql += " AND published_at IS NOT NULL AND published_at <= ?";
     params.push(new Date().toISOString());
   }
   sql += " ORDER BY COALESCE(published_at, created_at) DESC";
@@ -165,8 +181,15 @@ export async function listArticles(env, { publishedOnly = false, limit = null, t
   return articles;
 }
 
+export async function listTrashedArticles(env) {
+  const { results } = await env.DB
+    .prepare("SELECT * FROM articles WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC")
+    .all();
+  return results.map(parseArticleRow);
+}
+
 export async function getArticleBySlug(env, slug) {
-  const row = await env.DB.prepare("SELECT * FROM articles WHERE slug = ?").bind(slug).first();
+  const row = await env.DB.prepare("SELECT * FROM articles WHERE slug = ? AND deleted_at IS NULL").bind(slug).first();
   return parseArticleRow(row);
 }
 
@@ -225,7 +248,18 @@ export async function updateArticle(env, id, fields) {
   await env.DB.prepare(`UPDATE articles SET ${cols.join(", ")} WHERE id = ?`).bind(...vals).run();
 }
 
+// "Delete" moves an article to the trash rather than actually removing it
+// — recoverable by default. hardDeleteArticle is the real, permanent
+// removal, used only from the trash view itself.
 export async function deleteArticle(env, id) {
+  await env.DB.prepare("UPDATE articles SET deleted_at = datetime('now') WHERE id = ?").bind(id).run();
+}
+
+export async function restoreArticle(env, id) {
+  await env.DB.prepare("UPDATE articles SET deleted_at = NULL WHERE id = ?").bind(id).run();
+}
+
+export async function hardDeleteArticle(env, id) {
   await env.DB.prepare("DELETE FROM articles WHERE id = ?").bind(id).run();
 }
 

@@ -20,32 +20,85 @@ function richText(escapedText) {
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
 }
 
+// A paragraph starting with "## " or "### " renders as a heading instead
+// — the only block-level markdown this renderer supports, added
+// specifically so long articles can have a table of contents to link to.
+function headingMatch(paragraph) {
+  const m = paragraph.match(/^(#{2,3})\s+(.+)$/);
+  return m ? { level: m[1].length, text: m[2].trim() } : null;
+}
+
+export function slugifyHeading(text) {
+  return String(text ?? "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
+// Extracts {level, id, text} for every heading paragraph, for building a
+// table of contents — the ids match exactly what paragraphsHtml() gives
+// each rendered <h2>/<h3>, since both split on the same paragraphs.
+export function extractHeadings(text) {
+  const headings = [];
+  const seen = new Map();
+  String(text ?? "")
+    .split(/\n{2,}/)
+    .forEach((p) => {
+      const h = headingMatch(p.trim());
+      if (!h) return;
+      let id = slugifyHeading(h.text) || "section";
+      const n = seen.get(id) || 0;
+      seen.set(id, n + 1);
+      if (n > 0) id = `${id}-${n + 1}`;
+      headings.push({ level: h.level, id, text: h.text });
+    });
+  return headings;
+}
+
+export function tableOfContentsHtml(headings) {
+  if (!headings || headings.length < 2) return "";
+  const items = headings
+    .map((h) => `<li class="toc-item toc-level-${h.level}"><a href="#${esc(h.id)}">${esc(h.text)}</a></li>`)
+    .join("");
+  return `<nav class="table-of-contents" aria-label="Table of contents"><strong>Contents</strong><ul>${items}</ul></nav>`;
+}
+
 export function paragraphsHtml(text) {
+  const headings = extractHeadings(text);
+  let hi = 0;
   return String(text ?? "")
     .split(/\n{2,}/)
-    .map((p) => `<p>${richText(esc(p)).replace(/\n/g, "<br>")}</p>`)
+    .map((p) => {
+      const h = headingMatch(p.trim());
+      if (h) {
+        const { id, level } = headings[hi++];
+        return `<h${level} id="${esc(id)}">${richText(esc(h.text))}</h${level}>`;
+      }
+      return `<p>${richText(esc(p)).replace(/\n/g, "<br>")}</p>`;
+    })
     .join("\n");
+}
+
+function stripMarkdown(text) {
+  return String(text ?? "")
+    .replace(/^#{2,3}\s+/gm, "")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
 }
 
 // A rough, standard estimate (200 words/minute) — good enough to give a
 // reader a sense of length, not meant to be precise to the second.
 export function readingTime(text) {
-  const flat = String(text ?? "")
-    .replace(/\*\*(.+?)\*\*/g, "$1")
-    .replace(/\*(.+?)\*/g, "$1")
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .trim();
+  const flat = stripMarkdown(text).trim();
   const words = flat ? flat.split(/\s+/).length : 0;
   return Math.max(1, Math.round(words / 200));
 }
 
 export function excerpt(text, maxLen = 155) {
-  const flat = String(text ?? "")
-    .replace(/\*\*(.+?)\*\*/g, "$1")
-    .replace(/\*(.+?)\*/g, "$1")
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/\s+/g, " ")
-    .trim();
+  const flat = stripMarkdown(text).replace(/\s+/g, " ").trim();
   if (flat.length <= maxLen) return flat;
   const cut = flat.slice(0, maxLen);
   const lastSpace = cut.lastIndexOf(" ");

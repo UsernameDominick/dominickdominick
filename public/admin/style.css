@@ -1457,6 +1457,14 @@
   gap: 14px;
 }
 
+.redirects-body h2 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  margin: 4px 0 -4px;
+}
+
 .redirects-hint {
   color: var(--text-dim);
   font-size: 0.85rem;
