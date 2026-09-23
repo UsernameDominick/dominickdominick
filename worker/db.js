@@ -448,6 +448,46 @@ export async function search(env, q) {
   return { pages: pages.results, articles: articles.results, blocks: blocks.results };
 }
 
+// Public-facing search: only live pages and published articles, unlike the
+// admin command palette's search() above which intentionally sees everything.
+export async function publicSearch(env, q) {
+  const like = `%${q}%`;
+  const [pages, articles] = await Promise.all([
+    env.DB
+      .prepare(
+        "SELECT id, slug, title, meta_description FROM pages WHERE deleted_at IS NULL AND (title LIKE ? OR meta_description LIKE ?) ORDER BY title LIMIT 20"
+      )
+      .bind(like, like)
+      .all(),
+    env.DB
+      .prepare(
+        `SELECT id, slug, title, body, tags, published_at FROM articles
+         WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ?
+         AND (title LIKE ? OR body LIKE ? OR tags LIKE ?)
+         ORDER BY published_at DESC LIMIT 20`
+      )
+      .bind(new Date().toISOString(), like, like, like)
+      .all(),
+  ]);
+  return { pages: pages.results, articles: articles.results.map(parseArticleRow) };
+}
+
+// Related posts for an article: prefers shared tags (most overlap first,
+// ties broken by recency), falls back to just-recent when nothing shares a
+// tag — so the section never comes up empty for an untagged post.
+export async function getRelatedArticles(env, article, limit = 3) {
+  const candidates = await listArticles(env, { publishedOnly: true });
+  const others = candidates.filter((a) => a.id !== article.id);
+  if (!article.tags || !article.tags.length) return others.slice(0, limit);
+  const scored = others
+    .map((a) => ({ a, score: a.tags.filter((t) => article.tags.includes(t)).length }))
+    .sort((x, y) => y.score - x.score);
+  if (scored[0] && scored[0].score > 0) {
+    return scored.filter((s) => s.score > 0).slice(0, limit).map((s) => s.a);
+  }
+  return others.slice(0, limit);
+}
+
 export async function getSetting(env, key) {
   const row = await env.DB.prepare("SELECT value FROM settings WHERE key = ?").bind(key).first();
   return row ? row.value : null;

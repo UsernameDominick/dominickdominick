@@ -8,9 +8,24 @@ import {
   getSetting,
   recordPageview,
   getRedirect,
+  publicSearch,
+  getRelatedArticles,
 } from "./db.js";
 import { isAuthenticated } from "./auth.js";
-import { renderShell, renderBlocks, renderTags, excerpt, readingTime, esc, paragraphsHtml, extractHeadings, tableOfContentsHtml } from "./render.js";
+import {
+  renderShell,
+  renderBlocks,
+  renderTags,
+  excerpt,
+  readingTime,
+  esc,
+  paragraphsHtml,
+  extractHeadings,
+  tableOfContentsHtml,
+  renderSearchResultsHtml,
+  renderRelatedArticlesHtml,
+  renderNotFoundHtml,
+} from "./render.js";
 import { handleAdminApi } from "./admin-api.js";
 
 async function getTheme(env) {
@@ -71,6 +86,9 @@ async function renderArticle(env, article, navItems) {
   const mins = readingTime(article.body);
   const headings = extractHeadings(article.body);
   const tocHtml = tableOfContentsHtml(headings);
+  const related = await getRelatedArticles(env, article);
+  const relatedHtml = renderRelatedArticlesHtml(related);
+  const bodyRow = tocHtml ? 9 : 3;
   const bodyHtml = `<div class="reading-progress"></div>
   <div class="block" style="grid-column:1 / span 24;grid-row:1 / span 2;">
     <div class="article-meta">
@@ -83,9 +101,10 @@ async function renderArticle(env, article, navItems) {
     ${renderTags(article.tags)}
   </div>
   ${tocHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:3 / span 6;">${tocHtml}</div>` : ""}
-  <div class="block" style="grid-column:1 / span 24;grid-row:${tocHtml ? 9 : 3} / span 12;">
+  <div class="block" style="grid-column:1 / span 24;grid-row:${bodyRow} / span 12;">
     ${paragraphsHtml(article.body)}
-  </div>`;
+  </div>
+  ${relatedHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${bodyRow + 12} / span 6;">${relatedHtml}</div>` : ""}`;
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "BlogPosting",
@@ -113,6 +132,52 @@ async function renderArticle(env, article, navItems) {
     customHead,
   });
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
+}
+
+async function renderSearch(env, query, navItems) {
+  const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
+  const { pages, articles } = query ? await publicSearch(env, query) : { pages: [], articles: [] };
+  const resultsHtml = renderSearchResultsHtml(query, pages, articles);
+  const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 16;">
+    <h1>Search</h1>
+    ${resultsHtml}
+  </div>`;
+  const html = renderShell({
+    title: query ? `"${query}" · Search · Dominick` : "Search · Dominick",
+    description: "Search dominickdominick.com.",
+    path: "/search",
+    navItems,
+    activeSlug: null,
+    bodyHtml,
+    ogImage: defaultOgImage || null,
+    theme,
+    footerText,
+    customHead,
+    noindex: true,
+    searchQuery: query,
+  });
+  return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
+}
+
+async function renderNotFound(env, navItems) {
+  const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
+  const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 16;">
+    ${renderNotFoundHtml(navItems)}
+  </div>`;
+  const html = renderShell({
+    title: "Page not found · Dominick",
+    description: "This page doesn't exist.",
+    path: "/404",
+    navItems,
+    activeSlug: null,
+    bodyHtml,
+    ogImage: defaultOgImage || null,
+    theme,
+    footerText,
+    customHead,
+    noindex: true,
+  });
+  return new Response(html, { status: 404, headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
 function xmlEsc(str) {
@@ -212,6 +277,11 @@ async function route(request, env, ctx) {
       return renderRss(env);
     }
 
+    if (path === "/search") {
+      const navItems = await listNavPages(env);
+      return renderSearch(env, url.searchParams.get("q")?.trim() || "", navItems);
+    }
+
     const mediaMatch = path.match(/^\/media\/([A-Za-z0-9_.\-\/]+)$/);
     if (mediaMatch) {
       const obj = await env.MEDIA.get(mediaMatch[1]);
@@ -265,5 +335,10 @@ async function route(request, env, ctx) {
     }
 
     // Fall through to static assets (style.css, nav.js, /admin app, images, etc.)
-    return env.ASSETS.fetch(request);
+    // — but if that's also a miss, replace Cloudflare's bare 404 with a
+    // branded one that helps a lost reader find their way back in.
+    const assetResponse = await env.ASSETS.fetch(request);
+    if (assetResponse.status !== 404) return assetResponse;
+    const navItems = await listNavPages(env);
+    return renderNotFound(env, navItems);
 }

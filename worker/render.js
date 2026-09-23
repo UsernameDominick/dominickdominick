@@ -105,6 +105,55 @@ export function excerpt(text, maxLen = 155) {
   return cut.slice(0, lastSpace > 0 ? lastSpace : maxLen).trim() + "…";
 }
 
+export function renderSearchResultsHtml(query, pages, articles) {
+  if (!query) {
+    return `<p class="empty-hint">Enter a search term above to look through pages and posts.</p>`;
+  }
+  const total = pages.length + articles.length;
+  if (!total) {
+    return `<p class="empty-hint">No results for "${esc(query)}".</p>`;
+  }
+  const pageItems = pages
+    .map(
+      (p) =>
+        `<li><a href="${p.slug === "home" ? "/" : "/" + esc(p.slug)}">${esc(p.title)}</a>${
+          p.meta_description ? `<p>${esc(p.meta_description)}</p>` : ""
+        }</li>`
+    )
+    .join("");
+  const articleItems = articles
+    .map(
+      (a) =>
+        `<li><a href="/random/${esc(a.slug)}">${esc(a.title)}</a><p>${esc(excerpt(a.body, 140))}</p></li>`
+    )
+    .join("");
+  return `<p class="search-result-count">${total} result${total === 1 ? "" : "s"} for "${esc(query)}"</p>
+${pageItems ? `<h2>Pages</h2><ul class="search-results">${pageItems}</ul>` : ""}
+${articleItems ? `<h2>Posts</h2><ul class="search-results">${articleItems}</ul>` : ""}`;
+}
+
+export function renderRelatedArticlesHtml(articles) {
+  if (!articles || !articles.length) return "";
+  const items = articles
+    .map(
+      (a) =>
+        `<article class="thought"><time datetime="${esc(a.published_at)}">${esc(
+          (a.published_at || "").slice(0, 10)
+        )}</time><h2><a href="/random/${esc(a.slug)}">${esc(a.title)}</a></h2>${renderTags(a.tags)}</article>`
+    )
+    .join("\n");
+  return `<div class="related-posts"><strong>More to read</strong><div class="thought-list">${items}</div></div>`;
+}
+
+export function renderNotFoundHtml(navItems) {
+  const links = navItems
+    .map((n) => `<li><a href="${n.slug === "home" ? "/" : "/" + esc(n.slug)}">${esc(n.nav_label)}</a></li>`)
+    .join("");
+  return `<h1>Page not found</h1>
+<p>Whatever you were looking for isn't here — it may have moved or never existed.</p>
+${links ? `<p>Try one of these instead:</p><ul class="search-results">${links}</ul>` : ""}`;
+}
+
 export function renderTags(tags) {
   if (!tags || !tags.length) return "";
   return `<div class="tags">${tags
@@ -295,6 +344,8 @@ export function renderShell({
   theme = {},
   footerText = null,
   customHead = null,
+  noindex = false,
+  searchQuery = null,
 }) {
   const canonical = `https://dominickdominick.com${path}`;
   const themeVars = [];
@@ -314,6 +365,7 @@ export function renderShell({
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
+<script>(function(){try{var t=localStorage.getItem("theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${esc(title)}</title>
@@ -321,6 +373,7 @@ export function renderShell({
 <meta name="author" content="Dominick">
 ${keywords ? `<meta name="keywords" content="${esc(keywords)}">` : ""}
 <meta name="theme-color" content="#0b0b0c">
+${noindex ? `<meta name="robots" content="noindex">` : ""}
 <link rel="canonical" href="${canonical}">
 <link rel="icon" href="${FAVICON}">
 
@@ -352,6 +405,12 @@ ${customHead || ""}
         ${navHtml}
         <span class="tab-indicator" aria-hidden="true"></span>
       </nav>
+      <div class="topbar-tools">
+        <form class="site-search" action="/search" method="get" role="search">
+          <input type="search" name="q" placeholder="Search" aria-label="Search" value="${esc(searchQuery || "")}">
+        </form>
+        <button type="button" id="theme-toggle" aria-label="Toggle light/dark theme">◐</button>
+      </div>
     </header>
     <script src="/nav.js"></script>
 
