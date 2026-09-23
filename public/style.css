@@ -294,6 +294,116 @@ h6 { font-size: 0.9rem; }
   border-radius: 10px;
 }
 
+/* Simulations — an animated diagram, not an electrically accurate model:
+   "powered"/"animated" are set by hand in the builder, not computed. */
+.sim-block-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.sim-svg {
+  width: 100%;
+  height: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.sim-comp .bb-body {
+  fill: #e8e2d0;
+  stroke: #b8ab7a;
+  stroke-width: 2;
+}
+.sim-comp .bb-hole {
+  fill: #33302a;
+}
+.sim-comp .led-bulb {
+  fill: #555;
+  stroke: #333;
+  stroke-width: 1;
+  transition: fill 0.3s, filter 0.3s;
+}
+.sim-comp .led-lead {
+  stroke: #999;
+  stroke-width: 2;
+}
+.sim-svg.is-on .sim-comp[data-powered="true"] .led-bulb {
+  fill: #ffe066;
+  filter: drop-shadow(0 0 6px #ffe066);
+}
+.sim-comp .resistor-body {
+  fill: #d9c48a;
+  stroke: #7a6a3a;
+  stroke-width: 1.5;
+}
+.sim-comp .resistor-lead {
+  stroke: #555;
+  stroke-width: 2;
+}
+.sim-comp .battery-body {
+  fill: #333;
+  stroke: #111;
+  stroke-width: 1.5;
+}
+.sim-comp .battery-label {
+  fill: #fff;
+  font-size: 10px;
+  font-family: sans-serif;
+}
+.sim-comp .mcu-body {
+  fill: #1c3d5a;
+  stroke: #0a1f30;
+  stroke-width: 2;
+}
+.sim-comp .mcu-label {
+  fill: #fff;
+  font-size: 10px;
+  font-family: sans-serif;
+}
+.sim-comp .tv-body {
+  fill: #111;
+  stroke: #333;
+  stroke-width: 3;
+}
+.sim-comp .tv-screen {
+  fill: #223;
+  transition: fill 0.3s;
+}
+.sim-svg.is-on .sim-comp[data-powered="true"] .tv-screen {
+  fill: #6cf;
+}
+.sim-wire {
+  stroke: #888;
+  stroke-width: 3;
+  fill: none;
+}
+.sim-wire-hdmi {
+  stroke: #c33;
+  stroke-width: 4;
+}
+.sim-wire[data-animated="true"] {
+  stroke-dasharray: 8 5;
+}
+.sim-svg.is-on .sim-wire[data-animated="true"] {
+  animation: sim-flow 0.7s linear infinite;
+}
+@keyframes sim-flow {
+  to {
+    stroke-dashoffset: -26;
+  }
+}
+.sim-power-btn {
+  background: var(--accent);
+  color: #0b0b0c;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .thought {
   border-bottom: 1px solid var(--border);
   padding-bottom: 16px;

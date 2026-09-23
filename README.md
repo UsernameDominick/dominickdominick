@@ -37,8 +37,9 @@ Worker secret, not stored in this repo). From there:
 - Text blocks and article bodies support minimal markdown: `**bold**`,
   `*italic*`, `[label](url)`.
 - Block types include Heading, Text, Image, Button, Project Card, Article
-  List, Video Embed (paste a YouTube or Vimeo URL), Quote, and Gallery
-  (a grid of images).
+  List, Video Embed (paste a YouTube or Vimeo URL), Quote, Gallery (a grid
+  of images), and Simulation (an animated diagram built in the
+  Simulations panel).
 - Use the "Media" button, or "Browse…" next to any image field, to reuse
   a previously uploaded image instead of uploading it again.
 - The pencil icon on a Media Library image opens the **Photo Editor**:
@@ -65,6 +66,14 @@ Worker secret, not stored in this repo). From there:
   them reachable from elsewhere
 - "Redirects" sends an old URL to a new one (301 or 302) — handy after
   renaming or deleting a page or post so old links don't just 404
+- "Simulations" is a small builder for animated circuit/AV diagrams —
+  drag parts (breadboard, LED, resistor, battery, a Teensy-style
+  microcontroller, a TV/display) onto a canvas, click one pin then
+  another to wire them, mark a part "powered" or a wire "animated", and
+  save it with a name. It's a hand-authored animated diagram, not an
+  electrically accurate simulator — nothing is computed from continuity.
+  Add it to any page/article via the Simulation block; readers get a
+  "Power on" button that toggles the on/off appearance.
 - Press **Ctrl/Cmd+K** anywhere in the admin for a search/command palette —
   jump to a page, article, or block by text match, or open any panel.
   Ctrl/Cmd+S saves the current form; with a block selected, Delete removes

@@ -240,7 +240,13 @@
   }
 
   function blockLabel(type) {
-    return { heading: "Heading", text: "Text", image: "Image", button: "Button", "project-card": "Project Card", "article-list": "Article List", video: "Video", quote: "Quote", gallery: "Gallery", divider: "Divider", spacer: "Spacer", links: "Links" }[type] || type;
+    return { heading: "Heading", text: "Text", image: "Image", button: "Button", "project-card": "Project Card", "article-list": "Article List", video: "Video", quote: "Quote", gallery: "Gallery", simulation: "Simulation", divider: "Divider", spacer: "Spacer", links: "Links" }[type] || type;
+  }
+
+  let simulationOptions = [];
+  function simulationNameById(id) {
+    const s = simulationOptions.find((x) => x.id === id);
+    return s ? s.name : null;
   }
 
   function blockPreview(b) {
@@ -255,6 +261,7 @@
       case "video": return c.url ? escapeHtml(c.url) : "(no video url)";
       case "quote": return c.text ? `“${escapeHtml(c.text.slice(0, 60))}”` : "(empty)";
       case "gallery": return `${(c.images || []).length} image(s)`;
+      case "simulation": return c.simulation_id ? escapeHtml(simulationNameById(c.simulation_id) || `#${c.simulation_id}`) : "(choose a simulation)";
       case "divider": return "—";
       case "spacer": return "(spacer)";
       case "links": return `${(c.items || []).length} link(s)`;
@@ -413,6 +420,11 @@
         button: { content: { label: "Click me", url: "#", external: false }, col_span: 6, row_span: 2 },
         "project-card": { content: { title: "Project", description: "", url: "", label: "View" }, col_span: 12, row_span: 6 },
         "article-list": { content: { limit: 10 }, col_span: 24, row_span: 12 },
+        // A full-width (24-col) simulation SVG at its 900:500 aspect ratio,
+        // plus the power button below it, renders taller than it looks like
+        // it should need — row_span accounts for that so it doesn't overflow
+        // into whatever comes after it (grid rows here are a fixed 16px+gap).
+        simulation: { content: { simulation_id: null }, col_span: 24, row_span: 30 },
         video: { content: { url: "" }, col_span: 16, row_span: 12 },
         quote: { content: { text: "Quote text here.", cite: "" }, col_span: 16, row_span: 6 },
         gallery: { content: { images: [] }, col_span: 24, row_span: 12 },
@@ -472,6 +484,7 @@
       { key: "cite", label: "Attribution (optional)", type: "text" },
     ],
     gallery: [{ key: "images", label: "Images", type: "gallery-urls" }],
+    simulation: [{ key: "simulation_id", label: "Simulation", type: "simulation-select" }],
     divider: [],
     spacer: [],
   };
@@ -529,13 +542,21 @@
         text
       )}</textarea><button type="button" class="upload-trigger" data-target="#${fieldId}" data-append="1">Add image (upload)</button> <button type="button" class="browse-trigger" data-target="#${fieldId}" data-append="1">Add from library…</button></label>`;
     }
+    if (f.type === "simulation-select") {
+      const options = simulationOptions
+        .map((s) => `<option value="${s.id}"${String(val ?? "") === String(s.id) ? " selected" : ""}>${escapeHtml(s.name)}</option>`)
+        .join("");
+      return `<label>${f.label}<select data-key="${f.key}" data-numeric="1"><option value="">— choose —</option>${
+        options || "<option disabled>No simulations yet</option>"
+      }</select> <button type="button" class="manage-simulations-btn">Manage simulations…</button></label>`;
+    }
     return `<label>${f.label}<input data-key="${f.key}" type="${f.type}" value="${escapeHtml(val ?? "")}"></label>`;
   }
 
   function fieldValue(input) {
     if (input.type === "checkbox") return input.checked;
     if (input.type === "number") return input.value === "" ? null : Number(input.value);
-    if (input.dataset.numeric) return Number(input.value);
+    if (input.dataset.numeric) return input.value === "" ? null : Number(input.value);
     if (input.dataset.gallery) {
       return input.value
         .split("\n")
@@ -569,6 +590,9 @@
 
     container.querySelectorAll(".upload-trigger").forEach(wireUploadButton);
     container.querySelectorAll(".browse-trigger").forEach(wireBrowseButton);
+    container.querySelectorAll(".manage-simulations-btn").forEach((btn) => {
+      btn.addEventListener("click", () => el("simulations-btn").click());
+    });
 
     function save() {
       renderCanvas();
@@ -1334,6 +1358,15 @@
   });
 
   // ---------- Boot ----------
+  async function loadSimulationOptions() {
+    try {
+      simulationOptions = await api("/simulations");
+    } catch {
+      simulationOptions = [];
+    }
+    renderInspector();
+  }
+
   async function boot() {
     const { authenticated } = await fetch("/api/admin/me").then((r) => r.json());
     if (!authenticated) {
@@ -1342,6 +1375,7 @@
     }
     showApp();
     await loadPages();
+    await loadSimulationOptions();
   }
 
   document.querySelectorAll(".upload-trigger").forEach(wireUploadButton);
@@ -1352,6 +1386,7 @@
   window.adminApi = api;
   window.adminUploadBlob = uploadFile;
   window.refreshMediaLibrary = loadMediaLibrary;
+  window.refreshSimulationOptions = loadSimulationOptions;
 
   window.addEventListener("resize", () => renderCanvas());
   boot();

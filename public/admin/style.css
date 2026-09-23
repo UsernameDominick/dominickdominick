@@ -762,6 +762,207 @@
   padding: 0 !important;
 }
 
+/* Simulations list */
+.simulation-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+.simulation-row span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.simulation-row button {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+#new-simulation-btn {
+  align-self: flex-start;
+  background: var(--accent);
+  color: #0b0b0c;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Simulation builder */
+.simulation-builder-inner {
+  width: 96vw;
+  height: 94vh;
+  max-width: 1400px;
+}
+
+.simulation-builder-inner header {
+  gap: 10px;
+}
+
+.simulation-name-input {
+  flex: 1;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 0.95rem;
+}
+
+.simulation-builder-inner header button {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+#save-simulation {
+  background: var(--accent) !important;
+  color: #0b0b0c !important;
+  border: none !important;
+  font-weight: 600;
+}
+
+.sim-builder-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.sim-palette, .sim-inspector-panel {
+  width: 220px;
+  flex-shrink: 0;
+  background: var(--bg-elevated);
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.sim-palette {
+  border-right: 1px solid var(--border);
+}
+
+.sim-inspector-panel {
+  border-left: 1px solid var(--border);
+}
+
+.sim-palette h2, .sim-inspector-panel h2 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  margin: 0 0 10px;
+}
+
+.sim-palette-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.sim-palette-btn:hover {
+  border-color: var(--accent);
+}
+
+.sim-inspector-panel label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+
+.sim-inspector-panel input[type="text"], .sim-inspector-panel select {
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin-top: 4px;
+}
+
+.sim-inspector-panel button {
+  width: 100%;
+  border-radius: 6px;
+  padding: 8px;
+  cursor: pointer;
+  margin-top: 8px;
+}
+
+.sim-builder-canvas {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+  background: repeating-conic-gradient(#2a2a2c 0% 25%, #1c1c1e 0% 50%) 50% / 20px 20px;
+}
+
+.sim-builder-canvas svg {
+  width: 100%;
+  height: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.sim-comp {
+  cursor: grab;
+  touch-action: none;
+}
+
+.sim-select-box {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+  pointer-events: none;
+}
+
+.sim-wire.sim-selected {
+  stroke: var(--accent) !important;
+}
+
+.sim-pin {
+  fill: #4a90d9;
+  stroke: #fff;
+  stroke-width: 1;
+  cursor: crosshair;
+}
+
+.sim-pin-active {
+  fill: #e8a13a;
+}
+
+@media (max-width: 860px) {
+  .sim-palette, .sim-inspector-panel {
+    width: 150px;
+    padding: 10px;
+  }
+}
+
 /* Photo editor */
 .photo-editor-inner {
   width: 96vw;

@@ -231,6 +231,37 @@ export async function deleteRedirect(env, id) {
   await env.DB.prepare("DELETE FROM redirects WHERE id = ?").bind(id).run();
 }
 
+// ---------- Simulations ----------
+export async function listSimulations(env) {
+  const { results } = await env.DB.prepare("SELECT id, name, updated_at FROM simulations ORDER BY name").all();
+  return results;
+}
+
+export async function getSimulation(env, id) {
+  const row = await env.DB.prepare("SELECT * FROM simulations WHERE id = ?").bind(id).first();
+  if (!row) return null;
+  return { ...row, data: JSON.parse(row.data || "{}") };
+}
+
+export async function createSimulation(env, { name, data }) {
+  const res = await env.DB
+    .prepare("INSERT INTO simulations (name, data) VALUES (?, ?)")
+    .bind(name, JSON.stringify(data || {}))
+    .run();
+  return res.meta.last_row_id;
+}
+
+export async function updateSimulation(env, id, { name, data }) {
+  await env.DB
+    .prepare("UPDATE simulations SET name = ?, data = ?, updated_at = datetime('now') WHERE id = ?")
+    .bind(name, JSON.stringify(data || {}), id)
+    .run();
+}
+
+export async function deleteSimulation(env, id) {
+  await env.DB.prepare("DELETE FROM simulations WHERE id = ?").bind(id).run();
+}
+
 // ---------- Revisions ----------
 // A snapshot of a page's blocks, or an article's row, kept so a bad editing
 // session can be undone. Page snapshots are throttled (see maybeSnapshotPage)

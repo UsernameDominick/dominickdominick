@@ -32,6 +32,7 @@
         <button id="articles-btn">Articles</button>
         <button id="media-btn">Media</button>
         <button id="redirects-btn">Redirects</button>
+        <button id="simulations-btn">Simulations</button>
         <button id="analytics-btn">Analytics</button>
         <button id="site-settings-btn">Site</button>
         <a href="/" target="_blank" class="admin-view-live">View live ↗</a>
@@ -54,6 +55,7 @@
         <button class="palette-btn" data-type="video">Video Embed</button>
         <button class="palette-btn" data-type="quote">Quote</button>
         <button class="palette-btn" data-type="gallery">Gallery</button>
+        <button class="palette-btn" data-type="simulation">Simulation</button>
         <button class="palette-btn" data-type="divider">Divider</button>
         <button class="palette-btn" data-type="spacer">Spacer</button>
         <hr>
@@ -311,6 +313,47 @@
     </div>
   </div>
 
+  <div id="simulations-modal" class="modal" hidden>
+    <div class="modal-inner redirects-modal-inner">
+      <header>
+        <h1>Simulations</h1>
+        <button id="close-simulations">×</button>
+      </header>
+      <div class="redirects-body">
+        <p class="redirects-hint">Animated diagrams (breadboards, LEDs, microcontrollers, TVs/cables) you build once and reuse in any article or page via the Simulation block.</p>
+        <button type="button" id="new-simulation-btn">New simulation</button>
+        <div id="simulations-list" class="redirects-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="simulation-builder-modal" class="modal" hidden>
+    <div class="modal-inner simulation-builder-inner">
+      <header>
+        <input id="simulation-name" class="simulation-name-input" placeholder="Simulation name">
+        <button type="button" id="sim-preview-power">Preview: power on</button>
+        <button type="button" id="save-simulation">Save</button>
+        <button id="close-simulation-builder">×</button>
+      </header>
+      <div class="sim-builder-body">
+        <aside class="sim-palette">
+          <h2>Add part</h2>
+          <button type="button" class="sim-palette-btn" data-sim-type="breadboard">Breadboard</button>
+          <button type="button" class="sim-palette-btn" data-sim-type="led">LED</button>
+          <button type="button" class="sim-palette-btn" data-sim-type="resistor">Resistor</button>
+          <button type="button" class="sim-palette-btn" data-sim-type="battery">Battery</button>
+          <button type="button" class="sim-palette-btn" data-sim-type="mcu_teensy">Microcontroller (Teensy)</button>
+          <button type="button" class="sim-palette-btn" data-sim-type="tv">TV / Display</button>
+        </aside>
+        <div id="sim-builder-canvas" class="sim-builder-canvas"></div>
+        <aside class="sim-inspector-panel">
+          <h2>Inspector</h2>
+          <div id="sim-inspector"></div>
+        </aside>
+      </div>
+    </div>
+  </div>
+
   <div id="undo-toast" class="undo-toast" hidden>
     <span id="undo-toast-text">Block deleted.</span>
     <button id="undo-toast-btn">Undo</button>
@@ -318,5 +361,7 @@
 
 <script src="/admin/app.js"></script>
 <script src="/admin/photo-editor.js"></script>
+<script src="/admin/sim-components.js"></script>
+<script src="/admin/simulation-builder.js"></script>
 </body>
 </html>

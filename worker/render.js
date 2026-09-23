@@ -1,4 +1,5 @@
-import { listArticles } from "./db.js";
+import { listArticles, getSimulation } from "./db.js";
+import { renderSimulationSvg } from "./simulation-render.js";
 
 export function esc(str) {
   return String(str ?? "")
@@ -143,6 +144,16 @@ async function renderBlockInner(env, block, ctx) {
       if (!images.length) return `<p class="empty-hint">No images yet.</p>`;
       return `<div class="gallery">${images.map((url) => `<img src="${esc(url)}" loading="lazy">`).join("")}</div>`;
     }
+    case "simulation": {
+      if (!c.simulation_id) return `<p class="empty-hint">No simulation selected.</p>`;
+      const sim = await getSimulation(env, c.simulation_id);
+      if (!sim) return `<p class="empty-hint">Simulation not found.</p>`;
+      const uid = `sim-${block.id}`;
+      const svg = renderSimulationSvg(sim.data).replace('class="sim-svg"', `class="sim-svg" id="${esc(uid)}"`);
+      return `<div class="sim-block-wrap">${svg}<button type="button" class="sim-power-btn" data-target="${esc(
+        uid
+      )}">Power on</button></div>`;
+    }
     case "project-card":
       return `<div class="project-card"><h2>${esc(c.title)}</h2>${c.description ? `<p>${esc(c.description)}</p>` : ""}${c.url ? `<a href="${esc(c.url)}"${c.external ? ' target="_blank" rel="noopener"' : ""}>${esc(c.label || c.url)}</a>` : ""}</div>`;
     case "article-list": {
@@ -241,6 +252,7 @@ ${ogImage ? `<meta name="twitter:image" content="${esc(ogImage)}">` : ""}
 
 <link rel="stylesheet" href="/style.css">
 ${themeStyle}
+<script src="/sim-player.js" defer></script>
 ${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>` : ""}
 ${customHead || ""}
 </head>

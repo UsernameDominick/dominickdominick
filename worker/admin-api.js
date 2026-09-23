@@ -32,6 +32,11 @@ import {
   restoreArticleRevision,
   search,
   checkLinks,
+  listSimulations,
+  getSimulation,
+  createSimulation,
+  updateSimulation,
+  deleteSimulation,
 } from "./db.js";
 import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated } from "./auth.js";
 
@@ -380,6 +385,33 @@ async function routeAdminApi(request, env, url, ctx) {
     } catch (err) {
       return json({ error: err.message || "Restore failed" }, { status: 400 });
     }
+    return json({ ok: true });
+  }
+
+  // /simulations
+  if (path === "/simulations" && method === "GET") {
+    return json(await listSimulations(env));
+  }
+  if (path === "/simulations" && method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    if (!body.name || !String(body.name).trim()) return json({ error: "Name is required" }, { status: 400 });
+    const id = await createSimulation(env, { name: body.name.trim(), data: body.data || {} });
+    return json({ id });
+  }
+  const simMatch = path.match(/^\/simulations\/(\d+)$/);
+  if (simMatch && method === "GET") {
+    const sim = await getSimulation(env, Number(simMatch[1]));
+    if (!sim) return json({ error: "Not found" }, { status: 404 });
+    return json(sim);
+  }
+  if (simMatch && method === "PATCH") {
+    const body = await request.json().catch(() => ({}));
+    if (!body.name || !String(body.name).trim()) return json({ error: "Name is required" }, { status: 400 });
+    await updateSimulation(env, Number(simMatch[1]), { name: body.name.trim(), data: body.data || {} });
+    return json({ ok: true });
+  }
+  if (simMatch && method === "DELETE") {
+    await deleteSimulation(env, Number(simMatch[1]));
     return json({ ok: true });
   }
 
