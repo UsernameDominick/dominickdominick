@@ -160,7 +160,29 @@ function parseArticleRow(row) {
   } catch {
     tags = [];
   }
-  return { ...row, tags };
+  let co_authors = [];
+  try {
+    co_authors = JSON.parse(row.co_authors || "[]");
+  } catch {
+    co_authors = [];
+  }
+  return { ...row, tags, co_authors };
+}
+
+// Other published entries in the same series, in series_order (falling back
+// to publish date for entries that don't have one set) — used for the
+// "Part N of M" nav on an article page.
+export async function getSeriesArticles(env, series) {
+  if (!series) return [];
+  const { results } = await env.DB
+    .prepare(
+      `SELECT * FROM articles WHERE deleted_at IS NULL AND series = ?
+       AND published_at IS NOT NULL AND published_at <= ?
+       ORDER BY series_order IS NULL, series_order ASC, published_at ASC`
+    )
+    .bind(series, new Date().toISOString())
+    .all();
+  return results.map(parseArticleRow);
 }
 
 export async function listArticles(env, { publishedOnly = false, limit = null, tag = null } = {}) {
@@ -208,10 +230,10 @@ function resolvePublishedAt({ published, published_at }) {
   return published ? new Date().toISOString() : null;
 }
 
-export async function createArticle(env, { slug, title, body, published, published_at, tags, og_image }) {
+export async function createArticle(env, { slug, title, body, published, published_at, tags, og_image, series, series_order, co_authors }) {
   const res = await env.DB
     .prepare(
-      "INSERT INTO articles (slug, title, body, published_at, tags, og_image) VALUES (?, ?, ?, ?, ?, ?)"
+      "INSERT INTO articles (slug, title, body, published_at, tags, og_image, series, series_order, co_authors) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
     .bind(
       slug,
@@ -219,7 +241,10 @@ export async function createArticle(env, { slug, title, body, published, publish
       body || "",
       resolvePublishedAt({ published, published_at }),
       JSON.stringify(Array.isArray(tags) ? tags : []),
-      og_image || null
+      og_image || null,
+      series || null,
+      Number.isFinite(Number(series_order)) ? Number(series_order) : null,
+      JSON.stringify(Array.isArray(co_authors) ? co_authors : [])
     )
     .run();
   return res.meta.last_row_id;
@@ -228,15 +253,23 @@ export async function createArticle(env, { slug, title, body, published, publish
 export async function updateArticle(env, id, fields) {
   const cols = [];
   const vals = [];
-  for (const key of ["slug", "title", "body", "og_image"]) {
+  for (const key of ["slug", "title", "body", "og_image", "series"]) {
     if (key in fields) {
       cols.push(`${key} = ?`);
       vals.push(fields[key]);
     }
   }
+  if ("series_order" in fields) {
+    cols.push("series_order = ?");
+    vals.push(Number.isFinite(Number(fields.series_order)) ? Number(fields.series_order) : null);
+  }
   if ("tags" in fields) {
     cols.push("tags = ?");
     vals.push(JSON.stringify(Array.isArray(fields.tags) ? fields.tags : []));
+  }
+  if ("co_authors" in fields) {
+    cols.push("co_authors = ?");
+    vals.push(JSON.stringify(Array.isArray(fields.co_authors) ? fields.co_authors : []));
   }
   if ("published_at" in fields || "published" in fields) {
     cols.push("published_at = ?");
@@ -246,6 +279,30 @@ export async function updateArticle(env, id, fields) {
   cols.push("updated_at = datetime('now')");
   vals.push(id);
   await env.DB.prepare(`UPDATE articles SET ${cols.join(", ")} WHERE id = ?`).bind(...vals).run();
+}
+
+export async function bulkArticleAction(env, ids, action) {
+  const validIds = ids.map(Number).filter(Number.isFinite);
+  if (!validIds.length) return;
+  const placeholders = validIds.map(() => "?").join(",");
+  if (action === "publish") {
+    await env.DB
+      .prepare(`UPDATE articles SET published_at = COALESCE(published_at, datetime('now')), updated_at = datetime('now') WHERE id IN (${placeholders})`)
+      .bind(...validIds)
+      .run();
+  } else if (action === "unpublish") {
+    await env.DB
+      .prepare(`UPDATE articles SET published_at = NULL, updated_at = datetime('now') WHERE id IN (${placeholders})`)
+      .bind(...validIds)
+      .run();
+  } else if (action === "trash") {
+    await env.DB
+      .prepare(`UPDATE articles SET deleted_at = datetime('now') WHERE id IN (${placeholders})`)
+      .bind(...validIds)
+      .run();
+  } else {
+    throw new Error("Invalid bulk action");
+  }
 }
 
 // "Delete" moves an article to the trash rather than actually removing it
@@ -296,6 +353,32 @@ export async function updateRedirect(env, id, fields) {
 
 export async function deleteRedirect(env, id) {
   await env.DB.prepare("DELETE FROM redirects WHERE id = ?").bind(id).run();
+}
+
+// ---------- Templates ----------
+// A saved starting point — a page's block layout, or an article body — that
+// new pages/articles can be seeded from instead of starting blank.
+export async function listTemplates(env, kind) {
+  const { results } = await env.DB.prepare("SELECT * FROM templates WHERE kind = ? ORDER BY name").bind(kind).all();
+  return results.map((t) => ({ ...t, data: JSON.parse(t.data || "{}") }));
+}
+
+export async function createTemplate(env, { kind, name, data }) {
+  const res = await env.DB
+    .prepare("INSERT INTO templates (kind, name, data) VALUES (?, ?, ?)")
+    .bind(kind, name, JSON.stringify(data || {}))
+    .run();
+  return res.meta.last_row_id;
+}
+
+export async function getTemplate(env, id) {
+  const row = await env.DB.prepare("SELECT * FROM templates WHERE id = ?").bind(id).first();
+  if (!row) return null;
+  return { ...row, data: JSON.parse(row.data || "{}") };
+}
+
+export async function deleteTemplate(env, id) {
+  await env.DB.prepare("DELETE FROM templates WHERE id = ?").bind(id).run();
 }
 
 // ---------- Simulations ----------
@@ -586,12 +669,13 @@ export async function setSetting(env, key, value) {
 const BACKUP_VERSION = 1;
 
 export async function exportAll(env) {
-  const [pages, blocks, articles, settings, redirects] = await Promise.all([
+  const [pages, blocks, articles, settings, redirects, templates] = await Promise.all([
     env.DB.prepare("SELECT * FROM pages ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM blocks ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM articles ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM settings ORDER BY key").all(),
     env.DB.prepare("SELECT * FROM redirects ORDER BY id").all(),
+    env.DB.prepare("SELECT * FROM templates ORDER BY id").all(),
   ]);
   return {
     version: BACKUP_VERSION,
@@ -601,6 +685,7 @@ export async function exportAll(env) {
     articles: articles.results,
     settings: settings.results,
     redirects: redirects.results,
+    templates: templates.results,
   };
 }
 
@@ -610,15 +695,17 @@ export async function importAll(env, data) {
   // missing one of these keys entirely is malformed and must be rejected,
   // not silently treated as "wipe this table and leave it empty" — a backup
   // restore should never be able to destroy data just because a field name
-  // is missing. `redirects` was added later, so older legitimate backups
-  // won't have it — default that one to empty instead of rejecting them.
-  const { pages, blocks, articles, settings, redirects = [] } = data;
+  // is missing. `redirects` and `templates` were added later, so older
+  // legitimate backups won't have them — default those to empty instead of
+  // rejecting them.
+  const { pages, blocks, articles, settings, redirects = [], templates = [] } = data;
   if (
     !Array.isArray(pages) ||
     !Array.isArray(blocks) ||
     !Array.isArray(articles) ||
     !Array.isArray(settings) ||
-    !Array.isArray(redirects)
+    !Array.isArray(redirects) ||
+    !Array.isArray(templates)
   ) {
     throw new Error("This doesn't look like a dominickdominick backup file (missing pages/blocks/articles/settings)");
   }
@@ -629,14 +716,15 @@ export async function importAll(env, data) {
     env.DB.prepare("DELETE FROM articles"),
     env.DB.prepare("DELETE FROM settings"),
     env.DB.prepare("DELETE FROM redirects"),
+    env.DB.prepare("DELETE FROM templates"),
   ];
 
   for (const p of pages) {
     stmts.push(
       env.DB
         .prepare(
-          `INSERT INTO pages (id, slug, title, meta_description, nav_label, nav_order, og_image, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO pages (id, slug, title, meta_description, nav_label, nav_order, og_image, deleted_at, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           p.id,
@@ -646,6 +734,7 @@ export async function importAll(env, data) {
           p.nav_label ?? null,
           p.nav_order ?? null,
           p.og_image ?? null,
+          p.deleted_at ?? null,
           p.created_at,
           p.updated_at
         )
@@ -678,8 +767,8 @@ export async function importAll(env, data) {
     stmts.push(
       env.DB
         .prepare(
-          `INSERT INTO articles (id, slug, title, body, tags, og_image, published_at, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO articles (id, slug, title, body, tags, og_image, published_at, deleted_at, series, series_order, co_authors, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           a.id,
@@ -689,6 +778,10 @@ export async function importAll(env, data) {
           a.tags ?? "[]",
           a.og_image ?? null,
           a.published_at ?? null,
+          a.deleted_at ?? null,
+          a.series ?? null,
+          a.series_order ?? null,
+          a.co_authors ?? "[]",
           a.created_at,
           a.updated_at
         )
@@ -704,6 +797,14 @@ export async function importAll(env, data) {
       env.DB
         .prepare("INSERT INTO redirects (id, from_path, to_path, status_code, created_at) VALUES (?, ?, ?, ?, ?)")
         .bind(r.id, r.from_path, r.to_path, r.status_code ?? 301, r.created_at)
+    );
+  }
+
+  for (const t of templates) {
+    stmts.push(
+      env.DB
+        .prepare("INSERT INTO templates (id, kind, name, data, created_at) VALUES (?, ?, ?, ?, ?)")
+        .bind(t.id, t.kind, t.name, t.data ?? "{}", t.created_at)
     );
   }
 

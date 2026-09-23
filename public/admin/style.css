@@ -324,9 +324,36 @@
   overflow: hidden;
 }
 
-.articles-list {
+.articles-list-wrap {
   width: 240px;
   border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.articles-bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.75rem;
+}
+
+.articles-bulk-bar button {
+  font-size: 0.72rem;
+  padding: 4px 8px;
+}
+
+.articles-selected-count {
+  color: var(--text-dim);
+  flex: 1 1 100%;
+}
+
+.articles-list {
+  flex: 1;
   overflow-y: auto;
   padding: 12px;
 }
@@ -368,6 +395,19 @@
   flex: 1;
   resize: vertical;
   line-height: 1.5;
+}
+
+.article-series-row {
+  display: flex;
+  gap: 10px;
+}
+
+.article-series-row #article-series {
+  flex: 1;
+}
+
+.article-series-row #article-series-order {
+  width: 90px;
 }
 
 .article-word-count {
@@ -453,6 +493,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .article-actions button {
@@ -552,6 +593,13 @@
   #new-page-btn {
     flex-shrink: 0;
     padding: 8px 10px;
+  }
+
+  /* The template picker is a nice-to-have that doesn't fit this already-
+     packed row on a phone screen — "+ Page" still works, it just always
+     starts blank there. */
+  #page-template-picker {
+    display: none;
   }
 
   .admin-view-live {

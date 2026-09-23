@@ -266,6 +266,7 @@ body {
 .article-meta {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   color: var(--text-dim);
   font-size: 0.85rem;
@@ -274,6 +275,45 @@ body {
 
 .article-meta-sep {
   opacity: 0.6;
+}
+
+.byline {
+  white-space: nowrap;
+}
+
+.series-nav {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  background: var(--bg-elevated);
+}
+
+.series-nav-label {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+.series-nav-links {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.9rem;
+}
+
+.series-nav-links a {
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.series-nav-links a:hover {
+  color: var(--accent);
+}
+
+.series-next {
+  margin-left: auto;
+  text-align: right;
 }
 
 .copy-link-btn {

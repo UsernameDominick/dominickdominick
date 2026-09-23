@@ -226,6 +226,26 @@ ${pageItems ? `<h2>Pages</h2><ul class="search-results">${pageItems}</ul>` : ""}
 ${articleItems ? `<h2>Posts</h2><ul class="search-results">${articleItems}</ul>` : ""}`;
 }
 
+export function renderByline(article) {
+  const names = ["Dominick", ...(article.co_authors || [])];
+  return names.length > 1 ? `<span class="byline">By ${names.map(esc).join(" & ")}</span>` : "";
+}
+
+export function renderSeriesNavHtml(article, seriesArticles) {
+  if (!article.series || !seriesArticles || seriesArticles.length < 2) return "";
+  const idx = seriesArticles.findIndex((a) => a.id === article.id);
+  if (idx === -1) return "";
+  const prev = idx > 0 ? seriesArticles[idx - 1] : null;
+  const next = idx < seriesArticles.length - 1 ? seriesArticles[idx + 1] : null;
+  return `<div class="series-nav">
+    <div class="series-nav-label">Part ${idx + 1} of ${seriesArticles.length} in <strong>${esc(article.series)}</strong></div>
+    <div class="series-nav-links">
+      ${prev ? `<a href="/random/${esc(prev.slug)}" class="series-prev">← ${esc(prev.title)}</a>` : "<span></span>"}
+      ${next ? `<a href="/random/${esc(next.slug)}" class="series-next">${esc(next.title)} →</a>` : ""}
+    </div>
+  </div>`;
+}
+
 export function renderRelatedArticlesHtml(articles) {
   if (!articles || !articles.length) return "";
   const items = articles

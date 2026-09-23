@@ -19,6 +19,10 @@ import {
   restoreArticle,
   hardDeleteArticle,
   listTrashedArticles,
+  bulkArticleAction,
+  listTemplates,
+  createTemplate,
+  deleteTemplate,
   slugExists,
   checkLoginRateLimit,
   recordLoginAttempt,
@@ -283,6 +287,16 @@ async function routeAdminApi(request, env, url, ctx) {
     await deleteArticle(env, Number(articleMatch[1]));
     return json({ ok: true });
   }
+  if (path === "/articles/bulk" && method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    const ids = Array.isArray(body.ids) ? body.ids : [];
+    if (!ids.length) return json({ error: "No articles selected" }, { status: 400 });
+    if (!["publish", "unpublish", "trash"].includes(body.action)) {
+      return json({ error: "Invalid action" }, { status: 400 });
+    }
+    await bulkArticleAction(env, ids, body.action);
+    return json({ ok: true });
+  }
   if (path === "/articles/trash" && method === "GET") {
     return json(await listTrashedArticles(env));
   }
@@ -441,6 +455,26 @@ async function routeAdminApi(request, env, url, ctx) {
   }
 
   // /simulations
+  // /templates?kind=page|article — saved starting points for new pages/articles
+  if (path === "/templates" && method === "GET") {
+    const kind = url.searchParams.get("kind");
+    if (!["page", "article"].includes(kind)) return json({ error: "Invalid kind" }, { status: 400 });
+    return json(await listTemplates(env, kind));
+  }
+  if (path === "/templates" && method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    if (!["page", "article"].includes(body.kind) || !body.name) {
+      return json({ error: "kind and name are required" }, { status: 400 });
+    }
+    const id = await createTemplate(env, body);
+    return json({ id });
+  }
+  const templateMatch = path.match(/^\/templates\/(\d+)$/);
+  if (templateMatch && method === "DELETE") {
+    await deleteTemplate(env, Number(templateMatch[1]));
+    return json({ ok: true });
+  }
+
   if (path === "/simulations" && method === "GET") {
     return json(await listSimulations(env));
   }

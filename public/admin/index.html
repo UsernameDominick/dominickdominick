@@ -26,6 +26,9 @@
         <span class="admin-sep">/</span>
         <select id="page-picker"></select>
         <button id="new-page-btn" title="New page">+ Page</button>
+        <select id="page-template-picker" title="Start the next new page from a saved template">
+          <option value="">Blank page</option>
+        </select>
         <button id="site-menu-btn" class="mobile-only" aria-label="Menu">Menu</button>
       </div>
       <div class="admin-header-right" id="admin-header-right">
@@ -72,7 +75,7 @@
         <label>Nav label (blank = hidden from nav)<input id="page-nav-label" type="text"></label>
         <label>Nav order<input id="page-nav-order" type="number"></label>
         <label>Share image URL (og:image, blank = site default)
-          <input id="page-og-image" type="text">
+          <input id="page-og-image" type="text" spellcheck="false">
           <button type="button" class="upload-trigger" data-target="#page-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#page-og-image">Browse…</button>
         </label>
         <div class="og-preview-label">Share preview</div>
@@ -87,6 +90,7 @@
         <button id="save-page-settings">Save page settings</button>
         <button id="page-history-btn">History</button>
         <button id="duplicate-page-btn">Duplicate this page</button>
+        <button id="save-page-template-btn">Save as template</button>
         <button id="delete-page-btn" class="danger">Delete this page</button>
       </aside>
 
@@ -113,13 +117,27 @@
         <button id="close-articles">×</button>
       </header>
       <div class="articles-layout">
-        <div class="articles-list" id="articles-list"></div>
+        <div class="articles-list-wrap">
+          <div class="articles-bulk-bar">
+            <label><input type="checkbox" id="articles-select-all"> Select all</label>
+            <span id="articles-selected-count" class="articles-selected-count"></span>
+            <button type="button" id="bulk-publish-btn" disabled>Publish</button>
+            <button type="button" id="bulk-unpublish-btn" disabled>Unpublish</button>
+            <button type="button" id="bulk-trash-btn" class="danger" disabled>Trash</button>
+          </div>
+          <div class="articles-list" id="articles-list"></div>
+        </div>
         <div class="article-editor">
           <input id="article-title" placeholder="Title">
-          <input id="article-slug" placeholder="URL slug (auto from title)">
+          <input id="article-slug" placeholder="URL slug (auto from title)" spellcheck="false">
           <input id="article-tags" placeholder="Tags, comma separated (e.g. life, code)">
+          <div class="article-series-row">
+            <input id="article-series" placeholder="Series name (optional, e.g. \"Rebuilding my deck\")">
+            <input id="article-series-order" type="number" placeholder="Part #">
+          </div>
+          <input id="article-co-authors" placeholder="Co-authors, comma separated (optional byline credits)">
           <div class="input-with-upload">
-            <input id="article-og-image" placeholder="Share image URL (og:image, blank = site default)">
+            <input id="article-og-image" placeholder="Share image URL (og:image, blank = site default)" spellcheck="false">
             <button type="button" class="upload-trigger" data-target="#article-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#article-og-image">Browse…</button>
           </div>
           <textarea id="article-body" placeholder="Write here. Blank line = new paragraph. **bold**, *italic*, [link](url). ## Heading, ### Subheading (two or more headings add a table of contents). ```lang / code / ``` for a code block. Pipe tables. [^1] + [^1]: note for footnotes." rows="16"></textarea>
@@ -141,6 +159,10 @@
             <button id="article-history-btn" type="button" hidden>History</button>
             <button id="save-article">Save</button>
             <button id="new-article">New</button>
+            <select id="article-template-picker" title="Fill a new article's body from a saved template">
+              <option value="">Start blank</option>
+            </select>
+            <button type="button" id="save-article-template-btn">Save body as template</button>
             <button id="delete-article" class="danger">Delete</button>
           </div>
         </div>

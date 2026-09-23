@@ -33,6 +33,9 @@ CREATE TABLE articles (
   og_image TEXT,
   published_at TEXT,
   deleted_at TEXT,
+  series TEXT,
+  series_order INTEGER,
+  co_authors TEXT NOT NULL DEFAULT '[]',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -72,6 +75,14 @@ CREATE TABLE revisions (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE templates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL,
+  name TEXT NOT NULL,
+  data TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE pageviews (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   path TEXT NOT NULL,
@@ -83,6 +94,7 @@ CREATE TABLE pageviews (
 CREATE INDEX idx_blocks_page ON blocks(page_id);
 CREATE INDEX idx_revisions_kind_entity ON revisions(kind, entity_id);
 CREATE INDEX idx_articles_published ON articles(published_at);
+CREATE INDEX idx_articles_series ON articles(series);
 CREATE INDEX idx_login_attempts_ip_time ON login_attempts(ip, attempted_at);
 CREATE INDEX idx_pageviews_created ON pageviews(created_at);
 CREATE INDEX idx_pageviews_path ON pageviews(path);

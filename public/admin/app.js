@@ -193,8 +193,16 @@
   el("new-page-btn").addEventListener("click", async () => {
     const title = prompt("Page title:");
     if (!title) return;
+    const templateId = Number(el("page-template-picker").value) || null;
     try {
       const res = await api("/pages", { method: "POST", body: JSON.stringify({ title }) });
+      if (templateId) {
+        const t = templateOptions.page.find((x) => x.id === templateId);
+        const templateBlocks = (t && t.data.blocks) || [];
+        for (const b of templateBlocks) {
+          await api(`/pages/${res.id}/blocks`, { method: "POST", body: JSON.stringify(b) });
+        }
+      }
       await loadPages();
       const created = pages.find((p) => p.id === res.id);
       if (created) await selectPage(created.id);
@@ -521,7 +529,7 @@
     links: [{ key: "items", label: "Links (one per line: Label | URL)", type: "link-list" }],
     changelog: [{ key: "entries", label: "Entries (one per line: YYYY-MM-DD | Title | Description)", type: "changelog-list" }],
     simulation: [{ key: "simulation_id", label: "Simulation", type: "simulation-select" }],
-    html: [{ key: "html", label: "Raw HTML (advanced — rendered as-is, unescaped; be careful what you paste here)", type: "textarea" }],
+    html: [{ key: "html", label: "Raw HTML (advanced — rendered as-is, unescaped; be careful what you paste here)", type: "textarea", noSpellcheck: true }],
     divider: [],
     spacer: [],
   };
@@ -570,7 +578,7 @@
         ["auto", "Original size"],
       ],
     },
-    { key: "customCss", label: "Custom CSS (advanced — raw declarations, e.g. transform: rotate(-2deg);)", type: "textarea" },
+    { key: "customCss", label: "Custom CSS (advanced — raw declarations, e.g. transform: rotate(-2deg);)", type: "textarea", noSpellcheck: true },
     { key: "hidden", label: "Hide from live site", type: "checkbox" },
   ];
 
@@ -579,7 +587,7 @@
       return `<label><input type="checkbox" data-key="${f.key}" ${val ? "checked" : ""}> ${f.label}</label>`;
     }
     if (f.type === "textarea") {
-      return `<label>${f.label}<textarea data-key="${f.key}" rows="4">${escapeHtml(val || "")}</textarea></label>`;
+      return `<label>${f.label}<textarea data-key="${f.key}" rows="4"${f.noSpellcheck ? ' spellcheck="false"' : ""}>${escapeHtml(val || "")}</textarea></label>`;
     }
     if (f.type === "select") {
       const options = f.options
@@ -594,7 +602,7 @@
     }
     if (f.type === "image-url") {
       const fieldId = `${idPrefix}-${f.key}`;
-      return `<label>${f.label}<input id="${fieldId}" data-key="${f.key}" type="text" value="${escapeHtml(
+      return `<label>${f.label}<input id="${fieldId}" data-key="${f.key}" type="text" spellcheck="false" value="${escapeHtml(
         val ?? ""
       )}"><button type="button" class="upload-trigger" data-target="#${fieldId}">Upload image</button> <button type="button" class="browse-trigger" data-target="#${fieldId}">Browse…</button></label>`;
     }
@@ -830,25 +838,69 @@
     return "";
   }
 
+  let selectedArticleIds = new Set();
+
+  function updateBulkBar() {
+    const n = selectedArticleIds.size;
+    el("articles-selected-count").textContent = n ? `${n} selected` : "";
+    el("bulk-publish-btn").disabled = !n;
+    el("bulk-unpublish-btn").disabled = !n;
+    el("bulk-trash-btn").disabled = !n;
+    el("articles-select-all").checked = n > 0 && n === articles.length;
+  }
+
   function renderArticlesList() {
+    // Drop selected ids that no longer exist (trashed/deleted elsewhere).
+    selectedArticleIds = new Set([...selectedArticleIds].filter((id) => articles.some((a) => a.id === id)));
     el("articles-list").innerHTML = articles
       .map(
         (a) =>
-          `<div class="article-list-item${a.id === currentArticleId ? " active" : ""}" data-id="${a.id}">${escapeHtml(
-            a.title
-          )}${articleStatusLabel(a)}${
+          `<div class="article-list-item${a.id === currentArticleId ? " active" : ""}" data-id="${a.id}"><input type="checkbox" class="article-select-checkbox" data-id="${a.id}"${
+            selectedArticleIds.has(a.id) ? " checked" : ""
+          }> ${escapeHtml(a.title)}${articleStatusLabel(a)}${
             a.tags && a.tags.length ? `<div class="article-list-tags">${a.tags.map(escapeHtml).join(", ")}</div>` : ""
           }</div>`
       )
       .join("");
     el("articles-list").querySelectorAll(".article-list-item").forEach((item) => {
+      item.querySelector(".article-select-checkbox").addEventListener("click", (e) => {
+        e.stopPropagation();
+        const id = Number(e.target.dataset.id);
+        if (e.target.checked) selectedArticleIds.add(id);
+        else selectedArticleIds.delete(id);
+        updateBulkBar();
+      });
       item.addEventListener("click", () => {
         const article = articles.find((a) => a.id === Number(item.dataset.id));
         populateArticleForm(article);
         renderArticlesList();
       });
     });
+    updateBulkBar();
   }
+
+  el("articles-select-all").addEventListener("change", (e) => {
+    selectedArticleIds = e.target.checked ? new Set(articles.map((a) => a.id)) : new Set();
+    renderArticlesList();
+  });
+
+  async function runBulkArticleAction(action) {
+    if (!selectedArticleIds.size) return;
+    const label = { publish: "Publish", unpublish: "Unpublish", trash: "Trash" }[action];
+    if (!confirm(`${label} ${selectedArticleIds.size} article(s)?`)) return;
+    try {
+      await api("/articles/bulk", { method: "POST", body: JSON.stringify({ ids: [...selectedArticleIds], action }) });
+      selectedArticleIds = new Set();
+      articles = await api("/articles");
+      if (currentArticleId && !articles.some((a) => a.id === currentArticleId)) clearArticleForm();
+      renderArticlesList();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+  el("bulk-publish-btn").addEventListener("click", () => runBulkArticleAction("publish"));
+  el("bulk-unpublish-btn").addEventListener("click", () => runBulkArticleAction("unpublish"));
+  el("bulk-trash-btn").addEventListener("click", () => runBulkArticleAction("trash"));
 
   function populateArticleForm(article) {
     // Switching articles must drop any pending autosave for the PREVIOUS
@@ -860,6 +912,9 @@
     el("article-title").value = article.title;
     el("article-slug").value = article.slug;
     el("article-tags").value = (article.tags || []).join(", ");
+    el("article-series").value = article.series || "";
+    el("article-series-order").value = article.series_order ?? "";
+    el("article-co-authors").value = (article.co_authors || []).join(", ");
     el("article-og-image").value = article.og_image || "";
     el("article-body").value = article.body;
     el("article-published").checked = !!article.published_at;
@@ -946,6 +1001,9 @@
     el("article-title").value = "";
     el("article-slug").value = "";
     el("article-tags").value = "";
+    el("article-series").value = "";
+    el("article-series-order").value = "";
+    el("article-co-authors").value = "";
     el("article-og-image").value = "";
     el("article-body").value = "";
     el("article-published").checked = false;
@@ -962,13 +1020,24 @@
       .filter(Boolean);
   }
 
+  function parseCoAuthors(str) {
+    return str
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+
   function buildArticleBody() {
     const publishAtLocal = el("article-publish-at").value;
     const published = el("article-published").checked;
+    const seriesOrder = el("article-series-order").value;
     return {
       title: el("article-title").value,
       slug: el("article-slug").value,
       tags: parseTags(el("article-tags").value),
+      series: el("article-series").value.trim() || null,
+      series_order: seriesOrder === "" ? null : Number(seriesOrder),
+      co_authors: parseCoAuthors(el("article-co-authors").value),
       og_image: el("article-og-image").value || null,
       body: el("article-body").value,
       // A blank publish-at with "Published" checked means "now"; a filled
@@ -1025,10 +1094,10 @@
     clearTimeout(autosaveTimer);
     autosaveTimer = setTimeout(autosaveArticle, 2000);
   }
-  ["article-title", "article-tags", "article-og-image", "article-body"].forEach((id) =>
+  ["article-title", "article-tags", "article-series", "article-co-authors", "article-og-image", "article-body"].forEach((id) =>
     el(id).addEventListener("input", scheduleAutosave)
   );
-  ["article-slug", "article-published", "article-publish-at"].forEach((id) =>
+  ["article-slug", "article-published", "article-publish-at", "article-series-order"].forEach((id) =>
     el(id).addEventListener("change", scheduleAutosave)
   );
 
@@ -1744,6 +1813,63 @@
     }
   });
 
+  // ---------- Templates ----------
+  const templateOptions = { page: [], article: [] };
+
+  async function loadTemplates(kind) {
+    try {
+      templateOptions[kind] = await api(`/templates?kind=${kind}`);
+    } catch {
+      templateOptions[kind] = [];
+    }
+    const picker = el(kind === "page" ? "page-template-picker" : "article-template-picker");
+    const blankLabel = kind === "page" ? "Blank page" : "Start blank";
+    picker.innerHTML =
+      `<option value="">${blankLabel}</option>` +
+      templateOptions[kind].map((t) => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join("");
+  }
+
+  el("save-page-template-btn").addEventListener("click", async () => {
+    if (!currentPage) return;
+    const name = prompt("Template name:");
+    if (!name) return;
+    try {
+      await api("/templates", {
+        method: "POST",
+        body: JSON.stringify({ kind: "page", name, data: { blocks } }),
+      });
+      await loadTemplates("page");
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  el("save-article-template-btn").addEventListener("click", async () => {
+    const name = prompt("Template name:");
+    if (!name) return;
+    try {
+      await api("/templates", {
+        method: "POST",
+        body: JSON.stringify({ kind: "article", name, data: { body: el("article-body").value } }),
+      });
+      await loadTemplates("article");
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  el("article-template-picker").addEventListener("change", (e) => {
+    const id = Number(e.target.value);
+    e.target.value = "";
+    if (!id) return;
+    const t = templateOptions.article.find((x) => x.id === id);
+    if (!t) return;
+    el("article-body").value = t.data.body || "";
+    updateWordCount();
+    updateArticleOgPreview();
+    scheduleAutosave();
+  });
+
   // ---------- Boot ----------
   async function loadSimulationOptions() {
     try {
@@ -1763,6 +1889,8 @@
     showApp();
     await loadPages();
     await loadSimulationOptions();
+    await loadTemplates("page");
+    await loadTemplates("article");
   }
 
   document.querySelectorAll(".upload-trigger").forEach(wireUploadButton);

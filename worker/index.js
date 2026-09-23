@@ -10,6 +10,7 @@ import {
   getRedirect,
   publicSearch,
   getRelatedArticles,
+  getSeriesArticles,
 } from "./db.js";
 import { isAuthenticated } from "./auth.js";
 import {
@@ -25,6 +26,8 @@ import {
   renderSearchResultsHtml,
   renderRelatedArticlesHtml,
   renderNotFoundHtml,
+  renderByline,
+  renderSeriesNavHtml,
 } from "./render.js";
 import { handleAdminApi } from "./admin-api.js";
 
@@ -88,23 +91,40 @@ async function renderArticle(env, article, navItems) {
   const tocHtml = tableOfContentsHtml(headings);
   const related = await getRelatedArticles(env, article);
   const relatedHtml = renderRelatedArticlesHtml(related);
-  const bodyRow = tocHtml ? 9 : 3;
+  const seriesArticles = article.series ? await getSeriesArticles(env, article.series) : [];
+  const seriesNavHtml = renderSeriesNavHtml(article, seriesArticles);
+  const bylineHtml = renderByline(article);
+
+  // Rows are handed out in order rather than computed with ad-hoc offsets,
+  // so adding/removing an optional section (series nav, TOC, related) can't
+  // silently throw off the ones after it.
+  let row = 3;
+  const seriesRow = seriesNavHtml ? row : null;
+  if (seriesNavHtml) row += 3;
+  const tocRow = tocHtml ? row : null;
+  if (tocHtml) row += 6;
+  const bodyRow = row;
+  row += 12;
+  const relatedRow = row;
+
   const bodyHtml = `<div class="reading-progress"></div>
   <div class="block" style="grid-column:1 / span 24;grid-row:1 / span 2;">
     <div class="article-meta">
       <time datetime="${esc(article.published_at)}">${esc((article.published_at || "").slice(0, 10))}</time>
       <span class="article-meta-sep">·</span>
       <span>${mins} min read</span>
+      ${bylineHtml ? `<span class="article-meta-sep">·</span>${bylineHtml}` : ""}
       <button type="button" class="copy-link-btn" data-copy-text="Copy link" data-copied-text="Copied!">Copy link</button>
     </div>
     <h1>${esc(article.title)}</h1>
     ${renderTags(article.tags)}
   </div>
-  ${tocHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:3 / span 6;">${tocHtml}</div>` : ""}
+  ${seriesNavHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${seriesRow} / span 3;">${seriesNavHtml}</div>` : ""}
+  ${tocHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${tocRow} / span 6;">${tocHtml}</div>` : ""}
   <div class="block" style="grid-column:1 / span 24;grid-row:${bodyRow} / span 12;">
     ${paragraphsHtml(article.body)}
   </div>
-  ${relatedHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${bodyRow + 12} / span 6;">${relatedHtml}</div>` : ""}`;
+  ${relatedHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${relatedRow} / span 6;">${relatedHtml}</div>` : ""}`;
   const jsonLd = [
     {
       "@context": "https://schema.org",
