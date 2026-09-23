@@ -582,6 +582,8 @@
 /* Settings modal */
 .settings-modal-inner {
   height: auto;
+  max-height: 85vh;
+  overflow-y: auto;
   max-width: 500px;
 }
 
@@ -593,11 +595,12 @@
 }
 
 .settings-body label {
+  display: block;
   font-size: 0.85rem;
   color: var(--text-dim);
 }
 
-.settings-body input, .settings-body select {
+.settings-body input, .settings-body select, .settings-body textarea {
   width: 100%;
   background: var(--bg);
   color: var(--text);
@@ -606,6 +609,7 @@
   padding: 8px 10px;
   margin-top: 6px;
   font-family: inherit;
+  font-size: 0.85rem;
 }
 
 .settings-body input[type="color"] {

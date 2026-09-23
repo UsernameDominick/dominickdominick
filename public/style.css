@@ -254,6 +254,26 @@ h6 { font-size: 0.9rem; }
   line-height: 1.6;
 }
 
+.site-footer {
+  border-top: 1px solid var(--border);
+  padding: 24px 32px;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.site-footer p {
+  margin: 0 0 6px;
+}
+
+.site-footer p:last-child {
+  margin-bottom: 0;
+}
+
+.site-footer a {
+  color: var(--accent);
+}
+
 @media (max-width: 640px) {
   .topbar {
     padding: 16px 20px;
@@ -266,5 +286,9 @@ h6 { font-size: 0.9rem; }
 
   h1 {
     font-size: 1.6rem;
+  }
+
+  .site-footer {
+    padding: 20px;
   }
 }

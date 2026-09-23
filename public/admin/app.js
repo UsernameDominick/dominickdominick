@@ -430,7 +430,7 @@
         ],
       },
     ],
-    text: [{ key: "text", label: "Text (blank line = new paragraph)", type: "textarea" }],
+    text: [{ key: "text", label: "Text (blank line = new paragraph, **bold**, *italic*, [link](url))", type: "textarea" }],
     image: [{ key: "url", label: "Image URL", type: "image-url" }, { key: "alt", label: "Alt text", type: "text" }],
     button: [
       { key: "label", label: "Label", type: "text" },
@@ -581,6 +581,36 @@
     }, 8000);
   }
 
+  el("duplicate-block-btn").addEventListener("click", async () => {
+    if (!selectedBlockId) return;
+    const block = blocks.find((b) => b.id === selectedBlockId);
+    if (!block) return;
+    // Place the copy below everything else, same spot the palette uses for
+    // new blocks, so it's guaranteed not to overlap anything.
+    const maxRow = blocks.reduce((m, b) => Math.max(m, b.row + b.row_span), 1);
+    try {
+      const res = await api(`/pages/${currentPage.id}/blocks`, {
+        method: "POST",
+        body: JSON.stringify({
+          type: block.type,
+          content: block.content,
+          style: block.style,
+          col: block.col,
+          col_span: block.col_span,
+          row: maxRow,
+          row_span: block.row_span,
+        }),
+      });
+      await loadBlocks();
+      selectedBlockId = res.id;
+      renderCanvas();
+      renderInspector();
+      if (isMobile()) closeDrawers();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
   el("delete-block-btn").addEventListener("click", async () => {
     if (!selectedBlockId) return;
     const block = blocks.find((b) => b.id === selectedBlockId);
@@ -709,6 +739,7 @@
     el("settings-accent").value = settings.theme_accent || "#e8a13a";
     el("settings-bg").value = settings.theme_bg || "#0b0b0c";
     el("settings-font").value = settings.theme_font || "";
+    el("settings-footer").value = settings.site_footer || "";
     el("settings-modal").hidden = false;
   });
   el("close-settings").addEventListener("click", () => (el("settings-modal").hidden = true));
@@ -721,12 +752,58 @@
           theme_accent: el("settings-accent").value,
           theme_bg: el("settings-bg").value,
           theme_font: el("settings-font").value,
+          site_footer: el("settings-footer").value,
         }),
       });
       el("settings-modal").hidden = true;
     } catch (err) {
       alert(err.message);
     }
+  });
+
+  // ---------- Backup / restore ----------
+  el("export-btn").addEventListener("click", async () => {
+    const res = await fetch("/api/admin/export");
+    if (!res.ok) {
+      alert("Export failed.");
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `dominickdominick-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  el("import-btn").addEventListener("click", () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "application/json";
+    input.addEventListener("change", async () => {
+      const file = input.files[0];
+      if (!file) return;
+      if (
+        !confirm(
+          "This will REPLACE every page, block, article, and setting with what's in this file. This can't be undone. Continue?"
+        )
+      ) {
+        return;
+      }
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        await api("/import", { method: "POST", body: JSON.stringify(data) });
+        alert("Restored. Reloading…");
+        location.reload();
+      } catch (err) {
+        alert("Restore failed: " + err.message);
+      }
+    });
+    input.click();
   });
 
   // ---------- Analytics ----------

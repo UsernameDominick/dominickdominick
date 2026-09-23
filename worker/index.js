@@ -8,15 +8,16 @@ async function getTheme(env) {
   ]);
   return { accent: accent || null, bg: bg || null, font: font || null };
 }
-import { renderShell, renderBlocks, renderTags, excerpt, esc } from "./render.js";
+import { renderShell, renderBlocks, renderTags, excerpt, esc, paragraphsHtml } from "./render.js";
 import { handleAdminApi } from "./admin-api.js";
 
 async function renderPage(env, page, url) {
-  const [navItems, blocks, defaultOgImage, theme] = await Promise.all([
+  const [navItems, blocks, defaultOgImage, theme, footerText] = await Promise.all([
     listNavPages(env),
     listBlocks(env, page.id),
     getSetting(env, "default_og_image"),
     getTheme(env),
+    getSetting(env, "site_footer"),
   ]);
   const activeTagFilter = url.searchParams.get("tag") || null;
   const bodyHtml = await renderBlocks(env, blocks, { activeTagFilter });
@@ -40,23 +41,25 @@ async function renderPage(env, page, url) {
     jsonLd,
     ogImage: page.og_image || defaultOgImage || null,
     theme,
+    footerText,
   });
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
 async function renderArticle(env, article, navItems) {
   const description = excerpt(article.body) || article.title;
-  const [defaultOgImage, theme] = await Promise.all([getSetting(env, "default_og_image"), getTheme(env)]);
+  const [defaultOgImage, theme, footerText] = await Promise.all([
+    getSetting(env, "default_og_image"),
+    getTheme(env),
+    getSetting(env, "site_footer"),
+  ]);
   const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 2;">
     <time datetime="${esc(article.published_at)}">${esc((article.published_at || "").slice(0, 10))}</time>
     <h1>${esc(article.title)}</h1>
     ${renderTags(article.tags)}
   </div>
   <div class="block" style="grid-column:1 / span 24;grid-row:3 / span 12;">
-    ${String(article.body || "")
-      .split(/\n{2,}/)
-      .map((p) => `<p>${esc(p).replace(/\n/g, "<br>")}</p>`)
-      .join("\n")}
+    ${paragraphsHtml(article.body)}
   </div>`;
   const jsonLd = {
     "@context": "https://schema.org",
@@ -81,6 +84,7 @@ async function renderArticle(env, article, navItems) {
     keywords: article.tags && article.tags.length ? article.tags.join(", ") : null,
     ogImage: article.og_image || defaultOgImage || null,
     theme,
+    footerText,
   });
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }

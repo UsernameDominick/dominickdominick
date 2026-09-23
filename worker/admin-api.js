@@ -19,6 +19,8 @@ import {
   getSetting,
   setSetting,
   getAnalytics,
+  exportAll,
+  importAll,
 } from "./db.js";
 import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated } from "./auth.js";
 
@@ -195,6 +197,29 @@ async function routeAdminApi(request, env, url) {
     return json({ url: `/media/${key}` });
   }
 
+  // /export — a full JSON backup, downloaded straight from the browser
+  if (path === "/export" && method === "GET") {
+    const data = await exportAll(env);
+    return new Response(JSON.stringify(data, null, 2), {
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Disposition": `attachment; filename="dominickdominick-backup-${new Date().toISOString().slice(0, 10)}.json"`,
+      },
+    });
+  }
+
+  // /import — replaces ALL content with the uploaded backup, atomically
+  if (path === "/import" && method === "POST") {
+    const body = await request.json().catch(() => null);
+    if (!body) return json({ error: "Invalid JSON" }, { status: 400 });
+    try {
+      await importAll(env, body);
+    } catch (err) {
+      return json({ error: err.message || "Import failed" }, { status: 400 });
+    }
+    return json({ ok: true });
+  }
+
   // /analytics
   if (path === "/analytics" && method === "GET") {
     const days = Number(url.searchParams.get("days")) || 7;
@@ -203,17 +228,19 @@ async function routeAdminApi(request, env, url) {
 
   // /settings
   if (path === "/settings" && method === "GET") {
-    const [default_og_image, theme_accent, theme_bg, theme_font] = await Promise.all([
+    const [default_og_image, theme_accent, theme_bg, theme_font, site_footer] = await Promise.all([
       getSetting(env, "default_og_image"),
       getSetting(env, "theme_accent"),
       getSetting(env, "theme_bg"),
       getSetting(env, "theme_font"),
+      getSetting(env, "site_footer"),
     ]);
     return json({
       default_og_image: default_og_image || "",
       theme_accent: theme_accent || "",
       theme_bg: theme_bg || "",
       theme_font: theme_font || "",
+      site_footer: site_footer || "",
     });
   }
   if (path === "/settings" && method === "PUT") {
@@ -223,6 +250,7 @@ async function routeAdminApi(request, env, url) {
       setSetting(env, "theme_accent", body.theme_accent || ""),
       setSetting(env, "theme_bg", body.theme_bg || ""),
       setSetting(env, "theme_font", body.theme_font || ""),
+      setSetting(env, "site_footer", body.site_footer || ""),
     ]);
     return json({ ok: true });
   }

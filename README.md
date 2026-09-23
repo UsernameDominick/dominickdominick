@@ -30,11 +30,17 @@ Worker secret, not stored in this repo). From there:
 - Add new block types from the left palette
 - Edit a selected block's content, and its own style (text/background
   color, font, font size, border) in the right-hand panel. Headings
-  can be H1–H6.
+  can be H1–H6. "Duplicate block" clones one, placed below everything
+  else so it never overlaps.
+- Text blocks and article bodies support minimal markdown: `**bold**`,
+  `*italic*`, `[label](url)`.
 - Manage Random posts under the "Articles" button — tags, drafts, a share
   image, an "Upload image" button that goes straight to R2
-- Under "Site": theme accent/background color, site-wide font, and a
-  default share image (with per-page/article overrides)
+- Under "Site": theme accent/background color, site-wide font, a
+  site-wide footer (same markdown support), a default share image (with
+  per-page/article overrides), and **Backup** — download everything as
+  one JSON file, or restore from one (replaces all current content,
+  atomically — a bad file can't half-wipe the site)
 - Check "Analytics" for views/day, top pages, top referrers, top
   countries — no third-party dashboard needed
 - Create new pages with "+ Page" — they get their own URL but aren't

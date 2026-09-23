@@ -9,15 +9,28 @@ export function esc(str) {
     .replace(/'/g, "&#39;");
 }
 
-function paragraphs(text) {
+// Minimal markdown: **bold**, *italic*, [label](url). Runs on already-
+// HTML-escaped text, so the only unescaped characters left are the ones
+// this inserts itself — safe against breaking the surrounding markup.
+function richText(escapedText) {
+  return escapedText
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>")
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+}
+
+export function paragraphsHtml(text) {
   return String(text ?? "")
     .split(/\n{2,}/)
-    .map((p) => `<p>${esc(p).replace(/\n/g, "<br>")}</p>`)
+    .map((p) => `<p>${richText(esc(p)).replace(/\n/g, "<br>")}</p>`)
     .join("\n");
 }
 
 export function excerpt(text, maxLen = 155) {
   const flat = String(text ?? "")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
     .replace(/\s+/g, " ")
     .trim();
   if (flat.length <= maxLen) return flat;
@@ -79,7 +92,7 @@ async function renderBlockInner(env, block, ctx) {
       return `<h${lvl}>${esc(c.text)}</h${lvl}>`;
     }
     case "text":
-      return paragraphs(c.text);
+      return paragraphsHtml(c.text);
     case "image":
       return `<img src="${esc(c.url)}" alt="${esc(c.alt)}" loading="lazy" style="max-width:100%;border-radius:12px;">`;
     case "button":
@@ -138,6 +151,7 @@ export function renderShell({
   keywords = null,
   ogImage = null,
   theme = {},
+  footerText = null,
 }) {
   const canonical = `https://dominickdominick.com${path}`;
   const themeVars = [];
@@ -198,6 +212,7 @@ ${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script
     <main class="canvas">
       ${bodyHtml}
     </main>
+    ${footerText ? `<footer class="site-footer">${paragraphsHtml(footerText)}</footer>` : ""}
   </div>
 </body>
 </html>`;

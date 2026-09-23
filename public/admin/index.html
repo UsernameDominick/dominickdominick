@@ -74,6 +74,7 @@
         <div id="inspector-fields"></div>
         <h2>Style</h2>
         <div id="inspector-style-fields"></div>
+        <button id="duplicate-block-btn">Duplicate block</button>
         <button id="delete-block-btn" class="danger">Delete block</button>
       </aside>
     </div>
@@ -95,7 +96,7 @@
             <input id="article-og-image" placeholder="Share image URL (og:image, blank = site default)">
             <button type="button" class="upload-trigger" data-target="#article-og-image">Upload image</button>
           </div>
-          <textarea id="article-body" placeholder="Write here. Blank line = new paragraph." rows="16"></textarea>
+          <textarea id="article-body" placeholder="Write here. Blank line = new paragraph. **bold**, *italic*, [link](url)." rows="16"></textarea>
           <div class="article-actions">
             <label><input type="checkbox" id="article-published"> Published</label>
             <button id="save-article">Save</button>
@@ -169,7 +170,16 @@
           <input id="settings-og-image" type="text" placeholder="https://...">
           <button type="button" class="upload-trigger" data-target="#settings-og-image">Upload image</button>
         </label>
+        <h2>Footer</h2>
+        <label>Shown at the bottom of every page. Blank = no footer. Supports **bold**, *italic*, [link](url).
+          <textarea id="settings-footer" rows="3" placeholder="© 2026 Dominick"></textarea>
+        </label>
         <button id="save-settings">Save</button>
+        <h2>Backup</h2>
+        <label style="margin-bottom:0;">Download everything — pages, blocks, articles, settings — as one file.</label>
+        <button type="button" id="export-btn">Download backup</button>
+        <label style="margin-bottom:0;">Restore from a backup file. <strong>Replaces all current content.</strong></label>
+        <button type="button" id="import-btn" class="danger">Restore from file…</button>
       </div>
     </div>
   </div>

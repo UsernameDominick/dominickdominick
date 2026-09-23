@@ -273,3 +273,118 @@ export async function setSetting(env, key, value) {
     .bind(key, value)
     .run();
 }
+
+// ---------- Backup / restore ----------
+// Exports raw rows (content/style/tags left as their stored JSON strings,
+// not parsed) so importAll can re-insert them byte-for-byte.
+
+const BACKUP_VERSION = 1;
+
+export async function exportAll(env) {
+  const [pages, blocks, articles, settings] = await Promise.all([
+    env.DB.prepare("SELECT * FROM pages ORDER BY id").all(),
+    env.DB.prepare("SELECT * FROM blocks ORDER BY id").all(),
+    env.DB.prepare("SELECT * FROM articles ORDER BY id").all(),
+    env.DB.prepare("SELECT * FROM settings ORDER BY key").all(),
+  ]);
+  return {
+    version: BACKUP_VERSION,
+    exported_at: new Date().toISOString(),
+    pages: pages.results,
+    blocks: blocks.results,
+    articles: articles.results,
+    settings: settings.results,
+  };
+}
+
+export async function importAll(env, data) {
+  if (!data || typeof data !== "object") throw new Error("Not a valid backup file");
+  // Deliberately no defaults here: a file missing one of these keys entirely
+  // is malformed and must be rejected, not silently treated as "wipe this
+  // table and leave it empty" — a backup restore should never be able to
+  // destroy data just because a field name is missing.
+  const { pages, blocks, articles, settings } = data;
+  if (!Array.isArray(pages) || !Array.isArray(blocks) || !Array.isArray(articles) || !Array.isArray(settings)) {
+    throw new Error("This doesn't look like a dominickdominick backup file (missing pages/blocks/articles/settings)");
+  }
+
+  const stmts = [
+    env.DB.prepare("DELETE FROM blocks"),
+    env.DB.prepare("DELETE FROM pages"),
+    env.DB.prepare("DELETE FROM articles"),
+    env.DB.prepare("DELETE FROM settings"),
+  ];
+
+  for (const p of pages) {
+    stmts.push(
+      env.DB
+        .prepare(
+          `INSERT INTO pages (id, slug, title, meta_description, nav_label, nav_order, og_image, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(
+          p.id,
+          p.slug,
+          p.title,
+          p.meta_description ?? "",
+          p.nav_label ?? null,
+          p.nav_order ?? null,
+          p.og_image ?? null,
+          p.created_at,
+          p.updated_at
+        )
+    );
+  }
+
+  for (const b of blocks) {
+    stmts.push(
+      env.DB
+        .prepare(
+          `INSERT INTO blocks (id, page_id, type, content, style, col, col_span, row, row_span, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(
+          b.id,
+          b.page_id,
+          b.type,
+          b.content ?? "{}",
+          b.style ?? "{}",
+          b.col,
+          b.col_span,
+          b.row,
+          b.row_span,
+          b.updated_at
+        )
+    );
+  }
+
+  for (const a of articles) {
+    stmts.push(
+      env.DB
+        .prepare(
+          `INSERT INTO articles (id, slug, title, body, tags, og_image, published_at, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(
+          a.id,
+          a.slug,
+          a.title,
+          a.body ?? "",
+          a.tags ?? "[]",
+          a.og_image ?? null,
+          a.published_at ?? null,
+          a.created_at,
+          a.updated_at
+        )
+    );
+  }
+
+  for (const s of settings) {
+    stmts.push(env.DB.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").bind(s.key, s.value));
+  }
+
+  // .batch() runs everything as one atomic transaction — either it all
+  // lands, or (on any failure) none of it does, so a bad file can't leave
+  // the site half-wiped.
+  await env.DB.batch(stmts);
+}
