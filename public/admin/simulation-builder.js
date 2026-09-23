@@ -128,7 +128,7 @@
     selected = null;
     wireStart = null;
     previewOn = false;
-    zoomLevel = 1;
+    zoomLevel = defaultZoomLevel();
     placeX = 20;
     placeY = 20;
     undoStack = [];
@@ -642,16 +642,27 @@
   }
 
   // ---------- Zoom ----------
-  // The canvas defaults to fitting the container (CSS width:100%); zooming
-  // sets an explicit pixel size instead, and the wrapping .sim-builder-canvas
-  // (overflow: auto) turns into a native scroll area for panning around.
+  // On a wide screen, 100% fits the container (CSS width:100%) — the
+  // board is comfortably readable shrunk to fit. On a phone, fitting a
+  // 1500-unit-wide board into a ~390px screen shrinks pins/holes past the
+  // point of being tappable, which is the opposite of what "100%" should
+  // mean there — so on mobile, every zoom level (100% included) renders
+  // at a real, explicit pixel size instead, and the wrapping
+  // .sim-builder-canvas (overflow: auto) becomes a pannable scroll area,
+  // the way Tinkercad's own mobile view works: you scroll/pinch around a
+  // true-size board rather than seeing a tiny whole board at once.
   const ZOOM_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
+  const isMobileBuilder = () => window.matchMedia("(max-width: 860px)").matches;
+  // A phone's starting zoom is deliberately below 1 — big enough to
+  // actually tap a pin, small enough that getting oriented doesn't take
+  // several screens of scrolling before you've placed a single part.
+  const defaultZoomLevel = () => (isMobileBuilder() ? 0.5 : 1);
   let zoomLevel = 1;
 
   function applyZoom() {
     const svg = $("sim-builder-svg");
     if (svg) {
-      if (zoomLevel === 1) {
+      if (zoomLevel === 1 && !isMobileBuilder()) {
         svg.style.width = "";
         svg.style.height = "";
       } else {
@@ -672,7 +683,7 @@
   $("sim-zoom-in").addEventListener("click", () => stepZoom(1));
   $("sim-zoom-out").addEventListener("click", () => stepZoom(-1));
   $("sim-zoom-reset").addEventListener("click", () => {
-    zoomLevel = 1;
+    zoomLevel = defaultZoomLevel();
     applyZoom();
   });
 
