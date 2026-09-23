@@ -366,7 +366,9 @@ h6 { font-size: 0.9rem; }
   font-family: sans-serif;
 }
 
-/* Breadboard */
+/* Breadboard — real topology: the rail lines are one continuous strip
+   each (a genuine bus), the terminal holes below the gutter are each
+   their own independent connection point (see simulation-render.js). */
 .sim-comp .bb-body {
   fill: url(#sim-grad-board);
   stroke: #b8ab7a;
@@ -378,6 +380,29 @@ h6 { font-size: 0.9rem; }
 }
 .sim-comp .bb-hole {
   fill: url(#sim-grad-hole);
+}
+.sim-comp .bb-hole-rail {
+  fill: #2a2a2a;
+}
+.sim-comp .bb-rail-line {
+  opacity: 0.85;
+}
+.sim-comp .bb-rail-pos {
+  fill: #c23a3a;
+}
+.sim-comp .bb-rail-neg {
+  fill: #3a5ec2;
+}
+.sim-comp .bb-rail-label {
+  font-family: sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+}
+.sim-comp .bb-rail-label-pos {
+  fill: #c23a3a;
+}
+.sim-comp .bb-rail-label-neg {
+  fill: #3a5ec2;
 }
 
 /* LED */
@@ -398,23 +423,57 @@ h6 { font-size: 0.9rem; }
   stroke-width: 2;
 }
 .sim-svg.is-on .sim-comp[data-powered="true"] .led-bulb {
-  fill: url(#sim-grad-led-on);
+  fill: var(--led-on-color, url(#sim-grad-led-on));
   filter: url(#sim-glow);
 }
+/* A burnt-out or dangerously-overdriven LED reads as a scorched husk
+   instead of glowing, however "powered" it technically still is. */
+.sim-svg.is-on .sim-comp.sim-damaged[data-powered="true"] .led-bulb {
+  fill: #1a1a1a !important;
+  filter: none !important;
+}
 
-/* Resistor */
+/* Resistor — band colors are set inline per-instance from its actual
+   resistance value (see resistorBandHexes()), so only opacity/stroke
+   are shared here. */
 .sim-comp .resistor-body {
   fill: url(#sim-grad-resistor);
   stroke: #7a6a3a;
   stroke-width: 1.5;
+  transition: fill 0.3s;
 }
 .sim-comp .resistor-band {
-  fill: #5a4020;
-  opacity: 0.75;
+  opacity: 0.85;
 }
 .sim-comp .resistor-lead {
   stroke: url(#sim-grad-metal);
   stroke-width: 2;
+}
+.sim-comp.sim-damaged .resistor-body {
+  fill: #2a1810 !important;
+}
+
+/* Switch */
+.sim-comp .switch-body {
+  fill: #2a2a2a;
+  stroke: #555;
+  stroke-width: 1;
+}
+.sim-comp .switch-lead {
+  stroke: url(#sim-grad-metal);
+  stroke-width: 2;
+}
+.sim-comp .switch-lever {
+  stroke: #ccc;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  transition: all 0.2s;
+}
+.sim-comp .switch-pivot {
+  fill: #555;
+}
+.sim-comp-switch {
+  cursor: pointer;
 }
 
 /* Battery */

@@ -160,13 +160,15 @@
     return pin ? { x: comp.x + pin.x, y: comp.y + pin.y } : null;
   }
 
-  function renderComponentSvg(comp, poweredComps) {
+  function renderComponentSvg(comp, poweredComps, analysis) {
     const def = REG[comp.type];
     if (!def) return "";
     const sel = selected && selected.kind === "component" && selected.id === comp.id;
-    return `<g class="sim-comp sim-comp-${comp.type}${
-      sel ? " sim-selected" : ""
-    }" data-id="${comp.id}" data-powered="${poweredComps.has(comp.id) ? "true" : "false"}" transform="translate(${comp.x},${
+    const info = analysis[comp.id];
+    const damaged = info && (info.status === "burnt" || info.status === "overheating");
+    return `<g class="sim-comp sim-comp-${comp.type}${sel ? " sim-selected" : ""}${damaged ? " sim-damaged" : ""}" data-id="${
+      comp.id
+    }" data-powered="${poweredComps.has(comp.id) ? "true" : "false"}" transform="translate(${comp.x},${
       comp.y
     })">${def.render(comp)}${sel ? `<rect class="sim-select-box" x="-4" y="-4" width="${def.w + 8}" height="${def.h + 8}" />` : ""}</g>`;
   }
@@ -198,8 +200,9 @@
 
   function renderBuilder() {
     const { poweredComps, poweredWires } = window.computeSimPoweredSet(simData);
+    const analysis = window.computeSimElectricalAnalysis(simData);
     const wiresSvg = simData.wires.map((w) => renderWireSvg(w, poweredWires)).join("");
-    const compsSvg = simData.components.map((c) => renderComponentSvg(c, poweredComps)).join("");
+    const compsSvg = simData.components.map((c) => renderComponentSvg(c, poweredComps, analysis)).join("");
     const pinsSvg = simData.components.map(renderPinDots).join("");
     $("sim-builder-canvas").innerHTML = `<svg id="sim-builder-svg" viewBox="0 0 900 500" xmlns="http://www.w3.org/2000/svg" class="sim-svg${
       previewOn ? " is-on" : ""
@@ -346,6 +349,12 @@
     function onUp() {
       g.removeEventListener("pointermove", onMove);
       g.removeEventListener("pointerup", onUp);
+      if (!historySaved && comp.type === "switch") {
+        // A plain click (no drag) on a switch toggles it, like flipping one for real.
+        pushHistory();
+        comp.closed = comp.closed === false;
+        renderInspector();
+      }
       if (canSnap) {
         simData.wires = simData.wires.filter(
           (w) => !(w.auto && ((w.from.compId === compId && w.from.pin === anchorPin.id) || (w.to.compId === compId && w.to.pin === anchorPin.id)))
@@ -393,6 +402,14 @@
   }
 
   // ---------- Palette ----------
+  const DEFAULT_CONTENT_BY_TYPE = {
+    resistor: { resistance: 220 },
+    battery: { voltage: 9 },
+    power_supply: { outputVoltage: 5 },
+    led: { color: "red" },
+    switch: { closed: true },
+  };
+
   document.querySelectorAll(".sim-palette-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       pushHistory();
@@ -405,6 +422,7 @@
         x: pos.x,
         y: pos.y,
         label: def.label,
+        ...(DEFAULT_CONTENT_BY_TYPE[type] || {}),
       });
       renderBuilder();
     });
@@ -415,7 +433,9 @@
     const box = $("sim-inspector");
     if (!selected) {
       box.innerHTML =
-        "<p style='color:var(--text-dim);font-size:0.85rem;'>Click a part or a wire to edit it. Click a pin, then another pin, to wire them.</p><p style='color:var(--text-dim);font-size:0.85rem;'>Power needs a complete loop back to a Wall Outlet or Battery — not just any connection. Wire outlet → power supply → breadboard → Teensy, and the loop needs to close (e.g. through an LED+resistor bridging the two breadboard rails, or the Teensy itself). An LED wired backwards won't light even in an otherwise-complete loop, same as a real one.</p>";
+        "<p style='color:var(--text-dim);font-size:0.85rem;'>Click a part or a wire to edit it. Click a pin, then another pin, to wire them.</p>" +
+        "<p style='color:var(--text-dim);font-size:0.85rem;'>The breadboard now has real topology: the two rail lines (+/−) at the top are each one long connection, but the terminal columns below the gutter are each independent — plugging into the same column connects things, different columns don't, and the gutter splits top from bottom. Wire outlet → power supply → rails → a column → resistor bridging to another column → LED → back to the other rail.</p>" +
+        "<p style='color:var(--text-dim);font-size:0.85rem;'>Power needs a complete loop, and the numbers matter now: too little resistance burns out an LED, no resistor at all is a dead short, and wiring straight to the Wall Outlet (120V) destroys anything downstream — it must go through a Power Supply first. A backwards LED won't light even on an otherwise-complete loop, same as a real one.</p>";
       return;
     }
     if (selected.kind === "component") {
@@ -423,6 +443,8 @@
       if (!comp) return;
       const def = REG[comp.type];
       const { poweredComps, poweredNodes } = window.computeSimPoweredSet(simData);
+      const analysis = window.computeSimElectricalAnalysis(simData);
+      const info = analysis[comp.id];
       const isPowered = poweredComps.has(comp.id);
       let statusLine;
       if (def.isSource) {
@@ -437,13 +459,111 @@
       } else {
         statusLine = "Not part of a complete circuit yet";
       }
+
+      let electricalHtml = "";
+      if (info) {
+        const ma = info.currentMa === Infinity ? "∞" : info.currentMa.toFixed(1);
+        if (info.kind === "led") {
+          const messages = {
+            burnt: info.dangerous
+              ? `🔥 Destroyed instantly — ${info.voltage}V mains has no business touching an LED directly. Route it through a Power Supply.`
+              : `🔥 Burnt out — ${ma}mA is way more current than an LED can take (safe is under 30mA). Add a bigger resistor.`,
+            overdriven: `⚠ Overdriven at ${ma}mA — it'll be too bright and won't last (safe is under 30mA).`,
+            "unlit-low-voltage": "Not enough voltage in this loop to light it.",
+            dim: `Barely lit — only ${ma}mA is flowing. Try a smaller resistor.`,
+            normal: `✓ ${ma}mA — a healthy, safe current.`,
+          };
+          electricalHtml = `<p class="sim-power-status ${info.status === "normal" ? "is-powered" : "is-danger"}">${messages[info.status] || ""}</p>`;
+        } else if (info.kind === "resistor") {
+          if (info.dangerous) {
+            electricalHtml = `<p class="sim-power-status is-danger">🔥 Charred instantly — this loop is running straight off 120V mains.</p>`;
+          } else if (info.status === "overheating") {
+            electricalHtml = `<p class="sim-power-status is-danger">🔥 Overheating — dissipating ${info.watts.toFixed(2)}W, more than a typical 1/4W resistor can handle.</p>`;
+          } else {
+            electricalHtml = `<p class="sim-power-status is-powered">✓ ${ma}mA flowing, dissipating ${info.watts.toFixed(2)}W — well within its rating.</p>`;
+          }
+        } else if (info.kind === "teensy") {
+          electricalHtml = info.dangerous
+            ? `<p class="sim-power-status is-danger">🔥 Destroyed instantly — 120V mains directly to a microcontroller.</p>`
+            : `<p class="sim-power-status is-powered">Drawing ~${ma}mA at ${info.voltage}V.</p>`;
+        }
+      }
+
+      let extraFieldsHtml = "";
+      if (comp.type === "resistor") {
+        extraFieldsHtml = `<label>Resistance (ohms)<input id="sim-comp-resistance" type="number" min="1" value="${comp.resistance ?? 220}"></label>`;
+      } else if (comp.type === "battery") {
+        extraFieldsHtml = `<label>Voltage (V)<input id="sim-comp-voltage" type="number" min="0.1" step="0.1" value="${comp.voltage ?? 9}"></label>`;
+      } else if (comp.type === "power_supply") {
+        extraFieldsHtml = `<label>Output voltage<select id="sim-comp-output-voltage">${[3.3, 5, 9, 12]
+          .map((v) => `<option value="${v}" ${Number(comp.outputVoltage) === v ? "selected" : ""}>${v}V DC</option>`)
+          .join("")}</select></label>`;
+      } else if (comp.type === "led") {
+        extraFieldsHtml = `<label>Color<select id="sim-comp-led-color">${Object.entries(window.LED_COLORS)
+          .map(([key, c]) => `<option value="${key}" ${(comp.color || "red") === key ? "selected" : ""}>${c.label}</option>`)
+          .join("")}</select></label>`;
+      } else if (comp.type === "switch") {
+        const closed = comp.closed !== false;
+        extraFieldsHtml = `<label><input type="checkbox" id="sim-comp-switch-closed" ${closed ? "checked" : ""}> Closed (conducting) — click the part on the canvas to flip it too</label>`;
+      } else if (comp.type === "outlet") {
+        extraFieldsHtml = `<p style="color:var(--text-dim);font-size:0.8rem;">Fixed 120V AC, like a real wall outlet. Never wire it directly to a breadboard part — it must go through a Power Supply, or everything downstream is destroyed instantly.</p>`;
+      }
+
       box.innerHTML = `
         <p><strong>${escapeXml(def.label)}</strong></p>
         <p class="sim-power-status ${isPowered || def.isSource ? "is-powered" : ""}">${statusLine}</p>
+        ${electricalHtml}
+        ${extraFieldsHtml}
         <label>Label${comp.type === "mcu_teensy" ? " (shown on the part)" : " (for your own reference)"}<input id="sim-comp-label" type="text" value="${escapeXml(comp.label || "")}"></label>
         <button type="button" id="sim-duplicate-selected">Duplicate part</button>
         <button type="button" id="sim-delete-selected" class="danger">Delete part</button>
       `;
+
+      const resistanceInput = $("sim-comp-resistance");
+      if (resistanceInput) {
+        resistanceInput.addEventListener("change", () => {
+          pushHistory();
+          comp.resistance = Math.max(1, Number(resistanceInput.value) || 220);
+          renderInspector();
+          renderBuilder();
+        });
+      }
+      const voltageInput = $("sim-comp-voltage");
+      if (voltageInput) {
+        voltageInput.addEventListener("change", () => {
+          pushHistory();
+          comp.voltage = Math.max(0.1, Number(voltageInput.value) || 9);
+          renderInspector();
+          renderBuilder();
+        });
+      }
+      const outputVoltageInput = $("sim-comp-output-voltage");
+      if (outputVoltageInput) {
+        outputVoltageInput.addEventListener("change", () => {
+          pushHistory();
+          comp.outputVoltage = Number(outputVoltageInput.value);
+          renderInspector();
+          renderBuilder();
+        });
+      }
+      const ledColorInput = $("sim-comp-led-color");
+      if (ledColorInput) {
+        ledColorInput.addEventListener("change", () => {
+          pushHistory();
+          comp.color = ledColorInput.value;
+          renderInspector();
+          renderBuilder();
+        });
+      }
+      const switchClosedInput = $("sim-comp-switch-closed");
+      if (switchClosedInput) {
+        switchClosedInput.addEventListener("change", () => {
+          pushHistory();
+          comp.closed = switchClosedInput.checked;
+          renderInspector();
+          renderBuilder();
+        });
+      }
       const labelInput = $("sim-comp-label");
       let labelHistorySaved = false;
       labelInput.addEventListener("input", () => {

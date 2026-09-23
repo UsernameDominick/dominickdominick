@@ -991,6 +991,11 @@
   color: #ffbf4d;
 }
 
+.sim-power-status.is-danger {
+  color: #ff6b5c;
+  font-weight: 600;
+}
+
 .sim-builder-canvas svg {
   width: 100%;
   height: auto;

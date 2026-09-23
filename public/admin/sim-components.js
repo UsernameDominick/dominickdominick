@@ -1,8 +1,9 @@
 // Mirrors worker/simulation-render.js's SIM_COMPONENTS registry, its
-// <defs> gradients, and its computePoweredSet() topology check — kept in
-// sync by hand, since a worker ES module can't be imported by this plain
-// script and vice versa. Any new component type, or any change to how
-// "powered" is computed, needs to be made in both places.
+// <defs> gradients, and its topology/electrical-analysis functions — kept
+// in sync by hand, since a worker ES module can't be imported by this
+// plain script and vice versa. Any new component type, or any change to
+// how "powered" or current/voltage is computed, needs to be made in both
+// places.
 (function () {
   "use strict";
 
@@ -69,12 +70,54 @@
   </filter>
 </defs>`;
 
+  window.LED_COLORS = {
+    red: { label: "Red", forwardVoltage: 2.0, onColor: "#ff4d3d" },
+    yellow: { label: "Yellow", forwardVoltage: 2.1, onColor: "#ffe14d" },
+    green: { label: "Green", forwardVoltage: 2.2, onColor: "#4dff6a" },
+    blue: { label: "Blue", forwardVoltage: 3.2, onColor: "#4d9dff" },
+    white: { label: "White", forwardVoltage: 3.0, onColor: "#fffbe8" },
+  };
+  const LED_RATED_MA = 20;
+  const OUTLET_VOLTAGE = 120;
+  const RESISTOR_WATTAGE_RATING = 0.25;
+  const TEENSY_LOAD_OHMS = 300;
+
+  const DIGIT_COLORS = ["black", "brown", "red", "orange", "yellow", "green", "blue", "violet", "gray", "white"];
+  const BAND_HEX = {
+    black: "#1a1a1a",
+    brown: "#6b4423",
+    red: "#d32f2f",
+    orange: "#f57c00",
+    yellow: "#fbc02d",
+    green: "#388e3c",
+    blue: "#1976d2",
+    violet: "#7b1fa2",
+    gray: "#9e9e9e",
+    white: "#f5f5f5",
+    gold: "#d4af37",
+  };
+
+  function resistorBandHexes(ohms) {
+    ohms = Math.max(1, Math.round(Number(ohms) || 220));
+    let mult = Math.max(0, Math.floor(Math.log10(ohms)) - 1);
+    let sig = Math.round(ohms / Math.pow(10, mult));
+    if (sig >= 100) {
+      sig = Math.round(sig / 10);
+      mult++;
+    }
+    const d1 = Math.floor(sig / 10);
+    const d2 = sig % 10;
+    return [BAND_HEX[DIGIT_COLORS[d1]], BAND_HEX[DIGIT_COLORS[d2]], BAND_HEX[DIGIT_COLORS[mult] || "black"], BAND_HEX.gold];
+  }
+  window.simResistorBandHexes = resistorBandHexes;
+
   window.SIM_COMPONENTS = {
     outlet: {
       label: "Wall Outlet",
       w: 40,
       h: 60,
       isSource: true,
+      dangerous: true,
       polarity: { pos: "hot", neg: "neutral" },
       pins: [
         { id: "hot", x: 14, y: 60 },
@@ -97,28 +140,35 @@
         { id: "out_pos", x: 70, y: 12 },
         { id: "out_neg", x: 70, y: 28 },
       ],
-      render: () =>
-        `<rect class="ps-body" x="0" y="0" width="70" height="40" rx="4"/><rect class="ps-vent" x="24" y="8" width="24" height="3" rx="1"/><rect class="ps-vent" x="24" y="14" width="24" height="3" rx="1"/><rect class="ps-vent" x="24" y="20" width="24" height="3" rx="1"/><circle class="ps-indicator" cx="58" cy="32" r="3"/><text class="ps-label" x="35" y="38" text-anchor="middle" font-size="8">PSU</text>`,
+      render: (c) =>
+        `<rect class="ps-body" x="0" y="0" width="70" height="40" rx="4"/><rect class="ps-vent" x="24" y="8" width="24" height="3" rx="1"/><rect class="ps-vent" x="24" y="14" width="24" height="3" rx="1"/><rect class="ps-vent" x="24" y="20" width="24" height="3" rx="1"/><circle class="ps-indicator" cx="58" cy="32" r="3"/><text class="ps-label" x="35" y="38" text-anchor="middle" font-size="8">${escXml(
+          c.outputVoltage || 5
+        )}V DC</text>`,
     },
     breadboard: {
       label: "Breadboard",
       w: 340,
-      h: 120,
+      h: 110,
       railGroups: {
-        top: [0, 1, 2, 3, 4, 5, 6, 7].map((i) => `t${i + 1}`),
-        bottom: [0, 1, 2, 3, 4, 5, 6, 7].map((i) => `b${i + 1}`),
+        pos: [0, 1, 2, 3, 4, 5, 6, 7].map((i) => `rp${i + 1}`),
+        neg: [0, 1, 2, 3, 4, 5, 6, 7].map((i) => `rn${i + 1}`),
       },
       pins: [0, 1, 2, 3, 4, 5, 6, 7].flatMap((i) => [
-        { id: `t${i + 1}`, x: 20 + i * 40, y: 15 },
-        { id: `b${i + 1}`, x: 20 + i * 40, y: 105 },
+        { id: `rp${i + 1}`, x: 20 + i * 40, y: 14 },
+        { id: `rn${i + 1}`, x: 20 + i * 40, y: 26 },
+        { id: `t${i + 1}`, x: 20 + i * 40, y: 54 },
+        { id: `b${i + 1}`, x: 20 + i * 40, y: 84 },
       ]),
       render: () => {
         let holes = "";
         for (let i = 0; i < 8; i++) {
-          holes += `<circle class="bb-hole" cx="${20 + i * 40}" cy="15" r="3"/>`;
-          holes += `<circle class="bb-hole" cx="${20 + i * 40}" cy="105" r="3"/>`;
+          const x = 20 + i * 40;
+          holes += `<circle class="bb-hole bb-hole-rail" cx="${x}" cy="14" r="2.5"/>`;
+          holes += `<circle class="bb-hole bb-hole-rail" cx="${x}" cy="26" r="2.5"/>`;
+          holes += `<circle class="bb-hole" cx="${x}" cy="54" r="3"/>`;
+          holes += `<circle class="bb-hole" cx="${x}" cy="84" r="3"/>`;
         }
-        return `<rect class="bb-body" x="0" y="0" width="340" height="120" rx="6"/><rect class="bb-channel" x="4" y="52" width="332" height="16" rx="3"/>${holes}`;
+        return `<rect class="bb-body" x="0" y="0" width="340" height="110" rx="6"/><rect class="bb-rail-line bb-rail-pos" x="10" y="12.5" width="320" height="3" rx="1.5"/><rect class="bb-rail-line bb-rail-neg" x="10" y="24.5" width="320" height="3" rx="1.5"/><text class="bb-rail-label bb-rail-label-pos" x="4" y="17">+</text><text class="bb-rail-label bb-rail-label-neg" x="4" y="29">−</text><rect class="bb-channel" x="4" y="62" width="332" height="14" rx="3"/>${holes}`;
       },
     },
     led: {
@@ -130,8 +180,10 @@
         { id: "anode", x: 8, y: 40 },
         { id: "cathode", x: 18, y: 40 },
       ],
-      render: () =>
-        `<line class="led-lead" x1="8" y1="26" x2="8" y2="40"/><line class="led-lead" x1="18" y1="26" x2="18" y2="40"/><path class="led-bulb" d="M4,26 L4,10 A9,9 0 0 1 22,10 L22,26 Z"/><path class="led-shine" d="M8,14 A5,5 0 0 1 14,10"/>`,
+      render: (c) => {
+        const color = window.LED_COLORS[c.color] ? c.color : "red";
+        return `<g style="--led-on-color:${window.LED_COLORS[color].onColor}"><line class="led-lead" x1="8" y1="26" x2="8" y2="40"/><line class="led-lead" x1="18" y1="26" x2="18" y2="40"/><path class="led-bulb" d="M4,26 L4,10 A9,9 0 0 1 22,10 L22,26 Z"/><path class="led-shine" d="M8,14 A5,5 0 0 1 14,10"/></g>`;
+      },
     },
     resistor: {
       label: "Resistor",
@@ -142,8 +194,26 @@
         { id: "p1", x: 0, y: 8 },
         { id: "p2", x: 50, y: 8 },
       ],
-      render: () =>
-        `<line class="resistor-lead" x1="0" y1="8" x2="8" y2="8"/><rect class="resistor-body" x="8" y="0" width="34" height="16" rx="3"/><rect class="resistor-band" x="15" y="0" width="3" height="16"/><rect class="resistor-band" x="22" y="0" width="3" height="16"/><rect class="resistor-band" x="29" y="0" width="3" height="16"/><line class="resistor-lead" x1="42" y1="8" x2="50" y2="8"/>`,
+      render: (c) => {
+        const [b1, b2, b3, b4] = resistorBandHexes(c.resistance);
+        return `<line class="resistor-lead" x1="0" y1="8" x2="8" y2="8"/><rect class="resistor-body" x="8" y="0" width="34" height="16" rx="3"/><rect class="resistor-band" x="14" y="0" width="3" height="16" fill="${b1}"/><rect class="resistor-band" x="20" y="0" width="3" height="16" fill="${b2}"/><rect class="resistor-band" x="26" y="0" width="3" height="16" fill="${b3}"/><rect class="resistor-band" x="35" y="0" width="3" height="16" fill="${b4}"/><line class="resistor-lead" x1="42" y1="8" x2="50" y2="8"/>`;
+      },
+    },
+    switch: {
+      label: "Switch",
+      w: 40,
+      h: 20,
+      passthrough: [["p1", "p2"]],
+      pins: [
+        { id: "p1", x: 0, y: 10 },
+        { id: "p2", x: 40, y: 10 },
+      ],
+      render: (c) => {
+        const closed = c.closed !== false;
+        return `<rect class="switch-body" x="4" y="1" width="32" height="18" rx="3"/><line class="switch-lead" x1="0" y1="10" x2="8" y2="10"/><circle class="switch-pivot" cx="8" cy="10" r="2.5"/><line class="switch-lever" x1="8" y1="10" x2="${
+          closed ? 32 : 27
+        }" y2="${closed ? 10 : 1}"/><circle class="switch-pivot" cx="32" cy="10" r="2.5"/><line class="switch-lead" x1="32" y1="10" x2="40" y2="10"/>`;
+      },
     },
     battery: {
       label: "Battery",
@@ -155,8 +225,10 @@
         { id: "pos", x: 0, y: 13 },
         { id: "neg", x: 50, y: 13 },
       ],
-      render: () =>
-        `<rect class="battery-body" x="0" y="0" width="50" height="26" rx="4"/><rect class="battery-cap" x="0" y="9" width="5" height="8"/><rect class="battery-cap" x="45" y="9" width="5" height="8"/><text class="battery-label" x="25" y="17" text-anchor="middle">+ / -</text>`,
+      render: (c) =>
+        `<rect class="battery-body" x="0" y="0" width="50" height="26" rx="4"/><rect class="battery-cap" x="0" y="9" width="5" height="8"/><rect class="battery-cap" x="45" y="9" width="5" height="8"/><text class="battery-label" x="25" y="17" text-anchor="middle">${escXml(
+          c.voltage || 9
+        )}V</text>`,
     },
     mcu_teensy: {
       label: "Microcontroller (Teensy)",
@@ -197,6 +269,11 @@
   }
   window.simNodeId = nodeId;
 
+  function isSwitchClosed(c) {
+    return c.closed !== false;
+  }
+  window.simIsSwitchClosed = isSwitchClosed;
+
   function buildGraph(data, excludeLedId) {
     const components = (data && data.components) || [];
     const wires = (data && data.wires) || [];
@@ -214,7 +291,9 @@
         const n = nodeId(c, p.id);
         if (!adjacency.has(n)) adjacency.set(n, new Set());
       });
-      if (def.passthrough) def.passthrough.forEach(([a, b]) => link(nodeId(c, a), nodeId(c, b)));
+      if (def.passthrough && (c.type !== "switch" || isSwitchClosed(c))) {
+        def.passthrough.forEach(([a, b]) => link(nodeId(c, a), nodeId(c, b)));
+      }
       if (c.type === "led" && def.polarity && c.id !== excludeLedId) {
         link(nodeId(c, def.polarity.pos), nodeId(c, def.polarity.neg));
       }
@@ -298,5 +377,148 @@
     });
 
     return { poweredComps, poweredWires, poweredNodes };
+  };
+
+  // ---------- Electrical analysis: Ohm's law on top of the topology ----------
+  function buildAnalysisGraph(data) {
+    const components = (data && data.components) || [];
+    const wires = (data && data.wires) || [];
+    const adjacency = new Map();
+    const edgeInfo = new Map();
+    const link = (a, b, info) => {
+      if (!adjacency.has(a)) adjacency.set(a, new Set());
+      if (!adjacency.has(b)) adjacency.set(b, new Set());
+      adjacency.get(a).add(b);
+      adjacency.get(b).add(a);
+      const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+      edgeInfo.set(key, info);
+    };
+    components.forEach((c) => {
+      const def = window.SIM_COMPONENTS[c.type];
+      if (!def) return;
+      def.pins.forEach((p) => {
+        const n = nodeId(c, p.id);
+        if (!adjacency.has(n)) adjacency.set(n, new Set());
+      });
+      if (c.type === "power_supply") return;
+      if (c.type === "resistor") {
+        link(nodeId(c, "p1"), nodeId(c, "p2"), { compId: c.id, kind: "resistor", resistance: Math.max(1, Number(c.resistance) || 220) });
+      } else if (c.type === "switch") {
+        if (isSwitchClosed(c)) link(nodeId(c, "p1"), nodeId(c, "p2"), { compId: c.id, kind: "wire", resistance: 0 });
+      } else if (c.type === "mcu_teensy") {
+        link(nodeId(c, "vin"), nodeId(c, "gnd"), { compId: c.id, kind: "teensy", resistance: TEENSY_LOAD_OHMS });
+      } else if (c.type === "led" && def.polarity) {
+        const color = window.LED_COLORS[c.color] ? c.color : "red";
+        link(nodeId(c, def.polarity.pos), nodeId(c, def.polarity.neg), {
+          compId: c.id,
+          kind: "led",
+          resistance: 0,
+          forwardVoltage: window.LED_COLORS[color].forwardVoltage,
+        });
+      }
+    });
+    wires.forEach((w) => {
+      const fromComp = components.find((c) => c.id === w.from.compId);
+      const toComp = components.find((c) => c.id === w.to.compId);
+      if (!fromComp || !toComp) return;
+      link(nodeId(fromComp, w.from.pin), nodeId(toComp, w.to.pin), { compId: null, kind: "wire", resistance: 0 });
+    });
+    return { adjacency, edgeInfo };
+  }
+
+  function shortestPathNodes(adjacency, start, end) {
+    if (start === end) return [start];
+    const parent = new Map([[start, null]]);
+    const queue = [start];
+    while (queue.length) {
+      const cur = queue.shift();
+      if (cur === end) break;
+      const neighbors = adjacency.get(cur);
+      if (!neighbors) continue;
+      for (const n of neighbors) {
+        if (parent.has(n)) continue;
+        parent.set(n, cur);
+        queue.push(n);
+      }
+    }
+    if (!parent.has(end)) return null;
+    const path = [end];
+    let cur = end;
+    while (parent.get(cur) !== null) {
+      cur = parent.get(cur);
+      path.push(cur);
+    }
+    return path.reverse();
+  }
+
+  window.computeSimElectricalAnalysis = function (data) {
+    const components = (data && data.components) || [];
+    const { poweredNodes } = window.computeSimPoweredSet(data);
+    const { adjacency, edgeInfo } = buildAnalysisGraph(data);
+
+    const domains = [];
+    components.forEach((c) => {
+      const def = window.SIM_COMPONENTS[c.type];
+      if (!def) return;
+      if (c.type === "battery") {
+        domains.push({ posNode: nodeId(c, "pos"), negNode: nodeId(c, "neg"), voltage: Number(c.voltage) || 9, dangerous: false });
+      } else if (c.type === "outlet") {
+        domains.push({ posNode: nodeId(c, "hot"), negNode: nodeId(c, "neutral"), voltage: 120, dangerous: true });
+      } else if (c.type === "power_supply") {
+        const inHot = nodeId(c, "in_hot");
+        const inNeutral = nodeId(c, "in_neutral");
+        if (poweredNodes.has(inHot) && poweredNodes.has(inNeutral)) {
+          domains.push({ posNode: nodeId(c, "out_pos"), negNode: nodeId(c, "out_neg"), voltage: Number(c.outputVoltage) || 5, dangerous: false });
+        }
+      }
+    });
+
+    const results = {};
+    domains.forEach((domain) => {
+      const path = shortestPathNodes(adjacency, domain.posNode, domain.negNode);
+      if (!path || path.length < 2) return;
+      let totalResistance = 0;
+      let totalForwardVoltage = 0;
+      const edges = [];
+      for (let i = 0; i < path.length - 1; i++) {
+        const a = path[i];
+        const b = path[i + 1];
+        const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+        const info = edgeInfo.get(key);
+        if (!info) continue;
+        totalResistance += info.resistance || 0;
+        if (info.kind === "led") totalForwardVoltage += info.forwardVoltage || 0;
+        edges.push(info);
+      }
+      const netVoltage = domain.voltage - totalForwardVoltage;
+      let currentAmps;
+      if (netVoltage <= 0) currentAmps = 0;
+      else if (totalResistance <= 0) currentAmps = Infinity;
+      else currentAmps = netVoltage / totalResistance;
+      const currentMa = currentAmps === Infinity ? Infinity : currentAmps * 1000;
+
+      edges.forEach((info) => {
+        if (!info.compId) return;
+        if (info.kind === "led") {
+          let status = "normal";
+          if (domain.dangerous) status = "burnt";
+          else if (currentMa === Infinity || currentMa > LED_RATED_MA * 3) status = "burnt";
+          else if (currentMa > LED_RATED_MA * 1.5) status = "overdriven";
+          else if (netVoltage <= 0) status = "unlit-low-voltage";
+          else if (currentMa < 1) status = "dim";
+          results[info.compId] = { kind: "led", currentMa, voltage: domain.voltage, status, dangerous: domain.dangerous };
+        } else if (info.kind === "resistor") {
+          const amps = currentMa === Infinity ? 0 : currentMa / 1000;
+          const watts = amps * amps * info.resistance;
+          const status = domain.dangerous ? "burnt" : watts > RESISTOR_WATTAGE_RATING ? "overheating" : "normal";
+          results[info.compId] = { kind: "resistor", currentMa, watts, status, dangerous: domain.dangerous };
+        } else if (info.kind === "teensy") {
+          const status = domain.dangerous ? "burnt" : "normal";
+          results[info.compId] = { kind: "teensy", currentMa, voltage: domain.voltage, status, dangerous: domain.dangerous };
+        }
+      });
+    });
+
+    return results;
   };
 })();
