@@ -84,6 +84,26 @@
     return `${prefix}_${Date.now().toString(36)}_${localIdCounter++}`;
   }
 
+  // ---------- Multi-select helpers ----------
+  function selectedIds() {
+    if (!selected) return [];
+    if (selected.kind === "component") return [selected.id];
+    if (selected.kind === "multi") return selected.ids;
+    return [];
+  }
+  function isCompSelected(compId) {
+    return selectedIds().includes(compId);
+  }
+  // Collapses to the simplest shape for however many ids end up selected —
+  // a bare component selection for exactly one, multi for more, null for
+  // none — so the rest of the code only has to handle "component"/"wire"/
+  // "multi"/null instead of a multi-selection of size 0 or 1 as a special case.
+  function setMultiSelection(ids) {
+    if (ids.length === 0) selected = null;
+    else if (ids.length === 1) selected = { kind: "component", id: ids[0] };
+    else selected = { kind: "multi", ids };
+  }
+
   // ---------- List modal ----------
   async function loadSimulationsList() {
     simulations = await window.adminApi("/simulations");
@@ -95,7 +115,11 @@
       simulations
         .map(
           (s) =>
-            `<div class="simulation-row"><span>${escapeXml(s.name)}</span><button type="button" class="edit-simulation" data-id="${
+            `<div class="simulation-row"><span>${escapeXml(s.name)}</span><a href="/simulation/${
+              s.id
+            }" target="_blank" class="view-simulation-link">View ↗</a><button type="button" class="duplicate-simulation" data-id="${
+              s.id
+            }">Duplicate</button><button type="button" class="edit-simulation" data-id="${
               s.id
             }">Edit</button><button type="button" class="delete-simulation" data-id="${s.id}">Delete</button></div>`
         )
@@ -104,6 +128,14 @@
     $("simulations-list")
       .querySelectorAll(".edit-simulation")
       .forEach((btn) => btn.addEventListener("click", () => openBuilder(Number(btn.dataset.id))));
+    $("simulations-list")
+      .querySelectorAll(".duplicate-simulation")
+      .forEach((btn) =>
+        btn.addEventListener("click", async () => {
+          await window.adminApi(`/simulations/${btn.dataset.id}/duplicate`, { method: "POST" });
+          await loadSimulationsList();
+        })
+      );
     $("simulations-list")
       .querySelectorAll(".delete-simulation")
       .forEach((btn) =>
@@ -115,15 +147,42 @@
       );
   }
 
+  // ---------- Templates ----------
+  let simTemplates = [];
+  async function loadSimTemplates() {
+    try {
+      simTemplates = await window.adminApi("/templates?kind=simulation");
+    } catch {
+      simTemplates = [];
+    }
+    $("sim-template-picker").innerHTML =
+      `<option value="">Blank</option>` + simTemplates.map((t) => `<option value="${t.id}">${escapeXml(t.name)}</option>`).join("");
+  }
+
+  $("save-sim-template-btn").addEventListener("click", async () => {
+    const name = prompt("Template name:");
+    if (!name) return;
+    try {
+      await window.adminApi("/templates", { method: "POST", body: JSON.stringify({ kind: "simulation", name, data: simData }) });
+      await loadSimTemplates();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
   $("simulations-btn").addEventListener("click", async () => {
     $("simulations-modal").hidden = false;
     await loadSimulationsList();
+    await loadSimTemplates();
   });
   $("close-simulations").addEventListener("click", () => ($("simulations-modal").hidden = true));
-  $("new-simulation-btn").addEventListener("click", () => openBuilder(null));
+  $("new-simulation-btn").addEventListener("click", () => {
+    const templateId = Number($("sim-template-picker").value) || null;
+    openBuilder(null, templateId);
+  });
 
   // ---------- Open / close builder ----------
-  async function openBuilder(id) {
+  async function openBuilder(id, templateId) {
     currentSimId = id;
     selected = null;
     wireStart = null;
@@ -137,12 +196,18 @@
       const sim = await window.adminApi(`/simulations/${id}`);
       $("simulation-name").value = sim.name;
       simData = sim.data && Array.isArray(sim.data.components) ? sim.data : { components: [], wires: [] };
+    } else if (templateId) {
+      const t = simTemplates.find((x) => x.id === templateId);
+      $("simulation-name").value = "New simulation";
+      simData = t && Array.isArray(t.data.components) ? JSON.parse(JSON.stringify(t.data)) : { components: [], wires: [] };
     } else {
       $("simulation-name").value = "New simulation";
       simData = { components: [], wires: [] };
     }
     $("simulations-modal").hidden = true;
     $("simulation-builder-modal").hidden = false;
+    $("sim-palette-search").value = "";
+    document.querySelectorAll(".sim-palette-btn").forEach((btn) => btn.classList.remove("is-hidden-by-search"));
     updateHistoryButtons();
     renderInspector();
     renderBuilder();
@@ -151,6 +216,10 @@
   $("close-simulation-builder").addEventListener("click", () => {
     $("simulation-builder-modal").hidden = true;
     $("simulations-modal").hidden = false;
+    // The list behind the builder was last loaded before this edit/create —
+    // refresh it so a just-saved simulation actually shows up (and any
+    // action taken on the list, like Duplicate, targets current rows).
+    loadSimulationsList().catch(() => {});
   });
 
   // ---------- Rendering the live builder SVG ----------
@@ -163,7 +232,7 @@
   function renderComponentSvg(comp, poweredComps, analysis) {
     const def = REG[comp.type];
     if (!def) return "";
-    const sel = selected && selected.kind === "component" && selected.id === comp.id;
+    const sel = isCompSelected(comp.id);
     const info = analysis[comp.id];
     const damaged = info && (info.status === "burnt" || info.status === "overheating");
     return `<g class="sim-comp sim-comp-${comp.type}${sel ? " sim-selected" : ""}${damaged ? " sim-damaged" : ""}" data-id="${
@@ -225,6 +294,72 @@
     return { x: p.x, y: p.y };
   }
 
+  // A drag on empty canvas draws a rubber-band rectangle; anything it
+  // overlaps on release becomes the new selection. A plain click (no real
+  // drag distance) clears the selection instead. Both cases are decided
+  // and applied entirely within this one pointerdown/move/up sequence —
+  // deliberately NOT via a separate trailing "click" listener, since
+  // renderBuilder() replaces the whole <svg> synchronously inside onUp,
+  // and the browser's own synthetic click after a drag can't reliably
+  // reach a DOM subtree that no longer exists by the time it fires.
+  const DRAG_SELECT_MIN_DIST = 4;
+
+  function onCanvasBackgroundPointerDown(e) {
+    const svg = $("sim-builder-svg");
+    if (e.target !== svg) return;
+    const start = svgPoint(e);
+    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    rect.setAttribute("class", "sim-select-rect");
+    rect.setAttribute("x", start.x);
+    rect.setAttribute("y", start.y);
+    rect.setAttribute("width", 0);
+    rect.setAttribute("height", 0);
+    svg.appendChild(rect);
+    let moved = false;
+
+    function onMove(ev) {
+      const p = svgPoint(ev);
+      const x = Math.min(start.x, p.x);
+      const y = Math.min(start.y, p.y);
+      const w = Math.abs(p.x - start.x);
+      const h = Math.abs(p.y - start.y);
+      if (w > DRAG_SELECT_MIN_DIST || h > DRAG_SELECT_MIN_DIST) moved = true;
+      rect.setAttribute("x", x);
+      rect.setAttribute("y", y);
+      rect.setAttribute("width", w);
+      rect.setAttribute("height", h);
+    }
+    function onUp() {
+      svg.removeEventListener("pointermove", onMove);
+      svg.removeEventListener("pointerup", onUp);
+      const x = Number(rect.getAttribute("x"));
+      const y = Number(rect.getAttribute("y"));
+      const w = Number(rect.getAttribute("width"));
+      const h = Number(rect.getAttribute("height"));
+      rect.remove();
+      if (!moved) {
+        // A plain click on empty canvas — deselect, same as before.
+        selected = null;
+        wireStart = null;
+        renderInspector();
+        renderBuilder();
+        return;
+      }
+      const hitIds = simData.components
+        .filter((c) => {
+          const def = REG[c.type];
+          if (!def) return false;
+          return c.x < x + w && c.x + def.w > x && c.y < y + h && c.y + def.h > y;
+        })
+        .map((c) => c.id);
+      setMultiSelection(hitIds);
+      renderInspector();
+      renderBuilder();
+    }
+    svg.addEventListener("pointermove", onMove);
+    svg.addEventListener("pointerup", onUp);
+  }
+
   function attachBuilderEvents() {
     const svg = $("sim-builder-svg");
     svg.querySelectorAll(".sim-comp").forEach((g) => g.addEventListener("pointerdown", onComponentPointerDown));
@@ -237,14 +372,7 @@
         renderBuilder();
       })
     );
-    svg.addEventListener("click", (e) => {
-      if (e.target === svg) {
-        selected = null;
-        wireStart = null;
-        renderInspector();
-        renderBuilder();
-      }
-    });
+    svg.addEventListener("pointerdown", onCanvasBackgroundPointerDown);
   }
 
   function updateWiresForComponent(compId) {
@@ -306,18 +434,44 @@
     const compId = g.dataset.id;
     const comp = simData.components.find((c) => c.id === compId);
     if (!comp) return;
-    selected = { kind: "component", id: compId };
+
+    // Shift+click only toggles this part's membership in the selection —
+    // it doesn't also start a drag, so building up a multi-selection with
+    // several shift-clicks in a row can't accidentally nudge a part.
+    if (e.shiftKey) {
+      const ids = selectedIds();
+      const i = ids.indexOf(compId);
+      if (i === -1) ids.push(compId);
+      else ids.splice(i, 1);
+      setMultiSelection(ids);
+      renderInspector();
+      renderBuilder();
+      return;
+    }
+
+    // Clicking a part that's already part of a multi-selection drags the
+    // whole group together; clicking anything else collapses to selecting
+    // just that one part (the normal, non-multi case).
+    const groupIds = selected && selected.kind === "multi" && selected.ids.includes(compId) ? selected.ids : [compId];
+    if (groupIds.length === 1) selected = { kind: "component", id: compId };
     renderInspector();
     document.querySelectorAll(".sim-select-box").forEach((n) => n.remove());
     g.classList.add("sim-selected");
 
     const start = svgPoint(e);
-    const startX = comp.x;
-    const startY = comp.y;
+    const startPositions = new Map(groupIds.map((id) => {
+      const c = simData.components.find((x) => x.id === id);
+      return [id, { x: c.x, y: c.y }];
+    }));
     g.setPointerCapture(e.pointerId);
     let historySaved = false;
 
-    const canSnap = SNAP_TO_BREADBOARD_TYPES.has(comp.type);
+    // Breadboard auto-snap only applies to a single-part drag — snapping
+    // several independently-positioned parts to holes at once as a rigid
+    // group doesn't make physical sense, so a group drag is a plain,
+    // grid-snapped move instead.
+    const isGroup = groupIds.length > 1;
+    const canSnap = !isGroup && SNAP_TO_BREADBOARD_TYPES.has(comp.type);
     const anchorPin = canSnap ? REG[comp.type].pins[0] : null;
     let snapTargets = {}; // pinId -> { breadboardId, holeId }
 
@@ -327,14 +481,19 @@
         historySaved = true;
       }
       const p = svgPoint(ev);
-      comp.x = Math.round(startX + (p.x - start.x));
-      comp.y = Math.round(startY + (p.y - start.y));
+      let dx = p.x - start.x;
+      let dy = p.y - start.y;
       if (!canSnap) {
-        // Light grid snap for free-floating parts, so components line up
-        // without needing to eyeball pixel positions.
-        comp.x = Math.round(comp.x / GRID_SNAP) * GRID_SNAP;
-        comp.y = Math.round(comp.y / GRID_SNAP) * GRID_SNAP;
+        dx = Math.round((startPositions.get(compId).x + dx) / GRID_SNAP) * GRID_SNAP - startPositions.get(compId).x;
+        dy = Math.round((startPositions.get(compId).y + dy) / GRID_SNAP) * GRID_SNAP - startPositions.get(compId).y;
       }
+      groupIds.forEach((id) => {
+        const c = simData.components.find((x) => x.id === id);
+        const startPos = startPositions.get(id);
+        if (!c || !startPos) return;
+        c.x = startPos.x + dx;
+        c.y = startPos.y + dy;
+      });
       if (canSnap) {
         // The first leg gets a generous magnetic pull toward the nearest
         // hole, snapping the whole part into place...
@@ -356,8 +515,16 @@
         });
         g.classList.toggle("sim-snapped", Object.keys(snapTargets).length > 0);
       }
-      g.setAttribute("transform", `translate(${comp.x},${comp.y})`);
-      updateWiresForComponent(compId);
+      groupIds.forEach((id) => {
+        const c = simData.components.find((x) => x.id === id);
+        if (!c) return;
+        if (id === compId) g.setAttribute("transform", `translate(${c.x},${c.y})`);
+        else {
+          const otherG = $("sim-builder-svg").querySelector(`.sim-comp[data-id="${id}"]`);
+          if (otherG) otherG.setAttribute("transform", `translate(${c.x},${c.y})`);
+        }
+        updateWiresForComponent(id);
+      });
     }
     function onUp() {
       g.removeEventListener("pointermove", onMove);
@@ -442,12 +609,19 @@
     });
   });
 
+  $("sim-palette-search").addEventListener("input", (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    document.querySelectorAll(".sim-palette-btn").forEach((btn) => {
+      btn.classList.toggle("is-hidden-by-search", q.length > 0 && !btn.textContent.toLowerCase().includes(q));
+    });
+  });
+
   // ---------- Inspector ----------
   function renderInspector() {
     const box = $("sim-inspector");
     if (!selected) {
       box.innerHTML =
-        "<p style='color:var(--text-dim);font-size:0.85rem;'>Click a part or a wire to edit it. Click a pin, then another pin, to wire them.</p>" +
+        "<p style='color:var(--text-dim);font-size:0.85rem;'>Click a part or a wire to edit it. Click a pin, then another pin, to wire them. Shift+click parts, or drag a box over empty canvas, to select several at once.</p>" +
         "<p style='color:var(--text-dim);font-size:0.85rem;'>The breadboard is a real 30-column layout with independent power rails on both the top AND bottom edges (each rail line is one long connection), plus a terminal strip split by the center gutter — each of its 30 columns is its own independent connection, so plugging into the same column connects things, different columns don't. The top rails and bottom rails aren't connected to each other either. Wire outlet → power supply → a rail → a column → resistor bridging to another column → LED → back to the other rail.</p>" +
         "<p style='color:var(--text-dim);font-size:0.85rem;'>Power needs a complete loop, and the numbers matter now: too little resistance burns out an LED, no resistor at all is a dead short, and wiring straight to the Wall Outlet (120V) destroys anything downstream — it must go through a Power Supply first. A backwards LED won't light even on an otherwise-complete loop, same as a real one.</p>";
       return;
@@ -606,6 +780,52 @@
         pushHistory();
         simData.components = simData.components.filter((c) => c.id !== comp.id);
         simData.wires = simData.wires.filter((w) => w.from.compId !== comp.id && w.to.compId !== comp.id);
+        selected = null;
+        renderInspector();
+        renderBuilder();
+      });
+    } else if (selected.kind === "multi") {
+      const ids = new Set(selected.ids);
+      box.innerHTML = `
+        <p><strong>${ids.size} parts selected</strong></p>
+        <p style="color:var(--text-dim);font-size:0.85rem;">Drag any one of them to move the whole group. Shift+click a part to remove it from the selection.</p>
+        <button type="button" id="sim-duplicate-selected">Duplicate all</button>
+        <button type="button" id="sim-delete-selected" class="danger">Delete all</button>
+      `;
+      $("sim-duplicate-selected").addEventListener("click", () => {
+        pushHistory();
+        const idMap = new Map();
+        const clones = selected.ids.map((id) => {
+          const src = simData.components.find((c) => c.id === id);
+          const clone = JSON.parse(JSON.stringify(src));
+          clone.id = newLocalId(clone.type);
+          clone.x = src.x + 20;
+          clone.y = src.y + 20;
+          idMap.set(id, clone.id);
+          return clone;
+        });
+        simData.components.push(...clones);
+        // Wires between two components that were BOTH selected get cloned
+        // along with them, so a duplicated sub-circuit stays wired to
+        // itself instead of landing as disconnected loose parts.
+        simData.wires.forEach((w) => {
+          if (idMap.has(w.from.compId) && idMap.has(w.to.compId)) {
+            simData.wires.push({
+              id: newLocalId("wire"),
+              from: { compId: idMap.get(w.from.compId), pin: w.from.pin },
+              to: { compId: idMap.get(w.to.compId), pin: w.to.pin },
+              kind: w.kind,
+            });
+          }
+        });
+        setMultiSelection(clones.map((c) => c.id));
+        renderInspector();
+        renderBuilder();
+      });
+      $("sim-delete-selected").addEventListener("click", () => {
+        pushHistory();
+        simData.components = simData.components.filter((c) => !ids.has(c.id));
+        simData.wires = simData.wires.filter((w) => !ids.has(w.from.compId) && !ids.has(w.to.compId));
         selected = null;
         renderInspector();
         renderBuilder();

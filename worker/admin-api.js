@@ -56,6 +56,7 @@ import {
   createSimulation,
   updateSimulation,
   deleteSimulation,
+  duplicateSimulation,
   getBlockPageId,
 } from "./db.js";
 import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated } from "./auth.js";
@@ -554,15 +555,16 @@ async function routeAdminApi(request, env, url, ctx) {
   }
 
   // /simulations
-  // /templates?kind=page|article — saved starting points for new pages/articles
+  // /templates?kind=page|article|simulation — saved starting points for new pages/articles/simulations
+  const TEMPLATE_KINDS = ["page", "article", "simulation"];
   if (path === "/templates" && method === "GET") {
     const kind = url.searchParams.get("kind");
-    if (!["page", "article"].includes(kind)) return json({ error: "Invalid kind" }, { status: 400 });
+    if (!TEMPLATE_KINDS.includes(kind)) return json({ error: "Invalid kind" }, { status: 400 });
     return json(await listTemplates(env, kind));
   }
   if (path === "/templates" && method === "POST") {
     const body = await request.json().catch(() => ({}));
-    if (!["page", "article"].includes(body.kind) || !body.name) {
+    if (!TEMPLATE_KINDS.includes(body.kind) || !body.name) {
       return json({ error: "kind and name are required" }, { status: 400 });
     }
     const id = await createTemplate(env, body);
@@ -584,6 +586,13 @@ async function routeAdminApi(request, env, url, ctx) {
     const id = await createSimulation(env, { name: body.name.trim(), data: body.data || {} });
     log(ctx, env, "create", "simulation", body.name.trim());
     return json({ id });
+  }
+  const simDuplicateMatch = path.match(/^\/simulations\/(\d+)\/duplicate$/);
+  if (simDuplicateMatch && method === "POST") {
+    const newId = await duplicateSimulation(env, Number(simDuplicateMatch[1]));
+    if (!newId) return json({ error: "Simulation not found" }, { status: 404 });
+    log(ctx, env, "duplicate", "simulation", `#${simDuplicateMatch[1]} → #${newId}`);
+    return json({ id: newId });
   }
   const simMatch = path.match(/^\/simulations\/(\d+)$/);
   if (simMatch && method === "GET") {

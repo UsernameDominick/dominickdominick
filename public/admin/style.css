@@ -1015,6 +1015,12 @@
   flex-shrink: 0;
 }
 
+.sim-new-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
 #new-simulation-btn {
   align-self: flex-start;
   background: var(--accent);
@@ -1035,6 +1041,7 @@
 
 .simulation-builder-inner header {
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .simulation-name-input {
@@ -1100,6 +1107,19 @@
   margin: 0 0 10px;
 }
 
+#sim-palette-search {
+  display: block;
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+
 .sim-palette-btn {
   display: block;
   width: 100%;
@@ -1112,6 +1132,10 @@
   margin-bottom: 6px;
   cursor: pointer;
   font-size: 0.85rem;
+}
+
+.sim-palette-btn.is-hidden-by-search {
+  display: none;
 }
 
 .sim-palette-btn:hover {
@@ -1219,6 +1243,14 @@
 
 .sim-comp.sim-snapped {
   filter: drop-shadow(0 0 4px var(--accent));
+}
+
+.sim-select-rect {
+  fill: rgba(232, 161, 58, 0.15);
+  stroke: var(--accent);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  pointer-events: none;
 }
 
 .sim-wire.sim-selected {

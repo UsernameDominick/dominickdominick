@@ -606,6 +606,12 @@ export async function deleteSimulation(env, id) {
   await env.DB.prepare("DELETE FROM simulations WHERE id = ?").bind(id).run();
 }
 
+export async function duplicateSimulation(env, id) {
+  const source = await getSimulation(env, id);
+  if (!source) return null;
+  return createSimulation(env, { name: `${source.name} (copy)`, data: source.data });
+}
+
 // ---------- Revisions ----------
 // A snapshot of a page's blocks, or an article's row, kept so a bad editing
 // session can be undone. Page snapshots are throttled (see maybeSnapshotPage)

@@ -431,7 +431,10 @@
       </header>
       <div class="redirects-body">
         <p class="redirects-hint">Wire real chains — outlet → power supply → breadboard → Teensy, Teensy → breadboard — and only what's actually connected to a power source lights up. Build once, reuse in any article or page via the Simulation block.</p>
-        <button type="button" id="new-simulation-btn">New simulation</button>
+        <div class="sim-new-row">
+          <button type="button" id="new-simulation-btn">New simulation</button>
+          <select id="sim-template-picker"><option value="">Blank</option></select>
+        </div>
         <div id="simulations-list" class="redirects-list"></div>
       </div>
     </div>
@@ -448,11 +451,13 @@
         <input type="file" id="sim-import-file" accept="application/json" hidden>
         <button type="button" id="sim-preview-power">Preview: power on</button>
         <button type="button" id="save-simulation">Save</button>
+        <button type="button" id="save-sim-template-btn" title="Save this circuit as a reusable starting point">Save as template</button>
         <button id="close-simulation-builder">×</button>
       </header>
       <div class="sim-builder-body">
         <aside class="sim-palette">
           <h2>Add part</h2>
+          <input type="search" id="sim-palette-search" placeholder="Search parts…">
           <button type="button" class="sim-palette-btn" data-sim-type="outlet">Wall Outlet</button>
           <button type="button" class="sim-palette-btn" data-sim-type="power_supply">Power Supply</button>
           <button type="button" class="sim-palette-btn" data-sim-type="breadboard">Breadboard</button>

@@ -11,6 +11,7 @@ import {
   publicSearch,
   getRelatedArticles,
   getSeriesArticles,
+  getSimulation,
 } from "./db.js";
 import { isAuthenticated } from "./auth.js";
 import {
@@ -30,6 +31,7 @@ import {
   renderSeriesNavHtml,
 } from "./render.js";
 import { handleAdminApi } from "./admin-api.js";
+import { renderSimulationSvg } from "./simulation-render.js";
 
 async function getTheme(env) {
   const [accent, bg, font] = await Promise.all([
@@ -211,6 +213,34 @@ async function renderNotFound(env, navItems) {
   return new Response(html, { status: 404, headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
+// A standalone, read-only view of a saved circuit — the same rendering and
+// power-toggle interactivity as the "Simulation" block, just on its own
+// page so a circuit can be linked to directly instead of only embedded.
+async function renderSimulationPage(env, sim, navItems) {
+  const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
+  const uid = "sim-standalone";
+  const svg = renderSimulationSvg(sim.data).replace('class="sim-svg"', `class="sim-svg" id="${esc(uid)}"`);
+  const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 2;">
+    <h1>${esc(sim.name)}</h1>
+  </div>
+  <div class="block" style="grid-column:1 / span 24;grid-row:3 / span 25;">
+    <div class="sim-block-wrap">${svg}<button type="button" class="sim-power-btn" data-target="${esc(uid)}">Power on</button></div>
+  </div>`;
+  const html = renderShell({
+    title: `${sim.name} · Dominick`,
+    description: `An interactive circuit simulation: ${sim.name}.`,
+    path: `/simulation/${sim.id}`,
+    navItems,
+    activeSlug: null,
+    bodyHtml,
+    theme,
+    footerText,
+    customHead,
+    ogImage: defaultOgImage || null,
+  });
+  return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
+}
+
 function xmlEsc(str) {
   return String(str ?? "")
     .replace(/&/g, "&amp;")
@@ -311,6 +341,14 @@ async function route(request, env, ctx) {
     if (path === "/search") {
       const navItems = await listNavPages(env);
       return renderSearch(env, url.searchParams.get("q")?.trim() || "", navItems);
+    }
+
+    const simulationMatch = path.match(/^\/simulation\/(\d+)$/);
+    if (simulationMatch) {
+      const sim = await getSimulation(env, Number(simulationMatch[1]));
+      if (!sim) return env.ASSETS.fetch(request);
+      const navItems = await listNavPages(env);
+      return renderSimulationPage(env, sim, navItems);
     }
 
     const mediaMatch = path.match(/^\/media\/([A-Za-z0-9_.\-\/]+)$/);
