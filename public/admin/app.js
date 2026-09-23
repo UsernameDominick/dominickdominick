@@ -694,13 +694,28 @@
   });
   el("close-articles").addEventListener("click", () => (el("articles-modal").hidden = true));
 
+  // <input type="datetime-local"> wants "YYYY-MM-DDTHH:MM" in local time,
+  // not the article's stored UTC ISO string.
+  function isoToLocalInput(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  function articleStatusLabel(a) {
+    if (!a.published_at) return " (draft)";
+    if (a.published_at > new Date().toISOString()) return " (scheduled)";
+    return "";
+  }
+
   function renderArticlesList() {
     el("articles-list").innerHTML = articles
       .map(
         (a) =>
           `<div class="article-list-item${a.id === currentArticleId ? " active" : ""}" data-id="${a.id}">${escapeHtml(
             a.title
-          )}${a.published_at ? "" : " (draft)"}${
+          )}${articleStatusLabel(a)}${
             a.tags && a.tags.length ? `<div class="article-list-tags">${a.tags.map(escapeHtml).join(", ")}</div>` : ""
           }</div>`
       )
@@ -715,6 +730,7 @@
         el("article-og-image").value = article.og_image || "";
         el("article-body").value = article.body;
         el("article-published").checked = !!article.published_at;
+        el("article-publish-at").value = isoToLocalInput(article.published_at);
         renderArticlesList();
       });
     });
@@ -728,6 +744,7 @@
     el("article-og-image").value = "";
     el("article-body").value = "";
     el("article-published").checked = false;
+    el("article-publish-at").value = "";
   }
 
   el("new-article").addEventListener("click", clearArticleForm);
@@ -740,13 +757,17 @@
   }
 
   el("save-article").addEventListener("click", async () => {
+    const publishAtLocal = el("article-publish-at").value;
+    const published = el("article-published").checked;
     const body = {
       title: el("article-title").value,
       slug: el("article-slug").value,
       tags: parseTags(el("article-tags").value),
       og_image: el("article-og-image").value || null,
       body: el("article-body").value,
-      published: el("article-published").checked,
+      // A blank publish-at with "Published" checked means "now"; a filled
+      // one schedules it (past or future). Unchecked always means draft.
+      published_at: published ? (publishAtLocal ? new Date(publishAtLocal).toISOString() : new Date().toISOString()) : null,
     };
     if (!body.title) return alert("Title is required.");
     try {

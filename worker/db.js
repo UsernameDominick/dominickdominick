@@ -116,11 +116,17 @@ function parseArticleRow(row) {
 
 export async function listArticles(env, { publishedOnly = false, limit = null, tag = null } = {}) {
   let sql = "SELECT * FROM articles";
-  if (publishedOnly) sql += " WHERE published_at IS NOT NULL";
+  const params = [];
+  // "Published" means published_at is set AND not in the future — a
+  // scheduled article stays hidden from public listings until its time.
+  if (publishedOnly) {
+    sql += " WHERE published_at IS NOT NULL AND published_at <= ?";
+    params.push(new Date().toISOString());
+  }
   sql += " ORDER BY COALESCE(published_at, created_at) DESC";
   const lim = Number(limit);
   if (Number.isFinite(lim) && lim > 0) sql += ` LIMIT ${Math.floor(lim)}`;
-  const { results } = await env.DB.prepare(sql).all();
+  const { results } = await env.DB.prepare(sql).bind(...params).all();
   let articles = results.map(parseArticleRow);
   if (tag) articles = articles.filter((a) => a.tags.includes(tag));
   return articles;
@@ -139,7 +145,14 @@ export async function slugExists(env, table, slug, excludeId = null) {
   return Boolean(await stmt.first());
 }
 
-export async function createArticle(env, { slug, title, body, published, tags, og_image }) {
+// published_at, when given explicitly, lets an article be scheduled for a
+// future time; otherwise it falls back to the old on/off "published" flag.
+function resolvePublishedAt({ published, published_at }) {
+  if (published_at !== undefined) return published_at;
+  return published ? new Date().toISOString() : null;
+}
+
+export async function createArticle(env, { slug, title, body, published, published_at, tags, og_image }) {
   const res = await env.DB
     .prepare(
       "INSERT INTO articles (slug, title, body, published_at, tags, og_image) VALUES (?, ?, ?, ?, ?, ?)"
@@ -148,7 +161,7 @@ export async function createArticle(env, { slug, title, body, published, tags, o
       slug,
       title,
       body || "",
-      published ? new Date().toISOString() : null,
+      resolvePublishedAt({ published, published_at }),
       JSON.stringify(Array.isArray(tags) ? tags : []),
       og_image || null
     )
@@ -169,9 +182,9 @@ export async function updateArticle(env, id, fields) {
     cols.push("tags = ?");
     vals.push(JSON.stringify(Array.isArray(fields.tags) ? fields.tags : []));
   }
-  if ("published" in fields) {
+  if ("published_at" in fields || "published" in fields) {
     cols.push("published_at = ?");
-    vals.push(fields.published ? new Date().toISOString() : null);
+    vals.push(resolvePublishedAt(fields));
   }
   if (!cols.length) return;
   cols.push("updated_at = datetime('now')");

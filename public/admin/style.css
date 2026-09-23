@@ -388,7 +388,15 @@
 .article-actions label {
   color: var(--text-dim);
   font-size: 0.85rem;
+}
+
+.article-actions label:last-of-type {
   margin-right: auto;
+}
+
+.article-actions input[type="datetime-local"] {
+  width: auto;
+  margin-left: 6px;
 }
 
 .article-list-tags {

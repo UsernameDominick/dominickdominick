@@ -209,7 +209,9 @@ async function route(request, env, ctx) {
     const articleMatch = path.match(/^\/random\/([a-z0-9-]+)$/);
     if (articleMatch) {
       const article = await getArticleBySlug(env, articleMatch[1]);
-      if (!article || !article.published_at) return env.ASSETS.fetch(request);
+      if (!article || !article.published_at || article.published_at > new Date().toISOString()) {
+        return env.ASSETS.fetch(request);
+      }
       const navItems = await listNavPages(env);
       trackView(ctx, env, request, path);
       return renderArticle(env, article, navItems);

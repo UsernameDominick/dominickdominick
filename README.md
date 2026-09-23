@@ -40,7 +40,10 @@ Worker secret, not stored in this repo). From there:
 - Use the "Media" button, or "Browse…" next to any image field, to reuse
   a previously uploaded image instead of uploading it again.
 - Manage Random posts under the "Articles" button — tags, drafts, a share
-  image, an "Upload image" button that goes straight to R2
+  image, an "Upload image" button that goes straight to R2, and a
+  "Publish at" field so a post can be scheduled for a future date/time
+  (it stays hidden from every public listing, RSS, and its own URL until
+  then)
 - Under "Site": theme accent/background color, site-wide font, a
   site-wide footer (same markdown support), a default share image (with
   per-page/article overrides), and **Backup** — download everything as
