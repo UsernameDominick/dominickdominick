@@ -255,6 +255,18 @@ async function renderBlockInner(env, block, ctx) {
       return `<hr>`;
     case "spacer":
       return "";
+    case "changelog": {
+      const entries = Array.isArray(c.entries) ? c.entries.filter((e) => e && (e.title || e.description)) : [];
+      if (!entries.length) return `<p class="empty-hint">No entries yet.</p>`;
+      return `<div class="changelog-list">${entries
+        .map(
+          (e) =>
+            `<div class="changelog-item">${e.date ? `<time datetime="${esc(e.date)}">${esc(e.date)}</time>` : ""}${
+              e.title ? `<h3>${esc(e.title)}</h3>` : ""
+            }${e.description ? `<p>${esc(e.description)}</p>` : ""}</div>`
+        )
+        .join("")}</div>`;
+    }
     case "links": {
       const items = Array.isArray(c.items) ? c.items.filter((it) => it && it.url) : [];
       if (!items.length) return `<p class="empty-hint">No links yet.</p>`;
@@ -394,10 +406,24 @@ ${ogImage ? `<meta name="twitter:image" content="${esc(ogImage)}">` : ""}
 ${themeStyle}
 <script src="/sim-player.js" defer></script>
 <script src="/article-extras.js" defer></script>
-${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>` : ""}
+<script type="application/ld+json">${JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "Dominick",
+    url: "https://dominickdominick.com/",
+    potentialAction: {
+      "@type": "SearchAction",
+      target: "https://dominickdominick.com/search?q={search_term_string}",
+      "query-input": "required name=search_term_string",
+    },
+  })}</script>
+${(Array.isArray(jsonLd) ? jsonLd : jsonLd ? [jsonLd] : [])
+  .map((ld) => `<script type="application/ld+json">${JSON.stringify(ld)}</script>`)
+  .join("\n")}
 ${customHead || ""}
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
   <div class="page">
     <header class="topbar">
       <a class="brand" href="/">dominick<span class="accent">.</span>dominick</a>
@@ -414,7 +440,7 @@ ${customHead || ""}
     </header>
     <script src="/nav.js"></script>
 
-    <main class="canvas">
+    <main class="canvas" id="main-content">
       ${bodyHtml}
     </main>
     ${footerText ? `<footer class="site-footer">${paragraphsHtml(footerText)}</footer>` : ""}

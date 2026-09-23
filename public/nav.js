@@ -15,6 +15,21 @@
 })();
 
 (function () {
+  var searchInput = document.querySelector(".site-search input");
+  if (!searchInput) return;
+  document.addEventListener("keydown", function (e) {
+    var tag = (e.target.tagName || "").toLowerCase();
+    var typing = tag === "input" || tag === "textarea" || e.target.isContentEditable;
+    if (e.key === "/" && !typing) {
+      e.preventDefault();
+      searchInput.focus();
+    } else if (e.key === "Escape" && document.activeElement === searchInput) {
+      searchInput.blur();
+    }
+  });
+})();
+
+(function () {
   var btn = document.getElementById("theme-toggle");
   if (!btn) return;
   btn.addEventListener("click", function () {

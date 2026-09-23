@@ -184,6 +184,7 @@
     el("page-nav-label").value = currentPage.nav_label || "";
     el("page-nav-order").value = currentPage.nav_order ?? "";
     el("page-og-image").value = currentPage.og_image || "";
+    updatePageOgPreview();
     await loadBlocks();
   }
 
@@ -265,7 +266,7 @@
   }
 
   function blockLabel(type) {
-    return { heading: "Heading", text: "Text", image: "Image", button: "Button", "project-card": "Project Card", "article-list": "Article List", video: "Video", quote: "Quote", gallery: "Gallery", simulation: "Simulation", divider: "Divider", spacer: "Spacer", links: "Links", html: "HTML / Embed" }[type] || type;
+    return { heading: "Heading", text: "Text", image: "Image", button: "Button", "project-card": "Project Card", "article-list": "Article List", video: "Video", quote: "Quote", gallery: "Gallery", simulation: "Simulation", divider: "Divider", spacer: "Spacer", links: "Links", html: "HTML / Embed", changelog: "Changelog / Now" }[type] || type;
   }
 
   let simulationOptions = [];
@@ -290,6 +291,7 @@
       case "divider": return "—";
       case "spacer": return "(spacer)";
       case "links": return `${(c.items || []).length} link(s)`;
+      case "changelog": return `${(c.entries || []).length} entr${(c.entries || []).length === 1 ? "y" : "ies"}`;
       case "html": return c.html ? "(custom HTML)" : "(empty)";
       default: return "";
     }
@@ -455,6 +457,7 @@
         quote: { content: { text: "Quote text here.", cite: "" }, col_span: 16, row_span: 6 },
         gallery: { content: { images: [] }, col_span: 24, row_span: 12 },
         links: { content: { items: [] }, col_span: 12, row_span: 6 },
+        changelog: { content: { entries: [] }, col_span: 24, row_span: 16 },
         html: { content: { html: "<!-- your HTML here -->" }, col_span: 24, row_span: 8 },
         divider: { content: {}, col_span: 24, row_span: 2 },
         spacer: { content: {}, col_span: 24, row_span: 2 },
@@ -513,6 +516,7 @@
     ],
     gallery: [{ key: "images", label: "Images", type: "gallery-urls" }],
     links: [{ key: "items", label: "Links (one per line: Label | URL)", type: "link-list" }],
+    changelog: [{ key: "entries", label: "Entries (one per line: YYYY-MM-DD | Title | Description)", type: "changelog-list" }],
     simulation: [{ key: "simulation_id", label: "Simulation", type: "simulation-select" }],
     html: [{ key: "html", label: "Raw HTML (advanced — rendered as-is, unescaped; be careful what you paste here)", type: "textarea" }],
     divider: [],
@@ -603,6 +607,13 @@
       const text = (Array.isArray(val) ? val : []).map((it) => `${it.label || ""} | ${it.url || ""}`).join("\n");
       return `<label>${f.label}<textarea id="${fieldId}" data-key="${f.key}" data-linklist="1" rows="5">${escapeHtml(text)}</textarea></label>`;
     }
+    if (f.type === "changelog-list") {
+      const fieldId = `${idPrefix}-${f.key}`;
+      const text = (Array.isArray(val) ? val : [])
+        .map((it) => `${it.date || ""} | ${it.title || ""} | ${it.description || ""}`)
+        .join("\n");
+      return `<label>${f.label}<textarea id="${fieldId}" data-key="${f.key}" data-changelog="1" rows="6">${escapeHtml(text)}</textarea></label>`;
+    }
     if (f.type === "simulation-select") {
       const options = simulationOptions
         .map((s) => `<option value="${s.id}"${String(val ?? "") === String(s.id) ? " selected" : ""}>${escapeHtml(s.name)}</option>`)
@@ -632,6 +643,16 @@
         .map((line) => {
           const [label, url] = line.split("|").map((s) => s.trim());
           return { label: label || url || "", url: url || label || "" };
+        });
+    }
+    if (input.dataset.changelog) {
+      return input.value
+        .split("\n")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((line) => {
+          const [date, title, description] = line.split("|").map((s) => (s || "").trim());
+          return { date: date || "", title: title || "", description: description || "" };
         });
     }
     return input.value;
@@ -853,7 +874,52 @@
       historyBtn.hidden = true;
     }
     updateWordCount();
+    updateArticleOgPreview();
   }
+
+  // Mirrors excerpt() in worker/render.js closely enough for a live preview
+  // — doesn't need to be byte-exact, just give a realistic sense of length.
+  function clientExcerpt(text, maxLen = 140) {
+    const flat = String(text || "")
+      .replace(/^#{2,3}\s+/gm, "")
+      .replace(/\*\*(.+?)\*\*/g, "$1")
+      .replace(/\*(.+?)\*/g, "$1")
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (flat.length <= maxLen) return flat;
+    const cut = flat.slice(0, maxLen);
+    const lastSpace = cut.lastIndexOf(" ");
+    return cut.slice(0, lastSpace > 0 ? lastSpace : maxLen).trim() + "…";
+  }
+
+  function updateOgPreview(prefix, { title, desc, image }) {
+    el(`og-preview-${prefix}-title`).textContent = title || "(untitled)";
+    el(`og-preview-${prefix}-desc`).textContent = desc || "";
+    const imgEl = el(`og-preview-${prefix}-img`);
+    imgEl.style.backgroundImage = image ? `url('${image.replace(/'/g, "\\'")}')` : "";
+    imgEl.textContent = "";
+  }
+
+  function updatePageOgPreview() {
+    if (!currentPage) return;
+    updateOgPreview("page", {
+      title: el("page-title").value,
+      desc: el("page-meta").value,
+      image: el("page-og-image").value,
+    });
+  }
+
+  function updateArticleOgPreview() {
+    updateOgPreview("article", {
+      title: el("article-title").value,
+      desc: clientExcerpt(el("article-body").value),
+      image: el("article-og-image").value,
+    });
+  }
+
+  ["page-title", "page-meta", "page-og-image"].forEach((id) => el(id).addEventListener("input", updatePageOgPreview));
+  ["article-title", "article-body", "article-og-image"].forEach((id) => el(id).addEventListener("input", updateArticleOgPreview));
 
   // Matches the reading-time math in worker/render.js (200 words/min) so
   // what you see while writing matches what the published article shows.

@@ -60,6 +60,7 @@
         <button class="palette-btn" data-type="gallery">Gallery</button>
         <button class="palette-btn" data-type="simulation">Simulation</button>
         <button class="palette-btn" data-type="links">Links</button>
+        <button class="palette-btn" data-type="changelog">Changelog / Now</button>
         <button class="palette-btn" data-type="html">HTML / Embed</button>
         <button class="palette-btn" data-type="divider">Divider</button>
         <button class="palette-btn" data-type="spacer">Spacer</button>
@@ -73,6 +74,15 @@
           <input id="page-og-image" type="text">
           <button type="button" class="upload-trigger" data-target="#page-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#page-og-image">Browse…</button>
         </label>
+        <div class="og-preview-label">Share preview</div>
+        <div class="og-preview" id="og-preview-page">
+          <div class="og-preview-img" id="og-preview-page-img"></div>
+          <div class="og-preview-body">
+            <div class="og-preview-domain">dominickdominick.com</div>
+            <div class="og-preview-title" id="og-preview-page-title"></div>
+            <div class="og-preview-desc" id="og-preview-page-desc"></div>
+          </div>
+        </div>
         <button id="save-page-settings">Save page settings</button>
         <button id="page-history-btn">History</button>
         <button id="duplicate-page-btn">Duplicate this page</button>
@@ -113,6 +123,15 @@
           </div>
           <textarea id="article-body" placeholder="Write here. Blank line = new paragraph. **bold**, *italic*, [link](url). ## Heading, ### Subheading (two or more headings add a table of contents)." rows="16"></textarea>
           <div id="article-word-count" class="article-word-count">0 words · 0 min read</div>
+          <div class="og-preview-label">Share preview</div>
+          <div class="og-preview" id="og-preview-article">
+            <div class="og-preview-img" id="og-preview-article-img"></div>
+            <div class="og-preview-body">
+              <div class="og-preview-domain">dominickdominick.com</div>
+              <div class="og-preview-title" id="og-preview-article-title"></div>
+              <div class="og-preview-desc" id="og-preview-article-desc"></div>
+            </div>
+          </div>
           <div class="article-actions">
             <label><input type="checkbox" id="article-published"> Published</label>
             <label>Publish at (blank = immediately)<input type="datetime-local" id="article-publish-at"></label>

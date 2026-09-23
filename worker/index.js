@@ -105,15 +105,26 @@ async function renderArticle(env, article, navItems) {
     ${paragraphsHtml(article.body)}
   </div>
   ${relatedHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${bodyRow + 12} / span 6;">${relatedHtml}</div>` : ""}`;
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "BlogPosting",
-    headline: article.title,
-    datePublished: article.published_at,
-    dateModified: article.updated_at || article.published_at,
-    author: { "@type": "Person", name: "Dominick" },
-    ...(article.tags && article.tags.length ? { keywords: article.tags.join(", ") } : {}),
-  };
+  const jsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      headline: article.title,
+      datePublished: article.published_at,
+      dateModified: article.updated_at || article.published_at,
+      author: { "@type": "Person", name: "Dominick" },
+      ...(article.tags && article.tags.length ? { keywords: article.tags.join(", ") } : {}),
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Home", item: "https://dominickdominick.com/" },
+        { "@type": "ListItem", position: 2, name: "Random", item: "https://dominickdominick.com/random" },
+        { "@type": "ListItem", position: 3, name: article.title, item: `https://dominickdominick.com/random/${article.slug}` },
+      ],
+    },
+  ];
   const html = renderShell({
     title: `${article.title} · Dominick`,
     description,
