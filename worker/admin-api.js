@@ -21,6 +21,10 @@ import {
   getAnalytics,
   exportAll,
   importAll,
+  listRedirects,
+  createRedirect,
+  updateRedirect,
+  deleteRedirect,
 } from "./db.js";
 import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated } from "./auth.js";
 
@@ -29,6 +33,20 @@ function json(data, init = {}) {
     ...init,
     headers: { "Content-Type": "application/json", ...(init.headers || {}) },
   });
+}
+
+function normalizePath(p) {
+  let s = String(p || "").trim();
+  if (!s) return "";
+  if (!s.startsWith("/")) s = "/" + s;
+  if (s.length > 1) s = s.replace(/\/+$/, "");
+  return s;
+}
+
+// Paths a redirect could otherwise break by intercepting a system route.
+const BLOCKED_REDIRECT_PREFIXES = ["/api", "/admin", "/media", "/sitemap.xml", "/rss.xml", "/robots.txt"];
+function isBlockedRedirectPath(p) {
+  return BLOCKED_REDIRECT_PREFIXES.some((prefix) => p === prefix || p.startsWith(prefix + "/"));
 }
 
 function slugify(str) {
@@ -208,6 +226,54 @@ async function routeAdminApi(request, env, url) {
   const mediaKeyMatch = path.match(/^\/media\/(.+)$/);
   if (mediaKeyMatch && method === "DELETE") {
     await env.MEDIA.delete(mediaKeyMatch[1]);
+    return json({ ok: true });
+  }
+
+  // /redirects
+  if (path === "/redirects" && method === "GET") {
+    return json(await listRedirects(env));
+  }
+  if (path === "/redirects" && method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    const from_path = normalizePath(body.from_path);
+    const to_path = String(body.to_path || "").trim();
+    if (!from_path || !to_path) return json({ error: "Both a from and to path are required" }, { status: 400 });
+    if (isBlockedRedirectPath(from_path)) {
+      return json({ error: "That path is reserved and can't be redirected" }, { status: 400 });
+    }
+    if (from_path === to_path) return json({ error: "A path can't redirect to itself" }, { status: 400 });
+    try {
+      const id = await createRedirect(env, { from_path, to_path, status_code: Number(body.status_code) || 301 });
+      return json({ id });
+    } catch (err) {
+      if (String(err.message).includes("UNIQUE")) {
+        return json({ error: "A redirect from that path already exists" }, { status: 409 });
+      }
+      throw err;
+    }
+  }
+  const redirectMatch = path.match(/^\/redirects\/(\d+)$/);
+  if (redirectMatch && method === "PATCH") {
+    const body = await request.json().catch(() => ({}));
+    const fields = {};
+    if (body.from_path !== undefined) fields.from_path = normalizePath(body.from_path);
+    if (body.to_path !== undefined) fields.to_path = String(body.to_path).trim();
+    if (body.status_code !== undefined) fields.status_code = Number(body.status_code) || 301;
+    if (fields.from_path && isBlockedRedirectPath(fields.from_path)) {
+      return json({ error: "That path is reserved and can't be redirected" }, { status: 400 });
+    }
+    try {
+      await updateRedirect(env, Number(redirectMatch[1]), fields);
+    } catch (err) {
+      if (String(err.message).includes("UNIQUE")) {
+        return json({ error: "A redirect from that path already exists" }, { status: 409 });
+      }
+      throw err;
+    }
+    return json({ ok: true });
+  }
+  if (redirectMatch && method === "DELETE") {
+    await deleteRedirect(env, Number(redirectMatch[1]));
     return json({ ok: true });
   }
 

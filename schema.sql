@@ -46,6 +46,14 @@ CREATE TABLE login_attempts (
   attempted_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE redirects (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  from_path TEXT UNIQUE NOT NULL,
+  to_path TEXT NOT NULL,
+  status_code INTEGER NOT NULL DEFAULT 301,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE pageviews (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   path TEXT NOT NULL,

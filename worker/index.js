@@ -1,4 +1,4 @@
-import { getPageBySlug, listNavPages, listBlocks, listArticles, getArticleBySlug, getSetting, recordPageview } from "./db.js";
+import { getPageBySlug, listNavPages, listBlocks, listArticles, getArticleBySlug, getSetting, recordPageview, getRedirect } from "./db.js";
 
 async function getTheme(env) {
   const [accent, bg, font] = await Promise.all([
@@ -203,6 +203,13 @@ async function route(request, env, ctx) {
         "User-agent: *\nAllow: /\nDisallow: /admin/\nDisallow: /api/\n\nSitemap: https://dominickdominick.com/sitemap.xml\n",
         { headers: { "Content-Type": "text/plain;charset=UTF-8" } }
       );
+    }
+
+    // Redirects for old URLs that no longer resolve on their own — checked
+    // before page/article lookup so one can override a still-existing page.
+    const redirect = await getRedirect(env, path);
+    if (redirect) {
+      return Response.redirect(new URL(redirect.to_path, url.origin).toString(), redirect.status_code || 301);
     }
 
     // Individual article page: /random/:slug

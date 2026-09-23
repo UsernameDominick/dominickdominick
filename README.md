@@ -14,8 +14,8 @@ A Cloudflare Worker + D1 site with a built-in visual page editor.
   override: color, background, font, font size, border), `articles`
   (posts under Random), `settings` (site-wide config: default share
   image, theme accent/background/font), `login_attempts` (rate limiting),
-  and `pageviews` (self-hosted analytics — path, referrer domain, country,
-  no cookies or IPs stored).
+  `redirects` (old path → new path), and `pageviews` (self-hosted
+  analytics — path, referrer domain, country, no cookies or IPs stored).
 - **R2 bucket** (`dominickdominick-media`) — uploaded images. Served back
   through the Worker at `/media/:key` rather than R2's public dev URLs,
   which Cloudflare doesn't consider production-ready.
@@ -54,6 +54,8 @@ Worker secret, not stored in this repo). From there:
 - Create new pages with "+ Page" — they get their own URL but aren't
   auto-added to the nav; add a Button block linking to them if you want
   them reachable from elsewhere
+- "Redirects" sends an old URL to a new one (301 or 302) — handy after
+  renaming or deleting a page or post so old links don't just 404
 
 Changes save immediately — no separate publish step.
 

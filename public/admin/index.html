@@ -30,6 +30,7 @@
       <div class="admin-header-right">
         <button id="articles-btn">Articles</button>
         <button id="media-btn">Media</button>
+        <button id="redirects-btn">Redirects</button>
         <button id="analytics-btn">Analytics</button>
         <button id="site-settings-btn">Site</button>
         <a href="/" target="_blank" class="admin-view-live">View live ↗</a>
@@ -159,6 +160,29 @@
       </header>
       <p id="media-hint" class="media-hint" hidden>Click an image to use it.</p>
       <div id="media-grid" class="media-grid"></div>
+    </div>
+  </div>
+
+  <div id="redirects-modal" class="modal" hidden>
+    <div class="modal-inner redirects-modal-inner">
+      <header>
+        <h1>Redirects</h1>
+        <button id="close-redirects">×</button>
+      </header>
+      <div class="redirects-body">
+        <p class="redirects-hint">Send an old URL to a new one. Useful after renaming or deleting a page or post.</p>
+        <div class="redirect-form">
+          <input id="redirect-from" placeholder="/old-path">
+          <span class="redirect-arrow">→</span>
+          <input id="redirect-to" placeholder="/new-path or https://...">
+          <select id="redirect-status">
+            <option value="301">301 (permanent)</option>
+            <option value="302">302 (temporary)</option>
+          </select>
+          <button id="add-redirect-btn">Add</button>
+        </div>
+        <div id="redirects-list" class="redirects-list"></div>
+      </div>
     </div>
   </div>
 

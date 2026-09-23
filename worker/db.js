@@ -196,6 +196,41 @@ export async function deleteArticle(env, id) {
   await env.DB.prepare("DELETE FROM articles WHERE id = ?").bind(id).run();
 }
 
+export async function listRedirects(env) {
+  const { results } = await env.DB.prepare("SELECT * FROM redirects ORDER BY from_path").all();
+  return results;
+}
+
+export async function getRedirect(env, fromPath) {
+  return env.DB.prepare("SELECT * FROM redirects WHERE from_path = ?").bind(fromPath).first();
+}
+
+export async function createRedirect(env, { from_path, to_path, status_code }) {
+  const res = await env.DB
+    .prepare("INSERT INTO redirects (from_path, to_path, status_code) VALUES (?, ?, ?)")
+    .bind(from_path, to_path, status_code || 301)
+    .run();
+  return res.meta.last_row_id;
+}
+
+export async function updateRedirect(env, id, fields) {
+  const cols = [];
+  const vals = [];
+  for (const key of ["from_path", "to_path", "status_code"]) {
+    if (key in fields) {
+      cols.push(`${key} = ?`);
+      vals.push(fields[key]);
+    }
+  }
+  if (!cols.length) return;
+  vals.push(id);
+  await env.DB.prepare(`UPDATE redirects SET ${cols.join(", ")} WHERE id = ?`).bind(...vals).run();
+}
+
+export async function deleteRedirect(env, id) {
+  await env.DB.prepare("DELETE FROM redirects WHERE id = ?").bind(id).run();
+}
+
 export async function getSetting(env, key) {
   const row = await env.DB.prepare("SELECT value FROM settings WHERE key = ?").bind(key).first();
   return row ? row.value : null;
@@ -294,11 +329,12 @@ export async function setSetting(env, key, value) {
 const BACKUP_VERSION = 1;
 
 export async function exportAll(env) {
-  const [pages, blocks, articles, settings] = await Promise.all([
+  const [pages, blocks, articles, settings, redirects] = await Promise.all([
     env.DB.prepare("SELECT * FROM pages ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM blocks ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM articles ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM settings ORDER BY key").all(),
+    env.DB.prepare("SELECT * FROM redirects ORDER BY id").all(),
   ]);
   return {
     version: BACKUP_VERSION,
@@ -307,17 +343,26 @@ export async function exportAll(env) {
     blocks: blocks.results,
     articles: articles.results,
     settings: settings.results,
+    redirects: redirects.results,
   };
 }
 
 export async function importAll(env, data) {
   if (!data || typeof data !== "object") throw new Error("Not a valid backup file");
-  // Deliberately no defaults here: a file missing one of these keys entirely
-  // is malformed and must be rejected, not silently treated as "wipe this
-  // table and leave it empty" — a backup restore should never be able to
-  // destroy data just because a field name is missing.
-  const { pages, blocks, articles, settings } = data;
-  if (!Array.isArray(pages) || !Array.isArray(blocks) || !Array.isArray(articles) || !Array.isArray(settings)) {
+  // Deliberately no defaults here for the original four tables: a file
+  // missing one of these keys entirely is malformed and must be rejected,
+  // not silently treated as "wipe this table and leave it empty" — a backup
+  // restore should never be able to destroy data just because a field name
+  // is missing. `redirects` was added later, so older legitimate backups
+  // won't have it — default that one to empty instead of rejecting them.
+  const { pages, blocks, articles, settings, redirects = [] } = data;
+  if (
+    !Array.isArray(pages) ||
+    !Array.isArray(blocks) ||
+    !Array.isArray(articles) ||
+    !Array.isArray(settings) ||
+    !Array.isArray(redirects)
+  ) {
     throw new Error("This doesn't look like a dominickdominick backup file (missing pages/blocks/articles/settings)");
   }
 
@@ -326,6 +371,7 @@ export async function importAll(env, data) {
     env.DB.prepare("DELETE FROM pages"),
     env.DB.prepare("DELETE FROM articles"),
     env.DB.prepare("DELETE FROM settings"),
+    env.DB.prepare("DELETE FROM redirects"),
   ];
 
   for (const p of pages) {
@@ -394,6 +440,14 @@ export async function importAll(env, data) {
 
   for (const s of settings) {
     stmts.push(env.DB.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").bind(s.key, s.value));
+  }
+
+  for (const r of redirects) {
+    stmts.push(
+      env.DB
+        .prepare("INSERT INTO redirects (id, from_path, to_path, status_code, created_at) VALUES (?, ?, ?, ?, ?)")
+        .bind(r.id, r.from_path, r.to_path, r.status_code ?? 301, r.created_at)
+    );
   }
 
   // .batch() runs everything as one atomic transaction — either it all

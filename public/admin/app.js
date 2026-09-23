@@ -862,6 +862,55 @@
   el("media-btn").addEventListener("click", () => openMediaModal(null));
   el("close-media").addEventListener("click", closeMediaModal);
 
+  // ---------- Redirects ----------
+  async function loadRedirects() {
+    const redirects = await api("/redirects");
+    el("redirects-list").innerHTML =
+      redirects
+        .map(
+          (r) =>
+            `<div class="redirect-row" data-id="${r.id}"><span class="redirect-paths">${escapeHtml(r.from_path)} → ${escapeHtml(
+              r.to_path
+            )}</span><span class="redirect-code">${r.status_code}</span><button type="button" class="delete-redirect" data-id="${
+              r.id
+            }">Delete</button></div>`
+        )
+        .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No redirects yet.</p>";
+
+    el("redirects-list")
+      .querySelectorAll(".delete-redirect")
+      .forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          if (!confirm("Delete this redirect?")) return;
+          await api(`/redirects/${btn.dataset.id}`, { method: "DELETE" });
+          await loadRedirects();
+        });
+      });
+  }
+
+  el("redirects-btn").addEventListener("click", async () => {
+    el("redirects-modal").hidden = false;
+    await loadRedirects();
+  });
+  el("close-redirects").addEventListener("click", () => (el("redirects-modal").hidden = true));
+
+  el("add-redirect-btn").addEventListener("click", async () => {
+    const from_path = el("redirect-from").value.trim();
+    const to_path = el("redirect-to").value.trim();
+    if (!from_path || !to_path) return alert("Both fields are required.");
+    try {
+      await api("/redirects", {
+        method: "POST",
+        body: JSON.stringify({ from_path, to_path, status_code: Number(el("redirect-status").value) }),
+      });
+      el("redirect-from").value = "";
+      el("redirect-to").value = "";
+      await loadRedirects();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
   // ---------- Site settings ----------
   el("site-settings-btn").addEventListener("click", async () => {
     const settings = await api("/settings");
