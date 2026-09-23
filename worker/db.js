@@ -1,0 +1,174 @@
+export const RESERVED_SLUGS = new Set(["admin", "api", "sitemap.xml", "robots.txt"]);
+
+export async function getPageBySlug(env, slug) {
+  return env.DB.prepare("SELECT * FROM pages WHERE slug = ?").bind(slug).first();
+}
+
+export async function listPages(env) {
+  const { results } = await env.DB.prepare("SELECT * FROM pages ORDER BY id ASC").all();
+  return results;
+}
+
+export async function listNavPages(env) {
+  const { results } = await env.DB
+    .prepare("SELECT slug, nav_label FROM pages WHERE nav_label IS NOT NULL ORDER BY nav_order ASC, id ASC")
+    .all();
+  return results;
+}
+
+export async function createPage(env, { slug, title, meta_description, nav_label, nav_order }) {
+  const res = await env.DB
+    .prepare(
+      "INSERT INTO pages (slug, title, meta_description, nav_label, nav_order) VALUES (?, ?, ?, ?, ?)"
+    )
+    .bind(slug, title, meta_description || "", nav_label || null, nav_order ?? null)
+    .run();
+  return res.meta.last_row_id;
+}
+
+export async function updatePage(env, id, fields) {
+  const cols = [];
+  const vals = [];
+  for (const key of ["slug", "title", "meta_description", "nav_label", "nav_order"]) {
+    if (key in fields) {
+      cols.push(`${key} = ?`);
+      vals.push(fields[key]);
+    }
+  }
+  if (!cols.length) return;
+  cols.push("updated_at = datetime('now')");
+  vals.push(id);
+  await env.DB.prepare(`UPDATE pages SET ${cols.join(", ")} WHERE id = ?`).bind(...vals).run();
+}
+
+export async function deletePage(env, id) {
+  await env.DB.prepare("DELETE FROM pages WHERE id = ?").bind(id).run();
+}
+
+export async function listBlocks(env, pageId) {
+  const { results } = await env.DB
+    .prepare("SELECT * FROM blocks WHERE page_id = ? ORDER BY row ASC, col ASC")
+    .bind(pageId)
+    .all();
+  return results.map((b) => ({ ...b, content: JSON.parse(b.content || "{}") }));
+}
+
+export async function createBlock(env, pageId, block) {
+  const res = await env.DB
+    .prepare(
+      "INSERT INTO blocks (page_id, type, content, col, col_span, row, row_span) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    )
+    .bind(
+      pageId,
+      block.type,
+      JSON.stringify(block.content || {}),
+      block.col ?? 1,
+      block.col_span ?? 12,
+      block.row ?? 1,
+      block.row_span ?? 2
+    )
+    .run();
+  return res.meta.last_row_id;
+}
+
+export async function updateBlock(env, id, fields) {
+  const cols = [];
+  const vals = [];
+  for (const key of ["type", "col", "col_span", "row", "row_span"]) {
+    if (key in fields) {
+      cols.push(`${key} = ?`);
+      vals.push(fields[key]);
+    }
+  }
+  if ("content" in fields) {
+    cols.push("content = ?");
+    vals.push(JSON.stringify(fields.content));
+  }
+  if (!cols.length) return;
+  cols.push("updated_at = datetime('now')");
+  vals.push(id);
+  await env.DB.prepare(`UPDATE blocks SET ${cols.join(", ")} WHERE id = ?`).bind(...vals).run();
+}
+
+export async function deleteBlock(env, id) {
+  await env.DB.prepare("DELETE FROM blocks WHERE id = ?").bind(id).run();
+}
+
+function parseArticleRow(row) {
+  if (!row) return row;
+  let tags = [];
+  try {
+    tags = JSON.parse(row.tags || "[]");
+  } catch {
+    tags = [];
+  }
+  return { ...row, tags };
+}
+
+export async function listArticles(env, { publishedOnly = false, limit = null, tag = null } = {}) {
+  let sql = "SELECT * FROM articles";
+  if (publishedOnly) sql += " WHERE published_at IS NOT NULL";
+  sql += " ORDER BY COALESCE(published_at, created_at) DESC";
+  const lim = Number(limit);
+  if (Number.isFinite(lim) && lim > 0) sql += ` LIMIT ${Math.floor(lim)}`;
+  const { results } = await env.DB.prepare(sql).all();
+  let articles = results.map(parseArticleRow);
+  if (tag) articles = articles.filter((a) => a.tags.includes(tag));
+  return articles;
+}
+
+export async function getArticleBySlug(env, slug) {
+  const row = await env.DB.prepare("SELECT * FROM articles WHERE slug = ?").bind(slug).first();
+  return parseArticleRow(row);
+}
+
+export async function slugExists(env, table, slug, excludeId = null) {
+  const sql = excludeId
+    ? `SELECT id FROM ${table} WHERE slug = ? AND id != ?`
+    : `SELECT id FROM ${table} WHERE slug = ?`;
+  const stmt = excludeId ? env.DB.prepare(sql).bind(slug, excludeId) : env.DB.prepare(sql).bind(slug);
+  return Boolean(await stmt.first());
+}
+
+export async function createArticle(env, { slug, title, body, published, tags }) {
+  const res = await env.DB
+    .prepare(
+      "INSERT INTO articles (slug, title, body, published_at, tags) VALUES (?, ?, ?, ?, ?)"
+    )
+    .bind(
+      slug,
+      title,
+      body || "",
+      published ? new Date().toISOString() : null,
+      JSON.stringify(Array.isArray(tags) ? tags : [])
+    )
+    .run();
+  return res.meta.last_row_id;
+}
+
+export async function updateArticle(env, id, fields) {
+  const cols = [];
+  const vals = [];
+  for (const key of ["slug", "title", "body"]) {
+    if (key in fields) {
+      cols.push(`${key} = ?`);
+      vals.push(fields[key]);
+    }
+  }
+  if ("tags" in fields) {
+    cols.push("tags = ?");
+    vals.push(JSON.stringify(Array.isArray(fields.tags) ? fields.tags : []));
+  }
+  if ("published" in fields) {
+    cols.push("published_at = ?");
+    vals.push(fields.published ? new Date().toISOString() : null);
+  }
+  if (!cols.length) return;
+  cols.push("updated_at = datetime('now')");
+  vals.push(id);
+  await env.DB.prepare(`UPDATE articles SET ${cols.join(", ")} WHERE id = ?`).bind(...vals).run();
+}
+
+export async function deleteArticle(env, id) {
+  await env.DB.prepare("DELETE FROM articles WHERE id = ?").bind(id).run();
+}

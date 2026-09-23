@@ -1,0 +1,16 @@
+{
+	"name": "dominickdominick",
+	"compatibility_date": "2026-09-22",
+	"main": "worker/index.js",
+	"assets": {
+		"directory": "./public",
+		"binding": "ASSETS"
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "dominickdominick",
+			"database_id": "f49fb038-9dfb-419e-acfb-7d8babc9d509"
+		}
+	]
+}

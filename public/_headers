@@ -1,0 +1,4 @@
+# Keep the *.workers.dev URL out of search results so it doesn't
+# compete with / duplicate the real domain.
+https://dominickdominick.:subdomain.workers.dev/*
+	X-Robots-Tag: noindex

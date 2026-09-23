@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin · Dominick</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/admin/style.css">
+</head>
+<body class="admin-body">
+  <div id="login-screen" class="login-screen" hidden>
+    <form id="login-form" class="login-form">
+      <h1>Admin</h1>
+      <input type="password" id="password" placeholder="Password" autofocus required>
+      <button type="submit">Log in</button>
+      <p id="login-error" class="login-error" hidden>Wrong password.</p>
+    </form>
+  </div>
+
+  <div id="app" class="admin-app" hidden>
+    <header class="admin-header">
+      <div class="admin-header-left">
+        <button id="mobile-menu-btn" class="mobile-only" aria-label="Menu">☰</button>
+        <strong class="brand-label">dominick.dominick</strong>
+        <span class="admin-sep">/</span>
+        <select id="page-picker"></select>
+        <button id="new-page-btn" title="New page">+ Page</button>
+      </div>
+      <div class="admin-header-right">
+        <button id="articles-btn">Articles</button>
+        <a href="/" target="_blank" class="admin-view-live">View live ↗</a>
+        <button id="logout-btn">Log out</button>
+      </div>
+    </header>
+
+    <div id="drawer-backdrop" class="drawer-backdrop" hidden></div>
+
+    <div class="admin-body-layout">
+      <aside id="palette" class="admin-palette">
+        <button id="close-palette" class="mobile-only close-drawer" aria-label="Close">×</button>
+        <h2>Add block</h2>
+        <button class="palette-btn" data-type="heading">Heading</button>
+        <button class="palette-btn" data-type="text">Text</button>
+        <button class="palette-btn" data-type="image">Image</button>
+        <button class="palette-btn" data-type="button">Button / Link</button>
+        <button class="palette-btn" data-type="project-card">Project Card</button>
+        <button class="palette-btn" data-type="article-list">Article List</button>
+        <button class="palette-btn" data-type="divider">Divider</button>
+        <button class="palette-btn" data-type="spacer">Spacer</button>
+        <hr>
+        <h2>Page settings</h2>
+        <label>Title<input id="page-title" type="text"></label>
+        <label>Meta description<textarea id="page-meta" rows="2"></textarea></label>
+        <label>Nav label (blank = hidden from nav)<input id="page-nav-label" type="text"></label>
+        <label>Nav order<input id="page-nav-order" type="number"></label>
+        <button id="save-page-settings">Save page settings</button>
+        <button id="delete-page-btn" class="danger">Delete this page</button>
+      </aside>
+
+      <main class="admin-canvas-wrap">
+        <div id="canvas" class="admin-canvas"></div>
+      </main>
+
+      <aside id="inspector" class="admin-inspector" hidden>
+        <button id="close-inspector" class="mobile-only close-drawer" aria-label="Close">×</button>
+        <h2>Edit block</h2>
+        <div id="inspector-fields"></div>
+        <button id="delete-block-btn" class="danger">Delete block</button>
+      </aside>
+    </div>
+  </div>
+
+  <div id="articles-modal" class="modal" hidden>
+    <div class="modal-inner">
+      <header>
+        <h1>Articles</h1>
+        <button id="close-articles">×</button>
+      </header>
+      <div class="articles-layout">
+        <div class="articles-list" id="articles-list"></div>
+        <div class="article-editor">
+          <input id="article-title" placeholder="Title">
+          <input id="article-slug" placeholder="URL slug (auto from title)">
+          <input id="article-tags" placeholder="Tags, comma separated (e.g. life, code)">
+          <textarea id="article-body" placeholder="Write here. Blank line = new paragraph." rows="16"></textarea>
+          <div class="article-actions">
+            <label><input type="checkbox" id="article-published"> Published</label>
+            <button id="save-article">Save</button>
+            <button id="new-article">New</button>
+            <button id="delete-article" class="danger">Delete</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script src="/admin/app.js"></script>
+</body>
+</html>
