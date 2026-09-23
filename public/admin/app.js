@@ -622,6 +622,51 @@
     }
   });
 
+  // ---------- Analytics ----------
+  let analyticsRange = 7;
+
+  async function loadAnalytics() {
+    const data = await api(`/analytics?days=${analyticsRange}`);
+    el("stat-today").textContent = data.today;
+    el("stat-7d").textContent = data.last7;
+    el("stat-30d").textContent = data.last30;
+    el("stat-all").textContent = data.allTime;
+
+    const max = Math.max(1, ...data.byDay.map((d) => d.n));
+    el("analytics-chart").innerHTML = data.byDay
+      .map((d) => {
+        const pct = Math.round((d.n / max) * 100);
+        const label = d.day.slice(5); // MM-DD
+        return `<div class="chart-bar-wrap" title="${d.day}: ${d.n}"><div class="chart-bar" style="height:${pct}%"></div><div class="chart-bar-label">${label}</div></div>`;
+      })
+      .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No data yet.</p>";
+
+    const renderList = (id, rows, keyName) =>
+      (el(id).innerHTML =
+        rows.map((r) => `<div class="analytics-row"><span>${escapeHtml(r[keyName])}</span><span>${r.n}</span></div>`).join("") ||
+        "<p style='color:var(--text-dim);font-size:0.85rem;'>No data yet.</p>");
+
+    renderList("analytics-pages", data.topPaths, "path");
+    renderList("analytics-referrers", data.topReferrers, "referrer");
+    renderList("analytics-countries", data.topCountries, "country");
+  }
+
+  el("analytics-btn").addEventListener("click", async () => {
+    el("analytics-modal").hidden = false;
+    await loadAnalytics();
+  });
+  el("close-analytics").addEventListener("click", () => (el("analytics-modal").hidden = true));
+
+  document.querySelectorAll(".range-btn").forEach((btn) => {
+    if (Number(btn.dataset.days) === analyticsRange) btn.classList.add("active");
+    btn.addEventListener("click", async () => {
+      document.querySelectorAll(".range-btn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      analyticsRange = Number(btn.dataset.days);
+      await loadAnalytics();
+    });
+  });
+
   // ---------- Boot ----------
   async function boot() {
     const { authenticated } = await fetch("/api/admin/me").then((r) => r.json());

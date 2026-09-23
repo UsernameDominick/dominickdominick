@@ -29,6 +29,7 @@
       </div>
       <div class="admin-header-right">
         <button id="articles-btn">Articles</button>
+        <button id="analytics-btn">Analytics</button>
         <button id="site-settings-btn">Site</button>
         <a href="/" target="_blank" class="admin-view-live">View live ↗</a>
         <button id="logout-btn">Log out</button>
@@ -98,6 +99,44 @@
             <button id="save-article">Save</button>
             <button id="new-article">New</button>
             <button id="delete-article" class="danger">Delete</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="analytics-modal" class="modal" hidden>
+    <div class="modal-inner analytics-modal-inner">
+      <header>
+        <h1>Analytics</h1>
+        <div class="analytics-range">
+          <button class="range-btn" data-days="7">7d</button>
+          <button class="range-btn" data-days="30">30d</button>
+          <button class="range-btn" data-days="90">90d</button>
+        </div>
+        <button id="close-analytics">×</button>
+      </header>
+      <div class="analytics-body">
+        <div class="analytics-tiles">
+          <div class="analytics-tile"><span id="stat-today">–</span><label>Today</label></div>
+          <div class="analytics-tile"><span id="stat-7d">–</span><label>Last 7 days</label></div>
+          <div class="analytics-tile"><span id="stat-30d">–</span><label>Last 30 days</label></div>
+          <div class="analytics-tile"><span id="stat-all">–</span><label>All time</label></div>
+        </div>
+        <h2>Views per day</h2>
+        <div id="analytics-chart" class="analytics-chart"></div>
+        <div class="analytics-columns">
+          <div>
+            <h2>Top pages</h2>
+            <div id="analytics-pages" class="analytics-list"></div>
+          </div>
+          <div>
+            <h2>Top referrers</h2>
+            <div id="analytics-referrers" class="analytics-list"></div>
+          </div>
+          <div>
+            <h2>Top countries</h2>
+            <div id="analytics-countries" class="analytics-list"></div>
           </div>
         </div>
       </div>

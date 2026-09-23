@@ -202,6 +202,62 @@ export async function recordLoginAttempt(env, ip) {
     .catch(() => {});
 }
 
+export async function recordPageview(env, { path, referrer, country }) {
+  await env.DB
+    .prepare("INSERT INTO pageviews (path, referrer, country) VALUES (?, ?, ?)")
+    .bind(path, referrer || null, country || null)
+    .run();
+}
+
+export async function getAnalytics(env, days = 7) {
+  const since = `datetime('now', '-${Math.max(1, Math.floor(days))} days')`;
+
+  const [totalsRow, byDay, topPaths, topReferrers, topCountries] = await Promise.all([
+    env.DB.prepare(
+      `SELECT
+         (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-1 days')) AS today,
+         (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-7 days')) AS last7,
+         (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-30 days')) AS last30,
+         (SELECT COUNT(*) FROM pageviews) AS allTime`
+    ).first(),
+    env.DB
+      .prepare(
+        `SELECT date(created_at) AS day, COUNT(*) AS n FROM pageviews
+         WHERE created_at > ${since} GROUP BY day ORDER BY day ASC`
+      )
+      .all(),
+    env.DB
+      .prepare(
+        `SELECT path, COUNT(*) AS n FROM pageviews
+         WHERE created_at > ${since} GROUP BY path ORDER BY n DESC LIMIT 10`
+      )
+      .all(),
+    env.DB
+      .prepare(
+        `SELECT COALESCE(referrer, '(direct)') AS referrer, COUNT(*) AS n FROM pageviews
+         WHERE created_at > ${since} GROUP BY referrer ORDER BY n DESC LIMIT 10`
+      )
+      .all(),
+    env.DB
+      .prepare(
+        `SELECT COALESCE(country, '?') AS country, COUNT(*) AS n FROM pageviews
+         WHERE created_at > ${since} GROUP BY country ORDER BY n DESC LIMIT 10`
+      )
+      .all(),
+  ]);
+
+  return {
+    today: totalsRow?.today || 0,
+    last7: totalsRow?.last7 || 0,
+    last30: totalsRow?.last30 || 0,
+    allTime: totalsRow?.allTime || 0,
+    byDay: byDay.results,
+    topPaths: topPaths.results,
+    topReferrers: topReferrers.results,
+    topCountries: topCountries.results,
+  };
+}
+
 export async function setSetting(env, key, value) {
   await env.DB
     .prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")

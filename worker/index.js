@@ -1,4 +1,4 @@
-import { getPageBySlug, listNavPages, listBlocks, listArticles, getArticleBySlug, getSetting } from "./db.js";
+import { getPageBySlug, listNavPages, listBlocks, listArticles, getArticleBySlug, getSetting, recordPageview } from "./db.js";
 import { renderShell, renderBlocks, renderTags, excerpt, esc } from "./render.js";
 import { handleAdminApi } from "./admin-api.js";
 
@@ -127,10 +127,25 @@ async function renderSitemap(env) {
   return new Response(xml, { headers: { "Content-Type": "application/xml;charset=UTF-8" } });
 }
 
-export default {
-  async fetch(request, env) {
+function trackView(ctx, env, request, path) {
+  let referrer = null;
+  const refHeader = request.headers.get("Referer");
+  if (refHeader) {
     try {
-      return await route(request, env);
+      const refHost = new URL(refHeader).hostname;
+      if (refHost !== "dominickdominick.com") referrer = refHost;
+    } catch {
+      // ignore malformed referrer
+    }
+  }
+  const country = request.cf?.country || null;
+  ctx.waitUntil(recordPageview(env, { path, referrer, country }).catch(() => {}));
+}
+
+export default {
+  async fetch(request, env, ctx) {
+    try {
+      return await route(request, env, ctx);
     } catch (err) {
       return new Response("Something went wrong. Try again in a moment.", {
         status: 500,
@@ -140,7 +155,7 @@ export default {
   },
 };
 
-async function route(request, env) {
+async function route(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname;
 
@@ -180,12 +195,14 @@ async function route(request, env) {
       const article = await getArticleBySlug(env, articleMatch[1]);
       if (!article || !article.published_at) return env.ASSETS.fetch(request);
       const navItems = await listNavPages(env);
+      trackView(ctx, env, request, path);
       return renderArticle(env, article, navItems);
     }
 
     const slug = path === "/" ? "home" : path.replace(/^\/+/, "").replace(/\/+$/, "");
     const page = await getPageBySlug(env, slug);
     if (page) {
+      trackView(ctx, env, request, path);
       return renderPage(env, page, url);
     }
 

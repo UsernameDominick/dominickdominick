@@ -11,8 +11,9 @@ A Cloudflare Worker + D1 site with a built-in visual page editor.
   (`public/admin/`). Served directly by Cloudflare, no Worker code involved.
 - **D1 database** (`dominickdominick`) — holds `pages`, `blocks` (the actual
   content, positioned on a 12-column grid), `articles` (posts under Random),
-  `settings` (site-wide config, e.g. default share image), and
-  `login_attempts` (rate limiting).
+  `settings` (site-wide config, e.g. default share image),
+  `login_attempts` (rate limiting), and `pageviews` (self-hosted
+  analytics — path, referrer domain, country, no cookies or IPs stored).
 - **R2 bucket** (`dominickdominick-media`) — uploaded images. Served back
   through the Worker at `/media/:key` rather than R2's public dev URLs,
   which Cloudflare doesn't consider production-ready.
@@ -29,6 +30,8 @@ Worker secret, not stored in this repo). From there:
   image, an "Upload image" button that goes straight to R2
 - Set a site-wide default share image (and per-page/article overrides)
   under "Site"
+- Check "Analytics" for views/day, top pages, top referrers, top
+  countries — no third-party dashboard needed
 - Create new pages with "+ Page" — they get their own URL but aren't
   auto-added to the nav; add a Button block linking to them if you want
   them reachable from elsewhere

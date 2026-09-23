@@ -18,6 +18,7 @@ import {
   recordLoginAttempt,
   getSetting,
   setSetting,
+  getAnalytics,
 } from "./db.js";
 import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated } from "./auth.js";
 
@@ -192,6 +193,12 @@ async function routeAdminApi(request, env, url) {
     const key = `uploads/${crypto.randomUUID()}.${ext}`;
     await env.MEDIA.put(key, buf, { httpMetadata: { contentType } });
     return json({ url: `/media/${key}` });
+  }
+
+  // /analytics
+  if (path === "/analytics" && method === "GET") {
+    const days = Number(url.searchParams.get("days")) || 7;
+    return json(await getAnalytics(env, Math.min(Math.max(days, 1), 90)));
   }
 
   // /settings

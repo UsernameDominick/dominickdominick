@@ -45,6 +45,16 @@ CREATE TABLE login_attempts (
   attempted_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE pageviews (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  path TEXT NOT NULL,
+  referrer TEXT,
+  country TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX idx_blocks_page ON blocks(page_id);
 CREATE INDEX idx_articles_published ON articles(published_at);
 CREATE INDEX idx_login_attempts_ip_time ON login_attempts(ip, attempted_at);
+CREATE INDEX idx_pageviews_created ON pageviews(created_at);
+CREATE INDEX idx_pageviews_path ON pageviews(path);

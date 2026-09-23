@@ -617,3 +617,148 @@
   width: auto !important;
   margin-top: 0 !important;
 }
+
+/* Analytics */
+.analytics-modal-inner {
+  max-width: 900px;
+}
+
+.analytics-modal-inner header {
+  gap: 12px;
+}
+
+.analytics-range {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.range-btn {
+  background: var(--bg);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.range-btn.active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.analytics-body {
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.analytics-body h2 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  margin: 24px 0 10px;
+}
+
+.analytics-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.analytics-tile {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.analytics-tile span {
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.analytics-tile label {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.analytics-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 120px;
+  padding: 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.chart-bar-wrap {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+}
+
+.chart-bar {
+  width: 100%;
+  background: var(--accent);
+  border-radius: 3px 3px 0 0;
+  min-height: 2px;
+}
+
+.chart-bar-label {
+  font-size: 0.6rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.analytics-columns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.analytics-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.analytics-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.85rem;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.analytics-row span:first-child {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.analytics-row span:last-child {
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+@media (max-width: 860px) {
+  .analytics-tiles {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .analytics-columns {
+    grid-template-columns: 1fr;
+  }
+}
