@@ -1630,6 +1630,39 @@
   overflow-y: auto;
 }
 
+.find-replace-row {
+  display: flex;
+  gap: 10px;
+}
+
+.find-replace-row input {
+  flex: 1;
+}
+
+.find-replace-actions {
+  display: flex;
+  gap: 10px;
+  margin: 8px 0;
+}
+
+#admin-theme-toggle {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 999px;
+  width: 34px;
+  height: 34px;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+#admin-theme-toggle:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 .link-check-row {
   display: flex;
   align-items: center;

@@ -75,6 +75,15 @@ CREATE TABLE revisions (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE activity_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  action TEXT NOT NULL,
+  entity_type TEXT NOT NULL,
+  entity_label TEXT,
+  detail TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE media (
   key TEXT PRIMARY KEY,
   folder TEXT,
@@ -106,3 +115,4 @@ CREATE INDEX idx_articles_series ON articles(series);
 CREATE INDEX idx_login_attempts_ip_time ON login_attempts(ip, attempted_at);
 CREATE INDEX idx_pageviews_created ON pageviews(created_at);
 CREATE INDEX idx_pageviews_path ON pageviews(path);
+CREATE INDEX idx_activity_log_created ON activity_log(created_at);

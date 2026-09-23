@@ -28,6 +28,9 @@ import {
   deleteMediaMeta,
   listMediaFolders,
   findMediaUsage,
+  logActivity,
+  listActivityLog,
+  runFindReplace,
   slugExists,
   checkLoginRateLimit,
   recordLoginAttempt,
@@ -118,6 +121,12 @@ async function maybeFireWebhook(env, ctx, { wasPublished, article }) {
   );
 }
 
+// Fire-and-forget activity log write — never blocks or fails the request
+// it's attached to.
+function log(ctx, env, action, entityType, entityLabel, detail) {
+  ctx.waitUntil(logActivity(env, action, entityType, entityLabel, detail).catch(() => {}));
+}
+
 async function routeAdminApi(request, env, url, ctx) {
   const path = url.pathname.replace(/^\/api\/admin/, "");
   const method = request.method;
@@ -171,6 +180,7 @@ async function routeAdminApi(request, env, url, ctx) {
       nav_order: body.nav_order ?? null,
       og_image: body.og_image || null,
     });
+    log(ctx, env, "create", "page", body.title || slug);
     return json({ id, slug });
   }
   const pageMatch = path.match(/^\/pages\/(\d+)$/);
@@ -187,16 +197,21 @@ async function routeAdminApi(request, env, url, ctx) {
       }
     }
     await updatePage(env, id, body);
+    log(ctx, env, "update", "page", body.title || body.slug || `#${id}`);
     return json({ ok: true });
   }
   if (pageMatch && method === "DELETE") {
-    await deletePage(env, Number(pageMatch[1]));
+    const id = Number(pageMatch[1]);
+    const p = await env.DB.prepare("SELECT title FROM pages WHERE id = ?").bind(id).first();
+    await deletePage(env, id);
+    log(ctx, env, "trash", "page", p?.title || `#${id}`);
     return json({ ok: true });
   }
   const pageDuplicateMatch = path.match(/^\/pages\/(\d+)\/duplicate$/);
   if (pageDuplicateMatch && method === "POST") {
     const newId = await duplicatePage(env, Number(pageDuplicateMatch[1]));
     if (!newId) return json({ error: "Page not found" }, { status: 404 });
+    log(ctx, env, "duplicate", "page", `#${pageDuplicateMatch[1]} → #${newId}`);
     return json({ id: newId });
   }
   if (path === "/pages/trash" && method === "GET") {
@@ -204,12 +219,18 @@ async function routeAdminApi(request, env, url, ctx) {
   }
   const pageRestoreMatch = path.match(/^\/pages\/(\d+)\/restore$/);
   if (pageRestoreMatch && method === "POST") {
-    await restorePage(env, Number(pageRestoreMatch[1]));
+    const id = Number(pageRestoreMatch[1]);
+    await restorePage(env, id);
+    const p = await env.DB.prepare("SELECT title FROM pages WHERE id = ?").bind(id).first();
+    log(ctx, env, "restore", "page", p?.title || `#${id}`);
     return json({ ok: true });
   }
   const pagePermanentMatch = path.match(/^\/pages\/(\d+)\/permanent$/);
   if (pagePermanentMatch && method === "DELETE") {
-    await hardDeletePage(env, Number(pagePermanentMatch[1]));
+    const id = Number(pagePermanentMatch[1]);
+    const p = await env.DB.prepare("SELECT title FROM pages WHERE id = ?").bind(id).first();
+    await hardDeletePage(env, id);
+    log(ctx, env, "delete-forever", "page", p?.title || `#${id}`);
     return json({ ok: true });
   }
 
@@ -257,6 +278,7 @@ async function routeAdminApi(request, env, url, ctx) {
       return json({ error: "An article with that slug already exists" }, { status: 409 });
     }
     const id = await createArticle(env, { ...body, slug });
+    log(ctx, env, "create", "article", body.title || slug);
     await maybeFireWebhook(env, ctx, {
       wasPublished: false,
       article: { title: body.title, slug, published_at: body.published_at },
@@ -278,6 +300,13 @@ async function routeAdminApi(request, env, url, ctx) {
     await updateArticle(env, id, body);
     const wasPublished = !!(before && before.published_at && before.published_at <= new Date().toISOString());
     const newPublishedAt = "published_at" in body ? body.published_at : before && before.published_at;
+    const isNowPublished = !!(newPublishedAt && newPublishedAt <= new Date().toISOString());
+    // Only the publish/unpublish transition is logged — plain content edits
+    // fire this same endpoint every couple of seconds via autosave, which
+    // would otherwise flood the log with noise revisions already capture.
+    if (wasPublished !== isNowPublished) {
+      log(ctx, env, isNowPublished ? "publish" : "unpublish", "article", body.title || (before && before.title));
+    }
     await maybeFireWebhook(env, ctx, {
       wasPublished,
       article: {
@@ -289,7 +318,10 @@ async function routeAdminApi(request, env, url, ctx) {
     return json({ ok: true });
   }
   if (articleMatch && method === "DELETE") {
-    await deleteArticle(env, Number(articleMatch[1]));
+    const id = Number(articleMatch[1]);
+    const a = await env.DB.prepare("SELECT title FROM articles WHERE id = ?").bind(id).first();
+    await deleteArticle(env, id);
+    log(ctx, env, "trash", "article", a?.title || `#${id}`);
     return json({ ok: true });
   }
   if (path === "/articles/bulk" && method === "POST") {
@@ -300,6 +332,7 @@ async function routeAdminApi(request, env, url, ctx) {
       return json({ error: "Invalid action" }, { status: 400 });
     }
     await bulkArticleAction(env, ids, body.action);
+    log(ctx, env, body.action, "article", `${ids.length} article(s)`);
     return json({ ok: true });
   }
   if (path === "/articles/trash" && method === "GET") {
@@ -307,12 +340,18 @@ async function routeAdminApi(request, env, url, ctx) {
   }
   const articleRestoreMatch = path.match(/^\/articles\/(\d+)\/restore$/);
   if (articleRestoreMatch && method === "POST") {
-    await restoreArticle(env, Number(articleRestoreMatch[1]));
+    const id = Number(articleRestoreMatch[1]);
+    await restoreArticle(env, id);
+    const a = await env.DB.prepare("SELECT title FROM articles WHERE id = ?").bind(id).first();
+    log(ctx, env, "restore", "article", a?.title || `#${id}`);
     return json({ ok: true });
   }
   const articlePermanentMatch = path.match(/^\/articles\/(\d+)\/permanent$/);
   if (articlePermanentMatch && method === "DELETE") {
-    await hardDeleteArticle(env, Number(articlePermanentMatch[1]));
+    const id = Number(articlePermanentMatch[1]);
+    const a = await env.DB.prepare("SELECT title FROM articles WHERE id = ?").bind(id).first();
+    await hardDeleteArticle(env, id);
+    log(ctx, env, "delete-forever", "article", a?.title || `#${id}`);
     return json({ ok: true });
   }
 
@@ -335,6 +374,7 @@ async function routeAdminApi(request, env, url, ctx) {
     await env.MEDIA.put(key, buf, { httpMetadata: { contentType } });
     const folder = url.searchParams.get("folder");
     if (folder) await upsertMediaMeta(env, key, { folder });
+    log(ctx, env, "upload", "media", key.split("/").pop());
     return json({ url: `/media/${key}` });
   }
 
@@ -368,12 +408,14 @@ async function routeAdminApi(request, env, url, ctx) {
     const keys = Array.isArray(body.keys) ? body.keys : [];
     if (!keys.length) return json({ error: "No files selected" }, { status: 400 });
     await Promise.all(keys.map((k) => Promise.all([env.MEDIA.delete(k), deleteMediaMeta(env, k)])));
+    log(ctx, env, "delete", "media", `${keys.length} file(s)`);
     return json({ ok: true });
   }
   const mediaKeyMatch = path.match(/^\/media\/(.+)$/);
   if (mediaKeyMatch && method === "DELETE") {
     await env.MEDIA.delete(mediaKeyMatch[1]);
     await deleteMediaMeta(env, mediaKeyMatch[1]);
+    log(ctx, env, "delete", "media", mediaKeyMatch[1].split("/").pop());
     return json({ ok: true });
   }
   if (mediaKeyMatch && method === "PATCH") {
@@ -415,6 +457,7 @@ async function routeAdminApi(request, env, url, ctx) {
     if (from_path === to_path) return json({ error: "A path can't redirect to itself" }, { status: 400 });
     try {
       const id = await createRedirect(env, { from_path, to_path, status_code: Number(body.status_code) || 301 });
+      log(ctx, env, "create", "redirect", `${from_path} → ${to_path}`);
       return json({ id });
     } catch (err) {
       if (String(err.message).includes("UNIQUE")) {
@@ -444,7 +487,10 @@ async function routeAdminApi(request, env, url, ctx) {
     return json({ ok: true });
   }
   if (redirectMatch && method === "DELETE") {
-    await deleteRedirect(env, Number(redirectMatch[1]));
+    const id = Number(redirectMatch[1]);
+    const r = await env.DB.prepare("SELECT from_path, to_path FROM redirects WHERE id = ?").bind(id).first();
+    await deleteRedirect(env, id);
+    log(ctx, env, "delete", "redirect", r ? `${r.from_path} → ${r.to_path}` : `#${id}`);
     return json({ ok: true });
   }
 
@@ -458,6 +504,20 @@ async function routeAdminApi(request, env, url, ctx) {
   // /link-check — walks every button/project-card/article link and reports status
   if (path === "/link-check" && method === "GET") {
     return json(await checkLinks(env));
+  }
+
+  // /find-replace — apply=false previews matches without changing anything;
+  // apply=true rewrites them (each touched page/article is snapshotted
+  // first, so it's undoable via History).
+  if (path === "/find-replace" && method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    const find = String(body.find || "");
+    if (!find) return json({ error: "Find text is required" }, { status: 400 });
+    const replace = String(body.replace ?? "");
+    const apply = !!body.apply;
+    const results = await runFindReplace(env, { find, replace, apply });
+    if (apply && results.length) log(ctx, env, "find-replace", "site", `"${find}" → "${replace}"`, `${results.length} field(s)`);
+    return json({ results, applied: apply });
   }
 
   // /revisions?kind=page|article&id=N — history for a page's blocks or an article
@@ -489,6 +549,7 @@ async function routeAdminApi(request, env, url, ctx) {
     } catch (err) {
       return json({ error: err.message || "Restore failed" }, { status: 400 });
     }
+    log(ctx, env, "restore-revision", body.kind, `#${entityId}`);
     return json({ ok: true });
   }
 
@@ -505,6 +566,7 @@ async function routeAdminApi(request, env, url, ctx) {
       return json({ error: "kind and name are required" }, { status: 400 });
     }
     const id = await createTemplate(env, body);
+    log(ctx, env, "create", "template", body.name);
     return json({ id });
   }
   const templateMatch = path.match(/^\/templates\/(\d+)$/);
@@ -520,6 +582,7 @@ async function routeAdminApi(request, env, url, ctx) {
     const body = await request.json().catch(() => ({}));
     if (!body.name || !String(body.name).trim()) return json({ error: "Name is required" }, { status: 400 });
     const id = await createSimulation(env, { name: body.name.trim(), data: body.data || {} });
+    log(ctx, env, "create", "simulation", body.name.trim());
     return json({ id });
   }
   const simMatch = path.match(/^\/simulations\/(\d+)$/);
@@ -535,7 +598,10 @@ async function routeAdminApi(request, env, url, ctx) {
     return json({ ok: true });
   }
   if (simMatch && method === "DELETE") {
-    await deleteSimulation(env, Number(simMatch[1]));
+    const id = Number(simMatch[1]);
+    const s = await getSimulation(env, id);
+    await deleteSimulation(env, id);
+    log(ctx, env, "delete", "simulation", s?.name || `#${id}`);
     return json({ ok: true });
   }
 
@@ -559,7 +625,13 @@ async function routeAdminApi(request, env, url, ctx) {
     } catch (err) {
       return json({ error: err.message || "Import failed" }, { status: 400 });
     }
+    log(ctx, env, "import", "backup", body.exported_at || null);
     return json({ ok: true });
+  }
+
+  // /activity — recent admin actions, for the audit trail viewer
+  if (path === "/activity" && method === "GET") {
+    return json(await listActivityLog(env, Number(url.searchParams.get("limit")) || 100));
   }
 
   // /analytics
@@ -581,6 +653,7 @@ async function routeAdminApi(request, env, url, ctx) {
   if (path === "/settings" && method === "PUT") {
     const body = await request.json().catch(() => ({}));
     await Promise.all(SETTINGS_KEYS.map((key) => setSetting(env, key, body[key] || "")));
+    log(ctx, env, "update", "settings", null);
     return json({ ok: true });
   }
 

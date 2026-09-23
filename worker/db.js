@@ -355,6 +355,120 @@ export async function deleteRedirect(env, id) {
   await env.DB.prepare("DELETE FROM redirects WHERE id = ?").bind(id).run();
 }
 
+// ---------- Find & replace ----------
+// Walks page block text fields and article title/body for a literal find
+// string. In preview mode (apply=false) it only reports what WOULD change;
+// in apply mode it rewrites those fields. Raw HTML/customCss fields are
+// deliberately excluded — a blind substring replace there is far more
+// likely to corrupt markup than help.
+const FIND_REPLACE_SIMPLE_KEYS = {
+  heading: ["text"],
+  text: ["text"],
+  quote: ["text", "cite"],
+  button: ["label"],
+  "project-card": ["title", "description", "label"],
+};
+
+function replaceInBlockContent(type, content, find, replace) {
+  let changed = false;
+  const next = { ...content };
+  const simpleKeys = FIND_REPLACE_SIMPLE_KEYS[type];
+  if (simpleKeys) {
+    for (const k of simpleKeys) {
+      if (typeof next[k] === "string" && next[k].includes(find)) {
+        next[k] = next[k].split(find).join(replace);
+        changed = true;
+      }
+    }
+  } else if (type === "changelog" && Array.isArray(next.entries)) {
+    next.entries = next.entries.map((entry) => {
+      const ne = { ...entry };
+      for (const k of ["title", "description"]) {
+        if (typeof ne[k] === "string" && ne[k].includes(find)) {
+          ne[k] = ne[k].split(find).join(replace);
+          changed = true;
+        }
+      }
+      return ne;
+    });
+  } else if (type === "links" && Array.isArray(next.items)) {
+    next.items = next.items.map((item) => {
+      if (typeof item.label === "string" && item.label.includes(find)) {
+        changed = true;
+        return { ...item, label: item.label.split(find).join(replace) };
+      }
+      return item;
+    });
+  }
+  return { changed, next };
+}
+
+export async function runFindReplace(env, { find, replace, apply }) {
+  if (!find) throw new Error("Find text is required");
+  const results = [];
+
+  const pages = await listPages(env);
+  for (const p of pages) {
+    const blocks = await listBlocks(env, p.id);
+    let pageSnapshotted = false;
+    for (const b of blocks) {
+      const { changed, next } = replaceInBlockContent(b.type, b.content || {}, find, replace);
+      if (!changed) continue;
+      results.push({ kind: "block", pageId: p.id, pageTitle: p.title, blockType: b.type, blockId: b.id });
+      if (apply) {
+        if (!pageSnapshotted) {
+          await maybeSnapshotPage(env, p.id);
+          pageSnapshotted = true;
+        }
+        await updateBlock(env, b.id, { content: next });
+      }
+    }
+  }
+
+  const articles = await listArticles(env);
+  for (const a of articles) {
+    const fields = {};
+    if (typeof a.title === "string" && a.title.includes(find)) fields.title = a.title.split(find).join(replace);
+    if (typeof a.body === "string" && a.body.includes(find)) fields.body = a.body.split(find).join(replace);
+    if (!Object.keys(fields).length) continue;
+    results.push({ kind: "article", articleId: a.id, articleTitle: a.title, fields: Object.keys(fields) });
+    if (apply) {
+      await snapshotArticle(env, a.id);
+      await updateArticle(env, a.id, fields);
+    }
+  }
+
+  return results;
+}
+
+// ---------- Activity log ----------
+// A lightweight audit trail — this is a single-admin site, so there's no
+// "who did it", just what happened and when. Pruned the same way revisions
+// are, so it can't grow forever.
+const ACTIVITY_LOG_KEEP = 500;
+
+export async function logActivity(env, action, entity_type, entity_label, detail) {
+  await env.DB
+    .prepare("INSERT INTO activity_log (action, entity_type, entity_label, detail) VALUES (?, ?, ?, ?)")
+    .bind(action, entity_type, entity_label || null, detail || null)
+    .run();
+  await env.DB
+    .prepare(
+      `DELETE FROM activity_log WHERE id NOT IN (SELECT id FROM activity_log ORDER BY id DESC LIMIT ?)`
+    )
+    .bind(ACTIVITY_LOG_KEEP)
+    .run()
+    .catch(() => {});
+}
+
+export async function listActivityLog(env, limit = 100) {
+  const { results } = await env.DB
+    .prepare("SELECT * FROM activity_log ORDER BY id DESC LIMIT ?")
+    .bind(Math.max(1, Math.floor(limit)))
+    .all();
+  return results;
+}
+
 // ---------- Media metadata ----------
 // R2 holds the actual files; this table is a thin metadata layer on top
 // (folder, tags, a default alt text) keyed by the R2 object key. A file can

@@ -156,6 +156,15 @@
     showLogin();
   });
 
+  el("admin-theme-toggle").addEventListener("click", () => {
+    const root = document.documentElement;
+    const next = (root.getAttribute("data-theme") || "dark") === "light" ? "dark" : "light";
+    root.setAttribute("data-theme", next);
+    try {
+      localStorage.setItem("admin-theme", next);
+    } catch (e) {}
+  });
+
   // ---------- Pages ----------
   async function loadPages() {
     pages = await api("/pages");
@@ -1448,7 +1457,10 @@
     el("settings-custom-head").value = settings.custom_head || "";
     el("settings-webhook-url").value = settings.webhook_url || "";
     el("link-check-results").innerHTML = "";
+    el("find-replace-results").innerHTML = "";
+    el("find-replace-apply-btn").disabled = true;
     el("settings-modal").hidden = false;
+    loadActivityLog().catch(() => {});
   });
   closeModalOnClick("close-settings", "settings-modal");
   el("save-settings").addEventListener("click", async () => {
@@ -1496,6 +1508,66 @@
       btn.disabled = false;
     }
   });
+
+  // ---------- Find & replace ----------
+  function findReplaceResultLabel(r) {
+    if (r.kind === "block") return `${blockLabel(r.blockType)} block on page "${r.pageTitle}"`;
+    return `Article "${r.articleTitle}" (${r.fields.join(", ")})`;
+  }
+
+  async function runFindReplaceUi(apply) {
+    const find = el("find-replace-find").value;
+    if (!find) return alert("Enter text to find.");
+    const replace = el("find-replace-replace").value;
+    if (apply && !confirm(`Replace every match of "${find}" with "${replace}"? Each affected page/article is snapshotted first, so this is undoable via History.`)) {
+      return;
+    }
+    const btn = apply ? el("find-replace-apply-btn") : el("find-replace-preview-btn");
+    const originalText = btn.textContent;
+    btn.textContent = apply ? "Applying…" : "Searching…";
+    btn.disabled = true;
+    try {
+      const { results } = await api("/find-replace", { method: "POST", body: JSON.stringify({ find, replace, apply }) });
+      el("find-replace-results").innerHTML =
+        results.map((r) => `<div class="link-check-row">${escapeHtml(findReplaceResultLabel(r))}</div>`).join("") ||
+        "<p style='color:var(--text-dim);font-size:0.85rem;'>No matches.</p>";
+      el("find-replace-apply-btn").disabled = apply || !results.length;
+      if (apply) {
+        articles = await api("/articles");
+        renderArticlesList();
+        if (currentPage) await loadBlocks();
+      }
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      btn.textContent = originalText;
+      btn.disabled = apply ? el("find-replace-apply-btn").disabled : false;
+    }
+  }
+  el("find-replace-preview-btn").addEventListener("click", () => runFindReplaceUi(false));
+  el("find-replace-apply-btn").addEventListener("click", () => runFindReplaceUi(true));
+
+  // ---------- Activity log ----------
+  function activityLabel(a) {
+    const verb = { "create": "Created", "update": "Updated", "trash": "Trashed", "restore": "Restored", "delete-forever": "Permanently deleted",
+      "duplicate": "Duplicated", "publish": "Published", "unpublish": "Unpublished", "upload": "Uploaded", "delete": "Deleted",
+      "import": "Restored backup", "find-replace": "Find & replace", "restore-revision": "Restored a revision" }[a.action] || a.action;
+    return `${verb} ${a.entity_type}${a.entity_label ? `: ${a.entity_label}` : ""}`;
+  }
+
+  async function loadActivityLog() {
+    const items = await api("/activity?limit=100");
+    el("activity-log-list").innerHTML =
+      items
+        .map(
+          (a) =>
+            `<div class="link-check-row"><span class="link-check-url">${escapeHtml(activityLabel(a))}</span><span class="link-check-source">${escapeHtml(
+              new Date(a.created_at.replace(" ", "T") + "Z").toLocaleString()
+            )}</span></div>`
+        )
+        .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>Nothing logged yet.</p>";
+  }
+  el("load-activity-btn").addEventListener("click", () => loadActivityLog().catch((err) => alert(err.message)));
 
   // ---------- Revisions ----------
   // A simple word-level LCS diff — fine for typical article lengths. Capped
@@ -1667,7 +1739,30 @@
       { label: "Open Media Library", sub: "", run: () => { closeCommandPalette(); el("media-btn").click(); } },
       { label: "Open Redirects", sub: "", run: () => { closeCommandPalette(); el("redirects-btn").click(); } },
       { label: "Open Analytics", sub: "", run: () => { closeCommandPalette(); el("analytics-btn").click(); } },
+      { label: "Open Simulations", sub: "", run: () => { closeCommandPalette(); el("simulations-btn").click(); } },
+      { label: "Open Trash", sub: "", run: () => { closeCommandPalette(); el("trash-btn").click(); } },
       { label: "Open Site Settings", sub: "", run: () => { closeCommandPalette(); el("site-settings-btn").click(); } },
+      {
+        label: "Open Activity Log",
+        sub: "",
+        run: () => {
+          closeCommandPalette();
+          el("site-settings-btn").click();
+          // The settings-btn handler is async (fetches settings + the log
+          // before un-hiding the modal) — scrolling/focusing has to wait
+          // until it's actually visible, not fire synchronously after click().
+          setTimeout(() => el("activity-log-list").scrollIntoView({ behavior: "smooth" }), 200);
+        },
+      },
+      {
+        label: "Find & Replace",
+        sub: "",
+        run: () => {
+          closeCommandPalette();
+          el("site-settings-btn").click();
+          setTimeout(() => el("find-replace-find").focus(), 200);
+        },
+      },
     ];
     pages.forEach((p) => {
       actions.push({

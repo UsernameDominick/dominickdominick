@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script>(function(){try{var t=localStorage.getItem("admin-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin · Dominick</title>
@@ -42,6 +43,7 @@
         <button id="trash-btn">Trash</button>
         <button id="site-settings-btn">Site</button>
         <a href="/" target="_blank" class="admin-view-live">View live ↗</a>
+        <button id="admin-theme-toggle" aria-label="Toggle admin panel light/dark theme" title="Toggle admin panel theme">◐</button>
         <button id="logout-btn">Log out</button>
       </div>
     </header>
@@ -307,6 +309,21 @@
         <label style="margin-bottom:0;">Scans every button/project-card link and article link for broken URLs.</label>
         <button type="button" id="check-links-btn">Check links</button>
         <div id="link-check-results" class="link-check-results"></div>
+        <h2>Find &amp; Replace</h2>
+        <label style="margin-bottom:0;">Searches article titles/bodies and page block text (headings, text, quotes, buttons, project cards, links, changelog entries — not raw HTML/CSS blocks). Always preview before applying.</label>
+        <div class="find-replace-row">
+          <input type="text" id="find-replace-find" placeholder="Find text" spellcheck="false">
+          <input type="text" id="find-replace-replace" placeholder="Replace with" spellcheck="false">
+        </div>
+        <div class="find-replace-actions">
+          <button type="button" id="find-replace-preview-btn">Preview</button>
+          <button type="button" id="find-replace-apply-btn" class="danger" disabled>Apply to all matches</button>
+        </div>
+        <div id="find-replace-results" class="link-check-results"></div>
+        <h2>Activity Log</h2>
+        <label style="margin-bottom:0;">Recent admin actions on this site.</label>
+        <button type="button" id="load-activity-btn">Refresh</button>
+        <div id="activity-log-list" class="link-check-results"></div>
         <h2>Backup</h2>
         <label style="margin-bottom:0;">Download everything — pages, blocks, articles, settings — as one file.</label>
         <button type="button" id="export-btn">Download backup</button>
