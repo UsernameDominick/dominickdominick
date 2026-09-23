@@ -254,7 +254,7 @@
   }
 
   function blockLabel(type) {
-    return { heading: "Heading", text: "Text", image: "Image", button: "Button", "project-card": "Project Card", "article-list": "Article List", video: "Video", quote: "Quote", gallery: "Gallery", simulation: "Simulation", divider: "Divider", spacer: "Spacer", links: "Links" }[type] || type;
+    return { heading: "Heading", text: "Text", image: "Image", button: "Button", "project-card": "Project Card", "article-list": "Article List", video: "Video", quote: "Quote", gallery: "Gallery", simulation: "Simulation", divider: "Divider", spacer: "Spacer", links: "Links", html: "HTML / Embed" }[type] || type;
   }
 
   let simulationOptions = [];
@@ -279,6 +279,7 @@
       case "divider": return "—";
       case "spacer": return "(spacer)";
       case "links": return `${(c.items || []).length} link(s)`;
+      case "html": return c.html ? "(custom HTML)" : "(empty)";
       default: return "";
     }
   }
@@ -442,6 +443,8 @@
         video: { content: { url: "" }, col_span: 16, row_span: 12 },
         quote: { content: { text: "Quote text here.", cite: "" }, col_span: 16, row_span: 6 },
         gallery: { content: { images: [] }, col_span: 24, row_span: 12 },
+        links: { content: { items: [] }, col_span: 12, row_span: 6 },
+        html: { content: { html: "<!-- your HTML here -->" }, col_span: 24, row_span: 8 },
         divider: { content: {}, col_span: 24, row_span: 2 },
         spacer: { content: {}, col_span: 24, row_span: 2 },
       }[type] || { content: {}, col_span: 12, row_span: 4 };
@@ -498,7 +501,9 @@
       { key: "cite", label: "Attribution (optional)", type: "text" },
     ],
     gallery: [{ key: "images", label: "Images", type: "gallery-urls" }],
+    links: [{ key: "items", label: "Links (one per line: Label | URL)", type: "link-list" }],
     simulation: [{ key: "simulation_id", label: "Simulation", type: "simulation-select" }],
+    html: [{ key: "html", label: "Raw HTML (advanced — rendered as-is, unescaped; be careful what you paste here)", type: "textarea" }],
     divider: [],
     spacer: [],
   };
@@ -519,9 +524,35 @@
       ],
     },
     { key: "fontSize", label: "Font size (px)", type: "number" },
+    {
+      key: "textAlign",
+      label: "Text align",
+      type: "select",
+      options: [
+        ["", "Default"],
+        ["left", "Left"],
+        ["center", "Center"],
+        ["right", "Right"],
+        ["justify", "Justify"],
+      ],
+    },
+    { key: "padding", label: "Padding (px)", type: "number" },
+    { key: "opacity", label: "Opacity (%)", type: "number" },
     { key: "borderWidth", label: "Border width (px)", type: "number" },
     { key: "borderColor", label: "Border color", type: "color" },
     { key: "borderRadius", label: "Border radius (px)", type: "number" },
+    { key: "backgroundImage", label: "Background image", type: "image-url" },
+    {
+      key: "backgroundSize",
+      label: "Background image fit",
+      type: "select",
+      options: [
+        ["cover", "Cover"],
+        ["contain", "Contain"],
+        ["auto", "Original size"],
+      ],
+    },
+    { key: "customCss", label: "Custom CSS (advanced — raw declarations, e.g. transform: rotate(-2deg);)", type: "textarea" },
     { key: "hidden", label: "Hide from live site", type: "checkbox" },
   ];
 
@@ -556,6 +587,11 @@
         text
       )}</textarea><button type="button" class="upload-trigger" data-target="#${fieldId}" data-append="1">Add image (upload)</button> <button type="button" class="browse-trigger" data-target="#${fieldId}" data-append="1">Add from library…</button></label>`;
     }
+    if (f.type === "link-list") {
+      const fieldId = `${idPrefix}-${f.key}`;
+      const text = (Array.isArray(val) ? val : []).map((it) => `${it.label || ""} | ${it.url || ""}`).join("\n");
+      return `<label>${f.label}<textarea id="${fieldId}" data-key="${f.key}" data-linklist="1" rows="5">${escapeHtml(text)}</textarea></label>`;
+    }
     if (f.type === "simulation-select") {
       const options = simulationOptions
         .map((s) => `<option value="${s.id}"${String(val ?? "") === String(s.id) ? " selected" : ""}>${escapeHtml(s.name)}</option>`)
@@ -576,6 +612,16 @@
         .split("\n")
         .map((s) => s.trim())
         .filter(Boolean);
+    }
+    if (input.dataset.linklist) {
+      return input.value
+        .split("\n")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((line) => {
+          const [label, url] = line.split("|").map((s) => s.trim());
+          return { label: label || url || "", url: url || label || "" };
+        });
     }
     return input.value;
   }

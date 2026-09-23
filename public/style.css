@@ -142,6 +142,22 @@ body {
   font-style: italic;
 }
 
+.block-links {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.block-links a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.block-links a:hover {
+  text-decoration: underline;
+}
+
 .tags {
   display: flex;
   flex-wrap: wrap;

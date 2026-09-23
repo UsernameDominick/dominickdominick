@@ -16,6 +16,51 @@
   const PLACE_ROW_HEIGHT = 70;
   const PLACE_CANVAS_WIDTH = 860;
 
+  // ---------- Undo / redo ----------
+  // Snapshot-based rather than diff-based: simData is a small plain-JSON
+  // object, so cloning it whole on every mutation is simpler and cheap
+  // enough at this scale, and it doesn't need to know what changed.
+  const HISTORY_LIMIT = 50;
+  let undoStack = [];
+  let redoStack = [];
+
+  function pushHistory() {
+    undoStack.push(JSON.stringify(simData));
+    if (undoStack.length > HISTORY_LIMIT) undoStack.shift();
+    redoStack = [];
+    updateHistoryButtons();
+  }
+
+  function updateHistoryButtons() {
+    $("sim-undo").disabled = undoStack.length === 0;
+    $("sim-redo").disabled = redoStack.length === 0;
+  }
+
+  function undoHistory() {
+    if (!undoStack.length) return;
+    redoStack.push(JSON.stringify(simData));
+    simData = JSON.parse(undoStack.pop());
+    selected = null;
+    wireStart = null;
+    updateHistoryButtons();
+    renderInspector();
+    renderBuilder();
+  }
+
+  function redoHistory() {
+    if (!redoStack.length) return;
+    undoStack.push(JSON.stringify(simData));
+    simData = JSON.parse(redoStack.pop());
+    selected = null;
+    wireStart = null;
+    updateHistoryButtons();
+    renderInspector();
+    renderBuilder();
+  }
+
+  $("sim-undo").addEventListener("click", undoHistory);
+  $("sim-redo").addEventListener("click", redoHistory);
+
   // Where the next palette-added part lands — walks left to right, wrapping
   // to a new row by actual part width so a 340px breadboard doesn't overlap
   // the very next (tiny) part the way a fixed-step stagger would.
@@ -86,6 +131,8 @@
     zoomLevel = 1;
     placeX = 20;
     placeY = 20;
+    undoStack = [];
+    redoStack = [];
     if (id) {
       const sim = await window.adminApi(`/simulations/${id}`);
       $("simulation-name").value = sim.name;
@@ -96,6 +143,7 @@
     }
     $("simulations-modal").hidden = true;
     $("simulation-builder-modal").hidden = false;
+    updateHistoryButtons();
     renderInspector();
     renderBuilder();
   }
@@ -225,6 +273,8 @@
   // though a resistor's lead spacing doesn't exactly match hole spacing.
   const SNAP_TO_BREADBOARD_TYPES = new Set(["led", "resistor"]);
   const SNAP_THRESHOLD = 18;
+  // Everything else just snaps to a light alignment grid while dragging.
+  const GRID_SNAP = 5;
 
   function findNearestHole(x, y, excludeCompId) {
     let best = null;
@@ -257,15 +307,26 @@
     const startX = comp.x;
     const startY = comp.y;
     g.setPointerCapture(e.pointerId);
+    let historySaved = false;
 
     const canSnap = SNAP_TO_BREADBOARD_TYPES.has(comp.type);
     const anchorPin = canSnap ? REG[comp.type].pins[0] : null;
     let snapTarget = null;
 
     function onMove(ev) {
+      if (!historySaved) {
+        pushHistory();
+        historySaved = true;
+      }
       const p = svgPoint(ev);
       comp.x = Math.round(startX + (p.x - start.x));
       comp.y = Math.round(startY + (p.y - start.y));
+      if (!canSnap) {
+        // Light grid snap for free-floating parts, so components line up
+        // without needing to eyeball pixel positions.
+        comp.x = Math.round(comp.x / GRID_SNAP) * GRID_SNAP;
+        comp.y = Math.round(comp.y / GRID_SNAP) * GRID_SNAP;
+      }
       if (canSnap) {
         const anchorAbs = { x: comp.x + anchorPin.x, y: comp.y + anchorPin.y };
         const hole = findNearestHole(anchorAbs.x, anchorAbs.y, compId);
@@ -320,6 +381,7 @@
       renderBuilder();
       return;
     }
+    pushHistory();
     simData.wires.push({
       id: newLocalId("wire"),
       from: { compId: wireStart.compId, pin: wireStart.pin },
@@ -333,6 +395,7 @@
   // ---------- Palette ----------
   document.querySelectorAll(".sim-palette-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
+      pushHistory();
       const type = btn.dataset.simType;
       const def = REG[type];
       const pos = nextPlacement(def);
@@ -377,17 +440,36 @@
       box.innerHTML = `
         <p><strong>${escapeXml(def.label)}</strong></p>
         <p class="sim-power-status ${isPowered || def.isSource ? "is-powered" : ""}">${statusLine}</p>
-        ${comp.type === "mcu_teensy" ? `<label>Label<input id="sim-comp-label" type="text" value="${escapeXml(comp.label || "")}"></label>` : ""}
+        <label>Label${comp.type === "mcu_teensy" ? " (shown on the part)" : " (for your own reference)"}<input id="sim-comp-label" type="text" value="${escapeXml(comp.label || "")}"></label>
+        <button type="button" id="sim-duplicate-selected">Duplicate part</button>
         <button type="button" id="sim-delete-selected" class="danger">Delete part</button>
       `;
       const labelInput = $("sim-comp-label");
-      if (labelInput) {
-        labelInput.addEventListener("input", () => {
-          comp.label = labelInput.value;
-          renderBuilder();
-        });
-      }
+      let labelHistorySaved = false;
+      labelInput.addEventListener("input", () => {
+        if (!labelHistorySaved) {
+          pushHistory();
+          labelHistorySaved = true;
+        }
+        comp.label = labelInput.value;
+        renderBuilder();
+      });
+      labelInput.addEventListener("blur", () => {
+        labelHistorySaved = false;
+      });
+      $("sim-duplicate-selected").addEventListener("click", () => {
+        pushHistory();
+        const clone = JSON.parse(JSON.stringify(comp));
+        clone.id = newLocalId(comp.type);
+        clone.x = comp.x + 20;
+        clone.y = comp.y + 20;
+        simData.components.push(clone);
+        selected = { kind: "component", id: clone.id };
+        renderInspector();
+        renderBuilder();
+      });
       $("sim-delete-selected").addEventListener("click", () => {
+        pushHistory();
         simData.components = simData.components.filter((c) => c.id !== comp.id);
         simData.wires = simData.wires.filter((w) => w.from.compId !== comp.id && w.to.compId !== comp.id);
         selected = null;
@@ -411,10 +493,12 @@
         <button type="button" id="sim-delete-selected" class="danger">Delete wire</button>
       `;
       $("sim-wire-kind").addEventListener("change", (e) => {
+        pushHistory();
         wire.kind = e.target.value;
         renderBuilder();
       });
       $("sim-delete-selected").addEventListener("click", () => {
+        pushHistory();
         simData.wires = simData.wires.filter((w) => w.id !== wire.id);
         selected = null;
         renderInspector();
@@ -456,6 +540,65 @@
   $("sim-zoom-reset").addEventListener("click", () => {
     zoomLevel = 1;
     applyZoom();
+  });
+
+  // ---------- Keyboard shortcuts ----------
+  document.addEventListener("keydown", (e) => {
+    if ($("simulation-builder-modal").hidden) return;
+    const tag = document.activeElement && document.activeElement.tagName;
+    const isTyping = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+    const mod = e.metaKey || e.ctrlKey;
+
+    if (mod && e.key.toLowerCase() === "z") {
+      e.preventDefault();
+      if (e.shiftKey) redoHistory();
+      else undoHistory();
+      return;
+    }
+    if (mod && e.key.toLowerCase() === "y") {
+      e.preventDefault();
+      redoHistory();
+      return;
+    }
+    if (isTyping) return;
+    if ((e.key === "Delete" || e.key === "Backspace") && selected) {
+      e.preventDefault();
+      const btn = $("sim-delete-selected");
+      if (btn) btn.click();
+    }
+  });
+
+  // ---------- Export / Import ----------
+  $("sim-export").addEventListener("click", () => {
+    const name = ($("simulation-name").value || "simulation").trim().replace(/[^a-z0-9-_]+/gi, "-");
+    const blob = new Blob([JSON.stringify(simData, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${name || "simulation"}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  $("sim-import").addEventListener("click", () => $("sim-import-file").click());
+  $("sim-import-file").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text());
+      if (!parsed || !Array.isArray(parsed.components) || !Array.isArray(parsed.wires)) {
+        throw new Error("That file doesn't look like a circuit export (expected components/wires arrays).");
+      }
+      pushHistory();
+      simData = parsed;
+      selected = null;
+      wireStart = null;
+      renderInspector();
+      renderBuilder();
+    } catch (err) {
+      alert(`Couldn't import that file: ${err.message}`);
+    }
   });
 
   // ---------- Preview power toggle ----------

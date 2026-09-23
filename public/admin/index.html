@@ -58,6 +58,8 @@
         <button class="palette-btn" data-type="quote">Quote</button>
         <button class="palette-btn" data-type="gallery">Gallery</button>
         <button class="palette-btn" data-type="simulation">Simulation</button>
+        <button class="palette-btn" data-type="links">Links</button>
+        <button class="palette-btn" data-type="html">HTML / Embed</button>
         <button class="palette-btn" data-type="divider">Divider</button>
         <button class="palette-btn" data-type="spacer">Spacer</button>
         <hr>
@@ -279,11 +281,18 @@
           <div class="pe-tool-group">
             <button type="button" id="pe-rotate-left" title="Rotate left">⟲ 90°</button>
             <button type="button" id="pe-rotate-right" title="Rotate right">⟳ 90°</button>
+            <button type="button" id="pe-flip-h" title="Flip horizontal">⇋</button>
+            <button type="button" id="pe-flip-v" title="Flip vertical">⇵</button>
           </div>
           <div class="pe-tool-group pe-adjust-group">
             <label>Brightness <input type="range" id="pe-brightness" min="-100" max="100" value="0"></label>
             <label>Contrast <input type="range" id="pe-contrast" min="-100" max="100" value="0"></label>
             <label>Saturation <input type="range" id="pe-saturate" min="-100" max="100" value="0"></label>
+          </div>
+          <div class="pe-tool-group">
+            <button type="button" id="pe-filter-grayscale">Grayscale</button>
+            <button type="button" id="pe-filter-sepia">Sepia</button>
+            <button type="button" id="pe-filter-invert">Invert</button>
           </div>
           <div class="pe-tool-group">
             <button type="button" class="pe-tool" data-tool="erase">Erase</button>
@@ -294,13 +303,17 @@
           <div class="pe-tool-group">
             <button type="button" class="pe-tool" data-tool="rect" title="Rectangle">▭</button>
             <button type="button" class="pe-tool" data-tool="circle" title="Circle">◯</button>
+            <button type="button" class="pe-tool" data-tool="line" title="Line">╱</button>
             <button type="button" class="pe-tool" data-tool="arrow" title="Arrow">↗</button>
             <button type="button" class="pe-tool" data-tool="text" title="Text">Text</button>
+            <button type="button" class="pe-tool" data-tool="eyedropper" title="Pick a color from the image">💧</button>
             <input type="color" id="pe-annotate-color" value="#e8a13a" title="Annotation color">
             <label>Size <input type="range" id="pe-annotate-size" min="1" max="20" value="4"></label>
           </div>
           <div class="pe-tool-group">
-            <button type="button" id="pe-undo">Undo</button>
+            <button type="button" id="pe-undo" title="Undo (Ctrl+Z)">Undo</button>
+            <button type="button" id="pe-redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
+            <button type="button" id="pe-reset">Reset</button>
           </div>
         </div>
         <div class="pe-canvas-wrap">
@@ -336,6 +349,11 @@
     <div class="modal-inner simulation-builder-inner">
       <header>
         <input id="simulation-name" class="simulation-name-input" placeholder="Simulation name">
+        <button type="button" id="sim-undo" title="Undo (Ctrl+Z)">Undo</button>
+        <button type="button" id="sim-redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
+        <button type="button" id="sim-export" title="Download this circuit as a JSON file">Export</button>
+        <button type="button" id="sim-import" title="Load a circuit from a JSON file">Import</button>
+        <input type="file" id="sim-import-file" accept="application/json" hidden>
         <button type="button" id="sim-preview-power">Preview: power on</button>
         <button type="button" id="save-simulation">Save</button>
         <button id="close-simulation-builder">×</button>

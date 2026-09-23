@@ -69,6 +69,11 @@ function blockStyleAttr(style) {
   if (style.fontFamily && FONT_STACKS[style.fontFamily]) parts.push(`font-family:${FONT_STACKS[style.fontFamily]}`);
   const fontSize = Number(style.fontSize);
   if (Number.isFinite(fontSize) && fontSize > 0) parts.push(`font-size:${fontSize}px`);
+  if (["left", "center", "right", "justify"].includes(style.textAlign)) parts.push(`text-align:${style.textAlign}`);
+  const padding = Number(style.padding);
+  if (Number.isFinite(padding) && padding >= 0) parts.push(`padding:${padding}px`);
+  const opacity = Number(style.opacity);
+  if (Number.isFinite(opacity) && opacity >= 0 && opacity <= 100) parts.push(`opacity:${opacity / 100}`);
   const borderRadius = Number(style.borderRadius);
   if (Number.isFinite(borderRadius) && borderRadius >= 0) parts.push(`border-radius:${borderRadius}px`);
   const borderWidth = Number(style.borderWidth);
@@ -77,6 +82,12 @@ function blockStyleAttr(style) {
     parts.push(`border-style:solid`);
     parts.push(`border-color:${style.borderColor ? esc(style.borderColor) : "currentColor"}`);
   }
+  if (style.backgroundImage) {
+    parts.push(`background-image:url('${esc(style.backgroundImage)}')`);
+    parts.push(`background-size:${["cover", "contain", "auto"].includes(style.backgroundSize) ? style.backgroundSize : "cover"}`);
+    parts.push(`background-position:center`);
+  }
+  if (style.customCss && style.customCss.trim()) parts.push(esc(style.customCss.trim()));
   return parts.length ? parts.join(";") + ";" : "";
 }
 
@@ -130,6 +141,17 @@ async function renderBlockInner(env, block, ctx) {
       return `<hr>`;
     case "spacer":
       return "";
+    case "links": {
+      const items = Array.isArray(c.items) ? c.items.filter((it) => it && it.url) : [];
+      if (!items.length) return `<p class="empty-hint">No links yet.</p>`;
+      return `<ul class="block-links">${items
+        .map((it) => `<li><a href="${esc(it.url)}"${/^https?:\/\//.test(it.url || "") ? ' target="_blank" rel="noopener"' : ""}>${esc(it.label || it.url)}</a></li>`)
+        .join("")}</ul>`;
+    }
+    case "html":
+      // Trusted admin-authored HTML, rendered as-is — this is the deliberate
+      // "escape hatch" block type, same trust level as the customCss style field.
+      return String(c.html || "");
     case "video": {
       const embed = videoEmbedUrl(c.url);
       if (!embed) return c.url ? `<p class="empty-hint">Unsupported video link — use a YouTube or Vimeo URL.</p>` : "";

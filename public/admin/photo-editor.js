@@ -16,6 +16,8 @@
 
   let originalKey = null;
   let undoStack = [];
+  let redoStack = [];
+  let originalSnapshot = null; // canvas clone taken when the image is first loaded, for "Reset"
   let currentTool = "select";
   let cropRect = null; // {x0,y0,x1,y1} in canvas pixel space
   let dragging = false;
@@ -45,26 +47,58 @@
     overlay.height = canvas.height;
   }
 
-  function pushUndo() {
+  function snapshotCanvas() {
     const snap = document.createElement("canvas");
     snap.width = canvas.width;
     snap.height = canvas.height;
     snap.getContext("2d").drawImage(canvas, 0, 0);
-    undoStack.push(snap);
-    if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+    return snap;
   }
 
-  function undo() {
-    const prev = undoStack.pop();
-    if (!prev) return;
-    canvas.width = prev.width;
-    canvas.height = prev.height;
-    ctx.drawImage(prev, 0, 0);
+  function pushUndo() {
+    undoStack.push(snapshotCanvas());
+    if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+    redoStack = [];
+    updateHistoryButtons();
+  }
+
+  function updateHistoryButtons() {
+    $("pe-undo").disabled = undoStack.length === 0;
+    $("pe-redo").disabled = redoStack.length === 0;
+  }
+
+  function restoreSnapshot(snap) {
+    canvas.width = snap.width;
+    canvas.height = snap.height;
+    ctx.drawImage(snap, 0, 0);
     syncOverlaySize();
     cropRect = null;
     $("pe-apply-crop").hidden = true;
     clearOverlay();
     fitCanvasToViewport();
+  }
+
+  function undo() {
+    const prev = undoStack.pop();
+    if (!prev) return;
+    redoStack.push(snapshotCanvas());
+    restoreSnapshot(prev);
+    updateHistoryButtons();
+  }
+
+  function redo() {
+    const next = redoStack.pop();
+    if (!next) return;
+    undoStack.push(snapshotCanvas());
+    restoreSnapshot(next);
+    updateHistoryButtons();
+  }
+
+  function resetToOriginal() {
+    if (!originalSnapshot) return;
+    if (!confirm("Discard all edits and go back to the original image?")) return;
+    pushUndo();
+    restoreSnapshot(originalSnapshot);
   }
 
   // ---------- Pointer <-> canvas coordinate mapping ----------
@@ -148,6 +182,39 @@
   }
   $("pe-rotate-left").addEventListener("click", () => rotate90(false));
   $("pe-rotate-right").addEventListener("click", () => rotate90(true));
+
+  // ---------- Flip ----------
+  function flip(horizontal) {
+    pushUndo();
+    const snap = snapshotCanvas();
+    ctx.save();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (horizontal) {
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+    } else {
+      ctx.translate(0, canvas.height);
+      ctx.scale(1, -1);
+    }
+    ctx.drawImage(snap, 0, 0);
+    ctx.restore();
+  }
+  $("pe-flip-h").addEventListener("click", () => flip(true));
+  $("pe-flip-v").addEventListener("click", () => flip(false));
+
+  // ---------- One-click filters ----------
+  function applyOneShotFilter(cssFilter) {
+    pushUndo();
+    const snap = snapshotCanvas();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.filter = cssFilter;
+    ctx.drawImage(snap, 0, 0);
+    ctx.restore();
+  }
+  $("pe-filter-grayscale").addEventListener("click", () => applyOneShotFilter("grayscale(1)"));
+  $("pe-filter-sepia").addEventListener("click", () => applyOneShotFilter("sepia(1)"));
+  $("pe-filter-invert").addEventListener("click", () => applyOneShotFilter("invert(1)"));
 
   // ---------- Brightness / contrast / saturation ----------
   function filterString() {
@@ -313,6 +380,12 @@
       octx.beginPath();
       octx.ellipse((x0 + x1) / 2, (y0 + y1) / 2, rx, ry, 0, 0, Math.PI * 2);
       octx.stroke();
+    } else if (currentTool === "line") {
+      octx.lineCap = "round";
+      octx.beginPath();
+      octx.moveTo(x0, y0);
+      octx.lineTo(x1, y1);
+      octx.stroke();
     } else if (currentTool === "arrow") {
       drawArrow(octx, x0, y0, x1, y1, color, size);
     }
@@ -333,9 +406,26 @@
       ctx.beginPath();
       ctx.ellipse((x0 + x1) / 2, (y0 + y1) / 2, rx, ry, 0, 0, Math.PI * 2);
       ctx.stroke();
+    } else if (currentTool === "line") {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = size;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x1, y1);
+      ctx.stroke();
     } else if (currentTool === "arrow") {
       drawArrow(ctx, x0, y0, x1, y1, color, size);
     }
+  }
+
+  // ---------- Eyedropper ----------
+  function pickColor(point) {
+    const x = Math.max(0, Math.min(canvas.width - 1, Math.round(point.x)));
+    const y = Math.max(0, Math.min(canvas.height - 1, Math.round(point.y)));
+    const [r, g, b] = ctx.getImageData(x, y, 1, 1).data;
+    const hex = "#" + [r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("");
+    $("pe-annotate-color").value = hex;
   }
 
   function placeText(point) {
@@ -351,7 +441,7 @@
 
   // ---------- Pointer routing ----------
   const BRUSH_TOOLS = ["erase", "blur", "pixelate"];
-  const SHAPE_TOOLS = ["rect", "circle", "arrow"];
+  const SHAPE_TOOLS = ["rect", "circle", "line", "arrow"];
 
   overlay.addEventListener("pointerdown", (e) => {
     const p = pointFromEvent(e);
@@ -371,6 +461,9 @@
       strokeTo(p);
     } else if (currentTool === "text") {
       placeText(p);
+      dragging = false;
+    } else if (currentTool === "eyedropper") {
+      pickColor(p);
       dragging = false;
     }
   });
@@ -410,6 +503,27 @@
   });
 
   $("pe-undo").addEventListener("click", undo);
+  $("pe-redo").addEventListener("click", redo);
+  $("pe-reset").addEventListener("click", resetToOriginal);
+
+  document.addEventListener("keydown", (e) => {
+    if (modal.hidden) return;
+    const tag = document.activeElement && document.activeElement.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA") return;
+    const mod = e.metaKey || e.ctrlKey;
+    if (mod && e.key.toLowerCase() === "z") {
+      e.preventDefault();
+      if (e.shiftKey) redo();
+      else undo();
+    } else if (mod && e.key.toLowerCase() === "y") {
+      e.preventDefault();
+      redo();
+    } else if (e.key === "Escape" && currentTool === "select" && cropRect) {
+      cropRect = null;
+      $("pe-apply-crop").hidden = true;
+      clearOverlay();
+    }
+  });
 
   // ---------- Save ----------
   function exportBlob(cb) {
@@ -482,6 +596,9 @@
         ctx.drawImage(img, 0, 0, w, h);
         syncOverlaySize();
         undoStack = [];
+        redoStack = [];
+        updateHistoryButtons();
+        originalSnapshot = snapshotCanvas();
         cropRect = null;
         baseSnapshot = null;
         $("pe-brightness").value = 0;

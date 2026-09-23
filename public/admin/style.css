@@ -858,6 +858,11 @@
   flex-shrink: 0;
 }
 
+.simulation-builder-inner header button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 #save-simulation {
   background: var(--accent) !important;
   color: #0b0b0c !important;
@@ -1153,6 +1158,11 @@
 .pe-tool.active {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+.pe-toolbar button:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .pe-canvas-wrap {
