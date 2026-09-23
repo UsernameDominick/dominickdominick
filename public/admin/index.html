@@ -243,7 +243,10 @@
 
   <div id="command-modal" class="modal command-modal" hidden>
     <div class="modal-inner command-modal-inner">
-      <input id="command-input" class="command-input" placeholder="Search pages, articles, blocks… or jump to an action">
+      <div class="command-input-row">
+        <input id="command-input" class="command-input" placeholder="Search pages, articles, blocks… or jump to an action">
+        <button type="button" id="close-command" aria-label="Close">×</button>
+      </div>
       <div id="command-results" class="command-results"></div>
     </div>
   </div>

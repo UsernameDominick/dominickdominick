@@ -1202,6 +1202,7 @@
   }
 
   el("command-btn").addEventListener("click", openCommandPalette);
+  el("close-command").addEventListener("click", closeCommandPalette);
   el("command-input").addEventListener("input", (e) => runCommandSearch(e.target.value.trim()));
   el("command-input").addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
