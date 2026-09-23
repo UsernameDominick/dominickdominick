@@ -14,6 +14,10 @@ import {
   updateArticle,
   deleteArticle,
   slugExists,
+  checkLoginRateLimit,
+  recordLoginAttempt,
+  getSetting,
+  setSetting,
 } from "./db.js";
 import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated } from "./auth.js";
 
@@ -46,7 +50,13 @@ async function routeAdminApi(request, env, url) {
   const method = request.method;
 
   if (path === "/login" && method === "POST") {
+    const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+    const allowed = await checkLoginRateLimit(env, ip);
+    if (!allowed) {
+      return json({ error: "Too many attempts. Try again in a few minutes." }, { status: 429 });
+    }
     const body = await request.json().catch(() => ({}));
+    await recordLoginAttempt(env, ip);
     const ok = await checkPassword(env, body.password);
     if (!ok) return json({ error: "Wrong password" }, { status: 401 });
     const cookie = await createSessionCookie(env);
@@ -84,6 +94,7 @@ async function routeAdminApi(request, env, url) {
       meta_description: body.meta_description || "",
       nav_label: body.nav_label || null,
       nav_order: body.nav_order ?? null,
+      og_image: body.og_image || null,
     });
     return json({ id, slug });
   }
@@ -161,6 +172,16 @@ async function routeAdminApi(request, env, url) {
   }
   if (articleMatch && method === "DELETE") {
     await deleteArticle(env, Number(articleMatch[1]));
+    return json({ ok: true });
+  }
+
+  // /settings
+  if (path === "/settings" && method === "GET") {
+    return json({ default_og_image: (await getSetting(env, "default_og_image")) || "" });
+  }
+  if (path === "/settings" && method === "PUT") {
+    const body = await request.json().catch(() => ({}));
+    await setSetting(env, "default_og_image", body.default_og_image || "");
     return json({ ok: true });
   }
 

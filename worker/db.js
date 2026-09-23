@@ -16,12 +16,12 @@ export async function listNavPages(env) {
   return results;
 }
 
-export async function createPage(env, { slug, title, meta_description, nav_label, nav_order }) {
+export async function createPage(env, { slug, title, meta_description, nav_label, nav_order, og_image }) {
   const res = await env.DB
     .prepare(
-      "INSERT INTO pages (slug, title, meta_description, nav_label, nav_order) VALUES (?, ?, ?, ?, ?)"
+      "INSERT INTO pages (slug, title, meta_description, nav_label, nav_order, og_image) VALUES (?, ?, ?, ?, ?, ?)"
     )
-    .bind(slug, title, meta_description || "", nav_label || null, nav_order ?? null)
+    .bind(slug, title, meta_description || "", nav_label || null, nav_order ?? null, og_image || null)
     .run();
   return res.meta.last_row_id;
 }
@@ -29,7 +29,7 @@ export async function createPage(env, { slug, title, meta_description, nav_label
 export async function updatePage(env, id, fields) {
   const cols = [];
   const vals = [];
-  for (const key of ["slug", "title", "meta_description", "nav_label", "nav_order"]) {
+  for (const key of ["slug", "title", "meta_description", "nav_label", "nav_order", "og_image"]) {
     if (key in fields) {
       cols.push(`${key} = ?`);
       vals.push(fields[key]);
@@ -130,17 +130,18 @@ export async function slugExists(env, table, slug, excludeId = null) {
   return Boolean(await stmt.first());
 }
 
-export async function createArticle(env, { slug, title, body, published, tags }) {
+export async function createArticle(env, { slug, title, body, published, tags, og_image }) {
   const res = await env.DB
     .prepare(
-      "INSERT INTO articles (slug, title, body, published_at, tags) VALUES (?, ?, ?, ?, ?)"
+      "INSERT INTO articles (slug, title, body, published_at, tags, og_image) VALUES (?, ?, ?, ?, ?, ?)"
     )
     .bind(
       slug,
       title,
       body || "",
       published ? new Date().toISOString() : null,
-      JSON.stringify(Array.isArray(tags) ? tags : [])
+      JSON.stringify(Array.isArray(tags) ? tags : []),
+      og_image || null
     )
     .run();
   return res.meta.last_row_id;
@@ -149,7 +150,7 @@ export async function createArticle(env, { slug, title, body, published, tags })
 export async function updateArticle(env, id, fields) {
   const cols = [];
   const vals = [];
-  for (const key of ["slug", "title", "body"]) {
+  for (const key of ["slug", "title", "body", "og_image"]) {
     if (key in fields) {
       cols.push(`${key} = ?`);
       vals.push(fields[key]);
@@ -171,4 +172,39 @@ export async function updateArticle(env, id, fields) {
 
 export async function deleteArticle(env, id) {
   await env.DB.prepare("DELETE FROM articles WHERE id = ?").bind(id).run();
+}
+
+export async function getSetting(env, key) {
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE key = ?").bind(key).first();
+  return row ? row.value : null;
+}
+
+const LOGIN_WINDOW_MINUTES = 15;
+const LOGIN_MAX_ATTEMPTS = 8;
+
+// Returns true if this IP is currently allowed to attempt a login.
+export async function checkLoginRateLimit(env, ip) {
+  const { results } = await env.DB
+    .prepare(
+      `SELECT COUNT(*) AS n FROM login_attempts WHERE ip = ? AND attempted_at > datetime('now', '-${LOGIN_WINDOW_MINUTES} minutes')`
+    )
+    .bind(ip)
+    .all();
+  return (results[0]?.n || 0) < LOGIN_MAX_ATTEMPTS;
+}
+
+export async function recordLoginAttempt(env, ip) {
+  await env.DB.prepare("INSERT INTO login_attempts (ip) VALUES (?)").bind(ip).run();
+  // Best-effort cleanup so the table doesn't grow forever; cheap since it's indexed.
+  await env.DB
+    .prepare(`DELETE FROM login_attempts WHERE attempted_at < datetime('now', '-1 day')`)
+    .run()
+    .catch(() => {});
+}
+
+export async function setSetting(env, key, value) {
+  await env.DB
+    .prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+    .bind(key, value)
+    .run();
 }

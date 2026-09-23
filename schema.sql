@@ -5,6 +5,7 @@ CREATE TABLE pages (
   meta_description TEXT DEFAULT '',
   nav_label TEXT,
   nav_order INTEGER,
+  og_image TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -27,10 +28,23 @@ CREATE TABLE articles (
   title TEXT NOT NULL,
   body TEXT NOT NULL DEFAULT '',
   tags TEXT NOT NULL DEFAULT '[]',
+  og_image TEXT,
   published_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE settings (
+  key TEXT PRIMARY KEY,
+  value TEXT
+);
+
+CREATE TABLE login_attempts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ip TEXT NOT NULL,
+  attempted_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX idx_blocks_page ON blocks(page_id);
 CREATE INDEX idx_articles_published ON articles(published_at);
+CREATE INDEX idx_login_attempts_ip_time ON login_attempts(ip, attempted_at);

@@ -112,6 +112,7 @@
     el("page-meta").value = currentPage.meta_description || "";
     el("page-nav-label").value = currentPage.nav_label || "";
     el("page-nav-order").value = currentPage.nav_order ?? "";
+    el("page-og-image").value = currentPage.og_image || "";
     await loadBlocks();
   }
 
@@ -140,6 +141,7 @@
           meta_description: el("page-meta").value,
           nav_label: el("page-nav-label").value || null,
           nav_order: el("page-nav-order").value ? Number(el("page-nav-order").value) : null,
+          og_image: el("page-og-image").value || null,
         }),
       });
       await loadPages();
@@ -225,6 +227,19 @@
     canvas.style.minHeight = maxBottom + "px";
   }
 
+  function rectsOverlap(a, b) {
+    return a.col < b.col + b.col_span && a.col + a.col_span > b.col && a.row < b.row + b.row_span && a.row + a.row_span > b.row;
+  }
+
+  function flashOverlapWarning(div, block) {
+    const overlaps = blocks.some((b) => b.id !== block.id && rectsOverlap(block, b));
+    if (overlaps) {
+      div.classList.add("overlap-warning");
+      setTimeout(() => div.classList.remove("overlap-warning"), 1200);
+    }
+    return overlaps;
+  }
+
   function wireBlockInteractions(div, block) {
     div.addEventListener("pointerdown", (e) => {
       if (e.target.classList.contains("resize-handle")) return;
@@ -258,6 +273,7 @@
       function onUp() {
         div.removeEventListener("pointermove", onMove);
         div.removeEventListener("pointerup", onUp);
+        flashOverlapWarning(div, block);
         api(`/blocks/${block.id}`, {
           method: "PATCH",
           body: JSON.stringify({ col: block.col, row: block.row }),
@@ -295,6 +311,7 @@
       function onUp() {
         handle.removeEventListener("pointermove", onMove);
         handle.removeEventListener("pointerup", onUp);
+        flashOverlapWarning(div, block);
         api(`/blocks/${block.id}`, {
           method: "PATCH",
           body: JSON.stringify({ col_span: block.col_span, row_span: block.row_span }),
@@ -392,11 +409,48 @@
     });
   }
 
+  // ---------- Undo (blocks only, in-memory, ~8s window) ----------
+  let undoTimer = null;
+  function showUndoToast(text, onUndo) {
+    clearTimeout(undoTimer);
+    const toast = el("undo-toast");
+    el("undo-toast-text").textContent = text;
+    toast.hidden = false;
+    const btn = el("undo-toast-btn");
+    const handler = async () => {
+      btn.removeEventListener("click", handler);
+      toast.hidden = true;
+      clearTimeout(undoTimer);
+      await onUndo();
+    };
+    btn.addEventListener("click", handler);
+    undoTimer = setTimeout(() => {
+      toast.hidden = true;
+      btn.removeEventListener("click", handler);
+    }, 8000);
+  }
+
   el("delete-block-btn").addEventListener("click", async () => {
     if (!selectedBlockId) return;
-    if (!confirm("Delete this block?")) return;
+    const block = blocks.find((b) => b.id === selectedBlockId);
+    if (!block) return;
+    if (isMobile()) closeDrawers();
     await api(`/blocks/${selectedBlockId}`, { method: "DELETE" });
     await loadBlocks();
+    showUndoToast("Block deleted.", async () => {
+      await api(`/pages/${currentPage.id}/blocks`, {
+        method: "POST",
+        body: JSON.stringify({
+          type: block.type,
+          content: block.content,
+          col: block.col,
+          col_span: block.col_span,
+          row: block.row,
+          row_span: block.row_span,
+        }),
+      });
+      await loadBlocks();
+    });
   });
 
   canvas.addEventListener("pointerdown", (e) => {
@@ -437,6 +491,7 @@
         el("article-title").value = article.title;
         el("article-slug").value = article.slug;
         el("article-tags").value = (article.tags || []).join(", ");
+        el("article-og-image").value = article.og_image || "";
         el("article-body").value = article.body;
         el("article-published").checked = !!article.published_at;
         renderArticlesList();
@@ -449,6 +504,7 @@
     el("article-title").value = "";
     el("article-slug").value = "";
     el("article-tags").value = "";
+    el("article-og-image").value = "";
     el("article-body").value = "";
     el("article-published").checked = false;
   }
@@ -467,6 +523,7 @@
       title: el("article-title").value,
       slug: el("article-slug").value,
       tags: parseTags(el("article-tags").value),
+      og_image: el("article-og-image").value || null,
       body: el("article-body").value,
       published: el("article-published").checked,
     };
@@ -492,6 +549,25 @@
     articles = await api("/articles");
     renderArticlesList();
     clearArticleForm();
+  });
+
+  // ---------- Site settings ----------
+  el("site-settings-btn").addEventListener("click", async () => {
+    const settings = await api("/settings");
+    el("settings-og-image").value = settings.default_og_image || "";
+    el("settings-modal").hidden = false;
+  });
+  el("close-settings").addEventListener("click", () => (el("settings-modal").hidden = true));
+  el("save-settings").addEventListener("click", async () => {
+    try {
+      await api("/settings", {
+        method: "PUT",
+        body: JSON.stringify({ default_og_image: el("settings-og-image").value }),
+      });
+      el("settings-modal").hidden = true;
+    } catch (err) {
+      alert(err.message);
+    }
   });
 
   // ---------- Boot ----------

@@ -1,9 +1,13 @@
-import { getPageBySlug, listNavPages, listBlocks, listArticles, getArticleBySlug } from "./db.js";
+import { getPageBySlug, listNavPages, listBlocks, listArticles, getArticleBySlug, getSetting } from "./db.js";
 import { renderShell, renderBlocks, renderTags, excerpt, esc } from "./render.js";
 import { handleAdminApi } from "./admin-api.js";
 
 async function renderPage(env, page, url) {
-  const [navItems, blocks] = await Promise.all([listNavPages(env), listBlocks(env, page.id)]);
+  const [navItems, blocks, defaultOgImage] = await Promise.all([
+    listNavPages(env),
+    listBlocks(env, page.id),
+    getSetting(env, "default_og_image"),
+  ]);
   const activeTagFilter = url.searchParams.get("tag") || null;
   const bodyHtml = await renderBlocks(env, blocks, { activeTagFilter });
   const jsonLd =
@@ -24,12 +28,14 @@ async function renderPage(env, page, url) {
     activeSlug: page.slug,
     bodyHtml,
     jsonLd,
+    ogImage: page.og_image || defaultOgImage || null,
   });
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
 async function renderArticle(env, article, navItems) {
   const description = excerpt(article.body) || article.title;
+  const defaultOgImage = await getSetting(env, "default_og_image");
   const bodyHtml = `<div class="block" style="grid-column:1 / span 12;grid-row:1 / span 1;">
     <time datetime="${esc(article.published_at)}">${esc((article.published_at || "").slice(0, 10))}</time>
     <h1>${esc(article.title)}</h1>
@@ -62,8 +68,44 @@ async function renderArticle(env, article, navItems) {
     publishedTime: article.published_at,
     modifiedTime: article.updated_at,
     keywords: article.tags && article.tags.length ? article.tags.join(", ") : null,
+    ogImage: article.og_image || defaultOgImage || null,
   });
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
+}
+
+function xmlEsc(str) {
+  return String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+async function renderRss(env) {
+  const articles = await listArticles(env, { publishedOnly: true, limit: 30 });
+  const items = articles
+    .map((a) => {
+      const link = `https://dominickdominick.com/random/${a.slug}`;
+      const pubDate = new Date(a.published_at).toUTCString();
+      return `  <item>
+    <title>${xmlEsc(a.title)}</title>
+    <link>${link}</link>
+    <guid>${link}</guid>
+    <pubDate>${pubDate}</pubDate>
+    <description>${xmlEsc(excerpt(a.body, 300))}</description>
+  </item>`;
+    })
+    .join("\n");
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+<channel>
+  <title>Dominick — Random</title>
+  <link>https://dominickdominick.com/random</link>
+  <description>Notes and half-formed ideas from Dominick.</description>
+  <language>en</language>
+${items}
+</channel>
+</rss>`;
+  return new Response(xml, { headers: { "Content-Type": "application/rss+xml;charset=UTF-8" } });
 }
 
 async function renderSitemap(env) {
@@ -108,6 +150,10 @@ async function route(request, env) {
 
     if (path === "/sitemap.xml") {
       return renderSitemap(env);
+    }
+
+    if (path === "/rss.xml") {
+      return renderRss(env);
     }
 
     if (path === "/robots.txt") {

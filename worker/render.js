@@ -100,6 +100,7 @@ export function renderShell({
   publishedTime = null,
   modifiedTime = null,
   keywords = null,
+  ogImage = null,
 }) {
   const canonical = `https://dominickdominick.com${path}`;
   const navHtml = navItems
@@ -129,11 +130,13 @@ ${keywords ? `<meta name="keywords" content="${esc(keywords)}">` : ""}
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(description)}">
 <meta property="og:url" content="${canonical}">
+${ogImage ? `<meta property="og:image" content="${esc(ogImage)}">` : ""}
 ${publishedTime ? `<meta property="article:published_time" content="${esc(publishedTime)}">` : ""}
 ${modifiedTime ? `<meta property="article:modified_time" content="${esc(modifiedTime)}">` : ""}
-<meta name="twitter:card" content="summary">
+<meta name="twitter:card" content="${ogImage ? "summary_large_image" : "summary"}">
 <meta name="twitter:title" content="${esc(title)}">
 <meta name="twitter:description" content="${esc(description)}">
+${ogImage ? `<meta name="twitter:image" content="${esc(ogImage)}">` : ""}
 
 <link rel="stylesheet" href="/style.css">
 ${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>` : ""}
