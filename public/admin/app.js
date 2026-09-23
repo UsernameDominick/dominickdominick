@@ -33,6 +33,50 @@
   let blocks = [];
   let selectedBlockId = null;
 
+  async function uploadFile(file) {
+    const res = await fetch("/api/admin/upload", {
+      method: "POST",
+      headers: { "Content-Type": file.type },
+      body: file,
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || "Upload failed");
+    }
+    const { url } = await res.json();
+    return url;
+  }
+
+  // Wires any <button class="upload-trigger" data-target="#id"> to open a file
+  // picker and fill the target input with the uploaded file's URL.
+  function wireUploadButton(btn) {
+    const targetInput = document.querySelector(btn.dataset.target);
+    const fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.accept = "image/png,image/jpeg,image/webp,image/gif,image/svg+xml";
+    fileInput.hidden = true;
+    btn.after(fileInput);
+    btn.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      const originalText = btn.textContent;
+      btn.textContent = "Uploading…";
+      btn.disabled = true;
+      try {
+        const url = await uploadFile(file);
+        targetInput.value = url;
+        targetInput.dispatchEvent(new Event("change", { bubbles: true }));
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        btn.textContent = originalText;
+        btn.disabled = false;
+        fileInput.value = "";
+      }
+    });
+  }
+
   async function api(path, opts = {}) {
     const res = await fetch("/api/admin" + path, {
       ...opts,
@@ -353,7 +397,7 @@
   const FIELD_DEFS = {
     heading: [{ key: "text", label: "Text", type: "text" }],
     text: [{ key: "text", label: "Text (blank line = new paragraph)", type: "textarea" }],
-    image: [{ key: "url", label: "Image URL", type: "text" }, { key: "alt", label: "Alt text", type: "text" }],
+    image: [{ key: "url", label: "Image URL", type: "image-url" }, { key: "alt", label: "Alt text", type: "text" }],
     button: [
       { key: "label", label: "Label", type: "text" },
       { key: "url", label: "URL", type: "text" },
@@ -392,9 +436,17 @@
         if (f.type === "textarea") {
           return `<label>${f.label}<textarea data-key="${f.key}" rows="4">${escapeHtml(val || "")}</textarea></label>`;
         }
+        if (f.type === "image-url") {
+          const fieldId = `field-${block.id}-${f.key}`;
+          return `<label>${f.label}<input id="${fieldId}" data-key="${f.key}" type="text" value="${escapeHtml(
+            val ?? ""
+          )}"><button type="button" class="upload-trigger" data-target="#${fieldId}">Upload image</button></label>`;
+        }
         return `<label>${f.label}<input data-key="${f.key}" type="${f.type}" value="${escapeHtml(val ?? "")}"></label>`;
       })
       .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No settings for this block.</p>";
+
+    container.querySelectorAll(".upload-trigger").forEach(wireUploadButton);
 
     container.querySelectorAll("[data-key]").forEach((input) => {
       input.addEventListener("change", () => {
@@ -580,6 +632,8 @@
     showApp();
     await loadPages();
   }
+
+  document.querySelectorAll(".upload-trigger").forEach(wireUploadButton);
 
   window.addEventListener("resize", () => renderCanvas());
   boot();

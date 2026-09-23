@@ -175,6 +175,25 @@ async function routeAdminApi(request, env, url) {
     return json({ ok: true });
   }
 
+  // /upload — image files only, 8MB cap
+  if (path === "/upload" && method === "POST") {
+    const contentType = request.headers.get("Content-Type") || "";
+    const allowed = ["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"];
+    if (!allowed.includes(contentType)) {
+      return json({ error: "Only PNG, JPEG, WebP, GIF, or SVG images are allowed" }, { status: 400 });
+    }
+    const buf = await request.arrayBuffer();
+    if (buf.byteLength > 8 * 1024 * 1024) {
+      return json({ error: "File too large (8MB max)" }, { status: 400 });
+    }
+    const ext = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif", "image/svg+xml": "svg" }[
+      contentType
+    ];
+    const key = `uploads/${crypto.randomUUID()}.${ext}`;
+    await env.MEDIA.put(key, buf, { httpMetadata: { contentType } });
+    return json({ url: `/media/${key}` });
+  }
+
   // /settings
   if (path === "/settings" && method === "GET") {
     return json({ default_og_image: (await getSetting(env, "default_og_image")) || "" });

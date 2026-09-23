@@ -156,6 +156,17 @@ async function route(request, env) {
       return renderRss(env);
     }
 
+    const mediaMatch = path.match(/^\/media\/([A-Za-z0-9_.\-\/]+)$/);
+    if (mediaMatch) {
+      const obj = await env.MEDIA.get(mediaMatch[1]);
+      if (!obj) return new Response("Not found", { status: 404 });
+      const headers = new Headers();
+      obj.writeHttpMetadata(headers);
+      headers.set("Cache-Control", "public, max-age=31536000, immutable");
+      headers.set("ETag", obj.httpEtag);
+      return new Response(obj.body, { headers });
+    }
+
     if (path === "/robots.txt") {
       return new Response(
         "User-agent: *\nAllow: /\nDisallow: /admin/\nDisallow: /api/\n\nSitemap: https://dominickdominick.com/sitemap.xml\n",

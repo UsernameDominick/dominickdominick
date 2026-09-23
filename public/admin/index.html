@@ -55,7 +55,10 @@
         <label>Meta description<textarea id="page-meta" rows="2"></textarea></label>
         <label>Nav label (blank = hidden from nav)<input id="page-nav-label" type="text"></label>
         <label>Nav order<input id="page-nav-order" type="number"></label>
-        <label>Share image URL (og:image, blank = site default)<input id="page-og-image" type="text"></label>
+        <label>Share image URL (og:image, blank = site default)
+          <input id="page-og-image" type="text">
+          <button type="button" class="upload-trigger" data-target="#page-og-image">Upload image</button>
+        </label>
         <button id="save-page-settings">Save page settings</button>
         <button id="delete-page-btn" class="danger">Delete this page</button>
       </aside>
@@ -85,7 +88,10 @@
           <input id="article-title" placeholder="Title">
           <input id="article-slug" placeholder="URL slug (auto from title)">
           <input id="article-tags" placeholder="Tags, comma separated (e.g. life, code)">
-          <input id="article-og-image" placeholder="Share image URL (og:image, blank = site default)">
+          <div class="input-with-upload">
+            <input id="article-og-image" placeholder="Share image URL (og:image, blank = site default)">
+            <button type="button" class="upload-trigger" data-target="#article-og-image">Upload image</button>
+          </div>
           <textarea id="article-body" placeholder="Write here. Blank line = new paragraph." rows="16"></textarea>
           <div class="article-actions">
             <label><input type="checkbox" id="article-published"> Published</label>
@@ -107,6 +113,7 @@
       <div class="settings-body">
         <label>Default share image (og:image)<br>Used on any page/article that doesn't set its own.
           <input id="settings-og-image" type="text" placeholder="https://...">
+          <button type="button" class="upload-trigger" data-target="#settings-og-image">Upload image</button>
         </label>
         <button id="save-settings">Save</button>
       </div>
