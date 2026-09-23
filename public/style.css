@@ -378,6 +378,10 @@ h6 { font-size: 0.9rem; }
   fill: #c8bc94;
   opacity: 0.5;
 }
+.sim-comp .bb-sheen {
+  fill: #ffffff;
+  opacity: 0.15;
+}
 .sim-comp .bb-hole {
   fill: url(#sim-grad-hole);
 }
@@ -418,6 +422,10 @@ h6 { font-size: 0.9rem; }
   stroke-width: 1.5;
   stroke-linecap: round;
 }
+.sim-comp .led-flange {
+  fill: #1a1a1a;
+  opacity: 0.6;
+}
 .sim-comp .led-lead {
   stroke: url(#sim-grad-metal);
   stroke-width: 2;
@@ -444,6 +452,8 @@ h6 { font-size: 0.9rem; }
 }
 .sim-comp .resistor-band {
   opacity: 0.85;
+  stroke: rgba(0, 0, 0, 0.25);
+  stroke-width: 0.5;
 }
 .sim-comp .resistor-lead {
   stroke: url(#sim-grad-metal);
@@ -455,7 +465,7 @@ h6 { font-size: 0.9rem; }
 
 /* Switch */
 .sim-comp .switch-body {
-  fill: #2a2a2a;
+  fill: url(#sim-grad-plastic);
   stroke: #555;
   stroke-width: 1;
 }
@@ -464,13 +474,13 @@ h6 { font-size: 0.9rem; }
   stroke-width: 2;
 }
 .sim-comp .switch-lever {
-  stroke: #ccc;
+  stroke: #444;
   stroke-width: 2.5;
   stroke-linecap: round;
   transition: all 0.2s;
 }
 .sim-comp .switch-pivot {
-  fill: #555;
+  fill: #333;
 }
 .sim-comp-switch {
   cursor: pointer;
@@ -545,16 +555,31 @@ h6 { font-size: 0.9rem; }
   filter: url(#sim-glow);
 }
 
-/* Wires */
+/* Wires — a wide dull base stroke plus a thin bright offset highlight
+   (the "-shine" sibling path, same d) reads as a rounded, insulated
+   cable instead of a flat line. The shine never intercepts clicks; the
+   base path underneath still owns wire selection/animation. */
 .sim-wire {
-  stroke: #8a8478;
-  stroke-width: 3;
+  stroke: #6b5f4a;
+  stroke-width: 4;
   stroke-linecap: round;
   fill: none;
 }
+.sim-wire-shine {
+  stroke: #c4a876;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  fill: none;
+  opacity: 0.7;
+  pointer-events: none;
+}
 .sim-wire-hdmi {
-  stroke: #b23a3a;
-  stroke-width: 4;
+  stroke: #7a2424;
+  stroke-width: 5;
+}
+.sim-wire-shine-hdmi {
+  stroke: #e05a5a;
+  stroke-width: 1.5;
 }
 .sim-wire[data-animated="true"] {
   stroke-dasharray: 8 5;

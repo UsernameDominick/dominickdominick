@@ -181,9 +181,12 @@
     const p2 = pinPosition(toComp, wire.to.pin);
     if (!p1 || !p2) return "";
     const sel = selected && selected.kind === "wire" && selected.id === wire.id;
+    const d = `M${p1.x},${p1.y} L${p2.x},${p2.y}`;
     return `<path class="sim-wire sim-wire-${wire.kind || "wire"}${
       sel ? " sim-selected" : ""
-    }" data-id="${wire.id}" data-animated="${poweredWires.has(wire.id) ? "true" : "false"}" d="M${p1.x},${p1.y} L${p2.x},${p2.y}"/>`;
+    }" data-id="${wire.id}" data-animated="${
+      poweredWires.has(wire.id) ? "true" : "false"
+    }" d="${d}"/><path class="sim-wire-shine sim-wire-shine-${wire.kind || "wire"}" d="${d}"/>`;
   }
 
   function renderPinDots(comp) {
@@ -270,16 +273,18 @@
     }
   }
 
-  // Parts that physically plug into a breadboard rather than dangling on
-  // a cable to it. Snapping is anchored on the part's first pin — the
-  // other leg just moves rigidly with it, close enough visually even
-  // though a resistor's lead spacing doesn't exactly match hole spacing.
-  const SNAP_TO_BREADBOARD_TYPES = new Set(["led", "resistor"]);
-  const SNAP_THRESHOLD = 18;
+  // Parts that physically plug into a breadboard, Tinkercad-style, rather
+  // than dangling on a cable to it. Their lead spacing is deliberately a
+  // multiple of the hole grid (see SIM_COMPONENTS), so once the first leg
+  // snaps to a hole, every other leg lands exactly on a real neighboring
+  // hole too — not just one anchor pin dragging the rest along for show.
+  const SNAP_TO_BREADBOARD_TYPES = new Set(["led", "resistor", "switch"]);
+  const SNAP_THRESHOLD = 18; // magnetic pull radius while dragging
+  const SNAP_EXACT_TOLERANCE = 4; // how close a non-anchor leg must land to also count as plugged in
   // Everything else just snaps to a light alignment grid while dragging.
   const GRID_SNAP = 5;
 
-  function findNearestHole(x, y, excludeCompId) {
+  function findNearestHole(x, y, excludeCompId, threshold) {
     let best = null;
     simData.components.forEach((c) => {
       if (c.type !== "breadboard" || c.id === excludeCompId) return;
@@ -287,7 +292,7 @@
         const hx = c.x + pin.x;
         const hy = c.y + pin.y;
         const dist = Math.hypot(hx - x, hy - y);
-        if (dist <= SNAP_THRESHOLD && (!best || dist < best.dist)) {
+        if (dist <= threshold && (!best || dist < best.dist)) {
           best = { breadboardId: c.id, holeId: pin.id, x: hx, y: hy, dist };
         }
       });
@@ -314,7 +319,7 @@
 
     const canSnap = SNAP_TO_BREADBOARD_TYPES.has(comp.type);
     const anchorPin = canSnap ? REG[comp.type].pins[0] : null;
-    let snapTarget = null;
+    let snapTargets = {}; // pinId -> { breadboardId, holeId }
 
     function onMove(ev) {
       if (!historySaved) {
@@ -331,17 +336,25 @@
         comp.y = Math.round(comp.y / GRID_SNAP) * GRID_SNAP;
       }
       if (canSnap) {
+        // The first leg gets a generous magnetic pull toward the nearest
+        // hole, snapping the whole part into place...
         const anchorAbs = { x: comp.x + anchorPin.x, y: comp.y + anchorPin.y };
-        const hole = findNearestHole(anchorAbs.x, anchorAbs.y, compId);
+        const hole = findNearestHole(anchorAbs.x, anchorAbs.y, compId, SNAP_THRESHOLD);
         if (hole) {
           comp.x += hole.x - anchorAbs.x;
           comp.y += hole.y - anchorAbs.y;
-          snapTarget = { breadboardId: hole.breadboardId, holeId: hole.holeId };
-          g.classList.add("sim-snapped");
-        } else {
-          snapTarget = null;
-          g.classList.remove("sim-snapped");
         }
+        // ...then every leg (the anchor included) is checked for landing
+        // exactly on a real hole — since lead spacing matches the hole
+        // grid, a correctly-oriented part's other leg(s) plug in for
+        // real too, not just the one being dragged.
+        snapTargets = {};
+        REG[comp.type].pins.forEach((pin) => {
+          const abs = { x: comp.x + pin.x, y: comp.y + pin.y };
+          const h = findNearestHole(abs.x, abs.y, compId, hole ? SNAP_EXACT_TOLERANCE : SNAP_THRESHOLD);
+          if (h) snapTargets[pin.id] = h;
+        });
+        g.classList.toggle("sim-snapped", Object.keys(snapTargets).length > 0);
       }
       g.setAttribute("transform", `translate(${comp.x},${comp.y})`);
       updateWiresForComponent(compId);
@@ -356,18 +369,19 @@
         renderInspector();
       }
       if (canSnap) {
+        const pinIds = new Set(REG[comp.type].pins.map((p) => p.id));
         simData.wires = simData.wires.filter(
-          (w) => !(w.auto && ((w.from.compId === compId && w.from.pin === anchorPin.id) || (w.to.compId === compId && w.to.pin === anchorPin.id)))
+          (w) => !(w.auto && ((w.from.compId === compId && pinIds.has(w.from.pin)) || (w.to.compId === compId && pinIds.has(w.to.pin))))
         );
-        if (snapTarget) {
+        Object.entries(snapTargets).forEach(([pinId, target]) => {
           simData.wires.push({
             id: newLocalId("wire"),
-            from: { compId, pin: anchorPin.id },
-            to: { compId: snapTarget.breadboardId, pin: snapTarget.holeId },
+            from: { compId, pin: pinId },
+            to: { compId: target.breadboardId, pin: target.holeId },
             kind: "wire",
             auto: true,
           });
-        }
+        });
       }
       renderBuilder();
     }

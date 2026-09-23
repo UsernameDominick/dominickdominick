@@ -168,35 +168,41 @@
           holes += `<circle class="bb-hole" cx="${x}" cy="54" r="3"/>`;
           holes += `<circle class="bb-hole" cx="${x}" cy="84" r="3"/>`;
         }
-        return `<rect class="bb-body" x="0" y="0" width="340" height="110" rx="6"/><rect class="bb-rail-line bb-rail-pos" x="10" y="12.5" width="320" height="3" rx="1.5"/><rect class="bb-rail-line bb-rail-neg" x="10" y="24.5" width="320" height="3" rx="1.5"/><text class="bb-rail-label bb-rail-label-pos" x="4" y="17">+</text><text class="bb-rail-label bb-rail-label-neg" x="4" y="29">−</text><rect class="bb-channel" x="4" y="62" width="332" height="14" rx="3"/>${holes}`;
+        return `<rect class="bb-body" x="0" y="0" width="340" height="110" rx="6"/><rect class="bb-sheen" x="3" y="3" width="334" height="16" rx="4"/><rect class="bb-rail-line bb-rail-pos" x="10" y="12.5" width="320" height="3" rx="1.5"/><rect class="bb-rail-line bb-rail-neg" x="10" y="24.5" width="320" height="3" rx="1.5"/><text class="bb-rail-label bb-rail-label-pos" x="4" y="17">+</text><text class="bb-rail-label bb-rail-label-neg" x="4" y="29">−</text><rect class="bb-channel" x="4" y="62" width="332" height="14" rx="3"/>${holes}`;
       },
     },
     led: {
       label: "LED",
-      w: 26,
+      w: 40,
       h: 40,
       polarity: { pos: "anode", neg: "cathode" },
+      // Leads are exactly one breadboard hole-spacing apart (40px), splayed
+      // outward from the bulb — so both legs plug into two real, adjacent
+      // holes when dropped on the board, not just one anchored pin.
       pins: [
-        { id: "anode", x: 8, y: 40 },
-        { id: "cathode", x: 18, y: 40 },
+        { id: "anode", x: 0, y: 40 },
+        { id: "cathode", x: 40, y: 40 },
       ],
       render: (c) => {
         const color = window.LED_COLORS[c.color] ? c.color : "red";
-        return `<g style="--led-on-color:${window.LED_COLORS[color].onColor}"><line class="led-lead" x1="8" y1="26" x2="8" y2="40"/><line class="led-lead" x1="18" y1="26" x2="18" y2="40"/><path class="led-bulb" d="M4,26 L4,10 A9,9 0 0 1 22,10 L22,26 Z"/><path class="led-shine" d="M8,14 A5,5 0 0 1 14,10"/></g>`;
+        return `<g style="--led-on-color:${window.LED_COLORS[color].onColor}"><line class="led-lead" x1="15" y1="26" x2="0" y2="40"/><line class="led-lead" x1="25" y1="26" x2="40" y2="40"/><ellipse class="led-flange" cx="20" cy="26" rx="10" ry="2.5"/><path class="led-bulb" d="M11,26 L11,10 A9,9 0 0 1 29,10 L29,26 Z"/><path class="led-shine" d="M15,14 A5,5 0 0 1 21,10"/></g>`;
       },
     },
     resistor: {
       label: "Resistor",
-      w: 50,
+      w: 80,
       h: 16,
       passthrough: [["p1", "p2"]],
+      // Leads are exactly two hole-spacings apart (80px), so plugging one
+      // end into the board also seats the other leg on a real hole two
+      // columns over — a genuine bridge, not a rigid part just riding along.
       pins: [
         { id: "p1", x: 0, y: 8 },
-        { id: "p2", x: 50, y: 8 },
+        { id: "p2", x: 80, y: 8 },
       ],
       render: (c) => {
         const [b1, b2, b3, b4] = resistorBandHexes(c.resistance);
-        return `<line class="resistor-lead" x1="0" y1="8" x2="8" y2="8"/><rect class="resistor-body" x="8" y="0" width="34" height="16" rx="3"/><rect class="resistor-band" x="14" y="0" width="3" height="16" fill="${b1}"/><rect class="resistor-band" x="20" y="0" width="3" height="16" fill="${b2}"/><rect class="resistor-band" x="26" y="0" width="3" height="16" fill="${b3}"/><rect class="resistor-band" x="35" y="0" width="3" height="16" fill="${b4}"/><line class="resistor-lead" x1="42" y1="8" x2="50" y2="8"/>`;
+        return `<line class="resistor-lead" x1="0" y1="8" x2="22" y2="8"/><rect class="resistor-body" x="22" y="0" width="36" height="16" rx="3"/><rect class="resistor-band" x="28" y="0" width="3" height="16" fill="${b1}"/><rect class="resistor-band" x="34" y="0" width="3" height="16" fill="${b2}"/><rect class="resistor-band" x="40" y="0" width="3" height="16" fill="${b3}"/><rect class="resistor-band" x="49" y="0" width="3" height="16" fill="${b4}"/><line class="resistor-lead" x1="58" y1="8" x2="80" y2="8"/>`;
       },
     },
     switch: {
