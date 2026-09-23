@@ -41,6 +41,13 @@ Worker secret, not stored in this repo). From there:
   (a grid of images).
 - Use the "Media" button, or "Browse…" next to any image field, to reuse
   a previously uploaded image instead of uploading it again.
+- The pencil icon on a Media Library image opens the **Photo Editor**:
+  crop/select, rotate, brightness/contrast/saturation, an erase/blur/
+  pixelate brush, and rectangle/circle/arrow/text annotations, with
+  Undo. "Save as new" uploads a fresh file; "Overwrite original" replaces
+  the file in place at the same URL, updating it everywhere it's used
+  (this is why `/media/:key` now serves a short, revalidating cache
+  instead of a year-long immutable one).
 - Manage Random posts under the "Articles" button — tags, drafts, a share
   image, an "Upload image" button that goes straight to R2, and a
   "Publish at" field so a post can be scheduled for a future date/time

@@ -1,0 +1,503 @@
+(function () {
+  "use strict";
+
+  const $ = (id) => document.getElementById(id);
+  const modal = $("photo-editor-modal");
+  const canvas = $("pe-canvas");
+  const overlay = $("pe-overlay");
+  const stack = $("pe-canvas-stack");
+  const ctx = canvas.getContext("2d");
+  const octx = overlay.getContext("2d");
+
+  // Images larger than this (on the long edge) are downscaled on load —
+  // plenty for a personal blog, and keeps brush/undo snapshots fast.
+  const MAX_DIMENSION = 2000;
+  const UNDO_LIMIT = 15;
+
+  let originalKey = null;
+  let undoStack = [];
+  let currentTool = "select";
+  let cropRect = null; // {x0,y0,x1,y1} in canvas pixel space
+  let dragging = false;
+  let dragStart = null;
+  let baseSnapshot = null; // canvas clone taken when an adjust slider is first touched
+
+  function fitCanvasToViewport() {
+    const maxW = stack.parentElement.clientWidth * 0.9;
+    const maxH = stack.parentElement.clientHeight * 0.9;
+    const scale = Math.min(1, maxW / canvas.width, maxH / canvas.height);
+    const w = Math.round(canvas.width * scale);
+    const h = Math.round(canvas.height * scale);
+    canvas.style.width = w + "px";
+    canvas.style.height = h + "px";
+    overlay.style.width = w + "px";
+    overlay.style.height = h + "px";
+    stack.style.width = w + "px";
+    stack.style.height = h + "px";
+  }
+
+  function clearOverlay() {
+    octx.clearRect(0, 0, overlay.width, overlay.height);
+  }
+
+  function syncOverlaySize() {
+    overlay.width = canvas.width;
+    overlay.height = canvas.height;
+  }
+
+  function pushUndo() {
+    const snap = document.createElement("canvas");
+    snap.width = canvas.width;
+    snap.height = canvas.height;
+    snap.getContext("2d").drawImage(canvas, 0, 0);
+    undoStack.push(snap);
+    if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+  }
+
+  function undo() {
+    const prev = undoStack.pop();
+    if (!prev) return;
+    canvas.width = prev.width;
+    canvas.height = prev.height;
+    ctx.drawImage(prev, 0, 0);
+    syncOverlaySize();
+    cropRect = null;
+    $("pe-apply-crop").hidden = true;
+    clearOverlay();
+    fitCanvasToViewport();
+  }
+
+  // ---------- Pointer <-> canvas coordinate mapping ----------
+  function pointFromEvent(e) {
+    const rect = overlay.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * canvas.width;
+    const y = ((e.clientY - rect.top) / rect.height) * canvas.height;
+    return { x, y };
+  }
+
+  // ---------- Tool selection ----------
+  function setTool(tool) {
+    currentTool = tool;
+    document.querySelectorAll(".pe-tool").forEach((b) => b.classList.toggle("active", b.dataset.tool === tool));
+    $("pe-apply-crop").hidden = tool !== "select" || !cropRect;
+    clearOverlay();
+  }
+
+  document.querySelectorAll(".pe-tool").forEach((btn) => {
+    btn.addEventListener("click", () => setTool(btn.dataset.tool));
+  });
+
+  // ---------- Crop / select ----------
+  function normalizedCrop(r) {
+    return {
+      x: Math.round(Math.min(r.x0, r.x1)),
+      y: Math.round(Math.min(r.y0, r.y1)),
+      w: Math.round(Math.abs(r.x1 - r.x0)),
+      h: Math.round(Math.abs(r.y1 - r.y0)),
+    };
+  }
+
+  function drawCropOverlay() {
+    clearOverlay();
+    if (!cropRect) return;
+    const r = normalizedCrop(cropRect);
+    octx.save();
+    octx.fillStyle = "rgba(0,0,0,0.5)";
+    octx.fillRect(0, 0, overlay.width, overlay.height);
+    octx.clearRect(r.x, r.y, r.w, r.h);
+    octx.strokeStyle = "#e8a13a";
+    octx.lineWidth = Math.max(2, canvas.width * 0.002);
+    octx.setLineDash([8, 6]);
+    octx.strokeRect(r.x, r.y, r.w, r.h);
+    octx.restore();
+  }
+
+  $("pe-apply-crop").addEventListener("click", () => {
+    if (!cropRect) return;
+    const r = normalizedCrop(cropRect);
+    if (r.w < 2 || r.h < 2) return;
+    pushUndo();
+    const data = ctx.getImageData(r.x, r.y, r.w, r.h);
+    canvas.width = r.w;
+    canvas.height = r.h;
+    ctx.putImageData(data, 0, 0);
+    syncOverlaySize();
+    cropRect = null;
+    $("pe-apply-crop").hidden = true;
+    clearOverlay();
+    fitCanvasToViewport();
+  });
+
+  // ---------- Rotate ----------
+  function rotate90(clockwise) {
+    pushUndo();
+    const w = canvas.width;
+    const h = canvas.height;
+    const tmp = document.createElement("canvas");
+    tmp.width = h;
+    tmp.height = w;
+    const tctx = tmp.getContext("2d");
+    tctx.translate(clockwise ? h : 0, clockwise ? 0 : w);
+    tctx.rotate((clockwise ? 1 : -1) * (Math.PI / 2));
+    tctx.drawImage(canvas, 0, 0);
+    canvas.width = h;
+    canvas.height = w;
+    ctx.drawImage(tmp, 0, 0);
+    syncOverlaySize();
+    fitCanvasToViewport();
+  }
+  $("pe-rotate-left").addEventListener("click", () => rotate90(false));
+  $("pe-rotate-right").addEventListener("click", () => rotate90(true));
+
+  // ---------- Brightness / contrast / saturation ----------
+  function filterString() {
+    const b = 100 + Number($("pe-brightness").value);
+    const c = 100 + Number($("pe-contrast").value);
+    const s = 100 + Number($("pe-saturate").value);
+    return `brightness(${b}%) contrast(${c}%) saturate(${s}%)`;
+  }
+
+  function onAdjustInput() {
+    if (!baseSnapshot) {
+      pushUndo();
+      baseSnapshot = document.createElement("canvas");
+      baseSnapshot.width = canvas.width;
+      baseSnapshot.height = canvas.height;
+      baseSnapshot.getContext("2d").drawImage(canvas, 0, 0);
+    }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.filter = filterString();
+    ctx.drawImage(baseSnapshot, 0, 0);
+    ctx.restore();
+  }
+
+  function onAdjustCommit() {
+    // The slider handler already baked the filtered pixels into the canvas;
+    // just reset sliders/snapshot so the next drag starts from this state.
+    baseSnapshot = null;
+    $("pe-brightness").value = 0;
+    $("pe-contrast").value = 0;
+    $("pe-saturate").value = 0;
+  }
+
+  ["pe-brightness", "pe-contrast", "pe-saturate"].forEach((id) => {
+    $(id).addEventListener("input", onAdjustInput);
+    $(id).addEventListener("change", onAdjustCommit);
+  });
+
+  // ---------- Brush tools: erase / blur / pixelate ----------
+  let maskCanvas = null;
+  let maskCtx = null;
+  let strokeActive = false;
+  let lastPoint = null;
+
+  function ensureMask() {
+    if (maskCanvas && maskCanvas.width === canvas.width && maskCanvas.height === canvas.height) return;
+    maskCanvas = document.createElement("canvas");
+    maskCanvas.width = canvas.width;
+    maskCanvas.height = canvas.height;
+    maskCtx = maskCanvas.getContext("2d");
+  }
+
+  function brushSize() {
+    return Number($("pe-brush-size").value);
+  }
+
+  function strokeTo(point) {
+    const size = brushSize();
+    maskCtx.lineCap = "round";
+    maskCtx.lineJoin = "round";
+    maskCtx.strokeStyle = "#000";
+    maskCtx.fillStyle = "#000";
+    maskCtx.lineWidth = size;
+    if (lastPoint) {
+      maskCtx.beginPath();
+      maskCtx.moveTo(lastPoint.x, lastPoint.y);
+      maskCtx.lineTo(point.x, point.y);
+      maskCtx.stroke();
+    } else {
+      maskCtx.beginPath();
+      maskCtx.arc(point.x, point.y, size / 2, 0, Math.PI * 2);
+      maskCtx.fill();
+    }
+    lastPoint = point;
+  }
+
+  function buildEffectCanvas(tool) {
+    const c = document.createElement("canvas");
+    c.width = canvas.width;
+    c.height = canvas.height;
+    const cx = c.getContext("2d");
+    if (tool === "blur") {
+      cx.filter = `blur(${Math.max(4, canvas.width * 0.012)}px)`;
+      cx.drawImage(canvas, 0, 0);
+    } else {
+      const scale = 0.05;
+      const small = document.createElement("canvas");
+      small.width = Math.max(1, Math.round(canvas.width * scale));
+      small.height = Math.max(1, Math.round(canvas.height * scale));
+      small.getContext("2d").drawImage(canvas, 0, 0, small.width, small.height);
+      cx.imageSmoothingEnabled = false;
+      cx.drawImage(small, 0, 0, small.width, small.height, 0, 0, canvas.width, canvas.height);
+    }
+    return c;
+  }
+
+  function commitBrushStroke() {
+    if (currentTool === "erase") {
+      ctx.save();
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.drawImage(maskCanvas, 0, 0);
+      ctx.restore();
+      return;
+    }
+    const effect = buildEffectCanvas(currentTool);
+    const tmp = document.createElement("canvas");
+    tmp.width = canvas.width;
+    tmp.height = canvas.height;
+    const tctx = tmp.getContext("2d");
+    tctx.drawImage(effect, 0, 0);
+    tctx.globalCompositeOperation = "destination-in";
+    tctx.drawImage(maskCanvas, 0, 0);
+    ctx.drawImage(tmp, 0, 0);
+  }
+
+  function drawBrushCursor(point) {
+    clearOverlay();
+    octx.beginPath();
+    octx.arc(point.x, point.y, brushSize() / 2, 0, Math.PI * 2);
+    octx.strokeStyle = "#e8a13a";
+    octx.lineWidth = Math.max(1, canvas.width * 0.0015);
+    octx.stroke();
+  }
+
+  // ---------- Annotate: rect / circle / arrow / text ----------
+  let annotateStart = null;
+
+  function annotateColor() {
+    return $("pe-annotate-color").value;
+  }
+  function annotateSize() {
+    return Number($("pe-annotate-size").value);
+  }
+
+  function drawArrow(context, x0, y0, x1, y1, color, size) {
+    context.strokeStyle = color;
+    context.fillStyle = color;
+    context.lineWidth = size;
+    context.lineCap = "round";
+    context.beginPath();
+    context.moveTo(x0, y0);
+    context.lineTo(x1, y1);
+    context.stroke();
+    const angle = Math.atan2(y1 - y0, x1 - x0);
+    const headLen = Math.max(12, size * 4);
+    context.beginPath();
+    context.moveTo(x1, y1);
+    context.lineTo(x1 - headLen * Math.cos(angle - Math.PI / 6), y1 - headLen * Math.sin(angle - Math.PI / 6));
+    context.lineTo(x1 - headLen * Math.cos(angle + Math.PI / 6), y1 - headLen * Math.sin(angle + Math.PI / 6));
+    context.closePath();
+    context.fill();
+  }
+
+  function drawAnnotatePreview(x0, y0, x1, y1) {
+    clearOverlay();
+    const color = annotateColor();
+    const size = annotateSize();
+    octx.strokeStyle = color;
+    octx.lineWidth = size;
+    if (currentTool === "rect") {
+      octx.strokeRect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0));
+    } else if (currentTool === "circle") {
+      const rx = Math.abs(x1 - x0) / 2;
+      const ry = Math.abs(y1 - y0) / 2;
+      octx.beginPath();
+      octx.ellipse((x0 + x1) / 2, (y0 + y1) / 2, rx, ry, 0, 0, Math.PI * 2);
+      octx.stroke();
+    } else if (currentTool === "arrow") {
+      drawArrow(octx, x0, y0, x1, y1, color, size);
+    }
+  }
+
+  function commitAnnotation(x0, y0, x1, y1) {
+    const color = annotateColor();
+    const size = annotateSize();
+    if (currentTool === "rect") {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = size;
+      ctx.strokeRect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0));
+    } else if (currentTool === "circle") {
+      const rx = Math.abs(x1 - x0) / 2;
+      const ry = Math.abs(y1 - y0) / 2;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = size;
+      ctx.beginPath();
+      ctx.ellipse((x0 + x1) / 2, (y0 + y1) / 2, rx, ry, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (currentTool === "arrow") {
+      drawArrow(ctx, x0, y0, x1, y1, color, size);
+    }
+  }
+
+  function placeText(point) {
+    const text = prompt("Text to add:");
+    if (!text) return;
+    pushUndo();
+    const fontSize = Math.max(16, annotateSize() * 6);
+    ctx.fillStyle = annotateColor();
+    ctx.font = `bold ${fontSize}px sans-serif`;
+    ctx.textBaseline = "top";
+    ctx.fillText(text, point.x, point.y);
+  }
+
+  // ---------- Pointer routing ----------
+  const BRUSH_TOOLS = ["erase", "blur", "pixelate"];
+  const SHAPE_TOOLS = ["rect", "circle", "arrow"];
+
+  overlay.addEventListener("pointerdown", (e) => {
+    const p = pointFromEvent(e);
+    dragging = true;
+    dragStart = p;
+    overlay.setPointerCapture(e.pointerId);
+
+    if (currentTool === "select") {
+      cropRect = { x0: p.x, y0: p.y, x1: p.x, y1: p.y };
+      $("pe-apply-crop").hidden = true;
+    } else if (BRUSH_TOOLS.includes(currentTool)) {
+      pushUndo();
+      ensureMask();
+      maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+      strokeActive = true;
+      lastPoint = null;
+      strokeTo(p);
+    } else if (currentTool === "text") {
+      placeText(p);
+      dragging = false;
+    }
+  });
+
+  overlay.addEventListener("pointermove", (e) => {
+    const p = pointFromEvent(e);
+    if (currentTool === "select" && dragging && cropRect) {
+      cropRect.x1 = p.x;
+      cropRect.y1 = p.y;
+      drawCropOverlay();
+    } else if (BRUSH_TOOLS.includes(currentTool)) {
+      if (dragging && strokeActive) strokeTo(p);
+      drawBrushCursor(p);
+    } else if (SHAPE_TOOLS.includes(currentTool) && dragging && dragStart) {
+      drawAnnotatePreview(dragStart.x, dragStart.y, p.x, p.y);
+    }
+  });
+
+  overlay.addEventListener("pointerup", (e) => {
+    if (!dragging) return;
+    dragging = false;
+    const p = pointFromEvent(e);
+
+    if (currentTool === "select") {
+      $("pe-apply-crop").hidden = !cropRect;
+    } else if (BRUSH_TOOLS.includes(currentTool)) {
+      if (strokeActive) commitBrushStroke();
+      strokeActive = false;
+      lastPoint = null;
+      clearOverlay();
+    } else if (SHAPE_TOOLS.includes(currentTool) && dragStart) {
+      pushUndo();
+      commitAnnotation(dragStart.x, dragStart.y, p.x, p.y);
+      clearOverlay();
+    }
+    dragStart = null;
+  });
+
+  $("pe-undo").addEventListener("click", undo);
+
+  // ---------- Save ----------
+  function exportBlob(cb) {
+    canvas.toBlob(cb, "image/png");
+  }
+
+  $("pe-save-new").addEventListener("click", () => {
+    exportBlob(async (blob) => {
+      try {
+        await window.adminUploadBlob(blob);
+        close();
+        if (window.refreshMediaLibrary) window.refreshMediaLibrary();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  });
+
+  $("pe-save-overwrite").addEventListener("click", () => {
+    if (!originalKey) {
+      alert("This image wasn't opened from the Media Library, so there's nothing to overwrite. Use \"Save as new\" instead.");
+      return;
+    }
+    if (!confirm("Overwrite the original file? This updates it everywhere it's used on the site and can't be undone.")) return;
+    exportBlob(async (blob) => {
+      try {
+        const res = await fetch(`/api/admin/media/${originalKey}`, {
+          method: "PUT",
+          headers: { "Content-Type": blob.type },
+          body: blob,
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || "Overwrite failed");
+        }
+        close();
+        if (window.refreshMediaLibrary) window.refreshMediaLibrary();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  });
+
+  // ---------- Open / close ----------
+  function close() {
+    modal.hidden = true;
+  }
+  $("close-photo-editor").addEventListener("click", close);
+  window.addEventListener("resize", () => {
+    if (!modal.hidden) fitCanvasToViewport();
+  });
+
+  window.PhotoEditor = {
+    open(url, key) {
+      originalKey = key || null;
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        let w = img.naturalWidth;
+        let h = img.naturalHeight;
+        const longEdge = Math.max(w, h);
+        if (longEdge > MAX_DIMENSION) {
+          const scale = MAX_DIMENSION / longEdge;
+          w = Math.round(w * scale);
+          h = Math.round(h * scale);
+        }
+        canvas.width = w;
+        canvas.height = h;
+        ctx.clearRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        syncOverlaySize();
+        undoStack = [];
+        cropRect = null;
+        baseSnapshot = null;
+        $("pe-brightness").value = 0;
+        $("pe-contrast").value = 0;
+        $("pe-saturate").value = 0;
+        $("pe-hint").textContent = originalKey
+          ? "Editing a library image — overwrite updates it everywhere it's used."
+          : "Editing an external image — only \"Save as new\" is available.";
+        setTool("select");
+        modal.hidden = false;
+        requestAnimationFrame(fitCanvasToViewport);
+      };
+      img.onerror = () => alert("Couldn't load that image for editing (it may be from another site that blocks this).");
+      img.src = url;
+    },
+  };
+})();

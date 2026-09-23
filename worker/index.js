@@ -198,8 +198,14 @@ async function route(request, env, ctx) {
       if (!obj) return new Response("Not found", { status: 404 });
       const headers = new Headers();
       obj.writeHttpMetadata(headers);
-      headers.set("Cache-Control", "public, max-age=31536000, immutable");
+      // Short + revalidate rather than immutable: the photo editor can
+      // overwrite a file in place at the same URL, and a year-long
+      // immutable cache would hide that change from readers.
+      headers.set("Cache-Control", "public, max-age=300, must-revalidate");
       headers.set("ETag", obj.httpEtag);
+      if (request.headers.get("If-None-Match") === obj.httpEtag) {
+        return new Response(null, { status: 304, headers });
+      }
       return new Response(obj.body, { headers });
     }
 

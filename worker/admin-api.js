@@ -280,6 +280,24 @@ async function routeAdminApi(request, env, url, ctx) {
     await env.MEDIA.delete(mediaKeyMatch[1]);
     return json({ ok: true });
   }
+  // Overwrites an existing upload's bytes in place — same key, same public
+  // URL — used by the photo editor's "Overwrite original" save.
+  if (mediaKeyMatch && method === "PUT") {
+    const contentType = request.headers.get("Content-Type") || "";
+    const allowed = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+    if (!allowed.includes(contentType)) {
+      return json({ error: "Only PNG, JPEG, WebP, or GIF images are allowed" }, { status: 400 });
+    }
+    const buf = await request.arrayBuffer();
+    if (buf.byteLength > 8 * 1024 * 1024) {
+      return json({ error: "File too large (8MB max)" }, { status: 400 });
+    }
+    const key = mediaKeyMatch[1];
+    const existing = await env.MEDIA.head(key);
+    if (!existing) return json({ error: "Original file not found" }, { status: 404 });
+    await env.MEDIA.put(key, buf, { httpMetadata: { contentType } });
+    return json({ url: `/media/${key}` });
+  }
 
   // /redirects
   if (path === "/redirects" && method === "GET") {

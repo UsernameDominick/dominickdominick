@@ -257,11 +257,66 @@
     </div>
   </div>
 
+  <div id="photo-editor-modal" class="modal photo-editor-modal" hidden>
+    <div class="modal-inner photo-editor-inner">
+      <header>
+        <h1>Photo Editor</h1>
+        <button id="close-photo-editor">×</button>
+      </header>
+      <div class="pe-body">
+        <div class="pe-toolbar">
+          <div class="pe-tool-group">
+            <button type="button" class="pe-tool active" data-tool="select">Select / Crop</button>
+            <button type="button" id="pe-apply-crop" hidden>Apply Crop</button>
+          </div>
+          <div class="pe-tool-group">
+            <button type="button" id="pe-rotate-left" title="Rotate left">⟲ 90°</button>
+            <button type="button" id="pe-rotate-right" title="Rotate right">⟳ 90°</button>
+          </div>
+          <div class="pe-tool-group pe-adjust-group">
+            <label>Brightness <input type="range" id="pe-brightness" min="-100" max="100" value="0"></label>
+            <label>Contrast <input type="range" id="pe-contrast" min="-100" max="100" value="0"></label>
+            <label>Saturation <input type="range" id="pe-saturate" min="-100" max="100" value="0"></label>
+          </div>
+          <div class="pe-tool-group">
+            <button type="button" class="pe-tool" data-tool="erase">Erase</button>
+            <button type="button" class="pe-tool" data-tool="blur">Blur</button>
+            <button type="button" class="pe-tool" data-tool="pixelate">Pixelate</button>
+            <label>Brush <input type="range" id="pe-brush-size" min="5" max="150" value="30"></label>
+          </div>
+          <div class="pe-tool-group">
+            <button type="button" class="pe-tool" data-tool="rect" title="Rectangle">▭</button>
+            <button type="button" class="pe-tool" data-tool="circle" title="Circle">◯</button>
+            <button type="button" class="pe-tool" data-tool="arrow" title="Arrow">↗</button>
+            <button type="button" class="pe-tool" data-tool="text" title="Text">Text</button>
+            <input type="color" id="pe-annotate-color" value="#e8a13a" title="Annotation color">
+            <label>Size <input type="range" id="pe-annotate-size" min="1" max="20" value="4"></label>
+          </div>
+          <div class="pe-tool-group">
+            <button type="button" id="pe-undo">Undo</button>
+          </div>
+        </div>
+        <div class="pe-canvas-wrap">
+          <div id="pe-canvas-stack" class="pe-canvas-stack">
+            <canvas id="pe-canvas"></canvas>
+            <canvas id="pe-overlay"></canvas>
+          </div>
+        </div>
+        <div class="pe-actions">
+          <span id="pe-hint" class="pe-hint"></span>
+          <button type="button" id="pe-save-new">Save as new</button>
+          <button type="button" id="pe-save-overwrite">Overwrite original</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="undo-toast" class="undo-toast" hidden>
     <span id="undo-toast-text">Block deleted.</span>
     <button id="undo-toast-btn">Undo</button>
   </div>
 
 <script src="/admin/app.js"></script>
+<script src="/admin/photo-editor.js"></script>
 </body>
 </html>

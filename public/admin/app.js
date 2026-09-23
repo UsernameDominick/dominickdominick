@@ -837,7 +837,9 @@
           (item) =>
             `<div class="media-item" data-url="${escapeHtml(item.url)}" data-key="${escapeHtml(item.key)}" title="${formatBytes(
               item.size
-            )}"><img src="${escapeHtml(item.url)}" loading="lazy"><button type="button" class="media-delete" data-key="${escapeHtml(
+            )}"><img src="${escapeHtml(item.url)}" loading="lazy"><button type="button" class="media-edit" data-url="${escapeHtml(
+              item.url
+            )}" data-key="${escapeHtml(item.key)}" title="Edit">✎</button><button type="button" class="media-delete" data-key="${escapeHtml(
               item.key
             )}" title="Delete">×</button></div>`
         )
@@ -847,11 +849,20 @@
       .querySelectorAll(".media-item")
       .forEach((div) => {
         div.addEventListener("click", (e) => {
-          if (e.target.classList.contains("media-delete")) return;
+          if (e.target.classList.contains("media-delete") || e.target.classList.contains("media-edit")) return;
           if (!mediaPickTarget) return;
           const input = document.querySelector(mediaPickTarget);
           if (input) setFieldUrl(input, div.dataset.url, mediaPickAppend);
           closeMediaModal();
+        });
+      });
+
+    el("media-grid")
+      .querySelectorAll(".media-edit")
+      .forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (window.PhotoEditor) window.PhotoEditor.open(btn.dataset.url, btn.dataset.key);
         });
       });
 
@@ -1335,6 +1346,12 @@
 
   document.querySelectorAll(".upload-trigger").forEach(wireUploadButton);
   document.querySelectorAll(".browse-trigger").forEach(wireBrowseButton);
+
+  // Shared with photo-editor.js and simulation-builder.js, which are loaded
+  // as separate plain scripts (not modules) and can't import from this IIFE.
+  window.adminApi = api;
+  window.adminUploadBlob = uploadFile;
+  window.refreshMediaLibrary = loadMediaLibrary;
 
   window.addEventListener("resize", () => renderCanvas());
   boot();
