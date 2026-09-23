@@ -50,22 +50,27 @@ export async function listBlocks(env, pageId) {
     .prepare("SELECT * FROM blocks WHERE page_id = ? ORDER BY row ASC, col ASC")
     .bind(pageId)
     .all();
-  return results.map((b) => ({ ...b, content: JSON.parse(b.content || "{}") }));
+  return results.map((b) => ({
+    ...b,
+    content: JSON.parse(b.content || "{}"),
+    style: JSON.parse(b.style || "{}"),
+  }));
 }
 
 export async function createBlock(env, pageId, block) {
   const res = await env.DB
     .prepare(
-      "INSERT INTO blocks (page_id, type, content, col, col_span, row, row_span) VALUES (?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO blocks (page_id, type, content, style, col, col_span, row, row_span) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
     )
     .bind(
       pageId,
       block.type,
       JSON.stringify(block.content || {}),
+      JSON.stringify(block.style || {}),
       block.col ?? 1,
-      block.col_span ?? 12,
+      block.col_span ?? 24,
       block.row ?? 1,
-      block.row_span ?? 2
+      block.row_span ?? 4
     )
     .run();
   return res.meta.last_row_id;
@@ -83,6 +88,10 @@ export async function updateBlock(env, id, fields) {
   if ("content" in fields) {
     cols.push("content = ?");
     vals.push(JSON.stringify(fields.content));
+  }
+  if ("style" in fields) {
+    cols.push("style = ?");
+    vals.push(JSON.stringify(fields.style));
   }
   if (!cols.length) return;
   cols.push("updated_at = datetime('now')");

@@ -1,9 +1,9 @@
 (function () {
   "use strict";
 
-  const COLS = 12;
-  const ROW_H = 32;
-  const GAP = 16;
+  const COLS = 24;
+  const ROW_H = 16;
+  const GAP = 8;
 
   const el = (id) => document.getElementById(id);
   const canvas = el("canvas");
@@ -275,13 +275,13 @@
     return a.col < b.col + b.col_span && a.col + a.col_span > b.col && a.row < b.row + b.row_span && a.row + a.row_span > b.row;
   }
 
-  function flashOverlapWarning(div, block) {
-    const overlaps = blocks.some((b) => b.id !== block.id && rectsOverlap(block, b));
-    if (overlaps) {
-      div.classList.add("overlap-warning");
-      setTimeout(() => div.classList.remove("overlap-warning"), 1200);
-    }
-    return overlaps;
+  function wouldOverlap(block) {
+    return blocks.some((b) => b.id !== block.id && rectsOverlap(block, b));
+  }
+
+  function flashRejected(div) {
+    div.classList.add("overlap-warning");
+    setTimeout(() => div.classList.remove("overlap-warning"), 800);
   }
 
   function wireBlockInteractions(div, block) {
@@ -317,7 +317,17 @@
       function onUp() {
         div.removeEventListener("pointermove", onMove);
         div.removeEventListener("pointerup", onUp);
-        flashOverlapWarning(div, block);
+        // No overlaps allowed: if the drop spot collides with another
+        // block, snap back to where the drag started instead of saving it.
+        if ((block.col !== startCol || block.row !== startRow) && wouldOverlap(block)) {
+          block.col = startCol;
+          block.row = startRow;
+          const style = blockPixelStyle(block);
+          div.style.left = style.left + "px";
+          div.style.top = style.top + "px";
+          flashRejected(div);
+          return;
+        }
         api(`/blocks/${block.id}`, {
           method: "PATCH",
           body: JSON.stringify({ col: block.col, row: block.row }),
@@ -355,7 +365,15 @@
       function onUp() {
         handle.removeEventListener("pointermove", onMove);
         handle.removeEventListener("pointerup", onUp);
-        flashOverlapWarning(div, block);
+        if ((block.col_span !== startSpan || block.row_span !== startRowSpan) && wouldOverlap(block)) {
+          block.col_span = startSpan;
+          block.row_span = startRowSpan;
+          const style = blockPixelStyle(block);
+          div.style.width = style.width + "px";
+          div.style.height = style.height + "px";
+          flashRejected(div);
+          return;
+        }
         api(`/blocks/${block.id}`, {
           method: "PATCH",
           body: JSON.stringify({ col_span: block.col_span, row_span: block.row_span }),
@@ -371,15 +389,15 @@
       if (!currentPage) return;
       const type = btn.dataset.type;
       const defaults = {
-        heading: { content: { text: "New heading" }, col_span: 12, row_span: 2 },
-        text: { content: { text: "Write something here." }, col_span: 8, row_span: 3 },
-        image: { content: { url: "", alt: "" }, col_span: 6, row_span: 6 },
-        button: { content: { label: "Click me", url: "#", external: false }, col_span: 3, row_span: 1 },
-        "project-card": { content: { title: "Project", description: "", url: "", label: "View" }, col_span: 6, row_span: 3 },
-        "article-list": { content: { limit: 10 }, col_span: 12, row_span: 6 },
-        divider: { content: {}, col_span: 12, row_span: 1 },
-        spacer: { content: {}, col_span: 12, row_span: 1 },
-      }[type] || { content: {}, col_span: 6, row_span: 2 };
+        heading: { content: { text: "New heading", level: 1 }, col_span: 24, row_span: 4 },
+        text: { content: { text: "Write something here." }, col_span: 16, row_span: 6 },
+        image: { content: { url: "", alt: "" }, col_span: 12, row_span: 12 },
+        button: { content: { label: "Click me", url: "#", external: false }, col_span: 6, row_span: 2 },
+        "project-card": { content: { title: "Project", description: "", url: "", label: "View" }, col_span: 12, row_span: 6 },
+        "article-list": { content: { limit: 10 }, col_span: 24, row_span: 12 },
+        divider: { content: {}, col_span: 24, row_span: 2 },
+        spacer: { content: {}, col_span: 24, row_span: 2 },
+      }[type] || { content: {}, col_span: 12, row_span: 4 };
 
       const maxRow = blocks.reduce((m, b) => Math.max(m, b.row + b.row_span), 1);
       const body = { type, col: 1, row: maxRow, ...defaults };
@@ -395,7 +413,23 @@
 
   // ---------- Inspector ----------
   const FIELD_DEFS = {
-    heading: [{ key: "text", label: "Text", type: "text" }],
+    heading: [
+      { key: "text", label: "Text", type: "text" },
+      {
+        key: "level",
+        label: "Heading level",
+        type: "select",
+        numeric: true,
+        options: [
+          [1, "H1 — page title (use once per page)"],
+          [2, "H2"],
+          [3, "H3"],
+          [4, "H4"],
+          [5, "H5"],
+          [6, "H6"],
+        ],
+      },
+    ],
     text: [{ key: "text", label: "Text (blank line = new paragraph)", type: "textarea" }],
     image: [{ key: "url", label: "Image URL", type: "image-url" }, { key: "alt", label: "Alt text", type: "text" }],
     button: [
@@ -415,6 +449,61 @@
     spacer: [],
   };
 
+  const STYLE_FIELDS = [
+    { key: "color", label: "Text color", type: "color" },
+    { key: "bg", label: "Background color", type: "color" },
+    {
+      key: "fontFamily",
+      label: "Font",
+      type: "select",
+      options: [
+        ["", "Site default"],
+        ["sans", "Sans-serif"],
+        ["serif", "Serif"],
+        ["mono", "Monospace"],
+        ["rounded", "Rounded (Trebuchet)"],
+      ],
+    },
+    { key: "fontSize", label: "Font size (px)", type: "number" },
+    { key: "borderWidth", label: "Border width (px)", type: "number" },
+    { key: "borderColor", label: "Border color", type: "color" },
+    { key: "borderRadius", label: "Border radius (px)", type: "number" },
+  ];
+
+  function fieldHtml(f, val, idPrefix) {
+    if (f.type === "checkbox") {
+      return `<label><input type="checkbox" data-key="${f.key}" ${val ? "checked" : ""}> ${f.label}</label>`;
+    }
+    if (f.type === "textarea") {
+      return `<label>${f.label}<textarea data-key="${f.key}" rows="4">${escapeHtml(val || "")}</textarea></label>`;
+    }
+    if (f.type === "select") {
+      const options = f.options
+        .map(([optVal, optLabel]) => `<option value="${escapeHtml(optVal)}"${String(val ?? "") === String(optVal) ? " selected" : ""}>${escapeHtml(optLabel)}</option>`)
+        .join("");
+      return `<label>${f.label}<select data-key="${f.key}"${f.numeric ? ' data-numeric="1"' : ""}>${options}</select></label>`;
+    }
+    if (f.type === "color") {
+      return `<label>${f.label}<input data-key="${f.key}" type="color" value="${escapeHtml(val || "#000000")}">${
+        val ? `<button type="button" class="clear-color" data-key="${f.key}">Clear</button>` : ""
+      }</label>`;
+    }
+    if (f.type === "image-url") {
+      const fieldId = `${idPrefix}-${f.key}`;
+      return `<label>${f.label}<input id="${fieldId}" data-key="${f.key}" type="text" value="${escapeHtml(
+        val ?? ""
+      )}"><button type="button" class="upload-trigger" data-target="#${fieldId}">Upload image</button></label>`;
+    }
+    return `<label>${f.label}<input data-key="${f.key}" type="${f.type}" value="${escapeHtml(val ?? "")}"></label>`;
+  }
+
+  function fieldValue(input) {
+    if (input.type === "checkbox") return input.checked;
+    if (input.type === "number") return input.value === "" ? null : Number(input.value);
+    if (input.dataset.numeric) return Number(input.value);
+    return input.value;
+  }
+
   function renderInspector() {
     const inspector = el("inspector");
     const block = blocks.find((b) => b.id === selectedBlockId);
@@ -425,38 +514,48 @@
     }
     inspector.hidden = false;
     if (isMobile()) openDrawer(inspector);
+
+    if (!block.style) block.style = {};
+
     const fields = FIELD_DEFS[block.type] || [];
     const container = el("inspector-fields");
-    container.innerHTML = fields
-      .map((f) => {
-        const val = block.content[f.key];
-        if (f.type === "checkbox") {
-          return `<label><input type="checkbox" data-key="${f.key}" ${val ? "checked" : ""}> ${f.label}</label>`;
-        }
-        if (f.type === "textarea") {
-          return `<label>${f.label}<textarea data-key="${f.key}" rows="4">${escapeHtml(val || "")}</textarea></label>`;
-        }
-        if (f.type === "image-url") {
-          const fieldId = `field-${block.id}-${f.key}`;
-          return `<label>${f.label}<input id="${fieldId}" data-key="${f.key}" type="text" value="${escapeHtml(
-            val ?? ""
-          )}"><button type="button" class="upload-trigger" data-target="#${fieldId}">Upload image</button></label>`;
-        }
-        return `<label>${f.label}<input data-key="${f.key}" type="${f.type}" value="${escapeHtml(val ?? "")}"></label>`;
-      })
-      .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No settings for this block.</p>";
+    container.innerHTML =
+      fields.map((f) => fieldHtml(f, block.content[f.key], `field-${block.id}`)).join("") ||
+      "<p style='color:var(--text-dim);font-size:0.85rem;'>No settings for this block.</p>";
+
+    const styleContainer = el("inspector-style-fields");
+    styleContainer.innerHTML = STYLE_FIELDS.map((f) => fieldHtml(f, block.style[f.key], `style-${block.id}`)).join("");
 
     container.querySelectorAll(".upload-trigger").forEach(wireUploadButton);
 
+    function save() {
+      renderCanvas();
+      api(`/blocks/${block.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ content: block.content, style: block.style }),
+      }).catch((err) => alert(err.message));
+    }
+
     container.querySelectorAll("[data-key]").forEach((input) => {
       input.addEventListener("change", () => {
-        const key = input.dataset.key;
-        const value = input.type === "checkbox" ? input.checked : input.type === "number" ? Number(input.value) : input.value;
-        block.content[key] = value;
-        renderCanvas();
-        api(`/blocks/${block.id}`, { method: "PATCH", body: JSON.stringify({ content: block.content }) }).catch((err) =>
-          alert(err.message)
-        );
+        block.content[input.dataset.key] = fieldValue(input);
+        save();
+      });
+    });
+
+    styleContainer.querySelectorAll("[data-key]").forEach((input) => {
+      input.addEventListener("change", () => {
+        block.style[input.dataset.key] = fieldValue(input) || null;
+        save();
+        renderInspector();
+      });
+    });
+
+    styleContainer.querySelectorAll(".clear-color").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        block.style[btn.dataset.key] = null;
+        save();
+        renderInspector();
       });
     });
   }
@@ -607,6 +706,9 @@
   el("site-settings-btn").addEventListener("click", async () => {
     const settings = await api("/settings");
     el("settings-og-image").value = settings.default_og_image || "";
+    el("settings-accent").value = settings.theme_accent || "#e8a13a";
+    el("settings-bg").value = settings.theme_bg || "#0b0b0c";
+    el("settings-font").value = settings.theme_font || "";
     el("settings-modal").hidden = false;
   });
   el("close-settings").addEventListener("click", () => (el("settings-modal").hidden = true));
@@ -614,7 +716,12 @@
     try {
       await api("/settings", {
         method: "PUT",
-        body: JSON.stringify({ default_og_image: el("settings-og-image").value }),
+        body: JSON.stringify({
+          default_og_image: el("settings-og-image").value,
+          theme_accent: el("settings-accent").value,
+          theme_bg: el("settings-bg").value,
+          theme_font: el("settings-font").value,
+        }),
       });
       el("settings-modal").hidden = true;
     } catch (err) {

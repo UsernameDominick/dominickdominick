@@ -33,11 +33,51 @@ export function renderTags(tags) {
     .join("")}</div>`;
 }
 
+// Single-quoted font names: this string gets embedded both inside a <style>
+// tag (fine either way) and inside an HTML style="..." attribute (where a
+// double quote would prematurely close the attribute and corrupt the page).
+export const FONT_STACKS = {
+  sans: `-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif`,
+  serif: `Georgia, 'Times New Roman', serif`,
+  mono: `'Courier New', Courier, monospace`,
+  rounded: `'Trebuchet MS', Verdana, sans-serif`,
+};
+
+// Turns a block's { color, bg, fontFamily, fontSize, borderRadius,
+// borderColor, borderWidth } into a safe inline style string. Values are
+// escaped/coerced rather than trusted verbatim, since they end up inside an
+// HTML attribute.
+function blockStyleAttr(style) {
+  if (!style) return "";
+  const parts = [];
+  if (style.color) parts.push(`color:${esc(style.color)}`);
+  if (style.bg) parts.push(`background:${esc(style.bg)}`);
+  if (style.fontFamily && FONT_STACKS[style.fontFamily]) parts.push(`font-family:${FONT_STACKS[style.fontFamily]}`);
+  const fontSize = Number(style.fontSize);
+  if (Number.isFinite(fontSize) && fontSize > 0) parts.push(`font-size:${fontSize}px`);
+  const borderRadius = Number(style.borderRadius);
+  if (Number.isFinite(borderRadius) && borderRadius >= 0) parts.push(`border-radius:${borderRadius}px`);
+  const borderWidth = Number(style.borderWidth);
+  if (Number.isFinite(borderWidth) && borderWidth > 0) {
+    parts.push(`border-width:${borderWidth}px`);
+    parts.push(`border-style:solid`);
+    parts.push(`border-color:${style.borderColor ? esc(style.borderColor) : "currentColor"}`);
+  }
+  return parts.length ? parts.join(";") + ";" : "";
+}
+
+function headingLevel(c) {
+  const lvl = Number(c.level);
+  return Number.isInteger(lvl) && lvl >= 1 && lvl <= 6 ? lvl : 1;
+}
+
 async function renderBlockInner(env, block, ctx) {
   const c = block.content || {};
   switch (block.type) {
-    case "heading":
-      return `<h1>${esc(c.text)}</h1>`;
+    case "heading": {
+      const lvl = headingLevel(c);
+      return `<h${lvl}>${esc(c.text)}</h${lvl}>`;
+    }
     case "text":
       return paragraphs(c.text);
     case "image":
@@ -73,14 +113,10 @@ async function renderBlockInner(env, block, ctx) {
 
 export async function renderBlocks(env, blocks, ctx = {}) {
   const parts = await Promise.all(
-    blocks.map(
-      async (b) =>
-        `<div class="block" style="grid-column:${b.col} / span ${b.col_span};grid-row:${b.row} / span ${b.row_span};">${await renderBlockInner(
-          env,
-          b,
-          ctx
-        )}</div>`
-    )
+    blocks.map(async (b) => {
+      const gridStyle = `grid-column:${b.col} / span ${b.col_span};grid-row:${b.row} / span ${b.row_span};`;
+      return `<div class="block" style="${gridStyle}${blockStyleAttr(b.style)}">${await renderBlockInner(env, b, ctx)}</div>`;
+    })
   );
   return parts.join("\n");
 }
@@ -101,8 +137,14 @@ export function renderShell({
   modifiedTime = null,
   keywords = null,
   ogImage = null,
+  theme = {},
 }) {
   const canonical = `https://dominickdominick.com${path}`;
+  const themeVars = [];
+  if (theme.accent) themeVars.push(`--accent:${esc(theme.accent)}`);
+  if (theme.bg) themeVars.push(`--bg:${esc(theme.bg)}`);
+  if (theme.font && FONT_STACKS[theme.font]) themeVars.push(`--font-family:${FONT_STACKS[theme.font]}`);
+  const themeStyle = themeVars.length ? `<style>:root{${themeVars.join(";")};}</style>` : "";
   const navHtml = navItems
     .map(
       (n) =>
@@ -139,6 +181,7 @@ ${modifiedTime ? `<meta property="article:modified_time" content="${esc(modified
 ${ogImage ? `<meta name="twitter:image" content="${esc(ogImage)}">` : ""}
 
 <link rel="stylesheet" href="/style.css">
+${themeStyle}
 ${jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd)}</script>` : ""}
 </head>
 <body>

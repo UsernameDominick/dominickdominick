@@ -6,6 +6,7 @@
   --text-dim: #9a9aa2;
   --accent: #e8a13a;
   --accent-dim: #7a5a24;
+  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
 }
 
 /* Smooth cross-page transitions where supported; a harmless no-op elsewhere */
@@ -25,7 +26,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+  font-family: var(--font-family);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -104,7 +105,7 @@ body {
   z-index: 0;
 }
 
-/* Page content — 12-column grid, blocks placed by admin */
+/* Page content — 24-column grid, blocks placed by admin */
 
 .canvas {
   flex: 1;
@@ -113,9 +114,9 @@ body {
   margin: 0 auto;
   padding: 48px 32px;
   display: grid;
-  grid-template-columns: repeat(12, 1fr);
-  grid-auto-rows: 32px;
-  gap: 16px;
+  grid-template-columns: repeat(24, 1fr);
+  grid-auto-rows: 16px;
+  gap: 8px;
   align-content: start;
 }
 
@@ -170,11 +171,17 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
   outline-offset: 2px;
 }
 
-h1 {
-  font-size: 2rem;
+h1, h2, h3, h4, h5, h6 {
   margin: 0 0 12px;
   letter-spacing: -0.02em;
 }
+
+h1 { font-size: 2rem; }
+h2 { font-size: 1.6rem; }
+h3 { font-size: 1.3rem; }
+h4 { font-size: 1.1rem; }
+h5 { font-size: 1rem; }
+h6 { font-size: 0.9rem; }
 
 .lede {
   color: var(--text-dim);

@@ -203,11 +203,27 @@ async function routeAdminApi(request, env, url) {
 
   // /settings
   if (path === "/settings" && method === "GET") {
-    return json({ default_og_image: (await getSetting(env, "default_og_image")) || "" });
+    const [default_og_image, theme_accent, theme_bg, theme_font] = await Promise.all([
+      getSetting(env, "default_og_image"),
+      getSetting(env, "theme_accent"),
+      getSetting(env, "theme_bg"),
+      getSetting(env, "theme_font"),
+    ]);
+    return json({
+      default_og_image: default_og_image || "",
+      theme_accent: theme_accent || "",
+      theme_bg: theme_bg || "",
+      theme_font: theme_font || "",
+    });
   }
   if (path === "/settings" && method === "PUT") {
     const body = await request.json().catch(() => ({}));
-    await setSetting(env, "default_og_image", body.default_og_image || "");
+    await Promise.all([
+      setSetting(env, "default_og_image", body.default_og_image || ""),
+      setSetting(env, "theme_accent", body.theme_accent || ""),
+      setSetting(env, "theme_bg", body.theme_bg || ""),
+      setSetting(env, "theme_font", body.theme_font || ""),
+    ]);
     return json({ ok: true });
   }
 

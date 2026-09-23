@@ -10,10 +10,12 @@ A Cloudflare Worker + D1 site with a built-in visual page editor.
 - **`public/`** — static assets: `style.css`, `nav.js`, and the admin app
   (`public/admin/`). Served directly by Cloudflare, no Worker code involved.
 - **D1 database** (`dominickdominick`) — holds `pages`, `blocks` (the actual
-  content, positioned on a 12-column grid), `articles` (posts under Random),
-  `settings` (site-wide config, e.g. default share image),
-  `login_attempts` (rate limiting), and `pageviews` (self-hosted
-  analytics — path, referrer domain, country, no cookies or IPs stored).
+  content, positioned on a 24-column grid, plus a per-block `style`
+  override: color, background, font, font size, border), `articles`
+  (posts under Random), `settings` (site-wide config: default share
+  image, theme accent/background/font), `login_attempts` (rate limiting),
+  and `pageviews` (self-hosted analytics — path, referrer domain, country,
+  no cookies or IPs stored).
 - **R2 bucket** (`dominickdominick-media`) — uploaded images. Served back
   through the Worker at `/media/:key` rather than R2's public dev URLs,
   which Cloudflare doesn't consider production-ready.
@@ -23,13 +25,16 @@ A Cloudflare Worker + D1 site with a built-in visual page editor.
 Go to `/admin` and log in with the admin password (set as a Cloudflare
 Worker secret, not stored in this repo). From there:
 
-- Drag blocks around, resize them from the bottom-right corner
+- Drag blocks around a 24-column grid, resize from the bottom-right
+  corner — blocks can't overlap; a drop onto another block snaps back
 - Add new block types from the left palette
-- Edit a selected block's content in the right-hand panel
+- Edit a selected block's content, and its own style (text/background
+  color, font, font size, border) in the right-hand panel. Headings
+  can be H1–H6.
 - Manage Random posts under the "Articles" button — tags, drafts, a share
   image, an "Upload image" button that goes straight to R2
-- Set a site-wide default share image (and per-page/article overrides)
-  under "Site"
+- Under "Site": theme accent/background color, site-wide font, and a
+  default share image (with per-page/article overrides)
 - Check "Analytics" for views/day, top pages, top referrers, top
   countries — no third-party dashboard needed
 - Create new pages with "+ Page" — they get their own URL but aren't

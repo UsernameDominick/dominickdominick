@@ -72,6 +72,8 @@
         <button id="close-inspector" class="mobile-only close-drawer" aria-label="Close">×</button>
         <h2>Edit block</h2>
         <div id="inspector-fields"></div>
+        <h2>Style</h2>
+        <div id="inspector-style-fields"></div>
         <button id="delete-block-btn" class="danger">Delete block</button>
       </aside>
     </div>
@@ -150,6 +152,19 @@
         <button id="close-settings">×</button>
       </header>
       <div class="settings-body">
+        <h2>Theme</h2>
+        <label>Accent color<input id="settings-accent" type="color" value="#e8a13a"></label>
+        <label>Background color<input id="settings-bg" type="color" value="#0b0b0c"></label>
+        <label>Site font
+          <select id="settings-font">
+            <option value="">Default (system sans)</option>
+            <option value="sans">Sans-serif</option>
+            <option value="serif">Serif</option>
+            <option value="mono">Monospace</option>
+            <option value="rounded">Rounded (Trebuchet)</option>
+          </select>
+        </label>
+        <h2>Share image</h2>
         <label>Default share image (og:image)<br>Used on any page/article that doesn't set its own.
           <input id="settings-og-image" type="text" placeholder="https://...">
           <button type="button" class="upload-trigger" data-target="#settings-og-image">Upload image</button>

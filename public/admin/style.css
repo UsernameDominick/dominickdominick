@@ -167,8 +167,8 @@
   margin-bottom: 10px;
 }
 
-.admin-palette input, .admin-palette textarea,
-.admin-inspector input, .admin-inspector textarea {
+.admin-palette input, .admin-palette textarea, .admin-palette select,
+.admin-inspector input, .admin-inspector textarea, .admin-inspector select {
   width: 100%;
   background: var(--bg);
   color: var(--text);
@@ -178,6 +178,28 @@
   margin-top: 4px;
   font-family: inherit;
   font-size: 0.85rem;
+}
+
+.admin-palette input[type="color"], .admin-inspector input[type="color"] {
+  width: 48px;
+  height: 30px;
+  padding: 3px;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.admin-inspector .clear-color, .admin-palette .clear-color {
+  width: auto !important;
+  display: inline-block;
+  background: transparent !important;
+  color: var(--text-dim) !important;
+  border: none !important;
+  padding: 0 0 0 8px !important;
+  font-size: 0.75rem !important;
+  text-decoration: underline;
+  font-weight: 400 !important;
+  cursor: pointer;
+  margin-top: 0 !important;
 }
 
 .admin-palette button:not(.palette-btn), .admin-inspector button {
@@ -213,7 +235,7 @@
   min-height: 600px;
   background-image:
     linear-gradient(to right, var(--border) 1px, transparent 1px);
-  background-size: calc((100% - 11 * 16px) / 12 + 16px) 32px;
+  background-size: calc((100% - 23 * 8px) / 24 + 8px) 16px;
 }
 
 .admin-block {
@@ -575,7 +597,7 @@
   color: var(--text-dim);
 }
 
-.settings-body input {
+.settings-body input, .settings-body select {
   width: 100%;
   background: var(--bg);
   color: var(--text);
@@ -584,6 +606,25 @@
   padding: 8px 10px;
   margin-top: 6px;
   font-family: inherit;
+}
+
+.settings-body input[type="color"] {
+  width: 60px;
+  height: 36px;
+  padding: 4px;
+  cursor: pointer;
+}
+
+.settings-body h2 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  margin: 8px 0 0;
+}
+
+.settings-body h2:first-child {
+  margin-top: 0;
 }
 
 .settings-body button {
