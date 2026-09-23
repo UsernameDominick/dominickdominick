@@ -75,6 +75,14 @@ CREATE TABLE revisions (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE media (
+  key TEXT PRIMARY KEY,
+  folder TEXT,
+  tags TEXT NOT NULL DEFAULT '[]',
+  alt_text TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE templates (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   kind TEXT NOT NULL,

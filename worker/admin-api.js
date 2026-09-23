@@ -23,6 +23,11 @@ import {
   listTemplates,
   createTemplate,
   deleteTemplate,
+  getMediaMeta,
+  upsertMediaMeta,
+  deleteMediaMeta,
+  listMediaFolders,
+  findMediaUsage,
   slugExists,
   checkLoginRateLimit,
   recordLoginAttempt,
@@ -311,7 +316,8 @@ async function routeAdminApi(request, env, url, ctx) {
     return json({ ok: true });
   }
 
-  // /upload — image files only, 8MB cap
+  // /upload — image files only, 8MB cap. An optional ?folder= query param
+  // files the upload into that folder from the moment it lands.
   if (path === "/upload" && method === "POST") {
     const contentType = request.headers.get("Content-Type") || "";
     const allowed = ["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"];
@@ -327,20 +333,52 @@ async function routeAdminApi(request, env, url, ctx) {
     ];
     const key = `uploads/${crypto.randomUUID()}.${ext}`;
     await env.MEDIA.put(key, buf, { httpMetadata: { contentType } });
+    const folder = url.searchParams.get("folder");
+    if (folder) await upsertMediaMeta(env, key, { folder });
     return json({ url: `/media/${key}` });
   }
 
-  // /media — list/delete uploaded files, for the media library picker
+  // /media — list uploaded files (enriched with folder/tags/alt text), for
+  // the media library picker.
   if (path === "/media" && method === "GET") {
     const listed = await env.MEDIA.list({ prefix: "uploads/", limit: 500 });
-    const items = listed.objects
-      .sort((a, b) => new Date(b.uploaded) - new Date(a.uploaded))
-      .map((o) => ({ key: o.key, url: `/media/${o.key}`, size: o.size, uploaded: o.uploaded }));
+    const objects = listed.objects.sort((a, b) => new Date(b.uploaded) - new Date(a.uploaded));
+    const meta = await getMediaMeta(env, objects.map((o) => o.key));
+    const items = objects.map((o) => ({
+      key: o.key,
+      url: `/media/${o.key}`,
+      size: o.size,
+      uploaded: o.uploaded,
+      folder: meta[o.key]?.folder || null,
+      tags: meta[o.key]?.tags || [],
+      alt_text: meta[o.key]?.alt_text || null,
+    }));
     return json(items);
+  }
+  if (path === "/media/folders" && method === "GET") {
+    return json(await listMediaFolders(env));
+  }
+  if (path === "/media/usage" && method === "GET") {
+    const mediaUrl = url.searchParams.get("url");
+    if (!mediaUrl) return json({ error: "url required" }, { status: 400 });
+    return json(await findMediaUsage(env, mediaUrl));
+  }
+  if (path === "/media/bulk-delete" && method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    const keys = Array.isArray(body.keys) ? body.keys : [];
+    if (!keys.length) return json({ error: "No files selected" }, { status: 400 });
+    await Promise.all(keys.map((k) => Promise.all([env.MEDIA.delete(k), deleteMediaMeta(env, k)])));
+    return json({ ok: true });
   }
   const mediaKeyMatch = path.match(/^\/media\/(.+)$/);
   if (mediaKeyMatch && method === "DELETE") {
     await env.MEDIA.delete(mediaKeyMatch[1]);
+    await deleteMediaMeta(env, mediaKeyMatch[1]);
+    return json({ ok: true });
+  }
+  if (mediaKeyMatch && method === "PATCH") {
+    const body = await request.json().catch(() => ({}));
+    await upsertMediaMeta(env, mediaKeyMatch[1], body);
     return json({ ok: true });
   }
   // Overwrites an existing upload's bytes in place — same key, same public

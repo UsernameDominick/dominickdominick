@@ -355,6 +355,86 @@ export async function deleteRedirect(env, id) {
   await env.DB.prepare("DELETE FROM redirects WHERE id = ?").bind(id).run();
 }
 
+// ---------- Media metadata ----------
+// R2 holds the actual files; this table is a thin metadata layer on top
+// (folder, tags, a default alt text) keyed by the R2 object key. A file can
+// exist in R2 with no row here (never tagged/foldered) — treated as
+// folder=null, tags=[], alt_text=null.
+export async function getMediaMeta(env, keys) {
+  if (!keys.length) return {};
+  const placeholders = keys.map(() => "?").join(",");
+  const { results } = await env.DB.prepare(`SELECT * FROM media WHERE key IN (${placeholders})`).bind(...keys).all();
+  const map = {};
+  for (const row of results) {
+    map[row.key] = { ...row, tags: JSON.parse(row.tags || "[]") };
+  }
+  return map;
+}
+
+export async function upsertMediaMeta(env, key, { folder, tags, alt_text } = {}) {
+  const existing = await env.DB.prepare("SELECT key FROM media WHERE key = ?").bind(key).first();
+  if (existing) {
+    const cols = [];
+    const vals = [];
+    if (folder !== undefined) {
+      cols.push("folder = ?");
+      vals.push(folder || null);
+    }
+    if (tags !== undefined) {
+      cols.push("tags = ?");
+      vals.push(JSON.stringify(Array.isArray(tags) ? tags : []));
+    }
+    if (alt_text !== undefined) {
+      cols.push("alt_text = ?");
+      vals.push(alt_text || null);
+    }
+    if (!cols.length) return;
+    vals.push(key);
+    await env.DB.prepare(`UPDATE media SET ${cols.join(", ")} WHERE key = ?`).bind(...vals).run();
+  } else {
+    await env.DB
+      .prepare("INSERT INTO media (key, folder, tags, alt_text) VALUES (?, ?, ?, ?)")
+      .bind(key, folder || null, JSON.stringify(Array.isArray(tags) ? tags : []), alt_text || null)
+      .run();
+  }
+}
+
+export async function deleteMediaMeta(env, key) {
+  await env.DB.prepare("DELETE FROM media WHERE key = ?").bind(key).run();
+}
+
+export async function listMediaFolders(env) {
+  const { results } = await env.DB.prepare("SELECT DISTINCT folder FROM media WHERE folder IS NOT NULL ORDER BY folder").all();
+  return results.map((r) => r.folder);
+}
+
+// Walks every page block and article/setting field that can hold a media
+// URL, for "where is this used?" before someone deletes a file.
+export async function findMediaUsage(env, mediaUrl) {
+  const pages = await listPages(env);
+  const pageBlocks = await Promise.all(pages.map((p) => listBlocks(env, p.id)));
+  const articles = await listArticles(env);
+  const usage = [];
+  pages.forEach((p, i) => {
+    if (p.og_image === mediaUrl) usage.push({ type: "Page share image", title: p.title });
+    for (const b of pageBlocks[i]) {
+      const c = b.content || {};
+      const style = b.style || {};
+      if (b.type === "image" && c.url === mediaUrl) usage.push({ type: "Image block", title: p.title });
+      if (b.type === "gallery" && Array.isArray(c.images) && c.images.includes(mediaUrl)) {
+        usage.push({ type: "Gallery block", title: p.title });
+      }
+      if (style.backgroundImage === mediaUrl) usage.push({ type: "Block background", title: p.title });
+    }
+  });
+  for (const a of articles) {
+    if (a.og_image === mediaUrl) usage.push({ type: "Article share image", title: a.title });
+  }
+  const defaultOg = await getSetting(env, "default_og_image");
+  if (defaultOg === mediaUrl) usage.push({ type: "Site default share image", title: null });
+  return usage;
+}
+
 // ---------- Templates ----------
 // A saved starting point — a page's block layout, or an article body — that
 // new pages/articles can be seeded from instead of starting blank.
@@ -669,13 +749,14 @@ export async function setSetting(env, key, value) {
 const BACKUP_VERSION = 1;
 
 export async function exportAll(env) {
-  const [pages, blocks, articles, settings, redirects, templates] = await Promise.all([
+  const [pages, blocks, articles, settings, redirects, templates, media] = await Promise.all([
     env.DB.prepare("SELECT * FROM pages ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM blocks ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM articles ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM settings ORDER BY key").all(),
     env.DB.prepare("SELECT * FROM redirects ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM templates ORDER BY id").all(),
+    env.DB.prepare("SELECT * FROM media ORDER BY key").all(),
   ]);
   return {
     version: BACKUP_VERSION,
@@ -686,6 +767,7 @@ export async function exportAll(env) {
     settings: settings.results,
     redirects: redirects.results,
     templates: templates.results,
+    media: media.results,
   };
 }
 
@@ -698,14 +780,15 @@ export async function importAll(env, data) {
   // is missing. `redirects` and `templates` were added later, so older
   // legitimate backups won't have them — default those to empty instead of
   // rejecting them.
-  const { pages, blocks, articles, settings, redirects = [], templates = [] } = data;
+  const { pages, blocks, articles, settings, redirects = [], templates = [], media = [] } = data;
   if (
     !Array.isArray(pages) ||
     !Array.isArray(blocks) ||
     !Array.isArray(articles) ||
     !Array.isArray(settings) ||
     !Array.isArray(redirects) ||
-    !Array.isArray(templates)
+    !Array.isArray(templates) ||
+    !Array.isArray(media)
   ) {
     throw new Error("This doesn't look like a dominickdominick backup file (missing pages/blocks/articles/settings)");
   }
@@ -717,6 +800,7 @@ export async function importAll(env, data) {
     env.DB.prepare("DELETE FROM settings"),
     env.DB.prepare("DELETE FROM redirects"),
     env.DB.prepare("DELETE FROM templates"),
+    env.DB.prepare("DELETE FROM media"),
   ];
 
   for (const p of pages) {
@@ -805,6 +889,14 @@ export async function importAll(env, data) {
       env.DB
         .prepare("INSERT INTO templates (id, kind, name, data, created_at) VALUES (?, ?, ?, ?, ?)")
         .bind(t.id, t.kind, t.name, t.data ?? "{}", t.created_at)
+    );
+  }
+
+  for (const m of media) {
+    stmts.push(
+      env.DB
+        .prepare("INSERT INTO media (key, folder, tags, alt_text, created_at) VALUES (?, ?, ?, ?, ?)")
+        .bind(m.key, m.folder ?? null, m.tags ?? "[]", m.alt_text ?? null, m.created_at)
     );
   }
 

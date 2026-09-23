@@ -216,6 +216,14 @@
         <button id="close-media">×</button>
       </header>
       <p id="media-hint" class="media-hint" hidden>Click an image to use it.</p>
+      <div class="media-toolbar">
+        <select id="media-folder-filter"><option value="">All folders</option></select>
+        <input type="search" id="media-search" placeholder="Search filename or tag…">
+        <select id="media-upload-folder" title="New uploads go into this folder"><option value="">No folder</option></select>
+        <button type="button" id="media-upload-btn">Upload files…</button>
+        <span id="media-selected-count" class="media-selected-count"></span>
+        <button type="button" id="media-bulk-delete-btn" class="danger" disabled>Delete selected</button>
+      </div>
       <div id="media-grid" class="media-grid"></div>
     </div>
   </div>
