@@ -14,7 +14,7 @@
   let placeX = 20;
   let placeY = 20;
   const PLACE_ROW_HEIGHT = 70;
-  const PLACE_CANVAS_WIDTH = 860;
+  const PLACE_CANVAS_WIDTH = 1500;
 
   // ---------- Undo / redo ----------
   // Snapshot-based rather than diff-based: simData is a small plain-JSON
@@ -207,7 +207,7 @@
     const wiresSvg = simData.wires.map((w) => renderWireSvg(w, poweredWires)).join("");
     const compsSvg = simData.components.map((c) => renderComponentSvg(c, poweredComps, analysis)).join("");
     const pinsSvg = simData.components.map(renderPinDots).join("");
-    $("sim-builder-canvas").innerHTML = `<svg id="sim-builder-svg" viewBox="0 0 900 500" xmlns="http://www.w3.org/2000/svg" class="sim-svg${
+    $("sim-builder-canvas").innerHTML = `<svg id="sim-builder-svg" viewBox="0 0 1500 700" xmlns="http://www.w3.org/2000/svg" class="sim-svg${
       previewOn ? " is-on" : ""
     }">${window.SIM_DEFS_SVG}${wiresSvg}${compsSvg}${pinsSvg}</svg>`;
     attachBuilderEvents();
@@ -448,7 +448,7 @@
     if (!selected) {
       box.innerHTML =
         "<p style='color:var(--text-dim);font-size:0.85rem;'>Click a part or a wire to edit it. Click a pin, then another pin, to wire them.</p>" +
-        "<p style='color:var(--text-dim);font-size:0.85rem;'>The breadboard now has real topology: the two rail lines (+/−) at the top are each one long connection, but the terminal columns below the gutter are each independent — plugging into the same column connects things, different columns don't, and the gutter splits top from bottom. Wire outlet → power supply → rails → a column → resistor bridging to another column → LED → back to the other rail.</p>" +
+        "<p style='color:var(--text-dim);font-size:0.85rem;'>The breadboard is a real 30-column layout with independent power rails on both the top AND bottom edges (each rail line is one long connection), plus a terminal strip split by the center gutter — each of its 30 columns is its own independent connection, so plugging into the same column connects things, different columns don't. The top rails and bottom rails aren't connected to each other either. Wire outlet → power supply → a rail → a column → resistor bridging to another column → LED → back to the other rail.</p>" +
         "<p style='color:var(--text-dim);font-size:0.85rem;'>Power needs a complete loop, and the numbers matter now: too little resistance burns out an LED, no resistor at all is a dead short, and wiring straight to the Wall Outlet (120V) destroys anything downstream — it must go through a Power Supply first. A backwards LED won't light even on an otherwise-complete loop, same as a real one.</p>";
       return;
     }
@@ -655,8 +655,8 @@
         svg.style.width = "";
         svg.style.height = "";
       } else {
-        svg.style.width = `${900 * zoomLevel}px`;
-        svg.style.height = `${500 * zoomLevel}px`;
+        svg.style.width = `${1500 * zoomLevel}px`;
+        svg.style.height = `${700 * zoomLevel}px`;
       }
     }
     $("sim-zoom-reset").textContent = `${Math.round(zoomLevel * 100)}%`;

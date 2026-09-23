@@ -435,11 +435,11 @@
         button: { content: { label: "Click me", url: "#", external: false }, col_span: 6, row_span: 2 },
         "project-card": { content: { title: "Project", description: "", url: "", label: "View" }, col_span: 12, row_span: 6 },
         "article-list": { content: { limit: 10 }, col_span: 24, row_span: 12 },
-        // A full-width (24-col) simulation SVG at its 900:500 aspect ratio,
+        // A full-width (24-col) simulation SVG at its 1500:700 aspect ratio,
         // plus the power button below it, renders taller than it looks like
         // it should need — row_span accounts for that so it doesn't overflow
         // into whatever comes after it (grid rows here are a fixed 16px+gap).
-        simulation: { content: { simulation_id: null }, col_span: 24, row_span: 30 },
+        simulation: { content: { simulation_id: null }, col_span: 24, row_span: 25 },
         video: { content: { url: "" }, col_span: 16, row_span: 12 },
         quote: { content: { text: "Quote text here.", cite: "" }, col_span: 16, row_span: 6 },
         gallery: { content: { images: [] }, col_span: 24, row_span: 12 },

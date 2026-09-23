@@ -168,38 +168,46 @@ export const SIM_COMPONENTS = {
         c.outputVoltage || 5
       )}V DC</text>`,
   },
-  // A real breadboard: two power rails (each a single continuous strip —
-  // everything plugged into the "+" rail is one node, same for "−") plus
-  // a terminal strip split into independent columns by the center gutter.
-  // Each column's 5 holes are electrically one point in real life; here
-  // one hole stands in for the whole column, but — unlike the old model —
-  // different columns are NOT connected to each other, so building a
-  // circuit actually requires bridging columns with parts/jumpers the way
-  // a real breadboard does.
+  // A real half+ breadboard: 30 columns (the same count as a real 400+
+  // tie-point board), with independent power rails on BOTH the top and
+  // bottom edges — not just one — plus a terminal strip split into
+  // independent columns by the center gutter. Each column's 5 physical
+  // holes are electrically one point in real life; one hole stands in
+  // for the whole column here, but different columns are NOT connected
+  // to each other, and the top rails are NOT connected to the bottom
+  // rails, so building a circuit requires bridging with parts/jumpers
+  // the way a real breadboard does.
   breadboard: {
     label: "Breadboard",
-    w: 340,
-    h: 110,
+    w: 1200,
+    h: 150,
+    cols: 30,
     railGroups: {
-      pos: [0, 1, 2, 3, 4, 5, 6, 7].map((i) => `rp${i + 1}`),
-      neg: [0, 1, 2, 3, 4, 5, 6, 7].map((i) => `rn${i + 1}`),
+      pos_top: Array.from({ length: 30 }, (_, i) => `rpt${i + 1}`),
+      neg_top: Array.from({ length: 30 }, (_, i) => `rnt${i + 1}`),
+      neg_bottom: Array.from({ length: 30 }, (_, i) => `rnb${i + 1}`),
+      pos_bottom: Array.from({ length: 30 }, (_, i) => `rpb${i + 1}`),
     },
-    pins: [0, 1, 2, 3, 4, 5, 6, 7].flatMap((i) => [
-      { id: `rp${i + 1}`, x: 20 + i * 40, y: 14 },
-      { id: `rn${i + 1}`, x: 20 + i * 40, y: 26 },
-      { id: `t${i + 1}`, x: 20 + i * 40, y: 54 },
-      { id: `b${i + 1}`, x: 20 + i * 40, y: 84 },
+    pins: Array.from({ length: 30 }, (_, i) => i).flatMap((i) => [
+      { id: `rpt${i + 1}`, x: 20 + i * 40, y: 14 },
+      { id: `rnt${i + 1}`, x: 20 + i * 40, y: 26 },
+      { id: `t${i + 1}`, x: 20 + i * 40, y: 60 },
+      { id: `b${i + 1}`, x: 20 + i * 40, y: 90 },
+      { id: `rnb${i + 1}`, x: 20 + i * 40, y: 124 },
+      { id: `rpb${i + 1}`, x: 20 + i * 40, y: 136 },
     ]),
     render: () => {
       let holes = "";
-      for (let i = 0; i < 8; i++) {
+      for (let i = 0; i < 30; i++) {
         const x = 20 + i * 40;
         holes += `<circle class="bb-hole bb-hole-rail" cx="${x}" cy="14" r="2.5"/>`;
         holes += `<circle class="bb-hole bb-hole-rail" cx="${x}" cy="26" r="2.5"/>`;
-        holes += `<circle class="bb-hole" cx="${x}" cy="54" r="3"/>`;
-        holes += `<circle class="bb-hole" cx="${x}" cy="84" r="3"/>`;
+        holes += `<circle class="bb-hole" cx="${x}" cy="60" r="3"/>`;
+        holes += `<circle class="bb-hole" cx="${x}" cy="90" r="3"/>`;
+        holes += `<circle class="bb-hole bb-hole-rail" cx="${x}" cy="124" r="2.5"/>`;
+        holes += `<circle class="bb-hole bb-hole-rail" cx="${x}" cy="136" r="2.5"/>`;
       }
-      return `<rect class="bb-body" x="0" y="0" width="340" height="110" rx="6"/><rect class="bb-sheen" x="3" y="3" width="334" height="16" rx="4"/><rect class="bb-rail-line bb-rail-pos" x="10" y="12.5" width="320" height="3" rx="1.5"/><rect class="bb-rail-line bb-rail-neg" x="10" y="24.5" width="320" height="3" rx="1.5"/><text class="bb-rail-label bb-rail-label-pos" x="4" y="17">+</text><text class="bb-rail-label bb-rail-label-neg" x="4" y="29">−</text><rect class="bb-channel" x="4" y="62" width="332" height="14" rx="3"/>${holes}`;
+      return `<rect class="bb-body" x="0" y="0" width="1200" height="150" rx="6"/><rect class="bb-sheen" x="3" y="3" width="1194" height="16" rx="4"/><rect class="bb-rail-line bb-rail-pos" x="10" y="12.5" width="1180" height="3" rx="1.5"/><rect class="bb-rail-line bb-rail-neg" x="10" y="24.5" width="1180" height="3" rx="1.5"/><text class="bb-rail-label bb-rail-label-pos" x="4" y="17">+</text><text class="bb-rail-label bb-rail-label-neg" x="4" y="29">−</text><rect class="bb-channel" x="4" y="68" width="1192" height="14" rx="3"/><rect class="bb-rail-line bb-rail-neg" x="10" y="122.5" width="1180" height="3" rx="1.5"/><rect class="bb-rail-line bb-rail-pos" x="10" y="134.5" width="1180" height="3" rx="1.5"/><text class="bb-rail-label bb-rail-label-neg" x="4" y="127">−</text><text class="bb-rail-label bb-rail-label-pos" x="4" y="139">+</text>${holes}`;
     },
   },
   led: {
@@ -640,7 +648,7 @@ function renderWireSvg(wire, components, poweredWires) {
   )}" d="${d}"/>`;
 }
 
-export function renderSimulationSvg(data, { width = 900, height = 500 } = {}) {
+export function renderSimulationSvg(data, { width = 1500, height = 700 } = {}) {
   const components = (data && data.components) || [];
   const wires = (data && data.wires) || [];
   const { poweredComps, poweredWires } = computePoweredSet(data);
