@@ -3,7 +3,6 @@
 
   const COLS = 24;
   const ROW_H = 16;
-  const GAP = 8;
 
   const el = (id) => document.getElementById(id);
   // Wires a "×" button that just needs to hide its modal — most of them.
@@ -25,12 +24,22 @@
   function closeDrawers() {
     el("palette").classList.remove("drawer-open");
     el("inspector").classList.remove("drawer-open");
+    el("admin-header-right").classList.remove("drawer-open");
     backdrop.hidden = true;
   }
   el("mobile-menu-btn").addEventListener("click", () => openDrawer(el("palette")));
   el("close-palette").addEventListener("click", closeDrawers);
   el("close-inspector").addEventListener("click", closeDrawers);
+  el("site-menu-btn").addEventListener("click", () => openDrawer(el("admin-header-right")));
+  el("close-site-menu").addEventListener("click", closeDrawers);
   backdrop.addEventListener("click", closeDrawers);
+  // Tapping a nav item inside the mobile menu drawer should close it, not leave it open behind the modal it opened.
+  el("admin-header-right").querySelectorAll("button, a").forEach((node) => {
+    if (node.id === "close-site-menu") return;
+    node.addEventListener("click", () => {
+      if (isMobile()) closeDrawers();
+    });
+  });
 
   let pages = [];
   let currentPage = null;
@@ -230,8 +239,9 @@
 
   function canvasMetrics() {
     const rect = canvas.getBoundingClientRect();
-    const colW = (rect.width - (COLS - 1) * GAP) / COLS;
-    return { colW, rowH: ROW_H, gap: GAP, width: rect.width };
+    const gap = parseFloat(getComputedStyle(canvas).getPropertyValue("--canvas-gap")) || 8;
+    const colW = (rect.width - (COLS - 1) * gap) / COLS;
+    return { colW, rowH: ROW_H, gap, width: rect.width };
   }
 
   function blockPixelStyle(b) {

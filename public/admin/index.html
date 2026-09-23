@@ -21,13 +21,15 @@
   <div id="app" class="admin-app" hidden>
     <header class="admin-header">
       <div class="admin-header-left">
-        <button id="mobile-menu-btn" class="mobile-only" aria-label="Menu">☰</button>
+        <button id="mobile-menu-btn" class="mobile-only" aria-label="Add block">☰</button>
         <strong class="brand-label">dominick.dominick</strong>
         <span class="admin-sep">/</span>
         <select id="page-picker"></select>
         <button id="new-page-btn" title="New page">+ Page</button>
+        <button id="site-menu-btn" class="mobile-only" aria-label="Menu">Menu</button>
       </div>
-      <div class="admin-header-right">
+      <div class="admin-header-right" id="admin-header-right">
+        <button id="close-site-menu" class="mobile-only close-drawer" aria-label="Close">×</button>
         <button id="command-btn" title="Search / jump to anything (Ctrl+K)">Search ⌘K</button>
         <button id="articles-btn">Articles</button>
         <button id="media-btn">Media</button>

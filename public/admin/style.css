@@ -229,13 +229,14 @@
 }
 
 .admin-canvas {
+  --canvas-gap: 8px;
   position: relative;
   max-width: 1100px;
   margin: 0 auto;
   min-height: 600px;
   background-image:
     linear-gradient(to right, var(--border) 1px, transparent 1px);
-  background-size: calc((100% - 23 * 8px) / 24 + 8px) 16px;
+  background-size: calc((100% - 23 * var(--canvas-gap)) / 24 + var(--canvas-gap)) 16px;
 }
 
 .admin-block {
@@ -445,19 +446,16 @@
     display: none;
   }
 
+  /* One compact row — "Menu" opens the rest (Articles/Media/etc.) as a
+     slide-out drawer instead of wrapping a dozen small pill buttons
+     across the top, which was cramped and hard to tap accurately. */
   .admin-header {
-    flex-direction: column;
-    align-items: stretch;
     padding: 8px 10px;
     gap: 8px;
   }
 
-  .admin-header-left, .admin-header-right {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
   .admin-header-left {
+    width: 100%;
     gap: 6px;
   }
 
@@ -466,24 +464,15 @@
     min-width: 0;
   }
 
-  #mobile-menu-btn {
-    font-size: 1.1rem;
-    padding: 6px 10px;
+  #mobile-menu-btn, #site-menu-btn {
+    font-size: 0.95rem;
+    padding: 8px 12px;
     flex-shrink: 0;
   }
 
-  .admin-header-right {
-    gap: 6px;
-    justify-content: flex-start;
-    flex-wrap: wrap;
-  }
-
-  /* Natural-width, wrapping pills instead of one unbroken row of buttons
-     squeezed to fit — there are too many admin panels now for a single row. */
-  .admin-header-right button {
-    flex: 0 0 auto;
-    padding: 6px 10px;
-    font-size: 0.78rem;
+  #new-page-btn {
+    flex-shrink: 0;
+    padding: 8px 10px;
   }
 
   .admin-view-live {
@@ -495,7 +484,8 @@
   }
 
   .admin-palette,
-  .admin-inspector {
+  .admin-inspector,
+  .admin-header-right {
     position: fixed;
     top: 0;
     bottom: 0;
@@ -512,14 +502,40 @@
     border-right: 1px solid var(--border);
   }
 
-  .admin-inspector {
+  .admin-inspector,
+  .admin-header-right {
     right: 0;
     transform: translateX(100%);
     border-left: 1px solid var(--border);
   }
 
+  /* The header-right drawer needs its own scroll/stacking since it's no
+     longer an inline flex row in the header — full column of full-width
+     buttons instead. */
+  .admin-header-right {
+    flex-direction: column;
+    align-items: stretch;
+    background: var(--bg-elevated);
+    padding: 56px 16px 16px;
+    overflow-y: auto;
+    gap: 8px;
+  }
+
+  .admin-header-right button, .admin-header-right a {
+    width: 100%;
+    text-align: left;
+    flex: 0 0 auto;
+    padding: 12px 14px;
+    font-size: 0.9rem;
+  }
+
+  .admin-header-right .admin-view-live {
+    display: block;
+  }
+
   .admin-palette.drawer-open,
-  .admin-inspector.drawer-open {
+  .admin-inspector.drawer-open,
+  .admin-header-right.drawer-open {
     transform: translateX(0);
   }
 
@@ -527,8 +543,13 @@
     padding: 12px;
   }
 
+  /* No forced min-width — the 24-column grid just shrinks to fit the
+     screen instead of requiring horizontal scrolling to reach blocks
+     placed further right. The gap also shrinks to match (see
+     canvasMetrics() in app.js, which reads --canvas-gap back from
+     computed style so drag/resize math stays accurate at any width). */
   .admin-canvas {
-    min-width: 700px;
+    --canvas-gap: 3px;
   }
 
   .palette-btn {
