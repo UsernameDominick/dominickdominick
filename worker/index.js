@@ -1,5 +1,17 @@
-import { getPageBySlug, listNavPages, listBlocks, listArticles, getArticleBySlug, getSetting, recordPageview, getRedirect } from "./db.js";
+import {
+  getPageBySlug,
+  listPages,
+  listNavPages,
+  listBlocks,
+  listArticles,
+  getArticleBySlug,
+  getSetting,
+  recordPageview,
+  getRedirect,
+} from "./db.js";
 import { isAuthenticated } from "./auth.js";
+import { renderShell, renderBlocks, renderTags, excerpt, esc, paragraphsHtml } from "./render.js";
+import { handleAdminApi } from "./admin-api.js";
 
 async function getTheme(env) {
   const [accent, bg, font] = await Promise.all([
@@ -9,18 +21,22 @@ async function getTheme(env) {
   ]);
   return { accent: accent || null, bg: bg || null, font: font || null };
 }
-import { renderShell, renderBlocks, renderTags, excerpt, esc, paragraphsHtml } from "./render.js";
-import { handleAdminApi } from "./admin-api.js";
 
-async function renderPage(env, page, url) {
-  const [navItems, blocks, defaultOgImage, theme, footerText, customHead] = await Promise.all([
-    listNavPages(env),
-    listBlocks(env, page.id),
+// Settings every rendered page/article needs, fetched together since
+// renderPage and renderArticle both want the exact same four.
+async function getSiteContext(env) {
+  const [defaultOgImage, theme, footerText, customHead] = await Promise.all([
     getSetting(env, "default_og_image"),
     getTheme(env),
     getSetting(env, "site_footer"),
     getSetting(env, "custom_head"),
   ]);
+  return { defaultOgImage, theme, footerText, customHead };
+}
+
+async function renderPage(env, page, url) {
+  const [navItems, blocks, siteContext] = await Promise.all([listNavPages(env), listBlocks(env, page.id), getSiteContext(env)]);
+  const { defaultOgImage, theme, footerText, customHead } = siteContext;
   const activeTagFilter = url.searchParams.get("tag") || null;
   const bodyHtml = await renderBlocks(env, blocks, { activeTagFilter });
   const jsonLd =
@@ -51,12 +67,7 @@ async function renderPage(env, page, url) {
 
 async function renderArticle(env, article, navItems) {
   const description = excerpt(article.body) || article.title;
-  const [defaultOgImage, theme, footerText, customHead] = await Promise.all([
-    getSetting(env, "default_og_image"),
-    getTheme(env),
-    getSetting(env, "site_footer"),
-    getSetting(env, "custom_head"),
-  ]);
+  const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
   const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 2;">
     <time datetime="${esc(article.published_at)}">${esc((article.published_at || "").slice(0, 10))}</time>
     <h1>${esc(article.title)}</h1>
@@ -130,7 +141,6 @@ ${items}
 }
 
 async function renderSitemap(env) {
-  const { listPages } = await import("./db.js");
   const pages = await listPages(env);
   const articles = await listArticles(env, { publishedOnly: true });
   const entries = [

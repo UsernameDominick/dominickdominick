@@ -103,6 +103,11 @@ export async function deleteBlock(env, id) {
   await env.DB.prepare("DELETE FROM blocks WHERE id = ?").bind(id).run();
 }
 
+export async function getBlockPageId(env, id) {
+  const row = await env.DB.prepare("SELECT page_id FROM blocks WHERE id = ?").bind(id).first();
+  return row ? row.page_id : null;
+}
+
 function parseArticleRow(row) {
   if (!row) return row;
   let tags = [];

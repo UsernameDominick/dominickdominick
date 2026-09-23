@@ -6,6 +6,10 @@
   const GAP = 8;
 
   const el = (id) => document.getElementById(id);
+  // Wires a "×" button that just needs to hide its modal — most of them.
+  // Ones that also need to reset state (media picker, command palette,
+  // simulation builder) wire their own close handler instead of using this.
+  const closeModalOnClick = (btnId, modalId) => el(btnId).addEventListener("click", () => (el(modalId).hidden = true));
   const canvas = el("canvas");
   const loginScreen = el("login-screen");
   const app = el("app");
@@ -718,7 +722,7 @@
     renderArticlesList();
     clearArticleForm();
   });
-  el("close-articles").addEventListener("click", () => (el("articles-modal").hidden = true));
+  closeModalOnClick("close-articles", "articles-modal");
 
   // <input type="datetime-local"> wants "YYYY-MM-DDTHH:MM" in local time,
   // not the article's stored UTC ISO string.
@@ -953,7 +957,7 @@
     el("redirects-modal").hidden = false;
     await loadRedirects();
   });
-  el("close-redirects").addEventListener("click", () => (el("redirects-modal").hidden = true));
+  closeModalOnClick("close-redirects", "redirects-modal");
 
   el("add-redirect-btn").addEventListener("click", async () => {
     const from_path = el("redirect-from").value.trim();
@@ -985,7 +989,7 @@
     el("link-check-results").innerHTML = "";
     el("settings-modal").hidden = false;
   });
-  el("close-settings").addEventListener("click", () => (el("settings-modal").hidden = true));
+  closeModalOnClick("close-settings", "settings-modal");
   el("save-settings").addEventListener("click", async () => {
     try {
       await api("/settings", {
@@ -1072,7 +1076,7 @@
       });
   }
 
-  el("close-revisions").addEventListener("click", () => (el("revisions-modal").hidden = true));
+  closeModalOnClick("close-revisions", "revisions-modal");
   el("page-history-btn").addEventListener("click", () => {
     if (currentPage) openRevisions("page", currentPage.id);
   });
@@ -1298,7 +1302,7 @@
     el("analytics-modal").hidden = false;
     await loadAnalytics();
   });
-  el("close-analytics").addEventListener("click", () => (el("analytics-modal").hidden = true));
+  closeModalOnClick("close-analytics", "analytics-modal");
 
   document.querySelectorAll(".range-btn").forEach((btn) => {
     if (Number(btn.dataset.days) === analyticsRange) btn.classList.add("active");

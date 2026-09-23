@@ -205,7 +205,6 @@
       const p2 = pinPosition(toComp, wire.to.pin);
       if (p1 && p2) path.setAttribute("d", `M${p1.x},${p1.y} L${p2.x},${p2.y}`);
     });
-    const svgEl = svg.querySelector(`[data-id="${compId}"]`);
     const dots = svg.querySelectorAll(`circle[data-comp="${compId}"]`);
     const comp = simData.components.find((c) => c.id === compId);
     const def = comp && REG[comp.type];

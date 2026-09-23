@@ -234,11 +234,6 @@ h6 { font-size: 0.9rem; }
   line-height: 1.6;
 }
 
-.empty-hint {
-  color: var(--text-dim);
-  font-style: italic;
-}
-
 .video-embed {
   position: relative;
   width: 100%;

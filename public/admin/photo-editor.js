@@ -273,8 +273,6 @@
   }
 
   // ---------- Annotate: rect / circle / arrow / text ----------
-  let annotateStart = null;
-
   function annotateColor() {
     return $("pe-annotate-color").value;
   }

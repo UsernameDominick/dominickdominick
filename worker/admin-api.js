@@ -37,6 +37,7 @@ import {
   createSimulation,
   updateSimulation,
   deleteSimulation,
+  getBlockPageId,
 } from "./db.js";
 import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated } from "./auth.js";
 
@@ -54,6 +55,8 @@ function normalizePath(p) {
   if (s.length > 1) s = s.replace(/\/+$/, "");
   return s;
 }
+
+const SETTINGS_KEYS = ["default_og_image", "theme_accent", "theme_bg", "theme_font", "site_footer", "custom_head", "webhook_url"];
 
 // Paths a redirect could otherwise break by intercepting a system route.
 const BLOCKED_REDIRECT_PREFIXES = ["/api", "/admin", "/media", "/sitemap.xml", "/rss.xml", "/robots.txt"];
@@ -191,15 +194,15 @@ async function routeAdminApi(request, env, url, ctx) {
   if (blockMatch && method === "PATCH") {
     const body = await request.json().catch(() => ({}));
     const id = Number(blockMatch[1]);
-    const row = await env.DB.prepare("SELECT page_id FROM blocks WHERE id = ?").bind(id).first();
-    if (row) await maybeSnapshotPage(env, row.page_id);
+    const pageId = await getBlockPageId(env, id);
+    if (pageId) await maybeSnapshotPage(env, pageId);
     await updateBlock(env, id, body);
     return json({ ok: true });
   }
   if (blockMatch && method === "DELETE") {
     const id = Number(blockMatch[1]);
-    const row = await env.DB.prepare("SELECT page_id FROM blocks WHERE id = ?").bind(id).first();
-    if (row) await maybeSnapshotPage(env, row.page_id);
+    const pageId = await getBlockPageId(env, id);
+    if (pageId) await maybeSnapshotPage(env, pageId);
     await deleteBlock(env, id);
     return json({ ok: true });
   }
@@ -444,38 +447,19 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(await getAnalytics(env, Math.min(Math.max(days, 1), 90)));
   }
 
-  // /settings
+  // /settings — SETTINGS_KEYS is the single source of truth for which keys
+  // exist; add a new setting here once instead of in both GET and PUT.
   if (path === "/settings" && method === "GET") {
-    const [default_og_image, theme_accent, theme_bg, theme_font, site_footer, custom_head, webhook_url] = await Promise.all([
-      getSetting(env, "default_og_image"),
-      getSetting(env, "theme_accent"),
-      getSetting(env, "theme_bg"),
-      getSetting(env, "theme_font"),
-      getSetting(env, "site_footer"),
-      getSetting(env, "custom_head"),
-      getSetting(env, "webhook_url"),
-    ]);
-    return json({
-      default_og_image: default_og_image || "",
-      theme_accent: theme_accent || "",
-      theme_bg: theme_bg || "",
-      theme_font: theme_font || "",
-      site_footer: site_footer || "",
-      custom_head: custom_head || "",
-      webhook_url: webhook_url || "",
+    const values = await Promise.all(SETTINGS_KEYS.map((key) => getSetting(env, key)));
+    const result = {};
+    SETTINGS_KEYS.forEach((key, i) => {
+      result[key] = values[i] || "";
     });
+    return json(result);
   }
   if (path === "/settings" && method === "PUT") {
     const body = await request.json().catch(() => ({}));
-    await Promise.all([
-      setSetting(env, "default_og_image", body.default_og_image || ""),
-      setSetting(env, "theme_accent", body.theme_accent || ""),
-      setSetting(env, "theme_bg", body.theme_bg || ""),
-      setSetting(env, "theme_font", body.theme_font || ""),
-      setSetting(env, "site_footer", body.site_footer || ""),
-      setSetting(env, "custom_head", body.custom_head || ""),
-      setSetting(env, "webhook_url", body.webhook_url || ""),
-    ]);
+    await Promise.all(SETTINGS_KEYS.map((key) => setSetting(env, key, body[key] || "")));
     return json({ ok: true });
   }
 
