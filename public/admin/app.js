@@ -266,7 +266,7 @@
   }
 
   function blockLabel(type) {
-    return { heading: "Heading", text: "Text", image: "Image", button: "Button", "project-card": "Project Card", "article-list": "Article List", video: "Video", quote: "Quote", gallery: "Gallery", simulation: "Simulation", divider: "Divider", spacer: "Spacer", links: "Links", html: "HTML / Embed", changelog: "Changelog / Now" }[type] || type;
+    return { heading: "Heading", text: "Text", image: "Image", button: "Button", "project-card": "Project Card", "article-list": "Article List", video: "Video", quote: "Quote", gallery: "Gallery", simulation: "Simulation", divider: "Divider", spacer: "Spacer", links: "Links", html: "HTML / Embed", changelog: "Changelog / Now", embed: "Generic Embed" }[type] || type;
   }
 
   let simulationOptions = [];
@@ -285,6 +285,7 @@
       case "project-card": return `<strong>${escapeHtml(c.title || "(untitled)")}</strong>`;
       case "article-list": return `Shows latest ${c.limit || 10} posts`;
       case "video": return c.url ? escapeHtml(c.url) : "(no video url)";
+      case "embed": return c.url ? escapeHtml(c.url) : "(no embed url)";
       case "quote": return c.text ? `“${escapeHtml(c.text.slice(0, 60))}”` : "(empty)";
       case "gallery": return `${(c.images || []).length} image(s)`;
       case "simulation": return c.simulation_id ? escapeHtml(simulationNameById(c.simulation_id) || `#${c.simulation_id}`) : "(choose a simulation)";
@@ -454,6 +455,7 @@
         // into whatever comes after it (grid rows here are a fixed 16px+gap).
         simulation: { content: { simulation_id: null }, col_span: 24, row_span: 25 },
         video: { content: { url: "" }, col_span: 16, row_span: 12 },
+        embed: { content: { url: "" }, col_span: 16, row_span: 12 },
         quote: { content: { text: "Quote text here.", cite: "" }, col_span: 16, row_span: 6 },
         gallery: { content: { images: [] }, col_span: 24, row_span: 12 },
         links: { content: { items: [] }, col_span: 12, row_span: 6 },
@@ -494,7 +496,7 @@
         ],
       },
     ],
-    text: [{ key: "text", label: "Text (blank line = new paragraph, **bold**, *italic*, [link](url))", type: "textarea" }],
+    text: [{ key: "text", label: "Text (blank line = new paragraph, **bold**, *italic*, [link](url), ```code```, pipe tables, [^1] footnotes)", type: "textarea" }],
     image: [{ key: "url", label: "Image URL", type: "image-url" }, { key: "alt", label: "Alt text", type: "text" }],
     button: [
       { key: "label", label: "Label", type: "text" },
@@ -510,6 +512,7 @@
     ],
     "article-list": [{ key: "limit", label: "How many posts", type: "number" }, { key: "tag", label: "Only show this tag (blank = all)", type: "text" }],
     video: [{ key: "url", label: "YouTube or Vimeo URL", type: "text" }],
+    embed: [{ key: "url", label: "Embed URL (CodePen, Spotify, Figma, CodeSandbox, GitHub Gist, or any iframe-able link)", type: "text" }],
     quote: [
       { key: "text", label: "Quote text", type: "textarea" },
       { key: "cite", label: "Attribution (optional)", type: "text" },
@@ -848,6 +851,11 @@
   }
 
   function populateArticleForm(article) {
+    // Switching articles must drop any pending autosave for the PREVIOUS
+    // one — otherwise it could fire after currentArticleId has moved on
+    // and silently overwrite the article now being edited.
+    clearTimeout(autosaveTimer);
+    setAutosaveStatus("");
     currentArticleId = article.id;
     el("article-title").value = article.title;
     el("article-slug").value = article.slug;
@@ -932,6 +940,8 @@
   el("article-body").addEventListener("input", updateWordCount);
 
   function clearArticleForm() {
+    clearTimeout(autosaveTimer);
+    setAutosaveStatus("");
     currentArticleId = null;
     el("article-title").value = "";
     el("article-slug").value = "";
@@ -952,10 +962,10 @@
       .filter(Boolean);
   }
 
-  el("save-article").addEventListener("click", async () => {
+  function buildArticleBody() {
     const publishAtLocal = el("article-publish-at").value;
     const published = el("article-published").checked;
-    const body = {
+    return {
       title: el("article-title").value,
       slug: el("article-slug").value,
       tags: parseTags(el("article-tags").value),
@@ -965,6 +975,10 @@
       // one schedules it (past or future). Unchecked always means draft.
       published_at: published ? (publishAtLocal ? new Date(publishAtLocal).toISOString() : new Date().toISOString()) : null,
     };
+  }
+
+  el("save-article").addEventListener("click", async () => {
+    const body = buildArticleBody();
     if (!body.title) return alert("Title is required.");
     try {
       if (currentArticleId) {
@@ -977,10 +991,46 @@
       articles = await api("/articles");
       updateArticleExtras();
       renderArticlesList();
+      setAutosaveStatus("Saved " + new Date().toLocaleTimeString());
     } catch (err) {
       alert(err.message);
     }
   });
+
+  // ---------- Article autosave ----------
+  // Only autosaves an article that already exists (has an id/slug) —
+  // a brand new draft still needs an explicit first Save so its slug gets
+  // created deliberately, not from whatever's been typed a few keystrokes in.
+  let autosaveTimer = null;
+  function setAutosaveStatus(text) {
+    const el2 = document.getElementById("article-autosave-status");
+    if (el2) el2.textContent = text;
+  }
+  async function autosaveArticle() {
+    if (!currentArticleId) return;
+    const body = buildArticleBody();
+    if (!body.title) return;
+    try {
+      await api(`/articles/${currentArticleId}`, { method: "PATCH", body: JSON.stringify(body) });
+      articles = await api("/articles");
+      renderArticlesList();
+      setAutosaveStatus("Saved " + new Date().toLocaleTimeString());
+    } catch (err) {
+      setAutosaveStatus("Autosave failed: " + err.message);
+    }
+  }
+  function scheduleAutosave() {
+    if (!currentArticleId) return;
+    setAutosaveStatus("Unsaved changes…");
+    clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(autosaveArticle, 2000);
+  }
+  ["article-title", "article-tags", "article-og-image", "article-body"].forEach((id) =>
+    el(id).addEventListener("input", scheduleAutosave)
+  );
+  ["article-slug", "article-published", "article-publish-at"].forEach((id) =>
+    el(id).addEventListener("change", scheduleAutosave)
+  );
 
   el("delete-article").addEventListener("click", async () => {
     if (!currentArticleId) return;
@@ -1223,18 +1273,129 @@
   });
 
   // ---------- Revisions ----------
+  // A simple word-level LCS diff — fine for typical article lengths. Capped
+  // so a huge body can't hang the tab computing an O(m*n) table.
+  function diffWords(oldText, newText) {
+    const oldWords = String(oldText || "").split(/(\s+)/);
+    const newWords = String(newText || "").split(/(\s+)/);
+    const m = oldWords.length;
+    const n = newWords.length;
+    if (m * n > 400000) return null;
+    const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+    for (let i = m - 1; i >= 0; i--) {
+      for (let j = n - 1; j >= 0; j--) {
+        dp[i][j] = oldWords[i] === newWords[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+      }
+    }
+    const result = [];
+    let i = 0, j = 0;
+    while (i < m && j < n) {
+      if (oldWords[i] === newWords[j]) {
+        result.push({ type: "same", text: oldWords[i] });
+        i++; j++;
+      } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+        result.push({ type: "del", text: oldWords[i] });
+        i++;
+      } else {
+        result.push({ type: "add", text: newWords[j] });
+        j++;
+      }
+    }
+    while (i < m) { result.push({ type: "del", text: oldWords[i] }); i++; }
+    while (j < n) { result.push({ type: "add", text: newWords[j] }); j++; }
+    return result;
+  }
+
+  function diffWordsHtml(oldText, newText) {
+    const diff = diffWords(oldText, newText);
+    if (!diff) return "<p style='color:var(--text-dim);font-size:0.85rem;'>Too large to diff word-by-word — showing versions side by side isn't available here; restore to see the full old version.</p>";
+    return `<p class="revision-diff-text">${diff
+      .map((d) => {
+        const text = escapeHtml(d.text);
+        if (d.type === "add") return `<ins>${text}</ins>`;
+        if (d.type === "del") return `<del>${text}</del>`;
+        return text;
+      })
+      .join("")}</p>`;
+  }
+
+  function normBlockForDiff(b) {
+    return {
+      id: b.id,
+      type: b.type,
+      content: typeof b.content === "string" ? b.content : JSON.stringify(b.content || {}),
+      style: typeof b.style === "string" ? b.style : JSON.stringify(b.style || {}),
+      col: b.col, col_span: b.col_span, row: b.row, row_span: b.row_span,
+    };
+  }
+
+  function diffPageBlocksHtml(oldBlocks, newBlocks) {
+    const oldNorm = oldBlocks.map(normBlockForDiff);
+    const newNorm = newBlocks.map(normBlockForDiff);
+    const oldById = new Map(oldNorm.map((b) => [b.id, b]));
+    const newById = new Map(newNorm.map((b) => [b.id, b]));
+    const rows = [];
+    newNorm.forEach((b) => {
+      if (!oldById.has(b.id)) rows.push({ status: "Added since", type: b.type });
+    });
+    oldNorm.forEach((b) => {
+      const nb = newById.get(b.id);
+      if (!nb) {
+        rows.push({ status: "Removed since (restoring brings it back)", type: b.type });
+      } else if (
+        b.content !== nb.content ||
+        b.style !== nb.style ||
+        b.col !== nb.col ||
+        b.col_span !== nb.col_span ||
+        b.row !== nb.row ||
+        b.row_span !== nb.row_span
+      ) {
+        rows.push({ status: "Changed since", type: b.type });
+      }
+    });
+    if (!rows.length) return "<p style='color:var(--text-dim);font-size:0.85rem;'>No differences from the current page.</p>";
+    return `<ul class="revision-diff-blocks">${rows.map((r) => `<li><strong>${escapeHtml(blockLabel(r.type))}</strong> — ${escapeHtml(r.status)} this version</li>`).join("")}</ul>`;
+  }
+
+  async function showRevisionDiff(kind, entityId, revisionId) {
+    const rev = await api(`/revisions/${revisionId}`);
+    el("revisions-list").hidden = true;
+    el("revisions-diff").hidden = false;
+    if (kind === "article") {
+      const current = articles.find((a) => a.id === entityId);
+      el("revisions-diff-body").innerHTML = diffWordsHtml(rev.snapshot.body, current ? current.body : "");
+    } else {
+      el("revisions-diff-body").innerHTML = diffPageBlocksHtml(rev.snapshot, blocks);
+    }
+  }
+
+  el("revisions-diff-back").addEventListener("click", () => {
+    el("revisions-diff").hidden = true;
+    el("revisions-list").hidden = false;
+  });
+
   async function openRevisions(kind, entityId) {
     el("revisions-modal").hidden = false;
+    el("revisions-diff").hidden = true;
+    el("revisions-list").hidden = false;
     const revisions = await api(`/revisions?kind=${kind}&id=${entityId}`);
     el("revisions-list").innerHTML =
       revisions
         .map(
           (r) =>
-            `<div class="revision-row"><span>${new Date(r.created_at.replace(" ", "T") + "Z").toLocaleString()}</span><button type="button" class="restore-revision" data-id="${
+            `<div class="revision-row"><span>${new Date(r.created_at.replace(" ", "T") + "Z").toLocaleString()}</span><span class="revision-row-actions"><button type="button" class="compare-revision" data-id="${
               r.id
-            }">Restore</button></div>`
+            }">Compare</button><button type="button" class="restore-revision" data-id="${
+              r.id
+            }">Restore</button></span></div>`
         )
         .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No history yet.</p>";
+
+    el("revisions-list")
+      .querySelectorAll(".compare-revision")
+      .forEach((btn) => {
+        btn.addEventListener("click", () => showRevisionDiff(kind, entityId, Number(btn.dataset.id)));
+      });
 
     el("revisions-list")
       .querySelectorAll(".restore-revision")

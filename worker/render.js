@@ -10,14 +10,91 @@ export function esc(str) {
     .replace(/'/g, "&#39;");
 }
 
-// Minimal markdown: **bold**, *italic*, [label](url). Runs on already-
-// HTML-escaped text, so the only unescaped characters left are the ones
-// this inserts itself — safe against breaking the surrounding markup.
-function richText(escapedText) {
-  return escapedText
+// Minimal markdown: **bold**, *italic*, [label](url), plus [^label] footnote
+// references (see extractFootnotes). Runs on already-HTML-escaped text, so
+// the only unescaped characters left are the ones this inserts itself —
+// safe against breaking the surrounding markup.
+function richText(escapedText, footnoteNums) {
+  let out = escapedText
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.+?)\*/g, "<em>$1</em>")
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  if (footnoteNums && footnoteNums.size) {
+    out = out.replace(/\[\^([^\]]+)\]/g, (m, label) => {
+      const n = footnoteNums.get(label);
+      return n ? `<sup id="fnref-${n}"><a href="#fn-${n}">${n}</a></sup>` : m;
+    });
+  }
+  return out;
+}
+
+// Footnote definitions look like their own paragraph/line: "[^label]: text".
+// Pulled out before the rest of the body is split into paragraphs so they
+// never render as regular text, and collected into a Footnotes section
+// appended at the end instead.
+export function extractFootnotes(text) {
+  const defs = new Map();
+  const cleaned = String(text ?? "").replace(/^\[\^([^\]]+)\]:\s*(.+)$/gm, (m, label, def) => {
+    defs.set(label, def.trim());
+    return "";
+  });
+  return { cleaned, defs };
+}
+
+function footnoteNumbering(text, defs) {
+  const nums = new Map();
+  const re = /\[\^([^\]]+)\]/g;
+  let m;
+  let n = 0;
+  while ((m = re.exec(text))) {
+    if (defs.has(m[1]) && !nums.has(m[1])) nums.set(m[1], ++n);
+  }
+  return nums;
+}
+
+function footnotesHtml(nums, defs) {
+  if (!nums.size) return "";
+  const items = [...nums.entries()]
+    .sort((a, b) => a[1] - b[1])
+    .map(([label, n]) => `<li id="fn-${n}">${richText(esc(defs.get(label)))} <a href="#fnref-${n}" class="footnote-back">↩</a></li>`)
+    .join("");
+  return `<section class="footnotes"><hr><ol>${items}</ol></section>`;
+}
+
+// Fenced ```lang\ncode\n``` blocks are pulled out before paragraph
+// splitting (same reason as footnotes) since code can itself contain blank
+// lines, which would otherwise fragment it into multiple "paragraphs".
+const CODE_PLACEHOLDER = /\u0000CODEBLOCK(\d+)\u0000/;
+
+function extractCodeBlocks(text) {
+  const blocks = [];
+  const replaced = text.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+    const i = blocks.length;
+    blocks.push({ lang, code: code.replace(/\n$/, "") });
+    return `\u0000CODEBLOCK${i}\u0000`;
+  });
+  return { replaced, blocks };
+}
+
+// A GFM-lite pipe table: a header row, a "---" separator row, then data
+// rows, all inside one blank-line-delimited paragraph.
+function tableMatch(paragraph) {
+  const lines = paragraph.split("\n").map((l) => l.trim()).filter(Boolean);
+  if (lines.length < 2 || !lines[0].includes("|")) return null;
+  if (!/^\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?$/.test(lines[1])) return null;
+  const splitRow = (line) =>
+    line
+      .replace(/^\|/, "")
+      .replace(/\|$/, "")
+      .split("|")
+      .map((c) => c.trim());
+  return { header: splitRow(lines[0]), rows: lines.slice(2).map(splitRow) };
+}
+
+function tableHtml({ header, rows }) {
+  const thead = `<tr>${header.map((h) => `<th>${richText(esc(h))}</th>`).join("")}</tr>`;
+  const tbody = rows.map((r) => `<tr>${r.map((c) => `<td>${richText(esc(c))}</td>`).join("")}</tr>`).join("");
+  return `<div class="table-wrap"><table><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`;
 }
 
 // A paragraph starting with "## " or "### " renders as a heading instead
@@ -66,24 +143,41 @@ export function tableOfContentsHtml(headings) {
 }
 
 export function paragraphsHtml(text) {
-  const headings = extractHeadings(text);
+  const { cleaned, defs } = extractFootnotes(text);
+  const { replaced, blocks } = extractCodeBlocks(cleaned);
+  const headings = extractHeadings(replaced);
+  const footnoteNums = footnoteNumbering(replaced, defs);
   let hi = 0;
-  return String(text ?? "")
+  const body = replaced
     .split(/\n{2,}/)
+    .filter((p) => p.trim())
     .map((p) => {
-      const h = headingMatch(p.trim());
+      const trimmed = p.trim();
+      const codeMatch = trimmed.match(CODE_PLACEHOLDER);
+      if (codeMatch) {
+        const { lang, code } = blocks[Number(codeMatch[1])];
+        return `<pre><code class="language-${esc(lang || "plaintext")}">${esc(code)}</code></pre>`;
+      }
+      const table = tableMatch(trimmed);
+      if (table) return tableHtml(table);
+      const h = headingMatch(trimmed);
       if (h) {
         const { id, level } = headings[hi++];
         return `<h${level} id="${esc(id)}">${richText(esc(h.text))}</h${level}>`;
       }
-      return `<p>${richText(esc(p)).replace(/\n/g, "<br>")}</p>`;
+      return `<p>${richText(esc(p), footnoteNums).replace(/\n/g, "<br>")}</p>`;
     })
     .join("\n");
+  return body + footnotesHtml(footnoteNums, defs);
 }
 
 function stripMarkdown(text) {
   return String(text ?? "")
+    .replace(/```(\w*)\n([\s\S]*?)```/g, "$2")
+    .replace(/^\[\^([^\]]+)\]:\s*.+$/gm, "")
+    .replace(/\[\^([^\]]+)\]/g, "")
     .replace(/^#{2,3}\s+/gm, "")
+    .replace(/^\s*\|.*\|\s*$/gm, "")
     .replace(/\*\*(.+?)\*\*/g, "$1")
     .replace(/\*(.+?)\*/g, "$1")
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
@@ -238,6 +332,53 @@ function videoEmbedUrl(rawUrl) {
   return null;
 }
 
+// A handful of common embeddable services get a proper embed URL; anything
+// else falls back to a raw iframe (works for plenty of sites, does nothing
+// useful for ones that forbid framing — hence the "open original" link
+// alongside it either way).
+function genericEmbedInfo(rawUrl) {
+  if (!rawUrl) return null;
+  let u;
+  try {
+    u = new URL(rawUrl);
+  } catch {
+    return null;
+  }
+  const host = u.hostname.replace(/^www\./, "");
+  if (host === "codepen.io") {
+    const m = u.pathname.match(/\/([^/]+)\/pen\/([^/]+)/);
+    if (m) return { type: "iframe", src: `https://codepen.io/${m[1]}/embed/${m[2]}?default-tab=result`, height: 400 };
+  }
+  if (host === "open.spotify.com") {
+    const m = u.pathname.match(/^\/(track|album|playlist|episode|show)\/([A-Za-z0-9]+)/);
+    if (m) return { type: "iframe", src: `https://open.spotify.com/embed/${m[1]}/${m[2]}`, height: m[1] === "track" ? 152 : 352 };
+  }
+  if (host === "figma.com") {
+    return { type: "iframe", src: `https://www.figma.com/embed?embed_host=share&url=${encodeURIComponent(rawUrl)}`, height: 450 };
+  }
+  if (host === "codesandbox.io") {
+    const m = u.pathname.match(/\/s\/([^/?]+)/);
+    if (m) return { type: "iframe", src: `https://codesandbox.io/embed/${m[1]}`, height: 500 };
+  }
+  if (host === "gist.github.com") {
+    const m = u.pathname.match(/^\/([^/]+)\/(\w+)/);
+    if (m) return { type: "script", src: `https://gist.github.com/${m[1]}/${m[2]}.js` };
+  }
+  if (!/^https?:$/.test(u.protocol)) return null;
+  return { type: "iframe", src: rawUrl, height: 400 };
+}
+
+function genericEmbedHtml(rawUrl) {
+  const info = genericEmbedInfo(rawUrl);
+  if (!info) return rawUrl ? `<p class="empty-hint">Couldn't figure out how to embed that link.</p>` : `<p class="empty-hint">No embed URL yet.</p>`;
+  if (info.type === "script") {
+    return `<div class="generic-embed"><script src="${esc(info.src)}"></script></div>`;
+  }
+  return `<div class="generic-embed"><iframe src="${esc(info.src)}" loading="lazy" style="height:${info.height}px" allow="autoplay; encrypted-media; fullscreen; clipboard-write" allowfullscreen></iframe><p class="embed-fallback"><a href="${esc(
+    rawUrl
+  )}" target="_blank" rel="noopener">Open original ↗</a></p></div>`;
+}
+
 async function renderBlockInner(env, block, ctx) {
   const c = block.content || {};
   switch (block.type) {
@@ -287,6 +428,8 @@ async function renderBlockInner(env, block, ctx) {
     }
     case "quote":
       return `<blockquote class="block-quote">${paragraphsHtml(c.text)}${c.cite ? `<footer>${esc(c.cite)}</footer>` : ""}</blockquote>`;
+    case "embed":
+      return genericEmbedHtml(c.url);
     case "gallery": {
       const images = Array.isArray(c.images) ? c.images.filter(Boolean) : [];
       if (!images.length) return `<p class="empty-hint">No images yet.</p>`;
@@ -406,6 +549,9 @@ ${ogImage ? `<meta name="twitter:image" content="${esc(ogImage)}">` : ""}
 ${themeStyle}
 <script src="/sim-player.js" defer></script>
 <script src="/article-extras.js" defer></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" defer></script>
+<script>document.addEventListener("DOMContentLoaded",function(){if(window.hljs)hljs.highlightAll();});</script>
 <script type="application/ld+json">${JSON.stringify({
     "@context": "https://schema.org",
     "@type": "WebSite",

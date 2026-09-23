@@ -376,6 +376,13 @@
   margin-top: -6px;
 }
 
+.article-autosave-status {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin-top: -6px;
+  min-height: 1.2em;
+}
+
 .og-preview-label {
   font-size: 0.72rem;
   text-transform: uppercase;
@@ -1437,6 +1444,60 @@
   font-weight: 600;
   cursor: pointer;
   flex-shrink: 0;
+}
+
+.revision-row-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.revision-row-actions .compare-revision {
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.revisions-diff {
+  padding: 20px;
+  overflow-y: auto;
+}
+
+#revisions-diff-back {
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  margin-bottom: 14px;
+}
+
+.revision-diff-text {
+  font-size: 0.9rem;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.revision-diff-text ins {
+  background: rgba(80, 200, 120, 0.25);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.revision-diff-text del {
+  background: rgba(220, 80, 80, 0.25);
+  color: var(--text-dim);
+}
+
+.revision-diff-blocks {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.9rem;
 }
 
 /* Link checker */

@@ -56,6 +56,7 @@
         <button class="palette-btn" data-type="project-card">Project Card</button>
         <button class="palette-btn" data-type="article-list">Article List</button>
         <button class="palette-btn" data-type="video">Video Embed</button>
+        <button class="palette-btn" data-type="embed">Generic Embed</button>
         <button class="palette-btn" data-type="quote">Quote</button>
         <button class="palette-btn" data-type="gallery">Gallery</button>
         <button class="palette-btn" data-type="simulation">Simulation</button>
@@ -121,8 +122,9 @@
             <input id="article-og-image" placeholder="Share image URL (og:image, blank = site default)">
             <button type="button" class="upload-trigger" data-target="#article-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#article-og-image">Browse…</button>
           </div>
-          <textarea id="article-body" placeholder="Write here. Blank line = new paragraph. **bold**, *italic*, [link](url). ## Heading, ### Subheading (two or more headings add a table of contents)." rows="16"></textarea>
+          <textarea id="article-body" placeholder="Write here. Blank line = new paragraph. **bold**, *italic*, [link](url). ## Heading, ### Subheading (two or more headings add a table of contents). ```lang / code / ``` for a code block. Pipe tables. [^1] + [^1]: note for footnotes." rows="16"></textarea>
           <div id="article-word-count" class="article-word-count">0 words · 0 min read</div>
+          <div id="article-autosave-status" class="article-autosave-status"></div>
           <div class="og-preview-label">Share preview</div>
           <div class="og-preview" id="og-preview-article">
             <div class="og-preview-img" id="og-preview-article-img"></div>
@@ -302,6 +304,10 @@
       </header>
       <p class="redirects-hint">Restoring saves the current state first, so restoring is itself undoable.</p>
       <div id="revisions-list" class="revisions-list"></div>
+      <div id="revisions-diff" class="revisions-diff" hidden>
+        <button type="button" id="revisions-diff-back">← Back to list</button>
+        <div id="revisions-diff-body"></div>
+      </div>
     </div>
   </div>
 

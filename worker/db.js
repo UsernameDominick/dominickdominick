@@ -389,7 +389,7 @@ export async function listRevisions(env, kind, entityId) {
   return results;
 }
 
-async function getRevision(env, id) {
+export async function getRevision(env, id) {
   const row = await env.DB.prepare("SELECT * FROM revisions WHERE id = ?").bind(id).first();
   if (!row) return null;
   return { ...row, snapshot: JSON.parse(row.snapshot) };

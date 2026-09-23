@@ -34,6 +34,7 @@ import {
   maybeSnapshotPage,
   snapshotArticle,
   listRevisions,
+  getRevision,
   restorePageRevision,
   restoreArticleRevision,
   search,
@@ -415,6 +416,14 @@ async function routeAdminApi(request, env, url, ctx) {
       return json({ error: "Invalid kind/id" }, { status: 400 });
     }
     return json(await listRevisions(env, kind, id));
+  }
+  // /revisions/:id — a single revision's full snapshot, for a diff preview
+  // before committing to restoring it.
+  const revisionDetailMatch = path.match(/^\/revisions\/(\d+)$/);
+  if (revisionDetailMatch && method === "GET") {
+    const rev = await getRevision(env, Number(revisionDetailMatch[1]));
+    if (!rev) return json({ error: "Not found" }, { status: 404 });
+    return json(rev);
   }
   const restoreMatch = path.match(/^\/revisions\/(\d+)\/restore$/);
   if (restoreMatch && method === "POST") {
