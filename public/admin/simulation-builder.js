@@ -155,7 +155,7 @@
     const pinsSvg = simData.components.map(renderPinDots).join("");
     $("sim-builder-canvas").innerHTML = `<svg id="sim-builder-svg" viewBox="0 0 900 500" xmlns="http://www.w3.org/2000/svg" class="sim-svg${
       previewOn ? " is-on" : ""
-    }">${wiresSvg}${compsSvg}${pinsSvg}</svg>`;
+    }">${window.SIM_DEFS_SVG}${wiresSvg}${compsSvg}${pinsSvg}</svg>`;
     attachBuilderEvents();
     applyZoom();
   }
@@ -220,6 +220,29 @@
     }
   }
 
+  // Parts that physically plug into a breadboard rather than dangling on
+  // a cable to it. Snapping is anchored on the part's first pin — the
+  // other leg just moves rigidly with it, close enough visually even
+  // though a resistor's lead spacing doesn't exactly match hole spacing.
+  const SNAP_TO_BREADBOARD_TYPES = new Set(["led", "resistor"]);
+  const SNAP_THRESHOLD = 18;
+
+  function findNearestHole(x, y, excludeCompId) {
+    let best = null;
+    simData.components.forEach((c) => {
+      if (c.type !== "breadboard" || c.id === excludeCompId) return;
+      REG.breadboard.pins.forEach((pin) => {
+        const hx = c.x + pin.x;
+        const hy = c.y + pin.y;
+        const dist = Math.hypot(hx - x, hy - y);
+        if (dist <= SNAP_THRESHOLD && (!best || dist < best.dist)) {
+          best = { breadboardId: c.id, holeId: pin.id, x: hx, y: hy, dist };
+        }
+      });
+    });
+    return best;
+  }
+
   function onComponentPointerDown(e) {
     e.stopPropagation();
     const g = e.currentTarget;
@@ -236,16 +259,47 @@
     const startY = comp.y;
     g.setPointerCapture(e.pointerId);
 
+    const canSnap = SNAP_TO_BREADBOARD_TYPES.has(comp.type);
+    const anchorPin = canSnap ? REG[comp.type].pins[0] : null;
+    let snapTarget = null;
+
     function onMove(ev) {
       const p = svgPoint(ev);
       comp.x = Math.round(startX + (p.x - start.x));
       comp.y = Math.round(startY + (p.y - start.y));
+      if (canSnap) {
+        const anchorAbs = { x: comp.x + anchorPin.x, y: comp.y + anchorPin.y };
+        const hole = findNearestHole(anchorAbs.x, anchorAbs.y, compId);
+        if (hole) {
+          comp.x += hole.x - anchorAbs.x;
+          comp.y += hole.y - anchorAbs.y;
+          snapTarget = { breadboardId: hole.breadboardId, holeId: hole.holeId };
+          g.classList.add("sim-snapped");
+        } else {
+          snapTarget = null;
+          g.classList.remove("sim-snapped");
+        }
+      }
       g.setAttribute("transform", `translate(${comp.x},${comp.y})`);
       updateWiresForComponent(compId);
     }
     function onUp() {
       g.removeEventListener("pointermove", onMove);
       g.removeEventListener("pointerup", onUp);
+      if (canSnap) {
+        simData.wires = simData.wires.filter(
+          (w) => !(w.auto && ((w.from.compId === compId && w.from.pin === anchorPin.id) || (w.to.compId === compId && w.to.pin === anchorPin.id)))
+        );
+        if (snapTarget) {
+          simData.wires.push({
+            id: newLocalId("wire"),
+            from: { compId, pin: anchorPin.id },
+            to: { compId: snapTarget.breadboardId, pin: snapTarget.holeId },
+            kind: "wire",
+            auto: true,
+          });
+        }
+      }
       renderBuilder();
     }
     g.addEventListener("pointermove", onMove);
@@ -299,20 +353,28 @@
     const box = $("sim-inspector");
     if (!selected) {
       box.innerHTML =
-        "<p style='color:var(--text-dim);font-size:0.85rem;'>Click a part or a wire to edit it. Click a pin, then another pin, to wire them.</p><p style='color:var(--text-dim);font-size:0.85rem;'>Power flows automatically along wires from any Wall Outlet or Battery — wire outlet → power supply → breadboard → Teensy, and anything actually connected lights up when you hit \"Preview: power on\".</p>";
+        "<p style='color:var(--text-dim);font-size:0.85rem;'>Click a part or a wire to edit it. Click a pin, then another pin, to wire them.</p><p style='color:var(--text-dim);font-size:0.85rem;'>Power needs a complete loop back to a Wall Outlet or Battery — not just any connection. Wire outlet → power supply → breadboard → Teensy, and the loop needs to close (e.g. through an LED+resistor bridging the two breadboard rails, or the Teensy itself). An LED wired backwards won't light even in an otherwise-complete loop, same as a real one.</p>";
       return;
     }
     if (selected.kind === "component") {
       const comp = simData.components.find((c) => c.id === selected.id);
       if (!comp) return;
       const def = REG[comp.type];
-      const { poweredComps } = window.computeSimPoweredSet(simData);
+      const { poweredComps, poweredNodes } = window.computeSimPoweredSet(simData);
       const isPowered = poweredComps.has(comp.id);
-      const statusLine = def.isSource
-        ? "⚡ Power source"
-        : isPowered
-        ? "⚡ Connected to a power source"
-        : "Not connected to a power source";
+      let statusLine;
+      if (def.isSource) {
+        statusLine = "⚡ Power source";
+      } else if (isPowered) {
+        statusLine = "⚡ Part of a complete circuit";
+      } else if (def.polarity) {
+        const posNode = window.simNodeId(comp, def.polarity.pos);
+        const negNode = window.simNodeId(comp, def.polarity.neg);
+        const bothReached = poweredNodes.has(posNode) && poweredNodes.has(negNode);
+        statusLine = bothReached ? "Both legs reach power, but wired backwards" : "Not part of a complete circuit yet";
+      } else {
+        statusLine = "Not part of a complete circuit yet";
+      }
       box.innerHTML = `
         <p><strong>${escapeXml(def.label)}</strong></p>
         <p class="sim-power-status ${isPowered || def.isSource ? "is-powered" : ""}">${statusLine}</p>

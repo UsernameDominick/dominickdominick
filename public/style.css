@@ -294,8 +294,12 @@ h6 { font-size: 0.9rem; }
   border-radius: 10px;
 }
 
-/* Simulations — an animated diagram, not an electrically accurate model:
-   "powered"/"animated" are set by hand in the builder, not computed. */
+/* Simulations — a wiring-accurate diagram, not an electrically accurate
+   model: whether a part lights up is computed from whether it's on a
+   genuinely closed loop back to a source (see simulation-render.js /
+   sim-components.js), not from a manual flag. The <defs> gradients
+   referenced below (url(#sim-grad-...)) are emitted once per rendered
+   simulation, inline in the SVG itself. */
 .sim-block-wrap {
   display: flex;
   flex-direction: column;
@@ -311,101 +315,175 @@ h6 { font-size: 0.9rem; }
   border-radius: 12px;
 }
 
+/* Outlet */
 .sim-comp .outlet-body {
-  fill: #d8d4c8;
+  fill: url(#sim-grad-plastic);
   stroke: #8a8574;
   stroke-width: 2;
 }
+.sim-comp .outlet-plate {
+  fill: none;
+  stroke: #b8b0a0;
+  stroke-width: 1;
+}
 .sim-comp .outlet-slot {
-  fill: #2a2a2a;
+  fill: url(#sim-grad-hole);
 }
 .sim-comp .outlet-ground {
   fill: #2a2a2a;
 }
+
+/* Power supply */
 .sim-comp .ps-body {
-  fill: #444;
-  stroke: #222;
+  fill: #3a3a3a;
+  stroke: #1a1a1a;
   stroke-width: 1.5;
-  transition: fill 0.3s;
 }
-.sim-svg.is-on .sim-comp[data-powered="true"] .ps-body {
-  fill: #3a5a3a;
+.sim-comp .ps-vent {
+  fill: #1a1a1a;
+}
+.sim-comp .ps-indicator {
+  fill: #555;
+  transition: fill 0.3s, filter 0.3s;
+}
+.sim-svg.is-on .sim-comp[data-powered="true"] .ps-indicator {
+  fill: #6dff6d;
+  filter: drop-shadow(0 0 4px #6dff6d);
 }
 .sim-comp .ps-label {
-  fill: #fff;
-  font-size: 10px;
+  fill: #ccc;
   font-family: sans-serif;
 }
+
+/* Breadboard */
 .sim-comp .bb-body {
-  fill: #e8e2d0;
+  fill: url(#sim-grad-board);
   stroke: #b8ab7a;
   stroke-width: 2;
 }
-.sim-comp .bb-hole {
-  fill: #33302a;
+.sim-comp .bb-channel {
+  fill: #c8bc94;
+  opacity: 0.5;
 }
+.sim-comp .bb-hole {
+  fill: url(#sim-grad-hole);
+}
+
+/* LED */
 .sim-comp .led-bulb {
-  fill: #555;
-  stroke: #333;
+  fill: url(#sim-grad-led-off);
+  stroke: #2a2a2a;
   stroke-width: 1;
   transition: fill 0.3s, filter 0.3s;
 }
+.sim-comp .led-shine {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.55);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
 .sim-comp .led-lead {
-  stroke: #999;
+  stroke: url(#sim-grad-metal);
   stroke-width: 2;
 }
 .sim-svg.is-on .sim-comp[data-powered="true"] .led-bulb {
-  fill: #ffe066;
-  filter: drop-shadow(0 0 6px #ffe066);
+  fill: url(#sim-grad-led-on);
+  filter: url(#sim-glow);
 }
+
+/* Resistor */
 .sim-comp .resistor-body {
-  fill: #d9c48a;
+  fill: url(#sim-grad-resistor);
   stroke: #7a6a3a;
   stroke-width: 1.5;
 }
+.sim-comp .resistor-band {
+  fill: #5a4020;
+  opacity: 0.75;
+}
 .sim-comp .resistor-lead {
-  stroke: #555;
+  stroke: url(#sim-grad-metal);
   stroke-width: 2;
 }
+
+/* Battery */
 .sim-comp .battery-body {
-  fill: #333;
+  fill: url(#sim-grad-battery);
   stroke: #111;
   stroke-width: 1.5;
 }
+.sim-comp .battery-cap {
+  fill: url(#sim-grad-metal);
+}
 .sim-comp .battery-label {
-  fill: #fff;
-  font-size: 10px;
+  fill: #ddd;
   font-family: sans-serif;
 }
+
+/* Microcontroller */
 .sim-comp .mcu-body {
-  fill: #1c3d5a;
+  fill: url(#sim-grad-pcb);
   stroke: #0a1f30;
   stroke-width: 2;
 }
+.sim-comp .mcu-chip {
+  fill: #111;
+  stroke: #000;
+  stroke-width: 1;
+}
+.sim-comp .mcu-pin {
+  fill: url(#sim-grad-metal);
+}
+.sim-comp .mcu-power-pin {
+  fill: #7a1010;
+  transition: fill 0.3s, filter 0.3s;
+}
+.sim-comp .mcu-gnd-pin {
+  fill: #333;
+}
+.sim-svg.is-on .sim-comp[data-powered="true"] .mcu-power-pin {
+  fill: #ff4d4d;
+  filter: url(#sim-glow);
+}
 .sim-comp .mcu-label {
-  fill: #fff;
-  font-size: 10px;
+  fill: #cfe8ff;
   font-family: sans-serif;
 }
+
+/* TV / Display */
 .sim-comp .tv-body {
-  fill: #111;
-  stroke: #333;
+  fill: url(#sim-grad-tv-bezel);
+  stroke: #000;
   stroke-width: 3;
 }
 .sim-comp .tv-screen {
-  fill: #223;
+  fill: #1a2230;
   transition: fill 0.3s;
 }
-.sim-svg.is-on .sim-comp[data-powered="true"] .tv-screen {
-  fill: #6cf;
+.sim-comp .tv-glare {
+  fill: rgba(255, 255, 255, 0.06);
 }
+.sim-comp .tv-led {
+  fill: #333;
+  transition: fill 0.3s, filter 0.3s;
+}
+.sim-svg.is-on .sim-comp[data-powered="true"] .tv-screen {
+  fill: url(#sim-grad-screen-on);
+}
+.sim-svg.is-on .sim-comp[data-powered="true"] .tv-led {
+  fill: #6dff6d;
+  filter: url(#sim-glow);
+}
+
+/* Wires */
 .sim-wire {
-  stroke: #888;
+  stroke: #8a8478;
   stroke-width: 3;
+  stroke-linecap: round;
   fill: none;
 }
 .sim-wire-hdmi {
-  stroke: #c33;
+  stroke: #b23a3a;
   stroke-width: 4;
 }
 .sim-wire[data-animated="true"] {

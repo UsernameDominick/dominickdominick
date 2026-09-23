@@ -69,19 +69,26 @@ Worker secret, not stored in this repo). From there:
 - "Simulations" is a small builder for wiring-accurate circuit/AV
   diagrams — drag parts (wall outlet, power supply, breadboard, LED,
   resistor, battery, a Teensy-style microcontroller, a TV/display) onto
-  a canvas and click one pin then another to wire them. What lights up
-  is computed, not manually flagged: anything connected — directly or
-  through a chain of wires — back to an outlet or battery lights up when
-  powered, and anything not wired in stays dark. Wire outlet → power
-  supply → breadboard → Teensy, then Teensy → breadboard, and the whole
-  chain lights together; leave a part unwired and it won't. There's
-  still no real electrical modeling underneath (no voltage, current, or
-  polarity) — just "is there a wire path to a power source," which is
-  enough to make wiring order and mistakes actually show up in the
-  diagram. The canvas has zoom controls and larger pins on touchscreens
-  so it's usable on a phone, though precise wiring is still easier on a
-  bigger screen. Add a saved simulation to any page/article via the
-  Simulation block; readers get a "Power on" button.
+  a canvas and click one pin then another to wire them. Dragging an LED
+  or resistor near a breadboard hole snaps it into place and plugs it in
+  automatically, like a real breadboard.
+  What lights up is computed from an actual closed loop back to an
+  outlet or battery — not just "is it connected to something." A
+  dangling wire with no return path lights nothing, and an LED wired
+  backwards won't light even in an otherwise-complete loop, the same way
+  a real one wouldn't; other parts (resistors, wires, a Teensy) aren't
+  direction-sensitive, so they conduct either way in this simplified
+  model. Wire outlet → power supply → breadboard → Teensy, then Teensy →
+  breadboard, and the whole chain lights together once the loop closes.
+  There's still no real electrical modeling underneath (no voltage,
+  current, or resistance) — just closed-loop topology, which is enough
+  to catch the classic wiring mistakes without becoming a circuit
+  simulator. Every part is drawn with gradient shading and highlights
+  rather than flat colors. The canvas has zoom controls and larger pins
+  on touchscreens so it's usable on a phone, though precise wiring is
+  still easier on a bigger screen. Add a saved simulation to any
+  page/article via the Simulation block; readers get a "Power on"
+  button.
 - Press **Ctrl/Cmd+K** anywhere in the admin for a search/command palette —
   jump to a page, article, or block by text match, or open any panel.
   Ctrl/Cmd+S saves the current form; with a block selected, Delete removes

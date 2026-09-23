@@ -986,6 +986,10 @@
   pointer-events: none;
 }
 
+.sim-comp.sim-snapped {
+  filter: drop-shadow(0 0 4px var(--accent));
+}
+
 .sim-wire.sim-selected {
   stroke: var(--accent) !important;
 }
