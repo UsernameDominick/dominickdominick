@@ -321,7 +321,7 @@ measurement history, and a limitations doc.
 - ✅ Timeline and year-based browsing (`/archive`, grouped by publish year)
 - ☐ Interactive project map or visual index
 - ✅ Random article/project button (⇌ icon in the topbar, next to search; /shuffle route)
-- ☐ Visitor bookmarks or save-for-later
+- ✅ Visitor bookmarks or save-for-later ("Save for later" button next to share links; `/saved` lists them, same client-only localStorage approach as reading history)
 - ✅ Locally stored visitor reading history (`/history` — reads/writes localStorage only, nothing sent to the server; recorded by nav.js on every article/project view, with a clear-history control)
 - ✅ Reading-time estimates for long project pages (sums project body + every journal entry, since that's usually where a project page's real length comes from)
 - ✅ RSS feeds by content type or tag (`/rss.xml?type=article|project&tag=x`; also fixed a real gap where the feed never included projects at all, and added the missing `<link rel="alternate">` discovery tag site-wide)

@@ -412,7 +412,8 @@ body {
 }
 
 .copy-link-btn,
-.share-link {
+.share-link,
+.save-for-later-btn {
   background: transparent;
   color: var(--text-dim);
   border: 1px solid var(--border);
@@ -426,9 +427,28 @@ body {
 }
 
 .copy-link-btn:hover,
-.share-link:hover {
+.share-link:hover,
+.save-for-later-btn:hover {
   color: var(--text);
   border-color: var(--accent);
+}
+
+.save-for-later-btn.is-saved {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.remove-saved-btn {
+  background: transparent;
+  color: var(--text-dim);
+  border: none;
+  cursor: pointer;
+  font-size: 0.8rem;
+  text-decoration: underline;
+}
+
+.remove-saved-btn:hover {
+  color: var(--text);
 }
 
 .table-of-contents {

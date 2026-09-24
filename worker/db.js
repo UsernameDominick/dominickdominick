@@ -7,6 +7,7 @@ export const RESERVED_SLUGS = new Set([
   "topics",
   "archive",
   "history",
+  "saved",
   "shuffle",
   "search",
   "media",

@@ -422,6 +422,30 @@ async function renderHistoryPage(env, navItems) {
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
+// Same client-only pattern as reading history — bookmarks live in the
+// visitor's own localStorage, this route just ships the empty shell.
+async function renderSavedPage(env, navItems) {
+  const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
+  const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 16;">
+    <h1>Saved</h1>
+    <p>Stored only in your browser — never sent to or seen by this site. <button type="button" id="clear-saved-btn">Clear all</button></p>
+    <div id="saved-items-list"><noscript>Requires JavaScript.</noscript></div>
+  </div>`;
+  const html = renderShell({
+    title: "Saved · Dominick",
+    description: "Articles and projects you've saved for later, stored locally in your browser.",
+    path: "/saved",
+    navItems,
+    activeSlug: null,
+    bodyHtml,
+    ogImage: defaultOgImage || null,
+    theme,
+    footerText,
+    customHead,
+  });
+  return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
+}
+
 async function renderTopicPage(env, tag, navItems) {
   const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
   const { articles, projects } = await getContentByTag(env, tag);
@@ -736,6 +760,11 @@ async function route(request, env, ctx) {
     if (path === "/history") {
       const navItems = await listNavPages(env);
       return renderHistoryPage(env, navItems);
+    }
+
+    if (path === "/saved") {
+      const navItems = await listNavPages(env);
+      return renderSavedPage(env, navItems);
     }
 
     const simulationMatch = path.match(/^\/simulation\/(\d+)$/);
