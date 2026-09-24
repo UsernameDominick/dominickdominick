@@ -14,6 +14,20 @@ was fully migrated to match `schema.sql` first (see `PRODUCTION_TODO.md`
 for that history and any other manual/human-only items). Work continues
 on the `production` branch from here.
 
+**Overnight session (still 2026-09-24), working through the list solo per
+your go-ahead** — seven batches, each committed and pushed to
+`production` separately, each tested with Playwright before committing:
+media captions/credits/licensing + unused-file review + bulk move/tag
+(section 12); text/border color + heading-font tokens with a live
+contrast checker (section 3); project reading time + per-type/tag RSS
+feeds + a random-page button (sections 10/18); topic browsing at
+`/topics` (section 18) — which also fixed a real bug where a project's
+tag chips linked to the article-only index and showed nothing; project
+share previews + a site-wide SEO report (section 21); a keyboard
+shortcuts reference modal (section 24). One schema change is queued
+(`media.caption/credit/license`, not yet applied to production — see
+`PRODUCTION_TODO.md`). Everything else needed no schema change.
+
 ---
 
 ## 1. Existing foundation

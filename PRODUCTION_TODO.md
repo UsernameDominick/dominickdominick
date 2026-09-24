@@ -69,6 +69,45 @@ or `npx wrangler d1 execute dominickdominick --remote --command "..."`
 from a machine with the right credentials. Always confirm with the user
 before running anything against production — this project's standing rule.
 
+## Deferred from tonight's overnight session
+
+- **Orphan-page detection** (section 18/21 on the master list) — the
+  real design question isn't small: an article/project can be published,
+  in the sitemap, and directly linkable, but still practically
+  unreachable by browsing if it's aged out of every article-list/
+  project-list block's `limit` (or simply never linked to from anywhere
+  else). Detecting that correctly means walking every block type that
+  can hold an internal link (button, links list, project-card, inline
+  markdown links in article/project/journal bodies, nav) and reasoning
+  about list-block limits truncating older items — worth getting right
+  rather than shipping a version with false positives that erodes trust
+  in the tool. Good next candidate, deliberately not rushed tonight.
+- **"Recently edited" / favorites in the command palette** (section 24)
+  — `activity_log` tracks actions but not the edited item's `id` (only
+  its label at the time), so a title change or slug change makes an
+  old log entry a stale/wrong link. Doing this right either means adding
+  an `entity_id` column to `activity_log` (a real schema change) or a
+  separate lightweight client-side (localStorage) recency tracker.
+  Neither was started tonight; flagging the two viable approaches for
+  whoever picks this up next.
+
+## Local dev-only housekeeping (not urgent, not production)
+
+- The local dev D1 `home` page (id 9, this environment's sandbox database
+  only — never production) is carrying ~20 leftover test blocks (a
+  deliberately garish red-text/green-border heading, a video/quote/
+  gallery/simulation/html grab-bag) from testing many sessions ago,
+  overlapping visually. A bulk-delete of all of them was blocked by this
+  environment's own auto-mode safety classifier ("irreversible local
+  destruction") when attempted autonomously overnight — reasonable
+  caution for a bulk-delete loop, so it was left alone rather than
+  worked around. Purely cosmetic (only affects local screenshots taken
+  in this dev environment); if you want it cleaned up, it just needs
+  someone to approve the deletes (or do it from the admin UI directly).
+  Same for dozens of old test articles from much earlier sessions
+  (`series-part-*`, `toc-test-article*`, etc.) — harmless clutter, not
+  urgent.
+
 ## Other manual/human-only items
 
 - **Highlight.js CDN dependency**: code blocks load `highlight.js` from
