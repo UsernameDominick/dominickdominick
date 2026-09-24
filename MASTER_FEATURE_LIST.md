@@ -215,7 +215,7 @@ page. Noting where the supporting capability exists vs. doesn't:
 - 🔶 Hero images, videos, and interactive demos (hero image ✅; hero video ☐; demos via related simulations/scans, not embedded inline yet)
 - ✅ Structured tech stack and tools
 - ✅ GitHub, demo, documentation, and download links
-- ☐ Screenshots with captions and optional device frames
+- ✅ Screenshots with captions and optional device frames (image block captions already existed; added a "frame" option — browser window or phone — on any image block)
 - ✅ Before/after comparisons (a new "Before / After" block type — drag slider, site-wide, no per-block JS setup)
 - ✅ Project status fields
 - 🔶 Development timelines and milestones (build journal entries are dated and tell a timeline; no dedicated milestones widget)

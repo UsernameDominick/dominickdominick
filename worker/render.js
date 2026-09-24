@@ -602,7 +602,12 @@ async function renderBlockInner(env, block, ctx) {
     case "text":
       return paragraphsHtml(c.text);
     case "image": {
-      const img = `<img src="${esc(c.url)}" alt="${esc(c.alt)}" loading="lazy" style="max-width:100%;border-radius:12px;">`;
+      const rawImg = `<img src="${esc(c.url)}" alt="${esc(c.alt)}" loading="lazy" style="max-width:100%;border-radius:12px;">`;
+      const img = c.frame === "browser"
+        ? `<div class="device-frame device-frame-browser"><div class="device-frame-bar"><span></span><span></span><span></span></div><div class="device-frame-body">${rawImg}</div></div>`
+        : c.frame === "phone"
+        ? `<div class="device-frame device-frame-phone"><div class="device-frame-notch"></div><div class="device-frame-body">${rawImg}</div></div>`
+        : rawImg;
       if (!c.caption && !c.credit) return img;
       const creditHtml = c.credit ? ` <cite>${esc(c.credit)}</cite>` : "";
       return `<figure class="image-figure">${img}<figcaption>${esc(c.caption || "")}${creditHtml}</figcaption></figure>`;

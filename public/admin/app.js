@@ -944,6 +944,16 @@
       { key: "alt", label: "Alt text", type: "text" },
       { key: "caption", label: "Caption (shown under the image)", type: "text" },
       { key: "credit", label: "Credit (shown after the caption)", type: "text" },
+      {
+        key: "frame",
+        label: "Device frame (for screenshots)",
+        type: "select",
+        options: [
+          ["", "None"],
+          ["browser", "Browser window"],
+          ["phone", "Phone"],
+        ],
+      },
     ],
     button: [
       { key: "label", label: "Label", type: "text" },

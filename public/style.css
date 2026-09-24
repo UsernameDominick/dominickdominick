@@ -1101,6 +1101,60 @@ h6 { font-size: 0.9rem; }
   font-size: 0.85rem;
 }
 
+.device-frame {
+  display: inline-block;
+  max-width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #1a1a1c;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.device-frame img {
+  display: block;
+  max-width: 100%;
+  border-radius: 0 !important;
+}
+
+.device-frame-browser .device-frame-bar {
+  display: flex;
+  gap: 6px;
+  padding: 10px 12px;
+  background: #2a2a2d;
+}
+
+.device-frame-browser .device-frame-bar span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #4a4a4e;
+}
+
+.device-frame-browser .device-frame-bar span:first-child {
+  background: #e8663a;
+}
+
+.device-frame-phone {
+  border-radius: 32px;
+  border: 8px solid #1a1a1c;
+  max-width: 320px;
+}
+
+.device-frame-phone .device-frame-notch {
+  height: 18px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.device-frame-phone .device-frame-notch::before {
+  content: "";
+  width: 60px;
+  height: 6px;
+  border-radius: 4px;
+  background: #000;
+}
+
 .before-after {
   position: relative;
   overflow: hidden;
