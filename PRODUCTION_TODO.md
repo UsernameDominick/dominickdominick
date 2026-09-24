@@ -49,6 +49,14 @@ CREATE TABLE webhook_deliveries (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX idx_webhook_deliveries_created ON webhook_deliveries(created_at);
+CREATE TABLE reactions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  content_type TEXT NOT NULL,
+  content_id INTEGER NOT NULL,
+  emoji TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_reactions_content ON reactions(content_type, content_id);
 ```
 
 After this migration lands, run `POST /api/admin/media/backfill-hashes`

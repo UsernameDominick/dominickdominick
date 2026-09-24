@@ -332,7 +332,7 @@ Contact form, admin inbox, guestbook/comments, moderation, and newsletter
 were **explicitly declined by you earlier this session** — left ☐
 deliberately, not an oversight.
 
-- ☐ Reactions or lightweight post feedback
+- ✅ Reactions or lightweight post feedback (👍/💡/❤️ buttons on every article and project; aggregate counts only, no visitor identity recorded — double-voting is discouraged client-side via localStorage, matching the site's no-accounts analytics approach elsewhere)
 - ✅ Expanded sharing controls (Share on X, LinkedIn, and email alongside the existing copy-link button, on both articles and projects)
 - 🔶 Visitor font-size and motion preferences (reduced-motion respected automatically via OS setting; no manual visitor-facing toggle)
 - ✅ Print-friendly articles and projects

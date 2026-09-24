@@ -1766,6 +1766,27 @@ export async function getArchive(env) {
   return [...byYear.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([year, items]) => ({ year, items }));
 }
 
+export const REACTION_EMOJI = ["👍", "💡", "❤️"];
+
+export async function addReaction(env, contentType, contentId, emoji) {
+  if (!REACTION_EMOJI.includes(emoji)) throw new Error("Invalid reaction");
+  await env.DB
+    .prepare("INSERT INTO reactions (content_type, content_id, emoji) VALUES (?, ?, ?)")
+    .bind(contentType, contentId, emoji)
+    .run();
+}
+
+export async function getReactionCounts(env, contentType, contentId) {
+  const { results } = await env.DB
+    .prepare("SELECT emoji, COUNT(*) AS count FROM reactions WHERE content_type = ? AND content_id = ? GROUP BY emoji")
+    .bind(contentType, contentId)
+    .all();
+  const counts = {};
+  for (const emoji of REACTION_EMOJI) counts[emoji] = 0;
+  for (const r of results) counts[r.emoji] = r.count;
+  return counts;
+}
+
 export async function getSetting(env, key) {
   const row = await env.DB.prepare("SELECT value FROM settings WHERE key = ?").bind(key).first();
   return row ? row.value : null;

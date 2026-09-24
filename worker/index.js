@@ -23,6 +23,8 @@ import {
   logEvent,
   checkRateLimit,
   recordRateLimitHit,
+  addReaction,
+  getReactionCounts,
   runScheduledBackup,
   getTagCounts,
   getArchive,
@@ -54,6 +56,7 @@ import {
   renderArchiveHtml,
   renderTopicPageHtml,
   renderShareLinks,
+  renderReactionsHtml,
 } from "./render.js";
 import { handleAdminApi } from "./admin-api.js";
 import { renderSimulationSvg } from "./simulation-render.js";
@@ -131,6 +134,8 @@ async function renderArticle(env, article, navItems) {
   const seriesArticles = article.series ? await getSeriesArticles(env, article.series) : [];
   const seriesNavHtml = renderSeriesNavHtml(article, seriesArticles);
   const bylineHtml = renderByline(article);
+  const reactionCounts = await getReactionCounts(env, "article", article.id);
+  const reactionsHtml = renderReactionsHtml("article", article.id, reactionCounts);
 
   // Rows are handed out in order rather than computed with ad-hoc offsets,
   // so adding/removing an optional section (series nav, TOC, related) can't
@@ -142,6 +147,8 @@ async function renderArticle(env, article, navItems) {
   if (tocHtml) row += 6;
   const bodyRow = row;
   row += 12;
+  const reactionsRow = row;
+  row += 2;
   const relatedRow = row;
 
   const bodyHtml = `<div class="reading-progress"></div>
@@ -161,6 +168,7 @@ async function renderArticle(env, article, navItems) {
   <div class="block" style="grid-column:1 / span 24;grid-row:${bodyRow} / span 12;">
     ${paragraphsHtml(article.body)}
   </div>
+  <div class="block" style="grid-column:1 / span 24;grid-row:${reactionsRow} / span 2;">${reactionsHtml}</div>
   ${relatedHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${relatedRow} / span 6;">${relatedHtml}</div>` : ""}`;
   const jsonLd = [
     {
@@ -215,6 +223,8 @@ async function renderProject(env, project, navItems) {
     : "";
   const related = await getRelatedProjects(env, project);
   const relatedHtml = renderRelatedProjectsHtml(related);
+  const reactionCounts = await getReactionCounts(env, "project", project.id);
+  const reactionsHtml = renderReactionsHtml("project", project.id, reactionCounts);
   const journalEntries = await listJournalEntries(env, project.id, { order: "ASC" });
   const journalHtml = renderJournalHtml(journalEntries);
   const bomItems = await listBomItems(env, project.id);
@@ -248,6 +258,8 @@ async function renderProject(env, project, navItems) {
   let row = headerSpan + 2;
   const bodyRow = row;
   row += 12;
+  const reactionsRow = row;
+  row += 2;
   const downloadsRow = downloadsHtml ? row : null;
   if (downloadsHtml) row += 4 + downloads.length;
   const bomRow = bomHtml ? row : null;
@@ -275,6 +287,7 @@ async function renderProject(env, project, navItems) {
   <div class="block" style="grid-column:1 / span 24;grid-row:${bodyRow} / span 12;">
     ${paragraphsHtml(project.body)}
   </div>
+  <div class="block" style="grid-column:1 / span 24;grid-row:${reactionsRow} / span 2;">${reactionsHtml}</div>
   ${downloadsHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${downloadsRow} / span ${4 + downloads.length};">${downloadsHtml}</div>` : ""}
   ${bomHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${bomRow} / span ${4 + bomItems.length * 2};">${bomHtml}</div>` : ""}
   ${journalHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${journalRow} / span ${4 + journalEntries.length * 4};">${journalHtml}</div>` : ""}
@@ -633,6 +646,28 @@ async function handleTrackEvent(request, env, ctx) {
   return new Response(null, { status: 204 });
 }
 
+// A reaction click from the public site — aggregate counts only, no
+// visitor identity recorded (double-voting is discouraged client-side via
+// localStorage, never enforced here, matching the site's no-accounts
+// approach elsewhere).
+async function handleReact(request, env, ctx) {
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  const allowed = await checkRateLimit(env, "react", ip, { windowMinutes: 1, maxAttempts: 20 });
+  if (!allowed) return new Response(null, { status: 429 });
+  await recordRateLimitHit(env, "react", ip);
+  const body = await request.json().catch(() => ({}));
+  const contentType = body.contentType === "project" ? "project" : body.contentType === "article" ? "article" : null;
+  const contentId = Number(body.contentId);
+  if (!contentType || !Number.isFinite(contentId)) return new Response(null, { status: 400 });
+  try {
+    await addReaction(env, contentType, contentId, String(body.emoji || ""));
+  } catch {
+    return new Response(null, { status: 400 });
+  }
+  const counts = await getReactionCounts(env, contentType, contentId);
+  return new Response(JSON.stringify(counts), { headers: { "Content-Type": "application/json" } });
+}
+
 // A handful of headers that cost nothing and help regardless of route:
 // blocks MIME-sniffing, stops the site being framed elsewhere (clickjacking),
 // trims referrer leakage, and a CSP that's deliberately not nonce-strict —
@@ -709,6 +744,10 @@ async function route(request, env, ctx) {
 
     if (path === "/api/track" && request.method === "POST") {
       return handleTrackEvent(request, env, ctx);
+    }
+
+    if (path === "/api/react" && request.method === "POST") {
+      return handleReact(request, env, ctx);
     }
 
     if (path === "/sitemap.xml") {

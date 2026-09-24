@@ -427,6 +427,16 @@ export function renderShareLinks(title, path) {
   </div>`;
 }
 
+export function renderReactionsHtml(contentType, contentId, counts) {
+  const buttons = Object.entries(counts)
+    .map(
+      ([emoji, count]) =>
+        `<button type="button" class="reaction-btn" data-emoji="${esc(emoji)}"><span class="reaction-emoji">${emoji}</span><span class="reaction-count">${count}</span></button>`
+    )
+    .join("");
+  return `<div class="reactions" data-content-type="${esc(contentType)}" data-content-id="${esc(String(contentId))}">${buttons}</div>`;
+}
+
 export function renderTags(tags) {
   if (!tags || !tags.length) return "";
   // Links to the topic page (articles + projects together), not just the

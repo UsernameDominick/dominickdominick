@@ -191,6 +191,19 @@ CREATE TABLE webhook_deliveries (
 );
 CREATE INDEX idx_webhook_deliveries_created ON webhook_deliveries(created_at);
 
+-- One row per reaction click, not one row per visitor — there's no visitor
+-- identity to dedupe against server-side (matches this site's no-accounts,
+-- no-fingerprinting analytics approach elsewhere). Double-voting is only
+-- discouraged client-side (localStorage), never enforced here.
+CREATE TABLE reactions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  content_type TEXT NOT NULL,
+  content_id INTEGER NOT NULL,
+  emoji TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_reactions_content ON reactions(content_type, content_id);
+
 CREATE TABLE rate_limits (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   bucket TEXT NOT NULL,

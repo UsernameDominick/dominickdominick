@@ -72,6 +72,53 @@
     setSaveBtnState(btn);
   });
 
+  // Reactions — one vote per emoji per item, discouraged (not enforced)
+  // client-side via localStorage, since there's no visitor identity to
+  // dedupe against server-side.
+  var REACTED_KEY = "reacted_items";
+  function getReactedSet() {
+    try {
+      var raw = localStorage.getItem(REACTED_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+  function markReacted(key) {
+    try {
+      var set = getReactedSet();
+      if (set.indexOf(key) === -1) {
+        set.push(key);
+        localStorage.setItem(REACTED_KEY, JSON.stringify(set));
+      }
+    } catch (e) {}
+  }
+  document.querySelectorAll(".reactions").forEach(function (wrap) {
+    var contentType = wrap.dataset.contentType;
+    var contentId = wrap.dataset.contentId;
+    wrap.querySelectorAll(".reaction-btn").forEach(function (btn) {
+      var key = contentType + ":" + contentId + ":" + btn.dataset.emoji;
+      if (getReactedSet().indexOf(key) !== -1) btn.classList.add("is-reacted");
+    });
+  });
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest(".reaction-btn");
+    if (!btn) return;
+    var wrap = btn.closest(".reactions");
+    if (!wrap) return;
+    var key = wrap.dataset.contentType + ":" + wrap.dataset.contentId + ":" + btn.dataset.emoji;
+    if (getReactedSet().indexOf(key) !== -1) return;
+    markReacted(key);
+    btn.classList.add("is-reacted");
+    var countEl = btn.querySelector(".reaction-count");
+    if (countEl) countEl.textContent = String(Number(countEl.textContent || "0") + 1);
+    fetch("/api/react", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contentType: wrap.dataset.contentType, contentId: Number(wrap.dataset.contentId), emoji: btn.dataset.emoji }),
+    }).catch(function () {});
+  });
+
   // /saved page — this file is loaded (deferred) on every page, same as
   // nav.js's reading-history render, so it's already running after the DOM
   // (including #saved-items-list, when present) has been parsed.

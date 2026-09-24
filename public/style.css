@@ -451,6 +451,38 @@ body {
   color: var(--text);
 }
 
+.reactions {
+  display: flex;
+  gap: 8px;
+}
+
+.reaction-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.15s ease;
+}
+
+.reaction-btn:hover {
+  border-color: var(--accent);
+}
+
+.reaction-btn.is-reacted {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, var(--bg-elevated));
+}
+
+.reaction-count {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
 .table-of-contents {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
