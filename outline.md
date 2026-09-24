@@ -710,7 +710,12 @@ block already support any of these as a plain page:
 - ✅ Challenges/decisions/lessons (journal entry types), related content, version history (revisions)
 - 🔶 Public changelogs (journal entries can serve; no distinct feature)
 - ✅ Download manifest (multiple labeled files + descriptions, scanned by Link Checker) alongside the single quick-download link
-- 🔶 Sort/filter (tag/featured ✅; arbitrary sort ☐); 🔶 featured-order (flag ✅; manual drag-reorder ☐)
+- 🔶 Sort/filter (tag/featured ✅; arbitrary sort ☐); ✅ featured-order
+  (a new `featured_order` column on projects — a number input next to
+  the Featured checkbox, same convention as page nav ordering already
+  uses rather than literal drag-and-drop; `listProjects()`'s
+  `featuredOnly` path sorts by it ascending, nulls last, falling back to
+  the normal newest-first order for anything left blank)
 - ☐ Architecture/dependency diagrams
 
 ### Build journals and technical documentation

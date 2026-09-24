@@ -755,7 +755,19 @@ export async function listProjects(env, { publishedOnly = false, limit = null, t
   const { results } = await env.DB.prepare(sql).bind(...params).all();
   let projects = results.map(parseProjectRow);
   if (tag) projects = projects.filter((p) => p.tags.includes(tag));
-  if (featuredOnly) projects = projects.filter((p) => p.featured);
+  if (featuredOnly) {
+    projects = projects.filter((p) => p.featured);
+    // Manual order among featured projects only — everything without a
+    // featured_order set keeps the normal newest-first order (Array.sort
+    // is stable, so ties fall back to whatever order they were already
+    // in) and sorts after anything that does have one.
+    projects.sort((a, b) => {
+      if (a.featured_order == null && b.featured_order == null) return 0;
+      if (a.featured_order == null) return 1;
+      if (b.featured_order == null) return -1;
+      return a.featured_order - b.featured_order;
+    });
+  }
   return projects;
 }
 
@@ -794,12 +806,13 @@ export async function createProject(
     sitemap_exclude,
     archived,
     related_override,
+    featured_order,
   }
 ) {
   const res = await env.DB
     .prepare(
-      `INSERT INTO projects (slug, title, summary, body, published_at, tags, tech_stack, status, links, og_image, canonical_url, featured, related_articles, related_simulations, related_scans, expires_at, sitemap_exclude, archived, related_override)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO projects (slug, title, summary, body, published_at, tags, tech_stack, status, links, og_image, canonical_url, featured, related_articles, related_simulations, related_scans, expires_at, sitemap_exclude, archived, related_override, featured_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       slug,
@@ -820,7 +833,8 @@ export async function createProject(
       expires_at || null,
       sitemap_exclude ? 1 : 0,
       archived ? 1 : 0,
-      JSON.stringify(Array.isArray(related_override) ? related_override : [])
+      JSON.stringify(Array.isArray(related_override) ? related_override : []),
+      Number.isFinite(Number(featured_order)) ? Number(featured_order) : null
     )
     .run();
   return res.meta.last_row_id;
@@ -882,6 +896,10 @@ export async function updateProject(env, id, fields) {
   if ("archived" in fields) {
     cols.push("archived = ?");
     vals.push(fields.archived ? 1 : 0);
+  }
+  if ("featured_order" in fields) {
+    cols.push("featured_order = ?");
+    vals.push(fields.featured_order === null || fields.featured_order === "" ? null : Number(fields.featured_order));
   }
   if ("related_override" in fields) {
     cols.push("related_override = ?");

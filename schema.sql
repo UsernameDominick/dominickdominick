@@ -102,7 +102,8 @@ CREATE TABLE projects (
   tts_audio_key TEXT,
   sitemap_exclude INTEGER NOT NULL DEFAULT 0,
   related_override TEXT NOT NULL DEFAULT '[]',
-  archived INTEGER NOT NULL DEFAULT 0
+  archived INTEGER NOT NULL DEFAULT 0,
+  featured_order INTEGER
 );
 
 -- A project's build journal — dated entries telling the story of building

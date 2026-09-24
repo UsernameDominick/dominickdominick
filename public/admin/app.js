@@ -3363,6 +3363,7 @@
     el("project-featured").checked = !!project.featured;
     el("project-sitemap-exclude").checked = !!project.sitemap_exclude;
     el("project-archived").checked = !!project.archived;
+    el("project-featured-order").value = project.featured_order ?? "";
     const links = project.links || {};
     el("project-link-github").value = links.github || "";
     el("project-link-demo").value = links.demo || "";
@@ -3412,6 +3413,7 @@
     el("project-featured").checked = false;
     el("project-sitemap-exclude").checked = false;
     el("project-archived").checked = false;
+    el("project-featured-order").value = "";
     el("project-link-github").value = "";
     el("project-link-demo").value = "";
     el("project-link-docs").value = "";
@@ -3487,6 +3489,7 @@
       featured: el("project-featured").checked,
       sitemap_exclude: el("project-sitemap-exclude").checked,
       archived: el("project-archived").checked,
+      featured_order: el("project-featured-order").value === "" ? null : Number(el("project-featured-order").value),
       links,
       og_image: el("project-og-image").value || null,
       canonical_url: el("project-canonical-url").value || null,
