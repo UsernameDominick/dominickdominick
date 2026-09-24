@@ -293,3 +293,33 @@ document.addEventListener("input", function (e) {
     window.trackEvent("theme_toggle", next);
   });
 })();
+
+// Manual "reduce motion" override — independent of (and in addition to)
+// the OS-level prefers-reduced-motion setting, for a visitor whose OS
+// default is fine with motion but who wants it off just for this site.
+// The CSS side (`[data-motion="reduce"]` overrides in style.css) mirrors
+// exactly what the OS-driven `@media (prefers-reduced-motion)` scoping
+// already does — same visual result, just reachable without changing OS
+// settings.
+(function () {
+  var btn = document.getElementById("motion-toggle");
+  if (!btn) return;
+  var root = document.documentElement;
+  var update = function () {
+    var reduced = root.getAttribute("data-motion") === "reduce";
+    btn.setAttribute("aria-pressed", reduced ? "true" : "false");
+    btn.textContent = reduced ? "▶" : "⏸";
+    btn.title = reduced ? "Turn animations back on" : "Turn off entrance/hover animations";
+  };
+  update();
+  btn.addEventListener("click", function () {
+    var next = root.getAttribute("data-motion") === "reduce" ? "" : "reduce";
+    if (next) root.setAttribute("data-motion", next);
+    else root.removeAttribute("data-motion");
+    try {
+      localStorage.setItem("motion", next);
+    } catch (e) {}
+    update();
+    window.trackEvent("motion_toggle", next || "default");
+  });
+})();

@@ -809,7 +809,12 @@ Contact form, admin inbox, guestbook/comments, moderation, newsletter —
 **explicitly declined by the user**, left ☐ deliberately.
 - ✅ Reactions (👍/💡/❤️, aggregate counts only, no visitor identity, client-side double-vote discouragement)
 - ✅ Expanded sharing (X/LinkedIn/email + copy-link)
-- 🔶 Visitor font-size/motion prefs (reduced-motion auto-respected via OS; no manual toggle)
+- 🔶 Visitor font-size/motion prefs (reduced-motion auto-respected via OS
+  ✅; a manual ⏸ toggle in the header now also lets a visitor turn
+  animations off independent of their OS setting, persisted in
+  localStorage — the CSS override mirrors exactly what the OS-driven
+  `@media (prefers-reduced-motion)` scoping already does, just reachable
+  without changing OS settings; font-size ☐)
 - ✅ Print-friendly pages; ☐ downloadable PDF articles/case studies
 
 ### Analytics

@@ -262,6 +262,7 @@ body {
 }
 
 #theme-toggle,
+#motion-toggle,
 .icon-link-btn {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
@@ -283,6 +284,7 @@ body {
 }
 
 #theme-toggle:hover,
+#motion-toggle:hover,
 .icon-link-btn:hover {
   color: var(--accent);
   border-color: var(--accent);
@@ -404,6 +406,35 @@ body {
   .block-hover-darken:hover {
     filter: brightness(0.85);
   }
+}
+
+/* Manual "reduce motion" override (the ⏸ button in the header) — mirrors
+   exactly what the OS-driven media query above already does, just
+   reachable without changing OS settings. Higher specificity than the
+   plain selectors inside that block ([data-motion="reduce"] [data-animate]
+   beats [data-animate] alone) so it wins regardless of source order,
+   whether or not the OS itself already prefers reduced motion. */
+:root[data-motion="reduce"] [data-animate] {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+
+:root[data-motion="reduce"] .block-hover-lift:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+:root[data-motion="reduce"] .block-hover-grow:hover {
+  transform: none;
+}
+
+:root[data-motion="reduce"] .block-hover-glow:hover {
+  box-shadow: none;
+}
+
+:root[data-motion="reduce"] .block-hover-darken:hover {
+  filter: none;
 }
 
 .btn {
@@ -1982,7 +2013,8 @@ pre.has-line-numbers {
   .copy-link-btn,
   .table-of-contents,
   .site-search,
-  #theme-toggle {
+  #theme-toggle,
+  #motion-toggle {
     display: none !important;
   }
 
