@@ -863,8 +863,9 @@ export function renderShell({
   customHead = null,
   noindex = false,
   searchQuery = null,
+  canonicalUrl = null,
 }) {
-  const canonical = `https://dominickdominick.com${path}`;
+  const canonical = canonicalUrl || `https://dominickdominick.com${path}`;
   const themeVars = [];
   if (theme.accent) themeVars.push(`--accent:${esc(theme.accent)}`);
   if (theme.bg) themeVars.push(`--bg:${esc(theme.bg)}`);

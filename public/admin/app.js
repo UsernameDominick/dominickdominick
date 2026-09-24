@@ -354,6 +354,7 @@
     el("page-nav-label").value = currentPage.nav_label || "";
     el("page-nav-order").value = currentPage.nav_order ?? "";
     el("page-og-image").value = currentPage.og_image || "";
+    el("page-canonical-url").value = currentPage.canonical_url || "";
     el("page-save-status").textContent = "";
     updateLockButton("lock-page-btn", !!currentPage.locked);
     updatePageOgPreview();
@@ -367,7 +368,7 @@
   // Page settings have no server-side autosave at all (only the explicit
   // Save button), so this local snapshot is the *only* safety net between
   // typing and clicking Save — a bigger gap than articles have.
-  const PAGE_DRAFT_FIELD_IDS = ["page-title", "page-meta", "page-nav-label", "page-nav-order", "page-og-image"];
+  const PAGE_DRAFT_FIELD_IDS = ["page-title", "page-meta", "page-nav-label", "page-nav-order", "page-og-image", "page-canonical-url"];
   function capturePageRawFields() {
     const out = {};
     for (const id of PAGE_DRAFT_FIELD_IDS) out[id] = el(id).value;
@@ -420,7 +421,7 @@
     }
   });
 
-  ["page-title", "page-meta", "page-nav-label", "page-nav-order", "page-og-image"].forEach((id) =>
+  ["page-title", "page-meta", "page-nav-label", "page-nav-order", "page-og-image", "page-canonical-url"].forEach((id) =>
     el(id).addEventListener("input", () => {
       unsavedDirty = true;
       el("page-save-status").textContent = "Unsaved changes…";
@@ -440,6 +441,7 @@
           nav_label: el("page-nav-label").value || null,
           nav_order: el("page-nav-order").value ? Number(el("page-nav-order").value) : null,
           og_image: el("page-og-image").value || null,
+          canonical_url: el("page-canonical-url").value || null,
           expected_version: currentPage.version,
         }),
       });
@@ -2089,6 +2091,7 @@
     el("article-featured").checked = !!article.featured;
     el("article-pinned").checked = !!article.pinned;
     el("article-og-image").value = article.og_image || "";
+    el("article-canonical-url").value = article.canonical_url || "";
     el("article-body").value = article.body;
     el("article-published").checked = !!article.published_at;
     el("article-publish-at").value = isoToLocalInput(article.published_at);
@@ -2104,7 +2107,7 @@
   // turning this back into a save payload when the restored draft is saved.
   const ARTICLE_DRAFT_FIELD_IDS = [
     "article-title", "article-slug", "article-tags", "article-series", "article-series-order",
-    "article-co-authors", "article-featured", "article-pinned", "article-og-image", "article-body", "article-published", "article-publish-at",
+    "article-co-authors", "article-featured", "article-pinned", "article-og-image", "article-canonical-url", "article-body", "article-published", "article-publish-at",
     "article-expires-at",
   ];
   function captureArticleRawFields() {
@@ -2332,6 +2335,7 @@
     el("article-featured").checked = false;
     el("article-pinned").checked = false;
     el("article-og-image").value = "";
+    el("article-canonical-url").value = "";
     el("article-body").value = "";
     el("article-published").checked = false;
     el("article-publish-at").value = "";
@@ -2373,6 +2377,7 @@
       featured: el("article-featured").checked,
       pinned: el("article-pinned").checked,
       og_image: el("article-og-image").value || null,
+      canonical_url: el("article-canonical-url").value || null,
       body: el("article-body").value,
       // A blank publish-at with "Published" checked means "now"; a filled
       // one schedules it (past or future). Unchecked always means draft.
@@ -2465,7 +2470,7 @@
     clearTimeout(autosaveTimer);
     autosaveTimer = setTimeout(autosaveArticle, 2000);
   }
-  ["article-title", "article-tags", "article-series", "article-co-authors", "article-og-image", "article-body"].forEach((id) =>
+  ["article-title", "article-tags", "article-series", "article-co-authors", "article-og-image", "article-canonical-url", "article-body"].forEach((id) =>
     el(id).addEventListener("input", scheduleAutosave)
   );
   ["article-slug", "article-published", "article-publish-at", "article-expires-at", "article-series-order", "article-featured", "article-pinned"].forEach((id) =>
@@ -2630,6 +2635,7 @@
       .map((d) => `${d.label || ""} | ${d.url || ""} | ${d.description || ""}`)
       .join("\n");
     el("project-og-image").value = project.og_image || "";
+    el("project-canonical-url").value = project.canonical_url || "";
     el("project-body").value = project.body || "";
     setMultiSelectValues(el("project-related-articles"), project.related_articles);
     setMultiSelectValues(el("project-related-simulations"), project.related_simulations);
@@ -2665,6 +2671,7 @@
     el("project-link-docs").value = "";
     el("project-link-download").value = "";
     el("project-og-image").value = "";
+    el("project-canonical-url").value = "";
     el("project-body").value = "";
     setMultiSelectValues(el("project-related-articles"), []);
     setMultiSelectValues(el("project-related-simulations"), []);
@@ -2724,6 +2731,7 @@
       featured: el("project-featured").checked,
       links,
       og_image: el("project-og-image").value || null,
+      canonical_url: el("project-canonical-url").value || null,
       body: el("project-body").value,
       related_articles: getMultiSelectValues(el("project-related-articles")),
       related_simulations: getMultiSelectValues(el("project-related-simulations")),

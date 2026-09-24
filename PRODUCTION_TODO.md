@@ -57,6 +57,9 @@ CREATE TABLE reactions (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX idx_reactions_content ON reactions(content_type, content_id);
+ALTER TABLE pages ADD COLUMN canonical_url TEXT;
+ALTER TABLE articles ADD COLUMN canonical_url TEXT;
+ALTER TABLE projects ADD COLUMN canonical_url TEXT;
 ```
 
 After this migration lands, run `POST /api/admin/media/backfill-hashes`

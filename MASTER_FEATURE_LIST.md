@@ -365,7 +365,7 @@ deliberately, not an oversight.
 
 - ☐ Central SEO dashboard (tools are scattered: link checker, sitemap, meta fields — no single view)
 - ✅ Per-page title and description controls
-- 🔶 Canonical URL controls (canonical tag auto-generates correctly; not admin-editable per page)
+- ✅ Canonical URL controls (auto-generates correctly by default; optional per-item override field on pages, articles, and projects for syndicated/cross-posted content)
 - ✅ Indexing controls (noindex)
 - 🔶 Social-share image editor (og_image field + upload/browse; no crop/preview editor)
 - ✅ Social-share previews (og-preview UI now covers pages, articles, and projects)

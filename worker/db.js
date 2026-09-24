@@ -42,12 +42,12 @@ export async function listNavPages(env) {
   return results;
 }
 
-export async function createPage(env, { slug, title, meta_description, nav_label, nav_order, og_image }) {
+export async function createPage(env, { slug, title, meta_description, nav_label, nav_order, og_image, canonical_url }) {
   const res = await env.DB
     .prepare(
-      "INSERT INTO pages (slug, title, meta_description, nav_label, nav_order, og_image) VALUES (?, ?, ?, ?, ?, ?)"
+      "INSERT INTO pages (slug, title, meta_description, nav_label, nav_order, og_image, canonical_url) VALUES (?, ?, ?, ?, ?, ?, ?)"
     )
-    .bind(slug, title, meta_description || "", nav_label || null, nav_order ?? null, og_image || null)
+    .bind(slug, title, meta_description || "", nav_label || null, nav_order ?? null, og_image || null, canonical_url || null)
     .run();
   return res.meta.last_row_id;
 }
@@ -55,7 +55,7 @@ export async function createPage(env, { slug, title, meta_description, nav_label
 export async function updatePage(env, id, fields) {
   const cols = [];
   const vals = [];
-  for (const key of ["slug", "title", "meta_description", "nav_label", "nav_order", "og_image"]) {
+  for (const key of ["slug", "title", "meta_description", "nav_label", "nav_order", "og_image", "canonical_url"]) {
     if (key in fields) {
       cols.push(`${key} = ?`);
       vals.push(fields[key]);
@@ -374,11 +374,11 @@ function resolvePublishedAt({ published, published_at }) {
 
 export async function createArticle(
   env,
-  { slug, title, body, published, published_at, tags, og_image, series, series_order, co_authors, featured, pinned, expires_at }
+  { slug, title, body, published, published_at, tags, og_image, canonical_url, series, series_order, co_authors, featured, pinned, expires_at }
 ) {
   const res = await env.DB
     .prepare(
-      "INSERT INTO articles (slug, title, body, published_at, tags, og_image, series, series_order, co_authors, featured, pinned, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO articles (slug, title, body, published_at, tags, og_image, canonical_url, series, series_order, co_authors, featured, pinned, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
     .bind(
       slug,
@@ -387,6 +387,7 @@ export async function createArticle(
       resolvePublishedAt({ published, published_at }),
       JSON.stringify(Array.isArray(tags) ? tags : []),
       og_image || null,
+      canonical_url || null,
       series || null,
       Number.isFinite(Number(series_order)) ? Number(series_order) : null,
       JSON.stringify(Array.isArray(co_authors) ? co_authors : []),
@@ -401,7 +402,7 @@ export async function createArticle(
 export async function updateArticle(env, id, fields) {
   const cols = [];
   const vals = [];
-  for (const key of ["slug", "title", "body", "og_image", "series"]) {
+  for (const key of ["slug", "title", "body", "og_image", "canonical_url", "series"]) {
     if (key in fields) {
       cols.push(`${key} = ?`);
       vals.push(fields[key]);
@@ -645,6 +646,7 @@ export async function createProject(
     status,
     links,
     og_image,
+    canonical_url,
     featured,
     related_articles,
     related_simulations,
@@ -654,8 +656,8 @@ export async function createProject(
 ) {
   const res = await env.DB
     .prepare(
-      `INSERT INTO projects (slug, title, summary, body, published_at, tags, tech_stack, status, links, og_image, featured, related_articles, related_simulations, related_scans, expires_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO projects (slug, title, summary, body, published_at, tags, tech_stack, status, links, og_image, canonical_url, featured, related_articles, related_simulations, related_scans, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       slug,
@@ -668,6 +670,7 @@ export async function createProject(
       status || null,
       JSON.stringify(links && typeof links === "object" ? links : {}),
       og_image || null,
+      canonical_url || null,
       featured ? 1 : 0,
       JSON.stringify(Array.isArray(related_articles) ? related_articles : []),
       JSON.stringify(Array.isArray(related_simulations) ? related_simulations : []),
@@ -681,7 +684,7 @@ export async function createProject(
 export async function updateProject(env, id, fields) {
   const cols = [];
   const vals = [];
-  for (const key of ["slug", "title", "summary", "body", "og_image", "status"]) {
+  for (const key of ["slug", "title", "summary", "body", "og_image", "canonical_url", "status"]) {
     if (key in fields) {
       cols.push(`${key} = ?`);
       vals.push(fields[key]);
