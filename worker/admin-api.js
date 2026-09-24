@@ -69,6 +69,7 @@ import {
   checkLinks,
   getSeoReport,
   getOrphanContent,
+  getContentHealth,
   listScans,
   getScan,
   createScan,
@@ -1033,6 +1034,11 @@ async function routeAdminApi(request, env, url, ctx) {
   // links to and that aren't in the header nav either.
   if (path === "/orphan-content" && method === "GET") {
     return json(await getOrphanContent(env));
+  }
+
+  // /content-health — site-wide empty-page and stale-content inventory.
+  if (path === "/content-health" && method === "GET") {
+    return json(await getContentHealth(env));
   }
 
   // /preview-links — shareable, expiring, revocable links that let someone

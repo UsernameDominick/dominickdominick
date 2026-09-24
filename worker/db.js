@@ -2665,6 +2665,52 @@ export async function getOrphanContent(env) {
   };
 }
 
+// A page counts as "empty" for this report if it has no blocks at all, or
+// every block on it fails the same emptiness check the per-page
+// diagnostics panel already runs one block at a time (heading/text/quote
+// with no text, image/video/embed with no url, button with no url) —
+// i.e. nothing a visitor would actually see. "Stale" is separate: still
+// has real content, just hasn't been touched in a long time — worth a
+// second look, not necessarily a problem.
+const STALE_DAYS = 365;
+
+function isEmptyBlock(b) {
+  const c = b.content || {};
+  if (["heading", "text", "quote"].includes(b.type)) return !c.text;
+  if (["image", "video", "embed"].includes(b.type)) return !c.url;
+  if (b.type === "button") return !c.url;
+  return false;
+}
+
+export async function getContentHealth(env) {
+  const pages = await listPages(env);
+  const pageBlocks = await Promise.all(pages.map((p) => listBlocks(env, p.id)));
+  const emptyPages = pages
+    .filter((p, i) => p.slug !== "home" && (pageBlocks[i].length === 0 || pageBlocks[i].every(isEmptyBlock)))
+    .map((p) => ({ title: p.title, slug: p.slug }));
+
+  // updated_at is always SQLite `datetime('now')` format ("YYYY-MM-DD
+  // HH:MM:SS"), but published_at is set via JS `Date.toISOString()` on
+  // some paths and `datetime('now')` on others — comparing the raw
+  // strings would silently misorder whichever rows mix formats. Parsing
+  // through Date (same normalization renderSitemap() already uses for
+  // this exact reason) avoids that regardless of which format a given
+  // row happens to have.
+  const parseDbDate = (s) => (s ? new Date(/Z$/.test(s) ? s : `${s.replace(" ", "T")}Z`) : null);
+  const staleCutoffMs = Date.now() - STALE_DAYS * 24 * 3600 * 1000;
+  const articles = await listArticles(env, { publishedOnly: true });
+  const projects = await listProjects(env, { publishedOnly: true });
+  const isStale = (item) => {
+    const d = parseDbDate(item.updated_at || item.published_at);
+    return !!d && d.getTime() < staleCutoffMs;
+  };
+  return {
+    emptyPages,
+    staleArticles: articles.filter(isStale).map((a) => ({ title: a.title, slug: a.slug, updated_at: a.updated_at || a.published_at })),
+    staleProjects: projects.filter(isStale).map((p) => ({ title: p.title, slug: p.slug, updated_at: p.updated_at || p.published_at })),
+  };
+}
+
 // Site-wide SEO/accessibility sweep: pages missing a meta description
 // (falls back to the title, which is worse for search-result snippets and
 // social shares), and every image block missing alt text (aggregating

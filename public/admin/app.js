@@ -4356,6 +4356,42 @@
     }
   });
 
+  el("check-content-health-btn").addEventListener("click", async () => {
+    const btn = el("check-content-health-btn");
+    const originalText = btn.textContent;
+    btn.textContent = "Checking…";
+    btn.disabled = true;
+    try {
+      const { emptyPages, staleArticles, staleProjects } = await api("/content-health");
+      const rows = [
+        ...emptyPages.map(
+          (p) =>
+            `<div class="link-check-row broken"><span class="link-check-url">${escapeHtml(p.title)}</span><span class="link-check-source">/${escapeHtml(
+              p.slug
+            )}</span><span class="link-check-status">Empty page</span></div>`
+        ),
+        ...staleArticles.map(
+          (a) =>
+            `<div class="link-check-row"><span class="link-check-url">${escapeHtml(a.title)}</span><span class="link-check-source">/random/${escapeHtml(
+              a.slug
+            )}</span><span class="link-check-status">Not touched since ${escapeHtml((a.updated_at || "").slice(0, 10))}</span></div>`
+        ),
+        ...staleProjects.map(
+          (p) =>
+            `<div class="link-check-row"><span class="link-check-url">${escapeHtml(p.title)}</span><span class="link-check-source">/projects/${escapeHtml(
+              p.slug
+            )}</span><span class="link-check-status">Not touched since ${escapeHtml((p.updated_at || "").slice(0, 10))}</span></div>`
+        ),
+      ];
+      el("content-health-results").innerHTML = rows.join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No issues found.</p>";
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      btn.textContent = originalText;
+      btn.disabled = false;
+    }
+  });
+
   el("check-seo-btn").addEventListener("click", async () => {
     const btn = el("check-seo-btn");
     const originalText = btn.textContent;

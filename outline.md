@@ -633,7 +633,14 @@ health-check pass, predates this doc.
 - ✅ Scheduled unpublishing (Expires at, mirrors Publish at)
 - ☐ Publishing approvals/review steps, editorial calendar, review reminders
 - ✅ Live non-blocking publishing checklist (article/project editor)
-- 🔶 Stale/empty-page inventory (diagnostics flags empty blocks per-page; no site-wide report)
+- ✅ Stale/empty-page inventory (SEO Dashboard → "Content Health": pages
+  with zero blocks or where every block fails the same emptiness check
+  the per-page diagnostics panel already used one page at a time, plus
+  published articles/projects untouched for over a year — parses
+  `updated_at`/`published_at` through `Date` rather than comparing the
+  raw strings, since those columns mix SQLite's `datetime('now')` format
+  and JS's `Date.toISOString()` format depending which code path wrote
+  them, the same normalization `renderSitemap()` already needed)
 - 🔶 Full-site draft-inclusive preview mode (per-item `?preview=1` ✅; whole-site ☐)
 - ☐ Future-date preview for scheduled changes
 - ✅ Expiring, revocable, shareable draft-preview links (`?preview_token=`, 1/7/30 day options, works without admin login)
