@@ -496,7 +496,25 @@ function parseProjectRow(row) {
   } catch {
     links = {};
   }
-  return { ...row, tags, tech_stack, links };
+  let related_articles = [];
+  try {
+    related_articles = JSON.parse(row.related_articles || "[]");
+  } catch {
+    related_articles = [];
+  }
+  let related_simulations = [];
+  try {
+    related_simulations = JSON.parse(row.related_simulations || "[]");
+  } catch {
+    related_simulations = [];
+  }
+  let related_scans = [];
+  try {
+    related_scans = JSON.parse(row.related_scans || "[]");
+  } catch {
+    related_scans = [];
+  }
+  return { ...row, tags, tech_stack, links, related_articles, related_simulations, related_scans };
 }
 
 export async function listProjects(env, { publishedOnly = false, limit = null, tag = null, featuredOnly = false } = {}) {
@@ -528,10 +546,14 @@ export async function getProjectBySlug(env, slug) {
   return parseProjectRow(row);
 }
 
-export async function createProject(env, { slug, title, summary, body, published, published_at, tags, tech_stack, status, links, og_image, featured }) {
+export async function createProject(
+  env,
+  { slug, title, summary, body, published, published_at, tags, tech_stack, status, links, og_image, featured, related_articles, related_simulations, related_scans }
+) {
   const res = await env.DB
     .prepare(
-      "INSERT INTO projects (slug, title, summary, body, published_at, tags, tech_stack, status, links, og_image, featured) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      `INSERT INTO projects (slug, title, summary, body, published_at, tags, tech_stack, status, links, og_image, featured, related_articles, related_simulations, related_scans)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       slug,
@@ -544,7 +566,10 @@ export async function createProject(env, { slug, title, summary, body, published
       status || null,
       JSON.stringify(links && typeof links === "object" ? links : {}),
       og_image || null,
-      featured ? 1 : 0
+      featured ? 1 : 0,
+      JSON.stringify(Array.isArray(related_articles) ? related_articles : []),
+      JSON.stringify(Array.isArray(related_simulations) ? related_simulations : []),
+      JSON.stringify(Array.isArray(related_scans) ? related_scans : [])
     )
     .run();
   return res.meta.last_row_id;
@@ -582,6 +607,18 @@ export async function updateProject(env, id, fields) {
   if ("featured" in fields) {
     cols.push("featured = ?");
     vals.push(fields.featured ? 1 : 0);
+  }
+  if ("related_articles" in fields) {
+    cols.push("related_articles = ?");
+    vals.push(JSON.stringify(Array.isArray(fields.related_articles) ? fields.related_articles : []));
+  }
+  if ("related_simulations" in fields) {
+    cols.push("related_simulations = ?");
+    vals.push(JSON.stringify(Array.isArray(fields.related_simulations) ? fields.related_simulations : []));
+  }
+  if ("related_scans" in fields) {
+    cols.push("related_scans = ?");
+    vals.push(JSON.stringify(Array.isArray(fields.related_scans) ? fields.related_scans : []));
   }
   if (!cols.length) return;
   cols.push("updated_at = datetime('now')", "version = version + 1");
@@ -1807,8 +1844,8 @@ export async function importAll(env, data) {
     stmts.push(
       env.DB
         .prepare(
-          `INSERT INTO projects (id, slug, title, summary, body, tech_stack, status, links, og_image, tags, featured, published_at, deleted_at, created_at, updated_at, version, locked)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO projects (id, slug, title, summary, body, tech_stack, status, links, og_image, tags, featured, published_at, deleted_at, created_at, updated_at, version, locked, related_articles, related_simulations, related_scans)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           p.id,
@@ -1827,7 +1864,10 @@ export async function importAll(env, data) {
           p.created_at,
           p.updated_at,
           p.version ?? 1,
-          p.locked ?? 0
+          p.locked ?? 0,
+          p.related_articles ?? "[]",
+          p.related_simulations ?? "[]",
+          p.related_scans ?? "[]"
         )
     );
   }

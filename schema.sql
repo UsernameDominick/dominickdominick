@@ -83,7 +83,10 @@ CREATE TABLE projects (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   version INTEGER NOT NULL DEFAULT 1,
-  locked INTEGER NOT NULL DEFAULT 0
+  locked INTEGER NOT NULL DEFAULT 0,
+  related_articles TEXT NOT NULL DEFAULT '[]',
+  related_simulations TEXT NOT NULL DEFAULT '[]',
+  related_scans TEXT NOT NULL DEFAULT '[]'
 );
 
 -- A project's build journal — dated entries telling the story of building

@@ -315,6 +315,18 @@ export function renderBomHtml(items) {
   }</div>`;
 }
 
+export function renderRelatedMediaHtml(articles, simulations, scans) {
+  if (!articles.length && !simulations.length && !scans.length) return "";
+  const articleItems = articles.map((a) => `<li><a href="/random/${esc(a.slug)}">${esc(a.title)}</a></li>`).join("");
+  const simItems = simulations.map((s) => `<li><a href="/simulation/${esc(s.id)}">${esc(s.name)}</a></li>`).join("");
+  const scanItems = scans.map((s) => `<li>${esc(s.name)}</li>`).join("");
+  return `<div class="related-posts"><strong>Related</strong>
+    ${articleItems ? `<h3>Articles</h3><ul class="search-results">${articleItems}</ul>` : ""}
+    ${simItems ? `<h3>Simulations</h3><ul class="search-results">${simItems}</ul>` : ""}
+    ${scanItems ? `<h3>3D scans</h3><ul class="search-results">${scanItems}</ul>` : ""}
+  </div>`;
+}
+
 export function renderRelatedProjectsHtml(projects) {
   if (!projects || !projects.length) return "";
   const items = projects

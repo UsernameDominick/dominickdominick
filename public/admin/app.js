@@ -2416,6 +2416,23 @@
       });
   }
 
+  function populateProjectRelatedSelects() {
+    el("project-related-articles").innerHTML = articles.map((a) => `<option value="${a.id}">${escapeHtml(a.title)}</option>`).join("");
+    el("project-related-simulations").innerHTML = simulationOptions.map((s) => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join("");
+    el("project-related-scans").innerHTML = scanOptions.map((s) => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join("");
+  }
+
+  function setMultiSelectValues(select, ids) {
+    const idSet = new Set((ids || []).map(Number));
+    Array.from(select.options).forEach((opt) => {
+      opt.selected = idSet.has(Number(opt.value));
+    });
+  }
+
+  function getMultiSelectValues(select) {
+    return Array.from(select.selectedOptions).map((opt) => Number(opt.value));
+  }
+
   function populateProjectForm(project) {
     currentProjectId = project.id;
     currentProjectVersion = project.version || null;
@@ -2435,6 +2452,9 @@
     el("project-link-download").value = links.download || "";
     el("project-og-image").value = project.og_image || "";
     el("project-body").value = project.body || "";
+    setMultiSelectValues(el("project-related-articles"), project.related_articles);
+    setMultiSelectValues(el("project-related-simulations"), project.related_simulations);
+    setMultiSelectValues(el("project-related-scans"), project.related_scans);
     el("project-published").checked = !!project.published_at;
     el("project-publish-at").value = isoToLocalInput(project.published_at);
     el("project-autosave-status").textContent = "";
@@ -2466,6 +2486,9 @@
     el("project-link-download").value = "";
     el("project-og-image").value = "";
     el("project-body").value = "";
+    setMultiSelectValues(el("project-related-articles"), []);
+    setMultiSelectValues(el("project-related-simulations"), []);
+    setMultiSelectValues(el("project-related-scans"), []);
     el("project-published").checked = false;
     el("project-publish-at").value = "";
     el("project-autosave-status").textContent = "";
@@ -2508,6 +2531,9 @@
       links,
       og_image: el("project-og-image").value || null,
       body: el("project-body").value,
+      related_articles: getMultiSelectValues(el("project-related-articles")),
+      related_simulations: getMultiSelectValues(el("project-related-simulations")),
+      related_scans: getMultiSelectValues(el("project-related-scans")),
       published_at: published ? (publishAtLocal ? new Date(publishAtLocal).toISOString() : new Date().toISOString()) : null,
     };
   }
@@ -2515,6 +2541,8 @@
   el("projects-btn").addEventListener("click", async () => {
     el("projects-modal").hidden = false;
     projects = await api("/projects");
+    articles = await api("/articles");
+    populateProjectRelatedSelects();
     renderProjectsList();
     clearProjectForm();
   });

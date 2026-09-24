@@ -518,6 +518,16 @@
   gap: 10px;
 }
 
+.project-related-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+}
+
+.project-related-row select {
+  width: 100%;
+}
+
 .article-word-count {
   font-size: 0.78rem;
   color: var(--text-dim);
