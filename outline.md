@@ -860,73 +860,21 @@ Ask before building any of these — they're opinions, not the plan:
 
 ## 4. Pending production migrations
 
-Production D1 was last fully synced to `schema.sql` on 2026-09-24 (the
-Projects/build-journals/BOM/relationships batch). Everything below has
-shipped to `production` since and is **not yet applied to production**:
+Production D1 was fully synced to `schema.sql` on 2026-09-24 (verified
+column-by-column via the Cloudflare D1 MCP tools — every table/column
+schema.sql expects is present, zero data rows touched by the sync
+itself, pre-existing content in `pages`/`settings` intact). Nothing is
+currently pending — everything shipped to `production` since then
+(admin nav grouping, hover-effect style, style presets, the article/
+project flow-layout fix) was deliberately schema-free. Re-verify with a
+fresh `pragma_table_info` check before assuming this is still true if
+much time has passed, rather than trusting this note blindly (the
+standing rule in section 0).
 
-```sql
-ALTER TABLE media ADD COLUMN caption TEXT;
-ALTER TABLE media ADD COLUMN credit TEXT;
-ALTER TABLE media ADD COLUMN license TEXT;
-ALTER TABLE articles ADD COLUMN expires_at TEXT;
-ALTER TABLE projects ADD COLUMN expires_at TEXT;
-ALTER TABLE pageviews ADD COLUMN device TEXT;
-ALTER TABLE pageviews ADD COLUMN browser TEXT;
-ALTER TABLE media ADD COLUMN hash TEXT;
-CREATE INDEX idx_media_hash ON media(hash);
-CREATE TABLE webhook_deliveries (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  url TEXT NOT NULL,
-  payload TEXT NOT NULL,
-  status TEXT NOT NULL,
-  status_code INTEGER,
-  error TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX idx_webhook_deliveries_created ON webhook_deliveries(created_at);
-CREATE TABLE reactions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  content_type TEXT NOT NULL,
-  content_id INTEGER NOT NULL,
-  emoji TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX idx_reactions_content ON reactions(content_type, content_id);
-ALTER TABLE pages ADD COLUMN canonical_url TEXT;
-ALTER TABLE articles ADD COLUMN canonical_url TEXT;
-ALTER TABLE projects ADD COLUMN canonical_url TEXT;
-CREATE TABLE preview_links (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  content_type TEXT NOT NULL,
-  content_id INTEGER NOT NULL,
-  token TEXT UNIQUE NOT NULL,
-  expires_at TEXT NOT NULL,
-  revoked_at TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE INDEX idx_preview_links_token ON preview_links(token);
-CREATE INDEX idx_preview_links_content ON preview_links(content_type, content_id);
-ALTER TABLE articles ADD COLUMN correction_note TEXT;
-ALTER TABLE projects ADD COLUMN correction_note TEXT;
-ALTER TABLE articles ADD COLUMN tts_audio_key TEXT;
-ALTER TABLE projects ADD COLUMN tts_audio_key TEXT;
-CREATE TABLE songs (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  data TEXT NOT NULL DEFAULT '{}',
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-ALTER TABLE pages ADD COLUMN sitemap_exclude INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE articles ADD COLUMN sitemap_exclude INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE projects ADD COLUMN sitemap_exclude INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE articles ADD COLUMN related_override TEXT NOT NULL DEFAULT '[]';
-ALTER TABLE projects ADD COLUMN related_override TEXT NOT NULL DEFAULT '[]';
-```
-
-After this lands, run `POST /api/admin/media/backfill-hashes` once
-(the "Scan for duplicates" button in the Media Library) to hash files
-uploaded before that feature existed.
+If a future migration adds a `media.hash` backfill need again, run
+`POST /api/admin/media/backfill-hashes` once (the "Scan for
+duplicates" button in the Media Library) to hash files uploaded before
+that feature existed — already done as part of the 2026-09-24 sync.
 
 Always confirm with the user before running anything against
 production — standing rule, exercised once already for the initial
