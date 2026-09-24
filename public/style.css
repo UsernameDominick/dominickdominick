@@ -1302,6 +1302,18 @@ h6 { font-size: 0.9rem; }
   padding-top: 20px;
 }
 
+.correction-note {
+  background: var(--bg-elevated);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  padding: 12px 16px;
+  font-size: 0.9rem;
+}
+
+.correction-note strong {
+  color: var(--accent);
+}
+
 .bom,
 .downloads {
   border-top: 1px solid var(--border);

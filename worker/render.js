@@ -463,6 +463,11 @@ export function renderReactionsHtml(contentType, contentId, counts) {
   return `<div class="reactions" data-content-type="${esc(contentType)}" data-content-id="${esc(String(contentId))}">${buttons}</div>`;
 }
 
+export function renderCorrectionNoteHtml(note) {
+  if (!note) return "";
+  return `<div class="correction-note"><strong>Update:</strong> ${esc(note)}</div>`;
+}
+
 export function renderTags(tags) {
   if (!tags || !tags.length) return "";
   // Links to the topic page (articles + projects together), not just the

@@ -458,7 +458,7 @@ export async function createArticle(
 export async function updateArticle(env, id, fields) {
   const cols = [];
   const vals = [];
-  for (const key of ["slug", "title", "body", "og_image", "canonical_url", "series"]) {
+  for (const key of ["slug", "title", "body", "og_image", "canonical_url", "series", "correction_note"]) {
     if (key in fields) {
       cols.push(`${key} = ?`);
       vals.push(fields[key]);
@@ -740,7 +740,7 @@ export async function createProject(
 export async function updateProject(env, id, fields) {
   const cols = [];
   const vals = [];
-  for (const key of ["slug", "title", "summary", "body", "og_image", "canonical_url", "status"]) {
+  for (const key of ["slug", "title", "summary", "body", "og_image", "canonical_url", "status", "correction_note"]) {
     if (key in fields) {
       cols.push(`${key} = ?`);
       vals.push(fields[key]);

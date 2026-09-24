@@ -71,6 +71,8 @@ CREATE TABLE preview_links (
 );
 CREATE INDEX idx_preview_links_token ON preview_links(token);
 CREATE INDEX idx_preview_links_content ON preview_links(content_type, content_id);
+ALTER TABLE articles ADD COLUMN correction_note TEXT;
+ALTER TABLE projects ADD COLUMN correction_note TEXT;
 ```
 
 After this migration lands, run `POST /api/admin/media/backfill-hashes`

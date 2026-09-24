@@ -2164,6 +2164,7 @@
     el("article-pinned").checked = !!article.pinned;
     el("article-og-image").value = article.og_image || "";
     el("article-canonical-url").value = article.canonical_url || "";
+    el("article-correction-note").value = article.correction_note || "";
     setMultiSelectValues(
       el("article-related-projects"),
       projects.filter((p) => (p.related_articles || []).includes(article.id)).map((p) => p.id)
@@ -2183,7 +2184,7 @@
   // turning this back into a save payload when the restored draft is saved.
   const ARTICLE_DRAFT_FIELD_IDS = [
     "article-title", "article-slug", "article-tags", "article-series", "article-series-order",
-    "article-co-authors", "article-featured", "article-pinned", "article-og-image", "article-canonical-url", "article-body", "article-published", "article-publish-at",
+    "article-co-authors", "article-featured", "article-pinned", "article-og-image", "article-canonical-url", "article-correction-note", "article-body", "article-published", "article-publish-at",
     "article-expires-at",
   ];
   function captureArticleRawFields() {
@@ -2437,6 +2438,7 @@
     el("article-pinned").checked = false;
     el("article-og-image").value = "";
     el("article-canonical-url").value = "";
+    el("article-correction-note").value = "";
     setMultiSelectValues(el("article-related-projects"), []);
     el("article-body").value = "";
     el("article-published").checked = false;
@@ -2480,6 +2482,7 @@
       pinned: el("article-pinned").checked,
       og_image: el("article-og-image").value || null,
       canonical_url: el("article-canonical-url").value || null,
+      correction_note: el("article-correction-note").value || null,
       body: el("article-body").value,
       // A blank publish-at with "Published" checked means "now"; a filled
       // one schedules it (past or future). Unchecked always means draft.
@@ -2573,7 +2576,7 @@
     clearTimeout(autosaveTimer);
     autosaveTimer = setTimeout(autosaveArticle, 2000);
   }
-  ["article-title", "article-tags", "article-series", "article-co-authors", "article-og-image", "article-canonical-url", "article-body"].forEach((id) =>
+  ["article-title", "article-tags", "article-series", "article-co-authors", "article-og-image", "article-canonical-url", "article-correction-note", "article-body"].forEach((id) =>
     el(id).addEventListener("input", scheduleAutosave)
   );
   ["article-slug", "article-published", "article-publish-at", "article-expires-at", "article-series-order", "article-featured", "article-pinned"].forEach((id) =>
@@ -2753,6 +2756,7 @@
       .join("\n");
     el("project-og-image").value = project.og_image || "";
     el("project-canonical-url").value = project.canonical_url || "";
+    el("project-correction-note").value = project.correction_note || "";
     el("project-body").value = project.body || "";
     setMultiSelectValues(el("project-related-articles"), project.related_articles);
     setMultiSelectValues(el("project-related-simulations"), project.related_simulations);
@@ -2791,6 +2795,7 @@
     el("project-link-download").value = "";
     el("project-og-image").value = "";
     el("project-canonical-url").value = "";
+    el("project-correction-note").value = "";
     el("project-body").value = "";
     setMultiSelectValues(el("project-related-articles"), []);
     setMultiSelectValues(el("project-related-simulations"), []);
@@ -2856,6 +2861,7 @@
       links,
       og_image: el("project-og-image").value || null,
       canonical_url: el("project-canonical-url").value || null,
+      correction_note: el("project-correction-note").value || null,
       body: el("project-body").value,
       related_articles: getMultiSelectValues(el("project-related-articles")),
       related_simulations: getMultiSelectValues(el("project-related-simulations")),

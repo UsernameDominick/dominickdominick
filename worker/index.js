@@ -58,6 +58,7 @@ import {
   renderTopicPageHtml,
   renderShareLinks,
   renderReactionsHtml,
+  renderCorrectionNoteHtml,
 } from "./render.js";
 import { handleAdminApi } from "./admin-api.js";
 import { renderSimulationSvg } from "./simulation-render.js";
@@ -138,11 +139,18 @@ async function renderArticle(env, article, navItems) {
   const bylineHtml = renderByline(article);
   const reactionCounts = await getReactionCounts(env, "article", article.id);
   const reactionsHtml = renderReactionsHtml("article", article.id, reactionCounts);
+  const correctionNoteHtml = renderCorrectionNoteHtml(article.correction_note);
+  // A meaningful gap (not every autosave tick right after publishing)
+  // between published_at and updated_at is what actually earns a visible
+  // "Updated" — otherwise every article would show one moments after going live.
+  const wasUpdated = article.updated_at && article.published_at && new Date(article.updated_at) - new Date(article.published_at) > 24 * 3600 * 1000;
 
   // Rows are handed out in order rather than computed with ad-hoc offsets,
   // so adding/removing an optional section (series nav, TOC, related) can't
   // silently throw off the ones after it.
   let row = 3;
+  const correctionRow = correctionNoteHtml ? row : null;
+  if (correctionNoteHtml) row += 2;
   const seriesRow = seriesNavHtml ? row : null;
   if (seriesNavHtml) row += 3;
   const tocRow = tocHtml ? row : null;
@@ -157,6 +165,7 @@ async function renderArticle(env, article, navItems) {
   <div class="block" style="grid-column:1 / span 24;grid-row:1 / span 2;">
     <div class="article-meta">
       <time datetime="${esc(article.published_at)}">${esc((article.published_at || "").slice(0, 10))}</time>
+      ${wasUpdated ? `<span class="article-meta-sep">·</span><span>Updated <time datetime="${esc(article.updated_at)}">${esc((article.updated_at || "").slice(0, 10))}</time></span>` : ""}
       <span class="article-meta-sep">·</span>
       <span>${mins} min read</span>
       ${bylineHtml ? `<span class="article-meta-sep">·</span>${bylineHtml}` : ""}
@@ -165,6 +174,7 @@ async function renderArticle(env, article, navItems) {
     <h1>${esc(article.title)}</h1>
     ${renderTags(article.tags)}
   </div>
+  ${correctionNoteHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${correctionRow} / span 2;">${correctionNoteHtml}</div>` : ""}
   ${seriesNavHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${seriesRow} / span 3;">${seriesNavHtml}</div>` : ""}
   ${tocHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${tocRow} / span 6;">${tocHtml}</div>` : ""}
   <div class="block" style="grid-column:1 / span 24;grid-row:${bodyRow} / span 12;">
@@ -234,6 +244,8 @@ async function renderProject(env, project, navItems) {
   const bomHtml = renderBomHtml(bomItems);
   const downloads = Array.isArray(project.links && project.links.downloads) ? project.links.downloads : [];
   const downloadsHtml = renderDownloadsHtml(downloads);
+  const correctionNoteHtml = renderCorrectionNoteHtml(project.correction_note);
+  const wasUpdated = project.updated_at && project.published_at && new Date(project.updated_at) - new Date(project.published_at) > 24 * 3600 * 1000;
   // Build journals can add a lot of reading beyond the project body itself
   // (that's the whole point of a "long project page") — same reasoning
   // articles already use, just summed across both sources.
@@ -259,6 +271,8 @@ async function renderProject(env, project, navItems) {
     (project.tags && project.tags.length ? 2 : 0) +
     (linkButtons ? 2 : 0);
   let row = headerSpan + 2;
+  const correctionRow = correctionNoteHtml ? row : null;
+  if (correctionNoteHtml) row += 2;
   const bodyRow = row;
   row += 12;
   const reactionsRow = row;
@@ -277,6 +291,7 @@ async function renderProject(env, project, navItems) {
     <div class="article-meta">
       ${project.status ? `<span>${esc(project.status)}</span><span class="article-meta-sep">·</span>` : ""}
       <time datetime="${esc(project.published_at)}">${esc((project.published_at || "").slice(0, 10))}</time>
+      ${wasUpdated ? `<span class="article-meta-sep">·</span><span>Updated <time datetime="${esc(project.updated_at)}">${esc((project.updated_at || "").slice(0, 10))}</time></span>` : ""}
       <span class="article-meta-sep">·</span>
       <span>${mins} min read</span>
       ${renderShareLinks(project.title, `/projects/${project.slug}`)}
@@ -287,6 +302,7 @@ async function renderProject(env, project, navItems) {
     ${renderTags(project.tags)}
     ${linkButtons ? `<p>${linkButtons}</p>` : ""}
   </div>
+  ${correctionNoteHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${correctionRow} / span 2;">${correctionNoteHtml}</div>` : ""}
   <div class="block" style="grid-column:1 / span 24;grid-row:${bodyRow} / span 12;">
     ${paragraphsHtml(project.body)}
   </div>

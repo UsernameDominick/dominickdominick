@@ -138,8 +138,8 @@ health-check pass, done before this master list existed.
 - ☐ Paste cleanup from documents and websites
 - ✅ Find and replace within an article (via the site-wide Find & Replace tool)
 - ☐ Private notes and comments on draft sections
-- ☐ Reader-facing update history
-- ☐ Correction and update notices
+- ✅ Reader-facing update history (an "Updated <date>" line appears next to the publish date once updated_at is more than 24 hours past published_at, so a typo-fix autosave right after publishing doesn't trigger it)
+- ✅ Correction and update notices (an optional note field, shown as a callout at the top of the article/project when set)
 - 🔶 Custom article endings with related content and project links (automatic related-articles section exists; not admin-curated, no project links)
 
 ## 6. Saving, recovery, and versioning
