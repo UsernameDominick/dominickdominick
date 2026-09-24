@@ -2035,3 +2035,24 @@ export async function checkLinks(env) {
   );
   return found.map((f) => ({ ...f, ...statusByUrl[f.url] }));
 }
+
+// Site-wide SEO/accessibility sweep: pages missing a meta description
+// (falls back to the title, which is worse for search-result snippets and
+// social shares), and every image block missing alt text (aggregating
+// the same check the per-page diagnostics panel already does one page at
+// a time, so it can all be seen — and fixed — from one place).
+export async function getSeoReport(env) {
+  const pages = await listPages(env);
+  const pageBlocks = await Promise.all(pages.map((p) => listBlocks(env, p.id)));
+  const missingMeta = pages.filter((p) => !p.meta_description || !p.meta_description.trim()).map((p) => ({ title: p.title, slug: p.slug }));
+  const missingAlt = [];
+  pages.forEach((p, i) => {
+    for (const b of pageBlocks[i]) {
+      const c = b.content || {};
+      if (b.type === "image" && c.url && !(c.alt && c.alt.trim())) {
+        missingAlt.push({ title: p.title, slug: p.slug, url: c.url });
+      }
+    }
+  });
+  return { missingMeta, missingAlt };
+}

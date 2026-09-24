@@ -267,6 +267,15 @@
           </div>
           <textarea id="project-body" placeholder="Write here. Same formatting as articles: **bold**, *italic*, [link](url), ## / ### headings, ```code``` blocks, pipe tables, [^1] footnotes." rows="14"></textarea>
           <div id="project-autosave-status" class="article-autosave-status"></div>
+          <div class="og-preview-label">Share preview</div>
+          <div class="og-preview" id="og-preview-project">
+            <div class="og-preview-img" id="og-preview-project-img"></div>
+            <div class="og-preview-body">
+              <div class="og-preview-domain">dominickdominick.com</div>
+              <div class="og-preview-title" id="og-preview-project-title"></div>
+              <div class="og-preview-desc" id="og-preview-project-desc"></div>
+            </div>
+          </div>
           <div class="article-actions">
             <label><input type="checkbox" id="project-published"> Published</label>
             <label>Publish at (blank = immediately)<input type="datetime-local" id="project-publish-at"></label>
@@ -503,6 +512,10 @@
         <label style="margin-bottom:0;">Scans every button/project-card link and article link for broken URLs.</label>
         <button type="button" id="check-links-btn">Check links</button>
         <div id="link-check-results" class="link-check-results"></div>
+        <h2>SEO Report</h2>
+        <label style="margin-bottom:0;">Pages with no meta description, and images missing alt text, across the whole site.</label>
+        <button type="button" id="check-seo-btn">Run report</button>
+        <div id="seo-report-results" class="link-check-results"></div>
         <h2>Find &amp; Replace</h2>
         <label style="margin-bottom:0;">Searches article titles/bodies and page block text (headings, text, quotes, buttons, project cards, links, changelog entries — not raw HTML/CSS blocks). Always preview before applying.</label>
         <div class="find-replace-row">

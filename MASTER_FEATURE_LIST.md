@@ -354,14 +354,14 @@ deliberately, not an oversight.
 - 🔶 Canonical URL controls (canonical tag auto-generates correctly; not admin-editable per page)
 - ✅ Indexing controls (noindex)
 - 🔶 Social-share image editor (og_image field + upload/browse; no crop/preview editor)
-- 🔶 Social-share previews (og-preview UI exists for articles; not for projects yet)
+- ✅ Social-share previews (og-preview UI now covers pages, articles, and projects)
 - 🔶 Sitemap controls (auto-generated sitemap ✅; no admin include/exclude controls)
 - 🔶 Structured-data controls for articles and projects (JSON-LD auto-generates; not admin-customizable)
 - ☐ Internal-link suggestions across the site
 - ☐ Orphan-page detection
 - ☐ Automatic redirect suggestions after URL changes
 - 🔶 Ongoing internal and external link monitoring (on-demand Link Checker scan exists; not scheduled/ongoing)
-- ☐ Missing-metadata reports
+- 🔶 Missing-metadata reports (new "SEO Report" in Site Settings flags pages with no meta description and images missing alt text, site-wide; doesn't yet check every metadata field there is)
 
 ## 22. Accessibility
 

@@ -56,6 +56,7 @@ import {
   restorePageRevisionBlock,
   search,
   checkLinks,
+  getSeoReport,
   listScans,
   getScan,
   createScan,
@@ -896,6 +897,12 @@ async function routeAdminApi(request, env, url, ctx) {
   // /link-check — walks every button/project-card/article link and reports status
   if (path === "/link-check" && method === "GET") {
     return json(await checkLinks(env));
+  }
+
+  // /seo-report — pages missing a meta description, and image blocks
+  // missing alt text, across the whole site.
+  if (path === "/seo-report" && method === "GET") {
+    return json(await getSeoReport(env));
   }
 
   // /find-replace — apply=false previews matches without changing anything;

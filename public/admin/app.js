@@ -2129,8 +2129,17 @@
     });
   }
 
+  function updateProjectOgPreview() {
+    updateOgPreview("project", {
+      title: el("project-title").value,
+      desc: el("project-summary").value.trim() || clientExcerpt(el("project-body").value),
+      image: el("project-og-image").value,
+    });
+  }
+
   ["page-title", "page-meta", "page-og-image"].forEach((id) => el(id).addEventListener("input", updatePageOgPreview));
   ["article-title", "article-body", "article-og-image"].forEach((id) => el(id).addEventListener("input", updateArticleOgPreview));
+  ["project-title", "project-summary", "project-body", "project-og-image"].forEach((id) => el(id).addEventListener("input", updateProjectOgPreview));
 
   // Matches the reading-time math in worker/render.js (200 words/min) so
   // what you see while writing matches what the published article shows.
@@ -2515,6 +2524,7 @@
     } else {
       previewLink.hidden = true;
     }
+    updateProjectOgPreview();
   }
 
   function buildProjectBody() {
@@ -3207,6 +3217,7 @@
     el("settings-custom-head").value = settings.custom_head || "";
     el("settings-webhook-url").value = settings.webhook_url || "";
     el("link-check-results").innerHTML = "";
+    el("seo-report-results").innerHTML = "";
     el("find-replace-results").innerHTML = "";
     el("find-replace-apply-btn").disabled = true;
     el("settings-modal").hidden = false;
@@ -3295,6 +3306,36 @@
               )}</span></div>`
           )
           .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No links found.</p>";
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      btn.textContent = originalText;
+      btn.disabled = false;
+    }
+  });
+
+  el("check-seo-btn").addEventListener("click", async () => {
+    const btn = el("check-seo-btn");
+    const originalText = btn.textContent;
+    btn.textContent = "Checking…";
+    btn.disabled = true;
+    try {
+      const { missingMeta, missingAlt } = await api("/seo-report");
+      const rows = [
+        ...missingMeta.map(
+          (p) =>
+            `<div class="link-check-row"><span class="link-check-url">${escapeHtml(p.title)}</span><span class="link-check-source">/${escapeHtml(
+              p.slug === "home" ? "" : p.slug
+            )}</span><span class="link-check-status">No meta description</span></div>`
+        ),
+        ...missingAlt.map(
+          (m) =>
+            `<div class="link-check-row broken"><span class="link-check-url">${escapeHtml(m.title)}</span><span class="link-check-source">${escapeHtml(
+              m.url
+            )}</span><span class="link-check-status">Missing alt text</span></div>`
+        ),
+      ];
+      el("seo-report-results").innerHTML = rows.join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No issues found.</p>";
     } catch (err) {
       alert(err.message);
     } finally {
