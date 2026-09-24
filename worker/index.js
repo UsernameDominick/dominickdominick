@@ -49,6 +49,7 @@ import {
   renderRelatedMediaHtml,
   renderTopicsIndexHtml,
   renderTopicPageHtml,
+  renderShareLinks,
 } from "./render.js";
 import { handleAdminApi } from "./admin-api.js";
 import { renderSimulationSvg } from "./simulation-render.js";
@@ -146,7 +147,7 @@ async function renderArticle(env, article, navItems) {
       <span class="article-meta-sep">·</span>
       <span>${mins} min read</span>
       ${bylineHtml ? `<span class="article-meta-sep">·</span>${bylineHtml}` : ""}
-      <button type="button" class="copy-link-btn" data-copy-text="Copy link" data-copied-text="Copied!">Copy link</button>
+      ${renderShareLinks(article.title, `/random/${article.slug}`)}
     </div>
     <h1>${esc(article.title)}</h1>
     ${renderTags(article.tags)}
@@ -255,7 +256,7 @@ async function renderProject(env, project, navItems) {
       <time datetime="${esc(project.published_at)}">${esc((project.published_at || "").slice(0, 10))}</time>
       <span class="article-meta-sep">·</span>
       <span>${mins} min read</span>
-      <button type="button" class="copy-link-btn" data-copy-text="Copy link" data-copied-text="Copied!">Copy link</button>
+      ${renderShareLinks(project.title, `/projects/${project.slug}`)}
     </div>
     <h1>${esc(project.title)}</h1>
     ${project.summary ? `<p>${esc(project.summary)}</p>` : ""}

@@ -403,8 +403,16 @@ body {
   text-align: right;
 }
 
-.copy-link-btn {
+.share-links {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.copy-link-btn,
+.share-link {
   background: transparent;
   color: var(--text-dim);
   border: 1px solid var(--border);
@@ -412,11 +420,13 @@ body {
   padding: 4px 12px;
   font-size: 0.8rem;
   font-family: inherit;
+  text-decoration: none;
   cursor: pointer;
   transition: color 0.2s ease, border-color 0.2s ease;
 }
 
-.copy-link-btn:hover {
+.copy-link-btn:hover,
+.share-link:hover {
   color: var(--text);
   border-color: var(--accent);
 }

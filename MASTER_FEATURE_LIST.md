@@ -333,7 +333,7 @@ were **explicitly declined by you earlier this session** — left ☐
 deliberately, not an oversight.
 
 - ☐ Reactions or lightweight post feedback
-- 🔶 Expanded sharing controls (copy-link button ✅; social share buttons ☐)
+- ✅ Expanded sharing controls (Share on X, LinkedIn, and email alongside the existing copy-link button, on both articles and projects)
 - 🔶 Visitor font-size and motion preferences (reduced-motion respected automatically via OS setting; no manual visitor-facing toggle)
 - ✅ Print-friendly articles and projects
 - ☐ Downloadable PDF articles and case studies

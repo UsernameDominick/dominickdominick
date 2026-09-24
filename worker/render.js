@@ -382,6 +382,22 @@ export function renderNotFoundHtml(navItems) {
 ${links ? `<p>Try one of these instead:</p><ul class="search-results">${links}</ul>` : ""}`;
 }
 
+// Copy-link plus a couple of prebuilt share intents — no share-widget
+// script/CDN dependency, just plain links each platform already supports
+// via URL parameters, matching the existing text-button aesthetic (no
+// brand icons) used everywhere else on the site.
+export function renderShareLinks(title, path) {
+  const url = `https://dominickdominick.com${path}`;
+  const encodedUrl = encodeURIComponent(url);
+  const encodedTitle = encodeURIComponent(title);
+  return `<div class="share-links">
+    <a class="share-link" href="https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedTitle}" target="_blank" rel="noopener" title="Share on X">Share on X</a>
+    <a class="share-link" href="https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}" target="_blank" rel="noopener" title="Share on LinkedIn">LinkedIn</a>
+    <a class="share-link" href="mailto:?subject=${encodedTitle}&body=${encodedUrl}" title="Share by email">Email</a>
+    <button type="button" class="copy-link-btn" data-copy-text="Copy link" data-copied-text="Copied!">Copy link</button>
+  </div>`;
+}
+
 export function renderTags(tags) {
   if (!tags || !tags.length) return "";
   // Links to the topic page (articles + projects together), not just the
