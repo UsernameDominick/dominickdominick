@@ -67,7 +67,19 @@ anything `position: fixed` (it renders relative to the viewport, not
 that stitched canvas) and can report a fake centering/backdrop bug.
 If a finding looks like layout chrome is broken, prefer verifying with
 `getComputedStyle`/`getBoundingClientRect` over trusting the screenshot
-alone before spending a fix cycle on it.
+alone before spending a fix cycle on it. **Always tell the user the
+score in the visible reply** (not just logged here) — he's asked to
+see it, not just the outcome.
+
+**Periodic broad QA sweep:** in between other work (a natural pause
+point, not mid-batch), dispatch a subagent to freely explore the admin
+console and the public site — click around, try creating/editing
+content, navigate like a real visitor, and check a mobile viewport
+too — and report back bugs, layout issues, and improvement ideas, same
+scoring instincts as the screenshot-and-rate loop. Fix anything easy
+immediately; anything bigger goes into section 3 (Ideas) or as a new
+☐ item below rather than getting built unreviewed on the spot. Tell
+the user what came back either way, not just the fixes.
 
 **Code reuse and token efficiency:** the user pays for every token this
 session burns, so favor reusing/extracting a shared function over
