@@ -149,8 +149,13 @@ async function renderArticle(env, article, navItems) {
 
   // Rows are handed out in order rather than computed with ad-hoc offsets,
   // so adding/removing an optional section (series nav, TOC, related) can't
-  // silently throw off the ones after it.
-  let row = 3;
+  // silently throw off the ones after it. The header's own span has to grow
+  // with what's actually in it (byline/share links can wrap the meta line,
+  // long titles wrap to 2-3 lines) — a fixed span here is what let the new
+  // TTS bar visibly collide with a wrapped title (see project's own
+  // headerSpan below for the same reasoning already applied there).
+  const headerSpan = 4 + (article.tags && article.tags.length ? 2 : 0);
+  let row = headerSpan + 2;
   const ttsRow = row;
   row += 2;
   const correctionRow = correctionNoteHtml ? row : null;
@@ -166,7 +171,7 @@ async function renderArticle(env, article, navItems) {
   const relatedRow = row;
 
   const bodyHtml = `<div class="reading-progress"></div>
-  <div class="block" style="grid-column:1 / span 24;grid-row:1 / span 2;">
+  <div class="block" style="grid-column:1 / span 24;grid-row:1 / span ${headerSpan};">
     <div class="article-meta">
       <time datetime="${esc(article.published_at)}">${esc((article.published_at || "").slice(0, 10))}</time>
       ${wasUpdated ? `<span class="article-meta-sep">·</span><span>Updated <time datetime="${esc(article.updated_at)}">${esc((article.updated_at || "").slice(0, 10))}</time></span>` : ""}

@@ -1307,6 +1307,7 @@ h6 { font-size: 0.9rem; }
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  margin-top: 4px;
 }
 
 .tts-bar audio {

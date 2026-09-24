@@ -97,6 +97,21 @@ fires `synthesis-failed` instantly there; this is a sandbox limitation,
 not a bug — untested on a real browser with actual voices, worth a
 manual check in a real browser, see section 6).
 
+**Screenshot-and-rate review (round 1): 3/10.** A subagent found a real
+layout bug — the article header used a fixed 2-row grid span regardless
+of content, while the project header already computed a dynamic span
+from what it actually contains. Any wrapping title (2+ lines) let the
+header's real height exceed its allocated grid rows and visually
+collide with the new TTS bar sitting right below it — a latent
+weakness the new bar simply made visible for the first time. Fixed by
+giving articles the same dynamic `headerSpan` formula projects already
+use, plus a small defensive `margin-top` on `.tts-bar`. Verified with
+direct `getBoundingClientRect` measurements (no overlap, wrapping or
+not, mobile or desktop width, tags present or not) rather than
+re-running the full subagent loop — cheaper and just as conclusive for
+a geometry fix. Not yet re-scored by a fresh subagent pass; worth one
+more before calling this fully closed.
+
 ### 1b. Loop-based DAW / music module
 Decision: a loop-based step sequencer + a basic piano roll + a handful
 of built-in synth/drum sounds (Web Audio API, no sample licensing
