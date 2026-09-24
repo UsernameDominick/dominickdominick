@@ -135,15 +135,22 @@ a playable block with a waveform visualization and a syncable page
 animation (waveform-driven or a "cool" reactive animation, admin-
 choosable and tunable). No mixing console / automation lanes / plugin
 effects in v1 — flag if that's wanted later.
-Status: 🔶 in progress. Done: `songs` table (mirrors `simulations` —
-`{id, name, data JSON, created_at, updated_at}`, all composition state
-lives in `data`) + full CRUD in `db.js`/`admin-api.js`
-(`GET/POST /songs`, `GET/PATCH/DELETE /songs/:id`,
-`POST /songs/:id/duplicate`), verified end-to-end via curl. Still ☐:
-the admin Songs panel UI, step sequencer, built-in drum kit sounds
-(Web Audio), piano roll, Web MIDI input, playback engine + waveform
-render, page-animation sync, embeddable public block/player. Continue
-in that order next session.
+Status: 🔶 in progress. Done: `songs` table + full CRUD (mirrors
+`simulations`, same reasoning — composition state as JSON in `data` so
+schema doesn't churn as the format evolves). Admin "Songs" panel
+(`public/admin/song-builder.js`, mirrors `simulation-builder.js`'s
+list/open/save structure) with a working step sequencer: 4 built-in
+drum tracks (kick/snare/hihat/clap) × 16 steps, 3 drum kits (acoustic/
+electronic/808) synthesized live via the Web Audio API — no sample
+files, so no licensing to manage and a song stays fully portable as
+JSON — and a proper lookahead scheduler (the standard "two clocks"
+pattern: schedules notes against `AudioContext.currentTime`, not
+`setTimeout` timing, so playback doesn't drift). Verified: grid
+renders, steps toggle and persist correctly, reopening restores exact
+state, play/stop toggles and highlights the live step across all
+tracks. Still ☐: piano roll, Web MIDI input, waveform render,
+page-animation sync, embeddable public block/player. Continue in that
+order next session.
 
 ### 1c. Admin UX / mobile overhaul
 The admin console's nav/UI/UX needs a real upgrade pass to accommodate

@@ -1420,6 +1420,74 @@ kbd {
   overflow: hidden;
 }
 
+.song-builder-body {
+  flex: 1;
+  overflow: auto;
+  padding: 24px;
+}
+
+.song-tempo-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.song-tempo-label input {
+  width: 60px;
+}
+
+.song-sequencer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 800px;
+}
+
+.song-track-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.song-track-label {
+  width: 60px;
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.song-steps {
+  display: grid;
+  grid-template-columns: repeat(16, 1fr);
+  gap: 4px;
+  flex: 1;
+}
+
+.song-step {
+  aspect-ratio: 1;
+  min-height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-elevated);
+  cursor: pointer;
+  padding: 0;
+}
+
+.song-step-beat {
+  border-color: var(--text-dim);
+}
+
+.song-step-on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.song-step-playing {
+  box-shadow: 0 0 0 2px var(--accent) inset;
+}
+
 .scan-editor-body {
   flex: 1;
   display: flex;

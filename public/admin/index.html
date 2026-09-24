@@ -42,6 +42,7 @@
         <button id="redirects-btn">Redirects</button>
         <button id="simulations-btn">Simulations</button>
         <button id="scans-btn">Scans</button>
+        <button id="songs-btn">Songs</button>
         <button id="shared-blocks-btn">Reusable Blocks</button>
         <button id="layers-btn">Layers</button>
         <button id="diagnostics-btn">Diagnostics</button>
@@ -811,6 +812,42 @@
     </div>
   </div>
 
+  <div id="songs-modal" class="modal" hidden>
+    <div class="modal-inner redirects-modal-inner">
+      <header>
+        <h1>Songs</h1>
+        <button id="close-songs">×</button>
+      </header>
+      <div class="redirects-body">
+        <p class="redirects-hint">Build a short loop — a drum pattern, a melody, or both — with a step sequencer, a piano roll, and built-in drum kits. Reuse it in any article or project via the Song block.</p>
+        <div class="sim-new-row">
+          <button type="button" id="new-song-btn">New song</button>
+        </div>
+        <div id="songs-list" class="redirects-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="song-builder-modal" class="modal" hidden>
+    <div class="modal-inner simulation-builder-inner">
+      <header>
+        <input id="song-name" class="simulation-name-input" placeholder="Song name">
+        <label class="song-tempo-label">BPM<input type="number" id="song-tempo" min="40" max="240" value="120"></label>
+        <select id="song-kit">
+          <option value="acoustic">Acoustic kit</option>
+          <option value="electronic">Electronic kit</option>
+          <option value="808">808 kit</option>
+        </select>
+        <button type="button" id="song-play">▶ Play</button>
+        <button type="button" id="save-song">Save</button>
+        <button id="close-song-builder">×</button>
+      </header>
+      <div class="song-builder-body">
+        <div id="song-sequencer" class="song-sequencer"></div>
+      </div>
+    </div>
+  </div>
+
   <div id="scans-modal" class="modal" hidden>
     <div class="modal-inner redirects-modal-inner">
       <header>
@@ -930,6 +967,7 @@
 <script src="/admin/photo-editor.js"></script>
 <script src="/admin/sim-components.js"></script>
 <script src="/admin/simulation-builder.js"></script>
+<script src="/admin/song-builder.js"></script>
 <script src="/admin/scan-builder.js"></script>
 </body>
 </html>
