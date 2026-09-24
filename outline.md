@@ -690,7 +690,11 @@ block already support any of these as a plain page:
 - ☐ Reproduction checklists, download manifests explaining each file (per-project manifest ✅ above; per-file *explanation* ☐), hardware/software compatibility info, firmware tied to hardware revisions, completion summaries, cybersecurity lab writeup templates, annotated terminal transcripts, screenshot redaction
 
 ### Media library and file management
-- 🔶 Folders (flat ✅, nesting ☐); 🔶 tags ✅ / smart collections ☐; ☐ saved searches
+- 🔶 Folders (flat ✅, nesting ☐); 🔶 tags ✅ / smart collections ☐; ✅ saved
+  searches (name and reapply the current folder/type/text/unused/
+  duplicates filter combo — same raw-settings-key storage pattern as
+  style presets, since this is also an individually added-to/removed-
+  from list the bulk settings PUT shouldn't own)
 - ✅ Usage tracking across pages/articles/projects/settings (including project share images — a real gap fixed)
 - 🔶 Bulk upload/move/tag/delete ✅; bulk rename ☐ (R2 keys are content-addressed, "rename" = alt text, already covered per-file)
 - ✅ Duplicate detection (SHA-256 at upload + backfill scan + immediate warning on byte-identical upload)

@@ -1348,5 +1348,36 @@ async function routeAdminApi(request, env, url, ctx) {
     return json({ ok: true });
   }
 
+  // /media-saved-searches — a named snapshot of the media library's
+  // filter controls (folder/type/search text/unused/duplicates), same
+  // storage pattern as style presets above and for the same reason: an
+  // individually added-to/removed-from list, not something the settings
+  // bulk PUT should own.
+  if (path === "/media-saved-searches" && method === "GET") {
+    const raw = await getSetting(env, "media_saved_searches");
+    return json(JSON.parse(raw || "[]"));
+  }
+  if (path === "/media-saved-searches" && method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    if (!body.name || typeof body.filters !== "object") {
+      return json({ error: "name and filters are required" }, { status: 400 });
+    }
+    const searches = JSON.parse((await getSetting(env, "media_saved_searches")) || "[]");
+    const id = searches.reduce((max, s) => Math.max(max, s.id || 0), 0) + 1;
+    searches.push({ id, name: String(body.name).slice(0, 60), filters: body.filters });
+    await setSetting(env, "media_saved_searches", JSON.stringify(searches));
+    log(ctx, env, "create", "media-saved-search", body.name);
+    return json({ id });
+  }
+  const mediaSavedSearchMatch = path.match(/^\/media-saved-searches\/(\d+)$/);
+  if (mediaSavedSearchMatch && method === "DELETE") {
+    const id = Number(mediaSavedSearchMatch[1]);
+    const searches = JSON.parse((await getSetting(env, "media_saved_searches")) || "[]");
+    const target = searches.find((s) => s.id === id);
+    await setSetting(env, "media_saved_searches", JSON.stringify(searches.filter((s) => s.id !== id)));
+    log(ctx, env, "delete", "media-saved-search", target?.name || `#${id}`);
+    return json({ ok: true });
+  }
+
   return json({ error: "Not found" }, { status: 404 });
 }

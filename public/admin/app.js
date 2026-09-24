@@ -4033,6 +4033,62 @@
   el("media-type-filter").addEventListener("change", renderMediaGrid);
   el("media-search").addEventListener("input", renderMediaGrid);
 
+  // ---------- Media saved searches ----------
+  let mediaSavedSearches = [];
+
+  async function loadMediaSavedSearches() {
+    mediaSavedSearches = await api("/media-saved-searches").catch(() => []);
+    el("media-saved-search-select").innerHTML = `<option value="">Saved searches…</option>${mediaSavedSearches
+      .map((s) => `<option value="${s.id}">${escapeHtml(s.name)}</option>`)
+      .join("")}`;
+  }
+
+  el("media-saved-search-select").addEventListener("change", () => {
+    const id = Number(el("media-saved-search-select").value);
+    const search = mediaSavedSearches.find((s) => s.id === id);
+    if (!search) return;
+    const f = search.filters;
+    el("media-folder-filter").value = f.folder || "";
+    el("media-type-filter").value = f.type || "";
+    el("media-search").value = f.search || "";
+    el("media-unused-filter").checked = !!f.unused;
+    el("media-duplicates-filter").checked = !!f.duplicates;
+    renderMediaGrid();
+  });
+
+  el("media-save-search-btn").addEventListener("click", async () => {
+    const name = (prompt("Name this search:") || "").trim();
+    if (!name) return;
+    const filters = {
+      folder: el("media-folder-filter").value,
+      type: el("media-type-filter").value,
+      search: el("media-search").value,
+      unused: el("media-unused-filter").checked,
+      duplicates: el("media-duplicates-filter").checked,
+    };
+    try {
+      const { id } = await api("/media-saved-searches", { method: "POST", body: JSON.stringify({ name, filters }) });
+      await loadMediaSavedSearches();
+      el("media-saved-search-select").value = String(id);
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  el("media-delete-search-btn").addEventListener("click", async () => {
+    const id = Number(el("media-saved-search-select").value);
+    if (!id) {
+      alert("Select a saved search to delete first.");
+      return;
+    }
+    try {
+      await api(`/media-saved-searches/${id}`, { method: "DELETE" });
+      await loadMediaSavedSearches();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
   el("media-upload-folder").addEventListener("change", (e) => {
     if (e.target.value !== "__new__") return;
     const name = (prompt("New folder name:") || "").trim();
@@ -5479,6 +5535,7 @@
     await loadSongOptions();
     await loadStylePresets();
     populateStylePresetSelect();
+    await loadMediaSavedSearches();
     await loadTemplates("page");
     await loadTemplates("article");
     await loadTemplates("project");
