@@ -318,6 +318,7 @@
     updatePageOgPreview();
     checkPageDraftRecovery(currentPage.id);
     updatePasteButtonVisibility();
+    el("admin-view-live").href = currentPage.slug === "home" ? "/" : `/${currentPage.slug}`;
     await loadBlocks();
   }
 
@@ -1568,6 +1569,27 @@
     renderLayersList();
   });
   closeModalOnClick("close-layers", "layers-modal");
+
+  // ---------- Preview (responsive widths) ----------
+  el("preview-btn").addEventListener("click", () => {
+    if (!currentPage) return;
+    const path = currentPage.slug === "home" ? "/" : `/${currentPage.slug}`;
+    el("preview-frame").src = path;
+    el("preview-modal").hidden = false;
+  });
+  el("close-preview").addEventListener("click", () => {
+    el("preview-modal").hidden = true;
+    // Stops any playing video/audio/simulation JS inside the iframe from
+    // continuing to run in the background once the preview is dismissed.
+    el("preview-frame").src = "about:blank";
+  });
+  document.querySelectorAll(".preview-device-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".preview-device-btn").forEach((b) => b.classList.remove("is-active"));
+      btn.classList.add("is-active");
+      el("preview-frame").style.width = btn.dataset.width;
+    });
+  });
 
   // ---------- Undo (blocks only, in-memory, ~8s window) ----------
   let undoTimer = null;

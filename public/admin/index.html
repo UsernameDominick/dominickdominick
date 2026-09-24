@@ -46,7 +46,8 @@
         <button id="analytics-btn">Analytics</button>
         <button id="trash-btn">Trash</button>
         <button id="site-settings-btn">Site</button>
-        <a href="/" target="_blank" class="admin-view-live">View live ↗</a>
+        <a id="admin-view-live" href="/" target="_blank" class="admin-view-live">View live ↗</a>
+        <button id="preview-btn" title="Preview this page at different screen widths">Preview</button>
         <button id="focus-mode-btn" aria-pressed="false" title="Hide the block palette for more canvas room">Focus</button>
         <button id="admin-theme-toggle" aria-label="Toggle admin panel light/dark theme" title="Toggle admin panel theme">◐</button>
         <button id="logout-btn">Log out</button>
@@ -551,6 +552,23 @@
       <div class="redirects-body">
         <p class="redirects-hint">Select a block on a page and use "Save as reusable block…" in its settings to add one here. Editing a reusable block's content updates every page that uses it. Insert one onto the currently open page below.</p>
         <div id="shared-blocks-list" class="redirects-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="preview-modal" class="modal" hidden>
+    <div class="modal-inner preview-modal-inner">
+      <header>
+        <h1>Preview</h1>
+        <div class="preview-device-buttons">
+          <button type="button" class="preview-device-btn is-active" data-width="100%">Desktop</button>
+          <button type="button" class="preview-device-btn" data-width="768px">Tablet</button>
+          <button type="button" class="preview-device-btn" data-width="390px">Mobile</button>
+        </div>
+        <button id="close-preview">×</button>
+      </header>
+      <div class="preview-body">
+        <iframe id="preview-frame" title="Page preview"></iframe>
       </div>
     </div>
   </div>
