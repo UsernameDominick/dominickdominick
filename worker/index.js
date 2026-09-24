@@ -396,6 +396,32 @@ async function renderArchive(env, navItems) {
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
+// Reading history lives entirely in the visitor's own browser (localStorage,
+// written by nav.js as they view articles/projects) — never sent to or
+// stored on the server, so this route just ships the empty shell and lets
+// client-side JS fill it in from whatever's already in that browser.
+async function renderHistoryPage(env, navItems) {
+  const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
+  const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 16;">
+    <h1>Reading History</h1>
+    <p>Stored only in your browser — never sent to or seen by this site. <button type="button" id="clear-history-btn">Clear history</button></p>
+    <div id="reading-history-list"><noscript>Requires JavaScript.</noscript></div>
+  </div>`;
+  const html = renderShell({
+    title: "Reading History · Dominick",
+    description: "Articles and projects you've viewed, stored locally in your browser.",
+    path: "/history",
+    navItems,
+    activeSlug: null,
+    bodyHtml,
+    ogImage: defaultOgImage || null,
+    theme,
+    footerText,
+    customHead,
+  });
+  return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
+}
+
 async function renderTopicPage(env, tag, navItems) {
   const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
   const { articles, projects } = await getContentByTag(env, tag);
@@ -705,6 +731,11 @@ async function route(request, env, ctx) {
     if (path === "/archive") {
       const navItems = await listNavPages(env);
       return renderArchive(env, navItems);
+    }
+
+    if (path === "/history") {
+      const navItems = await listNavPages(env);
+      return renderHistoryPage(env, navItems);
     }
 
     const simulationMatch = path.match(/^\/simulation\/(\d+)$/);

@@ -1,4 +1,16 @@
-export const RESERVED_SLUGS = new Set(["admin", "api", "sitemap.xml", "robots.txt"]);
+export const RESERVED_SLUGS = new Set([
+  "admin",
+  "api",
+  "sitemap.xml",
+  "robots.txt",
+  "rss.xml",
+  "topics",
+  "archive",
+  "history",
+  "shuffle",
+  "search",
+  "media",
+]);
 
 // SQLite's LIKE treats % and _ as wildcards with no default escape, so a
 // search for a literal "%" or "_" (e.g. "50% off", "file_name") would

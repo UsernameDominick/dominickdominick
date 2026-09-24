@@ -39,6 +39,82 @@ document.addEventListener("input", function (e) {
   if (wrap) wrap.style.setProperty("--pos", e.target.value + "%");
 });
 
+// Reading history — entirely client-side (localStorage), never sent to the
+// server. Only records article/project detail pages, identified by URL
+// shape rather than a data attribute so it needs no server changes at all.
+(function () {
+  var HISTORY_KEY = "reading_history";
+  var MAX_ENTRIES = 100;
+
+  function readHistory() {
+    try {
+      var raw = localStorage.getItem(HISTORY_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function writeHistory(list) {
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+    } catch (e) {}
+  }
+
+  function recordVisit() {
+    var m = location.pathname.match(/^\/(random|projects)\/([a-z0-9-]+)$/);
+    if (!m) return;
+    var type = m[1] === "random" ? "article" : "project";
+    var title = document.title.replace(/\s*·\s*Dominick\s*$/, "");
+    var list = readHistory().filter(function (e) {
+      return e.url !== location.pathname;
+    });
+    list.unshift({ type: type, url: location.pathname, title: title, visitedAt: new Date().toISOString() });
+    writeHistory(list.slice(0, MAX_ENTRIES));
+  }
+  recordVisit();
+
+  // nav.js runs synchronously in <head>-adjacent position, before <main>
+  // (and #reading-history-list inside it) has even been parsed yet — has
+  // to wait for the DOM to actually exist before querying it.
+  function renderHistoryPage() {
+    var container = document.getElementById("reading-history-list");
+    if (!container) return;
+    var list = readHistory();
+    if (!list.length) {
+      container.innerHTML = '<p class="empty-hint">Nothing viewed yet.</p>';
+      return;
+    }
+    var rows = list
+      .map(function (e) {
+        var d = new Date(e.visitedAt);
+        var dateStr = isNaN(d) ? "" : d.toLocaleDateString();
+        var span = document.createElement("span");
+        span.textContent = e.title;
+        var typeSpan = document.createElement("span");
+        typeSpan.className = "topic-count";
+        typeSpan.textContent = e.type;
+        return (
+          '<li><time>' + dateStr + '</time> <a href="' + e.url + '">' + span.innerHTML + "</a> " + typeSpan.outerHTML + "</li>"
+        );
+      })
+      .join("");
+    container.innerHTML = '<ul class="archive-list">' + rows + "</ul>";
+    var clearBtn = document.getElementById("clear-history-btn");
+    if (clearBtn) {
+      clearBtn.addEventListener("click", function () {
+        writeHistory([]);
+        renderHistoryPage();
+      });
+    }
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", renderHistoryPage);
+  } else {
+    renderHistoryPage();
+  }
+})();
+
 (function () {
   var active = document.querySelector(".tab.is-active");
   var wrap = document.querySelector(".tabs");

@@ -318,11 +318,11 @@ measurement history, and a limitations doc.
 - 🔶 Suggestions while typing (the admin command palette does this; visitor-facing public search does not)
 - ✅ Related-project and related-article displays
 - ✅ Topic browsing (`/topics` lists every tag with counts; `/topics/:tag` shows matching posts and projects together. Also fixed a real bug found while building this: every tag chip linked to `/random?tag=` regardless of content type, so a project-only tag opened the article index and showed nothing)
-- ☐ Timeline and year-based browsing
+- ✅ Timeline and year-based browsing (`/archive`, grouped by publish year)
 - ☐ Interactive project map or visual index
 - ✅ Random article/project button (⇌ icon in the topbar, next to search; /shuffle route)
 - ☐ Visitor bookmarks or save-for-later
-- ☐ Locally stored visitor reading history
+- ✅ Locally stored visitor reading history (`/history` — reads/writes localStorage only, nothing sent to the server; recorded by nav.js on every article/project view, with a clear-history control)
 - ✅ Reading-time estimates for long project pages (sums project body + every journal entry, since that's usually where a project page's real length comes from)
 - ✅ RSS feeds by content type or tag (`/rss.xml?type=article|project&tag=x`; also fixed a real gap where the feed never included projects at all, and added the missing `<link rel="alternate">` discovery tag site-wide)
 
