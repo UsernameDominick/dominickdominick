@@ -42,6 +42,35 @@ window.trackEvent = function (name, detail) {
 })();
 
 (function () {
+  // This script tag sits before <main> in the document (see renderShell),
+  // so the block content [data-animate] elements live in hasn't been
+  // parsed yet when this runs synchronously — wait for the full document.
+  document.addEventListener("DOMContentLoaded", function () {
+    var targets = document.querySelectorAll("[data-animate]");
+    if (!targets.length) return;
+    var reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reducedMotion || !("IntersectionObserver" in window)) {
+      // Reduced motion (or no observer support): the CSS never defines an
+      // animated state for these anyway, so adding the class is a harmless
+      // no-op there — this just also skips setting up an observer for nothing.
+      targets.forEach(function (el) { el.classList.add("is-visible"); });
+      return;
+    }
+    var observer = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          entry.target.classList.add("is-visible");
+          observer.unobserve(entry.target);
+        });
+      },
+      { threshold: 0.15 }
+    );
+    targets.forEach(function (el) { observer.observe(el); });
+  });
+})();
+
+(function () {
   var btn = document.getElementById("theme-toggle");
   if (!btn) return;
   btn.addEventListener("click", function () {

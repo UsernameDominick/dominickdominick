@@ -840,6 +840,20 @@
       ],
     },
     { key: "stickyOffset", label: "Sticky/fixed offset from top (px)", type: "number" },
+    {
+      key: "animation",
+      label: "Entrance animation (plays once, when scrolled into view)",
+      type: "select",
+      options: [
+        ["", "None"],
+        ["fade-in", "Fade in"],
+        ["slide-up", "Slide up"],
+        ["slide-left", "Slide in from right"],
+        ["slide-right", "Slide in from left"],
+        ["zoom-in", "Zoom in"],
+      ],
+    },
+    { key: "animationDelay", label: "Animation delay (ms)", type: "number" },
     { key: "customCss", label: "Custom CSS (advanced — raw declarations, e.g. transform: rotate(-2deg);)", type: "textarea", noSpellcheck: true },
     { key: "hidden", label: "Hide from live site", type: "checkbox" },
   ];

@@ -555,6 +555,17 @@ export async function renderBlocks(env, blocks, ctx = {}) {
         const gridStyle = `grid-column:${b.col} / span ${b.col_span};grid-row:${b.row} / span ${b.row_span};`;
         const style = b.style || {};
         const inner = await renderBlockInner(env, b, ctx);
+        // The scroll-triggered reveal itself (adding .is-visible) is plain
+        // JS (nav.js) reacting to this attribute — see the CSS for how
+        // prefers-reduced-motion disables the whole effect without any JS
+        // branching, by simply never defining the animated styles at all.
+        // The delay is folded into the block's single style="" attribute
+        // below (a second style attribute on the same element would just
+        // clobber the first, silently breaking the grid positioning).
+        const hasAnimation = ["fade-in", "slide-up", "slide-left", "slide-right", "zoom-in"].includes(style.animation);
+        const dataAnimateAttr = hasAnimation ? ` data-animate="${style.animation}"` : "";
+        const delayMs = Number(style.animationDelay);
+        const animateDelayCss = hasAnimation && Number.isFinite(delayMs) && delayMs > 0 ? `--animate-delay:${delayMs}ms;` : "";
         // A background video (or an image with a tint overlay) needs real
         // stacked elements — there's no CSS property that overlays a color
         // on a <video>, and layering it into background-image would only
@@ -562,13 +573,13 @@ export async function renderBlocks(env, blocks, ctx = {}) {
         // video, no overlay) keeps the exact same simple markup as before.
         if (style.backgroundVideoUrl || (style.backgroundImage && style.overlayColor)) {
           const overlayRgba = style.overlayColor ? hexToRgba(style.overlayColor, style.overlayOpacity) : null;
-          return `<div class="block block-has-bg-layer" style="${gridStyle}${blockStyleAttr(style)}">${
+          return `<div class="block block-has-bg-layer" style="${gridStyle}${blockStyleAttr(style)}${animateDelayCss}"${dataAnimateAttr}>${
             style.backgroundVideoUrl
               ? `<video class="block-bg-video" src="${esc(style.backgroundVideoUrl)}" autoplay muted loop playsinline></video>`
               : ""
           }${overlayRgba ? `<div class="block-bg-overlay" style="background:${overlayRgba};"></div>` : ""}<div class="block-content-over-bg">${inner}</div></div>`;
         }
-        return `<div class="block" style="${gridStyle}${blockStyleAttr(style)}">${inner}</div>`;
+        return `<div class="block" style="${gridStyle}${blockStyleAttr(style)}${animateDelayCss}"${dataAnimateAttr}>${inner}</div>`;
       })
   );
   return parts.join("\n");
