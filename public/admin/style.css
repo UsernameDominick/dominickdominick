@@ -980,6 +980,40 @@
   margin-top: 0;
 }
 
+.settings-hint {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin: 0;
+}
+
+.theme-contrast-check {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+/* Two shades, same reasoning as .save-conflict: #3fae5a reads at 6.95:1 on
+   the dark admin theme but only 2.83:1 on white — well under WCAG AA. */
+.theme-contrast-check .contrast-pass {
+  color: #3fae5a;
+}
+
+:root[data-theme="light"] .theme-contrast-check .contrast-pass {
+  color: #1f7a3f;
+}
+
+.theme-contrast-check .contrast-fail {
+  color: #e8663a;
+}
+
+:root[data-theme="light"] .theme-contrast-check .contrast-fail {
+  color: #c94f24;
+}
+
 .settings-body button {
   align-self: flex-start;
   background: var(--accent);

@@ -3199,7 +3199,10 @@
     el("settings-og-image").value = settings.default_og_image || "";
     el("settings-accent").value = settings.theme_accent || "#e8a13a";
     el("settings-bg").value = settings.theme_bg || "#0b0b0c";
+    el("settings-text").value = settings.theme_text || "#ededf0";
+    el("settings-border").value = settings.theme_border || "#232326";
     el("settings-font").value = settings.theme_font || "";
+    el("settings-heading-font").value = settings.theme_heading_font || "";
     el("settings-footer").value = settings.site_footer || "";
     el("settings-custom-head").value = settings.custom_head || "";
     el("settings-webhook-url").value = settings.webhook_url || "";
@@ -3207,6 +3210,7 @@
     el("find-replace-results").innerHTML = "";
     el("find-replace-apply-btn").disabled = true;
     el("settings-modal").hidden = false;
+    updateThemeContrastCheck();
     loadActivityLog().catch(() => {});
     loadErrors().catch(() => {});
     loadScheduledBackups().catch(() => {});
@@ -3220,7 +3224,10 @@
           default_og_image: el("settings-og-image").value,
           theme_accent: el("settings-accent").value,
           theme_bg: el("settings-bg").value,
+          theme_text: el("settings-text").value,
+          theme_border: el("settings-border").value,
           theme_font: el("settings-font").value,
+          theme_heading_font: el("settings-heading-font").value,
           site_footer: el("settings-footer").value,
           custom_head: el("settings-custom-head").value,
           webhook_url: el("settings-webhook-url").value,
@@ -3231,6 +3238,44 @@
       alert(err.message);
     }
   });
+
+  // ---------- Theme contrast checker ----------
+  // WCAG relative-luminance contrast ratio, same formula used to audit
+  // every fixed color already in style.css — surfaced live here so a
+  // custom theme color can't accidentally ship unreadable.
+  function relLuminance(hex) {
+    const h = hex.replace("#", "");
+    const r = parseInt(h.slice(0, 2), 16) / 255;
+    const g = parseInt(h.slice(2, 4), 16) / 255;
+    const b = parseInt(h.slice(4, 6), 16) / 255;
+    const f = (c) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+  }
+  function contrastRatio(hexA, hexB) {
+    const l1 = relLuminance(hexA);
+    const l2 = relLuminance(hexB);
+    const lighter = Math.max(l1, l2);
+    const darker = Math.min(l1, l2);
+    return (lighter + 0.05) / (darker + 0.05);
+  }
+  function updateThemeContrastCheck() {
+    const bg = el("settings-bg").value;
+    const text = el("settings-text").value;
+    const accent = el("settings-accent").value;
+    const pairs = [
+      ["Text vs background", contrastRatio(text, bg), 4.5],
+      ["Accent vs background", contrastRatio(accent, bg), 3],
+    ];
+    el("theme-contrast-check").innerHTML = pairs
+      .map(([label, ratio, threshold]) => {
+        const pass = ratio >= threshold;
+        return `<span class="${pass ? "contrast-pass" : "contrast-fail"}">${escapeHtml(label)}: ${ratio.toFixed(
+          2
+        )}:1 — ${pass ? "passes" : "fails"} WCAG AA (needs ${threshold}:1)</span>`;
+      })
+      .join("");
+  }
+  ["settings-bg", "settings-text", "settings-accent"].forEach((id) => el(id).addEventListener("input", updateThemeContrastCheck));
 
   el("check-links-btn").addEventListener("click", async () => {
     const btn = el("check-links-btn");

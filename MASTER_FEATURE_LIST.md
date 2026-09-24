@@ -59,7 +59,7 @@ health-check pass, done before this master list existed.
 
 ## 3. Design system and styling
 
-- ☐ Global tokens for colors, typography, spacing, borders, and shadows (only accent/bg/font exist — 3 tokens, not a full system)
+- 🔶 Global tokens for colors, typography, spacing, borders, and shadows (accent/bg/text/border colors + body/heading fonts are now admin-configurable, 6 tokens; spacing and shadow tokens deferred — no existing hook to build them on safely without a larger, riskier retrofit of scattered magic numbers, see PRODUCTION_TODO.md)
 - ☐ Per-page overrides of global styles
 - ☐ Upload and manage custom fonts
 - ✅ Light and dark site themes
@@ -367,7 +367,7 @@ deliberately, not an oversight.
 
 - ✅ Missing alt-text checks (diagnostics panel + inline warning on image blocks)
 - 🔶 Heading-order checks (checks for missing/duplicate H1 only, not full h2→h3 hierarchy)
-- ☐ Color-contrast checks (fixed once during the health check; no repeatable checker tool)
+- 🔶 Color-contrast checks (a live WCAG contrast checker now runs in Site Settings whenever you touch a theme color, so a bad accent/text/background choice can't ship unnoticed; still no site-wide checker for arbitrary content colors)
 - ☐ Keyboard-navigation checks (site supports keyboard nav from the health check; no automated checker)
 - ☐ Visible focus-state checks (focus states exist site-wide; no automated checker)
 - ✅ Tap-target checks

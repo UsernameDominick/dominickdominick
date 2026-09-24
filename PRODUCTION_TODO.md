@@ -47,6 +47,22 @@ ALTER TABLE media ADD COLUMN license TEXT;
   since neither is a quick add relative to its value for a personal site
   with a small media library.
 
+## Deferred from the design tokens batch
+
+- **Spacing and shadow tokens** (the other two categories the master
+  list's "global tokens" line asks for, alongside colors/typography/
+  borders which are now done). Neither has an existing hook to build on:
+  spacing throughout style.css is ad hoc per-component px values, not a
+  scale, and there are currently zero box-shadows anywhere on the site
+  (a deliberately flat design). Retrofitting either safely — without
+  quietly changing the site's current look — needs a careful, deliberate
+  pass with visual review, not something to do unsupervised. Flagging
+  for a future batch rather than rushing a lower-confidence version.
+- **Presets for buttons/cards/callouts/image treatments**, **per-page
+  style overrides**, and **page-specific CSS/JS controls** — real,
+  reasonable asks from the same section, not done this batch since the
+  tokens themselves (the foundation those would build on) came first.
+
 Run via the Cloudflare D1 MCP tools (query directly against the
 `dominickdominick` database, id `f49fb038-9dfb-419e-acfb-7d8babc9d509`),
 or `npx wrangler d1 execute dominickdominick --remote --command "..."`

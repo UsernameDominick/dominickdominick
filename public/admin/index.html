@@ -458,11 +458,24 @@
       </header>
       <div class="settings-body">
         <h2>Theme</h2>
+        <p class="settings-hint">These override the dark theme's built-in colors (the light theme visitors can switch to keeps its own fixed palette, so it stays readable regardless of what's set here).</p>
         <label>Accent color<input id="settings-accent" type="color" value="#e8a13a"></label>
         <label>Background color<input id="settings-bg" type="color" value="#0b0b0c"></label>
-        <label>Site font
+        <label>Text color<input id="settings-text" type="color" value="#ededf0"></label>
+        <label>Border color<input id="settings-border" type="color" value="#232326"></label>
+        <div id="theme-contrast-check" class="theme-contrast-check"></div>
+        <label>Body font
           <select id="settings-font">
             <option value="">Default (system sans)</option>
+            <option value="sans">Sans-serif</option>
+            <option value="serif">Serif</option>
+            <option value="mono">Monospace</option>
+            <option value="rounded">Rounded (Trebuchet)</option>
+          </select>
+        </label>
+        <label>Heading font (blank = same as body)
+          <select id="settings-heading-font">
+            <option value="">Same as body</option>
             <option value="sans">Sans-serif</option>
             <option value="serif">Serif</option>
             <option value="mono">Monospace</option>

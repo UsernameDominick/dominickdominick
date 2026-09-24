@@ -477,6 +477,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
 h1, h2, h3, h4, h5, h6 {
   margin: 0 0 12px;
   letter-spacing: -0.02em;
+  font-family: var(--heading-font-family, inherit);
 }
 
 h1 { font-size: 2rem; }

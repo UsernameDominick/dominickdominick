@@ -112,7 +112,18 @@ function normalizePath(p) {
   return s;
 }
 
-const SETTINGS_KEYS = ["default_og_image", "theme_accent", "theme_bg", "theme_font", "site_footer", "custom_head", "webhook_url"];
+const SETTINGS_KEYS = [
+  "default_og_image",
+  "theme_accent",
+  "theme_bg",
+  "theme_font",
+  "theme_text",
+  "theme_border",
+  "theme_heading_font",
+  "site_footer",
+  "custom_head",
+  "webhook_url",
+];
 
 // Paths a redirect could otherwise break by intercepting a system route.
 const BLOCKED_REDIRECT_PREFIXES = ["/api", "/admin", "/media", "/sitemap.xml", "/rss.xml", "/robots.txt"];

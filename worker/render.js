@@ -757,7 +757,10 @@ export function renderShell({
   const themeVars = [];
   if (theme.accent) themeVars.push(`--accent:${esc(theme.accent)}`);
   if (theme.bg) themeVars.push(`--bg:${esc(theme.bg)}`);
+  if (theme.text) themeVars.push(`--text:${esc(theme.text)}`);
+  if (theme.border) themeVars.push(`--border:${esc(theme.border)}`);
   if (theme.font && FONT_STACKS[theme.font]) themeVars.push(`--font-family:${FONT_STACKS[theme.font]}`);
+  if (theme.headingFont && FONT_STACKS[theme.headingFont]) themeVars.push(`--heading-font-family:${FONT_STACKS[theme.headingFont]}`);
   const themeStyle = themeVars.length ? `<style>:root{${themeVars.join(";")};}</style>` : "";
   const navHtml = navItems
     .map(

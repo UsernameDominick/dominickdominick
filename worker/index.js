@@ -50,12 +50,22 @@ import { handleAdminApi } from "./admin-api.js";
 import { renderSimulationSvg } from "./simulation-render.js";
 
 async function getTheme(env) {
-  const [accent, bg, font] = await Promise.all([
+  const [accent, bg, font, text, border, headingFont] = await Promise.all([
     getSetting(env, "theme_accent"),
     getSetting(env, "theme_bg"),
     getSetting(env, "theme_font"),
+    getSetting(env, "theme_text"),
+    getSetting(env, "theme_border"),
+    getSetting(env, "theme_heading_font"),
   ]);
-  return { accent: accent || null, bg: bg || null, font: font || null };
+  return {
+    accent: accent || null,
+    bg: bg || null,
+    font: font || null,
+    text: text || null,
+    border: border || null,
+    headingFont: headingFont || null,
+  };
 }
 
 // Settings every rendered page/article needs, fetched together since
