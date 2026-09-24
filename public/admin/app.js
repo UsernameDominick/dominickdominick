@@ -50,6 +50,10 @@
   // separate concept from selectedBlockId rather than collapsing back to
   // single-select at size 1, so the mode doesn't flip-flop mid-selection.
   let multiSelectedIds = new Set();
+  // Isolation mode dims every block except selectedBlockId on the canvas —
+  // it's a rendering toggle, not a separate "which block" state, so moving
+  // the selection while it's on just moves which block stays highlighted.
+  let isolationMode = false;
 
   async function uploadFile(file, folder) {
     const res = await fetch("/api/admin/upload" + (folder ? `?folder=${encodeURIComponent(folder)}` : ""), {
@@ -540,6 +544,7 @@
 
   function renderCanvas() {
     canvas.innerHTML = "";
+    canvas.classList.toggle("isolation-mode", isolationMode && selectedBlockId !== null);
     let maxBottom = 600;
     for (const b of blocks) {
       const style = blockPixelStyle(b);
@@ -549,7 +554,8 @@
         "admin-block" +
         (b.id === selectedBlockId || multiSelectedIds.has(b.id) ? " selected" : "") +
         (b.style && b.style.hidden ? " block-is-hidden" : "") +
-        (b.locked ? " block-locked" : "");
+        (b.locked ? " block-locked" : "") +
+        (isolationMode && selectedBlockId !== null && b.id !== selectedBlockId ? " is-dimmed" : "");
       div.style.left = style.left + "px";
       div.style.top = style.top + "px";
       div.style.width = style.width + "px";
@@ -659,8 +665,17 @@
       multiSelectedIds.clear();
       selectedBlockId = block.id;
       renderInspector();
-      document.querySelectorAll(".admin-block").forEach((d) => d.classList.remove("selected"));
+      document.querySelectorAll(".admin-block").forEach((d) => {
+        d.classList.remove("selected");
+        // Isolation dimming is keyed off selectedBlockId, but this handler
+        // updates the DOM directly instead of calling renderCanvas() (so a
+        // drag can start on the same pointerdown) — without this, switching
+        // isolation to a newly-clicked block would wait until the next full
+        // re-render to actually move.
+        if (isolationMode) d.classList.toggle("is-dimmed", d !== div);
+      });
       div.classList.add("selected");
+      canvas.classList.toggle("isolation-mode", isolationMode);
       // Selection still works on a locked block (so its content/style stay
       // editable) — only the drag-to-move below is skipped, which is the
       // "accidental" change locking is meant to guard against.
@@ -1165,6 +1180,7 @@
     if (!block.style) block.style = {};
 
     updateLockButton("lock-block-btn", !!block.locked);
+    el("isolate-block-btn").classList.toggle("is-active", isolationMode);
 
     const banner = el("shared-block-banner");
     const saveAsSharedBtn = el("save-as-shared-block-btn");
@@ -1701,6 +1717,12 @@
     } catch (err) {
       alert(err.message);
     }
+  });
+
+  el("isolate-block-btn").addEventListener("click", () => {
+    isolationMode = !isolationMode;
+    el("isolate-block-btn").classList.toggle("is-active", isolationMode);
+    renderCanvas();
   });
 
   el("lock-block-btn").addEventListener("click", async () => {

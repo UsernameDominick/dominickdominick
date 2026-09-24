@@ -247,6 +247,15 @@
   color: var(--bg);
 }
 
+#isolate-block-btn.is-active {
+  background: var(--accent-dim);
+  color: var(--bg);
+}
+
+.admin-block.is-dimmed {
+  opacity: 0.15;
+}
+
 /* Canvas */
 .admin-canvas-wrap {
   flex: 1;
