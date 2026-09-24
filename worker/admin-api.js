@@ -717,6 +717,26 @@ async function routeAdminApi(request, env, url, ctx) {
     return json({ url: `/media/${key}`, duplicateOf: duplicate ? `/media/${duplicate.key}` : null });
   }
 
+  // /upload-audio — TTS narration files for the article/project audio
+  // player, kept separate from /upload (images only) rather than widening
+  // that route's scope. 30MB covers a long narration at a reasonable
+  // bitrate without needing a resumable-upload flow.
+  if (path === "/upload-audio" && method === "POST") {
+    const contentType = request.headers.get("Content-Type") || "";
+    const allowed = { "audio/mpeg": "mp3", "audio/mp4": "m4a", "audio/wav": "wav", "audio/x-wav": "wav", "audio/ogg": "ogg" };
+    if (!allowed[contentType]) {
+      return json({ error: "Only MP3, WAV, M4A, or OGG audio files are allowed" }, { status: 400 });
+    }
+    const buf = await request.arrayBuffer();
+    if (buf.byteLength > 30 * 1024 * 1024) {
+      return json({ error: "File too large (30MB max)" }, { status: 400 });
+    }
+    const key = `audio/${crypto.randomUUID()}.${allowed[contentType]}`;
+    await env.MEDIA.put(key, buf, { httpMetadata: { contentType } });
+    log(ctx, env, "upload", "audio", key.split("/").pop());
+    return json({ url: `/media/${key}`, key });
+  }
+
   // /media — list uploaded files (enriched with folder/tags/alt text), for
   // the media library picker.
   if (path === "/media" && method === "GET") {

@@ -76,6 +76,19 @@
     return res.json();
   }
 
+  async function uploadAudioFile(file) {
+    const res = await fetch("/api/admin/upload-audio", {
+      method: "POST",
+      headers: { "Content-Type": file.type },
+      body: file,
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || "Upload failed");
+    }
+    return res.json();
+  }
+
   // Fills a field with a URL — either replacing its value (used by single
   // image fields) or appending it as a new line (used by the gallery block's
   // one-URL-per-line textarea).
@@ -2165,6 +2178,8 @@
     el("article-og-image").value = article.og_image || "";
     el("article-canonical-url").value = article.canonical_url || "";
     el("article-correction-note").value = article.correction_note || "";
+    currentArticleTtsAudio = article.tts_audio_key || null;
+    refreshArticleTtsAudio();
     setMultiSelectValues(
       el("article-related-projects"),
       projects.filter((p) => (p.related_articles || []).includes(article.id)).map((p) => p.id)
@@ -2439,6 +2454,8 @@
     el("article-og-image").value = "";
     el("article-canonical-url").value = "";
     el("article-correction-note").value = "";
+    currentArticleTtsAudio = null;
+    refreshArticleTtsAudio();
     setMultiSelectValues(el("article-related-projects"), []);
     el("article-body").value = "";
     el("article-published").checked = false;
@@ -2483,6 +2500,7 @@
       og_image: el("article-og-image").value || null,
       canonical_url: el("article-canonical-url").value || null,
       correction_note: el("article-correction-note").value || null,
+      tts_audio_key: currentArticleTtsAudio,
       body: el("article-body").value,
       // A blank publish-at with "Published" checked means "now"; a filled
       // one schedules it (past or future). Unchecked always means draft.
@@ -2757,6 +2775,8 @@
     el("project-og-image").value = project.og_image || "";
     el("project-canonical-url").value = project.canonical_url || "";
     el("project-correction-note").value = project.correction_note || "";
+    currentProjectTtsAudio = project.tts_audio_key || null;
+    refreshProjectTtsAudio();
     el("project-body").value = project.body || "";
     setMultiSelectValues(el("project-related-articles"), project.related_articles);
     setMultiSelectValues(el("project-related-simulations"), project.related_simulations);
@@ -2796,6 +2816,8 @@
     el("project-og-image").value = "";
     el("project-canonical-url").value = "";
     el("project-correction-note").value = "";
+    currentProjectTtsAudio = null;
+    refreshProjectTtsAudio();
     el("project-body").value = "";
     setMultiSelectValues(el("project-related-articles"), []);
     setMultiSelectValues(el("project-related-simulations"), []);
@@ -2862,6 +2884,7 @@
       og_image: el("project-og-image").value || null,
       canonical_url: el("project-canonical-url").value || null,
       correction_note: el("project-correction-note").value || null,
+      tts_audio_key: currentProjectTtsAudio,
       body: el("project-body").value,
       related_articles: getMultiSelectValues(el("project-related-articles")),
       related_simulations: getMultiSelectValues(el("project-related-simulations")),
@@ -3766,6 +3789,58 @@
   el("load-activity-btn").addEventListener("click", () => loadActivityLog().catch((err) => alert(err.message)));
 
   // ---------- Webhook delivery history ----------
+  // ---------- TTS audio narration upload ----------
+  // Stored as a plain URL string (like og_image), not a media-library
+  // entry — deliberately kept out of the general Media Library since it's
+  // a single narration file per article/project, not a reusable asset.
+  let currentArticleTtsAudio = null;
+  let currentProjectTtsAudio = null;
+  function wireTtsAudio(kind, getCurrent, setCurrent) {
+    const fileInput = el(`${kind}-tts-audio-file`);
+    const uploadBtn = el(`${kind}-tts-audio-upload-btn`);
+    const removeBtn = el(`${kind}-tts-audio-remove-btn`);
+    const preview = el(`${kind}-tts-audio-preview`);
+    function refresh() {
+      const url = getCurrent();
+      preview.hidden = !url;
+      removeBtn.hidden = !url;
+      if (url) preview.src = url;
+    }
+    uploadBtn.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      uploadBtn.disabled = true;
+      uploadBtn.textContent = "Uploading…";
+      try {
+        const res = await uploadAudioFile(file);
+        setCurrent(res.url);
+        refresh();
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = "Upload audio…";
+        fileInput.value = "";
+      }
+    });
+    removeBtn.addEventListener("click", () => {
+      setCurrent(null);
+      refresh();
+    });
+    return refresh;
+  }
+  const refreshArticleTtsAudio = wireTtsAudio(
+    "article",
+    () => currentArticleTtsAudio,
+    (v) => (currentArticleTtsAudio = v)
+  );
+  const refreshProjectTtsAudio = wireTtsAudio(
+    "project",
+    () => currentProjectTtsAudio,
+    (v) => (currentProjectTtsAudio = v)
+  );
+
   // ---------- Shareable preview links ----------
   function previewLinkUrl(kind, slug, token) {
     const path = kind === "article" ? `/random/${slug}` : `/projects/${slug}`;

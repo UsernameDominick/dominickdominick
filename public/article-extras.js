@@ -32,6 +32,41 @@
       });
   });
 
+  // Read aloud — browser-native Web Speech API against the rendered body
+  // text, no server involvement and no uploaded audio required. Doubles as
+  // a real accessibility feature for any article/project, not just ones
+  // with a narration file.
+  (function () {
+    var btn = document.querySelector(".read-aloud-btn");
+    var content = document.getElementById("readable-content");
+    if (!btn || !content) return;
+    if (!("speechSynthesis" in window)) {
+      btn.hidden = true;
+      return;
+    }
+    var utterance = null;
+    function stop() {
+      window.speechSynthesis.cancel();
+      utterance = null;
+      btn.textContent = btn.dataset.labelRead || "🔊 Read aloud";
+    }
+    btn.addEventListener("click", function () {
+      if (window.speechSynthesis.speaking) {
+        stop();
+        return;
+      }
+      utterance = new SpeechSynthesisUtterance(content.innerText);
+      utterance.onend = stop;
+      utterance.onerror = stop;
+      window.speechSynthesis.speak(utterance);
+      btn.textContent = btn.dataset.labelStop || "⏹ Stop reading";
+    });
+    // Leaving the page mid-utterance shouldn't leave speech running.
+    window.addEventListener("beforeunload", function () {
+      window.speechSynthesis.cancel();
+    });
+  })();
+
   // Save for later — client-side bookmarking (localStorage only, same as
   // reading history), toggled from the button next to the share links.
   var SAVED_KEY = "saved_items";

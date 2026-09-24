@@ -2167,6 +2167,23 @@ kbd {
   border-color: rgba(232, 90, 90, 0.5);
 }
 
+.tts-audio-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.tts-audio-field label {
+  flex-basis: 100%;
+  margin-bottom: 0;
+}
+
+.tts-audio-field audio {
+  height: 32px;
+  max-width: 100%;
+}
+
 .preview-links-panel {
   border: 1px solid var(--border);
   border-radius: 8px;

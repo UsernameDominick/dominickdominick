@@ -83,7 +83,19 @@ per article/project) **plus** a free browser-generated fallback via the
 Web Speech API when no uploaded audio exists — no paid API, no key
 management. Use cases: (1) a "listen to this" player attached to an
 article/project, (2) a general accessibility read-aloud button.
-Status: ☐ not started.
+Status: ✅ shipped. `/upload-audio` admin endpoint (mp3/wav/m4a/ogg,
+30MB cap, its own R2 `audio/` prefix, auth-gated), `tts_audio_key` on
+articles/projects, an upload/preview/remove control in both editors,
+and a public "listen bar" (uploaded-audio `<audio>` player when set,
+always-available "🔊 Read aloud" button using the Web Speech API
+against the rendered `#readable-content` text — no server text
+extraction, no duplicated content in the page). Verified: upload,
+serving, admin remove-and-save, and the read-aloud toggle logic
+(confirmed correct via direct event testing — the sandbox's headless
+Chromium has zero installed TTS voices, so `speechSynthesis` always
+fires `synthesis-failed` instantly there; this is a sandbox limitation,
+not a bug — untested on a real browser with actual voices, worth a
+manual check in a real browser, see section 6).
 
 ### 1b. Loop-based DAW / music module
 Decision: a loop-based step sequencer + a basic piano roll + a handful
@@ -464,6 +476,8 @@ CREATE INDEX idx_preview_links_token ON preview_links(token);
 CREATE INDEX idx_preview_links_content ON preview_links(content_type, content_id);
 ALTER TABLE articles ADD COLUMN correction_note TEXT;
 ALTER TABLE projects ADD COLUMN correction_note TEXT;
+ALTER TABLE articles ADD COLUMN tts_audio_key TEXT;
+ALTER TABLE projects ADD COLUMN tts_audio_key TEXT;
 ```
 
 After this lands, run `POST /api/admin/media/backfill-hashes` once
@@ -515,6 +529,11 @@ full sync.
 - **Cron trigger for D1→R2 backups** (`0 8 * * *`) — confirm in the
   Cloudflare dashboard it's registered under the Worker's Triggers tab
   and that a backup actually lands in R2 under `backups/`.
+- **"Read aloud" (Web Speech API)** — sandbox headless Chromium has zero
+  installed TTS voices, so this can only be logic-verified there
+  (confirmed `speak()`/`onend`/`onerror` fire correctly), not actually
+  heard. Try it once in a real desktop or iOS browser to confirm it
+  actually speaks and the button toggle timing feels right.
 
 ---
 

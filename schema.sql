@@ -63,7 +63,8 @@ CREATE TABLE articles (
   featured INTEGER NOT NULL DEFAULT 0,
   pinned INTEGER NOT NULL DEFAULT 0,
   expires_at TEXT,
-  correction_note TEXT
+  correction_note TEXT,
+  tts_audio_key TEXT
 );
 
 -- Projects are a real content type (not just project-card blocks dropped on
@@ -93,7 +94,8 @@ CREATE TABLE projects (
   related_simulations TEXT NOT NULL DEFAULT '[]',
   related_scans TEXT NOT NULL DEFAULT '[]',
   expires_at TEXT,
-  correction_note TEXT
+  correction_note TEXT,
+  tts_audio_key TEXT
 );
 
 -- A project's build journal — dated entries telling the story of building

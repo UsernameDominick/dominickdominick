@@ -189,6 +189,13 @@
           </div>
           <input id="article-canonical-url" placeholder="Canonical URL override (optional — blank = auto)" spellcheck="false">
           <label>Correction/update note (optional — shown to readers in a callout at the top)<textarea id="article-correction-note" rows="2" placeholder="e.g. Updated Sept 2026 to reflect the new API."></textarea></label>
+          <div class="tts-audio-field">
+            <label>Audio narration (optional — plays for readers instead of/alongside the browser read-aloud button)</label>
+            <input type="file" id="article-tts-audio-file" accept="audio/mpeg,audio/wav,audio/mp4,audio/ogg" hidden>
+            <button type="button" id="article-tts-audio-upload-btn">Upload audio…</button>
+            <button type="button" id="article-tts-audio-remove-btn" hidden>Remove audio</button>
+            <audio id="article-tts-audio-preview" controls hidden></audio>
+          </div>
           <label>Related projects (edits the project's own "Related articles" field)<select id="article-related-projects" multiple size="4"></select></label>
           <div class="md-toolbar">
             <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="bold" title="Bold"><strong>B</strong></button>
@@ -287,6 +294,13 @@
           </div>
           <input id="project-canonical-url" placeholder="Canonical URL override (optional — blank = auto)" spellcheck="false">
           <label>Correction/update note (optional — shown to readers in a callout at the top)<textarea id="project-correction-note" rows="2" placeholder="e.g. Updated Sept 2026 with the v2 hardware revision."></textarea></label>
+          <div class="tts-audio-field">
+            <label>Audio narration (optional — plays for readers instead of/alongside the browser read-aloud button)</label>
+            <input type="file" id="project-tts-audio-file" accept="audio/mpeg,audio/wav,audio/mp4,audio/ogg" hidden>
+            <button type="button" id="project-tts-audio-upload-btn">Upload audio…</button>
+            <button type="button" id="project-tts-audio-remove-btn" hidden>Remove audio</button>
+            <audio id="project-tts-audio-preview" controls hidden></audio>
+          </div>
           <div class="project-related-row">
             <label>Related articles<select id="project-related-articles" multiple size="4"></select></label>
             <label>Related simulations<select id="project-related-simulations" multiple size="4"></select></label>

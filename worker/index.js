@@ -59,6 +59,7 @@ import {
   renderShareLinks,
   renderReactionsHtml,
   renderCorrectionNoteHtml,
+  renderTtsBarHtml,
 } from "./render.js";
 import { handleAdminApi } from "./admin-api.js";
 import { renderSimulationSvg } from "./simulation-render.js";
@@ -140,6 +141,7 @@ async function renderArticle(env, article, navItems) {
   const reactionCounts = await getReactionCounts(env, "article", article.id);
   const reactionsHtml = renderReactionsHtml("article", article.id, reactionCounts);
   const correctionNoteHtml = renderCorrectionNoteHtml(article.correction_note);
+  const ttsBarHtml = renderTtsBarHtml(article.tts_audio_key);
   // A meaningful gap (not every autosave tick right after publishing)
   // between published_at and updated_at is what actually earns a visible
   // "Updated" — otherwise every article would show one moments after going live.
@@ -149,6 +151,8 @@ async function renderArticle(env, article, navItems) {
   // so adding/removing an optional section (series nav, TOC, related) can't
   // silently throw off the ones after it.
   let row = 3;
+  const ttsRow = row;
+  row += 2;
   const correctionRow = correctionNoteHtml ? row : null;
   if (correctionNoteHtml) row += 2;
   const seriesRow = seriesNavHtml ? row : null;
@@ -174,11 +178,12 @@ async function renderArticle(env, article, navItems) {
     <h1>${esc(article.title)}</h1>
     ${renderTags(article.tags)}
   </div>
+  <div class="block" style="grid-column:1 / span 24;grid-row:${ttsRow} / span 2;">${ttsBarHtml}</div>
   ${correctionNoteHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${correctionRow} / span 2;">${correctionNoteHtml}</div>` : ""}
   ${seriesNavHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${seriesRow} / span 3;">${seriesNavHtml}</div>` : ""}
   ${tocHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${tocRow} / span 6;">${tocHtml}</div>` : ""}
   <div class="block" style="grid-column:1 / span 24;grid-row:${bodyRow} / span 12;">
-    ${paragraphsHtml(article.body)}
+    <div id="readable-content">${paragraphsHtml(article.body)}</div>
   </div>
   <div class="block" style="grid-column:1 / span 24;grid-row:${reactionsRow} / span 2;">${reactionsHtml}</div>
   ${relatedHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${relatedRow} / span 6;">${relatedHtml}</div>` : ""}`;
@@ -245,6 +250,7 @@ async function renderProject(env, project, navItems) {
   const downloads = Array.isArray(project.links && project.links.downloads) ? project.links.downloads : [];
   const downloadsHtml = renderDownloadsHtml(downloads);
   const correctionNoteHtml = renderCorrectionNoteHtml(project.correction_note);
+  const ttsBarHtml = renderTtsBarHtml(project.tts_audio_key);
   const wasUpdated = project.updated_at && project.published_at && new Date(project.updated_at) - new Date(project.published_at) > 24 * 3600 * 1000;
   // Build journals can add a lot of reading beyond the project body itself
   // (that's the whole point of a "long project page") — same reasoning
@@ -271,6 +277,8 @@ async function renderProject(env, project, navItems) {
     (project.tags && project.tags.length ? 2 : 0) +
     (linkButtons ? 2 : 0);
   let row = headerSpan + 2;
+  const ttsRow = row;
+  row += 2;
   const correctionRow = correctionNoteHtml ? row : null;
   if (correctionNoteHtml) row += 2;
   const bodyRow = row;
@@ -302,9 +310,10 @@ async function renderProject(env, project, navItems) {
     ${renderTags(project.tags)}
     ${linkButtons ? `<p>${linkButtons}</p>` : ""}
   </div>
+  <div class="block" style="grid-column:1 / span 24;grid-row:${ttsRow} / span 2;">${ttsBarHtml}</div>
   ${correctionNoteHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${correctionRow} / span 2;">${correctionNoteHtml}</div>` : ""}
   <div class="block" style="grid-column:1 / span 24;grid-row:${bodyRow} / span 12;">
-    ${paragraphsHtml(project.body)}
+    <div id="readable-content">${paragraphsHtml(project.body)}</div>
   </div>
   <div class="block" style="grid-column:1 / span 24;grid-row:${reactionsRow} / span 2;">${reactionsHtml}</div>
   ${downloadsHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${downloadsRow} / span ${4 + downloads.length};">${downloadsHtml}</div>` : ""}
@@ -834,10 +843,10 @@ async function route(request, env, ctx) {
       return renderSimulationPage(env, sim, navItems);
     }
 
-    // Scoped to "uploads/" and "scans/" specifically — the same R2 bucket
-    // also holds scheduled backups under "backups/", which must never be
-    // servable through this public route.
-    const mediaMatch = path.match(/^\/media\/((?:uploads|scans)\/[A-Za-z0-9_.\-\/]+)$/);
+    // Scoped to "uploads/", "scans/", and "audio/" specifically — the same
+    // R2 bucket also holds scheduled backups under "backups/", which must
+    // never be servable through this public route.
+    const mediaMatch = path.match(/^\/media\/((?:uploads|scans|audio)\/[A-Za-z0-9_.\-\/]+)$/);
     if (mediaMatch) {
       const obj = await env.MEDIA.get(mediaMatch[1]);
       if (!obj) return new Response("Not found", { status: 404 });

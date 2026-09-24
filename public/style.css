@@ -1302,6 +1302,35 @@ h6 { font-size: 0.9rem; }
   padding-top: 20px;
 }
 
+.tts-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.tts-bar audio {
+  height: 32px;
+  max-width: 100%;
+}
+
+.read-aloud-btn {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.read-aloud-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
 .correction-note {
   background: var(--bg-elevated);
   border-left: 3px solid var(--accent);

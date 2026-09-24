@@ -239,6 +239,16 @@ export function readingTime(text) {
   return Math.max(1, Math.round(words / 200));
 }
 
+// Full plain-text version of a markdown-lite body (not truncated, unlike
+// excerpt()) — used as the source text for the browser-based "Read aloud"
+// button, which needs the whole thing, not a summary.
+export function plainText(text) {
+  return stripMarkdown(text)
+    .replace(/^\[before-after:[^\]]+\]$/gm, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function excerpt(text, maxLen = 155) {
   const flat = stripMarkdown(text).replace(/\s+/g, " ").trim();
   if (flat.length <= maxLen) return flat;
@@ -461,6 +471,19 @@ export function renderReactionsHtml(contentType, contentId, counts) {
     )
     .join("");
   return `<div class="reactions" data-content-type="${esc(contentType)}" data-content-id="${esc(String(contentId))}">${buttons}</div>`;
+}
+
+// The audio player (if a narration file was uploaded) plus a "Read aloud"
+// button that's always available — it drives the browser's own Web Speech
+// API against the rendered body text at click time (see article-extras.js),
+// so it needs no server-side text extraction or duplicated content in the
+// page, and doubles as a real accessibility feature even when no narration
+// file exists.
+export function renderTtsBarHtml(audioUrl) {
+  return `<div class="tts-bar">
+    ${audioUrl ? `<audio controls preload="none" src="${esc(audioUrl)}">Your browser does not support audio playback.</audio>` : ""}
+    <button type="button" class="read-aloud-btn" data-label-read="🔊 Read aloud" data-label-stop="⏹ Stop reading" aria-label="Read this page aloud">🔊 Read aloud</button>
+  </div>`;
 }
 
 export function renderCorrectionNoteHtml(note) {
