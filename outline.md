@@ -610,7 +610,12 @@ health-check pass, predates this doc.
   returns it to its original spot with the value intact. Screenshot
   review caught a real z-index bug (overlay opened *behind* the modal it
   was launched from, `z-index: 80` vs. `.modal`'s `100`) — fixed to 110
-- ☐ Markdown import/export UI, paste cleanup from documents/websites
+- 🔶 Markdown export ✅ (an "Export .md" button in the article/project
+  editor downloads the title as an H1 plus the raw body — no conversion
+  needed, since the markdown-lite body syntax already IS standard-enough
+  Markdown for this to just work; falls back to slugifying the title
+  client-side for the filename on a brand-new unsaved item, which has no
+  slug yet); import UI, paste cleanup from documents/websites ☐
 - ✅ Find & replace (site-wide tool covers articles too)
 - ✅ Private notes (a new `private_notes` column on articles/projects — a
   textarea in each editor, clearly labeled "never shown publicly";

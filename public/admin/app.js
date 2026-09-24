@@ -3247,6 +3247,34 @@
     }
   });
 
+  // Plain-Markdown export — title as an H1, then the raw markdown-lite
+  // body as-is (it's already close enough to standard Markdown that no
+  // conversion is needed: the same fenced code/table/footnote syntax a
+  // real Markdown renderer understands, plus this site's own callout/
+  // shortcode extensions, which just pass through untouched).
+  function downloadMarkdown(filenameSlug, title, body) {
+    // A brand-new, not-yet-saved item has no slug yet (that's assigned
+    // server-side on first save) — fall back to slugifying the title
+    // client-side rather than a generic "untitled.md".
+    const fallback = (title || "untitled")
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    const content = `# ${title}\n\n${body}\n`;
+    const blob = new Blob([content], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${filenameSlug || fallback || "untitled"}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  el("export-article-md-btn").addEventListener("click", () => {
+    downloadMarkdown(el("article-slug").value, el("article-title").value || "Untitled", el("article-body").value);
+  });
+
   // ---------- Projects ----------
   let projects = [];
   let currentProjectId = null;
@@ -3618,6 +3646,10 @@
     } catch (err) {
       alert(err.message);
     }
+  });
+
+  el("export-project-md-btn").addEventListener("click", () => {
+    downloadMarkdown(el("project-slug").value, el("project-title").value || "Untitled", el("project-body").value);
   });
 
   // ---------- Build journal ----------
