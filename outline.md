@@ -503,7 +503,11 @@ health-check pass, predates this doc.
 - ✅ Tabs, accordions, cards, expandable sections
 - ✅ Sticky/fixed-position elements
 - 🔶 Background video/gradients/overlays/blend modes (all but gradients ✅)
-- 🔶 Entrance/scroll/hover animation controls (entrance/scroll ✅; hover ☐)
+- ✅ Entrance/scroll/hover animation controls — a "Hover effect" style
+  field (lift/grow/glow/darken) alongside the existing entrance
+  animation, pure CSS `:hover` transitions (no JS, unlike the
+  scroll-triggered entrance animations), same `prefers-reduced-motion`
+  scoping so a reduced-motion visitor sees the static look
 - ✅ Reduced-motion alternatives
 - 🔶 Shapes/dividers/masks (dividers ✅; shapes/masks ☐)
 - 🔶 Hover/focus/mobile-state previews (mobile ✅ via responsive preview; hover/focus simulation ☐)

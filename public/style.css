@@ -375,6 +375,35 @@ body {
     opacity: 1;
     transform: none;
   }
+
+  /* Hover animations — same reduced-motion scoping as entrance animations
+     above: a reduced-motion visitor sees the static, un-hovered look with
+     no JS branching, since these rules simply don't exist for them. */
+  .block-hover-lift {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .block-hover-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
+  }
+  .block-hover-grow {
+    transition: transform 0.2s ease;
+  }
+  .block-hover-grow:hover {
+    transform: scale(1.02);
+  }
+  .block-hover-glow {
+    transition: box-shadow 0.2s ease;
+  }
+  .block-hover-glow:hover {
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+  .block-hover-darken {
+    transition: filter 0.2s ease;
+  }
+  .block-hover-darken:hover {
+    filter: brightness(0.85);
+  }
 }
 
 .btn {

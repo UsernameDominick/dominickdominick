@@ -1303,6 +1303,18 @@
     },
     { key: "animationDelay", label: "Animation delay (ms)", type: "number" },
     {
+      key: "hoverEffect",
+      label: "Hover effect",
+      type: "select",
+      options: [
+        ["", "None"],
+        ["lift", "Lift (rises with a shadow)"],
+        ["grow", "Grow (scales up slightly)"],
+        ["glow", "Glow (accent-color outline)"],
+        ["darken", "Darken"],
+      ],
+    },
+    {
       key: "visibility",
       label: "Show on",
       type: "select",
