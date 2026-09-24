@@ -157,6 +157,66 @@
     e.appendChild(span);
   }
 
+  // ---------- Crash recovery ----------
+  // A local (per-browser, never sent anywhere) snapshot of in-progress
+  // edits, written on every keystroke — not the debounced server autosave.
+  // This is what catches a crashed tab, a browser force-quit, or a save
+  // that's been silently failing (offline, expired session) for a while:
+  // none of those get a chance to run a "before you go" handler, so the
+  // beforeunload guard above can't help. Wrapped in try/catch throughout
+  // since localStorage can throw (private browsing, blocked site data).
+  function draftKey(kind, id) {
+    return `admin_draft_${kind}_${id || "new"}`;
+  }
+  function saveDraft(kind, id, fields) {
+    try {
+      localStorage.setItem(draftKey(kind, id), JSON.stringify({ savedAt: Date.now(), fields }));
+    } catch {}
+  }
+  function loadDraft(kind, id) {
+    try {
+      const raw = localStorage.getItem(draftKey(kind, id));
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }
+  function clearDraft(kind, id) {
+    try {
+      localStorage.removeItem(draftKey(kind, id));
+    } catch {}
+  }
+
+  // Shown when a local draft exists for whatever was just loaded — either
+  // it matches what's on the server (a normal after-save leftover, cleared
+  // silently) or it doesn't (something crashed before it could be saved),
+  // in which case the admin gets to choose rather than either losing it
+  // silently or having it silently clobber what they just opened.
+  function renderDraftRecoveryBanner(statusElId, kind, id, draft, onRestore) {
+    const e = el(statusElId);
+    e.innerHTML = "";
+    const span = document.createElement("span");
+    span.className = "save-conflict";
+    span.textContent = `Unsaved draft from ${new Date(draft.savedAt).toLocaleString()} found (crashed tab or browser?). `;
+    const restoreBtn = document.createElement("button");
+    restoreBtn.type = "button";
+    restoreBtn.className = "save-conflict-reload";
+    restoreBtn.textContent = "Restore it";
+    restoreBtn.addEventListener("click", onRestore);
+    const discardBtn = document.createElement("button");
+    discardBtn.type = "button";
+    discardBtn.className = "save-conflict-reload";
+    discardBtn.style.marginLeft = "6px";
+    discardBtn.textContent = "Discard";
+    discardBtn.addEventListener("click", () => {
+      clearDraft(kind, id);
+      e.textContent = "";
+    });
+    span.appendChild(restoreBtn);
+    span.appendChild(discardBtn);
+    e.appendChild(span);
+  }
+
   function showLogin() {
     loginScreen.hidden = false;
     app.hidden = true;
@@ -232,7 +292,42 @@
     el("page-og-image").value = currentPage.og_image || "";
     el("page-save-status").textContent = "";
     updatePageOgPreview();
+    checkPageDraftRecovery(currentPage.id);
     await loadBlocks();
+  }
+
+  // ---------- Page-settings crash-recovery draft ----------
+  // Page settings have no server-side autosave at all (only the explicit
+  // Save button), so this local snapshot is the *only* safety net between
+  // typing and clicking Save — a bigger gap than articles have.
+  const PAGE_DRAFT_FIELD_IDS = ["page-title", "page-meta", "page-nav-label", "page-nav-order", "page-og-image"];
+  function capturePageRawFields() {
+    const out = {};
+    for (const id of PAGE_DRAFT_FIELD_IDS) out[id] = el(id).value;
+    return out;
+  }
+  function applyPageRawFields(fields) {
+    for (const id of PAGE_DRAFT_FIELD_IDS) {
+      if (id in fields) el(id).value = fields[id];
+    }
+    updatePageOgPreview();
+  }
+  function snapshotPageDraft() {
+    if (!currentPage) return;
+    saveDraft("page", currentPage.id, capturePageRawFields());
+  }
+  function checkPageDraftRecovery(pageId) {
+    const draft = loadDraft("page", pageId);
+    if (!draft) return;
+    if (JSON.stringify(draft.fields) === JSON.stringify(capturePageRawFields())) {
+      clearDraft("page", pageId);
+      return;
+    }
+    renderDraftRecoveryBanner("page-save-status", "page", pageId, draft, () => {
+      applyPageRawFields(draft.fields);
+      clearDraft("page", pageId);
+      unsavedDirty = true;
+    });
   }
 
   el("page-picker").addEventListener("change", (e) => selectPage(Number(e.target.value)));
@@ -262,6 +357,7 @@
     el(id).addEventListener("input", () => {
       unsavedDirty = true;
       el("page-save-status").textContent = "Unsaved changes…";
+      snapshotPageDraft();
     })
   );
 
@@ -281,6 +377,7 @@
         }),
       });
       unsavedDirty = false;
+      clearDraft("page", currentPage.id);
       await loadPages();
       el("page-save-status").textContent = "Saved " + new Date().toLocaleTimeString();
     } catch (err) {
@@ -1026,6 +1123,55 @@
     el("article-published").checked = !!article.published_at;
     el("article-publish-at").value = isoToLocalInput(article.published_at);
     updateArticleExtras();
+    checkArticleDraftRecovery(article.id);
+  }
+
+  // ---------- Article crash-recovery draft ----------
+  // Raw DOM field values rather than buildArticleBody()'s cooked shape
+  // (parsed tags array, resolved published_at) — much simpler to snapshot
+  // and restore exactly as typed, and buildArticleBody() already handles
+  // turning this back into a save payload when the restored draft is saved.
+  const ARTICLE_DRAFT_FIELD_IDS = [
+    "article-title", "article-slug", "article-tags", "article-series", "article-series-order",
+    "article-co-authors", "article-og-image", "article-body", "article-published", "article-publish-at",
+  ];
+  function captureArticleRawFields() {
+    const out = {};
+    for (const id of ARTICLE_DRAFT_FIELD_IDS) {
+      const input = el(id);
+      out[id] = input.type === "checkbox" ? input.checked : input.value;
+    }
+    return out;
+  }
+  function applyArticleRawFields(fields) {
+    for (const id of ARTICLE_DRAFT_FIELD_IDS) {
+      if (!(id in fields)) continue;
+      const input = el(id);
+      if (input.type === "checkbox") input.checked = fields[id];
+      else input.value = fields[id];
+    }
+    updateArticleExtras();
+  }
+  function snapshotArticleDraft() {
+    saveDraft("article", currentArticleId, captureArticleRawFields());
+  }
+  // Called right after the form is populated (existing article) or cleared
+  // (new article) — a draft that matches what's already showing is just
+  // this-tab's own last save and gets cleared silently; one that differs
+  // means something never made it to the server.
+  function checkArticleDraftRecovery(articleId) {
+    const draft = loadDraft("article", articleId);
+    if (!draft) return;
+    const current = JSON.stringify(captureArticleRawFields());
+    if (JSON.stringify(draft.fields) === current) {
+      clearDraft("article", articleId);
+      return;
+    }
+    renderDraftRecoveryBanner("article-autosave-status", "article", articleId, draft, () => {
+      applyArticleRawFields(draft.fields);
+      clearDraft("article", articleId);
+      scheduleAutosave();
+    });
   }
 
   // Shows/hides the Preview and History controls, which only make sense
@@ -1118,7 +1264,10 @@
     updateArticleExtras();
   }
 
-  el("new-article").addEventListener("click", clearArticleForm);
+  el("new-article").addEventListener("click", () => {
+    clearArticleForm();
+    checkArticleDraftRecovery(null);
+  });
 
   function parseTags(str) {
     return str
@@ -1165,6 +1314,7 @@
   el("save-article").addEventListener("click", async () => {
     const body = buildArticleBody();
     if (!body.title) return alert("Title is required.");
+    const isNewArticle = !currentArticleId;
     try {
       if (currentArticleId) {
         body.expected_version = currentArticleVersion;
@@ -1175,6 +1325,7 @@
         el("article-slug").value = res.slug;
       }
       unsavedDirty = false;
+      clearDraft("article", isNewArticle ? null : currentArticleId);
       articles = await api("/articles");
       rebaseArticleVersion();
       updateArticleExtras();
@@ -1210,6 +1361,7 @@
     try {
       await api(`/articles/${currentArticleId}`, { method: "PATCH", body: JSON.stringify(body) });
       unsavedDirty = false;
+      clearDraft("article", currentArticleId);
       articles = await api("/articles");
       rebaseArticleVersion();
       renderArticlesList();
@@ -1227,6 +1379,7 @@
     }
   }
   function scheduleAutosave() {
+    snapshotArticleDraft();
     if (!currentArticleId) return;
     unsavedDirty = true;
     setAutosaveStatus("Unsaved changes…");
