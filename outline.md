@@ -579,7 +579,10 @@ breadboard continuity, tolerances, limitations doc) — all ☐, untouched.
 
 ### Search and content discovery
 - ✅ Site-wide search (articles + projects); ☐ filters/sorting
-- 🔶 Type-ahead suggestions (admin command palette ✅; public search ☐)
+- ✅ Type-ahead suggestions (admin command palette; public search — debounced
+  `/api/search-suggest` endpoint reusing `publicSearch()`, dropdown under
+  the topbar search box with arrow-key nav and Enter-to-navigate, own
+  rate limit separate from `/search`'s since it fires per keystroke)
 - ✅ Related content displays, topic browsing (`/topics`, `/topics/:tag`), archive by year (`/archive`)
 - ☐ Interactive project map/visual index
 - ✅ Random content button (`/shuffle`), save-for-later (`/saved`), reading history (`/history`) — all client-only localStorage, nothing sent to the server

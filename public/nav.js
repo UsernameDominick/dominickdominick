@@ -147,6 +147,88 @@ document.addEventListener("input", function (e) {
 })();
 
 (function () {
+  // Type-ahead suggestions for the topbar search box — hits
+  // /api/search-suggest (debounced) rather than a full /search page load
+  // per keystroke.
+  var input = document.querySelector(".site-search input");
+  var list = document.getElementById("search-suggest-list");
+  if (!input || !list) return;
+  var debounceTimer = null;
+  var activeIndex = -1;
+  var items = [];
+
+  function closeList() {
+    list.hidden = true;
+    list.innerHTML = "";
+    items = [];
+    activeIndex = -1;
+    input.setAttribute("aria-expanded", "false");
+  }
+
+  function render(results) {
+    items = results;
+    activeIndex = -1;
+    if (!results.length) return closeList();
+    list.innerHTML = results
+      .map(function (r) {
+        return (
+          '<a class="search-suggest-item" href="' +
+          r.url +
+          '">' +
+          r.title.replace(/</g, "&lt;") +
+          '<span class="search-suggest-type">' +
+          r.type +
+          "</span></a>"
+        );
+      })
+      .join("");
+    list.hidden = false;
+    input.setAttribute("aria-expanded", "true");
+  }
+
+  function fetchSuggestions(q) {
+    if (!q) return closeList();
+    fetch("/api/search-suggest?q=" + encodeURIComponent(q))
+      .then(function (r) { return r.json(); })
+      .then(function (data) { render(data.results || []); })
+      .catch(function () {});
+  }
+
+  input.addEventListener("input", function () {
+    clearTimeout(debounceTimer);
+    var q = input.value.trim();
+    debounceTimer = setTimeout(function () { fetchSuggestions(q); }, 200);
+  });
+
+  input.addEventListener("keydown", function (e) {
+    var links = list.querySelectorAll(".search-suggest-item");
+    if (!links.length || list.hidden) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      activeIndex = Math.min(activeIndex + 1, links.length - 1);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      activeIndex = Math.max(activeIndex - 1, 0);
+    } else if (e.key === "Enter" && activeIndex >= 0) {
+      e.preventDefault();
+      window.location.href = links[activeIndex].getAttribute("href");
+      return;
+    } else {
+      return;
+    }
+    links.forEach(function (l, i) { l.classList.toggle("active", i === activeIndex); });
+  });
+
+  document.addEventListener("click", function (e) {
+    if (e.target !== input && !list.contains(e.target)) closeList();
+  });
+  input.addEventListener("blur", function () {
+    // Let a click on a suggestion register before the list disappears.
+    setTimeout(closeList, 150);
+  });
+})();
+
+(function () {
   // This script tag sits before <main> in the document (see renderShell),
   // so the block content [data-animate] elements live in hasn't been
   // parsed yet when this runs synchronously — wait for the full document.

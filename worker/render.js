@@ -1039,8 +1039,9 @@ ${customHead || ""}
         <span class="tab-indicator" aria-hidden="true"></span>
       </nav>
       <div class="topbar-tools">
-        <form class="site-search" action="/search" method="get" role="search">
-          <input type="search" name="q" placeholder="Search" aria-label="Search" value="${esc(searchQuery || "")}">
+        <form class="site-search" action="/search" method="get" role="search" autocomplete="off">
+          <input type="search" name="q" placeholder="Search" aria-label="Search" value="${esc(searchQuery || "")}" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="search-suggest-list">
+          <div class="search-suggest" id="search-suggest-list" hidden></div>
         </form>
         <a class="icon-link-btn" href="/shuffle" title="Random project or article" aria-label="Random project or article">⇌</a>
         <button type="button" id="theme-toggle" aria-label="Toggle light/dark theme">◐</button>

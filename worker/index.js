@@ -816,6 +816,27 @@ async function route(request, env, ctx) {
       return renderSearch(env, url.searchParams.get("q")?.trim() || "", navItems, ctx);
     }
 
+    // Type-ahead suggestions for the topbar search box — a lighter, higher-
+    // rate-limit sibling of /search's own page-view rate limit above, since
+    // this fires (debounced) per keystroke rather than per submit. Fails
+    // quiet (empty results) rather than an error page on rate-limit, since
+    // it's a background enhancement, not the primary search action.
+    if (path === "/api/search-suggest") {
+      const q = (url.searchParams.get("q") || "").trim();
+      if (!q) return new Response(JSON.stringify({ results: [] }), { headers: { "Content-Type": "application/json" } });
+      const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+      const allowed = await checkRateLimit(env, "search-suggest", ip, { windowMinutes: 1, maxAttempts: 60 });
+      if (!allowed) return new Response(JSON.stringify({ results: [] }), { status: 429, headers: { "Content-Type": "application/json" } });
+      ctx.waitUntil(recordRateLimitHit(env, "search-suggest", ip).catch(() => {}));
+      const { pages, articles, projects } = await publicSearch(env, q);
+      const results = [
+        ...pages.slice(0, 3).map((p) => ({ type: "Page", title: p.title, url: p.slug === "home" ? "/" : `/${p.slug}` })),
+        ...articles.slice(0, 3).map((a) => ({ type: "Article", title: a.title, url: `/random/${a.slug}` })),
+        ...projects.slice(0, 3).map((p) => ({ type: "Project", title: p.title, url: `/projects/${p.slug}` })),
+      ].slice(0, 6);
+      return new Response(JSON.stringify({ results }), { headers: { "Content-Type": "application/json" } });
+    }
+
     if (path === "/topics") {
       const navItems = await listNavPages(env);
       return renderTopicsIndex(env, navItems);
