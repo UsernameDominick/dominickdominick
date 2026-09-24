@@ -20,6 +20,7 @@ import {
   hardDeleteArticle,
   listTrashedArticles,
   bulkArticleAction,
+  bulkProjectAction,
   listTemplates,
   createTemplate,
   deleteTemplate,
@@ -518,10 +519,10 @@ async function routeAdminApi(request, env, url, ctx) {
     const body = await request.json().catch(() => ({}));
     const ids = Array.isArray(body.ids) ? body.ids : [];
     if (!ids.length) return json({ error: "No articles selected" }, { status: 400 });
-    if (!["publish", "unpublish", "trash"].includes(body.action)) {
+    if (!["publish", "unpublish", "trash", "add-tag"].includes(body.action)) {
       return json({ error: "Invalid action" }, { status: 400 });
     }
-    const result = await bulkArticleAction(env, ids, body.action);
+    const result = await bulkArticleAction(env, ids, body.action, { tag: body.tag });
     log(ctx, env, body.action, "article", `${result.affected} article(s)${result.skippedLocked ? `, ${result.skippedLocked} skipped (locked)` : ""}`);
     return json({ ok: true, ...result });
   }
@@ -591,6 +592,17 @@ async function routeAdminApi(request, env, url, ctx) {
     await deleteProject(env, id);
     log(ctx, env, "trash", "project", p?.title || `#${id}`);
     return json({ ok: true });
+  }
+  if (path === "/projects/bulk" && method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    const ids = Array.isArray(body.ids) ? body.ids : [];
+    if (!ids.length) return json({ error: "No projects selected" }, { status: 400 });
+    if (!["publish", "unpublish", "trash", "add-tag"].includes(body.action)) {
+      return json({ error: "Invalid action" }, { status: 400 });
+    }
+    const result = await bulkProjectAction(env, ids, body.action, { tag: body.tag });
+    log(ctx, env, body.action, "project", `${result.affected} project(s)${result.skippedLocked ? `, ${result.skippedLocked} skipped (locked)` : ""}`);
+    return json({ ok: true, ...result });
   }
   if (path === "/projects/trash" && method === "GET") {
     return json(await listTrashedProjects(env));

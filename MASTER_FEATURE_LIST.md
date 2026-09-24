@@ -184,7 +184,7 @@ health-check pass, done before this master list existed.
 ## 8. Content administration and portability
 
 - ☐ Convert or clone content between types (page duplication exists; no cross-type conversion)
-- 🔶 Bulk update tags, categories, dates, and visibility (bulk publish/unpublish/trash for articles ✅; bulk tag/category editing ☐)
+- ✅ Bulk update tags, categories, dates, and visibility (bulk publish/unpublish/trash/add-tag for both articles and projects; "categories" and "dates" map onto tags and publish scheduling, which are already per-item, not bulk-editable ranges)
 - ✅ Global find and replace with review before applying
 - ☐ Import from other platforms
 - ☐ Import dry run showing proposed changes (backup import is all-or-nothing)

@@ -438,7 +438,27 @@ export async function updateArticle(env, id, fields) {
 // deliberate edit, which still goes through updateArticle() normally.
 // Returns how many were actually affected vs skipped for being locked, so
 // the admin isn't left wondering why a locked item didn't move.
-export async function bulkArticleAction(env, ids, action) {
+// Shared by bulkArticleAction/bulkProjectAction — adding a tag reads each
+// affected row's own tags array (can't do a set-union in raw SQL against a
+// JSON text column) and writes back only the ones that didn't already have it.
+async function bulkAddTag(env, table, affectedIds, tag) {
+  const placeholders = affectedIds.map(() => "?").join(",");
+  const { results } = await env.DB.prepare(`SELECT id, tags FROM ${table} WHERE id IN (${placeholders})`).bind(...affectedIds).all();
+  const updates = results
+    .map((r) => {
+      const tags = JSON.parse(r.tags || "[]");
+      if (tags.includes(tag)) return null;
+      return { id: r.id, tags: JSON.stringify([...tags, tag]) };
+    })
+    .filter(Boolean);
+  await Promise.all(
+    updates.map((u) =>
+      env.DB.prepare(`UPDATE ${table} SET tags = ?, updated_at = datetime('now'), version = version + 1 WHERE id = ?`).bind(u.tags, u.id).run()
+    )
+  );
+}
+
+export async function bulkArticleAction(env, ids, action, opts = {}) {
   const validIds = ids.map(Number).filter(Number.isFinite);
   if (!validIds.length) return { affected: 0, skippedLocked: 0 };
   const placeholders = validIds.map(() => "?").join(",");
@@ -465,6 +485,45 @@ export async function bulkArticleAction(env, ids, action) {
       .prepare(`UPDATE articles SET deleted_at = datetime('now'), version = version + 1 WHERE id IN (${affectedPlaceholders})`)
       .bind(...affectedIds)
       .run();
+  } else if (action === "add-tag") {
+    if (!opts.tag) throw new Error("Tag required");
+    await bulkAddTag(env, "articles", affectedIds, opts.tag);
+  } else {
+    throw new Error("Invalid bulk action");
+  }
+  return { affected: affectedIds.length, skippedLocked };
+}
+
+export async function bulkProjectAction(env, ids, action, opts = {}) {
+  const validIds = ids.map(Number).filter(Number.isFinite);
+  if (!validIds.length) return { affected: 0, skippedLocked: 0 };
+  const placeholders = validIds.map(() => "?").join(",");
+  const lockedRows = await env.DB
+    .prepare(`SELECT id FROM projects WHERE id IN (${placeholders}) AND locked = 1`)
+    .bind(...validIds)
+    .all();
+  const skippedLocked = lockedRows.results.length;
+  const affectedIds = validIds.filter((id) => !lockedRows.results.some((r) => r.id === id));
+  if (!affectedIds.length) return { affected: 0, skippedLocked };
+  const affectedPlaceholders = affectedIds.map(() => "?").join(",");
+  if (action === "publish") {
+    await env.DB
+      .prepare(`UPDATE projects SET published_at = COALESCE(published_at, datetime('now')), updated_at = datetime('now'), version = version + 1 WHERE id IN (${affectedPlaceholders})`)
+      .bind(...affectedIds)
+      .run();
+  } else if (action === "unpublish") {
+    await env.DB
+      .prepare(`UPDATE projects SET published_at = NULL, updated_at = datetime('now'), version = version + 1 WHERE id IN (${affectedPlaceholders})`)
+      .bind(...affectedIds)
+      .run();
+  } else if (action === "trash") {
+    await env.DB
+      .prepare(`UPDATE projects SET deleted_at = datetime('now'), version = version + 1 WHERE id IN (${affectedPlaceholders})`)
+      .bind(...affectedIds)
+      .run();
+  } else if (action === "add-tag") {
+    if (!opts.tag) throw new Error("Tag required");
+    await bulkAddTag(env, "projects", affectedIds, opts.tag);
   } else {
     throw new Error("Invalid bulk action");
   }

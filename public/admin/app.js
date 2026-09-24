@@ -1959,6 +1959,7 @@
     el("articles-selected-count").textContent = n ? `${n} selected` : "";
     el("bulk-publish-btn").disabled = !n;
     el("bulk-unpublish-btn").disabled = !n;
+    el("bulk-tag-btn").disabled = !n;
     el("bulk-trash-btn").disabled = !n;
     el("articles-select-all").checked = n > 0 && n === articles.length;
   }
@@ -1998,12 +1999,12 @@
     renderArticlesList();
   });
 
-  async function runBulkArticleAction(action) {
+  async function runBulkArticleAction(action, extra = {}) {
     if (!selectedArticleIds.size) return;
-    const label = { publish: "Publish", unpublish: "Unpublish", trash: "Trash" }[action];
-    if (!confirm(`${label} ${selectedArticleIds.size} article(s)?`)) return;
+    const label = { publish: "Publish", unpublish: "Unpublish", trash: "Trash", "add-tag": "Tag" }[action];
+    if (action !== "add-tag" && !confirm(`${label} ${selectedArticleIds.size} article(s)?`)) return;
     try {
-      const result = await api("/articles/bulk", { method: "POST", body: JSON.stringify({ ids: [...selectedArticleIds], action }) });
+      const result = await api("/articles/bulk", { method: "POST", body: JSON.stringify({ ids: [...selectedArticleIds], action, ...extra }) });
       selectedArticleIds = new Set();
       articles = await api("/articles");
       if (currentArticleId && !articles.some((a) => a.id === currentArticleId)) clearArticleForm();
@@ -2018,6 +2019,12 @@
   el("bulk-publish-btn").addEventListener("click", () => runBulkArticleAction("publish"));
   el("bulk-unpublish-btn").addEventListener("click", () => runBulkArticleAction("unpublish"));
   el("bulk-trash-btn").addEventListener("click", () => runBulkArticleAction("trash"));
+  el("bulk-tag-btn").addEventListener("click", () => {
+    if (!selectedArticleIds.size) return;
+    const tag = (prompt("Add this tag to all selected articles:", "") || "").trim();
+    if (!tag) return;
+    runBulkArticleAction("add-tag", { tag });
+  });
 
   function populateArticleForm(article) {
     // Switching articles must drop any pending autosave for the PREVIOUS
@@ -2467,13 +2474,26 @@
     }`;
   }
 
+  let selectedProjectIds = new Set();
+
+  function updateProjectBulkBar() {
+    const n = selectedProjectIds.size;
+    el("projects-selected-count").textContent = n ? `${n} selected` : "";
+    el("bulk-project-publish-btn").disabled = !n;
+    el("bulk-project-unpublish-btn").disabled = !n;
+    el("bulk-project-tag-btn").disabled = !n;
+    el("bulk-project-trash-btn").disabled = !n;
+    el("projects-select-all").checked = n > 0 && n === projects.length;
+  }
+
   function renderProjectsList() {
+    selectedProjectIds = new Set([...selectedProjectIds].filter((id) => projects.some((p) => p.id === id)));
     el("projects-list").innerHTML = projects
       .map(
         (p) =>
-          `<div class="article-list-item${p.id === currentProjectId ? " active" : ""}" data-id="${p.id}">${escapeHtml(
-            p.title
-          )}${projectStatusLabel(p)}${projectBadges(p)}${
+          `<div class="article-list-item${p.id === currentProjectId ? " active" : ""}" data-id="${p.id}"><input type="checkbox" class="project-select-checkbox" data-id="${p.id}"${
+            selectedProjectIds.has(p.id) ? " checked" : ""
+          }> ${escapeHtml(p.title)}${projectStatusLabel(p)}${projectBadges(p)}${
             p.tags && p.tags.length ? `<div class="article-list-tags">${p.tags.map(escapeHtml).join(", ")}</div>` : ""
           }</div>`
       )
@@ -2481,12 +2501,52 @@
     el("projects-list")
       .querySelectorAll(".article-list-item")
       .forEach((item) => {
+        item.querySelector(".project-select-checkbox").addEventListener("click", (e) => {
+          e.stopPropagation();
+          const id = Number(e.target.dataset.id);
+          if (e.target.checked) selectedProjectIds.add(id);
+          else selectedProjectIds.delete(id);
+          updateProjectBulkBar();
+        });
         item.addEventListener("click", () => {
           const p = projects.find((x) => x.id === Number(item.dataset.id));
           if (p) populateProjectForm(p);
         });
       });
+    updateProjectBulkBar();
   }
+
+  el("projects-select-all").addEventListener("change", (e) => {
+    selectedProjectIds = e.target.checked ? new Set(projects.map((p) => p.id)) : new Set();
+    renderProjectsList();
+  });
+
+  async function runBulkProjectAction(action, extra = {}) {
+    if (!selectedProjectIds.size) return;
+    const label = { publish: "Publish", unpublish: "Unpublish", trash: "Trash", "add-tag": "Tag" }[action];
+    if (action !== "add-tag" && !confirm(`${label} ${selectedProjectIds.size} project(s)?`)) return;
+    try {
+      const result = await api("/projects/bulk", { method: "POST", body: JSON.stringify({ ids: [...selectedProjectIds], action, ...extra }) });
+      selectedProjectIds = new Set();
+      projects = await api("/projects");
+      if (currentProjectId && !projects.some((p) => p.id === currentProjectId)) clearProjectForm();
+      renderProjectsList();
+      if (result.skippedLocked) {
+        alert(`${result.affected} project(s) ${label.toLowerCase()}ed. ${result.skippedLocked} skipped because they're locked.`);
+      }
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+  el("bulk-project-publish-btn").addEventListener("click", () => runBulkProjectAction("publish"));
+  el("bulk-project-unpublish-btn").addEventListener("click", () => runBulkProjectAction("unpublish"));
+  el("bulk-project-trash-btn").addEventListener("click", () => runBulkProjectAction("trash"));
+  el("bulk-project-tag-btn").addEventListener("click", () => {
+    if (!selectedProjectIds.size) return;
+    const tag = (prompt("Add this tag to all selected projects:", "") || "").trim();
+    if (!tag) return;
+    runBulkProjectAction("add-tag", { tag });
+  });
 
   function populateProjectRelatedSelects() {
     el("project-related-articles").innerHTML = articles.map((a) => `<option value="${a.id}">${escapeHtml(a.title)}</option>`).join("");

@@ -162,6 +162,7 @@
             <span id="articles-selected-count" class="articles-selected-count"></span>
             <button type="button" id="bulk-publish-btn" disabled>Publish</button>
             <button type="button" id="bulk-unpublish-btn" disabled>Unpublish</button>
+            <button type="button" id="bulk-tag-btn" disabled>Add tag…</button>
             <button type="button" id="bulk-trash-btn" class="danger" disabled>Trash</button>
           </div>
           <div class="articles-list" id="articles-list"></div>
@@ -232,6 +233,14 @@
       </header>
       <div class="articles-layout">
         <div class="articles-list-wrap">
+          <div class="articles-bulk-bar">
+            <label><input type="checkbox" id="projects-select-all"> Select all</label>
+            <span id="projects-selected-count" class="articles-selected-count"></span>
+            <button type="button" id="bulk-project-publish-btn" disabled>Publish</button>
+            <button type="button" id="bulk-project-unpublish-btn" disabled>Unpublish</button>
+            <button type="button" id="bulk-project-tag-btn" disabled>Add tag…</button>
+            <button type="button" id="bulk-project-trash-btn" class="danger" disabled>Trash</button>
+          </div>
           <div class="articles-list" id="projects-list"></div>
         </div>
         <div class="article-editor">
