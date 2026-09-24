@@ -1028,6 +1028,82 @@ h6 { font-size: 0.9rem; }
   color: var(--text-dim);
 }
 
+.accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.accordion-item {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 16px;
+}
+
+.accordion-item summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 12px 0;
+  list-style: none;
+}
+
+.accordion-item summary::-webkit-details-marker {
+  display: none;
+}
+
+.accordion-item summary::before {
+  content: "+";
+  display: inline-block;
+  width: 1.2em;
+  color: var(--accent);
+}
+
+.accordion-item[open] summary::before {
+  content: "\2212";
+}
+
+.accordion-body {
+  padding: 0 0 16px;
+  color: var(--text-dim);
+}
+
+.tabs-block {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tab-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab-strip-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 10px 16px;
+  margin-bottom: -1px;
+  font: inherit;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.tab-strip-btn.is-active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+.tab-panel {
+  color: var(--text-dim);
+}
+
+.tab-panel[hidden] {
+  display: none;
+}
+
 .related-posts > strong {
   display: block;
   font-size: 0.8rem;

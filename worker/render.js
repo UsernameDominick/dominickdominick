@@ -481,6 +481,42 @@ async function renderBlockInner(env, block, ctx) {
         )
         .join("")}</div>`;
     }
+    case "accordion": {
+      const items = Array.isArray(c.items) ? c.items.filter((it) => it && (it.title || it.body)) : [];
+      if (!items.length) return `<p class="empty-hint">No items yet.</p>`;
+      // <details>/<summary> is native, keyboard- and screen-reader-accessible
+      // expand/collapse with zero JS needed.
+      return `<div class="accordion">${items
+        .map(
+          (it) =>
+            `<details class="accordion-item"><summary>${esc(it.title || "Untitled")}</summary><div class="accordion-body">${paragraphsHtml(
+              it.body || ""
+            )}</div></details>`
+        )
+        .join("")}</div>`;
+    }
+    case "tabs": {
+      const items = Array.isArray(c.tabs) ? c.tabs.filter((it) => it && (it.label || it.body)) : [];
+      if (!items.length) return `<p class="empty-hint">No tabs yet.</p>`;
+      const uid = `tabs-${block.id}`;
+      const tabButtons = items
+        .map(
+          (it, i) =>
+            `<button type="button" class="tab-strip-btn${i === 0 ? " is-active" : ""}" role="tab" aria-selected="${
+              i === 0 ? "true" : "false"
+            }" aria-controls="${uid}-panel-${i}" id="${uid}-tab-${i}">${esc(it.label || `Tab ${i + 1}`)}</button>`
+        )
+        .join("");
+      const panels = items
+        .map(
+          (it, i) =>
+            `<div class="tab-panel${i === 0 ? " is-active" : ""}" role="tabpanel" id="${uid}-panel-${i}" aria-labelledby="${uid}-tab-${i}"${
+              i === 0 ? "" : ' hidden'
+            }>${paragraphsHtml(it.body || "")}</div>`
+        )
+        .join("");
+      return `<div class="tabs-block" data-tabs-id="${uid}"><div class="tab-strip" role="tablist">${tabButtons}</div><div class="tab-panels">${panels}</div></div>`;
+    }
     case "links": {
       const items = Array.isArray(c.items) ? c.items.filter((it) => it && it.url) : [];
       if (!items.length) return `<p class="empty-hint">No links yet.</p>`;

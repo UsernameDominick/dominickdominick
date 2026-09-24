@@ -457,7 +457,7 @@
   }
 
   function blockLabel(type) {
-    return { heading: "Heading", text: "Text", image: "Image", button: "Button", "project-card": "Project Card", "article-list": "Article List", video: "Video", quote: "Quote", gallery: "Gallery", simulation: "Simulation", scan: "3D Scan", divider: "Divider", spacer: "Spacer", links: "Links", html: "HTML / Embed", changelog: "Changelog / Now", embed: "Generic Embed" }[type] || type;
+    return { heading: "Heading", text: "Text", image: "Image", button: "Button", "project-card": "Project Card", "article-list": "Article List", video: "Video", quote: "Quote", gallery: "Gallery", simulation: "Simulation", scan: "3D Scan", divider: "Divider", spacer: "Spacer", links: "Links", html: "HTML / Embed", changelog: "Changelog / Now", embed: "Generic Embed", accordion: "Accordion", tabs: "Tabs" }[type] || type;
   }
 
   let simulationOptions = [];
@@ -497,6 +497,8 @@
       case "links": return `${(c.items || []).length} link(s)`;
       case "changelog": return `${(c.entries || []).length} entr${(c.entries || []).length === 1 ? "y" : "ies"}`;
       case "html": return c.html ? "(custom HTML)" : "(empty)";
+      case "accordion": return `${(c.items || []).length} section(s)`;
+      case "tabs": return `${(c.tabs || []).length} tab(s)`;
       default: return "";
     }
   }
@@ -698,6 +700,26 @@
         gallery: { content: { images: [] }, col_span: 24, row_span: 12 },
         links: { content: { items: [] }, col_span: 12, row_span: 6 },
         changelog: { content: { entries: [] }, col_span: 24, row_span: 16 },
+        accordion: {
+          content: {
+            items: [
+              { title: "First section", body: "Content for the first section." },
+              { title: "Second section", body: "Content for the second section." },
+            ],
+          },
+          col_span: 16,
+          row_span: 12,
+        },
+        tabs: {
+          content: {
+            tabs: [
+              { label: "Tab one", body: "Content for the first tab." },
+              { label: "Tab two", body: "Content for the second tab." },
+            ],
+          },
+          col_span: 16,
+          row_span: 12,
+        },
         html: { content: { html: "<!-- your HTML here -->" }, col_span: 24, row_span: 8 },
         divider: { content: {}, col_span: 24, row_span: 2 },
         spacer: { content: {}, col_span: 24, row_span: 2 },
@@ -794,6 +816,8 @@
     gallery: [{ key: "images", label: "Images", type: "gallery-urls" }],
     links: [{ key: "items", label: "Links (one per line: Label | URL)", type: "link-list" }],
     changelog: [{ key: "entries", label: "Entries (one per line: YYYY-MM-DD | Title | Description)", type: "changelog-list" }],
+    accordion: [{ key: "items", label: "Sections (one per line: Title | Body)", type: "accordion-list" }],
+    tabs: [{ key: "tabs", label: "Tabs (one per line: Label | Body)", type: "tabs-list" }],
     simulation: [{ key: "simulation_id", label: "Simulation", type: "simulation-select" }],
     scan: [{ key: "scan_id", label: "3D Scan", type: "scan-select" }],
     html: [{ key: "html", label: "Raw HTML (advanced — rendered as-is, unescaped; be careful what you paste here)", type: "textarea", noSpellcheck: true }],
@@ -935,6 +959,16 @@
         .join("\n");
       return `<label>${f.label}<textarea id="${fieldId}" data-key="${f.key}" data-changelog="1" rows="6">${escapeHtml(text)}</textarea></label>`;
     }
+    if (f.type === "accordion-list") {
+      const fieldId = `${idPrefix}-${f.key}`;
+      const text = (Array.isArray(val) ? val : []).map((it) => `${it.title || ""} | ${it.body || ""}`).join("\n");
+      return `<label>${f.label}<textarea id="${fieldId}" data-key="${f.key}" data-accordionlist="1" rows="6">${escapeHtml(text)}</textarea></label>`;
+    }
+    if (f.type === "tabs-list") {
+      const fieldId = `${idPrefix}-${f.key}`;
+      const text = (Array.isArray(val) ? val : []).map((it) => `${it.label || ""} | ${it.body || ""}`).join("\n");
+      return `<label>${f.label}<textarea id="${fieldId}" data-key="${f.key}" data-tabslist="1" rows="6">${escapeHtml(text)}</textarea></label>`;
+    }
     if (f.type === "simulation-select") {
       const options = simulationOptions
         .map((s) => `<option value="${s.id}"${String(val ?? "") === String(s.id) ? " selected" : ""}>${escapeHtml(s.name)}</option>`)
@@ -982,6 +1016,26 @@
         .map((line) => {
           const [date, title, description] = line.split("|").map((s) => (s || "").trim());
           return { date: date || "", title: title || "", description: description || "" };
+        });
+    }
+    if (input.dataset.accordionlist) {
+      return input.value
+        .split("\n")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((line) => {
+          const [title, body] = line.split("|").map((s) => (s || "").trim());
+          return { title: title || "", body: body || "" };
+        });
+    }
+    if (input.dataset.tabslist) {
+      return input.value
+        .split("\n")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((line) => {
+          const [label, body] = line.split("|").map((s) => (s || "").trim());
+          return { label: label || "", body: body || "" };
         });
     }
     return input.value;

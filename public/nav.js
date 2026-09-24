@@ -71,6 +71,28 @@ window.trackEvent = function (name, detail) {
 })();
 
 (function () {
+  // Event delegation — no DOMContentLoaded wait needed since this only
+  // binds a listener on document itself, not on the not-yet-parsed content.
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest(".tab-strip-btn");
+    if (!btn) return;
+    var strip = btn.closest(".tab-strip");
+    var block = btn.closest(".tabs-block");
+    if (!strip || !block) return;
+    var index = Array.prototype.indexOf.call(strip.querySelectorAll(".tab-strip-btn"), btn);
+    strip.querySelectorAll(".tab-strip-btn").forEach(function (b, i) {
+      b.classList.toggle("is-active", i === index);
+      b.setAttribute("aria-selected", i === index ? "true" : "false");
+    });
+    block.querySelectorAll(".tab-panel").forEach(function (panel, i) {
+      panel.classList.toggle("is-active", i === index);
+      if (i === index) panel.removeAttribute("hidden");
+      else panel.setAttribute("hidden", "");
+    });
+  });
+})();
+
+(function () {
   var btn = document.getElementById("theme-toggle");
   if (!btn) return;
   btn.addEventListener("click", function () {
