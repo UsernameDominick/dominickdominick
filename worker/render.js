@@ -10,6 +10,17 @@ export function esc(str) {
     .replace(/'/g, "&#39;");
 }
 
+// JSON.stringify() doesn't escape "</script>" — a value containing that
+// substring (an article titled or quoting something with a closing script
+// tag, entirely plausible on a programming blog) would prematurely end the
+// <script> element and let the rest of its JSON leak into the page as raw
+// HTML. Escaping "<" to its unicode escape is the standard fix (same one
+// React/Next.js use) and is a no-op for valid JSON, which never needs a
+// literal "<" outside of a string value.
+function jsonLdScript(data) {
+  return JSON.stringify(data).replace(/</g, "\\u003c");
+}
+
 // Minimal markdown: **bold**, *italic*, [label](url), plus [^label] footnote
 // references (see extractFootnotes). Runs on already-HTML-escaped text, so
 // the only unescaped characters left are the ones this inserts itself —
@@ -598,7 +609,7 @@ ${themeStyle}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" defer></script>
 <script>document.addEventListener("DOMContentLoaded",function(){if(window.hljs)hljs.highlightAll();});</script>
 <script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
-<script type="application/ld+json">${JSON.stringify({
+<script type="application/ld+json">${jsonLdScript({
     "@context": "https://schema.org",
     "@type": "WebSite",
     name: "Dominick",
@@ -610,7 +621,7 @@ ${themeStyle}
     },
   })}</script>
 ${(Array.isArray(jsonLd) ? jsonLd : jsonLd ? [jsonLd] : [])
-  .map((ld) => `<script type="application/ld+json">${JSON.stringify(ld)}</script>`)
+  .map((ld) => `<script type="application/ld+json">${jsonLdScript(ld)}</script>`)
   .join("\n")}
 ${customHead || ""}
 </head>

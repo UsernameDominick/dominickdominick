@@ -93,6 +93,26 @@ function isBlockedRedirectPath(p) {
   return BLOCKED_REDIRECT_PREFIXES.some((prefix) => p === prefix || p.startsWith(prefix + "/"));
 }
 
+// SVG is the one uploadable image format that's also a document format —
+// it can carry <script>, event-handler attributes, and <foreignObject>
+// (which can embed arbitrary HTML). Served from the site's own origin under
+// a CSP that allows 'unsafe-inline' scripts (kept for the admin's trusted
+// custom-head-code feature — see SECURITY_HEADERS in index.js), an
+// unsanitized SVG would execute with the full privileges of that origin if
+// ever opened directly or framed. This is a best-effort text-level strip,
+// not a full XML-aware sanitizer, but it removes every known script vector
+// without needing a DOM/XML parser (unavailable in Workers).
+function sanitizeSvg(text) {
+  return text
+    .replace(/<script[\s\S]*?<\/script\s*>/gi, "")
+    .replace(/<foreignObject[\s\S]*?<\/foreignObject\s*>/gi, "")
+    .replace(/\son\w+\s*=\s*"[^"]*"/gi, "")
+    .replace(/\son\w+\s*=\s*'[^']*'/gi, "")
+    .replace(/\son\w+\s*=\s*[^\s"'>]+/gi, "")
+    .replace(/((?:xlink:)?href|src)\s*=\s*"\s*javascript:[^"]*"/gi, '$1="#"')
+    .replace(/((?:xlink:)?href|src)\s*=\s*'\s*javascript:[^']*'/gi, "$1='#'");
+}
+
 function slugify(str) {
   return String(str || "")
     .toLowerCase()
@@ -373,9 +393,13 @@ async function routeAdminApi(request, env, url, ctx) {
     if (!allowed.includes(contentType)) {
       return json({ error: "Only PNG, JPEG, WebP, GIF, or SVG images are allowed" }, { status: 400 });
     }
-    const buf = await request.arrayBuffer();
+    let buf = await request.arrayBuffer();
     if (buf.byteLength > 8 * 1024 * 1024) {
       return json({ error: "File too large (8MB max)" }, { status: 400 });
+    }
+    if (contentType === "image/svg+xml") {
+      const cleaned = sanitizeSvg(new TextDecoder().decode(buf));
+      buf = new TextEncoder().encode(cleaned).buffer;
     }
     const ext = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif", "image/svg+xml": "svg" }[
       contentType

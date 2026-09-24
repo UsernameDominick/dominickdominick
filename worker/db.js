@@ -1,5 +1,13 @@
 export const RESERVED_SLUGS = new Set(["admin", "api", "sitemap.xml", "robots.txt"]);
 
+// SQLite's LIKE treats % and _ as wildcards with no default escape, so a
+// search for a literal "%" or "_" (e.g. "50% off", "file_name") would
+// otherwise match everything/anything instead of that literal substring.
+// Callers pair this with "LIKE ? ESCAPE '\'".
+function escapeLike(s) {
+  return String(s ?? "").replace(/[\\%_]/g, "\\$&");
+}
+
 export async function getPageBySlug(env, slug) {
   return env.DB.prepare("SELECT * FROM pages WHERE slug = ? AND deleted_at IS NULL").bind(slug).first();
 }
@@ -840,21 +848,21 @@ export async function restoreArticleRevision(env, articleId, revisionId) {
 
 // ---------- Search ----------
 export async function search(env, q) {
-  const like = `%${q}%`;
+  const like = `%${escapeLike(q)}%`;
   const [pages, articles, blocks] = await Promise.all([
     env.DB
       .prepare(
-        "SELECT id, slug, title FROM pages WHERE title LIKE ? OR meta_description LIKE ? OR nav_label LIKE ? OR slug LIKE ? LIMIT 15"
+        "SELECT id, slug, title FROM pages WHERE title LIKE ? ESCAPE '\\' OR meta_description LIKE ? ESCAPE '\\' OR nav_label LIKE ? ESCAPE '\\' OR slug LIKE ? ESCAPE '\\' LIMIT 15"
       )
       .bind(like, like, like, like)
       .all(),
     env.DB
       .prepare(
-        "SELECT id, slug, title FROM articles WHERE title LIKE ? OR body LIKE ? OR tags LIKE ? OR slug LIKE ? LIMIT 15"
+        "SELECT id, slug, title FROM articles WHERE title LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\' OR slug LIKE ? ESCAPE '\\' LIMIT 15"
       )
       .bind(like, like, like, like)
       .all(),
-    env.DB.prepare("SELECT id, page_id, type FROM blocks WHERE content LIKE ? LIMIT 15").bind(like).all(),
+    env.DB.prepare("SELECT id, page_id, type FROM blocks WHERE content LIKE ? ESCAPE '\\' LIMIT 15").bind(like).all(),
   ]);
   return { pages: pages.results, articles: articles.results, blocks: blocks.results };
 }
@@ -862,11 +870,11 @@ export async function search(env, q) {
 // Public-facing search: only live pages and published articles, unlike the
 // admin command palette's search() above which intentionally sees everything.
 export async function publicSearch(env, q) {
-  const like = `%${q}%`;
+  const like = `%${escapeLike(q)}%`;
   const [pages, articles] = await Promise.all([
     env.DB
       .prepare(
-        "SELECT id, slug, title, meta_description FROM pages WHERE deleted_at IS NULL AND (title LIKE ? OR meta_description LIKE ?) ORDER BY title LIMIT 20"
+        "SELECT id, slug, title, meta_description FROM pages WHERE deleted_at IS NULL AND (title LIKE ? ESCAPE '\\' OR meta_description LIKE ? ESCAPE '\\') ORDER BY title LIMIT 20"
       )
       .bind(like, like)
       .all(),
@@ -874,7 +882,7 @@ export async function publicSearch(env, q) {
       .prepare(
         `SELECT id, slug, title, body, tags, published_at FROM articles
          WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ?
-         AND (title LIKE ? OR body LIKE ? OR tags LIKE ?)
+         AND (title LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\')
          ORDER BY published_at DESC LIMIT 20`
       )
       .bind(new Date().toISOString(), like, like, like)

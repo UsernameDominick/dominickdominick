@@ -5,7 +5,10 @@
   --text: #ededf0;
   --text-dim: #9a9aa2;
   --accent: #e8a13a;
-  --accent-dim: #7a5a24;
+  /* Used as a text color (article/changelog date labels), not a background —
+     #7a5a24 only hit 3.11:1 against --bg, failing WCAG AA's 4.5:1 for normal
+     text. This is lighter/more muted-amber so it reads clearly at that size. */
+  --accent-dim: #a17e35;
   --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
 }
 
@@ -15,7 +18,13 @@
   --border: #e2e2e6;
   --text: #17171a;
   --text-dim: #6b6b73;
-  --accent-dim: #f3d9ad;
+  /* The dark theme's bright --accent (#e8a13a) only hits 2.19:1 against white
+     — well under WCAG AA. This is the same hue, darkened for legibility. */
+  --accent: #996414;
+  /* --accent-dim is also text-only (see :root above); the previous light tan
+     (#f3d9ad) was only 1.37:1 against white — barely visible. The dark
+     theme's original --accent-dim value happens to read well on white too. */
+  --accent-dim: #7a5a24;
 }
 
 /* Smooth cross-page transitions where supported; a harmless no-op elsewhere */
