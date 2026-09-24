@@ -2236,11 +2236,13 @@
       previewLink.hidden = false;
       historyBtn.hidden = false;
       el("share-preview-article-btn").hidden = false;
+      el("duplicate-article-btn").hidden = false;
     } else {
       previewLink.hidden = true;
       historyBtn.hidden = true;
       el("share-preview-article-btn").hidden = true;
       el("preview-links-panel-article").hidden = true;
+      el("duplicate-article-btn").hidden = true;
     }
     updateWordCount();
     updateArticleOgPreview();
@@ -2604,6 +2606,18 @@
     }
   });
   wireFavoriteButton("favorite-article-btn", "article", () => currentArticleId, () => el("article-title").value);
+  el("duplicate-article-btn").addEventListener("click", async () => {
+    if (!currentArticleId) return;
+    try {
+      const res = await api(`/articles/${currentArticleId}/duplicate`, { method: "POST" });
+      articles = await api("/articles");
+      const created = articles.find((a) => a.id === res.id);
+      if (created) populateArticleForm(created);
+      renderArticlesList();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
 
   // ---------- Projects ----------
   let projects = [];
@@ -2801,10 +2815,12 @@
       previewLink.href = `/projects/${slug}?preview=1`;
       previewLink.hidden = false;
       el("share-preview-project-btn").hidden = false;
+      el("duplicate-project-btn").hidden = false;
     } else {
       previewLink.hidden = true;
       el("share-preview-project-btn").hidden = true;
       el("preview-links-panel-project").hidden = true;
+      el("duplicate-project-btn").hidden = true;
     }
     updateProjectOgPreview();
     updateProjectChecklist();
@@ -2925,6 +2941,18 @@
     }
   });
   wireFavoriteButton("favorite-project-btn", "project", () => currentProjectId, () => el("project-title").value);
+  el("duplicate-project-btn").addEventListener("click", async () => {
+    if (!currentProjectId) return;
+    try {
+      const res = await api(`/projects/${currentProjectId}/duplicate`, { method: "POST" });
+      projects = await api("/projects");
+      const created = projects.find((p) => p.id === res.id);
+      if (created) populateProjectForm(created);
+      renderProjectsList();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
 
   // ---------- Build journal ----------
   let journalEntries = [];

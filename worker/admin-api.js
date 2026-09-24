@@ -8,6 +8,8 @@ import {
   hardDeletePage,
   listTrashedPages,
   duplicatePage,
+  duplicateArticle,
+  duplicateProject,
   listBlocks,
   createBlock,
   updateBlock,
@@ -548,6 +550,13 @@ async function routeAdminApi(request, env, url, ctx) {
     log(ctx, env, "delete-forever", "article", a?.title || `#${id}`);
     return json({ ok: true });
   }
+  const articleDuplicateMatch = path.match(/^\/articles\/(\d+)\/duplicate$/);
+  if (articleDuplicateMatch && method === "POST") {
+    const newId = await duplicateArticle(env, Number(articleDuplicateMatch[1]));
+    if (!newId) return json({ error: "Article not found" }, { status: 404 });
+    log(ctx, env, "duplicate", "article", `#${articleDuplicateMatch[1]} → #${newId}`);
+    return json({ id: newId });
+  }
 
   // /projects
   if (path === "/projects" && method === "GET") {
@@ -625,6 +634,13 @@ async function routeAdminApi(request, env, url, ctx) {
     await hardDeleteProject(env, id);
     log(ctx, env, "delete-forever", "project", p?.title || `#${id}`);
     return json({ ok: true });
+  }
+  const projectDuplicateMatch = path.match(/^\/projects\/(\d+)\/duplicate$/);
+  if (projectDuplicateMatch && method === "POST") {
+    const newId = await duplicateProject(env, Number(projectDuplicateMatch[1]));
+    if (!newId) return json({ error: "Project not found" }, { status: 404 });
+    log(ctx, env, "duplicate", "project", `#${projectDuplicateMatch[1]} → #${newId}`);
+    return json({ id: newId });
   }
 
   // /projects/:id/journal — a project's build journal entries

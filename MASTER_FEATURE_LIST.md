@@ -183,7 +183,7 @@ health-check pass, done before this master list existed.
 
 ## 8. Content administration and portability
 
-- ☐ Convert or clone content between types (page duplication exists; no cross-type conversion)
+- 🔶 Convert or clone content between types (duplication now exists for pages, articles, and projects — always lands as an unpublished draft copy, journal entries/BOM items/relationships aren't carried over; cross-type conversion, e.g. article→project, still ☐)
 - ✅ Bulk update tags, categories, dates, and visibility (bulk publish/unpublish/trash/add-tag for both articles and projects; "categories" and "dates" map onto tags and publish scheduling, which are already per-item, not bulk-editable ranges)
 - ✅ Global find and replace with review before applying
 - ☐ Import from other platforms

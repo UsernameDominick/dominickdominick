@@ -114,6 +114,62 @@ export async function duplicatePage(env, id) {
   return newId;
 }
 
+// Mirrors duplicatePage — always lands as an unpublished draft, whatever
+// the source's own publish state was, since a copy is something to edit
+// before it's ready, not to immediately have live twice over.
+export async function duplicateArticle(env, id) {
+  const source = await env.DB.prepare("SELECT * FROM articles WHERE id = ?").bind(id).first();
+  if (!source) return null;
+  let slug = `${source.slug}-copy`;
+  let n = 2;
+  while (await slugExists(env, "articles", slug)) {
+    slug = `${source.slug}-copy-${n}`;
+    n++;
+  }
+  return createArticle(env, {
+    slug,
+    title: `${source.title} (copy)`,
+    body: source.body,
+    published: false,
+    tags: JSON.parse(source.tags || "[]"),
+    og_image: source.og_image,
+    canonical_url: null,
+    co_authors: JSON.parse(source.co_authors || "[]"),
+    featured: false,
+    pinned: false,
+    expires_at: null,
+  });
+}
+
+export async function duplicateProject(env, id) {
+  const source = await env.DB.prepare("SELECT * FROM projects WHERE id = ?").bind(id).first();
+  if (!source) return null;
+  let slug = `${source.slug}-copy`;
+  let n = 2;
+  while (await slugExists(env, "projects", slug)) {
+    slug = `${source.slug}-copy-${n}`;
+    n++;
+  }
+  return createProject(env, {
+    slug,
+    title: `${source.title} (copy)`,
+    summary: source.summary,
+    body: source.body,
+    published: false,
+    tags: JSON.parse(source.tags || "[]"),
+    tech_stack: JSON.parse(source.tech_stack || "[]"),
+    status: source.status,
+    links: JSON.parse(source.links || "{}"),
+    og_image: source.og_image,
+    canonical_url: null,
+    featured: false,
+    related_articles: [],
+    related_simulations: [],
+    related_scans: [],
+    expires_at: null,
+  });
+}
+
 // A block whose shared_block_id is set defers its type/content/style to
 // that shared_blocks row — this is resolved right here so every caller
 // (the admin canvas, public rendering, find-replace, revisions) just sees
