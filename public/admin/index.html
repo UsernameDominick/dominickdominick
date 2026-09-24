@@ -838,12 +838,21 @@
           <option value="electronic">Electronic kit</option>
           <option value="808">808 kit</option>
         </select>
+        <select id="song-waveform">
+          <option value="sine">Sine</option>
+          <option value="square">Square</option>
+          <option value="sawtooth">Sawtooth</option>
+          <option value="triangle">Triangle</option>
+        </select>
         <button type="button" id="song-play">▶ Play</button>
         <button type="button" id="save-song">Save</button>
         <button id="close-song-builder">×</button>
       </header>
       <div class="song-builder-body">
+        <h2 class="song-section-heading">Drums</h2>
         <div id="song-sequencer" class="song-sequencer"></div>
+        <h2 class="song-section-heading">Melody (piano roll)</h2>
+        <div id="song-piano-roll" class="song-sequencer song-piano-roll"></div>
       </div>
     </div>
   </div>

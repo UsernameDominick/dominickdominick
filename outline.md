@@ -148,8 +148,17 @@ pattern: schedules notes against `AudioContext.currentTime`, not
 `setTimeout` timing, so playback doesn't drift). Verified: grid
 renders, steps toggle and persist correctly, reopening restores exact
 state, play/stop toggles and highlights the live step across all
-tracks. Still ☐: piano roll, Web MIDI input, waveform render,
-page-animation sync, embeddable public block/player. Continue in that
+tracks. Added a piano roll (2 octaves, C3-B4, 24 rows) reusing the
+exact same step-grid toggle code as the drum sequencer (factored into
+one `renderStepGrid()` parameterized by row keys/labels/get/set,
+rather than a second copy) — 4 waveform choices (sine/square/sawtooth/
+triangle), note→frequency via the standard equal-temperament formula.
+Verified: 24 rows render (10 correctly flagged as black keys), note
+toggles persist exactly, waveform choice saves, playback with melody
+notes active runs without error. Still ☐: Web MIDI input, waveform
+render (the visual kind — a waveform *display*, not to be confused
+with the oscillator waveform picker just added), page-animation sync,
+embeddable public block/player. Continue in that
 order next session.
 
 ### 1c. Admin UX / mobile overhaul

@@ -1488,6 +1488,25 @@ kbd {
   box-shadow: 0 0 0 2px var(--accent) inset;
 }
 
+.song-section-heading {
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  margin: 20px 0 10px;
+}
+
+.song-piano-roll {
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.song-row-black-key {
+  background: var(--bg-elevated);
+  border-radius: 4px;
+}
+
 .scan-editor-body {
   flex: 1;
   display: flex;

@@ -7,6 +7,24 @@
   const TRACK_LABELS = { kick: "Kick", snare: "Snare", hihat: "Hi-Hat", clap: "Clap" };
   const STEPS = 16;
 
+  // Piano roll: 2 octaves (C3-B4), highest pitch first — the usual
+  // top-to-bottom piano-roll convention. Reuses the exact same
+  // .song-step/.song-steps toggle-grid cells and click handling as the
+  // drum sequencer below, just with a note name (not a drum sound) as the
+  // per-row key, so the same rendering/toggle code covers both.
+  const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+  const PIANO_NOTES = [];
+  [4, 3].forEach((octave) => {
+    for (let i = 11; i >= 0; i--) PIANO_NOTES.push(NOTE_NAMES[i] + octave);
+  });
+
+  function noteToFreq(note) {
+    const m = note.match(/^([A-G]#?)(\d)$/);
+    if (!m) return 440;
+    const midi = NOTE_NAMES.indexOf(m[1]) + (Number(m[2]) + 1) * 12;
+    return 440 * Math.pow(2, (midi - 69) / 12);
+  }
+
   function defaultSongData() {
     return {
       tempo: 120,
@@ -15,6 +33,13 @@
         acc[t] = new Array(STEPS).fill(false);
         return acc;
       }, {}),
+      melody: {
+        waveform: "sine",
+        notes: PIANO_NOTES.reduce((acc, n) => {
+          acc[n] = new Array(STEPS).fill(false);
+          return acc;
+        }, {}),
+      },
     };
   }
 
@@ -117,6 +142,18 @@
 
   const PLAYERS = { kick: playKick, snare: playSnare, hihat: playHihat, clap: playClap };
 
+  function playMelodyNote(ctx, time, freq, waveform, duration) {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = waveform;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.25, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + duration * 0.9);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(time);
+    osc.stop(time + duration);
+  }
+
   // ---------- Scheduler ----------
   // The standard "lookahead" pattern (Chris Wilson's "A Tale of Two
   // Clocks") rather than a plain setInterval-per-step — a plain interval
@@ -140,6 +177,11 @@
     const kit = $("song-kit").value;
     TRACKS.forEach((track) => {
       if (songData.tracks[track][step]) PLAYERS[track](getAudioCtx(), time, kit);
+    });
+    const waveform = $("song-waveform").value;
+    const duration = stepDuration();
+    Object.keys(songData.melody.notes).forEach((note) => {
+      if (songData.melody.notes[note][step]) playMelodyNote(getAudioCtx(), time, noteToFreq(note), waveform, duration);
     });
     highlightStep(step);
   }
@@ -182,27 +224,54 @@
   });
 
   // ---------- Sequencer grid ----------
-  function renderSequencer() {
-    $("song-sequencer").innerHTML = TRACKS.map(
-      (track) =>
-        `<div class="song-track-row"><span class="song-track-label">${TRACK_LABELS[track]}</span><div class="song-steps" data-track="${track}">${Array.from(
+  // Shared by the drum sequencer and the piano roll — both are just a set
+  // of named rows, each STEPS long, toggled the same way. Parameterized by
+  // plain get/set functions rather than duplicated per grid.
+  function renderStepGrid(containerId, rowKeys, rowLabel, getOn, setOn, rowClass) {
+    $(containerId).innerHTML = rowKeys
+      .map((key) => {
+        const label = rowLabel(key);
+        return `<div class="song-track-row${rowClass ? rowClass(key) : ""}"><span class="song-track-label">${label}</span><div class="song-steps" data-row="${key}">${Array.from(
           { length: STEPS },
           (_, i) =>
-            `<button type="button" class="song-step${songData.tracks[track][i] ? " song-step-on" : ""}${
+            `<button type="button" class="song-step${getOn(key, i) ? " song-step-on" : ""}${
               i % 4 === 0 ? " song-step-beat" : ""
-            }" data-track="${track}" data-step="${i}" aria-label="${TRACK_LABELS[track]} step ${i + 1}"></button>`
-        ).join("")}</div></div>`
-    ).join("");
-    $("song-sequencer")
+            }" data-row="${key}" data-step="${i}" aria-label="${label} step ${i + 1}"></button>`
+        ).join("")}</div></div>`;
+      })
+      .join("");
+    $(containerId)
       .querySelectorAll(".song-step")
       .forEach((btn) => {
         btn.addEventListener("click", () => {
-          const track = btn.dataset.track;
+          const key = btn.dataset.row;
           const step = Number(btn.dataset.step);
-          songData.tracks[track][step] = !songData.tracks[track][step];
-          btn.classList.toggle("song-step-on", songData.tracks[track][step]);
+          const next = !getOn(key, step);
+          setOn(key, step, next);
+          btn.classList.toggle("song-step-on", next);
         });
       });
+  }
+
+  function renderSequencer() {
+    renderStepGrid(
+      "song-sequencer",
+      TRACKS,
+      (t) => TRACK_LABELS[t],
+      (t, i) => songData.tracks[t][i],
+      (t, i, v) => (songData.tracks[t][i] = v)
+    );
+  }
+
+  function renderPianoRoll() {
+    renderStepGrid(
+      "song-piano-roll",
+      PIANO_NOTES,
+      (n) => n,
+      (n, i) => songData.melody.notes[n][i],
+      (n, i, v) => (songData.melody.notes[n][i] = v),
+      (n) => (n.includes("#") ? " song-row-black-key" : "")
+    );
   }
 
   // ---------- List modal ----------
@@ -262,15 +331,21 @@
       const song = await window.adminApi(`/songs/${id}`);
       $("song-name").value = song.name;
       songData = song.data && song.data.tracks ? song.data : defaultSongData();
+      // A song saved before the piano roll existed won't have `melody` —
+      // fall back to a blank one rather than letting every note-toggle
+      // click below throw on a missing key.
+      if (!songData.melody) songData.melody = defaultSongData().melody;
     } else {
       $("song-name").value = "New song";
       songData = defaultSongData();
     }
     $("song-tempo").value = songData.tempo || 120;
     $("song-kit").value = songData.kit || "acoustic";
+    $("song-waveform").value = songData.melody.waveform || "sine";
     $("songs-modal").hidden = true;
     $("song-builder-modal").hidden = false;
     renderSequencer();
+    renderPianoRoll();
   }
 
   $("close-song-builder").addEventListener("click", () => {
@@ -285,6 +360,7 @@
     if (!name) return alert("Name is required.");
     songData.tempo = Number($("song-tempo").value) || 120;
     songData.kit = $("song-kit").value;
+    songData.melody.waveform = $("song-waveform").value;
     try {
       if (currentSongId) {
         await window.adminApi(`/songs/${currentSongId}`, { method: "PATCH", body: JSON.stringify({ name, data: songData }) });
