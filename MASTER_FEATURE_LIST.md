@@ -306,11 +306,11 @@ measurement history, and a limitations doc.
 - 🔶 Topic browsing (tag filter works via `?tag=`; no dedicated browse-all-topics index)
 - ☐ Timeline and year-based browsing
 - ☐ Interactive project map or visual index
-- ☐ Random article/project button
+- ✅ Random article/project button (⇌ icon in the topbar, next to search; /shuffle route)
 - ☐ Visitor bookmarks or save-for-later
 - ☐ Locally stored visitor reading history
-- ☐ Reading-time estimates for long project pages (articles have it; projects don't)
-- ☐ RSS feeds by content type or tag (one global feed only)
+- ✅ Reading-time estimates for long project pages (sums project body + every journal entry, since that's usually where a project page's real length comes from)
+- ✅ RSS feeds by content type or tag (`/rss.xml?type=article|project&tag=x`; also fixed a real gap where the feed never included projects at all, and added the missing `<link rel="alternate">` discovery tag site-wide)
 
 ## 19. Visitor interaction
 

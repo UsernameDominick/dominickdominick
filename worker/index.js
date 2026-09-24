@@ -210,6 +210,10 @@ async function renderProject(env, project, navItems) {
   const journalHtml = renderJournalHtml(journalEntries);
   const bomItems = await listBomItems(env, project.id);
   const bomHtml = renderBomHtml(bomItems);
+  // Build journals can add a lot of reading beyond the project body itself
+  // (that's the whole point of a "long project page") — same reasoning
+  // articles already use, just summed across both sources.
+  const mins = readingTime(`${project.body}\n${journalEntries.map((j) => j.body).join("\n")}`);
 
   const [allPublishedArticles, relatedSims, relatedScanRows] = await Promise.all([
     project.related_articles.length ? listArticles(env, { publishedOnly: true }) : [],
@@ -245,6 +249,8 @@ async function renderProject(env, project, navItems) {
     <div class="article-meta">
       ${project.status ? `<span>${esc(project.status)}</span><span class="article-meta-sep">·</span>` : ""}
       <time datetime="${esc(project.published_at)}">${esc((project.published_at || "").slice(0, 10))}</time>
+      <span class="article-meta-sep">·</span>
+      <span>${mins} min read</span>
       <button type="button" class="copy-link-btn" data-copy-text="Copy link" data-copied-text="Copied!">Copy link</button>
     </div>
     <h1>${esc(project.title)}</h1>
@@ -382,27 +388,42 @@ function xmlEsc(str) {
     .replace(/>/g, "&gt;");
 }
 
-async function renderRss(env) {
-  const articles = await listArticles(env, { publishedOnly: true, limit: 30 });
-  const items = articles
-    .map((a) => {
-      const link = `https://dominickdominick.com/random/${a.slug}`;
-      const pubDate = new Date(a.published_at).toUTCString();
-      return `  <item>
-    <title>${xmlEsc(a.title)}</title>
-    <link>${link}</link>
-    <guid>${link}</guid>
-    <pubDate>${pubDate}</pubDate>
-    <description>${xmlEsc(excerpt(a.body, 300))}</description>
-  </item>`;
-    })
+// type: "article" | "project" (blank = both, sorted together by date).
+// tag: filters to that tag on whichever content type(s) are included.
+async function renderRss(env, { type, tag } = {}) {
+  const wantArticles = type !== "project";
+  const wantProjects = type !== "article";
+  const [articles, projects] = await Promise.all([
+    wantArticles ? listArticles(env, { publishedOnly: true, limit: 30, tag: tag || null }) : [],
+    wantProjects ? listProjects(env, { publishedOnly: true, limit: 30, tag: tag || null }) : [],
+  ]);
+  const entries = [
+    ...articles.map((a) => ({ title: a.title, link: `https://dominickdominick.com/random/${a.slug}`, date: a.published_at, body: a.body })),
+    ...projects.map((p) => ({
+      title: p.title,
+      link: `https://dominickdominick.com/projects/${p.slug}`,
+      date: p.published_at,
+      body: p.summary || p.body,
+    })),
+  ].sort((a, b) => new Date(b.date) - new Date(a.date));
+  const items = entries
+    .map(
+      (e) => `  <item>
+    <title>${xmlEsc(e.title)}</title>
+    <link>${e.link}</link>
+    <guid>${e.link}</guid>
+    <pubDate>${new Date(e.date).toUTCString()}</pubDate>
+    <description>${xmlEsc(excerpt(e.body, 300))}</description>
+  </item>`
+    )
     .join("\n");
+  const titleSuffix = [type ? (type === "project" ? "Projects" : "Random") : null, tag ? `"${tag}"` : null].filter(Boolean).join(" — ");
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
 <channel>
-  <title>Dominick — Random</title>
+  <title>Dominick${titleSuffix ? " — " + titleSuffix : " — Random"}</title>
   <link>https://dominickdominick.com/random</link>
-  <description>Notes and half-formed ideas from Dominick.</description>
+  <description>Notes, projects, and half-formed ideas from Dominick.</description>
   <language>en</language>
 ${items}
 </channel>
@@ -554,7 +575,21 @@ async function route(request, env, ctx) {
     }
 
     if (path === "/rss.xml") {
-      return renderRss(env);
+      return renderRss(env, { type: url.searchParams.get("type"), tag: url.searchParams.get("tag") });
+    }
+
+    if (path === "/shuffle") {
+      const [articles, projects] = await Promise.all([
+        listArticles(env, { publishedOnly: true }),
+        listProjects(env, { publishedOnly: true }),
+      ]);
+      const candidates = [
+        ...articles.map((a) => `/random/${a.slug}`),
+        ...projects.map((p) => `/projects/${p.slug}`),
+      ];
+      if (!candidates.length) return Response.redirect(`${url.origin}/`, 302);
+      const pick = candidates[Math.floor(Math.random() * candidates.length)];
+      return Response.redirect(`${url.origin}${pick}`, 302);
     }
 
     if (path === "/search") {

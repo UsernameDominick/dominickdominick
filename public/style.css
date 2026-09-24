@@ -194,7 +194,8 @@ body {
   border-color: var(--accent);
 }
 
-#theme-toggle {
+#theme-toggle,
+.icon-link-btn {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   color: var(--text);
@@ -207,7 +208,15 @@ body {
   flex-shrink: 0;
 }
 
-#theme-toggle:hover {
+.icon-link-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+#theme-toggle:hover,
+.icon-link-btn:hover {
   color: var(--accent);
   border-color: var(--accent);
 }

@@ -798,6 +798,7 @@ ${modifiedTime ? `<meta property="article:modified_time" content="${esc(modified
 <meta name="twitter:title" content="${esc(title)}">
 <meta name="twitter:description" content="${esc(description)}">
 ${ogImage ? `<meta name="twitter:image" content="${esc(ogImage)}">` : ""}
+<link rel="alternate" type="application/rss+xml" title="Dominick — RSS feed" href="/rss.xml">
 
 <link rel="stylesheet" href="/style.css">
 ${themeStyle}
@@ -836,6 +837,7 @@ ${customHead || ""}
         <form class="site-search" action="/search" method="get" role="search">
           <input type="search" name="q" placeholder="Search" aria-label="Search" value="${esc(searchQuery || "")}">
         </form>
+        <a class="icon-link-btn" href="/shuffle" title="Random project or article" aria-label="Random project or article">⇌</a>
         <button type="button" id="theme-toggle" aria-label="Toggle light/dark theme">◐</button>
       </div>
     </header>
