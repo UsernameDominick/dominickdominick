@@ -61,6 +61,7 @@ import {
   renderCorrectionNoteHtml,
   renderTtsBarHtml,
   FAVICON_SVG,
+  renderErrorPageHtml,
 } from "./render.js";
 import { handleAdminApi } from "./admin-api.js";
 import { renderSimulationSvg } from "./simulation-render.js";
@@ -751,10 +752,21 @@ export default {
     } catch (err) {
       const path = new URL(request.url).pathname;
       ctx.waitUntil(logError(env, { message: err.message, stack: err.stack, path }).catch(() => {}));
+      // API/admin routes should still get a plain error a client can parse
+      // (JSON.parse would choke on the branded HTML page below); the
+      // branded page is for a human hitting a broken public/admin page.
+      if (path.startsWith("/api/")) {
+        return withSecurityHeaders(
+          new Response("Something went wrong. Try again in a moment.", {
+            status: 500,
+            headers: { "Content-Type": "text/plain;charset=UTF-8" },
+          })
+        );
+      }
       return withSecurityHeaders(
-        new Response("Something went wrong. Try again in a moment.", {
+        new Response(renderErrorPageHtml(), {
           status: 500,
-          headers: { "Content-Type": "text/plain;charset=UTF-8" },
+          headers: { "Content-Type": "text/html;charset=UTF-8" },
         })
       );
     }

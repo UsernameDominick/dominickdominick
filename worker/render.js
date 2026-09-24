@@ -936,6 +936,49 @@ export const FAVICON_SVG =
 const FAVICON =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230b0b0c'/%3E%3Ctext x='50' y='68' font-family='Arial,sans-serif' font-size='60' font-weight='700' fill='%23e8a13a' text-anchor='middle'%3ED%3C/text%3E%3C/svg%3E";
 
+// The top-level fetch() catch calls this directly — deliberately fully
+// self-contained (no DB reads for nav/theme/settings, no imports beyond
+// what's already in this module) since it exists for the case where
+// something has already gone wrong, possibly the DB itself. Inline
+// styles only, so it never depends on /style.css having loaded either.
+export function renderErrorPageHtml() {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Something went wrong · Dominick</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="${FAVICON}">
+<style>
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: #0b0b0c;
+    color: #f2f2f2;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 24px;
+  }
+  .error-box { max-width: 480px; }
+  h1 { font-size: 1.6rem; margin-bottom: 12px; }
+  p { color: #a3a3a3; line-height: 1.5; }
+  a { color: #e8a13a; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+  <div class="error-box">
+    <h1>Something went wrong</h1>
+    <p>An unexpected error occurred. It's been logged — try again in a moment, or head back to the homepage.</p>
+    <p><a href="/">← Back to dominick.dominick</a></p>
+  </div>
+</body>
+</html>`;
+}
+
 export function renderShell({
   title,
   description,

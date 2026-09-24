@@ -660,7 +660,12 @@ changes with low value for a single-admin personal site; flagging as
 - ☐ Preview deployments tied to changes
 - 🔶 Migration history (this doc is a manual log; no automated tracker)
 - ✅ Error tracking; ☐ uptime monitoring, maintenance mode
-- 🔶 Custom error pages (404 ✅; others ☐)
+- ✅ Custom error pages (404; 500 — `renderErrorPageHtml()` in
+  `worker/render.js`, deliberately fully self-contained with no DB
+  reads/imports beyond the module itself, since it's called from the
+  top-level `fetch()` catch for the case where something's already
+  broken, possibly the DB. `/api/*` paths still get a plain-text 500 so
+  a client parsing the response doesn't choke on HTML)
 - 🔶 Draft/staging/live distinction (draft vs. live ✅; "staging" as an environment doesn't exist)
 
 ### Backups, health, and operating costs
