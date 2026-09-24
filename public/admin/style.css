@@ -162,6 +162,24 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   display: inline-flex;
 }
 
+.recent-item-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recent-item-type {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-dim);
+}
+
 .admin-body-layout {
   flex: 1;
   display: flex;

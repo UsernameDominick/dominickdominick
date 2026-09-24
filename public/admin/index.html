@@ -31,6 +31,13 @@
         <select id="page-template-picker" title="Start the next new page from a saved template">
           <option value="">Blank page</option>
         </select>
+        <div class="admin-more-wrap desktop-only">
+          <button id="recent-items-btn" aria-haspopup="true" aria-expanded="false" aria-controls="recent-items-panel">Recent ▾</button>
+          <div class="admin-more-panel" id="recent-items-panel">
+            <div class="admin-more-group" id="recent-items-favorites"></div>
+            <div class="admin-more-group" id="recent-items-recent"></div>
+          </div>
+        </div>
         <button id="site-menu-btn" class="mobile-only" aria-label="Menu">Menu</button>
       </div>
       <div class="admin-header-right" id="admin-header-right">
@@ -86,26 +93,31 @@
         <button id="close-palette" class="mobile-only close-drawer" aria-label="Close">×</button>
         <h2>Add block</h2>
         <button type="button" id="paste-block-btn" hidden>Paste block</button>
+        <h2>Text &amp; media</h2>
         <button class="palette-btn" data-type="heading">Heading</button>
         <button class="palette-btn" data-type="text">Text</button>
         <button class="palette-btn" data-type="image">Image</button>
-        <button class="palette-btn" data-type="button">Button / Link</button>
-        <button class="palette-btn" data-type="project-card">Project Card</button>
-        <button class="palette-btn" data-type="article-list">Article List</button>
-        <button class="palette-btn" data-type="project-list">Project List</button>
-        <button class="palette-btn" data-type="video">Video Embed</button>
-        <button class="palette-btn" data-type="embed">Generic Embed</button>
         <button class="palette-btn" data-type="quote">Quote</button>
         <button class="palette-btn" data-type="gallery">Gallery</button>
         <button class="palette-btn" data-type="before-after">Before / After</button>
+        <h2>Actions &amp; links</h2>
+        <button class="palette-btn" data-type="button">Button / Link</button>
+        <button class="palette-btn" data-type="links">Links</button>
+        <h2>Dynamic content</h2>
+        <button class="palette-btn" data-type="project-card">Project Card</button>
+        <button class="palette-btn" data-type="article-list">Article List</button>
+        <button class="palette-btn" data-type="project-list">Project List</button>
+        <button class="palette-btn" data-type="changelog">Changelog / Now</button>
+        <h2>Embeds &amp; interactive</h2>
+        <button class="palette-btn" data-type="video">Video Embed</button>
+        <button class="palette-btn" data-type="embed">Generic Embed</button>
+        <button class="palette-btn" data-type="html">HTML / Embed</button>
         <button class="palette-btn" data-type="simulation">Simulation</button>
         <button class="palette-btn" data-type="song">Song</button>
         <button class="palette-btn" data-type="scan">3D Scan</button>
-        <button class="palette-btn" data-type="links">Links</button>
-        <button class="palette-btn" data-type="changelog">Changelog / Now</button>
+        <h2>Layout</h2>
         <button class="palette-btn" data-type="accordion">Accordion</button>
         <button class="palette-btn" data-type="tabs">Tabs</button>
-        <button class="palette-btn" data-type="html">HTML / Embed</button>
         <button class="palette-btn" data-type="divider">Divider</button>
         <button class="palette-btn" data-type="spacer">Spacer</button>
         <hr>

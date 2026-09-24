@@ -353,6 +353,32 @@ overall admin visual design (spacing/shadow tokens, deferred in section
 written here — revisit once there's a concrete reason to (a new module,
 a user complaint) rather than redesigning proactively with no target.
 
+**Round 2 (user asked directly to make the admin console "more easily
+navigable"):**
+- The block palette ("Add block") had grown to 22 undifferentiated
+  buttons in one flat list as features were added over the project's
+  life — a real scanning problem, not a subjective one. Grouped into 5
+  labeled categories (Text & media, Actions & links, Dynamic content,
+  Embeds & interactive, Layout) using the exact same small-caps label
+  style the palette already used for "Add block"/"Page settings", so it
+  reads as one consistent pattern rather than a new visual language.
+  Purely a markup reorganization — `.palette-btn` is still one flat
+  class, so nothing in `app.js` needed to change.
+- Recently-edited items and favorites already existed (localStorage-
+  backed) but were only reachable by knowing to open the command
+  palette (Ctrl/Cmd+K) — a real discoverability gap for the single most
+  common navigation need (getting back to what you just worked on).
+  Added a visible "Recent ▾" dropdown next to the page picker (desktop
+  only — mobile already has everything one tap away via the Menu
+  drawer), reusing the exact same `.admin-more-panel` dropdown pattern
+  and CSS as the topbar's "More ▾" menu for visual consistency, and
+  factored the kind-label/kind-navigate logic out of the command
+  palette into shared `RECENT_KIND_LABEL`/`RECENT_KIND_RUN` constants
+  so both surfaces drive off one implementation. Verified: opens/closes
+  correctly (button click, outside click, Escape — matching the other
+  dropdown's behavior), shows real recently-edited items, hidden on
+  mobile, doesn't interfere with adding blocks or navigating pages.
+
 **QA sweep results (full agent report, 2026-09-24):** dispatched per
 the periodic-sweep instruction — explored the whole admin console and
 public site, desktop and mobile (390×844). Fixed immediately (all

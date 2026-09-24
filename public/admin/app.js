@@ -283,6 +283,63 @@
     return idx === -1;
   }
 
+  // Shared by the command palette's quick actions and the topbar's "Recent"
+  // dropdown below — one place that knows how to label/open a
+  // recently-edited or favorited item, instead of two copies.
+  const RECENT_KIND_LABEL = { page: "Page", article: "Article", project: "Project" };
+  const RECENT_KIND_RUN = {
+    page: (id) => selectPage(id),
+    article: (id) => openArticleEditorById(id),
+    project: (id) => openProjectEditorById(id),
+  };
+
+  // ---------- "Recent" topbar dropdown ----------
+  // The command palette already surfaced favorites/recently-edited, but
+  // only to someone who knew to press Ctrl/Cmd+K — a visible button next
+  // to the page picker is a much shorter path back to what you were just
+  // working on, the single most common navigation need in a page-builder
+  // this size.
+  function renderRecentItemsPanel() {
+    const favRow = (item) =>
+      `<button type="button" class="recent-item-btn" data-kind="${item.kind}" data-id="${item.id}">★ ${escapeHtml(item.title || "(untitled)")} <span class="recent-item-type">${RECENT_KIND_LABEL[item.kind] || item.kind}</span></button>`;
+    const recentRow = (item) =>
+      `<button type="button" class="recent-item-btn" data-kind="${item.kind}" data-id="${item.id}">${escapeHtml(item.title || "(untitled)")} <span class="recent-item-type">${RECENT_KIND_LABEL[item.kind] || item.kind}</span></button>`;
+    const favorites = getFavorites().slice(0, 5);
+    const recent = getRecentlyEdited()
+      .filter((r) => !favorites.some((f) => f.kind === r.kind && f.id === r.id))
+      .slice(0, 5);
+    el("recent-items-favorites").innerHTML = favorites.length
+      ? `<h3>Favorites</h3>${favorites.map(favRow).join("")}`
+      : "";
+    el("recent-items-recent").innerHTML = recent.length
+      ? `<h3>Recently edited</h3>${recent.map(recentRow).join("")}`
+      : !favorites.length
+      ? `<p style="color:var(--text-dim);font-size:0.8rem;padding:4px 2px;">Nothing yet — favorite or edit something first.</p>`
+      : "";
+    el("recent-items-panel").querySelectorAll(".recent-item-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        closeRecentItemsMenu();
+        const run = RECENT_KIND_RUN[btn.dataset.kind];
+        if (run) run(Number(btn.dataset.id));
+      });
+    });
+  }
+  function closeRecentItemsMenu() {
+    el("recent-items-panel").classList.remove("open");
+    el("recent-items-btn").setAttribute("aria-expanded", "false");
+  }
+  el("recent-items-btn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    const opening = !el("recent-items-panel").classList.contains("open");
+    if (opening) renderRecentItemsPanel();
+    el("recent-items-panel").classList.toggle("open", opening);
+    el("recent-items-btn").setAttribute("aria-expanded", String(opening));
+  });
+  document.addEventListener("click", (e) => {
+    const panel = el("recent-items-panel");
+    if (panel.classList.contains("open") && !panel.contains(e.target) && e.target !== el("recent-items-btn")) closeRecentItemsMenu();
+  });
+
   // Shown when a local draft exists for whatever was just loaded — either
   // it matches what's on the server (a normal after-save leftover, cleared
   // silently) or it doesn't (something crashed before it could be saved),
@@ -4562,21 +4619,15 @@
   let commandActiveIndex = 0;
 
   function quickActions() {
-    const RECENT_KIND_LABEL = { page: "Page", article: "Article", project: "Project" };
-    const RECENT_KIND_RUN = {
-      page: (id) => { closeCommandPalette(); selectPage(id); },
-      article: (id) => { closeCommandPalette(); openArticleEditorById(id); },
-      project: (id) => { closeCommandPalette(); openProjectEditorById(id); },
-    };
     const recentActions = getRecentlyEdited().map((r) => ({
       label: `Recent: ${r.title || "(untitled)"}`,
       sub: RECENT_KIND_LABEL[r.kind] || r.kind,
-      run: () => RECENT_KIND_RUN[r.kind](r.id),
+      run: () => { closeCommandPalette(); RECENT_KIND_RUN[r.kind](r.id); },
     }));
     const favoriteActions = getFavorites().map((f) => ({
       label: `★ ${f.title || "(untitled)"}`,
       sub: RECENT_KIND_LABEL[f.kind] || f.kind,
-      run: () => RECENT_KIND_RUN[f.kind](f.id),
+      run: () => { closeCommandPalette(); RECENT_KIND_RUN[f.kind](f.id); },
     }));
     const actions = [
       ...favoriteActions,
@@ -5142,6 +5193,7 @@
     if (e.key !== "Escape") return;
     if (writingFocusState) closeWritingFocus();
     else if (morePanel.classList.contains("open")) closeMoreMenu();
+    else if (el("recent-items-panel").classList.contains("open")) closeRecentItemsMenu();
     else closeTopModal();
   });
   document.querySelectorAll(".modal").forEach((modal) => {
