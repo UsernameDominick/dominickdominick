@@ -513,7 +513,12 @@ health-check pass, predates this doc.
 - 🔶 Hover/focus/mobile-state previews (mobile ✅ via responsive preview; hover/focus simulation ☐)
 - 🔶 Copy/paste blocks between pages (blocks ✅; "sections" n/a)
 - ☐ Bulk updates to pages sharing a template
-- 🔶 Conditional display by date/device/URL/content field (device ✅; rest ☐)
+- 🔶 Conditional display by date/device/URL/content field (device ✅; date
+  ✅ — "Visible from"/"Visible until" datetime fields in any block's
+  style panel; unlike device-visibility, which is CSS-only, this is a
+  real server-side filter in `renderBlocks()` so a not-yet-announced
+  block never ships in the page source at all, not just hidden client-
+  side; URL/content-field ☐)
 - ✅ Layout diagnostics (overflow, small tap targets — overlap is structurally impossible)
 - ✅ Content-only edit mode, isolation mode, stress previews (long titles/missing images/large text)
 

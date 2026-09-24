@@ -935,10 +935,23 @@ async function renderBlockInner(env, block, ctx) {
   }
 }
 
+// Date-conditional visibility is a real server-side filter (unlike
+// device-conditional, which is CSS-only) — a scheduled block genuinely
+// shouldn't ship in the HTML at all before/after its window, not just be
+// hidden client-side, since nothing about "not yet announced" should be
+// visible in page source.
+function isBlockInDateWindow(style) {
+  if (!style) return true;
+  const now = new Date().toISOString();
+  if (style.visibleFrom && style.visibleFrom > now) return false;
+  if (style.visibleUntil && style.visibleUntil <= now) return false;
+  return true;
+}
+
 export async function renderBlocks(env, blocks, ctx = {}) {
   const parts = await Promise.all(
     blocks
-      .filter((b) => !(b.style && b.style.hidden))
+      .filter((b) => !(b.style && b.style.hidden) && isBlockInDateWindow(b.style))
       .map(async (b) => {
         const gridStyle = `grid-column:${b.col} / span ${b.col_span};grid-row:${b.row} / span ${b.row_span};`;
         const style = b.style || {};

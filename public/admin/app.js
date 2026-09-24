@@ -1324,6 +1324,8 @@
         ["mobile-only", "Mobile only (hidden on desktop)"],
       ],
     },
+    { key: "visibleFrom", label: "Visible from (blank = always)", type: "datetime-local" },
+    { key: "visibleUntil", label: "Visible until (blank = never expires)", type: "datetime-local" },
     { key: "customCss", label: "Custom CSS (advanced — raw declarations, e.g. transform: rotate(-2deg);)", type: "textarea", noSpellcheck: true },
     { key: "hidden", label: "Hide from live site", type: "checkbox" },
   ];
@@ -1422,11 +1424,17 @@
         options || "<option disabled>No songs yet</option>"
       }</select> <button type="button" class="manage-songs-btn">Manage songs…</button></label>`;
     }
+    if (f.type === "datetime-local") {
+      return `<label>${f.label}<input id="${idPrefix}-${f.key}" data-key="${f.key}" data-datetime="1" type="datetime-local" value="${escapeHtml(
+        isoToLocalInput(val)
+      )}"></label>`;
+    }
     return `<label>${f.label}<input id="${idPrefix}-${f.key}" data-key="${f.key}" type="${f.type}" value="${escapeHtml(val ?? "")}"></label>`;
   }
 
   function fieldValue(input) {
     if (input.type === "checkbox") return input.checked;
+    if (input.dataset.datetime) return input.value === "" ? null : new Date(input.value).toISOString();
     if (input.type === "number") return input.value === "" ? null : Number(input.value);
     if (input.dataset.numeric) return input.value === "" ? null : Number(input.value);
     if (input.dataset.gallery) {
