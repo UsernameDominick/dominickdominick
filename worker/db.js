@@ -2006,10 +2006,23 @@ export async function importAll(env, data) {
 }
 
 // ---------- Link checker ----------
-// Walks every button/project-card link and every article body link, and
-// checks each one: internal paths (starting with "/") are checked against
-// known pages/articles/redirects (no network call); external links get a
+// Walks every button/project-card/links-list block, every article and
+// project body, every project's own github/demo/docs/download links, and
+// every journal entry body, then checks each URL found: internal paths
+// (starting with "/") are checked against known pages/articles/projects/
+// redirects — including whether the target is actually published right
+// now, not just whether it exists (no network call); external links get a
 // live HEAD/GET request with a short timeout.
+
+// Whether an article/project would actually be servable to a visitor right
+// now — a link to a real-but-draft or real-but-expired item 404s exactly
+// like a link to a nonexistent one, so the Link Checker needs to know the
+// difference between "exists" and "exists and is live".
+function isCurrentlyPublished(item) {
+  if (!item || !item.published_at) return false;
+  const now = new Date().toISOString();
+  return item.published_at <= now && (!item.expires_at || item.expires_at > now);
+}
 
 async function checkOneLink(env, rawUrl) {
   if (!rawUrl) return { ok: null, status: "Empty" };
@@ -2020,7 +2033,16 @@ async function checkOneLink(env, rawUrl) {
     const articleMatch = rawUrl.match(/^\/random\/([a-z0-9-]+)$/);
     if (articleMatch) {
       const article = await getArticleBySlug(env, articleMatch[1]);
-      if (article) return { ok: true, status: "OK" };
+      if (!article) return { ok: false, status: "Not found" };
+      if (isCurrentlyPublished(article)) return { ok: true, status: "OK" };
+      return { ok: false, status: article.published_at ? "Expired" : "Not published (draft)" };
+    }
+    const projectMatch = rawUrl.match(/^\/projects\/([a-z0-9-]+)$/);
+    if (projectMatch) {
+      const project = await getProjectBySlug(env, projectMatch[1]);
+      if (!project) return { ok: false, status: "Not found" };
+      if (isCurrentlyPublished(project)) return { ok: true, status: "OK" };
+      return { ok: false, status: project.published_at ? "Expired" : "Not published (draft)" };
     }
     const redirect = await getRedirect(env, rawUrl);
     if (redirect) return { ok: true, status: `Redirects to ${redirect.to_path}` };
@@ -2046,6 +2068,10 @@ export async function checkLinks(env) {
   const pages = await listPages(env);
   const pageBlocks = await Promise.all(pages.map((p) => listBlocks(env, p.id)));
   const articles = await listArticles(env);
+  const projects = await listProjects(env);
+  const projectJournals = await Promise.all(projects.map((p) => listJournalEntries(env, p.id)));
+
+  const markdownLinks = (text) => [...(text || "").matchAll(/\[[^\]]+\]\(([^)]+)\)/g)].map((m) => m[1]);
 
   const found = [];
   pages.forEach((p, i) => {
@@ -2054,12 +2080,23 @@ export async function checkLinks(env) {
       if ((b.type === "button" || b.type === "project-card") && c.url) {
         found.push({ url: c.url, source: `Page "${p.title}" — ${b.type === "button" ? "Button" : "Project Card"} block` });
       }
+      if (b.type === "links" && Array.isArray(c.items)) {
+        for (const it of c.items) if (it && it.url) found.push({ url: it.url, source: `Page "${p.title}" — Links block` });
+      }
     }
   });
   for (const a of articles) {
-    const links = [...(a.body || "").matchAll(/\[[^\]]+\]\(([^)]+)\)/g)];
-    for (const m of links) found.push({ url: m[1], source: `Article "${a.title}"` });
+    for (const url of markdownLinks(a.body)) found.push({ url, source: `Article "${a.title}"` });
   }
+  projects.forEach((p, i) => {
+    for (const url of markdownLinks(p.body)) found.push({ url, source: `Project "${p.title}"` });
+    for (const key of ["github", "demo", "docs", "download"]) {
+      if (p.links && p.links[key]) found.push({ url: p.links[key], source: `Project "${p.title}" — ${key} link` });
+    }
+    for (const j of projectJournals[i]) {
+      for (const url of markdownLinks(j.body)) found.push({ url, source: `Project "${p.title}" — journal entry "${j.title || j.entry_date}"` });
+    }
+  });
 
   const uniqueUrls = [...new Set(found.map((f) => f.url))];
   const statusByUrl = {};
