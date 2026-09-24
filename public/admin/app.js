@@ -915,7 +915,12 @@
       },
     ],
     text: [{ key: "text", label: "Text (blank line = new paragraph, **bold**, *italic*, [link](url), ```code```, pipe tables, [^1] footnotes)", type: "textarea" }],
-    image: [{ key: "url", label: "Image URL", type: "image-url" }, { key: "alt", label: "Alt text", type: "text" }],
+    image: [
+      { key: "url", label: "Image URL", type: "image-url" },
+      { key: "alt", label: "Alt text", type: "text" },
+      { key: "caption", label: "Caption (shown under the image)", type: "text" },
+      { key: "credit", label: "Credit (shown after the caption)", type: "text" },
+    ],
     button: [
       { key: "label", label: "Label", type: "text" },
       { key: "url", label: "URL", type: "text" },
@@ -1126,7 +1131,7 @@
         options || "<option disabled>No scans yet</option>"
       }</select> <button type="button" class="manage-scans-btn">Manage scans…</button></label>`;
     }
-    return `<label>${f.label}<input data-key="${f.key}" type="${f.type}" value="${escapeHtml(val ?? "")}"></label>`;
+    return `<label>${f.label}<input id="${idPrefix}-${f.key}" data-key="${f.key}" type="${f.type}" value="${escapeHtml(val ?? "")}"></label>`;
   }
 
   function fieldValue(input) {
@@ -2820,13 +2825,17 @@
     const n = selectedMediaKeys.size;
     el("media-selected-count").textContent = n ? `${n} selected` : "";
     el("media-bulk-delete-btn").disabled = !n;
+    el("media-bulk-move-btn").disabled = !n;
+    el("media-bulk-tag-btn").disabled = !n;
   }
 
   function renderMediaGrid() {
     const folderFilter = el("media-folder-filter").value;
     const search = el("media-search").value.trim().toLowerCase();
+    const unusedOnly = el("media-unused-filter").checked;
     const filtered = mediaItems.filter((item) => {
       if (folderFilter && item.folder !== folderFilter) return false;
+      if (unusedOnly && item.used) return false;
       if (!search) return true;
       const filename = item.key.split("/").pop().toLowerCase();
       return filename.includes(search) || item.tags.some((t) => t.toLowerCase().includes(search));
@@ -2842,11 +2851,13 @@
               item.url
             )}" data-key="${escapeHtml(item.key)}" title="Edit image">✎</button><button type="button" class="media-delete" data-key="${escapeHtml(
               item.key
-            )}" title="Delete">×</button><div class="media-item-bottom"><input type="checkbox" class="media-select-checkbox" data-key="${escapeHtml(
+            )}" title="Delete">×</button>${
+              item.used ? "" : '<span class="media-unused-badge" title="Not referenced anywhere on the site">Unused</span>'
+            }<div class="media-item-bottom"><input type="checkbox" class="media-select-checkbox" data-key="${escapeHtml(
               item.key
             )}"${selectedMediaKeys.has(item.key) ? " checked" : ""}><span class="media-folder-badge">${escapeHtml(
               item.folder || ""
-            )}</span><button type="button" class="media-info" data-key="${escapeHtml(item.key)}" title="Folder / tags / alt text">🏷</button></div></div>`
+            )}</span><button type="button" class="media-info" data-key="${escapeHtml(item.key)}" title="Folder / tags / alt text / caption / credit / license">🏷</button></div></div>`
         )
         .join("") || "<p style='color:var(--text-dim);'>No uploads match.</p>";
 
@@ -2858,12 +2869,34 @@
           if (!mediaPickTarget) return;
           const input = document.querySelector(mediaPickTarget);
           if (input) {
-            setFieldUrl(input, div.dataset.url, mediaPickAppend);
-            // An image block's url/alt fields are named "...-url"/"...-alt" —
-            // suggest this file's saved alt text if that alt field is blank.
+            // An image block's url/alt/caption/credit fields are named
+            // "...-url"/"...-alt"/"...-caption"/"...-credit" — suggest this
+            // file's saved values for whichever of those fields are blank.
+            // Merged into a single save rather than one dispatched "change"
+            // per field: firing several independent saves back to back can
+            // race (an earlier request completing after a later one),
+            // silently dropping whichever field's save lost the race.
             const item = mediaItems.find((m) => m.url === div.dataset.url);
-            const altInput = item && item.alt_text && input.id.endsWith("-url") ? document.getElementById(input.id.replace(/-url$/, "-alt")) : null;
-            if (altInput && !altInput.value) altInput.value = item.alt_text;
+            const block = item && input.id.endsWith("-url") ? blocks.find((b) => b.id === selectedBlockId) : null;
+            if (block) {
+              input.value = div.dataset.url;
+              block.content.url = div.dataset.url;
+              [
+                ["alt", "alt_text"],
+                ["caption", "caption"],
+                ["credit", "credit"],
+              ].forEach(([suffix, itemKey]) => {
+                const sibling = document.getElementById(input.id.replace(/-url$/, `-${suffix}`));
+                if (sibling && !sibling.value && item[itemKey]) {
+                  sibling.value = item[itemKey];
+                  block.content[suffix] = item[itemKey];
+                }
+              });
+              api(`/blocks/${block.id}`, { method: "PATCH", body: JSON.stringify({ content: block.content, style: block.style }) }).catch(() => {});
+              renderCanvas();
+            } else {
+              setFieldUrl(input, div.dataset.url, mediaPickAppend);
+            }
           }
           closeMediaModal();
         });
@@ -2892,29 +2925,9 @@
     el("media-grid")
       .querySelectorAll(".media-info")
       .forEach((btn) => {
-        btn.addEventListener("click", async (e) => {
+        btn.addEventListener("click", (e) => {
           e.stopPropagation();
-          const item = mediaItems.find((m) => m.key === btn.dataset.key);
-          if (!item) return;
-          const folder = prompt("Folder (blank = none):", item.folder || "");
-          if (folder === null) return;
-          const tagsStr = prompt("Tags, comma separated:", item.tags.join(", "));
-          if (tagsStr === null) return;
-          const altText = prompt("Alt text (used as a default when you insert this image):", item.alt_text || "");
-          if (altText === null) return;
-          try {
-            await api(`/media/${item.key}`, {
-              method: "PATCH",
-              body: JSON.stringify({
-                folder: folder.trim() || null,
-                tags: tagsStr.split(",").map((t) => t.trim()).filter(Boolean),
-                alt_text: altText.trim() || null,
-              }),
-            });
-            await loadMediaLibrary();
-          } catch (err) {
-            alert(err.message);
-          }
+          openMediaInfoModal(btn.dataset.key);
         });
       });
 
@@ -2936,6 +2949,69 @@
         });
       });
   }
+
+  let mediaInfoKey = null;
+  function openMediaInfoModal(key) {
+    const item = mediaItems.find((m) => m.key === key);
+    if (!item) return;
+    mediaInfoKey = key;
+    el("media-info-preview").src = item.url;
+    el("media-info-folder").value = item.folder || "";
+    el("media-info-tags").value = item.tags.join(", ");
+    el("media-info-alt").value = item.alt_text || "";
+    el("media-info-caption").value = item.caption || "";
+    el("media-info-credit").value = item.credit || "";
+    el("media-info-license").value = item.license || "";
+    el("media-info-modal").hidden = false;
+  }
+  closeModalOnClick("close-media-info", "media-info-modal");
+  el("save-media-info").addEventListener("click", async () => {
+    if (!mediaInfoKey) return;
+    try {
+      await api(`/media/${mediaInfoKey}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          folder: el("media-info-folder").value.trim() || null,
+          tags: el("media-info-tags").value.split(",").map((t) => t.trim()).filter(Boolean),
+          alt_text: el("media-info-alt").value.trim() || null,
+          caption: el("media-info-caption").value.trim() || null,
+          credit: el("media-info-credit").value.trim() || null,
+          license: el("media-info-license").value.trim() || null,
+        }),
+      });
+      el("media-info-modal").hidden = true;
+      await loadMediaLibrary();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  el("media-unused-filter").addEventListener("change", renderMediaGrid);
+
+  el("media-bulk-move-btn").addEventListener("click", async () => {
+    const folder = prompt("Move selected files to folder (blank = remove from folder):", "");
+    if (folder === null) return;
+    try {
+      await api("/media/bulk-update", {
+        method: "POST",
+        body: JSON.stringify({ keys: [...selectedMediaKeys], folder: folder.trim() || null }),
+      });
+      await loadMediaLibrary();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  el("media-bulk-tag-btn").addEventListener("click", async () => {
+    const tag = (prompt("Add this tag to all selected files:", "") || "").trim();
+    if (!tag) return;
+    try {
+      await api("/media/bulk-update", { method: "POST", body: JSON.stringify({ keys: [...selectedMediaKeys], addTag: tag }) });
+      await loadMediaLibrary();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
 
   async function loadMediaLibrary() {
     mediaItems = await api("/media");

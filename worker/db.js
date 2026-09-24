@@ -1011,7 +1011,7 @@ export async function getMediaMeta(env, keys) {
   return map;
 }
 
-export async function upsertMediaMeta(env, key, { folder, tags, alt_text } = {}) {
+export async function upsertMediaMeta(env, key, { folder, tags, alt_text, caption, credit, license } = {}) {
   const existing = await env.DB.prepare("SELECT key FROM media WHERE key = ?").bind(key).first();
   if (existing) {
     const cols = [];
@@ -1028,13 +1028,33 @@ export async function upsertMediaMeta(env, key, { folder, tags, alt_text } = {})
       cols.push("alt_text = ?");
       vals.push(alt_text || null);
     }
+    if (caption !== undefined) {
+      cols.push("caption = ?");
+      vals.push(caption || null);
+    }
+    if (credit !== undefined) {
+      cols.push("credit = ?");
+      vals.push(credit || null);
+    }
+    if (license !== undefined) {
+      cols.push("license = ?");
+      vals.push(license || null);
+    }
     if (!cols.length) return;
     vals.push(key);
     await env.DB.prepare(`UPDATE media SET ${cols.join(", ")} WHERE key = ?`).bind(...vals).run();
   } else {
     await env.DB
-      .prepare("INSERT INTO media (key, folder, tags, alt_text) VALUES (?, ?, ?, ?)")
-      .bind(key, folder || null, JSON.stringify(Array.isArray(tags) ? tags : []), alt_text || null)
+      .prepare("INSERT INTO media (key, folder, tags, alt_text, caption, credit, license) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .bind(
+        key,
+        folder || null,
+        JSON.stringify(Array.isArray(tags) ? tags : []),
+        alt_text || null,
+        caption || null,
+        credit || null,
+        license || null
+      )
       .run();
   }
 }
@@ -1048,12 +1068,13 @@ export async function listMediaFolders(env) {
   return results.map((r) => r.folder);
 }
 
-// Walks every page block and article/setting field that can hold a media
-// URL, for "where is this used?" before someone deletes a file.
+// Walks every page block and article/project/setting field that can hold a
+// media URL, for "where is this used?" before someone deletes a file.
 export async function findMediaUsage(env, mediaUrl) {
   const pages = await listPages(env);
   const pageBlocks = await Promise.all(pages.map((p) => listBlocks(env, p.id)));
   const articles = await listArticles(env);
+  const projects = await listProjects(env);
   const usage = [];
   pages.forEach((p, i) => {
     if (p.og_image === mediaUrl) usage.push({ type: "Page share image", title: p.title });
@@ -1070,9 +1091,36 @@ export async function findMediaUsage(env, mediaUrl) {
   for (const a of articles) {
     if (a.og_image === mediaUrl) usage.push({ type: "Article share image", title: a.title });
   }
+  for (const pr of projects) {
+    if (pr.og_image === mediaUrl) usage.push({ type: "Project share image", title: pr.title });
+  }
   const defaultOg = await getSetting(env, "default_og_image");
   if (defaultOg === mediaUrl) usage.push({ type: "Site default share image", title: null });
   return usage;
+}
+
+// Same traversal as findMediaUsage, but returns every referenced URL at
+// once (a Set) instead of the breakdown for one URL — used to flag unused
+// files in the library without an O(n) round of usage lookups per file.
+export async function getAllUsedMediaUrls(env) {
+  const pages = await listPages(env);
+  const pageBlocks = await Promise.all(pages.map((p) => listBlocks(env, p.id)));
+  const [articles, projects, defaultOg] = await Promise.all([listArticles(env), listProjects(env), getSetting(env, "default_og_image")]);
+  const used = new Set();
+  if (defaultOg) used.add(defaultOg);
+  for (const p of pages) if (p.og_image) used.add(p.og_image);
+  for (const a of articles) if (a.og_image) used.add(a.og_image);
+  for (const pr of projects) if (pr.og_image) used.add(pr.og_image);
+  for (const blocks of pageBlocks) {
+    for (const b of blocks) {
+      const c = b.content || {};
+      const style = b.style || {};
+      if (b.type === "image" && c.url) used.add(c.url);
+      if (b.type === "gallery" && Array.isArray(c.images)) c.images.forEach((u) => used.add(u));
+      if (style.backgroundImage) used.add(style.backgroundImage);
+    }
+  }
+  return used;
 }
 
 // ---------- 3D scans ----------

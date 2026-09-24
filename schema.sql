@@ -196,6 +196,9 @@ CREATE TABLE media (
   folder TEXT,
   tags TEXT NOT NULL DEFAULT '[]',
   alt_text TEXT,
+  caption TEXT,
+  credit TEXT,
+  license TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

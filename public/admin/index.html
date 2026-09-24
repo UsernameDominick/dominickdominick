@@ -378,12 +378,34 @@
       <div class="media-toolbar">
         <select id="media-folder-filter"><option value="">All folders</option></select>
         <input type="search" id="media-search" placeholder="Search filename or tag…">
+        <label class="media-unused-filter"><input type="checkbox" id="media-unused-filter"> Unused only</label>
         <select id="media-upload-folder" title="New uploads go into this folder"><option value="">No folder</option></select>
         <button type="button" id="media-upload-btn">Upload files…</button>
         <span id="media-selected-count" class="media-selected-count"></span>
+        <button type="button" id="media-bulk-move-btn" disabled>Move to folder…</button>
+        <button type="button" id="media-bulk-tag-btn" disabled>Add tag…</button>
         <button type="button" id="media-bulk-delete-btn" class="danger" disabled>Delete selected</button>
       </div>
       <div id="media-grid" class="media-grid"></div>
+    </div>
+  </div>
+
+  <div id="media-info-modal" class="modal" hidden>
+    <div class="modal-inner media-info-modal-inner">
+      <header>
+        <h1>File details</h1>
+        <button id="close-media-info">×</button>
+      </header>
+      <img id="media-info-preview" class="media-info-preview" alt="">
+      <label>Folder<input id="media-info-folder" placeholder="Blank = none"></label>
+      <label>Tags, comma separated<input id="media-info-tags"></label>
+      <label>Alt text (default when this image is inserted)<input id="media-info-alt"></label>
+      <label>Caption (default when this image is inserted)<input id="media-info-caption"></label>
+      <label>Credit (default when this image is inserted)<input id="media-info-credit"></label>
+      <label>License / usage rights<input id="media-info-license" placeholder="e.g. CC BY 4.0, own photo, licensed stock"></label>
+      <div class="article-actions">
+        <button id="save-media-info">Save</button>
+      </div>
     </div>
   </div>
 

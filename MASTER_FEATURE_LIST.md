@@ -110,7 +110,7 @@ health-check pass, done before this master list existed.
 - ☐ Callouts and warnings
 - ✅ Expandable details (the accordion block)
 - ☐ Side-by-side text and image layouts (possible manually via the page builder grid; not a distinct article-editor feature)
-- ☐ Inline image captions and credits
+- ✅ Inline image captions and credits (image block has its own caption/credit fields, rendered as a figcaption; see section 12)
 - ☐ Before/after image comparison slider
 - 🔶 Pull quotes and margin notes (quote block ✅; margin notes ☐)
 - ☐ Mathematical notation
@@ -239,17 +239,17 @@ page. Noting where the supporting capability exists vs. doesn't:
 - 🔶 Media tags and smart collections (tags ✅; smart collections ☐)
 - ☐ Saved searches
 - ✅ Usage tracking showing every placement of an asset
-- 🔶 Bulk upload, move, rename, tag, and delete (bulk upload ✅, bulk delete ✅; bulk move/rename/tag ☐)
-- ☐ Duplicate-file detection
+- 🔶 Bulk upload, move, rename, tag, and delete (bulk upload/move/tag/delete ✅; bulk rename ☐ — R2 keys are content-addressed UUIDs, so "rename" only really applies to the display/alt text, which the info modal already covers per-file)
+- ☐ Duplicate-file detection (would need content hashing at upload time, backfilled for existing files — deferred, see PRODUCTION_TODO.md)
 - ☐ Replace assets without breaking existing placements
 - ☐ Media version history
 - ✅ Original-file preservation (uploads aren't destructively modified)
 - ☐ Responsive image variants and thumbnails (no srcset generation)
 - ☐ Crop and focal-point settings per placement
-- 🔶 Alt text, captions, credits, and licensing fields (alt text ✅; captions/credits/licensing ☐)
-- 🔶 Metadata viewer for dimensions, format, and size (size shown; dimensions/format viewer unconfirmed/likely partial)
+- ✅ Alt text, captions, credits, and licensing fields (media-library-level fields on every upload; the image block also gets its own caption/credit fields, pre-filled from the library when you insert — resolves the matching "inline image captions and credits" item in section 5 too)
+- 🔶 Metadata viewer for dimensions, format, and size (size shown; dimensions/format viewer still ☐ — deferred, see PRODUCTION_TODO.md)
 - 🔶 Search by filename, tag, type, dimensions, and usage (filename+tag ✅; dimensions/usage search ☐)
-- 🔶 Review and cleanup of unused or orphaned files (can check one-by-one via usage tracking; no dedicated orphaned-files report)
+- ✅ Review and cleanup of unused or orphaned files ("Unused only" filter in the library, computed from actual usage across pages/articles/projects/settings — also fixed a real gap where project share images weren't checked by usage tracking at all)
 - ☐ Image optimization controls with visual comparison
 - 🔶 Video poster images (exists for the 3D-scan feature; not for generic uploaded video)
 - ☐ Video captions and transcript storage

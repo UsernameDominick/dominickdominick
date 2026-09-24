@@ -1169,6 +1169,61 @@
   flex-shrink: 0;
 }
 
+.media-unused-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.media-unused-badge {
+  position: absolute;
+  top: 4px;
+  left: 32px;
+  background: rgba(0, 0, 0, 0.7);
+  color: var(--accent);
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 3px 6px;
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.media-info-modal-inner {
+  max-width: 420px;
+}
+
+.media-info-modal-inner label {
+  display: block;
+  margin-top: 10px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.media-info-modal-inner input {
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-top: 6px;
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+
+.media-info-preview {
+  display: block;
+  max-width: 100%;
+  max-height: 200px;
+  margin: 0 auto;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
 /* Simulations list */
 .simulation-row {
   display: flex;

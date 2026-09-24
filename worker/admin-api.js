@@ -28,6 +28,7 @@ import {
   deleteMediaMeta,
   listMediaFolders,
   findMediaUsage,
+  getAllUsedMediaUrls,
   logActivity,
   listActivityLog,
   listErrors,
@@ -648,16 +649,23 @@ async function routeAdminApi(request, env, url, ctx) {
   if (path === "/media" && method === "GET") {
     const listed = await env.MEDIA.list({ prefix: "uploads/", limit: 500 });
     const objects = listed.objects.sort((a, b) => new Date(b.uploaded) - new Date(a.uploaded));
-    const meta = await getMediaMeta(env, objects.map((o) => o.key));
-    const items = objects.map((o) => ({
-      key: o.key,
-      url: `/media/${o.key}`,
-      size: o.size,
-      uploaded: o.uploaded,
-      folder: meta[o.key]?.folder || null,
-      tags: meta[o.key]?.tags || [],
-      alt_text: meta[o.key]?.alt_text || null,
-    }));
+    const [meta, usedUrls] = await Promise.all([getMediaMeta(env, objects.map((o) => o.key)), getAllUsedMediaUrls(env)]);
+    const items = objects.map((o) => {
+      const url = `/media/${o.key}`;
+      return {
+        key: o.key,
+        url,
+        size: o.size,
+        uploaded: o.uploaded,
+        folder: meta[o.key]?.folder || null,
+        tags: meta[o.key]?.tags || [],
+        alt_text: meta[o.key]?.alt_text || null,
+        caption: meta[o.key]?.caption || null,
+        credit: meta[o.key]?.credit || null,
+        license: meta[o.key]?.license || null,
+        used: usedUrls.has(url),
+      };
+    });
     return json(items);
   }
   if (path === "/media/folders" && method === "GET") {
@@ -674,6 +682,30 @@ async function routeAdminApi(request, env, url, ctx) {
     if (!keys.length) return json({ error: "No files selected" }, { status: 400 });
     await Promise.all(keys.map((k) => Promise.all([env.MEDIA.delete(k), deleteMediaMeta(env, k)])));
     log(ctx, env, "delete", "media", `${keys.length} file(s)`);
+    return json({ ok: true });
+  }
+  // Bulk move (set folder) and/or bulk tag (add one tag, keeping each
+  // file's existing tags) across a selection — same shape as bulk-delete,
+  // since both come from the same selection checkboxes in the library grid.
+  if (path === "/media/bulk-update" && method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    const keys = Array.isArray(body.keys) ? body.keys : [];
+    if (!keys.length) return json({ error: "No files selected" }, { status: 400 });
+    if (body.folder === undefined && !body.addTag) return json({ error: "Nothing to update" }, { status: 400 });
+    if (body.addTag) {
+      const meta = await getMediaMeta(env, keys);
+      await Promise.all(
+        keys.map((k) => {
+          const tags = meta[k]?.tags || [];
+          const patch = { tags: tags.includes(body.addTag) ? tags : [...tags, body.addTag] };
+          if (body.folder !== undefined) patch.folder = body.folder;
+          return upsertMediaMeta(env, k, patch);
+        })
+      );
+    } else {
+      await Promise.all(keys.map((k) => upsertMediaMeta(env, k, { folder: body.folder })));
+    }
+    log(ctx, env, "update", "media", `${keys.length} file(s)`);
     return json({ ok: true });
   }
   const mediaKeyMatch = path.match(/^\/media\/(.+)$/);

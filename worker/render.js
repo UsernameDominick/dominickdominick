@@ -542,8 +542,12 @@ async function renderBlockInner(env, block, ctx) {
     }
     case "text":
       return paragraphsHtml(c.text);
-    case "image":
-      return `<img src="${esc(c.url)}" alt="${esc(c.alt)}" loading="lazy" style="max-width:100%;border-radius:12px;">`;
+    case "image": {
+      const img = `<img src="${esc(c.url)}" alt="${esc(c.alt)}" loading="lazy" style="max-width:100%;border-radius:12px;">`;
+      if (!c.caption && !c.credit) return img;
+      const creditHtml = c.credit ? ` <cite>${esc(c.credit)}</cite>` : "";
+      return `<figure class="image-figure">${img}<figcaption>${esc(c.caption || "")}${creditHtml}</figcaption></figure>`;
+    }
     case "button":
       return `<a class="btn" href="${esc(safeHref(c.url))}"${c.external ? ' target="_blank" rel="noopener"' : ""}>${esc(c.label)}</a>`;
     case "divider":

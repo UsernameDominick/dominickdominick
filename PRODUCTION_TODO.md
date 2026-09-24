@@ -26,6 +26,27 @@ future schema change needs its `ALTER`/`CREATE` statements noted here
 until they're actually applied to production — then this section gets
 updated to say so, the same way this update just did.
 
+**New, not yet applied to production** (from the media library batch —
+captions/credits/licensing fields):
+
+```sql
+ALTER TABLE media ADD COLUMN caption TEXT;
+ALTER TABLE media ADD COLUMN credit TEXT;
+ALTER TABLE media ADD COLUMN license TEXT;
+```
+
+## Deferred from the media library batch
+
+- **Duplicate-file detection** — needs content hashing at upload time
+  (cheap going forward) plus a backfill pass over every existing R2
+  object to hash retroactively. Scoped out as a separate, larger piece of
+  work rather than folding it into the captions/unused-files batch.
+- **Metadata viewer for image dimensions/format** — needs either
+  client-side `<img>`/canvas probing at upload time (stored alongside the
+  other media metadata) or a server-side binary header parse. Deferred
+  since neither is a quick add relative to its value for a personal site
+  with a small media library.
+
 Run via the Cloudflare D1 MCP tools (query directly against the
 `dominickdominick` database, id `f49fb038-9dfb-419e-acfb-7d8babc9d509`),
 or `npx wrangler d1 execute dominickdominick --remote --command "..."`
