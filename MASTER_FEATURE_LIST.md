@@ -164,7 +164,7 @@ health-check pass, done before this master list existed.
 - 🔶 Clear draft, scheduled, published, hidden, and archived states (draft/scheduled/published ✅; explicit "hidden"/"archived" states ☐)
 - ✅ Scheduled unpublishing (same "Expires at" feature — see "Content expiration dates" just below)
 - ☐ Publishing approvals and configurable review steps
-- ☐ Page-level publishing checklist
+- ✅ Page-level publishing checklist (a live, non-blocking checklist in the article/project editor — title, tags, summary where applicable, enough body content — updates as you type, same pattern as the share preview)
 - ☐ Editorial calendar
 - ✅ Content expiration dates (an "Expires at" field on articles and projects, mirroring "Publish at" — automatically drops out of listings, RSS, sitemap, search, and topic pages once passed, and the direct URL 404s; the item isn't deleted, and admin/preview access is unaffected, same as an unpublished draft)
 - ☐ Review reminders

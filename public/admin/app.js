@@ -2089,6 +2089,7 @@
     }
     updateWordCount();
     updateArticleOgPreview();
+    updateArticleChecklist();
   }
 
   // Mirrors excerpt() in worker/render.js closely enough for a live preview
@@ -2140,9 +2141,36 @@
     });
   }
 
+  // A soft, non-blocking checklist — never prevents saving/publishing,
+  // just surfaces a few common things worth having before you do.
+  function renderPublishingChecklist(elId, checks) {
+    el(elId).innerHTML = checks
+      .map(([label, pass]) => `<span class="${pass ? "contrast-pass" : "contrast-fail"}">${pass ? "✓" : "✗"} ${escapeHtml(label)}</span>`)
+      .join("");
+  }
+
+  function updateArticleChecklist() {
+    renderPublishingChecklist("publish-checklist-article", [
+      ["Title set", !!el("article-title").value.trim()],
+      ["At least one tag", parseTags(el("article-tags").value).length > 0],
+      ["Body has enough content to publish", el("article-body").value.trim().length > 50],
+    ]);
+  }
+
+  function updateProjectChecklist() {
+    renderPublishingChecklist("publish-checklist-project", [
+      ["Title set", !!el("project-title").value.trim()],
+      ["Summary set (used for share previews and project lists)", !!el("project-summary").value.trim()],
+      ["At least one tag", parseTags(el("project-tags").value).length > 0],
+      ["Body has enough content to publish", el("project-body").value.trim().length > 50],
+    ]);
+  }
+
   ["page-title", "page-meta", "page-og-image"].forEach((id) => el(id).addEventListener("input", updatePageOgPreview));
   ["article-title", "article-body", "article-og-image"].forEach((id) => el(id).addEventListener("input", updateArticleOgPreview));
   ["project-title", "project-summary", "project-body", "project-og-image"].forEach((id) => el(id).addEventListener("input", updateProjectOgPreview));
+  ["article-title", "article-tags", "article-body"].forEach((id) => el(id).addEventListener("input", updateArticleChecklist));
+  ["project-title", "project-summary", "project-tags", "project-body"].forEach((id) => el(id).addEventListener("input", updateProjectChecklist));
 
   // Matches the reading-time math in worker/render.js (200 words/min) so
   // what you see while writing matches what the published article shows.
@@ -2534,6 +2562,7 @@
       previewLink.hidden = true;
     }
     updateProjectOgPreview();
+    updateProjectChecklist();
   }
 
   function buildProjectBody() {

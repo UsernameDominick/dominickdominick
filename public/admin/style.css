@@ -986,7 +986,8 @@
   margin: 0;
 }
 
-.theme-contrast-check {
+.theme-contrast-check,
+.publish-checklist {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -998,19 +999,19 @@
 
 /* Two shades, same reasoning as .save-conflict: #3fae5a reads at 6.95:1 on
    the dark admin theme but only 2.83:1 on white — well under WCAG AA. */
-.theme-contrast-check .contrast-pass {
+.contrast-pass {
   color: #3fae5a;
 }
 
-:root[data-theme="light"] .theme-contrast-check .contrast-pass {
+:root[data-theme="light"] .contrast-pass {
   color: #1f7a3f;
 }
 
-.theme-contrast-check .contrast-fail {
+.contrast-fail {
   color: #e8663a;
 }
 
-:root[data-theme="light"] .theme-contrast-check .contrast-fail {
+:root[data-theme="light"] .contrast-fail {
   color: #c94f24;
 }
 
