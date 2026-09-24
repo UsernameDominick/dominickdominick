@@ -9,6 +9,7 @@ import {
   listTrashedPages,
   duplicatePage,
   duplicateArticle,
+  convertArticleToProject,
   duplicateProject,
   listBlocks,
   createBlock,
@@ -561,6 +562,13 @@ async function routeAdminApi(request, env, url, ctx) {
     const newId = await duplicateArticle(env, Number(articleDuplicateMatch[1]));
     if (!newId) return json({ error: "Article not found" }, { status: 404 });
     log(ctx, env, "duplicate", "article", `#${articleDuplicateMatch[1]} → #${newId}`);
+    return json({ id: newId });
+  }
+  const articleConvertMatch = path.match(/^\/articles\/(\d+)\/convert-to-project$/);
+  if (articleConvertMatch && method === "POST") {
+    const newId = await convertArticleToProject(env, Number(articleConvertMatch[1]));
+    if (!newId) return json({ error: "Article not found" }, { status: 404 });
+    log(ctx, env, "convert", "article→project", `#${articleConvertMatch[1]} → project #${newId}`);
     return json({ id: newId });
   }
 

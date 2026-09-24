@@ -516,7 +516,14 @@ health-check pass, predates this doc.
 - ☐ Private pages, password-protected pages; 🔶 unlisted (nav-excluded but reachable by URL) exists de facto
 
 ### Content administration and portability
-- 🔶 Duplication exists for pages/articles/projects (always lands as unpublished draft; journal/BOM/relationships not carried over); cross-type conversion (article→project) ☐
+- ✅ Duplication exists for pages/articles/projects (always lands as
+  unpublished draft; journal/BOM/relationships not carried over);
+  cross-type conversion (article→project — a "Convert to Project…"
+  button creates a project draft from the article's title/body/tags/
+  og_image, reusing the same slug when free; the original article is
+  left completely untouched, same non-destructive philosophy as
+  duplication, so it's a copy an admin can follow up on manually rather
+  than an automatic move)
 - ✅ Bulk publish/unpublish/trash/add-tag for articles AND projects
 - ✅ Global find & replace with review before applying
 - ☐ Import from other platforms, import dry-run preview

@@ -2446,12 +2446,14 @@
       historyBtn.hidden = false;
       el("share-preview-article-btn").hidden = false;
       el("duplicate-article-btn").hidden = false;
+      el("convert-article-to-project-btn").hidden = false;
     } else {
       previewLink.hidden = true;
       historyBtn.hidden = true;
       el("share-preview-article-btn").hidden = true;
       el("preview-links-panel-article").hidden = true;
       el("duplicate-article-btn").hidden = true;
+      el("convert-article-to-project-btn").hidden = true;
     }
     updateWordCount();
     updateArticleOgPreview();
@@ -2873,6 +2875,23 @@
       const created = articles.find((a) => a.id === res.id);
       if (created) populateArticleForm(created);
       renderArticlesList();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+  el("convert-article-to-project-btn").addEventListener("click", async () => {
+    if (!currentArticleId) return;
+    if (!confirm('Create a project draft from this article\'s content? The article itself is kept as-is — nothing is deleted.')) return;
+    try {
+      const res = await api(`/articles/${currentArticleId}/convert-to-project`, { method: "POST" });
+      el("articles-modal").hidden = true;
+      el("projects-modal").hidden = false;
+      projects = await api("/projects");
+      articles = await api("/articles");
+      populateProjectRelatedSelects();
+      renderProjectsList();
+      const created = projects.find((p) => p.id === res.id);
+      if (created) populateProjectForm(created);
     } catch (err) {
       alert(err.message);
     }

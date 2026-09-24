@@ -145,6 +145,34 @@ export async function duplicateArticle(env, id) {
   });
 }
 
+// Creates a project draft from an article's content — the article itself
+// is left untouched (same "never delete the source" philosophy as
+// duplicateArticle/duplicateProject below), so this is a one-way copy an
+// admin can follow up on manually (e.g. trashing the original article)
+// rather than an automatic move. Journal/BOM/relationships aren't carried
+// over, matching how duplication already works for both types.
+export async function convertArticleToProject(env, id) {
+  const source = await env.DB.prepare("SELECT * FROM articles WHERE id = ?").bind(id).first();
+  if (!source) return null;
+  // Reusing the article's own slug is safe and reads naturally — pages,
+  // articles, and projects each enforce slug uniqueness within their own
+  // table only, not across types.
+  let slug = source.slug;
+  let n = 2;
+  while (await slugExists(env, "projects", slug)) {
+    slug = `${source.slug}-${n}`;
+    n++;
+  }
+  return createProject(env, {
+    slug,
+    title: source.title,
+    body: source.body,
+    published: false,
+    tags: JSON.parse(source.tags || "[]"),
+    og_image: source.og_image,
+  });
+}
+
 export async function duplicateProject(env, id) {
   const source = await env.DB.prepare("SELECT * FROM projects WHERE id = ?").bind(id).first();
   if (!source) return null;
