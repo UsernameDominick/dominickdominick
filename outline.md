@@ -629,7 +629,25 @@ health-check pass, predates this doc.
 - ✅ Locking to freeze finished items against bulk edits
 
 ### Publishing workflow
-- 🔶 Draft/scheduled/published states ✅; explicit "hidden"/"archived" states ☐
+- ✅ Draft/scheduled/published states ✅; explicit "archived" state added
+  (new `archived` column on articles/projects — checkbox in each editor,
+  a badge in the management list. Archived content stays published and
+  directly reachable at its URL, exactly like an expired article already
+  was, but drops out of every listing/discovery surface: home/tag/topic
+  listings, RSS, public search + type-ahead, and related-content picks —
+  all of which already funnel through `listArticles`/`listProjects`'s
+  `publishedOnly` flag or `publicSearch()`, so folding the `archived = 0`
+  check in there covered every surface in one place. "Hidden" (as
+  distinct from archived) wasn't added — nothing in this app currently
+  distinguishes what "hidden but still counted somewhere" would even mean
+  beyond what archived already covers.
+  Found and fixed a real pre-existing bug while wiring this up:
+  `createArticle`/`createProject` silently dropped `sitemap_exclude` and
+  `related_override` (and would have dropped `archived` too) on a brand
+  new item's first save — only `updateArticle`/`updateProject` handled
+  them, so checking one of those boxes before ever saving lost it
+  silently until the next edit. Both create functions now accept and
+  persist all three.)
 - ✅ Scheduled unpublishing (Expires at, mirrors Publish at)
 - ☐ Publishing approvals/review steps, editorial calendar, review reminders
 - ✅ Live non-blocking publishing checklist (article/project editor)

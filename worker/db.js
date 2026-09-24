@@ -424,7 +424,13 @@ export async function listArticles(env, { publishedOnly = false, limit = null, t
   // admin editing it directly still sees it — same as a draft would).
   if (publishedOnly) {
     const now = new Date().toISOString();
-    sql += " AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?)";
+    // archived is deliberately folded into publishedOnly rather than its
+    // own option: an archived article stays directly reachable at its
+    // URL (same as an expired one) but drops out of every listing/
+    // discovery surface — there's no publishedOnly caller that should see
+    // it and no non-publishedOnly caller (admin management lists, direct
+    // slug lookups) that should have it hidden.
+    sql += " AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?) AND archived = 0";
     params.push(now, now);
   }
   // Pinned articles lead every listing regardless of publish date; within
@@ -468,11 +474,29 @@ function resolvePublishedAt({ published, published_at }) {
 
 export async function createArticle(
   env,
-  { slug, title, body, published, published_at, tags, og_image, canonical_url, series, series_order, co_authors, featured, pinned, expires_at }
+  {
+    slug,
+    title,
+    body,
+    published,
+    published_at,
+    tags,
+    og_image,
+    canonical_url,
+    series,
+    series_order,
+    co_authors,
+    featured,
+    pinned,
+    expires_at,
+    sitemap_exclude,
+    archived,
+    related_override,
+  }
 ) {
   const res = await env.DB
     .prepare(
-      "INSERT INTO articles (slug, title, body, published_at, tags, og_image, canonical_url, series, series_order, co_authors, featured, pinned, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO articles (slug, title, body, published_at, tags, og_image, canonical_url, series, series_order, co_authors, featured, pinned, expires_at, sitemap_exclude, archived, related_override) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
     .bind(
       slug,
@@ -487,7 +511,10 @@ export async function createArticle(
       JSON.stringify(Array.isArray(co_authors) ? co_authors : []),
       featured ? 1 : 0,
       pinned ? 1 : 0,
-      expires_at || null
+      expires_at || null,
+      sitemap_exclude ? 1 : 0,
+      archived ? 1 : 0,
+      JSON.stringify(Array.isArray(related_override) ? related_override : [])
     )
     .run();
   return res.meta.last_row_id;
@@ -537,6 +564,10 @@ export async function updateArticle(env, id, fields) {
   if ("sitemap_exclude" in fields) {
     cols.push("sitemap_exclude = ?");
     vals.push(fields.sitemap_exclude ? 1 : 0);
+  }
+  if ("archived" in fields) {
+    cols.push("archived = ?");
+    vals.push(fields.archived ? 1 : 0);
   }
   if ("related_override" in fields) {
     cols.push("related_override = ?");
@@ -715,7 +746,7 @@ export async function listProjects(env, { publishedOnly = false, limit = null, t
   const params = [];
   if (publishedOnly) {
     const now = new Date().toISOString();
-    sql += " AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?)";
+    sql += " AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?) AND archived = 0";
     params.push(now, now);
   }
   sql += " ORDER BY COALESCE(published_at, created_at) DESC";
@@ -760,12 +791,15 @@ export async function createProject(
     related_simulations,
     related_scans,
     expires_at,
+    sitemap_exclude,
+    archived,
+    related_override,
   }
 ) {
   const res = await env.DB
     .prepare(
-      `INSERT INTO projects (slug, title, summary, body, published_at, tags, tech_stack, status, links, og_image, canonical_url, featured, related_articles, related_simulations, related_scans, expires_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO projects (slug, title, summary, body, published_at, tags, tech_stack, status, links, og_image, canonical_url, featured, related_articles, related_simulations, related_scans, expires_at, sitemap_exclude, archived, related_override)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       slug,
@@ -783,7 +817,10 @@ export async function createProject(
       JSON.stringify(Array.isArray(related_articles) ? related_articles : []),
       JSON.stringify(Array.isArray(related_simulations) ? related_simulations : []),
       JSON.stringify(Array.isArray(related_scans) ? related_scans : []),
-      expires_at || null
+      expires_at || null,
+      sitemap_exclude ? 1 : 0,
+      archived ? 1 : 0,
+      JSON.stringify(Array.isArray(related_override) ? related_override : [])
     )
     .run();
   return res.meta.last_row_id;
@@ -841,6 +878,10 @@ export async function updateProject(env, id, fields) {
   if ("sitemap_exclude" in fields) {
     cols.push("sitemap_exclude = ?");
     vals.push(fields.sitemap_exclude ? 1 : 0);
+  }
+  if ("archived" in fields) {
+    cols.push("archived = ?");
+    vals.push(fields.archived ? 1 : 0);
   }
   if ("related_override" in fields) {
     cols.push("related_override = ?");
@@ -1828,7 +1869,7 @@ export async function publicSearch(env, q) {
     env.DB
       .prepare(
         `SELECT id, slug, title, body, tags, published_at FROM articles
-         WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?)
+         WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?) AND archived = 0
          AND (title LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\')
          ORDER BY published_at DESC LIMIT 20`
       )
@@ -1837,7 +1878,7 @@ export async function publicSearch(env, q) {
     env.DB
       .prepare(
         `SELECT id, slug, title, summary, tags, published_at FROM projects
-         WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?)
+         WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?) AND archived = 0
          AND (title LIKE ? ESCAPE '\\' OR summary LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\')
          ORDER BY published_at DESC LIMIT 20`
       )
