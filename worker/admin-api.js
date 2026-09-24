@@ -141,6 +141,9 @@ const SETTINGS_KEYS = [
   "site_footer",
   "custom_head",
   "webhook_url",
+  "empty_search_text",
+  "empty_archive_text",
+  "empty_topics_text",
 ];
 
 // Paths a redirect could otherwise break by intercepting a system route.

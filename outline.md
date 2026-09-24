@@ -460,7 +460,14 @@ health-check pass, predates this doc.
 - 🔶 Repeating layouts / visual query builder / display templates (article-list/project-list blocks cover the basics; not admin-customizable beyond limit+tag+featured filters)
 - ☐ Conditional sections based on available content
 - ✅ Missing-field fallbacks (empty-hint messages)
-- 🔶 Editable empty states (exist, but hard-coded text)
+- ✅ Editable empty states for the three server-rendered, admin-relevant
+  ones — Search's "no results" (supports a `{query}` token), Archive's
+  "nothing published yet", Topics' "no tagged content yet" — new Site
+  Settings fields, blank = the existing hardcoded default. `/saved` and
+  `/history` are entirely client-rendered from localStorage, so their
+  empty-state text lives in JS, not here — left as-is (making those
+  admin-editable would mean an extra settings fetch from every visitor's
+  browser for a personal, low-traffic page, not worth it)
 - ☐ Pagination/load-more/infinite scroll, breadcrumb editor UI
 - ✅ Related-content suggestions (automatic tag-based; manual override —
   `related_override` column on articles/projects, a multi-select in each

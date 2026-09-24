@@ -88,13 +88,16 @@ async function getTheme(env) {
 // Settings every rendered page/article needs, fetched together since
 // renderPage and renderArticle both want the exact same four.
 async function getSiteContext(env) {
-  const [defaultOgImage, theme, footerText, customHead] = await Promise.all([
+  const [defaultOgImage, theme, footerText, customHead, emptySearchText, emptyArchiveText, emptyTopicsText] = await Promise.all([
     getSetting(env, "default_og_image"),
     getTheme(env),
     getSetting(env, "site_footer"),
     getSetting(env, "custom_head"),
+    getSetting(env, "empty_search_text"),
+    getSetting(env, "empty_archive_text"),
+    getSetting(env, "empty_topics_text"),
   ]);
-  return { defaultOgImage, theme, footerText, customHead };
+  return { defaultOgImage, theme, footerText, customHead, emptySearchText, emptyArchiveText, emptyTopicsText };
 }
 
 async function renderPage(env, page, url) {
@@ -371,13 +374,13 @@ async function renderProject(env, project, navItems) {
 }
 
 async function renderSearch(env, query, navItems, ctx) {
-  const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
+  const { defaultOgImage, theme, footerText, customHead, emptySearchText } = await getSiteContext(env);
   const { pages, articles, projects } = query ? await publicSearch(env, query) : { pages: [], articles: [], projects: [] };
   if (query) {
     const count = pages.length + articles.length + projects.length;
     ctx.waitUntil(logEvent(env, { name: "search", path: "/search", detail: JSON.stringify({ q: query, count }) }).catch(() => {}));
   }
-  const resultsHtml = renderSearchResultsHtml(query, pages, articles, projects);
+  const resultsHtml = renderSearchResultsHtml(query, pages, articles, projects, emptySearchText);
   const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 16;">
     <h1>Search</h1>
     ${resultsHtml}
@@ -400,12 +403,12 @@ async function renderSearch(env, query, navItems, ctx) {
 }
 
 async function renderTopicsIndex(env, navItems) {
-  const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
+  const { defaultOgImage, theme, footerText, customHead, emptyTopicsText } = await getSiteContext(env);
   const tagCounts = await getTagCounts(env);
   const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 16;">
     <h1>Topics</h1>
     <p>Everything tagged, across posts and projects.</p>
-    ${renderTopicsIndexHtml(tagCounts)}
+    ${renderTopicsIndexHtml(tagCounts, emptyTopicsText)}
   </div>`;
   const html = renderShell({
     title: "Topics · Dominick",
@@ -423,12 +426,12 @@ async function renderTopicsIndex(env, navItems) {
 }
 
 async function renderArchive(env, navItems) {
-  const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
+  const { defaultOgImage, theme, footerText, customHead, emptyArchiveText } = await getSiteContext(env);
   const archive = await getArchive(env);
   const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 16;">
     <h1>Archive</h1>
     <p>Everything published, by year.</p>
-    ${renderArchiveHtml(archive)}
+    ${renderArchiveHtml(archive, emptyArchiveText)}
   </div>`;
   const html = renderShell({
     title: "Archive · Dominick",

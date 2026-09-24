@@ -3971,8 +3971,9 @@
     el("settings-footer").value = settings.site_footer || "";
     el("settings-custom-head").value = settings.custom_head || "";
     el("settings-webhook-url").value = settings.webhook_url || "";
-    el("link-check-results").innerHTML = "";
-    el("seo-report-results").innerHTML = "";
+    el("settings-empty-search").value = settings.empty_search_text || "";
+    el("settings-empty-archive").value = settings.empty_archive_text || "";
+    el("settings-empty-topics").value = settings.empty_topics_text || "";
     el("find-replace-results").innerHTML = "";
     el("find-replace-apply-btn").disabled = true;
     el("settings-modal").hidden = false;
@@ -3998,6 +3999,9 @@
           site_footer: el("settings-footer").value,
           custom_head: el("settings-custom-head").value,
           webhook_url: el("settings-webhook-url").value,
+          empty_search_text: el("settings-empty-search").value,
+          empty_archive_text: el("settings-empty-archive").value,
+          empty_topics_text: el("settings-empty-topics").value,
         }),
       });
       el("settings-modal").hidden = true;

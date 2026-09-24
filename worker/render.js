@@ -257,13 +257,14 @@ export function excerpt(text, maxLen = 155) {
   return cut.slice(0, lastSpace > 0 ? lastSpace : maxLen).trim() + "…";
 }
 
-export function renderSearchResultsHtml(query, pages, articles, projects = []) {
+export function renderSearchResultsHtml(query, pages, articles, projects = [], customEmptyText = "") {
   if (!query) {
     return `<p class="empty-hint">Enter a search term above to look through pages and posts.</p>`;
   }
   const total = pages.length + articles.length + projects.length;
   if (!total) {
-    return `<p class="empty-hint">No results for "${esc(query)}".</p>`;
+    const text = customEmptyText ? customEmptyText.replace("{query}", query) : `No results for "${query}".`;
+    return `<p class="empty-hint">${esc(text)}</p>`;
   }
   const pageItems = pages
     .map(
@@ -293,8 +294,8 @@ ${projectItems ? `<h2>Projects</h2><ul class="search-results">${projectItems}</u
 ${articleItems ? `<h2>Posts</h2><ul class="search-results">${articleItems}</ul>` : ""}`;
 }
 
-export function renderTopicsIndexHtml(tagCounts) {
-  if (!tagCounts.length) return `<p class="empty-hint">No tagged content yet.</p>`;
+export function renderTopicsIndexHtml(tagCounts, customEmptyText = "") {
+  if (!tagCounts.length) return `<p class="empty-hint">${esc(customEmptyText || "No tagged content yet.")}</p>`;
   const items = tagCounts
     .map((t) => `<li><a href="/topics/${encodeURIComponent(t.tag)}">${esc(t.tag)}</a> <span class="topic-count">${t.count}</span></li>`)
     .join("");
@@ -315,8 +316,8 @@ ${projectItems ? `<h2>Projects</h2><ul class="search-results">${projectItems}</u
 ${articleItems ? `<h2>Posts</h2><ul class="search-results">${articleItems}</ul>` : ""}`;
 }
 
-export function renderArchiveHtml(archive) {
-  if (!archive.length) return `<p class="empty-hint">Nothing published yet.</p>`;
+export function renderArchiveHtml(archive, customEmptyText = "") {
+  if (!archive.length) return `<p class="empty-hint">${esc(customEmptyText || "Nothing published yet.")}</p>`;
   return archive
     .map(({ year, items }) => {
       const rows = items
