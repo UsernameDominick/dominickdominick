@@ -386,7 +386,7 @@ deliberately, not an oversight.
 - ☐ Visible focus-state checks (focus states exist site-wide; no automated checker)
 - ✅ Tap-target checks
 - ✅ Reduced-motion coverage across themes and interactive elements
-- ☐ Accessible alternatives for simulations and 3D content
+- ✅ Accessible alternatives for simulations and 3D content (optional per-block screen-reader description; simulation SVG gets role="img"/aria-label/aria-describedby, 3D scan's alt text can be overridden with something more descriptive than the scan's name)
 - ✅ Accessibility checks included in the publishing checklist (the page builder's diagnostics panel — alt text, heading order/hierarchy — is that checklist for pages; articles/projects have a separate content-completeness checklist, not accessibility-focused, since their markdown bodies only support H2/H3 with no images to check)
 
 ## 23. Performance and loading

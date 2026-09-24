@@ -577,7 +577,7 @@ function genericEmbedHtml(rawUrl) {
 // with the USDZ variant (if uploaded) letting iOS hand off to AR Quick Look
 // via the built-in "ar" attribute. Exported so the future standalone
 // /scan/:id page (mirroring /simulation/:id) can reuse it too.
-export function modelViewerHtml(scan) {
+export function modelViewerHtml(scan, description) {
   const attrs = [
     `src="${esc(`/media/${scan.glb_key}`)}"`,
     scan.usdz_key ? `ios-src="${esc(`/media/${scan.usdz_key}`)}"` : "",
@@ -585,7 +585,11 @@ export function modelViewerHtml(scan) {
     scan.camera_orbit ? `camera-orbit="${esc(scan.camera_orbit)}"` : "",
     scan.camera_target ? `camera-target="${esc(scan.camera_target)}"` : "",
     scan.field_of_view ? `field-of-view="${esc(scan.field_of_view)}"` : "",
-    `alt="${esc(scan.name)}"`,
+    // description (if set) is what's actually announced — a scan's own
+    // name is often just a filename-ish label, not a real description of
+    // what's shown, and this is also model-viewer's fallback content when
+    // the custom element itself can't load (JS disabled, old browser).
+    `alt="${esc(description || scan.name)}"`,
   ]
     .filter(Boolean)
     .join(" ");
@@ -710,8 +714,17 @@ async function renderBlockInner(env, block, ctx) {
       const sim = await getSimulation(env, c.simulation_id);
       if (!sim) return `<p class="empty-hint">Simulation not found.</p>`;
       const uid = `sim-${block.id}`;
-      const svg = renderSimulationSvg(sim.data).replace('class="sim-svg"', `class="sim-svg" id="${esc(uid)}"`);
-      return `<div class="sim-block-wrap">${svg}<button type="button" class="sim-power-btn" data-target="${esc(
+      // The SVG itself is a visual circuit diagram with no inherent text
+      // equivalent — an interactive canvas like this needs someone to
+      // actually describe what it does, so this is opt-in per placement
+      // rather than derived from the simulation's (often terse) name.
+      const descId = c.description ? `${uid}-desc` : "";
+      const svg = renderSimulationSvg(sim.data).replace(
+        'class="sim-svg"',
+        `class="sim-svg" id="${esc(uid)}" role="img" aria-label="${esc(sim.name || "Circuit simulation")}"${descId ? ` aria-describedby="${esc(descId)}"` : ""}`
+      );
+      const descHtml = c.description ? `<p id="${esc(descId)}" class="sr-only">${esc(c.description)}</p>` : "";
+      return `<div class="sim-block-wrap">${descHtml}${svg}<button type="button" class="sim-power-btn" data-target="${esc(
         uid
       )}">Power on</button></div>`;
     }
@@ -719,7 +732,7 @@ async function renderBlockInner(env, block, ctx) {
       if (!c.scan_id) return `<p class="empty-hint">No 3D scan selected.</p>`;
       const scan = await getScan(env, c.scan_id);
       if (!scan) return `<p class="empty-hint">Scan not found.</p>`;
-      return modelViewerHtml(scan);
+      return modelViewerHtml(scan, c.description);
     }
     case "project-card":
       return `<div class="project-card"><h2>${esc(c.title)}</h2>${c.description ? `<p>${esc(c.description)}</p>` : ""}${c.url ? `<a href="${esc(safeHref(c.url))}"${c.external ? ' target="_blank" rel="noopener"' : ""}>${esc(c.label || c.url)}</a>` : ""}</div>`;

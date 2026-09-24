@@ -994,8 +994,14 @@
     changelog: [{ key: "entries", label: "Entries (one per line: YYYY-MM-DD | Title | Description)", type: "changelog-list" }],
     accordion: [{ key: "items", label: "Sections (one per line: Title | Body)", type: "accordion-list" }],
     tabs: [{ key: "tabs", label: "Tabs (one per line: Label | Body)", type: "tabs-list" }],
-    simulation: [{ key: "simulation_id", label: "Simulation", type: "simulation-select" }],
-    scan: [{ key: "scan_id", label: "3D Scan", type: "scan-select" }],
+    simulation: [
+      { key: "simulation_id", label: "Simulation", type: "simulation-select" },
+      { key: "description", label: "Description for screen readers (what does this circuit do?)", type: "textarea" },
+    ],
+    scan: [
+      { key: "scan_id", label: "3D Scan", type: "scan-select" },
+      { key: "description", label: "Description for screen readers (overrides the scan's name)", type: "textarea" },
+    ],
     html: [{ key: "html", label: "Raw HTML (advanced — rendered as-is, unescaped; be careful what you paste here)", type: "textarea", noSpellcheck: true }],
     divider: [],
     spacer: [],
