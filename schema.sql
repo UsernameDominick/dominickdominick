@@ -231,6 +231,8 @@ CREATE TABLE pageviews (
   path TEXT NOT NULL,
   referrer TEXT,
   country TEXT,
+  device TEXT,
+  browser TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

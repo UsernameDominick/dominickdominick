@@ -342,7 +342,7 @@ deliberately, not an oversight.
 
 - ✅ Real-time visitor count
 - 🔶 Event analytics (a generic named-event tracking system exists and is used internally; not a dedicated "event analytics" report surface)
-- ☐ Device and browser breakdowns
+- ✅ Device and browser breakdowns (Desktop/Mobile/Tablet and Chrome/Safari/Firefox/Edge/Opera, parsed from User-Agent at record time — only the coarse label is stored, never the raw UA string, so this doesn't add a new fingerprinting surface)
 - 🔶 Expanded geographic analysis (country-level exists; region/city ☐)
 - ☐ Per-page engagement and scroll depth
 - ✅ Outbound-link tracking (every click on an external link, site-wide, with a "Top outbound links" breakdown in Analytics)

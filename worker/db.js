@@ -1657,17 +1657,47 @@ export async function recordLoginAttempt(env, ip) {
     .catch(() => {});
 }
 
-export async function recordPageview(env, { path, referrer, country }) {
+export async function recordPageview(env, { path, referrer, country, device, browser }) {
   await env.DB
-    .prepare("INSERT INTO pageviews (path, referrer, country) VALUES (?, ?, ?)")
-    .bind(path, referrer || null, country || null)
+    .prepare("INSERT INTO pageviews (path, referrer, country, device, browser) VALUES (?, ?, ?, ?, ?)")
+    .bind(path, referrer || null, country || null, device || null, browser || null)
     .run();
+}
+
+// A coarse device/browser label only — never the raw User-Agent string
+// itself, so pageviews stay a lot less fingerprintable than most analytics
+// setups while still answering "mobile or desktop, and which browser".
+// Order matters: several UAs contain more than one of these tokens (every
+// Chrome UA also contains "Safari/"), so the more specific check has to
+// run first.
+export function parseUserAgent(ua) {
+  if (!ua) return { device: null, browser: null };
+  const device = /Tablet|iPad/i.test(ua) ? "Tablet" : /Mobi|Android|iPhone/i.test(ua) ? "Mobile" : "Desktop";
+  let browser = "Other";
+  if (/Edg\//.test(ua)) browser = "Edge";
+  else if (/OPR\/|Opera/.test(ua)) browser = "Opera";
+  else if (/Firefox\//.test(ua)) browser = "Firefox";
+  else if (/Chrome\/|CriOS\//.test(ua)) browser = "Chrome";
+  else if (/Safari\//.test(ua) && /Version\//.test(ua)) browser = "Safari";
+  return { device, browser };
 }
 
 export async function getAnalytics(env, days = 7) {
   const since = `datetime('now', '-${Math.max(1, Math.floor(days))} days')`;
 
-  const [totalsRow, byDay, topPaths, topReferrers, topCountries, topEvents, searchInsights, topOutboundLinks, topDownloads] = await Promise.all([
+  const [
+    totalsRow,
+    byDay,
+    topPaths,
+    topReferrers,
+    topCountries,
+    topDevices,
+    topBrowsers,
+    topEvents,
+    searchInsights,
+    topOutboundLinks,
+    topDownloads,
+  ] = await Promise.all([
     env.DB.prepare(
       `SELECT
          (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-5 minutes')) AS activeNow,
@@ -1700,6 +1730,18 @@ export async function getAnalytics(env, days = 7) {
          WHERE created_at > ${since} GROUP BY country ORDER BY n DESC LIMIT 10`
       )
       .all(),
+    env.DB
+      .prepare(
+        `SELECT COALESCE(device, '?') AS device, COUNT(*) AS n FROM pageviews
+         WHERE created_at > ${since} GROUP BY device ORDER BY n DESC LIMIT 10`
+      )
+      .all(),
+    env.DB
+      .prepare(
+        `SELECT COALESCE(browser, '?') AS browser, COUNT(*) AS n FROM pageviews
+         WHERE created_at > ${since} GROUP BY browser ORDER BY n DESC LIMIT 10`
+      )
+      .all(),
     getEventCounts(env, days),
     getSearchInsights(env, days),
     getTopEventUrls(env, "outbound_link", days),
@@ -1716,6 +1758,8 @@ export async function getAnalytics(env, days = 7) {
     topPaths: topPaths.results,
     topReferrers: topReferrers.results,
     topCountries: topCountries.results,
+    topDevices: topDevices.results,
+    topBrowsers: topBrowsers.results,
     topEvents,
     topSearchTerms: searchInsights.topTerms,
     noResultSearchTerms: searchInsights.noResultTerms,

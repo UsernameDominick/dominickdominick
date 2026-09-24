@@ -12,6 +12,7 @@ import {
   listBomItems,
   getSetting,
   recordPageview,
+  parseUserAgent,
   getRedirect,
   publicSearch,
   getRelatedArticles,
@@ -520,6 +521,7 @@ function trackView(ctx, env, request, path) {
     }
   }
   const country = request.cf?.country || null;
+  const { device, browser } = parseUserAgent(request.headers.get("User-Agent"));
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
   // Generous — this fires on every normal page load, so the point is only
   // to stop a script hammering pages purely to inflate the numbers, not to
@@ -528,7 +530,7 @@ function trackView(ctx, env, request, path) {
     checkRateLimit(env, "pageview", ip, { windowMinutes: 1, maxAttempts: 90 })
       .then((allowed) => {
         if (!allowed) return;
-        return Promise.all([recordPageview(env, { path, referrer, country }), recordRateLimitHit(env, "pageview", ip)]);
+        return Promise.all([recordPageview(env, { path, referrer, country, device, browser }), recordRateLimitHit(env, "pageview", ip)]);
       })
       .catch(() => {})
   );

@@ -26,8 +26,8 @@ future schema change needs its `ALTER`/`CREATE` statements noted here
 until they're actually applied to production — then this section gets
 updated to say so, the same way this update just did.
 
-**New, not yet applied to production** (from the media library batch —
-captions/credits/licensing fields — and the content-expiration batch):
+**New, not yet applied to production** (media captions/credits/licensing,
+content expiration, and device/browser analytics):
 
 ```sql
 ALTER TABLE media ADD COLUMN caption TEXT;
@@ -35,6 +35,8 @@ ALTER TABLE media ADD COLUMN credit TEXT;
 ALTER TABLE media ADD COLUMN license TEXT;
 ALTER TABLE articles ADD COLUMN expires_at TEXT;
 ALTER TABLE projects ADD COLUMN expires_at TEXT;
+ALTER TABLE pageviews ADD COLUMN device TEXT;
+ALTER TABLE pageviews ADD COLUMN browser TEXT;
 ```
 
 ## Deferred from the media library batch

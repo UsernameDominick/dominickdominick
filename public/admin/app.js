@@ -3912,6 +3912,8 @@
     renderList("analytics-pages", data.topPaths, "path");
     renderList("analytics-referrers", data.topReferrers, "referrer");
     renderList("analytics-countries", data.topCountries, "country");
+    renderList("analytics-devices", data.topDevices, "device");
+    renderList("analytics-browsers", data.topBrowsers, "browser");
     renderList("analytics-events", data.topEvents, "name");
     renderList("analytics-search-terms", data.topSearchTerms, "term");
     renderList("analytics-no-result-searches", data.noResultSearchTerms, "term");
@@ -3948,6 +3950,10 @@
     data.topReferrers.forEach((r) => (csv += toCsvRow([r.referrer, r.n])));
     csv += "\r\n" + toCsvRow(["Top countries"]) + toCsvRow(["Country", "Views"]);
     data.topCountries.forEach((r) => (csv += toCsvRow([r.country, r.n])));
+    csv += "\r\n" + toCsvRow(["Devices"]) + toCsvRow(["Device", "Views"]);
+    data.topDevices.forEach((r) => (csv += toCsvRow([r.device, r.n])));
+    csv += "\r\n" + toCsvRow(["Browsers"]) + toCsvRow(["Browser", "Views"]);
+    data.topBrowsers.forEach((r) => (csv += toCsvRow([r.browser, r.n])));
     csv += "\r\n" + toCsvRow(["Top events"]) + toCsvRow(["Event", "Count"]);
     data.topEvents.forEach((r) => (csv += toCsvRow([r.name, r.n])));
     csv += "\r\n" + toCsvRow(["Top search terms"]) + toCsvRow(["Term", "Count"]);
