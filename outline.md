@@ -155,7 +155,7 @@ a playable block with a waveform visualization and a syncable page
 animation (waveform-driven or a "cool" reactive animation, admin-
 choosable and tunable). No mixing console / automation lanes / plugin
 effects in v1 — flag if that's wanted later.
-Status: 🔶 in progress. Done: `songs` table + full CRUD (mirrors
+Status: ✅ done (see wrap-up note below). Built: `songs` table + full CRUD (mirrors
 `simulations`, same reasoning — composition state as JSON in `data` so
 schema doesn't churn as the format evolves). Admin "Songs" panel
 (`public/admin/song-builder.js`, mirrors `simulation-builder.js`'s
@@ -263,10 +263,22 @@ and the choice persists through save/reload. Screenshot-reviewed at
 8/10 in both contexts — functional, on-brand, matches between the two
 surfaces.
 
-Still ☐: page-animation sync (a broader, page-level reactive animation
-beyond the pulse orb — e.g. tinting or animating other page elements
-in time with playback, not just the block itself). Continue next
-session.
+Added page-animation sync: a "Sync page background" checkbox
+(`page_sync`, independent of the visualization choice above) that
+flashes a single shared full-page overlay in time with the beat — a
+fixed, pointer-events-none radial-gradient layer using `--accent`, so
+it works with either theme and never fights page content. Same overlay
+element/logic in both the admin preview and the public embed (one
+`flashPageSync()`-style helper per side, intentionally not merged into
+`song-engine.js` since overlay creation is DOM/document-specific and
+the engine is deliberately kept DOM-free). Verified: checking the box
+and playing creates the overlay and adds the flash class on a step
+with a drum hit, in both the admin builder and a real public embed;
+unchecked, no overlay is created at all. **DAW module status: done** —
+step sequencer, 3 drum kits, piano roll, MIDI in, shared playback
+engine, 3 selectable visualizations, page-sync animation, and the
+public embeddable player are all shipped and verified. Any further
+polish (mixing/automation, more kits, etc.) is a v2 idea, not a gap.
 
 ### 1c. Admin UX / mobile overhaul
 The admin console's nav/UI/UX needs a real upgrade pass to accommodate

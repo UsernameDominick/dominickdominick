@@ -775,6 +775,25 @@ h6 { font-size: 0.9rem; }
   100% { box-shadow: 0 0 0 24px rgba(232, 161, 58, 0); }
 }
 
+/* Page-wide beat-sync overlay — a single shared fixed layer any playing
+   song can flash, opt-in per song via "Sync page background". Kept as an
+   overlay rather than touching body's own background so it never fights
+   page content or the light/dark theme's real colors. */
+#song-page-sync-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0;
+  background: radial-gradient(circle at center, var(--accent) 0%, transparent 70%);
+  transition: opacity 0.35s ease-out;
+}
+
+#song-page-sync-overlay.song-page-sync-hit {
+  opacity: 0.12;
+  transition: opacity 0.02s ease-in;
+}
+
 .sim-block-wrap {
   display: flex;
   flex-direction: column;

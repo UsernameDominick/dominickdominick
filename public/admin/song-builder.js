@@ -24,6 +24,7 @@
       tempo: 120,
       kit: "acoustic",
       visualization: "bars",
+      page_sync: false,
       tracks: TRACKS.reduce((acc, t) => {
         acc[t] = new Array(STEPS).fill(false);
         return acc;
@@ -99,6 +100,26 @@
     updatePreviewVisibility();
     refreshWaveformPreview();
   });
+  $("song-page-sync").addEventListener("change", () => (songData.page_sync = $("song-page-sync").checked));
+
+  // Same shared-overlay approach as the public embed (public/song-embed.js)
+  // — one fixed layer, flashed on any beat, so trying "Sync page background"
+  // here previews the same effect a reader would see.
+  let pageSyncOverlay = null;
+  function getPageSyncOverlay() {
+    if (!pageSyncOverlay) {
+      pageSyncOverlay = document.createElement("div");
+      pageSyncOverlay.id = "song-page-sync-overlay";
+      document.body.appendChild(pageSyncOverlay);
+    }
+    return pageSyncOverlay;
+  }
+  function flashPageSync() {
+    const overlay = getPageSyncOverlay();
+    overlay.classList.remove("song-page-sync-hit");
+    void overlay.offsetWidth;
+    overlay.classList.add("song-page-sync-hit");
+  }
 
   function highlightStep(step) {
     document.querySelectorAll(".song-step").forEach((el) => {
@@ -106,6 +127,7 @@
     });
     $("song-preview-name").textContent = $("song-name").value || "Song name";
     const viz = songData.visualization || "bars";
+    const hits = songData.tracks && Object.keys(songData.tracks).some((t) => songData.tracks[t][step]);
     if (viz === "bars") {
       $("song-preview-bars")
         .querySelectorAll(".song-embed-bar")
@@ -114,7 +136,6 @@
       drawWaveformPreview(step / STEPS);
     } else if (viz === "pulse") {
       const pulseEl = $("song-preview-pulse");
-      const hits = songData.tracks && Object.keys(songData.tracks).some((t) => songData.tracks[t][step]);
       pulseEl.classList.toggle("song-embed-pulse-beat", hits);
       if (hits) {
         pulseEl.classList.remove("song-embed-pulse-hit");
@@ -122,6 +143,7 @@
         pulseEl.classList.add("song-embed-pulse-hit");
       }
     }
+    if (songData.page_sync && hits) flashPageSync();
   }
 
   let player = Engine.createPlayer(getAudioCtx, songData, highlightStep);
@@ -155,6 +177,7 @@
       .querySelectorAll(".song-embed-bar")
       .forEach((bar) => bar.classList.remove("song-embed-bar-active"));
     $("song-preview-pulse").classList.remove("song-embed-pulse-beat", "song-embed-pulse-hit");
+    if (pageSyncOverlay) pageSyncOverlay.classList.remove("song-page-sync-hit");
     drawWaveformPreview(0);
     $("song-play").textContent = "▶ Play";
   }
@@ -326,6 +349,7 @@
     $("song-kit").value = songData.kit || "acoustic";
     $("song-waveform").value = songData.melody.waveform || "sine";
     $("song-visualization").value = songData.visualization || "bars";
+    $("song-page-sync").checked = !!songData.page_sync;
     $("song-preview-name").textContent = $("song-name").value || "Song name";
     // songData was just reassigned to a new object — the player has to be
     // rebuilt against it, since createPlayer captured the old reference.
@@ -352,6 +376,7 @@
     songData.kit = $("song-kit").value;
     songData.melody.waveform = $("song-waveform").value;
     songData.visualization = $("song-visualization").value;
+    songData.page_sync = $("song-page-sync").checked;
     try {
       if (currentSongId) {
         await window.adminApi(`/songs/${currentSongId}`, { method: "PATCH", body: JSON.stringify({ name, data: songData }) });

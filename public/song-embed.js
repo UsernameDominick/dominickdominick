@@ -2,6 +2,26 @@
 // embed, created lazily on first Play click (browsers block audio until a
 // user gesture, so there's no point creating an AudioContext any earlier).
 (function () {
+  // One shared full-page overlay, lazily created — any playing song with
+  // "page_sync" on flashes it, regardless of which block's visualization
+  // is active. A single overlay avoids stacking one per embed on a page
+  // with multiple songs.
+  let pageSyncOverlay = null;
+  function getPageSyncOverlay() {
+    if (!pageSyncOverlay) {
+      pageSyncOverlay = document.createElement("div");
+      pageSyncOverlay.id = "song-page-sync-overlay";
+      document.body.appendChild(pageSyncOverlay);
+    }
+    return pageSyncOverlay;
+  }
+  function flashPageSync() {
+    const overlay = getPageSyncOverlay();
+    overlay.classList.remove("song-page-sync-hit");
+    void overlay.offsetWidth;
+    overlay.classList.add("song-page-sync-hit");
+  }
+
   document.querySelectorAll(".song-embed").forEach((wrap) => {
     let songData;
     try {
@@ -54,8 +74,8 @@
     function onStep(step) {
       if (bars.length) bars.forEach((bar, i) => bar.classList.toggle("song-embed-bar-active", i === step));
       if (canvas) drawWaveform(step / window.SongEngine.STEPS);
+      const hitsTrack = songData.tracks && Object.keys(songData.tracks).some((t) => songData.tracks[t][step]);
       if (pulse) {
-        const hitsTrack = songData.tracks && Object.keys(songData.tracks).some((t) => songData.tracks[t][step]);
         pulse.classList.toggle("song-embed-pulse-beat", hitsTrack);
         if (hitsTrack) {
           pulse.classList.remove("song-embed-pulse-hit");
@@ -63,6 +83,7 @@
           pulse.classList.add("song-embed-pulse-hit");
         }
       }
+      if (songData.page_sync && hitsTrack) flashPageSync();
     }
 
     btn.addEventListener("click", () => {
