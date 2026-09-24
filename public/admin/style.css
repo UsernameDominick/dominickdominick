@@ -110,6 +110,58 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   border-color: var(--text-dim);
 }
 
+/* "More ▾" groups the topbar's less-frequent actions into a dropdown —
+   at a standard 1440px laptop width, all 18 previous top-level buttons
+   didn't fit and 10 rendered fully off-screen with no wrap or visible
+   scroll affordance. Search/Articles/Projects/Media stay always visible
+   as the daily-use actions; everything else groups here. */
+.admin-more-wrap {
+  position: relative;
+}
+
+.admin-more-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 190px;
+  padding: 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+  z-index: 60;
+}
+
+.admin-more-panel.open {
+  display: flex;
+}
+
+.admin-more-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-more-group h3 {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  margin: 0 0 2px;
+}
+
+.admin-more-panel button, .admin-more-panel a {
+  width: 100%;
+  text-align: left;
+}
+
+.desktop-only {
+  display: inline-flex;
+}
+
 .admin-body-layout {
   flex: 1;
   display: flex;
@@ -863,6 +915,27 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
     display: block;
   }
 
+  /* The "More" dropdown is a desktop-only affordance for topbar overflow —
+     on mobile everything already lives in this same off-canvas drawer, so
+     just flatten it back into the column instead of a floating panel. */
+  .desktop-only {
+    display: none;
+  }
+
+  .admin-more-panel {
+    position: static;
+    display: flex;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    min-width: 0;
+  }
+
+  .admin-more-group h3 {
+    margin-top: 8px;
+  }
+
   .admin-palette.drawer-open,
   .admin-inspector.drawer-open,
   .admin-header-right.drawer-open {
@@ -880,6 +953,51 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
      computed style so drag/resize math stays accurate at any width). */
   .admin-canvas {
     --canvas-gap: 3px;
+  }
+
+  /* Mobile editing mode (renderCanvasMobile() in app.js): a plain
+     full-width stacked list instead of the absolute-position grid — a
+     desktop-correct side-by-side layout becomes too narrow to read or
+     tap individually at phone width, and a fixed row height clips any
+     content that needs more room there. Block data (col/row) is
+     unchanged; this only changes how it's edited at this width. */
+  .admin-canvas.admin-canvas-mobile-stack {
+    background-image: none;
+    min-height: 0 !important;
+  }
+
+  .admin-block-stacked {
+    position: static;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible;
+    margin-bottom: 10px;
+    cursor: default;
+    touch-action: auto;
+  }
+
+  .admin-block-stacked .resize-handle {
+    display: none;
+  }
+
+  .stacked-block-controls {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .stacked-move-up, .stacked-move-down {
+    flex: 1;
+    padding: 8px;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 1rem;
+  }
+
+  .stacked-move-up:disabled, .stacked-move-down:disabled {
+    opacity: 0.3;
   }
 
   .palette-btn {

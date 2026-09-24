@@ -285,30 +285,73 @@ The admin console's nav/UI/UX needs a real upgrade pass to accommodate
 everything added this project (media, projects, simulations, scans,
 webhooks, preview links, reactions, the new DAW/TTS modules, etc.) with
 heavy focus on mobile — user is primarily on an iPhone 17 Pro Max.
-Status: ☐ not started, now unblocked (both new modules have full admin
-surfaces to design around). Two real findings from the QA sweep below
-define its scope — start there rather than guessing:
-1. **Desktop topbar overflow at common widths.** At 1440×900 (a
-   standard laptop width), 10 of 18 right-side topbar controls render
-   off-screen with no wrap and no visible scroll affordance (confirmed:
-   `scrollWidth` 2190px vs `innerWidth` 1440px) — Layers, Diagnostics,
-   Analytics, Trash, Site Settings, Preview, Focus, Content-only, theme
-   toggle, and Log out are all unreachable without knowing to scroll.
-   Needs a real redesign (overflow menu, or grouping into fewer visible
-   controls), not a quick patch.
-2. **Mobile page-builder canvas doesn't reflow — blocks overlap.** The
-   canvas keeps desktop's 24-column absolute-grid positions at 390px
-   width, so blocks that don't overlap on desktop visually stack and
-   become unselectable on a phone. This is the single biggest mobile
-   issue given the user's primary device, and the real design decision
-   this section exists for: either scale the grid responsively, or give
-   mobile a simplified stacked block list for editing (closer to how
-   the public site itself already reflows).
+Status: 🔶 in progress — both real findings from the QA sweep are now
+fixed; remaining work is a broader design pass (below) rather than
+bug-fixing.
+
+1. **Desktop topbar overflow at common widths — ✅ fixed.** At 1440×900,
+   10 of 18 right-side topbar controls rendered off-screen with no wrap
+   or scroll affordance (`scrollWidth` 2190px vs `innerWidth` 1440px).
+   Grouped the 14 less-frequent actions into a "More ▾" dropdown
+   (`admin-more-panel` in `public/admin/index.html`/`style.css`),
+   organized into Library/Tools/View sections; Search, Articles,
+   Projects, Media stay always-visible as the daily-use actions. Button
+   *ids* were kept identical and just relocated in the DOM, so no other
+   JS needed to change. Closes on Escape, an outside click, or clicking
+   an item inside it (which also opens that item's modal). On mobile,
+   the dropdown flattens back into the existing drawer's column instead
+   of floating (`.desktop-only` hides the "More ▾" toggle itself there —
+   nothing on mobile needed to change). Verified: `scrollWidth` now
+   equals `innerWidth` at 1440px with zero overflow, every grouped
+   action still reachable and functional, mobile drawer unaffected.
+
+2. **Mobile page-builder canvas doesn't reflow — ✅ fixed.** The canvas
+   kept desktop's 24-column absolute-pixel-grid positions at 390px
+   width, so a legitimate side-by-side desktop layout (two blocks on
+   the same row) became too narrow to read or tap individually on a
+   phone. Went with the "simplified stacked list" option from the two
+   named here: at ≤860px, `renderCanvasMobile()` (`app.js`) renders
+   blocks as a plain full-width vertical list in row/col order — same
+   underlying block data, no pixel math, `overflow: visible` so content
+   never clips — with Up/Down buttons swapping `row`/`col` between
+   adjacent blocks (via the existing `patchBlockPosition()`, no new save
+   path) in place of 2D drag, which doesn't map to a single column
+   anyway. Tapping a block still selects it and opens the inspector
+   drawer, same as before. Desktop editing (`renderCanvasDesktop()`) is
+   byte-for-byte the same code, just renamed, gated behind the existing
+   `isMobile()` check — verified drag/resize/selection all still work
+   identically on desktop after the split. Verified on mobile: no
+   vertical overlap between any two blocks, all full-width, move-down
+   reorders and persists across reload, tap-to-select opens the
+   inspector drawer.
 
 The mobile *drawer* pattern (☰ palette, "Menu" topbar actions) already
-works well and should be kept, not redesigned — QA sweep confirmed all
-18 topbar actions are reachable through it with clean single-column
-reflow, unlike desktop's overflow problem above.
+worked well and was kept as-is — QA sweep confirmed all topbar actions
+were reachable through it with clean single-column reflow, which is
+exactly why the topbar fix above flattens into that same drawer on
+mobile instead of adding a second dropdown mechanism there.
+
+**Bonus from the same QA report:** Diagnostics flagged missing alt text
+on images but had no way to catch a broken/404'd image `src` — the
+report suggested adding that check. Added: `computeRenderedLayoutDiagnostics()`
+now re-requests every distinct `<img>` src from the page's rendered
+iframe in the parent document (sidestepping the fact that
+`loading="lazy"` images never actually fetch inside an off-screen
+diagnostic iframe — they'd have silently passed otherwise) and reports
+any that fail to load. Verified: correctly caught the exact broken
+image the QA report found on the live homepage
+(`/media/uploads/ee713f43-….png`, still unresolved — that's now a
+Diagnostics-visible cleanup item on the homepage itself, not code to
+fix) plus two more broken placeholder images in a gallery block, and
+produced zero false positives against a page with a real working
+image.
+
+**Still open for this section** (broader design work, not bugs): the
+overall admin visual design (spacing/shadow tokens, deferred in section
+5) hasn't had a dedicated pass, and there's no single-page overview of
+"what's true about this admin console's mobile behavior" beyond what's
+written here — revisit once there's a concrete reason to (a new module,
+a user complaint) rather than redesigning proactively with no target.
 
 **QA sweep results (full agent report, 2026-09-24):** dispatched per
 the periodic-sweep instruction — explored the whole admin console and

@@ -41,6 +41,26 @@
     });
   });
 
+  // ---------- Desktop topbar overflow ("More ▾") ----------
+  // Groups the topbar's less-frequent actions into a dropdown so they're
+  // reachable at standard laptop widths without horizontal scrolling —
+  // see admin-more-panel in style.css for the layout rationale.
+  const moreBtn = el("admin-more-btn");
+  const morePanel = el("admin-more-panel");
+  function closeMoreMenu() {
+    morePanel.classList.remove("open");
+    moreBtn.setAttribute("aria-expanded", "false");
+  }
+  moreBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const isOpen = morePanel.classList.toggle("open");
+    moreBtn.setAttribute("aria-expanded", String(isOpen));
+  });
+  morePanel.querySelectorAll("button, a").forEach((node) => node.addEventListener("click", closeMoreMenu));
+  document.addEventListener("click", (e) => {
+    if (morePanel.classList.contains("open") && !morePanel.contains(e.target) && e.target !== moreBtn) closeMoreMenu();
+  });
+
   let pages = [];
   let currentPage = null;
   let blocks = [];
@@ -631,6 +651,12 @@
   }
 
   function renderCanvas() {
+    if (isMobile()) renderCanvasMobile();
+    else renderCanvasDesktop();
+  }
+
+  function renderCanvasDesktop() {
+    canvas.classList.remove("admin-canvas-mobile-stack");
     canvas.innerHTML = "";
     canvas.classList.toggle("isolation-mode", isolationMode && selectedBlockId !== null);
     canvas.classList.toggle("content-only-mode", contentOnlyMode);
@@ -658,6 +684,67 @@
     }
     canvas.style.minHeight = maxBottom + "px";
     if (!el("layers-modal").hidden) renderLayersList();
+  }
+
+  // The absolute-position 24-column grid is a faithful desktop editing
+  // surface, but at phone width a block's real column width shrinks to
+  // the point that side-by-side blocks (a normal, correct desktop layout)
+  // become too narrow to read or tap individually, and a fixed fixed-px
+  // row height clips any content that needs more room at that width. On
+  // mobile, edit as a plain full-width stacked list instead — same block
+  // data, no col/row pixel math, with Up/Down buttons in place of 2D drag
+  // (which doesn't map to a single column anyway). Desktop editing is
+  // completely unaffected; this only changes how <=860px renders/behaves.
+  function renderCanvasMobile() {
+    canvas.classList.add("admin-canvas-mobile-stack");
+    canvas.innerHTML = "";
+    canvas.classList.remove("isolation-mode", "content-only-mode");
+    canvas.style.minHeight = "";
+    const sorted = [...blocks].sort((a, b) => a.row - b.row || a.col - b.col);
+    sorted.forEach((b, i) => {
+      const div = document.createElement("div");
+      div.className =
+        "admin-block admin-block-stacked" +
+        (b.id === selectedBlockId ? " selected" : "") +
+        (b.style && b.style.hidden ? " block-is-hidden" : "") +
+        (b.locked ? " block-locked" : "");
+      div.dataset.id = b.id;
+      div.innerHTML = `<div class="block-type-label">${blockLabel(b.type)}${blockBadgesHtml(b)}</div><div class="block-preview">${blockPreview(
+        b
+      )}</div><div class="stacked-block-controls"><button type="button" class="stacked-move-up" aria-label="Move up"${
+        i === 0 ? " disabled" : ""
+      }>↑</button><button type="button" class="stacked-move-down" aria-label="Move down"${i === sorted.length - 1 ? " disabled" : ""}>↓</button></div>`;
+      div.addEventListener("click", () => {
+        selectedBlockId = b.id;
+        multiSelectedIds.clear();
+        renderCanvas();
+        renderInspector();
+        openDrawer(el("inspector"));
+      });
+      const moveUp = div.querySelector(".stacked-move-up");
+      const moveDown = div.querySelector(".stacked-move-down");
+      moveUp.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (i > 0) swapStackedBlocks(sorted[i], sorted[i - 1]);
+      });
+      moveDown.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (i < sorted.length - 1) swapStackedBlocks(sorted[i], sorted[i + 1]);
+      });
+      canvas.appendChild(div);
+    });
+    if (!el("layers-modal").hidden) renderLayersList();
+  }
+
+  async function swapStackedBlocks(a, b) {
+    if (isLayoutLocked(a) || isLayoutLocked(b)) return;
+    const aPos = { row: a.row, col: a.col };
+    a.row = b.row;
+    a.col = b.col;
+    b.row = aPos.row;
+    b.col = aPos.col;
+    await Promise.all([patchBlockPosition(a), patchBlockPosition(b)]);
+    renderCanvas();
   }
 
   function rectsOverlap(a, b) {
@@ -1807,7 +1894,30 @@
             issues.push({ severity: "warn", message: "A block's content overflows its box at desktop width — may be visually clipped", blockId: null });
           }
         });
-        finish(issues);
+        // native `loading="lazy"` images never actually fetch inside this
+        // off-screen iframe (it's nowhere near any viewport, so the
+        // browser's own lazy-load heuristic just skips them forever) — so
+        // checking img.naturalWidth here would silently miss almost every
+        // real image on the page. Re-request each distinct src directly in
+        // the parent document instead, which sidesteps lazy-loading
+        // entirely and also naturally dedupes repeated images.
+        const srcs = [...new Set([...doc.querySelectorAll("img")].map((img) => img.getAttribute("src")).filter(Boolean))];
+        Promise.all(
+          srcs.map(
+            (src) =>
+              new Promise((res) => {
+                const probe = new Image();
+                probe.onload = () => res(null);
+                probe.onerror = () => res(src);
+                probe.src = new URL(src, location.origin).href;
+                setTimeout(() => res(null), 4000); // don't let one slow/hanging image block the whole check
+              })
+          )
+        ).then((results) => {
+          results.filter(Boolean).forEach((src) => issues.push({ severity: "error", message: `Broken image (failed to load): ${src}`, blockId: null }));
+          finish(issues);
+        });
+        return;
       });
       frame.addEventListener("error", () => finish([]));
       setTimeout(() => finish([]), 5000);
@@ -4783,7 +4893,9 @@
     return true;
   }
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closeTopModal();
+    if (e.key !== "Escape") return;
+    if (morePanel.classList.contains("open")) closeMoreMenu();
+    else closeTopModal();
   });
   document.querySelectorAll(".modal").forEach((modal) => {
     modal.addEventListener("click", (e) => {

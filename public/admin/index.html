@@ -39,20 +39,34 @@
         <button id="articles-btn">Articles</button>
         <button id="projects-btn">Projects</button>
         <button id="media-btn">Media</button>
-        <button id="redirects-btn">Redirects</button>
-        <button id="simulations-btn">Simulations</button>
-        <button id="scans-btn">Scans</button>
-        <button id="songs-btn">Songs</button>
-        <button id="shared-blocks-btn">Reusable Blocks</button>
-        <button id="layers-btn">Layers</button>
-        <button id="diagnostics-btn">Diagnostics</button>
-        <button id="analytics-btn">Analytics</button>
-        <button id="trash-btn">Trash</button>
-        <button id="site-settings-btn">Site</button>
-        <a id="admin-view-live" href="/" target="_blank" class="admin-view-live">View live ↗</a>
-        <button id="preview-btn" title="Preview this page at different screen widths">Preview</button>
-        <button id="focus-mode-btn" aria-pressed="false" title="Hide the block palette for more canvas room">Focus</button>
-        <button id="content-only-mode-btn" aria-pressed="false" title="Locks every block's position/size so you can safely click around and edit content without nudging the layout">Content-only</button>
+        <div class="admin-more-wrap">
+          <button id="admin-more-btn" class="desktop-only" aria-haspopup="true" aria-expanded="false" aria-controls="admin-more-panel">More ▾</button>
+          <div class="admin-more-panel" id="admin-more-panel">
+            <div class="admin-more-group">
+              <h3>Library</h3>
+              <button id="redirects-btn">Redirects</button>
+              <button id="simulations-btn">Simulations</button>
+              <button id="scans-btn">Scans</button>
+              <button id="songs-btn">Songs</button>
+              <button id="shared-blocks-btn">Reusable Blocks</button>
+            </div>
+            <div class="admin-more-group">
+              <h3>Tools</h3>
+              <button id="layers-btn">Layers</button>
+              <button id="diagnostics-btn">Diagnostics</button>
+              <button id="analytics-btn">Analytics</button>
+              <button id="trash-btn">Trash</button>
+              <button id="site-settings-btn">Site</button>
+            </div>
+            <div class="admin-more-group">
+              <h3>View</h3>
+              <a id="admin-view-live" href="/" target="_blank" class="admin-view-live">View live ↗</a>
+              <button id="preview-btn" title="Preview this page at different screen widths">Preview</button>
+              <button id="focus-mode-btn" aria-pressed="false" title="Hide the block palette for more canvas room">Focus</button>
+              <button id="content-only-mode-btn" aria-pressed="false" title="Locks every block's position/size so you can safely click around and edit content without nudging the layout">Content-only</button>
+            </div>
+          </div>
+        </div>
         <button id="admin-theme-toggle" aria-label="Toggle admin panel light/dark theme" title="Toggle admin panel theme">◐</button>
         <button id="logout-btn">Log out</button>
       </div>
