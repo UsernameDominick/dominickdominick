@@ -1,4 +1,4 @@
-import { listArticles, getSimulation } from "./db.js";
+import { listArticles, getSimulation, getScan } from "./db.js";
 import { renderSimulationSvg } from "./simulation-render.js";
 
 export function esc(str) {
@@ -399,6 +399,25 @@ function genericEmbedHtml(rawUrl) {
   )}" target="_blank" rel="noopener">Open original ↗</a></p></div>`;
 }
 
+// A <model-viewer> element for an orbitable/zoomable 3D scan — GLB/GLTF,
+// with the USDZ variant (if uploaded) letting iOS hand off to AR Quick Look
+// via the built-in "ar" attribute. Exported so the future standalone
+// /scan/:id page (mirroring /simulation/:id) can reuse it too.
+export function modelViewerHtml(scan) {
+  const attrs = [
+    `src="${esc(`/media/${scan.glb_key}`)}"`,
+    scan.usdz_key ? `ios-src="${esc(`/media/${scan.usdz_key}`)}"` : "",
+    scan.poster_key ? `poster="${esc(scan.poster_key.startsWith("/") ? scan.poster_key : `/media/${scan.poster_key}`)}"` : "",
+    scan.camera_orbit ? `camera-orbit="${esc(scan.camera_orbit)}"` : "",
+    scan.camera_target ? `camera-target="${esc(scan.camera_target)}"` : "",
+    scan.field_of_view ? `field-of-view="${esc(scan.field_of_view)}"` : "",
+    `alt="${esc(scan.name)}"`,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return `<div class="scan-block-wrap"><model-viewer ${attrs} camera-controls auto-rotate shadow-intensity="1" ar ar-modes="webxr scene-viewer quick-look" loading="lazy"><button slot="ar-button" class="scan-ar-btn">View in your space</button></model-viewer></div>`;
+}
+
 async function renderBlockInner(env, block, ctx) {
   const c = block.content || {};
   switch (block.type) {
@@ -464,6 +483,12 @@ async function renderBlockInner(env, block, ctx) {
       return `<div class="sim-block-wrap">${svg}<button type="button" class="sim-power-btn" data-target="${esc(
         uid
       )}">Power on</button></div>`;
+    }
+    case "scan": {
+      if (!c.scan_id) return `<p class="empty-hint">No 3D scan selected.</p>`;
+      const scan = await getScan(env, c.scan_id);
+      if (!scan) return `<p class="empty-hint">Scan not found.</p>`;
+      return modelViewerHtml(scan);
     }
     case "project-card":
       return `<div class="project-card"><h2>${esc(c.title)}</h2>${c.description ? `<p>${esc(c.description)}</p>` : ""}${c.url ? `<a href="${esc(c.url)}"${c.external ? ' target="_blank" rel="noopener"' : ""}>${esc(c.label || c.url)}</a>` : ""}</div>`;
@@ -572,6 +597,7 @@ ${themeStyle}
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" defer></script>
 <script>document.addEventListener("DOMContentLoaded",function(){if(window.hljs)hljs.highlightAll();});</script>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
 <script type="application/ld+json">${JSON.stringify({
     "@context": "https://schema.org",
     "@type": "WebSite",

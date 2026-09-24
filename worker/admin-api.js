@@ -54,6 +54,12 @@ import {
   restoreArticleRevision,
   search,
   checkLinks,
+  listScans,
+  getScan,
+  createScan,
+  updateScan,
+  deleteScan,
+  findScanUsage,
   listSimulations,
   getSimulation,
   createSimulation,
@@ -444,6 +450,90 @@ async function routeAdminApi(request, env, url, ctx) {
     if (!existing) return json({ error: "Original file not found" }, { status: 404 });
     await env.MEDIA.put(key, buf, { httpMetadata: { contentType } });
     return json({ url: `/media/${key}` });
+  }
+
+  // ---------- 3D scans ----------
+  // The .glb/.usdz model files, uploaded separately from the poster image
+  // (which reuses the existing /upload endpoint above — it's a plain image).
+  // Real LiDAR/photogrammetry scans run much bigger than a photo, so these
+  // caps are deliberately far above the 8MB image limit — but still capped
+  // well under Workers' request-body/memory ceiling, since the whole file
+  // is buffered in the Worker before being written to R2. A scan larger
+  // than this needs to be compressed/decimated (Polycam, Reality Composer,
+  // etc.) before uploading.
+  const SCAN_FILE_LIMITS = {
+    glb: { maxBytes: 80 * 1024 * 1024, ext: "glb", contentType: "model/gltf-binary" },
+    gltf: { maxBytes: 80 * 1024 * 1024, ext: "gltf", contentType: "model/gltf+json" },
+    usdz: { maxBytes: 30 * 1024 * 1024, ext: "usdz", contentType: "model/vnd.usdz+zip" },
+  };
+  if (path === "/scan-upload" && method === "POST") {
+    const kind = url.searchParams.get("kind");
+    const limits = SCAN_FILE_LIMITS[kind];
+    if (!limits) return json({ error: "Invalid or missing ?kind= (glb, gltf, or usdz)" }, { status: 400 });
+    const buf = await request.arrayBuffer();
+    if (buf.byteLength > limits.maxBytes) {
+      return json({ error: `File too large (${Math.round(limits.maxBytes / (1024 * 1024))}MB max)` }, { status: 400 });
+    }
+    const key = `scans/${crypto.randomUUID()}.${limits.ext}`;
+    await env.MEDIA.put(key, buf, { httpMetadata: { contentType: limits.contentType } });
+    return json({ key, url: `/media/${key}`, size: buf.byteLength });
+  }
+
+  if (path === "/scans" && method === "GET") {
+    return json(await listScans(env));
+  }
+  if (path === "/scans" && method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    if (!body.name || !String(body.name).trim() || !body.glb_key) {
+      return json({ error: "Name and a GLB/GLTF file are required" }, { status: 400 });
+    }
+    const id = await createScan(env, { ...body, name: body.name.trim() });
+    log(ctx, env, "create", "scan", body.name.trim());
+    return json({ id });
+  }
+  if (path === "/scans/usage" && method === "GET") {
+    const scanId = Number(url.searchParams.get("id"));
+    if (!scanId) return json({ error: "id required" }, { status: 400 });
+    return json(await findScanUsage(env, scanId));
+  }
+  const scanMatch = path.match(/^\/scans\/(\d+)$/);
+  if (scanMatch && method === "GET") {
+    const scan = await getScan(env, Number(scanMatch[1]));
+    if (!scan) return json({ error: "Not found" }, { status: 404 });
+    return json(scan);
+  }
+  if (scanMatch && method === "PATCH") {
+    const body = await request.json().catch(() => ({}));
+    if ("name" in body && !String(body.name).trim()) return json({ error: "Name is required" }, { status: 400 });
+    const id = Number(scanMatch[1]);
+    const before = await getScan(env, id);
+    await updateScan(env, id, body);
+    // glb_key/usdz_key point at files dedicated to this scan (not shared
+    // media-library references), so replacing one with a re-upload needs to
+    // clean up the old R2 object here — otherwise it's orphaned forever.
+    if (before) {
+      const cleanups = [];
+      if ("glb_key" in body && body.glb_key !== before.glb_key && before.glb_key) cleanups.push(before.glb_key);
+      if ("usdz_key" in body && body.usdz_key !== before.usdz_key && before.usdz_key) cleanups.push(before.usdz_key);
+      await Promise.all(cleanups.map((k) => env.MEDIA.delete(k).catch(() => {})));
+    }
+    return json({ ok: true });
+  }
+  if (scanMatch && method === "DELETE") {
+    const id = Number(scanMatch[1]);
+    const scan = await getScan(env, id);
+    await deleteScan(env, id);
+    if (scan) {
+      // The model files are dedicated to this scan (not a shared media
+      // library resource), so they're cleaned up here. The poster image,
+      // if set, usually comes from the shared media library — left alone,
+      // same as every other feature that just references a media URL.
+      await Promise.all(
+        [scan.glb_key, scan.usdz_key].filter(Boolean).map((k) => env.MEDIA.delete(k).catch(() => {}))
+      );
+    }
+    log(ctx, env, "delete", "scan", scan?.name || `#${id}`);
+    return json({ ok: true });
   }
 
   // /redirects

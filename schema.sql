@@ -115,6 +115,20 @@ CREATE TABLE media (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE scans (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  glb_key TEXT NOT NULL,
+  usdz_key TEXT,
+  poster_key TEXT,
+  camera_orbit TEXT,
+  camera_target TEXT,
+  field_of_view TEXT,
+  size INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE templates (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   kind TEXT NOT NULL,

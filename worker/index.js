@@ -353,11 +353,16 @@ const SECURITY_HEADERS = {
   "Permissions-Policy": "geolocation=(), microphone=(), camera=(), payment=()",
   "Content-Security-Policy": [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com",
+    // jsdelivr is <model-viewer> (for the 3D Scan block) — it's an ES
+    // module and, for compressed models, loads its own decoder via a Web
+    // Worker + WASM fetched from the same origin as the script itself,
+    // hence the matching allowances on worker-src/connect-src too.
+    "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net",
     "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com",
     "img-src 'self' data: https:",
     "font-src 'self' https://cdnjs.cloudflare.com data:",
-    "connect-src 'self'",
+    "connect-src 'self' https://cdn.jsdelivr.net",
+    "worker-src 'self' blob: https://cdn.jsdelivr.net",
     // The Generic Embed block is deliberately "any iframe-able link" —
     // restricting this to a fixed list of services would break that
     // feature, so it's scoped to https: rather than named origins.
@@ -438,10 +443,10 @@ async function route(request, env, ctx) {
       return renderSimulationPage(env, sim, navItems);
     }
 
-    // Scoped to the "uploads/" prefix specifically — the same R2 bucket
+    // Scoped to "uploads/" and "scans/" specifically — the same R2 bucket
     // also holds scheduled backups under "backups/", which must never be
     // servable through this public route.
-    const mediaMatch = path.match(/^\/media\/(uploads\/[A-Za-z0-9_.\-\/]+)$/);
+    const mediaMatch = path.match(/^\/media\/((?:uploads|scans)\/[A-Za-z0-9_.\-\/]+)$/);
     if (mediaMatch) {
       const obj = await env.MEDIA.get(mediaMatch[1]);
       if (!obj) return new Response("Not found", { status: 404 });

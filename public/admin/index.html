@@ -8,6 +8,7 @@
 <meta name="robots" content="noindex">
 <link rel="stylesheet" href="/style.css">
 <link rel="stylesheet" href="/admin/style.css">
+<script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
 </head>
 <body class="admin-body">
   <div id="login-screen" class="login-screen" hidden>
@@ -39,6 +40,7 @@
         <button id="media-btn">Media</button>
         <button id="redirects-btn">Redirects</button>
         <button id="simulations-btn">Simulations</button>
+        <button id="scans-btn">Scans</button>
         <button id="analytics-btn">Analytics</button>
         <button id="trash-btn">Trash</button>
         <button id="site-settings-btn">Site</button>
@@ -65,6 +67,7 @@
         <button class="palette-btn" data-type="quote">Quote</button>
         <button class="palette-btn" data-type="gallery">Gallery</button>
         <button class="palette-btn" data-type="simulation">Simulation</button>
+        <button class="palette-btn" data-type="scan">3D Scan</button>
         <button class="palette-btn" data-type="links">Links</button>
         <button class="palette-btn" data-type="changelog">Changelog / Now</button>
         <button class="palette-btn" data-type="html">HTML / Embed</button>
@@ -496,6 +499,56 @@
     </div>
   </div>
 
+  <div id="scans-modal" class="modal" hidden>
+    <div class="modal-inner redirects-modal-inner">
+      <header>
+        <h1>3D Scans</h1>
+        <button id="close-scans">×</button>
+      </header>
+      <div class="redirects-body">
+        <p class="redirects-hint">Upload a LiDAR/photogrammetry scan (.glb or .gltf, optionally a .usdz for iOS AR Quick Look) — from Polycam, Reality Composer, or similar. Reuse it in any page or article via the 3D Scan block.</p>
+        <button type="button" id="new-scan-btn">Upload new scan</button>
+        <div id="scans-list" class="redirects-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="scan-editor-modal" class="modal" hidden>
+    <div class="modal-inner simulation-builder-inner scan-editor-inner">
+      <header>
+        <input id="scan-name" class="simulation-name-input" placeholder="Scan name">
+        <button type="button" id="save-scan-btn">Save</button>
+        <button id="close-scan-editor">×</button>
+      </header>
+      <div class="scan-editor-body">
+        <aside class="scan-editor-fields">
+          <label>Model file (.glb or .gltf — 80MB max)
+            <input type="file" id="scan-glb-input" accept=".glb,.gltf,model/gltf-binary,model/gltf+json">
+          </label>
+          <div id="scan-glb-status" class="article-word-count"></div>
+          <label>USDZ for iOS AR (optional — 30MB max)
+            <input type="file" id="scan-usdz-input" accept=".usdz,model/vnd.usdz+zip">
+          </label>
+          <div id="scan-usdz-status" class="article-word-count"></div>
+          <label>Poster image (optional — shown before the model loads)
+            <input id="scan-poster-url" type="text" placeholder="https://..." spellcheck="false">
+          </label>
+          <div class="input-with-upload">
+            <button type="button" class="upload-trigger" data-target="#scan-poster-url">Upload image</button>
+            <button type="button" class="browse-trigger" data-target="#scan-poster-url">Browse…</button>
+          </div>
+          <button type="button" id="scan-use-current-view-btn">Use current view as default camera</button>
+          <p id="scan-camera-status" style="color:var(--text-dim);font-size:0.8rem;"></p>
+          <button type="button" id="delete-scan-btn" class="danger">Delete this scan</button>
+        </aside>
+        <div class="scan-editor-preview">
+          <model-viewer id="scan-preview-viewer" camera-controls auto-rotate shadow-intensity="1"></model-viewer>
+          <p id="scan-preview-hint" class="empty-hint">Upload a model file to preview it here.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="undo-toast" class="undo-toast" hidden>
     <span id="undo-toast-text">Block deleted.</span>
     <button id="undo-toast-btn">Undo</button>
@@ -505,5 +558,6 @@
 <script src="/admin/photo-editor.js"></script>
 <script src="/admin/sim-components.js"></script>
 <script src="/admin/simulation-builder.js"></script>
+<script src="/admin/scan-builder.js"></script>
 </body>
 </html>

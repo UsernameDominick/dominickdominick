@@ -618,6 +618,65 @@ export async function findMediaUsage(env, mediaUrl) {
   return usage;
 }
 
+// ---------- 3D scans ----------
+// The actual .glb/.usdz/poster files live in R2 under "scans/"; this table
+// is the metadata + default camera view for each one, parallel to how
+// simulations and media work.
+export async function listScans(env) {
+  const { results } = await env.DB.prepare("SELECT * FROM scans ORDER BY name").all();
+  return results;
+}
+
+export async function getScan(env, id) {
+  return env.DB.prepare("SELECT * FROM scans WHERE id = ?").bind(id).first();
+}
+
+export async function createScan(env, { name, glb_key, usdz_key, poster_key, camera_orbit, camera_target, field_of_view, size }) {
+  const res = await env.DB
+    .prepare(
+      `INSERT INTO scans (name, glb_key, usdz_key, poster_key, camera_orbit, camera_target, field_of_view, size)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .bind(name, glb_key, usdz_key || null, poster_key || null, camera_orbit || null, camera_target || null, field_of_view || null, size || 0)
+    .run();
+  return res.meta.last_row_id;
+}
+
+export async function updateScan(env, id, fields) {
+  const cols = [];
+  const vals = [];
+  for (const key of ["name", "glb_key", "usdz_key", "poster_key", "camera_orbit", "camera_target", "field_of_view", "size"]) {
+    if (key in fields) {
+      cols.push(`${key} = ?`);
+      vals.push(fields[key]);
+    }
+  }
+  if (!cols.length) return;
+  cols.push("updated_at = datetime('now')");
+  vals.push(id);
+  await env.DB.prepare(`UPDATE scans SET ${cols.join(", ")} WHERE id = ?`).bind(...vals).run();
+}
+
+export async function deleteScan(env, id) {
+  await env.DB.prepare("DELETE FROM scans WHERE id = ?").bind(id).run();
+}
+
+// Which pages currently embed this scan via a "scan" block — same idea as
+// findMediaUsage, so deleting a scan a page depends on isn't a silent trap.
+export async function findScanUsage(env, scanId) {
+  const pages = await listPages(env);
+  const pageBlocks = await Promise.all(pages.map((p) => listBlocks(env, p.id)));
+  const usage = [];
+  pages.forEach((p, i) => {
+    for (const b of pageBlocks[i]) {
+      if (b.type === "scan" && Number((b.content || {}).scan_id) === Number(scanId)) {
+        usage.push({ type: "3D Scan block", title: p.title });
+      }
+    }
+  });
+  return usage;
+}
+
 // ---------- Templates ----------
 // A saved starting point — a page's block layout, or an article body — that
 // new pages/articles can be seeded from instead of starting blank.
@@ -942,7 +1001,7 @@ export async function setSetting(env, key, value) {
 const BACKUP_VERSION = 1;
 
 export async function exportAll(env) {
-  const [pages, blocks, articles, settings, redirects, templates, media] = await Promise.all([
+  const [pages, blocks, articles, settings, redirects, templates, media, scans] = await Promise.all([
     env.DB.prepare("SELECT * FROM pages ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM blocks ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM articles ORDER BY id").all(),
@@ -950,6 +1009,7 @@ export async function exportAll(env) {
     env.DB.prepare("SELECT * FROM redirects ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM templates ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM media ORDER BY key").all(),
+    env.DB.prepare("SELECT * FROM scans ORDER BY id").all(),
   ]);
   return {
     version: BACKUP_VERSION,
@@ -961,6 +1021,7 @@ export async function exportAll(env) {
     redirects: redirects.results,
     templates: templates.results,
     media: media.results,
+    scans: scans.results,
   };
 }
 
@@ -1000,7 +1061,7 @@ export async function importAll(env, data) {
   // is missing. `redirects` and `templates` were added later, so older
   // legitimate backups won't have them — default those to empty instead of
   // rejecting them.
-  const { pages, blocks, articles, settings, redirects = [], templates = [], media = [] } = data;
+  const { pages, blocks, articles, settings, redirects = [], templates = [], media = [], scans = [] } = data;
   if (
     !Array.isArray(pages) ||
     !Array.isArray(blocks) ||
@@ -1008,7 +1069,8 @@ export async function importAll(env, data) {
     !Array.isArray(settings) ||
     !Array.isArray(redirects) ||
     !Array.isArray(templates) ||
-    !Array.isArray(media)
+    !Array.isArray(media) ||
+    !Array.isArray(scans)
   ) {
     throw new Error("This doesn't look like a dominickdominick backup file (missing pages/blocks/articles/settings)");
   }
@@ -1021,6 +1083,7 @@ export async function importAll(env, data) {
     env.DB.prepare("DELETE FROM redirects"),
     env.DB.prepare("DELETE FROM templates"),
     env.DB.prepare("DELETE FROM media"),
+    env.DB.prepare("DELETE FROM scans"),
   ];
 
   for (const p of pages) {
@@ -1117,6 +1180,29 @@ export async function importAll(env, data) {
       env.DB
         .prepare("INSERT INTO media (key, folder, tags, alt_text, created_at) VALUES (?, ?, ?, ?, ?)")
         .bind(m.key, m.folder ?? null, m.tags ?? "[]", m.alt_text ?? null, m.created_at)
+    );
+  }
+
+  for (const s of scans) {
+    stmts.push(
+      env.DB
+        .prepare(
+          `INSERT INTO scans (id, name, glb_key, usdz_key, poster_key, camera_orbit, camera_target, field_of_view, size, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(
+          s.id,
+          s.name,
+          s.glb_key,
+          s.usdz_key ?? null,
+          s.poster_key ?? null,
+          s.camera_orbit ?? null,
+          s.camera_target ?? null,
+          s.field_of_view ?? null,
+          s.size ?? 0,
+          s.created_at,
+          s.updated_at
+        )
     );
   }
 
