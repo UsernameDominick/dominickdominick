@@ -7,6 +7,7 @@ import {
   getArticleBySlug,
   getProjectBySlug,
   getRelatedProjects,
+  listJournalEntries,
   getSetting,
   recordPageview,
   getRedirect,
@@ -37,6 +38,7 @@ import {
   renderByline,
   renderSeriesNavHtml,
   renderRelatedProjectsHtml,
+  renderJournalHtml,
 } from "./render.js";
 import { handleAdminApi } from "./admin-api.js";
 import { renderSimulationSvg } from "./simulation-render.js";
@@ -188,6 +190,17 @@ async function renderProject(env, project, navItems) {
     : "";
   const related = await getRelatedProjects(env, project);
   const relatedHtml = renderRelatedProjectsHtml(related);
+  const journalEntries = await listJournalEntries(env, project.id, { order: "ASC" });
+  const journalHtml = renderJournalHtml(journalEntries);
+
+  // Rows handed out in order (same reasoning as renderArticle) so an
+  // optional section's length can't throw off the ones after it.
+  let row = 6;
+  const bodyRow = row;
+  row += 12;
+  const journalRow = journalHtml ? row : null;
+  if (journalHtml) row += 4 + journalEntries.length * 4;
+  const relatedRow = row;
 
   const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 4;">
     <div class="article-meta">
@@ -201,10 +214,11 @@ async function renderProject(env, project, navItems) {
     ${renderTags(project.tags)}
     ${linkButtons ? `<p>${linkButtons}</p>` : ""}
   </div>
-  <div class="block" style="grid-column:1 / span 24;grid-row:6 / span 12;">
+  <div class="block" style="grid-column:1 / span 24;grid-row:${bodyRow} / span 12;">
     ${paragraphsHtml(project.body)}
   </div>
-  ${relatedHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:19 / span 6;">${relatedHtml}</div>` : ""}`;
+  ${journalHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${journalRow} / span ${4 + journalEntries.length * 4};">${journalHtml}</div>` : ""}
+  ${relatedHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${relatedRow} / span 6;">${relatedHtml}</div>` : ""}`;
 
   const jsonLd = {
     "@context": "https://schema.org",

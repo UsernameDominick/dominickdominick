@@ -86,6 +86,23 @@ CREATE TABLE projects (
   locked INTEGER NOT NULL DEFAULT 0
 );
 
+-- A project's build journal — dated entries telling the story of building
+-- it. entry_type also covers decision logs and failed-attempt records
+-- (both are just journal entries with a different label), and test
+-- records (expected/actual results go straight in the markdown-lite
+-- body — no separate structured fields needed for free-form results).
+CREATE TABLE journal_entries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  entry_date TEXT NOT NULL,
+  title TEXT NOT NULL DEFAULT '',
+  body TEXT NOT NULL DEFAULT '',
+  entry_type TEXT NOT NULL DEFAULT 'log',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_journal_entries_project ON journal_entries(project_id, entry_date);
+
 CREATE TABLE settings (
   key TEXT PRIMARY KEY,
   value TEXT

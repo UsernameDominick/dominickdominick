@@ -279,6 +279,23 @@ export function renderRelatedArticlesHtml(articles) {
   return `<div class="related-posts"><strong>More to read</strong><div class="thought-list">${items}</div></div>`;
 }
 
+const JOURNAL_TYPE_LABELS = { log: "Log", test: "Test result", decision: "Decision", failed: "Failed attempt" };
+
+export function renderJournalHtml(entries) {
+  if (!entries || !entries.length) return "";
+  const items = entries
+    .map(
+      (j) =>
+        `<div class="journal-entry"><div class="journal-entry-meta"><span class="journal-entry-type">${esc(
+          JOURNAL_TYPE_LABELS[j.entry_type] || "Log"
+        )}</span><time datetime="${esc(j.entry_date)}">${esc(j.entry_date)}</time></div>${
+          j.title ? `<h3>${esc(j.title)}</h3>` : ""
+        }${paragraphsHtml(j.body || "")}</div>`
+    )
+    .join("\n");
+  return `<div class="journal"><strong>Build journal</strong>${items}</div>`;
+}
+
 export function renderRelatedProjectsHtml(projects) {
   if (!projects || !projects.length) return "";
   const items = projects

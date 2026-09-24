@@ -1940,6 +1940,32 @@
   margin: 8px 0;
 }
 
+.journal-form-row {
+  display: flex;
+  gap: 10px;
+}
+
+.journal-form-row #journal-entry-date {
+  flex-shrink: 0;
+}
+
+.journal-form-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.journal-entry-row {
+  align-items: flex-start;
+}
+
+.journal-entry-body {
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  font-size: 0.82rem;
+  margin-top: 4px;
+}
+
 #admin-theme-toggle {
   background: var(--bg-elevated);
   border: 1px solid var(--border);

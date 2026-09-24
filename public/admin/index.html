@@ -271,6 +271,26 @@
             <button type="button" id="lock-project-btn" title="Locking protects this project from accidental deletion — it doesn't affect editing it directly">Lock</button>
             <button id="delete-project" class="danger">Delete</button>
           </div>
+          <div id="journal-section" hidden>
+            <h2>Build Journal</h2>
+            <p class="redirects-hint">Dated entries telling the story of building this — logs, test results, decisions, dead ends.</p>
+            <div id="journal-list" class="redirects-list"></div>
+            <div class="journal-form-row">
+              <input type="date" id="journal-entry-date">
+              <select id="journal-entry-type">
+                <option value="log">Log</option>
+                <option value="test">Test result</option>
+                <option value="decision">Decision</option>
+                <option value="failed">Failed attempt</option>
+              </select>
+            </div>
+            <input id="journal-entry-title" placeholder="Entry title">
+            <textarea id="journal-entry-body" rows="4" placeholder="What happened. Same formatting as the project body."></textarea>
+            <div class="journal-form-actions">
+              <button type="button" id="save-journal-entry-btn">Add entry</button>
+              <button type="button" id="cancel-journal-entry-btn" hidden>Cancel edit</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

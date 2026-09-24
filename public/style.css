@@ -1025,6 +1025,47 @@ h6 { font-size: 0.9rem; }
   padding-top: 20px;
 }
 
+.journal {
+  border-top: 1px solid var(--border);
+  padding-top: 20px;
+}
+
+.journal > strong {
+  display: block;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  margin-bottom: 14px;
+}
+
+.journal-entry {
+  border-left: 2px solid var(--border);
+  padding-left: 16px;
+  margin-bottom: 20px;
+}
+
+.journal-entry-meta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 0.8rem;
+  color: var(--accent-dim);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.journal-entry-type {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.journal-entry h3 {
+  margin: 0 0 6px;
+}
+
 .changelog-list {
   display: flex;
   flex-direction: column;

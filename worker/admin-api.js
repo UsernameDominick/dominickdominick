@@ -85,6 +85,10 @@ import {
   listTrashedProjects,
   snapshotProject,
   restoreProjectRevision,
+  listJournalEntries,
+  createJournalEntry,
+  updateJournalEntry,
+  deleteJournalEntry,
 } from "./db.js";
 import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated } from "./auth.js";
 
@@ -560,6 +564,30 @@ async function routeAdminApi(request, env, url, ctx) {
     const p = await env.DB.prepare("SELECT title FROM projects WHERE id = ?").bind(id).first();
     await hardDeleteProject(env, id);
     log(ctx, env, "delete-forever", "project", p?.title || `#${id}`);
+    return json({ ok: true });
+  }
+
+  // /projects/:id/journal — a project's build journal entries
+  const journalListMatch = path.match(/^\/projects\/(\d+)\/journal$/);
+  if (journalListMatch && method === "GET") {
+    return json(await listJournalEntries(env, Number(journalListMatch[1])));
+  }
+  if (journalListMatch && method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    const projectId = Number(journalListMatch[1]);
+    const id = await createJournalEntry(env, projectId, body);
+    log(ctx, env, "create", "journal entry", body.title || `on project #${projectId}`);
+    return json({ id });
+  }
+  const journalMatch = path.match(/^\/journal\/(\d+)$/);
+  if (journalMatch && method === "PATCH") {
+    const body = await request.json().catch(() => ({}));
+    await updateJournalEntry(env, Number(journalMatch[1]), body);
+    return json({ ok: true });
+  }
+  if (journalMatch && method === "DELETE") {
+    await deleteJournalEntry(env, Number(journalMatch[1]));
+    log(ctx, env, "delete", "journal entry", `#${journalMatch[1]}`);
     return json({ ok: true });
   }
 

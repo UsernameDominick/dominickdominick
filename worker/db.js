@@ -629,6 +629,58 @@ export async function restoreProjectRevision(env, projectId, revisionId) {
     .run();
 }
 
+// ---------- Build journal entries ----------
+// Dated entries attached to a project — also covers decision logs and
+// failed-attempt records (just a different entry_type) and test records
+// (expected/actual results go straight in the markdown-lite body).
+const JOURNAL_ENTRY_TYPES = new Set(["log", "test", "decision", "failed"]);
+
+export async function listJournalEntries(env, projectId, { order = "DESC" } = {}) {
+  const dir = order === "ASC" ? "ASC" : "DESC";
+  const { results } = await env.DB
+    .prepare(`SELECT * FROM journal_entries WHERE project_id = ? ORDER BY entry_date ${dir}, id ${dir}`)
+    .bind(projectId)
+    .all();
+  return results;
+}
+
+export async function createJournalEntry(env, projectId, { entry_date, title, body, entry_type }) {
+  const res = await env.DB
+    .prepare("INSERT INTO journal_entries (project_id, entry_date, title, body, entry_type) VALUES (?, ?, ?, ?, ?)")
+    .bind(
+      projectId,
+      entry_date || new Date().toISOString().slice(0, 10),
+      title || "",
+      body || "",
+      JOURNAL_ENTRY_TYPES.has(entry_type) ? entry_type : "log"
+    )
+    .run();
+  return res.meta.last_row_id;
+}
+
+export async function updateJournalEntry(env, id, fields) {
+  const cols = [];
+  const vals = [];
+  for (const key of ["entry_date", "title", "body"]) {
+    if (key in fields) {
+      cols.push(`${key} = ?`);
+      vals.push(fields[key]);
+    }
+  }
+  if ("entry_type" in fields) {
+    cols.push("entry_type = ?");
+    vals.push(JOURNAL_ENTRY_TYPES.has(fields.entry_type) ? fields.entry_type : "log");
+  }
+  if (!cols.length) return;
+  cols.push("updated_at = datetime('now')");
+  vals.push(id);
+  await env.DB.prepare(`UPDATE journal_entries SET ${cols.join(", ")} WHERE id = ?`).bind(...vals).run();
+}
+
+export async function deleteJournalEntry(env, id) {
+  await env.DB.prepare("DELETE FROM journal_entries WHERE id = ?").bind(id).run();
+}
+
 export async function listRedirects(env) {
   const { results } = await env.DB.prepare("SELECT * FROM redirects ORDER BY from_path").all();
   return results;
@@ -1443,7 +1495,7 @@ export async function setSetting(env, key, value) {
 const BACKUP_VERSION = 1;
 
 export async function exportAll(env) {
-  const [pages, blocks, articles, settings, redirects, templates, media, scans, sharedBlocks, projects] = await Promise.all([
+  const [pages, blocks, articles, settings, redirects, templates, media, scans, sharedBlocks, projects, journalEntries] = await Promise.all([
     env.DB.prepare("SELECT * FROM pages ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM blocks ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM articles ORDER BY id").all(),
@@ -1454,6 +1506,7 @@ export async function exportAll(env) {
     env.DB.prepare("SELECT * FROM scans ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM shared_blocks ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM projects ORDER BY id").all(),
+    env.DB.prepare("SELECT * FROM journal_entries ORDER BY id").all(),
   ]);
   return {
     version: BACKUP_VERSION,
@@ -1468,6 +1521,7 @@ export async function exportAll(env) {
     scans: scans.results,
     shared_blocks: sharedBlocks.results,
     projects: projects.results,
+    journal_entries: journalEntries.results,
   };
 }
 
@@ -1507,7 +1561,19 @@ export async function importAll(env, data) {
   // is missing. `redirects` and `templates` were added later, so older
   // legitimate backups won't have them — default those to empty instead of
   // rejecting them.
-  const { pages, blocks, articles, settings, redirects = [], templates = [], media = [], scans = [], shared_blocks: sharedBlocks = [], projects = [] } = data;
+  const {
+    pages,
+    blocks,
+    articles,
+    settings,
+    redirects = [],
+    templates = [],
+    media = [],
+    scans = [],
+    shared_blocks: sharedBlocks = [],
+    projects = [],
+    journal_entries: journalEntries = [],
+  } = data;
   if (
     !Array.isArray(pages) ||
     !Array.isArray(blocks) ||
@@ -1518,7 +1584,8 @@ export async function importAll(env, data) {
     !Array.isArray(media) ||
     !Array.isArray(scans) ||
     !Array.isArray(sharedBlocks) ||
-    !Array.isArray(projects)
+    !Array.isArray(projects) ||
+    !Array.isArray(journalEntries)
   ) {
     throw new Error("This doesn't look like a dominickdominick backup file (missing pages/blocks/articles/settings)");
   }
@@ -1533,6 +1600,7 @@ export async function importAll(env, data) {
     env.DB.prepare("DELETE FROM templates"),
     env.DB.prepare("DELETE FROM media"),
     env.DB.prepare("DELETE FROM scans"),
+    env.DB.prepare("DELETE FROM journal_entries"),
     env.DB.prepare("DELETE FROM projects"),
   ];
 
@@ -1704,6 +1772,17 @@ export async function importAll(env, data) {
           p.version ?? 1,
           p.locked ?? 0
         )
+    );
+  }
+
+  for (const j of journalEntries) {
+    stmts.push(
+      env.DB
+        .prepare(
+          `INSERT INTO journal_entries (id, project_id, entry_date, title, body, entry_type, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(j.id, j.project_id, j.entry_date, j.title ?? "", j.body ?? "", j.entry_type ?? "log", j.created_at, j.updated_at)
     );
   }
 

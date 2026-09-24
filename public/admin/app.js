@@ -2440,6 +2440,9 @@
     el("project-autosave-status").textContent = "";
     updateProjectExtras();
     renderProjectsList();
+    el("journal-section").hidden = false;
+    clearJournalEntryForm();
+    loadJournalEntries();
   }
 
   function clearProjectForm() {
@@ -2465,6 +2468,8 @@
     el("project-autosave-status").textContent = "";
     updateProjectExtras();
     renderProjectsList();
+    el("journal-section").hidden = true;
+    el("journal-list").innerHTML = "";
   }
 
   function updateProjectExtras() {
@@ -2529,6 +2534,11 @@
       updateProjectExtras();
       renderProjectsList();
       el("project-autosave-status").textContent = "Saved " + new Date().toLocaleTimeString();
+      if (el("journal-section").hidden) {
+        el("journal-section").hidden = false;
+        clearJournalEntryForm();
+      }
+      await loadJournalEntries();
     } catch (err) {
       if (err.conflict) {
         el("project-autosave-status").textContent = err.message;
@@ -2564,6 +2574,92 @@
       alert(err.message);
     }
   });
+
+  // ---------- Build journal ----------
+  let journalEntries = [];
+  let currentJournalEntryId = null;
+
+  const JOURNAL_TYPE_LABELS = { log: "Log", test: "Test result", decision: "Decision", failed: "Failed attempt" };
+
+  function clearJournalEntryForm() {
+    currentJournalEntryId = null;
+    el("journal-entry-date").value = new Date().toISOString().slice(0, 10);
+    el("journal-entry-type").value = "log";
+    el("journal-entry-title").value = "";
+    el("journal-entry-body").value = "";
+    el("save-journal-entry-btn").textContent = "Add entry";
+    el("cancel-journal-entry-btn").hidden = true;
+  }
+
+  function renderJournalList() {
+    el("journal-list").innerHTML = journalEntries
+      .map(
+        (j) =>
+          `<div class="simulation-row journal-entry-row"><span><span class="lock-badge">${escapeHtml(
+            JOURNAL_TYPE_LABELS[j.entry_type] || "Log"
+          )}</span> ${escapeHtml(j.entry_date)} — ${escapeHtml(j.title || "(untitled)")}${
+            j.body ? `<div class="journal-entry-body">${escapeHtml(j.body.slice(0, 200))}${j.body.length > 200 ? "…" : ""}</div>` : ""
+          }</span><button type="button" class="edit-journal-entry-btn" data-id="${j.id}">Edit</button><button type="button" class="delete-journal-entry-btn" data-id="${
+            j.id
+          }">Delete</button></div>`
+      )
+      .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No journal entries yet.</p>";
+
+    el("journal-list")
+      .querySelectorAll(".edit-journal-entry-btn")
+      .forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const j = journalEntries.find((x) => x.id === Number(btn.dataset.id));
+          if (!j) return;
+          currentJournalEntryId = j.id;
+          el("journal-entry-date").value = j.entry_date;
+          el("journal-entry-type").value = j.entry_type;
+          el("journal-entry-title").value = j.title || "";
+          el("journal-entry-body").value = j.body || "";
+          el("save-journal-entry-btn").textContent = "Save entry";
+          el("cancel-journal-entry-btn").hidden = false;
+        });
+      });
+    el("journal-list")
+      .querySelectorAll(".delete-journal-entry-btn")
+      .forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          if (!confirm("Delete this journal entry?")) return;
+          await api(`/journal/${btn.dataset.id}`, { method: "DELETE" });
+          if (currentJournalEntryId === Number(btn.dataset.id)) clearJournalEntryForm();
+          await loadJournalEntries();
+        });
+      });
+  }
+
+  async function loadJournalEntries() {
+    if (!currentProjectId) return;
+    journalEntries = await api(`/projects/${currentProjectId}/journal`);
+    renderJournalList();
+  }
+
+  el("save-journal-entry-btn").addEventListener("click", async () => {
+    if (!currentProjectId) return;
+    const body = {
+      entry_date: el("journal-entry-date").value || new Date().toISOString().slice(0, 10),
+      entry_type: el("journal-entry-type").value,
+      title: el("journal-entry-title").value,
+      body: el("journal-entry-body").value,
+    };
+    try {
+      if (currentJournalEntryId) {
+        await api(`/journal/${currentJournalEntryId}`, { method: "PATCH", body: JSON.stringify(body) });
+      } else {
+        await api(`/projects/${currentProjectId}/journal`, { method: "POST", body: JSON.stringify(body) });
+      }
+      clearJournalEntryForm();
+      await loadJournalEntries();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  el("cancel-journal-entry-btn").addEventListener("click", () => clearJournalEntryForm());
 
   // ---------- Media library ----------
   let mediaPickTarget = null;
