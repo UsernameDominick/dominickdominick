@@ -75,6 +75,12 @@
 
     <div id="drawer-backdrop" class="drawer-backdrop" hidden></div>
 
+    <div id="writing-focus-overlay" class="writing-focus-overlay" hidden>
+      <div class="writing-focus-inner">
+        <button type="button" id="close-writing-focus" class="writing-focus-close">× Exit focus mode</button>
+      </div>
+    </div>
+
     <div class="admin-body-layout">
       <aside id="palette" class="admin-palette">
         <button id="close-palette" class="mobile-only close-drawer" aria-label="Close">×</button>
@@ -225,6 +231,7 @@
             <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="h3" title="Subheading">H3</button>
             <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="code" title="Code block">Code</button>
             <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="before-after" title="Before/after image comparison">Before/After</button>
+            <button type="button" class="writing-focus-btn" data-focus-target="article-body" title="Distraction-free full-screen writing">Focus</button>
           </div>
           <textarea id="article-body" placeholder="Write here. Blank line = new paragraph. **bold**, *italic*, [link](url). ## Heading, ### Subheading (two or more headings add a table of contents). ```lang / code / ``` for a code block. Pipe tables. [^1] + [^1]: note for footnotes. Use the Before/After button for an image comparison slider." rows="16"></textarea>
           <div id="article-word-count" class="article-word-count">0 words · 0 min read</div>
@@ -338,6 +345,7 @@
             <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="h3" title="Subheading">H3</button>
             <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="code" title="Code block">Code</button>
             <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="before-after" title="Before/after image comparison">Before/After</button>
+            <button type="button" class="writing-focus-btn" data-focus-target="project-body" title="Distraction-free full-screen writing">Focus</button>
           </div>
           <textarea id="project-body" placeholder="Write here. Same formatting as articles: **bold**, *italic*, [link](url), ## / ### headings, ```code``` blocks, pipe tables, [^1] footnotes." rows="14"></textarea>
           <div id="project-autosave-status" class="article-autosave-status"></div>

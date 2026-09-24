@@ -606,7 +606,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   margin-bottom: -8px;
 }
 
-.md-toolbar-btn {
+.md-toolbar-btn, .writing-focus-btn {
   width: auto;
   background: var(--bg);
   border: 1px solid var(--border);
@@ -810,6 +810,61 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   inset: 0;
   background: rgba(0, 0, 0, 0.7);
   z-index: 40;
+}
+
+/* Distraction-free writing mode — the real textarea is reparented in here
+   (not a copy synced back and forth) so every existing listener on it
+   (autosave, live link-checking, word count) keeps working untouched. */
+.writing-focus-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  /* Above .modal (z-index: 100) — focus mode is opened from inside the
+     Articles/Projects modal and needs to cover it, not sit behind it. */
+  z-index: 110;
+  display: flex;
+  justify-content: center;
+  padding: 48px 24px 24px;
+}
+
+.writing-focus-inner {
+  width: 100%;
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.writing-focus-close {
+  align-self: flex-end;
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.writing-focus-close:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.writing-focus-inner textarea {
+  flex: 1;
+  width: 100%;
+  resize: none;
+  font-size: 1.15rem;
+  line-height: 1.7;
+  padding: 8px 4px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+}
+
+.writing-focus-inner textarea:focus {
+  outline: none;
 }
 
 @media (max-width: 860px) {

@@ -484,7 +484,13 @@ health-check pass, predates this doc.
   projects/pages arrays as you type, no server round-trip. External URLs
   aren't live-checked — that would mean a real network fetch per
   keystroke — use the full Link Checker for those)
-- ☐ Distraction-free writing mode for the article textarea (page-builder has Focus mode; textarea doesn't)
+- ✅ Distraction-free writing mode for article/project bodies — a
+  "Focus" button reparents the real textarea (not a copy synced back and
+  forth) into a full-screen overlay, so autosave/word-count/live link-
+  checking all keep working untouched; Escape or "Exit focus mode"
+  returns it to its original spot with the value intact. Screenshot
+  review caught a real z-index bug (overlay opened *behind* the modal it
+  was launched from, `z-index: 80` vs. `.modal`'s `100`) — fixed to 110
 - ☐ Markdown import/export UI, paste cleanup from documents/websites
 - ✅ Find & replace (site-wide tool covers articles too)
 - ☐ Private notes/comments on draft sections

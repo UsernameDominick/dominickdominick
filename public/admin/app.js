@@ -2622,6 +2622,33 @@
     textarea.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
+  // ---------- Distraction-free writing mode ----------
+  // Reparents the real textarea into the overlay (not a copy synced back
+  // and forth) so autosave, live link-checking, and word count — all
+  // already wired to that exact element — keep working untouched while
+  // it's in focus mode, and its normal styling just comes back once it's
+  // moved back out.
+  let writingFocusState = null;
+  function openWritingFocus(textareaId) {
+    const textarea = el(textareaId);
+    writingFocusState = { textarea, parent: textarea.parentNode, nextSibling: textarea.nextSibling };
+    el("writing-focus-overlay").querySelector(".writing-focus-inner").appendChild(textarea);
+    el("writing-focus-overlay").hidden = false;
+    textarea.focus();
+  }
+  function closeWritingFocus() {
+    if (!writingFocusState) return;
+    const { textarea, parent, nextSibling } = writingFocusState;
+    if (nextSibling) parent.insertBefore(textarea, nextSibling);
+    else parent.appendChild(textarea);
+    el("writing-focus-overlay").hidden = true;
+    writingFocusState = null;
+  }
+  document.querySelectorAll(".writing-focus-btn").forEach((btn) => {
+    btn.addEventListener("click", () => openWritingFocus(btn.dataset.focusTarget));
+  });
+  el("close-writing-focus").addEventListener("click", closeWritingFocus);
+
   document.querySelectorAll(".md-toolbar-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const textarea = el(btn.dataset.mdTarget || "article-body");
@@ -5040,7 +5067,8 @@
   }
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
-    if (morePanel.classList.contains("open")) closeMoreMenu();
+    if (writingFocusState) closeWritingFocus();
+    else if (morePanel.classList.contains("open")) closeMoreMenu();
     else closeTopModal();
   });
   document.querySelectorAll(".modal").forEach((modal) => {
