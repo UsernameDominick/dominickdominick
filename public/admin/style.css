@@ -109,6 +109,16 @@
   overflow: hidden;
 }
 
+.admin-app.focus-mode #palette {
+  display: none;
+}
+
+#focus-mode-btn[aria-pressed="true"] {
+  background: var(--accent);
+  color: #0b0b0c;
+  border-color: var(--accent);
+}
+
 /* Palette */
 .admin-palette, .admin-inspector {
   width: 240px;

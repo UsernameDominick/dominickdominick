@@ -267,6 +267,23 @@
     } catch (e) {}
   });
 
+  // ---------- Focus mode (hide the block palette for more canvas room) ----------
+  function applyFocusMode(on) {
+    el("app").classList.toggle("focus-mode", on);
+    el("focus-mode-btn").textContent = on ? "Exit focus" : "Focus";
+    el("focus-mode-btn").setAttribute("aria-pressed", on ? "true" : "false");
+  }
+  el("focus-mode-btn").addEventListener("click", () => {
+    const on = !el("app").classList.contains("focus-mode");
+    applyFocusMode(on);
+    try {
+      localStorage.setItem("admin-focus-mode", on ? "1" : "0");
+    } catch (e) {}
+  });
+  try {
+    if (localStorage.getItem("admin-focus-mode") === "1") applyFocusMode(true);
+  } catch (e) {}
+
   // ---------- Pages ----------
   async function loadPages() {
     pages = await api("/pages");
