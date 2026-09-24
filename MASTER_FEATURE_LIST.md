@@ -394,7 +394,7 @@ performance comparisons.
 - ☐ Pinned shortcuts
 - 🔶 Bulk-action toolbar (exists for articles and blocks; not universal)
 - ☐ Contextual help for complex editors
-- 🔶 Keyboard shortcut reference (shortcuts exist; no visible cheat-sheet UI)
+- ✅ Keyboard shortcut reference (`?` or the command palette opens a cheat-sheet modal listing every shortcut)
 - ☐ Shortcut remapping
 - ✅ Universal admin search (command palette)
 - ☐ Notifications for uploads, publishing, and site errors

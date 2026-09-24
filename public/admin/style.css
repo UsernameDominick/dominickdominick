@@ -1258,6 +1258,42 @@
   border: 1px solid var(--border);
 }
 
+.shortcuts-modal-inner {
+  max-width: 480px;
+}
+
+.shortcuts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 0;
+}
+
+.shortcuts-list > div {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.shortcuts-list span {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  flex: 1;
+  min-width: 200px;
+}
+
+kbd {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 2px 7px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 /* Simulations list */
 .simulation-row {
   display: flex;

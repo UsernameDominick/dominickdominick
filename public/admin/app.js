@@ -3657,6 +3657,7 @@
       { label: "Open Layers", sub: "", run: () => { closeCommandPalette(); el("layers-btn").click(); } },
       { label: "Open Trash", sub: "", run: () => { closeCommandPalette(); el("trash-btn").click(); } },
       { label: "Open Site Settings", sub: "", run: () => { closeCommandPalette(); el("site-settings-btn").click(); } },
+      { label: "Keyboard Shortcuts", sub: "", run: () => { closeCommandPalette(); el("shortcuts-modal").hidden = false; } },
       {
         label: "Open Activity Log",
         sub: "",
@@ -3807,6 +3808,7 @@
 
   el("command-btn").addEventListener("click", openCommandPalette);
   el("close-command").addEventListener("click", closeCommandPalette);
+  closeModalOnClick("close-shortcuts", "shortcuts-modal");
   el("command-input").addEventListener("input", (e) => runCommandSearch(e.target.value.trim()));
   el("command-input").addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
@@ -3963,6 +3965,12 @@
     if (mod && e.key.toLowerCase() === "k") {
       e.preventDefault();
       openCommandPalette();
+      return;
+    }
+
+    if (!isTyping && !mod && e.key === "?") {
+      e.preventDefault();
+      el("shortcuts-modal").hidden = false;
       return;
     }
 
