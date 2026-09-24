@@ -688,6 +688,18 @@ async function renderBlockInner(env, block, ctx) {
       if (!images.length) return `<p class="empty-hint">No images yet.</p>`;
       return `<div class="gallery">${images.map((url) => `<img src="${esc(url)}" loading="lazy">`).join("")}</div>`;
     }
+    case "before-after": {
+      if (!c.beforeUrl || !c.afterUrl) return `<p class="empty-hint">Add both a "before" and "after" image.</p>`;
+      return `<div class="before-after" style="--pos:50%">
+        <div class="before-after-base"><img src="${esc(c.afterUrl)}" loading="lazy" alt="${esc(c.afterLabel || "After")}"><span class="before-after-tag before-after-tag-right">${esc(
+        c.afterLabel || "After"
+      )}</span></div>
+        <div class="before-after-overlay"><img src="${esc(c.beforeUrl)}" loading="lazy" alt="${esc(c.beforeLabel || "Before")}"><span class="before-after-tag before-after-tag-left">${esc(
+        c.beforeLabel || "Before"
+      )}</span></div>
+        <input type="range" class="before-after-slider" min="0" max="100" value="50" aria-label="Drag to compare before and after">
+      </div>`;
+    }
     case "simulation": {
       if (!c.simulation_id) return `<p class="empty-hint">No simulation selected.</p>`;
       const sim = await getSimulation(env, c.simulation_id);

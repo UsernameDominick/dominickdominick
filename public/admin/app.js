@@ -516,7 +516,7 @@
   }
 
   function blockLabel(type) {
-    return { heading: "Heading", text: "Text", image: "Image", button: "Button", "project-card": "Project Card", "article-list": "Article List", "project-list": "Project List", video: "Video", quote: "Quote", gallery: "Gallery", simulation: "Simulation", scan: "3D Scan", divider: "Divider", spacer: "Spacer", links: "Links", html: "HTML / Embed", changelog: "Changelog / Now", embed: "Generic Embed", accordion: "Accordion", tabs: "Tabs" }[type] || type;
+    return { heading: "Heading", text: "Text", image: "Image", button: "Button", "project-card": "Project Card", "article-list": "Article List", "project-list": "Project List", video: "Video", quote: "Quote", gallery: "Gallery", "before-after": "Before / After", simulation: "Simulation", scan: "3D Scan", divider: "Divider", spacer: "Spacer", links: "Links", html: "HTML / Embed", changelog: "Changelog / Now", embed: "Generic Embed", accordion: "Accordion", tabs: "Tabs" }[type] || type;
   }
 
   let simulationOptions = [];
@@ -550,6 +550,7 @@
       case "embed": return c.url ? escapeHtml(c.url) : "(no embed url)";
       case "quote": return c.text ? `“${escapeHtml(c.text.slice(0, 60))}”` : "(empty)";
       case "gallery": return `${(c.images || []).length} image(s)`;
+      case "before-after": return c.beforeUrl && c.afterUrl ? "Before/after comparison" : "(missing before or after image)";
       case "simulation": return c.simulation_id ? escapeHtml(simulationNameById(c.simulation_id) || `#${c.simulation_id}`) : "(choose a simulation)";
       case "scan": return c.scan_id ? escapeHtml(scanNameById(c.scan_id) || `#${c.scan_id}`) : "(choose a scan)";
       case "divider": return "—";
@@ -842,6 +843,7 @@
         embed: { content: { url: "" }, col_span: 16, row_span: 12 },
         quote: { content: { text: "Quote text here.", cite: "" }, col_span: 16, row_span: 6 },
         gallery: { content: { images: [] }, col_span: 24, row_span: 12 },
+        "before-after": { content: { beforeUrl: "", afterUrl: "", beforeLabel: "Before", afterLabel: "After" }, col_span: 16, row_span: 14 },
         links: { content: { items: [] }, col_span: 12, row_span: 6 },
         changelog: { content: { entries: [] }, col_span: 24, row_span: 16 },
         accordion: {
@@ -972,6 +974,12 @@
       { key: "cite", label: "Attribution (optional)", type: "text" },
     ],
     gallery: [{ key: "images", label: "Images", type: "gallery-urls" }],
+    "before-after": [
+      { key: "beforeUrl", label: "\"Before\" image URL", type: "image-url" },
+      { key: "beforeLabel", label: "\"Before\" label", type: "text" },
+      { key: "afterUrl", label: "\"After\" image URL", type: "image-url" },
+      { key: "afterLabel", label: "\"After\" label", type: "text" },
+    ],
     links: [{ key: "items", label: "Links (one per line: Label | URL)", type: "link-list" }],
     changelog: [{ key: "entries", label: "Entries (one per line: YYYY-MM-DD | Title | Description)", type: "changelog-list" }],
     accordion: [{ key: "items", label: "Sections (one per line: Title | Body)", type: "accordion-list" }],
@@ -1661,6 +1669,7 @@
       if (b.type === "video" && !c.url) issues.push({ severity: "error", message: "Video block has no URL set", blockId: b.id });
       if (b.type === "embed" && !c.url) issues.push({ severity: "error", message: "Embed block has no URL set", blockId: b.id });
       if (b.type === "project-card" && !c.title) issues.push({ severity: "error", message: "Project card has no title", blockId: b.id });
+      if (b.type === "before-after" && (!c.beforeUrl || !c.afterUrl)) issues.push({ severity: "error", message: "Before/After block is missing one of its images", blockId: b.id });
     }
     return issues;
   }

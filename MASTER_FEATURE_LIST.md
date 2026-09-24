@@ -216,7 +216,7 @@ page. Noting where the supporting capability exists vs. doesn't:
 - ✅ Structured tech stack and tools
 - ✅ GitHub, demo, documentation, and download links
 - ☐ Screenshots with captions and optional device frames
-- ☐ Before/after comparisons
+- ✅ Before/after comparisons (a new "Before / After" block type — drag slider, site-wide, no per-block JS setup)
 - ✅ Project status fields
 - 🔶 Development timelines and milestones (build journal entries are dated and tell a timeline; no dedicated milestones widget)
 - ✅ Challenges, decisions, and lessons sections (journal entry types: decision, failed)

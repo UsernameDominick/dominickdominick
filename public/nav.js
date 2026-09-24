@@ -30,6 +30,15 @@ document.addEventListener("click", function (e) {
   } catch (err) {}
 });
 
+// Before/after comparison blocks — the slider just writes its value to a
+// CSS custom property the overlay image's clip-path reads, so there's no
+// per-block JS instance to set up, just one delegated listener site-wide.
+document.addEventListener("input", function (e) {
+  if (!e.target.classList.contains("before-after-slider")) return;
+  var wrap = e.target.closest(".before-after");
+  if (wrap) wrap.style.setProperty("--pos", e.target.value + "%");
+});
+
 (function () {
   var active = document.querySelector(".tab.is-active");
   var wrap = document.querySelector(".tabs");
