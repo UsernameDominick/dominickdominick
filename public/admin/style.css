@@ -1427,6 +1427,15 @@ kbd {
   padding: 24px;
 }
 
+.song-preview-note {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+#song-preview-embed {
+  margin-bottom: 20px;
+}
+
 .song-tempo-label {
   display: flex;
   align-items: center;

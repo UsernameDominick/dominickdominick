@@ -23,6 +23,7 @@
     return {
       tempo: 120,
       kit: "acoustic",
+      visualization: "bars",
       tracks: TRACKS.reduce((acc, t) => {
         acc[t] = new Array(STEPS).fill(false);
         return acc;
@@ -52,10 +53,75 @@
     return audioCtx;
   }
 
+  // ---------- Live preview panel ----------
+  // Mirrors exactly what the public Song block renders/does (same CSS
+  // classes, same SongEngine calls) so "dialing in" the visualization here
+  // matches what a reader will actually see — no separate preview-only
+  // implementation to keep in sync.
+  let previewPeaks = null;
+
+  function updatePreviewVisibility() {
+    const viz = songData.visualization || "bars";
+    $("song-preview-bars").hidden = viz !== "bars";
+    $("song-preview-waveform").hidden = viz !== "waveform";
+    $("song-preview-pulse").hidden = viz !== "pulse";
+    if (viz === "bars" && !$("song-preview-bars").children.length) {
+      $("song-preview-bars").innerHTML = Array.from({ length: STEPS }, () => `<span class="song-embed-bar"></span>`).join("");
+    }
+  }
+
+  async function refreshWaveformPreview() {
+    if ((songData.visualization || "bars") !== "waveform") return;
+    previewPeaks = await Engine.renderWaveformPeaks(songData, 200);
+    drawWaveformPreview(0);
+  }
+
+  function drawWaveformPreview(progress) {
+    const canvas = $("song-preview-waveform");
+    if (!previewPeaks || canvas.hidden) return;
+    const c2d = canvas.getContext("2d");
+    const w = canvas.width;
+    const h = canvas.height;
+    const mid = h / 2;
+    c2d.clearRect(0, 0, w, h);
+    const barW = w / previewPeaks.length;
+    previewPeaks.forEach((p, i) => {
+      const played = i / previewPeaks.length <= progress;
+      c2d.fillStyle = played ? "#e8a13a" : "rgba(255,255,255,0.25)";
+      const yTop = mid + p[1] * mid;
+      const yBot = mid + p[0] * mid;
+      c2d.fillRect(i * barW, yTop, Math.max(1, barW - 1), Math.max(1, yBot - yTop));
+    });
+  }
+
+  $("song-visualization").addEventListener("change", () => {
+    songData.visualization = $("song-visualization").value;
+    updatePreviewVisibility();
+    refreshWaveformPreview();
+  });
+
   function highlightStep(step) {
     document.querySelectorAll(".song-step").forEach((el) => {
       el.classList.toggle("song-step-playing", Number(el.dataset.step) === step);
     });
+    $("song-preview-name").textContent = $("song-name").value || "Song name";
+    const viz = songData.visualization || "bars";
+    if (viz === "bars") {
+      $("song-preview-bars")
+        .querySelectorAll(".song-embed-bar")
+        .forEach((bar, i) => bar.classList.toggle("song-embed-bar-active", i === step));
+    } else if (viz === "waveform") {
+      drawWaveformPreview(step / STEPS);
+    } else if (viz === "pulse") {
+      const pulseEl = $("song-preview-pulse");
+      const hits = songData.tracks && Object.keys(songData.tracks).some((t) => songData.tracks[t][step]);
+      pulseEl.classList.toggle("song-embed-pulse-beat", hits);
+      if (hits) {
+        pulseEl.classList.remove("song-embed-pulse-hit");
+        void pulseEl.offsetWidth;
+        pulseEl.classList.add("song-embed-pulse-hit");
+      }
+    }
   }
 
   let player = Engine.createPlayer(getAudioCtx, songData, highlightStep);
@@ -63,9 +129,19 @@
   // Editing tempo/kit/waveform while a song is already playing should
   // take effect immediately, not just after Save — so these write
   // straight into the same songData object the running player reads.
-  $("song-tempo").addEventListener("input", () => (songData.tempo = Number($("song-tempo").value) || 120));
-  $("song-kit").addEventListener("change", () => (songData.kit = $("song-kit").value));
-  $("song-waveform").addEventListener("change", () => (songData.melody.waveform = $("song-waveform").value));
+  $("song-tempo").addEventListener("input", () => {
+    songData.tempo = Number($("song-tempo").value) || 120;
+    refreshWaveformPreview();
+  });
+  $("song-kit").addEventListener("change", () => {
+    songData.kit = $("song-kit").value;
+    refreshWaveformPreview();
+  });
+  $("song-waveform").addEventListener("change", () => {
+    songData.melody.waveform = $("song-waveform").value;
+    refreshWaveformPreview();
+  });
+  $("song-name").addEventListener("input", () => ($("song-preview-name").textContent = $("song-name").value || "Song name"));
 
   function startPlayback() {
     player.start();
@@ -75,6 +151,11 @@
   function stopPlayback() {
     player.stop();
     document.querySelectorAll(".song-step").forEach((el) => el.classList.remove("song-step-playing"));
+    $("song-preview-bars")
+      .querySelectorAll(".song-embed-bar")
+      .forEach((bar) => bar.classList.remove("song-embed-bar-active"));
+    $("song-preview-pulse").classList.remove("song-embed-pulse-beat", "song-embed-pulse-hit");
+    drawWaveformPreview(0);
     $("song-play").textContent = "▶ Play";
   }
 
@@ -150,6 +231,7 @@
           const next = !getOn(key, step);
           setOn(key, step, next);
           btn.classList.toggle("song-step-on", next);
+          refreshWaveformPreview();
         });
       });
   }
@@ -243,6 +325,8 @@
     $("song-tempo").value = songData.tempo || 120;
     $("song-kit").value = songData.kit || "acoustic";
     $("song-waveform").value = songData.melody.waveform || "sine";
+    $("song-visualization").value = songData.visualization || "bars";
+    $("song-preview-name").textContent = $("song-name").value || "Song name";
     // songData was just reassigned to a new object — the player has to be
     // rebuilt against it, since createPlayer captured the old reference.
     player = Engine.createPlayer(getAudioCtx, songData, highlightStep);
@@ -250,6 +334,8 @@
     $("song-builder-modal").hidden = false;
     renderSequencer();
     renderPianoRoll();
+    updatePreviewVisibility();
+    refreshWaveformPreview();
   }
 
   $("close-song-builder").addEventListener("click", () => {
@@ -265,6 +351,7 @@
     songData.tempo = Number($("song-tempo").value) || 120;
     songData.kit = $("song-kit").value;
     songData.melody.waveform = $("song-waveform").value;
+    songData.visualization = $("song-visualization").value;
     try {
       if (currentSongId) {
         await window.adminApi(`/songs/${currentSongId}`, { method: "PATCH", body: JSON.stringify({ name, data: songData }) });

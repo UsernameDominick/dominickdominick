@@ -11,16 +11,58 @@
     }
     const btn = wrap.querySelector(".song-embed-play-btn");
     const bars = wrap.querySelectorAll(".song-embed-bar");
+    const canvas = wrap.querySelector(".song-embed-waveform");
+    const pulse = wrap.querySelector(".song-embed-pulse");
     let ctx = null;
     let player = null;
+    let peaks = null;
 
     function getCtx() {
       if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
       return ctx;
     }
 
+    // Waveform is rendered once from the actual synthesized audio (via an
+    // OfflineAudioContext) and cached — re-rendering every frame would be
+    // wasteful and the loop's audio content never changes at runtime here.
+    function drawWaveform(progress) {
+      if (!canvas || !peaks) return;
+      const c2d = canvas.getContext("2d");
+      const w = canvas.width;
+      const h = canvas.height;
+      const mid = h / 2;
+      c2d.clearRect(0, 0, w, h);
+      const barW = w / peaks.length;
+      const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#e8a13a";
+      peaks.forEach((p, i) => {
+        const x = i * barW;
+        const played = i / peaks.length <= progress;
+        c2d.fillStyle = played ? accent : "rgba(255,255,255,0.25)";
+        const yTop = mid + p[1] * mid;
+        const yBot = mid + p[0] * mid;
+        c2d.fillRect(x, yTop, Math.max(1, barW - 1), Math.max(1, yBot - yTop));
+      });
+    }
+
+    if (canvas && window.SongEngine.renderWaveformPeaks) {
+      window.SongEngine.renderWaveformPeaks(songData, 200).then((p) => {
+        peaks = p;
+        drawWaveform(0);
+      });
+    }
+
     function onStep(step) {
-      bars.forEach((bar, i) => bar.classList.toggle("song-embed-bar-active", i === step));
+      if (bars.length) bars.forEach((bar, i) => bar.classList.toggle("song-embed-bar-active", i === step));
+      if (canvas) drawWaveform(step / window.SongEngine.STEPS);
+      if (pulse) {
+        const hitsTrack = songData.tracks && Object.keys(songData.tracks).some((t) => songData.tracks[t][step]);
+        pulse.classList.toggle("song-embed-pulse-beat", hitsTrack);
+        if (hitsTrack) {
+          pulse.classList.remove("song-embed-pulse-hit");
+          void pulse.offsetWidth; // restart the CSS animation
+          pulse.classList.add("song-embed-pulse-hit");
+        }
+      }
     }
 
     btn.addEventListener("click", () => {
@@ -28,6 +70,8 @@
       if (player.isPlaying()) {
         player.stop();
         bars.forEach((bar) => bar.classList.remove("song-embed-bar-active"));
+        if (pulse) pulse.classList.remove("song-embed-pulse-beat", "song-embed-pulse-hit");
+        if (canvas) drawWaveform(0);
         btn.textContent = "▶ Play";
         if (window.trackEvent) window.trackEvent("song_stop");
       } else {

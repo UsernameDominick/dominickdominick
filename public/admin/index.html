@@ -845,6 +845,11 @@
           <option value="sawtooth">Sawtooth</option>
           <option value="triangle">Triangle</option>
         </select>
+        <select id="song-visualization" title="Public page visualization" aria-label="Public page visualization">
+          <option value="bars">Bars</option>
+          <option value="waveform">Waveform</option>
+          <option value="pulse">Pulse</option>
+        </select>
         <button type="button" id="song-play">▶ Play</button>
         <button type="button" id="song-midi-connect" hidden>🎹 Connect MIDI</button>
         <label class="song-record-label" id="song-record-label" hidden><input type="checkbox" id="song-record">⏺ Record MIDI into piano roll</label>
@@ -852,6 +857,13 @@
         <button id="close-song-builder">×</button>
       </header>
       <div class="song-builder-body">
+        <h2 class="song-section-heading">Preview (as it appears on the page)</h2>
+        <div class="song-embed" id="song-preview-embed">
+          <div class="song-embed-header"><strong id="song-preview-name">Song name</strong><span class="song-preview-note">live preview — use Play above</span></div>
+          <div class="song-embed-bars" id="song-preview-bars"></div>
+          <canvas class="song-embed-waveform" id="song-preview-waveform" width="600" height="80" hidden></canvas>
+          <div class="song-embed-pulse" id="song-preview-pulse" hidden><div class="song-embed-pulse-core"></div></div>
+        </div>
         <h2 class="song-section-heading">Drums</h2>
         <div id="song-sequencer" class="song-sequencer"></div>
         <h2 class="song-section-heading">Melody (piano roll)</h2>

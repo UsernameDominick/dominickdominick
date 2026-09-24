@@ -190,5 +190,47 @@ window.SongEngine = (function () {
     };
   }
 
-  return { STEPS, NOTE_NAMES, noteToFreq, midiToNoteName, scheduleStep, playMelodyNote, createPlayer };
+  // Renders one full loop through an OfflineAudioContext and downsamples
+  // the result into min/max peak pairs — a real waveform derived from the
+  // actual synthesized audio, not a decorative fake. Async because
+  // offline rendering happens off the main thread; callers should render
+  // once (on load or on edit) and cache the result rather than re-render
+  // every frame.
+  async function renderWaveformPeaks(songData, peakCount) {
+    const stepDur = stepDurationFor(songData.tempo);
+    const duration = stepDur * STEPS;
+    const sampleRate = 44100;
+    const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    const ctx = new OfflineCtx(1, Math.ceil(sampleRate * duration), sampleRate);
+    for (let step = 0; step < STEPS; step++) scheduleStep(ctx, songData, step, step * stepDur);
+    const buffer = await ctx.startRendering();
+    const data = buffer.getChannelData(0);
+    const count = peakCount || 200;
+    const bucketSize = Math.max(1, Math.floor(data.length / count));
+    const peaks = [];
+    for (let i = 0; i < count; i++) {
+      let min = 0;
+      let max = 0;
+      const start = i * bucketSize;
+      const end = Math.min(start + bucketSize, data.length);
+      for (let j = start; j < end; j++) {
+        const v = data[j];
+        if (v < min) min = v;
+        if (v > max) max = v;
+      }
+      peaks.push([min, max]);
+    }
+    return peaks;
+  }
+
+  return {
+    STEPS,
+    NOTE_NAMES,
+    noteToFreq,
+    midiToNoteName,
+    scheduleStep,
+    playMelodyNote,
+    createPlayer,
+    renderWaveformPeaks,
+  };
 })();

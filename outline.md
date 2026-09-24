@@ -244,9 +244,29 @@ correctly, exactly one bar highlights at a time during playback
 (functional, readable, on-brand; not rescored beyond this since the
 visual is intentionally minimal pending the waveform-display item).
 
-Still ☐: waveform render (the visual kind — a waveform *display*, not
-to be confused with the oscillator waveform picker already added),
-page-animation sync. Continue in that order next session.
+Added the "choose the waveform or a cool page animation" visualization
+picker the user asked for: each song now has a `visualization` field
+(`bars` default / `waveform` / `pulse`), editable and live-previewed in
+the builder ("dial it in" — the preview panel uses the exact same CSS
+classes and SongEngine calls as the public embed, so what's previewed
+is what ships). `waveform` renders a real amplitude waveform derived
+from the actual synthesized audio — `SongEngine.renderWaveformPeaks()`
+runs one loop through an `OfflineAudioContext` and downsamples it into
+peak pairs, not a decorative fake — with a playhead that recolors
+played vs. unplayed portions during playback. `pulse` is the "cool
+animation" option: a glowing orb that scales up and fires a ring-pulse
+CSS animation on any step with a drum hit. Verified in both the admin
+builder preview and the public embed: waveform canvas actually paints
+non-blank pixels reflecting the real audio, pulse animates on kick
+hits, switching visualization types shows/hides the right element,
+and the choice persists through save/reload. Screenshot-reviewed at
+8/10 in both contexts — functional, on-brand, matches between the two
+surfaces.
+
+Still ☐: page-animation sync (a broader, page-level reactive animation
+beyond the pulse orb — e.g. tinting or animating other page elements
+in time with playback, not just the block itself). Continue next
+session.
 
 ### 1c. Admin UX / mobile overhaul
 The admin console's nav/UI/UX needs a real upgrade pass to accommodate

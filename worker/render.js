@@ -661,10 +661,19 @@ function genericEmbedHtml(rawUrl) {
 // if the song is later deleted from the library (same "embed the data,
 // not just a reference" reasoning as a simulation block's rendered SVG).
 export function renderSongBlockHtml(song) {
-  const bars = Array.from({ length: 16 }, () => `<span class="song-embed-bar"></span>`).join("");
+  const viz = song.data && song.data.visualization;
+  let vizHtml;
+  if (viz === "waveform") {
+    vizHtml = `<canvas class="song-embed-waveform" width="600" height="80"></canvas>`;
+  } else if (viz === "pulse") {
+    vizHtml = `<div class="song-embed-pulse"><div class="song-embed-pulse-core"></div></div>`;
+  } else {
+    const bars = Array.from({ length: 16 }, () => `<span class="song-embed-bar"></span>`).join("");
+    vizHtml = `<div class="song-embed-bars">${bars}</div>`;
+  }
   return `<div class="song-embed" data-song="${esc(JSON.stringify(song.data))}">
     <div class="song-embed-header"><strong>${esc(song.name)}</strong><button type="button" class="song-embed-play-btn">▶ Play</button></div>
-    <div class="song-embed-bars">${bars}</div>
+    ${vizHtml}
   </div>`;
 }
 
