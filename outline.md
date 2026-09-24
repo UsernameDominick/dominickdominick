@@ -521,7 +521,21 @@ health-check pass, predates this doc.
 - 🔶 Global tokens (colors/typography/borders ✅, 6 tokens; spacing/shadow tokens deferred — no safe hook without a riskier retrofit)
 - ☐ Per-page style overrides, custom font upload
 - ✅ Light/dark themes + visitor switcher
-- ☐ Presets for buttons/cards/callouts/image treatments
+- ✅ Presets for buttons/cards/callouts/image treatments — type-agnostic
+  since every block type shares the same `STYLE_FIELDS` set (color,
+  hover effect, animation, position, etc.): "Save preset" snapshots a
+  block's current style under a name, "Apply preset" merges a saved
+  one onto any block regardless of type. Stored server-side as one JSON
+  blob under its own settings key (`style_presets`, own dedicated
+  routes) rather than folded into the bulk settings PUT, since that
+  resets any key missing from its body — wrong for a list added to/
+  removed from individually. Screenshot review caught a real layout
+  bug (three controls crammed into the 240px inspector sidebar, the
+  select collapsing to zero width) and a real state bug (the preset
+  `<select>` silently lost its value right after applying, since
+  rebuilding a `<select>`'s options resets its value as a side effect
+  — made "delete the preset I just applied" impossible) — both fixed
+  and re-verified.
 - ☐ Visual CSS inspector, style-inheritance inspector
 - 🔶 Reset overrides to inherited (per-field "Clear" on color pickers ✅; no general concept)
 - ☐ Page-specific CSS/JS controls (custom head code is site-wide only)

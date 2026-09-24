@@ -162,6 +162,22 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   display: inline-flex;
 }
 
+.style-preset-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.style-preset-row select {
+  width: 100%;
+  min-width: 0;
+}
+
+.style-preset-row button {
+  flex: 1;
+  min-width: 0;
+}
+
 .recent-item-btn {
   display: flex;
   align-items: center;

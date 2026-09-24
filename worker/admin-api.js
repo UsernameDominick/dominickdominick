@@ -1298,5 +1298,37 @@ async function routeAdminApi(request, env, url, ctx) {
     return json({ ok: true });
   }
 
+  // /style-presets — reusable block-style snapshots (color/hover/animation/
+  // etc. — the same STYLE_FIELDS every block type shares), stored as one
+  // JSON blob under its own settings key rather than folded into the
+  // SETTINGS_KEYS bulk save above, since that PUT resets any key missing
+  // from its body — wrong for a list that gets individually added to/
+  // removed from, not replaced wholesale on every settings save.
+  if (path === "/style-presets" && method === "GET") {
+    const raw = await getSetting(env, "style_presets");
+    return json(JSON.parse(raw || "[]"));
+  }
+  if (path === "/style-presets" && method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    if (!body.name || !body.style || typeof body.style !== "object") {
+      return json({ error: "name and style are required" }, { status: 400 });
+    }
+    const presets = JSON.parse((await getSetting(env, "style_presets")) || "[]");
+    const id = presets.reduce((max, p) => Math.max(max, p.id || 0), 0) + 1;
+    presets.push({ id, name: String(body.name).slice(0, 60), style: body.style });
+    await setSetting(env, "style_presets", JSON.stringify(presets));
+    log(ctx, env, "create", "style-preset", body.name);
+    return json({ id });
+  }
+  const stylePresetMatch = path.match(/^\/style-presets\/(\d+)$/);
+  if (stylePresetMatch && method === "DELETE") {
+    const id = Number(stylePresetMatch[1]);
+    const presets = JSON.parse((await getSetting(env, "style_presets")) || "[]");
+    const target = presets.find((p) => p.id === id);
+    await setSetting(env, "style_presets", JSON.stringify(presets.filter((p) => p.id !== id)));
+    log(ctx, env, "delete", "style-preset", target?.name || `#${id}`);
+    return json({ ok: true });
+  }
+
   return json({ error: "Not found" }, { status: 404 });
 }

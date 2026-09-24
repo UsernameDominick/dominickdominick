@@ -1328,6 +1328,23 @@
     { key: "hidden", label: "Hide from live site", type: "checkbox" },
   ];
 
+  // ---------- Style presets ----------
+  // A saved snapshot of STYLE_FIELDS values — type-agnostic (every block
+  // type shares the same style fields), so one preset library works for
+  // buttons, cards, callouts, images, anything. Stored server-side (not
+  // localStorage, unlike favorites/recents) since a style preset is
+  // content an admin would want available on any device, not a personal
+  // per-browser shortcut.
+  let stylePresets = [];
+  let lastInspectedBlockId = null;
+  async function loadStylePresets() {
+    stylePresets = await api("/style-presets").catch(() => []);
+  }
+  function populateStylePresetSelect() {
+    el("apply-style-preset-select").innerHTML =
+      `<option value="">Apply preset…</option>` + stylePresets.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("");
+  }
+
   function fieldHtml(f, val, idPrefix) {
     if (f.type === "checkbox") {
       return `<label><input type="checkbox" data-key="${f.key}" ${val ? "checked" : ""}> ${f.label}</label>`;
@@ -1520,6 +1537,16 @@
       fields.map((f) => fieldHtml(f, block.content[f.key], `field-${block.id}`)).join("") ||
       "<p style='color:var(--text-dim);font-size:0.85rem;'>No settings for this block.</p>";
 
+    // populateStylePresetSelect() is NOT called here on purpose — rebuilding
+    // a <select>'s options resets its current value as a side effect, which
+    // would undo this same guard. It only needs to run once at boot and
+    // again after a save/delete actually changes the preset list; applying
+    // a preset re-renders the inspector for the *same* block afterward, and
+    // resetting the value there too would make it impossible to
+    // immediately follow up with "Delete" on the preset just applied.
+    if (lastInspectedBlockId !== block.id) el("apply-style-preset-select").value = "";
+    lastInspectedBlockId = block.id;
+
     const styleContainer = el("inspector-style-fields");
     styleContainer.innerHTML = STYLE_FIELDS.map((f) => fieldHtml(f, block.style[f.key], `style-${block.id}`)).join("");
 
@@ -1536,21 +1563,7 @@
     });
 
     function save() {
-      renderCanvas();
-      unsavedDirty = true;
-      el("block-save-status").textContent = "Saving…";
-      api(`/blocks/${block.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ content: block.content, style: block.style }),
-      })
-        .then(() => {
-          unsavedDirty = false;
-          el("block-save-status").textContent = "Saved " + new Date().toLocaleTimeString();
-        })
-        .catch((err) => {
-          el("block-save-status").textContent = "Save failed: " + err.message;
-          alert(err.message);
-        });
+      saveBlockStyleAndContent(block);
     }
 
     container.querySelectorAll("[data-key]").forEach((input) => {
@@ -1576,6 +1589,71 @@
       });
     });
   }
+
+  // Shared by renderInspector()'s own save() closure and the style-preset
+  // handlers below (which act on whatever block is selected at click time,
+  // outside any single renderInspector() call, so they can't reuse its
+  // local closure directly).
+  function saveBlockStyleAndContent(block) {
+    renderCanvas();
+    unsavedDirty = true;
+    el("block-save-status").textContent = "Saving…";
+    return api(`/blocks/${block.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ content: block.content, style: block.style }),
+    })
+      .then(() => {
+        unsavedDirty = false;
+        el("block-save-status").textContent = "Saved " + new Date().toLocaleTimeString();
+      })
+      .catch((err) => {
+        el("block-save-status").textContent = "Save failed: " + err.message;
+        alert(err.message);
+      });
+  }
+
+  // These three are wired once (not inside renderInspector, which re-runs
+  // on every selection change and would otherwise stack duplicate
+  // listeners on these static buttons) — each looks up whichever block is
+  // currently selected at click time.
+  el("apply-style-preset-select").addEventListener("change", () => {
+    const select = el("apply-style-preset-select");
+    const id = Number(select.value);
+    if (!id) return;
+    const preset = stylePresets.find((p) => p.id === id);
+    const block = blocks.find((b) => b.id === selectedBlockId);
+    if (!preset || !block) return;
+    if (!block.style) block.style = {};
+    Object.assign(block.style, preset.style);
+    saveBlockStyleAndContent(block);
+    renderInspector();
+  });
+  el("save-style-preset-btn").addEventListener("click", async () => {
+    const block = blocks.find((b) => b.id === selectedBlockId);
+    if (!block) return;
+    const name = prompt("Preset name:");
+    if (!name) return;
+    try {
+      await api("/style-presets", { method: "POST", body: JSON.stringify({ name, style: block.style || {} }) });
+      await loadStylePresets();
+      populateStylePresetSelect();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+  el("delete-style-preset-btn").addEventListener("click", async () => {
+    const id = Number(el("apply-style-preset-select").value);
+    if (!id) return alert("Select a preset to delete first.");
+    const preset = stylePresets.find((p) => p.id === id);
+    if (!confirm(`Delete preset "${preset ? preset.name : id}"?`)) return;
+    try {
+      await api(`/style-presets/${id}`, { method: "DELETE" });
+      await loadStylePresets();
+      populateStylePresetSelect();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
 
   // ---------- Multi-select bulk inspector ----------
   function selectedBlocksList() {
@@ -5171,6 +5249,8 @@
     await loadSimulationOptions();
     await loadScanOptions();
     await loadSongOptions();
+    await loadStylePresets();
+    populateStylePresetSelect();
     await loadTemplates("page");
     await loadTemplates("article");
     await loadTemplates("project");
