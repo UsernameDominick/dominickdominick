@@ -3858,6 +3858,17 @@
     if (!item) return;
     mediaInfoKey = key;
     el("media-info-preview").src = item.url;
+    const ext = item.key.split(".").pop().toUpperCase();
+    const isImage = /^(uploads)\//.test(item.key) || /\.(png|jpe?g|gif|webp|svg|avif)$/i.test(item.key);
+    const metaEl = el("media-info-meta");
+    metaEl.textContent = `${ext} · ${formatBytes(item.size)}`;
+    if (isImage) {
+      const probe = new Image();
+      probe.onload = () => {
+        if (mediaInfoKey === key) metaEl.textContent = `${ext} · ${formatBytes(item.size)} · ${probe.naturalWidth}×${probe.naturalHeight}px`;
+      };
+      probe.src = item.url;
+    }
     el("media-info-folder").value = item.folder || "";
     el("media-info-tags").value = item.tags.join(", ");
     el("media-info-alt").value = item.alt_text || "";

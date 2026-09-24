@@ -684,7 +684,10 @@ block already support any of these as a plain page:
 - ☐ Replace-in-place without breaking placements, media version history
 - ✅ Original-file preservation; ☐ responsive image variants/srcset, crop/focal-point per placement
 - ✅ Alt text/caption/credit/license fields (library-level + per-block prefill)
-- 🔶 Metadata viewer (size ✅; dimensions/format ☐ — deferred, needs client canvas probe or server binary parse)
+- ✅ Metadata viewer (size, format from the file extension, and
+  dimensions probed client-side via an off-screen `Image` element's
+  `naturalWidth`/`naturalHeight` — shown in the existing File details
+  modal, no schema change or server-side binary parsing needed)
 - 🔶 Search by filename/tag/type/dimensions/usage (filename+tag ✅; rest ☐)
 - ✅ Unused/orphaned file review
 - ☐ Image optimization comparison, video captions/transcripts, audio-file support (images only today), PDF/doc previews, direct-download controls, drag-to-page, resumable uploads, upload queue with retry, storage-by-type dashboard, private-metadata stripping

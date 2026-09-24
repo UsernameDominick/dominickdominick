@@ -1532,6 +1532,13 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   border: 1px solid var(--border);
 }
 
+.media-info-meta {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin: 8px 0;
+}
+
 .shortcuts-modal-inner {
   max-width: 480px;
 }
