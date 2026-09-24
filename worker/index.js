@@ -8,6 +8,7 @@ import {
   getProjectBySlug,
   getRelatedProjects,
   listJournalEntries,
+  listBomItems,
   getSetting,
   recordPageview,
   getRedirect,
@@ -39,6 +40,7 @@ import {
   renderSeriesNavHtml,
   renderRelatedProjectsHtml,
   renderJournalHtml,
+  renderBomHtml,
 } from "./render.js";
 import { handleAdminApi } from "./admin-api.js";
 import { renderSimulationSvg } from "./simulation-render.js";
@@ -192,12 +194,16 @@ async function renderProject(env, project, navItems) {
   const relatedHtml = renderRelatedProjectsHtml(related);
   const journalEntries = await listJournalEntries(env, project.id, { order: "ASC" });
   const journalHtml = renderJournalHtml(journalEntries);
+  const bomItems = await listBomItems(env, project.id);
+  const bomHtml = renderBomHtml(bomItems);
 
   // Rows handed out in order (same reasoning as renderArticle) so an
   // optional section's length can't throw off the ones after it.
   let row = 6;
   const bodyRow = row;
   row += 12;
+  const bomRow = bomHtml ? row : null;
+  if (bomHtml) row += 4 + bomItems.length * 2;
   const journalRow = journalHtml ? row : null;
   if (journalHtml) row += 4 + journalEntries.length * 4;
   const relatedRow = row;
@@ -217,6 +223,7 @@ async function renderProject(env, project, navItems) {
   <div class="block" style="grid-column:1 / span 24;grid-row:${bodyRow} / span 12;">
     ${paragraphsHtml(project.body)}
   </div>
+  ${bomHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${bomRow} / span ${4 + bomItems.length * 2};">${bomHtml}</div>` : ""}
   ${journalHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${journalRow} / span ${4 + journalEntries.length * 4};">${journalHtml}</div>` : ""}
   ${relatedHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${relatedRow} / span 6;">${relatedHtml}</div>` : ""}`;
 

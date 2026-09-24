@@ -1030,6 +1030,30 @@ h6 { font-size: 0.9rem; }
   padding-top: 20px;
 }
 
+.bom {
+  border-top: 1px solid var(--border);
+  padding-top: 20px;
+}
+
+.bom > strong {
+  display: block;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  margin-bottom: 14px;
+}
+
+.bom-sub {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.bom-grand-total {
+  font-weight: 600;
+  text-align: right;
+}
+
 .journal > strong {
   display: block;
   font-size: 0.8rem;

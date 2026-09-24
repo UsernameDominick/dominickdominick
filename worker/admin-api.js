@@ -89,6 +89,10 @@ import {
   createJournalEntry,
   updateJournalEntry,
   deleteJournalEntry,
+  listBomItems,
+  createBomItem,
+  updateBomItem,
+  deleteBomItem,
 } from "./db.js";
 import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated } from "./auth.js";
 
@@ -588,6 +592,27 @@ async function routeAdminApi(request, env, url, ctx) {
   if (journalMatch && method === "DELETE") {
     await deleteJournalEntry(env, Number(journalMatch[1]));
     log(ctx, env, "delete", "journal entry", `#${journalMatch[1]}`);
+    return json({ ok: true });
+  }
+
+  // /projects/:id/bom — a project's bill of materials
+  const bomListMatch = path.match(/^\/projects\/(\d+)\/bom$/);
+  if (bomListMatch && method === "GET") {
+    return json(await listBomItems(env, Number(bomListMatch[1])));
+  }
+  if (bomListMatch && method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    const id = await createBomItem(env, Number(bomListMatch[1]), body);
+    return json({ id });
+  }
+  const bomMatch = path.match(/^\/bom\/(\d+)$/);
+  if (bomMatch && method === "PATCH") {
+    const body = await request.json().catch(() => ({}));
+    await updateBomItem(env, Number(bomMatch[1]), body);
+    return json({ ok: true });
+  }
+  if (bomMatch && method === "DELETE") {
+    await deleteBomItem(env, Number(bomMatch[1]));
     return json({ ok: true });
   }
 

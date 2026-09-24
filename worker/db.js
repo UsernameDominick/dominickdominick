@@ -681,6 +681,58 @@ export async function deleteJournalEntry(env, id) {
   await env.DB.prepare("DELETE FROM journal_entries WHERE id = ?").bind(id).run();
 }
 
+// ---------- Bill of materials ----------
+// quantity/price are real numbers (not free text) specifically so the
+// public page can compute a total build cost.
+export async function listBomItems(env, projectId) {
+  const { results } = await env.DB.prepare("SELECT * FROM bom_items WHERE project_id = ? ORDER BY id ASC").bind(projectId).all();
+  return results;
+}
+
+export async function createBomItem(env, projectId, { item, quantity, price, link, substitution }) {
+  const res = await env.DB
+    .prepare("INSERT INTO bom_items (project_id, item, quantity, price, link, substitution) VALUES (?, ?, ?, ?, ?, ?)")
+    .bind(
+      projectId,
+      item || "",
+      quantity === null || quantity === undefined || quantity === "" ? 1 : Number.isFinite(Number(quantity)) ? Number(quantity) : 1,
+      price === null || price === undefined || price === "" ? null : Number.isFinite(Number(price)) ? Number(price) : null,
+      link || null,
+      substitution || null
+    )
+    .run();
+  return res.meta.last_row_id;
+}
+
+export async function updateBomItem(env, id, fields) {
+  const cols = [];
+  const vals = [];
+  for (const key of ["item", "link", "substitution"]) {
+    if (key in fields) {
+      cols.push(`${key} = ?`);
+      vals.push(fields[key]);
+    }
+  }
+  if ("quantity" in fields) {
+    cols.push("quantity = ?");
+    vals.push(
+      fields.quantity === null || fields.quantity === "" ? 1 : Number.isFinite(Number(fields.quantity)) ? Number(fields.quantity) : 1
+    );
+  }
+  if ("price" in fields) {
+    cols.push("price = ?");
+    vals.push(fields.price === null || fields.price === "" ? null : Number.isFinite(Number(fields.price)) ? Number(fields.price) : null);
+  }
+  if (!cols.length) return;
+  cols.push("updated_at = datetime('now')");
+  vals.push(id);
+  await env.DB.prepare(`UPDATE bom_items SET ${cols.join(", ")} WHERE id = ?`).bind(...vals).run();
+}
+
+export async function deleteBomItem(env, id) {
+  await env.DB.prepare("DELETE FROM bom_items WHERE id = ?").bind(id).run();
+}
+
 export async function listRedirects(env) {
   const { results } = await env.DB.prepare("SELECT * FROM redirects ORDER BY from_path").all();
   return results;
@@ -1495,7 +1547,7 @@ export async function setSetting(env, key, value) {
 const BACKUP_VERSION = 1;
 
 export async function exportAll(env) {
-  const [pages, blocks, articles, settings, redirects, templates, media, scans, sharedBlocks, projects, journalEntries] = await Promise.all([
+  const [pages, blocks, articles, settings, redirects, templates, media, scans, sharedBlocks, projects, journalEntries, bomItems] = await Promise.all([
     env.DB.prepare("SELECT * FROM pages ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM blocks ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM articles ORDER BY id").all(),
@@ -1507,6 +1559,7 @@ export async function exportAll(env) {
     env.DB.prepare("SELECT * FROM shared_blocks ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM projects ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM journal_entries ORDER BY id").all(),
+    env.DB.prepare("SELECT * FROM bom_items ORDER BY id").all(),
   ]);
   return {
     version: BACKUP_VERSION,
@@ -1522,6 +1575,7 @@ export async function exportAll(env) {
     shared_blocks: sharedBlocks.results,
     projects: projects.results,
     journal_entries: journalEntries.results,
+    bom_items: bomItems.results,
   };
 }
 
@@ -1573,6 +1627,7 @@ export async function importAll(env, data) {
     shared_blocks: sharedBlocks = [],
     projects = [],
     journal_entries: journalEntries = [],
+    bom_items: bomItems = [],
   } = data;
   if (
     !Array.isArray(pages) ||
@@ -1585,7 +1640,8 @@ export async function importAll(env, data) {
     !Array.isArray(scans) ||
     !Array.isArray(sharedBlocks) ||
     !Array.isArray(projects) ||
-    !Array.isArray(journalEntries)
+    !Array.isArray(journalEntries) ||
+    !Array.isArray(bomItems)
   ) {
     throw new Error("This doesn't look like a dominickdominick backup file (missing pages/blocks/articles/settings)");
   }
@@ -1601,6 +1657,7 @@ export async function importAll(env, data) {
     env.DB.prepare("DELETE FROM media"),
     env.DB.prepare("DELETE FROM scans"),
     env.DB.prepare("DELETE FROM journal_entries"),
+    env.DB.prepare("DELETE FROM bom_items"),
     env.DB.prepare("DELETE FROM projects"),
   ];
 
@@ -1783,6 +1840,17 @@ export async function importAll(env, data) {
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(j.id, j.project_id, j.entry_date, j.title ?? "", j.body ?? "", j.entry_type ?? "log", j.created_at, j.updated_at)
+    );
+  }
+
+  for (const b of bomItems) {
+    stmts.push(
+      env.DB
+        .prepare(
+          `INSERT INTO bom_items (id, project_id, item, quantity, price, link, substitution, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(b.id, b.project_id, b.item, b.quantity ?? 1, b.price ?? null, b.link ?? null, b.substitution ?? null, b.created_at, b.updated_at)
     );
   }
 

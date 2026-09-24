@@ -103,6 +103,23 @@ CREATE TABLE journal_entries (
 );
 CREATE INDEX idx_journal_entries_project ON journal_entries(project_id, entry_date);
 
+-- A project's bill of materials — quantity/price stored as numbers (not
+-- free text) specifically so the public page can compute and show a total
+-- build cost, covering that "computed field" idea from the content-
+-- modeling section with the same table as the BOM feature itself.
+CREATE TABLE bom_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  item TEXT NOT NULL,
+  quantity REAL NOT NULL DEFAULT 1,
+  price REAL,
+  link TEXT,
+  substitution TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_bom_items_project ON bom_items(project_id);
+
 CREATE TABLE settings (
   key TEXT PRIMARY KEY,
   value TEXT

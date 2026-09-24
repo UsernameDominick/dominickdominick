@@ -2443,6 +2443,9 @@
     el("journal-section").hidden = false;
     clearJournalEntryForm();
     loadJournalEntries();
+    el("bom-section").hidden = false;
+    clearBomItemForm();
+    loadBomItems();
   }
 
   function clearProjectForm() {
@@ -2470,6 +2473,9 @@
     renderProjectsList();
     el("journal-section").hidden = true;
     el("journal-list").innerHTML = "";
+    el("bom-section").hidden = true;
+    el("bom-list").innerHTML = "";
+    el("bom-total").textContent = "";
   }
 
   function updateProjectExtras() {
@@ -2539,6 +2545,11 @@
         clearJournalEntryForm();
       }
       await loadJournalEntries();
+      if (el("bom-section").hidden) {
+        el("bom-section").hidden = false;
+        clearBomItemForm();
+      }
+      await loadBomItems();
     } catch (err) {
       if (err.conflict) {
         el("project-autosave-status").textContent = err.message;
@@ -2660,6 +2671,100 @@
   });
 
   el("cancel-journal-entry-btn").addEventListener("click", () => clearJournalEntryForm());
+
+  // ---------- Bill of materials ----------
+  let bomItems = [];
+  let currentBomItemId = null;
+
+  function formatMoney(n) {
+    return "$" + Number(n).toFixed(2);
+  }
+
+  function clearBomItemForm() {
+    currentBomItemId = null;
+    el("bom-item").value = "";
+    el("bom-quantity").value = "1";
+    el("bom-price").value = "";
+    el("bom-link").value = "";
+    el("bom-substitution").value = "";
+    el("save-bom-item-btn").textContent = "Add item";
+    el("cancel-bom-item-btn").hidden = true;
+  }
+
+  function renderBomList() {
+    el("bom-list").innerHTML = bomItems
+      .map(
+        (b) =>
+          `<div class="simulation-row"><span>${escapeHtml(b.item)} — ${b.quantity}${
+            b.price != null ? ` × ${formatMoney(b.price)}` : ""
+          }${b.substitution ? ` <span class="lock-badge" title="${escapeHtml(b.substitution)}">Sub</span>` : ""}${
+            b.link ? ` <a href="${escapeHtml(b.link)}" target="_blank" rel="noopener">link</a>` : ""
+          }</span><button type="button" class="edit-bom-item-btn" data-id="${b.id}">Edit</button><button type="button" class="delete-bom-item-btn" data-id="${
+            b.id
+          }">Delete</button></div>`
+      )
+      .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No parts added yet.</p>";
+    const total = bomItems.reduce((sum, b) => sum + (b.price != null ? b.price * b.quantity : 0), 0);
+    el("bom-total").textContent = bomItems.length ? `Total build cost: ${formatMoney(total)}` : "";
+
+    el("bom-list")
+      .querySelectorAll(".edit-bom-item-btn")
+      .forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const b = bomItems.find((x) => x.id === Number(btn.dataset.id));
+          if (!b) return;
+          currentBomItemId = b.id;
+          el("bom-item").value = b.item;
+          el("bom-quantity").value = b.quantity;
+          el("bom-price").value = b.price ?? "";
+          el("bom-link").value = b.link || "";
+          el("bom-substitution").value = b.substitution || "";
+          el("save-bom-item-btn").textContent = "Save item";
+          el("cancel-bom-item-btn").hidden = false;
+        });
+      });
+    el("bom-list")
+      .querySelectorAll(".delete-bom-item-btn")
+      .forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          if (!confirm("Delete this part?")) return;
+          await api(`/bom/${btn.dataset.id}`, { method: "DELETE" });
+          if (currentBomItemId === Number(btn.dataset.id)) clearBomItemForm();
+          await loadBomItems();
+        });
+      });
+  }
+
+  async function loadBomItems() {
+    if (!currentProjectId) return;
+    bomItems = await api(`/projects/${currentProjectId}/bom`);
+    renderBomList();
+  }
+
+  el("save-bom-item-btn").addEventListener("click", async () => {
+    if (!currentProjectId) return;
+    if (!el("bom-item").value.trim()) return alert("Item name is required.");
+    const body = {
+      item: el("bom-item").value.trim(),
+      quantity: el("bom-quantity").value,
+      price: el("bom-price").value === "" ? null : el("bom-price").value,
+      link: el("bom-link").value.trim() || null,
+      substitution: el("bom-substitution").value.trim() || null,
+    };
+    try {
+      if (currentBomItemId) {
+        await api(`/bom/${currentBomItemId}`, { method: "PATCH", body: JSON.stringify(body) });
+      } else {
+        await api(`/projects/${currentProjectId}/bom`, { method: "POST", body: JSON.stringify(body) });
+      }
+      clearBomItemForm();
+      await loadBomItems();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  el("cancel-bom-item-btn").addEventListener("click", () => clearBomItemForm());
 
   // ---------- Media library ----------
   let mediaPickTarget = null;

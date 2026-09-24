@@ -296,6 +296,25 @@ export function renderJournalHtml(entries) {
   return `<div class="journal"><strong>Build journal</strong>${items}</div>`;
 }
 
+export function renderBomHtml(items) {
+  if (!items || !items.length) return "";
+  const rows = items
+    .map((b) => {
+      const lineTotal = b.price != null ? b.price * b.quantity : null;
+      return `<tr><td>${esc(b.item)}${
+        b.substitution ? `<br><span class="bom-sub">Substitution: ${esc(b.substitution)}</span>` : ""
+      }</td><td>${esc(String(b.quantity))}</td><td>${b.price != null ? esc(`$${b.price.toFixed(2)}`) : "—"}</td><td>${
+        lineTotal != null ? esc(`$${lineTotal.toFixed(2)}`) : "—"
+      }</td><td>${b.link ? `<a href="${esc(b.link)}" target="_blank" rel="noopener">Source</a>` : ""}</td></tr>`;
+    })
+    .join("\n");
+  const total = items.reduce((sum, b) => sum + (b.price != null ? b.price * b.quantity : 0), 0);
+  const hasAnyPrice = items.some((b) => b.price != null);
+  return `<div class="bom"><strong>Bill of materials</strong><div class="table-wrap"><table><thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>${
+    hasAnyPrice ? `<p class="bom-grand-total">Total build cost: $${total.toFixed(2)}</p>` : ""
+  }</div>`;
+}
+
 export function renderRelatedProjectsHtml(projects) {
   if (!projects || !projects.length) return "";
   const items = projects
