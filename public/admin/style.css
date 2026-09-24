@@ -247,6 +247,13 @@
   color: var(--bg);
 }
 
+#favorite-page-btn.is-favorite,
+#favorite-article-btn.is-favorite,
+#favorite-project-btn.is-favorite {
+  background: var(--accent-dim);
+  color: var(--bg);
+}
+
 #isolate-block-btn.is-active {
   background: var(--accent-dim);
   color: var(--bg);

@@ -404,8 +404,8 @@ performance comparisons.
 - ✅ Admin light/dark themes
 - ☐ Interface density settings
 - ☐ Saved workspace layouts
-- 🔶 Favorites and recently edited items (recently edited pages/articles/projects show at the top of the command palette, from a client-side recency list rather than the activity log — that only ever kept a label, not an id, so a renamed item would silently point at a stale link; "favorites"/pinning specifically still ☐)
-- ☐ Pinned shortcuts
+- ✅ Favorites and recently edited items (recently edited pages/articles/projects show in the command palette from a client-side recency list rather than the activity log — that only ever kept a label, not an id, so a renamed item would silently point at a stale link; favorites use the same approach, with a "☆ Pin" button on each editor, and pinned items always lead the command palette ahead of recent ones)
+- ✅ Pinned shortcuts (same feature as favorites above — a pin is a pinned shortcut)
 - 🔶 Bulk-action toolbar (exists for articles and blocks; not universal)
 - ☐ Contextual help for complex editors
 - ✅ Keyboard shortcut reference (`?` or the command palette opens a cheat-sheet modal listing every shortcut)

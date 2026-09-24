@@ -225,6 +225,31 @@
     }
   }
 
+  // Favorites/pinned shortcuts — same client-side-only approach as recently
+  // edited, and for the same reason (no stable id in the activity log to
+  // key off of). Unlike recency, these never age out or get capped.
+  const FAVORITES_KEY = "admin_favorites";
+  function getFavorites() {
+    try {
+      return JSON.parse(localStorage.getItem(FAVORITES_KEY) || "[]");
+    } catch {
+      return [];
+    }
+  }
+  function isFavorite(kind, id) {
+    return getFavorites().some((f) => f.kind === kind && f.id === id);
+  }
+  function toggleFavorite(kind, id, title) {
+    const list = getFavorites();
+    const idx = list.findIndex((f) => f.kind === kind && f.id === id);
+    if (idx === -1) list.unshift({ kind, id, title, ts: Date.now() });
+    else list.splice(idx, 1);
+    try {
+      localStorage.setItem(FAVORITES_KEY, JSON.stringify(list));
+    } catch {}
+    return idx === -1;
+  }
+
   // Shown when a local draft exists for whatever was just loaded — either
   // it matches what's on the server (a normal after-save leftover, cleared
   // silently) or it doesn't (something crashed before it could be saved),
@@ -357,6 +382,7 @@
     el("page-canonical-url").value = currentPage.canonical_url || "";
     el("page-save-status").textContent = "";
     updateLockButton("lock-page-btn", !!currentPage.locked);
+    updateFavoriteButton("favorite-page-btn", "page", currentPage.id);
     updatePageOgPreview();
     checkPageDraftRecovery(currentPage.id);
     updatePasteButtonVisibility();
@@ -492,6 +518,7 @@
       alert(err.message);
     }
   });
+  wireFavoriteButton("favorite-page-btn", "page", () => currentPage && currentPage.id, () => currentPage && currentPage.title);
 
   // ---------- Blocks ----------
   async function loadBlocks() {
@@ -1967,6 +1994,21 @@
     btn.classList.toggle("is-locked", locked);
   }
 
+  function updateFavoriteButton(btnId, kind, id) {
+    const btn = el(btnId);
+    const fav = isFavorite(kind, id);
+    btn.textContent = fav ? "★ Pinned" : "☆ Pin";
+    btn.classList.toggle("is-favorite", fav);
+  }
+  function wireFavoriteButton(btnId, kind, getId, getTitle) {
+    el(btnId).addEventListener("click", () => {
+      const id = getId();
+      if (!id) return;
+      toggleFavorite(kind, id, getTitle());
+      updateFavoriteButton(btnId, kind, id);
+    });
+  }
+
   el("articles-btn").addEventListener("click", async () => {
     el("articles-modal").hidden = false;
     articles = await api("/articles");
@@ -2082,6 +2124,7 @@
     currentArticleVersion = article.version || null;
     currentArticleLocked = !!article.locked;
     updateLockButton("lock-article-btn", currentArticleLocked);
+    updateFavoriteButton("favorite-article-btn", "article", article.id);
     el("article-title").value = article.title;
     el("article-slug").value = article.slug;
     el("article-tags").value = (article.tags || []).join(", ");
@@ -2326,6 +2369,8 @@
     currentArticleVersion = null;
     currentArticleLocked = false;
     updateLockButton("lock-article-btn", false);
+    el("favorite-article-btn").textContent = "☆ Pin";
+    el("favorite-article-btn").classList.remove("is-favorite");
     el("article-title").value = "";
     el("article-slug").value = "";
     el("article-tags").value = "";
@@ -2502,6 +2547,7 @@
       alert(err.message);
     }
   });
+  wireFavoriteButton("favorite-article-btn", "article", () => currentArticleId, () => el("article-title").value);
 
   // ---------- Projects ----------
   let projects = [];
@@ -2619,6 +2665,7 @@
     currentProjectVersion = project.version || null;
     currentProjectLocked = !!project.locked;
     updateLockButton("lock-project-btn", currentProjectLocked);
+    updateFavoriteButton("favorite-project-btn", "project", project.id);
     el("project-title").value = project.title;
     el("project-slug").value = project.slug;
     el("project-summary").value = project.summary || "";
@@ -2659,6 +2706,8 @@
     currentProjectVersion = null;
     currentProjectLocked = false;
     updateLockButton("lock-project-btn", false);
+    el("favorite-project-btn").textContent = "☆ Pin";
+    el("favorite-project-btn").classList.remove("is-favorite");
     el("project-title").value = "";
     el("project-slug").value = "";
     el("project-summary").value = "";
@@ -2816,6 +2865,7 @@
       alert(err.message);
     }
   });
+  wireFavoriteButton("favorite-project-btn", "project", () => currentProjectId, () => el("project-title").value);
 
   // ---------- Build journal ----------
   let journalEntries = [];
@@ -3906,7 +3956,13 @@
       sub: RECENT_KIND_LABEL[r.kind] || r.kind,
       run: () => RECENT_KIND_RUN[r.kind](r.id),
     }));
+    const favoriteActions = getFavorites().map((f) => ({
+      label: `★ ${f.title || "(untitled)"}`,
+      sub: RECENT_KIND_LABEL[f.kind] || f.kind,
+      run: () => RECENT_KIND_RUN[f.kind](f.id),
+    }));
     const actions = [
+      ...favoriteActions,
       ...recentActions,
       { label: "Add new page", sub: "", run: () => { closeCommandPalette(); el("new-page-btn").click(); } },
       { label: "Open Articles", sub: "", run: () => { closeCommandPalette(); el("articles-btn").click(); } },
