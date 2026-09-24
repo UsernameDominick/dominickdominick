@@ -2521,7 +2521,11 @@ async function checkOneLink(env, rawUrl) {
   }
 }
 
-export async function checkLinks(env) {
+// Walks every button/project-card/link-block/markdown link across pages,
+// articles and projects (including project journals) — shared by
+// checkLinks() (which pings each url) and getOrphanContent() (which
+// resolves them against site content to find what nothing links to).
+async function gatherInternalLinks(env) {
   const pages = await listPages(env);
   const pageBlocks = await Promise.all(pages.map((p) => listBlocks(env, p.id)));
   const articles = await listArticles(env);
@@ -2539,6 +2543,9 @@ export async function checkLinks(env) {
       }
       if (b.type === "links" && Array.isArray(c.items)) {
         for (const it of c.items) if (it && it.url) found.push({ url: it.url, source: `Page "${p.title}" — Links block` });
+      }
+      if (b.type === "text" && c.text) {
+        for (const url of markdownLinks(c.text)) found.push({ url, source: `Page "${p.title}" — Text block` });
       }
     }
   });
@@ -2559,7 +2566,11 @@ export async function checkLinks(env) {
       for (const url of markdownLinks(j.body)) found.push({ url, source: `Project "${p.title}" — journal entry "${j.title || j.entry_date}"` });
     }
   });
+  return { found, pages, articles, projects };
+}
 
+export async function checkLinks(env) {
+  const { found } = await gatherInternalLinks(env);
   const uniqueUrls = [...new Set(found.map((f) => f.url))];
   const statusByUrl = {};
   await Promise.all(
@@ -2568,6 +2579,36 @@ export async function checkLinks(env) {
     })
   );
   return found.map((f) => ({ ...f, ...statusByUrl[f.url] }));
+}
+
+// Orphan-page detection: published pages/articles/projects that nothing
+// else on the site links to internally (via a button/links/text block, a
+// markdown link in an article/project body or journal entry, or a
+// project's github/demo/docs/download links) AND that aren't reachable
+// from the header nav (nav_order set) — the two ways a visitor could
+// actually land on them without knowing the URL already. Related-content
+// suggestions and shuffle don't count: both are automatic/random, not a
+// deliberate link an editor placed, so they don't make a page "reachable"
+// in the sense this check cares about.
+export async function getOrphanContent(env) {
+  const { found, pages, articles, projects } = await gatherInternalLinks(env);
+  const linkedPaths = new Set();
+  for (const { url } of found) {
+    try {
+      const path = new URL(url, "https://dominickdominick.com").pathname.replace(/\/$/, "") || "/";
+      linkedPaths.add(path);
+    } catch {
+      // Not a resolvable URL (e.g. a mailto: or malformed link) — ignore.
+    }
+  }
+  const isOrphanPage = (p) => p.slug !== "home" && p.nav_order == null && !linkedPaths.has(`/${p.slug}`);
+  const isOrphanArticle = (a) => !!a.published_at && !linkedPaths.has(`/random/${a.slug}`);
+  const isOrphanProject = (p) => !!p.published_at && !linkedPaths.has(`/projects/${p.slug}`);
+  return {
+    pages: pages.filter(isOrphanPage).map((p) => ({ title: p.title, slug: p.slug })),
+    articles: articles.filter(isOrphanArticle).map((a) => ({ title: a.title, slug: a.slug })),
+    projects: projects.filter(isOrphanProject).map((p) => ({ title: p.title, slug: p.slug })),
+  };
 }
 
 // Site-wide SEO/accessibility sweep: pages missing a meta description

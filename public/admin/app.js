@@ -4236,6 +4236,42 @@
     }
   });
 
+  el("check-orphans-btn").addEventListener("click", async () => {
+    const btn = el("check-orphans-btn");
+    const originalText = btn.textContent;
+    btn.textContent = "Checking…";
+    btn.disabled = true;
+    try {
+      const { pages: orphanPages, articles: orphanArticles, projects: orphanProjects } = await api("/orphan-content");
+      const rows = [
+        ...orphanPages.map(
+          (p) =>
+            `<div class="link-check-row"><span class="link-check-url">${escapeHtml(p.title)}</span><span class="link-check-source">/${escapeHtml(
+              p.slug
+            )}</span><span class="link-check-status">Page — no links, not in nav</span></div>`
+        ),
+        ...orphanArticles.map(
+          (a) =>
+            `<div class="link-check-row"><span class="link-check-url">${escapeHtml(a.title)}</span><span class="link-check-source">/random/${escapeHtml(
+              a.slug
+            )}</span><span class="link-check-status">Article — no internal links</span></div>`
+        ),
+        ...orphanProjects.map(
+          (p) =>
+            `<div class="link-check-row"><span class="link-check-url">${escapeHtml(p.title)}</span><span class="link-check-source">/projects/${escapeHtml(
+              p.slug
+            )}</span><span class="link-check-status">Project — no internal links</span></div>`
+        ),
+      ];
+      el("orphan-content-results").innerHTML = rows.join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No orphans found.</p>";
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      btn.textContent = originalText;
+      btn.disabled = false;
+    }
+  });
+
   el("check-seo-btn").addEventListener("click", async () => {
     const btn = el("check-seo-btn");
     const originalText = btn.textContent;

@@ -68,6 +68,7 @@ import {
   search,
   checkLinks,
   getSeoReport,
+  getOrphanContent,
   listScans,
   getScan,
   createScan,
@@ -1026,6 +1027,12 @@ async function routeAdminApi(request, env, url, ctx) {
   // missing alt text, across the whole site.
   if (path === "/seo-report" && method === "GET") {
     return json(await getSeoReport(env));
+  }
+
+  // /orphan-content — published pages/articles/projects nothing internally
+  // links to and that aren't in the header nav either.
+  if (path === "/orphan-content" && method === "GET") {
+    return json(await getOrphanContent(env));
   }
 
   // /preview-links — shareable, expiring, revocable links that let someone

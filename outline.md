@@ -753,7 +753,14 @@ Contact form, admin inbox, guestbook/comments, moderation, newsletter —
   `renderSitemap()` but the page/article/project itself stays fully
   live — this only removes it from the sitemap, doesn't unpublish it);
   🔶 structured data (JSON-LD auto ✅; admin-customizable ☐)
-- ☐ Internal-link suggestions, orphan-page detection (real design work — needs walking every internal-link-holding block type + list-limit truncation, not done, see notes below), automatic redirect suggestions after URL changes
+- ✅ Orphan-page detection (SEO Dashboard → "Orphan Pages": published
+  pages/articles/projects that nothing internally links to — reusing the
+  exact same link-gathering walk the Link Checker already does, just
+  resolved against site content in the other direction — and that aren't
+  in the header nav either; related-content suggestions and shuffle
+  deliberately don't count as "reachable" since neither is a deliberate
+  link an editor placed)
+- ☐ Internal-link suggestions while writing, automatic redirect suggestions after URL changes
 - 🔶 Link monitoring (on-demand Link Checker ✅; scheduled/ongoing ☐)
 - 🔶 Missing-metadata reports (SEO Report covers meta description + alt text; not every field)
 
