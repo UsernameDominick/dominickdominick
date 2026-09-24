@@ -567,12 +567,15 @@ async function renderBlockInner(env, block, ctx) {
         publishedOnly: true,
         limit: c.limit || 10,
         tag: c.tag || (ctx && ctx.activeTagFilter) || null,
+        featuredOnly: !!c.featuredOnly,
       });
       if (!articles.length) return `<p class="empty-hint">No posts yet.</p>`;
       return `<div class="thought-list">${articles
         .map(
           (a) =>
-            `<article class="thought"><time datetime="${esc(a.published_at)}">${esc(
+            `<article class="thought${a.pinned ? " thought-pinned" : ""}">${
+              a.featured ? `<span class="featured-badge">★ Featured</span>` : ""
+            }<time datetime="${esc(a.published_at)}">${esc(
               (a.published_at || "").slice(0, 10)
             )}</time><h2><a href="/random/${esc(a.slug)}">${esc(a.title)}</a></h2>${renderTags(a.tags)}</article>`
         )

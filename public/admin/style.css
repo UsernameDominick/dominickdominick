@@ -492,6 +492,18 @@
   width: 90px;
 }
 
+.article-flags-row {
+  display: flex;
+  gap: 16px;
+}
+
+.article-flags-row label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+}
+
 .article-word-count {
   font-size: 0.78rem;
   color: var(--text-dim);

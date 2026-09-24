@@ -926,7 +926,11 @@
       { key: "label", label: "Link label", type: "text" },
       { key: "external", label: "Open in new tab", type: "checkbox" },
     ],
-    "article-list": [{ key: "limit", label: "How many posts", type: "number" }, { key: "tag", label: "Only show this tag (blank = all)", type: "text" }],
+    "article-list": [
+      { key: "limit", label: "How many posts", type: "number" },
+      { key: "tag", label: "Only show this tag (blank = all)", type: "text" },
+      { key: "featuredOnly", label: "Only show featured posts", type: "checkbox" },
+    ],
     video: [{ key: "url", label: "YouTube or Vimeo URL", type: "text" }],
     embed: [{ key: "url", label: "Embed URL (CodePen, Spotify, Figma, CodeSandbox, GitHub Gist, or any iframe-able link)", type: "text" }],
     quote: [
@@ -1908,7 +1912,9 @@
   }
 
   function articleLockBadge(a) {
-    return a.locked ? ` <span class="lock-badge" title="Locked — protected from bulk actions and find-replace">Locked</span>` : "";
+    return `${a.locked ? ` <span class="lock-badge" title="Locked — protected from bulk actions and find-replace">Locked</span>` : ""}${
+      a.pinned ? ` <span class="lock-badge" title="Pinned — leads every article list regardless of date">Pinned</span>` : ""
+    }${a.featured ? ` <span class="lock-badge" title="Featured">Featured</span>` : ""}`;
   }
 
   let selectedArticleIds = new Set();
@@ -1994,6 +2000,8 @@
     el("article-series").value = article.series || "";
     el("article-series-order").value = article.series_order ?? "";
     el("article-co-authors").value = (article.co_authors || []).join(", ");
+    el("article-featured").checked = !!article.featured;
+    el("article-pinned").checked = !!article.pinned;
     el("article-og-image").value = article.og_image || "";
     el("article-body").value = article.body;
     el("article-published").checked = !!article.published_at;
@@ -2009,7 +2017,7 @@
   // turning this back into a save payload when the restored draft is saved.
   const ARTICLE_DRAFT_FIELD_IDS = [
     "article-title", "article-slug", "article-tags", "article-series", "article-series-order",
-    "article-co-authors", "article-og-image", "article-body", "article-published", "article-publish-at",
+    "article-co-authors", "article-featured", "article-pinned", "article-og-image", "article-body", "article-published", "article-publish-at",
   ];
   function captureArticleRawFields() {
     const out = {};
@@ -2196,6 +2204,8 @@
     el("article-series").value = "";
     el("article-series-order").value = "";
     el("article-co-authors").value = "";
+    el("article-featured").checked = false;
+    el("article-pinned").checked = false;
     el("article-og-image").value = "";
     el("article-body").value = "";
     el("article-published").checked = false;
@@ -2233,6 +2243,8 @@
       series: el("article-series").value.trim() || null,
       series_order: seriesOrder === "" ? null : Number(seriesOrder),
       co_authors: parseCoAuthors(el("article-co-authors").value),
+      featured: el("article-featured").checked,
+      pinned: el("article-pinned").checked,
       og_image: el("article-og-image").value || null,
       body: el("article-body").value,
       // A blank publish-at with "Published" checked means "now"; a filled
@@ -2328,7 +2340,7 @@
   ["article-title", "article-tags", "article-series", "article-co-authors", "article-og-image", "article-body"].forEach((id) =>
     el(id).addEventListener("input", scheduleAutosave)
   );
-  ["article-slug", "article-published", "article-publish-at", "article-series-order"].forEach((id) =>
+  ["article-slug", "article-published", "article-publish-at", "article-series-order", "article-featured", "article-pinned"].forEach((id) =>
     el(id).addEventListener("change", scheduleAutosave)
   );
 

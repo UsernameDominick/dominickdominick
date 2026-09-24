@@ -307,7 +307,7 @@ export async function getSeriesArticles(env, series) {
   return results.map(parseArticleRow);
 }
 
-export async function listArticles(env, { publishedOnly = false, limit = null, tag = null } = {}) {
+export async function listArticles(env, { publishedOnly = false, limit = null, tag = null, featuredOnly = false } = {}) {
   let sql = "SELECT * FROM articles WHERE deleted_at IS NULL";
   const params = [];
   // "Published" means published_at is set AND not in the future — a
@@ -316,12 +316,15 @@ export async function listArticles(env, { publishedOnly = false, limit = null, t
     sql += " AND published_at IS NOT NULL AND published_at <= ?";
     params.push(new Date().toISOString());
   }
-  sql += " ORDER BY COALESCE(published_at, created_at) DESC";
+  // Pinned articles lead every listing regardless of publish date; within
+  // each group, newest first — same tiebreak as before pinning existed.
+  sql += " ORDER BY pinned DESC, COALESCE(published_at, created_at) DESC";
   const lim = Number(limit);
   if (Number.isFinite(lim) && lim > 0) sql += ` LIMIT ${Math.floor(lim)}`;
   const { results } = await env.DB.prepare(sql).bind(...params).all();
   let articles = results.map(parseArticleRow);
   if (tag) articles = articles.filter((a) => a.tags.includes(tag));
+  if (featuredOnly) articles = articles.filter((a) => a.featured);
   return articles;
 }
 
@@ -352,10 +355,10 @@ function resolvePublishedAt({ published, published_at }) {
   return published ? new Date().toISOString() : null;
 }
 
-export async function createArticle(env, { slug, title, body, published, published_at, tags, og_image, series, series_order, co_authors }) {
+export async function createArticle(env, { slug, title, body, published, published_at, tags, og_image, series, series_order, co_authors, featured, pinned }) {
   const res = await env.DB
     .prepare(
-      "INSERT INTO articles (slug, title, body, published_at, tags, og_image, series, series_order, co_authors) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO articles (slug, title, body, published_at, tags, og_image, series, series_order, co_authors, featured, pinned) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
     .bind(
       slug,
@@ -366,7 +369,9 @@ export async function createArticle(env, { slug, title, body, published, publish
       og_image || null,
       series || null,
       Number.isFinite(Number(series_order)) ? Number(series_order) : null,
-      JSON.stringify(Array.isArray(co_authors) ? co_authors : [])
+      JSON.stringify(Array.isArray(co_authors) ? co_authors : []),
+      featured ? 1 : 0,
+      pinned ? 1 : 0
     )
     .run();
   return res.meta.last_row_id;
@@ -400,6 +405,14 @@ export async function updateArticle(env, id, fields) {
   if ("locked" in fields) {
     cols.push("locked = ?");
     vals.push(fields.locked ? 1 : 0);
+  }
+  if ("featured" in fields) {
+    cols.push("featured = ?");
+    vals.push(fields.featured ? 1 : 0);
+  }
+  if ("pinned" in fields) {
+    cols.push("pinned = ?");
+    vals.push(fields.pinned ? 1 : 0);
   }
   if (!cols.length) return;
   cols.push("updated_at = datetime('now')", "version = version + 1");
@@ -1402,8 +1415,8 @@ export async function importAll(env, data) {
     stmts.push(
       env.DB
         .prepare(
-          `INSERT INTO articles (id, slug, title, body, tags, og_image, published_at, deleted_at, series, series_order, co_authors, created_at, updated_at, version, locked)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO articles (id, slug, title, body, tags, og_image, published_at, deleted_at, series, series_order, co_authors, created_at, updated_at, version, locked, featured, pinned)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           a.id,
@@ -1420,7 +1433,9 @@ export async function importAll(env, data) {
           a.created_at,
           a.updated_at,
           a.version ?? 1,
-          a.locked ?? 0
+          a.locked ?? 0,
+          a.featured ?? 0,
+          a.pinned ?? 0
         )
     );
   }

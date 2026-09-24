@@ -906,6 +906,20 @@ h6 { font-size: 0.9rem; }
   padding-bottom: 16px;
 }
 
+.thought-pinned {
+  border-left: 2px solid var(--accent);
+  padding-left: 12px;
+}
+
+.featured-badge {
+  display: inline-block;
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  margin-bottom: 4px;
+}
+
 .thought time {
   display: block;
   color: var(--accent-dim);
