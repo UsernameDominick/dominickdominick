@@ -494,7 +494,7 @@
   }
 
   function blockLabel(type) {
-    return { heading: "Heading", text: "Text", image: "Image", button: "Button", "project-card": "Project Card", "article-list": "Article List", video: "Video", quote: "Quote", gallery: "Gallery", simulation: "Simulation", scan: "3D Scan", divider: "Divider", spacer: "Spacer", links: "Links", html: "HTML / Embed", changelog: "Changelog / Now", embed: "Generic Embed", accordion: "Accordion", tabs: "Tabs" }[type] || type;
+    return { heading: "Heading", text: "Text", image: "Image", button: "Button", "project-card": "Project Card", "article-list": "Article List", "project-list": "Project List", video: "Video", quote: "Quote", gallery: "Gallery", simulation: "Simulation", scan: "3D Scan", divider: "Divider", spacer: "Spacer", links: "Links", html: "HTML / Embed", changelog: "Changelog / Now", embed: "Generic Embed", accordion: "Accordion", tabs: "Tabs" }[type] || type;
   }
 
   let simulationOptions = [];
@@ -523,6 +523,7 @@
       case "button": return `Button: ${escapeHtml(c.label || "(no label)")}`;
       case "project-card": return `<strong>${escapeHtml(c.title || "(untitled)")}</strong>`;
       case "article-list": return `Shows latest ${c.limit || 10} posts`;
+      case "project-list": return `Shows latest ${c.limit || 12} projects`;
       case "video": return c.url ? escapeHtml(c.url) : "(no video url)";
       case "embed": return c.url ? escapeHtml(c.url) : "(no embed url)";
       case "quote": return c.text ? `“${escapeHtml(c.text.slice(0, 60))}”` : "(empty)";
@@ -805,6 +806,7 @@
         button: { content: { label: "Click me", url: "#", external: false }, col_span: 6, row_span: 2 },
         "project-card": { content: { title: "Project", description: "", url: "", label: "View" }, col_span: 12, row_span: 6 },
         "article-list": { content: { limit: 10 }, col_span: 24, row_span: 12 },
+        "project-list": { content: { limit: 12 }, col_span: 24, row_span: 16 },
         // A full-width (24-col) simulation SVG at its 1500:700 aspect ratio,
         // plus the power button below it, renders taller than it looks like
         // it should need — row_span accounts for that so it doesn't overflow
@@ -930,6 +932,11 @@
       { key: "limit", label: "How many posts", type: "number" },
       { key: "tag", label: "Only show this tag (blank = all)", type: "text" },
       { key: "featuredOnly", label: "Only show featured posts", type: "checkbox" },
+    ],
+    "project-list": [
+      { key: "limit", label: "How many projects", type: "number" },
+      { key: "tag", label: "Only show this tag (blank = all)", type: "text" },
+      { key: "featuredOnly", label: "Only show featured projects", type: "checkbox" },
     ],
     video: [{ key: "url", label: "YouTube or Vimeo URL", type: "text" }],
     embed: [{ key: "url", label: "Embed URL (CodePen, Spotify, Figma, CodeSandbox, GitHub Gist, or any iframe-able link)", type: "text" }],
@@ -2164,7 +2171,7 @@
 
   document.querySelectorAll(".md-toolbar-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
-      const textarea = el("article-body");
+      const textarea = el(btn.dataset.mdTarget || "article-body");
       switch (btn.dataset.md) {
         case "bold":
           wrapSelection(textarea, "**", "**", "bold text");
@@ -2365,6 +2372,194 @@
       articles = await api("/articles");
       rebaseArticleVersion();
       renderArticlesList();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  // ---------- Projects ----------
+  let projects = [];
+  let currentProjectId = null;
+  let currentProjectVersion = null;
+  let currentProjectLocked = false;
+
+  function projectStatusLabel(p) {
+    if (!p.published_at) return " (draft)";
+    if (p.published_at > new Date().toISOString()) return " (scheduled)";
+    return "";
+  }
+
+  function projectBadges(p) {
+    return `${p.locked ? ` <span class="lock-badge" title="Locked — protected from accidental deletion">Locked</span>` : ""}${
+      p.featured ? ` <span class="lock-badge" title="Featured">Featured</span>` : ""
+    }`;
+  }
+
+  function renderProjectsList() {
+    el("projects-list").innerHTML = projects
+      .map(
+        (p) =>
+          `<div class="article-list-item${p.id === currentProjectId ? " active" : ""}" data-id="${p.id}">${escapeHtml(
+            p.title
+          )}${projectStatusLabel(p)}${projectBadges(p)}${
+            p.tags && p.tags.length ? `<div class="article-list-tags">${p.tags.map(escapeHtml).join(", ")}</div>` : ""
+          }</div>`
+      )
+      .join("");
+    el("projects-list")
+      .querySelectorAll(".article-list-item")
+      .forEach((item) => {
+        item.addEventListener("click", () => {
+          const p = projects.find((x) => x.id === Number(item.dataset.id));
+          if (p) populateProjectForm(p);
+        });
+      });
+  }
+
+  function populateProjectForm(project) {
+    currentProjectId = project.id;
+    currentProjectVersion = project.version || null;
+    currentProjectLocked = !!project.locked;
+    updateLockButton("lock-project-btn", currentProjectLocked);
+    el("project-title").value = project.title;
+    el("project-slug").value = project.slug;
+    el("project-summary").value = project.summary || "";
+    el("project-tags").value = (project.tags || []).join(", ");
+    el("project-tech-stack").value = (project.tech_stack || []).join(", ");
+    el("project-status").value = project.status || "";
+    el("project-featured").checked = !!project.featured;
+    const links = project.links || {};
+    el("project-link-github").value = links.github || "";
+    el("project-link-demo").value = links.demo || "";
+    el("project-link-docs").value = links.docs || "";
+    el("project-link-download").value = links.download || "";
+    el("project-og-image").value = project.og_image || "";
+    el("project-body").value = project.body || "";
+    el("project-published").checked = !!project.published_at;
+    el("project-publish-at").value = isoToLocalInput(project.published_at);
+    el("project-autosave-status").textContent = "";
+    updateProjectExtras();
+    renderProjectsList();
+  }
+
+  function clearProjectForm() {
+    currentProjectId = null;
+    currentProjectVersion = null;
+    currentProjectLocked = false;
+    updateLockButton("lock-project-btn", false);
+    el("project-title").value = "";
+    el("project-slug").value = "";
+    el("project-summary").value = "";
+    el("project-tags").value = "";
+    el("project-tech-stack").value = "";
+    el("project-status").value = "";
+    el("project-featured").checked = false;
+    el("project-link-github").value = "";
+    el("project-link-demo").value = "";
+    el("project-link-docs").value = "";
+    el("project-link-download").value = "";
+    el("project-og-image").value = "";
+    el("project-body").value = "";
+    el("project-published").checked = false;
+    el("project-publish-at").value = "";
+    el("project-autosave-status").textContent = "";
+    updateProjectExtras();
+    renderProjectsList();
+  }
+
+  function updateProjectExtras() {
+    const slug = el("project-slug").value;
+    const previewLink = el("preview-project-link");
+    if (currentProjectId && slug) {
+      previewLink.href = `/projects/${slug}?preview=1`;
+      previewLink.hidden = false;
+    } else {
+      previewLink.hidden = true;
+    }
+  }
+
+  function buildProjectBody() {
+    const publishAtLocal = el("project-publish-at").value;
+    const published = el("project-published").checked;
+    const links = {};
+    if (el("project-link-github").value.trim()) links.github = el("project-link-github").value.trim();
+    if (el("project-link-demo").value.trim()) links.demo = el("project-link-demo").value.trim();
+    if (el("project-link-docs").value.trim()) links.docs = el("project-link-docs").value.trim();
+    if (el("project-link-download").value.trim()) links.download = el("project-link-download").value.trim();
+    return {
+      title: el("project-title").value,
+      slug: el("project-slug").value,
+      summary: el("project-summary").value,
+      tags: parseTags(el("project-tags").value),
+      tech_stack: el("project-tech-stack").value.split(",").map((s) => s.trim()).filter(Boolean),
+      status: el("project-status").value.trim() || null,
+      featured: el("project-featured").checked,
+      links,
+      og_image: el("project-og-image").value || null,
+      body: el("project-body").value,
+      published_at: published ? (publishAtLocal ? new Date(publishAtLocal).toISOString() : new Date().toISOString()) : null,
+    };
+  }
+
+  el("projects-btn").addEventListener("click", async () => {
+    el("projects-modal").hidden = false;
+    projects = await api("/projects");
+    renderProjectsList();
+    clearProjectForm();
+  });
+  closeModalOnClick("close-projects", "projects-modal");
+
+  el("new-project").addEventListener("click", () => clearProjectForm());
+
+  el("save-project").addEventListener("click", async () => {
+    const body = buildProjectBody();
+    if (!body.title) return alert("Title is required.");
+    try {
+      if (currentProjectId) {
+        body.expected_version = currentProjectVersion;
+        await api(`/projects/${currentProjectId}`, { method: "PATCH", body: JSON.stringify(body) });
+      } else {
+        const res = await api("/projects", { method: "POST", body: JSON.stringify(body) });
+        currentProjectId = res.id;
+        el("project-slug").value = res.slug;
+      }
+      projects = await api("/projects");
+      const p = projects.find((x) => x.id === currentProjectId);
+      if (p) currentProjectVersion = p.version || null;
+      updateProjectExtras();
+      renderProjectsList();
+      el("project-autosave-status").textContent = "Saved " + new Date().toLocaleTimeString();
+    } catch (err) {
+      if (err.conflict) {
+        el("project-autosave-status").textContent = err.message;
+        return;
+      }
+      alert(err.message);
+    }
+  });
+
+  el("delete-project").addEventListener("click", async () => {
+    if (!currentProjectId) return;
+    if (!confirm("Delete this project?")) return;
+    await api(`/projects/${currentProjectId}`, { method: "DELETE" });
+    projects = await api("/projects");
+    renderProjectsList();
+    clearProjectForm();
+  });
+
+  el("lock-project-btn").addEventListener("click", async () => {
+    if (!currentProjectId) return alert("Save the project first.");
+    try {
+      await api(`/projects/${currentProjectId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ locked: !currentProjectLocked, expected_version: currentProjectVersion }),
+      });
+      currentProjectLocked = !currentProjectLocked;
+      updateLockButton("lock-project-btn", currentProjectLocked);
+      projects = await api("/projects");
+      const p = projects.find((x) => x.id === currentProjectId);
+      if (p) currentProjectVersion = p.version || null;
+      renderProjectsList();
     } catch (err) {
       alert(err.message);
     }
@@ -2681,9 +2876,10 @@
   }
 
   async function loadTrash() {
-    const [pages, articles] = await Promise.all([api("/pages/trash"), api("/articles/trash")]);
+    const [pages, articles, trashedProjects] = await Promise.all([api("/pages/trash"), api("/articles/trash"), api("/projects/trash")]);
     renderTrashList("trash-pages-list", pages, "page", "/pages");
     renderTrashList("trash-articles-list", articles, "article", "/articles");
+    renderTrashList("trash-projects-list", trashedProjects, "project", "/projects");
   }
 
   el("trash-btn").addEventListener("click", async () => {
@@ -3060,6 +3256,7 @@
     const actions = [
       { label: "Add new page", sub: "", run: () => { closeCommandPalette(); el("new-page-btn").click(); } },
       { label: "Open Articles", sub: "", run: () => { closeCommandPalette(); el("articles-btn").click(); } },
+      { label: "Open Projects", sub: "", run: () => { closeCommandPalette(); el("projects-btn").click(); } },
       { label: "Open Media Library", sub: "", run: () => { closeCommandPalette(); el("media-btn").click(); } },
       { label: "Open Redirects", sub: "", run: () => { closeCommandPalette(); el("redirects-btn").click(); } },
       { label: "Open Analytics", sub: "", run: () => { closeCommandPalette(); el("analytics-btn").click(); } },
@@ -3110,6 +3307,14 @@
     const article = articles.find((a) => a.id === id);
     if (article) populateArticleForm(article);
     renderArticlesList();
+  }
+
+  async function openProjectEditorById(id) {
+    el("projects-modal").hidden = false;
+    projects = await api("/projects");
+    const project = projects.find((p) => p.id === id);
+    if (project) populateProjectForm(project);
+    else renderProjectsList();
   }
 
   async function goToBlock(pageId, blockId) {
@@ -3183,6 +3388,13 @@
             label: `Block: ${blockLabel(b.type)}`,
             sub: `page #${b.page_id}`,
             run: () => goToBlock(b.page_id, b.id),
+          })
+        );
+        (results.projects || []).forEach((p) =>
+          items.push({
+            label: `Project: ${p.title}`,
+            sub: "",
+            run: () => openProjectEditorById(p.id),
           })
         );
         renderCommandResults(items);

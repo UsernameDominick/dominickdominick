@@ -1,4 +1,4 @@
-import { listArticles, getSimulation, getScan } from "./db.js";
+import { listArticles, listProjects, getSimulation, getScan } from "./db.js";
 import { renderSimulationSvg } from "./simulation-render.js";
 
 export function esc(str) {
@@ -210,11 +210,11 @@ export function excerpt(text, maxLen = 155) {
   return cut.slice(0, lastSpace > 0 ? lastSpace : maxLen).trim() + "…";
 }
 
-export function renderSearchResultsHtml(query, pages, articles) {
+export function renderSearchResultsHtml(query, pages, articles, projects = []) {
   if (!query) {
     return `<p class="empty-hint">Enter a search term above to look through pages and posts.</p>`;
   }
-  const total = pages.length + articles.length;
+  const total = pages.length + articles.length + projects.length;
   if (!total) {
     return `<p class="empty-hint">No results for "${esc(query)}".</p>`;
   }
@@ -232,8 +232,17 @@ export function renderSearchResultsHtml(query, pages, articles) {
         `<li><a href="/random/${esc(a.slug)}">${esc(a.title)}</a><p>${esc(excerpt(a.body, 140))}</p></li>`
     )
     .join("");
+  const projectItems = projects
+    .map(
+      (p) =>
+        `<li><a href="/projects/${esc(p.slug)}">${esc(p.title)}</a>${
+          p.summary ? `<p>${esc(p.summary)}</p>` : ""
+        }</li>`
+    )
+    .join("");
   return `<p class="search-result-count">${total} result${total === 1 ? "" : "s"} for "${esc(query)}"</p>
 ${pageItems ? `<h2>Pages</h2><ul class="search-results">${pageItems}</ul>` : ""}
+${projectItems ? `<h2>Projects</h2><ul class="search-results">${projectItems}</ul>` : ""}
 ${articleItems ? `<h2>Posts</h2><ul class="search-results">${articleItems}</ul>` : ""}`;
 }
 
@@ -578,6 +587,23 @@ async function renderBlockInner(env, block, ctx) {
             }<time datetime="${esc(a.published_at)}">${esc(
               (a.published_at || "").slice(0, 10)
             )}</time><h2><a href="/random/${esc(a.slug)}">${esc(a.title)}</a></h2>${renderTags(a.tags)}</article>`
+        )
+        .join("\n")}</div>`;
+    }
+    case "project-list": {
+      const projects = await listProjects(env, {
+        publishedOnly: true,
+        limit: c.limit || 12,
+        tag: c.tag || (ctx && ctx.activeTagFilter) || null,
+        featuredOnly: !!c.featuredOnly,
+      });
+      if (!projects.length) return `<p class="empty-hint">No projects yet.</p>`;
+      return `<div class="project-list">${projects
+        .map(
+          (p) =>
+            `<div class="project-card">${
+              p.featured ? `<span class="featured-badge">★ Featured</span>` : ""
+            }<h2><a href="/projects/${esc(p.slug)}">${esc(p.title)}</a></h2>${p.summary ? `<p>${esc(p.summary)}</p>` : ""}${renderTags(p.tags)}</div>`
         )
         .join("\n")}</div>`;
     }

@@ -62,6 +62,30 @@ CREATE TABLE articles (
   pinned INTEGER NOT NULL DEFAULT 0
 );
 
+-- Projects are a real content type (not just project-card blocks dropped on
+-- a page) — their own list/detail pages, so build journals, relationships,
+-- and the rest of the "projects and portfolio" section have something
+-- structured to attach to.
+CREATE TABLE projects (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  slug TEXT UNIQUE NOT NULL,
+  title TEXT NOT NULL,
+  summary TEXT NOT NULL DEFAULT '',
+  body TEXT NOT NULL DEFAULT '',
+  tech_stack TEXT NOT NULL DEFAULT '[]',
+  status TEXT,
+  links TEXT NOT NULL DEFAULT '{}',
+  og_image TEXT,
+  tags TEXT NOT NULL DEFAULT '[]',
+  featured INTEGER NOT NULL DEFAULT 0,
+  published_at TEXT,
+  deleted_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  version INTEGER NOT NULL DEFAULT 1,
+  locked INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE TABLE settings (
   key TEXT PRIMARY KEY,
   value TEXT

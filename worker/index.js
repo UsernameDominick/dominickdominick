@@ -5,6 +5,7 @@ import {
   listBlocks,
   listArticles,
   getArticleBySlug,
+  getProjectBySlug,
   getSetting,
   recordPageview,
   getRedirect,
@@ -172,10 +173,67 @@ async function renderArticle(env, article, navItems) {
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
+async function renderProject(env, project, navItems) {
+  const description = project.summary || excerpt(project.body) || project.title;
+  const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
+
+  const linkButtons = ["github", "demo", "docs", "download"]
+    .filter((key) => project.links && project.links[key])
+    .map((key) => `<a class="btn" href="${esc(project.links[key])}" target="_blank" rel="noopener">${esc(key[0].toUpperCase() + key.slice(1))}</a>`)
+    .join(" ");
+  const techStackHtml = project.tech_stack && project.tech_stack.length
+    ? `<div class="tags">${project.tech_stack.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>`
+    : "";
+
+  const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 4;">
+    <div class="article-meta">
+      ${project.status ? `<span>${esc(project.status)}</span><span class="article-meta-sep">·</span>` : ""}
+      <time datetime="${esc(project.published_at)}">${esc((project.published_at || "").slice(0, 10))}</time>
+      <button type="button" class="copy-link-btn" data-copy-text="Copy link" data-copied-text="Copied!">Copy link</button>
+    </div>
+    <h1>${esc(project.title)}</h1>
+    ${project.summary ? `<p>${esc(project.summary)}</p>` : ""}
+    ${techStackHtml}
+    ${renderTags(project.tags)}
+    ${linkButtons ? `<p>${linkButtons}</p>` : ""}
+  </div>
+  <div class="block" style="grid-column:1 / span 24;grid-row:6 / span 12;">
+    ${paragraphsHtml(project.body)}
+  </div>`;
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "CreativeWork",
+    name: project.title,
+    description,
+    dateCreated: project.created_at,
+    dateModified: project.updated_at,
+    author: { "@type": "Person", name: "Dominick" },
+  };
+  const html = renderShell({
+    title: `${project.title} · Dominick`,
+    description,
+    path: `/projects/${project.slug}`,
+    navItems,
+    activeSlug: "projects",
+    bodyHtml,
+    jsonLd,
+    ogType: "article",
+    publishedTime: project.published_at,
+    modifiedTime: project.updated_at,
+    keywords: project.tags && project.tags.length ? project.tags.join(", ") : null,
+    ogImage: project.og_image || defaultOgImage || null,
+    theme,
+    footerText,
+    customHead,
+  });
+  return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
+}
+
 async function renderSearch(env, query, navItems) {
   const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
-  const { pages, articles } = query ? await publicSearch(env, query) : { pages: [], articles: [] };
-  const resultsHtml = renderSearchResultsHtml(query, pages, articles);
+  const { pages, articles, projects } = query ? await publicSearch(env, query) : { pages: [], articles: [], projects: [] };
+  const resultsHtml = renderSearchResultsHtml(query, pages, articles, projects);
   const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 16;">
     <h1>Search</h1>
     ${resultsHtml}
@@ -489,6 +547,20 @@ async function route(request, env, ctx) {
       const navItems = await listNavPages(env);
       if (isPublished) trackView(ctx, env, request, path);
       return renderArticle(env, article, navItems);
+    }
+
+    // Individual project page: /projects/:slug
+    const projectMatch = path.match(/^\/projects\/([a-z0-9-]+)$/);
+    if (projectMatch) {
+      const project = await getProjectBySlug(env, projectMatch[1]);
+      const isPublished = project && project.published_at && project.published_at <= new Date().toISOString();
+      const isPreview = url.searchParams.get("preview") === "1" && (await isAuthenticated(request, env));
+      if (!project || (!isPublished && !isPreview)) {
+        return env.ASSETS.fetch(request);
+      }
+      const navItems = await listNavPages(env);
+      if (isPublished) trackView(ctx, env, request, path);
+      return renderProject(env, project, navItems);
     }
 
     const slug = path === "/" ? "home" : path.replace(/^\/+/, "").replace(/\/+$/, "");

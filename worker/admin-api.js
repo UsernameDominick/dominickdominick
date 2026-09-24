@@ -76,6 +76,15 @@ import {
   deleteSharedBlock,
   findSharedBlockUsage,
   detachSharedBlock,
+  listProjects,
+  createProject,
+  updateProject,
+  deleteProject,
+  restoreProject,
+  hardDeleteProject,
+  listTrashedProjects,
+  snapshotProject,
+  restoreProjectRevision,
 } from "./db.js";
 import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated } from "./auth.js";
 
@@ -487,6 +496,73 @@ async function routeAdminApi(request, env, url, ctx) {
     return json({ ok: true });
   }
 
+  // /projects
+  if (path === "/projects" && method === "GET") {
+    return json(await listProjects(env));
+  }
+  if (path === "/projects" && method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    const slug = slugify(body.slug || body.title);
+    if (!slug) return json({ error: "Title or slug required" }, { status: 400 });
+    if (RESERVED_SLUGS.has(slug)) return json({ error: "Reserved slug" }, { status: 400 });
+    if (await slugExists(env, "projects", slug)) {
+      return json({ error: "A project with that slug already exists" }, { status: 409 });
+    }
+    const id = await createProject(env, { ...body, slug });
+    log(ctx, env, "create", "project", body.title || slug);
+    return json({ id, slug });
+  }
+  const projectMatch = path.match(/^\/projects\/(\d+)$/);
+  if (projectMatch && method === "PATCH") {
+    const body = await request.json().catch(() => ({}));
+    const id = Number(projectMatch[1]);
+    const conflict = await checkConflict(env, "projects", id, body.expected_version);
+    if (conflict) return conflict;
+    if (body.slug) {
+      body.slug = slugify(body.slug);
+      if (await slugExists(env, "projects", body.slug, id)) {
+        return json({ error: "A project with that slug already exists" }, { status: 409 });
+      }
+    }
+    const before = await env.DB.prepare("SELECT title, published_at FROM projects WHERE id = ?").bind(id).first();
+    await snapshotProject(env, id);
+    await updateProject(env, id, body);
+    const wasPublished = !!(before && before.published_at && before.published_at <= new Date().toISOString());
+    const newPublishedAt = "published_at" in body ? body.published_at : before && before.published_at;
+    const isNowPublished = !!(newPublishedAt && newPublishedAt <= new Date().toISOString());
+    if (wasPublished !== isNowPublished) {
+      log(ctx, env, isNowPublished ? "publish" : "unpublish", "project", body.title || (before && before.title));
+    }
+    const fresh = await env.DB.prepare("SELECT version, slug FROM projects WHERE id = ?").bind(id).first();
+    return json({ ok: true, version: fresh?.version, slug: fresh?.slug });
+  }
+  if (projectMatch && method === "DELETE") {
+    const id = Number(projectMatch[1]);
+    const p = await env.DB.prepare("SELECT title FROM projects WHERE id = ?").bind(id).first();
+    await deleteProject(env, id);
+    log(ctx, env, "trash", "project", p?.title || `#${id}`);
+    return json({ ok: true });
+  }
+  if (path === "/projects/trash" && method === "GET") {
+    return json(await listTrashedProjects(env));
+  }
+  const projectRestoreMatch = path.match(/^\/projects\/(\d+)\/restore$/);
+  if (projectRestoreMatch && method === "POST") {
+    const id = Number(projectRestoreMatch[1]);
+    await restoreProject(env, id);
+    const p = await env.DB.prepare("SELECT title FROM projects WHERE id = ?").bind(id).first();
+    log(ctx, env, "restore", "project", p?.title || `#${id}`);
+    return json({ ok: true });
+  }
+  const projectPermanentMatch = path.match(/^\/projects\/(\d+)\/permanent$/);
+  if (projectPermanentMatch && method === "DELETE") {
+    const id = Number(projectPermanentMatch[1]);
+    const p = await env.DB.prepare("SELECT title FROM projects WHERE id = ?").bind(id).first();
+    await hardDeleteProject(env, id);
+    log(ctx, env, "delete-forever", "project", p?.title || `#${id}`);
+    return json({ ok: true });
+  }
+
   // /upload — image files only, 8MB cap. An optional ?folder= query param
   // files the upload into that folder from the moment it lands.
   if (path === "/upload" && method === "POST") {
@@ -740,11 +816,12 @@ async function routeAdminApi(request, env, url, ctx) {
     return json({ results, applied: apply });
   }
 
-  // /revisions?kind=page|article&id=N — history for a page's blocks or an article
+  // /revisions?kind=page|article|project&id=N — history for a page's blocks,
+  // an article, or a project
   if (path === "/revisions" && method === "GET") {
     const kind = url.searchParams.get("kind");
     const id = Number(url.searchParams.get("id"));
-    if (!["page", "article"].includes(kind) || !id) {
+    if (!["page", "article", "project"].includes(kind) || !id) {
       return json({ error: "Invalid kind/id" }, { status: 400 });
     }
     return json(await listRevisions(env, kind, id));
@@ -765,6 +842,7 @@ async function routeAdminApi(request, env, url, ctx) {
     try {
       if (body.kind === "page") await restorePageRevision(env, entityId, revisionId);
       else if (body.kind === "article") await restoreArticleRevision(env, entityId, revisionId);
+      else if (body.kind === "project") await restoreProjectRevision(env, entityId, revisionId);
       else return json({ error: "Invalid kind" }, { status: 400 });
     } catch (err) {
       return json({ error: err.message || "Restore failed" }, { status: 400 });

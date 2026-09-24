@@ -474,6 +474,161 @@ export async function hardDeleteArticle(env, id) {
   await env.DB.prepare("DELETE FROM articles WHERE id = ?").bind(id).run();
 }
 
+// ---------- Projects (a real content type — its own list/detail pages,
+// not just project-card blocks manually placed on a page) ----------
+function parseProjectRow(row) {
+  if (!row) return row;
+  let tags = [];
+  try {
+    tags = JSON.parse(row.tags || "[]");
+  } catch {
+    tags = [];
+  }
+  let tech_stack = [];
+  try {
+    tech_stack = JSON.parse(row.tech_stack || "[]");
+  } catch {
+    tech_stack = [];
+  }
+  let links = {};
+  try {
+    links = JSON.parse(row.links || "{}");
+  } catch {
+    links = {};
+  }
+  return { ...row, tags, tech_stack, links };
+}
+
+export async function listProjects(env, { publishedOnly = false, limit = null, tag = null, featuredOnly = false } = {}) {
+  let sql = "SELECT * FROM projects WHERE deleted_at IS NULL";
+  const params = [];
+  if (publishedOnly) {
+    sql += " AND published_at IS NOT NULL AND published_at <= ?";
+    params.push(new Date().toISOString());
+  }
+  sql += " ORDER BY COALESCE(published_at, created_at) DESC";
+  const lim = Number(limit);
+  if (Number.isFinite(lim) && lim > 0) sql += ` LIMIT ${Math.floor(lim)}`;
+  const { results } = await env.DB.prepare(sql).bind(...params).all();
+  let projects = results.map(parseProjectRow);
+  if (tag) projects = projects.filter((p) => p.tags.includes(tag));
+  if (featuredOnly) projects = projects.filter((p) => p.featured);
+  return projects;
+}
+
+export async function listTrashedProjects(env) {
+  const { results } = await env.DB
+    .prepare("SELECT * FROM projects WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC")
+    .all();
+  return results.map(parseProjectRow);
+}
+
+export async function getProjectBySlug(env, slug) {
+  const row = await env.DB.prepare("SELECT * FROM projects WHERE slug = ? AND deleted_at IS NULL").bind(slug).first();
+  return parseProjectRow(row);
+}
+
+export async function createProject(env, { slug, title, summary, body, published, published_at, tags, tech_stack, status, links, og_image, featured }) {
+  const res = await env.DB
+    .prepare(
+      "INSERT INTO projects (slug, title, summary, body, published_at, tags, tech_stack, status, links, og_image, featured) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    )
+    .bind(
+      slug,
+      title,
+      summary || "",
+      body || "",
+      resolvePublishedAt({ published, published_at }),
+      JSON.stringify(Array.isArray(tags) ? tags : []),
+      JSON.stringify(Array.isArray(tech_stack) ? tech_stack : []),
+      status || null,
+      JSON.stringify(links && typeof links === "object" ? links : {}),
+      og_image || null,
+      featured ? 1 : 0
+    )
+    .run();
+  return res.meta.last_row_id;
+}
+
+export async function updateProject(env, id, fields) {
+  const cols = [];
+  const vals = [];
+  for (const key of ["slug", "title", "summary", "body", "og_image", "status"]) {
+    if (key in fields) {
+      cols.push(`${key} = ?`);
+      vals.push(fields[key]);
+    }
+  }
+  if ("tags" in fields) {
+    cols.push("tags = ?");
+    vals.push(JSON.stringify(Array.isArray(fields.tags) ? fields.tags : []));
+  }
+  if ("tech_stack" in fields) {
+    cols.push("tech_stack = ?");
+    vals.push(JSON.stringify(Array.isArray(fields.tech_stack) ? fields.tech_stack : []));
+  }
+  if ("links" in fields) {
+    cols.push("links = ?");
+    vals.push(JSON.stringify(fields.links && typeof fields.links === "object" ? fields.links : {}));
+  }
+  if ("published_at" in fields || "published" in fields) {
+    cols.push("published_at = ?");
+    vals.push(resolvePublishedAt(fields));
+  }
+  if ("locked" in fields) {
+    cols.push("locked = ?");
+    vals.push(fields.locked ? 1 : 0);
+  }
+  if ("featured" in fields) {
+    cols.push("featured = ?");
+    vals.push(fields.featured ? 1 : 0);
+  }
+  if (!cols.length) return;
+  cols.push("updated_at = datetime('now')", "version = version + 1");
+  vals.push(id);
+  await env.DB.prepare(`UPDATE projects SET ${cols.join(", ")} WHERE id = ?`).bind(...vals).run();
+}
+
+export async function deleteProject(env, id) {
+  await env.DB.prepare("UPDATE projects SET deleted_at = datetime('now'), version = version + 1 WHERE id = ?").bind(id).run();
+}
+
+export async function restoreProject(env, id) {
+  await env.DB.prepare("UPDATE projects SET deleted_at = NULL, version = version + 1 WHERE id = ?").bind(id).run();
+}
+
+export async function hardDeleteProject(env, id) {
+  await env.DB.prepare("DELETE FROM projects WHERE id = ?").bind(id).run();
+}
+
+export async function snapshotProject(env, projectId) {
+  const row = await env.DB.prepare("SELECT * FROM projects WHERE id = ?").bind(projectId).first();
+  if (!row) return;
+  const prev = await env.DB
+    .prepare("SELECT snapshot FROM revisions WHERE kind = 'project' AND entity_id = ? ORDER BY id DESC LIMIT 1")
+    .bind(projectId)
+    .first();
+  const label = describeArticleChange(prev ? JSON.parse(prev.snapshot) : null, row);
+  await env.DB
+    .prepare("INSERT INTO revisions (kind, entity_id, snapshot, label) VALUES ('project', ?, ?, ?)")
+    .bind(projectId, JSON.stringify(row), label)
+    .run();
+  await pruneRevisions(env, "project", projectId);
+}
+
+export async function restoreProjectRevision(env, projectId, revisionId) {
+  const rev = await getRevision(env, revisionId);
+  if (!rev || rev.kind !== "project" || rev.entity_id !== projectId) throw new Error("Revision not found");
+  await snapshotProject(env, projectId);
+  const p = rev.snapshot;
+  await env.DB
+    .prepare(
+      "UPDATE projects SET title = ?, summary = ?, body = ?, tags = ?, tech_stack = ?, status = ?, links = ?, og_image = ?, published_at = ?, updated_at = datetime('now'), version = version + 1 WHERE id = ?"
+    )
+    .bind(p.title, p.summary, p.body, p.tags, p.tech_stack, p.status, p.links, p.og_image, p.published_at, projectId)
+    .run();
+}
+
 export async function listRedirects(env) {
   const { results } = await env.DB.prepare("SELECT * FROM redirects ORDER BY from_path").all();
   return results;
@@ -1100,7 +1255,7 @@ export async function restoreArticleRevision(env, articleId, revisionId) {
 // ---------- Search ----------
 export async function search(env, q) {
   const like = `%${escapeLike(q)}%`;
-  const [pages, articles, blocks] = await Promise.all([
+  const [pages, articles, blocks, projects] = await Promise.all([
     env.DB
       .prepare(
         "SELECT id, slug, title FROM pages WHERE title LIKE ? ESCAPE '\\' OR meta_description LIKE ? ESCAPE '\\' OR nav_label LIKE ? ESCAPE '\\' OR slug LIKE ? ESCAPE '\\' LIMIT 15"
@@ -1114,15 +1269,21 @@ export async function search(env, q) {
       .bind(like, like, like, like)
       .all(),
     env.DB.prepare("SELECT id, page_id, type FROM blocks WHERE content LIKE ? ESCAPE '\\' LIMIT 15").bind(like).all(),
+    env.DB
+      .prepare(
+        "SELECT id, slug, title FROM projects WHERE title LIKE ? ESCAPE '\\' OR summary LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\' OR slug LIKE ? ESCAPE '\\' LIMIT 15"
+      )
+      .bind(like, like, like, like, like)
+      .all(),
   ]);
-  return { pages: pages.results, articles: articles.results, blocks: blocks.results };
+  return { pages: pages.results, articles: articles.results, blocks: blocks.results, projects: projects.results };
 }
 
 // Public-facing search: only live pages and published articles, unlike the
 // admin command palette's search() above which intentionally sees everything.
 export async function publicSearch(env, q) {
   const like = `%${escapeLike(q)}%`;
-  const [pages, articles] = await Promise.all([
+  const [pages, articles, projects] = await Promise.all([
     env.DB
       .prepare(
         "SELECT id, slug, title, meta_description FROM pages WHERE deleted_at IS NULL AND (title LIKE ? ESCAPE '\\' OR meta_description LIKE ? ESCAPE '\\') ORDER BY title LIMIT 20"
@@ -1138,8 +1299,17 @@ export async function publicSearch(env, q) {
       )
       .bind(new Date().toISOString(), like, like, like)
       .all(),
+    env.DB
+      .prepare(
+        `SELECT id, slug, title, summary, tags, published_at FROM projects
+         WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ?
+         AND (title LIKE ? ESCAPE '\\' OR summary LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\')
+         ORDER BY published_at DESC LIMIT 20`
+      )
+      .bind(new Date().toISOString(), like, like, like, like)
+      .all(),
   ]);
-  return { pages: pages.results, articles: articles.results.map(parseArticleRow) };
+  return { pages: pages.results, articles: articles.results.map(parseArticleRow), projects: projects.results.map(parseProjectRow) };
 }
 
 // Related posts for an article: prefers shared tags (most overlap first,
@@ -1260,7 +1430,7 @@ export async function setSetting(env, key, value) {
 const BACKUP_VERSION = 1;
 
 export async function exportAll(env) {
-  const [pages, blocks, articles, settings, redirects, templates, media, scans, sharedBlocks] = await Promise.all([
+  const [pages, blocks, articles, settings, redirects, templates, media, scans, sharedBlocks, projects] = await Promise.all([
     env.DB.prepare("SELECT * FROM pages ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM blocks ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM articles ORDER BY id").all(),
@@ -1270,6 +1440,7 @@ export async function exportAll(env) {
     env.DB.prepare("SELECT * FROM media ORDER BY key").all(),
     env.DB.prepare("SELECT * FROM scans ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM shared_blocks ORDER BY id").all(),
+    env.DB.prepare("SELECT * FROM projects ORDER BY id").all(),
   ]);
   return {
     version: BACKUP_VERSION,
@@ -1283,6 +1454,7 @@ export async function exportAll(env) {
     media: media.results,
     scans: scans.results,
     shared_blocks: sharedBlocks.results,
+    projects: projects.results,
   };
 }
 
@@ -1322,7 +1494,7 @@ export async function importAll(env, data) {
   // is missing. `redirects` and `templates` were added later, so older
   // legitimate backups won't have them — default those to empty instead of
   // rejecting them.
-  const { pages, blocks, articles, settings, redirects = [], templates = [], media = [], scans = [], shared_blocks: sharedBlocks = [] } = data;
+  const { pages, blocks, articles, settings, redirects = [], templates = [], media = [], scans = [], shared_blocks: sharedBlocks = [], projects = [] } = data;
   if (
     !Array.isArray(pages) ||
     !Array.isArray(blocks) ||
@@ -1332,7 +1504,8 @@ export async function importAll(env, data) {
     !Array.isArray(templates) ||
     !Array.isArray(media) ||
     !Array.isArray(scans) ||
-    !Array.isArray(sharedBlocks)
+    !Array.isArray(sharedBlocks) ||
+    !Array.isArray(projects)
   ) {
     throw new Error("This doesn't look like a dominickdominick backup file (missing pages/blocks/articles/settings)");
   }
@@ -1347,6 +1520,7 @@ export async function importAll(env, data) {
     env.DB.prepare("DELETE FROM templates"),
     env.DB.prepare("DELETE FROM media"),
     env.DB.prepare("DELETE FROM scans"),
+    env.DB.prepare("DELETE FROM projects"),
   ];
 
   for (const p of pages) {
@@ -1487,6 +1661,35 @@ export async function importAll(env, data) {
           s.size ?? 0,
           s.created_at,
           s.updated_at
+        )
+    );
+  }
+
+  for (const p of projects) {
+    stmts.push(
+      env.DB
+        .prepare(
+          `INSERT INTO projects (id, slug, title, summary, body, tech_stack, status, links, og_image, tags, featured, published_at, deleted_at, created_at, updated_at, version, locked)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(
+          p.id,
+          p.slug,
+          p.title,
+          p.summary ?? "",
+          p.body ?? "",
+          p.tech_stack ?? "[]",
+          p.status ?? null,
+          p.links ?? "{}",
+          p.og_image ?? null,
+          p.tags ?? "[]",
+          p.featured ?? 0,
+          p.published_at ?? null,
+          p.deleted_at ?? null,
+          p.created_at,
+          p.updated_at,
+          p.version ?? 1,
+          p.locked ?? 0
         )
     );
   }

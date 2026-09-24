@@ -504,6 +504,20 @@
   font-size: 0.85rem;
 }
 
+.project-featured-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.project-links-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
 .article-word-count {
   font-size: 0.78rem;
   color: var(--text-dim);
