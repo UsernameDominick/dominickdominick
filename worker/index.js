@@ -6,6 +6,7 @@ import {
   listArticles,
   getArticleBySlug,
   getProjectBySlug,
+  listProjects,
   getRelatedProjects,
   listJournalEntries,
   listBomItems,
@@ -31,6 +32,7 @@ import {
   excerpt,
   readingTime,
   esc,
+  safeHref,
   paragraphsHtml,
   extractHeadings,
   tableOfContentsHtml,
@@ -187,7 +189,7 @@ async function renderProject(env, project, navItems) {
 
   const linkButtons = ["github", "demo", "docs", "download"]
     .filter((key) => project.links && project.links[key])
-    .map((key) => `<a class="btn" href="${esc(project.links[key])}" target="_blank" rel="noopener">${esc(key[0].toUpperCase() + key.slice(1))}</a>`)
+    .map((key) => `<a class="btn" href="${esc(safeHref(project.links[key]))}" target="_blank" rel="noopener">${esc(key[0].toUpperCase() + key.slice(1))}</a>`)
     .join(" ");
   const techStackHtml = project.tech_stack && project.tech_stack.length
     ? `<div class="tags">${project.tech_stack.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>`
@@ -208,8 +210,17 @@ async function renderProject(env, project, navItems) {
   const relatedMediaHtml = renderRelatedMediaHtml(relatedArticleRows, relatedSims.filter(Boolean), relatedScanRows.filter(Boolean));
 
   // Rows handed out in order (same reasoning as renderArticle) so an
-  // optional section's length can't throw off the ones after it.
-  let row = 6;
+  // optional section's length can't throw off the ones after it. Unlike
+  // the article header (title/meta/tags only), a project header can also
+  // carry a summary, tech stack, and link buttons, so its span has to grow
+  // with what's actually present or long content overlaps the body below it.
+  const headerSpan =
+    6 +
+    (project.summary ? 3 : 0) +
+    (techStackHtml ? 2 : 0) +
+    (project.tags && project.tags.length ? 2 : 0) +
+    (linkButtons ? 2 : 0);
+  let row = headerSpan + 2;
   const bodyRow = row;
   row += 12;
   const bomRow = bomHtml ? row : null;
@@ -220,7 +231,7 @@ async function renderProject(env, project, navItems) {
   if (relatedMediaHtml) row += 6;
   const relatedRow = row;
 
-  const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 4;">
+  const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span ${headerSpan};">
     <div class="article-meta">
       ${project.status ? `<span>${esc(project.status)}</span><span class="article-meta-sep">·</span>` : ""}
       <time datetime="${esc(project.published_at)}">${esc((project.published_at || "").slice(0, 10))}</time>
@@ -240,15 +251,26 @@ async function renderProject(env, project, navItems) {
   ${relatedMediaHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${relatedMediaRow} / span 6;">${relatedMediaHtml}</div>` : ""}
   ${relatedHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${relatedRow} / span 6;">${relatedHtml}</div>` : ""}`;
 
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "CreativeWork",
-    name: project.title,
-    description,
-    dateCreated: project.created_at,
-    dateModified: project.updated_at,
-    author: { "@type": "Person", name: "Dominick" },
-  };
+  const jsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "CreativeWork",
+      name: project.title,
+      description,
+      dateCreated: project.created_at,
+      dateModified: project.updated_at,
+      author: { "@type": "Person", name: "Dominick" },
+      ...(project.tags && project.tags.length ? { keywords: project.tags.join(", ") } : {}),
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Home", item: "https://dominickdominick.com/" },
+        { "@type": "ListItem", position: 2, name: project.title, item: `https://dominickdominick.com/projects/${project.slug}` },
+      ],
+    },
+  ];
   const html = renderShell({
     title: `${project.title} · Dominick`,
     description,
@@ -381,9 +403,11 @@ ${items}
 async function renderSitemap(env) {
   const pages = await listPages(env);
   const articles = await listArticles(env, { publishedOnly: true });
+  const projects = await listProjects(env, { publishedOnly: true });
   const entries = [
     ...pages.map((p) => ({ loc: p.slug === "home" ? "/" : `/${p.slug}`, lastmod: p.updated_at })),
     ...articles.map((a) => ({ loc: `/random/${a.slug}`, lastmod: a.updated_at || a.published_at })),
+    ...projects.map((p) => ({ loc: `/projects/${p.slug}`, lastmod: p.updated_at || p.published_at })),
   ];
   const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries
     .map(

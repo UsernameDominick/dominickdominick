@@ -1150,12 +1150,6 @@ export async function createTemplate(env, { kind, name, data }) {
   return res.meta.last_row_id;
 }
 
-export async function getTemplate(env, id) {
-  const row = await env.DB.prepare("SELECT * FROM templates WHERE id = ?").bind(id).first();
-  if (!row) return null;
-  return { ...row, data: JSON.parse(row.data || "{}") };
-}
-
 export async function deleteTemplate(env, id) {
   await env.DB.prepare("DELETE FROM templates WHERE id = ?").bind(id).run();
 }

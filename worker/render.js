@@ -10,6 +10,17 @@ export function esc(str) {
     .replace(/'/g, "&#39;");
 }
 
+// esc() stops HTML injection but a href/src value is still live even after
+// escaping — "javascript:alert(1)" has nothing to escape, so it would run
+// as-is on click. Blocks the dangerous schemes only; anything else (mailto:,
+// tel:, relative paths, bare domains without a scheme) passes through
+// unchanged, since those are all legitimate and already relied on.
+export function safeHref(url) {
+  const trimmed = String(url ?? "").trim();
+  if (/^(javascript|data|vbscript):/i.test(trimmed)) return "#";
+  return trimmed;
+}
+
 // JSON.stringify() doesn't escape "</script>" — a value containing that
 // substring (an article titled or quoting something with a closing script
 // tag, entirely plausible on a programming blog) would prematurely end the
@@ -29,7 +40,7 @@ function richText(escapedText, footnoteNums) {
   let out = escapedText
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.+?)\*/g, "<em>$1</em>")
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m, label, url) => `<a href="${safeHref(url)}" target="_blank" rel="noopener">${label}</a>`);
   if (footnoteNums && footnoteNums.size) {
     out = out.replace(/\[\^([^\]]+)\]/g, (m, label) => {
       const n = footnoteNums.get(label);
@@ -305,12 +316,12 @@ export function renderBomHtml(items) {
         b.substitution ? `<br><span class="bom-sub">Substitution: ${esc(b.substitution)}</span>` : ""
       }</td><td>${esc(String(b.quantity))}</td><td>${b.price != null ? esc(`$${b.price.toFixed(2)}`) : "—"}</td><td>${
         lineTotal != null ? esc(`$${lineTotal.toFixed(2)}`) : "—"
-      }</td><td>${b.link ? `<a href="${esc(b.link)}" target="_blank" rel="noopener">Source</a>` : ""}</td></tr>`;
+      }</td><td>${b.link ? `<a href="${esc(safeHref(b.link))}" target="_blank" rel="noopener">Source</a>` : ""}</td></tr>`;
     })
     .join("\n");
   const total = items.reduce((sum, b) => sum + (b.price != null ? b.price * b.quantity : 0), 0);
   const hasAnyPrice = items.some((b) => b.price != null);
-  return `<div class="bom"><strong>Bill of materials</strong><div class="table-wrap"><table><thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>${
+  return `<div class="bom"><strong>Bill of materials</strong><div class="table-wrap"><table><thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th><th><span class="sr-only">Source link</span></th></tr></thead><tbody>${rows}</tbody></table></div>${
     hasAnyPrice ? `<p class="bom-grand-total">Total build cost: $${total.toFixed(2)}</p>` : ""
   }</div>`;
 }
@@ -534,7 +545,7 @@ async function renderBlockInner(env, block, ctx) {
     case "image":
       return `<img src="${esc(c.url)}" alt="${esc(c.alt)}" loading="lazy" style="max-width:100%;border-radius:12px;">`;
     case "button":
-      return `<a class="btn" href="${esc(c.url)}"${c.external ? ' target="_blank" rel="noopener"' : ""}>${esc(c.label)}</a>`;
+      return `<a class="btn" href="${esc(safeHref(c.url))}"${c.external ? ' target="_blank" rel="noopener"' : ""}>${esc(c.label)}</a>`;
     case "divider":
       return `<hr>`;
     case "spacer":
@@ -591,7 +602,7 @@ async function renderBlockInner(env, block, ctx) {
       const items = Array.isArray(c.items) ? c.items.filter((it) => it && it.url) : [];
       if (!items.length) return `<p class="empty-hint">No links yet.</p>`;
       return `<ul class="block-links">${items
-        .map((it) => `<li><a href="${esc(it.url)}"${/^https?:\/\//.test(it.url || "") ? ' target="_blank" rel="noopener"' : ""}>${esc(it.label || it.url)}</a></li>`)
+        .map((it) => `<li><a href="${esc(safeHref(it.url))}"${/^https?:\/\//.test(it.url || "") ? ' target="_blank" rel="noopener"' : ""}>${esc(it.label || it.url)}</a></li>`)
         .join("")}</ul>`;
     }
     case "html":
@@ -631,7 +642,7 @@ async function renderBlockInner(env, block, ctx) {
       return modelViewerHtml(scan);
     }
     case "project-card":
-      return `<div class="project-card"><h2>${esc(c.title)}</h2>${c.description ? `<p>${esc(c.description)}</p>` : ""}${c.url ? `<a href="${esc(c.url)}"${c.external ? ' target="_blank" rel="noopener"' : ""}>${esc(c.label || c.url)}</a>` : ""}</div>`;
+      return `<div class="project-card"><h2>${esc(c.title)}</h2>${c.description ? `<p>${esc(c.description)}</p>` : ""}${c.url ? `<a href="${esc(safeHref(c.url))}"${c.external ? ' target="_blank" rel="noopener"' : ""}>${esc(c.label || c.url)}</a>` : ""}</div>`;
     case "article-list": {
       const articles = await listArticles(env, {
         publishedOnly: true,
