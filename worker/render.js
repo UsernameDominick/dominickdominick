@@ -257,6 +257,28 @@ ${projectItems ? `<h2>Projects</h2><ul class="search-results">${projectItems}</u
 ${articleItems ? `<h2>Posts</h2><ul class="search-results">${articleItems}</ul>` : ""}`;
 }
 
+export function renderTopicsIndexHtml(tagCounts) {
+  if (!tagCounts.length) return `<p class="empty-hint">No tagged content yet.</p>`;
+  const items = tagCounts
+    .map((t) => `<li><a href="/topics/${encodeURIComponent(t.tag)}">${esc(t.tag)}</a> <span class="topic-count">${t.count}</span></li>`)
+    .join("");
+  return `<ul class="topics-list">${items}</ul>`;
+}
+
+export function renderTopicPageHtml(tag, articles, projects) {
+  const total = articles.length + projects.length;
+  if (!total) return `<p class="empty-hint">Nothing tagged "${esc(tag)}" right now.</p>`;
+  const projectItems = projects
+    .map((p) => `<li><a href="/projects/${esc(p.slug)}">${esc(p.title)}</a>${p.summary ? `<p>${esc(p.summary)}</p>` : ""}</li>`)
+    .join("");
+  const articleItems = articles
+    .map((a) => `<li><a href="/random/${esc(a.slug)}">${esc(a.title)}</a><p>${esc(excerpt(a.body, 140))}</p></li>`)
+    .join("");
+  return `<p class="search-result-count">${total} thing${total === 1 ? "" : "s"} tagged "${esc(tag)}"</p>
+${projectItems ? `<h2>Projects</h2><ul class="search-results">${projectItems}</ul>` : ""}
+${articleItems ? `<h2>Posts</h2><ul class="search-results">${articleItems}</ul>` : ""}`;
+}
+
 export function renderByline(article) {
   const names = ["Dominick", ...(article.co_authors || [])];
   return names.length > 1 ? `<span class="byline">By ${names.map(esc).join(" & ")}</span>` : "";
@@ -362,8 +384,12 @@ ${links ? `<p>Try one of these instead:</p><ul class="search-results">${links}</
 
 export function renderTags(tags) {
   if (!tags || !tags.length) return "";
+  // Links to the topic page (articles + projects together), not just the
+  // article index — a project's tag used to send you to /random?tag=,
+  // which only ever searched articles and could show nothing at all for
+  // a tag that only exists on projects.
   return `<div class="tags">${tags
-    .map((t) => `<a class="tag" href="/random?tag=${encodeURIComponent(t)}">${esc(t)}</a>`)
+    .map((t) => `<a class="tag" href="/topics/${encodeURIComponent(t)}">${esc(t)}</a>`)
     .join("")}</div>`;
 }
 

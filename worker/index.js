@@ -23,6 +23,8 @@ import {
   checkRateLimit,
   recordRateLimitHit,
   runScheduledBackup,
+  getTagCounts,
+  getContentByTag,
 } from "./db.js";
 import { isAuthenticated } from "./auth.js";
 import {
@@ -45,6 +47,8 @@ import {
   renderJournalHtml,
   renderBomHtml,
   renderRelatedMediaHtml,
+  renderTopicsIndexHtml,
+  renderTopicPageHtml,
 } from "./render.js";
 import { handleAdminApi } from "./admin-api.js";
 import { renderSimulationSvg } from "./simulation-render.js";
@@ -332,6 +336,51 @@ async function renderSearch(env, query, navItems) {
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
+async function renderTopicsIndex(env, navItems) {
+  const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
+  const tagCounts = await getTagCounts(env);
+  const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 16;">
+    <h1>Topics</h1>
+    <p>Everything tagged, across posts and projects.</p>
+    ${renderTopicsIndexHtml(tagCounts)}
+  </div>`;
+  const html = renderShell({
+    title: "Topics · Dominick",
+    description: "Browse everything on dominickdominick.com by topic.",
+    path: "/topics",
+    navItems,
+    activeSlug: null,
+    bodyHtml,
+    ogImage: defaultOgImage || null,
+    theme,
+    footerText,
+    customHead,
+  });
+  return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
+}
+
+async function renderTopicPage(env, tag, navItems) {
+  const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
+  const { articles, projects } = await getContentByTag(env, tag);
+  const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 16;">
+    <h1>Tagged: ${esc(tag)}</h1>
+    ${renderTopicPageHtml(tag, articles, projects)}
+  </div>`;
+  const html = renderShell({
+    title: `${tag} · Topics · Dominick`,
+    description: `Posts and projects tagged "${tag}" on dominickdominick.com.`,
+    path: `/topics/${encodeURIComponent(tag)}`,
+    navItems,
+    activeSlug: null,
+    bodyHtml,
+    ogImage: defaultOgImage || null,
+    theme,
+    footerText,
+    customHead,
+  });
+  return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
+}
+
 async function renderNotFound(env, navItems) {
   const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
   const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 16;">
@@ -435,10 +484,13 @@ async function renderSitemap(env) {
   const pages = await listPages(env);
   const articles = await listArticles(env, { publishedOnly: true });
   const projects = await listProjects(env, { publishedOnly: true });
+  const tagCounts = await getTagCounts(env);
   const entries = [
     ...pages.map((p) => ({ loc: p.slug === "home" ? "/" : `/${p.slug}`, lastmod: p.updated_at })),
     ...articles.map((a) => ({ loc: `/random/${a.slug}`, lastmod: a.updated_at || a.published_at })),
     ...projects.map((p) => ({ loc: `/projects/${p.slug}`, lastmod: p.updated_at || p.published_at })),
+    { loc: "/topics", lastmod: null },
+    ...tagCounts.map((t) => ({ loc: `/topics/${encodeURIComponent(t.tag)}`, lastmod: null })),
   ];
   const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries
     .map(
@@ -599,6 +651,16 @@ async function route(request, env, ctx) {
       ctx.waitUntil(recordRateLimitHit(env, "search", ip).catch(() => {}));
       const navItems = await listNavPages(env);
       return renderSearch(env, url.searchParams.get("q")?.trim() || "", navItems);
+    }
+
+    if (path === "/topics") {
+      const navItems = await listNavPages(env);
+      return renderTopicsIndex(env, navItems);
+    }
+    const topicMatch = path.match(/^\/topics\/([^/]+)$/);
+    if (topicMatch) {
+      const navItems = await listNavPages(env);
+      return renderTopicPage(env, decodeURIComponent(topicMatch[1]), navItems);
     }
 
     const simulationMatch = path.match(/^\/simulation\/(\d+)$/);

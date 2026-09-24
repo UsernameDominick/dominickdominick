@@ -1524,6 +1524,34 @@ export async function getRelatedProjects(env, project, limit = 3) {
   return others.slice(0, limit);
 }
 
+// Tag counts across every published article and project, for a topic-
+// browsing index — sorted most-used first, ties broken alphabetically.
+export async function getTagCounts(env) {
+  const [articles, projects] = await Promise.all([
+    listArticles(env, { publishedOnly: true }),
+    listProjects(env, { publishedOnly: true }),
+  ]);
+  const counts = new Map();
+  for (const item of [...articles, ...projects]) {
+    for (const t of item.tags || []) counts.set(t, (counts.get(t) || 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([tag, count]) => ({ tag, count }))
+    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
+}
+
+// Every published article and project carrying a given tag, for the
+// per-tag topic page (tag chips link here regardless of which content
+// type they came from, so a project's tag also surfaces matching articles
+// and vice versa).
+export async function getContentByTag(env, tag) {
+  const [articles, projects] = await Promise.all([
+    listArticles(env, { publishedOnly: true, tag }),
+    listProjects(env, { publishedOnly: true, tag }),
+  ]);
+  return { articles, projects };
+}
+
 export async function getSetting(env, key) {
   const row = await env.DB.prepare("SELECT value FROM settings WHERE key = ?").bind(key).first();
   return row ? row.value : null;

@@ -1060,6 +1060,37 @@ h6 { font-size: 0.9rem; }
   font-size: 0.9rem;
 }
 
+.topics-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.topics-list li {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 14px;
+}
+
+.topics-list a {
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.topics-list a:hover {
+  color: var(--accent);
+}
+
+.topic-count {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
 .related-posts {
   border-top: 1px solid var(--border);
   padding-top: 20px;
