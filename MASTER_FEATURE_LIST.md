@@ -7,9 +7,12 @@ memory or git log archaeology.
 
 **Legend:** ✅ done · 🔶 partial (some of the bullet is done, noted inline) · ☐ not started
 
-Last updated: 2026-09-24, after the Projects/build-journals/BOM/relationships
-batch (see `PRODUCTION_TODO.md` for the exact commit-by-commit history and
-any production D1 migrations still needed).
+Last updated: 2026-09-24, after a security/SEO/accessibility/layout
+health-check pass on everything through the Projects/build-journals/BOM/
+relationships batch. That batch is now **live on `main`** — production D1
+was fully migrated to match `schema.sql` first (see `PRODUCTION_TODO.md`
+for that history and any other manual/human-only items). Work continues
+on the `production` branch from here.
 
 ---
 
