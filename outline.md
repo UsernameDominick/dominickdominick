@@ -716,7 +716,14 @@ block already support any of these as a plain page:
   uses rather than literal drag-and-drop; `listProjects()`'s
   `featuredOnly` path sorts by it ascending, nulls last, falling back to
   the normal newest-first order for anything left blank)
-- ☐ Architecture/dependency diagrams
+- ✅ Architecture/dependency diagrams (a ```mermaid fenced block in an
+  article/project body renders as a diagram — server-side just wraps it
+  in `<div class="mermaid">` instead of `<pre><code>`, unescaped-safe
+  since mermaid reads `.textContent`, not `.innerHTML`; client-side loads
+  mermaid.js from jsdelivr via a dynamic `import()` gated behind
+  `document.querySelector(".mermaid")` so pages without a diagram never
+  fetch it. A "Diagram" toolbar button inserts a starter flowchart
+  template, next to the existing Callout button)
 
 ### Build journals and technical documentation
 - ✅ Dated journal entries, BOM with substitutions, pipe-table wiring/pinout tables, test records, decision logs, failed-attempt records, accordion for expandable hints

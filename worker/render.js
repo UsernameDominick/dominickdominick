@@ -226,6 +226,15 @@ export function paragraphsHtml(text) {
       const codeMatch = trimmed.match(CODE_PLACEHOLDER);
       if (codeMatch) {
         const { lang, code } = blocks[Number(codeMatch[1])];
+        // A ```mermaid fenced block renders as a diagram instead of a
+        // code listing — the client-side mermaid.js script (loaded
+        // alongside highlight.js) finds every `.mermaid` div and replaces
+        // its text with the rendered SVG. Still escaped like any other
+        // code block: mermaid reads `.textContent`, not `.innerHTML`, so
+        // this can't be used to inject markup.
+        if ((lang || "").toLowerCase() === "mermaid") {
+          return `<div class="mermaid">${esc(code)}</div>`;
+        }
         return `<pre><code class="language-${esc(lang || "plaintext")}">${esc(code)}</code></pre>`;
       }
       const table = tableMatch(trimmed);
@@ -1101,6 +1110,14 @@ ${themeStyle}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" defer></script>
 <script>document.addEventListener("DOMContentLoaded",function(){if(window.hljs)hljs.highlightAll();});</script>
 <script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
+<script type="module">
+  if (document.querySelector(".mermaid")) {
+    import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs").then(({ default: mermaid }) => {
+      mermaid.initialize({ startOnLoad: false, theme: document.documentElement.getAttribute("data-theme") === "light" ? "default" : "dark" });
+      mermaid.run();
+    });
+  }
+</script>
 <script type="application/ld+json">${jsonLdScript({
     "@context": "https://schema.org",
     "@type": "WebSite",

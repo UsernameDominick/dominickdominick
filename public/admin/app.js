@@ -2984,6 +2984,18 @@
           textarea.dispatchEvent(new Event("input", { bubbles: true }));
           break;
         }
+        case "diagram": {
+          const start = textarea.selectionStart;
+          const value = textarea.value;
+          const template = "graph TD\n  A[Start] --> B[Step]\n  B --> C[End]";
+          const insert = `\n\n\`\`\`mermaid\n${template}\n\`\`\`\n\n`;
+          textarea.value = value.slice(0, start) + insert + value.slice(start);
+          textarea.focus();
+          const newPos = start + insert.length;
+          textarea.setSelectionRange(newPos, newPos);
+          textarea.dispatchEvent(new Event("input", { bubbles: true }));
+          break;
+        }
       }
     });
   });

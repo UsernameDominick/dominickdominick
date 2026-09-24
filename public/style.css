@@ -1947,6 +1947,17 @@ pre.has-line-numbers {
   border-left-color: #e05555;
 }
 
+.mermaid {
+  display: flex;
+  justify-content: center;
+  margin: 20px 0;
+  overflow-x: auto;
+}
+
+.mermaid svg {
+  max-width: 100%;
+}
+
 .generic-embed {
   margin: 16px 0;
 }
