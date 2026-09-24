@@ -2358,6 +2358,24 @@
         case "code":
           wrapSelection(textarea, "```\n", "\n```", "code here");
           break;
+        case "before-after": {
+          const beforeUrl = prompt('"Before" image URL:', "");
+          if (!beforeUrl) return;
+          const afterUrl = prompt('"After" image URL:', "");
+          if (!afterUrl) return;
+          const beforeLabel = prompt('"Before" label (optional):', "Before") || "Before";
+          const afterLabel = prompt('"After" label (optional):', "After") || "After";
+          const start = textarea.selectionStart;
+          const value = textarea.value;
+          const shortcode = `[before-after: ${beforeUrl} | ${afterUrl} | ${beforeLabel} | ${afterLabel}]`;
+          const insert = `\n\n${shortcode}\n\n`;
+          textarea.value = value.slice(0, start) + insert + value.slice(start);
+          textarea.focus();
+          const newPos = start + insert.length;
+          textarea.setSelectionRange(newPos, newPos);
+          textarea.dispatchEvent(new Event("input", { bubbles: true }));
+          break;
+        }
       }
     });
   });

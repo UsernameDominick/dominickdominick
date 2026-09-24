@@ -125,7 +125,7 @@ health-check pass, done before this master list existed.
 - ✅ Expandable details (the accordion block)
 - ☐ Side-by-side text and image layouts (possible manually via the page builder grid; not a distinct article-editor feature)
 - ✅ Inline image captions and credits (image block has its own caption/credit fields, rendered as a figcaption; see section 12)
-- ☐ Before/after image comparison slider
+- ✅ Before/after image comparison slider (a `[before-after: url1 | url2 | Label1 | Label2]` shortcode in the markdown-lite body, inserted via a toolbar button — reuses the same slider/CSS the page-builder block uses)
 - 🔶 Pull quotes and margin notes (quote block ✅; margin notes ☐)
 - ☐ Mathematical notation
 - ✅ Generalized embeds with consistent controls and fallbacks (CodePen/Spotify/Figma/CodeSandbox/Gist + raw-iframe fallback)

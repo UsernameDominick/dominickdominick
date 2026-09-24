@@ -127,6 +127,30 @@ function headingMatch(paragraph) {
   return m ? { level: m[1].length, text: m[2].trim() } : null;
 }
 
+// A standalone paragraph like `[before-after: url1 | url2 | Before | After]`
+// — the only way to get a before/after slider inside a markdown-lite body
+// (article/project text), since that body isn't block-based like pages are.
+// Labels are optional and default to "Before"/"After".
+function beforeAfterMatch(paragraph) {
+  const m = paragraph.match(/^\[before-after:\s*([^\]]+)\]$/i);
+  if (!m) return null;
+  const parts = m[1].split("|").map((s) => s.trim());
+  if (parts.length < 2 || !parts[0] || !parts[1]) return null;
+  return { beforeUrl: parts[0], afterUrl: parts[1], beforeLabel: parts[2] || "Before", afterLabel: parts[3] || "After" };
+}
+
+function beforeAfterHtml({ beforeUrl, afterUrl, beforeLabel, afterLabel }) {
+  return `<div class="before-after" style="--pos:50%;height:360px;">
+    <div class="before-after-base"><img src="${esc(afterUrl)}" loading="lazy" alt="${esc(afterLabel)}"><span class="before-after-tag before-after-tag-right">${esc(
+    afterLabel
+  )}</span></div>
+    <div class="before-after-overlay"><img src="${esc(beforeUrl)}" loading="lazy" alt="${esc(beforeLabel)}"><span class="before-after-tag before-after-tag-left">${esc(
+    beforeLabel
+  )}</span></div>
+    <input type="range" class="before-after-slider" min="0" max="100" value="50" aria-label="Drag to compare before and after">
+  </div>`;
+}
+
 export function slugifyHeading(text) {
   return String(text ?? "")
     .toLowerCase()
@@ -182,6 +206,8 @@ export function paragraphsHtml(text) {
       }
       const table = tableMatch(trimmed);
       if (table) return tableHtml(table);
+      const ba = beforeAfterMatch(trimmed);
+      if (ba) return beforeAfterHtml(ba);
       const h = headingMatch(trimmed);
       if (h) {
         const { id, level } = headings[hi++];
