@@ -109,16 +109,31 @@
 
       <aside id="inspector" class="admin-inspector" hidden>
         <button id="close-inspector" class="mobile-only close-drawer" aria-label="Close">×</button>
-        <h2>Edit block</h2>
-        <div id="shared-block-banner" hidden></div>
-        <div id="inspector-fields"></div>
-        <h2>Style</h2>
-        <div id="inspector-style-fields"></div>
-        <div id="block-save-status" class="article-autosave-status"></div>
-        <button type="button" id="save-as-shared-block-btn">Save as reusable block…</button>
-        <button type="button" id="copy-block-btn">Copy</button>
-        <button id="duplicate-block-btn">Duplicate block</button>
-        <button id="delete-block-btn" class="danger">Delete block</button>
+        <div id="single-block-inspector">
+          <h2>Edit block</h2>
+          <div id="shared-block-banner" hidden></div>
+          <div id="inspector-fields"></div>
+          <h2>Style</h2>
+          <div id="inspector-style-fields"></div>
+          <div id="block-save-status" class="article-autosave-status"></div>
+          <button type="button" id="save-as-shared-block-btn">Save as reusable block…</button>
+          <button type="button" id="copy-block-btn">Copy</button>
+          <button id="duplicate-block-btn">Duplicate block</button>
+          <button id="delete-block-btn" class="danger">Delete block</button>
+        </div>
+        <div id="bulk-inspector" hidden>
+          <h2 id="bulk-inspector-count">0 blocks selected</h2>
+          <p class="redirects-hint">Shift-click blocks to add or remove them from this selection. Applying a style below sets it on every selected block.</p>
+          <div class="bulk-align-row">
+            <button type="button" id="bulk-align-left" title="Align left edges">Align left</button>
+            <button type="button" id="bulk-align-center" title="Center horizontally">Center</button>
+            <button type="button" id="bulk-align-right" title="Align right edges">Align right</button>
+          </div>
+          <button type="button" id="bulk-distribute-vertical">Distribute evenly (top to bottom)</button>
+          <div id="bulk-style-fields"></div>
+          <button type="button" id="bulk-duplicate-btn">Duplicate all</button>
+          <button type="button" id="bulk-delete-btn" class="danger">Delete all</button>
+        </div>
       </aside>
     </div>
   </div>

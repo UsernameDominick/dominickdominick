@@ -45,6 +45,11 @@
   let currentPage = null;
   let blocks = [];
   let selectedBlockId = null;
+  // Shift-click adds/removes a block here. Non-empty takes over the
+  // inspector (bulk mode) regardless of size, including 1 — kept as a
+  // separate concept from selectedBlockId rather than collapsing back to
+  // single-select at size 1, so the mode doesn't flip-flop mid-selection.
+  let multiSelectedIds = new Set();
 
   async function uploadFile(file, folder) {
     const res = await fetch("/api/admin/upload" + (folder ? `?folder=${encodeURIComponent(folder)}` : ""), {
@@ -510,7 +515,7 @@
       maxBottom = Math.max(maxBottom, style.top + style.height + 100);
       const div = document.createElement("div");
       div.className =
-        "admin-block" + (b.id === selectedBlockId ? " selected" : "") + (b.style && b.style.hidden ? " block-is-hidden" : "");
+        "admin-block" + (b.id === selectedBlockId || multiSelectedIds.has(b.id) ? " selected" : "") + (b.style && b.style.hidden ? " block-is-hidden" : "");
       div.style.left = style.left + "px";
       div.style.top = style.top + "px";
       div.style.width = style.width + "px";
@@ -541,6 +546,27 @@
   function wireBlockInteractions(div, block) {
     div.addEventListener("pointerdown", (e) => {
       if (e.target.classList.contains("resize-handle")) return;
+      if (e.shiftKey) {
+        e.stopPropagation();
+        // Shift-clicking while a single block is selected should carry that
+        // one into the new multi-selection too, matching how shift-click
+        // accumulates a selection everywhere else — otherwise the block you
+        // clicked *before* holding shift would silently drop out.
+        if (multiSelectedIds.size === 0 && selectedBlockId !== null && selectedBlockId !== block.id) {
+          multiSelectedIds.add(selectedBlockId);
+        }
+        if (multiSelectedIds.has(block.id)) multiSelectedIds.delete(block.id);
+        else multiSelectedIds.add(block.id);
+        selectedBlockId = null;
+        renderCanvas();
+        renderInspector();
+        return;
+      }
+      // A plain click always exits multi-select mode, even when it lands
+      // on a block that was already part of the selection — dragging
+      // several blocks together isn't supported, so keeping multi-select
+      // "active" here would just be confusing.
+      multiSelectedIds.clear();
       selectedBlockId = block.id;
       renderInspector();
       document.querySelectorAll(".admin-block").forEach((d) => d.classList.remove("selected"));
@@ -955,6 +981,16 @@
 
   function renderInspector() {
     const inspector = el("inspector");
+    if (multiSelectedIds.size > 0) {
+      inspector.hidden = false;
+      if (isMobile()) openDrawer(inspector);
+      el("single-block-inspector").hidden = true;
+      el("bulk-inspector").hidden = false;
+      renderBulkInspector();
+      return;
+    }
+    el("single-block-inspector").hidden = false;
+    el("bulk-inspector").hidden = true;
     const block = blocks.find((b) => b.id === selectedBlockId);
     if (!block) {
       inspector.hidden = true;
@@ -1052,6 +1088,153 @@
       });
     });
   }
+
+  // ---------- Multi-select bulk inspector ----------
+  function selectedBlocksList() {
+    return blocks.filter((b) => multiSelectedIds.has(b.id));
+  }
+
+  function renderBulkInspector() {
+    const selected = selectedBlocksList();
+    el("bulk-inspector-count").textContent = `${selected.length} block${selected.length === 1 ? "" : "s"} selected`;
+
+    const container = el("bulk-style-fields");
+    // No prefilled values — different selected blocks likely have
+    // different existing styles, so this is purely "set this on all of
+    // them", not "here's what they currently share".
+    container.innerHTML = STYLE_FIELDS.map((f) => fieldHtml(f, undefined, "bulk")).join("");
+    container.querySelectorAll(".upload-trigger").forEach(wireUploadButton);
+    container.querySelectorAll(".browse-trigger").forEach(wireBrowseButton);
+
+    async function applyStyleToAll(key, value) {
+      const targets = selectedBlocksList();
+      for (const b of targets) {
+        if (!b.style) b.style = {};
+        b.style[key] = value;
+        await api(`/blocks/${b.id}`, { method: "PATCH", body: JSON.stringify({ style: b.style }) }).catch((err) => alert(err.message));
+      }
+      renderCanvas();
+    }
+
+    container.querySelectorAll("[data-key]").forEach((input) => {
+      input.addEventListener("change", () => applyStyleToAll(input.dataset.key, fieldValue(input) || null));
+    });
+    container.querySelectorAll(".clear-color").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        await applyStyleToAll(btn.dataset.key, null);
+        renderBulkInspector();
+      });
+    });
+  }
+
+  async function patchBlockPosition(b) {
+    await api(`/blocks/${b.id}`, { method: "PATCH", body: JSON.stringify({ col: b.col, row: b.row }) }).catch((err) => alert(err.message));
+  }
+
+  el("bulk-align-left").addEventListener("click", async () => {
+    const selected = selectedBlocksList();
+    if (selected.length < 2) return;
+    const minCol = Math.min(...selected.map((b) => b.col));
+    for (const b of selected) {
+      b.col = minCol;
+      await patchBlockPosition(b);
+    }
+    renderCanvas();
+  });
+
+  el("bulk-align-center").addEventListener("click", async () => {
+    const selected = selectedBlocksList();
+    if (selected.length < 2) return;
+    const minCol = Math.min(...selected.map((b) => b.col));
+    const maxRight = Math.max(...selected.map((b) => b.col + b.col_span));
+    const center = (minCol + maxRight) / 2;
+    for (const b of selected) {
+      b.col = Math.min(Math.max(1, Math.round(center - b.col_span / 2)), COLS - b.col_span + 1);
+      await patchBlockPosition(b);
+    }
+    renderCanvas();
+  });
+
+  el("bulk-align-right").addEventListener("click", async () => {
+    const selected = selectedBlocksList();
+    if (selected.length < 2) return;
+    const maxRight = Math.max(...selected.map((b) => b.col + b.col_span));
+    for (const b of selected) {
+      b.col = Math.min(Math.max(1, maxRight - b.col_span), COLS - b.col_span + 1);
+      await patchBlockPosition(b);
+    }
+    renderCanvas();
+  });
+
+  // Standard design-tool "distribute": the first and last (by current row)
+  // stay put, the ones between get an equal gap computed from the total
+  // span minus everyone's own height — needs 3+ to mean anything.
+  el("bulk-distribute-vertical").addEventListener("click", async () => {
+    const selected = selectedBlocksList().sort((a, b) => a.row - b.row);
+    if (selected.length < 3) return alert("Select at least 3 blocks to distribute evenly.");
+    const first = selected[0];
+    const last = selected[selected.length - 1];
+    const totalSpan = last.row + last.row_span - first.row;
+    const totalBlockSpan = selected.reduce((sum, b) => sum + b.row_span, 0);
+    const gap = Math.max(0, Math.round((totalSpan - totalBlockSpan) / (selected.length - 1)));
+    let row = first.row;
+    for (const b of selected) {
+      b.row = row;
+      await patchBlockPosition(b);
+      row += b.row_span + gap;
+    }
+    renderCanvas();
+  });
+
+  el("bulk-duplicate-btn").addEventListener("click", async () => {
+    const selected = selectedBlocksList();
+    if (!selected.length || !currentPage) return;
+    // The whole selection is placed as a group below everything else,
+    // keeping each block's column and its position relative to the others
+    // — same idea as single-block duplicate, just for a group at once.
+    const maxRow = blocks.reduce((m, b) => Math.max(m, b.row + b.row_span), 1);
+    const minSelectedRow = Math.min(...selected.map((b) => b.row));
+    const newIds = [];
+    for (const b of selected) {
+      const res = await api(`/pages/${currentPage.id}/blocks`, {
+        method: "POST",
+        body: JSON.stringify({
+          type: b.type,
+          content: b.content,
+          style: b.style,
+          col: b.col,
+          col_span: b.col_span,
+          row: maxRow + (b.row - minSelectedRow),
+          row_span: b.row_span,
+        }),
+      });
+      newIds.push(res.id);
+    }
+    await loadBlocks();
+    multiSelectedIds = new Set(newIds);
+    renderCanvas();
+    renderInspector();
+  });
+
+  el("bulk-delete-btn").addEventListener("click", async () => {
+    const selected = selectedBlocksList();
+    if (!selected.length) return;
+    if (!confirm(`Delete ${selected.length} block(s)?`)) return;
+    for (const b of selected) {
+      await api(`/blocks/${b.id}`, { method: "DELETE" });
+    }
+    multiSelectedIds.clear();
+    await loadBlocks();
+    showUndoToast(`${selected.length} block(s) deleted.`, async () => {
+      for (const b of selected) {
+        await api(`/pages/${currentPage.id}/blocks`, {
+          method: "POST",
+          body: JSON.stringify({ type: b.type, content: b.content, style: b.style, col: b.col, col_span: b.col_span, row: b.row, row_span: b.row_span }),
+        });
+      }
+      await loadBlocks();
+    });
+  });
 
   el("save-as-shared-block-btn").addEventListener("click", async () => {
     const block = blocks.find((b) => b.id === selectedBlockId);
@@ -1221,6 +1404,7 @@
   canvas.addEventListener("pointerdown", (e) => {
     if (e.target === canvas) {
       selectedBlockId = null;
+      multiSelectedIds.clear();
       renderInspector();
       document.querySelectorAll(".admin-block").forEach((d) => d.classList.remove("selected"));
     }
@@ -2650,6 +2834,12 @@
     }
 
     if (isTyping || app.hidden) return;
+
+    if ((e.key === "Delete" || e.key === "Backspace") && multiSelectedIds.size > 0) {
+      e.preventDefault();
+      el("bulk-delete-btn").click();
+      return;
+    }
 
     if ((e.key === "Delete" || e.key === "Backspace") && selectedBlockId) {
       e.preventDefault();

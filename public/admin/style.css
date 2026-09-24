@@ -215,6 +215,16 @@
   font-size: 0.85rem;
 }
 
+.bulk-align-row {
+  display: flex;
+  gap: 6px;
+}
+
+.bulk-align-row button {
+  width: auto;
+  flex: 1;
+}
+
 .danger {
   background: #e85a5a !important;
   color: #fff !important;
