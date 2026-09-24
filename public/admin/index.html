@@ -41,6 +41,7 @@
         <button id="redirects-btn">Redirects</button>
         <button id="simulations-btn">Simulations</button>
         <button id="scans-btn">Scans</button>
+        <button id="shared-blocks-btn">Reusable Blocks</button>
         <button id="analytics-btn">Analytics</button>
         <button id="trash-btn">Trash</button>
         <button id="site-settings-btn">Site</button>
@@ -108,10 +109,12 @@
       <aside id="inspector" class="admin-inspector" hidden>
         <button id="close-inspector" class="mobile-only close-drawer" aria-label="Close">×</button>
         <h2>Edit block</h2>
+        <div id="shared-block-banner" hidden></div>
         <div id="inspector-fields"></div>
         <h2>Style</h2>
         <div id="inspector-style-fields"></div>
         <div id="block-save-status" class="article-autosave-status"></div>
+        <button type="button" id="save-as-shared-block-btn">Save as reusable block…</button>
         <button id="duplicate-block-btn">Duplicate block</button>
         <button id="delete-block-btn" class="danger">Delete block</button>
       </aside>
@@ -513,6 +516,19 @@
         <p class="redirects-hint">Upload a LiDAR/photogrammetry scan (.glb or .gltf, optionally a .usdz for iOS AR Quick Look) — from Polycam, Reality Composer, or similar. Reuse it in any page or article via the 3D Scan block.</p>
         <button type="button" id="new-scan-btn">Upload new scan</button>
         <div id="scans-list" class="redirects-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="shared-blocks-modal" class="modal" hidden>
+    <div class="modal-inner redirects-modal-inner">
+      <header>
+        <h1>Reusable Blocks</h1>
+        <button id="close-shared-blocks">×</button>
+      </header>
+      <div class="redirects-body">
+        <p class="redirects-hint">Select a block on a page and use "Save as reusable block…" in its settings to add one here. Editing a reusable block's content updates every page that uses it. Insert one onto the currently open page below.</p>
+        <div id="shared-blocks-list" class="redirects-list"></div>
       </div>
     </div>
   </div>

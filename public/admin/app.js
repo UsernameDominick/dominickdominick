@@ -514,7 +514,9 @@
       div.style.width = style.width + "px";
       div.style.height = style.height + "px";
       div.dataset.id = b.id;
-      div.innerHTML = `<div class="block-type-label">${blockLabel(b.type)}</div><div class="block-preview">${blockPreview(b)}</div><div class="resize-handle"></div>`;
+      div.innerHTML = `<div class="block-type-label">${blockLabel(b.type)}${
+        b.shared_block_id ? ` <span class="lock-badge" title="Reusable block — editing it updates every page that uses it">Reusable</span>` : ""
+      }</div><div class="block-preview">${blockPreview(b)}</div><div class="resize-handle"></div>`;
       canvas.appendChild(div);
       wireBlockInteractions(div, b);
     }
@@ -884,6 +886,32 @@
 
     if (!block.style) block.style = {};
 
+    const banner = el("shared-block-banner");
+    const saveAsSharedBtn = el("save-as-shared-block-btn");
+    if (block.shared_block_id) {
+      banner.hidden = false;
+      banner.innerHTML = `<p class="shared-block-notice">Reusable block: <strong>${escapeHtml(
+        block.shared_block_name || "Untitled"
+      )}</strong> — editing it updates every page that uses it.</p><button type="button" id="detach-shared-block-btn">Detach (make independent)</button>`;
+      el("detach-shared-block-btn").addEventListener("click", async () => {
+        if (!confirm("Detach this block? It'll become an independent copy and stop updating when the reusable block changes.")) return;
+        try {
+          await api(`/blocks/${block.id}/detach`, { method: "POST" });
+          await loadBlocks();
+          selectedBlockId = block.id;
+          renderCanvas();
+          renderInspector();
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+      saveAsSharedBtn.hidden = true;
+    } else {
+      banner.hidden = true;
+      banner.innerHTML = "";
+      saveAsSharedBtn.hidden = false;
+    }
+
     const fields = FIELD_DEFS[block.type] || [];
     const container = el("inspector-fields");
     container.innerHTML =
@@ -943,6 +971,85 @@
       });
     });
   }
+
+  el("save-as-shared-block-btn").addEventListener("click", async () => {
+    const block = blocks.find((b) => b.id === selectedBlockId);
+    if (!block) return;
+    const name = prompt("Name this reusable block:");
+    if (!name || !name.trim()) return;
+    try {
+      const res = await api("/shared-blocks", {
+        method: "POST",
+        body: JSON.stringify({ name: name.trim(), type: block.type, content: block.content, style: block.style }),
+      });
+      await api(`/blocks/${block.id}`, { method: "PATCH", body: JSON.stringify({ shared_block_id: res.id }) });
+      await loadBlocks();
+      selectedBlockId = block.id;
+      renderCanvas();
+      renderInspector();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  // ---------- Reusable blocks library ----------
+  async function loadSharedBlocksList() {
+    const sharedBlocks = await api("/shared-blocks");
+    el("shared-blocks-list").innerHTML =
+      sharedBlocks
+        .map(
+          (sb) =>
+            `<div class="simulation-row"><span>${escapeHtml(sb.name)} <span class="lock-badge">${escapeHtml(
+              blockLabel(sb.type)
+            )}</span></span><button type="button" class="insert-shared-block" data-id="${
+              sb.id
+            }"${currentPage ? "" : " disabled title=\"Open a page first\""}>Insert onto current page</button><button type="button" class="delete-shared-block" data-id="${
+              sb.id
+            }">Delete</button></div>`
+        )
+        .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No reusable blocks yet — select a block on a page and use \"Save as reusable block…\" in its settings.</p>";
+
+    el("shared-blocks-list")
+      .querySelectorAll(".insert-shared-block")
+      .forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          if (!currentPage) return;
+          const sb = sharedBlocks.find((x) => x.id === Number(btn.dataset.id));
+          const maxRow = blocks.reduce((m, b) => Math.max(m, b.row + b.row_span), 1);
+          try {
+            await api(`/pages/${currentPage.id}/blocks`, {
+              method: "POST",
+              body: JSON.stringify({ type: sb.type, shared_block_id: sb.id, col: 1, col_span: 24, row: maxRow, row_span: 8 }),
+            });
+            await loadBlocks();
+            el("shared-blocks-modal").hidden = true;
+          } catch (err) {
+            alert(err.message);
+          }
+        });
+      });
+
+    el("shared-blocks-list")
+      .querySelectorAll(".delete-shared-block")
+      .forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const id = Number(btn.dataset.id);
+          const usage = await api(`/shared-blocks/usage?id=${id}`).catch(() => []);
+          const msg = usage.length
+            ? `Used on: ${usage.map((u) => u.title).join(", ")}. Delete anyway? Those placements become empty blocks.`
+            : "Delete this reusable block? This can't be undone.";
+          if (!confirm(msg)) return;
+          await api(`/shared-blocks/${id}`, { method: "DELETE" });
+          await loadSharedBlocksList();
+        });
+      });
+  }
+
+  el("shared-blocks-btn").addEventListener("click", async () => {
+    el("shared-blocks-modal").hidden = false;
+    await loadSharedBlocksList();
+  });
+  closeModalOnClick("close-shared-blocks", "shared-blocks-modal");
 
   // ---------- Undo (blocks only, in-memory, ~8s window) ----------
   let undoTimer = null;
@@ -2147,6 +2254,7 @@
       { label: "Open Analytics", sub: "", run: () => { closeCommandPalette(); el("analytics-btn").click(); } },
       { label: "Open Simulations", sub: "", run: () => { closeCommandPalette(); el("simulations-btn").click(); } },
       { label: "Open Scans", sub: "", run: () => { closeCommandPalette(); el("scans-btn").click(); } },
+      { label: "Open Reusable Blocks", sub: "", run: () => { closeCommandPalette(); el("shared-blocks-btn").click(); } },
       { label: "Open Trash", sub: "", run: () => { closeCommandPalette(); el("trash-btn").click(); } },
       { label: "Open Site Settings", sub: "", run: () => { closeCommandPalette(); el("site-settings-btn").click(); } },
       {

@@ -68,6 +68,14 @@ import {
   deleteSimulation,
   duplicateSimulation,
   getBlockPageId,
+  getBlockSharedId,
+  listSharedBlocks,
+  getSharedBlock,
+  createSharedBlock,
+  updateSharedBlock,
+  deleteSharedBlock,
+  findSharedBlockUsage,
+  detachSharedBlock,
 } from "./db.js";
 import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated } from "./auth.js";
 
@@ -312,7 +320,20 @@ async function routeAdminApi(request, env, url, ctx) {
     const id = Number(blockMatch[1]);
     const pageId = await getBlockPageId(env, id);
     if (pageId) await maybeSnapshotPage(env, pageId);
-    await updateBlock(env, id, body);
+    // A reusable-block placement's content/style live on the shared_blocks
+    // row, not this one — redirect those fields there so an edit updates
+    // every page using it. Position fields (col/row/span) always stay
+    // per-placement and go through updateBlock() as normal either way.
+    const sharedId = await getBlockSharedId(env, id);
+    if (sharedId && ("content" in body || "style" in body)) {
+      const sharedFields = {};
+      if ("content" in body) sharedFields.content = body.content;
+      if ("style" in body) sharedFields.style = body.style;
+      await updateSharedBlock(env, sharedId, sharedFields);
+      delete body.content;
+      delete body.style;
+    }
+    if (Object.keys(body).length) await updateBlock(env, id, body);
     return json({ ok: true });
   }
   if (blockMatch && method === "DELETE") {
@@ -320,6 +341,56 @@ async function routeAdminApi(request, env, url, ctx) {
     const pageId = await getBlockPageId(env, id);
     if (pageId) await maybeSnapshotPage(env, pageId);
     await deleteBlock(env, id);
+    return json({ ok: true });
+  }
+  const blockDetachMatch = path.match(/^\/blocks\/(\d+)\/detach$/);
+  if (blockDetachMatch && method === "POST") {
+    const id = Number(blockDetachMatch[1]);
+    const pageId = await getBlockPageId(env, id);
+    if (pageId) await maybeSnapshotPage(env, pageId);
+    try {
+      await detachSharedBlock(env, id);
+    } catch (err) {
+      return json({ error: err.message }, { status: 400 });
+    }
+    return json({ ok: true });
+  }
+
+  // /shared-blocks — reusable block library
+  if (path === "/shared-blocks" && method === "GET") {
+    return json(await listSharedBlocks(env));
+  }
+  if (path === "/shared-blocks" && method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    if (!body.name || !String(body.name).trim() || !body.type) {
+      return json({ error: "Name and a source block are required" }, { status: 400 });
+    }
+    const id = await createSharedBlock(env, { ...body, name: body.name.trim() });
+    log(ctx, env, "create", "shared block", body.name.trim());
+    return json({ id });
+  }
+  if (path === "/shared-blocks/usage" && method === "GET") {
+    const sharedId = Number(url.searchParams.get("id"));
+    if (!sharedId) return json({ error: "id required" }, { status: 400 });
+    return json(await findSharedBlockUsage(env, sharedId));
+  }
+  const sharedBlockMatch = path.match(/^\/shared-blocks\/(\d+)$/);
+  if (sharedBlockMatch && method === "GET") {
+    const sb = await getSharedBlock(env, Number(sharedBlockMatch[1]));
+    if (!sb) return json({ error: "Not found" }, { status: 404 });
+    return json(sb);
+  }
+  if (sharedBlockMatch && method === "PATCH") {
+    const body = await request.json().catch(() => ({}));
+    if ("name" in body && !String(body.name).trim()) return json({ error: "Name is required" }, { status: 400 });
+    await updateSharedBlock(env, Number(sharedBlockMatch[1]), body);
+    return json({ ok: true });
+  }
+  if (sharedBlockMatch && method === "DELETE") {
+    const id = Number(sharedBlockMatch[1]);
+    const sb = await getSharedBlock(env, id);
+    await deleteSharedBlock(env, id);
+    log(ctx, env, "delete", "shared block", sb?.name || `#${id}`);
     return json({ ok: true });
   }
 

@@ -13,6 +13,20 @@ CREATE TABLE pages (
   locked INTEGER NOT NULL DEFAULT 0
 );
 
+-- A block "definition" that one or more page blocks can point at via
+-- blocks.shared_block_id — editing it (content/style) updates every page
+-- that uses it, since those placements defer to this row instead of their
+-- own content/style. Position (col/row/span) always stays per-placement.
+CREATE TABLE shared_blocks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL,
+  content TEXT NOT NULL DEFAULT '{}',
+  style TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE blocks (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   page_id INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
@@ -23,7 +37,8 @@ CREATE TABLE blocks (
   col_span INTEGER NOT NULL DEFAULT 24,
   row INTEGER NOT NULL DEFAULT 1,
   row_span INTEGER NOT NULL DEFAULT 4,
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  shared_block_id INTEGER REFERENCES shared_blocks(id) ON DELETE SET NULL
 );
 
 CREATE TABLE articles (

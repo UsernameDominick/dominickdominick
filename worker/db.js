@@ -101,22 +101,45 @@ export async function duplicatePage(env, id) {
   return newId;
 }
 
+// A block whose shared_block_id is set defers its type/content/style to
+// that shared_blocks row — this is resolved right here so every caller
+// (the admin canvas, public rendering, find-replace, revisions) just sees
+// a normal-looking block with the effective content, without needing to
+// know reusable blocks exist. Position (col/row/span) always stays
+// per-placement even for a shared block. shared_block_name is exposed
+// purely for the admin UI's "this is reusable" banner.
 export async function listBlocks(env, pageId) {
   const { results } = await env.DB
     .prepare("SELECT * FROM blocks WHERE page_id = ? ORDER BY row ASC, col ASC")
     .bind(pageId)
     .all();
-  return results.map((b) => ({
-    ...b,
-    content: JSON.parse(b.content || "{}"),
-    style: JSON.parse(b.style || "{}"),
-  }));
+  if (!results.length) return [];
+  const sharedIds = [...new Set(results.filter((b) => b.shared_block_id).map((b) => b.shared_block_id))];
+  const sharedById = new Map();
+  if (sharedIds.length) {
+    const placeholders = sharedIds.map(() => "?").join(",");
+    const { results: sharedRows } = await env.DB
+      .prepare(`SELECT * FROM shared_blocks WHERE id IN (${placeholders})`)
+      .bind(...sharedIds)
+      .all();
+    sharedRows.forEach((s) => sharedById.set(s.id, s));
+  }
+  return results.map((b) => {
+    const shared = b.shared_block_id ? sharedById.get(b.shared_block_id) : null;
+    return {
+      ...b,
+      type: shared ? shared.type : b.type,
+      content: JSON.parse((shared ? shared.content : b.content) || "{}"),
+      style: JSON.parse((shared ? shared.style : b.style) || "{}"),
+      shared_block_name: shared ? shared.name : null,
+    };
+  });
 }
 
 export async function createBlock(env, pageId, block) {
   const res = await env.DB
     .prepare(
-      "INSERT INTO blocks (page_id, type, content, style, col, col_span, row, row_span) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO blocks (page_id, type, content, style, col, col_span, row, row_span, shared_block_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
     .bind(
       pageId,
@@ -126,7 +149,8 @@ export async function createBlock(env, pageId, block) {
       block.col ?? 1,
       block.col_span ?? 24,
       block.row ?? 1,
-      block.row_span ?? 4
+      block.row_span ?? 4,
+      block.shared_block_id ?? null
     )
     .run();
   return res.meta.last_row_id;
@@ -135,7 +159,7 @@ export async function createBlock(env, pageId, block) {
 export async function updateBlock(env, id, fields) {
   const cols = [];
   const vals = [];
-  for (const key of ["type", "col", "col_span", "row", "row_span"]) {
+  for (const key of ["type", "col", "col_span", "row", "row_span", "shared_block_id"]) {
     if (key in fields) {
       cols.push(`${key} = ?`);
       vals.push(fields[key]);
@@ -162,6 +186,88 @@ export async function deleteBlock(env, id) {
 export async function getBlockPageId(env, id) {
   const row = await env.DB.prepare("SELECT page_id FROM blocks WHERE id = ?").bind(id).first();
   return row ? row.page_id : null;
+}
+
+export async function getBlockSharedId(env, id) {
+  const row = await env.DB.prepare("SELECT shared_block_id FROM blocks WHERE id = ?").bind(id).first();
+  return row ? row.shared_block_id : null;
+}
+
+// ---------- Reusable (shared) blocks ----------
+// A named block "definition" a page block can point at instead of holding
+// its own content — see the schema comment on shared_blocks and
+// listBlocks() above for how the reference is resolved at read time.
+export async function listSharedBlocks(env) {
+  const { results } = await env.DB.prepare("SELECT * FROM shared_blocks ORDER BY name").all();
+  return results.map((s) => ({ ...s, content: JSON.parse(s.content || "{}"), style: JSON.parse(s.style || "{}") }));
+}
+
+export async function getSharedBlock(env, id) {
+  const row = await env.DB.prepare("SELECT * FROM shared_blocks WHERE id = ?").bind(id).first();
+  if (!row) return null;
+  return { ...row, content: JSON.parse(row.content || "{}"), style: JSON.parse(row.style || "{}") };
+}
+
+export async function createSharedBlock(env, { name, type, content, style }) {
+  const res = await env.DB
+    .prepare("INSERT INTO shared_blocks (name, type, content, style) VALUES (?, ?, ?, ?)")
+    .bind(name, type, JSON.stringify(content || {}), JSON.stringify(style || {}))
+    .run();
+  return res.meta.last_row_id;
+}
+
+export async function updateSharedBlock(env, id, fields) {
+  const cols = [];
+  const vals = [];
+  if ("name" in fields) {
+    cols.push("name = ?");
+    vals.push(fields.name);
+  }
+  if ("content" in fields) {
+    cols.push("content = ?");
+    vals.push(JSON.stringify(fields.content));
+  }
+  if ("style" in fields) {
+    cols.push("style = ?");
+    vals.push(JSON.stringify(fields.style));
+  }
+  if (!cols.length) return;
+  cols.push("updated_at = datetime('now')");
+  vals.push(id);
+  await env.DB.prepare(`UPDATE shared_blocks SET ${cols.join(", ")} WHERE id = ?`).bind(...vals).run();
+}
+
+// blocks.shared_block_id is ON DELETE SET NULL, so every placement simply
+// falls back to being an ordinary (empty) block rather than erroring —
+// findSharedBlockUsage() is how the admin finds out before that happens.
+export async function deleteSharedBlock(env, id) {
+  await env.DB.prepare("DELETE FROM shared_blocks WHERE id = ?").bind(id).run();
+}
+
+export async function findSharedBlockUsage(env, sharedBlockId) {
+  const { results } = await env.DB
+    .prepare(
+      `SELECT b.id as block_id, p.title as page_title FROM blocks b
+       JOIN pages p ON p.id = b.page_id
+       WHERE b.shared_block_id = ?`
+    )
+    .bind(sharedBlockId)
+    .all();
+  return results.map((r) => ({ type: "Reusable block", title: r.page_title }));
+}
+
+// Copies the shared definition's current content/style into this one
+// placement's own row and clears the reference — it becomes an ordinary,
+// independent block that no longer updates when the shared block changes.
+export async function detachSharedBlock(env, blockId) {
+  const sharedId = await getBlockSharedId(env, blockId);
+  if (!sharedId) throw new Error("This block isn't a reusable block");
+  const shared = await getSharedBlock(env, sharedId);
+  if (!shared) throw new Error("Shared block not found");
+  await env.DB
+    .prepare("UPDATE blocks SET type = ?, content = ?, style = ?, shared_block_id = NULL, updated_at = datetime('now') WHERE id = ?")
+    .bind(shared.type, JSON.stringify(shared.content), JSON.stringify(shared.style), blockId)
+    .run();
 }
 
 function parseArticleRow(row) {
@@ -452,7 +558,11 @@ export async function runFindReplace(env, { find, replace, apply }) {
           await maybeSnapshotPage(env, p.id);
           pageSnapshotted = true;
         }
-        await updateBlock(env, b.id, { content: next });
+        // A reusable block's content lives on shared_blocks, not this
+        // placement's own (ignored) row — see listBlocks() above. Writing
+        // to updateBlock() here would silently have no visible effect.
+        if (b.shared_block_id) await updateSharedBlock(env, b.shared_block_id, { content: next });
+        else await updateBlock(env, b.id, { content: next });
       }
     }
   }
@@ -907,10 +1017,10 @@ export async function restorePageRevision(env, pageId, revisionId) {
     stmts.push(
       env.DB
         .prepare(
-          `INSERT INTO blocks (id, page_id, type, content, style, col, col_span, row, row_span, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO blocks (id, page_id, type, content, style, col, col_span, row, row_span, updated_at, shared_block_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
-        .bind(b.id, pageId, b.type, b.content, b.style, b.col, b.col_span, b.row, b.row_span, b.updated_at)
+        .bind(b.id, pageId, b.type, b.content, b.style, b.col, b.col_span, b.row, b.row_span, b.updated_at, b.shared_block_id ?? null)
     );
   }
   await env.DB.batch(stmts);
@@ -933,12 +1043,12 @@ export async function restorePageRevisionBlock(env, pageId, revisionId, blockId)
   await snapshotPageBlocks(env, pageId); // unconditional, so this is itself undoable
   await env.DB
     .prepare(
-      `INSERT INTO blocks (id, page_id, type, content, style, col, col_span, row, row_span, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      `INSERT INTO blocks (id, page_id, type, content, style, col, col_span, row, row_span, updated_at, shared_block_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)
        ON CONFLICT(id) DO UPDATE SET
          type = excluded.type, content = excluded.content, style = excluded.style,
          col = excluded.col, col_span = excluded.col_span, row = excluded.row, row_span = excluded.row_span,
-         updated_at = excluded.updated_at`
+         updated_at = excluded.updated_at, shared_block_id = excluded.shared_block_id`
     )
     .bind(
       oldBlock.id,
@@ -949,7 +1059,8 @@ export async function restorePageRevisionBlock(env, pageId, revisionId, blockId)
       oldBlock.col,
       oldBlock.col_span,
       oldBlock.row,
-      oldBlock.row_span
+      oldBlock.row_span,
+      oldBlock.shared_block_id ?? null
     )
     .run();
 }
@@ -1130,7 +1241,7 @@ export async function setSetting(env, key, value) {
 const BACKUP_VERSION = 1;
 
 export async function exportAll(env) {
-  const [pages, blocks, articles, settings, redirects, templates, media, scans] = await Promise.all([
+  const [pages, blocks, articles, settings, redirects, templates, media, scans, sharedBlocks] = await Promise.all([
     env.DB.prepare("SELECT * FROM pages ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM blocks ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM articles ORDER BY id").all(),
@@ -1139,6 +1250,7 @@ export async function exportAll(env) {
     env.DB.prepare("SELECT * FROM templates ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM media ORDER BY key").all(),
     env.DB.prepare("SELECT * FROM scans ORDER BY id").all(),
+    env.DB.prepare("SELECT * FROM shared_blocks ORDER BY id").all(),
   ]);
   return {
     version: BACKUP_VERSION,
@@ -1151,6 +1263,7 @@ export async function exportAll(env) {
     templates: templates.results,
     media: media.results,
     scans: scans.results,
+    shared_blocks: sharedBlocks.results,
   };
 }
 
@@ -1190,7 +1303,7 @@ export async function importAll(env, data) {
   // is missing. `redirects` and `templates` were added later, so older
   // legitimate backups won't have them — default those to empty instead of
   // rejecting them.
-  const { pages, blocks, articles, settings, redirects = [], templates = [], media = [], scans = [] } = data;
+  const { pages, blocks, articles, settings, redirects = [], templates = [], media = [], scans = [], shared_blocks: sharedBlocks = [] } = data;
   if (
     !Array.isArray(pages) ||
     !Array.isArray(blocks) ||
@@ -1199,13 +1312,15 @@ export async function importAll(env, data) {
     !Array.isArray(redirects) ||
     !Array.isArray(templates) ||
     !Array.isArray(media) ||
-    !Array.isArray(scans)
+    !Array.isArray(scans) ||
+    !Array.isArray(sharedBlocks)
   ) {
     throw new Error("This doesn't look like a dominickdominick backup file (missing pages/blocks/articles/settings)");
   }
 
   const stmts = [
     env.DB.prepare("DELETE FROM blocks"),
+    env.DB.prepare("DELETE FROM shared_blocks"),
     env.DB.prepare("DELETE FROM pages"),
     env.DB.prepare("DELETE FROM articles"),
     env.DB.prepare("DELETE FROM settings"),
@@ -1219,8 +1334,8 @@ export async function importAll(env, data) {
     stmts.push(
       env.DB
         .prepare(
-          `INSERT INTO pages (id, slug, title, meta_description, nav_label, nav_order, og_image, deleted_at, created_at, updated_at, version)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO pages (id, slug, title, meta_description, nav_label, nav_order, og_image, deleted_at, created_at, updated_at, version, locked)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           p.id,
@@ -1233,8 +1348,23 @@ export async function importAll(env, data) {
           p.deleted_at ?? null,
           p.created_at,
           p.updated_at,
-          p.version ?? 1
+          p.version ?? 1,
+          p.locked ?? 0
         )
+    );
+  }
+
+  // Inserted before blocks (which may reference these) even though it's
+  // declared after pages/articles here, to match the parent-before-child
+  // order the DELETEs above already follow in reverse.
+  for (const sb of sharedBlocks) {
+    stmts.push(
+      env.DB
+        .prepare(
+          `INSERT INTO shared_blocks (id, name, type, content, style, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`
+        )
+        .bind(sb.id, sb.name, sb.type, sb.content ?? "{}", sb.style ?? "{}", sb.created_at, sb.updated_at)
     );
   }
 
@@ -1242,8 +1372,8 @@ export async function importAll(env, data) {
     stmts.push(
       env.DB
         .prepare(
-          `INSERT INTO blocks (id, page_id, type, content, style, col, col_span, row, row_span, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO blocks (id, page_id, type, content, style, col, col_span, row, row_span, updated_at, shared_block_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           b.id,
@@ -1255,7 +1385,8 @@ export async function importAll(env, data) {
           b.col_span,
           b.row,
           b.row_span,
-          b.updated_at
+          b.updated_at,
+          b.shared_block_id ?? null
         )
     );
   }
@@ -1264,8 +1395,8 @@ export async function importAll(env, data) {
     stmts.push(
       env.DB
         .prepare(
-          `INSERT INTO articles (id, slug, title, body, tags, og_image, published_at, deleted_at, series, series_order, co_authors, created_at, updated_at, version)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO articles (id, slug, title, body, tags, og_image, published_at, deleted_at, series, series_order, co_authors, created_at, updated_at, version, locked)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           a.id,
@@ -1281,7 +1412,8 @@ export async function importAll(env, data) {
           a.co_authors ?? "[]",
           a.created_at,
           a.updated_at,
-          a.version ?? 1
+          a.version ?? 1,
+          a.locked ?? 0
         )
     );
   }
