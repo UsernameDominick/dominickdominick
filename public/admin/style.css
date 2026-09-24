@@ -252,6 +252,19 @@
   color: var(--bg);
 }
 
+#content-only-mode-btn[aria-pressed="true"] {
+  background: var(--accent-dim);
+  color: var(--bg);
+}
+
+.admin-canvas.content-only-mode .resize-handle {
+  display: none;
+}
+
+.admin-canvas.content-only-mode .admin-block {
+  cursor: default;
+}
+
 .admin-block.is-dimmed {
   opacity: 0.15;
 }
@@ -1997,19 +2010,28 @@
   gap: 6px;
 }
 
-.modal-inner header .preview-device-btn {
+.modal-inner header .preview-device-btn,
+.stress-toggle-btn {
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text-dim);
   font-size: 0.8rem;
   border-radius: 6px;
   padding: 6px 12px;
+  width: auto;
 }
 
-.modal-inner header .preview-device-btn.is-active {
+.modal-inner header .preview-device-btn.is-active,
+.stress-toggle-btn.is-active {
   background: var(--accent);
   color: #0b0b0c;
   border-color: var(--accent);
+}
+
+.preview-stress-row {
+  display: flex;
+  gap: 6px;
+  padding: 10px 20px 0;
 }
 
 .preview-body {

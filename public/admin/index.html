@@ -50,6 +50,7 @@
         <a id="admin-view-live" href="/" target="_blank" class="admin-view-live">View live ↗</a>
         <button id="preview-btn" title="Preview this page at different screen widths">Preview</button>
         <button id="focus-mode-btn" aria-pressed="false" title="Hide the block palette for more canvas room">Focus</button>
+        <button id="content-only-mode-btn" aria-pressed="false" title="Locks every block's position/size so you can safely click around and edit content without nudging the layout">Content-only</button>
         <button id="admin-theme-toggle" aria-label="Toggle admin panel light/dark theme" title="Toggle admin panel theme">◐</button>
         <button id="logout-btn">Log out</button>
       </div>
@@ -577,6 +578,10 @@
         </div>
         <button id="close-preview">×</button>
       </header>
+      <div class="preview-stress-row">
+        <button type="button" id="stress-long-text-btn" class="stress-toggle-btn" title="Temporarily lengthens headings/paragraphs in the preview to check how the layout holds up">Stress: long text</button>
+        <button type="button" id="stress-broken-images-btn" class="stress-toggle-btn" title="Temporarily breaks every image in the preview to check how the layout holds up">Stress: missing images</button>
+      </div>
       <div class="preview-body">
         <iframe id="preview-frame" title="Page preview"></iframe>
       </div>
@@ -590,7 +595,7 @@
         <button id="close-diagnostics">×</button>
       </header>
       <div class="redirects-body">
-        <p class="redirects-hint">Common layout/content issues on the current page — empty blocks, missing links, missing alt text, heading hierarchy.</p>
+        <p class="redirects-hint">Common layout/content issues on the current page — empty blocks, missing links, missing alt text, heading hierarchy, content overflow, and small tap targets, checked against the real rendered page. (Overlap can't happen — every drag/resize is already blocked from creating one.)</p>
         <div id="diagnostics-list" class="redirects-list"></div>
       </div>
     </div>

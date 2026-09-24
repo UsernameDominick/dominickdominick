@@ -54,6 +54,14 @@
   // it's a rendering toggle, not a separate "which block" state, so moving
   // the selection while it's on just moves which block stays highlighted.
   let isolationMode = false;
+  // Content-only mode treats every block as locked for layout purposes
+  // (drag/resize/delete/align/distribute) without writing that to any
+  // block's own `locked` field — same accidental-vs-deliberate philosophy
+  // as per-block locking, just applied session-wide with one toggle.
+  let contentOnlyMode = false;
+  function isLayoutLocked(b) {
+    return !!b.locked || contentOnlyMode;
+  }
 
   async function uploadFile(file, folder) {
     const res = await fetch("/api/admin/upload" + (folder ? `?folder=${encodeURIComponent(folder)}` : ""), {
@@ -287,6 +295,13 @@
   try {
     if (localStorage.getItem("admin-focus-mode") === "1") applyFocusMode(true);
   } catch (e) {}
+
+  el("content-only-mode-btn").addEventListener("click", () => {
+    contentOnlyMode = !contentOnlyMode;
+    el("content-only-mode-btn").textContent = contentOnlyMode ? "Exit content-only" : "Content-only";
+    el("content-only-mode-btn").setAttribute("aria-pressed", contentOnlyMode ? "true" : "false");
+    renderCanvas();
+  });
 
   // ---------- Pages ----------
   async function loadPages() {
@@ -545,6 +560,7 @@
   function renderCanvas() {
     canvas.innerHTML = "";
     canvas.classList.toggle("isolation-mode", isolationMode && selectedBlockId !== null);
+    canvas.classList.toggle("content-only-mode", contentOnlyMode);
     let maxBottom = 600;
     for (const b of blocks) {
       const style = blockPixelStyle(b);
@@ -679,7 +695,7 @@
       // Selection still works on a locked block (so its content/style stay
       // editable) — only the drag-to-move below is skipped, which is the
       // "accidental" change locking is meant to guard against.
-      if (block.locked) return;
+      if (isLayoutLocked(block)) return;
 
       const startX = e.clientX;
       const startY = e.clientY;
@@ -731,7 +747,7 @@
     const handle = div.querySelector(".resize-handle");
     handle.addEventListener("pointerdown", (e) => {
       e.stopPropagation();
-      if (block.locked) return; // also hidden via CSS (.block-locked .resize-handle), this is belt-and-suspenders
+      if (isLayoutLocked(block)) return; // also hidden via CSS (.block-locked/.content-only-mode .resize-handle), this is belt-and-suspenders
       const startX = e.clientX;
       const startY = e.clientY;
       const startSpan = block.col_span;
@@ -1277,7 +1293,7 @@
   // locked block is excluded here too — style/content changes and
   // duplication aren't repositioning, so those still apply to everything.
   function movableSelectedBlocksList() {
-    return selectedBlocksList().filter((b) => !b.locked);
+    return selectedBlocksList().filter((b) => !isLayoutLocked(b));
   }
 
   function renderBulkInspector() {
@@ -1408,8 +1424,8 @@
     // A locked block is protected from this kind of sweep, same as bulk
     // article actions — the single-block Delete button (a deliberate,
     // one-target action) is the one place a locked block still deletes.
-    const locked = all.filter((b) => b.locked);
-    const selected = all.filter((b) => !b.locked);
+    const locked = all.filter((b) => isLayoutLocked(b));
+    const selected = all.filter((b) => !isLayoutLocked(b));
     if (!selected.length) return alert("All selected blocks are locked.");
     if (!confirm(`Delete ${selected.length} block(s)?${locked.length ? ` (${locked.length} locked block(s) will be skipped.)` : ""}`)) return;
     for (const b of selected) {
@@ -1611,13 +1627,61 @@
     return issues;
   }
 
-  function renderDiagnosticsList() {
+  // Overlap can't happen at all (every drag/resize/create checks
+  // wouldOverlap() before saving), so it's not worth checking for here —
+  // but overflow and tap-target size depend on real CSS layout, which the
+  // admin canvas's plain text preview doesn't reflect. A hidden iframe of
+  // the actual public page gives real measurements to check against.
+  function computeRenderedLayoutDiagnostics(path) {
+    return new Promise((resolve) => {
+      const frame = document.createElement("iframe");
+      frame.style.cssText = "position:fixed;left:-9999px;top:0;width:1200px;height:2000px;border:0;";
+      let settled = false;
+      const finish = (issues) => {
+        if (settled) return;
+        settled = true;
+        frame.remove();
+        resolve(issues);
+      };
+      frame.addEventListener("load", () => {
+        let doc;
+        try {
+          doc = frame.contentDocument;
+        } catch (e) {
+          return finish([]);
+        }
+        const issues = [];
+        const MIN_TAP = 24; // WCAG 2.5.8 minimum target size
+        doc.querySelectorAll("a, button").forEach((node) => {
+          const r = node.getBoundingClientRect();
+          if (r.width > 0 && r.height > 0 && (r.width < MIN_TAP || r.height < MIN_TAP)) {
+            const label = (node.textContent || "").trim().slice(0, 40) || node.tagName.toLowerCase();
+            issues.push({ severity: "warn", message: `Small tap target at desktop width (${Math.round(r.width)}×${Math.round(r.height)}px, ${MIN_TAP}×${MIN_TAP} minimum): "${label}"`, blockId: null });
+          }
+        });
+        doc.querySelectorAll(".block").forEach((node) => {
+          if (node.scrollHeight > node.clientHeight + 4 || node.scrollWidth > node.clientWidth + 4) {
+            issues.push({ severity: "warn", message: "A block's content overflows its box at desktop width — may be visually clipped", blockId: null });
+          }
+        });
+        finish(issues);
+      });
+      frame.addEventListener("error", () => finish([]));
+      setTimeout(() => finish([]), 5000);
+      frame.src = path;
+      document.body.appendChild(frame);
+    });
+  }
+
+  async function renderDiagnosticsList() {
     const container = el("diagnostics-list");
     if (!currentPage) {
       container.innerHTML = "<p style='color:var(--text-dim);font-size:0.85rem;'>Open a page first.</p>";
       return;
     }
-    const issues = computePageDiagnostics();
+    container.innerHTML = "<p style='color:var(--text-dim);font-size:0.85rem;'>Checking…</p>";
+    const path = currentPage.slug === "home" ? "/" : `/${currentPage.slug}`;
+    const issues = [...computePageDiagnostics(), ...(await computeRenderedLayoutDiagnostics(path))];
     if (!issues.length) {
       container.innerHTML = "<p style='color:var(--text-dim);font-size:0.85rem;'>No issues found on this page.</p>";
       return;
@@ -1647,7 +1711,33 @@
   });
   closeModalOnClick("close-diagnostics", "diagnostics-modal");
 
-  // ---------- Preview (responsive widths) ----------
+  // ---------- Preview (responsive widths + stress previews) ----------
+  let stressLongText = false;
+  let stressBrokenImages = false;
+  // Applied fresh after every real navigation of the iframe (not by patching
+  // in place) — a reload always gives real, unmodified content to start
+  // from, so toggling a stress effect off never needs to "undo" a mutation.
+  function applyStressEffects() {
+    let doc;
+    try {
+      doc = el("preview-frame").contentDocument;
+    } catch (e) {
+      return;
+    }
+    if (!doc || !doc.body) return;
+    if (stressLongText) {
+      doc.querySelectorAll("h1, h2, h3, h4, h5, h6, p").forEach((node) => {
+        if (node.textContent.trim()) node.textContent = (node.textContent.trim() + " ").repeat(4).trim();
+      });
+    }
+    if (stressBrokenImages) {
+      doc.querySelectorAll("img").forEach((img) => {
+        img.src = "/stress-preview-missing-image.jpg";
+      });
+    }
+  }
+  el("preview-frame").addEventListener("load", applyStressEffects);
+
   el("preview-btn").addEventListener("click", () => {
     if (!currentPage) return;
     const path = currentPage.slug === "home" ? "/" : `/${currentPage.slug}`;
@@ -1666,6 +1756,16 @@
       btn.classList.add("is-active");
       el("preview-frame").style.width = btn.dataset.width;
     });
+  });
+  el("stress-long-text-btn").addEventListener("click", () => {
+    stressLongText = !stressLongText;
+    el("stress-long-text-btn").classList.toggle("is-active", stressLongText);
+    if (el("preview-frame").src) el("preview-frame").contentWindow.location.reload();
+  });
+  el("stress-broken-images-btn").addEventListener("click", () => {
+    stressBrokenImages = !stressBrokenImages;
+    el("stress-broken-images-btn").classList.toggle("is-active", stressBrokenImages);
+    if (el("preview-frame").src) el("preview-frame").contentWindow.location.reload();
   });
 
   // ---------- Undo (blocks only, in-memory, ~8s window) ----------
@@ -3274,7 +3374,7 @@
       // accidental trigger locking is meant to guard against, so it's the
       // one place that actually respects the lock.
       const block = blocks.find((b) => b.id === selectedBlockId);
-      if (block && block.locked) return;
+      if (block && isLayoutLocked(block)) return;
       el("delete-block-btn").click();
       return;
     }
