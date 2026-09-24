@@ -13,7 +13,7 @@ via CDN · Playwright (ad hoc, local testing only, not wired into CI)
 **Last updated:** 2026-09-24 (manually — no CI auto-updates this; refresh
 the date and the lines-of-code stat yourself each session)
 
-**Lines of code (fun stat, `worker/` + `public/` + `schema.sql`):** ~19,200
+**Lines of code (fun stat, `worker/` + `public/` + `schema.sql`):** ~20,550
 
 **Legend:** ✅ done · 🔶 partial (detail inline) · ☐ not started
 
