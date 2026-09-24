@@ -326,8 +326,31 @@ function blockStyleAttr(style) {
     parts.push(`background-size:${["cover", "contain", "auto"].includes(style.backgroundSize) ? style.backgroundSize : "cover"}`);
     parts.push(`background-position:center`);
   }
+  if (["multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "difference"].includes(style.blendMode)) {
+    parts.push(`background-blend-mode:${style.blendMode}`);
+  }
+  if (["sticky", "fixed"].includes(style.position)) {
+    parts.push(`position:${style.position}`);
+    const offset = Number(style.stickyOffset);
+    parts.push(`top:${Number.isFinite(offset) ? offset : 0}px`);
+  }
   if (style.customCss && style.customCss.trim()) parts.push(esc(style.customCss.trim()));
   return parts.length ? parts.join(";") + ";" : "";
+}
+
+// #rrggbb + 0-100 -> "rgba(r,g,b,a)", or null if the hex isn't valid —
+// used for the tint overlay over a background image/video, since CSS has
+// no way to apply a translucent color on top of a <video> element other
+// than a real stacked element.
+function hexToRgba(hex, opacityPercent) {
+  const h = String(hex || "").replace("#", "");
+  if (!/^[0-9a-fA-F]{6}$/.test(h)) return null;
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  const pct = Number(opacityPercent);
+  const a = Number.isFinite(pct) ? Math.max(0, Math.min(100, pct)) / 100 : 0.5;
+  return `rgba(${r},${g},${b},${a})`;
 }
 
 function headingLevel(c) {
@@ -530,7 +553,22 @@ export async function renderBlocks(env, blocks, ctx = {}) {
       .filter((b) => !(b.style && b.style.hidden))
       .map(async (b) => {
         const gridStyle = `grid-column:${b.col} / span ${b.col_span};grid-row:${b.row} / span ${b.row_span};`;
-        return `<div class="block" style="${gridStyle}${blockStyleAttr(b.style)}">${await renderBlockInner(env, b, ctx)}</div>`;
+        const style = b.style || {};
+        const inner = await renderBlockInner(env, b, ctx);
+        // A background video (or an image with a tint overlay) needs real
+        // stacked elements — there's no CSS property that overlays a color
+        // on a <video>, and layering it into background-image would only
+        // work for the image case. The plain, by-far-most-common case (no
+        // video, no overlay) keeps the exact same simple markup as before.
+        if (style.backgroundVideoUrl || (style.backgroundImage && style.overlayColor)) {
+          const overlayRgba = style.overlayColor ? hexToRgba(style.overlayColor, style.overlayOpacity) : null;
+          return `<div class="block block-has-bg-layer" style="${gridStyle}${blockStyleAttr(style)}">${
+            style.backgroundVideoUrl
+              ? `<video class="block-bg-video" src="${esc(style.backgroundVideoUrl)}" autoplay muted loop playsinline></video>`
+              : ""
+          }${overlayRgba ? `<div class="block-bg-overlay" style="background:${overlayRgba};"></div>` : ""}<div class="block-content-over-bg">${inner}</div></div>`;
+        }
+        return `<div class="block" style="${gridStyle}${blockStyleAttr(style)}">${inner}</div>`;
       })
   );
   return parts.join("\n");
