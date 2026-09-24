@@ -278,6 +278,7 @@
       selectedBlockId = null;
       canvas.innerHTML = "<p style='color:var(--text-dim);padding:24px;'>No pages left. Use \"+ Page\" to create one.</p>";
       renderInspector();
+      updatePasteButtonVisibility();
     }
   }
 
@@ -294,6 +295,7 @@
     updateLockButton("lock-page-btn", !!currentPage.locked);
     updatePageOgPreview();
     checkPageDraftRecovery(currentPage.id);
+    updatePasteButtonVisibility();
     await loadBlocks();
   }
 
@@ -679,6 +681,42 @@
     });
   });
 
+  // ---------- Copy/paste blocks (works across pages — clipboard is
+  // localStorage, so it survives navigating to a different page or even
+  // reopening the admin later). Always creates an independent copy, unlike
+  // a reusable block's live link — that's the dedicated flow for "this
+  // should update everywhere"; copy/paste is just a plain duplicate.
+  const BLOCK_CLIPBOARD_KEY = "admin_block_clipboard";
+  function updatePasteButtonVisibility() {
+    let hasClipboard = false;
+    try {
+      hasClipboard = !!localStorage.getItem(BLOCK_CLIPBOARD_KEY);
+    } catch {}
+    el("paste-block-btn").hidden = !hasClipboard || !currentPage;
+  }
+
+  el("paste-block-btn").addEventListener("click", async () => {
+    if (!currentPage) return;
+    let clip;
+    try {
+      clip = JSON.parse(localStorage.getItem(BLOCK_CLIPBOARD_KEY) || "null");
+    } catch {
+      clip = null;
+    }
+    if (!clip) return;
+    const maxRow = blocks.reduce((m, b) => Math.max(m, b.row + b.row_span), 1);
+    try {
+      await api(`/pages/${currentPage.id}/blocks`, {
+        method: "POST",
+        body: JSON.stringify({ type: clip.type, content: clip.content, style: clip.style, col: 1, row: maxRow, col_span: clip.col_span, row_span: clip.row_span }),
+      });
+      await loadBlocks();
+      if (isMobile()) closeDrawers();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
   // ---------- Inspector ----------
   const FIELD_DEFS = {
     heading: [
@@ -990,6 +1028,18 @@
     } catch (err) {
       alert(err.message);
     }
+  });
+
+  el("copy-block-btn").addEventListener("click", () => {
+    const block = blocks.find((b) => b.id === selectedBlockId);
+    if (!block) return;
+    try {
+      localStorage.setItem(
+        BLOCK_CLIPBOARD_KEY,
+        JSON.stringify({ type: block.type, content: block.content, style: block.style, col_span: block.col_span, row_span: block.row_span })
+      );
+    } catch {}
+    updatePasteButtonVisibility();
   });
 
   // ---------- Reusable blocks library ----------
