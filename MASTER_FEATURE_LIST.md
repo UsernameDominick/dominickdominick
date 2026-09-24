@@ -91,7 +91,7 @@ health-check pass, done before this master list existed.
 - 🔶 Custom content types defined through admin (Projects added as a dedicated hard-coded type; not a no-code admin-defined arbitrary-schema system — deliberate scope call, see PRODUCTION_TODO.md)
 - ☐ Custom fields for each content type
 - 🔶 Relationships between projects, articles, media, simulations, and scans (done for projects→articles/simulations/scans; one-directional, not every pair)
-- ☐ Edit relationships from either connected item (currently project-side only)
+- ✅ Edit relationships from either connected item (a "Related projects" field on the article editor edits the same underlying project.related_articles the project editor uses — saving diffs the selection and PATCHes only the projects that actually changed)
 - ☐ Nested categories (flat tags only)
 - ✅ Series and collections (series — pre-existing; "collections" generically ☐)
 - ☐ Manual collections

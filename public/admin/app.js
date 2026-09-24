@@ -2012,9 +2012,38 @@
   el("articles-btn").addEventListener("click", async () => {
     el("articles-modal").hidden = false;
     articles = await api("/articles");
+    projects = await api("/projects");
+    populateArticleRelatedProjectsSelect();
     renderArticlesList();
     clearArticleForm();
   });
+
+  // ---------- Article ↔ project relationships (editable from either side) ----------
+  // Storage stays project-side (project.related_articles) — this just gives
+  // the article editor a way to see and edit the same relationship, so it
+  // doesn't only exist from the project's editor.
+  function populateArticleRelatedProjectsSelect() {
+    el("article-related-projects").innerHTML = projects.map((p) => `<option value="${p.id}">${escapeHtml(p.title)}</option>`).join("");
+  }
+  async function syncArticleRelatedProjects(articleId) {
+    const selectedIds = getMultiSelectValues(el("article-related-projects"));
+    const changedProjects = projects.filter((p) => {
+      const wasLinked = (p.related_articles || []).includes(articleId);
+      const isLinked = selectedIds.includes(p.id);
+      return wasLinked !== isLinked;
+    });
+    if (!changedProjects.length) return;
+    await Promise.all(
+      changedProjects.map((p) => {
+        const isLinked = selectedIds.includes(p.id);
+        const related_articles = isLinked
+          ? [...(p.related_articles || []), articleId]
+          : (p.related_articles || []).filter((id) => id !== articleId);
+        return api(`/projects/${p.id}`, { method: "PATCH", body: JSON.stringify({ related_articles, expected_version: p.version }) });
+      })
+    );
+    projects = await api("/projects");
+  }
   closeModalOnClick("close-articles", "articles-modal");
 
   // <input type="datetime-local"> wants "YYYY-MM-DDTHH:MM" in local time,
@@ -2135,6 +2164,10 @@
     el("article-pinned").checked = !!article.pinned;
     el("article-og-image").value = article.og_image || "";
     el("article-canonical-url").value = article.canonical_url || "";
+    setMultiSelectValues(
+      el("article-related-projects"),
+      projects.filter((p) => (p.related_articles || []).includes(article.id)).map((p) => p.id)
+    );
     el("article-body").value = article.body;
     el("article-published").checked = !!article.published_at;
     el("article-publish-at").value = isoToLocalInput(article.published_at);
@@ -2402,6 +2435,7 @@
     el("article-pinned").checked = false;
     el("article-og-image").value = "";
     el("article-canonical-url").value = "";
+    setMultiSelectValues(el("article-related-projects"), []);
     el("article-body").value = "";
     el("article-published").checked = false;
     el("article-publish-at").value = "";
@@ -2474,6 +2508,7 @@
         currentArticleId = res.id;
         el("article-slug").value = res.slug;
       }
+      await syncArticleRelatedProjects(currentArticleId);
       unsavedDirty = false;
       clearDraft("article", isNewArticle ? null : currentArticleId);
       articles = await api("/articles");
