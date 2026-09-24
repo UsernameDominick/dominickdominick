@@ -509,6 +509,17 @@
     return d.innerHTML;
   }
 
+  function blockBadgesHtml(b) {
+    const visibility = b.style && b.style.visibility;
+    return `${
+      b.shared_block_id ? ` <span class="lock-badge" title="Reusable block — editing it updates every page that uses it">Reusable</span>` : ""
+    }${b.locked ? ` <span class="lock-badge" title="Locked — protected from accidental drag/resize/delete">Locked</span>` : ""}${
+      visibility === "desktop-only" ? ` <span class="lock-badge" title="Hidden on mobile — desktop only">Desktop only</span>` : ""
+    }${
+      visibility === "mobile-only" ? ` <span class="lock-badge" title="Hidden on desktop — mobile only">Mobile only</span>` : ""
+    }${b.style && b.style.hidden ? ` <span class="lock-badge" title="Hidden from the live site entirely">Hidden</span>` : ""}`;
+  }
+
   function renderCanvas() {
     canvas.innerHTML = "";
     let maxBottom = 600;
@@ -526,18 +537,14 @@
       div.style.width = style.width + "px";
       div.style.height = style.height + "px";
       div.dataset.id = b.id;
-      const visibility = b.style && b.style.visibility;
-      div.innerHTML = `<div class="block-type-label">${blockLabel(b.type)}${
-        b.shared_block_id ? ` <span class="lock-badge" title="Reusable block — editing it updates every page that uses it">Reusable</span>` : ""
-      }${b.locked ? ` <span class="lock-badge" title="Locked — protected from accidental drag/resize/delete">Locked</span>` : ""}${
-        visibility === "desktop-only" ? ` <span class="lock-badge" title="Hidden on mobile — desktop only">Desktop only</span>` : ""
-      }${
-        visibility === "mobile-only" ? ` <span class="lock-badge" title="Hidden on desktop — mobile only">Mobile only</span>` : ""
-      }</div><div class="block-preview">${blockPreview(b)}</div><div class="resize-handle"></div>`;
+      div.innerHTML = `<div class="block-type-label">${blockLabel(b.type)}${blockBadgesHtml(
+        b
+      )}</div><div class="block-preview">${blockPreview(b)}</div><div class="resize-handle"></div>`;
       canvas.appendChild(div);
       wireBlockInteractions(div, b);
     }
     canvas.style.minHeight = maxBottom + "px";
+    if (!el("layers-modal").hidden) renderLayersList();
   }
 
   function rectsOverlap(a, b) {
@@ -1418,6 +1425,73 @@
     await loadSharedBlocksList();
   });
   closeModalOnClick("close-shared-blocks", "shared-blocks-modal");
+
+  // ---------- Layers panel (outline of every block on the current page) ----------
+  function renderLayersList() {
+    const container = el("layers-list");
+    if (!currentPage) {
+      container.innerHTML = "<p style='color:var(--text-dim);font-size:0.85rem;'>Open a page first.</p>";
+      return;
+    }
+    if (!blocks.length) {
+      container.innerHTML = "<p style='color:var(--text-dim);font-size:0.85rem;'>This page has no blocks yet.</p>";
+      return;
+    }
+    container.innerHTML = blocks
+      .map(
+        (b) =>
+          `<div class="simulation-row layer-row${b.id === selectedBlockId ? " layer-row-active" : ""}"><span>${blockLabel(
+            b.type
+          )}${blockBadgesHtml(b)} — <span class="layer-preview">${blockPreview(b)}</span></span><button type="button" class="layer-select-btn" data-id="${
+            b.id
+          }">Select</button><button type="button" class="layer-hide-btn" data-id="${b.id}">${
+            b.style && b.style.hidden ? "Show" : "Hide"
+          }</button><button type="button" class="layer-lock-btn" data-id="${b.id}">${b.locked ? "Unlock" : "Lock"}</button></div>`
+      )
+      .join("");
+
+    container.querySelectorAll(".layer-select-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        goToBlock(currentPage.id, Number(btn.dataset.id));
+        el("layers-modal").hidden = true;
+      });
+    });
+    container.querySelectorAll(".layer-hide-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = Number(btn.dataset.id);
+        const b = blocks.find((x) => x.id === id);
+        if (!b) return;
+        const style = { ...(b.style || {}), hidden: !(b.style && b.style.hidden) };
+        try {
+          await api(`/blocks/${id}`, { method: "PATCH", body: JSON.stringify({ style }) });
+          b.style = style;
+          renderCanvas();
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+    });
+    container.querySelectorAll(".layer-lock-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = Number(btn.dataset.id);
+        const b = blocks.find((x) => x.id === id);
+        if (!b) return;
+        try {
+          await api(`/blocks/${id}`, { method: "PATCH", body: JSON.stringify({ locked: !b.locked }) });
+          b.locked = !b.locked;
+          renderCanvas();
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+    });
+  }
+
+  el("layers-btn").addEventListener("click", () => {
+    el("layers-modal").hidden = false;
+    renderLayersList();
+  });
+  closeModalOnClick("close-layers", "layers-modal");
 
   // ---------- Undo (blocks only, in-memory, ~8s window) ----------
   let undoTimer = null;
@@ -2638,6 +2712,7 @@
       { label: "Open Simulations", sub: "", run: () => { closeCommandPalette(); el("simulations-btn").click(); } },
       { label: "Open Scans", sub: "", run: () => { closeCommandPalette(); el("scans-btn").click(); } },
       { label: "Open Reusable Blocks", sub: "", run: () => { closeCommandPalette(); el("shared-blocks-btn").click(); } },
+      { label: "Open Layers", sub: "", run: () => { closeCommandPalette(); el("layers-btn").click(); } },
       { label: "Open Trash", sub: "", run: () => { closeCommandPalette(); el("trash-btn").click(); } },
       { label: "Open Site Settings", sub: "", run: () => { closeCommandPalette(); el("site-settings-btn").click(); } },
       {
@@ -2684,11 +2759,14 @@
   }
 
   async function goToBlock(pageId, blockId) {
-    await selectPage(pageId);
+    if (!currentPage || currentPage.id !== pageId) await selectPage(pageId);
     selectedBlockId = blockId;
+    multiSelectedIds.clear();
     renderCanvas();
     renderInspector();
     if (isMobile()) openDrawer(el("inspector"));
+    const el2 = canvas.querySelector(`[data-id="${blockId}"]`);
+    if (el2) el2.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   function setCommandActive(index) {

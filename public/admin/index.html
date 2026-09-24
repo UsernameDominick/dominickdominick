@@ -42,6 +42,7 @@
         <button id="simulations-btn">Simulations</button>
         <button id="scans-btn">Scans</button>
         <button id="shared-blocks-btn">Reusable Blocks</button>
+        <button id="layers-btn">Layers</button>
         <button id="analytics-btn">Analytics</button>
         <button id="trash-btn">Trash</button>
         <button id="site-settings-btn">Site</button>
@@ -549,6 +550,19 @@
       <div class="redirects-body">
         <p class="redirects-hint">Select a block on a page and use "Save as reusable block…" in its settings to add one here. Editing a reusable block's content updates every page that uses it. Insert one onto the currently open page below.</p>
         <div id="shared-blocks-list" class="redirects-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="layers-modal" class="modal" hidden>
+    <div class="modal-inner redirects-modal-inner">
+      <header>
+        <h1>Layers</h1>
+        <button id="close-layers">×</button>
+      </header>
+      <div class="redirects-body">
+        <p class="redirects-hint">Every block on the current page, top to bottom. Jump to one, or toggle its visibility/lock without opening the canvas.</p>
+        <div id="layers-list" class="redirects-list"></div>
       </div>
     </div>
   </div>

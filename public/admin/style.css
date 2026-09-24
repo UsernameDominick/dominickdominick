@@ -1093,6 +1093,14 @@
   flex-shrink: 0;
 }
 
+.layer-row-active {
+  border-color: var(--accent);
+}
+
+.layer-preview {
+  color: var(--text-dim);
+}
+
 .sim-new-row {
   display: flex;
   gap: 10px;
