@@ -5,4 +5,5 @@ document.addEventListener("click", (e) => {
   if (!svg) return;
   const on = svg.classList.toggle("is-on");
   btn.textContent = on ? "Power off" : "Power on";
+  if (window.trackEvent) window.trackEvent("sim_power_toggle", on ? "on" : "off");
 });

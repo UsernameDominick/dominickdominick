@@ -12,6 +12,11 @@ import {
   getRelatedArticles,
   getSeriesArticles,
   getSimulation,
+  logError,
+  logEvent,
+  checkRateLimit,
+  recordRateLimitHit,
+  runScheduledBackup,
 } from "./db.js";
 import { isAuthenticated } from "./auth.js";
 import {
@@ -306,19 +311,93 @@ function trackView(ctx, env, request, path) {
     }
   }
   const country = request.cf?.country || null;
-  ctx.waitUntil(recordPageview(env, { path, referrer, country }).catch(() => {}));
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  // Generous — this fires on every normal page load, so the point is only
+  // to stop a script hammering pages purely to inflate the numbers, not to
+  // limit real browsing.
+  ctx.waitUntil(
+    checkRateLimit(env, "pageview", ip, { windowMinutes: 1, maxAttempts: 90 })
+      .then((allowed) => {
+        if (!allowed) return;
+        return Promise.all([recordPageview(env, { path, referrer, country }), recordRateLimitHit(env, "pageview", ip)]);
+      })
+      .catch(() => {})
+  );
+}
+
+// A named event from the public site (copy-link click, theme toggle, a
+// simulation's power button, etc.) — not tied to a visitor/session id, so
+// it can only answer "how often", not "how many people".
+async function handleTrackEvent(request, env, ctx) {
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  const allowed = await checkRateLimit(env, "track", ip, { windowMinutes: 1, maxAttempts: 30 });
+  if (!allowed) return new Response(null, { status: 429 });
+  await recordRateLimitHit(env, "track", ip);
+  const body = await request.json().catch(() => ({}));
+  const name = String(body.name || "").trim();
+  if (!name) return new Response(null, { status: 400 });
+  ctx.waitUntil(logEvent(env, { name, path: body.path || null, detail: body.detail || null }).catch(() => {}));
+  return new Response(null, { status: 204 });
+}
+
+// A handful of headers that cost nothing and help regardless of route:
+// blocks MIME-sniffing, stops the site being framed elsewhere (clickjacking),
+// trims referrer leakage, and a CSP that's deliberately not nonce-strict —
+// the admin's own "Custom <head> code" setting is trusted, admin-authored
+// content that can include an inline <script> (e.g. pasting an analytics
+// snippet), which a strict nonce policy would silently break.
+const SECURITY_HEADERS = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "SAMEORIGIN",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy": "geolocation=(), microphone=(), camera=(), payment=()",
+  "Content-Security-Policy": [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com",
+    "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com",
+    "img-src 'self' data: https:",
+    "font-src 'self' https://cdnjs.cloudflare.com data:",
+    "connect-src 'self'",
+    // The Generic Embed block is deliberately "any iframe-able link" —
+    // restricting this to a fixed list of services would break that
+    // feature, so it's scoped to https: rather than named origins.
+    "frame-src https:",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "frame-ancestors 'self'",
+    "form-action 'self'",
+  ].join("; "),
+};
+
+function withSecurityHeaders(response) {
+  const headers = new Headers(response.headers);
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) headers.set(k, v);
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
 export default {
   async fetch(request, env, ctx) {
     try {
-      return await route(request, env, ctx);
+      const response = await route(request, env, ctx);
+      return withSecurityHeaders(response);
     } catch (err) {
-      return new Response("Something went wrong. Try again in a moment.", {
-        status: 500,
-        headers: { "Content-Type": "text/plain;charset=UTF-8" },
-      });
+      const path = new URL(request.url).pathname;
+      ctx.waitUntil(logError(env, { message: err.message, stack: err.stack, path }).catch(() => {}));
+      return withSecurityHeaders(
+        new Response("Something went wrong. Try again in a moment.", {
+          status: 500,
+          headers: { "Content-Type": "text/plain;charset=UTF-8" },
+        })
+      );
     }
+  },
+
+  // Runs on the configured cron schedule (see wrangler.jsonc) — a full JSON
+  // backup written to R2, since D1 itself has no built-in scheduled backup.
+  // Media files in R2 aren't included (they're already durably stored there
+  // as-is); this covers the D1-side content that only lives in one place.
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(runScheduledBackup(env));
   },
 };
 
@@ -330,6 +409,10 @@ async function route(request, env, ctx) {
       return handleAdminApi(request, env, url, ctx);
     }
 
+    if (path === "/api/track" && request.method === "POST") {
+      return handleTrackEvent(request, env, ctx);
+    }
+
     if (path === "/sitemap.xml") {
       return renderSitemap(env);
     }
@@ -339,6 +422,10 @@ async function route(request, env, ctx) {
     }
 
     if (path === "/search") {
+      const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+      const allowed = await checkRateLimit(env, "search", ip, { windowMinutes: 1, maxAttempts: 20 });
+      if (!allowed) return new Response("Too many searches. Try again in a minute.", { status: 429 });
+      ctx.waitUntil(recordRateLimitHit(env, "search", ip).catch(() => {}));
       const navItems = await listNavPages(env);
       return renderSearch(env, url.searchParams.get("q")?.trim() || "", navItems);
     }
@@ -351,7 +438,10 @@ async function route(request, env, ctx) {
       return renderSimulationPage(env, sim, navItems);
     }
 
-    const mediaMatch = path.match(/^\/media\/([A-Za-z0-9_.\-\/]+)$/);
+    // Scoped to the "uploads/" prefix specifically — the same R2 bucket
+    // also holds scheduled backups under "backups/", which must never be
+    // servable through this public route.
+    const mediaMatch = path.match(/^\/media\/(uploads\/[A-Za-z0-9_.\-\/]+)$/);
     if (mediaMatch) {
       const obj = await env.MEDIA.get(mediaMatch[1]);
       if (!obj) return new Response("Not found", { status: 404 });

@@ -18,5 +18,10 @@
 			"binding": "MEDIA",
 			"bucket_name": "dominickdominick-media"
 		}
-	]
+	],
+	// Daily full JSON backup of D1 content to R2 (see the `scheduled` handler
+	// in worker/index.js) — 08:00 UTC, an arbitrary quiet hour.
+	"triggers": {
+		"crons": ["0 8 * * *"]
+	}
 }

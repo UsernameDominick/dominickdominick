@@ -186,6 +186,7 @@
       </header>
       <div class="analytics-body">
         <div class="analytics-tiles">
+          <div class="analytics-tile"><span id="stat-active">–</span><label>Active now (5 min)</label></div>
           <div class="analytics-tile"><span id="stat-today">–</span><label>Today</label></div>
           <div class="analytics-tile"><span id="stat-7d">–</span><label>Last 7 days</label></div>
           <div class="analytics-tile"><span id="stat-30d">–</span><label>Last 30 days</label></div>
@@ -205,6 +206,10 @@
           <div>
             <h2>Top countries</h2>
             <div id="analytics-countries" class="analytics-list"></div>
+          </div>
+          <div>
+            <h2>Top events</h2>
+            <div id="analytics-events" class="analytics-list"></div>
           </div>
         </div>
       </div>
@@ -324,11 +329,18 @@
         <label style="margin-bottom:0;">Recent admin actions on this site.</label>
         <button type="button" id="load-activity-btn">Refresh</button>
         <div id="activity-log-list" class="link-check-results"></div>
+        <h2>Error Log</h2>
+        <label style="margin-bottom:0;">Uncaught errors the live site has hit.</label>
+        <button type="button" id="load-errors-btn">Refresh</button>
+        <div id="error-log-list" class="link-check-results"></div>
         <h2>Backup</h2>
         <label style="margin-bottom:0;">Download everything — pages, blocks, articles, settings — as one file.</label>
         <button type="button" id="export-btn">Download backup</button>
         <label style="margin-bottom:0;">Restore from a backup file. <strong>Replaces all current content.</strong></label>
         <button type="button" id="import-btn" class="danger">Restore from file…</button>
+        <label style="margin-bottom:0;">Automatic daily backups, kept for 30 days.</label>
+        <button type="button" id="run-backup-now-btn">Run a backup now</button>
+        <div id="scheduled-backups-list" class="link-check-results"></div>
       </div>
     </div>
   </div>

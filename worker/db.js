@@ -441,6 +441,75 @@ export async function runFindReplace(env, { find, replace, apply }) {
   return results;
 }
 
+// ---------- Error log ----------
+const ERROR_LOG_KEEP = 300;
+
+export async function logError(env, { message, stack, path }) {
+  await env.DB
+    .prepare("INSERT INTO error_log (message, stack, path) VALUES (?, ?, ?)")
+    .bind(String(message || "Unknown error").slice(0, 2000), stack ? String(stack).slice(0, 4000) : null, path || null)
+    .run();
+  await env.DB
+    .prepare(`DELETE FROM error_log WHERE id NOT IN (SELECT id FROM error_log ORDER BY id DESC LIMIT ?)`)
+    .bind(ERROR_LOG_KEEP)
+    .run()
+    .catch(() => {});
+}
+
+export async function listErrors(env, limit = 50) {
+  const { results } = await env.DB
+    .prepare("SELECT * FROM error_log ORDER BY id DESC LIMIT ?")
+    .bind(Math.max(1, Math.floor(limit)))
+    .all();
+  return results;
+}
+
+// ---------- Custom events ----------
+// Lightweight named-event tracking alongside pageviews (link clicks, theme
+// toggles, etc.) — not tied to a visitor/session id, so it can only answer
+// "how often did X happen", not "how many people did X".
+export async function logEvent(env, { name, path, detail }) {
+  await env.DB
+    .prepare("INSERT INTO events (name, path, detail) VALUES (?, ?, ?)")
+    .bind(String(name || "").slice(0, 100), path || null, detail ? String(detail).slice(0, 500) : null)
+    .run();
+}
+
+export async function getEventCounts(env, days = 7) {
+  const { results } = await env.DB
+    .prepare(
+      `SELECT name, COUNT(*) AS n FROM events WHERE created_at > datetime('now', '-${Math.max(1, Math.floor(days))} days')
+       GROUP BY name ORDER BY n DESC LIMIT 20`
+    )
+    .all();
+  return results;
+}
+
+// ---------- Rate limiting (generic) ----------
+// Separate from login's own checkLoginRateLimit/recordLoginAttempt — that
+// path is already proven and left untouched; this is for other public
+// endpoints (search, pageview recording) that didn't have any limit before.
+export async function checkRateLimit(env, bucket, ip, { windowMinutes = 1, maxAttempts = 30 } = {}) {
+  const { results } = await env.DB
+    .prepare(
+      `SELECT COUNT(*) AS n FROM rate_limits WHERE bucket = ? AND ip = ? AND attempted_at > datetime('now', '-${Math.max(
+        1,
+        Math.floor(windowMinutes)
+      )} minutes')`
+    )
+    .bind(bucket, ip)
+    .all();
+  return (results[0]?.n || 0) < maxAttempts;
+}
+
+export async function recordRateLimitHit(env, bucket, ip) {
+  await env.DB.prepare("INSERT INTO rate_limits (bucket, ip) VALUES (?, ?)").bind(bucket, ip).run();
+  await env.DB
+    .prepare(`DELETE FROM rate_limits WHERE attempted_at < datetime('now', '-1 day')`)
+    .run()
+    .catch(() => {});
+}
+
 // ---------- Activity log ----------
 // A lightweight audit trail — this is a single-admin site, so there's no
 // "who did it", just what happened and when. Pruned the same way revisions
@@ -809,9 +878,10 @@ export async function recordPageview(env, { path, referrer, country }) {
 export async function getAnalytics(env, days = 7) {
   const since = `datetime('now', '-${Math.max(1, Math.floor(days))} days')`;
 
-  const [totalsRow, byDay, topPaths, topReferrers, topCountries] = await Promise.all([
+  const [totalsRow, byDay, topPaths, topReferrers, topCountries, topEvents] = await Promise.all([
     env.DB.prepare(
       `SELECT
+         (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-5 minutes')) AS activeNow,
          (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-1 days')) AS today,
          (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-7 days')) AS last7,
          (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-30 days')) AS last30,
@@ -841,9 +911,11 @@ export async function getAnalytics(env, days = 7) {
          WHERE created_at > ${since} GROUP BY country ORDER BY n DESC LIMIT 10`
       )
       .all(),
+    getEventCounts(env, days),
   ]);
 
   return {
+    activeNow: totalsRow?.activeNow || 0,
     today: totalsRow?.today || 0,
     last7: totalsRow?.last7 || 0,
     last30: totalsRow?.last30 || 0,
@@ -852,6 +924,7 @@ export async function getAnalytics(env, days = 7) {
     topPaths: topPaths.results,
     topReferrers: topReferrers.results,
     topCountries: topCountries.results,
+    topEvents,
   };
 }
 
@@ -889,6 +962,33 @@ export async function exportAll(env) {
     templates: templates.results,
     media: media.results,
   };
+}
+
+// ---------- Scheduled backups ----------
+// A full JSON export of D1 content, written to R2 under its own prefix —
+// separate from "uploads/", and deliberately never served by the public
+// /media/:key route (see worker/index.js), since a backup contains
+// everything, not just what's meant to be public. Media files themselves
+// aren't re-copied; they already live durably in R2 as-is.
+const BACKUP_PREFIX = "backups/";
+const BACKUP_KEEP = 30;
+
+export async function runScheduledBackup(env) {
+  const data = await exportAll(env);
+  const key = `${BACKUP_PREFIX}${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+  await env.MEDIA.put(key, JSON.stringify(data), { httpMetadata: { contentType: "application/json" } });
+  const listed = await env.MEDIA.list({ prefix: BACKUP_PREFIX });
+  const sorted = listed.objects.sort((a, b) => new Date(b.uploaded) - new Date(a.uploaded));
+  const stale = sorted.slice(BACKUP_KEEP);
+  await Promise.all(stale.map((o) => env.MEDIA.delete(o.key)));
+  return key;
+}
+
+export async function listScheduledBackups(env) {
+  const listed = await env.MEDIA.list({ prefix: BACKUP_PREFIX });
+  return listed.objects
+    .sort((a, b) => new Date(b.uploaded) - new Date(a.uploaded))
+    .map((o) => ({ key: o.key, size: o.size, uploaded: o.uploaded }));
 }
 
 export async function importAll(env, data) {

@@ -75,6 +75,29 @@ CREATE TABLE revisions (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE error_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  message TEXT NOT NULL,
+  stack TEXT,
+  path TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  path TEXT,
+  detail TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE rate_limits (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  bucket TEXT NOT NULL,
+  ip TEXT NOT NULL,
+  attempted_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE activity_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   action TEXT NOT NULL,
@@ -116,3 +139,7 @@ CREATE INDEX idx_login_attempts_ip_time ON login_attempts(ip, attempted_at);
 CREATE INDEX idx_pageviews_created ON pageviews(created_at);
 CREATE INDEX idx_pageviews_path ON pageviews(path);
 CREATE INDEX idx_activity_log_created ON activity_log(created_at);
+CREATE INDEX idx_error_log_created ON error_log(created_at);
+CREATE INDEX idx_events_created ON events(created_at);
+CREATE INDEX idx_events_name ON events(name);
+CREATE INDEX idx_rate_limits_bucket_ip_time ON rate_limits(bucket, ip, attempted_at);

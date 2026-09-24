@@ -30,6 +30,9 @@ import {
   findMediaUsage,
   logActivity,
   listActivityLog,
+  listErrors,
+  runScheduledBackup,
+  listScheduledBackups,
   runFindReplace,
   slugExists,
   checkLoginRateLimit,
@@ -638,9 +641,25 @@ async function routeAdminApi(request, env, url, ctx) {
     return json({ ok: true });
   }
 
+  // /scheduled-backups — the automatic daily R2 backups (separate from the
+  // on-demand "Download backup" export above)
+  if (path === "/scheduled-backups" && method === "GET") {
+    return json(await listScheduledBackups(env));
+  }
+  if (path === "/scheduled-backups/run" && method === "POST") {
+    const key = await runScheduledBackup(env);
+    log(ctx, env, "create", "backup", key);
+    return json({ key });
+  }
+
   // /activity — recent admin actions, for the audit trail viewer
   if (path === "/activity" && method === "GET") {
     return json(await listActivityLog(env, Number(url.searchParams.get("limit")) || 100));
+  }
+
+  // /errors — recent uncaught worker errors, for the error log viewer
+  if (path === "/errors" && method === "GET") {
+    return json(await listErrors(env, Number(url.searchParams.get("limit")) || 50));
   }
 
   // /analytics

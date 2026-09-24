@@ -1461,6 +1461,8 @@
     el("find-replace-apply-btn").disabled = true;
     el("settings-modal").hidden = false;
     loadActivityLog().catch(() => {});
+    loadErrors().catch(() => {});
+    loadScheduledBackups().catch(() => {});
   });
   closeModalOnClick("close-settings", "settings-modal");
   el("save-settings").addEventListener("click", async () => {
@@ -1568,6 +1570,52 @@
         .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>Nothing logged yet.</p>";
   }
   el("load-activity-btn").addEventListener("click", () => loadActivityLog().catch((err) => alert(err.message)));
+
+  // ---------- Error log ----------
+  async function loadErrors() {
+    const items = await api("/errors?limit=50");
+    el("error-log-list").innerHTML =
+      items
+        .map(
+          (e) =>
+            `<div class="link-check-row broken" title="${escapeHtml(e.stack || "")}"><span class="link-check-url">${escapeHtml(
+              e.message
+            )}${e.path ? ` (${escapeHtml(e.path)})` : ""}</span><span class="link-check-source">${escapeHtml(
+              new Date(e.created_at.replace(" ", "T") + "Z").toLocaleString()
+            )}</span></div>`
+        )
+        .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No errors logged — good sign.</p>";
+  }
+  el("load-errors-btn").addEventListener("click", () => loadErrors().catch((err) => alert(err.message)));
+
+  // ---------- Scheduled backups ----------
+  async function loadScheduledBackups() {
+    const items = await api("/scheduled-backups");
+    el("scheduled-backups-list").innerHTML =
+      items
+        .map(
+          (b) =>
+            `<div class="link-check-row"><span class="link-check-url">${escapeHtml(b.key.replace("backups/", ""))}</span><span class="link-check-source">${formatBytes(
+              b.size
+            )}</span></div>`
+        )
+        .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No backups yet.</p>";
+  }
+  el("run-backup-now-btn").addEventListener("click", async () => {
+    const btn = el("run-backup-now-btn");
+    const originalText = btn.textContent;
+    btn.textContent = "Running…";
+    btn.disabled = true;
+    try {
+      await api("/scheduled-backups/run", { method: "POST" });
+      await loadScheduledBackups();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      btn.textContent = originalText;
+      btn.disabled = false;
+    }
+  });
 
   // ---------- Revisions ----------
   // A simple word-level LCS diff — fine for typical article lengths. Capped
@@ -1943,6 +1991,7 @@
   async function loadAnalytics() {
     const data = await api(`/analytics?days=${analyticsRange}`);
     lastAnalyticsData = data;
+    el("stat-active").textContent = data.activeNow;
     el("stat-today").textContent = data.today;
     el("stat-7d").textContent = data.last7;
     el("stat-30d").textContent = data.last30;
@@ -1965,6 +2014,7 @@
     renderList("analytics-pages", data.topPaths, "path");
     renderList("analytics-referrers", data.topReferrers, "referrer");
     renderList("analytics-countries", data.topCountries, "country");
+    renderList("analytics-events", data.topEvents, "name");
   }
 
   el("analytics-btn").addEventListener("click", async () => {
@@ -1996,6 +2046,8 @@
     data.topReferrers.forEach((r) => (csv += toCsvRow([r.referrer, r.n])));
     csv += "\r\n" + toCsvRow(["Top countries"]) + toCsvRow(["Country", "Views"]);
     data.topCountries.forEach((r) => (csv += toCsvRow([r.country, r.n])));
+    csv += "\r\n" + toCsvRow(["Top events"]) + toCsvRow(["Event", "Count"]);
+    data.topEvents.forEach((r) => (csv += toCsvRow([r.name, r.n])));
 
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);

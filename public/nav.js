@@ -1,3 +1,15 @@
+// Fire-and-forget named event tracking, shared by this file and the other
+// deferred public scripts (article-extras.js, sim-player.js) — this file is
+// a plain synchronous <script>, so it always finishes before those deferred
+// ones start, making window.trackEvent reliably available to them.
+window.trackEvent = function (name, detail) {
+  try {
+    var payload = JSON.stringify({ name: name, path: location.pathname, detail: detail || null });
+    if (navigator.sendBeacon) navigator.sendBeacon("/api/track", payload);
+    else fetch("/api/track", { method: "POST", body: payload, keepalive: true });
+  } catch (e) {}
+};
+
 (function () {
   var active = document.querySelector(".tab.is-active");
   var wrap = document.querySelector(".tabs");
@@ -40,5 +52,6 @@
     try {
       localStorage.setItem("theme", next);
     } catch (e) {}
+    window.trackEvent("theme_toggle", next);
   });
 })();

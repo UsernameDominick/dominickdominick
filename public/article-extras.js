@@ -25,6 +25,7 @@
       .then(function () {
         btn.textContent = btn.dataset.copiedText || "Copied!";
         setTimeout(reset, 1800);
+        if (window.trackEvent) window.trackEvent("copy_link");
       })
       .catch(function () {
         reset();
