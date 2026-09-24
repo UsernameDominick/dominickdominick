@@ -607,7 +607,11 @@ health-check pass, predates this doc.
   was launched from, `z-index: 80` vs. `.modal`'s `100`) — fixed to 110
 - ☐ Markdown import/export UI, paste cleanup from documents/websites
 - ✅ Find & replace (site-wide tool covers articles too)
-- ☐ Private notes/comments on draft sections
+- ✅ Private notes (a new `private_notes` column on articles/projects — a
+  textarea in each editor, clearly labeled "never shown publicly";
+  verified it never reaches `renderArticle`/`renderProject`'s output.
+  Not per-section/inline comments, just one private field per item —
+  editorial reminders, todos, sources, not a commenting system)
 - ✅ Reader-facing "Updated <date>" (only once 24h+ past publish, avoids autosave noise)
 - ✅ Correction/update note callout (optional field, shown at top when set)
 - ✅ Custom article endings (automatic related-articles ✅; admin-curated
@@ -728,7 +732,12 @@ block already support any of these as a plain page:
 ### Build journals and technical documentation
 - ✅ Dated journal entries, BOM with substitutions, pipe-table wiring/pinout tables, test records, decision logs, failed-attempt records, accordion for expandable hints
 - 🔶 Supporting photos/measurements for tests (markdown text only; no dedicated fields)
-- ☐ Reproduction checklists, download manifests explaining each file (per-project manifest ✅ above; per-file *explanation* ☐), hardware/software compatibility info, firmware tied to hardware revisions, completion summaries, cybersecurity lab writeup templates, annotated terminal transcripts, screenshot redaction
+- ☐ Reproduction checklists, hardware/software compatibility info, firmware
+  tied to hardware revisions, completion summaries, cybersecurity lab
+  writeup templates, annotated terminal transcripts, screenshot redaction
+  (correction: per-file download-manifest explanations were already ✅ —
+  the "Label | URL | Description" format on each manifest line always
+  included one; this note was stale, not describing a real gap)
 
 ### Media library and file management
 - 🔶 Folders (flat ✅, nesting ☐); 🔶 tags ✅ / smart collections ☐; ✅ saved
