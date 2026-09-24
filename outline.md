@@ -59,7 +59,15 @@ against what was asked for (0–4 fail / 5–7 passing but not polished /
 8–10 ship-it). If below 8, fix what it flagged and repeat. Stop at
 either a 10 or 5 loops total, whichever comes first — if still not a 10
 after 5 loops, ship the best version and note in the commit/report what
-didn't get resolved, rather than looping forever.
+didn't get resolved, rather than looping forever. Tell the reviewing
+subagent to screenshot with `fullPage: false` (viewport only) for any
+modal or other `position: fixed` chrome — a `fullPage: true` capture
+stitches the whole scrollable page into one image, which misrenders
+anything `position: fixed` (it renders relative to the viewport, not
+that stitched canvas) and can report a fake centering/backdrop bug.
+If a finding looks like layout chrome is broken, prefer verifying with
+`getComputedStyle`/`getBoundingClientRect` over trusting the screenshot
+alone before spending a fix cycle on it.
 
 **Code reuse and token efficiency:** the user pays for every token this
 session burns, so favor reusing/extracting a shared function over
@@ -155,11 +163,36 @@ rather than a second copy) — 4 waveform choices (sine/square/sawtooth/
 triangle), note→frequency via the standard equal-temperament formula.
 Verified: 24 rows render (10 correctly flagged as black keys), note
 toggles persist exactly, waveform choice saves, playback with melody
-notes active runs without error. Still ☐: Web MIDI input, waveform
-render (the visual kind — a waveform *display*, not to be confused
-with the oscillator waveform picker just added), page-animation sync,
-embeddable public block/player. Continue in that
-order next session.
+notes active runs without error.
+
+**Screenshot-and-rate review (round 1): 5/10.** A subagent found real
+issues: (1) no visual distinction between beat groups every 4 steps —
+fixed with a small gap before each group rather than relying on a
+border-color change alone; (2) the sequencer body couldn't actually
+scroll — its content overflowed the modal with no way to reach it, a
+classic flexbox bug (`flex: 1; overflow: auto` without `min-height: 0`
+never shrinks below its content size, so the browser never engages the
+scrollbar) — fixed, verified by actually calling `.scrollTop =
+scrollHeight` and confirming it moved and revealed the rest of the
+piano roll; (3) the playing-step outline and the on-state fill used
+the same accent hue, hard to tell apart — changed the playhead outline
+to a contrasting color instead; (4) the waveform `<select>` had no
+accessible label — added one; (5) 28px step cells bumped to 32px for
+touch. One flagged issue ("modal not centered/no dimmed backdrop")
+turned out to be a `fullPage: true` Playwright screenshot artifact —
+`position: fixed` elements render relative to the viewport, not a
+stitched full-page canvas, so that capture mode misrepresents any
+fixed-position modal; confirmed correct via direct
+`getComputedStyle`/`getBoundingClientRect` checks and a viewport-only
+screenshot instead. Worth remembering for future reviews: screenshot
+a modal with `fullPage: false` (or note the page's real scrollWidth/
+scrollHeight first), since fullPage capture will misrender any
+`position: fixed` chrome. Not yet re-scored by a fresh pass.
+
+Still ☐: Web MIDI input, waveform render (the visual kind — a
+waveform *display*, not to be confused with the oscillator waveform
+picker just added), page-animation sync, embeddable public
+block/player. Continue in that order next session.
 
 ### 1c. Admin UX / mobile overhaul
 The admin console's nav/UI/UX needs a real upgrade pass to accommodate

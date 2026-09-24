@@ -1422,6 +1422,7 @@ kbd {
 
 .song-builder-body {
   flex: 1;
+  min-height: 0;
   overflow: auto;
   padding: 24px;
 }
@@ -1467,7 +1468,7 @@ kbd {
 
 .song-step {
   aspect-ratio: 1;
-  min-height: 28px;
+  min-height: 32px;
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--bg-elevated);
@@ -1475,8 +1476,11 @@ kbd {
   padding: 0;
 }
 
-.song-step-beat {
-  border-color: var(--text-dim);
+/* A gap before every 4th step (not the very first) reads as beat
+   grouping at a glance, the way a real step sequencer groups steps —
+   a border-color change alone wasn't visually distinct enough. */
+.song-step-beat:not(:first-child) {
+  margin-left: 8px;
 }
 
 .song-step-on {
@@ -1484,8 +1488,11 @@ kbd {
   border-color: var(--accent);
 }
 
+/* Deliberately a different hue from .song-step-on's accent color — this
+   marks "currently playing," not "on," and needs to read as a distinct
+   signal even on an on+playing step at the same time. */
 .song-step-playing {
-  box-shadow: 0 0 0 2px var(--accent) inset;
+  box-shadow: 0 0 0 2px var(--text) inset;
 }
 
 .song-section-heading {
@@ -1497,8 +1504,6 @@ kbd {
 }
 
 .song-piano-roll {
-  max-height: 320px;
-  overflow-y: auto;
   padding-right: 4px;
 }
 
