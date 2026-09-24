@@ -9,7 +9,8 @@ CREATE TABLE pages (
   deleted_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-  version INTEGER NOT NULL DEFAULT 1
+  version INTEGER NOT NULL DEFAULT 1,
+  locked INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE blocks (
@@ -39,7 +40,8 @@ CREATE TABLE articles (
   co_authors TEXT NOT NULL DEFAULT '[]',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-  version INTEGER NOT NULL DEFAULT 1
+  version INTEGER NOT NULL DEFAULT 1,
+  locked INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE settings (

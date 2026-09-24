@@ -48,6 +48,10 @@ export async function updatePage(env, id, fields) {
       vals.push(fields[key]);
     }
   }
+  if ("locked" in fields) {
+    cols.push("locked = ?");
+    vals.push(fields.locked ? 1 : 0);
+  }
   if (!cols.length) return;
   cols.push("updated_at = datetime('now')", "version = version + 1");
   vals.push(id);
@@ -283,34 +287,53 @@ export async function updateArticle(env, id, fields) {
     cols.push("published_at = ?");
     vals.push(resolvePublishedAt(fields));
   }
+  if ("locked" in fields) {
+    cols.push("locked = ?");
+    vals.push(fields.locked ? 1 : 0);
+  }
   if (!cols.length) return;
   cols.push("updated_at = datetime('now')", "version = version + 1");
   vals.push(id);
   await env.DB.prepare(`UPDATE articles SET ${cols.join(", ")} WHERE id = ?`).bind(...vals).run();
 }
 
+// Locked articles are deliberately excluded from every bulk action — the
+// whole point of locking a "finished" piece is protection against exactly
+// this kind of sweep (select-all, one click) rather than a single
+// deliberate edit, which still goes through updateArticle() normally.
+// Returns how many were actually affected vs skipped for being locked, so
+// the admin isn't left wondering why a locked item didn't move.
 export async function bulkArticleAction(env, ids, action) {
   const validIds = ids.map(Number).filter(Number.isFinite);
-  if (!validIds.length) return;
+  if (!validIds.length) return { affected: 0, skippedLocked: 0 };
   const placeholders = validIds.map(() => "?").join(",");
+  const lockedRows = await env.DB
+    .prepare(`SELECT id FROM articles WHERE id IN (${placeholders}) AND locked = 1`)
+    .bind(...validIds)
+    .all();
+  const skippedLocked = lockedRows.results.length;
+  const affectedIds = validIds.filter((id) => !lockedRows.results.some((r) => r.id === id));
+  if (!affectedIds.length) return { affected: 0, skippedLocked };
+  const affectedPlaceholders = affectedIds.map(() => "?").join(",");
   if (action === "publish") {
     await env.DB
-      .prepare(`UPDATE articles SET published_at = COALESCE(published_at, datetime('now')), updated_at = datetime('now'), version = version + 1 WHERE id IN (${placeholders})`)
-      .bind(...validIds)
+      .prepare(`UPDATE articles SET published_at = COALESCE(published_at, datetime('now')), updated_at = datetime('now'), version = version + 1 WHERE id IN (${affectedPlaceholders})`)
+      .bind(...affectedIds)
       .run();
   } else if (action === "unpublish") {
     await env.DB
-      .prepare(`UPDATE articles SET published_at = NULL, updated_at = datetime('now'), version = version + 1 WHERE id IN (${placeholders})`)
-      .bind(...validIds)
+      .prepare(`UPDATE articles SET published_at = NULL, updated_at = datetime('now'), version = version + 1 WHERE id IN (${affectedPlaceholders})`)
+      .bind(...affectedIds)
       .run();
   } else if (action === "trash") {
     await env.DB
-      .prepare(`UPDATE articles SET deleted_at = datetime('now'), version = version + 1 WHERE id IN (${placeholders})`)
-      .bind(...validIds)
+      .prepare(`UPDATE articles SET deleted_at = datetime('now'), version = version + 1 WHERE id IN (${affectedPlaceholders})`)
+      .bind(...affectedIds)
       .run();
   } else {
     throw new Error("Invalid bulk action");
   }
+  return { affected: affectedIds.length, skippedLocked };
 }
 
 // "Delete" moves an article to the trash rather than actually removing it
@@ -417,6 +440,7 @@ export async function runFindReplace(env, { find, replace, apply }) {
 
   const pages = await listPages(env);
   for (const p of pages) {
+    if (p.locked) continue; // a "finished" page is protected from this exact kind of sweep
     const blocks = await listBlocks(env, p.id);
     let pageSnapshotted = false;
     for (const b of blocks) {
@@ -435,6 +459,7 @@ export async function runFindReplace(env, { find, replace, apply }) {
 
   const articles = await listArticles(env);
   for (const a of articles) {
+    if (a.locked) continue;
     const fields = {};
     if (typeof a.title === "string" && a.title.includes(find)) fields.title = a.title.split(find).join(replace);
     if (typeof a.body === "string" && a.body.includes(find)) fields.body = a.body.split(find).join(replace);

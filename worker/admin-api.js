@@ -392,9 +392,9 @@ async function routeAdminApi(request, env, url, ctx) {
     if (!["publish", "unpublish", "trash"].includes(body.action)) {
       return json({ error: "Invalid action" }, { status: 400 });
     }
-    await bulkArticleAction(env, ids, body.action);
-    log(ctx, env, body.action, "article", `${ids.length} article(s)`);
-    return json({ ok: true });
+    const result = await bulkArticleAction(env, ids, body.action);
+    log(ctx, env, body.action, "article", `${result.affected} article(s)${result.skippedLocked ? `, ${result.skippedLocked} skipped (locked)` : ""}`);
+    return json({ ok: true, ...result });
   }
   if (path === "/articles/trash" && method === "GET") {
     return json(await listTrashedArticles(env));

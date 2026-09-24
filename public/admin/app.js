@@ -291,6 +291,7 @@
     el("page-nav-order").value = currentPage.nav_order ?? "";
     el("page-og-image").value = currentPage.og_image || "";
     el("page-save-status").textContent = "";
+    updateLockButton("lock-page-btn", !!currentPage.locked);
     updatePageOgPreview();
     checkPageDraftRecovery(currentPage.id);
     await loadBlocks();
@@ -409,6 +410,19 @@
     await api(`/pages/${currentPage.id}`, { method: "DELETE" });
     currentPage = null;
     await loadPages();
+  });
+
+  el("lock-page-btn").addEventListener("click", async () => {
+    if (!currentPage) return;
+    try {
+      await api(`/pages/${currentPage.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ locked: !currentPage.locked, expected_version: currentPage.version }),
+      });
+      await loadPages();
+    } catch (err) {
+      alert(err.message);
+    }
   });
 
   // ---------- Blocks ----------
@@ -1016,6 +1030,14 @@
   let articles = [];
   let currentArticleId = null;
   let currentArticleVersion = null;
+  let currentArticleLocked = false;
+
+  // Shared by the article and page-settings lock buttons.
+  function updateLockButton(btnId, locked) {
+    const btn = el(btnId);
+    btn.textContent = locked ? "Unlock" : "Lock";
+    btn.classList.toggle("is-locked", locked);
+  }
 
   el("articles-btn").addEventListener("click", async () => {
     el("articles-modal").hidden = false;
@@ -1040,6 +1062,10 @@
     return "";
   }
 
+  function articleLockBadge(a) {
+    return a.locked ? ` <span class="lock-badge" title="Locked — protected from bulk actions and find-replace">Locked</span>` : "";
+  }
+
   let selectedArticleIds = new Set();
 
   function updateBulkBar() {
@@ -1059,7 +1085,7 @@
         (a) =>
           `<div class="article-list-item${a.id === currentArticleId ? " active" : ""}" data-id="${a.id}"><input type="checkbox" class="article-select-checkbox" data-id="${a.id}"${
             selectedArticleIds.has(a.id) ? " checked" : ""
-          }> ${escapeHtml(a.title)}${articleStatusLabel(a)}${
+          }> ${escapeHtml(a.title)}${articleStatusLabel(a)}${articleLockBadge(a)}${
             a.tags && a.tags.length ? `<div class="article-list-tags">${a.tags.map(escapeHtml).join(", ")}</div>` : ""
           }</div>`
       )
@@ -1091,11 +1117,14 @@
     const label = { publish: "Publish", unpublish: "Unpublish", trash: "Trash" }[action];
     if (!confirm(`${label} ${selectedArticleIds.size} article(s)?`)) return;
     try {
-      await api("/articles/bulk", { method: "POST", body: JSON.stringify({ ids: [...selectedArticleIds], action }) });
+      const result = await api("/articles/bulk", { method: "POST", body: JSON.stringify({ ids: [...selectedArticleIds], action }) });
       selectedArticleIds = new Set();
       articles = await api("/articles");
       if (currentArticleId && !articles.some((a) => a.id === currentArticleId)) clearArticleForm();
       renderArticlesList();
+      if (result.skippedLocked) {
+        alert(`${result.affected} article(s) ${label.toLowerCase()}ed. ${result.skippedLocked} skipped because they're locked.`);
+      }
     } catch (err) {
       alert(err.message);
     }
@@ -1112,6 +1141,8 @@
     setAutosaveStatus("");
     currentArticleId = article.id;
     currentArticleVersion = article.version || null;
+    currentArticleLocked = !!article.locked;
+    updateLockButton("lock-article-btn", currentArticleLocked);
     el("article-title").value = article.title;
     el("article-slug").value = article.slug;
     el("article-tags").value = (article.tags || []).join(", ");
@@ -1251,6 +1282,8 @@
     setAutosaveStatus("");
     currentArticleId = null;
     currentArticleVersion = null;
+    currentArticleLocked = false;
+    updateLockButton("lock-article-btn", false);
     el("article-title").value = "";
     el("article-slug").value = "";
     el("article-tags").value = "";
@@ -1400,6 +1433,23 @@
     articles = await api("/articles");
     renderArticlesList();
     clearArticleForm();
+  });
+
+  el("lock-article-btn").addEventListener("click", async () => {
+    if (!currentArticleId) return alert("Save the article first.");
+    try {
+      await api(`/articles/${currentArticleId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ locked: !currentArticleLocked, expected_version: currentArticleVersion }),
+      });
+      currentArticleLocked = !currentArticleLocked;
+      updateLockButton("lock-article-btn", currentArticleLocked);
+      articles = await api("/articles");
+      rebaseArticleVersion();
+      renderArticlesList();
+    } catch (err) {
+      alert(err.message);
+    }
   });
 
   // ---------- Media library ----------

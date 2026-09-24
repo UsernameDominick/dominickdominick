@@ -221,6 +221,12 @@
   margin-top: 16px !important;
 }
 
+#lock-article-btn.is-locked,
+#lock-page-btn.is-locked {
+  background: var(--accent-dim);
+  color: var(--bg);
+}
+
 /* Canvas */
 .admin-canvas-wrap {
   flex: 1;
@@ -553,6 +559,20 @@
   font-size: 0.72rem;
   color: var(--accent-dim);
   margin-top: 2px;
+}
+
+.lock-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-left: 4px;
+  vertical-align: middle;
 }
 
 /* ---------- Mobile ---------- */
