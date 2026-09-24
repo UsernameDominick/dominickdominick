@@ -967,6 +967,34 @@ export async function logEvent(env, { name, path, detail }) {
     .run();
 }
 
+// ---------- Webhook delivery history ----------
+export async function logWebhookDelivery(env, { url, payload, status, status_code, error }) {
+  const res = await env.DB
+    .prepare("INSERT INTO webhook_deliveries (url, payload, status, status_code, error) VALUES (?, ?, ?, ?, ?)")
+    .bind(url, JSON.stringify(payload), status, status_code || null, error ? String(error).slice(0, 500) : null)
+    .run();
+  // Pruned the same way the activity log is, so this can't grow forever.
+  await env.DB
+    .prepare(`DELETE FROM webhook_deliveries WHERE id NOT IN (SELECT id FROM webhook_deliveries ORDER BY id DESC LIMIT 200)`)
+    .run()
+    .catch(() => {});
+  return res.meta.last_row_id;
+}
+
+export async function listWebhookDeliveries(env, limit = 30) {
+  const { results } = await env.DB
+    .prepare("SELECT * FROM webhook_deliveries ORDER BY id DESC LIMIT ?")
+    .bind(Math.max(1, Math.floor(limit)))
+    .all();
+  return results.map((r) => ({ ...r, payload: JSON.parse(r.payload) }));
+}
+
+export async function getWebhookDelivery(env, id) {
+  const row = await env.DB.prepare("SELECT * FROM webhook_deliveries WHERE id = ?").bind(id).first();
+  if (!row) return null;
+  return { ...row, payload: JSON.parse(row.payload) };
+}
+
 export async function getEventCounts(env, days = 7) {
   const { results } = await env.DB
     .prepare(

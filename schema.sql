@@ -177,6 +177,20 @@ CREATE TABLE events (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Every webhook attempt, success or failure, so a silent-swallowed error
+-- is actually visible somewhere, and a failed delivery can be retried
+-- without needing to trigger a fresh publish/unpublish to fire it again.
+CREATE TABLE webhook_deliveries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  url TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  status TEXT NOT NULL,
+  status_code INTEGER,
+  error TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_webhook_deliveries_created ON webhook_deliveries(created_at);
+
 CREATE TABLE rate_limits (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   bucket TEXT NOT NULL,

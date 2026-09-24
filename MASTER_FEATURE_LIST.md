@@ -438,8 +438,8 @@ performance comparisons.
 
 - 🔶 Integration settings managed through admin (a single webhook URL field exists in Site Settings)
 - 🔶 Configurable actions triggered by content changes (one hard-coded trigger: webhook on article publish)
-- ☐ Webhook delivery history
-- ☐ Retry failed webhook deliveries
+- ✅ Webhook delivery history (last 200 attempts logged with status/error, viewable in Site Settings)
+- ✅ Retry failed webhook deliveries (re-sends the exact original payload)
 - ☐ Background-task management
 - ☐ Notifications for failed integrations
 - ☐ Permission controls for external integrations

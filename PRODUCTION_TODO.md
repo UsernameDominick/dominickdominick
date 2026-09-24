@@ -39,6 +39,16 @@ ALTER TABLE pageviews ADD COLUMN device TEXT;
 ALTER TABLE pageviews ADD COLUMN browser TEXT;
 ALTER TABLE media ADD COLUMN hash TEXT;
 CREATE INDEX idx_media_hash ON media(hash);
+CREATE TABLE webhook_deliveries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  url TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  status TEXT NOT NULL,
+  status_code INTEGER,
+  error TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_webhook_deliveries_created ON webhook_deliveries(created_at);
 ```
 
 After this migration lands, run `POST /api/admin/media/backfill-hashes`

@@ -3318,6 +3318,7 @@
     loadActivityLog().catch(() => {});
     loadErrors().catch(() => {});
     loadScheduledBackups().catch(() => {});
+    loadWebhookDeliveries().catch(() => {});
   });
   closeModalOnClick("close-settings", "settings-modal");
   el("save-settings").addEventListener("click", async () => {
@@ -3496,6 +3497,39 @@
         .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>Nothing logged yet.</p>";
   }
   el("load-activity-btn").addEventListener("click", () => loadActivityLog().catch((err) => alert(err.message)));
+
+  // ---------- Webhook delivery history ----------
+  async function loadWebhookDeliveries() {
+    const items = await api("/webhook-deliveries");
+    el("webhook-deliveries-list").innerHTML =
+      items
+        .map(
+          (d) =>
+            `<div class="link-check-row ${d.status === "failed" ? "broken" : "ok"}"><span class="link-check-url">${escapeHtml(
+              d.payload?.title || d.url
+            )}</span><span class="link-check-source">${escapeHtml(
+              new Date(d.created_at.replace(" ", "T") + "Z").toLocaleString()
+            )}</span><span class="link-check-status">${escapeHtml(d.status === "failed" ? d.error || "Failed" : "Delivered")}${
+              d.status === "failed" ? ` <button type="button" class="retry-webhook-btn" data-id="${d.id}">Retry</button>` : ""
+            }</span></div>`
+        )
+        .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No webhook deliveries yet.</p>";
+    el("webhook-deliveries-list")
+      .querySelectorAll(".retry-webhook-btn")
+      .forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          btn.textContent = "Retrying…";
+          btn.disabled = true;
+          try {
+            await api(`/webhook-deliveries/${btn.dataset.id}/retry`, { method: "POST" });
+            await loadWebhookDeliveries();
+          } catch (err) {
+            alert(err.message);
+          }
+        });
+      });
+  }
+  el("load-webhook-deliveries-btn").addEventListener("click", () => loadWebhookDeliveries().catch((err) => alert(err.message)));
 
   // ---------- Error log ----------
   async function loadErrors() {

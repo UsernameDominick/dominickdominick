@@ -40,6 +40,9 @@ import {
   checkLoginRateLimit,
   recordLoginAttempt,
   getSetting,
+  logWebhookDelivery,
+  listWebhookDeliveries,
+  getWebhookDelivery,
   setSetting,
   getAnalytics,
   exportAll,
@@ -202,6 +205,28 @@ export async function handleAdminApi(request, env, url, ctx) {
   }
 }
 
+// Actually sends a webhook payload and records what happened either way —
+// used both for the automatic publish-trigger below and for retrying a
+// past delivery from the history list with the exact same payload.
+async function deliverWebhook(env, webhookUrl, payload) {
+  try {
+    const res = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    await logWebhookDelivery(env, {
+      url: webhookUrl,
+      payload,
+      status: res.ok ? "success" : "failed",
+      status_code: res.status,
+      error: res.ok ? null : `HTTP ${res.status}`,
+    });
+  } catch (err) {
+    await logWebhookDelivery(env, { url: webhookUrl, payload, status: "failed", error: err.message || "Request failed" });
+  }
+}
+
 // A configured webhook fires (best-effort, non-blocking) the moment an
 // article transitions into "published" — not on every subsequent edit.
 async function maybeFireWebhook(env, ctx, { wasPublished, article }) {
@@ -214,13 +239,7 @@ async function maybeFireWebhook(env, ctx, { wasPublished, article }) {
     url: `https://dominickdominick.com/random/${article.slug}`,
     published_at: article.published_at,
   };
-  ctx.waitUntil(
-    fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    }).catch(() => {})
-  );
+  ctx.waitUntil(deliverWebhook(env, webhookUrl, payload));
 }
 
 // Fire-and-forget activity log write — never blocks or fails the request
@@ -939,6 +958,22 @@ async function routeAdminApi(request, env, url, ctx) {
   // missing alt text, across the whole site.
   if (path === "/seo-report" && method === "GET") {
     return json(await getSeoReport(env));
+  }
+
+  if (path === "/webhook-deliveries" && method === "GET") {
+    return json(await listWebhookDeliveries(env));
+  }
+  // Re-sends the exact same payload that was recorded at the time — not a
+  // fresh one built from the article's current state, since the article
+  // may have changed since (retrying should reproduce what should have
+  // been delivered then, not send a different event under the same id).
+  const webhookRetryMatch = path.match(/^\/webhook-deliveries\/(\d+)\/retry$/);
+  if (webhookRetryMatch && method === "POST") {
+    const delivery = await getWebhookDelivery(env, Number(webhookRetryMatch[1]));
+    if (!delivery) return json({ error: "Not found" }, { status: 404 });
+    await deliverWebhook(env, delivery.url, delivery.payload);
+    log(ctx, env, "webhook-retry", "webhook", delivery.payload?.title || delivery.url);
+    return json({ ok: true });
   }
 
   // /find-replace — apply=false previews matches without changing anything;
