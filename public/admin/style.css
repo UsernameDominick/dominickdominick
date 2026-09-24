@@ -1435,6 +1435,15 @@ kbd {
   color: var(--text-dim);
 }
 
+.song-record-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
 .song-tempo-label input {
   width: 60px;
 }

@@ -223,6 +223,49 @@
     else startPlayback();
   });
 
+  // ---------- Web MIDI input ----------
+  // Progressive enhancement: the "Connect MIDI" button only ever appears
+  // if the browser actually supports the API at all — no point offering a
+  // control that can't work. Only two behaviors once connected: live
+  // preview (every note-on plays immediately, so an external keyboard
+  // works as an instrument monitor) and, only while the sequencer is
+  // playing and "Record" is checked, writing the note into the piano roll
+  // at whatever step is currently playing.
+  function midiToNoteName(midiNum) {
+    const octave = Math.floor(midiNum / 12) - 1;
+    return NOTE_NAMES[midiNum % 12] + octave;
+  }
+
+  function handleMidiMessage(msg) {
+    const [status, note, velocity] = msg.data;
+    const isNoteOn = status >> 4 === 9 && velocity > 0;
+    if (!isNoteOn) return;
+    const noteName = midiToNoteName(note);
+    const waveform = $("song-waveform").value;
+    playMelodyNote(getAudioCtx(), getAudioCtx().currentTime, noteToFreq(noteName), waveform, stepDuration());
+    if (!songData.melody.notes[noteName]) return; // outside the 2-octave piano roll range — preview only
+    if (isPlaying && $("song-record").checked) {
+      songData.melody.notes[noteName][currentStep] = true;
+      const cell = document.querySelector(`.song-steps[data-row="${noteName}"] .song-step[data-step="${currentStep}"]`);
+      if (cell) cell.classList.add("song-step-on");
+    }
+  }
+
+  if (navigator.requestMIDIAccess) {
+    $("song-midi-connect").hidden = false;
+    $("song-midi-connect").addEventListener("click", async () => {
+      try {
+        const access = await navigator.requestMIDIAccess();
+        access.inputs.forEach((input) => (input.onmidimessage = handleMidiMessage));
+        $("song-midi-connect").textContent = "🎹 MIDI connected";
+        $("song-midi-connect").disabled = true;
+        $("song-record-label").hidden = false;
+      } catch (err) {
+        alert("Couldn't access MIDI devices: " + err.message);
+      }
+    });
+  }
+
   // ---------- Sequencer grid ----------
   // Shared by the drum sequencer and the piano roll — both are just a set
   // of named rows, each STEPS long, toggled the same way. Parameterized by

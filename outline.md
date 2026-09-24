@@ -196,9 +196,24 @@ fixed here. Logged as a possible future polish item below (section 3)
 instead of a one-off fix, since it'd need to change for Simulations
 and Scans too to stay consistent. Not yet re-scored by a fresh pass.
 
-Still ☐: Web MIDI input, waveform render (the visual kind — a
-waveform *display*, not to be confused with the oscillator waveform
-picker just added), page-animation sync, embeddable public
+Added Web MIDI input: a "Connect MIDI" button that only appears at all
+if the browser supports the Web MIDI API (progressive enhancement, no
+dead control offered where it can't work), wires every input device's
+`onmidimessage` to a shared handler. Every note-on always plays live
+(so an external keyboard works as an instrument monitor even outside
+the piano roll's 2-octave range), and only while the sequencer is
+actually playing AND a "Record" checkbox is checked does a note within
+range also get written into the piano roll at the currently-playing
+step. Verified by mocking `navigator.requestMIDIAccess` with a fake
+input before page load (so the real code's feature-detection and
+wiring both run for real, just against a fake device instead of
+real hardware — untestable in this sandbox otherwise) and firing
+synthetic note-on messages: preview-only correctly plays without
+writing anything, and record mode correctly writes only while playing.
+
+Still ☐: waveform render (the visual kind — a waveform *display*, not
+to be confused with the oscillator waveform picker already added),
+page-animation sync, embeddable public
 block/player. Continue in that order next session.
 
 ### 1c. Admin UX / mobile overhaul
