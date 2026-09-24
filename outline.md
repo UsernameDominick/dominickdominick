@@ -462,7 +462,11 @@ health-check pass, predates this doc.
 - ✅ Missing-field fallbacks (empty-hint messages)
 - 🔶 Editable empty states (exist, but hard-coded text)
 - ☐ Pagination/load-more/infinite scroll, breadcrumb editor UI
-- 🔶 Related-content suggestions (automatic tag-based ✅; manual override ☐)
+- ✅ Related-content suggestions (automatic tag-based; manual override —
+  `related_override` column on articles/projects, a multi-select in each
+  editor excluding itself, checked first in `getRelatedArticles()`/
+  `getRelatedProjects()` and falling back to the automatic tag match if
+  it resolves to nothing published)
 - ☐ Rules engine, workflow builder for publishing/archiving
 
 ### Writing and article editor
@@ -786,6 +790,8 @@ CREATE TABLE songs (
 ALTER TABLE pages ADD COLUMN sitemap_exclude INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE articles ADD COLUMN sitemap_exclude INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE projects ADD COLUMN sitemap_exclude INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE articles ADD COLUMN related_override TEXT NOT NULL DEFAULT '[]';
+ALTER TABLE projects ADD COLUMN related_override TEXT NOT NULL DEFAULT '[]';
 ```
 
 After this lands, run `POST /api/admin/media/backfill-hashes` once

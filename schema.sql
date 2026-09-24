@@ -66,7 +66,8 @@ CREATE TABLE articles (
   expires_at TEXT,
   correction_note TEXT,
   tts_audio_key TEXT,
-  sitemap_exclude INTEGER NOT NULL DEFAULT 0
+  sitemap_exclude INTEGER NOT NULL DEFAULT 0,
+  related_override TEXT NOT NULL DEFAULT '[]'
 );
 
 -- Projects are a real content type (not just project-card blocks dropped on
@@ -98,7 +99,8 @@ CREATE TABLE projects (
   expires_at TEXT,
   correction_note TEXT,
   tts_audio_key TEXT,
-  sitemap_exclude INTEGER NOT NULL DEFAULT 0
+  sitemap_exclude INTEGER NOT NULL DEFAULT 0,
+  related_override TEXT NOT NULL DEFAULT '[]'
 );
 
 -- A project's build journal — dated entries telling the story of building

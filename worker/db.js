@@ -361,7 +361,13 @@ function parseArticleRow(row) {
   } catch {
     co_authors = [];
   }
-  return { ...row, tags, co_authors };
+  let related_override = [];
+  try {
+    related_override = JSON.parse(row.related_override || "[]");
+  } catch {
+    related_override = [];
+  }
+  return { ...row, tags, co_authors, related_override };
 }
 
 // Other published entries in the same series, in series_order (falling back
@@ -503,6 +509,10 @@ export async function updateArticle(env, id, fields) {
   if ("sitemap_exclude" in fields) {
     cols.push("sitemap_exclude = ?");
     vals.push(fields.sitemap_exclude ? 1 : 0);
+  }
+  if ("related_override" in fields) {
+    cols.push("related_override = ?");
+    vals.push(JSON.stringify(Array.isArray(fields.related_override) ? fields.related_override : []));
   }
   if (!cols.length) return;
   cols.push("updated_at = datetime('now')", "version = version + 1");
@@ -663,7 +673,13 @@ function parseProjectRow(row) {
   } catch {
     related_scans = [];
   }
-  return { ...row, tags, tech_stack, links, related_articles, related_simulations, related_scans };
+  let related_override = [];
+  try {
+    related_override = JSON.parse(row.related_override || "[]");
+  } catch {
+    related_override = [];
+  }
+  return { ...row, tags, tech_stack, links, related_articles, related_simulations, related_scans, related_override };
 }
 
 export async function listProjects(env, { publishedOnly = false, limit = null, tag = null, featuredOnly = false } = {}) {
@@ -797,6 +813,10 @@ export async function updateProject(env, id, fields) {
   if ("sitemap_exclude" in fields) {
     cols.push("sitemap_exclude = ?");
     vals.push(fields.sitemap_exclude ? 1 : 0);
+  }
+  if ("related_override" in fields) {
+    cols.push("related_override = ?");
+    vals.push(JSON.stringify(Array.isArray(fields.related_override) ? fields.related_override : []));
   }
   if (!cols.length) return;
   cols.push("updated_at = datetime('now')", "version = version + 1");
@@ -1805,6 +1825,15 @@ export async function publicSearch(env, q) {
 export async function getRelatedArticles(env, article, limit = 3) {
   const candidates = await listArticles(env, { publishedOnly: true });
   const others = candidates.filter((a) => a.id !== article.id);
+  // An admin-pinned override always wins over the automatic tag match,
+  // when it actually resolves to at least one still-published article —
+  // an override pointing only at unpublished/deleted articles falls
+  // through to the automatic match below rather than showing nothing.
+  if (article.related_override && article.related_override.length) {
+    const byId = new Map(others.map((a) => [a.id, a]));
+    const pinned = article.related_override.map((id) => byId.get(id)).filter(Boolean).slice(0, limit);
+    if (pinned.length) return pinned;
+  }
   if (!article.tags || !article.tags.length) return others.slice(0, limit);
   const scored = others
     .map((a) => ({ a, score: a.tags.filter((t) => article.tags.includes(t)).length }))
@@ -1818,6 +1847,11 @@ export async function getRelatedArticles(env, article, limit = 3) {
 export async function getRelatedProjects(env, project, limit = 3) {
   const candidates = await listProjects(env, { publishedOnly: true });
   const others = candidates.filter((p) => p.id !== project.id);
+  if (project.related_override && project.related_override.length) {
+    const byId = new Map(others.map((p) => [p.id, p]));
+    const pinned = project.related_override.map((id) => byId.get(id)).filter(Boolean).slice(0, limit);
+    if (pinned.length) return pinned;
+  }
   if (!project.tags || !project.tags.length) return others.slice(0, limit);
   const scored = others
     .map((p) => ({ p, score: p.tags.filter((t) => project.tags.includes(t)).length }))

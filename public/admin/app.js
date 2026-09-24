@@ -2181,6 +2181,18 @@
   function populateArticleRelatedProjectsSelect() {
     el("article-related-projects").innerHTML = projects.map((p) => `<option value="${p.id}">${escapeHtml(p.title)}</option>`).join("");
   }
+
+  // Pins specific articles as the "Related articles" shown on this
+  // article's own page, overriding the automatic tag-based match — options
+  // exclude the article currently being edited (an article can't be
+  // related to itself). Re-populated per populateArticleForm() call since
+  // "self" changes with whichever article is open.
+  function populateArticleRelatedOverrideSelect(excludeId) {
+    el("article-related-override").innerHTML = articles
+      .filter((a) => a.id !== excludeId)
+      .map((a) => `<option value="${a.id}">${escapeHtml(a.title)}</option>`)
+      .join("");
+  }
   async function syncArticleRelatedProjects(articleId) {
     const selectedIds = getMultiSelectValues(el("article-related-projects"));
     const changedProjects = projects.filter((p) => {
@@ -2324,6 +2336,8 @@
     el("article-correction-note").value = article.correction_note || "";
     currentArticleTtsAudio = article.tts_audio_key || null;
     refreshArticleTtsAudio();
+    populateArticleRelatedOverrideSelect(article.id);
+    setMultiSelectValues(el("article-related-override"), article.related_override || []);
     setMultiSelectValues(
       el("article-related-projects"),
       projects.filter((p) => (p.related_articles || []).includes(article.id)).map((p) => p.id)
@@ -2602,6 +2616,8 @@
     currentArticleTtsAudio = null;
     refreshArticleTtsAudio();
     setMultiSelectValues(el("article-related-projects"), []);
+    populateArticleRelatedOverrideSelect(null);
+    setMultiSelectValues(el("article-related-override"), []);
     el("article-body").value = "";
     el("article-published").checked = false;
     el("article-publish-at").value = "";
@@ -2643,6 +2659,7 @@
       featured: el("article-featured").checked,
       pinned: el("article-pinned").checked,
       sitemap_exclude: el("article-sitemap-exclude").checked,
+      related_override: getMultiSelectValues(el("article-related-override")),
       og_image: el("article-og-image").value || null,
       canonical_url: el("article-canonical-url").value || null,
       correction_note: el("article-correction-note").value || null,
@@ -2743,7 +2760,7 @@
   ["article-title", "article-tags", "article-series", "article-co-authors", "article-og-image", "article-canonical-url", "article-correction-note", "article-body"].forEach((id) =>
     el(id).addEventListener("input", scheduleAutosave)
   );
-  ["article-slug", "article-published", "article-publish-at", "article-expires-at", "article-series-order", "article-featured", "article-pinned", "article-sitemap-exclude"].forEach((id) =>
+  ["article-slug", "article-published", "article-publish-at", "article-expires-at", "article-series-order", "article-featured", "article-pinned", "article-sitemap-exclude", "article-related-override"].forEach((id) =>
     el(id).addEventListener("change", scheduleAutosave)
   );
 
@@ -2885,6 +2902,17 @@
     el("project-related-scans").innerHTML = scanOptions.map((s) => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join("");
   }
 
+  // Pins specific projects as the "Related projects" shown on this
+  // project's own page, overriding the automatic tag-based match — same
+  // pattern as the article-side override above. Excludes the project
+  // currently being edited.
+  function populateProjectRelatedOverrideSelect(excludeId) {
+    el("project-related-override").innerHTML = projects
+      .filter((p) => p.id !== excludeId)
+      .map((p) => `<option value="${p.id}">${escapeHtml(p.title)}</option>`)
+      .join("");
+  }
+
   function setMultiSelectValues(select, ids) {
     const idSet = new Set((ids || []).map(Number));
     Array.from(select.options).forEach((opt) => {
@@ -2928,6 +2956,8 @@
     setMultiSelectValues(el("project-related-articles"), project.related_articles);
     setMultiSelectValues(el("project-related-simulations"), project.related_simulations);
     setMultiSelectValues(el("project-related-scans"), project.related_scans);
+    populateProjectRelatedOverrideSelect(project.id);
+    setMultiSelectValues(el("project-related-override"), project.related_override || []);
     el("project-published").checked = !!project.published_at;
     el("project-publish-at").value = isoToLocalInput(project.published_at);
     el("project-expires-at").value = isoToLocalInput(project.expires_at);
@@ -2970,6 +3000,8 @@
     setMultiSelectValues(el("project-related-articles"), []);
     setMultiSelectValues(el("project-related-simulations"), []);
     setMultiSelectValues(el("project-related-scans"), []);
+    populateProjectRelatedOverrideSelect(null);
+    setMultiSelectValues(el("project-related-override"), []);
     el("project-published").checked = false;
     el("project-publish-at").value = "";
     el("project-expires-at").value = "";
@@ -3038,6 +3070,7 @@
       related_articles: getMultiSelectValues(el("project-related-articles")),
       related_simulations: getMultiSelectValues(el("project-related-simulations")),
       related_scans: getMultiSelectValues(el("project-related-scans")),
+      related_override: getMultiSelectValues(el("project-related-override")),
       published_at: published ? (publishAtLocal ? new Date(publishAtLocal).toISOString() : new Date().toISOString()) : null,
       expires_at: expiresAtLocal ? new Date(expiresAtLocal).toISOString() : null,
     };
