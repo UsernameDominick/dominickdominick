@@ -204,6 +204,28 @@
     } catch {}
   }
 
+  // Recently-edited jump list for the command palette — deliberately just
+  // a client-side recency list rather than a real activity-log query: the
+  // log only ever kept an item's label at the time, not its id, so an old
+  // entry silently goes stale the moment something gets renamed. This
+  // always points at whatever's live right now.
+  const RECENT_EDITED_KEY = "admin_recently_edited";
+  const RECENT_EDITED_MAX = 8;
+  function recordRecentlyEdited(kind, id, title) {
+    try {
+      const list = JSON.parse(localStorage.getItem(RECENT_EDITED_KEY) || "[]").filter((r) => !(r.kind === kind && r.id === id));
+      list.unshift({ kind, id, title, ts: Date.now() });
+      localStorage.setItem(RECENT_EDITED_KEY, JSON.stringify(list.slice(0, RECENT_EDITED_MAX)));
+    } catch {}
+  }
+  function getRecentlyEdited() {
+    try {
+      return JSON.parse(localStorage.getItem(RECENT_EDITED_KEY) || "[]");
+    } catch {
+      return [];
+    }
+  }
+
   // Shown when a local draft exists for whatever was just loaded — either
   // it matches what's on the server (a normal after-save leftover, cleared
   // silently) or it doesn't (something crashed before it could be saved),
@@ -326,6 +348,7 @@
   async function selectPage(id) {
     currentPage = pages.find((p) => p.id === id);
     if (!currentPage) return;
+    recordRecentlyEdited("page", currentPage.id, currentPage.title);
     el("page-picker").value = id;
     el("page-title").value = currentPage.title || "";
     el("page-meta").value = currentPage.meta_description || "";
@@ -2003,6 +2026,7 @@
     // and silently overwrite the article now being edited.
     clearTimeout(autosaveTimer);
     setAutosaveStatus("");
+    recordRecentlyEdited("article", article.id, article.title);
     currentArticleId = article.id;
     currentArticleVersion = article.version || null;
     currentArticleLocked = !!article.locked;
@@ -2483,6 +2507,7 @@
   }
 
   function populateProjectForm(project) {
+    recordRecentlyEdited("project", project.id, project.title);
     currentProjectId = project.id;
     currentProjectVersion = project.version || null;
     currentProjectLocked = !!project.locked;
@@ -3684,7 +3709,19 @@
   let commandActiveIndex = 0;
 
   function quickActions() {
+    const RECENT_KIND_LABEL = { page: "Page", article: "Article", project: "Project" };
+    const RECENT_KIND_RUN = {
+      page: (id) => { closeCommandPalette(); selectPage(id); },
+      article: (id) => { closeCommandPalette(); openArticleEditorById(id); },
+      project: (id) => { closeCommandPalette(); openProjectEditorById(id); },
+    };
+    const recentActions = getRecentlyEdited().map((r) => ({
+      label: `Recent: ${r.title || "(untitled)"}`,
+      sub: RECENT_KIND_LABEL[r.kind] || r.kind,
+      run: () => RECENT_KIND_RUN[r.kind](r.id),
+    }));
     const actions = [
+      ...recentActions,
       { label: "Add new page", sub: "", run: () => { closeCommandPalette(); el("new-page-btn").click(); } },
       { label: "Open Articles", sub: "", run: () => { closeCommandPalette(); el("articles-btn").click(); } },
       { label: "Open Projects", sub: "", run: () => { closeCommandPalette(); el("projects-btn").click(); } },

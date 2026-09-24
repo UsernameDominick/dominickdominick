@@ -86,14 +86,10 @@ before running anything against production — this project's standing rule.
   about list-block limits truncating older items — worth getting right
   rather than shipping a version with false positives that erodes trust
   in the tool. Good next candidate, deliberately not rushed tonight.
-- **"Recently edited" / favorites in the command palette** (section 24)
-  — `activity_log` tracks actions but not the edited item's `id` (only
-  its label at the time), so a title change or slug change makes an
-  old log entry a stale/wrong link. Doing this right either means adding
-  an `entity_id` column to `activity_log` (a real schema change) or a
-  separate lightweight client-side (localStorage) recency tracker.
-  Neither was started tonight; flagging the two viable approaches for
-  whoever picks this up next.
+- ~~"Recently edited" in the command palette~~ — done in a later session,
+  via the client-side localStorage approach noted here (not the
+  activity_log/entity_id route). Plain "favorites"/pinning (a user
+  manually marking something, independent of recency) is still open.
 
 ## Local dev-only housekeeping (not urgent, not production)
 
