@@ -558,7 +558,7 @@
   }
 
   function blockLabel(type) {
-    return { heading: "Heading", text: "Text", image: "Image", button: "Button", "project-card": "Project Card", "article-list": "Article List", "project-list": "Project List", video: "Video", quote: "Quote", gallery: "Gallery", "before-after": "Before / After", simulation: "Simulation", scan: "3D Scan", divider: "Divider", spacer: "Spacer", links: "Links", html: "HTML / Embed", changelog: "Changelog / Now", embed: "Generic Embed", accordion: "Accordion", tabs: "Tabs" }[type] || type;
+    return { heading: "Heading", text: "Text", image: "Image", button: "Button", "project-card": "Project Card", "article-list": "Article List", "project-list": "Project List", video: "Video", quote: "Quote", gallery: "Gallery", "before-after": "Before / After", simulation: "Simulation", scan: "3D Scan", song: "Song", divider: "Divider", spacer: "Spacer", links: "Links", html: "HTML / Embed", changelog: "Changelog / Now", embed: "Generic Embed", accordion: "Accordion", tabs: "Tabs" }[type] || type;
   }
 
   let simulationOptions = [];
@@ -570,6 +570,12 @@
   let scanOptions = [];
   function scanNameById(id) {
     const s = scanOptions.find((x) => x.id === id);
+    return s ? s.name : null;
+  }
+
+  let songOptions = [];
+  function songNameById(id) {
+    const s = songOptions.find((x) => x.id === id);
     return s ? s.name : null;
   }
 
@@ -595,6 +601,7 @@
       case "before-after": return c.beforeUrl && c.afterUrl ? "Before/after comparison" : "(missing before or after image)";
       case "simulation": return c.simulation_id ? escapeHtml(simulationNameById(c.simulation_id) || `#${c.simulation_id}`) : "(choose a simulation)";
       case "scan": return c.scan_id ? escapeHtml(scanNameById(c.scan_id) || `#${c.scan_id}`) : "(choose a scan)";
+      case "song": return c.song_id ? escapeHtml(songNameById(c.song_id) || `#${c.song_id}`) : "(choose a song)";
       case "divider": return "—";
       case "spacer": return "(spacer)";
       case "links": return `${(c.items || []).length} link(s)`;
@@ -877,6 +884,7 @@
         // it should need — row_span accounts for that so it doesn't overflow
         // into whatever comes after it (grid rows here are a fixed 16px+gap).
         simulation: { content: { simulation_id: null }, col_span: 24, row_span: 25 },
+        song: { content: { song_id: null }, col_span: 16, row_span: 6 },
         // model-viewer is a fixed 420px tall (public/style.css) regardless of
         // its container width — row_span picked to roughly match that at a
         // typical column width so it doesn't look cramped or overflow by default.
@@ -1044,6 +1052,7 @@
       { key: "scan_id", label: "3D Scan", type: "scan-select" },
       { key: "description", label: "Description for screen readers (overrides the scan's name)", type: "textarea" },
     ],
+    song: [{ key: "song_id", label: "Song", type: "song-select" }],
     html: [{ key: "html", label: "Raw HTML (advanced — rendered as-is, unescaped; be careful what you paste here)", type: "textarea", noSpellcheck: true }],
     divider: [],
     spacer: [],
@@ -1219,6 +1228,14 @@
         options || "<option disabled>No scans yet</option>"
       }</select> <button type="button" class="manage-scans-btn">Manage scans…</button></label>`;
     }
+    if (f.type === "song-select") {
+      const options = songOptions
+        .map((s) => `<option value="${s.id}"${String(val ?? "") === String(s.id) ? " selected" : ""}>${escapeHtml(s.name)}</option>`)
+        .join("");
+      return `<label>${f.label}<select data-key="${f.key}" data-numeric="1"><option value="">— choose —</option>${
+        options || "<option disabled>No songs yet</option>"
+      }</select> <button type="button" class="manage-songs-btn">Manage songs…</button></label>`;
+    }
     return `<label>${f.label}<input id="${idPrefix}-${f.key}" data-key="${f.key}" type="${f.type}" value="${escapeHtml(val ?? "")}"></label>`;
   }
 
@@ -1344,6 +1361,9 @@
     });
     container.querySelectorAll(".manage-scans-btn").forEach((btn) => {
       btn.addEventListener("click", () => el("scans-btn").click());
+    });
+    container.querySelectorAll(".manage-songs-btn").forEach((btn) => {
+      btn.addEventListener("click", () => el("songs-btn").click());
     });
 
     function save() {
@@ -4712,6 +4732,15 @@
     renderInspector();
   }
 
+  async function loadSongOptions() {
+    try {
+      songOptions = await api("/songs");
+    } catch {
+      songOptions = [];
+    }
+    renderInspector();
+  }
+
   async function boot() {
     const { authenticated } = await fetch("/api/admin/me").then((r) => r.json());
     if (!authenticated) {
@@ -4722,6 +4751,7 @@
     await loadPages();
     await loadSimulationOptions();
     await loadScanOptions();
+    await loadSongOptions();
     await loadTemplates("page");
     await loadTemplates("article");
     await loadTemplates("project");
@@ -4737,6 +4767,7 @@
   window.refreshMediaLibrary = loadMediaLibrary;
   window.refreshSimulationOptions = loadSimulationOptions;
   window.refreshScanOptions = loadScanOptions;
+  window.refreshSongOptions = loadSongOptions;
 
   window.addEventListener("resize", () => renderCanvas());
   boot();

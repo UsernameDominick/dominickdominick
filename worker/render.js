@@ -1,4 +1,4 @@
-import { listArticles, listProjects, getSimulation, getScan } from "./db.js";
+import { listArticles, listProjects, getSimulation, getScan, getSong } from "./db.js";
 import { renderSimulationSvg } from "./simulation-render.js";
 
 export function esc(str) {
@@ -653,6 +653,21 @@ function genericEmbedHtml(rawUrl) {
 // with the USDZ variant (if uploaded) letting iOS hand off to AR Quick Look
 // via the built-in "ar" attribute. Exported so the future standalone
 // /scan/:id page (mirroring /simulation/:id) can reuse it too.
+// A loop from the Songs/DAW module — playback happens entirely client-side
+// via public/song-engine.js (the exact same synthesis/scheduler code the
+// admin builder uses, so a song sounds identical wherever it's played),
+// driven by public/song-embed.js. The song's JSON data rides in a data
+// attribute rather than being fetched separately, so playback works even
+// if the song is later deleted from the library (same "embed the data,
+// not just a reference" reasoning as a simulation block's rendered SVG).
+export function renderSongBlockHtml(song) {
+  const bars = Array.from({ length: 16 }, () => `<span class="song-embed-bar"></span>`).join("");
+  return `<div class="song-embed" data-song="${esc(JSON.stringify(song.data))}">
+    <div class="song-embed-header"><strong>${esc(song.name)}</strong><button type="button" class="song-embed-play-btn">▶ Play</button></div>
+    <div class="song-embed-bars">${bars}</div>
+  </div>`;
+}
+
 export function modelViewerHtml(scan, description) {
   const attrs = [
     `src="${esc(`/media/${scan.glb_key}`)}"`,
@@ -809,6 +824,12 @@ async function renderBlockInner(env, block, ctx) {
       const scan = await getScan(env, c.scan_id);
       if (!scan) return `<p class="empty-hint">Scan not found.</p>`;
       return modelViewerHtml(scan, c.description);
+    }
+    case "song": {
+      if (!c.song_id) return `<p class="empty-hint">No song selected.</p>`;
+      const song = await getSong(env, c.song_id);
+      if (!song) return `<p class="empty-hint">Song not found.</p>`;
+      return renderSongBlockHtml(song);
     }
     case "project-card":
       return `<div class="project-card"><h2>${esc(c.title)}</h2>${c.description ? `<p>${esc(c.description)}</p>` : ""}${c.url ? `<a href="${esc(safeHref(c.url))}"${c.external ? ' target="_blank" rel="noopener"' : ""}>${esc(c.label || c.url)}</a>` : ""}</div>`;
@@ -970,6 +991,8 @@ ${ogImage ? `<meta name="twitter:image" content="${esc(ogImage)}">` : ""}
 ${themeStyle}
 <script src="/sim-player.js" defer></script>
 <script src="/article-extras.js" defer></script>
+<script src="/song-engine.js" defer></script>
+<script src="/song-embed.js" defer></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" defer></script>
 <script>document.addEventListener("DOMContentLoaded",function(){if(window.hljs)hljs.highlightAll();});</script>

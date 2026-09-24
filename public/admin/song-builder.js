@@ -3,27 +3,21 @@
 
   const $ = (id) => document.getElementById(id);
 
+  const Engine = window.SongEngine;
   const TRACKS = ["kick", "snare", "hihat", "clap"];
   const TRACK_LABELS = { kick: "Kick", snare: "Snare", hihat: "Hi-Hat", clap: "Clap" };
-  const STEPS = 16;
+  const STEPS = Engine.STEPS;
 
   // Piano roll: 2 octaves (C3-B4), highest pitch first — the usual
   // top-to-bottom piano-roll convention. Reuses the exact same
   // .song-step/.song-steps toggle-grid cells and click handling as the
   // drum sequencer below, just with a note name (not a drum sound) as the
   // per-row key, so the same rendering/toggle code covers both.
-  const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+  const NOTE_NAMES = Engine.NOTE_NAMES;
   const PIANO_NOTES = [];
   [4, 3].forEach((octave) => {
     for (let i = 11; i >= 0; i--) PIANO_NOTES.push(NOTE_NAMES[i] + octave);
   });
-
-  function noteToFreq(note) {
-    const m = note.match(/^([A-G]#?)(\d)$/);
-    if (!m) return 440;
-    const midi = NOTE_NAMES.indexOf(m[1]) + (Number(m[2]) + 1) * 12;
-    return 440 * Math.pow(2, (midi - 69) / 12);
-  }
 
   function defaultSongData() {
     return {
@@ -47,143 +41,15 @@
   let currentSongId = null;
   let songData = defaultSongData();
 
-  // ---------- Drum synthesis (Web Audio, no samples — see outline.md for
-  // why: no sample licensing to manage, and it keeps a song fully portable
-  // as plain JSON). Kit variants tweak pitch/decay/tone per drum, not the
-  // underlying synthesis method. ----------
+  // Playback and drum/melody synthesis both live in the shared engine
+  // (public/song-engine.js) — the exact same code the public Song block
+  // uses to play a song on an article/project page. Only the admin-
+  // specific bits (grid highlighting, live tempo/kit/waveform editing)
+  // stay here.
   let audioCtx = null;
   function getAudioCtx() {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     return audioCtx;
-  }
-
-  function noiseBuffer(ctx, duration) {
-    const buf = ctx.createBuffer(1, ctx.sampleRate * duration, ctx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-    return buf;
-  }
-
-  const KIT_PARAMS = {
-    acoustic: { kickFreq: 150, kickDecay: 0.35, snareTone: 200, snareDecay: 0.18, hihatDecay: 0.06, clapDecay: 0.12 },
-    electronic: { kickFreq: 90, kickDecay: 0.25, snareTone: 320, snareDecay: 0.12, hihatDecay: 0.04, clapDecay: 0.08 },
-    "808": { kickFreq: 55, kickDecay: 0.55, snareTone: 180, snareDecay: 0.22, hihatDecay: 0.08, clapDecay: 0.15 },
-  };
-
-  function playKick(ctx, time, kit) {
-    const p = KIT_PARAMS[kit] || KIT_PARAMS.acoustic;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(p.kickFreq * 2.5, time);
-    osc.frequency.exponentialRampToValueAtTime(p.kickFreq * 0.5, time + p.kickDecay);
-    gain.gain.setValueAtTime(1, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + p.kickDecay);
-    osc.connect(gain).connect(ctx.destination);
-    osc.start(time);
-    osc.stop(time + p.kickDecay + 0.05);
-  }
-
-  function playSnare(ctx, time, kit) {
-    const p = KIT_PARAMS[kit] || KIT_PARAMS.acoustic;
-    const noise = ctx.createBufferSource();
-    noise.buffer = noiseBuffer(ctx, p.snareDecay);
-    const noiseFilter = ctx.createBiquadFilter();
-    noiseFilter.type = "highpass";
-    noiseFilter.frequency.value = 900;
-    const noiseGain = ctx.createGain();
-    noiseGain.gain.setValueAtTime(0.7, time);
-    noiseGain.gain.exponentialRampToValueAtTime(0.001, time + p.snareDecay);
-    noise.connect(noiseFilter).connect(noiseGain).connect(ctx.destination);
-    noise.start(time);
-
-    const osc = ctx.createOscillator();
-    const oscGain = ctx.createGain();
-    osc.type = "triangle";
-    osc.frequency.value = p.snareTone;
-    oscGain.gain.setValueAtTime(0.5, time);
-    oscGain.gain.exponentialRampToValueAtTime(0.001, time + p.snareDecay * 0.8);
-    osc.connect(oscGain).connect(ctx.destination);
-    osc.start(time);
-    osc.stop(time + p.snareDecay + 0.05);
-  }
-
-  function playHihat(ctx, time, kit) {
-    const p = KIT_PARAMS[kit] || KIT_PARAMS.acoustic;
-    const noise = ctx.createBufferSource();
-    noise.buffer = noiseBuffer(ctx, p.hihatDecay);
-    const filter = ctx.createBiquadFilter();
-    filter.type = "highpass";
-    filter.frequency.value = 7000;
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.4, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + p.hihatDecay);
-    noise.connect(filter).connect(gain).connect(ctx.destination);
-    noise.start(time);
-  }
-
-  function playClap(ctx, time, kit) {
-    const p = KIT_PARAMS[kit] || KIT_PARAMS.acoustic;
-    // Three quick, tightly-spaced bursts read as a "clap" rather than a
-    // single noise hit — a cheap, standard trick for synthesizing claps.
-    [0, 0.012, 0.024].forEach((offset) => {
-      const noise = getAudioCtx().createBufferSource();
-      noise.buffer = noiseBuffer(ctx, p.clapDecay);
-      const filter = ctx.createBiquadFilter();
-      filter.type = "bandpass";
-      filter.frequency.value = 1200;
-      const gain = ctx.createGain();
-      gain.gain.setValueAtTime(0.5, time + offset);
-      gain.gain.exponentialRampToValueAtTime(0.001, time + offset + p.clapDecay);
-      noise.connect(filter).connect(gain).connect(ctx.destination);
-      noise.start(time + offset);
-    });
-  }
-
-  const PLAYERS = { kick: playKick, snare: playSnare, hihat: playHihat, clap: playClap };
-
-  function playMelodyNote(ctx, time, freq, waveform, duration) {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = waveform;
-    osc.frequency.value = freq;
-    gain.gain.setValueAtTime(0.25, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + duration * 0.9);
-    osc.connect(gain).connect(ctx.destination);
-    osc.start(time);
-    osc.stop(time + duration);
-  }
-
-  // ---------- Scheduler ----------
-  // The standard "lookahead" pattern (Chris Wilson's "A Tale of Two
-  // Clocks") rather than a plain setInterval-per-step — a plain interval
-  // drifts audibly against AudioContext's own clock, which is the actual
-  // thing producing sound. This checks in frequently but always schedules
-  // notes against ctx.currentTime, so playback timing stays accurate even
-  // if the checks themselves jitter a little.
-  const LOOKAHEAD_MS = 25;
-  const SCHEDULE_AHEAD_S = 0.1;
-  let isPlaying = false;
-  let currentStep = 0;
-  let nextStepTime = 0;
-  let schedulerTimer = null;
-
-  function stepDuration() {
-    const tempo = Number($("song-tempo").value) || 120;
-    return 60 / tempo / 4; // 16th notes
-  }
-
-  function scheduleStep(step, time) {
-    const kit = $("song-kit").value;
-    TRACKS.forEach((track) => {
-      if (songData.tracks[track][step]) PLAYERS[track](getAudioCtx(), time, kit);
-    });
-    const waveform = $("song-waveform").value;
-    const duration = stepDuration();
-    Object.keys(songData.melody.notes).forEach((note) => {
-      if (songData.melody.notes[note][step]) playMelodyNote(getAudioCtx(), time, noteToFreq(note), waveform, duration);
-    });
-    highlightStep(step);
   }
 
   function highlightStep(step) {
@@ -192,34 +58,28 @@
     });
   }
 
-  function schedulerLoop() {
-    const ctx = getAudioCtx();
-    while (nextStepTime < ctx.currentTime + SCHEDULE_AHEAD_S) {
-      scheduleStep(currentStep, nextStepTime);
-      nextStepTime += stepDuration();
-      currentStep = (currentStep + 1) % STEPS;
-    }
-    schedulerTimer = setTimeout(schedulerLoop, LOOKAHEAD_MS);
-  }
+  let player = Engine.createPlayer(getAudioCtx, songData, highlightStep);
+
+  // Editing tempo/kit/waveform while a song is already playing should
+  // take effect immediately, not just after Save — so these write
+  // straight into the same songData object the running player reads.
+  $("song-tempo").addEventListener("input", () => (songData.tempo = Number($("song-tempo").value) || 120));
+  $("song-kit").addEventListener("change", () => (songData.kit = $("song-kit").value));
+  $("song-waveform").addEventListener("change", () => (songData.melody.waveform = $("song-waveform").value));
 
   function startPlayback() {
-    if (isPlaying) return;
-    isPlaying = true;
-    currentStep = 0;
-    nextStepTime = getAudioCtx().currentTime + 0.05;
-    schedulerLoop();
+    player.start();
     $("song-play").textContent = "⏸ Stop";
   }
 
   function stopPlayback() {
-    isPlaying = false;
-    clearTimeout(schedulerTimer);
+    player.stop();
     document.querySelectorAll(".song-step").forEach((el) => el.classList.remove("song-step-playing"));
     $("song-play").textContent = "▶ Play";
   }
 
   $("song-play").addEventListener("click", () => {
-    if (isPlaying) stopPlayback();
+    if (player.isPlaying()) stopPlayback();
     else startPlayback();
   });
 
@@ -231,22 +91,20 @@
   // works as an instrument monitor) and, only while the sequencer is
   // playing and "Record" is checked, writing the note into the piano roll
   // at whatever step is currently playing.
-  function midiToNoteName(midiNum) {
-    const octave = Math.floor(midiNum / 12) - 1;
-    return NOTE_NAMES[midiNum % 12] + octave;
-  }
-
   function handleMidiMessage(msg) {
     const [status, note, velocity] = msg.data;
     const isNoteOn = status >> 4 === 9 && velocity > 0;
     if (!isNoteOn) return;
-    const noteName = midiToNoteName(note);
+    const noteName = Engine.midiToNoteName(note);
+    const ctx = getAudioCtx();
     const waveform = $("song-waveform").value;
-    playMelodyNote(getAudioCtx(), getAudioCtx().currentTime, noteToFreq(noteName), waveform, stepDuration());
+    const duration = 60 / (songData.tempo || 120) / 4;
+    Engine.playMelodyNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), waveform, duration);
     if (!songData.melody.notes[noteName]) return; // outside the 2-octave piano roll range — preview only
-    if (isPlaying && $("song-record").checked) {
-      songData.melody.notes[noteName][currentStep] = true;
-      const cell = document.querySelector(`.song-steps[data-row="${noteName}"] .song-step[data-step="${currentStep}"]`);
+    if (player.isPlaying() && $("song-record").checked) {
+      const step = player.currentStep();
+      songData.melody.notes[noteName][step] = true;
+      const cell = document.querySelector(`.song-steps[data-row="${noteName}"] .song-step[data-step="${step}"]`);
       if (cell) cell.classList.add("song-step-on");
     }
   }
@@ -385,6 +243,9 @@
     $("song-tempo").value = songData.tempo || 120;
     $("song-kit").value = songData.kit || "acoustic";
     $("song-waveform").value = songData.melody.waveform || "sine";
+    // songData was just reassigned to a new object — the player has to be
+    // rebuilt against it, since createPlayer captured the old reference.
+    player = Engine.createPlayer(getAudioCtx, songData, highlightStep);
     $("songs-modal").hidden = true;
     $("song-builder-modal").hidden = false;
     renderSequencer();

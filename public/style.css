@@ -688,6 +688,56 @@ h6 { font-size: 0.9rem; }
    sim-components.js), not from a manual flag. The <defs> gradients
    referenced below (url(#sim-grad-...)) are emitted once per rendered
    simulation, inline in the SVG itself. */
+.song-embed {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  background: var(--bg-elevated);
+}
+
+.song-embed-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.song-embed-play-btn {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 14px;
+  font-size: 0.8rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.song-embed-play-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.song-embed-bars {
+  display: grid;
+  grid-template-columns: repeat(16, 1fr);
+  gap: 3px;
+  height: 36px;
+  align-items: end;
+}
+
+.song-embed-bar {
+  height: 30%;
+  background: var(--border);
+  border-radius: 2px;
+  transition: height 0.05s ease, background 0.05s ease;
+}
+
+.song-embed-bar-active {
+  height: 100%;
+  background: var(--accent);
+}
+
 .sim-block-wrap {
   display: flex;
   flex-direction: column;

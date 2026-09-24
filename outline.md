@@ -223,10 +223,30 @@ real hardware — untestable in this sandbox otherwise) and firing
 synthetic note-on messages: preview-only correctly plays without
 writing anything, and record mode correctly writes only while playing.
 
+Refactored the synthesis + scheduler code out of the admin builder into
+a shared `public/song-engine.js` (`window.SongEngine`) — one DOM-free
+module with no dependency on the admin builder's globals, used by both
+the admin builder and the public embed player below (per the
+code-reuse instruction — cut ~150 lines of duplicated Web Audio code).
+
+Built the embeddable public block/player: a "Song" block type
+(`renderSongBlockHtml()` in `worker/render.js`, admin palette button +
+`song-select` field type in `app.js`/`index.html`), rendered as a name
+header, Play/Stop button, and a 16-bar "scanning playhead" visualizer
+(`public/song-embed.js` + CSS) — deliberately simple, not the still-open
+waveform-*display* item below. The full song JSON is embedded directly
+in the page HTML (`data-song="..."` attribute, HTML-escaped), same
+pattern as Simulations, so playback survives the song being edited or
+deleted later. `AudioContext` is created lazily on first Play click
+(browser autoplay policy). Verified: 16 bars render, Play/Stop toggles
+correctly, exactly one bar highlights at a time during playback
+(confirms `onStep` wiring), screenshot confirms clean rendering — **8/10**
+(functional, readable, on-brand; not rescored beyond this since the
+visual is intentionally minimal pending the waveform-display item).
+
 Still ☐: waveform render (the visual kind — a waveform *display*, not
 to be confused with the oscillator waveform picker already added),
-page-animation sync, embeddable public
-block/player. Continue in that order next session.
+page-animation sync. Continue in that order next session.
 
 ### 1c. Admin UX / mobile overhaul
 The admin console's nav/UI/UX needs a real upgrade pass to accommodate
@@ -601,6 +621,13 @@ ALTER TABLE articles ADD COLUMN correction_note TEXT;
 ALTER TABLE projects ADD COLUMN correction_note TEXT;
 ALTER TABLE articles ADD COLUMN tts_audio_key TEXT;
 ALTER TABLE projects ADD COLUMN tts_audio_key TEXT;
+CREATE TABLE songs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  data TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 ```
 
 After this lands, run `POST /api/admin/media/backfill-hashes` once
