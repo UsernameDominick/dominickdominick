@@ -365,6 +365,17 @@ export function renderBomHtml(items) {
   }</div>`;
 }
 
+export function renderDownloadsHtml(downloads) {
+  if (!downloads || !downloads.length) return "";
+  const rows = downloads
+    .map(
+      (d) =>
+        `<li><a href="${esc(safeHref(d.url))}">${esc(d.label || d.url)}</a>${d.description ? ` — ${esc(d.description)}` : ""}</li>`
+    )
+    .join("\n");
+  return `<div class="downloads"><strong>Downloads</strong><ul class="downloads-list">${rows}</ul></div>`;
+}
+
 export function renderRelatedMediaHtml(articles, simulations, scans) {
   if (!articles.length && !simulations.length && !scans.length) return "";
   const articleItems = articles.map((a) => `<li><a href="/random/${esc(a.slug)}">${esc(a.title)}</a></li>`).join("");

@@ -48,6 +48,7 @@ import {
   renderRelatedProjectsHtml,
   renderJournalHtml,
   renderBomHtml,
+  renderDownloadsHtml,
   renderRelatedMediaHtml,
   renderTopicsIndexHtml,
   renderArchiveHtml,
@@ -218,6 +219,8 @@ async function renderProject(env, project, navItems) {
   const journalHtml = renderJournalHtml(journalEntries);
   const bomItems = await listBomItems(env, project.id);
   const bomHtml = renderBomHtml(bomItems);
+  const downloads = Array.isArray(project.links && project.links.downloads) ? project.links.downloads : [];
+  const downloadsHtml = renderDownloadsHtml(downloads);
   // Build journals can add a lot of reading beyond the project body itself
   // (that's the whole point of a "long project page") — same reasoning
   // articles already use, just summed across both sources.
@@ -245,6 +248,8 @@ async function renderProject(env, project, navItems) {
   let row = headerSpan + 2;
   const bodyRow = row;
   row += 12;
+  const downloadsRow = downloadsHtml ? row : null;
+  if (downloadsHtml) row += 4 + downloads.length;
   const bomRow = bomHtml ? row : null;
   if (bomHtml) row += 4 + bomItems.length * 2;
   const journalRow = journalHtml ? row : null;
@@ -270,6 +275,7 @@ async function renderProject(env, project, navItems) {
   <div class="block" style="grid-column:1 / span 24;grid-row:${bodyRow} / span 12;">
     ${paragraphsHtml(project.body)}
   </div>
+  ${downloadsHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${downloadsRow} / span ${4 + downloads.length};">${downloadsHtml}</div>` : ""}
   ${bomHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${bomRow} / span ${4 + bomItems.length * 2};">${bomHtml}</div>` : ""}
   ${journalHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${journalRow} / span ${4 + journalEntries.length * 4};">${journalHtml}</div>` : ""}
   ${relatedMediaHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${relatedMediaRow} / span 6;">${relatedMediaHtml}</div>` : ""}

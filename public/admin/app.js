@@ -2626,6 +2626,9 @@
     el("project-link-demo").value = links.demo || "";
     el("project-link-docs").value = links.docs || "";
     el("project-link-download").value = links.download || "";
+    el("project-downloads").value = (Array.isArray(links.downloads) ? links.downloads : [])
+      .map((d) => `${d.label || ""} | ${d.url || ""} | ${d.description || ""}`)
+      .join("\n");
     el("project-og-image").value = project.og_image || "";
     el("project-body").value = project.body || "";
     setMultiSelectValues(el("project-related-articles"), project.related_articles);
@@ -2701,6 +2704,16 @@
     if (el("project-link-demo").value.trim()) links.demo = el("project-link-demo").value.trim();
     if (el("project-link-docs").value.trim()) links.docs = el("project-link-docs").value.trim();
     if (el("project-link-download").value.trim()) links.download = el("project-link-download").value.trim();
+    const downloads = el("project-downloads")
+      .value.split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [label, url, description] = line.split("|").map((s) => (s || "").trim());
+        return { label: label || url || "", url: url || "", description: description || "" };
+      })
+      .filter((d) => d.url);
+    if (downloads.length) links.downloads = downloads;
     return {
       title: el("project-title").value,
       slug: el("project-slug").value,

@@ -223,7 +223,7 @@ page. Noting where the supporting capability exists vs. doesn't:
 - ✅ Related articles, simulations, scans, and media
 - ✅ Project version history and release notes (revisions exist; no distinct "release notes" concept)
 - 🔶 Public project changelogs (journal entries can serve this; no distinct changelog feature for projects)
-- 🔶 Downloadable project files (a single download link field exists; no file-manifest system)
+- ✅ Downloadable project files (single quick-download link still there; added a repeatable manifest of labeled files with descriptions, shown on the project page and scanned by the Link Checker)
 - 🔶 Project search, sorting, and filtering (search ✅; tag/featured filter ✅; arbitrary sort options ☐)
 - 🔶 Featured-project ordering (featured flag ✅; manual drag-reorder among featured ☐)
 - ☐ Architecture and dependency diagrams

@@ -2310,6 +2310,11 @@ export async function checkLinks(env) {
     for (const key of ["github", "demo", "docs", "download"]) {
       if (p.links && p.links[key]) found.push({ url: p.links[key], source: `Project "${p.title}" — ${key} link` });
     }
+    if (p.links && Array.isArray(p.links.downloads)) {
+      for (const d of p.links.downloads) {
+        if (d && d.url) found.push({ url: d.url, source: `Project "${p.title}" — download manifest: ${d.label || d.url}` });
+      }
+    }
     for (const j of projectJournals[i]) {
       for (const url of markdownLinks(j.body)) found.push({ url, source: `Project "${p.title}" — journal entry "${j.title || j.entry_date}"` });
     }
