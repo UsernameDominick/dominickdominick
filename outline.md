@@ -571,7 +571,13 @@ health-check pass, predates this doc.
 
 ### Writing and article editor
 - ✅ Auto TOC + heading anchors, footnotes/citations, pipe tables, code syntax highlighting
-- ☐ Code line numbers/copy buttons, callouts/warnings, mathematical notation
+- ✅ Code line numbers/copy buttons (client-side, works whether or not
+  highlight.js's CDN script has run yet — reads `.textContent`, not the
+  post-highlight DOM); callouts/warnings via `:::note`/`:::tip`/
+  `:::warning`/`:::danger` fenced blocks in article/project bodies
+  (a toolbar "Callout" button inserts the fence; supports the same
+  inline rich text as a paragraph)
+- ☐ Mathematical notation
 - ✅ Accordion (expandable details)
 - ✅ Inline image captions/credits, device frames (browser/phone) on any image block
 - ✅ Before/after image comparison slider — both as a page-builder block AND a `[before-after: url1 | url2 | Label1 | Label2]` markdown-lite shortcode for article/project bodies

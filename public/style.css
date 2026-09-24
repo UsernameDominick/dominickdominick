@@ -1821,6 +1821,86 @@ pre code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
+pre {
+  position: relative;
+}
+
+.code-copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted, var(--text));
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+pre:hover .code-copy-btn,
+.code-copy-btn:focus-visible {
+  opacity: 1;
+}
+
+pre.has-line-numbers {
+  padding-left: 3.6em;
+}
+
+.code-line-numbers {
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  width: 2.4em;
+  text-align: right;
+  color: var(--text-muted, var(--border));
+  opacity: 0.6;
+  user-select: none;
+  white-space: pre;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.callout {
+  margin: 20px 0;
+  padding: 14px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  background: var(--bg-elevated);
+}
+
+.callout-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.callout p:last-child {
+  margin-bottom: 0;
+}
+
+.callout-note {
+  border-left-color: #4f8ff7;
+}
+
+.callout-tip {
+  border-left-color: #3fbf6f;
+}
+
+.callout-warning {
+  border-left-color: #e0a63a;
+}
+
+.callout-danger {
+  border-left-color: #e05555;
+}
+
 .generic-embed {
   margin: 16px 0;
 }

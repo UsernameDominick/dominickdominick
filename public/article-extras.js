@@ -67,6 +67,41 @@
     });
   })();
 
+  // Code-block copy buttons + line numbers. Reads `.textContent`, which
+  // highlight.js's own re-rendering of `<code>` doesn't change, so this
+  // works whether it runs before or after highlightAll() — no ordering
+  // dependency between the two deferred scripts.
+  document.querySelectorAll("pre").forEach(function (pre) {
+    var code = pre.querySelector("code");
+    if (!code) return;
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "code-copy-btn";
+    btn.textContent = "Copy";
+    btn.setAttribute("aria-label", "Copy code");
+    btn.addEventListener("click", function () {
+      navigator.clipboard.writeText(code.textContent).then(function () {
+        btn.textContent = "Copied!";
+        setTimeout(function () {
+          btn.textContent = "Copy";
+        }, 1500);
+      });
+    });
+    pre.appendChild(btn);
+
+    var lines = code.textContent.replace(/\n$/, "").split("\n");
+    if (lines.length > 1) {
+      pre.classList.add("has-line-numbers");
+      var gutter = document.createElement("span");
+      gutter.className = "code-line-numbers";
+      gutter.setAttribute("aria-hidden", "true");
+      gutter.textContent = lines.map(function (_, i) {
+        return i + 1;
+      }).join("\n");
+      pre.insertBefore(gutter, code);
+    }
+  });
+
   // Save for later — client-side bookmarking (localStorage only, same as
   // reading history), toggled from the button next to the share links.
   var SAVED_KEY = "saved_items";

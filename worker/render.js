@@ -151,6 +151,27 @@ function beforeAfterHtml({ beforeUrl, afterUrl, beforeLabel, afterLabel }) {
   </div>`;
 }
 
+// A fenced `:::type\n...\n:::` block — the markdown-lite equivalent of a
+// GFM callout/admonition. Extracted before paragraph splitting (same
+// reason as code blocks: the content can itself contain blank lines).
+const CALLOUT_TYPES = { note: "Note", tip: "Tip", warning: "Warning", danger: "Danger" };
+const CALLOUT_PLACEHOLDER = /\u0000CALLOUT(\d+)\u0000/;
+
+function extractCallouts(text) {
+  const callouts = [];
+  const replaced = text.replace(/^:::(note|tip|warning|danger)[ \t]*\n([\s\S]*?)\n:::$/gim, (_, type, body) => {
+    const i = callouts.length;
+    callouts.push({ type: type.toLowerCase(), body });
+    return `\u0000CALLOUT${i}\u0000`;
+  });
+  return { replaced, callouts };
+}
+
+function calloutHtml({ type, body }) {
+  const label = CALLOUT_TYPES[type] || "Note";
+  return `<div class="callout callout-${esc(type)}"><strong class="callout-label">${label}</strong>${paragraphsHtml(body)}</div>`;
+}
+
 export function slugifyHeading(text) {
   return String(text ?? "")
     .toLowerCase()
@@ -190,7 +211,8 @@ export function tableOfContentsHtml(headings) {
 
 export function paragraphsHtml(text) {
   const { cleaned, defs } = extractFootnotes(text);
-  const { replaced, blocks } = extractCodeBlocks(cleaned);
+  const { replaced: withoutCallouts, callouts } = extractCallouts(cleaned);
+  const { replaced, blocks } = extractCodeBlocks(withoutCallouts);
   const headings = extractHeadings(replaced);
   const footnoteNums = footnoteNumbering(replaced, defs);
   let hi = 0;
@@ -199,6 +221,8 @@ export function paragraphsHtml(text) {
     .filter((p) => p.trim())
     .map((p) => {
       const trimmed = p.trim();
+      const calloutMatch = trimmed.match(CALLOUT_PLACEHOLDER);
+      if (calloutMatch) return calloutHtml(callouts[Number(calloutMatch[1])]);
       const codeMatch = trimmed.match(CODE_PLACEHOLDER);
       if (codeMatch) {
         const { lang, code } = blocks[Number(codeMatch[1])];
@@ -222,6 +246,7 @@ export function paragraphsHtml(text) {
 function stripMarkdown(text) {
   return String(text ?? "")
     .replace(/```(\w*)\n([\s\S]*?)```/g, "$2")
+    .replace(/^:::(note|tip|warning|danger)[ \t]*\n([\s\S]*?)\n:::$/gim, "$2")
     .replace(/^\[\^([^\]]+)\]:\s*.+$/gm, "")
     .replace(/\[\^([^\]]+)\]/g, "")
     .replace(/^#{2,3}\s+/gm, "")

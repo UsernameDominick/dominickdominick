@@ -2902,6 +2902,21 @@
           textarea.dispatchEvent(new Event("input", { bubbles: true }));
           break;
         }
+        case "callout": {
+          const type = (prompt('Callout type: note, tip, warning, or danger', "note") || "note").trim().toLowerCase();
+          if (!["note", "tip", "warning", "danger"].includes(type)) return;
+          const start = textarea.selectionStart;
+          const end = textarea.selectionEnd;
+          const value = textarea.value;
+          const selected = value.slice(start, end) || "Callout text";
+          const insert = `\n\n:::${type}\n${selected}\n:::\n\n`;
+          textarea.value = value.slice(0, start) + insert + value.slice(end);
+          textarea.focus();
+          const newPos = start + insert.length;
+          textarea.setSelectionRange(newPos, newPos);
+          textarea.dispatchEvent(new Event("input", { bubbles: true }));
+          break;
+        }
       }
     });
   });
