@@ -49,7 +49,7 @@ export async function updatePage(env, id, fields) {
     }
   }
   if (!cols.length) return;
-  cols.push("updated_at = datetime('now')");
+  cols.push("updated_at = datetime('now')", "version = version + 1");
   vals.push(id);
   await env.DB.prepare(`UPDATE pages SET ${cols.join(", ")} WHERE id = ?`).bind(...vals).run();
 }
@@ -284,7 +284,7 @@ export async function updateArticle(env, id, fields) {
     vals.push(resolvePublishedAt(fields));
   }
   if (!cols.length) return;
-  cols.push("updated_at = datetime('now')");
+  cols.push("updated_at = datetime('now')", "version = version + 1");
   vals.push(id);
   await env.DB.prepare(`UPDATE articles SET ${cols.join(", ")} WHERE id = ?`).bind(...vals).run();
 }
@@ -1098,8 +1098,8 @@ export async function importAll(env, data) {
     stmts.push(
       env.DB
         .prepare(
-          `INSERT INTO pages (id, slug, title, meta_description, nav_label, nav_order, og_image, deleted_at, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO pages (id, slug, title, meta_description, nav_label, nav_order, og_image, deleted_at, created_at, updated_at, version)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           p.id,
@@ -1111,7 +1111,8 @@ export async function importAll(env, data) {
           p.og_image ?? null,
           p.deleted_at ?? null,
           p.created_at,
-          p.updated_at
+          p.updated_at,
+          p.version ?? 1
         )
     );
   }
@@ -1142,8 +1143,8 @@ export async function importAll(env, data) {
     stmts.push(
       env.DB
         .prepare(
-          `INSERT INTO articles (id, slug, title, body, tags, og_image, published_at, deleted_at, series, series_order, co_authors, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO articles (id, slug, title, body, tags, og_image, published_at, deleted_at, series, series_order, co_authors, created_at, updated_at, version)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           a.id,
@@ -1158,7 +1159,8 @@ export async function importAll(env, data) {
           a.series_order ?? null,
           a.co_authors ?? "[]",
           a.created_at,
-          a.updated_at
+          a.updated_at,
+          a.version ?? 1
         )
     );
   }

@@ -8,7 +8,8 @@ CREATE TABLE pages (
   og_image TEXT,
   deleted_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  version INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE TABLE blocks (
@@ -37,7 +38,8 @@ CREATE TABLE articles (
   series_order INTEGER,
   co_authors TEXT NOT NULL DEFAULT '[]',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  version INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE TABLE settings (

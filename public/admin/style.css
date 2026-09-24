@@ -430,6 +430,28 @@
   min-height: 1.2em;
 }
 
+/* Two shades so this stays readable (WCAG AA) against both the dark
+   admin theme's near-black background and the light theme's white one —
+   a single fixed color can't hit 4.5:1 against both at once. */
+.save-conflict {
+  color: #e8663a;
+  font-weight: 600;
+}
+:root[data-theme="light"] .save-conflict {
+  color: #c94f24;
+}
+
+.save-conflict-reload {
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: inherit;
+  background: none;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 1px 6px;
+  cursor: pointer;
+}
+
 .og-preview-label {
   font-size: 0.72rem;
   text-transform: uppercase;

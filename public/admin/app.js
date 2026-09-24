@@ -115,9 +115,46 @@
     }
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      throw new Error(body.error || "Request failed");
+      const err = new Error(body.error || "Request failed");
+      err.status = res.status;
+      err.conflict = !!body.conflict;
+      throw err;
     }
     return res.status === 204 ? null : res.json();
+  }
+
+  // ---------- Unsaved-change protection ----------
+  // Any in-flight or failed save sets this; a successful one clears it. The
+  // realistic gap this covers is small (autosave debounces ~2s, block edits
+  // save on blur) but real — closing the tab mid-request, or right after a
+  // save that failed silently in the background, would otherwise lose work
+  // with no warning at all.
+  let unsavedDirty = false;
+  window.addEventListener("beforeunload", (e) => {
+    if (!unsavedDirty) return;
+    e.preventDefault();
+    e.returnValue = "";
+  });
+
+  // Shown when the server rejects a save because the record changed
+  // elsewhere since this tab loaded it (another tab, another device, or
+  // this same admin editing it twice) — see checkConflict() server-side.
+  // Deliberately doesn't attempt a merge or diff (that's real future work,
+  // not a one-line fix); it just refuses to silently clobber the other
+  // change and gives the admin an explicit way to load the current version.
+  function renderConflictStatus(statusElId, onReload) {
+    const e = el(statusElId);
+    e.innerHTML = "";
+    const span = document.createElement("span");
+    span.className = "save-conflict";
+    span.textContent = "Changed elsewhere since you loaded it — your last edit wasn't saved. ";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "save-conflict-reload";
+    btn.textContent = "Reload latest version";
+    btn.addEventListener("click", onReload);
+    span.appendChild(btn);
+    e.appendChild(span);
   }
 
   function showLogin() {
@@ -193,6 +230,7 @@
     el("page-nav-label").value = currentPage.nav_label || "";
     el("page-nav-order").value = currentPage.nav_order ?? "";
     el("page-og-image").value = currentPage.og_image || "";
+    el("page-save-status").textContent = "";
     updatePageOgPreview();
     await loadBlocks();
   }
@@ -220,8 +258,16 @@
     }
   });
 
+  ["page-title", "page-meta", "page-nav-label", "page-nav-order", "page-og-image"].forEach((id) =>
+    el(id).addEventListener("input", () => {
+      unsavedDirty = true;
+      el("page-save-status").textContent = "Unsaved changes…";
+    })
+  );
+
   el("save-page-settings").addEventListener("click", async () => {
     if (!currentPage) return;
+    el("page-save-status").textContent = "Saving…";
     try {
       await api(`/pages/${currentPage.id}`, {
         method: "PATCH",
@@ -231,10 +277,20 @@
           nav_label: el("page-nav-label").value || null,
           nav_order: el("page-nav-order").value ? Number(el("page-nav-order").value) : null,
           og_image: el("page-og-image").value || null,
+          expected_version: currentPage.version,
         }),
       });
+      unsavedDirty = false;
       await loadPages();
+      el("page-save-status").textContent = "Saved " + new Date().toLocaleTimeString();
     } catch (err) {
+      if (err.conflict) {
+        renderConflictStatus("page-save-status", async () => {
+          await loadPages();
+        });
+        return;
+      }
+      el("page-save-status").textContent = "Save failed: " + err.message;
       alert(err.message);
     }
   });
@@ -713,6 +769,7 @@
     }
     inspector.hidden = false;
     if (isMobile()) openDrawer(inspector);
+    el("block-save-status").textContent = "";
 
     if (!block.style) block.style = {};
 
@@ -736,10 +793,20 @@
 
     function save() {
       renderCanvas();
+      unsavedDirty = true;
+      el("block-save-status").textContent = "Saving…";
       api(`/blocks/${block.id}`, {
         method: "PATCH",
         body: JSON.stringify({ content: block.content, style: block.style }),
-      }).catch((err) => alert(err.message));
+      })
+        .then(() => {
+          unsavedDirty = false;
+          el("block-save-status").textContent = "Saved " + new Date().toLocaleTimeString();
+        })
+        .catch((err) => {
+          el("block-save-status").textContent = "Save failed: " + err.message;
+          alert(err.message);
+        });
     }
 
     container.querySelectorAll("[data-key]").forEach((input) => {
@@ -851,6 +918,7 @@
   // ---------- Articles ----------
   let articles = [];
   let currentArticleId = null;
+  let currentArticleVersion = null;
 
   el("articles-btn").addEventListener("click", async () => {
     el("articles-modal").hidden = false;
@@ -946,6 +1014,7 @@
     clearTimeout(autosaveTimer);
     setAutosaveStatus("");
     currentArticleId = article.id;
+    currentArticleVersion = article.version || null;
     el("article-title").value = article.title;
     el("article-slug").value = article.slug;
     el("article-tags").value = (article.tags || []).join(", ");
@@ -1035,6 +1104,7 @@
     clearTimeout(autosaveTimer);
     setAutosaveStatus("");
     currentArticleId = null;
+    currentArticleVersion = null;
     el("article-title").value = "";
     el("article-slug").value = "";
     el("article-tags").value = "";
@@ -1083,22 +1153,42 @@
     };
   }
 
+  // Pulls the freshly re-fetched article's version into the client's
+  // conflict-detection baseline — needed after every successful save, not
+  // just on initial load, since this same tab's own next save would
+  // otherwise "conflict" against its own prior write.
+  function rebaseArticleVersion() {
+    const a = articles.find((x) => x.id === currentArticleId);
+    if (a) currentArticleVersion = a.version || null;
+  }
+
   el("save-article").addEventListener("click", async () => {
     const body = buildArticleBody();
     if (!body.title) return alert("Title is required.");
     try {
       if (currentArticleId) {
+        body.expected_version = currentArticleVersion;
         await api(`/articles/${currentArticleId}`, { method: "PATCH", body: JSON.stringify(body) });
       } else {
         const res = await api("/articles", { method: "POST", body: JSON.stringify(body) });
         currentArticleId = res.id;
         el("article-slug").value = res.slug;
       }
+      unsavedDirty = false;
       articles = await api("/articles");
+      rebaseArticleVersion();
       updateArticleExtras();
       renderArticlesList();
       setAutosaveStatus("Saved " + new Date().toLocaleTimeString());
     } catch (err) {
+      if (err.conflict) {
+        renderConflictStatus("article-autosave-status", () => {
+          clearTimeout(autosaveTimer);
+          const a = articles.find((x) => x.id === currentArticleId);
+          if (a) populateArticleForm(a);
+        });
+        return;
+      }
       alert(err.message);
     }
   });
@@ -1116,17 +1206,29 @@
     if (!currentArticleId) return;
     const body = buildArticleBody();
     if (!body.title) return;
+    body.expected_version = currentArticleVersion;
     try {
       await api(`/articles/${currentArticleId}`, { method: "PATCH", body: JSON.stringify(body) });
+      unsavedDirty = false;
       articles = await api("/articles");
+      rebaseArticleVersion();
       renderArticlesList();
       setAutosaveStatus("Saved " + new Date().toLocaleTimeString());
     } catch (err) {
+      if (err.conflict) {
+        renderConflictStatus("article-autosave-status", () => {
+          clearTimeout(autosaveTimer);
+          const a = articles.find((x) => x.id === currentArticleId);
+          if (a) populateArticleForm(a);
+        });
+        return;
+      }
       setAutosaveStatus("Autosave failed: " + err.message);
     }
   }
   function scheduleAutosave() {
     if (!currentArticleId) return;
+    unsavedDirty = true;
     setAutosaveStatus("Unsaved changes…");
     clearTimeout(autosaveTimer);
     autosaveTimer = setTimeout(autosaveArticle, 2000);

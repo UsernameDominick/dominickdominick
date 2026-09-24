@@ -113,6 +113,30 @@ function sanitizeSvg(text) {
     .replace(/((?:xlink:)?href|src)\s*=\s*'\s*javascript:[^']*'/gi, "$1='#'");
 }
 
+// Optimistic-concurrency guard for the article/page editors: the client
+// sends back the version number it last saw when it loaded (or last saved),
+// and if the row has moved on since — another tab, another device, this
+// same admin editing themselves twice — this refuses the blind overwrite
+// rather than silently discarding whatever changed in between. A client
+// that never sends expected_version (older cached admin JS, or an external
+// API caller) just skips the check, same as before this existed.
+// Uses a plain incrementing counter rather than comparing updated_at
+// strings — datetime('now') in SQLite only has second resolution, so two
+// updates within the same second (a fast test, or two tabs saving close
+// together) would otherwise produce identical timestamps and silently
+// defeat the check.
+async function checkConflict(env, table, id, expectedVersion) {
+  if (!expectedVersion) return null;
+  const row = await env.DB.prepare(`SELECT version FROM ${table} WHERE id = ?`).bind(id).first();
+  if (row && row.version !== expectedVersion) {
+    return json(
+      { error: "This was changed elsewhere since you loaded it. Reload to see the latest version before saving.", conflict: true },
+      { status: 409 }
+    );
+  }
+  return null;
+}
+
 function slugify(str) {
   return String(str || "")
     .toLowerCase()
@@ -217,6 +241,8 @@ async function routeAdminApi(request, env, url, ctx) {
   if (pageMatch && method === "PATCH") {
     const body = await request.json().catch(() => ({}));
     const id = Number(pageMatch[1]);
+    const conflict = await checkConflict(env, "pages", id, body.expected_version);
+    if (conflict) return conflict;
     if (body.slug) {
       body.slug = slugify(body.slug);
       if (RESERVED_SLUGS.has(body.slug)) {
@@ -228,7 +254,8 @@ async function routeAdminApi(request, env, url, ctx) {
     }
     await updatePage(env, id, body);
     log(ctx, env, "update", "page", body.title || body.slug || `#${id}`);
-    return json({ ok: true });
+    const fresh = await env.DB.prepare("SELECT version FROM pages WHERE id = ?").bind(id).first();
+    return json({ ok: true, version: fresh?.version });
   }
   if (pageMatch && method === "DELETE") {
     const id = Number(pageMatch[1]);
@@ -319,6 +346,8 @@ async function routeAdminApi(request, env, url, ctx) {
   if (articleMatch && method === "PATCH") {
     const body = await request.json().catch(() => ({}));
     const id = Number(articleMatch[1]);
+    const conflict = await checkConflict(env, "articles", id, body.expected_version);
+    if (conflict) return conflict;
     if (body.slug) {
       body.slug = slugify(body.slug);
       if (await slugExists(env, "articles", body.slug, id)) {
@@ -345,7 +374,8 @@ async function routeAdminApi(request, env, url, ctx) {
         published_at: newPublishedAt,
       },
     });
-    return json({ ok: true });
+    const fresh = await env.DB.prepare("SELECT version, slug FROM articles WHERE id = ?").bind(id).first();
+    return json({ ok: true, version: fresh?.version, slug: fresh?.slug });
   }
   if (articleMatch && method === "DELETE") {
     const id = Number(articleMatch[1]);
