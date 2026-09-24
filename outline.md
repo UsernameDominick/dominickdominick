@@ -688,7 +688,11 @@ block already support any of these as a plain page:
   dimensions probed client-side via an off-screen `Image` element's
   `naturalWidth`/`naturalHeight` — shown in the existing File details
   modal, no schema change or server-side binary parsing needed)
-- 🔶 Search by filename/tag/type/dimensions/usage (filename+tag ✅; rest ☐)
+- 🔶 Search by filename/tag/type/dimensions/usage (filename+tag ✅; type
+  filter ✅ — Images/Audio/Other dropdown next to the folder filter,
+  derived from the key prefix/extension, no schema change; dimensions/
+  usage as filters ☐ — "usage" already exists as a per-file lookup, just
+  not as a library-wide filter)
 - ✅ Unused/orphaned file review
 - ☐ Image optimization comparison, video captions/transcripts, audio-file support (images only today), PDF/doc previews, direct-download controls, drag-to-page, resumable uploads, upload queue with retry, storage-by-type dashboard, private-metadata stripping
 

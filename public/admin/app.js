@@ -3727,13 +3727,21 @@
     el("media-bulk-tag-btn").disabled = !n;
   }
 
+  function mediaItemType(item) {
+    if (item.key.startsWith("audio/")) return "audio";
+    if (/\.(png|jpe?g|gif|webp|svg|avif)$/i.test(item.key)) return "image";
+    return "other";
+  }
+
   function renderMediaGrid() {
     const folderFilter = el("media-folder-filter").value;
+    const typeFilter = el("media-type-filter").value;
     const search = el("media-search").value.trim().toLowerCase();
     const unusedOnly = el("media-unused-filter").checked;
     const duplicatesOnly = el("media-duplicates-filter").checked;
     const filtered = mediaItems.filter((item) => {
       if (folderFilter && item.folder !== folderFilter) return false;
+      if (typeFilter && mediaItemType(item) !== typeFilter) return false;
       if (unusedOnly && item.used) return false;
       if (duplicatesOnly && !item.isDuplicate) return false;
       if (!search) return true;
@@ -3958,6 +3966,7 @@
   }
 
   el("media-folder-filter").addEventListener("change", renderMediaGrid);
+  el("media-type-filter").addEventListener("change", renderMediaGrid);
   el("media-search").addEventListener("input", renderMediaGrid);
 
   el("media-upload-folder").addEventListener("change", (e) => {
