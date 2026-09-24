@@ -688,7 +688,14 @@ block already support any of these as a plain page:
 - ✅ Site changelog block
 - ☐ Uses/gear page, resume/experience page from structured data, public project roadmaps, "Currently building" homepage widget
 - 🔶 Public notes/short posts (articles serve this; no distinct lightweight format)
-- 🔶 Topic landing pages (`?tag=` works; no dedicated landing-page builder)
+- ✅ Topic landing pages (a new "Topic Pages" panel — Tools → Topic Pages
+  — lists every tag currently in use with its content count, and an
+  Edit button to set an optional intro blurb and share image for that
+  tag's `/topics/:tag` page, stored in a new `topic_meta` table keyed by
+  tag; falls back to the auto-generated title/description when no row
+  exists. Not a full block-based page builder — deliberately just enough
+  to give a topic its own voice and share card, matching the actual gap
+  the previous note described)
 - ✅ Archive by year (`/archive`)
 
 ### Projects and portfolio

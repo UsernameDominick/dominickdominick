@@ -31,6 +31,7 @@ import {
   getTagCounts,
   getArchive,
   getContentByTag,
+  getTopicMeta,
 } from "./db.js";
 import { isAuthenticated } from "./auth.js";
 import {
@@ -465,19 +466,20 @@ async function renderSavedPage(env, navItems) {
 
 async function renderTopicPage(env, tag, navItems) {
   const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
-  const { articles, projects } = await getContentByTag(env, tag);
+  const [{ articles, projects }, topicMeta] = await Promise.all([getContentByTag(env, tag), getTopicMeta(env, tag)]);
   const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 16;">
     <h1>Tagged: ${esc(tag)}</h1>
+    ${topicMeta?.description ? `<p class="topic-intro">${esc(topicMeta.description)}</p>` : ""}
     ${renderTopicPageHtml(tag, articles, projects)}
   </div>`;
   const html = renderShell({
     title: `${tag} · Topics · Dominick`,
-    description: `Posts and projects tagged "${tag}" on dominickdominick.com.`,
+    description: topicMeta?.description || `Posts and projects tagged "${tag}" on dominickdominick.com.`,
     path: `/topics/${encodeURIComponent(tag)}`,
     navItems,
     activeSlug: null,
     bodyHtml,
-    ogImage: defaultOgImage || null,
+    ogImage: topicMeta?.og_image || defaultOgImage || null,
     theme,
     footerText,
     customHead,

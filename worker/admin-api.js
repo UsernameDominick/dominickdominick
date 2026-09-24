@@ -70,6 +70,10 @@ import {
   getSeoReport,
   getOrphanContent,
   getContentHealth,
+  getTagCounts,
+  listTopicMeta,
+  setTopicMeta,
+  deleteTopicMeta,
   listScans,
   getScan,
   createScan,
@@ -1039,6 +1043,30 @@ async function routeAdminApi(request, env, url, ctx) {
   // /content-health — site-wide empty-page and stale-content inventory.
   if (path === "/content-health" && method === "GET") {
     return json(await getContentHealth(env));
+  }
+
+  // /topic-meta — optional per-tag description/share-image override for
+  // /topics/:tag landing pages. GET lists every known tag (from real
+  // content, via getTagCounts) alongside any custom meta already saved
+  // for it, so the admin UI can show one row per tag whether or not it's
+  // been customized yet.
+  if (path === "/topic-meta" && method === "GET") {
+    const [tags, metaRows] = await Promise.all([getTagCounts(env), listTopicMeta(env)]);
+    const metaByTag = new Map(metaRows.map((m) => [m.tag, m]));
+    return json(
+      tags.map((t) => ({ tag: t.tag, count: t.count, description: metaByTag.get(t.tag)?.description || "", og_image: metaByTag.get(t.tag)?.og_image || "" }))
+    );
+  }
+  if (path === "/topic-meta" && method === "PUT") {
+    const body = await request.json().catch(() => ({}));
+    if (!body.tag) return json({ error: "tag is required" }, { status: 400 });
+    if (!body.description && !body.og_image) {
+      await deleteTopicMeta(env, body.tag);
+    } else {
+      await setTopicMeta(env, body.tag, { description: body.description, og_image: body.og_image });
+    }
+    log(ctx, env, "update", "topic-meta", body.tag);
+    return json({ ok: true });
   }
 
   // /preview-links — shareable, expiring, revocable links that let someone

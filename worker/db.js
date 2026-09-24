@@ -1959,6 +1959,29 @@ export async function getTagCounts(env) {
     .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
 }
 
+export async function getTopicMeta(env, tag) {
+  return await env.DB.prepare("SELECT * FROM topic_meta WHERE tag = ?").bind(tag).first();
+}
+
+export async function listTopicMeta(env) {
+  const { results } = await env.DB.prepare("SELECT * FROM topic_meta ORDER BY tag ASC").all();
+  return results;
+}
+
+export async function setTopicMeta(env, tag, { description, og_image }) {
+  await env.DB
+    .prepare(
+      `INSERT INTO topic_meta (tag, description, og_image, updated_at) VALUES (?, ?, ?, datetime('now'))
+       ON CONFLICT(tag) DO UPDATE SET description = excluded.description, og_image = excluded.og_image, updated_at = datetime('now')`
+    )
+    .bind(tag, description || null, og_image || null)
+    .run();
+}
+
+export async function deleteTopicMeta(env, tag) {
+  await env.DB.prepare("DELETE FROM topic_meta WHERE tag = ?").bind(tag).run();
+}
+
 // Every published article and project carrying a given tag, for the
 // per-tag topic page (tag chips link here regardless of which content
 // type they came from, so a project's tag also surfaces matching articles

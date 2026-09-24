@@ -4458,6 +4458,63 @@
     }
   });
 
+  // ---------- Topic pages (per-tag /topics/:tag customization) ----------
+  let topicPagesData = [];
+  let editingTopicTag = null;
+
+  async function loadTopicPages() {
+    topicPagesData = await api("/topic-meta");
+    el("topic-pages-list").innerHTML =
+      topicPagesData
+        .map(
+          (t) =>
+            `<div class="redirect-row"><span class="redirect-paths">${escapeHtml(t.tag)} <span class="topic-page-count">(${t.count})</span>${
+              t.description || t.og_image ? ` <span class="lock-badge" title="Has a custom intro or share image">Customized</span>` : ""
+            }</span><button type="button" class="edit-topic-meta-btn" data-tag="${escapeHtml(t.tag)}">Edit</button></div>`
+        )
+        .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No tags in use yet.</p>";
+    el("topic-pages-list")
+      .querySelectorAll(".edit-topic-meta-btn")
+      .forEach((btn) => {
+        btn.addEventListener("click", () => openTopicMetaEdit(btn.dataset.tag));
+      });
+  }
+
+  function openTopicMetaEdit(tag) {
+    const t = topicPagesData.find((x) => x.tag === tag);
+    if (!t) return;
+    editingTopicTag = tag;
+    el("topic-meta-edit-title").textContent = `Edit topic page: ${tag}`;
+    el("topic-meta-description").value = t.description || "";
+    el("topic-meta-og-image").value = t.og_image || "";
+    el("topic-meta-edit-modal").hidden = false;
+  }
+
+  el("topic-pages-btn").addEventListener("click", async () => {
+    el("topic-pages-modal").hidden = false;
+    await loadTopicPages().catch((err) => alert(err.message));
+  });
+  closeModalOnClick("close-topic-pages", "topic-pages-modal");
+  closeModalOnClick("close-topic-meta-edit", "topic-meta-edit-modal");
+
+  el("save-topic-meta").addEventListener("click", async () => {
+    if (!editingTopicTag) return;
+    try {
+      await api("/topic-meta", {
+        method: "PUT",
+        body: JSON.stringify({
+          tag: editingTopicTag,
+          description: el("topic-meta-description").value.trim(),
+          og_image: el("topic-meta-og-image").value.trim(),
+        }),
+      });
+      el("topic-meta-edit-modal").hidden = true;
+      await loadTopicPages();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
   el("check-seo-btn").addEventListener("click", async () => {
     const btn = el("check-seo-btn");
     const originalText = btn.textContent;

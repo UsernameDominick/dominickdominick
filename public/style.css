@@ -1312,6 +1312,13 @@ h6 { font-size: 0.9rem; }
   font-size: 0.9rem;
 }
 
+.topic-intro {
+  font-size: 1.05rem;
+  color: var(--text-dim);
+  max-width: 60ch;
+  margin-bottom: 20px;
+}
+
 .search-results {
   list-style: none;
   margin: 0 0 24px;

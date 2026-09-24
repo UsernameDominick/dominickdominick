@@ -144,6 +144,17 @@ CREATE TABLE settings (
   value TEXT
 );
 
+-- Optional per-tag customization for /topics/:tag landing pages — falls
+-- back to the auto-generated title/description when a tag has no row
+-- here. Not a full page-builder (that's page/block territory); just
+-- enough to give a topic's own intro blurb and share image.
+CREATE TABLE topic_meta (
+  tag TEXT PRIMARY KEY,
+  description TEXT,
+  og_image TEXT,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE login_attempts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   ip TEXT NOT NULL,

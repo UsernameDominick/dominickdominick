@@ -62,6 +62,7 @@
               <button id="layers-btn">Layers</button>
               <button id="diagnostics-btn">Diagnostics</button>
               <button id="seo-dashboard-btn">SEO Dashboard</button>
+              <button id="topic-pages-btn">Topic Pages</button>
               <button id="analytics-btn">Analytics</button>
               <button id="trash-btn">Trash</button>
               <button id="site-settings-btn">Site</button>
@@ -1046,6 +1047,36 @@
         <label style="margin-bottom:0;">Pages with no real content, and published articles/projects nobody has touched in over a year.</label>
         <button type="button" id="check-content-health-btn">Run check</button>
         <div id="content-health-results" class="link-check-results"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="topic-pages-modal" class="modal" hidden>
+    <div class="modal-inner redirects-modal-inner">
+      <header>
+        <h1>Topic Pages</h1>
+        <button id="close-topic-pages">×</button>
+      </header>
+      <div class="redirects-body">
+        <p class="redirects-hint">Every tag currently in use, with an optional custom intro blurb and share image for its <code>/topics/:tag</code> page. Leave both blank to fall back to the automatic title/description.</p>
+        <div id="topic-pages-list" class="redirects-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="topic-meta-edit-modal" class="modal" hidden>
+    <div class="modal-inner">
+      <header>
+        <h1 id="topic-meta-edit-title">Edit topic page</h1>
+        <button id="close-topic-meta-edit">×</button>
+      </header>
+      <label>Intro blurb (shown under the "Tagged: X" heading, and used as the meta description)<textarea id="topic-meta-description" rows="3"></textarea></label>
+      <div class="input-with-upload">
+        <input id="topic-meta-og-image" placeholder="Share image URL (blank = site default)" spellcheck="false">
+        <button type="button" class="upload-trigger" data-target="#topic-meta-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#topic-meta-og-image">Browse…</button>
+      </div>
+      <div class="article-actions">
+        <button id="save-topic-meta">Save</button>
       </div>
     </div>
   </div>

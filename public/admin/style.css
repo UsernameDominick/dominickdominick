@@ -2821,6 +2821,15 @@ kbd {
   flex-shrink: 0;
 }
 
+.topic-page-count {
+  color: var(--text-dim);
+  font-weight: normal;
+}
+
+.redirect-row .edit-topic-meta-btn {
+  color: var(--accent);
+}
+
 .redirect-row button {
   background: transparent;
   color: #e85a5a;
