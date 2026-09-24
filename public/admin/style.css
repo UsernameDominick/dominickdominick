@@ -1280,6 +1280,36 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   display: block;
 }
 
+.link-suggestions:empty {
+  display: none;
+}
+
+.link-suggestions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 0.8rem;
+}
+
+.link-suggestions-label {
+  color: var(--text-dim);
+}
+
+.link-suggestion-btn {
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.link-suggestion-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .settings-body button {
   align-self: flex-start;
   background: var(--accent);

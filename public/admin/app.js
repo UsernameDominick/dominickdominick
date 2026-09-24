@@ -2671,6 +2671,7 @@
       ["Body has enough content to publish", el("article-body").value.trim().length > 50],
     ]);
     renderLinkWarnings("article-link-warnings", el("article-body").value);
+    renderLinkSuggestions("article-link-suggestions", "article-body", "article", currentArticleId);
   }
 
   function updateProjectChecklist() {
@@ -2681,6 +2682,7 @@
       ["Body has enough content to publish", el("project-body").value.trim().length > 50],
     ]);
     renderLinkWarnings("project-link-warnings", el("project-body").value);
+    renderLinkSuggestions("project-link-suggestions", "project-body", "project", currentProjectId);
   }
 
   // ---------- Live inline broken-link check while typing ----------
@@ -2719,6 +2721,68 @@
   function renderLinkWarnings(elId, text) {
     const warnings = checkInternalLinks(text);
     el(elId).innerHTML = warnings.map((w) => `<span class="contrast-fail">⚠ ${escapeHtml(w)}</span>`).join("");
+  }
+
+  // ---------- Internal-link suggestions while writing ----------
+  // Length-preserving so a match's index in the stripped text is the same
+  // index in the real textarea value — lets "insert this link" wrap the
+  // exact right span without re-scanning the original text.
+  function stripMarkdownLinksForSuggestions(text) {
+    return text.replace(/\[([^\]]*)\]\([^)]*\)/g, (m) => " ".repeat(m.length));
+  }
+
+  function suggestInternalLinks(text, excludeType, excludeId) {
+    if (!text || text.trim().length < 10) return [];
+    const stripped = stripMarkdownLinksForSuggestions(text);
+    const candidates = [];
+    for (const p of pages) {
+      if (p.title && p.title.length >= 4) candidates.push({ title: p.title, url: p.slug === "home" ? "/" : `/${p.slug}` });
+    }
+    for (const a of articles) {
+      if (excludeType === "article" && a.id === excludeId) continue;
+      if (a.title && a.title.length >= 4) candidates.push({ title: a.title, url: `/random/${a.slug}` });
+    }
+    for (const p of projects) {
+      if (excludeType === "project" && p.id === excludeId) continue;
+      if (p.title && p.title.length >= 4) candidates.push({ title: p.title, url: `/projects/${p.slug}` });
+    }
+    const seen = new Set();
+    const results = [];
+    for (const c of candidates) {
+      if (seen.has(c.url)) continue;
+      const re = new RegExp(`\\b${c.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+      if (re.test(stripped)) {
+        seen.add(c.url);
+        results.push(c);
+      }
+      if (results.length >= 6) break;
+    }
+    return results;
+  }
+
+  function renderLinkSuggestions(elId, textareaId, excludeType, excludeId) {
+    const textarea = el(textareaId);
+    const suggestions = suggestInternalLinks(textarea.value, excludeType, excludeId);
+    el(elId).innerHTML = suggestions.length
+      ? `<span class="link-suggestions-label">Link suggestions:</span>${suggestions
+          .map((s, i) => `<button type="button" class="link-suggestion-btn" data-idx="${i}">${escapeHtml(s.title)}</button>`)
+          .join("")}`
+      : "";
+    el(elId)
+      .querySelectorAll(".link-suggestion-btn")
+      .forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const s = suggestions[Number(btn.dataset.idx)];
+          const value = textarea.value;
+          const re = new RegExp(`\\b${s.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+          const m = stripMarkdownLinksForSuggestions(value).match(re);
+          if (!m) return;
+          const idx = m.index;
+          const matchedText = value.slice(idx, idx + s.title.length);
+          textarea.value = value.slice(0, idx) + `[${matchedText}](${s.url})` + value.slice(idx + s.title.length);
+          textarea.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+      });
   }
 
   ["page-title", "page-meta", "page-og-image"].forEach((id) => el(id).addEventListener("input", updatePageOgPreview));

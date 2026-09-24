@@ -780,7 +780,13 @@ Contact form, admin inbox, guestbook/comments, moderation, newsletter —
   in the header nav either; related-content suggestions and shuffle
   deliberately don't count as "reachable" since neither is a deliberate
   link an editor placed)
-- ☐ Internal-link suggestions while writing, automatic redirect suggestions after URL changes
+- ✅ Internal-link suggestions while writing (a "Link suggestions" row
+  under the link-warnings area in the article/project editor — scans the
+  body for any existing published page/article/project title that
+  appears as plain, not-yet-linked text, and a click wraps that exact
+  span in a markdown link to it; client-side only, against the
+  already-loaded pages/articles/projects arrays, no server round-trip)
+- ☐ Automatic redirect suggestions after URL changes
 - 🔶 Link monitoring (on-demand Link Checker ✅; scheduled/ongoing ☐)
 - 🔶 Missing-metadata reports (SEO Report now covers meta description +
   alt text + missing social-share image on published articles/projects +
