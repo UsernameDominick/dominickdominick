@@ -152,31 +152,14 @@ async function renderArticle(env, article, navItems) {
   // "Updated" — otherwise every article would show one moments after going live.
   const wasUpdated = article.updated_at && article.published_at && new Date(article.updated_at) - new Date(article.published_at) > 24 * 3600 * 1000;
 
-  // Rows are handed out in order rather than computed with ad-hoc offsets,
-  // so adding/removing an optional section (series nav, TOC, related) can't
-  // silently throw off the ones after it. The header's own span has to grow
-  // with what's actually in it (byline/share links can wrap the meta line,
-  // long titles wrap to 2-3 lines) — a fixed span here is what let the new
-  // TTS bar visibly collide with a wrapped title (see project's own
-  // headerSpan below for the same reasoning already applied there).
-  const headerSpan = 4 + (article.tags && article.tags.length ? 2 : 0);
-  let row = headerSpan + 2;
-  const ttsRow = row;
-  row += 2;
-  const correctionRow = correctionNoteHtml ? row : null;
-  if (correctionNoteHtml) row += 2;
-  const seriesRow = seriesNavHtml ? row : null;
-  if (seriesNavHtml) row += 3;
-  const tocRow = tocHtml ? row : null;
-  if (tocHtml) row += 6;
-  const bodyRow = row;
-  row += 12;
-  const reactionsRow = row;
-  row += 2;
-  const relatedRow = row;
-
+  // Sections flow top to bottom in normal document flow (see .article-canvas
+  // in style.css) rather than fixed grid-row spans computed ahead of time —
+  // a fixed span for the body assumed a rough content length that any real
+  // long-form article blows past, overlapping whatever came after it
+  // (reactions, related articles). Flow layout can't overlap; each section
+  // just takes the height its own content needs.
   const bodyHtml = `<div class="reading-progress"></div>
-  <div class="block" style="grid-column:1 / span 24;grid-row:1 / span ${headerSpan};">
+  <div class="block">
     <div class="article-meta">
       <time datetime="${esc(article.published_at)}">${esc((article.published_at || "").slice(0, 10))}</time>
       ${wasUpdated ? `<span class="article-meta-sep">·</span><span>Updated <time datetime="${esc(article.updated_at)}">${esc((article.updated_at || "").slice(0, 10))}</time></span>` : ""}
@@ -188,15 +171,15 @@ async function renderArticle(env, article, navItems) {
     <h1>${esc(article.title)}</h1>
     ${renderTags(article.tags)}
   </div>
-  <div class="block" style="grid-column:1 / span 24;grid-row:${ttsRow} / span 2;">${ttsBarHtml}</div>
-  ${correctionNoteHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${correctionRow} / span 2;">${correctionNoteHtml}</div>` : ""}
-  ${seriesNavHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${seriesRow} / span 3;">${seriesNavHtml}</div>` : ""}
-  ${tocHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${tocRow} / span 6;">${tocHtml}</div>` : ""}
-  <div class="block" style="grid-column:1 / span 24;grid-row:${bodyRow} / span 12;">
+  <div class="block">${ttsBarHtml}</div>
+  ${correctionNoteHtml ? `<div class="block">${correctionNoteHtml}</div>` : ""}
+  ${seriesNavHtml ? `<div class="block">${seriesNavHtml}</div>` : ""}
+  ${tocHtml ? `<div class="block">${tocHtml}</div>` : ""}
+  <div class="block">
     <div id="readable-content">${paragraphsHtml(article.body)}</div>
   </div>
-  <div class="block" style="grid-column:1 / span 24;grid-row:${reactionsRow} / span 2;">${reactionsHtml}</div>
-  ${relatedHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${relatedRow} / span 6;">${relatedHtml}</div>` : ""}`;
+  <div class="block">${reactionsHtml}</div>
+  ${relatedHtml ? `<div class="block">${relatedHtml}</div>` : ""}`;
   const jsonLd = [
     {
       "@context": "https://schema.org",
@@ -234,6 +217,7 @@ async function renderArticle(env, article, navItems) {
     theme,
     footerText,
     customHead,
+    canvasClass: "canvas article-canvas",
   });
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
@@ -275,37 +259,12 @@ async function renderProject(env, project, navItems) {
   const relatedArticleRows = allPublishedArticles.filter((a) => project.related_articles.includes(a.id));
   const relatedMediaHtml = renderRelatedMediaHtml(relatedArticleRows, relatedSims.filter(Boolean), relatedScanRows.filter(Boolean));
 
-  // Rows handed out in order (same reasoning as renderArticle) so an
-  // optional section's length can't throw off the ones after it. Unlike
-  // the article header (title/meta/tags only), a project header can also
-  // carry a summary, tech stack, and link buttons, so its span has to grow
-  // with what's actually present or long content overlaps the body below it.
-  const headerSpan =
-    6 +
-    (project.summary ? 3 : 0) +
-    (techStackHtml ? 2 : 0) +
-    (project.tags && project.tags.length ? 2 : 0) +
-    (linkButtons ? 2 : 0);
-  let row = headerSpan + 2;
-  const ttsRow = row;
-  row += 2;
-  const correctionRow = correctionNoteHtml ? row : null;
-  if (correctionNoteHtml) row += 2;
-  const bodyRow = row;
-  row += 12;
-  const reactionsRow = row;
-  row += 2;
-  const downloadsRow = downloadsHtml ? row : null;
-  if (downloadsHtml) row += 4 + downloads.length;
-  const bomRow = bomHtml ? row : null;
-  if (bomHtml) row += 4 + bomItems.length * 2;
-  const journalRow = journalHtml ? row : null;
-  if (journalHtml) row += 4 + journalEntries.length * 4;
-  const relatedMediaRow = relatedMediaHtml ? row : null;
-  if (relatedMediaHtml) row += 6;
-  const relatedRow = row;
-
-  const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span ${headerSpan};">
+  // Normal document flow (see .article-canvas in style.css), same fix and
+  // reasoning as renderArticle just above — a project page has even more
+  // variable-length optional sections (BOM, journal entries, downloads)
+  // than an article does, all of which could overlap under the old fixed
+  // grid-row-span scheme.
+  const bodyHtml = `<div class="block">
     <div class="article-meta">
       ${project.status ? `<span>${esc(project.status)}</span><span class="article-meta-sep">·</span>` : ""}
       <time datetime="${esc(project.published_at)}">${esc((project.published_at || "").slice(0, 10))}</time>
@@ -320,17 +279,17 @@ async function renderProject(env, project, navItems) {
     ${renderTags(project.tags)}
     ${linkButtons ? `<p>${linkButtons}</p>` : ""}
   </div>
-  <div class="block" style="grid-column:1 / span 24;grid-row:${ttsRow} / span 2;">${ttsBarHtml}</div>
-  ${correctionNoteHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${correctionRow} / span 2;">${correctionNoteHtml}</div>` : ""}
-  <div class="block" style="grid-column:1 / span 24;grid-row:${bodyRow} / span 12;">
+  <div class="block">${ttsBarHtml}</div>
+  ${correctionNoteHtml ? `<div class="block">${correctionNoteHtml}</div>` : ""}
+  <div class="block">
     <div id="readable-content">${paragraphsHtml(project.body)}</div>
   </div>
-  <div class="block" style="grid-column:1 / span 24;grid-row:${reactionsRow} / span 2;">${reactionsHtml}</div>
-  ${downloadsHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${downloadsRow} / span ${4 + downloads.length};">${downloadsHtml}</div>` : ""}
-  ${bomHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${bomRow} / span ${4 + bomItems.length * 2};">${bomHtml}</div>` : ""}
-  ${journalHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${journalRow} / span ${4 + journalEntries.length * 4};">${journalHtml}</div>` : ""}
-  ${relatedMediaHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${relatedMediaRow} / span 6;">${relatedMediaHtml}</div>` : ""}
-  ${relatedHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:${relatedRow} / span 6;">${relatedHtml}</div>` : ""}`;
+  <div class="block">${reactionsHtml}</div>
+  ${downloadsHtml ? `<div class="block">${downloadsHtml}</div>` : ""}
+  ${bomHtml ? `<div class="block">${bomHtml}</div>` : ""}
+  ${journalHtml ? `<div class="block">${journalHtml}</div>` : ""}
+  ${relatedMediaHtml ? `<div class="block">${relatedMediaHtml}</div>` : ""}
+  ${relatedHtml ? `<div class="block">${relatedHtml}</div>` : ""}`;
 
   const jsonLd = [
     {
@@ -369,6 +328,7 @@ async function renderProject(env, project, navItems) {
     theme,
     footerText,
     customHead,
+    canvasClass: "canvas article-canvas",
   });
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }

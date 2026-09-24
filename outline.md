@@ -400,6 +400,55 @@ Pre-existing test/seed clutter in Trash/Articles/Pages predates this
 session and is the user's own call to clean up or leave, not something
 to touch unprompted.
 
+### 1d. Default public-site design polish
+Status: 🔶 in progress (user asked to "make the default design look
+better" alongside the admin nav work in 1c). First round, done:
+
+- **Real bug, not just polish**: article and project pages laid every
+  section (header, TOC, body, reactions, related-articles, BOM,
+  journal, etc.) into the same 24-column/16px-row CSS Grid the page
+  builder uses for admin-arranged Pages — with each section's grid-row
+  span computed as a fixed guess in JS. The body's guess (`span 12` =
+  192px) is nowhere near enough for any real long-form article, so its
+  actual rendered content overflowed straight into the reactions bar
+  positioned right after it — visually overlapping, illegible text.
+  This is almost certainly *why* it was never caught: no real
+  long-form article had been published and rendered end-to-end before
+  now. Projects had the same issue, worse (BOM/journal entries are
+  even more variable in length).
+  **Fixed**: articles and projects now render in normal top-to-bottom
+  flow (a new `.article-canvas` class, `display:flex;flex-direction:
+  column`, applied via a `canvasClass` param on `renderShell()`)
+  instead of the grid-row system — sections can't overlap in flow
+  layout regardless of length. Admin-edited Pages are completely
+  unaffected (still plain `.canvas`, still the real grid, since that
+  system is correct there — the admin genuinely drag-positions blocks
+  in 2D). Verified with a real ~250-word article including a code
+  block: no overlap, in both themes and at mobile width.
+- Code blocks (`` ```lang `` fences) had zero visual treatment
+  (background/padding/border-radius) until highlight.js's CDN script
+  finished running client-side and added its own `.hljs` class — on a
+  slow connection, a blocked CDN, or just before that JS executes, a
+  code block looked like plain unstyled text. Moved the base card
+  treatment onto `pre` itself; `.hljs` (once it loads) only adds
+  syntax coloring on top.
+  There was also no global link color at all — anything without a
+  specific class (body-content links, the "More to read" related-
+  article title) fell back to the browser's default blue, clashing
+  with the accent color used everywhere else. Added a low-specificity
+  base `a { color: var(--accent); ... }` — every existing
+  component that needs its own look (nav tabs, buttons, the archive
+  list's deliberately-white-bold titles) already sets its own color on
+  a class, which still wins.
+
+Not yet done (this is a first round, not a final pass): overall
+typographic rhythm/hierarchy still reads fairly plain/flat once laid
+out correctly — headings, spacing scale, and card treatments could use
+another pass once there's real published content to judge it against
+(the site currently has zero published articles/projects in this
+sandbox, so every screenshot here used temporary seed content, cleaned
+up after). Revisit with fresh eyes rather than over-polishing blind.
+
 ---
 
 ## 2. Feature list by area

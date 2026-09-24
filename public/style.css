@@ -88,6 +88,22 @@ h2, h3 {
   scroll-margin-top: 20px;
 }
 
+/* A default, low-specificity link treatment — every component that needs
+   its own look (nav tabs, buttons, the brand mark) already sets its own
+   color/text-decoration on a class, which wins over this bare-element
+   rule. Without this, any link with no specific class (body content,
+   related-article titles) fell back to the browser's default blue,
+   clashing with the accent color used everywhere else on the site. */
+a {
+  color: var(--accent);
+  text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  text-underline-offset: 2px;
+}
+
+a:hover {
+  text-decoration-color: var(--accent);
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -289,6 +305,19 @@ body {
 
 .block {
   min-width: 0;
+}
+
+/* Article/project pages: normal top-to-bottom flow instead of the 24-column
+   grid used for admin-editable Pages — those blocks get explicit col/row
+   positions the admin drags into place, but an article's sections (header,
+   body, reactions, related-articles, etc.) have no fixed length to plan a
+   grid-row span around, and a wrong guess there let long content overlap
+   whatever came after it. Flow layout can't overlap: each section just
+   takes the height its content needs. */
+.article-canvas {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
 }
 
 .block-has-bg-layer {
@@ -1744,13 +1773,23 @@ sup a {
   text-decoration: none;
 }
 
-pre code.hljs {
-  display: block;
+/* Base code-block styling lives on `pre` itself, not `pre code.hljs` — the
+   .hljs class is only added once highlight.js's CDN script finishes
+   running client-side, so a code block rendered without it (slow network,
+   blocked CDN, or just before that JS executes) still looks like a code
+   block instead of plain unstyled text. */
+pre {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 16px;
   overflow-x: auto;
   font-size: 0.85rem;
   line-height: 1.5;
+}
+
+pre code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 .generic-embed {

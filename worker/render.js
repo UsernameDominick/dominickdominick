@@ -999,6 +999,7 @@ export function renderShell({
   noindex = false,
   searchQuery = null,
   canonicalUrl = null,
+  canvasClass = "canvas",
 }) {
   const canonical = canonicalUrl || `https://dominickdominick.com${path}`;
   const themeVars = [];
@@ -1093,7 +1094,7 @@ ${customHead || ""}
     </header>
     <script src="/nav.js"></script>
 
-    <main class="canvas" id="main-content">
+    <main class="${esc(canvasClass)}" id="main-content">
       ${bodyHtml}
     </main>
     ${footerText ? `<footer class="site-footer">${paragraphsHtml(footerText)}</footer>` : ""}
