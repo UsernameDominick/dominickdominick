@@ -61,6 +61,20 @@ either a 10 or 5 loops total, whichever comes first — if still not a 10
 after 5 loops, ship the best version and note in the commit/report what
 didn't get resolved, rather than looping forever.
 
+**Code reuse and token efficiency:** the user pays for every token this
+session burns, so favor reusing/extracting a shared function over
+re-deriving or re-explaining the same logic each time (this codebase
+already does this well — `renderShareLinks`, `updateOgPreview`,
+`wireFavoriteButton`, `wireTtsAudio`, etc. are all one implementation
+parameterized for multiple content types, not copy-pasted per type).
+Keep this project's code itself compact too — only what a feature
+actually needs, no speculative abstraction for hypothetical future
+requirements. But this is a preference to apply when it's free, not a
+rule to force: if reusing something would mean cutting a corner, adding
+a confusing abstraction, or coupling two things that aren't actually
+the same concept, don't — spend the extra tokens and write it
+correctly instead. Quality and correctness always win that tradeoff.
+
 **When to ask vs. just proceed:** default to moving without stopping to
 check in — that's the standing instruction for working through this
 list. But ask first when a decision is genuinely expensive to reverse,
