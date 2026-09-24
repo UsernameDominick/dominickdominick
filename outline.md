@@ -179,15 +179,22 @@ the same accent hue, hard to tell apart — changed the playhead outline
 to a contrasting color instead; (4) the waveform `<select>` had no
 accessible label — added one; (5) 28px step cells bumped to 32px for
 touch. One flagged issue ("modal not centered/no dimmed backdrop")
-turned out to be a `fullPage: true` Playwright screenshot artifact —
-`position: fixed` elements render relative to the viewport, not a
-stitched full-page canvas, so that capture mode misrepresents any
-fixed-position modal; confirmed correct via direct
-`getComputedStyle`/`getBoundingClientRect` checks and a viewport-only
-screenshot instead. Worth remembering for future reviews: screenshot
-a modal with `fullPage: false` (or note the page's real scrollWidth/
-scrollHeight first), since fullPage capture will misrender any
-`position: fixed` chrome. Not yet re-scored by a fresh pass.
+was partly a `fullPage: true` Playwright screenshot artifact
+(`position: fixed` elements render relative to the viewport, not a
+stitched full-page canvas — worth remembering for future reviews:
+prefer `fullPage: false` for modals, or check the page's real
+scrollWidth/scrollHeight first) — but a follow-up viewport-only
+screenshot at 1400x1000 during Play confirmed genuine faint text
+bleed-through around the builder modal's edges. Verified this is a
+pre-existing, shared characteristic of every *large* builder-style
+modal on the site (96vw x 94vh at a 60% backdrop opacity leaves little
+dimmed margin, so the same backdrop that reads as clearly "dimmed" on
+the smaller list-style modals reads as barely-there here) by
+reproducing the identical bleed-through on the pre-existing Simulation
+builder, untouched by this batch — not a Songs-specific defect, so not
+fixed here. Logged as a possible future polish item below (section 3)
+instead of a one-off fix, since it'd need to change for Simulations
+and Scans too to stay consistent. Not yet re-scored by a fresh pass.
 
 Still ☐: Web MIDI input, waveform render (the visual kind — a
 waveform *display*, not to be confused with the oscillator waveform
@@ -484,6 +491,13 @@ UX pass are in.
 
 Ask before building any of these — they're opinions, not the plan:
 
+- The large builder-style modals (Simulations, Scans, Songs — 96vw x
+  94vh, near-fullscreen) use the same 60%-opacity backdrop as the
+  smaller list-style modals, but at that size the dimming barely reads
+  as "dimmed" and faint background text bleeds through at the edges.
+  Worth a slightly higher opacity (or a solid backdrop) specifically
+  for that near-fullscreen modal variant, applied consistently across
+  all three rather than one at a time.
 - The audit trail (section "Authentication and permissions") could
   flag security-sensitive actions (settings change, backup restore,
   webhook URL change, lock/unlock) distinctly from routine content
