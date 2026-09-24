@@ -2582,11 +2582,74 @@
 
   // Matches the reading-time math in worker/render.js (200 words/min) so
   // what you see while writing matches what the published article shows.
+  // Standard Flesch Reading Ease approximation — syllable counting is a
+  // vowel-group heuristic (not a dictionary lookup), same tradeoff every
+  // lightweight readability tool makes; good enough for a rough "how easy
+  // is this to read" signal while writing, not a precise linguistic count.
+  function countSyllables(word) {
+    const w = word.toLowerCase().replace(/[^a-z]/g, "");
+    if (!w) return 0;
+    const groups = w.match(/[aeiouy]+/g);
+    let count = groups ? groups.length : 1;
+    if (w.endsWith("e") && count > 1) count--;
+    return Math.max(1, count);
+  }
+
+  function fleschReadingEase(text) {
+    const words = text.match(/[a-zA-Z']+/g) || [];
+    const sentences = text.split(/[.!?]+/).filter((s) => s.trim().length > 0);
+    if (!words.length || !sentences.length) return null;
+    const syllables = words.reduce((sum, w) => sum + countSyllables(w), 0);
+    const score = 206.835 - 1.015 * (words.length / sentences.length) - 84.6 * (syllables / words.length);
+    return Math.max(0, Math.min(100, Math.round(score)));
+  }
+
+  function readabilityLabel(score) {
+    if (score === null) return "";
+    if (score >= 90) return "Very easy";
+    if (score >= 80) return "Easy";
+    if (score >= 70) return "Fairly easy";
+    if (score >= 60) return "Standard";
+    if (score >= 50) return "Fairly difficult";
+    if (score >= 30) return "Difficult";
+    return "Very difficult";
+  }
+
+  // Word-count goals are per-article scratch state, not shared/published
+  // content — localStorage keyed by article id is a fine home for them,
+  // no schema change needed. "new" covers an unsaved article in progress.
+  function wordGoalKey() {
+    return `article-word-goal-${currentArticleId || "new"}`;
+  }
+  el("article-word-goal").addEventListener("input", () => {
+    const v = el("article-word-goal").value;
+    try {
+      if (v) localStorage.setItem(wordGoalKey(), v);
+      else localStorage.removeItem(wordGoalKey());
+    } catch (e) {}
+    updateWordCount();
+  });
+
   function updateWordCount() {
     const text = el("article-body").value.trim();
     const words = text ? text.split(/\s+/).length : 0;
     const mins = Math.max(1, Math.round(words / 200));
-    el("article-word-count").textContent = `${words} word${words === 1 ? "" : "s"} · ${mins} min read`;
+    const score = text ? fleschReadingEase(text) : null;
+    const readability = score !== null ? ` · ${readabilityLabel(score)} (${score})` : "";
+    el("article-word-count").textContent = `${words} word${words === 1 ? "" : "s"} · ${mins} min read${readability}`;
+    let goal;
+    try {
+      goal = localStorage.getItem(wordGoalKey());
+    } catch (e) {
+      goal = null;
+    }
+    if (goal) {
+      if (el("article-word-goal").value !== goal) el("article-word-goal").value = goal;
+      el("article-word-goal").title = `${words} / ${goal} words`;
+    } else {
+      el("article-word-goal").value = "";
+      el("article-word-goal").title = "Set a word-count goal for this article";
+    }
   }
   el("article-body").addEventListener("input", updateWordCount);
 
@@ -2726,6 +2789,12 @@
     el("article-published").checked = false;
     el("article-publish-at").value = "";
     el("article-expires-at").value = "";
+    // Unsaved articles share one "new" word-goal bucket (there's no real id
+    // yet to key it by) — clear it so a goal set on a discarded draft
+    // doesn't leak into the next blank one.
+    try {
+      localStorage.removeItem("article-word-goal-new");
+    } catch (e) {}
     updateArticleExtras();
   }
 

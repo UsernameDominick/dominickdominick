@@ -477,7 +477,15 @@ health-check pass, predates this doc.
 - ✅ Before/after image comparison slider — both as a page-builder block AND a `[before-after: url1 | url2 | Label1 | Label2]` markdown-lite shortcode for article/project bodies
 - 🔶 Pull quotes (✅) / margin notes (☐)
 - ✅ Generalized embeds (CodePen/Spotify/Figma/CodeSandbox/Gist + raw-iframe fallback)
-- ☐ Internal-link suggestions while writing, readability info, word/character goals
+- ✅ Readability info (Flesch Reading Ease approximation next to the
+  word count — "Easy (85)" style label, standard vowel-group syllable
+  heuristic); ✅ word-count goals (a "Goal" input next to word count,
+  persisted per-article in localStorage since it's personal scratch
+  state, not published content — no schema change needed); ☐ internal-
+  link suggestions while writing (a fuzzier, lower-confidence feature —
+  actively proposing links to add based on title-text matching — not
+  attempted this round; the live broken-link *checking* above is the
+  related, higher-confidence half of this line and is done)
 - ✅ Broken-link warnings (site-wide on-demand Link Checker; live inline
   while typing — checks internal markdown links (`/random/:slug`,
   `/projects/:slug`, `/:page-slug`) against the already-loaded articles/

@@ -597,7 +597,33 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
 .article-word-count {
   font-size: 0.78rem;
   color: var(--text-dim);
+}
+
+.article-word-count-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   margin-top: -6px;
+}
+
+.article-word-goal {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-bottom: 0;
+}
+
+.article-word-goal input {
+  width: 70px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.75rem;
 }
 
 .md-toolbar {
