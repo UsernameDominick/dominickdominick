@@ -60,6 +60,7 @@ import {
   renderReactionsHtml,
   renderCorrectionNoteHtml,
   renderTtsBarHtml,
+  FAVICON_SVG,
 } from "./render.js";
 import { handleAdminApi } from "./admin-api.js";
 import { renderSimulationSvg } from "./simulation-render.js";
@@ -843,7 +844,11 @@ async function route(request, env, ctx) {
     const simulationMatch = path.match(/^\/simulation\/(\d+)$/);
     if (simulationMatch) {
       const sim = await getSimulation(env, Number(simulationMatch[1]));
-      if (!sim) return env.ASSETS.fetch(request);
+      if (!sim) {
+        const assetResponse = await env.ASSETS.fetch(request);
+        if (assetResponse.status !== 404) return assetResponse;
+        return renderNotFound(env, await listNavPages(env));
+      }
       const navItems = await listNavPages(env);
       return renderSimulationPage(env, sim, navItems);
     }
@@ -875,6 +880,13 @@ async function route(request, env, ctx) {
       );
     }
 
+    // Browsers probe /favicon.ico directly regardless of the <link
+    // rel="icon"> data-URI already in the page head — without this, every
+    // single page load logs a 404 for it.
+    if (path === "/favicon.ico") {
+      return new Response(FAVICON_SVG, { headers: { "Content-Type": "image/svg+xml", "Cache-Control": "public, max-age=86400" } });
+    }
+
     // Redirects for old URLs that no longer resolve on their own — checked
     // before page/article lookup so one can override a still-existing page.
     const redirect = await getRedirect(env, path);
@@ -893,7 +905,9 @@ async function route(request, env, ctx) {
       const isSharedPreview = article && previewToken && (await getValidPreviewLink(env, "article", article.id, previewToken));
       const isPreview = isAdminPreview || isSharedPreview;
       if (!article || (!isPublished && !isPreview)) {
-        return env.ASSETS.fetch(request);
+        const assetResponse = await env.ASSETS.fetch(request);
+        if (assetResponse.status !== 404) return assetResponse;
+        return renderNotFound(env, await listNavPages(env));
       }
       const navItems = await listNavPages(env);
       if (isPublished) trackView(ctx, env, request, path);
@@ -911,7 +925,9 @@ async function route(request, env, ctx) {
       const isSharedPreview = project && previewToken && (await getValidPreviewLink(env, "project", project.id, previewToken));
       const isPreview = isAdminPreview || isSharedPreview;
       if (!project || (!isPublished && !isPreview)) {
-        return env.ASSETS.fetch(request);
+        const assetResponse = await env.ASSETS.fetch(request);
+        if (assetResponse.status !== 404) return assetResponse;
+        return renderNotFound(env, await listNavPages(env));
       }
       const navItems = await listNavPages(env);
       if (isPublished) trackView(ctx, env, request, path);

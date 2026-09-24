@@ -115,11 +115,18 @@ body {
 }
 
 .brand {
+  display: inline-flex;
+  align-items: center;
   font-weight: 600;
   font-size: 1.05rem;
   letter-spacing: -0.01em;
   color: var(--text);
   text-decoration: none;
+  /* Text-sized link box alone is well under the ~24x24px minimum tap
+     target on a touchscreen — pad it and pull back with a matching
+     negative margin so the topbar's visual layout doesn't shift. */
+  padding: 10px 0;
+  margin: -10px 0;
 }
 
 .brand .accent {

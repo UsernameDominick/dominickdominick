@@ -337,10 +337,15 @@
       const song = await window.adminApi(`/songs/${id}`);
       $("song-name").value = song.name;
       songData = song.data && song.data.tracks ? song.data : defaultSongData();
-      // A song saved before the piano roll existed won't have `melody` —
-      // fall back to a blank one rather than letting every note-toggle
-      // click below throw on a missing key.
+      // A song saved before the piano roll existed won't have `melody` at
+      // all, and a drum-only song can have `melody.notes` present but
+      // missing individual note keys (e.g. `{}`) — backfill both cases
+      // rather than letting the grid render/toggle throw on a missing key.
       if (!songData.melody) songData.melody = defaultSongData().melody;
+      if (!songData.melody.notes) songData.melody.notes = defaultSongData().melody.notes;
+      PIANO_NOTES.forEach((n) => {
+        if (!songData.melody.notes[n]) songData.melody.notes[n] = new Array(STEPS).fill(false);
+      });
     } else {
       $("song-name").value = "New song";
       songData = defaultSongData();

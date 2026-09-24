@@ -285,9 +285,77 @@ The admin console's nav/UI/UX needs a real upgrade pass to accommodate
 everything added this project (media, projects, simulations, scans,
 webhooks, preview links, reactions, the new DAW/TTS modules, etc.) with
 heavy focus on mobile — user is primarily on an iPhone 17 Pro Max.
-Status: ☐ not started. Do this after the two modules above have at
-least an initial admin surface to design around, not before — designing
-the nav for panels that don't exist yet risks guessing wrong.
+Status: ☐ not started, now unblocked (both new modules have full admin
+surfaces to design around). Two real findings from the QA sweep below
+define its scope — start there rather than guessing:
+1. **Desktop topbar overflow at common widths.** At 1440×900 (a
+   standard laptop width), 10 of 18 right-side topbar controls render
+   off-screen with no wrap and no visible scroll affordance (confirmed:
+   `scrollWidth` 2190px vs `innerWidth` 1440px) — Layers, Diagnostics,
+   Analytics, Trash, Site Settings, Preview, Focus, Content-only, theme
+   toggle, and Log out are all unreachable without knowing to scroll.
+   Needs a real redesign (overflow menu, or grouping into fewer visible
+   controls), not a quick patch.
+2. **Mobile page-builder canvas doesn't reflow — blocks overlap.** The
+   canvas keeps desktop's 24-column absolute-grid positions at 390px
+   width, so blocks that don't overlap on desktop visually stack and
+   become unselectable on a phone. This is the single biggest mobile
+   issue given the user's primary device, and the real design decision
+   this section exists for: either scale the grid responsively, or give
+   mobile a simplified stacked block list for editing (closer to how
+   the public site itself already reflows).
+
+The mobile *drawer* pattern (☰ palette, "Menu" topbar actions) already
+works well and should be kept, not redesigned — QA sweep confirmed all
+18 topbar actions are reachable through it with clean single-column
+reflow, unlike desktop's overflow problem above.
+
+**QA sweep results (full agent report, 2026-09-24):** dispatched per
+the periodic-sweep instruction — explored the whole admin console and
+public site, desktop and mobile (390×844). Fixed immediately (all
+verified via Playwright + a fresh `test_security_seo.js` pass):
+- Songs piano-roll crashed on any song whose `melody.notes` was
+  present but missing individual note keys (a drum-only song) —
+  `song-builder.js`'s existing "missing `melody`" fallback didn't
+  backfill missing keys *inside* `notes`. Fixed by backfilling every
+  `PIANO_NOTES` key on open.
+- No modal closed on Escape or backdrop click anywhere in the admin —
+  added one global handler (`worker` n/a, `public/admin/app.js`) that
+  closes the topmost open `.modal` via its own `close-*` button (not a
+  bare `.hidden = true`), so builder-specific cleanup like stopping
+  song/simulation playback still runs.
+- Unpublished/nonexistent article, project, and simulation URLs
+  returned a completely blank `Content-Length: 0` 404 instead of the
+  site's branded "Page not found" page — `worker/index.js` called
+  `env.ASSETS.fetch(request)` directly on a miss in three route
+  handlers instead of checking the response and falling through to
+  `renderNotFound()` like every other route already does. Fixed all
+  three to match the existing pattern.
+- `/favicon.ico` 404'd on every page load (browsers probe it directly
+  regardless of the `<link rel="icon">` data-URI already in the head)
+  — added a route serving the same icon as real SVG content.
+  `worker/render.js` now exports the raw markup as `FAVICON_SVG`.
+- Mobile: the "dominick.dominick" home link was only 149×20px, under
+  the ~24×24px touch-target minimum the app's own Diagnostics tool
+  already checks for — padded the tap area with an offsetting negative
+  margin so the visual layout doesn't shift.
+- Minor: placeholder text in narrow inputs was clipped mid-character —
+  added `text-overflow: ellipsis` globally to text-ish inputs.
+
+Logged above (not fixed on the spot, real design decisions): desktop
+topbar overflow, mobile canvas reflow. Also logged as unverified, not
+passed: the report couldn't confirm the 3D Scans `<model-viewer>`
+actually renders a model, since its sandbox's egress policy blocks
+`cdn.jsdelivr.net` — needs a manual check in a real browser session
+(added to section 6 below). The report's note about content
+"appearing/disappearing" in the dev DB during its run was almost
+certainly this session's own concurrent test-data creation/cleanup
+running against the same local D1 at the same time, not a real
+background process — not adding a mystery-process investigation to the
+list on that basis, but flagging it here in case it recurs.
+Pre-existing test/seed clutter in Trash/Articles/Pages predates this
+session and is the user's own call to clean up or leave, not something
+to touch unprompted.
 
 ---
 

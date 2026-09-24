@@ -926,6 +926,13 @@ export async function renderBlocks(env, blocks, ctx = {}) {
   return parts.join("\n");
 }
 
+// The raw SVG markup, exported separately so worker/index.js can serve it
+// directly at /favicon.ico — browsers probe that path regardless of the
+// <link rel="icon"> data-URI below, and without a real response there it's
+// a 404 on every single page load.
+export const FAVICON_SVG =
+  "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='#0b0b0c'/><text x='50' y='68' font-family='Arial,sans-serif' font-size='60' font-weight='700' fill='#e8a13a' text-anchor='middle'>D</text></svg>";
+
 const FAVICON =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230b0b0c'/%3E%3Ctext x='50' y='68' font-family='Arial,sans-serif' font-size='60' font-weight='700' fill='%23e8a13a' text-anchor='middle'%3ED%3C/text%3E%3C/svg%3E";
 

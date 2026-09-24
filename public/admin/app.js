@@ -4769,6 +4769,28 @@
   window.refreshScanOptions = loadScanOptions;
   window.refreshSongOptions = loadSongOptions;
 
+  // Escape and backdrop-click close whichever modal is open, via its own
+  // close button (not by setting .hidden directly) — several modals
+  // (Songs, Simulations builders) run cleanup like stopping playback in
+  // their close handler, which a bare .hidden = true would skip.
+  function closeTopModal() {
+    const open = Array.from(document.querySelectorAll(".modal:not([hidden])"));
+    if (!open.length) return false;
+    const modal = open[open.length - 1];
+    const closeBtn = modal.querySelector('button[id^="close-"]');
+    if (closeBtn) closeBtn.click();
+    else modal.hidden = true;
+    return true;
+  }
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeTopModal();
+  });
+  document.querySelectorAll(".modal").forEach((modal) => {
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) closeTopModal();
+    });
+  });
+
   window.addEventListener("resize", () => renderCanvas());
   boot();
 })();

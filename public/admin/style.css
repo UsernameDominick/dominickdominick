@@ -8,6 +8,13 @@
   display: none !important;
 }
 
+/* Long placeholder/value text in a narrow input otherwise gets clipped
+   mid-character with no visual cue — an ellipsis reads better at any
+   width, most noticeably on mobile. */
+input[type="text"], input[type="search"], input[type="number"], input[type="url"], input[type="email"] {
+  text-overflow: ellipsis;
+}
+
 /* Login */
 .login-screen {
   min-height: 100vh;
