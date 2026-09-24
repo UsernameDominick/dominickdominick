@@ -2661,6 +2661,8 @@ export async function getOrphanContent(env) {
 export async function getSeoReport(env) {
   const pages = await listPages(env);
   const pageBlocks = await Promise.all(pages.map((p) => listBlocks(env, p.id)));
+  const articles = await listArticles(env, { publishedOnly: true });
+  const projects = await listProjects(env, { publishedOnly: true });
   const missingMeta = pages.filter((p) => !p.meta_description || !p.meta_description.trim()).map((p) => ({ title: p.title, slug: p.slug }));
   const missingAlt = [];
   pages.forEach((p, i) => {
@@ -2671,5 +2673,22 @@ export async function getSeoReport(env) {
       }
     }
   });
-  return { missingMeta, missingAlt };
+  const missingOgImage = [
+    ...articles.filter((a) => !a.og_image).map((a) => ({ title: a.title, slug: a.slug, type: "article" })),
+    ...projects.filter((p) => !p.og_image).map((p) => ({ title: p.title, slug: p.slug, type: "project" })),
+  ];
+  // Same title used more than once across pages/articles/projects — not
+  // technically broken, but confusing in search results and share cards,
+  // both of which key on the title.
+  const titleOwners = new Map();
+  for (const [items, type] of [[pages, "page"], [articles, "article"], [projects, "project"]]) {
+    for (const item of items) {
+      const key = item.title.trim().toLowerCase();
+      if (!key) continue;
+      if (!titleOwners.has(key)) titleOwners.set(key, []);
+      titleOwners.get(key).push({ title: item.title, slug: item.slug, type });
+    }
+  }
+  const duplicateTitles = [...titleOwners.values()].filter((owners) => owners.length > 1);
+  return { missingMeta, missingAlt, missingOgImage, duplicateTitles };
 }

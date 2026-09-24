@@ -776,7 +776,11 @@ Contact form, admin inbox, guestbook/comments, moderation, newsletter —
   link an editor placed)
 - ☐ Internal-link suggestions while writing, automatic redirect suggestions after URL changes
 - 🔶 Link monitoring (on-demand Link Checker ✅; scheduled/ongoing ☐)
-- 🔶 Missing-metadata reports (SEO Report covers meta description + alt text; not every field)
+- 🔶 Missing-metadata reports (SEO Report now covers meta description +
+  alt text + missing social-share image on published articles/projects +
+  duplicate titles across pages/articles/projects; not every conceivable
+  field — meta description doesn't apply to articles/projects since
+  those fall back to an auto-generated excerpt, not a missing field)
 
 ### Accessibility
 - ✅ Alt-text checks, heading-order/hierarchy checks (full reading-order skip detection), tap-target checks, reduced-motion coverage

@@ -4298,7 +4298,8 @@
     btn.textContent = "Checking…";
     btn.disabled = true;
     try {
-      const { missingMeta, missingAlt } = await api("/seo-report");
+      const { missingMeta, missingAlt, missingOgImage, duplicateTitles } = await api("/seo-report");
+      const typePath = { article: "/random/", project: "/projects/", page: "/" };
       const rows = [
         ...missingMeta.map(
           (p) =>
@@ -4311,6 +4312,18 @@
             `<div class="link-check-row broken"><span class="link-check-url">${escapeHtml(m.title)}</span><span class="link-check-source">${escapeHtml(
               m.url
             )}</span><span class="link-check-status">Missing alt text</span></div>`
+        ),
+        ...missingOgImage.map(
+          (m) =>
+            `<div class="link-check-row"><span class="link-check-url">${escapeHtml(m.title)}</span><span class="link-check-source">${escapeHtml(
+              typePath[m.type] + m.slug
+            )}</span><span class="link-check-status">No social-share image</span></div>`
+        ),
+        ...duplicateTitles.map(
+          (owners) =>
+            `<div class="link-check-row broken"><span class="link-check-url">${escapeHtml(owners[0].title)}</span><span class="link-check-source">${owners
+              .map((o) => escapeHtml(typePath[o.type] + (o.slug === "home" ? "" : o.slug)))
+              .join(", ")}</span><span class="link-check-status">Duplicate title (${owners.length}×)</span></div>`
         ),
       ];
       el("seo-report-results").innerHTML = rows.join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No issues found.</p>";
