@@ -38,7 +38,8 @@ CREATE TABLE blocks (
   row INTEGER NOT NULL DEFAULT 1,
   row_span INTEGER NOT NULL DEFAULT 4,
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-  shared_block_id INTEGER REFERENCES shared_blocks(id) ON DELETE SET NULL
+  shared_block_id INTEGER REFERENCES shared_blocks(id) ON DELETE SET NULL,
+  locked INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE articles (

@@ -173,6 +173,10 @@ export async function updateBlock(env, id, fields) {
     cols.push("style = ?");
     vals.push(JSON.stringify(fields.style));
   }
+  if ("locked" in fields) {
+    cols.push("locked = ?");
+    vals.push(fields.locked ? 1 : 0);
+  }
   if (!cols.length) return;
   cols.push("updated_at = datetime('now')");
   vals.push(id);
@@ -550,6 +554,7 @@ export async function runFindReplace(env, { find, replace, apply }) {
     const blocks = await listBlocks(env, p.id);
     let pageSnapshotted = false;
     for (const b of blocks) {
+      if (b.locked) continue; // a locked block is protected from this exact kind of sweep too
       const { changed, next } = replaceInBlockContent(b.type, b.content || {}, find, replace);
       if (!changed) continue;
       results.push({ kind: "block", pageId: p.id, pageTitle: p.title, blockType: b.type, blockId: b.id });
@@ -1017,10 +1022,10 @@ export async function restorePageRevision(env, pageId, revisionId) {
     stmts.push(
       env.DB
         .prepare(
-          `INSERT INTO blocks (id, page_id, type, content, style, col, col_span, row, row_span, updated_at, shared_block_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO blocks (id, page_id, type, content, style, col, col_span, row, row_span, updated_at, shared_block_id, locked)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
-        .bind(b.id, pageId, b.type, b.content, b.style, b.col, b.col_span, b.row, b.row_span, b.updated_at, b.shared_block_id ?? null)
+        .bind(b.id, pageId, b.type, b.content, b.style, b.col, b.col_span, b.row, b.row_span, b.updated_at, b.shared_block_id ?? null, b.locked ?? 0)
     );
   }
   await env.DB.batch(stmts);
@@ -1043,12 +1048,12 @@ export async function restorePageRevisionBlock(env, pageId, revisionId, blockId)
   await snapshotPageBlocks(env, pageId); // unconditional, so this is itself undoable
   await env.DB
     .prepare(
-      `INSERT INTO blocks (id, page_id, type, content, style, col, col_span, row, row_span, updated_at, shared_block_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)
+      `INSERT INTO blocks (id, page_id, type, content, style, col, col_span, row, row_span, updated_at, shared_block_id, locked)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          type = excluded.type, content = excluded.content, style = excluded.style,
          col = excluded.col, col_span = excluded.col_span, row = excluded.row, row_span = excluded.row_span,
-         updated_at = excluded.updated_at, shared_block_id = excluded.shared_block_id`
+         updated_at = excluded.updated_at, shared_block_id = excluded.shared_block_id, locked = excluded.locked`
     )
     .bind(
       oldBlock.id,
@@ -1060,7 +1065,8 @@ export async function restorePageRevisionBlock(env, pageId, revisionId, blockId)
       oldBlock.col_span,
       oldBlock.row,
       oldBlock.row_span,
-      oldBlock.shared_block_id ?? null
+      oldBlock.shared_block_id ?? null,
+      oldBlock.locked ?? 0
     )
     .run();
 }
@@ -1372,8 +1378,8 @@ export async function importAll(env, data) {
     stmts.push(
       env.DB
         .prepare(
-          `INSERT INTO blocks (id, page_id, type, content, style, col, col_span, row, row_span, updated_at, shared_block_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO blocks (id, page_id, type, content, style, col, col_span, row, row_span, updated_at, shared_block_id, locked)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           b.id,
@@ -1386,7 +1392,8 @@ export async function importAll(env, data) {
           b.row,
           b.row_span,
           b.updated_at,
-          b.shared_block_id ?? null
+          b.shared_block_id ?? null,
+          b.locked ?? 0
         )
     );
   }

@@ -302,6 +302,14 @@
   background: linear-gradient(135deg, transparent 50%, var(--accent) 50%);
 }
 
+.admin-block.block-locked {
+  cursor: default;
+}
+
+.admin-block.block-locked .resize-handle {
+  display: none;
+}
+
 /* Modal (articles) */
 .modal {
   position: fixed;

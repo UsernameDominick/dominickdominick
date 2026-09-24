@@ -515,7 +515,10 @@
       maxBottom = Math.max(maxBottom, style.top + style.height + 100);
       const div = document.createElement("div");
       div.className =
-        "admin-block" + (b.id === selectedBlockId || multiSelectedIds.has(b.id) ? " selected" : "") + (b.style && b.style.hidden ? " block-is-hidden" : "");
+        "admin-block" +
+        (b.id === selectedBlockId || multiSelectedIds.has(b.id) ? " selected" : "") +
+        (b.style && b.style.hidden ? " block-is-hidden" : "") +
+        (b.locked ? " block-locked" : "");
       div.style.left = style.left + "px";
       div.style.top = style.top + "px";
       div.style.width = style.width + "px";
@@ -523,7 +526,7 @@
       div.dataset.id = b.id;
       div.innerHTML = `<div class="block-type-label">${blockLabel(b.type)}${
         b.shared_block_id ? ` <span class="lock-badge" title="Reusable block — editing it updates every page that uses it">Reusable</span>` : ""
-      }</div><div class="block-preview">${blockPreview(b)}</div><div class="resize-handle"></div>`;
+      }${b.locked ? ` <span class="lock-badge" title="Locked — protected from accidental drag/resize/delete">Locked</span>` : ""}</div><div class="block-preview">${blockPreview(b)}</div><div class="resize-handle"></div>`;
       canvas.appendChild(div);
       wireBlockInteractions(div, b);
     }
@@ -571,6 +574,10 @@
       renderInspector();
       document.querySelectorAll(".admin-block").forEach((d) => d.classList.remove("selected"));
       div.classList.add("selected");
+      // Selection still works on a locked block (so its content/style stay
+      // editable) — only the drag-to-move below is skipped, which is the
+      // "accidental" change locking is meant to guard against.
+      if (block.locked) return;
 
       const startX = e.clientX;
       const startY = e.clientY;
@@ -620,6 +627,7 @@
     const handle = div.querySelector(".resize-handle");
     handle.addEventListener("pointerdown", (e) => {
       e.stopPropagation();
+      if (block.locked) return; // also hidden via CSS (.block-locked .resize-handle), this is belt-and-suspenders
       const startX = e.clientX;
       const startY = e.clientY;
       const startSpan = block.col_span;
@@ -1003,6 +1011,8 @@
 
     if (!block.style) block.style = {};
 
+    updateLockButton("lock-block-btn", !!block.locked);
+
     const banner = el("shared-block-banner");
     const saveAsSharedBtn = el("save-as-shared-block-btn");
     if (block.shared_block_id) {
@@ -1094,6 +1104,13 @@
     return blocks.filter((b) => multiSelectedIds.has(b.id));
   }
 
+  // Align/distribute reposition blocks the same way dragging does, so a
+  // locked block is excluded here too — style/content changes and
+  // duplication aren't repositioning, so those still apply to everything.
+  function movableSelectedBlocksList() {
+    return selectedBlocksList().filter((b) => !b.locked);
+  }
+
   function renderBulkInspector() {
     const selected = selectedBlocksList();
     el("bulk-inspector-count").textContent = `${selected.length} block${selected.length === 1 ? "" : "s"} selected`;
@@ -1132,7 +1149,7 @@
   }
 
   el("bulk-align-left").addEventListener("click", async () => {
-    const selected = selectedBlocksList();
+    const selected = movableSelectedBlocksList();
     if (selected.length < 2) return;
     const minCol = Math.min(...selected.map((b) => b.col));
     for (const b of selected) {
@@ -1143,7 +1160,7 @@
   });
 
   el("bulk-align-center").addEventListener("click", async () => {
-    const selected = selectedBlocksList();
+    const selected = movableSelectedBlocksList();
     if (selected.length < 2) return;
     const minCol = Math.min(...selected.map((b) => b.col));
     const maxRight = Math.max(...selected.map((b) => b.col + b.col_span));
@@ -1156,7 +1173,7 @@
   });
 
   el("bulk-align-right").addEventListener("click", async () => {
-    const selected = selectedBlocksList();
+    const selected = movableSelectedBlocksList();
     if (selected.length < 2) return;
     const maxRight = Math.max(...selected.map((b) => b.col + b.col_span));
     for (const b of selected) {
@@ -1170,7 +1187,7 @@
   // stay put, the ones between get an equal gap computed from the total
   // span minus everyone's own height — needs 3+ to mean anything.
   el("bulk-distribute-vertical").addEventListener("click", async () => {
-    const selected = selectedBlocksList().sort((a, b) => a.row - b.row);
+    const selected = movableSelectedBlocksList().sort((a, b) => a.row - b.row);
     if (selected.length < 3) return alert("Select at least 3 blocks to distribute evenly.");
     const first = selected[0];
     const last = selected[selected.length - 1];
@@ -1217,9 +1234,15 @@
   });
 
   el("bulk-delete-btn").addEventListener("click", async () => {
-    const selected = selectedBlocksList();
-    if (!selected.length) return;
-    if (!confirm(`Delete ${selected.length} block(s)?`)) return;
+    const all = selectedBlocksList();
+    if (!all.length) return;
+    // A locked block is protected from this kind of sweep, same as bulk
+    // article actions — the single-block Delete button (a deliberate,
+    // one-target action) is the one place a locked block still deletes.
+    const locked = all.filter((b) => b.locked);
+    const selected = all.filter((b) => !b.locked);
+    if (!selected.length) return alert("All selected blocks are locked.");
+    if (!confirm(`Delete ${selected.length} block(s)?${locked.length ? ` (${locked.length} locked block(s) will be skipped.)` : ""}`)) return;
     for (const b of selected) {
       await api(`/blocks/${b.id}`, { method: "DELETE" });
     }
@@ -1373,6 +1396,20 @@
       renderCanvas();
       renderInspector();
       if (isMobile()) closeDrawers();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  el("lock-block-btn").addEventListener("click", async () => {
+    if (!selectedBlockId) return;
+    const block = blocks.find((b) => b.id === selectedBlockId);
+    if (!block) return;
+    try {
+      await api(`/blocks/${block.id}`, { method: "PATCH", body: JSON.stringify({ locked: !block.locked }) });
+      block.locked = !block.locked;
+      updateLockButton("lock-block-btn", block.locked);
+      renderCanvas();
     } catch (err) {
       alert(err.message);
     }
@@ -2843,6 +2880,12 @@
 
     if ((e.key === "Delete" || e.key === "Backspace") && selectedBlockId) {
       e.preventDefault();
+      // A locked block still deletes fine via its own explicit button (a
+      // deliberate action) — this keyboard shortcut is exactly the kind of
+      // accidental trigger locking is meant to guard against, so it's the
+      // one place that actually respects the lock.
+      const block = blocks.find((b) => b.id === selectedBlockId);
+      if (block && block.locked) return;
       el("delete-block-btn").click();
       return;
     }
