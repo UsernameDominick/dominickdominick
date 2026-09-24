@@ -347,8 +347,8 @@ deliberately, not an oversight.
 - ☐ Per-page engagement and scroll depth
 - ☐ Outbound-link tracking
 - ☐ Download tracking
-- ☐ Internal search-term reporting
-- ☐ Searches returning no results
+- ✅ Internal search-term reporting ("Top search terms" in Analytics, from a new search-event log)
+- ✅ Searches returning no results ("Searches with no results" in Analytics, same underlying log)
 - ☐ Project-card clicks and navigation paths
 - ☐ Configurable conversion goals
 - 🔶 Custom events configured in admin (the tracking mechanism supports arbitrary named events; no admin UI to define new ones)

@@ -311,9 +311,13 @@ async function renderProject(env, project, navItems) {
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
-async function renderSearch(env, query, navItems) {
+async function renderSearch(env, query, navItems, ctx) {
   const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
   const { pages, articles, projects } = query ? await publicSearch(env, query) : { pages: [], articles: [], projects: [] };
+  if (query) {
+    const count = pages.length + articles.length + projects.length;
+    ctx.waitUntil(logEvent(env, { name: "search", path: "/search", detail: JSON.stringify({ q: query, count }) }).catch(() => {}));
+  }
   const resultsHtml = renderSearchResultsHtml(query, pages, articles, projects);
   const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 16;">
     <h1>Search</h1>
@@ -650,7 +654,7 @@ async function route(request, env, ctx) {
       if (!allowed) return new Response("Too many searches. Try again in a minute.", { status: 429 });
       ctx.waitUntil(recordRateLimitHit(env, "search", ip).catch(() => {}));
       const navItems = await listNavPages(env);
-      return renderSearch(env, url.searchParams.get("q")?.trim() || "", navItems);
+      return renderSearch(env, url.searchParams.get("q")?.trim() || "", navItems, ctx);
     }
 
     if (path === "/topics") {

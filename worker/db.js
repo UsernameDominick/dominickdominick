@@ -977,6 +977,34 @@ export async function getEventCounts(env, days = 7) {
   return results;
 }
 
+// Top search terms and zero-result searches, both derived from the same
+// "search" events logged by renderSearch (detail is {q, count} JSON) —
+// getEventCounts groups by event name only, which would just collapse
+// every search into one "search: N" row, not useful on its own.
+export async function getSearchInsights(env, days = 30) {
+  const { results } = await env.DB
+    .prepare(
+      `SELECT detail FROM events WHERE name = 'search' AND created_at > datetime('now', '-${Math.max(1, Math.floor(days))} days')`
+    )
+    .all();
+  const termCounts = new Map();
+  const noResultCounts = new Map();
+  for (const row of results) {
+    let parsed;
+    try {
+      parsed = JSON.parse(row.detail || "{}");
+    } catch {
+      continue;
+    }
+    if (!parsed.q) continue;
+    const key = parsed.q.toLowerCase();
+    termCounts.set(key, (termCounts.get(key) || 0) + 1);
+    if (parsed.count === 0) noResultCounts.set(key, (noResultCounts.get(key) || 0) + 1);
+  }
+  const toSortedList = (map) => [...map.entries()].map(([term, n]) => ({ term, n })).sort((a, b) => b.n - a.n).slice(0, 20);
+  return { topTerms: toSortedList(termCounts), noResultTerms: toSortedList(noResultCounts) };
+}
+
 // ---------- Rate limiting (generic) ----------
 // Separate from login's own checkLoginRateLimit/recordLoginAttempt — that
 // path is already proven and left untouched; this is for other public
@@ -1625,7 +1653,7 @@ export async function recordPageview(env, { path, referrer, country }) {
 export async function getAnalytics(env, days = 7) {
   const since = `datetime('now', '-${Math.max(1, Math.floor(days))} days')`;
 
-  const [totalsRow, byDay, topPaths, topReferrers, topCountries, topEvents] = await Promise.all([
+  const [totalsRow, byDay, topPaths, topReferrers, topCountries, topEvents, searchInsights] = await Promise.all([
     env.DB.prepare(
       `SELECT
          (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-5 minutes')) AS activeNow,
@@ -1659,6 +1687,7 @@ export async function getAnalytics(env, days = 7) {
       )
       .all(),
     getEventCounts(env, days),
+    getSearchInsights(env, days),
   ]);
 
   return {
@@ -1672,6 +1701,8 @@ export async function getAnalytics(env, days = 7) {
     topReferrers: topReferrers.results,
     topCountries: topCountries.results,
     topEvents,
+    topSearchTerms: searchInsights.topTerms,
+    noResultSearchTerms: searchInsights.noResultTerms,
   };
 }
 

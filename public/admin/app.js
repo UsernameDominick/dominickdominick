@@ -3913,6 +3913,8 @@
     renderList("analytics-referrers", data.topReferrers, "referrer");
     renderList("analytics-countries", data.topCountries, "country");
     renderList("analytics-events", data.topEvents, "name");
+    renderList("analytics-search-terms", data.topSearchTerms, "term");
+    renderList("analytics-no-result-searches", data.noResultSearchTerms, "term");
   }
 
   el("analytics-btn").addEventListener("click", async () => {
@@ -3946,6 +3948,10 @@
     data.topCountries.forEach((r) => (csv += toCsvRow([r.country, r.n])));
     csv += "\r\n" + toCsvRow(["Top events"]) + toCsvRow(["Event", "Count"]);
     data.topEvents.forEach((r) => (csv += toCsvRow([r.name, r.n])));
+    csv += "\r\n" + toCsvRow(["Top search terms"]) + toCsvRow(["Term", "Count"]);
+    data.topSearchTerms.forEach((r) => (csv += toCsvRow([r.term, r.n])));
+    csv += "\r\n" + toCsvRow(["Searches with no results"]) + toCsvRow(["Term", "Count"]);
+    data.noResultSearchTerms.forEach((r) => (csv += toCsvRow([r.term, r.n])));
 
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
