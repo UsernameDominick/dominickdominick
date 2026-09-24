@@ -613,7 +613,11 @@ Contact form, admin inbox, guestbook/comments, moderation, newsletter —
 - 🔶 Custom admin-defined events (mechanism supports it; no UI); 🔶 filters (date-range ✅; content-type/referrer/device ☐); 🔶 raw event export (breakdown CSV ✅, raw per-event unconfirmed)
 
 ### SEO and sharing
-- ☐ Central SEO dashboard (tools scattered: link checker/sitemap/meta fields)
+- ✅ Central SEO dashboard (new "SEO Dashboard" panel under Tools,
+  consolidating the Link Checker and SEO Report — relocated out of the
+  general Site Settings modal, same markup/ids/logic, nothing rewritten
+  — plus a new sitemap-exclusions overview computed client-side from the
+  already-loaded pages/articles/projects, no new endpoint needed)
 - ✅ Per-page title/description, canonical URL (auto + optional override), noindex controls
 - 🔶 Social-share image editor (upload/browse ✅; crop/preview editor ☐)
 - ✅ Social-share previews (pages/articles/projects)

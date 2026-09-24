@@ -54,6 +54,7 @@
               <h3>Tools</h3>
               <button id="layers-btn">Layers</button>
               <button id="diagnostics-btn">Diagnostics</button>
+              <button id="seo-dashboard-btn">SEO Dashboard</button>
               <button id="analytics-btn">Analytics</button>
               <button id="trash-btn">Trash</button>
               <button id="site-settings-btn">Site</button>
@@ -623,14 +624,6 @@
           <input id="settings-webhook-url" type="text" placeholder="https://...">
         </label>
         <button id="save-settings">Save</button>
-        <h2>Link Checker</h2>
-        <label style="margin-bottom:0;">Scans every button/project-card link and article link for broken URLs.</label>
-        <button type="button" id="check-links-btn">Check links</button>
-        <div id="link-check-results" class="link-check-results"></div>
-        <h2>SEO Report</h2>
-        <label style="margin-bottom:0;">Pages with no meta description, and images missing alt text, across the whole site.</label>
-        <button type="button" id="check-seo-btn">Run report</button>
-        <div id="seo-report-results" class="link-check-results"></div>
         <h2>Webhook Deliveries</h2>
         <label style="margin-bottom:0;">Recent attempts to call the webhook URL above. Failed ones can be retried with the exact same payload.</label>
         <button type="button" id="load-webhook-deliveries-btn">Refresh</button>
@@ -953,6 +946,28 @@
       <div class="redirects-body">
         <p class="redirects-hint">Common layout/content issues on the current page — empty blocks, missing links, missing alt text, heading hierarchy, content overflow, and small tap targets, checked against the real rendered page. (Overlap can't happen — every drag/resize is already blocked from creating one.)</p>
         <div id="diagnostics-list" class="redirects-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="seo-dashboard-modal" class="modal" hidden>
+    <div class="modal-inner settings-modal-inner">
+      <header>
+        <h1>SEO Dashboard</h1>
+        <button id="close-seo-dashboard">×</button>
+      </header>
+      <div class="settings-body">
+        <h2>Sitemap Exclusions</h2>
+        <label style="margin-bottom:0;">Pages, articles, and projects currently excluded from sitemap.xml (still fully live at their URL — just not listed for search engines).</label>
+        <div id="sitemap-exclusions-list" class="link-check-results"></div>
+        <h2>SEO Report</h2>
+        <label style="margin-bottom:0;">Pages with no meta description, and images missing alt text, across the whole site.</label>
+        <button type="button" id="check-seo-btn">Run report</button>
+        <div id="seo-report-results" class="link-check-results"></div>
+        <h2>Link Checker</h2>
+        <label style="margin-bottom:0;">Scans every button/project-card link and article link for broken URLs.</label>
+        <button type="button" id="check-links-btn">Check links</button>
+        <div id="link-check-results" class="link-check-results"></div>
       </div>
     </div>
   </div>

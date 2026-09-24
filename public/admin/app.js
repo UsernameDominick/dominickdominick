@@ -1977,6 +1977,41 @@
   });
   closeModalOnClick("close-diagnostics", "diagnostics-modal");
 
+  // ---------- SEO Dashboard ----------
+  // Consolidates what used to be scattered across the Site Settings modal
+  // (Link Checker, SEO Report) plus a new sitemap-exclusions overview —
+  // the Link Checker/SEO Report sections are the exact same markup/ids,
+  // just relocated here, so their existing click handlers below work
+  // unchanged regardless of which modal contains them.
+  function renderSitemapExclusions() {
+    const excluded = [
+      ...pages.filter((p) => p.sitemap_exclude).map((p) => ({ title: p.title, url: p.slug === "home" ? "/" : `/${p.slug}`, type: "Page" })),
+      ...articles.filter((a) => a.sitemap_exclude).map((a) => ({ title: a.title, url: `/random/${a.slug}`, type: "Article" })),
+      ...projects.filter((p) => p.sitemap_exclude).map((p) => ({ title: p.title, url: `/projects/${p.slug}`, type: "Project" })),
+    ];
+    el("sitemap-exclusions-list").innerHTML =
+      excluded
+        .map(
+          (e) =>
+            `<div class="link-check-row"><span class="link-check-url">${escapeHtml(e.title)}</span><span class="link-check-source">${escapeHtml(
+              e.url
+            )}</span><span class="link-check-status">${e.type}</span></div>`
+        )
+        .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>Nothing currently excluded.</p>";
+  }
+
+  el("seo-dashboard-btn").addEventListener("click", async () => {
+    el("seo-dashboard-modal").hidden = false;
+    // Pages/articles/projects need to be loaded for the exclusions list to
+    // be accurate — cheap to just refetch rather than assume the in-memory
+    // arrays are current (e.g. if this is opened before any editor tab).
+    pages = await api("/pages");
+    articles = await api("/articles");
+    projects = await api("/projects");
+    renderSitemapExclusions();
+  });
+  closeModalOnClick("close-seo-dashboard", "seo-dashboard-modal");
+
   // ---------- Preview (responsive widths + stress previews) ----------
   let stressLongText = false;
   let stressBrokenImages = false;
