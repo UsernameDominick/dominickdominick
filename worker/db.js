@@ -1491,6 +1491,46 @@ export async function duplicateSimulation(env, id) {
   return createSimulation(env, { name: `${source.name} (copy)`, data: source.data });
 }
 
+// ---------- Songs (DAW module) ----------
+// Mirrors the simulations CRUD exactly — same reasoning: all the real
+// structure (tempo, drum-grid steps, piano-roll notes, drum kit, animation
+// sync settings) lives in `data` as JSON.
+export async function listSongs(env) {
+  const { results } = await env.DB.prepare("SELECT id, name, updated_at FROM songs ORDER BY name").all();
+  return results;
+}
+
+export async function getSong(env, id) {
+  const row = await env.DB.prepare("SELECT * FROM songs WHERE id = ?").bind(id).first();
+  if (!row) return null;
+  return { ...row, data: JSON.parse(row.data || "{}") };
+}
+
+export async function createSong(env, { name, data }) {
+  const res = await env.DB
+    .prepare("INSERT INTO songs (name, data) VALUES (?, ?)")
+    .bind(name, JSON.stringify(data || {}))
+    .run();
+  return res.meta.last_row_id;
+}
+
+export async function updateSong(env, id, { name, data }) {
+  await env.DB
+    .prepare("UPDATE songs SET name = ?, data = ?, updated_at = datetime('now') WHERE id = ?")
+    .bind(name, JSON.stringify(data || {}), id)
+    .run();
+}
+
+export async function deleteSong(env, id) {
+  await env.DB.prepare("DELETE FROM songs WHERE id = ?").bind(id).run();
+}
+
+export async function duplicateSong(env, id) {
+  const source = await getSong(env, id);
+  if (!source) return null;
+  return createSong(env, { name: `${source.name} (copy)`, data: source.data });
+}
+
 // ---------- Revisions ----------
 // A snapshot of a page's blocks, or an article's row, kept so a bad editing
 // session can be undone. Page snapshots are throttled (see maybeSnapshotPage)

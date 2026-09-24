@@ -106,11 +106,15 @@ a playable block with a waveform visualization and a syncable page
 animation (waveform-driven or a "cool" reactive animation, admin-
 choosable and tunable). No mixing console / automation lanes / plugin
 effects in v1 — flag if that's wanted later.
-Status: ☐ not started. Biggest build on this list — expect it to span
-several sessions. Build order once started: schema for songs/patterns →
-step sequencer UI → drum kit sounds → piano roll → Web MIDI input →
-playback engine + waveform render → page-animation sync → embeddable
-public block/player.
+Status: 🔶 in progress. Done: `songs` table (mirrors `simulations` —
+`{id, name, data JSON, created_at, updated_at}`, all composition state
+lives in `data`) + full CRUD in `db.js`/`admin-api.js`
+(`GET/POST /songs`, `GET/PATCH/DELETE /songs/:id`,
+`POST /songs/:id/duplicate`), verified end-to-end via curl. Still ☐:
+the admin Songs panel UI, step sequencer, built-in drum kit sounds
+(Web Audio), piano roll, Web MIDI input, playback engine + waveform
+render, page-animation sync, embeddable public block/player. Continue
+in that order next session.
 
 ### 1c. Admin UX / mobile overhaul
 The admin console's nav/UI/UX needs a real upgrade pass to accommodate

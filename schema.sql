@@ -159,6 +159,19 @@ CREATE TABLE simulations (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Loop-based songs for the DAW module — mirrors `simulations`: all the
+-- actual composition (tempo, drum-grid steps, piano-roll notes, chosen
+-- drum kit, animation-sync settings) lives in `data` as JSON, versioned
+-- structurally by whatever code reads it rather than by schema columns,
+-- the same tradeoff already made for simulations.
+CREATE TABLE songs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  data TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE revisions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   kind TEXT NOT NULL,

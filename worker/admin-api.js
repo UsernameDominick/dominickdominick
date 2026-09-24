@@ -79,6 +79,12 @@ import {
   updateSimulation,
   deleteSimulation,
   duplicateSimulation,
+  listSongs,
+  getSong,
+  createSong,
+  updateSong,
+  deleteSong,
+  duplicateSong,
   getBlockPageId,
   getBlockSharedId,
   listSharedBlocks,
@@ -1173,6 +1179,43 @@ async function routeAdminApi(request, env, url, ctx) {
     const s = await getSimulation(env, id);
     await deleteSimulation(env, id);
     log(ctx, env, "delete", "simulation", s?.name || `#${id}`);
+    return json({ ok: true });
+  }
+
+  if (path === "/songs" && method === "GET") {
+    return json(await listSongs(env));
+  }
+  if (path === "/songs" && method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    if (!body.name || !String(body.name).trim()) return json({ error: "Name is required" }, { status: 400 });
+    const id = await createSong(env, { name: body.name.trim(), data: body.data || {} });
+    log(ctx, env, "create", "song", body.name.trim());
+    return json({ id });
+  }
+  const songDuplicateMatch = path.match(/^\/songs\/(\d+)\/duplicate$/);
+  if (songDuplicateMatch && method === "POST") {
+    const newId = await duplicateSong(env, Number(songDuplicateMatch[1]));
+    if (!newId) return json({ error: "Song not found" }, { status: 404 });
+    log(ctx, env, "duplicate", "song", `#${songDuplicateMatch[1]} → #${newId}`);
+    return json({ id: newId });
+  }
+  const songMatch = path.match(/^\/songs\/(\d+)$/);
+  if (songMatch && method === "GET") {
+    const song = await getSong(env, Number(songMatch[1]));
+    if (!song) return json({ error: "Not found" }, { status: 404 });
+    return json(song);
+  }
+  if (songMatch && method === "PATCH") {
+    const body = await request.json().catch(() => ({}));
+    if (!body.name || !String(body.name).trim()) return json({ error: "Name is required" }, { status: 400 });
+    await updateSong(env, Number(songMatch[1]), { name: body.name.trim(), data: body.data || {} });
+    return json({ ok: true });
+  }
+  if (songMatch && method === "DELETE") {
+    const id = Number(songMatch[1]);
+    const s = await getSong(env, id);
+    await deleteSong(env, id);
+    log(ctx, env, "delete", "song", s?.name || `#${id}`);
     return json({ ok: true });
   }
 
