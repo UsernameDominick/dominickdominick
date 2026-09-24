@@ -1126,6 +1126,12 @@
   border-color: var(--accent);
 }
 
+.lock-badge.diagnostic-error {
+  background: #c0392b;
+  color: #fff;
+  border-color: #c0392b;
+}
+
 .layer-preview {
   color: var(--text-dim);
 }

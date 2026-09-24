@@ -43,6 +43,7 @@
         <button id="scans-btn">Scans</button>
         <button id="shared-blocks-btn">Reusable Blocks</button>
         <button id="layers-btn">Layers</button>
+        <button id="diagnostics-btn">Diagnostics</button>
         <button id="analytics-btn">Analytics</button>
         <button id="trash-btn">Trash</button>
         <button id="site-settings-btn">Site</button>
@@ -569,6 +570,19 @@
       </header>
       <div class="preview-body">
         <iframe id="preview-frame" title="Page preview"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <div id="diagnostics-modal" class="modal" hidden>
+    <div class="modal-inner redirects-modal-inner">
+      <header>
+        <h1>Diagnostics</h1>
+        <button id="close-diagnostics">×</button>
+      </header>
+      <div class="redirects-body">
+        <p class="redirects-hint">Common layout/content issues on the current page — empty blocks, missing links, missing alt text, heading hierarchy.</p>
+        <div id="diagnostics-list" class="redirects-list"></div>
       </div>
     </div>
   </div>

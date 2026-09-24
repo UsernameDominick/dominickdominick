@@ -1570,6 +1570,67 @@
   });
   closeModalOnClick("close-layers", "layers-modal");
 
+  // ---------- Layout diagnostics ----------
+  function computePageDiagnostics() {
+    const issues = [];
+    const visibleBlocks = blocks.filter((b) => !(b.style && b.style.hidden));
+    const h1Blocks = visibleBlocks.filter((b) => b.type === "heading" && Number(b.content && b.content.level) === 1);
+    if (!h1Blocks.length) {
+      issues.push({ severity: "warn", message: "No H1 heading on this page — search engines and screen readers rely on it to understand the page's main topic.", blockId: null });
+    } else if (h1Blocks.length > 1) {
+      issues.push({ severity: "warn", message: `${h1Blocks.length} H1 headings found — a page should generally have exactly one.`, blockId: h1Blocks[1].id });
+    }
+    for (const b of visibleBlocks) {
+      const c = b.content || {};
+      if (b.type === "heading" && !c.text) issues.push({ severity: "error", message: "Empty heading block", blockId: b.id });
+      if (b.type === "text" && !c.text) issues.push({ severity: "error", message: "Empty text block", blockId: b.id });
+      if (b.type === "quote" && !c.text) issues.push({ severity: "error", message: "Empty quote block", blockId: b.id });
+      if (b.type === "image" && !c.url) issues.push({ severity: "error", message: "Image block has no image set", blockId: b.id });
+      else if (b.type === "image" && c.url && !c.alt) issues.push({ severity: "warn", message: "Image is missing alt text", blockId: b.id });
+      if (b.type === "button" && !c.url) issues.push({ severity: "error", message: "Button block has no link URL", blockId: b.id });
+      if (b.type === "video" && !c.url) issues.push({ severity: "error", message: "Video block has no URL set", blockId: b.id });
+      if (b.type === "embed" && !c.url) issues.push({ severity: "error", message: "Embed block has no URL set", blockId: b.id });
+      if (b.type === "project-card" && !c.title) issues.push({ severity: "error", message: "Project card has no title", blockId: b.id });
+    }
+    return issues;
+  }
+
+  function renderDiagnosticsList() {
+    const container = el("diagnostics-list");
+    if (!currentPage) {
+      container.innerHTML = "<p style='color:var(--text-dim);font-size:0.85rem;'>Open a page first.</p>";
+      return;
+    }
+    const issues = computePageDiagnostics();
+    if (!issues.length) {
+      container.innerHTML = "<p style='color:var(--text-dim);font-size:0.85rem;'>No issues found on this page.</p>";
+      return;
+    }
+    container.innerHTML = issues
+      .map(
+        (issue, i) =>
+          `<div class="simulation-row"><span><span class="lock-badge${
+            issue.severity === "error" ? " diagnostic-error" : ""
+          }">${issue.severity === "error" ? "Issue" : "Warning"}</span> ${escapeHtml(issue.message)}</span>${
+            issue.blockId ? `<button type="button" class="diagnostic-select-btn" data-index="${i}">Select</button>` : ""
+          }</div>`
+      )
+      .join("");
+    container.querySelectorAll(".diagnostic-select-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const issue = issues[Number(btn.dataset.index)];
+        goToBlock(currentPage.id, issue.blockId);
+        el("diagnostics-modal").hidden = true;
+      });
+    });
+  }
+
+  el("diagnostics-btn").addEventListener("click", () => {
+    el("diagnostics-modal").hidden = false;
+    renderDiagnosticsList();
+  });
+  closeModalOnClick("close-diagnostics", "diagnostics-modal");
+
   // ---------- Preview (responsive widths) ----------
   el("preview-btn").addEventListener("click", () => {
     if (!currentPage) return;
