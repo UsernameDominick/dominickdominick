@@ -1,0 +1,569 @@
+# dominickdominick.com — Outline
+
+The one tracking doc for this project. Replaces `MASTER_FEATURE_LIST.md`
+and `PRODUCTION_TODO.md` (deleted — their history lives in git log if
+ever needed). Check this at the start of every session before touching
+code.
+
+**Stack:** Cloudflare Workers (JS, no framework) · Cloudflare D1 (SQLite)
+· Cloudflare R2 (media + backups) · vanilla HTML/CSS/JS admin app (no
+build step, no npm dependencies) · highlight.js + `@google/model-viewer`
+via CDN · Playwright (ad hoc, local testing only, not wired into CI)
+
+**Last updated:** 2026-09-24 (manually — no CI auto-updates this; refresh
+the date and the lines-of-code stat yourself each session)
+
+**Lines of code (fun stat, `worker/` + `public/` + `schema.sql`):** ~19,200
+
+**Legend:** ✅ done · 🔶 partial (detail inline) · ☐ not started
+
+---
+
+## 0. Instructions for future me (read this first)
+
+**Branches:** `production` is the working branch — commit and push here
+after every tested batch. `main` is what's actually live/deployed
+(Cloudflare Workers Builds auto-deploys from `main`). Never push to
+`main` without a fresh, explicit user confirmation each time — a past
+confirmation does not carry forward. Iterate on `production`, batch by
+batch, and only merge to `main` when told to.
+
+**Schema changes:** D1 has no migration tracker. Any `ALTER`/`CREATE`
+against `schema.sql` needs its SQL added to the "Pending production
+migrations" section below until it's actually applied to production.
+Never touch production D1/R2 directly without explicit per-instance
+confirmation. Before writing new migration SQL, verify production's
+*actual* current schema (`PRAGMA table_info` / `sqlite_master`) rather
+than trusting this doc's last note about it — production has drifted
+from what old notes claimed before.
+
+**Testing workflow for every batch, before committing:**
+1. Build the feature.
+2. Write a throwaway Playwright script in the scratchpad directory
+   (never commit it) that exercises the real flow end-to-end — not just
+   that code runs, but that the actual behavior is correct.
+3. Clean up any test data created (trash + permanently delete test
+   articles/projects/pages; reset any settings you changed).
+4. Run the broad regression check (`test_security_seo.js` in the
+   scratchpad, recreate it if lost — checks `javascript:` URI
+   neutralization and basic SEO tags) — must stay green.
+5. Update this outline (the relevant feature-list line, pending
+   migrations if any).
+6. Commit with a descriptive message ending in the attribution footer,
+   push to `production`.
+
+**Screenshot-and-rate loop for any big/visible change** (new UI, layout
+change, new page, redesign): after implementing, spawn a subagent to
+open the page in a real browser, take a screenshot, and score it 0–10
+against what was asked for (0–4 fail / 5–7 passing but not polished /
+8–10 ship-it). If below 8, fix what it flagged and repeat. Stop at
+either a 10 or 5 loops total, whichever comes first — if still not a 10
+after 5 loops, ship the best version and note in the commit/report what
+didn't get resolved, rather than looping forever.
+
+**When to ask vs. just proceed:** default to moving without stopping to
+check in — that's the standing instruction for working through this
+list. But ask first when a decision is genuinely expensive to reverse,
+changes the visible design/UX in a way the user hasn't seen, or the
+"obvious" choice isn't actually obvious (e.g. picking between two
+real architectural approaches, anything touching production data,
+scope for a brand-new module). If in doubt whether it matters to him,
+err toward a quick question rather than guessing and redoing it later.
+
+**Production D1 database id:** `f49fb038-9dfb-419e-acfb-7d8babc9d509`
+(`dominickdominick`). R2 bucket: `dominickdominick-media`.
+
+---
+
+## 1. New modules in progress
+
+### 1a. TTS (text-to-speech) module
+Decision: upload pre-generated audio (admin uploads a finished TTS file
+per article/project) **plus** a free browser-generated fallback via the
+Web Speech API when no uploaded audio exists — no paid API, no key
+management. Use cases: (1) a "listen to this" player attached to an
+article/project, (2) a general accessibility read-aloud button.
+Status: ☐ not started.
+
+### 1b. Loop-based DAW / music module
+Decision: a loop-based step sequencer + a basic piano roll + a handful
+of built-in synth/drum sounds (Web Audio API, no sample licensing
+issues) + optional external MIDI keyboard input (Web MIDI API). Saved
+as project data (same pattern as the Simulation module), embeddable as
+a playable block with a waveform visualization and a syncable page
+animation (waveform-driven or a "cool" reactive animation, admin-
+choosable and tunable). No mixing console / automation lanes / plugin
+effects in v1 — flag if that's wanted later.
+Status: ☐ not started. Biggest build on this list — expect it to span
+several sessions. Build order once started: schema for songs/patterns →
+step sequencer UI → drum kit sounds → piano roll → Web MIDI input →
+playback engine + waveform render → page-animation sync → embeddable
+public block/player.
+
+### 1c. Admin UX / mobile overhaul
+The admin console's nav/UI/UX needs a real upgrade pass to accommodate
+everything added this project (media, projects, simulations, scans,
+webhooks, preview links, reactions, the new DAW/TTS modules, etc.) with
+heavy focus on mobile — user is primarily on an iPhone 17 Pro Max.
+Status: ☐ not started. Do this after the two modules above have at
+least an initial admin surface to design around, not before — designing
+the nav for panels that don't exist yet risks guessing wrong.
+
+---
+
+## 2. Feature list by area
+
+### Existing foundation
+All ✅ — the original ~70-item backlog plus a security/SEO/accessibility
+health-check pass, predates this doc.
+
+### Page builder and layout
+- ✅ Reusable blocks that update everywhere they are used, with detach-to-independent option
+- ☐ Reusable sections containing multiple blocks (needs nested/grouped blocks)
+- ✅ Page templates (generic, any page savable/appliable as a template)
+- ☐ Custom components assembled from blocks with their own editable options
+- ☐ Visual header/footer editor (footer is a text field; nav is ordering only)
+- 🔶 Navigation editor (ordering ✅; nested/dropdown menus ☐)
+- ☐ Separate desktop/tablet/phone layout settings (needs schema change + reworked drag/resize — deliberately deferred)
+- 🔶 Per-device spacing/ordering/visibility (visibility ✅; spacing/ordering ☐)
+- 🔶 Custom breakpoint controls (preview modal ✅; custom breakpoint values ☐, fixed at 640px)
+- ✅ Fullscreen/Focus mode editing
+- ✅ Layers panel (flat list — no real nesting exists yet)
+- ☐ Block grouping/ungrouping
+- ✅ Multi-select + bulk styling, alignment/distribution tools
+- ✅ Lock blocks against accidental changes
+- 🔶 Guides/rulers/snapping (alignment guides + grid snapping ✅; literal ruler/gap-measurement UI ☐)
+- ☐ Nested sections and columns (needs `blocks.parent_id` + reworked drag/resize — biggest deferred item)
+- ✅ Tabs, accordions, cards, expandable sections
+- ✅ Sticky/fixed-position elements
+- 🔶 Background video/gradients/overlays/blend modes (all but gradients ✅)
+- 🔶 Entrance/scroll/hover animation controls (entrance/scroll ✅; hover ☐)
+- ✅ Reduced-motion alternatives
+- 🔶 Shapes/dividers/masks (dividers ✅; shapes/masks ☐)
+- 🔶 Hover/focus/mobile-state previews (mobile ✅ via responsive preview; hover/focus simulation ☐)
+- 🔶 Copy/paste blocks between pages (blocks ✅; "sections" n/a)
+- ☐ Bulk updates to pages sharing a template
+- 🔶 Conditional display by date/device/URL/content field (device ✅; rest ☐)
+- ✅ Layout diagnostics (overflow, small tap targets — overlap is structurally impossible)
+- ✅ Content-only edit mode, isolation mode, stress previews (long titles/missing images/large text)
+
+### Design system and styling
+- 🔶 Global tokens (colors/typography/borders ✅, 6 tokens; spacing/shadow tokens deferred — no safe hook without a riskier retrofit)
+- ☐ Per-page style overrides, custom font upload
+- ✅ Light/dark themes + visitor switcher
+- ☐ Presets for buttons/cards/callouts/image treatments
+- ☐ Visual CSS inspector, style-inheritance inspector
+- 🔶 Reset overrides to inherited (per-field "Clear" on color pickers ✅; no general concept)
+- ☐ Page-specific CSS/JS controls (custom head code is site-wide only)
+- ☐ Preview custom styles/scripts before publishing; site-wide impact review of a design change
+
+### Content modeling and dynamic display
+- 🔶 Custom content types via admin (Projects is a dedicated hard-coded type, not a no-code arbitrary-schema system — deliberate scope call)
+- ☐ Custom fields per content type, nested categories (flat tags only)
+- 🔶 Relationships (projects→articles/simulations/scans ✅, one-directional across every other pair)
+- ✅ Edit relationships from either connected item (article editor's "Related projects" writes the same project.related_articles field)
+- ✅ Series; ☐ manual/automatic collections generically
+- ✅ Featured + pinned (articles both; projects featured only)
+- ☐ Centrally managed option lists (free text only), required-field validation beyond title
+- ✅ Computed fields (BOM total build cost)
+- 🔶 Repeating layouts / visual query builder / display templates (article-list/project-list blocks cover the basics; not admin-customizable beyond limit+tag+featured filters)
+- ☐ Conditional sections based on available content
+- ✅ Missing-field fallbacks (empty-hint messages)
+- 🔶 Editable empty states (exist, but hard-coded text)
+- ☐ Pagination/load-more/infinite scroll, breadcrumb editor UI
+- 🔶 Related-content suggestions (automatic tag-based ✅; manual override ☐)
+- ☐ Rules engine, workflow builder for publishing/archiving
+
+### Writing and article editor
+- ✅ Auto TOC + heading anchors, footnotes/citations, pipe tables, code syntax highlighting
+- ☐ Code line numbers/copy buttons, callouts/warnings, mathematical notation
+- ✅ Accordion (expandable details)
+- ✅ Inline image captions/credits, device frames (browser/phone) on any image block
+- ✅ Before/after image comparison slider — both as a page-builder block AND a `[before-after: url1 | url2 | Label1 | Label2]` markdown-lite shortcode for article/project bodies
+- 🔶 Pull quotes (✅) / margin notes (☐)
+- ✅ Generalized embeds (CodePen/Spotify/Figma/CodeSandbox/Gist + raw-iframe fallback)
+- ☐ Internal-link suggestions while writing, readability info, word/character goals
+- 🔶 Broken-link warnings (site-wide on-demand Link Checker ✅; live inline while typing ☐)
+- ☐ Distraction-free writing mode for the article textarea (page-builder has Focus mode; textarea doesn't)
+- ☐ Markdown import/export UI, paste cleanup from documents/websites
+- ✅ Find & replace (site-wide tool covers articles too)
+- ☐ Private notes/comments on draft sections
+- ✅ Reader-facing "Updated <date>" (only once 24h+ past publish, avoids autosave noise)
+- ✅ Correction/update note callout (optional field, shown at top when set)
+- 🔶 Custom article endings (automatic related-articles ✅; admin-curated/project-linked endings ☐)
+
+### Saving, recovery, and versioning
+- ✅ Autosave with visible status, conflict detection across tabs/devices
+- ☐ Side-by-side compare of conflicting versions (currently just "reload to see latest")
+- ✅ Crash recovery, unsaved-change (beforeunload) guard
+- ✅ Descriptive revision history with labels, side-by-side text diffs, visual layout diffs
+- 🔶 Restore individual fields/blocks/pages/articles/media (whole-item + per-block ✅; field-level + media revisions ☐)
+- ✅ Trash/soft-delete for pages/articles/projects, activity log
+- ☐ Separate working revisions of already-published content (editing live edits it directly)
+- ✅ Locking to freeze finished items against bulk edits
+
+### Publishing workflow
+- 🔶 Draft/scheduled/published states ✅; explicit "hidden"/"archived" states ☐
+- ✅ Scheduled unpublishing (Expires at, mirrors Publish at)
+- ☐ Publishing approvals/review steps, editorial calendar, review reminders
+- ✅ Live non-blocking publishing checklist (article/project editor)
+- 🔶 Stale/empty-page inventory (diagnostics flags empty blocks per-page; no site-wide report)
+- 🔶 Full-site draft-inclusive preview mode (per-item `?preview=1` ✅; whole-site ☐)
+- ☐ Future-date preview for scheduled changes
+- ✅ Expiring, revocable, shareable draft-preview links (`?preview_token=`, 1/7/30 day options, works without admin login)
+- ✅ Link Checker resolves real publish state (draft/expired reported correctly; project links + project bodies/journal/links-blocks now actually scanned — both were silent gaps before)
+- ☐ Publish-as-package (related pages/nav/updates together), rollback of a package, affected-pages preview, URL-change impact preview
+- ☐ Private pages, password-protected pages; 🔶 unlisted (nav-excluded but reachable by URL) exists de facto
+
+### Content administration and portability
+- 🔶 Duplication exists for pages/articles/projects (always lands as unpublished draft; journal/BOM/relationships not carried over); cross-type conversion (article→project) ☐
+- ✅ Bulk publish/unpublish/trash/add-tag for articles AND projects
+- ✅ Global find & replace with review before applying
+- ☐ Import from other platforms, import dry-run preview
+- ✅ Full JSON backup export (content, fields, relationships, media refs), full-site export
+- 🔶 Stable ids preserved on backup round-trip (n/a for import, not built)
+
+### Personal site sections
+Mostly content-to-write, not code-to-build — page builder + changelog
+block already support any of these as a plain page:
+- 🔶 Now page (capability exists, content not written)
+- ✅ Site changelog block
+- ☐ Uses/gear page, resume/experience page from structured data, public project roadmaps, "Currently building" homepage widget
+- 🔶 Public notes/short posts (articles serve this; no distinct lightweight format)
+- 🔶 Topic landing pages (`?tag=` works; no dedicated landing-page builder)
+- ✅ Archive by year (`/archive`)
+
+### Projects and portfolio
+- ☐ Independent per-project layouts (fixed template like articles)
+- ✅ Project templates; 🔶 hero image ✅/hero video ☐/inline demos ☐ (related sims/scans exist, not embedded inline)
+- ✅ Tech stack, GitHub/demo/docs/download links, screenshots with captions + device frames, before/after comparisons, status field
+- 🔶 Timelines/milestones (journal entries are dated; no dedicated widget)
+- ✅ Challenges/decisions/lessons (journal entry types), related content, version history (revisions)
+- 🔶 Public changelogs (journal entries can serve; no distinct feature)
+- ✅ Download manifest (multiple labeled files + descriptions, scanned by Link Checker) alongside the single quick-download link
+- 🔶 Sort/filter (tag/featured ✅; arbitrary sort ☐); 🔶 featured-order (flag ✅; manual drag-reorder ☐)
+- ☐ Architecture/dependency diagrams
+
+### Build journals and technical documentation
+- ✅ Dated journal entries, BOM with substitutions, pipe-table wiring/pinout tables, test records, decision logs, failed-attempt records, accordion for expandable hints
+- 🔶 Supporting photos/measurements for tests (markdown text only; no dedicated fields)
+- ☐ Reproduction checklists, download manifests explaining each file (per-project manifest ✅ above; per-file *explanation* ☐), hardware/software compatibility info, firmware tied to hardware revisions, completion summaries, cybersecurity lab writeup templates, annotated terminal transcripts, screenshot redaction
+
+### Media library and file management
+- 🔶 Folders (flat ✅, nesting ☐); 🔶 tags ✅ / smart collections ☐; ☐ saved searches
+- ✅ Usage tracking across pages/articles/projects/settings (including project share images — a real gap fixed)
+- 🔶 Bulk upload/move/tag/delete ✅; bulk rename ☐ (R2 keys are content-addressed, "rename" = alt text, already covered per-file)
+- ✅ Duplicate detection (SHA-256 at upload + backfill scan + immediate warning on byte-identical upload)
+- ☐ Replace-in-place without breaking placements, media version history
+- ✅ Original-file preservation; ☐ responsive image variants/srcset, crop/focal-point per placement
+- ✅ Alt text/caption/credit/license fields (library-level + per-block prefill)
+- 🔶 Metadata viewer (size ✅; dimensions/format ☐ — deferred, needs client canvas probe or server binary parse)
+- 🔶 Search by filename/tag/type/dimensions/usage (filename+tag ✅; rest ☐)
+- ✅ Unused/orphaned file review
+- ☐ Image optimization comparison, video captions/transcripts, audio-file support (images only today), PDF/doc previews, direct-download controls, drag-to-page, resumable uploads, upload queue with retry, storage-by-type dashboard, private-metadata stripping
+
+### Photo editor
+Undo/redo, flips, grayscale/sepia/invert, line tool, eyedropper, reset,
+keyboard shortcuts — all ✅. ☐: batch adjustments, saved presets,
+redaction tools, cross-crop preview.
+
+### Media viewers and presentation
+All ☐: panoramic/360° viewer, deep-zoom, image hotspots, audio waveform
+player, synced A/B audio, timestamped notes, searchable transcripts,
+consistent fullscreen controls, poster/caption conventions, fallbacks.
+(The new DAW module above will cover audio waveform playback for songs
+specifically, once built — not the general media-viewer case.)
+
+### Circuit simulation
+Existing features (wiring-accurate breadboard sim, closed-loop lighting
+logic, zoom, touch-friendly pins) — all ✅, pre-existing. Expansion (34
+items: multi-select, grouping, MIDI-unrelated component search,
+templates, potentiometers/multimeters/probes, oscilloscope graphs, wire
+routing, custom components, guided mode, sharing/embeds, accessibility,
+breadboard continuity, tolerances, limitations doc) — all ☐, untouched.
+
+### 3D LiDAR module
+- ✅ Core scan module, browser 3D viewer (model-viewer), rotate/pan/zoom/reset
+- ☐ Everything else: library folders/tags beyond projects, fullscreen as distinct control, point-cloud/mesh toggle, measurement tools, annotations, saved camera views, comparisons, timeline, capture-date/equipment fields, inline embeds, mobile perf settings, download options, privacy controls, fallback images
+
+### Search and content discovery
+- ✅ Site-wide search (articles + projects); ☐ filters/sorting
+- 🔶 Type-ahead suggestions (admin command palette ✅; public search ☐)
+- ✅ Related content displays, topic browsing (`/topics`, `/topics/:tag`), archive by year (`/archive`)
+- ☐ Interactive project map/visual index
+- ✅ Random content button (`/shuffle`), save-for-later (`/saved`), reading history (`/history`) — all client-only localStorage, nothing sent to the server
+- ✅ Reading-time estimates (projects sum body + journal entries)
+- ✅ RSS by type/tag (`/rss.xml?type=&tag=`)
+
+### Visitor interaction
+Contact form, admin inbox, guestbook/comments, moderation, newsletter —
+**explicitly declined by the user**, left ☐ deliberately.
+- ✅ Reactions (👍/💡/❤️, aggregate counts only, no visitor identity, client-side double-vote discouragement)
+- ✅ Expanded sharing (X/LinkedIn/email + copy-link)
+- 🔶 Visitor font-size/motion prefs (reduced-motion auto-respected via OS; no manual toggle)
+- ✅ Print-friendly pages; ☐ downloadable PDF articles/case studies
+
+### Analytics
+- ✅ Real-time visitor count, device/browser breakdown (coarse label only, never raw UA — no new fingerprinting surface), outbound-link + download tracking, internal search-term + no-results reporting
+- 🔶 Event analytics (generic tracking exists; no dedicated report surface); 🔶 geographic (country ✅, region/city ☐)
+- ☐ Per-page engagement/scroll depth, project-card click paths, conversion goals, period comparisons, chart annotations, bot filtering, data-retention settings, scheduled summaries, rearrangeable widgets
+- 🔶 Custom admin-defined events (mechanism supports it; no UI); 🔶 filters (date-range ✅; content-type/referrer/device ☐); 🔶 raw event export (breakdown CSV ✅, raw per-event unconfirmed)
+
+### SEO and sharing
+- ☐ Central SEO dashboard (tools scattered: link checker/sitemap/meta fields)
+- ✅ Per-page title/description, canonical URL (auto + optional override), noindex controls
+- 🔶 Social-share image editor (upload/browse ✅; crop/preview editor ☐)
+- ✅ Social-share previews (pages/articles/projects)
+- 🔶 Sitemap (auto ✅; admin include/exclude ☐); 🔶 structured data (JSON-LD auto ✅; admin-customizable ☐)
+- ☐ Internal-link suggestions, orphan-page detection (real design work — needs walking every internal-link-holding block type + list-limit truncation, not done, see notes below), automatic redirect suggestions after URL changes
+- 🔶 Link monitoring (on-demand Link Checker ✅; scheduled/ongoing ☐)
+- 🔶 Missing-metadata reports (SEO Report covers meta description + alt text; not every field)
+
+### Accessibility
+- ✅ Alt-text checks, heading-order/hierarchy checks (full reading-order skip detection), tap-target checks, reduced-motion coverage
+- 🔶 Color-contrast (live WCAG checker for theme colors in Site Settings; no site-wide arbitrary-content checker)
+- ☐ Automated keyboard-nav checker, automated focus-state checker (both work manually, no automated check)
+- ✅ Accessible alternatives for simulations/3D content (optional description → aria-label/aria-describedby/role=img; scan alt override)
+- ✅ Accessibility folded into the page diagnostics/publishing checklist
+
+### Performance and loading
+All ☐, untouched: performance budgets, slow-page alerts, per-page
+weight reports, load-on-interaction for heavy viewers, data-saving
+mode, slow-connection preview, embed-loading controls, cache
+status/refresh, embed-failure behavior, before/after perf comparisons.
+
+### Admin interface
+- 🔶 Command palette (pages/articles/projects/blocks ✅; not exhaustive)
+- ☐ Customizable dashboard, interface density settings, saved workspace layouts
+- ✅ Light/dark admin theme
+- ✅ Favorites/pinning (☆ Pin button, client-side, leads the command palette) + recently-edited (client-side recency list, not activity-log-based since that only ever stored a label not an id)
+- 🔶 Bulk-action toolbar (articles + projects + blocks ✅; not universal)
+- ☐ Contextual help for complex editors, shortcut remapping
+- ✅ Keyboard shortcut reference modal, universal admin search
+- ☐ Notifications for uploads/publishing/errors, background-job status/retry
+- ✅ Visitor-view preview, mobile workflows for common edits, desktop power-tools (focus mode/layers/multi-select)
+- ☐ Role-specific preview (n/a, no roles exist)
+- **Needs a real UX pass — see section 1c above.**
+
+### Authentication and permissions
+Single admin password, stateless HMAC-signed session cookie (no
+server-side session store) — most items below are big architecture
+changes with low value for a single-admin personal site; flagging as
+"legitimately low priority" rather than silently ignoring:
+- ☐ 2FA, passkeys, recovery codes, roles/permissions, scoped API tokens, reauthentication for sensitive actions, sandboxed custom-code previews, secret management separate from content
+- ☐ Session list/remote revocation (would need a real session-store rearchitecture — currently nothing to list)
+- 🔶 Security-audit trail (general activity log exists; not specifically flagged/separated)
+- ✅ Rate limits/abuse monitoring, security headers
+
+### Integrations and automation
+- 🔶 Integration settings (single webhook URL field); 🔶 configurable triggers (one hard-coded: webhook on article publish)
+- ✅ Webhook delivery history (last 200, status/error) + retry with original payload
+- ☐ Background-task management, failed-integration notifications, permission controls for external integrations
+
+### Testing, staging, and deployment
+- ☐ Automated tests wired into CI (Playwright scripts are ad hoc, local only)
+- ☐ Staging environment (deliberately deferred — real Cloudflare resource cost/provisioning, needs go-ahead first)
+- ☐ Preview deployments tied to changes
+- 🔶 Migration history (this doc is a manual log; no automated tracker)
+- ✅ Error tracking; ☐ uptime monitoring, maintenance mode
+- 🔶 Custom error pages (404 ✅; others ☐)
+- 🔶 Draft/staging/live distinction (draft vs. live ✅; "staging" as an environment doesn't exist)
+
+### Backups, health, and operating costs
+- ✅ Automated daily D1→R2 JSON backup (cron)
+- 🔶 R2 asset backup (media lives durably in R2 already, as primary store, not separately re-copied)
+- ☐ Backup-failure alerts
+- 🔶 Restore tested repeatedly via Playwright; no written human runbook
+- ☐ Periodic restore drills, backup contents browser, selective restore (currently all-or-nothing), file-integrity checks
+- ☐ Health dashboard (DB/storage/uploads/publishing), failed-scheduled-publish alerts, storage/DB usage dashboard, cost/usage alerts
+- 🔶 Traffic dashboard (analytics covers visitor traffic; not Worker CPU/processing usage)
+
+### Final verification
+☐ — deliberately last. The original 70-item health check ran before
+this doc existed; needs re-running against everything above once the
+list is far enough along, plus once the two new modules and the admin
+UX pass are in.
+
+---
+
+## 3. Ideas / things worth considering (my own notes, not requested yet)
+
+Ask before building any of these — they're opinions, not the plan:
+
+- The audit trail (section "Authentication and permissions") could
+  flag security-sensitive actions (settings change, backup restore,
+  webhook URL change, lock/unlock) distinctly from routine content
+  edits in the activity log, without needing full roles/permissions —
+  cheap, real value.
+- Orphan-page detection is worth doing right once there's time for it
+  properly (see the SEO section note) — false positives would erode
+  trust in the tool, so it shouldn't be rushed.
+- A lightweight "staging" mode using a second local-only D1 binding for
+  testing schema changes before they touch production could reduce the
+  risk in every migration step, without the cost of full separate
+  Cloudflare resources (still needs a go-ahead — it's still new
+  infrastructure).
+- Once the DAW module exists, the same waveform/animation-sync engine
+  could double as the audio-waveform player the "Media viewers" section
+  asks for generically (uploaded music/audio, not just DAW-composed
+  loops) — worth revisiting scope then rather than building it twice.
+- The TTS "read this article" accessibility angle could extend to
+  reading build-journal entries and project pages too, not just
+  articles, once the base player exists — cheap to extend, not cheap
+  to design twice.
+
+---
+
+## 4. Pending production migrations
+
+Production D1 was last fully synced to `schema.sql` on 2026-09-24 (the
+Projects/build-journals/BOM/relationships batch). Everything below has
+shipped to `production` since and is **not yet applied to production**:
+
+```sql
+ALTER TABLE media ADD COLUMN caption TEXT;
+ALTER TABLE media ADD COLUMN credit TEXT;
+ALTER TABLE media ADD COLUMN license TEXT;
+ALTER TABLE articles ADD COLUMN expires_at TEXT;
+ALTER TABLE projects ADD COLUMN expires_at TEXT;
+ALTER TABLE pageviews ADD COLUMN device TEXT;
+ALTER TABLE pageviews ADD COLUMN browser TEXT;
+ALTER TABLE media ADD COLUMN hash TEXT;
+CREATE INDEX idx_media_hash ON media(hash);
+CREATE TABLE webhook_deliveries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  url TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  status TEXT NOT NULL,
+  status_code INTEGER,
+  error TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_webhook_deliveries_created ON webhook_deliveries(created_at);
+CREATE TABLE reactions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  content_type TEXT NOT NULL,
+  content_id INTEGER NOT NULL,
+  emoji TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_reactions_content ON reactions(content_type, content_id);
+ALTER TABLE pages ADD COLUMN canonical_url TEXT;
+ALTER TABLE articles ADD COLUMN canonical_url TEXT;
+ALTER TABLE projects ADD COLUMN canonical_url TEXT;
+CREATE TABLE preview_links (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  content_type TEXT NOT NULL,
+  content_id INTEGER NOT NULL,
+  token TEXT UNIQUE NOT NULL,
+  expires_at TEXT NOT NULL,
+  revoked_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_preview_links_token ON preview_links(token);
+CREATE INDEX idx_preview_links_content ON preview_links(content_type, content_id);
+ALTER TABLE articles ADD COLUMN correction_note TEXT;
+ALTER TABLE projects ADD COLUMN correction_note TEXT;
+```
+
+After this lands, run `POST /api/admin/media/backfill-hashes` once
+(the "Scan for duplicates" button in the Media Library) to hash files
+uploaded before that feature existed.
+
+Always confirm with the user before running anything against
+production — standing rule, exercised once already for the initial
+full sync.
+
+---
+
+## 5. Deferred / deliberately scoped-out (with reasons)
+
+- **Spacing and shadow tokens** — no safe existing hook (spacing is ad
+  hoc per-component px values, zero box-shadows anywhere by current
+  design); needs a careful visual-review pass, not an unsupervised one.
+- **Metadata viewer for image dimensions/format** — needs client canvas
+  probing at upload or server-side binary header parsing; low value for
+  a small personal media library relative to effort.
+- **Orphan-page detection** — real design complexity (every internal-
+  link-holding block type, plus list-block `limit` truncation logic);
+  worth doing right, not rushed.
+- **A staging environment** — second D1 + R2 is a real account-cost
+  decision, needs confirmation first, not autonomous.
+- **Automated tests in CI** — Playwright scripts stay ad hoc/local for
+  now.
+- **Image CDN transforms** (Cloudflare Image Resizing) — needs a
+  specific billing plan, didn't want to assume it.
+- **A standalone public `/scan/:id` page** (mirroring `/simulation/:id`)
+  — trivial to add via the existing `modelViewerHtml()` helper, just
+  hasn't been asked for.
+- **Local dev-only cosmetic clutter** (leftover test blocks on the local
+  "home" page, old test articles) — harmless, sandbox-only, a bulk
+  delete was blocked by the environment's own destructive-action
+  safety classifier when attempted unsupervised; needs a human or an
+  explicitly-approved deletion, not urgent.
+
+---
+
+## 6. Manual verification still owed (things I couldn't confirm from the sandbox)
+
+- **highlight.js CDN** (cdnjs.cloudflare.com) — sandbox network policy
+  blocks it; open a real published article with a code block in an
+  actual browser once to confirm syntax highlighting renders.
+- **`@google/model-viewer` CDN** (cdn.jsdelivr.net) — same limitation;
+  upload a small `.glb`, confirm it spins/loads, try the AR button on
+  an iPhone with a `.usdz` attached (Quick Look).
+- **Cron trigger for D1→R2 backups** (`0 8 * * *`) — confirm in the
+  Cloudflare dashboard it's registered under the Worker's Triggers tab
+  and that a backup actually lands in R2 under `backups/`.
+
+---
+
+## 7. Ongoing security check
+
+Re-verify these periodically, not just once — mark the date next to an
+item when last checked:
+
+- [ ] Dependencies/CDN scripts (highlight.js, model-viewer) still
+      pinned to versions without known CVEs
+- [ ] Rate limits still cover every public write endpoint (login,
+      track, react, search, preview links) — check after adding any
+      new public POST route
+- [ ] Security headers (CSP, X-Frame-Options, X-Content-Type-Options,
+      Referrer-Policy) still present and correctly scoped
+- [ ] Session cookie still `HttpOnly; Secure; SameSite=Strict`
+- [ ] No new admin route added without going through
+      `isAuthenticated()` / the admin router's auth gate
+- [ ] `javascript:`/`data:` URI neutralization (`safeHref`) still
+      applied everywhere a user-authored URL renders (buttons, project
+      links, download manifest, links block, markdown links)
+- [ ] Raw-HTML block and custom `<head>` code remain explicitly
+      trusted-admin-only, never exposed to a lower trust level
+- [ ] New tables/columns don't accidentally expose more than intended
+      through a `SELECT *` in a public-facing query
+- [ ] File uploads still validated by type (image-only today) before
+      any new upload surface (e.g. TTS audio, DAW exports) is added —
+      revisit this the moment audio uploads are built
+
+## 8. Ongoing SEO / accessibility check
+
+Re-verify periodically, especially after any new public page/route:
+
+- [ ] Every new public route has a `<title>`, meta description, and
+      correct canonical tag
+- [ ] New content types show up in `sitemap.xml` (and RSS if content,
+      not utility)
+- [ ] JSON-LD structured data present and valid where expected
+      (articles, projects, breadcrumbs)
+- [ ] New image-bearing blocks get alt-text prompts/warnings in the
+      diagnostics panel
+- [ ] New heading-producing content respects the H1-once, no-skipped-
+      level rule the diagnostics panel checks
+- [ ] New interactive/canvas content (simulations, scans, and — once
+      built — the DAW/TTS modules) gets a real text alternative, not
+      just a generic label
+- [ ] Reduced-motion respected for any new animation (including the
+      planned DAW page-animation sync)
+- [ ] Tap targets ≥ 24×24px on any new mobile UI, especially the
+      planned admin mobile overhaul
+- [ ] Color contrast checked for any new UI color, not just theme
+      tokens
