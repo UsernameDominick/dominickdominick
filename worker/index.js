@@ -25,6 +25,7 @@ import {
   recordRateLimitHit,
   runScheduledBackup,
   getTagCounts,
+  getArchive,
   getContentByTag,
 } from "./db.js";
 import { isAuthenticated } from "./auth.js";
@@ -49,6 +50,7 @@ import {
   renderBomHtml,
   renderRelatedMediaHtml,
   renderTopicsIndexHtml,
+  renderArchiveHtml,
   renderTopicPageHtml,
   renderShareLinks,
 } from "./render.js";
@@ -365,6 +367,29 @@ async function renderTopicsIndex(env, navItems) {
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
+async function renderArchive(env, navItems) {
+  const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
+  const archive = await getArchive(env);
+  const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 16;">
+    <h1>Archive</h1>
+    <p>Everything published, by year.</p>
+    ${renderArchiveHtml(archive)}
+  </div>`;
+  const html = renderShell({
+    title: "Archive · Dominick",
+    description: "Everything published on dominickdominick.com, organized by year.",
+    path: "/archive",
+    navItems,
+    activeSlug: null,
+    bodyHtml,
+    ogImage: defaultOgImage || null,
+    theme,
+    footerText,
+    customHead,
+  });
+  return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
+}
+
 async function renderTopicPage(env, tag, navItems) {
   const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
   const { articles, projects } = await getContentByTag(env, tag);
@@ -496,6 +521,7 @@ async function renderSitemap(env) {
     ...articles.map((a) => ({ loc: `/random/${a.slug}`, lastmod: a.updated_at || a.published_at })),
     ...projects.map((p) => ({ loc: `/projects/${p.slug}`, lastmod: p.updated_at || p.published_at })),
     { loc: "/topics", lastmod: null },
+    { loc: "/archive", lastmod: null },
     ...tagCounts.map((t) => ({ loc: `/topics/${encodeURIComponent(t.tag)}`, lastmod: null })),
   ];
   const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries
@@ -668,6 +694,11 @@ async function route(request, env, ctx) {
     if (topicMatch) {
       const navItems = await listNavPages(env);
       return renderTopicPage(env, decodeURIComponent(topicMatch[1]), navItems);
+    }
+
+    if (path === "/archive") {
+      const navItems = await listNavPages(env);
+      return renderArchive(env, navItems);
     }
 
     const simulationMatch = path.match(/^\/simulation\/(\d+)$/);

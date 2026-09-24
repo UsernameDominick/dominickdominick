@@ -206,7 +206,7 @@ page. Noting where the supporting capability exists vs. doesn't:
 - ☐ Public project roadmaps
 - ☐ "Currently building" section (no dedicated homepage widget; could combine project status+featured manually)
 - 🔶 Topic landing pages (tag-filtered listing works via `?tag=`; no dedicated landing-page builder)
-- ☐ Archive organized by year or timeline
+- ✅ Archive organized by year or timeline (`/archive` — every published article and project, grouped by publish year)
 
 ## 10. Projects and portfolio
 

@@ -1732,6 +1732,27 @@ export async function getContentByTag(env, tag) {
   return { articles, projects };
 }
 
+// Every published article and project grouped by the year it was
+// published, newest year first, items within a year newest first — the
+// site-wide timeline archive.
+export async function getArchive(env) {
+  const [articles, projects] = await Promise.all([
+    listArticles(env, { publishedOnly: true }),
+    listProjects(env, { publishedOnly: true }),
+  ]);
+  const items = [
+    ...articles.map((a) => ({ type: "article", title: a.title, slug: a.slug, published_at: a.published_at })),
+    ...projects.map((p) => ({ type: "project", title: p.title, slug: p.slug, published_at: p.published_at })),
+  ].sort((a, b) => (b.published_at || "").localeCompare(a.published_at || ""));
+  const byYear = new Map();
+  for (const item of items) {
+    const year = (item.published_at || "").slice(0, 4) || "Unknown";
+    if (!byYear.has(year)) byYear.set(year, []);
+    byYear.get(year).push(item);
+  }
+  return [...byYear.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([year, items]) => ({ year, items }));
+}
+
 export async function getSetting(env, key) {
   const row = await env.DB.prepare("SELECT value FROM settings WHERE key = ?").bind(key).first();
   return row ? row.value : null;

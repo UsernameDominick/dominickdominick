@@ -279,6 +279,23 @@ ${projectItems ? `<h2>Projects</h2><ul class="search-results">${projectItems}</u
 ${articleItems ? `<h2>Posts</h2><ul class="search-results">${articleItems}</ul>` : ""}`;
 }
 
+export function renderArchiveHtml(archive) {
+  if (!archive.length) return `<p class="empty-hint">Nothing published yet.</p>`;
+  return archive
+    .map(({ year, items }) => {
+      const rows = items
+        .map((item) => {
+          const href = item.type === "article" ? `/random/${esc(item.slug)}` : `/projects/${esc(item.slug)}`;
+          return `<li><time datetime="${esc(item.published_at)}">${esc((item.published_at || "").slice(0, 10))}</time> <a href="${href}">${esc(
+            item.title
+          )}</a>${item.type === "project" ? ` <span class="topic-count">project</span>` : ""}</li>`;
+        })
+        .join("");
+      return `<h2>${esc(year)}</h2><ul class="archive-list">${rows}</ul>`;
+    })
+    .join("");
+}
+
 export function renderByline(article) {
   const names = ["Dominick", ...(article.co_authors || [])];
   return names.length > 1 ? `<span class="byline">By ${names.map(esc).join(" & ")}</span>` : "";
