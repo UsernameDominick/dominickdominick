@@ -1959,12 +1959,12 @@
     const newById = new Map(newNorm.map((b) => [b.id, b]));
     const rows = [];
     newNorm.forEach((b) => {
-      if (!oldById.has(b.id)) rows.push({ status: "Added since", type: b.type });
+      if (!oldById.has(b.id)) rows.push({ status: "Added since", type: b.type, id: b.id, restorable: false });
     });
     oldNorm.forEach((b) => {
       const nb = newById.get(b.id);
       if (!nb) {
-        rows.push({ status: "Removed since (restoring brings it back)", type: b.type });
+        rows.push({ status: "Removed since (restoring brings it back)", type: b.type, id: b.id, restorable: true });
       } else if (
         b.content !== nb.content ||
         b.style !== nb.style ||
@@ -1973,11 +1973,20 @@
         b.row !== nb.row ||
         b.row_span !== nb.row_span
       ) {
-        rows.push({ status: "Changed since", type: b.type });
+        rows.push({ status: "Changed since", type: b.type, id: b.id, restorable: true });
       }
     });
     if (!rows.length) return "<p style='color:var(--text-dim);font-size:0.85rem;'>No differences from the current page.</p>";
-    return `<ul class="revision-diff-blocks">${rows.map((r) => `<li><strong>${escapeHtml(blockLabel(r.type))}</strong> — ${escapeHtml(r.status)} this version</li>`).join("")}</ul>`;
+    return `<ul class="revision-diff-blocks">${rows
+      .map(
+        (r) =>
+          `<li><strong>${escapeHtml(blockLabel(r.type))}</strong> — ${escapeHtml(r.status)} this version${
+            r.restorable
+              ? ` <button type="button" class="restore-revision-block" data-block-id="${r.id}">Restore just this block</button>`
+              : ""
+          }</li>`
+      )
+      .join("")}</ul>`;
   }
 
   async function showRevisionDiff(kind, entityId, revisionId) {
@@ -1989,6 +1998,23 @@
       el("revisions-diff-body").innerHTML = diffWordsHtml(rev.snapshot.body, current ? current.body : "");
     } else {
       el("revisions-diff-body").innerHTML = diffPageBlocksHtml(rev.snapshot, blocks);
+      el("revisions-diff-body")
+        .querySelectorAll(".restore-revision-block")
+        .forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            if (!confirm("Restore just this block to how it was in this revision? The current page is saved first, so this can be undone too.")) return;
+            try {
+              await api(`/revisions/${revisionId}/restore-block`, {
+                method: "POST",
+                body: JSON.stringify({ entity_id: entityId, block_id: Number(btn.dataset.blockId) }),
+              });
+              el("revisions-modal").hidden = true;
+              await loadBlocks();
+            } catch (err) {
+              alert(err.message);
+            }
+          });
+        });
     }
   }
 
@@ -2006,7 +2032,11 @@
       revisions
         .map(
           (r) =>
-            `<div class="revision-row"><span>${new Date(r.created_at.replace(" ", "T") + "Z").toLocaleString()}</span><span class="revision-row-actions"><button type="button" class="compare-revision" data-id="${
+            `<div class="revision-row"><span><span class="revision-row-time">${new Date(
+              r.created_at.replace(" ", "T") + "Z"
+            ).toLocaleString()}</span>${
+              r.label ? `<span class="revision-row-label">${escapeHtml(r.label)}</span>` : ""
+            }</span><span class="revision-row-actions"><button type="button" class="compare-revision" data-id="${
               r.id
             }">Compare</button><button type="button" class="restore-revision" data-id="${
               r.id

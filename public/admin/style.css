@@ -1665,6 +1665,17 @@
   font-size: 0.85rem;
 }
 
+.revision-row-time {
+  display: block;
+}
+
+.revision-row-label {
+  display: block;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  margin-top: 2px;
+}
+
 .revision-row button {
   background: var(--accent);
   color: #0b0b0c;
@@ -1728,6 +1739,17 @@
   flex-direction: column;
   gap: 6px;
   font-size: 0.9rem;
+}
+
+.restore-revision-block {
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  margin-left: 8px;
 }
 
 /* Link checker */

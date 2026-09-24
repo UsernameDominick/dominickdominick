@@ -52,6 +52,7 @@ import {
   getRevision,
   restorePageRevision,
   restoreArticleRevision,
+  restorePageRevisionBlock,
   search,
   checkLinks,
   listScans,
@@ -698,6 +699,20 @@ async function routeAdminApi(request, env, url, ctx) {
       return json({ error: err.message || "Restore failed" }, { status: 400 });
     }
     log(ctx, env, "restore-revision", body.kind, `#${entityId}`);
+    return json({ ok: true });
+  }
+  const restoreBlockMatch = path.match(/^\/revisions\/(\d+)\/restore-block$/);
+  if (restoreBlockMatch && method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    const revisionId = Number(restoreBlockMatch[1]);
+    const pageId = Number(body.entity_id);
+    const blockId = Number(body.block_id);
+    try {
+      await restorePageRevisionBlock(env, pageId, revisionId, blockId);
+    } catch (err) {
+      return json({ error: err.message || "Restore failed" }, { status: 400 });
+    }
+    log(ctx, env, "restore-revision", "page block", `#${blockId} on page #${pageId}`);
     return json({ ok: true });
   }
 

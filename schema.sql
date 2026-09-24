@@ -74,6 +74,7 @@ CREATE TABLE revisions (
   kind TEXT NOT NULL,
   entity_id INTEGER NOT NULL,
   snapshot TEXT NOT NULL,
+  label TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

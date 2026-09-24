@@ -58,11 +58,11 @@ export async function updatePage(env, id, fields) {
 // recoverable by default. hardDeletePage is the real, permanent removal,
 // used only from the trash view itself.
 export async function deletePage(env, id) {
-  await env.DB.prepare("UPDATE pages SET deleted_at = datetime('now') WHERE id = ?").bind(id).run();
+  await env.DB.prepare("UPDATE pages SET deleted_at = datetime('now'), version = version + 1 WHERE id = ?").bind(id).run();
 }
 
 export async function restorePage(env, id) {
-  await env.DB.prepare("UPDATE pages SET deleted_at = NULL WHERE id = ?").bind(id).run();
+  await env.DB.prepare("UPDATE pages SET deleted_at = NULL, version = version + 1 WHERE id = ?").bind(id).run();
 }
 
 export async function hardDeletePage(env, id) {
@@ -295,17 +295,17 @@ export async function bulkArticleAction(env, ids, action) {
   const placeholders = validIds.map(() => "?").join(",");
   if (action === "publish") {
     await env.DB
-      .prepare(`UPDATE articles SET published_at = COALESCE(published_at, datetime('now')), updated_at = datetime('now') WHERE id IN (${placeholders})`)
+      .prepare(`UPDATE articles SET published_at = COALESCE(published_at, datetime('now')), updated_at = datetime('now'), version = version + 1 WHERE id IN (${placeholders})`)
       .bind(...validIds)
       .run();
   } else if (action === "unpublish") {
     await env.DB
-      .prepare(`UPDATE articles SET published_at = NULL, updated_at = datetime('now') WHERE id IN (${placeholders})`)
+      .prepare(`UPDATE articles SET published_at = NULL, updated_at = datetime('now'), version = version + 1 WHERE id IN (${placeholders})`)
       .bind(...validIds)
       .run();
   } else if (action === "trash") {
     await env.DB
-      .prepare(`UPDATE articles SET deleted_at = datetime('now') WHERE id IN (${placeholders})`)
+      .prepare(`UPDATE articles SET deleted_at = datetime('now'), version = version + 1 WHERE id IN (${placeholders})`)
       .bind(...validIds)
       .run();
   } else {
@@ -317,11 +317,11 @@ export async function bulkArticleAction(env, ids, action) {
 // — recoverable by default. hardDeleteArticle is the real, permanent
 // removal, used only from the trash view itself.
 export async function deleteArticle(env, id) {
-  await env.DB.prepare("UPDATE articles SET deleted_at = datetime('now') WHERE id = ?").bind(id).run();
+  await env.DB.prepare("UPDATE articles SET deleted_at = datetime('now'), version = version + 1 WHERE id = ?").bind(id).run();
 }
 
 export async function restoreArticle(env, id) {
-  await env.DB.prepare("UPDATE articles SET deleted_at = NULL WHERE id = ?").bind(id).run();
+  await env.DB.prepare("UPDATE articles SET deleted_at = NULL, version = version + 1 WHERE id = ?").bind(id).run();
 }
 
 export async function hardDeleteArticle(env, id) {
@@ -766,12 +766,50 @@ async function pruneRevisions(env, kind, entityId) {
     .run();
 }
 
+// Compares this snapshot against the previous one (if any) to turn "a
+// revision from 3:41pm" into "a revision where 2 blocks changed, 1 was
+// added" — the actual point of a history list. oldBlocks is null for the
+// very first snapshot of a page.
+function describePageChange(oldBlocks, newBlocks) {
+  if (!oldBlocks) return "Initial version";
+  const oldById = new Map(oldBlocks.map((b) => [b.id, b]));
+  const newById = new Map(newBlocks.map((b) => [b.id, b]));
+  let added = 0, removed = 0, changed = 0;
+  newBlocks.forEach((b) => {
+    if (!oldById.has(b.id)) added++;
+  });
+  oldBlocks.forEach((b) => {
+    const nb = newById.get(b.id);
+    if (!nb) removed++;
+    else if (
+      b.content !== nb.content ||
+      b.style !== nb.style ||
+      b.col !== nb.col ||
+      b.col_span !== nb.col_span ||
+      b.row !== nb.row ||
+      b.row_span !== nb.row_span
+    ) {
+      changed++;
+    }
+  });
+  const parts = [];
+  if (added) parts.push(`${added} block${added === 1 ? "" : "s"} added`);
+  if (removed) parts.push(`${removed} removed`);
+  if (changed) parts.push(`${changed} changed`);
+  return parts.length ? parts.join(", ") : "No changes";
+}
+
 async function snapshotPageBlocks(env, pageId) {
   const { results } = await env.DB.prepare("SELECT * FROM blocks WHERE page_id = ? ORDER BY id").bind(pageId).all();
   if (!results.length) return;
+  const prev = await env.DB
+    .prepare("SELECT snapshot FROM revisions WHERE kind = 'page' AND entity_id = ? ORDER BY id DESC LIMIT 1")
+    .bind(pageId)
+    .first();
+  const label = describePageChange(prev ? JSON.parse(prev.snapshot) : null, results);
   await env.DB
-    .prepare("INSERT INTO revisions (kind, entity_id, snapshot) VALUES ('page', ?, ?)")
-    .bind(pageId, JSON.stringify(results))
+    .prepare("INSERT INTO revisions (kind, entity_id, snapshot, label) VALUES ('page', ?, ?, ?)")
+    .bind(pageId, JSON.stringify(results), label)
     .run();
   await pruneRevisions(env, "page", pageId);
 }
@@ -790,19 +828,39 @@ export async function maybeSnapshotPage(env, pageId) {
   await snapshotPageBlocks(env, pageId);
 }
 
+function describeArticleChange(oldRow, newRow) {
+  if (!oldRow) return "Initial version";
+  const parts = [];
+  if (oldRow.title !== newRow.title) parts.push("title changed");
+  if (oldRow.body !== newRow.body) parts.push("body edited");
+  if (oldRow.tags !== newRow.tags) parts.push("tags changed");
+  if (oldRow.og_image !== newRow.og_image) parts.push("share image changed");
+  const wasPublished = !!oldRow.published_at;
+  const isPublished = !!newRow.published_at;
+  if (!wasPublished && isPublished) parts.push("published");
+  else if (wasPublished && !isPublished) parts.push("unpublished");
+  else if (oldRow.published_at !== newRow.published_at) parts.push("publish date changed");
+  return parts.length ? parts.join(", ") : "No changes";
+}
+
 export async function snapshotArticle(env, articleId) {
   const row = await env.DB.prepare("SELECT * FROM articles WHERE id = ?").bind(articleId).first();
   if (!row) return;
+  const prev = await env.DB
+    .prepare("SELECT snapshot FROM revisions WHERE kind = 'article' AND entity_id = ? ORDER BY id DESC LIMIT 1")
+    .bind(articleId)
+    .first();
+  const label = describeArticleChange(prev ? JSON.parse(prev.snapshot) : null, row);
   await env.DB
-    .prepare("INSERT INTO revisions (kind, entity_id, snapshot) VALUES ('article', ?, ?)")
-    .bind(articleId, JSON.stringify(row))
+    .prepare("INSERT INTO revisions (kind, entity_id, snapshot, label) VALUES ('article', ?, ?, ?)")
+    .bind(articleId, JSON.stringify(row), label)
     .run();
   await pruneRevisions(env, "article", articleId);
 }
 
 export async function listRevisions(env, kind, entityId) {
   const { results } = await env.DB
-    .prepare("SELECT id, created_at FROM revisions WHERE kind = ? AND entity_id = ? ORDER BY id DESC")
+    .prepare("SELECT id, created_at, label FROM revisions WHERE kind = ? AND entity_id = ? ORDER BY id DESC")
     .bind(kind, entityId)
     .all();
   return results;
@@ -833,6 +891,44 @@ export async function restorePageRevision(env, pageId, revisionId) {
   await env.DB.batch(stmts);
 }
 
+// Restores a single block from a page revision, rather than the whole
+// page — for the common case of "just this one block got messed up",
+// where reverting every other block back too would lose real work.
+// Handles both "changed since" (block still exists, update it back) and
+// "removed since" (block is gone now, re-insert it under its original id
+// — safe because blocks.id is AUTOINCREMENT and never reused) in one
+// upsert. Restoring a block that was only *added* since this revision
+// (i.e. undoing an addition) isn't offered here — that's just deleting
+// the block, which the block editor's own delete-with-undo already covers.
+export async function restorePageRevisionBlock(env, pageId, revisionId, blockId) {
+  const rev = await getRevision(env, revisionId);
+  if (!rev || rev.kind !== "page" || rev.entity_id !== pageId) throw new Error("Revision not found");
+  const oldBlock = rev.snapshot.find((b) => b.id === blockId);
+  if (!oldBlock) throw new Error("That block isn't in this revision");
+  await snapshotPageBlocks(env, pageId); // unconditional, so this is itself undoable
+  await env.DB
+    .prepare(
+      `INSERT INTO blocks (id, page_id, type, content, style, col, col_span, row, row_span, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+       ON CONFLICT(id) DO UPDATE SET
+         type = excluded.type, content = excluded.content, style = excluded.style,
+         col = excluded.col, col_span = excluded.col_span, row = excluded.row, row_span = excluded.row_span,
+         updated_at = excluded.updated_at`
+    )
+    .bind(
+      oldBlock.id,
+      pageId,
+      oldBlock.type,
+      oldBlock.content,
+      oldBlock.style,
+      oldBlock.col,
+      oldBlock.col_span,
+      oldBlock.row,
+      oldBlock.row_span
+    )
+    .run();
+}
+
 export async function restoreArticleRevision(env, articleId, revisionId) {
   const rev = await getRevision(env, revisionId);
   if (!rev || rev.kind !== "article" || rev.entity_id !== articleId) throw new Error("Revision not found");
@@ -840,7 +936,7 @@ export async function restoreArticleRevision(env, articleId, revisionId) {
   const a = rev.snapshot;
   await env.DB
     .prepare(
-      "UPDATE articles SET title = ?, body = ?, tags = ?, og_image = ?, published_at = ?, updated_at = datetime('now') WHERE id = ?"
+      "UPDATE articles SET title = ?, body = ?, tags = ?, og_image = ?, published_at = ?, updated_at = datetime('now'), version = version + 1 WHERE id = ?"
     )
     .bind(a.title, a.body, a.tags, a.og_image, a.published_at, articleId)
     .run();
