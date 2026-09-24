@@ -1227,6 +1227,14 @@
   pointer-events: none;
 }
 
+/* Sits below the unused badge (top-left) rather than beside it — the two
+   can both apply to the same file, and the grid tiles are only 140px wide,
+   too narrow for two badges side by side without wrapping/overlapping. */
+.media-duplicate-badge {
+  top: 26px;
+  left: 4px;
+}
+
 .media-info-modal-inner {
   max-width: 420px;
 }

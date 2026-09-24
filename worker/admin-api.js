@@ -29,6 +29,7 @@ import {
   listMediaFolders,
   findMediaUsage,
   getAllUsedMediaUrls,
+  getDuplicateMediaHashes,
   logActivity,
   listActivityLog,
   listErrors,
@@ -150,6 +151,14 @@ function sanitizeSvg(text) {
     .replace(/\son\w+\s*=\s*[^\s"'>]+/gi, "")
     .replace(/((?:xlink:)?href|src)\s*=\s*"\s*javascript:[^"]*"/gi, '$1="#"')
     .replace(/((?:xlink:)?href|src)\s*=\s*'\s*javascript:[^']*'/gi, "$1='#'");
+}
+
+// SHA-256 of the raw file bytes, hex-encoded — the actual pixels/bytes, so
+// two uploads of the same underlying file always match regardless of
+// filename, upload date, or which folder/tags they got afterward.
+async function hashBytes(buf) {
+  const digest = await crypto.subtle.digest("SHA-256", buf);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 // Optimistic-concurrency guard for the article/page editors: the client
@@ -648,12 +657,14 @@ async function routeAdminApi(request, env, url, ctx) {
     const ext = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif", "image/svg+xml": "svg" }[
       contentType
     ];
+    const hash = await hashBytes(buf);
+    const duplicate = await env.DB.prepare("SELECT key FROM media WHERE hash = ? LIMIT 1").bind(hash).first();
     const key = `uploads/${crypto.randomUUID()}.${ext}`;
     await env.MEDIA.put(key, buf, { httpMetadata: { contentType } });
     const folder = url.searchParams.get("folder");
-    if (folder) await upsertMediaMeta(env, key, { folder });
+    await upsertMediaMeta(env, key, { folder: folder || undefined, hash });
     log(ctx, env, "upload", "media", key.split("/").pop());
-    return json({ url: `/media/${key}` });
+    return json({ url: `/media/${key}`, duplicateOf: duplicate ? `/media/${duplicate.key}` : null });
   }
 
   // /media — list uploaded files (enriched with folder/tags/alt text), for
@@ -661,7 +672,12 @@ async function routeAdminApi(request, env, url, ctx) {
   if (path === "/media" && method === "GET") {
     const listed = await env.MEDIA.list({ prefix: "uploads/", limit: 500 });
     const objects = listed.objects.sort((a, b) => new Date(b.uploaded) - new Date(a.uploaded));
-    const [meta, usedUrls] = await Promise.all([getMediaMeta(env, objects.map((o) => o.key)), getAllUsedMediaUrls(env)]);
+    const [meta, usedUrls, duplicateGroups] = await Promise.all([
+      getMediaMeta(env, objects.map((o) => o.key)),
+      getAllUsedMediaUrls(env),
+      getDuplicateMediaHashes(env),
+    ]);
+    const duplicateKeys = new Set(duplicateGroups.flatMap((g) => g.keys));
     const items = objects.map((o) => {
       const url = `/media/${o.key}`;
       return {
@@ -675,6 +691,8 @@ async function routeAdminApi(request, env, url, ctx) {
         caption: meta[o.key]?.caption || null,
         credit: meta[o.key]?.credit || null,
         license: meta[o.key]?.license || null,
+        hash: meta[o.key]?.hash || null,
+        isDuplicate: duplicateKeys.has(o.key),
         used: usedUrls.has(url),
       };
     });
@@ -682,6 +700,24 @@ async function routeAdminApi(request, env, url, ctx) {
   }
   if (path === "/media/folders" && method === "GET") {
     return json(await listMediaFolders(env));
+  }
+  // /media/backfill-hashes — one-time (well, re-runnable, but only does
+  // anything the first time) pass over uploads from before hashing
+  // existed. Skips anything that already has a hash, so re-running after
+  // new plain uploads is cheap and safe.
+  if (path === "/media/backfill-hashes" && method === "POST") {
+    const listed = await env.MEDIA.list({ prefix: "uploads/", limit: 500 });
+    const meta = await getMediaMeta(env, listed.objects.map((o) => o.key));
+    const missing = listed.objects.filter((o) => !meta[o.key]?.hash);
+    let hashed = 0;
+    for (const o of missing) {
+      const obj = await env.MEDIA.get(o.key);
+      if (!obj) continue;
+      const hash = await hashBytes(await obj.arrayBuffer());
+      await upsertMediaMeta(env, o.key, { hash });
+      hashed++;
+    }
+    return json({ hashed, alreadyHashed: listed.objects.length - missing.length });
   }
   if (path === "/media/usage" && method === "GET") {
     const mediaUrl = url.searchParams.get("url");

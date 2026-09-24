@@ -27,7 +27,7 @@ until they're actually applied to production — then this section gets
 updated to say so, the same way this update just did.
 
 **New, not yet applied to production** (media captions/credits/licensing,
-content expiration, and device/browser analytics):
+content expiration, device/browser analytics, and media duplicate hashes):
 
 ```sql
 ALTER TABLE media ADD COLUMN caption TEXT;
@@ -37,14 +37,20 @@ ALTER TABLE articles ADD COLUMN expires_at TEXT;
 ALTER TABLE projects ADD COLUMN expires_at TEXT;
 ALTER TABLE pageviews ADD COLUMN device TEXT;
 ALTER TABLE pageviews ADD COLUMN browser TEXT;
+ALTER TABLE media ADD COLUMN hash TEXT;
+CREATE INDEX idx_media_hash ON media(hash);
 ```
+
+After this migration lands, run `POST /api/admin/media/backfill-hashes`
+once (e.g. via the "Scan for duplicates" button in the Media Library) to
+hash every file that was uploaded before this feature existed — new
+uploads are hashed automatically going forward.
 
 ## Deferred from the media library batch
 
-- **Duplicate-file detection** — needs content hashing at upload time
-  (cheap going forward) plus a backfill pass over every existing R2
-  object to hash retroactively. Scoped out as a separate, larger piece of
-  work rather than folding it into the captions/unused-files batch.
+- ~~Duplicate-file detection~~ — done in a later session: SHA-256 at
+  upload time plus a "Scan for duplicates" backfill button for files
+  uploaded before hashing existed.
 - **Metadata viewer for image dimensions/format** — needs either
   client-side `<img>`/canvas probing at upload time (stored alongside the
   other media metadata) or a server-side binary header parse. Deferred

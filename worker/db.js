@@ -1088,7 +1088,7 @@ export async function getMediaMeta(env, keys) {
   return map;
 }
 
-export async function upsertMediaMeta(env, key, { folder, tags, alt_text, caption, credit, license } = {}) {
+export async function upsertMediaMeta(env, key, { folder, tags, alt_text, caption, credit, license, hash } = {}) {
   const existing = await env.DB.prepare("SELECT key FROM media WHERE key = ?").bind(key).first();
   if (existing) {
     const cols = [];
@@ -1117,12 +1117,16 @@ export async function upsertMediaMeta(env, key, { folder, tags, alt_text, captio
       cols.push("license = ?");
       vals.push(license || null);
     }
+    if (hash !== undefined) {
+      cols.push("hash = ?");
+      vals.push(hash || null);
+    }
     if (!cols.length) return;
     vals.push(key);
     await env.DB.prepare(`UPDATE media SET ${cols.join(", ")} WHERE key = ?`).bind(...vals).run();
   } else {
     await env.DB
-      .prepare("INSERT INTO media (key, folder, tags, alt_text, caption, credit, license) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .prepare("INSERT INTO media (key, folder, tags, alt_text, caption, credit, license, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
       .bind(
         key,
         folder || null,
@@ -1130,10 +1134,22 @@ export async function upsertMediaMeta(env, key, { folder, tags, alt_text, captio
         alt_text || null,
         caption || null,
         credit || null,
-        license || null
+        license || null,
+        hash || null
       )
       .run();
   }
+}
+
+// Every hash shared by more than one file, each with its list of keys —
+// for the "possible duplicates" filter in the library. A file uploaded
+// before hashing existed just has hash = NULL and won't match anything
+// until "Scan for duplicates" (backfillMediaHashes) has hashed it too.
+export async function getDuplicateMediaHashes(env) {
+  const { results } = await env.DB
+    .prepare("SELECT hash, GROUP_CONCAT(key) AS keys FROM media WHERE hash IS NOT NULL GROUP BY hash HAVING COUNT(*) > 1")
+    .all();
+  return results.map((r) => ({ hash: r.hash, keys: r.keys.split(",") }));
 }
 
 export async function deleteMediaMeta(env, key) {

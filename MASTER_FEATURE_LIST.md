@@ -254,7 +254,7 @@ page. Noting where the supporting capability exists vs. doesn't:
 - ☐ Saved searches
 - ✅ Usage tracking showing every placement of an asset
 - 🔶 Bulk upload, move, rename, tag, and delete (bulk upload/move/tag/delete ✅; bulk rename ☐ — R2 keys are content-addressed UUIDs, so "rename" only really applies to the display/alt text, which the info modal already covers per-file)
-- ☐ Duplicate-file detection (would need content hashing at upload time, backfilled for existing files — deferred, see PRODUCTION_TODO.md)
+- ✅ Duplicate-file detection (every upload gets a SHA-256 of its bytes; a "Possible duplicates only" filter and a "Scan for duplicates" backfill button cover files uploaded before this existed; uploading something byte-identical to an existing file surfaces a warning immediately)
 - ☐ Replace assets without breaking existing placements
 - ☐ Media version history
 - ✅ Original-file preservation (uploads aren't destructively modified)

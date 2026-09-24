@@ -201,8 +201,10 @@ CREATE TABLE media (
   caption TEXT,
   credit TEXT,
   license TEXT,
+  hash TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE INDEX idx_media_hash ON media(hash);
 
 CREATE TABLE scans (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

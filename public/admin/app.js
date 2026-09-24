@@ -73,8 +73,7 @@
       const body = await res.json().catch(() => ({}));
       throw new Error(body.error || "Upload failed");
     }
-    const { url } = await res.json();
-    return url;
+    return res.json();
   }
 
   // Fills a field with a URL — either replacing its value (used by single
@@ -103,7 +102,7 @@
       btn.textContent = "Uploading…";
       btn.disabled = true;
       try {
-        const url = await uploadFile(file);
+        const { url } = await uploadFile(file);
         setFieldUrl(targetInput, url, btn.dataset.append === "1");
       } catch (err) {
         alert(err.message);
@@ -2908,9 +2907,11 @@
     const folderFilter = el("media-folder-filter").value;
     const search = el("media-search").value.trim().toLowerCase();
     const unusedOnly = el("media-unused-filter").checked;
+    const duplicatesOnly = el("media-duplicates-filter").checked;
     const filtered = mediaItems.filter((item) => {
       if (folderFilter && item.folder !== folderFilter) return false;
       if (unusedOnly && item.used) return false;
+      if (duplicatesOnly && !item.isDuplicate) return false;
       if (!search) return true;
       const filename = item.key.split("/").pop().toLowerCase();
       return filename.includes(search) || item.tags.some((t) => t.toLowerCase().includes(search));
@@ -2928,6 +2929,8 @@
               item.key
             )}" title="Delete">×</button>${
               item.used ? "" : '<span class="media-unused-badge" title="Not referenced anywhere on the site">Unused</span>'
+            }${
+              item.isDuplicate ? '<span class="media-unused-badge media-duplicate-badge" title="Byte-for-byte identical to another upload">Duplicate</span>' : ""
             }<div class="media-item-bottom"><input type="checkbox" class="media-select-checkbox" data-key="${escapeHtml(
               item.key
             )}"${selectedMediaKeys.has(item.key) ? " checked" : ""}><span class="media-folder-badge">${escapeHtml(
@@ -3062,6 +3065,24 @@
   });
 
   el("media-unused-filter").addEventListener("change", renderMediaGrid);
+  el("media-duplicates-filter").addEventListener("change", renderMediaGrid);
+
+  el("media-scan-duplicates-btn").addEventListener("click", async () => {
+    const btn = el("media-scan-duplicates-btn");
+    const originalText = btn.textContent;
+    btn.textContent = "Scanning…";
+    btn.disabled = true;
+    try {
+      const { hashed } = await api("/media/backfill-hashes", { method: "POST" });
+      await loadMediaLibrary();
+      alert(hashed ? `Hashed ${hashed} file(s). Check "Possible duplicates only" to see matches.` : "Everything was already hashed.");
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      btn.textContent = originalText;
+      btn.disabled = false;
+    }
+  });
 
   el("media-bulk-move-btn").addEventListener("click", async () => {
     const folder = prompt("Move selected files to folder (blank = remove from folder):", "");
@@ -3133,11 +3154,18 @@
     const originalText = btn.textContent;
     btn.disabled = true;
     try {
+      let duplicateCount = 0;
       for (let i = 0; i < files.length; i++) {
         btn.textContent = `Uploading ${i + 1}/${files.length}…`;
-        await uploadFile(files[i], folder);
+        const { duplicateOf } = await uploadFile(files[i], folder);
+        if (duplicateOf) duplicateCount++;
       }
       await loadMediaLibrary();
+      if (duplicateCount) {
+        alert(
+          `${duplicateCount} of ${files.length} file(s) look identical to something already in the library — check "Possible duplicates only" to compare.`
+        );
+      }
     } catch (err) {
       alert(err.message);
     } finally {
