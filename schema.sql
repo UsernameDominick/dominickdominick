@@ -11,7 +11,8 @@ CREATE TABLE pages (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   version INTEGER NOT NULL DEFAULT 1,
-  locked INTEGER NOT NULL DEFAULT 0
+  locked INTEGER NOT NULL DEFAULT 0,
+  sitemap_exclude INTEGER NOT NULL DEFAULT 0
 );
 
 -- A block "definition" that one or more page blocks can point at via
@@ -64,7 +65,8 @@ CREATE TABLE articles (
   pinned INTEGER NOT NULL DEFAULT 0,
   expires_at TEXT,
   correction_note TEXT,
-  tts_audio_key TEXT
+  tts_audio_key TEXT,
+  sitemap_exclude INTEGER NOT NULL DEFAULT 0
 );
 
 -- Projects are a real content type (not just project-card blocks dropped on
@@ -95,7 +97,8 @@ CREATE TABLE projects (
   related_scans TEXT NOT NULL DEFAULT '[]',
   expires_at TEXT,
   correction_note TEXT,
-  tts_audio_key TEXT
+  tts_audio_key TEXT,
+  sitemap_exclude INTEGER NOT NULL DEFAULT 0
 );
 
 -- A project's build journal — dated entries telling the story of building

@@ -622,9 +622,9 @@ async function renderSitemap(env) {
   const projects = await listProjects(env, { publishedOnly: true });
   const tagCounts = await getTagCounts(env);
   const entries = [
-    ...pages.map((p) => ({ loc: p.slug === "home" ? "/" : `/${p.slug}`, lastmod: p.updated_at })),
-    ...articles.map((a) => ({ loc: `/random/${a.slug}`, lastmod: a.updated_at || a.published_at })),
-    ...projects.map((p) => ({ loc: `/projects/${p.slug}`, lastmod: p.updated_at || p.published_at })),
+    ...pages.filter((p) => !p.sitemap_exclude).map((p) => ({ loc: p.slug === "home" ? "/" : `/${p.slug}`, lastmod: p.updated_at })),
+    ...articles.filter((a) => !a.sitemap_exclude).map((a) => ({ loc: `/random/${a.slug}`, lastmod: a.updated_at || a.published_at })),
+    ...projects.filter((p) => !p.sitemap_exclude).map((p) => ({ loc: `/projects/${p.slug}`, lastmod: p.updated_at || p.published_at })),
     { loc: "/topics", lastmod: null },
     { loc: "/archive", lastmod: null },
     ...tagCounts.map((t) => ({ loc: `/topics/${encodeURIComponent(t.tag)}`, lastmod: null })),

@@ -413,6 +413,7 @@
     el("page-nav-order").value = currentPage.nav_order ?? "";
     el("page-og-image").value = currentPage.og_image || "";
     el("page-canonical-url").value = currentPage.canonical_url || "";
+    el("page-sitemap-exclude").checked = !!currentPage.sitemap_exclude;
     el("page-save-status").textContent = "";
     updateLockButton("lock-page-btn", !!currentPage.locked);
     updateFavoriteButton("favorite-page-btn", "page", currentPage.id);
@@ -427,15 +428,21 @@
   // Page settings have no server-side autosave at all (only the explicit
   // Save button), so this local snapshot is the *only* safety net between
   // typing and clicking Save — a bigger gap than articles have.
-  const PAGE_DRAFT_FIELD_IDS = ["page-title", "page-meta", "page-nav-label", "page-nav-order", "page-og-image", "page-canonical-url"];
+  const PAGE_DRAFT_FIELD_IDS = ["page-title", "page-meta", "page-nav-label", "page-nav-order", "page-og-image", "page-canonical-url", "page-sitemap-exclude"];
   function capturePageRawFields() {
     const out = {};
-    for (const id of PAGE_DRAFT_FIELD_IDS) out[id] = el(id).value;
+    for (const id of PAGE_DRAFT_FIELD_IDS) {
+      const input = el(id);
+      out[id] = input.type === "checkbox" ? input.checked : input.value;
+    }
     return out;
   }
   function applyPageRawFields(fields) {
     for (const id of PAGE_DRAFT_FIELD_IDS) {
-      if (id in fields) el(id).value = fields[id];
+      if (!(id in fields)) continue;
+      const input = el(id);
+      if (input.type === "checkbox") input.checked = fields[id];
+      else input.value = fields[id];
     }
     updatePageOgPreview();
   }
@@ -487,6 +494,11 @@
       snapshotPageDraft();
     })
   );
+  el("page-sitemap-exclude").addEventListener("change", () => {
+    unsavedDirty = true;
+    el("page-save-status").textContent = "Unsaved changes…";
+    snapshotPageDraft();
+  });
 
   el("save-page-settings").addEventListener("click", async () => {
     if (!currentPage) return;
@@ -501,6 +513,7 @@
           nav_order: el("page-nav-order").value ? Number(el("page-nav-order").value) : null,
           og_image: el("page-og-image").value || null,
           canonical_url: el("page-canonical-url").value || null,
+          sitemap_exclude: el("page-sitemap-exclude").checked,
           expected_version: currentPage.version,
         }),
       });
@@ -2305,6 +2318,7 @@
     el("article-co-authors").value = (article.co_authors || []).join(", ");
     el("article-featured").checked = !!article.featured;
     el("article-pinned").checked = !!article.pinned;
+    el("article-sitemap-exclude").checked = !!article.sitemap_exclude;
     el("article-og-image").value = article.og_image || "";
     el("article-canonical-url").value = article.canonical_url || "";
     el("article-correction-note").value = article.correction_note || "";
@@ -2329,7 +2343,7 @@
   // turning this back into a save payload when the restored draft is saved.
   const ARTICLE_DRAFT_FIELD_IDS = [
     "article-title", "article-slug", "article-tags", "article-series", "article-series-order",
-    "article-co-authors", "article-featured", "article-pinned", "article-og-image", "article-canonical-url", "article-correction-note", "article-body", "article-published", "article-publish-at",
+    "article-co-authors", "article-featured", "article-pinned", "article-sitemap-exclude", "article-og-image", "article-canonical-url", "article-correction-note", "article-body", "article-published", "article-publish-at",
     "article-expires-at",
   ];
   function captureArticleRawFields() {
@@ -2581,6 +2595,7 @@
     el("article-co-authors").value = "";
     el("article-featured").checked = false;
     el("article-pinned").checked = false;
+    el("article-sitemap-exclude").checked = false;
     el("article-og-image").value = "";
     el("article-canonical-url").value = "";
     el("article-correction-note").value = "";
@@ -2627,6 +2642,7 @@
       co_authors: parseCoAuthors(el("article-co-authors").value),
       featured: el("article-featured").checked,
       pinned: el("article-pinned").checked,
+      sitemap_exclude: el("article-sitemap-exclude").checked,
       og_image: el("article-og-image").value || null,
       canonical_url: el("article-canonical-url").value || null,
       correction_note: el("article-correction-note").value || null,
@@ -2727,7 +2743,7 @@
   ["article-title", "article-tags", "article-series", "article-co-authors", "article-og-image", "article-canonical-url", "article-correction-note", "article-body"].forEach((id) =>
     el(id).addEventListener("input", scheduleAutosave)
   );
-  ["article-slug", "article-published", "article-publish-at", "article-expires-at", "article-series-order", "article-featured", "article-pinned"].forEach((id) =>
+  ["article-slug", "article-published", "article-publish-at", "article-expires-at", "article-series-order", "article-featured", "article-pinned", "article-sitemap-exclude"].forEach((id) =>
     el(id).addEventListener("change", scheduleAutosave)
   );
 
@@ -2894,6 +2910,7 @@
     el("project-tech-stack").value = (project.tech_stack || []).join(", ");
     el("project-status").value = project.status || "";
     el("project-featured").checked = !!project.featured;
+    el("project-sitemap-exclude").checked = !!project.sitemap_exclude;
     const links = project.links || {};
     el("project-link-github").value = links.github || "";
     el("project-link-demo").value = links.demo || "";
@@ -2939,6 +2956,7 @@
     el("project-tech-stack").value = "";
     el("project-status").value = "";
     el("project-featured").checked = false;
+    el("project-sitemap-exclude").checked = false;
     el("project-link-github").value = "";
     el("project-link-demo").value = "";
     el("project-link-docs").value = "";
@@ -3010,6 +3028,7 @@
       tech_stack: el("project-tech-stack").value.split(",").map((s) => s.trim()).filter(Boolean),
       status: el("project-status").value.trim() || null,
       featured: el("project-featured").checked,
+      sitemap_exclude: el("project-sitemap-exclude").checked,
       links,
       og_image: el("project-og-image").value || null,
       canonical_url: el("project-canonical-url").value || null,

@@ -112,6 +112,7 @@
           <button type="button" class="upload-trigger" data-target="#page-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#page-og-image">Browse…</button>
         </label>
         <label>Canonical URL override (optional — blank = auto)<input id="page-canonical-url" type="text" spellcheck="false" placeholder="https://..."></label>
+        <label><input type="checkbox" id="page-sitemap-exclude"> Exclude from sitemap.xml</label>
         <div class="og-preview-label">Share preview</div>
         <div class="og-preview" id="og-preview-page">
           <div class="og-preview-img" id="og-preview-page-img"></div>
@@ -198,6 +199,7 @@
           <div class="article-flags-row">
             <label><input type="checkbox" id="article-featured"> Featured</label>
             <label><input type="checkbox" id="article-pinned"> Pinned to top</label>
+            <label><input type="checkbox" id="article-sitemap-exclude"> Exclude from sitemap.xml</label>
           </div>
           <div class="input-with-upload">
             <input id="article-og-image" placeholder="Share image URL (og:image, blank = site default)" spellcheck="false">
@@ -296,6 +298,7 @@
           <div class="article-series-row">
             <input id="project-status" placeholder="Status (e.g. In progress, Completed, Archived)">
             <label class="project-featured-label"><input type="checkbox" id="project-featured"> Featured</label>
+            <label class="project-featured-label"><input type="checkbox" id="project-sitemap-exclude"> Exclude from sitemap.xml</label>
           </div>
           <div class="project-links-row">
             <input id="project-link-github" placeholder="GitHub URL">

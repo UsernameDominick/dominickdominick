@@ -65,6 +65,10 @@ export async function updatePage(env, id, fields) {
     cols.push("locked = ?");
     vals.push(fields.locked ? 1 : 0);
   }
+  if ("sitemap_exclude" in fields) {
+    cols.push("sitemap_exclude = ?");
+    vals.push(fields.sitemap_exclude ? 1 : 0);
+  }
   if (!cols.length) return;
   cols.push("updated_at = datetime('now')", "version = version + 1");
   vals.push(id);
@@ -496,6 +500,10 @@ export async function updateArticle(env, id, fields) {
     cols.push("pinned = ?");
     vals.push(fields.pinned ? 1 : 0);
   }
+  if ("sitemap_exclude" in fields) {
+    cols.push("sitemap_exclude = ?");
+    vals.push(fields.sitemap_exclude ? 1 : 0);
+  }
   if (!cols.length) return;
   cols.push("updated_at = datetime('now')", "version = version + 1");
   vals.push(id);
@@ -785,6 +793,10 @@ export async function updateProject(env, id, fields) {
   if ("related_scans" in fields) {
     cols.push("related_scans = ?");
     vals.push(JSON.stringify(Array.isArray(fields.related_scans) ? fields.related_scans : []));
+  }
+  if ("sitemap_exclude" in fields) {
+    cols.push("sitemap_exclude = ?");
+    vals.push(fields.sitemap_exclude ? 1 : 0);
   }
   if (!cols.length) return;
   cols.push("updated_at = datetime('now')", "version = version + 1");

@@ -608,7 +608,11 @@ Contact form, admin inbox, guestbook/comments, moderation, newsletter —
 - ✅ Per-page title/description, canonical URL (auto + optional override), noindex controls
 - 🔶 Social-share image editor (upload/browse ✅; crop/preview editor ☐)
 - ✅ Social-share previews (pages/articles/projects)
-- 🔶 Sitemap (auto ✅; admin include/exclude ☐); 🔶 structured data (JSON-LD auto ✅; admin-customizable ☐)
+- ✅ Sitemap (auto; admin include/exclude — `sitemap_exclude` column on
+  pages/articles/projects, a checkbox in each editor, filtered out of
+  `renderSitemap()` but the page/article/project itself stays fully
+  live — this only removes it from the sitemap, doesn't unpublish it);
+  🔶 structured data (JSON-LD auto ✅; admin-customizable ☐)
 - ☐ Internal-link suggestions, orphan-page detection (real design work — needs walking every internal-link-holding block type + list-limit truncation, not done, see notes below), automatic redirect suggestions after URL changes
 - 🔶 Link monitoring (on-demand Link Checker ✅; scheduled/ongoing ☐)
 - 🔶 Missing-metadata reports (SEO Report covers meta description + alt text; not every field)
@@ -779,6 +783,9 @@ CREATE TABLE songs (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+ALTER TABLE pages ADD COLUMN sitemap_exclude INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE articles ADD COLUMN sitemap_exclude INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE projects ADD COLUMN sitemap_exclude INTEGER NOT NULL DEFAULT 0;
 ```
 
 After this lands, run `POST /api/admin/media/backfill-hashes` once
