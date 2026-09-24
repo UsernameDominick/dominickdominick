@@ -279,6 +279,19 @@ export function renderRelatedArticlesHtml(articles) {
   return `<div class="related-posts"><strong>More to read</strong><div class="thought-list">${items}</div></div>`;
 }
 
+export function renderRelatedProjectsHtml(projects) {
+  if (!projects || !projects.length) return "";
+  const items = projects
+    .map(
+      (p) =>
+        `<div class="project-card"><h2><a href="/projects/${esc(p.slug)}">${esc(p.title)}</a></h2>${
+          p.summary ? `<p>${esc(p.summary)}</p>` : ""
+        }${renderTags(p.tags)}</div>`
+    )
+    .join("\n");
+  return `<div class="related-posts"><strong>Related projects</strong><div class="project-list">${items}</div></div>`;
+}
+
 export function renderNotFoundHtml(navItems) {
   const links = navItems
     .map((n) => `<li><a href="${n.slug === "home" ? "/" : "/" + esc(n.slug)}">${esc(n.nav_label)}</a></li>`)

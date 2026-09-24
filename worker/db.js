@@ -1328,6 +1328,19 @@ export async function getRelatedArticles(env, article, limit = 3) {
   return others.slice(0, limit);
 }
 
+export async function getRelatedProjects(env, project, limit = 3) {
+  const candidates = await listProjects(env, { publishedOnly: true });
+  const others = candidates.filter((p) => p.id !== project.id);
+  if (!project.tags || !project.tags.length) return others.slice(0, limit);
+  const scored = others
+    .map((p) => ({ p, score: p.tags.filter((t) => project.tags.includes(t)).length }))
+    .sort((x, y) => y.score - x.score);
+  if (scored[0] && scored[0].score > 0) {
+    return scored.filter((s) => s.score > 0).slice(0, limit).map((s) => s.p);
+  }
+  return others.slice(0, limit);
+}
+
 export async function getSetting(env, key) {
   const row = await env.DB.prepare("SELECT value FROM settings WHERE key = ?").bind(key).first();
   return row ? row.value : null;

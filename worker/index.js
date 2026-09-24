@@ -6,6 +6,7 @@ import {
   listArticles,
   getArticleBySlug,
   getProjectBySlug,
+  getRelatedProjects,
   getSetting,
   recordPageview,
   getRedirect,
@@ -35,6 +36,7 @@ import {
   renderNotFoundHtml,
   renderByline,
   renderSeriesNavHtml,
+  renderRelatedProjectsHtml,
 } from "./render.js";
 import { handleAdminApi } from "./admin-api.js";
 import { renderSimulationSvg } from "./simulation-render.js";
@@ -184,6 +186,8 @@ async function renderProject(env, project, navItems) {
   const techStackHtml = project.tech_stack && project.tech_stack.length
     ? `<div class="tags">${project.tech_stack.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>`
     : "";
+  const related = await getRelatedProjects(env, project);
+  const relatedHtml = renderRelatedProjectsHtml(related);
 
   const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 4;">
     <div class="article-meta">
@@ -199,7 +203,8 @@ async function renderProject(env, project, navItems) {
   </div>
   <div class="block" style="grid-column:1 / span 24;grid-row:6 / span 12;">
     ${paragraphsHtml(project.body)}
-  </div>`;
+  </div>
+  ${relatedHtml ? `<div class="block" style="grid-column:1 / span 24;grid-row:19 / span 6;">${relatedHtml}</div>` : ""}`;
 
   const jsonLd = {
     "@context": "https://schema.org",
