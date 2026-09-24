@@ -2022,6 +2022,67 @@
   }
   el("article-body").addEventListener("input", updateWordCount);
 
+  // ---------- Markdown formatting toolbar ----------
+  // Only covers syntax paragraphsHtml() in worker/render.js actually
+  // renders (bold/italic/link/##/###/code fence) — no list or blockquote
+  // buttons, since that markdown-lite parser doesn't support either.
+  function wrapSelection(textarea, before, after, placeholder) {
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const value = textarea.value;
+    const selected = value.slice(start, end) || placeholder;
+    textarea.value = value.slice(0, start) + before + selected + after + value.slice(end);
+    const newStart = start + before.length;
+    textarea.focus();
+    textarea.setSelectionRange(newStart, newStart + selected.length);
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  function prefixCurrentLine(textarea, prefix) {
+    const start = textarea.selectionStart;
+    const value = textarea.value;
+    const lineStart = value.lastIndexOf("\n", start - 1) + 1;
+    const nextBreak = value.indexOf("\n", start);
+    const lineEnd = nextBreak === -1 ? value.length : nextBreak;
+    const line = value.slice(lineStart, lineEnd);
+    const stripped = line.replace(/^#{2,3}\s*/, "");
+    const newLine = prefix + stripped;
+    textarea.value = value.slice(0, lineStart) + newLine + value.slice(lineEnd);
+    const delta = newLine.length - line.length;
+    textarea.focus();
+    textarea.setSelectionRange(start + delta, start + delta);
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  document.querySelectorAll(".md-toolbar-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const textarea = el("article-body");
+      switch (btn.dataset.md) {
+        case "bold":
+          wrapSelection(textarea, "**", "**", "bold text");
+          break;
+        case "italic":
+          wrapSelection(textarea, "*", "*", "italic text");
+          break;
+        case "link": {
+          const url = prompt("Link URL:", "https://");
+          if (url === null) return;
+          wrapSelection(textarea, "[", `](${url})`, "link text");
+          break;
+        }
+        case "h2":
+          prefixCurrentLine(textarea, "## ");
+          break;
+        case "h3":
+          prefixCurrentLine(textarea, "### ");
+          break;
+        case "code":
+          wrapSelection(textarea, "```\n", "\n```", "code here");
+          break;
+      }
+    });
+  });
+
   function clearArticleForm() {
     clearTimeout(autosaveTimer);
     setAutosaveStatus("");

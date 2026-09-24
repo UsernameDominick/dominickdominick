@@ -485,6 +485,23 @@
   margin-top: -6px;
 }
 
+.md-toolbar {
+  display: flex;
+  gap: 4px;
+  margin-bottom: -8px;
+}
+
+.md-toolbar-btn {
+  width: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px 6px 0 0;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
 .article-autosave-status {
   font-size: 0.78rem;
   color: var(--text-dim);
