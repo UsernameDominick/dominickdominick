@@ -44,6 +44,9 @@ import {
   logWebhookDelivery,
   listWebhookDeliveries,
   getWebhookDelivery,
+  createPreviewLink,
+  listPreviewLinks,
+  revokePreviewLink,
   setSetting,
   getAnalytics,
   exportAll,
@@ -970,6 +973,32 @@ async function routeAdminApi(request, env, url, ctx) {
   // missing alt text, across the whole site.
   if (path === "/seo-report" && method === "GET") {
     return json(await getSeoReport(env));
+  }
+
+  // /preview-links — shareable, expiring, revocable links that let someone
+  // without an admin login view an unpublished article/project.
+  if (path === "/preview-links" && method === "GET") {
+    const contentType = url.searchParams.get("contentType");
+    const contentId = Number(url.searchParams.get("contentId"));
+    if (!["article", "project"].includes(contentType) || !Number.isFinite(contentId)) {
+      return json({ error: "Invalid content" }, { status: 400 });
+    }
+    return json(await listPreviewLinks(env, contentType, contentId));
+  }
+  if (path === "/preview-links" && method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    if (!["article", "project"].includes(body.contentType) || !Number.isFinite(Number(body.contentId))) {
+      return json({ error: "Invalid content" }, { status: 400 });
+    }
+    const hours = Number.isFinite(Number(body.hours)) ? Number(body.hours) : 24 * 7;
+    const link = await createPreviewLink(env, body.contentType, Number(body.contentId), hours);
+    log(ctx, env, "create", "preview-link", `${body.contentType} #${body.contentId}`);
+    return json(link);
+  }
+  const previewLinkRevokeMatch = path.match(/^\/preview-links\/(\d+)\/revoke$/);
+  if (previewLinkRevokeMatch && method === "POST") {
+    await revokePreviewLink(env, Number(previewLinkRevokeMatch[1]));
+    return json({ ok: true });
   }
 
   if (path === "/webhook-deliveries" && method === "GET") {

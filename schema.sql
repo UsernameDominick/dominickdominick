@@ -207,6 +207,21 @@ CREATE TABLE reactions (
 );
 CREATE INDEX idx_reactions_content ON reactions(content_type, content_id);
 
+-- A shareable link that lets someone view an unpublished article/project
+-- without being logged in as admin — expires on its own, and can be
+-- revoked early without touching the content itself.
+CREATE TABLE preview_links (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  content_type TEXT NOT NULL,
+  content_id INTEGER NOT NULL,
+  token TEXT UNIQUE NOT NULL,
+  expires_at TEXT NOT NULL,
+  revoked_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_preview_links_token ON preview_links(token);
+CREATE INDEX idx_preview_links_content ON preview_links(content_type, content_id);
+
 CREATE TABLE rate_limits (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   bucket TEXT NOT NULL,

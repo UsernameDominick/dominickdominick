@@ -25,6 +25,7 @@ import {
   recordRateLimitHit,
   addReaction,
   getReactionCounts,
+  getValidPreviewLink,
   runScheduledBackup,
   getTagCounts,
   getArchive,
@@ -857,7 +858,10 @@ async function route(request, env, ctx) {
       const article = await getArticleBySlug(env, articleMatch[1]);
       const now = new Date().toISOString();
       const isPublished = article && article.published_at && article.published_at <= now && (!article.expires_at || article.expires_at > now);
-      const isPreview = url.searchParams.get("preview") === "1" && (await isAuthenticated(request, env));
+      const isAdminPreview = url.searchParams.get("preview") === "1" && (await isAuthenticated(request, env));
+      const previewToken = url.searchParams.get("preview_token");
+      const isSharedPreview = article && previewToken && (await getValidPreviewLink(env, "article", article.id, previewToken));
+      const isPreview = isAdminPreview || isSharedPreview;
       if (!article || (!isPublished && !isPreview)) {
         return env.ASSETS.fetch(request);
       }
@@ -872,7 +876,10 @@ async function route(request, env, ctx) {
       const project = await getProjectBySlug(env, projectMatch[1]);
       const now = new Date().toISOString();
       const isPublished = project && project.published_at && project.published_at <= now && (!project.expires_at || project.expires_at > now);
-      const isPreview = url.searchParams.get("preview") === "1" && (await isAuthenticated(request, env));
+      const isAdminPreview = url.searchParams.get("preview") === "1" && (await isAuthenticated(request, env));
+      const previewToken = url.searchParams.get("preview_token");
+      const isSharedPreview = project && previewToken && (await getValidPreviewLink(env, "project", project.id, previewToken));
+      const isPreview = isAdminPreview || isSharedPreview;
       if (!project || (!isPublished && !isPreview)) {
         return env.ASSETS.fetch(request);
       }

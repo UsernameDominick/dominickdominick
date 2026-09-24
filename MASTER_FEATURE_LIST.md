@@ -171,7 +171,7 @@ health-check pass, done before this master list existed.
 - 🔶 Inventory of stale, empty, and unfinished pages (the new layout-diagnostics panel flags empty blocks per-page; no site-wide stale-content report)
 - 🔶 Full-site preview including drafts, navigation, and linked draft content (per-item `?preview=1` ✅; a full-site draft-inclusive preview mode ☐)
 - ☐ Future-date preview for scheduled changes
-- ☐ Expiring and revocable draft-preview links (preview requires being logged in as admin, not a shareable link)
+- ✅ Expiring and revocable draft-preview links ("Share preview link…" on the article/project editor generates a token-based `?preview_token=` URL, valid 1/7/30 days, viewable without an admin login, revocable early — the admin-login `?preview=1` link still works too)
 - ✅ Warnings for links to unpublished content or missing assets (the Link Checker now resolves an internal link's actual publish state — draft/expired links report "Not published"/"Expired" instead of silently passing as OK; also fixed two real gaps found while building this: project links were never validated at all — always "Not found" even when correct — and project bodies/journal entries/links blocks/a project's own github-demo-docs-download links were never scanned for links in the first place)
 - ☐ Publish related pages, navigation changes, and updates as one package
 - ☐ Roll back an entire publishing package

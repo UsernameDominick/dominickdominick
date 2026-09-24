@@ -1790,6 +1790,39 @@ export async function getReactionCounts(env, contentType, contentId) {
   return counts;
 }
 
+export async function createPreviewLink(env, contentType, contentId, hours) {
+  const token = crypto.randomUUID().replace(/-/g, "");
+  const expiresAt = new Date(Date.now() + Math.max(1, hours) * 3600 * 1000).toISOString();
+  await env.DB
+    .prepare("INSERT INTO preview_links (content_type, content_id, token, expires_at) VALUES (?, ?, ?, ?)")
+    .bind(contentType, contentId, token, expiresAt)
+    .run();
+  return { token, expires_at: expiresAt };
+}
+
+export async function listPreviewLinks(env, contentType, contentId) {
+  const { results } = await env.DB
+    .prepare("SELECT * FROM preview_links WHERE content_type = ? AND content_id = ? ORDER BY created_at DESC")
+    .bind(contentType, contentId)
+    .all();
+  return results;
+}
+
+export async function revokePreviewLink(env, id) {
+  await env.DB.prepare("UPDATE preview_links SET revoked_at = datetime('now') WHERE id = ?").bind(id).run();
+}
+
+export async function getValidPreviewLink(env, contentType, contentId, token) {
+  if (!token) return null;
+  // expires_at is a JS-generated ISO string (like articles/projects.expires_at
+  // elsewhere in this file), not a SQLite datetime('now') value — those two
+  // formats don't compare correctly against each other as plain strings.
+  return env.DB
+    .prepare("SELECT * FROM preview_links WHERE content_type = ? AND content_id = ? AND token = ? AND revoked_at IS NULL AND expires_at > ?")
+    .bind(contentType, contentId, token, new Date().toISOString())
+    .first();
+}
+
 export async function getSetting(env, key) {
   const row = await env.DB.prepare("SELECT value FROM settings WHERE key = ?").bind(key).first();
   return row ? row.value : null;

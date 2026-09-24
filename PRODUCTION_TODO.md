@@ -60,6 +60,17 @@ CREATE INDEX idx_reactions_content ON reactions(content_type, content_id);
 ALTER TABLE pages ADD COLUMN canonical_url TEXT;
 ALTER TABLE articles ADD COLUMN canonical_url TEXT;
 ALTER TABLE projects ADD COLUMN canonical_url TEXT;
+CREATE TABLE preview_links (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  content_type TEXT NOT NULL,
+  content_id INTEGER NOT NULL,
+  token TEXT UNIQUE NOT NULL,
+  expires_at TEXT NOT NULL,
+  revoked_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_preview_links_token ON preview_links(token);
+CREATE INDEX idx_preview_links_content ON preview_links(content_type, content_id);
 ```
 
 After this migration lands, run `POST /api/admin/media/backfill-hashes`

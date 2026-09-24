@@ -2202,9 +2202,12 @@
       previewLink.href = `/random/${slug}?preview=1`;
       previewLink.hidden = false;
       historyBtn.hidden = false;
+      el("share-preview-article-btn").hidden = false;
     } else {
       previewLink.hidden = true;
       historyBtn.hidden = true;
+      el("share-preview-article-btn").hidden = true;
+      el("preview-links-panel-article").hidden = true;
     }
     updateWordCount();
     updateArticleOgPreview();
@@ -2762,8 +2765,11 @@
     if (currentProjectId && slug) {
       previewLink.href = `/projects/${slug}?preview=1`;
       previewLink.hidden = false;
+      el("share-preview-project-btn").hidden = false;
     } else {
       previewLink.hidden = true;
+      el("share-preview-project-btn").hidden = true;
+      el("preview-links-panel-project").hidden = true;
     }
     updateProjectOgPreview();
     updateProjectChecklist();
@@ -3691,6 +3697,79 @@
   el("load-activity-btn").addEventListener("click", () => loadActivityLog().catch((err) => alert(err.message)));
 
   // ---------- Webhook delivery history ----------
+  // ---------- Shareable preview links ----------
+  function previewLinkUrl(kind, slug, token) {
+    const path = kind === "article" ? `/random/${slug}` : `/projects/${slug}`;
+    return `${location.origin}${path}?preview_token=${token}`;
+  }
+
+  function wirePreviewLinks(kind, getId, getSlug) {
+    const listEl = el(`preview-links-list-${kind}`);
+    async function loadList() {
+      const id = getId();
+      if (!id) {
+        listEl.innerHTML = "";
+        return;
+      }
+      try {
+        const links = await api(`/preview-links?contentType=${kind}&contentId=${id}`);
+        listEl.innerHTML = links.length
+          ? links
+              .map((l) => {
+                const active = !l.revoked_at && new Date(l.expires_at) > new Date();
+                const url = previewLinkUrl(kind, getSlug(), l.token);
+                const status = active ? "Active" : l.revoked_at ? "Revoked" : "Expired";
+                return `<div class="preview-link-row"><span class="preview-link-status">${status}</span>${
+                  active
+                    ? `<span class="preview-link-url">${escapeHtml(url)}</span> <button type="button" class="copy-preview-link-btn" data-url="${escapeHtml(
+                        url
+                      )}">Copy</button> <button type="button" class="revoke-preview-link-btn" data-id="${l.id}">Revoke</button>`
+                    : `<span class="preview-link-url">${escapeHtml(url)}</span>`
+                }</div>`;
+              })
+              .join("")
+          : "<p style='color:var(--text-dim);font-size:0.85rem;'>No preview links yet.</p>";
+        listEl.querySelectorAll(".revoke-preview-link-btn").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            await api(`/preview-links/${btn.dataset.id}/revoke`, { method: "POST" });
+            loadList();
+          });
+        });
+        listEl.querySelectorAll(".copy-preview-link-btn").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            navigator.clipboard
+              .writeText(btn.dataset.url)
+              .then(() => {
+                btn.textContent = "Copied!";
+                setTimeout(() => (btn.textContent = "Copy"), 1500);
+              })
+              .catch(() => {});
+          });
+        });
+      } catch (err) {
+        listEl.innerHTML = "";
+      }
+    }
+    el(`share-preview-${kind}-btn`).addEventListener("click", () => {
+      const panel = el(`preview-links-panel-${kind}`);
+      panel.hidden = !panel.hidden;
+      if (!panel.hidden) loadList();
+    });
+    el(`create-preview-link-${kind}-btn`).addEventListener("click", async () => {
+      const id = getId();
+      if (!id) return;
+      const hours = Number(el(`preview-link-hours-${kind}`).value);
+      try {
+        await api("/preview-links", { method: "POST", body: JSON.stringify({ contentType: kind, contentId: id, hours }) });
+        loadList();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  }
+  wirePreviewLinks("article", () => currentArticleId, () => el("article-slug").value);
+  wirePreviewLinks("project", () => currentProjectId, () => el("project-slug").value);
+
   async function loadWebhookDeliveries() {
     const items = await api("/webhook-deliveries");
     el("webhook-deliveries-list").innerHTML =

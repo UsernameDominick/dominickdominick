@@ -2167,6 +2167,43 @@ kbd {
   border-color: rgba(232, 90, 90, 0.5);
 }
 
+.preview-links-panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 8px;
+}
+
+.preview-links-list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.preview-link-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.preview-link-status {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+
+.preview-link-url {
+  word-break: break-all;
+  color: var(--text-dim);
+}
+
 .link-check-url {
   flex: 1;
   min-width: 0;

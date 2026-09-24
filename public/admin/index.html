@@ -215,6 +215,7 @@
             <label>Publish at (blank = immediately)<input type="datetime-local" id="article-publish-at"></label>
             <label>Expires at (blank = never)<input type="datetime-local" id="article-expires-at" title="Automatically unpublishes at this time — the article isn't deleted, just drops out of listings and the direct URL"></label>
             <a id="preview-article-link" href="#" target="_blank" class="preview-link" hidden>Preview ↗</a>
+            <button type="button" id="share-preview-article-btn" hidden>Share preview link…</button>
             <button id="article-history-btn" type="button" hidden>History</button>
             <button id="save-article">Save</button>
             <button id="new-article">New</button>
@@ -225,6 +226,17 @@
             <button type="button" id="lock-article-btn" title="Locking protects this article from bulk publish/unpublish/trash and global find-replace — it doesn't affect editing it directly">Lock</button>
             <button type="button" id="favorite-article-btn" title="Pin to the top of the command palette">☆ Pin</button>
             <button id="delete-article" class="danger">Delete</button>
+          </div>
+          <div id="preview-links-panel-article" class="preview-links-panel" hidden>
+            <label>Link valid for
+              <select id="preview-link-hours-article">
+                <option value="24">1 day</option>
+                <option value="168" selected>7 days</option>
+                <option value="720">30 days</option>
+              </select>
+            </label>
+            <button type="button" id="create-preview-link-article-btn">Create link</button>
+            <div id="preview-links-list-article" class="preview-links-list"></div>
           </div>
         </div>
       </div>
@@ -302,6 +314,7 @@
             <label>Publish at (blank = immediately)<input type="datetime-local" id="project-publish-at"></label>
             <label>Expires at (blank = never)<input type="datetime-local" id="project-expires-at" title="Automatically unpublishes at this time — the project isn't deleted, just drops out of listings and the direct URL"></label>
             <a id="preview-project-link" href="#" target="_blank" class="preview-link" hidden>Preview ↗</a>
+            <button type="button" id="share-preview-project-btn" hidden>Share preview link…</button>
             <button id="save-project">Save</button>
             <button id="new-project">New</button>
             <select id="project-template-picker" title="Fill a new project's body/summary/tech-stack/status from a saved template">
@@ -311,6 +324,17 @@
             <button type="button" id="lock-project-btn" title="Locking protects this project from accidental deletion — it doesn't affect editing it directly">Lock</button>
             <button type="button" id="favorite-project-btn" title="Pin to the top of the command palette">☆ Pin</button>
             <button id="delete-project" class="danger">Delete</button>
+          </div>
+          <div id="preview-links-panel-project" class="preview-links-panel" hidden>
+            <label>Link valid for
+              <select id="preview-link-hours-project">
+                <option value="24">1 day</option>
+                <option value="168" selected>7 days</option>
+                <option value="720">30 days</option>
+              </select>
+            </label>
+            <button type="button" id="create-preview-link-project-btn">Create link</button>
+            <div id="preview-links-list-project" class="preview-links-list"></div>
           </div>
           <div id="journal-section" hidden>
             <h2>Build Journal</h2>
