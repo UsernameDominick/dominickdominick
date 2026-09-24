@@ -2868,6 +2868,14 @@ kbd {
   margin: 24px 0 10px;
 }
 
+.analytics-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
 .analytics-tiles {
   display: grid;
   grid-template-columns: repeat(5, 1fr);

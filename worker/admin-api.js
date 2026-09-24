@@ -1285,7 +1285,12 @@ async function routeAdminApi(request, env, url, ctx) {
   // /analytics
   if (path === "/analytics" && method === "GET") {
     const days = Number(url.searchParams.get("days")) || 7;
-    return json(await getAnalytics(env, Math.min(Math.max(days, 1), 90)));
+    const filters = {
+      device: url.searchParams.get("device") || null,
+      referrer: url.searchParams.get("referrer") || null,
+      contentType: url.searchParams.get("contentType") || null,
+    };
+    return json(await getAnalytics(env, Math.min(Math.max(days, 1), 90), filters));
   }
 
   // /settings — SETTINGS_KEYS is the single source of truth for which keys

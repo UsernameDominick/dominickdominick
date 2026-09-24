@@ -5022,10 +5022,44 @@
   // ---------- Analytics ----------
   let analyticsRange = 7;
   let lastAnalyticsData = null;
+  let analyticsFilterOptionsLoaded = false;
+
+  function currentAnalyticsFilters() {
+    return {
+      contentType: el("analytics-filter-content-type").value,
+      device: el("analytics-filter-device").value,
+      referrer: el("analytics-filter-referrer").value,
+    };
+  }
+
+  function analyticsFilterQuery() {
+    const { contentType, device, referrer } = currentAnalyticsFilters();
+    const params = new URLSearchParams({ days: String(analyticsRange) });
+    if (contentType) params.set("contentType", contentType);
+    if (device) params.set("device", device);
+    if (referrer) params.set("referrer", referrer);
+    return params.toString();
+  }
 
   async function loadAnalytics() {
-    const data = await api(`/analytics?days=${analyticsRange}`);
+    const data = await api(`/analytics?${analyticsFilterQuery()}`);
     lastAnalyticsData = data;
+    // Populated once, from the first (unfiltered) load — so the dropdown
+    // keeps every known device/referrer as an option even after filtering
+    // narrows the numbers down to just one of them.
+    if (!analyticsFilterOptionsLoaded) {
+      analyticsFilterOptionsLoaded = true;
+      const deviceSel = el("analytics-filter-device");
+      deviceSel.innerHTML = `<option value="">All devices</option>${data.topDevices
+        .map((d) => `<option value="${escapeHtml(d.device)}">${escapeHtml(d.device)}</option>`)
+        .join("")}`;
+      const referrerSel = el("analytics-filter-referrer");
+      referrerSel.innerHTML = `<option value="">All referrers</option>${data.topReferrers
+        .map((r) => `<option value="${escapeHtml(r.referrer)}">${escapeHtml(r.referrer)}</option>`)
+        .join("")}`;
+    }
+    const { contentType, device, referrer } = currentAnalyticsFilters();
+    el("analytics-clear-filters").hidden = !(contentType || device || referrer);
     el("stat-active").textContent = data.activeNow;
     el("stat-today").textContent = data.today;
     el("stat-7d").textContent = data.last7;
@@ -5063,6 +5097,16 @@
     await loadAnalytics();
   });
   closeModalOnClick("close-analytics", "analytics-modal");
+
+  ["analytics-filter-content-type", "analytics-filter-device", "analytics-filter-referrer"].forEach((id) =>
+    el(id).addEventListener("change", loadAnalytics)
+  );
+  el("analytics-clear-filters").addEventListener("click", async () => {
+    el("analytics-filter-content-type").value = "";
+    el("analytics-filter-device").value = "";
+    el("analytics-filter-referrer").value = "";
+    await loadAnalytics();
+  });
 
   // Builds one CSV with a section per breakdown, rather than a single flat
   // table — the shapes (day/count, path/count, referrer/count) don't share

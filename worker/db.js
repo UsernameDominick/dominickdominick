@@ -2046,8 +2046,32 @@ export function parseUserAgent(ua) {
   return { device, browser };
 }
 
-export async function getAnalytics(env, days = 7) {
+// contentType maps to a path prefix: "article" -> /random/, "project" ->
+// /projects/, "page" -> neither of those (everything else — pages, home,
+// topics, archive). device/referrer match the pageviews columns exactly
+// (the same values the top-devices/top-referrers lists already show, so
+// the dashboard's filter dropdowns are just populated from those lists).
+function buildPageviewFilter({ device, referrer, contentType } = {}) {
+  const clauses = [];
+  const binds = [];
+  if (device) {
+    clauses.push(device === "?" ? "device IS NULL" : "device = ?");
+    if (device !== "?") binds.push(device);
+  }
+  if (referrer) {
+    clauses.push(referrer === "(direct)" ? "referrer IS NULL" : "referrer = ?");
+    if (referrer !== "(direct)") binds.push(referrer);
+  }
+  if (contentType === "article") clauses.push("path LIKE '/random/%'");
+  else if (contentType === "project") clauses.push("path LIKE '/projects/%'");
+  else if (contentType === "page") clauses.push("path NOT LIKE '/random/%' AND path NOT LIKE '/projects/%'");
+  return { sql: clauses.length ? `AND ${clauses.join(" AND ")}` : "", binds };
+}
+
+export async function getAnalytics(env, days = 7, filters = {}) {
   const since = `datetime('now', '-${Math.max(1, Math.floor(days))} days')`;
+  const { sql: filterSql, binds: filterBinds } = buildPageviewFilter(filters);
+  const isFiltered = !!filterSql;
 
   const [
     totalsRow,
@@ -2062,49 +2086,67 @@ export async function getAnalytics(env, days = 7) {
     topOutboundLinks,
     topDownloads,
   ] = await Promise.all([
-    env.DB.prepare(
-      `SELECT
-         (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-5 minutes')) AS activeNow,
-         (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-1 days')) AS today,
-         (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-7 days')) AS last7,
-         (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-30 days')) AS last30,
-         (SELECT COUNT(*) FROM pageviews) AS allTime`
-    ).first(),
+    isFiltered
+      ? env.DB
+          .prepare(
+            `SELECT
+               (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-5 minutes') ${filterSql}) AS activeNow,
+               (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-1 days') ${filterSql}) AS today,
+               (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-7 days') ${filterSql}) AS last7,
+               (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-30 days') ${filterSql}) AS last30,
+               (SELECT COUNT(*) FROM pageviews WHERE 1=1 ${filterSql}) AS allTime`
+          )
+          .bind(...filterBinds, ...filterBinds, ...filterBinds, ...filterBinds, ...filterBinds)
+          .first()
+      : env.DB.prepare(
+          `SELECT
+             (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-5 minutes')) AS activeNow,
+             (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-1 days')) AS today,
+             (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-7 days')) AS last7,
+             (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-30 days')) AS last30,
+             (SELECT COUNT(*) FROM pageviews) AS allTime`
+        ).first(),
     env.DB
       .prepare(
         `SELECT date(created_at) AS day, COUNT(*) AS n FROM pageviews
-         WHERE created_at > ${since} GROUP BY day ORDER BY day ASC`
+         WHERE created_at > ${since} ${filterSql} GROUP BY day ORDER BY day ASC`
       )
+      .bind(...filterBinds)
       .all(),
     env.DB
       .prepare(
         `SELECT path, COUNT(*) AS n FROM pageviews
-         WHERE created_at > ${since} GROUP BY path ORDER BY n DESC LIMIT 10`
+         WHERE created_at > ${since} ${filterSql} GROUP BY path ORDER BY n DESC LIMIT 10`
       )
+      .bind(...filterBinds)
       .all(),
     env.DB
       .prepare(
         `SELECT COALESCE(referrer, '(direct)') AS referrer, COUNT(*) AS n FROM pageviews
-         WHERE created_at > ${since} GROUP BY referrer ORDER BY n DESC LIMIT 10`
+         WHERE created_at > ${since} ${filterSql} GROUP BY referrer ORDER BY n DESC LIMIT 10`
       )
+      .bind(...filterBinds)
       .all(),
     env.DB
       .prepare(
         `SELECT COALESCE(country, '?') AS country, COUNT(*) AS n FROM pageviews
-         WHERE created_at > ${since} GROUP BY country ORDER BY n DESC LIMIT 10`
+         WHERE created_at > ${since} ${filterSql} GROUP BY country ORDER BY n DESC LIMIT 10`
       )
+      .bind(...filterBinds)
       .all(),
     env.DB
       .prepare(
         `SELECT COALESCE(device, '?') AS device, COUNT(*) AS n FROM pageviews
-         WHERE created_at > ${since} GROUP BY device ORDER BY n DESC LIMIT 10`
+         WHERE created_at > ${since} ${filterSql} GROUP BY device ORDER BY n DESC LIMIT 10`
       )
+      .bind(...filterBinds)
       .all(),
     env.DB
       .prepare(
         `SELECT COALESCE(browser, '?') AS browser, COUNT(*) AS n FROM pageviews
-         WHERE created_at > ${since} GROUP BY browser ORDER BY n DESC LIMIT 10`
+         WHERE created_at > ${since} ${filterSql} GROUP BY browser ORDER BY n DESC LIMIT 10`
       )
+      .bind(...filterBinds)
       .all(),
     getEventCounts(env, days),
     getSearchInsights(env, days),

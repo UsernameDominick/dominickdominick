@@ -744,7 +744,14 @@ Contact form, admin inbox, guestbook/comments, moderation, newsletter —
 - ✅ Real-time visitor count, device/browser breakdown (coarse label only, never raw UA — no new fingerprinting surface), outbound-link + download tracking, internal search-term + no-results reporting
 - 🔶 Event analytics (generic tracking exists; no dedicated report surface); 🔶 geographic (country ✅, region/city ☐)
 - ☐ Per-page engagement/scroll depth, project-card click paths, conversion goals, period comparisons, chart annotations, bot filtering, data-retention settings, scheduled summaries, rearrangeable widgets
-- 🔶 Custom admin-defined events (mechanism supports it; no UI); 🔶 filters (date-range ✅; content-type/referrer/device ☐); 🔶 raw event export (breakdown CSV ✅, raw per-event unconfirmed)
+- 🔶 Custom admin-defined events (mechanism supports it; no UI); ✅ filters
+  (date-range ✅; content-type/referrer/device ✅ — three dropdowns above
+  the Analytics tiles, populated from the same top-lists the dashboard
+  already computes, filtering every pageview-based number: tiles, the
+  daily chart, and all five breakdown lists; event-based panels — top
+  events/search terms/outbound links/downloads — aren't filtered by
+  these, since the `events` table has no device/referrer columns to
+  filter on); 🔶 raw event export (breakdown CSV ✅, raw per-event unconfirmed)
 
 ### SEO and sharing
 - ✅ Central SEO dashboard (new "SEO Dashboard" panel under Tools,

@@ -470,6 +470,17 @@
         <button id="export-analytics-btn" title="Download this range as a CSV file">Export CSV</button>
         <button id="close-analytics">×</button>
       </header>
+      <div class="analytics-filters">
+        <select id="analytics-filter-content-type">
+          <option value="">All content types</option>
+          <option value="page">Pages</option>
+          <option value="article">Articles</option>
+          <option value="project">Projects</option>
+        </select>
+        <select id="analytics-filter-device"><option value="">All devices</option></select>
+        <select id="analytics-filter-referrer"><option value="">All referrers</option></select>
+        <button type="button" id="analytics-clear-filters" hidden>Clear filters</button>
+      </div>
       <div class="analytics-body">
         <div class="analytics-tiles">
           <div class="analytics-tile"><span id="stat-active">–</span><label>Active now (5 min)</label></div>
