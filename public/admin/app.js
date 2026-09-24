@@ -560,6 +560,61 @@
     setTimeout(() => div.classList.remove("overlap-warning"), 800);
   }
 
+  function clearSnapGuides() {
+    canvas.querySelectorAll(".snap-guide").forEach((g) => g.remove());
+  }
+
+  // Figma-style alignment guides: while dragging/resizing, highlight when
+  // this block's edge or center lines up with another block's — the grid
+  // already quantizes movement to whole columns/rows, so an aligned pair
+  // lands on the exact same pixel value, no fuzzy tolerance needed beyond
+  // float rounding noise.
+  function updateSnapGuides(block) {
+    clearSnapGuides();
+    const style = blockPixelStyle(block);
+    const bLeft = style.left;
+    const bRight = style.left + style.width;
+    const bCenterX = style.left + style.width / 2;
+    const bTop = style.top;
+    const bBottom = style.top + style.height;
+    const bCenterY = style.top + style.height / 2;
+    const TOL = 0.5;
+    let vx = null;
+    let hy = null;
+    for (const o of blocks) {
+      if (o.id === block.id) continue;
+      const os = blockPixelStyle(o);
+      const oLeft = os.left;
+      const oRight = os.left + os.width;
+      const oCenterX = os.left + os.width / 2;
+      const oTop = os.top;
+      const oBottom = os.top + os.height;
+      const oCenterY = os.top + os.height / 2;
+      if (vx === null) {
+        if (Math.abs(bLeft - oLeft) < TOL) vx = oLeft;
+        else if (Math.abs(bRight - oRight) < TOL) vx = oRight;
+        else if (Math.abs(bCenterX - oCenterX) < TOL) vx = oCenterX;
+      }
+      if (hy === null) {
+        if (Math.abs(bTop - oTop) < TOL) hy = oTop;
+        else if (Math.abs(bBottom - oBottom) < TOL) hy = oBottom;
+        else if (Math.abs(bCenterY - oCenterY) < TOL) hy = oCenterY;
+      }
+    }
+    if (vx !== null) {
+      const line = document.createElement("div");
+      line.className = "snap-guide snap-guide-v";
+      line.style.left = vx + "px";
+      canvas.appendChild(line);
+    }
+    if (hy !== null) {
+      const line = document.createElement("div");
+      line.className = "snap-guide snap-guide-h";
+      line.style.top = hy + "px";
+      canvas.appendChild(line);
+    }
+  }
+
   function wireBlockInteractions(div, block) {
     div.addEventListener("pointerdown", (e) => {
       if (e.target.classList.contains("resize-handle")) return;
@@ -614,10 +669,12 @@
           div.style.left = style.left + "px";
           div.style.top = style.top + "px";
         }
+        updateSnapGuides(block);
       }
       function onUp() {
         div.removeEventListener("pointermove", onMove);
         div.removeEventListener("pointerup", onUp);
+        clearSnapGuides();
         // No overlaps allowed: if the drop spot collides with another
         // block, snap back to where the drag started instead of saving it.
         if ((block.col !== startCol || block.row !== startRow) && wouldOverlap(block)) {
@@ -663,10 +720,12 @@
           div.style.width = style.width + "px";
           div.style.height = style.height + "px";
         }
+        updateSnapGuides(block);
       }
       function onUp() {
         handle.removeEventListener("pointermove", onMove);
         handle.removeEventListener("pointerup", onUp);
+        clearSnapGuides();
         if ((block.col_span !== startSpan || block.row_span !== startRowSpan) && wouldOverlap(block)) {
           block.col_span = startSpan;
           block.row_span = startRowSpan;
