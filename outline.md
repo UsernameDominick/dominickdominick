@@ -478,7 +478,12 @@ health-check pass, predates this doc.
 - 🔶 Pull quotes (✅) / margin notes (☐)
 - ✅ Generalized embeds (CodePen/Spotify/Figma/CodeSandbox/Gist + raw-iframe fallback)
 - ☐ Internal-link suggestions while writing, readability info, word/character goals
-- 🔶 Broken-link warnings (site-wide on-demand Link Checker ✅; live inline while typing ☐)
+- ✅ Broken-link warnings (site-wide on-demand Link Checker; live inline
+  while typing — checks internal markdown links (`/random/:slug`,
+  `/projects/:slug`, `/:page-slug`) against the already-loaded articles/
+  projects/pages arrays as you type, no server round-trip. External URLs
+  aren't live-checked — that would mean a real network fetch per
+  keystroke — use the full Link Checker for those)
 - ☐ Distraction-free writing mode for the article textarea (page-builder has Focus mode; textarea doesn't)
 - ☐ Markdown import/export UI, paste cleanup from documents/websites
 - ✅ Find & replace (site-wide tool covers articles too)

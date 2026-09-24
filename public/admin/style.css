@@ -1147,6 +1147,24 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   color: #c94f24;
 }
 
+.link-warnings:empty {
+  display: none;
+}
+
+.link-warnings {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.link-warnings .contrast-fail {
+  display: block;
+}
+
 .settings-body button {
   align-self: flex-start;
   background: var(--accent);

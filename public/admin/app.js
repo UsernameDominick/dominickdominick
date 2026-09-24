@@ -2486,6 +2486,7 @@
       ["At least one tag", parseTags(el("article-tags").value).length > 0],
       ["Body has enough content to publish", el("article-body").value.trim().length > 50],
     ]);
+    renderLinkWarnings("article-link-warnings", el("article-body").value);
   }
 
   function updateProjectChecklist() {
@@ -2495,6 +2496,45 @@
       ["At least one tag", parseTags(el("project-tags").value).length > 0],
       ["Body has enough content to publish", el("project-body").value.trim().length > 50],
     ]);
+    renderLinkWarnings("project-link-warnings", el("project-body").value);
+  }
+
+  // ---------- Live inline broken-link check while typing ----------
+  // Checks internal links only (/random/:slug, /projects/:slug, /:page-slug)
+  // against the already-loaded articles/projects/pages arrays — no server
+  // round-trip needed. External URLs aren't checked here (that would mean
+  // a real network fetch per keystroke); use the full Link Checker (Tools
+  // menu) for those. Matches against every article/project regardless of
+  // publish state — cross-linking to a still-draft companion piece is a
+  // legitimate thing to do while writing both at once.
+  function checkInternalLinks(text) {
+    const links = [...(text || "").matchAll(/\[([^\]]*)\]\(([^)]+)\)/g)].map((m) => ({ label: m[1] || m[2], url: m[2].trim() }));
+    const staticRoutes = new Set(["topics", "archive", "search", "saved", "history", "shuffle", "random", "projects", ""]);
+    const warnings = [];
+    for (const { label, url } of links) {
+      if (!url.startsWith("/") || url.startsWith("//")) continue; // only internal relative links
+      let m;
+      if ((m = url.match(/^\/random\/([a-z0-9-]+)$/))) {
+        if (!articles.some((a) => a.slug === m[1])) {
+          warnings.push(`"${label}" links to /random/${m[1]}, which doesn't match any article`);
+        }
+      } else if ((m = url.match(/^\/projects\/([a-z0-9-]+)$/))) {
+        if (!projects.some((p) => p.slug === m[1])) {
+          warnings.push(`"${label}" links to /projects/${m[1]}, which doesn't match any project`);
+        }
+      } else {
+        const slug = url.replace(/^\//, "").split(/[?#]/)[0];
+        if (!staticRoutes.has(slug.split("/")[0]) && !pages.some((p) => p.slug === slug || (slug === "" && p.slug === "home"))) {
+          warnings.push(`"${label}" links to /${slug}, which doesn't match any page`);
+        }
+      }
+    }
+    return warnings;
+  }
+
+  function renderLinkWarnings(elId, text) {
+    const warnings = checkInternalLinks(text);
+    el(elId).innerHTML = warnings.map((w) => `<span class="contrast-fail">⚠ ${escapeHtml(w)}</span>`).join("");
   }
 
   ["page-title", "page-meta", "page-og-image"].forEach((id) => el(id).addEventListener("input", updatePageOgPreview));
