@@ -10,6 +10,26 @@ window.trackEvent = function (name, detail) {
   } catch (e) {}
 };
 
+// Outbound-link and download tracking, site-wide. A "download" match wins
+// over "outbound" even for an external host, since knowing which file
+// left is more useful than just knowing a click left the site.
+document.addEventListener("click", function (e) {
+  var a = e.target.closest("a[href]");
+  if (!a) return;
+  var href = a.getAttribute("href");
+  if (!href) return;
+  if (a.hasAttribute("download") || /\.(zip|pdf|glb|gltf|usdz|dmg|exe|apk|csv|docx?|xlsx?|pptx?)(\?|$)/i.test(href) || href.indexOf("/media/") === 0) {
+    window.trackEvent("download", href);
+    return;
+  }
+  if (!/^https?:\/\//i.test(href)) return;
+  try {
+    var url = new URL(href, location.href);
+    if (url.hostname === location.hostname) return;
+    window.trackEvent("outbound_link", url.href);
+  } catch (err) {}
+});
+
 (function () {
   var active = document.querySelector(".tab.is-active");
   var wrap = document.querySelector(".tabs");

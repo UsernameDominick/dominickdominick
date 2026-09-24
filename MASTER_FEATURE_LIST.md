@@ -345,8 +345,8 @@ deliberately, not an oversight.
 - ☐ Device and browser breakdowns
 - 🔶 Expanded geographic analysis (country-level exists; region/city ☐)
 - ☐ Per-page engagement and scroll depth
-- ☐ Outbound-link tracking
-- ☐ Download tracking
+- ✅ Outbound-link tracking (every click on an external link, site-wide, with a "Top outbound links" breakdown in Analytics)
+- ✅ Download tracking (links to common file types or `/media/` files, tracked separately from outbound links, with its own "Top downloads" breakdown)
 - ✅ Internal search-term reporting ("Top search terms" in Analytics, from a new search-event log)
 - ✅ Searches returning no results ("Searches with no results" in Analytics, same underlying log)
 - ☐ Project-card clicks and navigation paths

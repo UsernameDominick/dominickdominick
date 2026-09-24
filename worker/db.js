@@ -1005,6 +1005,20 @@ export async function getSearchInsights(env, days = 30) {
   return { topTerms: toSortedList(termCounts), noResultTerms: toSortedList(noResultCounts) };
 }
 
+// Top URLs for a plain-string-detail event (outbound_link, download) — same
+// "getEventCounts only groups by name" gap as search, but simpler since the
+// detail here is just the URL itself, not JSON.
+export async function getTopEventUrls(env, eventName, days = 30) {
+  const { results } = await env.DB
+    .prepare(
+      `SELECT detail, COUNT(*) AS n FROM events WHERE name = ? AND created_at > datetime('now', '-${Math.max(1, Math.floor(days))} days')
+       AND detail IS NOT NULL GROUP BY detail ORDER BY n DESC LIMIT 20`
+    )
+    .bind(eventName)
+    .all();
+  return results.map((r) => ({ url: r.detail, n: r.n }));
+}
+
 // ---------- Rate limiting (generic) ----------
 // Separate from login's own checkLoginRateLimit/recordLoginAttempt — that
 // path is already proven and left untouched; this is for other public
@@ -1653,7 +1667,7 @@ export async function recordPageview(env, { path, referrer, country }) {
 export async function getAnalytics(env, days = 7) {
   const since = `datetime('now', '-${Math.max(1, Math.floor(days))} days')`;
 
-  const [totalsRow, byDay, topPaths, topReferrers, topCountries, topEvents, searchInsights] = await Promise.all([
+  const [totalsRow, byDay, topPaths, topReferrers, topCountries, topEvents, searchInsights, topOutboundLinks, topDownloads] = await Promise.all([
     env.DB.prepare(
       `SELECT
          (SELECT COUNT(*) FROM pageviews WHERE created_at > datetime('now', '-5 minutes')) AS activeNow,
@@ -1688,6 +1702,8 @@ export async function getAnalytics(env, days = 7) {
       .all(),
     getEventCounts(env, days),
     getSearchInsights(env, days),
+    getTopEventUrls(env, "outbound_link", days),
+    getTopEventUrls(env, "download", days),
   ]);
 
   return {
@@ -1703,6 +1719,8 @@ export async function getAnalytics(env, days = 7) {
     topEvents,
     topSearchTerms: searchInsights.topTerms,
     noResultSearchTerms: searchInsights.noResultTerms,
+    topOutboundLinks,
+    topDownloads,
   };
 }
 
