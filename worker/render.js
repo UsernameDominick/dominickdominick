@@ -398,14 +398,14 @@ export function renderJournalHtml(entries) {
   const items = entries
     .map(
       (j) =>
-        `<div class="journal-entry"><div class="journal-entry-meta"><span class="journal-entry-type">${esc(
+        `<div class="journal-entry" data-entry-type="${esc(j.entry_type || "log")}"><div class="journal-entry-meta"><span class="journal-entry-type">${esc(
           JOURNAL_TYPE_LABELS[j.entry_type] || "Log"
         )}</span><time datetime="${esc(j.entry_date)}">${esc(j.entry_date)}</time></div>${
           j.title ? `<h3>${esc(j.title)}</h3>` : ""
         }${paragraphsHtml(j.body || "")}</div>`
     )
     .join("\n");
-  return `<div class="journal"><strong>Build journal</strong>${items}</div>`;
+  return `<div class="journal"><strong>Build journal</strong><div class="journal-timeline">${items}</div></div>`;
 }
 
 export function renderBomHtml(items) {

@@ -1612,10 +1612,49 @@ h6 { font-size: 0.9rem; }
   margin-bottom: 14px;
 }
 
+.journal-timeline {
+  position: relative;
+  padding-left: 8px;
+}
+
+.journal-timeline::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: var(--border);
+}
+
 .journal-entry {
-  border-left: 2px solid var(--border);
-  padding-left: 16px;
+  position: relative;
+  padding-left: 24px;
   margin-bottom: 20px;
+}
+
+.journal-entry::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--border);
+  border: 2px solid var(--bg);
+}
+
+.journal-entry[data-entry-type="decision"]::before {
+  background: var(--accent);
+}
+
+.journal-entry[data-entry-type="test"]::before {
+  background: #3fbf6f;
+}
+
+.journal-entry[data-entry-type="failed"]::before {
+  background: #e05555;
 }
 
 .journal-entry-meta {

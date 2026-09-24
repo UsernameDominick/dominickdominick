@@ -677,7 +677,11 @@ block already support any of these as a plain page:
 - ☐ Independent per-project layouts (fixed template like articles)
 - ✅ Project templates; 🔶 hero image ✅/hero video ☐/inline demos ☐ (related sims/scans exist, not embedded inline)
 - ✅ Tech stack, GitHub/demo/docs/download links, screenshots with captions + device frames, before/after comparisons, status field
-- 🔶 Timelines/milestones (journal entries are dated; no dedicated widget)
+- ✅ Timelines/milestones (the build journal is now a genuine connected
+  timeline — a single vertical rail with a dot per entry, color-coded by
+  entry type: decision/test/failed get their own dot color, log stays
+  neutral — CSS-only change, no schema/data change, `entry_type` already
+  existed)
 - ✅ Challenges/decisions/lessons (journal entry types), related content, version history (revisions)
 - 🔶 Public changelogs (journal entries can serve; no distinct feature)
 - ✅ Download manifest (multiple labeled files + descriptions, scanned by Link Checker) alongside the single quick-download link
