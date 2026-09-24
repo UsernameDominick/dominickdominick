@@ -1668,6 +1668,24 @@
     } else if (h1Blocks.length > 1) {
       issues.push({ severity: "warn", message: `${h1Blocks.length} H1 headings found — a page should generally have exactly one.`, blockId: h1Blocks[1].id });
     }
+    // Reading order (top-to-bottom, left-to-right) is what a screen reader
+    // actually walks, not creation order — so this has to re-sort rather
+    // than trust the blocks array's order.
+    const headingBlocksInOrder = visibleBlocks
+      .filter((b) => b.type === "heading" && b.content && b.content.text)
+      .sort((a, b) => a.row - b.row || a.col - b.col);
+    let prevLevel = 0;
+    for (const b of headingBlocksInOrder) {
+      const level = Number(b.content.level) || 1;
+      if (prevLevel && level > prevLevel + 1) {
+        issues.push({
+          severity: "warn",
+          message: `Heading level skips from H${prevLevel} to H${level} — screen reader users lose the outline structure. Use H${prevLevel + 1} instead.`,
+          blockId: b.id,
+        });
+      }
+      prevLevel = level;
+    }
     for (const b of visibleBlocks) {
       const c = b.content || {};
       if (b.type === "heading" && !c.text) issues.push({ severity: "error", message: "Empty heading block", blockId: b.id });

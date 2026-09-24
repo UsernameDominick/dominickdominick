@@ -380,14 +380,14 @@ deliberately, not an oversight.
 ## 22. Accessibility
 
 - ✅ Missing alt-text checks (diagnostics panel + inline warning on image blocks)
-- 🔶 Heading-order checks (checks for missing/duplicate H1 only, not full h2→h3 hierarchy)
+- ✅ Heading-order checks (missing/duplicate H1, plus full-hierarchy skip detection in reading order across the whole page)
 - 🔶 Color-contrast checks (a live WCAG contrast checker now runs in Site Settings whenever you touch a theme color, so a bad accent/text/background choice can't ship unnoticed; still no site-wide checker for arbitrary content colors)
 - ☐ Keyboard-navigation checks (site supports keyboard nav from the health check; no automated checker)
 - ☐ Visible focus-state checks (focus states exist site-wide; no automated checker)
 - ✅ Tap-target checks
 - ✅ Reduced-motion coverage across themes and interactive elements
 - ☐ Accessible alternatives for simulations and 3D content
-- ☐ Accessibility checks included in the publishing checklist (no publishing checklist feature exists at all)
+- ✅ Accessibility checks included in the publishing checklist (the page builder's diagnostics panel — alt text, heading order/hierarchy — is that checklist for pages; articles/projects have a separate content-completeness checklist, not accessibility-focused, since their markdown bodies only support H2/H3 with no images to check)
 
 ## 23. Performance and loading
 
