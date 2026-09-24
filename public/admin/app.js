@@ -3824,7 +3824,9 @@
   });
 
   // ---------- Templates ----------
-  const templateOptions = { page: [], article: [] };
+  const templateOptions = { page: [], article: [], project: [] };
+  const TEMPLATE_PICKER_IDS = { page: "page-template-picker", article: "article-template-picker", project: "project-template-picker" };
+  const TEMPLATE_BLANK_LABELS = { page: "Blank page", article: "Start blank", project: "Start blank" };
 
   async function loadTemplates(kind) {
     try {
@@ -3832,8 +3834,8 @@
     } catch {
       templateOptions[kind] = [];
     }
-    const picker = el(kind === "page" ? "page-template-picker" : "article-template-picker");
-    const blankLabel = kind === "page" ? "Blank page" : "Start blank";
+    const picker = el(TEMPLATE_PICKER_IDS[kind]);
+    const blankLabel = TEMPLATE_BLANK_LABELS[kind];
     picker.innerHTML =
       `<option value="">${blankLabel}</option>` +
       templateOptions[kind].map((t) => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join("");
@@ -3880,6 +3882,41 @@
     scheduleAutosave();
   });
 
+  el("save-project-template-btn").addEventListener("click", async () => {
+    const name = prompt("Template name:");
+    if (!name) return;
+    try {
+      await api("/templates", {
+        method: "POST",
+        body: JSON.stringify({
+          kind: "project",
+          name,
+          data: {
+            body: el("project-body").value,
+            summary: el("project-summary").value,
+            tech_stack: el("project-tech-stack").value,
+            status: el("project-status").value,
+          },
+        }),
+      });
+      await loadTemplates("project");
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  el("project-template-picker").addEventListener("change", (e) => {
+    const id = Number(e.target.value);
+    e.target.value = "";
+    if (!id) return;
+    const t = templateOptions.project.find((x) => x.id === id);
+    if (!t) return;
+    el("project-body").value = t.data.body || "";
+    el("project-summary").value = t.data.summary || "";
+    el("project-tech-stack").value = t.data.tech_stack || "";
+    el("project-status").value = t.data.status || "";
+  });
+
   // ---------- Boot ----------
   async function loadSimulationOptions() {
     try {
@@ -3911,6 +3948,7 @@
     await loadScanOptions();
     await loadTemplates("page");
     await loadTemplates("article");
+    await loadTemplates("project");
   }
 
   document.querySelectorAll(".upload-trigger").forEach(wireUploadButton);
