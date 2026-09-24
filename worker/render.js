@@ -463,6 +463,23 @@ export function renderRelatedProjectsHtml(projects) {
   return `<div class="related-posts"><strong>Related projects</strong><div class="project-list">${items}</div></div>`;
 }
 
+// Projects that named this article in their own related_articles field —
+// the article ending's "featured in" callout. A distinct label from
+// renderRelatedProjectsHtml (which is for a project page's own outgoing
+// picks) since this is the reverse direction: a project pointing back.
+export function renderFeaturedInProjectsHtml(projects) {
+  if (!projects || !projects.length) return "";
+  const items = projects
+    .map(
+      (p) =>
+        `<div class="project-card"><h2><a href="/projects/${esc(p.slug)}">${esc(p.title)}</a></h2>${
+          p.summary ? `<p>${esc(p.summary)}</p>` : ""
+        }${renderTags(p.tags)}</div>`
+    )
+    .join("\n");
+  return `<div class="related-posts"><strong>Featured in</strong><div class="project-list">${items}</div></div>`;
+}
+
 export function renderNotFoundHtml(navItems) {
   const links = navItems
     .map((n) => `<li><a href="${n.slug === "home" ? "/" : "/" + esc(n.slug)}">${esc(n.nav_label)}</a></li>`)

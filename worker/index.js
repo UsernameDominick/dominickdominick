@@ -16,6 +16,7 @@ import {
   getRedirect,
   publicSearch,
   getRelatedArticles,
+  getProjectsLinkingToArticle,
   getSeriesArticles,
   getSimulation,
   getScan,
@@ -45,6 +46,7 @@ import {
   tableOfContentsHtml,
   renderSearchResultsHtml,
   renderRelatedArticlesHtml,
+  renderFeaturedInProjectsHtml,
   renderNotFoundHtml,
   renderByline,
   renderSeriesNavHtml,
@@ -140,6 +142,8 @@ async function renderArticle(env, article, navItems) {
   const tocHtml = tableOfContentsHtml(headings);
   const related = await getRelatedArticles(env, article);
   const relatedHtml = renderRelatedArticlesHtml(related);
+  const featuredInProjects = await getProjectsLinkingToArticle(env, article.id);
+  const featuredInHtml = renderFeaturedInProjectsHtml(featuredInProjects);
   const seriesArticles = article.series ? await getSeriesArticles(env, article.series) : [];
   const seriesNavHtml = renderSeriesNavHtml(article, seriesArticles);
   const bylineHtml = renderByline(article);
@@ -179,6 +183,7 @@ async function renderArticle(env, article, navItems) {
     <div id="readable-content">${paragraphsHtml(article.body)}</div>
   </div>
   <div class="block">${reactionsHtml}</div>
+  ${featuredInHtml ? `<div class="block">${featuredInHtml}</div>` : ""}
   ${relatedHtml ? `<div class="block">${relatedHtml}</div>` : ""}`;
   const jsonLd = [
     {

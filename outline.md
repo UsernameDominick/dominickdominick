@@ -610,7 +610,13 @@ health-check pass, predates this doc.
 - ☐ Private notes/comments on draft sections
 - ✅ Reader-facing "Updated <date>" (only once 24h+ past publish, avoids autosave noise)
 - ✅ Correction/update note callout (optional field, shown at top when set)
-- 🔶 Custom article endings (automatic related-articles ✅; admin-curated/project-linked endings ☐)
+- ✅ Custom article endings (automatic related-articles ✅; admin-curated
+  via `related_override` ✅; project-linked ✅ — an article page now shows
+  a "Featured in" callout for every published project that names it in
+  that project's own `related_articles` field. No new field needed: it's
+  the same projects→articles relationship `getRelatedProjects` already
+  used, just read backwards via `getProjectsLinkingToArticle()`, so any
+  project that already links an article surfaces it automatically)
 
 ### Saving, recovery, and versioning
 - ✅ Autosave with visible status, conflict detection across tabs/devices

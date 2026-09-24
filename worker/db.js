@@ -1890,6 +1890,18 @@ export async function getRelatedProjects(env, project, limit = 3) {
   return others.slice(0, limit);
 }
 
+// Published projects that name this article in their own related_articles
+// field — the reverse direction of that relationship, which nothing
+// previously surfaced: a project page shows "related articles" it picked,
+// but the article itself never showed "featured in this project" back.
+// No new field needed — this is the same relationship, just read
+// backwards, so it works for every project that already links an article
+// without the article's author having to do anything.
+export async function getProjectsLinkingToArticle(env, articleId, limit = 3) {
+  const projects = await listProjects(env, { publishedOnly: true });
+  return projects.filter((p) => Array.isArray(p.related_articles) && p.related_articles.includes(articleId)).slice(0, limit);
+}
+
 // Tag counts across every published article and project, for a topic-
 // browsing index — sorted most-used first, ties broken alphabetically.
 export async function getTagCounts(env) {
