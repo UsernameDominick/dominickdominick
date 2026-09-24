@@ -709,7 +709,8 @@ async function route(request, env, ctx) {
     const articleMatch = path.match(/^\/random\/([a-z0-9-]+)$/);
     if (articleMatch) {
       const article = await getArticleBySlug(env, articleMatch[1]);
-      const isPublished = article && article.published_at && article.published_at <= new Date().toISOString();
+      const now = new Date().toISOString();
+      const isPublished = article && article.published_at && article.published_at <= now && (!article.expires_at || article.expires_at > now);
       const isPreview = url.searchParams.get("preview") === "1" && (await isAuthenticated(request, env));
       if (!article || (!isPublished && !isPreview)) {
         return env.ASSETS.fetch(request);
@@ -723,7 +724,8 @@ async function route(request, env, ctx) {
     const projectMatch = path.match(/^\/projects\/([a-z0-9-]+)$/);
     if (projectMatch) {
       const project = await getProjectBySlug(env, projectMatch[1]);
-      const isPublished = project && project.published_at && project.published_at <= new Date().toISOString();
+      const now = new Date().toISOString();
+      const isPublished = project && project.published_at && project.published_at <= now && (!project.expires_at || project.expires_at > now);
       const isPreview = url.searchParams.get("preview") === "1" && (await isAuthenticated(request, env));
       if (!project || (!isPublished && !isPreview)) {
         return env.ASSETS.fetch(request);

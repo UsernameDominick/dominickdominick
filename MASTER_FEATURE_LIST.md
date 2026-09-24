@@ -162,11 +162,11 @@ health-check pass, done before this master list existed.
 ## 7. Publishing workflow
 
 - 🔶 Clear draft, scheduled, published, hidden, and archived states (draft/scheduled/published ✅; explicit "hidden"/"archived" states ☐)
-- ☐ Scheduled unpublishing
+- ✅ Scheduled unpublishing (same "Expires at" feature — see "Content expiration dates" just below)
 - ☐ Publishing approvals and configurable review steps
 - ☐ Page-level publishing checklist
 - ☐ Editorial calendar
-- ☐ Content expiration dates
+- ✅ Content expiration dates (an "Expires at" field on articles and projects, mirroring "Publish at" — automatically drops out of listings, RSS, sitemap, search, and topic pages once passed, and the direct URL 404s; the item isn't deleted, and admin/preview access is unaffected, same as an unpublished draft)
 - ☐ Review reminders
 - 🔶 Inventory of stale, empty, and unfinished pages (the new layout-diagnostics panel flags empty blocks per-page; no site-wide stale-content report)
 - 🔶 Full-site preview including drafts, navigation, and linked draft content (per-item `?preview=1` ✅; a full-site draft-inclusive preview mode ☐)

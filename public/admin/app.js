@@ -1920,6 +1920,7 @@
   function articleStatusLabel(a) {
     if (!a.published_at) return " (draft)";
     if (a.published_at > new Date().toISOString()) return " (scheduled)";
+    if (a.expires_at && a.expires_at <= new Date().toISOString()) return " (expired)";
     return "";
   }
 
@@ -2018,6 +2019,7 @@
     el("article-body").value = article.body;
     el("article-published").checked = !!article.published_at;
     el("article-publish-at").value = isoToLocalInput(article.published_at);
+    el("article-expires-at").value = isoToLocalInput(article.expires_at);
     updateArticleExtras();
     checkArticleDraftRecovery(article.id);
   }
@@ -2030,6 +2032,7 @@
   const ARTICLE_DRAFT_FIELD_IDS = [
     "article-title", "article-slug", "article-tags", "article-series", "article-series-order",
     "article-co-authors", "article-featured", "article-pinned", "article-og-image", "article-body", "article-published", "article-publish-at",
+    "article-expires-at",
   ];
   function captureArticleRawFields() {
     const out = {};
@@ -2231,6 +2234,7 @@
     el("article-body").value = "";
     el("article-published").checked = false;
     el("article-publish-at").value = "";
+    el("article-expires-at").value = "";
     updateArticleExtras();
   }
 
@@ -2255,6 +2259,7 @@
 
   function buildArticleBody() {
     const publishAtLocal = el("article-publish-at").value;
+    const expiresAtLocal = el("article-expires-at").value;
     const published = el("article-published").checked;
     const seriesOrder = el("article-series-order").value;
     return {
@@ -2271,6 +2276,7 @@
       // A blank publish-at with "Published" checked means "now"; a filled
       // one schedules it (past or future). Unchecked always means draft.
       published_at: published ? (publishAtLocal ? new Date(publishAtLocal).toISOString() : new Date().toISOString()) : null,
+      expires_at: expiresAtLocal ? new Date(expiresAtLocal).toISOString() : null,
     };
   }
 
@@ -2361,7 +2367,7 @@
   ["article-title", "article-tags", "article-series", "article-co-authors", "article-og-image", "article-body"].forEach((id) =>
     el(id).addEventListener("input", scheduleAutosave)
   );
-  ["article-slug", "article-published", "article-publish-at", "article-series-order", "article-featured", "article-pinned"].forEach((id) =>
+  ["article-slug", "article-published", "article-publish-at", "article-expires-at", "article-series-order", "article-featured", "article-pinned"].forEach((id) =>
     el(id).addEventListener("change", scheduleAutosave)
   );
 
@@ -2400,6 +2406,7 @@
   function projectStatusLabel(p) {
     if (!p.published_at) return " (draft)";
     if (p.published_at > new Date().toISOString()) return " (scheduled)";
+    if (p.expires_at && p.expires_at <= new Date().toISOString()) return " (expired)";
     return "";
   }
 
@@ -2471,6 +2478,7 @@
     setMultiSelectValues(el("project-related-scans"), project.related_scans);
     el("project-published").checked = !!project.published_at;
     el("project-publish-at").value = isoToLocalInput(project.published_at);
+    el("project-expires-at").value = isoToLocalInput(project.expires_at);
     el("project-autosave-status").textContent = "";
     updateProjectExtras();
     renderProjectsList();
@@ -2505,6 +2513,7 @@
     setMultiSelectValues(el("project-related-scans"), []);
     el("project-published").checked = false;
     el("project-publish-at").value = "";
+    el("project-expires-at").value = "";
     el("project-autosave-status").textContent = "";
     updateProjectExtras();
     renderProjectsList();
@@ -2529,6 +2538,7 @@
 
   function buildProjectBody() {
     const publishAtLocal = el("project-publish-at").value;
+    const expiresAtLocal = el("project-expires-at").value;
     const published = el("project-published").checked;
     const links = {};
     if (el("project-link-github").value.trim()) links.github = el("project-link-github").value.trim();
@@ -2550,6 +2560,7 @@
       related_simulations: getMultiSelectValues(el("project-related-simulations")),
       related_scans: getMultiSelectValues(el("project-related-scans")),
       published_at: published ? (publishAtLocal ? new Date(publishAtLocal).toISOString() : new Date().toISOString()) : null,
+      expires_at: expiresAtLocal ? new Date(expiresAtLocal).toISOString() : null,
     };
   }
 

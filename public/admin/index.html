@@ -206,6 +206,7 @@
           <div class="article-actions">
             <label><input type="checkbox" id="article-published"> Published</label>
             <label>Publish at (blank = immediately)<input type="datetime-local" id="article-publish-at"></label>
+            <label>Expires at (blank = never)<input type="datetime-local" id="article-expires-at" title="Automatically unpublishes at this time — the article isn't deleted, just drops out of listings and the direct URL"></label>
             <a id="preview-article-link" href="#" target="_blank" class="preview-link" hidden>Preview ↗</a>
             <button id="article-history-btn" type="button" hidden>History</button>
             <button id="save-article">Save</button>
@@ -279,6 +280,7 @@
           <div class="article-actions">
             <label><input type="checkbox" id="project-published"> Published</label>
             <label>Publish at (blank = immediately)<input type="datetime-local" id="project-publish-at"></label>
+            <label>Expires at (blank = never)<input type="datetime-local" id="project-expires-at" title="Automatically unpublishes at this time — the project isn't deleted, just drops out of listings and the direct URL"></label>
             <a id="preview-project-link" href="#" target="_blank" class="preview-link" hidden>Preview ↗</a>
             <button id="save-project">Save</button>
             <button id="new-project">New</button>

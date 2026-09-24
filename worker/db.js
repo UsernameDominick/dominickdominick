@@ -312,9 +312,13 @@ export async function listArticles(env, { publishedOnly = false, limit = null, t
   const params = [];
   // "Published" means published_at is set AND not in the future — a
   // scheduled article stays hidden from public listings until its time.
+  // expires_at is the mirror image: once passed, the article drops back
+  // out of every publishedOnly listing (though it isn't deleted, and an
+  // admin editing it directly still sees it — same as a draft would).
   if (publishedOnly) {
-    sql += " AND published_at IS NOT NULL AND published_at <= ?";
-    params.push(new Date().toISOString());
+    const now = new Date().toISOString();
+    sql += " AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?)";
+    params.push(now, now);
   }
   // Pinned articles lead every listing regardless of publish date; within
   // each group, newest first — same tiebreak as before pinning existed.
@@ -355,10 +359,13 @@ function resolvePublishedAt({ published, published_at }) {
   return published ? new Date().toISOString() : null;
 }
 
-export async function createArticle(env, { slug, title, body, published, published_at, tags, og_image, series, series_order, co_authors, featured, pinned }) {
+export async function createArticle(
+  env,
+  { slug, title, body, published, published_at, tags, og_image, series, series_order, co_authors, featured, pinned, expires_at }
+) {
   const res = await env.DB
     .prepare(
-      "INSERT INTO articles (slug, title, body, published_at, tags, og_image, series, series_order, co_authors, featured, pinned) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO articles (slug, title, body, published_at, tags, og_image, series, series_order, co_authors, featured, pinned, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
     .bind(
       slug,
@@ -371,7 +378,8 @@ export async function createArticle(env, { slug, title, body, published, publish
       Number.isFinite(Number(series_order)) ? Number(series_order) : null,
       JSON.stringify(Array.isArray(co_authors) ? co_authors : []),
       featured ? 1 : 0,
-      pinned ? 1 : 0
+      pinned ? 1 : 0,
+      expires_at || null
     )
     .run();
   return res.meta.last_row_id;
@@ -385,6 +393,10 @@ export async function updateArticle(env, id, fields) {
       cols.push(`${key} = ?`);
       vals.push(fields[key]);
     }
+  }
+  if ("expires_at" in fields) {
+    cols.push("expires_at = ?");
+    vals.push(fields.expires_at || null);
   }
   if ("series_order" in fields) {
     cols.push("series_order = ?");
@@ -521,8 +533,9 @@ export async function listProjects(env, { publishedOnly = false, limit = null, t
   let sql = "SELECT * FROM projects WHERE deleted_at IS NULL";
   const params = [];
   if (publishedOnly) {
-    sql += " AND published_at IS NOT NULL AND published_at <= ?";
-    params.push(new Date().toISOString());
+    const now = new Date().toISOString();
+    sql += " AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?)";
+    params.push(now, now);
   }
   sql += " ORDER BY COALESCE(published_at, created_at) DESC";
   const lim = Number(limit);
@@ -548,12 +561,29 @@ export async function getProjectBySlug(env, slug) {
 
 export async function createProject(
   env,
-  { slug, title, summary, body, published, published_at, tags, tech_stack, status, links, og_image, featured, related_articles, related_simulations, related_scans }
+  {
+    slug,
+    title,
+    summary,
+    body,
+    published,
+    published_at,
+    tags,
+    tech_stack,
+    status,
+    links,
+    og_image,
+    featured,
+    related_articles,
+    related_simulations,
+    related_scans,
+    expires_at,
+  }
 ) {
   const res = await env.DB
     .prepare(
-      `INSERT INTO projects (slug, title, summary, body, published_at, tags, tech_stack, status, links, og_image, featured, related_articles, related_simulations, related_scans)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO projects (slug, title, summary, body, published_at, tags, tech_stack, status, links, og_image, featured, related_articles, related_simulations, related_scans, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       slug,
@@ -569,7 +599,8 @@ export async function createProject(
       featured ? 1 : 0,
       JSON.stringify(Array.isArray(related_articles) ? related_articles : []),
       JSON.stringify(Array.isArray(related_simulations) ? related_simulations : []),
-      JSON.stringify(Array.isArray(related_scans) ? related_scans : [])
+      JSON.stringify(Array.isArray(related_scans) ? related_scans : []),
+      expires_at || null
     )
     .run();
   return res.meta.last_row_id;
@@ -599,6 +630,10 @@ export async function updateProject(env, id, fields) {
   if ("published_at" in fields || "published" in fields) {
     cols.push("published_at = ?");
     vals.push(resolvePublishedAt(fields));
+  }
+  if ("expires_at" in fields) {
+    cols.push("expires_at = ?");
+    vals.push(fields.expires_at || null);
   }
   if ("locked" in fields) {
     cols.push("locked = ?");
@@ -1476,20 +1511,20 @@ export async function publicSearch(env, q) {
     env.DB
       .prepare(
         `SELECT id, slug, title, body, tags, published_at FROM articles
-         WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ?
+         WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?)
          AND (title LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\')
          ORDER BY published_at DESC LIMIT 20`
       )
-      .bind(new Date().toISOString(), like, like, like)
+      .bind(new Date().toISOString(), new Date().toISOString(), like, like, like)
       .all(),
     env.DB
       .prepare(
         `SELECT id, slug, title, summary, tags, published_at FROM projects
-         WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ?
+         WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?)
          AND (title LIKE ? ESCAPE '\\' OR summary LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\')
          ORDER BY published_at DESC LIMIT 20`
       )
-      .bind(new Date().toISOString(), like, like, like, like)
+      .bind(new Date().toISOString(), new Date().toISOString(), like, like, like, like)
       .all(),
   ]);
   return { pages: pages.results, articles: articles.results.map(parseArticleRow), projects: projects.results.map(parseProjectRow) };
