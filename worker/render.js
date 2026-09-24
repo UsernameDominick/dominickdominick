@@ -602,6 +602,11 @@ export async function renderBlocks(env, blocks, ctx = {}) {
         const dataAnimateAttr = hasAnimation ? ` data-animate="${style.animation}"` : "";
         const delayMs = Number(style.animationDelay);
         const animateDelayCss = hasAnimation && Number.isFinite(delayMs) && delayMs > 0 ? `--animate-delay:${delayMs}ms;` : "";
+        // Device-conditional visibility is plain CSS (a media-query class),
+        // not server-side UA sniffing — same reasoning as the reduced-motion
+        // approach: it works with zero JS and needs no client hint at all.
+        const visibilityClass =
+          style.visibility === "desktop-only" ? " block-hide-mobile" : style.visibility === "mobile-only" ? " block-hide-desktop" : "";
         // A background video (or an image with a tint overlay) needs real
         // stacked elements — there's no CSS property that overlays a color
         // on a <video>, and layering it into background-image would only
@@ -609,13 +614,13 @@ export async function renderBlocks(env, blocks, ctx = {}) {
         // video, no overlay) keeps the exact same simple markup as before.
         if (style.backgroundVideoUrl || (style.backgroundImage && style.overlayColor)) {
           const overlayRgba = style.overlayColor ? hexToRgba(style.overlayColor, style.overlayOpacity) : null;
-          return `<div class="block block-has-bg-layer" style="${gridStyle}${blockStyleAttr(style)}${animateDelayCss}"${dataAnimateAttr}>${
+          return `<div class="block block-has-bg-layer${visibilityClass}" style="${gridStyle}${blockStyleAttr(style)}${animateDelayCss}"${dataAnimateAttr}>${
             style.backgroundVideoUrl
               ? `<video class="block-bg-video" src="${esc(style.backgroundVideoUrl)}" autoplay muted loop playsinline></video>`
               : ""
           }${overlayRgba ? `<div class="block-bg-overlay" style="background:${overlayRgba};"></div>` : ""}<div class="block-content-over-bg">${inner}</div></div>`;
         }
-        return `<div class="block" style="${gridStyle}${blockStyleAttr(style)}${animateDelayCss}"${dataAnimateAttr}>${inner}</div>`;
+        return `<div class="block${visibilityClass}" style="${gridStyle}${blockStyleAttr(style)}${animateDelayCss}"${dataAnimateAttr}>${inner}</div>`;
       })
   );
   return parts.join("\n");

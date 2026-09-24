@@ -942,6 +942,18 @@ h6 { font-size: 0.9rem; }
 }
 
 @media (max-width: 640px) {
+  .block-hide-mobile {
+    display: none !important;
+  }
+}
+
+@media (min-width: 641px) {
+  .block-hide-desktop {
+    display: none !important;
+  }
+}
+
+@media (max-width: 640px) {
   .topbar {
     padding: 16px 20px;
   }

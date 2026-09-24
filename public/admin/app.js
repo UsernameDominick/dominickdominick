@@ -526,9 +526,14 @@
       div.style.width = style.width + "px";
       div.style.height = style.height + "px";
       div.dataset.id = b.id;
+      const visibility = b.style && b.style.visibility;
       div.innerHTML = `<div class="block-type-label">${blockLabel(b.type)}${
         b.shared_block_id ? ` <span class="lock-badge" title="Reusable block — editing it updates every page that uses it">Reusable</span>` : ""
-      }${b.locked ? ` <span class="lock-badge" title="Locked — protected from accidental drag/resize/delete">Locked</span>` : ""}</div><div class="block-preview">${blockPreview(b)}</div><div class="resize-handle"></div>`;
+      }${b.locked ? ` <span class="lock-badge" title="Locked — protected from accidental drag/resize/delete">Locked</span>` : ""}${
+        visibility === "desktop-only" ? ` <span class="lock-badge" title="Hidden on mobile — desktop only">Desktop only</span>` : ""
+      }${
+        visibility === "mobile-only" ? ` <span class="lock-badge" title="Hidden on desktop — mobile only">Mobile only</span>` : ""
+      }</div><div class="block-preview">${blockPreview(b)}</div><div class="resize-handle"></div>`;
       canvas.appendChild(div);
       wireBlockInteractions(div, b);
     }
@@ -912,6 +917,16 @@
       ],
     },
     { key: "animationDelay", label: "Animation delay (ms)", type: "number" },
+    {
+      key: "visibility",
+      label: "Show on",
+      type: "select",
+      options: [
+        ["", "All devices"],
+        ["desktop-only", "Desktop only (hidden on mobile)"],
+        ["mobile-only", "Mobile only (hidden on desktop)"],
+      ],
+    },
     { key: "customCss", label: "Custom CSS (advanced — raw declarations, e.g. transform: rotate(-2deg);)", type: "textarea", noSpellcheck: true },
     { key: "hidden", label: "Hide from live site", type: "checkbox" },
   ];
