@@ -1754,8 +1754,14 @@ enough detail to act on directly later.
   `alt=""`, an image with alt text renders it correctly, and the
   accessibility report correctly flags the block. (Embed/video iframes
   still have no `title` — not fixed this round.)
-- Embed/video iframes have no `title` attribute; the accessibility
-  report doesn't catch this gap either.
+- ✅ Video and generic-embed block iframes now always render a `title`
+  attribute (neither block type has a title/caption field of its own to
+  draw a real one from, so it names the platform: "Embedded YouTube
+  video", "Embedded Vimeo video", or "Embedded content from
+  <hostname>" for the generic embed's various providers). Since these
+  are now unconditional — not admin-optional — there's nothing for the
+  accessibility report to additionally check here, unlike gallery alt
+  text above. Verified via Playwright for both block types.
 - Regular (non-home) pages only ever get `WebSite` structured data,
   never their own `WebPage` entry.
 - `og:title` always matches `<title>` exactly (includes `" · Dominick"`)

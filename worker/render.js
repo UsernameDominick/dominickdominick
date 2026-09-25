@@ -797,25 +797,25 @@ function genericEmbedInfo(rawUrl) {
   const host = u.hostname.replace(/^www\./, "");
   if (host === "codepen.io") {
     const m = u.pathname.match(/\/([^/]+)\/pen\/([^/]+)/);
-    if (m) return { type: "iframe", src: `https://codepen.io/${m[1]}/embed/${m[2]}?default-tab=result`, height: 400 };
+    if (m) return { type: "iframe", src: `https://codepen.io/${m[1]}/embed/${m[2]}?default-tab=result`, height: 400, host };
   }
   if (host === "open.spotify.com") {
     const m = u.pathname.match(/^\/(track|album|playlist|episode|show)\/([A-Za-z0-9]+)/);
-    if (m) return { type: "iframe", src: `https://open.spotify.com/embed/${m[1]}/${m[2]}`, height: m[1] === "track" ? 152 : 352 };
+    if (m) return { type: "iframe", src: `https://open.spotify.com/embed/${m[1]}/${m[2]}`, height: m[1] === "track" ? 152 : 352, host };
   }
   if (host === "figma.com") {
-    return { type: "iframe", src: `https://www.figma.com/embed?embed_host=share&url=${encodeURIComponent(rawUrl)}`, height: 450 };
+    return { type: "iframe", src: `https://www.figma.com/embed?embed_host=share&url=${encodeURIComponent(rawUrl)}`, height: 450, host };
   }
   if (host === "codesandbox.io") {
     const m = u.pathname.match(/\/s\/([^/?]+)/);
-    if (m) return { type: "iframe", src: `https://codesandbox.io/embed/${m[1]}`, height: 500 };
+    if (m) return { type: "iframe", src: `https://codesandbox.io/embed/${m[1]}`, height: 500, host };
   }
   if (host === "gist.github.com") {
     const m = u.pathname.match(/^\/([^/]+)\/(\w+)/);
     if (m) return { type: "script", src: `https://gist.github.com/${m[1]}/${m[2]}.js` };
   }
   if (!/^https?:$/.test(u.protocol)) return null;
-  return { type: "iframe", src: rawUrl, height: 400 };
+  return { type: "iframe", src: rawUrl, height: 400, host };
 }
 
 function genericEmbedHtml(rawUrl) {
@@ -824,7 +824,9 @@ function genericEmbedHtml(rawUrl) {
   if (info.type === "script") {
     return `<div class="generic-embed"><script src="${esc(info.src)}"></script></div>`;
   }
-  return `<div class="generic-embed"><iframe src="${esc(info.src)}" loading="lazy" style="height:${info.height}px" allow="autoplay; encrypted-media; fullscreen; clipboard-write" allowfullscreen></iframe><p class="embed-fallback"><a href="${esc(
+  return `<div class="generic-embed"><iframe src="${esc(info.src)}" title="Embedded content from ${esc(
+    info.host
+  )}" loading="lazy" style="height:${info.height}px" allow="autoplay; encrypted-media; fullscreen; clipboard-write" allowfullscreen></iframe><p class="embed-fallback"><a href="${esc(
     rawUrl
   )}" target="_blank" rel="noopener">Open original ↗</a></p></div>`;
 }
@@ -966,8 +968,12 @@ async function renderBlockInner(env, block, ctx) {
     case "video": {
       const embed = videoEmbedUrl(c.url);
       if (!embed) return c.url ? `<p class="empty-hint">Unsupported video link — use a YouTube or Vimeo URL.</p>` : "";
-      return `<div class="video-embed"><iframe src="${esc(
-        embed
+      // There's no title/caption field on this block to draw a real title
+      // from — naming the platform is the best available fallback for
+      // giving the iframe a non-empty accessible name.
+      const videoTitle = embed.includes("youtube") ? "Embedded YouTube video" : embed.includes("vimeo") ? "Embedded Vimeo video" : "Embedded video";
+      return `<div class="video-embed"><iframe src="${esc(embed)}" title="${esc(
+        videoTitle
       )}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>`;
     }
     case "quote":
