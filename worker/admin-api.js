@@ -46,6 +46,7 @@ import {
   runScheduledBackup,
   listScheduledBackups,
   getBackupStatus,
+  getStorageUsage,
   getBackupContents,
   runFindReplace,
   slugExists,
@@ -1466,6 +1467,11 @@ async function routeAdminApi(request, env, url, ctx) {
   }
   if (path === "/backup-status" && method === "GET") {
     return json(await getBackupStatus(env));
+  }
+  // /storage-usage — R2 bucket usage by category plus an approximate D1
+  // database size, for the Site Settings "Storage" panel.
+  if (path === "/storage-usage" && method === "GET") {
+    return json(await getStorageUsage(env));
   }
   // /scheduled-backups-contents?key=... — a query param, not a path
   // segment, since a backup key contains slashes (backups/2026-...json).

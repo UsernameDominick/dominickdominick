@@ -5112,6 +5112,22 @@
     }
   });
 
+  // ---------- Storage usage ----------
+  async function loadStorageUsage() {
+    const usage = await api("/storage-usage");
+    const dbSizeText = usage.d1.sizeBytes != null ? formatBytes(usage.d1.sizeBytes) : "not available";
+    el("storage-usage-summary").innerHTML =
+      `<div class="backup-contents-meta">R2 total: ${formatBytes(usage.r2.totalBytes)} across ${usage.r2.totalCount} object(s) · D1 database: ${dbSizeText}</div>`;
+    const r2Rows = usage.r2.byPrefix
+      .map((p) => `<div class="link-check-row"><span class="link-check-url">${escapeHtml(p.label)}</span><span class="link-check-source">${formatBytes(p.bytes)} (${p.count})</span></div>`)
+      .join("");
+    const rowCountRows = Object.entries(usage.d1.rowCounts)
+      .map(([table, count]) => `<span class="backup-contents-row">${escapeHtml(table)}: ${count}</span>`)
+      .join("");
+    el("storage-usage-list").innerHTML = `${r2Rows}<div class="backup-contents-meta">Row counts — ${rowCountRows}</div>`;
+  }
+  el("load-storage-usage-btn").addEventListener("click", () => loadStorageUsage().catch((err) => alert(err.message)));
+
   // ---------- Revisions ----------
   // A simple word-level LCS diff — fine for typical article lengths. Capped
   // so a huge body can't hang the tab computing an O(m*n) table.

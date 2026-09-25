@@ -1066,7 +1066,22 @@ changes with low value for a single-admin personal site; flagging as
   check "is this the one I want" before ever touching the all-or-nothing
   restore); ☐ periodic restore drills, selective restore, file-integrity
   checks
-- ☐ Health dashboard (DB/storage/uploads/publishing), failed-scheduled-publish alerts, storage/DB usage dashboard, cost/usage alerts
+- ☐ Health dashboard (DB/storage/uploads/publishing), failed-scheduled-publish alerts, cost/usage alerts
+- ✅ Storage/DB usage dashboard — a new "Storage" section in Site Settings,
+  right below Backup. R2 usage broken down by prefix (images, audio,
+  video, 3D scans, backups, image-version-history) via a paginated
+  `list()` scan (a single R2 `list()` call caps at 1000 objects, so it
+  loops on `cursor`/`truncated` rather than assuming one page covers
+  everything). D1 size comes from `size_after` in a throwaway query's
+  `meta` — confirmed to actually populate under `wrangler dev` too, not
+  just the deployed service — with a null fallback kept anyway in case a
+  future D1 runtime stops reporting it. Also lists row counts for the
+  tables most likely to grow unbounded on their own (pageviews, events)
+  alongside the main content tables, as a size signal that doesn't depend
+  on D1's own size reporting at all. Manual "Refresh" button, not
+  auto-loaded on Site Settings open, matching Activity Log/Error Log
+  rather than the auto-loading Backups list — an R2 bucket scan isn't
+  something to run every time the modal opens.
 - 🔶 Traffic dashboard (analytics covers visitor traffic; not Worker CPU/processing usage)
 
 ### Final verification

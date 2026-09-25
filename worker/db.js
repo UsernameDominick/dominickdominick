@@ -2498,6 +2498,68 @@ export async function listScheduledBackups(env) {
     .map((o) => ({ key: o.key, size: o.size, uploaded: o.uploaded }));
 }
 
+// Sums every object under a prefix, paging through R2's list() cursor —
+// a single call caps out at 1000 objects, and the media library alone can
+// exceed that over time.
+async function sumR2Prefix(env, prefix) {
+  let count = 0;
+  let bytes = 0;
+  let cursor;
+  do {
+    const listed = await env.MEDIA.list({ prefix, cursor });
+    for (const o of listed.objects) {
+      count++;
+      bytes += o.size;
+    }
+    cursor = listed.truncated ? listed.cursor : undefined;
+  } while (cursor);
+  return { count, bytes };
+}
+
+// R2 usage by prefix (images/audio/video/scans/backups/version-history)
+// plus an approximate D1 database size and a few row counts for the
+// tables most likely to grow unbounded on their own (pageviews/events
+// accumulate forever unless pruned; everything else grows with content).
+// D1 reports size_after on every query's meta; fall back to null if a
+// future D1 runtime version ever stops populating it, rather than assume
+// it's always there.
+export async function getStorageUsage(env) {
+  const [images, audio, video, scans, backups, versions, sizeProbe, rowCounts] = await Promise.all([
+    sumR2Prefix(env, "uploads/"),
+    sumR2Prefix(env, "audio/"),
+    sumR2Prefix(env, "video/"),
+    sumR2Prefix(env, "scans/"),
+    sumR2Prefix(env, BACKUP_PREFIX),
+    sumR2Prefix(env, "_versions/"),
+    env.DB.prepare("SELECT 1").run(),
+    Promise.all(
+      ["pages", "articles", "projects", "pageviews", "events", "media", "revisions", "webhook_deliveries"].map((table) =>
+        env.DB.prepare(`SELECT COUNT(*) AS n FROM ${table}`).first()
+      )
+    ),
+  ]);
+  const byPrefix = [
+    { label: "Images", prefix: "uploads/", ...images },
+    { label: "Audio", prefix: "audio/", ...audio },
+    { label: "Video", prefix: "video/", ...video },
+    { label: "3D scans", prefix: "scans/", ...scans },
+    { label: "Backups", prefix: BACKUP_PREFIX, ...backups },
+    { label: "Image version history", prefix: "_versions/", ...versions },
+  ];
+  const tableNames = ["pages", "articles", "projects", "pageviews", "events", "media", "revisions", "webhook_deliveries"];
+  return {
+    r2: {
+      totalBytes: byPrefix.reduce((sum, p) => sum + p.bytes, 0),
+      totalCount: byPrefix.reduce((sum, p) => sum + p.count, 0),
+      byPrefix,
+    },
+    d1: {
+      sizeBytes: sizeProbe.meta?.size_after ?? null,
+      rowCounts: tableNames.reduce((acc, name, i) => ((acc[name] = rowCounts[i]?.n || 0), acc), {}),
+    },
+  };
+}
+
 export async function importAll(env, data) {
   if (!data || typeof data !== "object") throw new Error("Not a valid backup file");
   // Deliberately no defaults here for the original four tables: a file
