@@ -6049,7 +6049,11 @@
               b.key
             )}">View contents</button> <button type="button" class="verify-backup-btn" data-key="${escapeHtml(
               b.key
-            )}">Verify integrity</button> <span class="backup-verify-result"></span></div><div class="backup-contents" data-key="${escapeHtml(
+            )}">Verify integrity</button> <button type="button" class="download-backup-btn" data-key="${escapeHtml(
+              b.key
+            )}">Download</button> <button type="button" class="danger restore-backup-btn" data-key="${escapeHtml(
+              b.key
+            )}">Restore this backup…</button> <span class="backup-verify-result"></span></div><div class="backup-contents" data-key="${escapeHtml(
               b.key
             )}" hidden></div>`
         )
@@ -6098,6 +6102,58 @@
           } catch (err) {
             resultEl.textContent = err.message;
           } finally {
+            btn.textContent = originalText;
+            btn.disabled = false;
+          }
+        });
+      });
+    // Same fetch-then-blob-download pattern the existing on-demand
+    // "Download backup" (/export) button already uses, for a specific
+    // historical R2-stored snapshot instead of always "right now."
+    el("scheduled-backups-list")
+      .querySelectorAll(".download-backup-btn")
+      .forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const res = await fetch(`/api/admin/scheduled-backups-download?key=${encodeURIComponent(btn.dataset.key)}`);
+          if (!res.ok) {
+            alert("Download failed.");
+            return;
+          }
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = btn.dataset.key.replace("backups/", "");
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+        });
+      });
+    // A scheduled backup could previously be inspected and verified but
+    // never actually restored — this reuses the exact same destructive
+    // confirm wording as the manual "Restore from file…" flow, since the
+    // consequence (replace everything) is identical either way.
+    el("scheduled-backups-list")
+      .querySelectorAll(".restore-backup-btn")
+      .forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          if (
+            !confirm(
+              "This will REPLACE every page, block, article, and setting with what's in this backup. This can't be undone. Continue?"
+            )
+          ) {
+            return;
+          }
+          const originalText = btn.textContent;
+          btn.textContent = "Restoring…";
+          btn.disabled = true;
+          try {
+            await api("/scheduled-backups-restore", { method: "POST", body: JSON.stringify({ key: btn.dataset.key }) });
+            alert("Restored. Reloading…");
+            location.reload();
+          } catch (err) {
+            alert("Restore failed: " + err.message);
             btn.textContent = originalText;
             btn.disabled = false;
           }

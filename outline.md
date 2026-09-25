@@ -3488,3 +3488,35 @@ colliding) and found one new bug plus two pre-existing ones:
   selecting both and clicking the now-visible bulk Clear button
   correctly nulled `style.color` on both, confirmed via a direct D1
   query.
+
+### Twelfth backlog item — scheduled backup restore/download
+- ✅ **A scheduled backup could be inspected and verified but never
+  actually restored or downloaded** (★ real safety gap, flagged
+  medium-high by the eleventh critic pass) — the automatic daily R2
+  backups panel only ever offered "View contents" (row counts) and
+  "Verify integrity" (checksum) per backup; the only working restore
+  path anywhere was "Restore from file…", which needs a JSON file
+  already sitting on the admin's own device, and "Download backup"
+  always exports the *current* live state, never a specific historical
+  snapshot. In practice this meant the whole scheduled-backup system
+  provided false assurance — "last backup succeeded," "verified
+  intact" — with no way to act on that safety net if it were ever
+  actually needed. Added two new endpoints reusing existing logic
+  end-to-end rather than duplicating it: `GET
+  /scheduled-backups-download?key=` streams the chosen R2 object back
+  with the right headers (same idea as the existing on-demand
+  `/export`, just for a specific past snapshot instead of "right now"),
+  and `POST /scheduled-backups-restore` reads a specific R2-stored
+  backup and pipes it straight through the exact same `importAll()`
+  the manual file-upload restore already uses. Client-side, each backup
+  row gained "Download" and "Restore this backup…" buttons alongside
+  the existing two, with the restore button using the identical
+  destructive confirm wording as the manual restore-from-file flow
+  (same consequence, same warning). Verified via a careful, safe live
+  test: took a fresh snapshot backup of the actual current state,
+  created a throwaway test page, restored that snapshot, and confirmed
+  the throwaway page was correctly gone and the real Home page (id 9)
+  came through completely intact — proving the restore path works
+  without risking real data. Also verified both new endpoints
+  correctly 401 unauthenticated, and that "Restore this backup…" is
+  fully visible and reasonably sized on a 390px mobile viewport.

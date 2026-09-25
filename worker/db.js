@@ -2880,6 +2880,23 @@ export async function getBackupContents(env, key) {
   return { version: data.version, exported_at: data.exported_at, counts };
 }
 
+// A scheduled backup could be inspected (getBackupContents) and verified
+// not-corrupted (verifyBackupIntegrity) but never actually used to restore
+// anything — the only restore path was "Restore from file…", which needs
+// the admin to already have a JSON file on their own device. This closes
+// that gap by reading a specific R2-stored backup straight into the exact
+// same importAll() the manual file-upload restore already uses, so a
+// scheduled backup's "verified intact" status actually means something
+// actionable.
+export async function restoreScheduledBackup(env, key) {
+  if (!key.startsWith(BACKUP_PREFIX)) throw new Error("Not a backup file");
+  const obj = await env.MEDIA.get(key);
+  if (!obj) throw new Error("Backup file not found");
+  const data = JSON.parse(await obj.text());
+  await importAll(env, data);
+  return { exported_at: data.exported_at };
+}
+
 export async function listScheduledBackups(env) {
   const listed = await env.MEDIA.list({ prefix: BACKUP_PREFIX });
   return listed.objects

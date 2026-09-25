@@ -51,6 +51,7 @@ import {
   getStorageUsage,
   getBackupContents,
   verifyBackupIntegrity,
+  restoreScheduledBackup,
   runFindReplace,
   slugExists,
   checkLoginRateLimit,
@@ -1728,6 +1729,33 @@ async function routeAdminApi(request, env, url, ctx) {
       return json(await verifyBackupIntegrity(env, key));
     } catch (err) {
       return json({ error: err.message }, { status: 400 });
+    }
+  }
+  // /scheduled-backups-download?key=... — streams a specific historical
+  // backup back to the browser, same as the on-demand /export above but
+  // for a chosen point-in-time snapshot instead of always "right now."
+  if (path === "/scheduled-backups-download" && method === "GET") {
+    const key = url.searchParams.get("key");
+    if (!key || !key.startsWith("backups/")) return json({ error: "Invalid key" }, { status: 400 });
+    const obj = await env.MEDIA.get(key);
+    if (!obj) return json({ error: "Backup file not found" }, { status: 404 });
+    return new Response(obj.body, {
+      headers: { "Content-Type": "application/json", "Content-Disposition": `attachment; filename="${key.split("/").pop()}"` },
+    });
+  }
+  // /scheduled-backups-restore — replaces ALL content with a specific R2-
+  // stored scheduled backup, same destructive all-or-nothing semantics as
+  // /import (which this reuses under the hood), just sourced from a chosen
+  // historical snapshot instead of an uploaded file.
+  if (path === "/scheduled-backups-restore" && method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    if (!body.key) return json({ error: "key is required" }, { status: 400 });
+    try {
+      const { exported_at } = await restoreScheduledBackup(env, body.key);
+      log(ctx, env, "import", "backup", `${body.key} (${exported_at || "unknown date"})`);
+      return json({ ok: true });
+    } catch (err) {
+      return json({ error: err.message || "Restore failed" }, { status: 400 });
     }
   }
 
