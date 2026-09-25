@@ -3572,7 +3572,22 @@ export async function getSeoReport(env) {
     }
   }
   const duplicateTitles = [...titleOwners.values()].filter((owners) => owners.length > 1);
-  return { missingMeta, missingAlt, missingOgImage, duplicateTitles };
+  // Same meta description reused across pages — search engines treat this
+  // about as poorly as a duplicate title: it makes distinct pages look
+  // interchangeable in results. Pages only (not articles/projects), since
+  // meta_description is the one explicit admin-typed field here — the
+  // other two don't have an equivalent column, so there's nothing to
+  // compare there. Empty ones are already covered by missingMeta above,
+  // so they're excluded here to avoid double-reporting the same page.
+  const metaOwners = new Map();
+  for (const p of pages) {
+    const key = (p.meta_description || "").trim().toLowerCase();
+    if (!key) continue;
+    if (!metaOwners.has(key)) metaOwners.set(key, []);
+    metaOwners.get(key).push({ title: p.title, slug: p.slug });
+  }
+  const duplicateMeta = [...metaOwners.values()].filter((owners) => owners.length > 1);
+  return { missingMeta, missingAlt, missingOgImage, duplicateTitles, duplicateMeta };
 }
 
 // Every block type except the "html" escape hatch is already accessible by

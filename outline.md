@@ -3052,3 +3052,16 @@ in the admin. Fixed while addressing the rest of this report:
   blocks. Verified via Playwright with a real 4-parallax-block test
   page: the finding appeared in Diagnostics with the correct count and
   wording.
+- ✅ **SEO: duplicate meta descriptions across pages** — the existing SEO
+  checks already flag a missing meta description and a duplicate
+  *title*, but the same meta description reused across pages (e.g.
+  copy-pasted as a starting point and never customized) got no
+  equivalent warning, even though search engines treat it about as
+  poorly as a duplicate title — it makes distinct pages look
+  interchangeable in results. Pages only (not articles/projects, which
+  have no equivalent explicit meta-description field to compare), and
+  excludes already-empty ones since those are covered by the existing
+  "No meta description" finding. Wired into both the standalone SEO
+  Report panel and the aggregated "Run all checks" view. Verified via
+  Playwright with two real pages sharing one meta description: both
+  surfaces correctly reported "Duplicate meta description (2×)".
