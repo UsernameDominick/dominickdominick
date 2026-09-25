@@ -1959,6 +1959,24 @@
   // on every selection change and would otherwise stack duplicate
   // listeners on these static buttons) — each looks up whichever block is
   // currently selected at click time.
+  // A preset's saved color pair gets stamped onto every block it's applied
+  // to in one click — exactly where a bad pairing does the most damage,
+  // since it's now duplicated across however many blocks use it rather
+  // than sitting on one page waiting to be noticed in Diagnostics. Site
+  // Settings already has a live inline contrast checker for the theme's
+  // own colors (updateThemeContrastCheck() below); this reuses the same
+  // contrastRatio() math at the two moments a preset's colors actually
+  // take effect — saving one, and applying one — instead of only ever
+  // catching it after the fact.
+  function warnIfBadContrast(style) {
+    const color = style && style.color;
+    const bg = style && style.bg;
+    if (!color || !bg || !/^#[0-9a-f]{6}$/i.test(color) || !/^#[0-9a-f]{6}$/i.test(bg)) return;
+    const ratio = contrastRatio(color, bg);
+    if (ratio < 4.5) {
+      alert(`Heads up: this style's text/background colors have a contrast ratio of ${ratio.toFixed(2)}:1, below the WCAG AA minimum of 4.5:1 — text using it may be hard to read.`);
+    }
+  }
   el("apply-style-preset-select").addEventListener("change", () => {
     const select = el("apply-style-preset-select");
     const id = Number(select.value);
@@ -1970,6 +1988,7 @@
     Object.assign(block.style, preset.style);
     saveBlockStyleAndContent(block);
     renderInspector();
+    warnIfBadContrast(block.style);
   });
   el("save-style-preset-btn").addEventListener("click", async () => {
     const block = blocks.find((b) => b.id === selectedBlockId);
@@ -1980,6 +1999,7 @@
       await api("/style-presets", { method: "POST", body: JSON.stringify({ name, style: block.style || {} }) });
       await loadStylePresets();
       populateStylePresetSelect();
+      warnIfBadContrast(block.style);
     } catch (err) {
       alert(err.message);
     }

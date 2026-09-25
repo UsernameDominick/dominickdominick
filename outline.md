@@ -3131,3 +3131,18 @@ text). Both implemented:
   contrast ratio of 3.45:1 (fails the normal 4.5:1 bar, passes the
   relaxed one): correctly un-flagged as a heading, while an identical
   3.45:1 pair on a plain text block was correctly still flagged.
+- ✅ **Style-preset contrast warning at the moment it's saved or applied**
+  — a style preset stamps its color pair onto every block it's applied
+  to in one click, which is exactly where a bad pairing does the most
+  damage: duplicated across however many blocks use it, instead of
+  sitting on one page waiting to be noticed later in Diagnostics. Site
+  Settings already has a live inline contrast checker for the theme's
+  own colors; this reuses the same `contrastRatio()` math at the two
+  moments a preset's colors actually take effect — saving one (from
+  whatever block's current style you're saving) and applying one to a
+  block — with a plain `alert()` warning, consistent with this
+  codebase's existing native-dialog UX (the preset-naming prompt is
+  right next to it). Verified via Playwright: saving a preset from a
+  low-contrast block (1.61:1) correctly triggered the warning dialog
+  with the exact ratio; applying a high-contrast preset (black on
+  white) triggered no dialog at all.
