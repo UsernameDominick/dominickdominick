@@ -67,6 +67,7 @@ import {
   renderTtsBarHtml,
   renderHeroVideoHtml,
   renderPreviewBannerHtml,
+  renderBreadcrumbHtml,
   withCustomJsonLd,
   FAVICON_SVG,
   renderErrorPageHtml,
@@ -186,8 +187,14 @@ async function renderArticle(env, article, navItems, previewReason = null) {
   // long-form article blows past, overlapping whatever came after it
   // (reactions, related articles). Flow layout can't overlap; each section
   // just takes the height its own content needs.
+  const breadcrumbHtml = renderBreadcrumbHtml([
+    { name: "Home", path: "/" },
+    { name: "Random", path: "/random" },
+    { name: article.title, path: `/random/${article.slug}` },
+  ]);
   const bodyHtml = `<div class="reading-progress"></div>
   ${renderPreviewBannerHtml(previewReason)}
+  ${breadcrumbHtml}
   <div class="block">
     <div class="article-meta">
       <time datetime="${esc(article.published_at)}">${esc((article.published_at || "").slice(0, 10))}</time>
@@ -295,7 +302,12 @@ async function renderProject(env, project, navItems, previewReason = null) {
   // variable-length optional sections (BOM, journal entries, downloads)
   // than an article does, all of which could overlap under the old fixed
   // grid-row-span scheme.
+  const breadcrumbHtml = renderBreadcrumbHtml([
+    { name: "Home", path: "/" },
+    { name: project.title, path: `/projects/${project.slug}` },
+  ]);
   const bodyHtml = `${renderPreviewBannerHtml(previewReason)}
+  ${breadcrumbHtml}
   <div class="block">
     <div class="article-meta">
       ${project.status ? `<span>${esc(project.status)}</span><span class="article-meta-sep">·</span>` : ""}

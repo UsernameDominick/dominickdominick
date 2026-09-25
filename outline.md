@@ -615,7 +615,14 @@ health-check pass, predates this doc.
   `LIMIT/OFFSET` plus one `COUNT(*)` query for whichever single category is
   active, so the result count and "Page N of M" reflect the true total
   rather than just what's on screen; archive/topic pages still show
-  everything on one page, untouched); ☐ breadcrumb editor UI
+  everything on one page, untouched); ✅ breadcrumbs — no separate
+  "editor" needed: a visible "Home / Random / Title" (articles) or
+  "Home / Title" (projects) trail now renders from the exact same
+  `{name, path}` shape the BreadcrumbList JSON-LD on those pages was
+  already built from (relative paths instead of absolute URLs), so the
+  invisible structured-data version and the new visible one can't drift
+  apart. That JSON-LD existed only for search engines before this — a
+  real visitor got no breadcrumb trail at all
 - ✅ Related-content suggestions (automatic tag-based; manual override —
   `related_override` column on articles/projects, a multi-select in each
   editor excluding itself, checked first in `getRelatedArticles()`/

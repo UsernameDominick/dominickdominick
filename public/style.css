@@ -1711,6 +1711,33 @@ h6 { font-size: 0.9rem; }
   color: var(--accent);
 }
 
+.breadcrumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+}
+
+.breadcrumbs a {
+  color: var(--text-dim);
+}
+
+.breadcrumbs a:hover {
+  color: var(--text);
+}
+
+.breadcrumbs [aria-current="page"] {
+  color: var(--text);
+}
+
+.breadcrumb-sep {
+  color: var(--text-dim);
+  opacity: 0.5;
+}
+
 .preview-banner {
   display: flex;
   align-items: center;

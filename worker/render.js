@@ -605,6 +605,25 @@ export function renderCorrectionNoteHtml(note) {
   return `<div class="correction-note"><strong>Update:</strong> ${esc(note)}</div>`;
 }
 
+// A visible "Home / Section / Title" trail mirroring the BreadcrumbList
+// JSON-LD each article/project page already emits for search engines —
+// that structured data existed only for crawlers, with nothing shown to
+// an actual visitor. Takes the same {name, path} shape the JSON-LD's own
+// itemListElement is built from (just relative paths instead of absolute
+// URLs), so the two never drift apart. A single-item list (nothing to
+// distinguish from the current page) renders nothing.
+export function renderBreadcrumbHtml(items) {
+  if (!items || items.length < 2) return "";
+  const crumbs = items
+    .map((item, i) =>
+      i === items.length - 1
+        ? `<span aria-current="page">${esc(item.name)}</span>`
+        : `<a href="${esc(item.path)}">${esc(item.name)}</a>`
+    )
+    .join('<span class="breadcrumb-sep" aria-hidden="true">/</span>');
+  return `<nav class="breadcrumbs" aria-label="Breadcrumb">${crumbs}</nav>`;
+}
+
 // Shown when a draft/expired article or project is being viewed by an
 // authenticated admin (either whole-site preview mode's cookie, or a
 // one-off ?preview=1 on this URL) — otherwise there'd be no visual cue
