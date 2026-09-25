@@ -939,7 +939,8 @@ block already support any of these as a plain page:
   strings, matched as a plain substring like the filename/tag search
   already works. Wired into saved searches too; dimensions still ☐)
 - ✅ Unused/orphaned file review
-- ☐ Image optimization comparison, video captions/transcripts, audio-file support (images only today), PDF/doc previews, direct-download controls, drag-to-page, resumable uploads, upload queue with retry, storage-by-type dashboard, private-metadata stripping
+- ☐ Image optimization comparison, video captions/transcripts, audio-file support (images only today), PDF/doc previews, direct-download controls, drag-to-page, resumable uploads, upload queue with retry, storage-by-type dashboard
+- ✅ Private-metadata stripping (EXIF GPS/device data on upload — see section 12)
 
 ### Photo editor
 Undo/redo, flips, grayscale/sepia/invert, line tool, eyedropper, reset,
@@ -4267,3 +4268,41 @@ is implemented below.
   picker) trapped against Media Library specifically, left the Articles
   modal open underneath, and returned focus to the Browse button — not
   the outer modal's trigger — on close. Full regression suite green.
+
+### Strip EXIF metadata (GPS, device model) from uploaded photos (section 2's audit checklist, "private-metadata stripping")
+
+- ✅ **Uploaded photos shipped their full EXIF block straight to public R2
+  storage, GPS coordinates included** — a phone photo's Exif segment
+  routinely carries the exact latitude/longitude it was taken at plus
+  device make/model/timestamp, none of which has anything to do with
+  why an image is being published, and the upload pipeline
+  (`worker/admin-api.js`'s `/upload`) stored the raw uploaded bytes
+  completely untouched. Fixed at the single point every image upload
+  already funnels through — `uploadFile()` in `public/admin/app.js`,
+  called by both the per-field "Upload image" buttons and the Media
+  Library's own uploader — rather than duplicating logic across
+  callers. Added `stripImageMetadata()`: decodes the file via
+  `createImageBitmap(file, { imageOrientation: "from-image" })` (the
+  browser's own EXIF-orientation-aware decoder, not a hand-rolled
+  binary TIFF/IFD parser that could get the byte-offset math wrong),
+  draws it to an `OffscreenCanvas`, and re-exports — which drops every
+  metadata segment as a side effect of the format round-trip while
+  physically baking in the correct visual rotation first, so a photo
+  taken in portrait via an EXIF orientation tag doesn't end up
+  sideways once that tag is gone. Deliberately scoped to JPEG/PNG
+  only: GIF and WebP can be animated, and a canvas round-trip only
+  ever captures a single static frame, so re-encoding those would
+  silently destroy animation — a worse trade than the metadata it
+  would strip — so they pass through completely untouched. Falls back
+  to the original file untouched on any decode error, since stripping
+  metadata should never be the reason a legitimate upload fails.
+  Verified via Playwright with a real generated JPEG carrying GPS
+  lat/long, device Make/Model, and an EXIF Orientation=6 tag: the
+  uploaded file's raw bytes contain no "Exif" marker, no GPS string,
+  and no camera-model string at all (full strip, not just GPS), and it
+  now decodes as 100×200 instead of the original 200×100 — confirming
+  the 90° rotation was baked into the actual pixels rather than lost.
+  A control upload of a tiny GIF came back byte-for-byte identical
+  (34 bytes in, 34 out), confirming non-JPEG/PNG formats are correctly
+  left alone. Full regression suite green; test uploads deleted and
+  confirmed gone from both R2 (404 on refetch) and the `media` table.

@@ -159,7 +159,35 @@
     return !!b.locked || contentOnlyMode;
   }
 
+  // Phone photos routinely carry EXIF GPS coordinates (plus device model,
+  // timestamp, etc.) that have nothing to do with why an image is being
+  // published — a privacy leak the upload flow otherwise ships straight
+  // through to public R2 storage untouched. Re-decoding through a canvas
+  // and re-exporting drops every metadata segment as a side effect of the
+  // format round-trip, using the browser's own (EXIF-orientation-aware)
+  // decoder rather than a hand-rolled binary parser that could easily get
+  // the TIFF/IFD byte-offset math wrong. Scoped to JPEG/PNG only: GIF and
+  // WebP can be animated, and a canvas round-trip only ever captures one
+  // static frame — silently breaking animation would be a worse trade than
+  // the metadata it would strip. Falls back to the original file untouched
+  // on any decode error, since stripping metadata should never be the
+  // reason a legitimate upload fails.
+  async function stripImageMetadata(file) {
+    if (file.type !== "image/jpeg" && file.type !== "image/png") return file;
+    try {
+      const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(bitmap, 0, 0);
+      const blob = await canvas.convertToBlob({ type: file.type, quality: 0.92 });
+      return blob.size ? blob : file;
+    } catch {
+      return file;
+    }
+  }
+
   async function uploadFile(file, folder) {
+    file = await stripImageMetadata(file);
     const res = await fetch("/api/admin/upload" + (folder ? `?folder=${encodeURIComponent(folder)}` : ""), {
       method: "POST",
       headers: { "Content-Type": file.type },
