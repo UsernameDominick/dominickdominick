@@ -920,15 +920,48 @@
     return false;
   }
 
+  // Explains *why* a block behaves the way it does on canvas — several
+  // style fields (date-window visibility, the reading-order override) can
+  // silently change what a visitor sees or how a screen reader walks the
+  // page with zero visual trace on the canvas itself, which is exactly how
+  // the reading-order "can't clear it" bug went unnoticed: nothing on
+  // canvas showed the override was still there. A block schedued via
+  // visibleFrom/visibleUntil gets a badge describing its *current* state
+  // (not just "scheduled") since "visible now, hides later" and "hidden
+  // now, shows later" need different at-a-glance treatment.
+  function scheduledVisibilityBadge(style) {
+    if (!style || (!style.visibleFrom && !style.visibleUntil)) return "";
+    const now = new Date().toISOString();
+    const fmt = (iso) => new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+    if (style.visibleFrom && style.visibleFrom > now) {
+      return ` <span class="lock-badge diagnostic-error" title="Not visible yet — starts showing ${fmt(style.visibleFrom)}">Hidden until ${fmt(style.visibleFrom)}</span>`;
+    }
+    if (style.visibleUntil && style.visibleUntil <= now) {
+      return ` <span class="lock-badge diagnostic-error" title="No longer visible — expired ${fmt(style.visibleUntil)}">Expired ${fmt(style.visibleUntil)}</span>`;
+    }
+    if (style.visibleUntil) {
+      return ` <span class="lock-badge" title="Currently visible — will hide ${fmt(style.visibleUntil)}">Hides ${fmt(style.visibleUntil)}</span>`;
+    }
+    return ` <span class="lock-badge" title="Currently hidden, will become visible ${fmt(style.visibleFrom)}">Scheduled</span>`;
+  }
+
   function blockBadgesHtml(b) {
     const visibility = b.style && b.style.visibility;
+    const readingOrderRaw = b.style && b.style.readingOrder;
+    const hasReadingOrder = typeof readingOrderRaw === "number" && Number.isFinite(readingOrderRaw);
     return `${
       b.shared_block_id ? ` <span class="lock-badge" title="Reusable block — editing it updates every page that uses it">Reusable</span>` : ""
     }${b.locked ? ` <span class="lock-badge" title="Locked — protected from accidental drag/resize/delete">Locked</span>` : ""}${
       visibility === "desktop-only" ? ` <span class="lock-badge" title="Hidden on mobile — desktop only">Desktop only</span>` : ""
     }${
       visibility === "mobile-only" ? ` <span class="lock-badge" title="Hidden on desktop — mobile only">Mobile only</span>` : ""
-    }${b.style && b.style.hidden ? ` <span class="lock-badge" title="Hidden from the live site entirely">Hidden</span>` : ""}${
+    }${b.style && b.style.hidden ? ` <span class="lock-badge" title="Hidden from the live site entirely">Hidden</span>` : ""}${scheduledVisibilityBadge(
+      b.style
+    )}${
+      hasReadingOrder
+        ? ` <span class="lock-badge" title="Reads/tabs out of visual order — reading-order override set to ${readingOrderRaw}, independent of this block's position on the grid">Reading order: ${readingOrderRaw}</span>`
+        : ""
+    }${
       brokenReferenceLookup(b)
         ? ` <span class="lock-badge broken-ref-badge" title="This reference no longer exists — the block renders as nothing on the live site but still reserves its space">Broken reference</span>`
         : ""

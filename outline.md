@@ -3012,3 +3012,28 @@ in the admin. Fixed while addressing the rest of this report:
   while Screen Preview was open: the click succeeded, and the preview
   auto-updated with the new text ~1.2s later. Also confirmed the mobile
   preview modal still spans the full 390px viewport unchanged.
+
+### Fourth backlog batch
+- ✅ **Layout explanations: canvas badges for date-window visibility and
+  reading-order overrides** (★ priority) — two style fields could
+  silently change what a visitor sees or how a screen reader walks the
+  page with zero trace on the canvas: `visibleFrom`/`visibleUntil`
+  (scheduled show/hide) and `readingOrder` (the reading-order override
+  fixed earlier this batch — whose own bug, a block stuck permanently
+  overridden with no visual sign of it, was made worse by there being
+  no badge at all). The existing "Hidden"/"Locked"/"Desktop only"
+  badges already show this kind of thing at a glance; these two didn't.
+  Added a scheduled-visibility badge that reflects the block's *current*
+  state, not just "scheduled" — "Hidden until [date]" and "Expired
+  [date]" both render as error-colored (matching the existing
+  diagnostic-error badge style) since the block currently isn't showing
+  at all, while "Hides [date]" is neutral since it's visible right now
+  and will only change later. A reading-order badge ("Reading order: N")
+  shows on any block with a numeric override, so a cleared field's
+  absence is now itself visible confirmation nothing's still overridden.
+  Reuses the same `blockBadgesHtml()` shared by the desktop canvas,
+  mobile canvas, and the Layers panel, so all three picked it up for
+  free. Verified via Playwright with 5 real blocks (not-yet-visible,
+  expired, will-hide-later, reading-order override, and a plain block
+  with no badges) — each rendered exactly the expected badge text and
+  title, and the plain block correctly rendered none.
