@@ -1908,6 +1908,7 @@
       .then(() => {
         unsavedDirty = false;
         el("block-save-status").textContent = "Saved " + new Date().toLocaleTimeString();
+        schedulePreviewRefresh();
       })
       .catch((err) => {
         el("block-save-status").textContent = "Save failed: " + err.message;
@@ -1990,6 +1991,7 @@
         await api(`/blocks/${b.id}`, { method: "PATCH", body: JSON.stringify({ style: b.style }) }).catch((err) => alert(err.message));
       }
       renderCanvas();
+      schedulePreviewRefresh();
     }
 
     container.querySelectorAll("[data-key]").forEach((input) => {
@@ -2005,6 +2007,7 @@
 
   async function patchBlockPosition(b) {
     await api(`/blocks/${b.id}`, { method: "PATCH", body: JSON.stringify({ col: b.col, row: b.row }) }).catch((err) => alert(err.message));
+    schedulePreviewRefresh();
   }
 
   el("bulk-align-left").addEventListener("click", async () => {
@@ -2587,6 +2590,28 @@
     }
   }
   el("preview-frame").addEventListener("load", applyStressEffects);
+
+  // Field-change preview: the admin canvas is a simplified schematic (no
+  // real CSS, fonts, or motion effects — see computeRenderedLayoutDiagnostics
+  // above for why), so seeing what a style/content edit actually looks like
+  // meant manually reopening Screen Preview and clicking reload after every
+  // change. If Screen Preview is already open on the page being edited, any
+  // field save now refreshes it automatically instead — debounced so a
+  // color picker drag or fast typing doesn't reload on every keystroke, and
+  // a no-op while the modal is closed (nothing to refresh, and no point
+  // paying for an iframe load nobody's looking at).
+  let previewRefreshTimer = null;
+  function schedulePreviewRefresh() {
+    if (el("preview-modal").hidden || !el("preview-frame").src || el("preview-frame").src === "about:blank") return;
+    clearTimeout(previewRefreshTimer);
+    previewRefreshTimer = setTimeout(() => {
+      try {
+        el("preview-frame").contentWindow.location.reload();
+      } catch (e) {
+        // cross-origin or already-torn-down frame — nothing to do
+      }
+    }, 500);
+  }
 
   el("preview-btn").addEventListener("click", () => {
     if (!currentPage) return;

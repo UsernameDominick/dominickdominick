@@ -3027,6 +3027,16 @@ kbd {
   padding: 10px 20px 0;
 }
 
+.preview-live-badge {
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
 .preview-motion-label {
   color: var(--text-dim);
   font-size: 0.8rem;

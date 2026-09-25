@@ -2924,3 +2924,21 @@ in the admin. Fixed while addressing the rest of this report:
   to reveal the rest). Verified via the API: an identical-settings PUT
   produced no new Activity Log row at all, confirmed by comparing the
   log immediately before and after against real timestamps.
+- ✅ **Field-change live preview** (★ priority) — the admin canvas is a
+  deliberately simplified schematic, not real CSS (no real fonts,
+  backgrounds, or motion effects — the whole reason
+  `computeRenderedLayoutDiagnostics` has to spin up its own hidden
+  iframe for real-layout checks), so actually seeing what a style or
+  content edit looks like meant reopening Screen Preview and clicking
+  reload by hand after every change. Screen Preview's iframe now
+  refreshes itself automatically whenever a block's content/style
+  fields are saved, a block is dragged/resized, or a bulk style is
+  applied to a multi-selection — but only while the preview is already
+  open on that page, and debounced 500ms so a color picker drag or
+  fast typing doesn't reload on every keystroke. A small "● live" badge
+  next to the Preview modal's title makes the behavior discoverable.
+  Verified via Playwright: with the modal open, editing a text block's
+  content field showed the updated text in the real iframe within
+  ~1.2s with no manual reload; closing the modal and editing again left
+  `preview-frame.src` at `about:blank` (confirming the debounce timer
+  correctly no-ops rather than firing a reload nobody would see).
