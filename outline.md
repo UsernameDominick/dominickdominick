@@ -5609,3 +5609,26 @@ stale comment) fixed and verified live; the one remaining item (no
 explicitly out of scope for this diff, tracked here rather than silently
 dropped — a real future accessibility item worth its own pass across
 every modal at once rather than fixing piecemeal per-feature.
+
+Resubmitted the fixed diff for a fresh critic round (new code changed
+since the 6/10 round). Round 2: **9/10**. Both fixes independently traced
+through the actual causal chain (the document-level Escape handler at
+app.js's global keydown listener, and `confirmTyped()`'s single shared
+resolver) and live-reproduced against the real app: Escape inside the
+input now preserves canvas block selection; a rapid programmatic
+double-trigger on media bulk-delete fires exactly one
+`/api/admin/media/bulk-delete` call (verified via a routed fetch
+intercept, not just outcome-checking) with no hang and a correctly-reset
+input. Explicitly checked for new problems the fixes themselves might
+introduce — a same-tick hide/show replay on a fast re-trigger (no visible
+flicker, the CSS open-animation just replays cleanly) and whether
+`stopPropagation()` on Escape could suppress some other legitimate
+listener (it can't — the single document-level Escape handler's other
+branches are mutually-exclusive fallbacks for "nothing else is open,"
+and this modal already fully handles its own Escape case) — neither
+panned out as a real issue. Correctly did not re-flag the already-tracked
+app-wide `role="dialog"` gap. The only noted item is a theoretical,
+never-actually-observed animation-replay edge case, not a bug.
+
+Item #584 is fully closed: 2 critic rounds, 6/10 → 9/10, every real
+finding from round 1 fixed and verified; round 2 found nothing new.
