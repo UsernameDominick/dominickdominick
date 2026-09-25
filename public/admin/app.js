@@ -504,6 +504,7 @@
     el("page-nav-order").value = currentPage.nav_order ?? "";
     el("page-og-image").value = currentPage.og_image || "";
     el("page-canonical-url").value = currentPage.canonical_url || "";
+    el("page-custom-json-ld").value = currentPage.custom_json_ld || "";
     el("page-sitemap-exclude").checked = !!currentPage.sitemap_exclude;
     el("page-save-status").textContent = "";
     updateLockButton("lock-page-btn", !!currentPage.locked);
@@ -519,7 +520,7 @@
   // Page settings have no server-side autosave at all (only the explicit
   // Save button), so this local snapshot is the *only* safety net between
   // typing and clicking Save — a bigger gap than articles have.
-  const PAGE_DRAFT_FIELD_IDS = ["page-title", "page-meta", "page-nav-label", "page-nav-order", "page-og-image", "page-canonical-url", "page-sitemap-exclude"];
+  const PAGE_DRAFT_FIELD_IDS = ["page-title", "page-meta", "page-nav-label", "page-nav-order", "page-og-image", "page-canonical-url", "page-custom-json-ld", "page-sitemap-exclude"];
   function capturePageRawFields() {
     const out = {};
     for (const id of PAGE_DRAFT_FIELD_IDS) {
@@ -578,7 +579,7 @@
     }
   });
 
-  ["page-title", "page-meta", "page-nav-label", "page-nav-order", "page-og-image", "page-canonical-url"].forEach((id) =>
+  ["page-title", "page-meta", "page-nav-label", "page-nav-order", "page-og-image", "page-canonical-url", "page-custom-json-ld"].forEach((id) =>
     el(id).addEventListener("input", () => {
       unsavedDirty = true;
       el("page-save-status").textContent = "Unsaved changes…";
@@ -604,6 +605,7 @@
           nav_order: el("page-nav-order").value ? Number(el("page-nav-order").value) : null,
           og_image: el("page-og-image").value || null,
           canonical_url: el("page-canonical-url").value || null,
+          custom_json_ld: el("page-custom-json-ld").value.trim() || null,
           sitemap_exclude: el("page-sitemap-exclude").checked,
           expected_version: currentPage.version,
         }),
@@ -2626,6 +2628,7 @@
     el("article-archived").checked = !!article.archived;
     el("article-og-image").value = article.og_image || "";
     el("article-canonical-url").value = article.canonical_url || "";
+    el("article-custom-json-ld").value = article.custom_json_ld || "";
     el("article-correction-note").value = article.correction_note || "";
     el("article-private-notes").value = article.private_notes || "";
     currentArticleTtsAudio = article.tts_audio_key || null;
@@ -2651,7 +2654,7 @@
   // turning this back into a save payload when the restored draft is saved.
   const ARTICLE_DRAFT_FIELD_IDS = [
     "article-title", "article-slug", "article-tags", "article-series", "article-series-order",
-    "article-co-authors", "article-featured", "article-pinned", "article-sitemap-exclude", "article-archived", "article-og-image", "article-canonical-url", "article-correction-note", "article-private-notes", "article-body", "article-published", "article-publish-at",
+    "article-co-authors", "article-featured", "article-pinned", "article-sitemap-exclude", "article-archived", "article-og-image", "article-canonical-url", "article-custom-json-ld", "article-correction-note", "article-private-notes", "article-body", "article-published", "article-publish-at",
     "article-expires-at",
   ];
   function captureArticleRawFields() {
@@ -3130,6 +3133,7 @@
     el("article-archived").checked = false;
     el("article-og-image").value = "";
     el("article-canonical-url").value = "";
+    el("article-custom-json-ld").value = "";
     el("article-correction-note").value = "";
     el("article-private-notes").value = "";
     currentArticleTtsAudio = null;
@@ -3188,6 +3192,7 @@
       related_override: getMultiSelectValues(el("article-related-override")),
       og_image: el("article-og-image").value || null,
       canonical_url: el("article-canonical-url").value || null,
+      custom_json_ld: el("article-custom-json-ld").value.trim() || null,
       correction_note: el("article-correction-note").value || null,
       private_notes: el("article-private-notes").value || null,
       tts_audio_key: currentArticleTtsAudio,
@@ -3284,7 +3289,7 @@
     clearTimeout(autosaveTimer);
     autosaveTimer = setTimeout(autosaveArticle, 2000);
   }
-  ["article-title", "article-tags", "article-series", "article-co-authors", "article-og-image", "article-canonical-url", "article-correction-note", "article-private-notes", "article-body"].forEach((id) =>
+  ["article-title", "article-tags", "article-series", "article-co-authors", "article-og-image", "article-canonical-url", "article-custom-json-ld", "article-correction-note", "article-private-notes", "article-body"].forEach((id) =>
     el(id).addEventListener("input", scheduleAutosave)
   );
   ["article-slug", "article-published", "article-publish-at", "article-expires-at", "article-series-order", "article-featured", "article-pinned", "article-sitemap-exclude", "article-archived", "article-related-override"].forEach((id) =>
@@ -3526,6 +3531,7 @@
       .join("\n");
     el("project-og-image").value = project.og_image || "";
     el("project-canonical-url").value = project.canonical_url || "";
+    el("project-custom-json-ld").value = project.custom_json_ld || "";
     el("project-correction-note").value = project.correction_note || "";
     el("project-private-notes").value = project.private_notes || "";
     currentProjectTtsAudio = project.tts_audio_key || null;
@@ -3576,6 +3582,7 @@
     el("project-link-download").value = "";
     el("project-og-image").value = "";
     el("project-canonical-url").value = "";
+    el("project-custom-json-ld").value = "";
     el("project-correction-note").value = "";
     el("project-private-notes").value = "";
     currentProjectTtsAudio = null;
@@ -3653,6 +3660,7 @@
       links,
       og_image: el("project-og-image").value || null,
       canonical_url: el("project-canonical-url").value || null,
+      custom_json_ld: el("project-custom-json-ld").value.trim() || null,
       correction_note: el("project-correction-note").value || null,
       private_notes: el("project-private-notes").value || null,
       tts_audio_key: currentProjectTtsAudio,

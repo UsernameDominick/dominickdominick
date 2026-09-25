@@ -42,12 +42,12 @@ export async function listNavPages(env) {
   return results;
 }
 
-export async function createPage(env, { slug, title, meta_description, nav_label, nav_order, og_image, canonical_url }) {
+export async function createPage(env, { slug, title, meta_description, nav_label, nav_order, og_image, canonical_url, custom_json_ld }) {
   const res = await env.DB
     .prepare(
-      "INSERT INTO pages (slug, title, meta_description, nav_label, nav_order, og_image, canonical_url) VALUES (?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO pages (slug, title, meta_description, nav_label, nav_order, og_image, canonical_url, custom_json_ld) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
     )
-    .bind(slug, title, meta_description || "", nav_label || null, nav_order ?? null, og_image || null, canonical_url || null)
+    .bind(slug, title, meta_description || "", nav_label || null, nav_order ?? null, og_image || null, canonical_url || null, custom_json_ld || null)
     .run();
   return res.meta.last_row_id;
 }
@@ -55,7 +55,7 @@ export async function createPage(env, { slug, title, meta_description, nav_label
 export async function updatePage(env, id, fields) {
   const cols = [];
   const vals = [];
-  for (const key of ["slug", "title", "meta_description", "nav_label", "nav_order", "og_image", "canonical_url"]) {
+  for (const key of ["slug", "title", "meta_description", "nav_label", "nav_order", "og_image", "canonical_url", "custom_json_ld"]) {
     if (key in fields) {
       cols.push(`${key} = ?`);
       vals.push(fields[key]);
@@ -493,11 +493,12 @@ export async function createArticle(
     archived,
     related_override,
     private_notes,
+    custom_json_ld,
   }
 ) {
   const res = await env.DB
     .prepare(
-      "INSERT INTO articles (slug, title, body, published_at, tags, og_image, canonical_url, series, series_order, co_authors, featured, pinned, expires_at, sitemap_exclude, archived, related_override, private_notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO articles (slug, title, body, published_at, tags, og_image, canonical_url, series, series_order, co_authors, featured, pinned, expires_at, sitemap_exclude, archived, related_override, private_notes, custom_json_ld) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
     .bind(
       slug,
@@ -516,7 +517,8 @@ export async function createArticle(
       sitemap_exclude ? 1 : 0,
       archived ? 1 : 0,
       JSON.stringify(Array.isArray(related_override) ? related_override : []),
-      private_notes || null
+      private_notes || null,
+      custom_json_ld || null
     )
     .run();
   return res.meta.last_row_id;
@@ -525,7 +527,7 @@ export async function createArticle(
 export async function updateArticle(env, id, fields) {
   const cols = [];
   const vals = [];
-  for (const key of ["slug", "title", "body", "og_image", "canonical_url", "series", "correction_note", "tts_audio_key", "private_notes"]) {
+  for (const key of ["slug", "title", "body", "og_image", "canonical_url", "series", "correction_note", "tts_audio_key", "private_notes", "custom_json_ld"]) {
     if (key in fields) {
       cols.push(`${key} = ?`);
       vals.push(fields[key]);
@@ -825,12 +827,13 @@ export async function createProject(
     private_notes,
     sort_order,
     hero_video,
+    custom_json_ld,
   }
 ) {
   const res = await env.DB
     .prepare(
-      `INSERT INTO projects (slug, title, summary, body, published_at, tags, tech_stack, status, links, og_image, canonical_url, featured, related_articles, related_simulations, related_scans, expires_at, sitemap_exclude, archived, related_override, featured_order, private_notes, sort_order, hero_video)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO projects (slug, title, summary, body, published_at, tags, tech_stack, status, links, og_image, canonical_url, featured, related_articles, related_simulations, related_scans, expires_at, sitemap_exclude, archived, related_override, featured_order, private_notes, sort_order, hero_video, custom_json_ld)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       slug,
@@ -855,7 +858,8 @@ export async function createProject(
       Number.isFinite(Number(featured_order)) ? Number(featured_order) : null,
       private_notes || null,
       Number.isFinite(Number(sort_order)) ? Number(sort_order) : null,
-      hero_video || null
+      hero_video || null,
+      custom_json_ld || null
     )
     .run();
   return res.meta.last_row_id;
@@ -864,7 +868,7 @@ export async function createProject(
 export async function updateProject(env, id, fields) {
   const cols = [];
   const vals = [];
-  for (const key of ["slug", "title", "summary", "body", "og_image", "canonical_url", "status", "correction_note", "tts_audio_key", "private_notes", "hero_video"]) {
+  for (const key of ["slug", "title", "summary", "body", "og_image", "canonical_url", "status", "correction_note", "tts_audio_key", "private_notes", "hero_video", "custom_json_ld"]) {
     if (key in fields) {
       cols.push(`${key} = ?`);
       vals.push(fields[key]);

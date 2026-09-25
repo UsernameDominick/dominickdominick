@@ -12,7 +12,8 @@ CREATE TABLE pages (
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   version INTEGER NOT NULL DEFAULT 1,
   locked INTEGER NOT NULL DEFAULT 0,
-  sitemap_exclude INTEGER NOT NULL DEFAULT 0
+  sitemap_exclude INTEGER NOT NULL DEFAULT 0,
+  custom_json_ld TEXT
 );
 
 -- A block "definition" that one or more page blocks can point at via
@@ -69,7 +70,8 @@ CREATE TABLE articles (
   sitemap_exclude INTEGER NOT NULL DEFAULT 0,
   related_override TEXT NOT NULL DEFAULT '[]',
   archived INTEGER NOT NULL DEFAULT 0,
-  private_notes TEXT
+  private_notes TEXT,
+  custom_json_ld TEXT
 );
 
 -- Projects are a real content type (not just project-card blocks dropped on
@@ -107,7 +109,8 @@ CREATE TABLE projects (
   featured_order INTEGER,
   private_notes TEXT,
   sort_order INTEGER,
-  hero_video TEXT
+  hero_video TEXT,
+  custom_json_ld TEXT
 );
 
 -- A project's build journal — dated entries telling the story of building

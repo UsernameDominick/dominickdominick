@@ -132,6 +132,7 @@
           <button type="button" class="upload-trigger" data-target="#page-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#page-og-image">Browse…</button><br><button type="button" class="edit-image-trigger" data-target="#page-og-image">Edit / crop for social…</button>
         </label>
         <label>Canonical URL override (optional — blank = auto)<input id="page-canonical-url" type="text" spellcheck="false" placeholder="https://..."></label>
+        <label title="Added alongside this page's auto-generated structured data, not instead of it. Must be valid JSON — one object, e.g. a FAQPage or HowTo schema.org type.">Custom structured data (JSON-LD, optional)<textarea id="page-custom-json-ld" rows="3" spellcheck="false" placeholder='{"@context":"https://schema.org","@type":"FAQPage",...}'></textarea></label>
         <label><input type="checkbox" id="page-sitemap-exclude"> Exclude from sitemap.xml</label>
         <div class="og-preview-label">Share preview</div>
         <div class="og-preview" id="og-preview-page">
@@ -236,6 +237,7 @@
             <button type="button" class="upload-trigger" data-target="#article-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#article-og-image">Browse…</button><br><button type="button" class="edit-image-trigger" data-target="#article-og-image">Edit / crop for social…</button>
           </div>
           <input id="article-canonical-url" placeholder="Canonical URL override (optional — blank = auto)" spellcheck="false">
+          <label title="Added alongside this article's auto-generated structured data, not instead of it. Must be valid JSON — one object, e.g. a FAQPage or HowTo schema.org type.">Custom structured data (JSON-LD, optional)<textarea id="article-custom-json-ld" rows="3" spellcheck="false" placeholder='{"@context":"https://schema.org","@type":"FAQPage",...}'></textarea></label>
           <label>Correction/update note (optional — shown to readers in a callout at the top)<textarea id="article-correction-note" rows="2" placeholder="e.g. Updated Sept 2026 to reflect the new API."></textarea></label>
           <label>Private notes (never shown publicly — editorial reminders, todos, sources)<textarea id="article-private-notes" rows="2" placeholder="e.g. Still need to add the benchmark screenshots before publishing."></textarea></label>
           <div class="tts-audio-field">
@@ -357,6 +359,7 @@
             <button type="button" class="upload-trigger" data-target="#project-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#project-og-image">Browse…</button><br><button type="button" class="edit-image-trigger" data-target="#project-og-image">Edit / crop for social…</button>
           </div>
           <input id="project-canonical-url" placeholder="Canonical URL override (optional — blank = auto)" spellcheck="false">
+          <label title="Added alongside this project's auto-generated structured data, not instead of it. Must be valid JSON — one object, e.g. a Product or HowTo schema.org type.">Custom structured data (JSON-LD, optional)<textarea id="project-custom-json-ld" rows="3" spellcheck="false" placeholder='{"@context":"https://schema.org","@type":"Product",...}'></textarea></label>
           <label>Correction/update note (optional — shown to readers in a callout at the top)<textarea id="project-correction-note" rows="2" placeholder="e.g. Updated Sept 2026 with the v2 hardware revision."></textarea></label>
           <label>Private notes (never shown publicly — editorial reminders, todos, sources)<textarea id="project-private-notes" rows="2" placeholder="e.g. Waiting on the vendor datasheet before finishing the BOM."></textarea></label>
           <div class="tts-audio-field">

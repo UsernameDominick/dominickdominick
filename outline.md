@@ -959,7 +959,20 @@ Contact form, admin inbox, guestbook/comments, moderation, newsletter —
   pages/articles/projects, a checkbox in each editor, filtered out of
   `renderSitemap()` but the page/article/project itself stays fully
   live — this only removes it from the sitemap, doesn't unpublish it);
-  🔶 structured data (JSON-LD auto ✅; admin-customizable ☐)
+  ✅ structured data (JSON-LD auto ✅; admin-customizable ✅ — a new
+  `custom_json_ld` column on pages/articles/projects, edited as a raw JSON
+  textarea in each editor. Rendered as an *additional* `<script
+  type="application/ld+json">` block alongside whatever's already
+  auto-generated (Article/CreativeWork/BreadcrumbList/the sitewide
+  WebSite block), not a replacement — an admin adding FAQPage or HowTo
+  schema shouldn't have to hand-maintain the auto-generated schema too.
+  Validated as JSON at save time (all three editors' POST/PATCH routes),
+  rejecting malformed input with a clear error rather than silently
+  saving something that would only be noticed by inspecting page source
+  later. Projects have no autosave/draft-recovery to begin with, so the
+  field there is manual-Save-only like the rest of that editor; pages and
+  articles wire it into their existing autosave/crash-recovery-draft
+  mechanisms like every other field)
 - ✅ Orphan-page detection (SEO Dashboard → "Orphan Pages": published
   pages/articles/projects that nothing internally links to — reusing the
   exact same link-gathering walk the Link Checker already does, just

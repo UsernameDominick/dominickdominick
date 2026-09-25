@@ -32,6 +32,25 @@ function jsonLdScript(data) {
   return JSON.stringify(data).replace(/</g, "\\u003c");
 }
 
+// Merges an admin-authored custom_json_ld column value alongside whatever
+// JSON-LD is already auto-generated for a page/article/project, rather than
+// replacing it — an admin adding, say, FAQPage or HowTo schema shouldn't
+// have to hand-maintain the Article/CreativeWork/BreadcrumbList schema too.
+// custom_json_ld is validated as JSON at save time (admin-api.js), so a
+// parse failure here would mean bad data slipped through some other path;
+// fail safe by dropping it rather than breaking the whole page's rendering.
+export function withCustomJsonLd(jsonLd, customJsonLdRaw) {
+  if (!customJsonLdRaw) return jsonLd;
+  let custom;
+  try {
+    custom = JSON.parse(customJsonLdRaw);
+  } catch {
+    return jsonLd;
+  }
+  const base = Array.isArray(jsonLd) ? jsonLd : jsonLd ? [jsonLd] : [];
+  return [...base, custom];
+}
+
 // Minimal markdown: **bold**, *italic*, [label](url), plus [^label] footnote
 // references (see extractFootnotes). Runs on already-HTML-escaped text, so
 // the only unescaped characters left are the ones this inserts itself —

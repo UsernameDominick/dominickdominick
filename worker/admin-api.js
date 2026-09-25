@@ -194,6 +194,20 @@ function sanitizeSvg(text) {
     .replace(/((?:xlink:)?href|src)\s*=\s*'\s*javascript:[^']*'/gi, "$1='#'");
 }
 
+// A malformed custom_json_ld would otherwise fail silently until someone
+// actually inspects the rendered <script type="application/ld+json"> tag —
+// or worse, get swallowed by JSON.stringify re-serializing whatever
+// half-broken value made it into the column. Reject it at save time instead.
+function validateCustomJsonLd(body) {
+  if (!body.custom_json_ld) return null;
+  try {
+    JSON.parse(body.custom_json_ld);
+    return null;
+  } catch {
+    return "Custom structured data (JSON-LD) is not valid JSON";
+  }
+}
+
 // SHA-256 of the raw file bytes, hex-encoded — the actual pixels/bytes, so
 // two uploads of the same underlying file always match regardless of
 // filename, upload date, or which folder/tags they got afterward.
@@ -367,6 +381,8 @@ async function routeAdminApi(request, env, url, ctx) {
   }
   if (path === "/pages" && method === "POST") {
     const body = await request.json().catch(() => ({}));
+    const jsonLdError = validateCustomJsonLd(body);
+    if (jsonLdError) return json({ error: jsonLdError }, { status: 400 });
     const slug = slugify(body.slug || body.title);
     if (!slug || RESERVED_SLUGS.has(slug)) {
       return json({ error: "Invalid or reserved slug" }, { status: 400 });
@@ -382,6 +398,7 @@ async function routeAdminApi(request, env, url, ctx) {
       nav_label: body.nav_label || null,
       nav_order: body.nav_order ?? null,
       og_image: body.og_image || null,
+      custom_json_ld: body.custom_json_ld || null,
     });
     log(ctx, env, "create", "page", body.title || slug);
     return json({ id, slug });
@@ -389,6 +406,8 @@ async function routeAdminApi(request, env, url, ctx) {
   const pageMatch = path.match(/^\/pages\/(\d+)$/);
   if (pageMatch && method === "PATCH") {
     const body = await request.json().catch(() => ({}));
+    const jsonLdError = validateCustomJsonLd(body);
+    if (jsonLdError) return json({ error: jsonLdError }, { status: 400 });
     const id = Number(pageMatch[1]);
     const conflict = await checkConflict(env, "pages", id, body.expected_version);
     if (conflict) return conflict;
@@ -546,6 +565,8 @@ async function routeAdminApi(request, env, url, ctx) {
   }
   if (path === "/articles" && method === "POST") {
     const body = await request.json().catch(() => ({}));
+    const jsonLdError = validateCustomJsonLd(body);
+    if (jsonLdError) return json({ error: jsonLdError }, { status: 400 });
     const slug = slugify(body.slug || body.title);
     if (!slug) return json({ error: "Title or slug required" }, { status: 400 });
     if (RESERVED_SLUGS.has(slug)) return json({ error: "Reserved slug" }, { status: 400 });
@@ -563,6 +584,8 @@ async function routeAdminApi(request, env, url, ctx) {
   const articleMatch = path.match(/^\/articles\/(\d+)$/);
   if (articleMatch && method === "PATCH") {
     const body = await request.json().catch(() => ({}));
+    const jsonLdError = validateCustomJsonLd(body);
+    if (jsonLdError) return json({ error: jsonLdError }, { status: 400 });
     const id = Number(articleMatch[1]);
     const conflict = await checkConflict(env, "articles", id, body.expected_version);
     if (conflict) return conflict;
@@ -656,6 +679,8 @@ async function routeAdminApi(request, env, url, ctx) {
   }
   if (path === "/projects" && method === "POST") {
     const body = await request.json().catch(() => ({}));
+    const jsonLdError = validateCustomJsonLd(body);
+    if (jsonLdError) return json({ error: jsonLdError }, { status: 400 });
     const slug = slugify(body.slug || body.title);
     if (!slug) return json({ error: "Title or slug required" }, { status: 400 });
     if (RESERVED_SLUGS.has(slug)) return json({ error: "Reserved slug" }, { status: 400 });
@@ -674,6 +699,8 @@ async function routeAdminApi(request, env, url, ctx) {
   const projectMatch = path.match(/^\/projects\/(\d+)$/);
   if (projectMatch && method === "PATCH") {
     const body = await request.json().catch(() => ({}));
+    const jsonLdError = validateCustomJsonLd(body);
+    if (jsonLdError) return json({ error: jsonLdError }, { status: 400 });
     const id = Number(projectMatch[1]);
     const conflict = await checkConflict(env, "projects", id, body.expected_version);
     if (conflict) return conflict;
