@@ -1258,8 +1258,15 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
      several rows sharing a truncated prefix become indistinguishable.
      Letting them wrap to a few lines instead trades a taller row for
      actually being able to read what it says. */
-  .link-check-url,
-  .simulation-row span {
+  /* #app-qualified: .simulation-row's own base rules (further down this
+     file, at plain .simulation-row/.simulation-row span specificity) come
+     later in source order, so at equal specificity they were silently
+     winning even inside this narrower-viewport override — nullifying the
+     wrap fix below and clipping row content (including badges) off
+     entirely on a phone. The #app prefix raises specificity above the
+     unscoped base rules regardless of source order. */
+  #app .link-check-url,
+  #app .simulation-row span {
     white-space: normal;
     overflow-wrap: break-word;
   }
@@ -1271,11 +1278,11 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
      lets the title take the full row and pushes the actions onto their
      own row underneath, with enough padding to clear a reasonable
      touch-target size. */
-  .simulation-row {
+  #app .simulation-row {
     flex-wrap: wrap;
   }
 
-  .simulation-row span {
+  #app .simulation-row span {
     flex-basis: 100%;
   }
 

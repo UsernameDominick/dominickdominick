@@ -3161,3 +3161,37 @@ text). Both implemented:
   (empty text + a 1.61:1 contrast pair): correctly showed "2 issues"
   with both listed in the badge's tooltip, while an unrelated clean
   shared block showed no badge at all.
+
+### Sixth critic pass on the above
+- ✅ **Style-preset contrast warning false-positived on headings** —
+  `warnIfBadContrast()` hardcoded the 4.5:1 normal-text threshold with
+  no knowledge of block type, unlike every sibling contrast check
+  shipped this session (`checkAccessibility()`, `sharedBlockIssues()`,
+  the per-page Diagnostics check), which all correctly relax to 3:1 for
+  headings. A legitimately WCAG-compliant heading color (3.45:1, passes
+  the 3:1 large-text allowance) still triggered an alarming false
+  warning when saved or applied as a preset. Fixed by passing the
+  block's type through and using the same threshold logic as
+  everywhere else. Verified via Playwright: saving a preset from a
+  3.45:1 heading now shows only the name prompt, no contrast alert.
+- ✅ **Reusable Blocks (and Simulations/Songs/Scans) row content —
+  including the brand-new issue-count badge — was invisible on mobile**
+  — a CSS specificity bug, not new to this session but newly
+  consequential: the mobile-only wrap override
+  (`.simulation-row span { white-space: normal; ... }` inside
+  `@media (max-width:860px)`) and the base unscoped rule further down
+  the file (`white-space: nowrap; overflow: hidden; text-overflow:
+  ellipsis`) have identical specificity, so normal cascade order let
+  the later, unscoped rule silently win even inside the narrower
+  viewport — clipping row text (and now the issue badge) down to ~66px
+  wide. Fixed by qualifying the mobile override selectors with `#app`,
+  raising their specificity above the unscoped base rules regardless of
+  source order. Verified via Playwright at 390px: a shared block's
+  issue badge now has a real, nonzero bounding box instead of being
+  clipped away.
+- ✅ **Stale Accessibility Report description** — the panel's own label
+  still read "every other block type is already accessible by
+  construction," which stopped being true the moment this session
+  extended the same check to scan every block's color contrast and
+  gallery alt text site-wide. Updated the label to describe what it
+  actually checks now.

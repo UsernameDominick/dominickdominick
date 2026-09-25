@@ -1968,13 +1968,18 @@
   // contrastRatio() math at the two moments a preset's colors actually
   // take effect — saving one, and applying one — instead of only ever
   // catching it after the fact.
-  function warnIfBadContrast(style) {
+  function warnIfBadContrast(style, blockType) {
     const color = style && style.color;
     const bg = style && style.bg;
     if (!color || !bg || !/^#[0-9a-f]{6}$/i.test(color) || !/^#[0-9a-f]{6}$/i.test(bg)) return;
     const ratio = contrastRatio(color, bg);
-    if (ratio < 4.5) {
-      alert(`Heads up: this style's text/background colors have a contrast ratio of ${ratio.toFixed(2)}:1, below the WCAG AA minimum of 4.5:1 — text using it may be hard to read.`);
+    // Same relaxed 3:1 threshold for headings used everywhere else this
+    // check runs (checkAccessibility(), sharedBlockIssues(), the per-page
+    // Diagnostics check) — this one was left hardcoded at 4.5 and false-
+    // positived on legitimately WCAG-compliant heading colors.
+    const threshold = blockType === "heading" ? 3 : 4.5;
+    if (ratio < threshold) {
+      alert(`Heads up: this style's text/background colors have a contrast ratio of ${ratio.toFixed(2)}:1, below the WCAG AA minimum of ${threshold}:1 — text using it may be hard to read.`);
     }
   }
   el("apply-style-preset-select").addEventListener("change", () => {
@@ -1988,7 +1993,7 @@
     Object.assign(block.style, preset.style);
     saveBlockStyleAndContent(block);
     renderInspector();
-    warnIfBadContrast(block.style);
+    warnIfBadContrast(block.style, block.type);
   });
   el("save-style-preset-btn").addEventListener("click", async () => {
     const block = blocks.find((b) => b.id === selectedBlockId);
@@ -1999,7 +2004,7 @@
       await api("/style-presets", { method: "POST", body: JSON.stringify({ name, style: block.style || {} }) });
       await loadStylePresets();
       populateStylePresetSelect();
-      warnIfBadContrast(block.style);
+      warnIfBadContrast(block.style, block.type);
     } catch (err) {
       alert(err.message);
     }
