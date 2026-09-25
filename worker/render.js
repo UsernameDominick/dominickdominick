@@ -1119,7 +1119,7 @@ export function renderShell({
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
-<script>(function(){try{var t=localStorage.getItem("theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);var m=localStorage.getItem("motion");if(m==="reduce")document.documentElement.setAttribute("data-motion","reduce");}catch(e){}})();</script>
+<script>(function(){try{var t=localStorage.getItem("theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);var m=localStorage.getItem("motion");if(m==="reduce")document.documentElement.setAttribute("data-motion","reduce");var fs=parseFloat(localStorage.getItem("fontScale"));if(fs)document.documentElement.style.setProperty("--font-scale",fs);}catch(e){}})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${esc(title)}</title>
@@ -1196,6 +1196,7 @@ ${customHead || ""}
         </form>
         <a class="icon-link-btn" href="/shuffle" title="Random project or article" aria-label="Random project or article">⇌</a>
         <button type="button" id="motion-toggle" aria-label="Toggle reduced motion" title="Turn off entrance/hover animations">⏸</button>
+        <button type="button" id="font-size-toggle" aria-label="Change text size" title="Change text size">A</button>
         <button type="button" id="theme-toggle" aria-label="Toggle light/dark theme">◐</button>
       </div>
     </header>

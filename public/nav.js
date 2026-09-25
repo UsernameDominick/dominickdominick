@@ -323,3 +323,32 @@ document.addEventListener("input", function (e) {
     window.trackEvent("motion_toggle", next || "default");
   });
 })();
+
+// Manual text-size toggle — cycles through a few preset scales rather
+// than separate A+/A- buttons, matching the single-icon-button
+// convention the theme/motion toggles already use in this header. Sets
+// a CSS custom property the base `html` font-size reads (see style.css),
+// so every rem-based size on the site scales from it.
+(function () {
+  var btn = document.getElementById("font-size-toggle");
+  if (!btn) return;
+  var SCALES = [1, 1.15, 1.3, 0.9];
+  var root = document.documentElement;
+  var current = parseFloat(localStorage.getItem("fontScale")) || 1;
+  var apply = function (scale) {
+    current = scale;
+    if (scale === 1) root.style.removeProperty("--font-scale");
+    else root.style.setProperty("--font-scale", scale);
+    btn.title = "Text size: " + Math.round(scale * 100) + "% (click to change)";
+    try {
+      localStorage.setItem("fontScale", String(scale));
+    } catch (e) {}
+  };
+  apply(current);
+  btn.addEventListener("click", function () {
+    var idx = SCALES.indexOf(current);
+    var next = SCALES[(idx + 1) % SCALES.length];
+    apply(next);
+    window.trackEvent("font_size_toggle", String(next));
+  });
+})();

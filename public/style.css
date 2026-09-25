@@ -82,6 +82,7 @@ html, body {
 
 html {
   scroll-behavior: smooth;
+  font-size: calc(16px * var(--font-scale, 1));
 }
 
 h2, h3 {
@@ -263,6 +264,7 @@ body {
 
 #theme-toggle,
 #motion-toggle,
+#font-size-toggle,
 .icon-link-btn {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
@@ -285,6 +287,7 @@ body {
 
 #theme-toggle:hover,
 #motion-toggle:hover,
+#font-size-toggle:hover,
 .icon-link-btn:hover {
   color: var(--accent);
   border-color: var(--accent);
@@ -2014,7 +2017,8 @@ pre.has-line-numbers {
   .table-of-contents,
   .site-search,
   #theme-toggle,
-  #motion-toggle {
+  #motion-toggle,
+  #font-size-toggle {
     display: none !important;
   }
 

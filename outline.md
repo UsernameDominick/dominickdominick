@@ -854,12 +854,20 @@ Contact form, admin inbox, guestbook/comments, moderation, newsletter —
 **explicitly declined by the user**, left ☐ deliberately.
 - ✅ Reactions (👍/💡/❤️, aggregate counts only, no visitor identity, client-side double-vote discouragement)
 - ✅ Expanded sharing (X/LinkedIn/email + copy-link)
-- 🔶 Visitor font-size/motion prefs (reduced-motion auto-respected via OS
+- ✅ Visitor font-size/motion prefs (reduced-motion auto-respected via OS
   ✅; a manual ⏸ toggle in the header now also lets a visitor turn
   animations off independent of their OS setting, persisted in
   localStorage — the CSS override mirrors exactly what the OS-driven
   `@media (prefers-reduced-motion)` scoping already does, just reachable
-  without changing OS settings; font-size ☐)
+  without changing OS settings; font-size ✅ — a header "A" button next to
+  the theme/motion toggles cycles a `--font-scale` CSS variable through
+  [1, 1.15, 1.3, 0.9] (100% → 115% → 130% → 90% → back to 100%), persisted
+  in localStorage and read by the same early inline `<head>` script that
+  already sets theme/motion before first paint (avoids a flash of
+  wrong-sized text). `html { font-size: calc(16px * var(--font-scale, 1)) }`
+  means every `rem`-based size on the site scales together. One cycling
+  button rather than separate A+/A- controls, matching the existing
+  single-icon-button convention used by the theme and motion toggles)
 - ✅ Print-friendly pages; ☐ downloadable PDF articles/case studies
 
 ### Analytics
