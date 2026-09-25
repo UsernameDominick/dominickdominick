@@ -91,6 +91,42 @@ function hasPreviewModeCookie(request) {
   return parseCookies(request.headers.get("Cookie")).preview_mode === "1";
 }
 
+// Maintenance mode — a Site Settings toggle that takes the whole public
+// site down to one plain "we'll be back" page while an admin is doing
+// something risky. Exempts /admin (and /api/admin, already routed
+// elsewhere before this ever runs) so a logged-out admin can still reach
+// the login screen to turn it back off, plus anything that looks like a
+// static asset — the exempt list is deliberately broad (covers what the
+// maintenance page or the admin panel could need) rather than trying to
+// enumerate every route that should still work.
+const MAINTENANCE_EXEMPT_EXT = /\.(css|js|mjs|json|svg|png|jpg|jpeg|webp|gif|ico|woff2?|ttf|mp3|mp4|webm|glb|gltf|usdz|wasm|txt)$/i;
+function isMaintenanceExempt(path) {
+  return path.startsWith("/admin") || MAINTENANCE_EXEMPT_EXT.test(path);
+}
+function renderMaintenanceHtml(message) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Down for maintenance · Dominick</title>
+<style>
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #0b0b0c; color: #f5f5f5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-align: center; padding: 24px; }
+  .maintenance-box { max-width: 480px; }
+  h1 { font-size: 1.4rem; margin-bottom: 12px; }
+  p { color: #a0a0a5; line-height: 1.6; }
+</style>
+</head>
+<body>
+  <div class="maintenance-box">
+    <h1>Down for maintenance</h1>
+    <p>${esc(message)}</p>
+  </div>
+</body>
+</html>`;
+}
+
 async function getTheme(env) {
   const [accent, bg, font, text, border, headingFont, mobileBreakpoint] = await Promise.all([
     getSetting(env, "theme_accent"),
@@ -830,6 +866,14 @@ async function route(request, env, ctx) {
 
     if (path === "/api/react" && request.method === "POST") {
       return handleReact(request, env, ctx);
+    }
+
+    if (!isMaintenanceExempt(path) && (await getSetting(env, "maintenance_mode")) === "1" && !(await isAuthenticated(request, env))) {
+      const message = (await getSetting(env, "maintenance_message")) || "We'll be back shortly.";
+      return new Response(renderMaintenanceHtml(message), {
+        status: 503,
+        headers: { "Content-Type": "text/html;charset=UTF-8", "Retry-After": "3600" },
+      });
     }
 
     if (path === "/sitemap.xml") {

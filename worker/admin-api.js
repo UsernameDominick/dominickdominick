@@ -167,6 +167,8 @@ const SETTINGS_KEYS = [
   "empty_search_text",
   "empty_archive_text",
   "empty_topics_text",
+  "maintenance_mode",
+  "maintenance_message",
 ];
 
 // Paths a redirect could otherwise break by intercepting a system route.

@@ -728,6 +728,10 @@
           <textarea id="settings-webhook-url" rows="3" placeholder="https://...&#10;https://..."></textarea>
         </label>
         <label><input type="checkbox" id="settings-webhook-on-project-publish"> Also call them when a project is published</label>
+        <label title="Takes the whole public site down to one plain 'we'll be back' page. You (logged in) can still browse normally — this only affects logged-out visitors — so you can safely turn it on, do risky work, then turn it back off from here."><input type="checkbox" id="settings-maintenance-mode"> Maintenance mode (site shows a "down for maintenance" page to visitors)</label>
+        <label>Maintenance message (optional — shown on that page, blank = default)
+          <input id="settings-maintenance-message" type="text" placeholder="We'll be back shortly.">
+        </label>
         <button id="save-settings">Save</button>
         <h2>Webhook Deliveries</h2>
         <label style="margin-bottom:0;">Recent attempts to call the webhook URLs above. Failed ones can be retried with the exact same payload.</label>

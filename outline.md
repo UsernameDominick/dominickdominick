@@ -1174,7 +1174,19 @@ changes with low value for a single-admin personal site; flagging as
 - ☐ Staging environment (deliberately deferred — real Cloudflare resource cost/provisioning, needs go-ahead first)
 - ☐ Preview deployments tied to changes
 - 🔶 Migration history (this doc is a manual log; no automated tracker)
-- ✅ Error tracking; ☐ uptime monitoring, maintenance mode
+- ✅ Error tracking; ☐ uptime monitoring; ✅ maintenance mode — a Site
+  Settings checkbox (+ optional custom message) that takes the whole
+  public site down to one plain, dependency-free "we'll be back" page
+  (503, `Retry-After` header) while an admin does something risky. Gated
+  by the exact same `isAuthenticated()` check the admin API already uses,
+  so a logged-in admin keeps browsing the live site normally to verify
+  whatever they're doing — the toggle only ever affects logged-out
+  visitors. Exemption list is deliberately broad (`/admin*` plus any
+  path with a static-asset-looking extension) rather than trying to
+  enumerate every route that must keep working, since blocking the admin
+  panel itself would strand a logged-out admin with no way to turn it
+  back off, and blocking style.css/nav.js would break the admin panel's
+  own styling while maintenance mode is on
 - ✅ Custom error pages (404; 500 — `renderErrorPageHtml()` in
   `worker/render.js`, deliberately fully self-contained with no DB
   reads/imports beyond the module itself, since it's called from the

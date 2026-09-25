@@ -4579,6 +4579,8 @@
     el("settings-empty-search").value = settings.empty_search_text || "";
     el("settings-empty-archive").value = settings.empty_archive_text || "";
     el("settings-empty-topics").value = settings.empty_topics_text || "";
+    el("settings-maintenance-mode").checked = settings.maintenance_mode === "1";
+    el("settings-maintenance-message").value = settings.maintenance_message || "";
     el("find-replace-results").innerHTML = "";
     el("find-replace-apply-btn").disabled = true;
     el("settings-modal").hidden = false;
@@ -4609,6 +4611,8 @@
           empty_search_text: el("settings-empty-search").value,
           empty_archive_text: el("settings-empty-archive").value,
           empty_topics_text: el("settings-empty-topics").value,
+          maintenance_mode: el("settings-maintenance-mode").checked ? "1" : "",
+          maintenance_message: el("settings-maintenance-message").value,
         }),
       });
       el("settings-modal").hidden = true;
