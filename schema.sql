@@ -105,7 +105,8 @@ CREATE TABLE projects (
   related_override TEXT NOT NULL DEFAULT '[]',
   archived INTEGER NOT NULL DEFAULT 0,
   featured_order INTEGER,
-  private_notes TEXT
+  private_notes TEXT,
+  sort_order INTEGER
 );
 
 -- A project's build journal — dated entries telling the story of building

@@ -1204,6 +1204,15 @@
       { key: "limit", label: "How many projects", type: "number" },
       { key: "tag", label: "Only show this tag (blank = all)", type: "text" },
       { key: "featuredOnly", label: "Only show featured projects", type: "checkbox" },
+      {
+        key: "sort",
+        label: "Sort by",
+        type: "select",
+        options: [
+          ["newest", "Newest first"],
+          ["manual", "Manual order (set per-project in the project editor)"],
+        ],
+      },
     ],
     video: [{ key: "url", label: "YouTube or Vimeo URL", type: "text" }],
     embed: [{ key: "url", label: "Embed URL (CodePen, Spotify, Figma, CodeSandbox, GitHub Gist, or any iframe-able link)", type: "text" }],
@@ -3452,6 +3461,7 @@
     el("project-sitemap-exclude").checked = !!project.sitemap_exclude;
     el("project-archived").checked = !!project.archived;
     el("project-featured-order").value = project.featured_order ?? "";
+    el("project-sort-order").value = project.sort_order ?? "";
     const links = project.links || {};
     el("project-link-github").value = links.github || "";
     el("project-link-demo").value = links.demo || "";
@@ -3503,6 +3513,7 @@
     el("project-sitemap-exclude").checked = false;
     el("project-archived").checked = false;
     el("project-featured-order").value = "";
+    el("project-sort-order").value = "";
     el("project-link-github").value = "";
     el("project-link-demo").value = "";
     el("project-link-docs").value = "";
@@ -3580,6 +3591,7 @@
       sitemap_exclude: el("project-sitemap-exclude").checked,
       archived: el("project-archived").checked,
       featured_order: el("project-featured-order").value === "" ? null : Number(el("project-featured-order").value),
+      sort_order: el("project-sort-order").value === "" ? null : Number(el("project-sort-order").value),
       links,
       og_image: el("project-og-image").value || null,
       canonical_url: el("project-canonical-url").value || null,

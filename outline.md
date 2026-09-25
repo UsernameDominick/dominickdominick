@@ -746,7 +746,16 @@ block already support any of these as a plain page:
 - ✅ Challenges/decisions/lessons (journal entry types), related content, version history (revisions)
 - 🔶 Public changelogs (journal entries can serve; no distinct feature)
 - ✅ Download manifest (multiple labeled files + descriptions, scanned by Link Checker) alongside the single quick-download link
-- 🔶 Sort/filter (tag/featured ✅; arbitrary sort ☐); ✅ featured-order
+- ✅ Sort/filter (tag/featured ✅; arbitrary sort ✅ — a new `sort_order`
+  column on projects, same nulls-last-ascending convention as
+  `featured_order`, now factored into a shared `sortByOrderField()`
+  helper both use; a Project List block's new "Sort by" field switches
+  it from the default newest-first to this manual order. Correctness
+  note: a manual sort has to happen in JS across the *whole* matching
+  set before any `limit` is applied — if the SQL-level LIMIT ran first
+  by publish date, a manually-prioritized-but-older project could get
+  cut before its rank was ever considered; `listProjects()` only lets
+  SQL apply the limit for the default newest-first sort now); featured-order ✅
   (a new `featured_order` column on projects — a number input next to
   the Featured checkbox, same convention as page nav ordering already
   uses rather than literal drag-and-drop; `listProjects()`'s

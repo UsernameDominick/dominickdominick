@@ -743,7 +743,20 @@ function parseProjectRow(row) {
   return { ...row, tags, tech_stack, links, related_articles, related_simulations, related_scans, related_override };
 }
 
-export async function listProjects(env, { publishedOnly = false, limit = null, tag = null, featuredOnly = false } = {}) {
+// Nulls-last ascending sort by a numeric field — shared by both the
+// featured-subset order and the general manual order below, since it's
+// the exact same "everything without a value keeps its current relative
+// order, everything else sorts by the number" rule either way.
+function sortByOrderField(projects, field) {
+  projects.sort((a, b) => {
+    if (a[field] == null && b[field] == null) return 0;
+    if (a[field] == null) return 1;
+    if (b[field] == null) return -1;
+    return a[field] - b[field];
+  });
+}
+
+export async function listProjects(env, { publishedOnly = false, limit = null, tag = null, featuredOnly = false, sort = "newest" } = {}) {
   let sql = "SELECT * FROM projects WHERE deleted_at IS NULL";
   const params = [];
   if (publishedOnly) {
@@ -752,24 +765,24 @@ export async function listProjects(env, { publishedOnly = false, limit = null, t
     params.push(now, now);
   }
   sql += " ORDER BY COALESCE(published_at, created_at) DESC";
+  // A manual sort has to happen in JS across the *whole* matching set
+  // before any limit is applied — if the SQL-level LIMIT ran first
+  // (newest-first), a manually-prioritized-but-older project could get
+  // cut before its rank was even considered.
   const lim = Number(limit);
-  if (Number.isFinite(lim) && lim > 0) sql += ` LIMIT ${Math.floor(lim)}`;
+  const applyLimitInSql = sort !== "manual" && Number.isFinite(lim) && lim > 0;
+  if (applyLimitInSql) sql += ` LIMIT ${Math.floor(lim)}`;
   const { results } = await env.DB.prepare(sql).bind(...params).all();
   let projects = results.map(parseProjectRow);
   if (tag) projects = projects.filter((p) => p.tags.includes(tag));
   if (featuredOnly) {
     projects = projects.filter((p) => p.featured);
-    // Manual order among featured projects only — everything without a
-    // featured_order set keeps the normal newest-first order (Array.sort
-    // is stable, so ties fall back to whatever order they were already
-    // in) and sorts after anything that does have one.
-    projects.sort((a, b) => {
-      if (a.featured_order == null && b.featured_order == null) return 0;
-      if (a.featured_order == null) return 1;
-      if (b.featured_order == null) return -1;
-      return a.featured_order - b.featured_order;
-    });
+    // Manual order among featured projects only.
+    sortByOrderField(projects, "featured_order");
+  } else if (sort === "manual") {
+    sortByOrderField(projects, "sort_order");
   }
+  if (!applyLimitInSql && Number.isFinite(lim) && lim > 0) projects = projects.slice(0, Math.floor(lim));
   return projects;
 }
 
@@ -810,12 +823,13 @@ export async function createProject(
     related_override,
     featured_order,
     private_notes,
+    sort_order,
   }
 ) {
   const res = await env.DB
     .prepare(
-      `INSERT INTO projects (slug, title, summary, body, published_at, tags, tech_stack, status, links, og_image, canonical_url, featured, related_articles, related_simulations, related_scans, expires_at, sitemap_exclude, archived, related_override, featured_order, private_notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO projects (slug, title, summary, body, published_at, tags, tech_stack, status, links, og_image, canonical_url, featured, related_articles, related_simulations, related_scans, expires_at, sitemap_exclude, archived, related_override, featured_order, private_notes, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       slug,
@@ -838,7 +852,8 @@ export async function createProject(
       archived ? 1 : 0,
       JSON.stringify(Array.isArray(related_override) ? related_override : []),
       Number.isFinite(Number(featured_order)) ? Number(featured_order) : null,
-      private_notes || null
+      private_notes || null,
+      Number.isFinite(Number(sort_order)) ? Number(sort_order) : null
     )
     .run();
   return res.meta.last_row_id;
@@ -904,6 +919,10 @@ export async function updateProject(env, id, fields) {
   if ("featured_order" in fields) {
     cols.push("featured_order = ?");
     vals.push(fields.featured_order === null || fields.featured_order === "" ? null : Number(fields.featured_order));
+  }
+  if ("sort_order" in fields) {
+    cols.push("sort_order = ?");
+    vals.push(fields.sort_order === null || fields.sort_order === "" ? null : Number(fields.sort_order));
   }
   if ("related_override" in fields) {
     cols.push("related_override = ?");

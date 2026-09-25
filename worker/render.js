@@ -936,6 +936,7 @@ async function renderBlockInner(env, block, ctx) {
         limit: c.limit || 12,
         tag: c.tag || (ctx && ctx.activeTagFilter) || null,
         featuredOnly: !!c.featuredOnly,
+        sort: c.sort === "manual" ? "manual" : "newest",
       });
       if (!projects.length) return `<p class="empty-hint">No projects yet.</p>`;
       return `<div class="project-list">${projects
