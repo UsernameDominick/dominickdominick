@@ -2180,10 +2180,21 @@
   closeModalOnClick("close-layers", "layers-modal");
 
   // ---------- Layout diagnostics ----------
+  // Mirrors headingLevel() in worker/render.js exactly — a heading block
+  // with no stored level (or an invalid one) actually renders as an H1,
+  // so this check has to apply the same fallback rather than treating
+  // "no explicit level" as "not an H1" (which used to make a page with
+  // a real, rendered H1 falsely report "No H1 heading", and made two
+  // such headings falsely report "No H1" instead of "2 H1 headings
+  // found").
+  function effectiveHeadingLevel(content) {
+    const lvl = Number(content && content.level);
+    return Number.isInteger(lvl) && lvl >= 1 && lvl <= 6 ? lvl : 1;
+  }
   function computePageDiagnostics() {
     const issues = [];
     const visibleBlocks = blocks.filter((b) => !(b.style && b.style.hidden));
-    const h1Blocks = visibleBlocks.filter((b) => b.type === "heading" && Number(b.content && b.content.level) === 1);
+    const h1Blocks = visibleBlocks.filter((b) => b.type === "heading" && effectiveHeadingLevel(b.content) === 1);
     if (!h1Blocks.length) {
       issues.push({ severity: "warn", message: "No H1 heading on this page — search engines and screen readers rely on it to understand the page's main topic.", blockId: null });
     } else if (h1Blocks.length > 1) {
@@ -2197,7 +2208,7 @@
       .sort((a, b) => a.row - b.row || a.col - b.col);
     let prevLevel = 0;
     for (const b of headingBlocksInOrder) {
-      const level = Number(b.content.level) || 1;
+      const level = effectiveHeadingLevel(b.content);
       if (prevLevel && level > prevLevel + 1) {
         issues.push({
           severity: "warn",

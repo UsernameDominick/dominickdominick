@@ -1650,16 +1650,25 @@ enough detail to act on directly later.
 - Projects editor form fields are visually crushed (Summary field
   ~18px tall, Status ~22px wide, a checkbox label running past the
   form edge) — admin CSS pass needed.
-- Diagnostics overlap detection has a false negative (claims "overlap
-  can't happen" but a real overlap was observed on the homepage,
-  heading hidden under a Links block) and a false H1 check (heading
-  blocks saved with no explicit level render as H1 but the check
-  requires `level === 1` in storage, so it reports "No H1" on a page
-  that has one) — and doesn't warn about *multiple* H1s at all, even
-  though new heading blocks default to H1. Needs the actual overlap
-  math re-checked against real block positions, and the H1 check fixed
-  to use the same "no explicit level = renders as H1" rule the
-  renderer uses.
+- ✅ Diagnostics' H1 check compared `Number(b.content.level) === 1`,
+  which is `false` for a heading block with no stored `level` at all —
+  but `headingLevel()` in `worker/render.js` actually renders such a
+  block as `<h1>` (its documented fallback). So a real, rendered H1
+  wasn't being counted as one: a page with exactly one implicit-level
+  H1 falsely reported "No H1 heading", and — since this is also why the
+  finding said multiple-H1 detection "doesn't work at all" — two
+  implicit-level H1s were BOTH miscounted as zero, so the page reported
+  "No H1" instead of "2 H1 headings found" (the multiple-H1 check
+  itself was fine; it just never had a nonzero `h1Blocks.length` to
+  act on). Added `effectiveHeadingLevel()` in `app.js`, mirroring
+  `headingLevel()`'s exact fallback rule, and used it for both the H1
+  count and the heading-level-skip check (which already had its own
+  correct-by-accident `|| 1` fallback, replaced for consistency).
+  Verified via Playwright: an implicit-level H1 no longer falsely
+  reports "No H1"; a page with genuinely zero headings still correctly
+  does; two implicit-level H1s now correctly report "2 H1 headings
+  found". (Diagnostics' overlap detection false-negative is a separate,
+  unrelated issue — not investigated or fixed this round.)
 
 **Admin UX:**
 - Nav dropdown keyboard/screen-reader behavior: Escape doesn't close it
