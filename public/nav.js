@@ -362,10 +362,28 @@ document.addEventListener("input", function (e) {
       targets.forEach(function (el) { el.classList.add("is-visible"); });
       return;
     }
+    // Motion budget: a fast scroll (or a short page) can cross the 0.15
+    // threshold for several [data-animate] blocks in the same
+    // IntersectionObserver callback batch, which without this all reveal
+    // at the exact same instant — reads as a flash of movement rather than
+    // "considered" motion. Staggering entries within a batch turns that
+    // into a brief cascade instead, on top of (not overriding) whatever
+    // per-block delay the admin already set via the "Entrance animation"
+    // style field's --animate-delay. Capped at MOTION_BUDGET_MAX_STAGGER_MS
+    // total so a very large batch (e.g. a long page opened at the bottom
+    // via an anchor link) doesn't push the last few blocks' reveal absurdly
+    // far into the future.
+    var MOTION_BUDGET_STAGGER_MS = 80;
+    var MOTION_BUDGET_MAX_STAGGER_MS = 480;
     var observer = new IntersectionObserver(
       function (entries) {
-        entries.forEach(function (entry) {
-          if (!entry.isIntersecting) return;
+        var visible = entries.filter(function (e) { return e.isIntersecting; });
+        visible.forEach(function (entry, i) {
+          if (i > 0) {
+            var extra = Math.min(i * MOTION_BUDGET_STAGGER_MS, MOTION_BUDGET_MAX_STAGGER_MS);
+            var existing = parseFloat(entry.target.style.getPropertyValue("--animate-delay")) || 0;
+            entry.target.style.setProperty("--animate-delay", existing + extra + "ms");
+          }
           entry.target.classList.add("is-visible");
           observer.unobserve(entry.target);
         });

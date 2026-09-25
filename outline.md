@@ -2686,3 +2686,25 @@ skipping them.
   found via the new tag-usage check where the published-only archive
   logic would've missed it; and the "Usage" button renders and works
   end-to-end in the real Simulations list.
+- ✅ **Motion budget + protected text layers** — a refinement of the
+  parallax/motion system from section 11. Motion budget: the entrance-
+  animation `IntersectionObserver` in `nav.js` fired every `[data-animate]`
+  element that crossed its 15% threshold in the same callback batch all
+  at the exact same instant — a fast scroll or a short page opened
+  straight to a section with several animated blocks could reveal all
+  of them simultaneously, reading as a flash of movement rather than
+  something considered. Now stagger entries within a batch (80ms apart,
+  capped at a 480ms total spread so a very large batch doesn't push the
+  last few blocks' reveal absurdly late), added on top of — not
+  overriding — whatever per-block `--animate-delay` the admin already
+  set via the "Entrance animation" style field. Protected text layers:
+  already true by construction for the per-block "Parallax background"
+  option from section 11 — `background-attachment: fixed` only affects
+  how a block's own background-image paints, never a child element's
+  layout or position, so a block's heading/text/buttons sitting on top
+  of a parallax background were never going to move independently of
+  the rest of the page; no code change needed there, just confirming
+  the guarantee holds. Verified via Playwright: 5 stacked blocks with
+  fade-in animations opened in one viewport show `--animate-delay`
+  values of 0/80/160/240/320ms across the batch instead of all firing
+  at 0ms.
