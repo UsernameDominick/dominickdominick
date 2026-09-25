@@ -4816,11 +4816,11 @@ session's own EXIF-stripping feature for the upload-side equivalent).
 197. Track search/filtering — client-side list filter.
 198. Hide tracks without disabling audio — separate UI flag from mute.
 199. Reorder/duplicate tracks — array ops, duplicate-song pattern exists.
-217. Reverse selected audio — reverse a Float32Array.
+217. ☐ Reverse selected audio — checked: doesn't map onto the current song engine as worded. There's no AudioBuffer/sample playback anywhere in `song-engine.js`/`song-builder.js` (confirmed via grep — zero `AudioBuffer`/`decodeAudioData`/`Float32Array` hits), only synthesized oscillator notes in a step sequencer. "Reversing audio" needs a real audio buffer to exist first, which is the much bigger "Recording"/"Sampling" infrastructure this backlog already rates Medium/Hard, not a quick win. Left open rather than force-fit onto data that doesn't exist.
 218. Normalize to peak — scan buffer max, apply gain.
 220. Remove DC offset — subtract mean from buffer.
 236. Humanization — bounded Math.random() offsets on existing grid data.
-237. Transpose semitone/octave — shift note index in existing note table.
+237. ✅ Transpose semitone/octave — done (see the dated entry below this section).
 276. Polarity inversion — GainNode(-1).
 277. Mono compatibility button — ChannelMerger sum, toggle.
 301. Peak meters — AnalyserNode, same pattern as waveform render.
@@ -5386,3 +5386,36 @@ rounds, 4/10 → 9/10, every real finding — including a genuine
 live-reproduced data-loss bug — fixed and verified live, closing even
 the one gap the second critic could only reason about rather than
 force to manifest.
+
+### Fifth item: #237, transpose the melody by semitone/octave
+
+- ✅ **Four transpose buttons above the Song builder's piano roll**
+  ("Oct ↓", "↓", "↑", "Oct ↑") shift every note in the melody up or
+  down by re-keying each row to a different piano-roll row rather than
+  touching step timing. First checked #217 ("Reverse selected audio")
+  from the same backlog batch and found it doesn't map onto the actual
+  song engine at all — there's no `AudioBuffer`/sample playback
+  anywhere in `song-engine.js`/`song-builder.js` (confirmed via grep),
+  only synthesized oscillator notes in a fixed step sequencer, so
+  "reversing audio" needs real recording/sampling infrastructure this
+  backlog already rates Medium/Hard — left that one open rather than
+  force-fitting it, and picked this genuinely compatible item instead.
+  `PIANO_NOTES` is ordered highest-pitch-first (B4 at index 0, pitch
+  decreasing as index increases), so "up" moves toward lower indices; a
+  note that would land outside the fixed 2-octave C3-B4 range is
+  dropped (no way to display a note above/below the visible grid) with
+  a count surfaced via `alert()` so a big shift can't silently lose
+  notes with no explanation. Verified via Playwright: toggled a note at
+  C4, semitone-up moved it to C#4 exactly (C4 correctly cleared);
+  octave-up from there correctly dropped it (alert: "1 note moved
+  outside the piano roll's range and was removed") since C#5 is outside
+  the 2-octave range; a note at B4 (the top of the range) octave-down
+  correctly landed at B3; a note at C3 (the bottom) semitone-down
+  correctly dropped with the same alert. Also verified the transposed
+  state survives a real save/reload — saved a song with a note
+  transposed from A4 to G#4, re-fetched it from the API, and confirmed
+  `melody.notes["G#4"]` was true and `melody.notes["A4"]` was correctly
+  cleared, not just visually updated client-side. Full regression suite
+  green; test song deleted and confirmed gone.
+
+Handed to a critic agent for scoring.

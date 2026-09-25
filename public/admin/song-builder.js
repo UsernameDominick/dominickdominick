@@ -187,6 +187,11 @@
     else startPlayback();
   });
 
+  $("song-transpose-down").addEventListener("click", () => transposeMelody(-1));
+  $("song-transpose-up").addEventListener("click", () => transposeMelody(1));
+  $("song-transpose-octave-down").addEventListener("click", () => transposeMelody(-12));
+  $("song-transpose-octave-up").addEventListener("click", () => transposeMelody(12));
+
   // ---------- Web MIDI input ----------
   // Progressive enhancement: the "Connect MIDI" button only ever appears
   // if the browser actually supports the API at all — no point offering a
@@ -278,6 +283,33 @@
       (n, i, v) => (songData.melody.notes[n][i] = v),
       (n) => (n.includes("#") ? " song-row-black-key" : "")
     );
+  }
+
+  // Shifts every note in the melody up/down by `semitones` (positive =
+  // up), re-keying each row to a different piano-roll row rather than
+  // touching step timing. PIANO_NOTES[0] is the highest pitch (B4) with
+  // pitch decreasing as the index increases, so "up" moves toward lower
+  // indices. A note that would land outside the piano roll's fixed 2-octave
+  // range (C3-B4) is dropped -- there's no way to display a note above or
+  // below the visible grid -- with a count surfaced so a big shift doesn't
+  // silently lose notes off either end with no explanation.
+  function transposeMelody(semitones) {
+    const oldNotes = songData.melody.notes;
+    const newNotes = {};
+    PIANO_NOTES.forEach((n) => (newNotes[n] = new Array(STEPS).fill(false)));
+    let dropped = 0;
+    PIANO_NOTES.forEach((sourceName, sourceIndex) => {
+      const targetName = PIANO_NOTES[sourceIndex - semitones];
+      for (let step = 0; step < STEPS; step++) {
+        if (!oldNotes[sourceName][step]) continue;
+        if (targetName) newNotes[targetName][step] = true;
+        else dropped++;
+      }
+    });
+    songData.melody.notes = newNotes;
+    renderPianoRoll();
+    refreshWaveformPreview();
+    if (dropped) alert(`${dropped} note${dropped === 1 ? "" : "s"} moved outside the piano roll's range and ${dropped === 1 ? "was" : "were"} removed.`);
   }
 
   // ---------- List modal ----------

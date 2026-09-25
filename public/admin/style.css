@@ -2498,6 +2498,21 @@ kbd {
   letter-spacing: 0.05em;
   color: var(--text-dim);
   margin: 20px 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.song-transpose-controls {
+  display: inline-flex;
+  gap: 4px;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.song-transpose-controls button {
+  font-size: 0.8rem;
+  padding: 2px 8px;
 }
 
 .song-piano-roll {
