@@ -195,6 +195,70 @@ body {
   z-index: 0;
 }
 
+/* Nav dropdown — a "tab-group" wraps a normal top-level tab link plus a
+   caret toggle and the dropdown panel of child links. Shown on hover or
+   keyboard focus-within with no JS needed at all; the caret (toggled via
+   nav.js) covers touch, where hover doesn't fire. */
+.tab-group {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.tab-caret {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  padding: 8px 10px 8px 0;
+  margin-left: -10px;
+  cursor: pointer;
+}
+
+.tab-caret:hover {
+  color: var(--text);
+}
+
+.tab-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 8px;
+  display: none;
+  flex-direction: column;
+  min-width: 160px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  z-index: 20;
+}
+
+.tab-group:hover .tab-dropdown,
+.tab-group:focus-within .tab-dropdown,
+.tab-group.open .tab-dropdown {
+  display: flex;
+}
+
+.tab-dropdown a {
+  display: block;
+  padding: 8px 12px;
+  border-radius: 8px;
+  color: var(--text-dim);
+  text-decoration: none;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.tab-dropdown a:hover,
+.tab-dropdown a.is-active {
+  color: var(--text);
+  background: var(--bg);
+}
+
 .topbar-tools {
   display: flex;
   align-items: center;

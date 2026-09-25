@@ -489,7 +489,22 @@ health-check pass, predates this doc.
 - ✅ Page templates (generic, any page savable/appliable as a template)
 - ☐ Custom components assembled from blocks with their own editable options
 - ☐ Visual header/footer editor (footer is a text field; nav is ordering only)
-- 🔶 Navigation editor (ordering ✅; nested/dropdown menus ☐)
+- ✅ Navigation editor (ordering ✅; nested/dropdown menus ✅ — a new
+  `nav_parent_id` column on pages, set via a "Parent nav item" select in
+  Page settings (populated with other top-level nav-eligible pages —
+  excluding itself and anything already nested). One level deep only, both
+  directions: can't nest under an already-nested page, and can't nest a
+  page that already has its own children, both enforced server-side too
+  (not just by what the picker offers), since a raw API call could
+  otherwise build a structure `listNavPages()`'s single-pass tree-build
+  isn't written to handle. Renders as a `.tab-group` — the parent link
+  itself still works normally, plus a caret button and a `.tab-dropdown`
+  panel of child links. Dropdown shows on hover/keyboard focus-within via
+  plain CSS (no JS needed for desktop/keyboard use at all); the caret
+  (nav.js) adds a click-to-toggle path for touch, where hover never
+  fires, closed by an outside click or Escape. Viewing a child page marks
+  its *parent* tab active, not just the child link buried inside the
+  closed dropdown, so the visible tab bar still shows where you are)
 - ☐ Separate desktop/tablet/phone layout settings (needs schema change + reworked drag/resize — deliberately deferred)
 - 🔶 Per-device spacing/ordering/visibility (visibility ✅; spacing/ordering ☐)
 - ✅ Custom breakpoint controls (preview modal ✅; custom breakpoint value

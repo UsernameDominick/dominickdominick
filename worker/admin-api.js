@@ -420,6 +420,19 @@ async function routeAdminApi(request, env, url, ctx) {
         return json({ error: "A page with that slug already exists" }, { status: 409 });
       }
     }
+    // Nesting stays one level deep — a page can't be its own parent, and a
+    // page that's already nested under something can't also be a parent
+    // itself (no dropdown-inside-a-dropdown), so listNavPages() never has
+    // to worry about cycles or multi-level trees when building the nav.
+    if (body.nav_parent_id) {
+      const parentId = Number(body.nav_parent_id);
+      if (parentId === id) return json({ error: "A page can't be nested under itself" }, { status: 400 });
+      const parent = await env.DB.prepare("SELECT nav_parent_id FROM pages WHERE id = ?").bind(parentId).first();
+      if (!parent) return json({ error: "Parent nav item not found" }, { status: 400 });
+      if (parent.nav_parent_id) return json({ error: "Can't nest under a page that's already nested (one level of dropdown only)" }, { status: 400 });
+      const hasChildren = await env.DB.prepare("SELECT 1 FROM pages WHERE nav_parent_id = ? LIMIT 1").bind(id).first();
+      if (hasChildren) return json({ error: "This page already has its own dropdown items — can't also nest it under another page" }, { status: 400 });
+    }
     const beforePage = body.slug ? await env.DB.prepare("SELECT slug FROM pages WHERE id = ?").bind(id).first() : null;
     await updatePage(env, id, body);
     log(ctx, env, "update", "page", body.title || body.slug || `#${id}`);

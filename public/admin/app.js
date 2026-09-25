@@ -493,6 +493,15 @@
     }
   }
 
+  // Only other nav-eligible, not-already-nested pages can be a parent — a
+  // page nested under something can't also be a parent itself (one level
+  // of dropdown only), matching the server-side check in admin-api.js.
+  function populatePageNavParentSelect(excludeId) {
+    const options = pages.filter((p) => p.nav_label && p.id !== excludeId && !p.nav_parent_id);
+    el("page-nav-parent").innerHTML =
+      `<option value="">— none (top-level) —</option>` + options.map((p) => `<option value="${p.id}">${escapeHtml(p.nav_label)}</option>`).join("");
+  }
+
   async function selectPage(id) {
     currentPage = pages.find((p) => p.id === id);
     if (!currentPage) return;
@@ -502,6 +511,8 @@
     el("page-meta").value = currentPage.meta_description || "";
     el("page-nav-label").value = currentPage.nav_label || "";
     el("page-nav-order").value = currentPage.nav_order ?? "";
+    populatePageNavParentSelect(currentPage.id);
+    el("page-nav-parent").value = currentPage.nav_parent_id || "";
     el("page-og-image").value = currentPage.og_image || "";
     el("page-canonical-url").value = currentPage.canonical_url || "";
     el("page-custom-json-ld").value = currentPage.custom_json_ld || "";
@@ -520,7 +531,7 @@
   // Page settings have no server-side autosave at all (only the explicit
   // Save button), so this local snapshot is the *only* safety net between
   // typing and clicking Save — a bigger gap than articles have.
-  const PAGE_DRAFT_FIELD_IDS = ["page-title", "page-meta", "page-nav-label", "page-nav-order", "page-og-image", "page-canonical-url", "page-custom-json-ld", "page-sitemap-exclude"];
+  const PAGE_DRAFT_FIELD_IDS = ["page-title", "page-meta", "page-nav-label", "page-nav-order", "page-nav-parent", "page-og-image", "page-canonical-url", "page-custom-json-ld", "page-sitemap-exclude"];
   function capturePageRawFields() {
     const out = {};
     for (const id of PAGE_DRAFT_FIELD_IDS) {
@@ -586,11 +597,13 @@
       snapshotPageDraft();
     })
   );
-  el("page-sitemap-exclude").addEventListener("change", () => {
-    unsavedDirty = true;
-    el("page-save-status").textContent = "Unsaved changes…";
-    snapshotPageDraft();
-  });
+  ["page-sitemap-exclude", "page-nav-parent"].forEach((id) =>
+    el(id).addEventListener("change", () => {
+      unsavedDirty = true;
+      el("page-save-status").textContent = "Unsaved changes…";
+      snapshotPageDraft();
+    })
+  );
 
   el("save-page-settings").addEventListener("click", async () => {
     if (!currentPage) return;
@@ -603,6 +616,7 @@
           meta_description: el("page-meta").value,
           nav_label: el("page-nav-label").value || null,
           nav_order: el("page-nav-order").value ? Number(el("page-nav-order").value) : null,
+          nav_parent_id: el("page-nav-parent").value ? Number(el("page-nav-parent").value) : null,
           og_image: el("page-og-image").value || null,
           canonical_url: el("page-canonical-url").value || null,
           custom_json_ld: el("page-custom-json-ld").value.trim() || null,

@@ -35,11 +35,21 @@ export async function listTrashedPages(env) {
   return results;
 }
 
+// Nested one level deep only — a page whose own nav_parent_id is set can't
+// also be a parent (enforced both here and at save time in admin-api.js),
+// so there's no cycle or multi-level case to guard against when building
+// the tree: every child's parent is guaranteed to already be top-level.
 export async function listNavPages(env) {
   const { results } = await env.DB
-    .prepare("SELECT slug, nav_label FROM pages WHERE nav_label IS NOT NULL AND deleted_at IS NULL ORDER BY nav_order ASC, id ASC")
+    .prepare(
+      "SELECT id, slug, nav_label, nav_parent_id FROM pages WHERE nav_label IS NOT NULL AND deleted_at IS NULL ORDER BY nav_order ASC, id ASC"
+    )
     .all();
-  return results;
+  const topLevel = results.filter((p) => !p.nav_parent_id);
+  for (const p of topLevel) {
+    p.children = results.filter((c) => c.nav_parent_id === p.id);
+  }
+  return topLevel;
 }
 
 export async function createPage(env, { slug, title, meta_description, nav_label, nav_order, og_image, canonical_url, custom_json_ld }) {
@@ -68,6 +78,10 @@ export async function updatePage(env, id, fields) {
   if ("sitemap_exclude" in fields) {
     cols.push("sitemap_exclude = ?");
     vals.push(fields.sitemap_exclude ? 1 : 0);
+  }
+  if ("nav_parent_id" in fields) {
+    cols.push("nav_parent_id = ?");
+    vals.push(Number.isFinite(Number(fields.nav_parent_id)) && fields.nav_parent_id ? Number(fields.nav_parent_id) : null);
   }
   if (!cols.length) return;
   cols.push("updated_at = datetime('now')", "version = version + 1");

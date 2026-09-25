@@ -138,6 +138,40 @@ document.addEventListener("input", function (e) {
   window.addEventListener("resize", place);
 })();
 
+// Nav dropdown caret — hover/focus-within alone (pure CSS) already covers
+// mouse and keyboard use; this just adds a click-to-toggle path for touch,
+// where hover never fires. Only one dropdown open at a time, closed by an
+// outside click or Escape (same pattern as the search-suggest dropdown above).
+(function () {
+  var carets = document.querySelectorAll(".tab-caret");
+  if (!carets.length) return;
+  function closeAll(except) {
+    document.querySelectorAll(".tab-group.open").forEach(function (g) {
+      if (g !== except) {
+        g.classList.remove("open");
+        var c = g.querySelector(".tab-caret");
+        if (c) c.setAttribute("aria-expanded", "false");
+      }
+    });
+  }
+  carets.forEach(function (caret) {
+    caret.addEventListener("click", function (e) {
+      e.preventDefault();
+      var group = caret.closest(".tab-group");
+      var willOpen = !group.classList.contains("open");
+      closeAll();
+      group.classList.toggle("open", willOpen);
+      caret.setAttribute("aria-expanded", willOpen ? "true" : "false");
+    });
+  });
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest(".tab-group")) closeAll();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") closeAll();
+  });
+})();
+
 (function () {
   var searchInput = document.querySelector(".site-search input");
   if (!searchInput) return;

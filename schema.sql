@@ -13,7 +13,8 @@ CREATE TABLE pages (
   version INTEGER NOT NULL DEFAULT 1,
   locked INTEGER NOT NULL DEFAULT 0,
   sitemap_exclude INTEGER NOT NULL DEFAULT 0,
-  custom_json_ld TEXT
+  custom_json_ld TEXT,
+  nav_parent_id INTEGER REFERENCES pages(id)
 );
 
 -- A block "definition" that one or more page blocks can point at via

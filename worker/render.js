@@ -1139,13 +1139,34 @@ export function renderShell({
           breakpoint + 1
         }px){.block-hide-desktop{display:none !important;}}</style>`
       : "";
+  // A top-level item with children (listNavPages() nests one level deep)
+  // renders as a dropdown: the item itself is still a normal link, plus a
+  // caret button that toggles the dropdown open for touch/keyboard users
+  // (see nav.js) — hover/focus-within alone (the CSS default) covers mouse
+  // use without needing any JS at all. The parent tab is marked active
+  // when the *current page is one of its children*, too, since the child
+  // link itself is hidden inside the (closed) dropdown most of the time —
+  // there'd otherwise be nothing in the visible tab bar showing where you are.
   const navHtml = navItems
-    .map(
-      (n) =>
-        `<a class="tab${n.slug === activeSlug ? " is-active" : ""}" href="${n.slug === "home" ? "/" : "/" + esc(n.slug)}"${
-          n.slug === activeSlug ? ' aria-current="page"' : ""
-        }>${esc(n.nav_label)}</a>`
-    )
+    .map((n) => {
+      const isChildActive = (n.children || []).some((c) => c.slug === activeSlug);
+      const tabHref = n.slug === "home" ? "/" : "/" + esc(n.slug);
+      const tab = `<a class="tab${n.slug === activeSlug || isChildActive ? " is-active" : ""}" href="${tabHref}"${
+        n.slug === activeSlug ? ' aria-current="page"' : ""
+      }>${esc(n.nav_label)}</a>`;
+      if (!n.children || !n.children.length) return tab;
+      const childLinks = n.children
+        .map(
+          (c) =>
+            `<a href="/${esc(c.slug)}"${c.slug === activeSlug ? ' aria-current="page" class="is-active"' : ""}>${esc(c.nav_label)}</a>`
+        )
+        .join("\n");
+      return `<div class="tab-group">
+        ${tab}
+        <button type="button" class="tab-caret" aria-label="Show ${esc(n.nav_label)} submenu" aria-expanded="false">▾</button>
+        <div class="tab-dropdown" role="menu">${childLinks}</div>
+      </div>`;
+    })
     .join("\n");
 
   return `<!DOCTYPE html>
