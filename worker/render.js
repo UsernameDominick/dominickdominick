@@ -1298,10 +1298,26 @@ ${breakpointStyle}
 <script src="/article-extras.js" defer></script>
 <script src="/song-engine.js" defer></script>
 <script src="/song-embed.js" defer></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" defer></script>
-<script>document.addEventListener("DOMContentLoaded",function(){if(window.hljs)hljs.highlightAll();});</script>
-<script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    if (document.querySelector("pre code")) {
+      var link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css";
+      document.head.appendChild(link);
+      var script = document.createElement("script");
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js";
+      script.onload = function () { if (window.hljs) hljs.highlightAll(); };
+      document.head.appendChild(script);
+    }
+    if (document.querySelector("model-viewer")) {
+      var mv = document.createElement("script");
+      mv.type = "module";
+      mv.src = "https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js";
+      document.head.appendChild(mv);
+    }
+  });
+</script>
 <script type="module">
   if (document.querySelector(".mermaid")) {
     import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs").then(({ default: mermaid }) => {

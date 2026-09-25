@@ -701,9 +701,18 @@ function xmlEsc(str) {
 // Open Graph article:published_time/modified_time meta tags and schema.org
 // Date/DateTime properties both expect. Used everywhere one of those raw
 // column values goes into structured data or a meta tag.
+//
+// published_at specifically isn't always in that raw D1 format, though —
+// admin-api.js's "publish now" path stores `new Date().toISOString()`
+// directly (already valid ISO 8601), so this has to accept either shape
+// rather than assume the D1-only one and mangle an already-valid string.
 function toIso8601(dbDateString) {
   if (!dbDateString) return null;
-  return new Date(dbDateString.replace(" ", "T") + "Z").toISOString();
+  let d = new Date(dbDateString);
+  if (isNaN(d.getTime())) {
+    d = new Date(dbDateString.replace(" ", "T") + "Z");
+  }
+  return isNaN(d.getTime()) ? null : d.toISOString();
 }
 
 // type: "article" | "project" (blank = both, sorted together by date).

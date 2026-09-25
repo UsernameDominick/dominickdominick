@@ -1760,10 +1760,27 @@ enough detail to act on directly later.
   `colorScheme: "light"`/`"dark"` contexts (first-visit OS preference
   respected in both directions) and an explicit `localStorage` override
   correctly taking priority over a conflicting OS preference.
-- highlight.js and `<model-viewer>` load on every page regardless of
-  whether that page uses them (mermaid and KaTeX already do this
-  conditional-load correctly — same pattern should extend to these
-  two).
+- ✅ highlight.js and `<model-viewer>` used to load unconditionally on
+  every page; now gated behind `document.querySelector("pre code")` /
+  `"model-viewer"` respectively, same pattern as mermaid/KaTeX.
+  `<model-viewer>` still upgrades correctly even though its defining
+  script now loads after the element is already in the DOM — custom
+  elements upgrade lazily once their definition arrives, same as how
+  the mermaid/KaTeX conditional loads already worked. Caught and fixed
+  a real bug surfaced by this pass' testing while I was in the same
+  code: the `toIso8601()` helper added for the JSON-LD date fix above
+  assumed `published_at` was always in D1's raw `datetime('now')`
+  format, but the "publish now" path (`admin-api.js`) actually stores
+  `new Date().toISOString()` directly — an already-valid ISO string.
+  Feeding that through the naive space→`T`+`Z` transform produced a
+  malformed date and 500'd every published article/project page.
+  `toIso8601()` now tries the string as-is first and only falls back to
+  the D1-format transform if that doesn't parse. Verified via
+  Playwright: a code-block article now correctly requests highlight.js
+  (previously the bug above 500'd before this could even be tested),
+  the homepage (no code blocks/scans) requests neither script, and a
+  "publish now" article's `article:published_time` meta and
+  `datePublished` JSON-LD are both valid ISO 8601.
 - Three near-identical hex/SHA helper functions exist across the
   codebase (`auth.js` `toHex`, `admin-api.js` `hashBytes`, `db.js`
   `sha256Hex`) — dead-code/duplication nitpick, harmless but could
