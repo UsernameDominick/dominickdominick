@@ -32,6 +32,17 @@
       });
   });
 
+  // Download PDF — no server-side rendering at all: the browser's own
+  // print dialog already lets you pick "Save as PDF" as the destination,
+  // and the @media print stylesheet already strips the chrome (nav,
+  // search, toggles, share buttons) down to just the readable content.
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest(".print-pdf-btn");
+    if (!btn) return;
+    if (window.trackEvent) window.trackEvent("download_pdf");
+    window.print();
+  });
+
   // Read aloud — browser-native Web Speech API against the rendered body
   // text, no server involvement and no uploaded audio required. Doubles as
   // a real accessibility feature for any article/project, not just ones

@@ -941,7 +941,15 @@ Contact form, admin inbox, guestbook/comments, moderation, newsletter —
   means every `rem`-based size on the site scales together. One cycling
   button rather than separate A+/A- controls, matching the existing
   single-icon-button convention used by the theme and motion toggles)
-- ✅ Print-friendly pages; ☐ downloadable PDF articles/case studies
+- ✅ Print-friendly pages; ✅ downloadable PDF articles/case studies — a
+  "Download PDF" button next to the existing share links. No server-side
+  PDF generation at all: it's just `window.print()`, and the already-built
+  `@media print` stylesheet already strips the chrome (nav, search,
+  toggles, share buttons) down to readable content — every modern browser
+  offers "Save as PDF" as a print destination, so this is a genuine
+  download with zero new dependencies. Added the button itself to that
+  print stylesheet's hide-list too (along with a pre-existing gap:
+  `.save-for-later-btn` was missing from it as well)
 
 ### Analytics
 - ✅ Real-time visitor count, device/browser breakdown (coarse label only, never raw UA — no new fingerprinting surface), outbound-link + download tracking, internal search-term + no-results reporting

@@ -531,6 +531,7 @@ export function renderShareLinks(title, path) {
     <a class="share-link" href="mailto:?subject=${encodedTitle}&body=${encodedUrl}" title="Share by email">Email</a>
     <button type="button" class="copy-link-btn" data-copy-text="Copy link" data-copied-text="Copied!">Copy link</button>
     <button type="button" class="save-for-later-btn" data-url="${esc(path)}" data-title="${esc(title)}" data-save-text="Save for later" data-saved-text="Saved ✓">Save for later</button>
+    <button type="button" class="print-pdf-btn" title="Opens your browser's print dialog — choose &quot;Save as PDF&quot; as the destination for a downloadable copy">Download PDF</button>
   </div>`;
 }
 

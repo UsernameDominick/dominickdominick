@@ -620,7 +620,8 @@ body {
 
 .copy-link-btn,
 .share-link,
-.save-for-later-btn {
+.save-for-later-btn,
+.print-pdf-btn {
   background: transparent;
   color: var(--text-dim);
   border: 1px solid var(--border);
@@ -635,7 +636,8 @@ body {
 
 .copy-link-btn:hover,
 .share-link:hover,
-.save-for-later-btn:hover {
+.save-for-later-btn:hover,
+.print-pdf-btn:hover {
   color: var(--text);
   border-color: var(--accent);
 }
@@ -2117,6 +2119,8 @@ pre.has-line-numbers {
   .site-footer,
   .reading-progress,
   .copy-link-btn,
+  .save-for-later-btn,
+  .print-pdf-btn,
   .table-of-contents,
   .site-search,
   #theme-toggle,
