@@ -1383,6 +1383,7 @@
         ["serif", "Serif"],
         ["mono", "Monospace"],
         ["rounded", "Rounded (Trebuchet)"],
+        ["custom", "Custom (Site Settings)"],
       ],
     },
     { key: "fontSize", label: "Font size (px)", type: "number" },
@@ -4635,6 +4636,42 @@
   closeModalOnClick("close-trash", "trash-modal");
 
   // ---------- Site settings ----------
+  // The one uploaded custom font — held here like TTS audio/hero video are
+  // (uploaded immediately to R2, but only persisted to the setting when
+  // "Save" is actually clicked) rather than saved the instant the file
+  // picker resolves.
+  let currentCustomFontUrl = null;
+  function refreshCustomFontStatus() {
+    el("settings-custom-font-status").textContent = currentCustomFontUrl ? "Font uploaded ✓" : "No font uploaded";
+    el("settings-custom-font-remove-btn").hidden = !currentCustomFontUrl;
+  }
+  el("settings-custom-font-upload-btn").addEventListener("click", () => el("settings-custom-font-file").click());
+  el("settings-custom-font-file").addEventListener("change", async () => {
+    const file = el("settings-custom-font-file").files[0];
+    if (!file) return;
+    const btn = el("settings-custom-font-upload-btn");
+    const originalText = btn.textContent;
+    btn.textContent = "Uploading…";
+    btn.disabled = true;
+    try {
+      const res = await fetch("/api/admin/upload-font", { method: "POST", headers: { "Content-Type": file.type }, body: file });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Upload failed");
+      const { url } = await res.json();
+      currentCustomFontUrl = url;
+      refreshCustomFontStatus();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      btn.textContent = originalText;
+      btn.disabled = false;
+      el("settings-custom-font-file").value = "";
+    }
+  });
+  el("settings-custom-font-remove-btn").addEventListener("click", () => {
+    currentCustomFontUrl = null;
+    refreshCustomFontStatus();
+  });
+
   el("site-settings-btn").addEventListener("click", async () => {
     const settings = await api("/settings");
     el("settings-og-image").value = settings.default_og_image || "";
@@ -4654,6 +4691,9 @@
     el("settings-empty-topics").value = settings.empty_topics_text || "";
     el("settings-maintenance-mode").checked = settings.maintenance_mode === "1";
     el("settings-maintenance-message").value = settings.maintenance_message || "";
+    el("settings-custom-font-name").value = settings.custom_font_name || "";
+    currentCustomFontUrl = settings.custom_font_url || null;
+    refreshCustomFontStatus();
     el("find-replace-results").innerHTML = "";
     el("find-replace-apply-btn").disabled = true;
     el("settings-modal").hidden = false;
@@ -4686,6 +4726,8 @@
           empty_topics_text: el("settings-empty-topics").value,
           maintenance_mode: el("settings-maintenance-mode").checked ? "1" : "",
           maintenance_message: el("settings-maintenance-message").value,
+          custom_font_name: el("settings-custom-font-name").value,
+          custom_font_url: currentCustomFontUrl || "",
         }),
       });
       el("settings-modal").hidden = true;

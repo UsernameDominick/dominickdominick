@@ -668,6 +668,11 @@ export const FONT_STACKS = {
   serif: `Georgia, 'Times New Roman', serif`,
   mono: `'Courier New', Courier, monospace`,
   rounded: `'Trebuchet MS', Verdana, sans-serif`,
+  // The uploaded custom font's actual name/URL are only known at request
+  // time (see renderShell's customFontFace), not here — this just points
+  // at the CSS variable that @font-face rule defines, with a plain
+  // sans-serif fallback for any page where no custom font is configured.
+  custom: `var(--custom-font-family, sans-serif)`,
 };
 
 // Turns a block's { color, bg, fontFamily, fontSize, borderRadius,
@@ -1200,7 +1205,19 @@ export function renderShell({
   if (theme.border) themeVars.push(`--border:${esc(theme.border)}`);
   if (theme.font && FONT_STACKS[theme.font]) themeVars.push(`--font-family:${FONT_STACKS[theme.font]}`);
   if (theme.headingFont && FONT_STACKS[theme.headingFont]) themeVars.push(`--heading-font-family:${FONT_STACKS[theme.headingFont]}`);
-  const themeStyle = themeVars.length ? `<style>:root{${themeVars.join(";")};}</style>` : "";
+  // One uploaded custom font, selectable as "Custom" alongside the fixed
+  // sans/serif/mono/rounded stacks (site-wide font pickers and the
+  // per-block font-family style both read from the same FONT_STACKS —
+  // see blockStyleAttr above), via a CSS variable rather than a fixed
+  // string, since the font's actual name/URL is only known at request
+  // time (uploaded through Site Settings), not at code-definition time.
+  const customFontFace =
+    theme.customFontName && theme.customFontUrl
+      ? `@font-face{font-family:'${esc(theme.customFontName)}';src:url('${esc(theme.customFontUrl)}');font-display:swap;}:root{--custom-font-family:'${esc(
+          theme.customFontName
+        )}', sans-serif;}`
+      : "";
+  const themeStyle = themeVars.length || customFontFace ? `<style>${customFontFace}:root{${themeVars.join(";")};}</style>` : "";
   // The mobile/desktop device-visibility breakpoint (.block-hide-mobile/
   // .block-hide-desktop in style.css) is fixed at 640px in that static
   // stylesheet. A custom value can't edit that file per-request, so this

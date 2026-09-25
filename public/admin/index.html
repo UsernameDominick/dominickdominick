@@ -699,6 +699,7 @@
             <option value="serif">Serif</option>
             <option value="mono">Monospace</option>
             <option value="rounded">Rounded (Trebuchet)</option>
+            <option value="custom">Custom (uploaded below)</option>
           </select>
         </label>
         <label>Heading font (blank = same as body)
@@ -708,8 +709,17 @@
             <option value="serif">Serif</option>
             <option value="mono">Monospace</option>
             <option value="rounded">Rounded (Trebuchet)</option>
+            <option value="custom">Custom (uploaded below)</option>
           </select>
         </label>
+        <div class="tts-audio-field">
+          <label>Custom font file (optional — WOFF2/WOFF/TTF/OTF, 5MB max). Select "Custom" above to use it.</label>
+          <input id="settings-custom-font-name" type="text" placeholder="Font name (e.g. My Brand Sans)">
+          <input type="file" id="settings-custom-font-file" accept=".woff2,.woff,.ttf,.otf,font/woff2,font/woff,font/ttf,font/otf" hidden>
+          <button type="button" id="settings-custom-font-upload-btn">Upload font…</button>
+          <button type="button" id="settings-custom-font-remove-btn" hidden>Remove custom font</button>
+          <span id="settings-custom-font-status"></span>
+        </div>
         <label>Mobile/desktop breakpoint (px)<br>Where a block's "Desktop only"/"Mobile only" visibility switches over. Default 640.
           <input id="settings-mobile-breakpoint" type="number" min="320" max="1200" placeholder="640">
         </label>

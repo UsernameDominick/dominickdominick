@@ -553,7 +553,27 @@ health-check pass, predates this doc.
 
 ### Design system and styling
 - 🔶 Global tokens (colors/typography/borders ✅, 6 tokens; spacing/shadow tokens deferred — no safe hook without a riskier retrofit)
-- ☐ Per-page style overrides, custom font upload
+- ✅ Per-page style overrides, custom font upload (per-block style
+  overrides already existed via `STYLE_FIELDS`, including a
+  `fontFamily` option per block; this added the missing piece, a real
+  custom font upload. `PUT/POST /api/admin/upload-font` accepts WOFF2/
+  WOFF/TTF/OTF up to 5MB, stores it in R2 under `fonts/`, and the site
+  settings modal has a name field + uploader alongside "Custom" entries
+  in both the body-font and heading-font dropdowns. `getTheme()` now
+  also fetches `custom_font_name`/`custom_font_url`, and `renderShell()`
+  injects a `@font-face` rule and a `--custom-font-family` CSS variable
+  only when both are set, so pages that don't use a custom font never
+  pay for it. `FONT_STACKS.custom` resolves to
+  `var(--custom-font-family, sans-serif)`, so the exact same "custom"
+  option works whether picked as the site-wide theme font/heading font
+  or as one block's own font-family override — no separate plumbing
+  needed. The public `/media/...` route's allow-list regex was widened
+  to include `fonts/` (backups/ stays excluded). Tested end-to-end:
+  unauthenticated upload rejected (401), bad content-type rejected
+  (400), successful upload returns a servable `/media/fonts/...` URL,
+  `@font-face`/CSS var appear in page HTML only when the custom font is
+  actually selected, and the admin UI's upload/remove buttons and
+  status text behave correctly through real DOM interaction.
 - ✅ Light/dark themes + visitor switcher
 - ✅ Presets for buttons/cards/callouts/image treatments — type-agnostic
   since every block type shares the same `STYLE_FIELDS` set (color,

@@ -128,7 +128,7 @@ function renderMaintenanceHtml(message) {
 }
 
 async function getTheme(env) {
-  const [accent, bg, font, text, border, headingFont, mobileBreakpoint] = await Promise.all([
+  const [accent, bg, font, text, border, headingFont, mobileBreakpoint, customFontName, customFontUrl] = await Promise.all([
     getSetting(env, "theme_accent"),
     getSetting(env, "theme_bg"),
     getSetting(env, "theme_font"),
@@ -136,6 +136,8 @@ async function getTheme(env) {
     getSetting(env, "theme_border"),
     getSetting(env, "theme_heading_font"),
     getSetting(env, "mobile_breakpoint"),
+    getSetting(env, "custom_font_name"),
+    getSetting(env, "custom_font_url"),
   ]);
   return {
     accent: accent || null,
@@ -145,6 +147,8 @@ async function getTheme(env) {
     border: border || null,
     headingFont: headingFont || null,
     mobileBreakpoint: Number(mobileBreakpoint) || 640,
+    customFontName: customFontName || null,
+    customFontUrl: customFontUrl || null,
   };
 }
 
@@ -1038,10 +1042,10 @@ async function route(request, env, ctx) {
       return renderSimulationPage(env, sim, navItems);
     }
 
-    // Scoped to "uploads/", "scans/", "audio/", and "video/" specifically —
-    // the same R2 bucket also holds scheduled backups under "backups/",
-    // which must never be servable through this public route.
-    const mediaMatch = path.match(/^\/media\/((?:uploads|scans|audio|video)\/[A-Za-z0-9_.\-\/]+)$/);
+    // Scoped to "uploads/", "scans/", "audio/", "video/", and "fonts/"
+    // specifically — the same R2 bucket also holds scheduled backups under
+    // "backups/", which must never be servable through this public route.
+    const mediaMatch = path.match(/^\/media\/((?:uploads|scans|audio|video|fonts)\/[A-Za-z0-9_.\-\/]+)$/);
     if (mediaMatch) {
       const obj = await env.MEDIA.get(mediaMatch[1]);
       if (!obj) return new Response("Not found", { status: 404 });

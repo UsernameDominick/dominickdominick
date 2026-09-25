@@ -171,6 +171,8 @@ const SETTINGS_KEYS = [
   "empty_topics_text",
   "maintenance_mode",
   "maintenance_message",
+  "custom_font_name",
+  "custom_font_url",
 ];
 
 // Paths a redirect could otherwise break by intercepting a system route.
@@ -962,6 +964,28 @@ async function routeAdminApi(request, env, url, ctx) {
     const key = `video/${crypto.randomUUID()}.${allowed[contentType]}`;
     await env.MEDIA.put(key, buf, { httpMetadata: { contentType } });
     log(ctx, env, "upload", "video", key.split("/").pop());
+    return json({ url: `/media/${key}`, key });
+  }
+
+  // /upload-font — the site's one custom font, kept separate from /upload
+  // (images only) for the same reason as /upload-audio/-video above.
+  // Replacing an existing custom font just overwrites the setting; the old
+  // R2 object is deliberately left in place rather than deleted, matching
+  // how nothing else in this codebase deletes an R2 object the moment a
+  // setting stops pointing at it (e.g. default_og_image).
+  if (path === "/upload-font" && method === "POST") {
+    const contentType = request.headers.get("Content-Type") || "";
+    const allowed = { "font/woff2": "woff2", "font/woff": "woff", "font/ttf": "ttf", "font/otf": "otf", "application/font-woff2": "woff2" };
+    if (!allowed[contentType]) {
+      return json({ error: "Only WOFF2, WOFF, TTF, or OTF font files are allowed" }, { status: 400 });
+    }
+    const buf = await request.arrayBuffer();
+    if (buf.byteLength > 5 * 1024 * 1024) {
+      return json({ error: "File too large (5MB max)" }, { status: 400 });
+    }
+    const key = `fonts/${crypto.randomUUID()}.${allowed[contentType]}`;
+    await env.MEDIA.put(key, buf, { httpMetadata: { contentType } });
+    log(ctx, env, "upload", "font", key.split("/").pop());
     return json({ url: `/media/${key}`, key });
   }
 
