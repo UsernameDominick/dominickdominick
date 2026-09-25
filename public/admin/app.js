@@ -1495,6 +1495,11 @@
     },
     { key: "backgroundVideoUrl", label: "Background video URL (.mp4 — plays behind the block, muted/looped)", type: "text" },
     {
+      key: "parallax",
+      label: "Parallax background (desktop only — the background image moves slower than the rest of the page while scrolling)",
+      type: "checkbox",
+    },
+    {
       key: "blendMode",
       label: "Background blend mode",
       type: "select",

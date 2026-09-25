@@ -2534,3 +2534,67 @@ untouched throughout (only the page's title and trash state were
 affected), and the desktop critique agent's own later cleanup pass
 independently re-verified the Home page was intact with its original
 title and all 26 blocks.
+
+## 11. Parallax/smooth/minimalist pass (2026-09-25)
+
+Per explicit direction: keep the bold/vibrant palette from section 10,
+layer smooth motion and more minimalist spacing on top of it, add
+parallax specifically to the homepage and article/project headers, and
+bring the same aesthetic (not the parallax itself) into the admin panel.
+
+- ✅ Added a shared `--ease-smooth` easing token (`cubic-bezier(0.16, 1,
+  0.3, 1)` — decelerating, "settles into place" rather than linear) and
+  applied it to the site's actual chrome interactions: the active nav
+  tab's text-color transition, the sliding pill indicator underneath it
+  (previously snapped instantly between tabs with no transition at
+  all — now eases into position), the fade/slide/zoom entrance
+  animations, and the lift/grow hover effects. Brought the same token
+  into the admin panel for its mobile drawer slide and the block
+  palette's hover border. Left internal tool-specific transitions
+  (simulation-canvas pins, song-player fills) alone — those aren't part
+  of the public "feel," just implementation detail.
+- ✅ A new per-block style option, "Parallax background" (checkbox,
+  alongside the existing background-image fields in every block's style
+  panel), gives any block with a background image real scroll depth via
+  the classic `background-attachment: fixed` technique — the image
+  stays pinned to the viewport while the page scrolls past it, instead
+  of scrolling as one flat plane with everything else. Zero JavaScript;
+  scoped to `@media (min-width: 768px) and (prefers-reduced-motion:
+  no-preference)` since `background-attachment: fixed` has known jank
+  problems on mobile Safari specifically and doesn't read as "depth" on
+  a touch-scrolled screen the same way it does under a mouse wheel —
+  the class the CSS keys off is only emitted when a background image is
+  actually set, so enabling the checkbox before picking an image is a
+  no-op rather than a silent half-broken state. This is what makes
+  "homepage parallax" work in practice: set a background image on any
+  block (a hero-style top block being the obvious case) and check the
+  new box. Verified via Playwright: `background-attachment` computes to
+  `fixed` at desktop width and plain `scroll` at 390px width on the
+  same block, and the inspector shows the checkbox correctly reflecting
+  a block's saved state.
+- ✅ Articles and projects don't have a background-image "header" slot
+  today (unlike pages, which are block-built) — rather than inventing a
+  new image field unprompted, gave the existing title/meta/tags header
+  a scroll-linked depth cue instead: as the page scrolls away from the
+  top, the header recedes and fades slightly slower than the reading
+  content beneath it (`animation-timeline: scroll(root block)`,
+  `animation-range: 0 300px`, capped to a brief "leaving the top of the
+  page" cue rather than a whole-scroll effect). Pure progressive
+  enhancement via `@supports (animation-timeline: scroll())` — a
+  browser without support (Firefox/Safari as of this writing) just
+  shows the header at rest, no partial/broken state — and gated behind
+  `prefers-reduced-motion: no-preference` like every other scroll effect
+  on the site. Added a `page-header` class to the existing header
+  wrapper `<div>` on both the article and project templates (no other
+  markup changes) for the CSS to key off.
+- ✅ Minimalist spacing pass, scoped to typography/flow rather than the
+  fixed-position grid (bumping the 24-column grid's own `gap` would
+  shift every already-placed block's pixel math across the whole site —
+  deliberately left untouched): `body` gained an explicit `line-height:
+  1.65` (previously just the browser default, ~1.2) for a calmer
+  reading rhythm everywhere at once, and `.article-canvas`'s section gap
+  (a flex layout, safe to change) went from 32px to 40px for more air
+  between an article's header/body/reactions/related sections.
+- Scope, per your answers: public site + admin (aesthetic only, no
+  parallax in the CMS itself — motion there would just get in the way
+  of editing), vibrant palette kept as-is from the previous round.

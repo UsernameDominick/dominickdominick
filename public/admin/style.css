@@ -296,6 +296,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   padding: 8px 10px;
   margin-bottom: 6px;
   cursor: pointer;
+  transition: border-color 0.2s var(--ease-smooth);
   font-size: 0.85rem;
 }
 
@@ -1096,7 +1097,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
     width: 85vw;
     max-width: 320px;
     z-index: 50;
-    transition: transform 0.25s ease;
+    transition: transform 0.3s var(--ease-smooth);
     box-shadow: 0 0 24px rgba(0, 0, 0, 0.5);
   }
 

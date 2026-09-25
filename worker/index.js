@@ -323,7 +323,7 @@ async function renderArticle(env, article, navItems, previewReason = null) {
   const bodyHtml = `<div class="reading-progress"></div>
   ${renderPreviewBannerHtml(previewReason)}
   ${breadcrumbHtml}
-  <div class="block">
+  <div class="block page-header">
     <div class="article-meta">
       <time datetime="${esc(article.published_at)}">${esc((article.published_at || "").slice(0, 10))}</time>
       ${wasUpdated ? `<span class="article-meta-sep">·</span><span>Updated <time datetime="${esc(article.updated_at)}">${esc((article.updated_at || "").slice(0, 10))}</time></span>` : ""}
@@ -442,7 +442,7 @@ async function renderProject(env, project, navItems, previewReason = null) {
   ]);
   const bodyHtml = `${renderPreviewBannerHtml(previewReason)}
   ${breadcrumbHtml}
-  <div class="block">
+  <div class="block page-header">
     <div class="article-meta">
       ${project.status ? `<span>${esc(project.status)}</span><span class="article-meta-sep">·</span>` : ""}
       <time datetime="${esc(project.published_at)}">${esc((project.published_at || "").slice(0, 10))}</time>

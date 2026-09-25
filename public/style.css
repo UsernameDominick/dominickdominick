@@ -32,6 +32,11 @@
      confused. Verified 7.07:1 against --bg. */
   --error-text: #ff6b6b;
   --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+  /* A slower-out, decelerating curve (vs. the browser default linear-ish
+     "ease") for anything that should feel like it settles into place
+     rather than just linearly interpolating — hover states, entrance
+     reveals, the parallax/scroll-reveal effects below. */
+  --ease-smooth: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 :root[data-theme="light"] {
@@ -140,6 +145,10 @@ body {
   color: var(--text);
   font-family: var(--font-family);
   -webkit-font-smoothing: antialiased;
+  /* A more generous reading rhythm than the browser default (~1.2) —
+     part of the minimalist pass: more air between lines reads as calmer/
+     more considered, independent of anything else on the page. */
+  line-height: 1.65;
 }
 
 .page {
@@ -204,7 +213,7 @@ body {
   text-decoration: none;
   padding: 8px 18px;
   border-radius: 999px;
-  transition: color 0.25s ease;
+  transition: color 0.3s var(--ease-smooth);
 }
 
 .tab.is-active {
@@ -225,6 +234,12 @@ body {
   background: var(--accent-gradient);
   border-radius: 999px;
   z-index: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .tab-indicator {
+    transition: transform 0.4s var(--ease-smooth), width 0.4s var(--ease-smooth);
+  }
 }
 
 /* Nav dropdown — a "tab-group" wraps a normal top-level tab link plus a
@@ -428,6 +443,25 @@ body {
   min-width: 0;
 }
 
+/* Parallax background — a block's own background-image scrolls at a
+   different rate than the page around it, giving it depth instead of
+   scrolling as one flat plane. Uses the classic background-attachment:
+   fixed technique (the image is pinned to the viewport instead of the
+   block, so scrolling the page past it reveals more of the same image
+   rather than moving it) — real depth with zero JavaScript, at the cost
+   of only working with a plain CSS background-image (not the <video>
+   background-video case, which isn't a CSS background at all). Desktop/
+   tablet only: background-attachment: fixed has known repaint/scroll-
+   jank problems on mobile Safari specifically, and touch scrolling
+   doesn't read as "depth" the same way a mouse-wheel scroll does anyway.
+   Also off entirely under prefers-reduced-motion, matching every other
+   scroll-triggered effect on the site. */
+@media (min-width: 768px) and (prefers-reduced-motion: no-preference) {
+  .block-parallax {
+    background-attachment: fixed;
+  }
+}
+
 /* Article/project pages: normal top-to-bottom flow instead of the 24-column
    grid used for admin-editable Pages — those blocks get explicit col/row
    positions the admin drags into place, but an article's sections (header,
@@ -438,7 +472,7 @@ body {
 .article-canvas {
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 40px;
 }
 
 .block-has-bg-layer {
@@ -474,7 +508,7 @@ body {
 @media (prefers-reduced-motion: no-preference) {
   [data-animate] {
     opacity: 0;
-    transition: opacity 0.6s ease, transform 0.6s ease;
+    transition: opacity 0.7s var(--ease-smooth), transform 0.7s var(--ease-smooth);
     transition-delay: var(--animate-delay, 0s);
   }
   [data-animate="fade-in"] {
@@ -501,14 +535,14 @@ body {
      above: a reduced-motion visitor sees the static, un-hovered look with
      no JS branching, since these rules simply don't exist for them. */
   .block-hover-lift {
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    transition: transform 0.3s var(--ease-smooth), box-shadow 0.3s var(--ease-smooth);
   }
   .block-hover-lift:hover {
     transform: translateY(-4px);
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25);
   }
   .block-hover-grow {
-    transition: transform 0.2s ease;
+    transition: transform 0.3s var(--ease-smooth);
   }
   .block-hover-grow:hover {
     transform: scale(1.02);
@@ -640,6 +674,36 @@ body {
   color: var(--text-dim);
   font-size: 0.85rem;
   margin-bottom: 8px;
+}
+
+/* Article/project header depth effect — as the page is scrolled away from
+   the top, the header (title/meta/tags) recedes and fades slightly slower
+   than the reading content beneath it, instead of both scrolling off as
+   one flat plane. Scroll-driven CSS animation, not JS: @supports means a
+   browser without it (Firefox/Safari as of this writing) just shows the
+   header at rest, no broken/half-applied state. animation-range caps the
+   effect to the first 300px of scroll, so it's a brief "leaving the top
+   of the page" cue rather than something that keeps changing the whole
+   time you're reading. */
+@keyframes page-header-parallax {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-24px);
+    opacity: 0.5;
+  }
+}
+
+@supports (animation-timeline: scroll()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .page-header {
+      animation: page-header-parallax linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0 300px;
+    }
+  }
 }
 
 .article-meta-sep {
