@@ -1801,8 +1801,14 @@ enough detail to act on directly later.
   Verified all four now report the same computed `font-family`.
   (The font-size toggle's 4-step cycle still has no visible "current
   value" indicator — not fixed this round.)
-- Unstyled default browser buttons on `/history` and `/saved` ("Clear
-  history"/"Clear all").
+- ✅ "Clear history"/"Clear all" on `/history` and `/saved` had no CSS
+  targeting them at all, rendering with the browser's own default
+  button chrome. Styled to match `.btn`'s inline accent-colored text-
+  action look (an underline-on-hover link, not a heavy pill button —
+  fits better for a small secondary control sitting inline in a
+  sentence) rather than introducing a second button style. Verified
+  via Playwright: computed background is transparent and border/cursor
+  match the intended link-like style on both pages.
 - Print/PDF output includes share pills, reactions, and the preview
   banner, and dark-theme text prints near-invisible on white — needs a
   real print stylesheet.
