@@ -5262,6 +5262,8 @@
       const { url } = await res.json();
       currentCustomFontUrl = url;
       refreshCustomFontStatus();
+      updateFontPreview("settings-font", "settings-font-preview");
+      updateFontPreview("settings-heading-font", "settings-heading-font-preview");
     } catch (err) {
       alert(err.message);
     } finally {
@@ -5273,6 +5275,8 @@
   el("settings-custom-font-remove-btn").addEventListener("click", () => {
     currentCustomFontUrl = null;
     refreshCustomFontStatus();
+    updateFontPreview("settings-font", "settings-font-preview");
+    updateFontPreview("settings-heading-font", "settings-heading-font-preview");
   });
 
   el("site-settings-btn").addEventListener("click", async () => {
@@ -5302,6 +5306,8 @@
     el("settings-modal").hidden = false;
     switchSettingsTab("appearance");
     updateThemeContrastCheck();
+    updateFontPreview("settings-font", "settings-font-preview");
+    updateFontPreview("settings-heading-font", "settings-heading-font-preview");
     loadActivityLog().catch(() => {});
     loadErrors().catch(() => {});
     loadScheduledBackups().catch(() => {});
@@ -5374,6 +5380,44 @@
     const darker = Math.min(l1, l2);
     return (lighter + 0.05) / (darker + 0.05);
   }
+  // Mirrors worker/render.js's FONT_STACKS exactly — duplicated rather than
+  // shared since this admin script is a plain <script>, not an ES module
+  // that could import from the worker bundle. Lets an admin see what
+  // "Serif"/"Monospace"/etc. actually look like without saving, closing
+  // the modal, and opening a real page in a new tab just to check.
+  const ADMIN_FONT_STACKS = {
+    sans: `-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif`,
+    serif: `Georgia, 'Times New Roman', serif`,
+    mono: `'Courier New', Courier, monospace`,
+    rounded: `'Trebuchet MS', Verdana, sans-serif`,
+  };
+  let customFontPreviewFaceInjected = null; // tracks which URL is currently injected
+  function updateFontPreview(selectId, previewId) {
+    const value = el(selectId).value;
+    const preview = el(previewId);
+    if (!value) {
+      preview.style.fontFamily = "";
+      return;
+    }
+    if (value === "custom") {
+      if (currentCustomFontUrl) {
+        if (customFontPreviewFaceInjected !== currentCustomFontUrl) {
+          const styleEl = document.createElement("style");
+          styleEl.textContent = `@font-face{font-family:"AdminCustomFontPreview";src:url("${escapeHtml(currentCustomFontUrl)}");}`;
+          document.head.appendChild(styleEl);
+          customFontPreviewFaceInjected = currentCustomFontUrl;
+        }
+        preview.style.fontFamily = `"AdminCustomFontPreview", sans-serif`;
+      } else {
+        preview.style.fontFamily = "sans-serif";
+      }
+      return;
+    }
+    preview.style.fontFamily = ADMIN_FONT_STACKS[value] || "";
+  }
+  el("settings-font").addEventListener("change", () => updateFontPreview("settings-font", "settings-font-preview"));
+  el("settings-heading-font").addEventListener("change", () => updateFontPreview("settings-heading-font", "settings-heading-font-preview"));
+
   function updateThemeContrastCheck() {
     const bg = el("settings-bg").value;
     const text = el("settings-text").value;

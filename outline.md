@@ -3674,3 +3674,24 @@ instead:
   protected page with a deliberately mismatched canonical URL no longer
   appears in `sitemapCanonicalMismatch`, confirmed alongside a direct
   check that the page is genuinely absent from `/sitemap.xml`.
+
+### Sixteenth backlog item — font preview in Site Settings
+- ✅ **Live font preview for the Body/Heading font selects** — choosing
+  "Serif"/"Monospace"/"Rounded"/etc. previously changed nothing visible
+  in the admin at all; the only way to see what a font choice actually
+  looked like was saving, closing the modal, and opening a real page in
+  a new tab. Added a sample-text preview under each select, updated
+  live on change, using `ADMIN_FONT_STACKS` — a small client-side
+  mirror of worker/render.js's `FONT_STACKS` (duplicated rather than
+  shared, since this admin script is a plain `<script>`, not an ES
+  module that could import from the worker bundle). Selecting "Custom"
+  dynamically injects an `@font-face` rule pointing at the actual
+  uploaded font file (via the same `currentCustomFontUrl` the save flow
+  already tracks), so the preview reflects the real uploaded font, not
+  just a generic placeholder — and falls back cleanly to plain
+  sans-serif if "Custom" is selected before anything's been uploaded
+  yet, no error. Verified via Playwright: Serif/Monospace/Rounded each
+  correctly changed the preview's computed `font-family` to the right
+  stack, selecting "Custom" with nothing uploaded fell back safely with
+  zero console errors, and clearing back to "Default" correctly removed
+  the inline override.

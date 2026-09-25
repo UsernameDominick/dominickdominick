@@ -1492,6 +1492,15 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   margin: 0;
 }
 
+.font-preview {
+  margin: -6px 0 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 1rem;
+  color: var(--text);
+}
+
 .theme-contrast-check,
 .publish-checklist {
   display: flex;
