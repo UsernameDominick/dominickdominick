@@ -2175,11 +2175,36 @@ enough detail to act on directly later.
   `noindex`, `/random?page=999` 404s, `/projects` renders a test
   project, and both the article and project breadcrumbs read "Home /
   Articles / …" and "Home / Projects / …" respectively.
-- One consolidated "Site Health" dashboard merging Diagnostics, SEO,
-  Accessibility, Link Checker, Orphans, and Content Health into a
-  single severity-sorted list with jump-to-fix links, now that the
-  underlying 0px-height bug that made several of these unusable is
-  fixed.
+- ✅ Consolidated "Site Health" dashboard — the SEO Dashboard modal
+  already merged SEO/Accessibility/Link Checker/Orphans/Content Health
+  into one modal, each with its own "Run report" button, but there was
+  no single merged view. Diagnostics was deliberately left out of this
+  merge: it only scans whichever single page is currently open in the
+  editor, not the whole site, so folding it into a site-wide severity
+  list would need a new batch-scan-every-page capability, a
+  meaningfully bigger feature than aggregating results the other five
+  checks already produce — confirmed this scope with the site owner
+  before building it. Renamed the modal (and its "More" menu button)
+  from "SEO Dashboard" to "Site Health", and added an "Overview"
+  section at the top with a "Run all checks" button: it calls all five
+  existing endpoints (`/link-check`, `/accessibility-report`,
+  `/content-health`, `/seo-report`, `/orphan-content`) in parallel,
+  normalizes every result shape into `{ severity, check, title, url,
+  status }`, and renders one flat list sorted by severity (3 = a
+  visitor would notice: broken links, missing alt text, an empty page;
+  2 = hurts discoverability without visibly breaking anything: no meta
+  description, duplicate title, orphaned content; 1 = mildest/easiest
+  to defer: no share image, stale content) then alphabetically. Each
+  row shows which check it came from (a small badge, reusing the
+  existing `.lock-badge` pill style) and a clickable link to the
+  affected page/article/project/image — the individual per-check
+  "Run report" buttons and their own result lists are untouched, still
+  useful on their own. Verified via Playwright: the modal/button both
+  read "Site Health", clicking "Run all checks" against real local
+  content produced 8 merged issues across 4 of the 5 checks with a
+  "8 issues found across 5 checks" summary line, every row had a
+  working link, and severity-3 (visually flagged "broken") rows all
+  sorted before lower-severity ones.
 - ✅ Split the giant Site Settings modal into tabs (Appearance, Sharing
   & SEO, Integrations, Maintenance, Tools, Logs, Backups) with a
   sticky Save bar, instead of one long scrolling list. Added a

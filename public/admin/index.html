@@ -67,7 +67,7 @@
               <h3>Tools</h3>
               <button id="layers-btn">Layers</button>
               <button id="diagnostics-btn">Diagnostics</button>
-              <button id="seo-dashboard-btn">SEO Dashboard</button>
+              <button id="seo-dashboard-btn">Site Health</button>
               <button id="topic-pages-btn">Topic Pages</button>
               <button id="analytics-btn">Analytics</button>
               <button id="trash-btn">Trash</button>
@@ -1133,10 +1133,15 @@
   <div id="seo-dashboard-modal" class="modal" hidden>
     <div class="modal-inner settings-modal-inner">
       <header>
-        <h1>SEO Dashboard</h1>
+        <h1>Site Health</h1>
         <button id="close-seo-dashboard">×</button>
       </header>
       <div class="settings-body">
+        <h2>Overview</h2>
+        <label style="margin-bottom:0;">Runs the SEO, Accessibility, Link Checker, Orphan Pages, and Content Health reports below all at once, merged into one severity-sorted list with a link to each affected page.</label>
+        <button type="button" id="run-site-health-btn">Run all checks</button>
+        <div id="site-health-summary"></div>
+        <div id="site-health-results" class="link-check-results"></div>
         <h2>Sitemap Exclusions</h2>
         <label style="margin-bottom:0;">Pages, articles, and projects currently excluded from sitemap.xml (still fully live at their URL — just not listed for search engines).</label>
         <div id="sitemap-exclusions-list" class="link-check-results"></div>

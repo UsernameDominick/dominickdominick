@@ -5019,6 +5019,82 @@
     }
   });
 
+  // ---------- Site Health (aggregates the 5 site-wide checks below) ----------
+  // Each check already has its own "Run report" button further down this
+  // modal, returning its own shape of results — this doesn't replace those
+  // (still useful individually), it just runs all five at once and merges
+  // them into one severity-sorted list so nothing needs checking one at a
+  // time. Diagnostics (further up the "Tools" menu) isn't included here —
+  // it only scans whichever single page is currently open in the editor,
+  // not the whole site, so it doesn't fit the same "run everywhere" model.
+  el("run-site-health-btn").addEventListener("click", async () => {
+    const btn = el("run-site-health-btn");
+    const originalText = btn.textContent;
+    btn.textContent = "Running…";
+    btn.disabled = true;
+    const summaryEl = el("site-health-summary");
+    const resultsEl = el("site-health-results");
+    try {
+      const [linkResults, orphanData, healthData, seoData, a11yIssues] = await Promise.all([
+        api("/link-check"),
+        api("/orphan-content"),
+        api("/content-health"),
+        api("/seo-report"),
+        api("/accessibility-report"),
+      ]);
+      const typePath = { article: "/random/", project: "/projects/", page: "/" };
+      const pagePath = (slug) => `/${slug === "home" ? "" : slug}`;
+      // Severity is just a sort key, not a formal classification — 3 for
+      // things a visitor would actually notice (broken links, missing alt
+      // text, an empty page), 2 for things that hurt discoverability/SEO
+      // without visibly breaking anything, 1 for the mildest, easy-to-defer
+      // findings (a missing share image, content nobody's touched in a while).
+      const issues = [
+        ...linkResults.filter((r) => r.ok === false).map((r) => ({ severity: 3, check: "Link Checker", title: r.source, url: r.url, status: `Broken link: ${r.status}` })),
+        ...a11yIssues.map((i) => ({ severity: 3, check: "Accessibility", title: i.pageTitle, url: pagePath(i.pageSlug), status: i.issue })),
+        ...healthData.emptyPages.map((p) => ({ severity: 3, check: "Content Health", title: p.title, url: pagePath(p.slug), status: "Empty page" })),
+        ...seoData.missingAlt.map((m) => ({ severity: 3, check: "SEO", title: m.title, url: m.url, status: "Missing alt text" })),
+        ...seoData.duplicateTitles.map((owners) => ({
+          severity: 2,
+          check: "SEO",
+          title: owners[0].title,
+          url: typePath[owners[0].type] + (owners[0].slug === "home" ? "" : owners[0].slug),
+          status: `Duplicate title (${owners.length}×)`,
+        })),
+        ...seoData.missingMeta.map((p) => ({ severity: 2, check: "SEO", title: p.title, url: pagePath(p.slug), status: "No meta description" })),
+        ...orphanData.pages.map((p) => ({ severity: 2, check: "Orphan", title: p.title, url: pagePath(p.slug), status: "Page — no links, not in nav" })),
+        ...orphanData.articles.map((a) => ({ severity: 2, check: "Orphan", title: a.title, url: `/random/${a.slug}`, status: "Article — no internal links" })),
+        ...orphanData.projects.map((p) => ({ severity: 2, check: "Orphan", title: p.title, url: `/projects/${p.slug}`, status: "Project — no internal links" })),
+        ...healthData.staleArticles.map((a) => ({ severity: 1, check: "Content Health", title: a.title, url: `/random/${a.slug}`, status: `Not touched since ${(a.updated_at || "").slice(0, 10)}` })),
+        ...healthData.staleProjects.map((p) => ({ severity: 1, check: "Content Health", title: p.title, url: `/projects/${p.slug}`, status: `Not touched since ${(p.updated_at || "").slice(0, 10)}` })),
+        ...seoData.missingOgImage.map((m) => ({
+          severity: 1,
+          check: "SEO",
+          title: m.title,
+          url: typePath[m.type] + (m.slug === "home" ? "" : m.slug),
+          status: "No social-share image",
+        })),
+      ];
+      issues.sort((a, b) => b.severity - a.severity || a.title.localeCompare(b.title));
+      summaryEl.textContent = issues.length ? `${issues.length} issue${issues.length === 1 ? "" : "s"} found across 5 checks.` : "No issues found across any check.";
+      resultsEl.innerHTML = issues
+        .map(
+          (i) =>
+            `<div class="link-check-row${i.severity === 3 ? " broken" : ""}"><span class="lock-badge">${escapeHtml(
+              i.check
+            )}</span><a class="link-check-url" href="${escapeHtml(i.url)}" target="_blank" rel="noopener">${escapeHtml(
+              i.title
+            )}</a><span class="link-check-source">${escapeHtml(i.url)}</span><span class="link-check-status">${escapeHtml(i.status)}</span></div>`
+        )
+        .join("");
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      btn.textContent = originalText;
+      btn.disabled = false;
+    }
+  });
+
   el("check-seo-btn").addEventListener("click", async () => {
     const btn = el("check-seo-btn");
     const originalText = btn.textContent;
