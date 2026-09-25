@@ -815,8 +815,23 @@ block already support any of these as a plain page:
 
 ### Photo editor
 Undo/redo, flips, grayscale/sepia/invert, line tool, eyedropper, reset,
-keyboard shortcuts — all ✅. ☐: batch adjustments, saved presets,
-redaction tools, cross-crop preview.
+keyboard shortcuts — all ✅.
+- ✅ Saved presets — scoped to the brightness/contrast/saturation sliders
+  (the only parametric adjustment; the one-click filters like grayscale
+  are already single-click). "Save preset" names the values just applied;
+  "Apply preset" replays them as a one-shot `ctx.filter` onto the current
+  canvas (pushes undo first). Same storage pattern as style presets: one
+  JSON blob under its own `photo_editor_presets` settings key with three
+  dedicated routes, not folded into the bulk settings PUT. Non-obvious
+  wrinkle: the adjust sliders are deltas, not absolute state — each drag
+  bakes its filter into the canvas on `change` and resets to 0 so the next
+  drag starts fresh (lets you stack, say, two separate brightness bumps
+  without hitting the slider's ±100 range limit). That means by the time
+  someone clicks "Save preset" the sliders normally already read 0 again,
+  so a `lastAdjust` variable captures the just-committed values right
+  before that reset, and "Save preset" reads from it (falling back to the
+  live slider values only mid-drag, before `change` has fired).
+- ☐: batch adjustments, redaction tools, cross-crop preview.
 
 ### Media viewers and presentation
 All ☐: panoramic/360° viewer, deep-zoom, image hotspots, audio waveform

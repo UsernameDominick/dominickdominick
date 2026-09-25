@@ -1528,6 +1528,40 @@ async function routeAdminApi(request, env, url, ctx) {
     return json({ ok: true });
   }
 
+  // /photo-presets — named brightness/contrast/saturation snapshots for the
+  // photo editor's adjust sliders, same storage pattern as style presets
+  // above (own settings key, own routes, not folded into the bulk PUT).
+  if (path === "/photo-presets" && method === "GET") {
+    const raw = await getSetting(env, "photo_editor_presets");
+    return json(JSON.parse(raw || "[]"));
+  }
+  if (path === "/photo-presets" && method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    if (!body.name || typeof body.adjust !== "object" || !body.adjust) {
+      return json({ error: "name and adjust are required" }, { status: 400 });
+    }
+    const { brightness = 0, contrast = 0, saturate = 0 } = body.adjust;
+    const presets = JSON.parse((await getSetting(env, "photo_editor_presets")) || "[]");
+    const id = presets.reduce((max, p) => Math.max(max, p.id || 0), 0) + 1;
+    presets.push({
+      id,
+      name: String(body.name).slice(0, 60),
+      adjust: { brightness: Number(brightness) || 0, contrast: Number(contrast) || 0, saturate: Number(saturate) || 0 },
+    });
+    await setSetting(env, "photo_editor_presets", JSON.stringify(presets));
+    log(ctx, env, "create", "photo-preset", body.name);
+    return json({ id });
+  }
+  const photoPresetMatch = path.match(/^\/photo-presets\/(\d+)$/);
+  if (photoPresetMatch && method === "DELETE") {
+    const id = Number(photoPresetMatch[1]);
+    const presets = JSON.parse((await getSetting(env, "photo_editor_presets")) || "[]");
+    const target = presets.find((p) => p.id === id);
+    await setSetting(env, "photo_editor_presets", JSON.stringify(presets.filter((p) => p.id !== id)));
+    log(ctx, env, "delete", "photo-preset", target?.name || `#${id}`);
+    return json({ ok: true });
+  }
+
   // /media-saved-searches — a named snapshot of the media library's
   // filter controls (folder/type/search text/unused/duplicates), same
   // storage pattern as style presets above and for the same reason: an

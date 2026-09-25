@@ -2189,6 +2189,15 @@ kbd {
   cursor: pointer;
 }
 
+.pe-toolbar select {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 0.8rem;
+}
+
 .pe-tool.active {
   border-color: var(--accent);
   color: var(--accent);

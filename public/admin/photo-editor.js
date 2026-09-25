@@ -239,18 +239,101 @@
     ctx.restore();
   }
 
+  let lastAdjust = { brightness: 0, contrast: 0, saturate: 0 };
+
   function onAdjustCommit() {
     // The slider handler already baked the filtered pixels into the canvas;
-    // just reset sliders/snapshot so the next drag starts from this state.
+    // remember the values that were just applied (for "Save preset", since
+    // the sliders themselves are about to reset to 0) then reset sliders/
+    // snapshot so the next drag starts fresh from this baked-in state.
+    lastAdjust = {
+      brightness: Number($("pe-brightness").value),
+      contrast: Number($("pe-contrast").value),
+      saturate: Number($("pe-saturate").value),
+    };
     baseSnapshot = null;
     $("pe-brightness").value = 0;
     $("pe-contrast").value = 0;
     $("pe-saturate").value = 0;
   }
 
+  // What "Save preset" should capture: the live slider values while a drag
+  // is in progress (baseSnapshot set, sliders not yet reset), otherwise the
+  // last values that were actually committed onto the canvas.
+  function currentAdjust() {
+    if (baseSnapshot) {
+      return {
+        brightness: Number($("pe-brightness").value),
+        contrast: Number($("pe-contrast").value),
+        saturate: Number($("pe-saturate").value),
+      };
+    }
+    return lastAdjust;
+  }
+
   ["pe-brightness", "pe-contrast", "pe-saturate"].forEach((id) => {
     $(id).addEventListener("input", onAdjustInput);
     $(id).addEventListener("change", onAdjustCommit);
+  });
+
+  // ---------- Saved presets (brightness/contrast/saturation) ----------
+  let photoPresets = [];
+
+  async function loadPhotoPresets() {
+    try {
+      photoPresets = (await window.adminApi("/photo-presets")) || [];
+    } catch (e) {
+      photoPresets = [];
+    }
+    const select = $("pe-apply-preset");
+    select.innerHTML =
+      `<option value="">Apply preset…</option>` +
+      photoPresets.map((p) => `<option value="${p.id}">${p.name.replace(/</g, "&lt;")}</option>`).join("");
+  }
+
+  $("pe-apply-preset").addEventListener("change", () => {
+    const id = Number($("pe-apply-preset").value);
+    const preset = photoPresets.find((p) => p.id === id);
+    if (!preset) return;
+    pushUndo();
+    const snap = snapshotCanvas();
+    const b = 100 + Number(preset.adjust.brightness);
+    const c = 100 + Number(preset.adjust.contrast);
+    const s = 100 + Number(preset.adjust.saturate);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.filter = `brightness(${b}%) contrast(${c}%) saturate(${s}%)`;
+    ctx.drawImage(snap, 0, 0);
+    ctx.restore();
+  });
+
+  $("pe-save-preset").addEventListener("click", async () => {
+    const adjust = currentAdjust();
+    if (!adjust.brightness && !adjust.contrast && !adjust.saturate) {
+      alert("Adjust brightness, contrast, or saturation first, then save it as a preset.");
+      return;
+    }
+    const name = prompt("Preset name:");
+    if (!name) return;
+    try {
+      await window.adminApi("/photo-presets", { method: "POST", body: JSON.stringify({ name, adjust }) });
+      await loadPhotoPresets();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  $("pe-delete-preset").addEventListener("click", async () => {
+    const id = Number($("pe-apply-preset").value);
+    const preset = photoPresets.find((p) => p.id === id);
+    if (!preset) return;
+    if (!confirm(`Delete preset "${preset.name}"?`)) return;
+    try {
+      await window.adminApi(`/photo-presets/${id}`, { method: "DELETE" });
+      await loadPhotoPresets();
+    } catch (err) {
+      alert(err.message);
+    }
   });
 
   // ---------- Brush tools: erase / blur / pixelate ----------
@@ -601,9 +684,12 @@
         originalSnapshot = snapshotCanvas();
         cropRect = null;
         baseSnapshot = null;
+        lastAdjust = { brightness: 0, contrast: 0, saturate: 0 };
         $("pe-brightness").value = 0;
         $("pe-contrast").value = 0;
         $("pe-saturate").value = 0;
+        $("pe-apply-preset").value = "";
+        loadPhotoPresets();
         $("pe-hint").textContent = originalKey
           ? "Editing a library image — overwrite updates it everywhere it's used."
           : "Editing an external image — only \"Save as new\" is available.";

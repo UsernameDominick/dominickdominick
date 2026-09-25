@@ -818,6 +818,13 @@
             <label>Saturation <input type="range" id="pe-saturate" min="-100" max="100" value="0"></label>
           </div>
           <div class="pe-tool-group">
+            <select id="pe-apply-preset" title="Apply a saved brightness/contrast/saturation preset">
+              <option value="">Apply preset…</option>
+            </select>
+            <button type="button" id="pe-save-preset" title="Save the current brightness/contrast/saturation as a named preset">Save preset</button>
+            <button type="button" id="pe-delete-preset" title="Delete the selected preset">Delete preset</button>
+          </div>
+          <div class="pe-tool-group">
             <button type="button" id="pe-filter-grayscale">Grayscale</button>
             <button type="button" id="pe-filter-sepia">Sepia</button>
             <button type="button" id="pe-filter-invert">Invert</button>
