@@ -694,6 +694,12 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   min-width: 160px;
 }
 
+.article-series-hint {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  margin: 4px 0 0;
+}
+
 .article-flags-row {
   display: flex;
   gap: 16px;

@@ -3712,3 +3712,26 @@ instead:
   snapshots before any editorial change. Verified via Playwright with
   two real uploaded images: selecting both and setting alt text applied
   the exact same string to both, confirmed via a direct API read.
+
+### Eighteenth backlog item — series-name autocomplete and sibling-parts hint
+- ✅ **Series name autocomplete + "other parts" hint in the article
+  editor** — the Series field was a bare text input with no way to see
+  what series names already existed, so a typo (an extra space, wrong
+  capitalization) silently created a second, orphaned "series" instead
+  of joining the real one, since `getSeriesArticles()` (worker/db.js)
+  matches on exact string equality. Added a `<datalist>` populated from
+  the distinct `series` values already present in the in-memory
+  `articles` array (no schema change, no new endpoint), and a hint line
+  that appears when the typed name exactly matches an existing series,
+  listing its other parts ("Other parts already in this series: Part 1:
+  …, Part 2: …") sorted the same way the public "Part N of M" nav is
+  (`series_order`, nulls last, then publish date) — mirroring
+  `getSeriesArticles()`'s own matching and ordering client-side rather
+  than adding a second endpoint just to ask the server the same
+  question. The article currently being edited excludes itself from its
+  own hint. Verified via Playwright with two real published articles in
+  a temporary series: the datalist offered the series name on a brand
+  new article, typing it exactly showed both parts, opening one of the
+  two articles itself showed only its sibling (self-exclusion works),
+  and a one-character-short partial match correctly showed no hint
+  (exact match only, matching the server's own lookup semantics).

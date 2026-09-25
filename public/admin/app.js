@@ -3313,7 +3313,42 @@
     updateWordCount();
     updateArticleOgPreview();
     updateArticleChecklist();
+    updateSeriesHint();
   }
+
+  // Keeps the series datalist in sync with whatever articles are loaded,
+  // and — when the typed name exactly matches an existing series (mirrors
+  // getSeriesArticles()'s exact-match lookup in worker/db.js, which is what
+  // actually drives the public "Part N of M" nav) — shows the other parts
+  // already in it, so the admin doesn't have to search article-by-article
+  // to know what number/title to use next.
+  function updateSeriesHint() {
+    const distinctSeries = [...new Set(articles.map((a) => a.series).filter(Boolean))].sort();
+    el("article-series-datalist").innerHTML = distinctSeries
+      .map((s) => `<option value="${escapeHtml(s)}">`)
+      .join("");
+
+    const hint = el("article-series-hint");
+    const series = el("article-series").value.trim();
+    const siblings = series
+      ? articles
+          .filter((a) => a.series === series && a.id !== currentArticleId)
+          .sort(
+            (a, b) =>
+              (a.series_order ?? Infinity) - (b.series_order ?? Infinity) ||
+              new Date(a.published_at || 0) - new Date(b.published_at || 0)
+          )
+      : [];
+    if (!siblings.length) {
+      hint.hidden = true;
+      hint.textContent = "";
+      return;
+    }
+    const parts = siblings.map((a) => (a.series_order != null ? `Part ${a.series_order}: ${a.title}` : a.title));
+    hint.hidden = false;
+    hint.textContent = `Other parts already in this series: ${parts.join(", ")}`;
+  }
+  el("article-series").addEventListener("input", updateSeriesHint);
 
   // Mirrors excerpt() in worker/render.js closely enough for a live preview
   // — doesn't need to be byte-exact, just give a realistic sense of length.

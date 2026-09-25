@@ -241,9 +241,11 @@
           <input id="article-slug" placeholder="URL slug (auto from title)" spellcheck="false">
           <input id="article-tags" placeholder="Tags, comma separated (e.g. life, code)">
           <div class="article-series-row">
-            <input id="article-series" placeholder="Series name (optional, e.g. \"Rebuilding my deck\")">
+            <input id="article-series" placeholder="Series name (optional, e.g. \"Rebuilding my deck\")" list="article-series-datalist">
+            <datalist id="article-series-datalist"></datalist>
             <input id="article-series-order" type="number" placeholder="Part #">
           </div>
+          <p id="article-series-hint" class="article-series-hint" hidden></p>
           <input id="article-co-authors" placeholder="Co-authors, comma separated (optional byline credits)">
           <div class="article-flags-row">
             <label><input type="checkbox" id="article-featured"> Featured</label>
