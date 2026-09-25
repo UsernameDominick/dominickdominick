@@ -42,6 +42,12 @@
       </div>
       <div class="admin-header-right" id="admin-header-right">
         <button id="close-site-menu" class="mobile-only close-drawer" aria-label="Close">×</button>
+        <div class="admin-more-wrap">
+          <button id="notifications-btn" aria-haspopup="true" aria-expanded="false" aria-controls="notifications-panel" title="Things that might need a look">🔔<span id="notifications-badge" class="notifications-badge" hidden>0</span></button>
+          <div class="admin-more-panel" id="notifications-panel">
+            <div id="notifications-list" class="notifications-list"></div>
+          </div>
+        </div>
         <button id="command-btn" title="Search / jump to anything (Ctrl+K)">Search ⌘K</button>
         <button id="articles-btn">Articles</button>
         <button id="projects-btn">Projects</button>

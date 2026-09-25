@@ -119,6 +119,35 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   position: relative;
 }
 
+#notifications-btn {
+  position: relative;
+}
+
+.notifications-badge {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  background: #e05252;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 999px;
+  min-width: 14px;
+  text-align: center;
+}
+
+.notifications-item {
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.notifications-item:hover {
+  background: var(--bg);
+}
+
 .admin-more-panel {
   position: absolute;
   top: calc(100% + 6px);

@@ -61,6 +61,48 @@
     if (morePanel.classList.contains("open") && !morePanel.contains(e.target) && e.target !== moreBtn) closeMoreMenu();
   });
 
+  // ---------- Notification bell ----------
+  // Rolls up backup-failure/broken-links/recent-errors/recent-failed-
+  // webhooks into one badge count, all signals that already exist as
+  // their own panels (Backup status, Link Checker, Error Log, Webhook
+  // Deliveries) — this just means not having to separately check all four
+  // to notice something needs attention. No "read/unread" tracking: it's
+  // a live status snapshot, recomputed fresh every time it's opened.
+  const notifBtn = el("notifications-btn");
+  const notifPanel = el("notifications-panel");
+  function closeNotifMenu() {
+    notifPanel.classList.remove("open");
+    notifBtn.setAttribute("aria-expanded", "false");
+  }
+  async function loadNotifications() {
+    const s = await api("/notifications-summary");
+    const items = [
+      s.backupFailed ? { label: "Last scheduled backup failed", action: () => el("site-settings-btn").click() } : null,
+      s.brokenLinks ? { label: `${s.brokenLinks} broken link(s) found`, action: () => el("seo-dashboard-btn").click() } : null,
+      s.recentErrors ? { label: `${s.recentErrors} error(s) in the last 24h`, action: () => el("site-settings-btn").click() } : null,
+      s.recentFailedWebhooks ? { label: `${s.recentFailedWebhooks} failed webhook delivery/deliveries in the last 24h`, action: () => el("site-settings-btn").click() } : null,
+    ].filter(Boolean);
+    const badge = el("notifications-badge");
+    badge.textContent = String(items.length);
+    badge.hidden = items.length === 0;
+    el("notifications-list").innerHTML =
+      items.map((it, i) => `<button type="button" class="notifications-item" data-i="${i}">${escapeHtml(it.label)}</button>`).join("") ||
+      "<p style='color:var(--text-dim);font-size:0.85rem;padding:8px 12px;'>Nothing needs attention.</p>";
+    el("notifications-list")
+      .querySelectorAll(".notifications-item")
+      .forEach((btn) => btn.addEventListener("click", () => items[Number(btn.dataset.i)].action()));
+  }
+  notifBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const isOpen = notifPanel.classList.toggle("open");
+    notifBtn.setAttribute("aria-expanded", String(isOpen));
+    if (isOpen) loadNotifications().catch(() => {});
+  });
+  document.addEventListener("click", (e) => {
+    if (notifPanel.classList.contains("open") && !notifPanel.contains(e.target) && e.target !== notifBtn) closeNotifMenu();
+  });
+  loadNotifications().catch(() => {});
+
   let pages = [];
   let currentPage = null;
   let blocks = [];

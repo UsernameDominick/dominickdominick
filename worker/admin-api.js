@@ -47,6 +47,7 @@ import {
   runScheduledBackup,
   listScheduledBackups,
   getBackupStatus,
+  getNotificationSummary,
   getStorageUsage,
   getBackupContents,
   verifyBackupIntegrity,
@@ -1600,6 +1601,13 @@ async function routeAdminApi(request, env, url, ctx) {
   }
   if (path === "/backup-status" && method === "GET") {
     return json(await getBackupStatus(env));
+  }
+  // /notifications-summary — rolls up backup-failure/broken-links/recent-
+  // errors/recent-failed-webhooks into one count for the admin header's
+  // notification bell, rather than making an admin separately check four
+  // different panels to see if anything needs attention.
+  if (path === "/notifications-summary" && method === "GET") {
+    return json(await getNotificationSummary(env));
   }
   // /storage-usage — R2 bucket usage by category plus an approximate D1
   // database size, for the Site Settings "Storage" panel.

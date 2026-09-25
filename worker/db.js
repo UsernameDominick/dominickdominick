@@ -3063,6 +3063,28 @@ export async function getLinkCheckStatus(env) {
   return { lastAt: lastAt || null, broken };
 }
 
+// Rolls up several already-separate status signals (backup failure, broken
+// links, recent errors, recent failed webhook deliveries) into the one
+// number the admin header's notification bell needs — no new "read/
+// unread" state to track, just "how many things currently need a look",
+// recomputed fresh each time rather than persisted anywhere.
+const NOTIFICATION_RECENT_HOURS = 24;
+export async function getNotificationSummary(env) {
+  const since = `datetime('now', '-${NOTIFICATION_RECENT_HOURS} hours')`;
+  const [backupStatus, linkCheckStatus, recentErrors, recentFailedWebhooks] = await Promise.all([
+    getBackupStatus(env),
+    getLinkCheckStatus(env),
+    env.DB.prepare(`SELECT COUNT(*) AS n FROM error_log WHERE created_at > ${since}`).first(),
+    env.DB.prepare(`SELECT COUNT(*) AS n FROM webhook_deliveries WHERE status = 'failed' AND created_at > ${since}`).first(),
+  ]);
+  return {
+    backupFailed: !!backupStatus.lastError,
+    brokenLinks: linkCheckStatus.broken.length,
+    recentErrors: recentErrors?.n || 0,
+    recentFailedWebhooks: recentFailedWebhooks?.n || 0,
+  };
+}
+
 // Orphan-page detection: published pages/articles/projects that nothing
 // else on the site links to internally (via a button/links/text block, a
 // markdown link in an article/project body or journal entry, or a

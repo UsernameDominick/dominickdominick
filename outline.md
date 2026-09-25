@@ -1143,7 +1143,17 @@ status/refresh, embed-failure behavior, before/after perf comparisons.
 - 🔶 Bulk-action toolbar (articles + projects + blocks ✅; not universal)
 - ☐ Contextual help for complex editors, shortcut remapping
 - ✅ Keyboard shortcut reference modal, universal admin search
-- ☐ Notifications for uploads/publishing/errors, background-job status/retry
+- ✅ Notifications — a 🔔 bell in the admin header with a badge count,
+  rolling up four signals that already each had their own separate panel
+  (backup-failure status, scheduled-link-check broken count, recent error-
+  log entries, recent failed webhook deliveries, all "last 24h" where a
+  time window applies) into one glanceable place rather than needing to
+  separately check four panels to notice something needs attention.
+  Clicking an item jumps to the relevant panel. No "read/unread" tracking
+  at all — it's a live status snapshot recomputed fresh every time the
+  bell opens, not a dismissible inbox, so there's no new state to get out
+  of sync; ☐ background-job status/retry (uploads/publishing are
+  synchronous today, nothing queued to report on)
 - ✅ Visitor-view preview, mobile workflows for common edits, desktop power-tools (focus mode/layers/multi-select)
 - ☐ Role-specific preview (n/a, no roles exist)
 - **Needs a real UX pass — see section 1c above.**
