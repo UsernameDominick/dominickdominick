@@ -5795,6 +5795,68 @@
   let commandItems = [];
   let commandActiveIndex = 0;
 
+  // "Where is this setting?" — a plain-language index over every control
+  // in the (now 7-tab) Site Settings modal, so "breakpoint" or "footer"
+  // finds the right tab+field without having to know which of the 7 tabs
+  // it lives under. Keywords are deliberately generous (multiple phrasings
+  // per field) since the whole point is not having to guess the exact label.
+  const SETTINGS_SEARCH_INDEX = [
+    { label: "Accent color", tab: "appearance", field: "settings-accent", keywords: ["theme", "color", "accent", "brand"] },
+    { label: "Background color", tab: "appearance", field: "settings-bg", keywords: ["theme", "color", "background", "bg"] },
+    { label: "Text color", tab: "appearance", field: "settings-text", keywords: ["theme", "color", "text"] },
+    { label: "Border color", tab: "appearance", field: "settings-border", keywords: ["theme", "color", "border"] },
+    { label: "Body font", tab: "appearance", field: "settings-font", keywords: ["font", "typography", "typeface"] },
+    { label: "Heading font", tab: "appearance", field: "settings-heading-font", keywords: ["font", "typography", "heading", "h1"] },
+    { label: "Custom font upload", tab: "appearance", field: "settings-custom-font-upload-btn", keywords: ["font", "upload", "custom font", "woff"] },
+    {
+      label: "Mobile/desktop breakpoint",
+      tab: "appearance",
+      field: "settings-mobile-breakpoint",
+      keywords: ["breakpoint", "mobile", "responsive", "spacing", "screen width", "homepage spacing"],
+    },
+    { label: "Site footer text", tab: "appearance", field: "settings-footer", keywords: ["footer", "copyright"] },
+    { label: "Default share image", tab: "sharing", field: "settings-og-image", keywords: ["og:image", "share image", "social preview", "thumbnail"] },
+    { label: "Search empty-state message", tab: "sharing", field: "settings-empty-search", keywords: ["search", "no results", "empty state"] },
+    { label: "Archive empty-state message", tab: "sharing", field: "settings-empty-archive", keywords: ["archive", "empty state", "nothing published"] },
+    { label: "Topics empty-state message", tab: "sharing", field: "settings-empty-topics", keywords: ["topics", "empty state", "tags"] },
+    { label: "Custom <head> code", tab: "integrations", field: "settings-custom-head", keywords: ["head", "script", "analytics", "verification", "meta tag"] },
+    { label: "Webhook URLs", tab: "integrations", field: "settings-webhook-url", keywords: ["webhook", "integration", "publish notification"] },
+    { label: "Webhook deliveries", tab: "integrations", field: "load-webhook-deliveries-btn", keywords: ["webhook", "delivery", "retry"] },
+    { label: "Maintenance mode", tab: "maintenance", field: "settings-maintenance-mode", keywords: ["maintenance", "down", "offline"] },
+    { label: "Maintenance message", tab: "maintenance", field: "settings-maintenance-message", keywords: ["maintenance", "message"] },
+    { label: "Find & Replace", tab: "tools", field: "find-replace-find", keywords: ["find", "replace", "search and replace"] },
+    { label: "Activity Log", tab: "logs", field: "activity-log-list", keywords: ["activity", "log", "history", "audit"] },
+    { label: "Error Log", tab: "logs", field: "error-log-list", keywords: ["error", "log", "crash"] },
+    { label: "Backup / Restore", tab: "backups", field: "export-btn", keywords: ["backup", "restore", "export", "import"] },
+    { label: "Storage usage", tab: "backups", field: "load-storage-usage-btn", keywords: ["storage", "usage", "r2", "database size"] },
+  ];
+
+  function settingsSearchActions(q) {
+    if (!q) return [];
+    const needle = q.toLowerCase();
+    return SETTINGS_SEARCH_INDEX.filter(
+      (entry) => entry.label.toLowerCase().includes(needle) || entry.keywords.some((k) => k.includes(needle) || needle.includes(k))
+    ).map((entry) => ({
+      label: `Setting: ${entry.label}`,
+      sub: "Site Settings",
+      run: () => {
+        closeCommandPalette();
+        el("site-settings-btn").click();
+        // site-settings-btn's own handler is async (fetches settings before
+        // un-hiding the modal) — switching tabs/focusing has to wait until
+        // that's actually done, not fire synchronously right after click().
+        setTimeout(() => {
+          switchSettingsTab(entry.tab);
+          const target = el(entry.field);
+          if (target) {
+            target.scrollIntoView({ behavior: "smooth", block: "center" });
+            if (typeof target.focus === "function") target.focus();
+          }
+        }, 200);
+      },
+    }));
+  }
+
   function quickActions() {
     const recentActions = getRecentlyEdited().map((r) => ({
       label: `Recent: ${r.title || "(untitled)"}`,
@@ -5921,13 +5983,17 @@
   let commandSearchTimer = null;
   function runCommandSearch(q) {
     const localMatches = q ? quickActions().filter((a) => a.label.toLowerCase().includes(q.toLowerCase())) : quickActions();
-    renderCommandResults(localMatches);
+    // Settings matches lead the list — "where is this setting" is exactly
+    // what this index exists for, so it should surface before generic
+    // "Go to page: ..." matches that happen to share a word.
+    const settingsMatches = settingsSearchActions(q);
+    renderCommandResults([...settingsMatches, ...localMatches]);
     if (!q) return;
     clearTimeout(commandSearchTimer);
     commandSearchTimer = setTimeout(async () => {
       try {
         const results = await api(`/search?q=${encodeURIComponent(q)}`);
-        const items = [...localMatches];
+        const items = [...settingsMatches, ...localMatches];
         results.pages.forEach((p) =>
           items.push({
             label: `Page: ${p.title}`,

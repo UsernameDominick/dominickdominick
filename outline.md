@@ -2639,3 +2639,21 @@ skipping them.
   that exact record's editor (the Articles/Projects modal populated
   with the right title, or the page selected in the main page-picker)
   on a fresh page load.
+- ✅ **"Where is this setting?" search** (★ priority) — the command
+  palette (Ctrl/Cmd+K) now has a `SETTINGS_SEARCH_INDEX`: a plain-
+  language index over every control across all 7 Site Settings tabs
+  (Appearance/Sharing/Integrations/Maintenance/Tools/Logs/Backups),
+  each entry carrying a handful of alternate phrasings — "breakpoint"
+  also matches "mobile", "responsive", "screen width", and "homepage
+  spacing"; "footer" also matches "copyright"; "webhook" matches both
+  the URL field and the deliveries log. Typing a query surfaces
+  matching settings labeled `Setting: <name>` ahead of the palette's
+  existing page/article/project/block results, and picking one opens
+  Site Settings, switches to the right tab via the existing
+  `switchSettingsTab()`, then scrolls to and focuses the exact field —
+  no more hunting through 7 tabs for "where did I put the breakpoint
+  control." Verified via Playwright: "breakpoint" finds and correctly
+  opens/focuses the Appearance tab's breakpoint field; "webhook" finds
+  both integrations-tab entries; and two deliberately-indirect
+  phrasings ("homepage spacing", "copyright") each resolve to the
+  right underlying field despite not matching its label directly.
