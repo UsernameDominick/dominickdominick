@@ -21,72 +21,82 @@
   </div>
 
   <div id="app" class="admin-app" hidden>
-    <header class="admin-header">
-      <div class="admin-header-left">
-        <button id="mobile-menu-btn" class="mobile-only" aria-label="Add block">☰</button>
+    <aside class="admin-sidebar" id="admin-sidebar">
+      <div class="admin-sidebar-header">
+        <button id="close-site-menu" class="mobile-only close-drawer" aria-label="Close">×</button>
         <strong class="brand-label">dominick.dominick</strong>
-        <span class="admin-sep">/</span>
+      </div>
+      <div class="admin-sidebar-pages">
         <select id="page-picker"></select>
         <button id="new-page-btn" title="New page">+ Page</button>
         <select id="page-template-picker" title="Start the next new page from a saved template">
           <option value="">Blank page</option>
         </select>
-        <div class="admin-more-wrap desktop-only">
+        <div class="admin-more-wrap">
           <button id="recent-items-btn" aria-haspopup="true" aria-expanded="false" aria-controls="recent-items-panel">Recent ▾</button>
           <div class="admin-more-panel" id="recent-items-panel">
             <div class="admin-more-group" id="recent-items-favorites"></div>
             <div class="admin-more-group" id="recent-items-recent"></div>
           </div>
         </div>
-        <button id="site-menu-btn" class="mobile-only" aria-label="Menu">Menu</button>
       </div>
-      <div class="admin-header-right" id="admin-header-right">
-        <button id="close-site-menu" class="mobile-only close-drawer" aria-label="Close">×</button>
-        <div class="admin-more-wrap">
-          <button id="notifications-btn" aria-haspopup="true" aria-expanded="false" aria-controls="notifications-panel" title="Things that might need a look">🔔<span id="notifications-badge" class="notifications-badge" hidden>0</span></button>
-          <div class="admin-more-panel" id="notifications-panel">
-            <div id="notifications-list" class="notifications-list"></div>
-          </div>
+      <nav class="admin-sidebar-scroll">
+        <div class="admin-sidebar-group">
+          <h3>Content</h3>
+          <button id="articles-btn">Articles</button>
+          <button id="projects-btn">Projects</button>
         </div>
-        <button id="command-btn" title="Search / jump to anything (Ctrl+K)">Search ⌘K</button>
-        <button id="articles-btn">Articles</button>
-        <button id="projects-btn">Projects</button>
-        <button id="media-btn">Media</button>
-        <div class="admin-more-wrap">
-          <button id="admin-more-btn" class="desktop-only" aria-haspopup="true" aria-expanded="false" aria-controls="admin-more-panel">More ▾</button>
-          <div class="admin-more-panel" id="admin-more-panel">
-            <div class="admin-more-group">
-              <h3>Library</h3>
-              <button id="redirects-btn">Redirects</button>
-              <button id="simulations-btn">Simulations</button>
-              <button id="scans-btn">Scans</button>
-              <button id="songs-btn">Songs</button>
-              <button id="shared-blocks-btn">Reusable Blocks</button>
-            </div>
-            <div class="admin-more-group">
-              <h3>Tools</h3>
-              <button id="layers-btn">Layers</button>
-              <button id="diagnostics-btn">Diagnostics</button>
-              <button id="seo-dashboard-btn">Site Health</button>
-              <button id="topic-pages-btn">Topic Pages</button>
-              <button id="analytics-btn">Analytics</button>
-              <button id="trash-btn">Trash</button>
-              <button id="site-settings-btn">Site Settings</button>
-            </div>
-            <div class="admin-more-group">
-              <h3>View</h3>
-              <a id="admin-view-live" href="/" target="_blank" class="admin-view-live">View live ↗</a>
-              <button id="draft-preview-mode-toggle" aria-pressed="false" title="While on, browsing the live site (in this browser) shows draft/expired articles and projects too, following normal navigation instead of needing ?preview=1 on every link">Preview mode: Off</button>
-              <button id="preview-btn" title="Preview this page at different screen widths">Screen Preview</button>
-              <button id="focus-mode-btn" aria-pressed="false" title="Hide the block palette for more canvas room">Focus</button>
-              <button id="content-only-mode-btn" aria-pressed="false" title="Locks every block's position/size so you can safely click around and edit content without nudging the layout">Content-only</button>
-            </div>
-          </div>
+        <div class="admin-sidebar-group">
+          <h3>Library</h3>
+          <button id="media-btn">Media</button>
+          <button id="redirects-btn">Redirects</button>
+          <button id="simulations-btn">Simulations</button>
+          <button id="scans-btn">Scans</button>
+          <button id="songs-btn">Songs</button>
+          <button id="shared-blocks-btn">Reusable Blocks</button>
         </div>
+        <div class="admin-sidebar-group">
+          <h3>Tools</h3>
+          <button id="layers-btn">Layers</button>
+          <button id="diagnostics-btn">Diagnostics</button>
+          <button id="seo-dashboard-btn">Site Health</button>
+          <button id="topic-pages-btn">Topic Pages</button>
+          <button id="analytics-btn">Analytics</button>
+          <button id="trash-btn">Trash</button>
+        </div>
+        <div class="admin-sidebar-group">
+          <h3>Settings</h3>
+          <button id="site-settings-btn">Site Settings</button>
+        </div>
+        <div class="admin-sidebar-group">
+          <h3>View</h3>
+          <a id="admin-view-live" href="/" target="_blank" class="admin-view-live">View live ↗</a>
+          <button id="draft-preview-mode-toggle" aria-pressed="false" title="While on, browsing the live site (in this browser) shows draft/expired articles and projects too, following normal navigation instead of needing ?preview=1 on every link">Preview mode: Off</button>
+          <button id="preview-btn" title="Preview this page at different screen widths">Screen Preview</button>
+          <button id="focus-mode-btn" aria-pressed="false" title="Hide the block palette for more canvas room">Focus</button>
+          <button id="content-only-mode-btn" aria-pressed="false" title="Locks every block's position/size so you can safely click around and edit content without nudging the layout">Content-only</button>
+        </div>
+      </nav>
+      <div class="admin-sidebar-footer">
         <button id="admin-theme-toggle" aria-label="Toggle admin panel light/dark theme" title="Toggle admin panel theme">◐</button>
         <button id="logout-btn">Log out</button>
       </div>
-    </header>
+    </aside>
+
+    <div class="admin-main">
+      <header class="admin-header">
+        <button id="site-menu-btn" class="mobile-only" aria-label="Menu">☰</button>
+        <button id="mobile-menu-btn" class="mobile-only" aria-label="Add block">+ Block</button>
+        <div class="admin-header-right" id="admin-header-right">
+          <div class="admin-more-wrap">
+            <button id="notifications-btn" aria-haspopup="true" aria-expanded="false" aria-controls="notifications-panel" title="Things that might need a look">🔔<span id="notifications-badge" class="notifications-badge" hidden>0</span></button>
+            <div class="admin-more-panel" id="notifications-panel">
+              <div id="notifications-list" class="notifications-list"></div>
+            </div>
+          </div>
+          <button id="command-btn" title="Search / jump to anything (Ctrl+K)">Search ⌘K</button>
+        </div>
+      </header>
 
     <div id="drawer-backdrop" class="drawer-backdrop" hidden></div>
 
@@ -215,6 +225,7 @@
         </div>
         </div>
       </aside>
+    </div>
     </div>
   </div>
 

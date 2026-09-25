@@ -3854,3 +3854,60 @@ instead:
   autocomplete. Left alone rather than bulk-deleting a lot of
   pre-existing records unilaterally — worth a deliberate cleanup pass
   with the user's go-ahead.
+
+### Twentieth backlog item — admin console navigation redesign (left sidebar)
+- ✅ **Replaced the single horizontal topbar with a persistent left
+  sidebar**, at the user's explicit request that the console layout and
+  navigation be simplified. The old topbar packed page switching, page
+  creation, Recent, Search, Articles/Projects/Media, and a "More ▾"
+  overflow dropdown (itself hiding Redirects/Simulations/Scans/Songs/
+  Reusable Blocks/Layers/Diagnostics/Site Health/Topic Pages/Analytics/
+  Trash/Site Settings/view-mode toggles) into one row — everything
+  past the first few items needed an extra click through a collapsible
+  menu just to see it existed. The sidebar instead lists every
+  destination in five always-visible, labeled groups (Pages at top,
+  then Content/Library/Tools/Settings/View), with theme toggle and log
+  out anchored in a footer — no click-to-reveal step for anything.
+  Confirmed the direction with the user first (sidebar vs. a simplified
+  topbar vs. a tabbed topbar) before building, since it's a real design
+  tradeoff, not a bug fix.
+  Structurally: `#app` is now a row of `.admin-sidebar` +
+  `.admin-main` (slim topbar — just notifications and search now —
+  plus the unchanged palette/canvas/inspector workspace below it).
+  Every functional element kept its existing `id`, so none of the ~40
+  call sites across the codebase that do `el("some-btn").click()` or
+  reference these ids (the command palette's jump-to-panel entries, the
+  notification bell's "open the right settings tab" actions, the
+  settings-search feature) needed to change — moving a button's
+  position in the DOM doesn't affect a direct id lookup or a
+  programmatic `.click()`. The "More ▾" dropdown and its toggle JS were
+  deleted outright as dead weight now that a vertical sidebar list
+  has no space constraint forcing anything into an overflow menu.
+  On mobile, the sidebar becomes the same kind of off-canvas drawer the
+  block palette already was (slide in from the left, opened by "☰"),
+  consolidating what used to be a split model — page-picker visible in
+  the cramped top row, everything else already behind a drawer — into
+  one consistent place for all navigation. Freed from that cramped row,
+  the template picker (previously hidden entirely on mobile: "doesn't
+  fit") and "View live" (previously hidden on mobile) are both usable
+  there now. The add-block button also got a clearer label ("+ Block"
+  instead of a bare "☰") since the sidebar toggle now legitimately owns
+  that icon and having two different hamburger-look buttons on the same
+  screen would undercut the whole "simpler navigation" point.
+  Verified via Playwright at both 1440×900 and 390×844, light and dark
+  theme: every single sidebar nav button still opens its correct modal
+  (14 checked individually), the four view-mode toggles (Focus,
+  Content-only, Preview mode, Screen Preview) and the notification
+  bell/Recent dropdowns all still work, the settings-search command-
+  palette jump ("copyright" → Site Settings → Footer tab) still works
+  end to end, the theme toggle and logout still work, Recent's popover
+  no longer risks clipping now that it's deliberately kept outside the
+  sidebar's scrolling nav list (a scroll container clips absolutely-
+  positioned overflow on both axes the moment `overflow-y` is set, so
+  nesting it there would have cut the popover off instead of letting it
+  float over the canvas), and on mobile the sidebar drawer and the
+  block-palette drawer open/close independently with zero console
+  errors throughout. `canvasMetrics()` already reads the canvas's own
+  `getBoundingClientRect()` rather than assuming a fixed window width,
+  so the sidebar's ~240px doesn't affect any block drag/resize math,
+  only how much room is left for the canvas to render in.

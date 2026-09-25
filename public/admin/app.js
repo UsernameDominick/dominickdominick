@@ -17,55 +17,39 @@
   const isMobile = () => window.matchMedia("(max-width: 860px)").matches;
   const backdrop = el("drawer-backdrop");
 
+  // Closing whichever drawer is already open before opening a new one keeps
+  // two same-side drawers (the block palette and the sidebar both slide in
+  // from the left) from ever being open at once if something taps both
+  // triggers back to back without hitting the backdrop in between.
   function openDrawer(drawerEl) {
+    closeDrawers();
     drawerEl.classList.add("drawer-open");
     backdrop.hidden = false;
   }
   function closeDrawers() {
     el("palette").classList.remove("drawer-open");
     el("inspector").classList.remove("drawer-open");
-    el("admin-header-right").classList.remove("drawer-open");
+    el("admin-sidebar").classList.remove("drawer-open");
     backdrop.hidden = true;
   }
   el("mobile-menu-btn").addEventListener("click", () => openDrawer(el("palette")));
   el("close-palette").addEventListener("click", closeDrawers);
   el("close-inspector").addEventListener("click", closeDrawers);
-  el("site-menu-btn").addEventListener("click", () => openDrawer(el("admin-header-right")));
+  el("site-menu-btn").addEventListener("click", () => openDrawer(el("admin-sidebar")));
   el("close-site-menu").addEventListener("click", closeDrawers);
   backdrop.addEventListener("click", closeDrawers);
-  // Tapping a nav item inside the mobile menu drawer should close it, not leave it open behind the modal it opened.
-  // Excludes the three toggle buttons that open a *nested* dropdown inside
-  // this same drawer (Recent/Notifications/More) — closing the whole drawer
-  // on every click on them would fire alongside their own open/close
-  // toggle (both listeners sit on the same element, so the toggle handler's
-  // own stopPropagation() doesn't prevent this one from also running) and
-  // immediately collapse the drawer they just opened.
-  el("admin-header-right").querySelectorAll("button, a").forEach((node) => {
-    if (["close-site-menu", "recent-items-btn", "notifications-btn", "admin-more-btn"].includes(node.id)) return;
+  // Tapping a nav item inside the mobile sidebar drawer should close it, not
+  // leave it open behind the modal/panel it opened. Excludes the one button
+  // that opens a *nested* dropdown inside this same drawer (Recent) —
+  // closing the whole drawer on every click on it would fire alongside its
+  // own open/close toggle (both listeners sit on the same element, so the
+  // toggle handler's own stopPropagation() doesn't prevent this one from
+  // also running) and immediately collapse the drawer it just opened.
+  el("admin-sidebar").querySelectorAll("button, a").forEach((node) => {
+    if (["close-site-menu", "recent-items-btn"].includes(node.id)) return;
     node.addEventListener("click", () => {
       if (isMobile()) closeDrawers();
     });
-  });
-
-  // ---------- Desktop topbar overflow ("More ▾") ----------
-  // Groups the topbar's less-frequent actions into a dropdown so they're
-  // reachable at standard laptop widths without horizontal scrolling —
-  // see admin-more-panel in style.css for the layout rationale.
-  const moreBtn = el("admin-more-btn");
-  const morePanel = el("admin-more-panel");
-  function closeMoreMenu() {
-    morePanel.classList.remove("open");
-    moreBtn.setAttribute("aria-expanded", "false");
-  }
-  moreBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    closeNotifMenu();
-    const isOpen = morePanel.classList.toggle("open");
-    moreBtn.setAttribute("aria-expanded", String(isOpen));
-  });
-  morePanel.querySelectorAll("button, a").forEach((node) => node.addEventListener("click", closeMoreMenu));
-  document.addEventListener("click", (e) => {
-    if (morePanel.classList.contains("open") && !morePanel.contains(e.target) && e.target !== moreBtn) closeMoreMenu();
   });
 
   // ---------- Notification bell ----------
@@ -120,7 +104,6 @@
   }
   notifBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    closeMoreMenu();
     const isOpen = notifPanel.classList.toggle("open");
     notifBtn.setAttribute("aria-expanded", String(isOpen));
     if (isOpen) loadNotifications().catch(() => {});
@@ -128,12 +111,11 @@
   document.addEventListener("click", (e) => {
     if (notifPanel.classList.contains("open") && !notifPanel.contains(e.target) && e.target !== notifBtn) closeNotifMenu();
   });
-  // Escape closes whichever of these two header dropdowns is open — the
-  // same behavior every modal already has via closeTopModal() below, just
-  // for these two, which aren't modals.
+  // Escape closes the notifications dropdown if it's open — the same
+  // behavior every modal already has via closeTopModal() below, just for
+  // this one, which isn't a modal.
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
-    if (morePanel.classList.contains("open")) closeMoreMenu();
     if (notifPanel.classList.contains("open")) closeNotifMenu();
   });
 
@@ -7535,7 +7517,6 @@
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
     if (writingFocusState) closeWritingFocus();
-    else if (morePanel.classList.contains("open")) closeMoreMenu();
     else if (el("recent-items-panel").classList.contains("open")) closeRecentItemsMenu();
     else if (!closeTopModal() && (selectedBlockId !== null || multiSelectedIds.size > 0)) {
       // Nothing else consumed Escape (no modal/dropdown open) — fall back
