@@ -5785,4 +5785,22 @@ finding from round 1 fixed and verified; round 2 found nothing new.
   undoing the rotate correctly reverted to the exact original string.
   Full regression suite green; test media deleted and confirmed gone.
 
-Handed to a critic agent for scoring.
+Handed to a critic agent for scoring: **9/10**, no real bugs. Specifically
+checked and confirmed correct: the Compare feature's press-and-hold shows
+the *original* image's dimensions even when the working canvas had
+already been cropped to a different size, and correctly reverts on
+release (including when interrupted by the existing blur-triggered
+force-end, unrelated to this diff); a tiny (20×15) image correctly caps
+at "100% displayed" rather than showing an upscaled percentage above
+100%; no `300×150` canvas-default flash before an image loads, since
+`canvas.width`/`height` are only ever set inside `img.onload`, which runs
+before the modal becomes visible; no divide-by-zero/NaN path found for
+`stack.parentElement.clientWidth` since every call site either runs after
+the modal is already visible or is explicitly guarded by `if
+(!modal.hidden)` (the resize listener). Two minor/out-of-scope notes
+logged only: an extremely tiny percentage would render as "0% displayed"
+(not reachable in practice since `MAX_DIMENSION = 2000` already caps
+load-time image size), and the status bar has no `aria-live` region for
+screen readers (an accessibility nicety, not a regression).
+
+Item #150 is done: 1 critic round, 9/10, no real findings.
