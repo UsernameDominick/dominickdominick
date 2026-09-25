@@ -2174,8 +2174,20 @@ enough detail to act on directly later.
   round-trip works correctly for fields spread across different tabs
   (footer from Appearance, maintenance_mode/message from Maintenance),
   with test values reset afterward via a direct API PUT.
-- A richer 404 page (search box, recent posts, archive link) instead
-  of the current bare message.
+- ✅ A richer 404 page — was just an apology plus the nav links already
+  fetched for `renderNotFoundHtml()`. Added a plain `<form action="/search"
+  method="get">` search box (submits without JS, no need to duplicate
+  the topbar's autosuggest widget), a "Recent posts" list of the 5
+  newest published articles (`listArticles(env, { publishedOnly: true,
+  limit: 5 })`, fetched alongside the existing site-context lookup in
+  `renderNotFound()`), and a link to `/archive`. The existing nav-links
+  list stays, now under its own "Try one of these instead" heading so
+  it doesn't run together with the new recent-posts list. Verified via
+  Playwright: the search form is present and actually submits to
+  `/search?q=...`, the "Recent posts" heading and list appear when
+  published articles exist (using a real published test article, since
+  the section renders nothing rather than an empty heading when there
+  aren't any), and the archive link is present.
 - One consistent name for "articles" across nav/URLs/search filters/
   RSS/admin (currently a mix of "Random", "Posts", "Articles",
   "Writing").

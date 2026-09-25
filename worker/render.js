@@ -539,13 +539,24 @@ export function renderFeaturedInProjectsHtml(projects) {
   return `<div class="related-posts"><strong>Featured in</strong><div class="project-list">${items}</div></div>`;
 }
 
-export function renderNotFoundHtml(navItems) {
+export function renderNotFoundHtml(navItems, recentArticles = []) {
   const links = navItems
     .map((n) => `<li><a href="${n.slug === "home" ? "/" : "/" + esc(n.slug)}">${esc(n.nav_label)}</a></li>`)
     .join("");
+  const recentHtml = recentArticles.length
+    ? `<h2 class="not-found-heading">Recent posts</h2><ul class="search-results">${recentArticles
+        .map((a) => `<li><a href="/random/${esc(a.slug)}">${esc(a.title)}</a></li>`)
+        .join("")}</ul>`
+    : "";
   return `<h1>Page not found</h1>
 <p>Whatever you were looking for isn't here — it may have moved or never existed.</p>
-${links ? `<p>Try one of these instead:</p><ul class="search-results">${links}</ul>` : ""}`;
+<form class="not-found-search" action="/search" method="get" role="search">
+  <input type="search" name="q" placeholder="Search the site" aria-label="Search">
+  <button type="submit">Search</button>
+</form>
+${links ? `<h2 class="not-found-heading">Try one of these instead</h2><ul class="search-results">${links}</ul>` : ""}
+${recentHtml}
+<p><a href="/archive">Browse the full archive →</a></p>`;
 }
 
 // Copy-link plus a couple of prebuilt share intents — no share-widget

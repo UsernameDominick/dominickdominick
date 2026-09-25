@@ -680,9 +680,12 @@ async function renderTopicPage(env, tag, navItems) {
 }
 
 async function renderNotFound(env, navItems) {
-  const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
+  const [{ defaultOgImage, theme, footerText, customHead }, recentArticles] = await Promise.all([
+    getSiteContext(env),
+    listArticles(env, { publishedOnly: true, limit: 5 }),
+  ]);
   const bodyHtml = `<div class="block">
-    ${renderNotFoundHtml(navItems)}
+    ${renderNotFoundHtml(navItems, recentArticles)}
   </div>`;
   const html = renderShell({
     title: "Page not found · Dominick",

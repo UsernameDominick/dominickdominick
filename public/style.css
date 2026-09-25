@@ -1576,6 +1576,40 @@ h6 { font-size: 0.9rem; }
   gap: 14px;
 }
 
+.not-found-heading {
+  font-size: 1rem;
+  margin: 24px 0 12px;
+}
+
+.not-found-search {
+  display: flex;
+  gap: 8px;
+  max-width: 420px;
+  margin: 20px 0;
+}
+
+.not-found-search input {
+  flex: 1;
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-family: inherit;
+  font-size: 0.95rem;
+}
+
+.not-found-search button {
+  background: var(--accent);
+  color: var(--on-accent);
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-family: inherit;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
 .search-results li a {
   color: var(--text);
   font-weight: 600;
