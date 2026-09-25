@@ -903,6 +903,23 @@
     return d.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
 
+  // A simulation/scan/song block whose reference has since been deleted
+  // renders as nothing at all on the public site (see renderBlockInner()'s
+  // null-skip handling in worker/render.js) while still reserving its full
+  // grid row-span there — a large dead gap with no visible cause. The admin
+  // canvas gave no warning either: the block just showed a bare "#123" in
+  // its preview text, easy to miss among everything else on a page. This
+  // reuses the same *NameById() lookups blockPreview() already does (they
+  // return null when the id isn't in the loaded options list) rather than
+  // adding a second way to detect the same condition.
+  function brokenReferenceLookup(b) {
+    const c = b.content || {};
+    if (b.type === "simulation" && c.simulation_id) return !simulationNameById(c.simulation_id);
+    if (b.type === "scan" && c.scan_id) return !scanNameById(c.scan_id);
+    if (b.type === "song" && c.song_id) return !songNameById(c.song_id);
+    return false;
+  }
+
   function blockBadgesHtml(b) {
     const visibility = b.style && b.style.visibility;
     return `${
@@ -911,7 +928,11 @@
       visibility === "desktop-only" ? ` <span class="lock-badge" title="Hidden on mobile — desktop only">Desktop only</span>` : ""
     }${
       visibility === "mobile-only" ? ` <span class="lock-badge" title="Hidden on desktop — mobile only">Mobile only</span>` : ""
-    }${b.style && b.style.hidden ? ` <span class="lock-badge" title="Hidden from the live site entirely">Hidden</span>` : ""}`;
+    }${b.style && b.style.hidden ? ` <span class="lock-badge" title="Hidden from the live site entirely">Hidden</span>` : ""}${
+      brokenReferenceLookup(b)
+        ? ` <span class="lock-badge broken-ref-badge" title="This reference no longer exists — the block renders as nothing on the live site but still reserves its space">Broken reference</span>`
+        : ""
+    }`;
   }
 
   function renderCanvas() {
@@ -2307,6 +2328,13 @@
       if (b.type === "embed" && !c.url) issues.push({ severity: "error", message: "Embed block has no URL set", blockId: b.id });
       if (b.type === "project-card" && !c.title) issues.push({ severity: "error", message: "Project card has no title", blockId: b.id });
       if (b.type === "before-after" && (!c.beforeUrl || !c.afterUrl)) issues.push({ severity: "error", message: "Before/After block is missing one of its images", blockId: b.id });
+      if (brokenReferenceLookup(b)) {
+        issues.push({
+          severity: "error",
+          message: `${blockLabel(b.type)} block references a deleted item — renders as nothing on the live site but still reserves its space`,
+          blockId: b.id,
+        });
+      }
     }
     return issues;
   }
@@ -5863,14 +5891,14 @@
       keywords: ["breakpoint", "mobile", "responsive", "spacing", "screen width", "homepage spacing"],
     },
     { label: "Site footer text", tab: "appearance", field: "settings-footer", keywords: ["footer", "copyright"] },
-    { label: "Default share image", tab: "sharing", field: "settings-og-image", keywords: ["og:image", "share image", "social preview", "thumbnail"] },
+    { label: "Default share image", tab: "sharing", field: "settings-og-image", keywords: ["og:image", "og image", "share image", "social preview", "thumbnail", "twitter card", "meta image"] },
     { label: "Search empty-state message", tab: "sharing", field: "settings-empty-search", keywords: ["search", "no results", "empty state"] },
     { label: "Archive empty-state message", tab: "sharing", field: "settings-empty-archive", keywords: ["archive", "empty state", "nothing published"] },
     { label: "Topics empty-state message", tab: "sharing", field: "settings-empty-topics", keywords: ["topics", "empty state", "tags"] },
     { label: "Custom <head> code", tab: "integrations", field: "settings-custom-head", keywords: ["head", "script", "analytics", "verification", "meta tag"] },
     { label: "Webhook URLs", tab: "integrations", field: "settings-webhook-url", keywords: ["webhook", "integration", "publish notification"] },
     { label: "Webhook deliveries", tab: "integrations", field: "load-webhook-deliveries-btn", keywords: ["webhook", "delivery", "retry"] },
-    { label: "Maintenance mode", tab: "maintenance", field: "settings-maintenance-mode", keywords: ["maintenance", "down", "offline"] },
+    { label: "Maintenance mode", tab: "maintenance", field: "settings-maintenance-mode", keywords: ["maintenance", "down", "offline", "turn off", "shut down", "take down", "site down", "disable site"] },
     { label: "Maintenance message", tab: "maintenance", field: "settings-maintenance-message", keywords: ["maintenance", "message"] },
     { label: "Find & Replace", tab: "tools", field: "find-replace-find", keywords: ["find", "replace", "search and replace"] },
     { label: "Activity Log", tab: "logs", field: "activity-log-list", keywords: ["activity", "log", "history", "audit"] },
@@ -5879,12 +5907,31 @@
     { label: "Storage usage", tab: "backups", field: "load-storage-usage-btn", keywords: ["storage", "usage", "r2", "database size"] },
   ];
 
+  // Common short/filler words stripped before matching — otherwise a
+  // phrase like "turn off the site" would require the literal word "the"
+  // to appear somewhere in a setting's keywords, which it never will.
+  const SETTINGS_SEARCH_STOPWORDS = new Set(["the", "a", "an", "is", "this", "that", "to", "of", "for", "on", "in", "my"]);
+
   function settingsSearchActions(q) {
     if (!q) return [];
-    const needle = q.toLowerCase();
-    return SETTINGS_SEARCH_INDEX.filter(
-      (entry) => entry.label.toLowerCase().includes(needle) || entry.keywords.some((k) => k.includes(needle) || needle.includes(k))
-    ).map((entry) => ({
+    // Was pure substring-of-the-whole-query matching (only worked if the
+    // typed phrase happened to literally contain, or be contained by, one
+    // whole keyword string) — real admin phrasings like "turn off the
+    // site" or "twitter card image" matched nothing even with fitting
+    // keywords, since neither string fully contains the other. Splitting
+    // into individual significant words and requiring each one to appear
+    // *somewhere* in the entry's label+keywords catches phrasings built
+    // from words that are each individually present, without needing to
+    // anticipate every exact multi-word phrase in advance.
+    const words = q
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((w) => w.length >= 2 && !SETTINGS_SEARCH_STOPWORDS.has(w));
+    if (!words.length) return [];
+    return SETTINGS_SEARCH_INDEX.filter((entry) => {
+      const haystack = `${entry.label} ${entry.keywords.join(" ")}`.toLowerCase();
+      return words.every((w) => haystack.includes(w));
+    }).map((entry) => ({
       label: `Setting: ${entry.label}`,
       sub: "Site Settings",
       run: () => {
@@ -5974,19 +6021,36 @@
   }
 
   async function openArticleEditorById(id) {
-    el("articles-modal").hidden = false;
     articles = await api("/articles");
     const article = articles.find((a) => a.id === id);
-    if (article) populateArticleForm(article);
+    // A stale/bookmarked/shared "Edit this" link (or command-palette
+    // result) for an article that's since been deleted used to still
+    // open the modal with nothing populated — indistinguishable from a
+    // blank "create new" form, so an admin who didn't notice could end
+    // up half-filling out and saving an unintended new article instead
+    // of realizing their actual target is gone. Matches selectPage()'s
+    // existing behavior for the same situation: fail visibly, touch
+    // nothing, rather than silently open an editor for content that
+    // doesn't exist.
+    if (!article) {
+      alert("That article no longer exists.");
+      return;
+    }
+    el("articles-modal").hidden = false;
+    populateArticleForm(article);
     renderArticlesList();
   }
 
   async function openProjectEditorById(id) {
-    el("projects-modal").hidden = false;
     projects = await api("/projects");
     const project = projects.find((p) => p.id === id);
-    if (project) populateProjectForm(project);
-    else renderProjectsList();
+    if (!project) {
+      alert("That project no longer exists.");
+      return;
+    }
+    el("projects-modal").hidden = false;
+    populateProjectForm(project);
+    renderProjectsList();
   }
 
   async function goToBlock(pageId, blockId) {

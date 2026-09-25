@@ -2733,3 +2733,61 @@ skipping them.
   block shows the "Broken image" finding with a working "Select"
   button, and clicking it correctly selects that exact block on the
   canvas (confirmed by id, not just "a block got selected").
+
+### Critic pass on the above (2026-09-25)
+A critic agent reviewed all five items above plus the wider site — verified
+each feature's core scenarios worked correctly via live Playwright testing
+(not just code reading), and found two real bugs, both fixed:
+- ✅ A stale/bookmarked "Edit this" deep link (or command-palette result)
+  for an article/project that's since been deleted silently opened the
+  Articles/Projects modal with every field blank — indistinguishable
+  from a legitimate "create new" form, directly contradicting this
+  feature's own stated intent of failing safely. `selectPage()` already
+  got this right (early-returns, touches nothing, if the id isn't
+  found); `openArticleEditorById`/`openProjectEditorById` didn't check
+  existence until *after* already showing the modal. Fixed to check
+  first and, on a miss, show an alert ("That article/project no longer
+  exists.") and leave the modal closed. Verified via Playwright:
+  `/admin/?edit=article:999999` and `?edit=project:999999` both now
+  show the alert with the modal staying hidden, instead of opening a
+  blank editor.
+- ✅ The "where is this setting?" search's matching was pure substring-
+  of-the-whole-query (checking whether the typed phrase and a keyword
+  string each fully contained the other), so natural admin phrasings
+  that didn't happen to exactly match a keyword string found nothing —
+  confirmed live with two concrete failures: "turn off the site" (despite
+  Maintenance mode's keywords) and "twitter card image" (despite that
+  being exactly what the share-image setting is for). Rewrote the
+  matching to split the query into significant words (filtering common
+  filler words like "the"/"a"/"is") and require every word to appear
+  *somewhere* in the entry's label+keywords, rather than needing one
+  contiguous phrase match — catches phrasings built from words that are
+  each individually present without having to anticipate every exact
+  multi-word phrase in advance. Also added the two synonym gaps the
+  critic found directly ("turn off"/"shut down"/"take down"/"site down"
+  for Maintenance mode; "twitter card"/"og image"/"meta image" for
+  Default share image). Verified via Playwright: both previously-failing
+  phrases now resolve correctly, and all four previously-passing queries
+  ("breakpoint", "webhook", "homepage spacing", "copyright") still work
+  unchanged.
+
+The critic also re-flagged, with fresh concrete evidence, an existing
+backlog item that had been sitting unmarked in section 9 — a simulation/
+scan/song block whose reference has been deleted renders as nothing on
+the public site but still reserves its full grid space, with no warning
+in the admin. Fixed while addressing the rest of this report:
+- ✅ **Broken-reference badge** — `blockBadgesHtml()` (already used for
+  Reusable/Locked/Desktop-only/Mobile-only/Hidden badges) now shows a
+  red "Broken reference" badge on any simulation/scan/song block whose
+  id doesn't resolve, reusing the exact `*NameById()` lookups
+  `blockPreview()` already relied on (they return `null` when the id
+  isn't in the loaded options list) rather than adding a second way to
+  detect the same condition. Also surfaced as a new Diagnostics finding
+  ("Simulation/3D Scan/Song block references a deleted item — renders
+  as nothing on the live site but still reserves its space") with a
+  working "Select" button, so it shows up in the same place as every
+  other content problem, not just as an easy-to-miss badge on a canvas
+  that might have many blocks. Verified via Playwright: a test page
+  with a simulation block pointing at a nonexistent id shows the red
+  badge on canvas and the same finding in Diagnostics with a working
+  "Select" button that jumps to the exact block.

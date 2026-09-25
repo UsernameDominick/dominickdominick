@@ -1910,7 +1910,8 @@ kbd {
   border-color: var(--accent);
 }
 
-.lock-badge.diagnostic-error {
+.lock-badge.diagnostic-error,
+.lock-badge.broken-ref-badge {
   background: #c0392b;
   color: #fff;
   border-color: #c0392b;
