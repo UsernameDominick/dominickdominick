@@ -243,13 +243,18 @@
 
   function onAdjustCommit() {
     // The slider handler already baked the filtered pixels into the canvas;
-    // remember the values that were just applied (for "Save preset", since
-    // the sliders themselves are about to reset to 0) then reset sliders/
-    // snapshot so the next drag starts fresh from this baked-in state.
+    // accumulate onto lastAdjust (for "Save preset", since the sliders
+    // themselves are about to reset to 0) then reset sliders/snapshot so
+    // the next drag starts fresh from this baked-in state. Accumulating
+    // (rather than replacing) matters because each slider only shows its
+    // own delta since the last commit — after adjusting brightness then
+    // separately adjusting contrast, both sliders read their own value at
+    // commit time, but a *replace* would zero out brightness's already-
+    // committed contribution the moment contrast's commit fired.
     lastAdjust = {
-      brightness: Number($("pe-brightness").value),
-      contrast: Number($("pe-contrast").value),
-      saturate: Number($("pe-saturate").value),
+      brightness: lastAdjust.brightness + Number($("pe-brightness").value),
+      contrast: lastAdjust.contrast + Number($("pe-contrast").value),
+      saturate: lastAdjust.saturate + Number($("pe-saturate").value),
     };
     baseSnapshot = null;
     $("pe-brightness").value = 0;

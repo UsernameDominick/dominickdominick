@@ -1689,10 +1689,17 @@ enough detail to act on directly later.
   and "Check links".
 - Admin editor canvas isn't keyboard-navigable (blocks can't be
   individually focused/selected via Tab).
-- Photo editor "Save preset" resets sliders before recording them —
-  each slider's own `change` handler zeroes the other two before the
-  save reads them, so a multi-adjustment preset only ever saves the
-  last slider touched.
+- ✅ Photo editor "Save preset" was dropping earlier adjustments —
+  `onAdjustCommit()` replaced `lastAdjust` wholesale from the three
+  sliders' current values each time, but the sliders reset to 0 after
+  every commit, so adjusting brightness then separately adjusting
+  contrast zeroed out brightness's already-baked-in contribution the
+  moment contrast's commit fired. Now accumulates onto `lastAdjust`
+  instead of replacing it. Verified via Playwright (`window.PhotoEditor
+  .open()`, simulated slider input+change events, saved preset via the
+  real UI): brightness +20 then contrast +10 now correctly saves
+  `{brightness: 20, contrast: 10}` instead of `{brightness: 0,
+  contrast: 10}`.
 - Dropdown nav children vanish silently if the parent's `nav_label` is
   cleared or the parent is trashed (no warning, no orphan-detection).
 
