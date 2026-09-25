@@ -4582,3 +4582,65 @@ anything:
   answering that layout question.
 
 Full regression suite green.
+
+### Project editor: autosave/crash-recovery/conflict-handling parity with articles, plus a real bug found along the way
+
+Set out to build "side-by-side compare of conflicting versions" (section
+2's checklist, still ☐ — currently just "reload to see latest") and
+found something more fundamental first: the Project editor had none of
+the infrastructure Articles already had. Fixed the more foundational gap
+before returning to the original ask:
+
+- ✅ **Projects had no autosave at all** — only a manual "Save" button,
+  while Articles autosave 2s after the last keystroke. Added
+  `autosaveProject()`/`scheduleProjectAutosave()`, mirroring
+  `autosaveArticle()`/`scheduleArticle()` exactly (same debounce, same
+  `unsavedDirty` wiring so the existing `beforeunload` guard now also
+  covers unsaved project edits, which it silently didn't before).
+- ✅ **Projects had no crash-recovery draft** — Articles snapshot raw
+  field values to `localStorage` on every keystroke and offer to
+  restore them if a tab crashes before a save lands; Projects had
+  nothing, so a crashed tab mid-edit lost the work with no recovery
+  path at all. Added the same `PROJECT_DRAFT_FIELD_IDS`/
+  `captureProjectRawFields`/`checkProjectDraftRecovery` pattern
+  (reusing the already-generic `saveDraft`/`loadDraft`/`clearDraft`/
+  `renderDraftRecoveryBanner` helpers — no new plumbing needed there).
+  Scoped the same way Articles' version already is: raw single-value
+  fields only, not the related-content multi-selects (those need
+  `getMultiSelectValues`, not `.value`).
+- ✅ **Projects' save-conflict handling was weaker than Articles'** — a
+  conflicting project save just showed a static error message with no
+  way to recover; Articles show a "Reload latest version" button.
+  Wired Projects through the same `renderConflictStatus()` helper.
+- ✅ **Found and fixed a real, pre-existing bug in "Reload latest
+  version" itself — for both Articles and Projects** — the reload
+  callback populated the form straight from the in-memory `articles`/
+  `projects` array without re-fetching first, even though that array is
+  *already known stale* the moment a conflict happens (that's what
+  triggered it). Clicking "reload latest version" showed neither side's
+  edit — whatever had been cached from before either tab's change — not
+  the actual latest version the button promises. The Page editor's own
+  conflict handler already re-fetches correctly (`await loadPages()`);
+  Articles/Projects didn't. Fixed both to `await api(...)` before
+  finding-and-populating, matching the page editor's already-correct
+  pattern. Verified via Playwright: created a project, simulated a
+  second "tab" changing it first (bumping its version), then saved a
+  conflicting edit from the original tab — got the conflict + reload
+  button as expected, and clicking it now genuinely shows the other
+  tab's real change instead of a stale blank field. Repeated the same
+  test for an article's conflict-reload and confirmed the same fix
+  applies there too.
+
+Verified via Playwright end-to-end for Projects specifically: typing
+triggers "Unsaved changes…" then "Saved [time]" ~2s later with the value
+confirmed on the server; abandoning an edit mid-typing (simulating a
+crash) and reopening the project shows the draft-recovery banner, and
+clicking "Restore it" brings back the exact abandoned text. Full
+regression suite green; all test articles/projects deleted (soft +
+permanent) and confirmed gone via D1.
+
+The original ask — side-by-side diff on conflict, not just a binary
+reload-or-lose-it — is still open; this round brought Projects up to the
+same baseline Articles already had (including fixing a bug Articles had
+too) rather than building the fancier compare view on top of an
+inconsistent foundation.

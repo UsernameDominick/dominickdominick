@@ -3987,8 +3987,13 @@
       setAutosaveStatus("Saved " + new Date().toLocaleTimeString());
     } catch (err) {
       if (err.conflict) {
-        renderConflictStatus("article-autosave-status", () => {
+        renderConflictStatus("article-autosave-status", async () => {
           clearTimeout(autosaveTimer);
+          // Re-fetch before reloading — this callback only runs because the
+          // in-memory `articles` array is already known stale (that's what
+          // triggered the conflict), so populating straight from it would
+          // just show neither side's edit, whatever was cached from before.
+          articles = await api("/articles");
           const a = articles.find((x) => x.id === currentArticleId);
           if (a) populateArticleForm(a);
         });
@@ -4022,8 +4027,9 @@
       setAutosaveStatus("Saved " + new Date().toLocaleTimeString());
     } catch (err) {
       if (err.conflict) {
-        renderConflictStatus("article-autosave-status", () => {
+        renderConflictStatus("article-autosave-status", async () => {
           clearTimeout(autosaveTimer);
+          articles = await api("/articles");
           const a = articles.find((x) => x.id === currentArticleId);
           if (a) populateArticleForm(a);
         });
@@ -4317,6 +4323,7 @@
     el("bom-section").hidden = false;
     clearBomItemForm();
     loadBomItems();
+    checkProjectDraftRecovery(project.id);
   }
 
   function clearProjectForm() {
@@ -4436,6 +4443,95 @@
     };
   }
 
+  // ---------- Project crash-recovery draft + autosave ----------
+  // Projects previously had none of this — only a manual Save button with
+  // no autosave, no localStorage crash-recovery snapshot, and a weaker
+  // conflict message with no way to reload the current version — all
+  // three already existed for articles. Mirrors that implementation
+  // exactly (see the "Article crash-recovery draft"/"Article autosave"
+  // sections above), scoped the same way: raw single-value fields only,
+  // not the related-content multi-selects (those need
+  // getMultiSelectValues/setMultiSelectValues, not .value).
+  const PROJECT_DRAFT_FIELD_IDS = [
+    "project-title", "project-slug", "project-summary", "project-tags", "project-tech-stack", "project-status",
+    "project-featured", "project-sitemap-exclude", "project-archived", "project-featured-order", "project-sort-order",
+    "project-link-github", "project-link-demo", "project-link-docs", "project-link-download", "project-downloads",
+    "project-og-image", "project-canonical-url", "project-custom-json-ld", "project-correction-note", "project-private-notes",
+    "project-body", "project-published", "project-publish-at", "project-expires-at",
+  ];
+  function captureProjectRawFields() {
+    const out = {};
+    for (const id of PROJECT_DRAFT_FIELD_IDS) {
+      const input = el(id);
+      out[id] = input.type === "checkbox" ? input.checked : input.value;
+    }
+    return out;
+  }
+  function applyProjectRawFields(fields) {
+    for (const id of PROJECT_DRAFT_FIELD_IDS) {
+      if (!(id in fields)) continue;
+      const input = el(id);
+      if (input.type === "checkbox") input.checked = fields[id];
+      else input.value = fields[id];
+    }
+    updateProjectExtras();
+  }
+  function snapshotProjectDraft() {
+    saveDraft("project", currentProjectId, captureProjectRawFields());
+  }
+  function checkProjectDraftRecovery(projectId) {
+    const draft = loadDraft("project", projectId);
+    if (!draft) return;
+    const current = JSON.stringify(captureProjectRawFields());
+    if (JSON.stringify(draft.fields) === current) {
+      clearDraft("project", projectId);
+      return;
+    }
+    renderDraftRecoveryBanner("project-autosave-status", "project", projectId, draft, () => {
+      clearTimeout(projectAutosaveTimer);
+      applyProjectRawFields(draft.fields);
+      clearDraft("project", projectId);
+      scheduleProjectAutosave();
+    });
+  }
+  let projectAutosaveTimer = null;
+  async function autosaveProject() {
+    if (!currentProjectId) return;
+    const body = buildProjectBody();
+    if (!body.title) return;
+    body.expected_version = currentProjectVersion;
+    try {
+      await api(`/projects/${currentProjectId}`, { method: "PATCH", body: JSON.stringify(body) });
+      unsavedDirty = false;
+      clearDraft("project", currentProjectId);
+      projects = await api("/projects");
+      const p = projects.find((x) => x.id === currentProjectId);
+      if (p) currentProjectVersion = p.version || null;
+      renderProjectsList();
+      el("project-autosave-status").textContent = "Saved " + new Date().toLocaleTimeString();
+    } catch (err) {
+      if (err.conflict) {
+        renderConflictStatus("project-autosave-status", async () => {
+          clearTimeout(projectAutosaveTimer);
+          projects = await api("/projects");
+          const p = projects.find((x) => x.id === currentProjectId);
+          if (p) populateProjectForm(p);
+        });
+        return;
+      }
+      el("project-autosave-status").textContent = "Autosave failed: " + err.message;
+    }
+  }
+  function scheduleProjectAutosave() {
+    snapshotProjectDraft();
+    if (!currentProjectId) return;
+    unsavedDirty = true;
+    el("project-autosave-status").textContent = "Unsaved changes…";
+    clearTimeout(projectAutosaveTimer);
+    projectAutosaveTimer = setTimeout(autosaveProject, 2000);
+  }
+  PROJECT_DRAFT_FIELD_IDS.forEach((id) => el(id).addEventListener("input", scheduleProjectAutosave));
+
   el("projects-btn").addEventListener("click", async () => {
     el("projects-modal").hidden = false;
     showMobileListPane("projects-modal");
@@ -4449,12 +4545,14 @@
 
   el("new-project").addEventListener("click", () => {
     clearProjectForm();
+    checkProjectDraftRecovery(null);
     showMobileEditorPane("projects-modal");
   });
 
   el("save-project").addEventListener("click", async () => {
     const body = buildProjectBody();
     if (!body.title) return alert("Title is required.");
+    const isNewProject = !currentProjectId;
     try {
       if (currentProjectId) {
         body.expected_version = currentProjectVersion;
@@ -4464,6 +4562,8 @@
         currentProjectId = res.id;
         el("project-slug").value = res.slug;
       }
+      unsavedDirty = false;
+      clearDraft("project", isNewProject ? null : currentProjectId);
       projects = await api("/projects");
       const p = projects.find((x) => x.id === currentProjectId);
       if (p) currentProjectVersion = p.version || null;
@@ -4482,7 +4582,12 @@
       await loadBomItems();
     } catch (err) {
       if (err.conflict) {
-        el("project-autosave-status").textContent = err.message;
+        renderConflictStatus("project-autosave-status", async () => {
+          clearTimeout(projectAutosaveTimer);
+          projects = await api("/projects");
+          const p = projects.find((x) => x.id === currentProjectId);
+          if (p) populateProjectForm(p);
+        });
         return;
       }
       alert(err.message);
