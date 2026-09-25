@@ -106,6 +106,18 @@
   function escapeHtmlLite(s) {
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
+  // Number("") is 0, not NaN -- a plain Number(select.value) can't tell
+  // "nothing selected" (the blank placeholder option) apart from "index 0
+  // selected," so a caller relying only on `!simCheckpoints[i]` to no-op
+  // would silently act on checkpoint 0 instead. In today's UI this never
+  // fires (the select always resets to blank and both buttons disable
+  // together on every render), but the guard itself should be correct on
+  // its own rather than only correct because something else happens to
+  // keep it from being reached.
+  function selectedCheckpointIndex() {
+    const raw = $("sim-checkpoint-select").value;
+    return raw === "" ? -1 : Number(raw);
+  }
   $("sim-checkpoint-select").addEventListener("change", (e) => {
     const has = e.target.value !== "";
     $("sim-checkpoint-restore").disabled = !has;
@@ -127,7 +139,7 @@
     renderCheckpointSelect();
   });
   $("sim-checkpoint-restore").addEventListener("click", () => {
-    const i = Number($("sim-checkpoint-select").value);
+    const i = selectedCheckpointIndex();
     const cp = simCheckpoints[i];
     if (!cp) return;
     if (!confirm(`Discard all current edits and restore the checkpoint "${cp.name}"?`)) return;
@@ -140,7 +152,7 @@
     renderBuilder();
   });
   $("sim-checkpoint-delete").addEventListener("click", () => {
-    const i = Number($("sim-checkpoint-select").value);
+    const i = selectedCheckpointIndex();
     const cp = simCheckpoints[i];
     if (!cp) return;
     if (!confirm(`Delete the checkpoint "${cp.name}"? This can't be undone (checkpoints aren't part of the undo history).`)) return;

@@ -5722,4 +5722,36 @@ places for a subtle data-loss bug to hide.
   dropdown. Full regression suite green; test simulation deleted and
   confirmed gone.
 
-Handed to a critic agent for scoring.
+Handed to a critic agent for scoring: **8/10**. One real (low-severity)
+finding:
+
+1. **(Fixed)** The Restore/Delete click handlers guarded against "nothing
+   selected" with `const i = Number(select.value); if (!simCheckpoints[i])
+   return;` — but `Number("")` is `0`, not `NaN`, so that guard actually
+   only catches out-of-range indices, not the blank-placeholder case
+   itself. The critic reproduced it directly by force-enabling the
+   buttons while the select sat at its blank value: Restore silently
+   restored checkpoint 0 with no indication nothing was really selected.
+   Not reachable through normal mouse/keyboard use today (the select
+   always resets to blank and both buttons disable together on every
+   render), but a real logic defect rather than a guard that's only
+   correct because something else happens to keep it from firing — it
+   would bite immediately if either button were ever re-enabled from a
+   different code path. Fixed with a small `selectedCheckpointIndex()`
+   helper that returns `-1` for the blank value instead of coercing it to
+   `0`, used by both handlers instead of a bare `Number(...)`.
+2. Everything else the critic checked came back correct on the first
+   pass: no stale-index bug after delete/save (the select is fully
+   rebuilt and reset to blank on every mutation); no cross-simulation
+   checkpoint leakage between opening different simulations, a template,
+   or a brand-new one; saving a checkpoint on a never-saved simulation
+   works correctly since `simCheckpoints` doesn't depend on `currentSimId`.
+
+Re-verified via Playwright: reproduced the critic's exact scenario
+(force-enable Restore/Delete while the select sits at blank) and
+confirmed neither button's confirm() dialog fires or touches
+`simCheckpoints` anymore, while a real selection still restores/deletes
+correctly. Full regression suite green.
+
+Item #367 is done: 1 critic round, 8/10, the one real finding fixed and
+verified live.
