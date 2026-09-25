@@ -1665,6 +1665,52 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   box-shadow: 0 0 0 1px var(--preset-accent);
 }
 
+/* Four equal cards instead of four full-width stacked rows -- the default
+   .settings-body input rule stretches any input to 100% width, which for
+   type="color" produced a long flat bar rather than a swatch. Each field's
+   label sits above a proper square-ish swatch instead. */
+.theme-color-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.theme-color-field {
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.75rem;
+  text-align: center;
+  transition: border-color 0.15s var(--ease-smooth);
+}
+
+.theme-color-field:has(input:focus-visible) {
+  border-color: var(--accent);
+}
+
+.theme-color-field input[type="color"] {
+  width: 100% !important;
+  height: 38px;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 6px;
+  cursor: pointer;
+  background: none;
+}
+
+@media (max-width: 480px) {
+  .theme-color-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 .theme-contrast-check,
 .publish-checklist {
   display: flex;

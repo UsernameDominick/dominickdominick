@@ -734,10 +734,12 @@
             <button type="button" class="theme-preset-btn" data-preset="sunset" style="--preset-bg:#1a0a14;--preset-accent:#ff4d94;" role="tab">Sunset</button>
             <button type="button" class="theme-preset-btn" data-preset="mono" style="--preset-bg:#121212;--preset-accent:#d8d8d8;" role="tab">Monochrome</button>
           </div>
-          <label>Accent color<input id="settings-accent" type="color" value="#ff7a45"></label>
-          <label>Background color<input id="settings-bg" type="color" value="#0c0a16"></label>
-          <label>Text color<input id="settings-text" type="color" value="#f4eefc"></label>
-          <label>Border color<input id="settings-border" type="color" value="#2a2438"></label>
+          <div class="theme-color-grid">
+            <label class="theme-color-field">Accent<input id="settings-accent" type="color" value="#ff7a45"></label>
+            <label class="theme-color-field">Background<input id="settings-bg" type="color" value="#0c0a16"></label>
+            <label class="theme-color-field">Text<input id="settings-text" type="color" value="#f4eefc"></label>
+            <label class="theme-color-field">Border<input id="settings-border" type="color" value="#2a2438"></label>
+          </div>
           <div id="theme-contrast-check" class="theme-contrast-check"></div>
           <label>Body font
             <select id="settings-font">

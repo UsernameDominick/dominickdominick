@@ -4053,3 +4053,20 @@ instead:
   unaffected by this entry and needs the same cleanup applied directly
   (either by hand in the real admin panel, or by giving a future
   session real Cloudflare API credentials).
+- ✅ **Follow-up: the four raw color fields themselves still looked
+  like an afterthought** — the user clarified after the preset-tab
+  feature above that their "layout could be nicer" comment was about
+  these four fields specifically, not asking for the preset feature
+  (which was a bonus, not what they meant). The default `.settings-body
+  input` rule stretches any input to full width, which for
+  `type="color"` produced four long flat bars stacked vertically
+  rather than anything resembling a deliberate color-picker UI.
+  Replaced with a 4-up grid of equal cards (label above a proper
+  square-ish swatch, 2×2 on narrow screens), each with a focus-visible
+  border highlight. Verified via Playwright at both viewport sizes that
+  the new layout doesn't break the preset picker or contrast checker
+  (both key off the same input ids/values, unaffected by the
+  surrounding markup change) — confirmed the "Background" swatch
+  correctly renders the exact same dark value the admin's own chrome
+  uses by default, which is why it visually blends with its own card
+  background rather than a rendering bug.
