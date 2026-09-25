@@ -22,6 +22,21 @@
   // its originalSnapshot.
   let initialSimSnapshot = null;
 
+  // Named checkpoints -- unlike the undo stack (in-memory only, wiped the
+  // moment the builder closes), these persist with the simulation across
+  // saves/reloads, for "I want to try something risky but come back to
+  // this exact point later" rather than "undo my last few actions."
+  // Deliberately kept OUT of simData itself (only merged in at save time,
+  // split back out on load) rather than storing them as a `checkpoints`
+  // key inside simData: pushHistory() snapshots the whole of simData on
+  // every single edit, so if checkpoints (each one a full circuit
+  // snapshot) lived inside simData, every undo-stack entry would carry a
+  // redundant copy of every checkpoint too, multiplying memory use by the
+  // checkpoint count on every edit. Keeping them separate means the undo
+  // stack only ever holds actual circuit state.
+  let simCheckpoints = [];
+  const CHECKPOINT_LIMIT = 20;
+
   // ---------- Undo / redo ----------
   // Snapshot-based rather than diff-based: simData is a small plain-JSON
   // object, so cloning it whole on every mutation is simpler and cheap
@@ -78,6 +93,60 @@
 
   $("sim-undo").addEventListener("click", undoHistory);
   $("sim-redo").addEventListener("click", redoHistory);
+
+  // ---------- Named checkpoints ----------
+  function renderCheckpointSelect() {
+    const select = $("sim-checkpoint-select");
+    select.innerHTML =
+      `<option value="">Checkpoints…</option>` +
+      simCheckpoints.map((cp, i) => `<option value="${i}">${escapeHtmlLite(cp.name)}</option>`).join("");
+    $("sim-checkpoint-restore").disabled = true;
+    $("sim-checkpoint-delete").disabled = true;
+  }
+  function escapeHtmlLite(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  $("sim-checkpoint-select").addEventListener("change", (e) => {
+    const has = e.target.value !== "";
+    $("sim-checkpoint-restore").disabled = !has;
+    $("sim-checkpoint-delete").disabled = !has;
+  });
+  $("sim-checkpoint-save").addEventListener("click", () => {
+    const name = prompt("Name this checkpoint:", `Checkpoint ${simCheckpoints.length + 1}`);
+    if (!name || !name.trim()) return;
+    simCheckpoints.push({
+      name: name.trim(),
+      createdAt: new Date().toISOString(),
+      data: { components: JSON.parse(JSON.stringify(simData.components)), wires: JSON.parse(JSON.stringify(simData.wires)) },
+    });
+    // Oldest checkpoints drop first once the cap is hit — a runaway
+    // number of full-circuit snapshots piling up in one row's JSON blob
+    // isn't something an admin is likely to notice happening, so this
+    // caps it automatically rather than needing manual cleanup.
+    if (simCheckpoints.length > CHECKPOINT_LIMIT) simCheckpoints = simCheckpoints.slice(simCheckpoints.length - CHECKPOINT_LIMIT);
+    renderCheckpointSelect();
+  });
+  $("sim-checkpoint-restore").addEventListener("click", () => {
+    const i = Number($("sim-checkpoint-select").value);
+    const cp = simCheckpoints[i];
+    if (!cp) return;
+    if (!confirm(`Discard all current edits and restore the checkpoint "${cp.name}"?`)) return;
+    pushHistory();
+    simData = { components: JSON.parse(JSON.stringify(cp.data.components)), wires: JSON.parse(JSON.stringify(cp.data.wires)) };
+    selected = null;
+    wireStart = null;
+    updateHistoryButtons();
+    renderInspector();
+    renderBuilder();
+  });
+  $("sim-checkpoint-delete").addEventListener("click", () => {
+    const i = Number($("sim-checkpoint-select").value);
+    const cp = simCheckpoints[i];
+    if (!cp) return;
+    if (!confirm(`Delete the checkpoint "${cp.name}"? This can't be undone (checkpoints aren't part of the undo history).`)) return;
+    simCheckpoints.splice(i, 1);
+    renderCheckpointSelect();
+  });
 
   // Where the next palette-added part lands — walks left to right, wrapping
   // to a new row by actual part width so a 340px breadboard doesn't overlap
@@ -222,14 +291,19 @@
     if (id) {
       const sim = await window.adminApi(`/simulations/${id}`);
       $("simulation-name").value = sim.name;
-      simData = sim.data && Array.isArray(sim.data.components) ? sim.data : { components: [], wires: [] };
+      const components = sim.data && Array.isArray(sim.data.components) ? sim.data.components : [];
+      const wires = sim.data && Array.isArray(sim.data.wires) ? sim.data.wires : [];
+      simData = { components, wires };
+      simCheckpoints = sim.data && Array.isArray(sim.data.checkpoints) ? sim.data.checkpoints : [];
     } else if (templateId) {
       const t = simTemplates.find((x) => x.id === templateId);
       $("simulation-name").value = "New simulation";
-      simData = t && Array.isArray(t.data.components) ? JSON.parse(JSON.stringify(t.data)) : { components: [], wires: [] };
+      simData = t && Array.isArray(t.data.components) ? JSON.parse(JSON.stringify({ components: t.data.components, wires: t.data.wires || [] })) : { components: [], wires: [] };
+      simCheckpoints = [];
     } else {
       $("simulation-name").value = "New simulation";
       simData = { components: [], wires: [] };
+      simCheckpoints = [];
     }
     initialSimSnapshot = JSON.stringify(simData);
     $("simulations-modal").hidden = true;
@@ -237,6 +311,7 @@
     $("sim-palette-search").value = "";
     document.querySelectorAll(".sim-palette-btn").forEach((btn) => btn.classList.remove("is-hidden-by-search"));
     updateHistoryButtons();
+    renderCheckpointSelect();
     renderInspector();
     renderBuilder();
   }
@@ -1005,11 +1080,17 @@
   $("save-simulation").addEventListener("click", async () => {
     const name = $("simulation-name").value.trim();
     if (!name) return alert("Name is required.");
+    // Checkpoints ride along inside the saved `data` blob (so they
+    // persist across reloads) but are kept out of `simData` itself the
+    // rest of the time, purely to avoid every undo-stack entry
+    // duplicating every checkpoint's full circuit snapshot -- see the
+    // comment on simCheckpoints above.
+    const payloadData = { ...simData, checkpoints: simCheckpoints };
     try {
       if (currentSimId) {
-        await window.adminApi(`/simulations/${currentSimId}`, { method: "PATCH", body: JSON.stringify({ name, data: simData }) });
+        await window.adminApi(`/simulations/${currentSimId}`, { method: "PATCH", body: JSON.stringify({ name, data: payloadData }) });
       } else {
-        const res = await window.adminApi("/simulations", { method: "POST", body: JSON.stringify({ name, data: simData }) });
+        const res = await window.adminApi("/simulations", { method: "POST", body: JSON.stringify({ name, data: payloadData }) });
         currentSimId = res.id;
       }
       // Keeps "Reset" meaning "back to the last save" rather than "back to

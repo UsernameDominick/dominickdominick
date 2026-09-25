@@ -1030,6 +1030,12 @@
         <button type="button" id="sim-undo" title="Undo (Ctrl+Z)">Undo</button>
         <button type="button" id="sim-redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
         <button type="button" id="sim-reset" title="Discard all edits and go back to the last saved state">Reset</button>
+        <select id="sim-checkpoint-select" title="Named checkpoints saved with this simulation">
+          <option value="">Checkpoints…</option>
+        </select>
+        <button type="button" id="sim-checkpoint-restore" title="Restore the selected checkpoint" disabled>Restore</button>
+        <button type="button" id="sim-checkpoint-save" title="Save the current circuit as a named checkpoint">Save checkpoint</button>
+        <button type="button" id="sim-checkpoint-delete" title="Delete the selected checkpoint" disabled>Delete checkpoint</button>
         <button type="button" id="sim-export" title="Download this circuit as a JSON file">Export</button>
         <button type="button" id="sim-import" title="Load a circuit from a JSON file">Import</button>
         <input type="file" id="sim-import-file" accept="application/json" hidden>

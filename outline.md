@@ -4887,7 +4887,7 @@ substantial new infra + security surface).
 362. Separate draft/published — new `published_data` column + toggle, like other content types.
 363. Deterministic runs/seeds — sim is deterministic already; add a seed field for future randomness.
 366. ✅ Reset to initial state — done (see the dated entry below this section).
-367. Save checkpoints — named snapshots array in `data`, reuse the undo JSON pattern.
+367. ✅ Save checkpoints — done (see the dated entry below this section).
 373. Rotate/mirror — add transform + flip pin coords, small render change.
 375. Configurable snapping — GRID_SNAP is already a constant; expose as UI control.
 378. Search component on canvas — reuse palette search pattern, filter+highlight.
@@ -5682,3 +5682,44 @@ deliberate "snapshot targets the last save, not the state on open"
 choice held up under every edge case tried, including the save-failure
 and cross-simulation-switch cases that would have been the most likely
 places for a subtle data-loss bug to hide.
+
+### Eighth item: #367, named checkpoints for simulations
+
+- ✅ **Save/restore/delete named checkpoints, persisted with the
+  simulation** — a select dropdown plus Save/Restore/Delete buttons next
+  to the new Reset button. Unlike undo/redo (in-memory, wiped the moment
+  the builder closes) or Reset (only ever targets the single last-saved
+  state), checkpoints are named, persistent snapshots an admin can create
+  and jump back to at will, and they survive closing and reopening the
+  builder. The one design decision worth recording: checkpoints are
+  deliberately kept OUT of `simData` itself the rest of the time (a
+  separate `simCheckpoints` array, only merged into the outgoing payload
+  as `{...simData, checkpoints: simCheckpoints}` at save time, and split
+  back out on load) rather than living inside `simData` as the backlog
+  wording ("named snapshots array in `data`") might suggest at first
+  read. Reason: `pushHistory()` (the existing undo system) snapshots the
+  *entire* `simData` object on every single edit — if checkpoints, each
+  one a full circuit snapshot, lived inside `simData`, every one of up to
+  50 undo-stack entries would carry a redundant copy of every checkpoint,
+  multiplying memory use by the checkpoint count on every edit. Keeping
+  them as a sibling that only rides along at save/load time avoids that
+  entirely while still meeting the actual goal (persisted with the
+  simulation's `data` column). Capped at 20 checkpoints (oldest dropped
+  first) so an admin can't unboundedly bloat one row's JSON blob without
+  noticing. "Save as template" (a separate copy-out action, unaffected)
+  correctly continues to save bare `simData` with no checkpoints, since a
+  template is a fresh starting point, not a continuation of the
+  original's checkpoint history.
+  Verified via Playwright: placed 2 parts, saved a "Stage 1" checkpoint;
+  added a 3rd part (not checkpointed); restoring "Stage 1" correctly
+  dropped back to 2 parts; undoing that restore correctly returned to 3
+  (checkpoint restore pushes onto the same undo stack as any other edit,
+  so it's itself undoable); redid the restore, saved the simulation under
+  a real name, closed and reopened the builder for that same simulation
+  from the list — the "Stage 1" checkpoint was still there, confirming it
+  actually persisted in the saved `data` blob rather than just living in
+  that session's memory; deleting the checkpoint removed it from the
+  dropdown. Full regression suite green; test simulation deleted and
+  confirmed gone.
+
+Handed to a critic agent for scoring.
