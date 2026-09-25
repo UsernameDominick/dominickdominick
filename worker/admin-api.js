@@ -98,7 +98,6 @@ import {
   createScan,
   updateScan,
   deleteScan,
-  findScanUsage,
   findContentUsage,
   listSimulations,
   getSimulation,
@@ -238,7 +237,13 @@ function validateCustomJsonLd(body) {
 // properly escaped, a value containing quotes/angle-brackets could inject
 // arbitrary markup into every page's <head>. This is defense-in-depth
 // alongside that escaping fix, same pattern as validateCustomJsonLd above.
+// Trims in place (so a stray trailing/leading space doesn't get stored
+// verbatim just because it happened to pass the regex, and doesn't
+// inconsistently reject only the leading-space case while silently
+// accepting the trailing-space one) before validating — a whitespace-only
+// value normalizes to "" and is treated the same as never having been set.
 function validateCanonicalUrl(body) {
+  if (typeof body.canonical_url === "string") body.canonical_url = body.canonical_url.trim() || null;
   if (!body.canonical_url) return null;
   if (!/^https?:\/\//i.test(body.canonical_url)) {
     return "Canonical URL must start with http:// or https://";
@@ -1282,13 +1287,8 @@ async function routeAdminApi(request, env, url, ctx) {
     log(ctx, env, "create", "scan", body.name.trim());
     return json({ id });
   }
-  if (path === "/scans/usage" && method === "GET") {
-    const scanId = Number(url.searchParams.get("id"));
-    if (!scanId) return json({ error: "id required" }, { status: 400 });
-    return json(await findScanUsage(env, scanId));
-  }
-  // /content-usage — the general "what uses this" check behind findScanUsage/
-  // findSharedBlockUsage above, extended to simulations/songs/tags too (a
+  // /content-usage — the general "what uses this" check behind
+  // findSharedBlockUsage above, extended to simulations/songs/scans/tags too (a
   // scan/simulation used only via a project's "Related X" picker, or a tag
   // used only by drafts, wasn't previously checkable at all for those types).
   if (path === "/content-usage" && method === "GET") {

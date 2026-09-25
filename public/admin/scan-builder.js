@@ -66,7 +66,7 @@
   }
 
   async function deleteScan(id) {
-    const usage = await window.adminApi(`/scans/usage?id=${id}`).catch(() => []);
+    const usage = await window.adminApi(`/content-usage?type=scan&id=${id}`).catch(() => []);
     const msg = usage.length
       ? `This scan is used in: ${usage.map((u) => u.title).join(", ")}. Delete anyway? Those blocks will show "not found".`
       : "Delete this scan? This can't be undone.";

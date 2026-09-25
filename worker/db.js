@@ -1829,24 +1829,18 @@ export async function deleteScan(env, id) {
   await env.DB.prepare("DELETE FROM scans WHERE id = ?").bind(id).run();
 }
 
-// Which pages currently embed this scan via a "scan" block — same idea as
-// findMediaUsage, so deleting a scan a page depends on isn't a silent trap.
-export async function findScanUsage(env, scanId) {
-  return findContentUsage(env, "scan", scanId);
-}
-
 // Unified "what uses this" check for the reusable library items that can be
 // deleted out from under something still pointing at them — a scan/
 // simulation/song can be referenced by a page block (block.content.scan_id/
 // simulation_id/song_id) *and*, for scans/simulations specifically, by a
 // project's "Related X" multi-select (project.related_scans/
-// related_simulations — songs have no such relation field). findScanUsage()
-// above used to only check blocks, missing the project-relation case
-// entirely; this covers both for every type from one place instead of
-// three near-duplicate functions each with their own gaps. "shared-block"
-// and "tag" are included too so every "usage" concept in the admin (the
-// confirm-before-delete on scans/simulations/songs, the Reusable Blocks
-// list, a tag rename/merge) can go through one function.
+// related_simulations — songs have no such relation field). An earlier,
+// per-type findScanUsage() only checked blocks, missing the project-
+// relation case entirely; this covers both for every type from one place
+// instead of three near-duplicate functions each with their own gaps.
+// "shared-block" and "tag" are included too so every "usage" concept in
+// the admin (the confirm-before-delete on scans/simulations/songs, the
+// Reusable Blocks list, a tag rename/merge) can go through one function.
 export async function findContentUsage(env, type, id) {
   const blockTypeKey = { scan: "scan_id", simulation: "simulation_id", song: "song_id" };
   if (type === "shared-block") return findSharedBlockUsage(env, id);

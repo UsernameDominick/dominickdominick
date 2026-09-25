@@ -3569,3 +3569,47 @@ colliding) and found one new bug plus two pre-existing ones:
   added one sentence suggesting expanding the content or setting a
   canonical URL before publishing. No behavior change, just an
   awareness nudge at the one moment it's actually relevant.
+
+### Fourteenth backlog batch — thirteenth critic pass
+The thirteenth critic pass did a deep, deliberate audit of the canonical-
+URL/og:url security fix specifically — tracing every place `canonical_url`
+flows through render.js, index.js, sitemap.xml, RSS, JSON-LD, and the
+admin UI's own field display — and confirmed it fully solid with no
+remaining gaps: nothing else reads that field unescaped, sitemap/RSS/
+JSON-LD independently compute their own URLs from slugs rather than
+reading canonical_url at all, and the admin's own inputs are plain
+`.value` assignments, never `innerHTML`. It found two smaller issues
+instead:
+- ✅ **Whitespace-only/trailing-space canonical URL produced inconsistent,
+  confusing behavior** — a value that was pure whitespace (e.g. a stray
+  space left after clearing the field) was truthy so it fell through to
+  the regex check and got rejected, while a value with a *trailing*
+  space silently passed and got stored with the space still attached —
+  inconsistent with the *leading*-space case, which failed. Because
+  `validateCanonicalUrl()` runs on every save for pages/articles/
+  projects, and articles autosave on a 2-second debounce across ~10
+  unrelated fields, a stray space in this one field could make every
+  autosave attempt (triggered by just typing in the body) fail with a
+  confusing error pointing at a field that looked empty. Fixed by
+  trimming `body.canonical_url` in place before validating — a
+  whitespace-only value now normalizes to "no canonical URL" (same as
+  never setting it), and a real URL with incidental leading/trailing
+  whitespace gets stored trimmed instead of either being rejected or
+  saved with the stray space attached. Also trimmed client-side in all
+  three build-body functions for the same value, avoiding an
+  unnecessary round-trip error. Verified via the API: whitespace-only
+  now saves cleanly (treated as empty), and both a leading-space and a
+  trailing-space real URL are now stored identically, with no leading/
+  trailing whitespace either way.
+- ✅ **Removed leftover dead code from the content-usage unification** —
+  `scan-builder.js`'s delete-confirmation was the one call site that
+  never got migrated to the unified `/content-usage?type=scan&id=`
+  endpoint when simulations/songs/shared-blocks were (this session,
+  earlier), still calling the legacy `/scans/usage` route — which by
+  then was just a one-line passthrough (`findScanUsage()`) to the exact
+  same unified function anyway. Pointed scan-builder.js at the unified
+  endpoint (matching simulation-builder.js/song-builder.js exactly) and
+  removed the now-fully-unused `/scans/usage` route and
+  `findScanUsage()` wrapper. Verified via Playwright: deleting a scan
+  through the real admin UI still shows the correct usage-aware confirm
+  dialog, and the legacy route now correctly 404s.
