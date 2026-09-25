@@ -502,7 +502,11 @@ health-check pass, predates this doc.
 - ☐ Nested sections and columns (needs `blocks.parent_id` + reworked drag/resize — biggest deferred item)
 - ✅ Tabs, accordions, cards, expandable sections
 - ✅ Sticky/fixed-position elements
-- 🔶 Background video/gradients/overlays/blend modes (all but gradients ✅)
+- ✅ Background video/gradients/overlays/blend modes (gradients added: a
+  from-color/to-color/angle triplet in any block's style panel, rendered
+  as a `linear-gradient()` — layers under a background image via CSS's
+  multiple-background-image support if both are set, so an image and a
+  gradient fallback/tint can coexist)
 - ✅ Entrance/scroll/hover animation controls — a "Hover effect" style
   field (lift/grow/glow/darken) alongside the existing entrance
   animation, pure CSS `:hover` transitions (no JS, unlike the

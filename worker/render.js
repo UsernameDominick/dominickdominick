@@ -589,8 +589,17 @@ function blockStyleAttr(style) {
     parts.push(`border-style:solid`);
     parts.push(`border-color:${style.borderColor ? esc(style.borderColor) : "currentColor"}`);
   }
-  if (style.backgroundImage) {
-    parts.push(`background-image:url('${esc(style.backgroundImage)}')`);
+  // A gradient and a background image can coexist — CSS supports multiple
+  // comma-separated background-image layers, image first (topmost) so it
+  // stays visible, gradient underneath as a fallback/fill for whatever
+  // the image doesn't cover (or the only layer, with no image set).
+  const gradientFrom = /^#[0-9a-fA-F]{6}$/.test(style.gradientFrom || "") ? style.gradientFrom : null;
+  const gradientTo = /^#[0-9a-fA-F]{6}$/.test(style.gradientTo || "") ? style.gradientTo : null;
+  const gradientAngle = Number.isFinite(Number(style.gradientAngle)) ? Number(style.gradientAngle) : 135;
+  const gradientCss = gradientFrom && gradientTo ? `linear-gradient(${gradientAngle}deg,${gradientFrom},${gradientTo})` : null;
+  if (style.backgroundImage || gradientCss) {
+    const layers = [style.backgroundImage ? `url('${esc(style.backgroundImage)}')` : null, gradientCss].filter(Boolean);
+    parts.push(`background-image:${layers.join(",")}`);
     parts.push(`background-size:${["cover", "contain", "auto"].includes(style.backgroundSize) ? style.backgroundSize : "cover"}`);
     parts.push(`background-position:center`);
   }

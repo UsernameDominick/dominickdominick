@@ -1270,6 +1270,9 @@
     { key: "borderColor", label: "Border color", type: "color" },
     { key: "borderRadius", label: "Border radius (px)", type: "number" },
     { key: "backgroundImage", label: "Background image", type: "image-url" },
+    { key: "gradientFrom", label: "Background gradient — from color", type: "color" },
+    { key: "gradientTo", label: "Background gradient — to color", type: "color" },
+    { key: "gradientAngle", label: "Gradient angle (degrees, 0 = left-to-right, 135 = top-left to bottom-right)", type: "number" },
     {
       key: "backgroundSize",
       label: "Background image fit",
