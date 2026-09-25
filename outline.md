@@ -3146,3 +3146,18 @@ text). Both implemented:
   low-contrast block (1.61:1) correctly triggered the warning dialog
   with the exact ratio; applying a high-contrast preset (black on
   white) triggered no dialog at all.
+- ✅ **Reusable Blocks library shows content issues inline, next to Usage**
+  — a bad reusable block (empty content, missing alt text, low
+  contrast, a broken simulation/scan/song reference) previously only
+  ever surfaced as a separate, duplicate Diagnostics finding on every
+  single page that used it — an admin discovered the same problem once
+  per page instead of once at the shared source. Added
+  `sharedBlockIssues()`, a lighter subset of the per-page diagnostic
+  checks (no page-level H1/heading-order checks, which don't make sense
+  for a lone block) applied directly to each shared block's own stored
+  content/style, shown as an issue-count badge right next to its
+  existing Usage button in the Reusable Blocks list. Verified via
+  Playwright with a real shared block combining two problems at once
+  (empty text + a 1.61:1 contrast pair): correctly showed "2 issues"
+  with both listed in the badge's tooltip, while an unrelated clean
+  shared block showed no badge at all.

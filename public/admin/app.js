@@ -2213,22 +2213,54 @@
   });
 
   // ---------- Reusable blocks library ----------
+  // A handful of the same checks computePageDiagnostics() runs per page,
+  // applied directly to a shared block's own stored content/style — a
+  // problem here (bad contrast, empty content, a broken simulation/scan/
+  // song reference) shows up as a separate, duplicate Diagnostics finding
+  // on every single page that uses it, so the admin only ever discovers it
+  // one page at a time instead of once at the shared source. Deliberately
+  // a smaller subset than the full per-page check (no H1/heading-order
+  // checks, which are page-level concerns a lone block can't have an
+  // opinion on) — just the checks that are genuinely about this block's
+  // own content being usable wherever it's inserted.
+  function sharedBlockIssues(sb) {
+    const issues = [];
+    const c = sb.content || {};
+    if (sb.type === "heading" && !c.text) issues.push("Empty heading");
+    if (sb.type === "text" && !c.text) issues.push("Empty text");
+    if (sb.type === "quote" && !c.text) issues.push("Empty quote");
+    if (sb.type === "image" && !c.url) issues.push("No image set");
+    else if (sb.type === "image" && c.url && !c.alt) issues.push("Missing alt text");
+    if (sb.type === "button" && !c.url) issues.push("No link URL");
+    if (brokenReferenceLookup(sb)) issues.push("References a deleted item");
+    const color = sb.style && sb.style.color;
+    const bg = sb.style && sb.style.bg;
+    if (color && bg && /^#[0-9a-f]{6}$/i.test(color) && /^#[0-9a-f]{6}$/i.test(bg)) {
+      const ratio = contrastRatio(color, bg);
+      const threshold = sb.type === "heading" ? 3 : 4.5;
+      if (ratio < threshold) issues.push(`Low contrast (${ratio.toFixed(2)}:1)`);
+    }
+    return issues;
+  }
   async function loadSharedBlocksList() {
     const sharedBlocks = await api("/shared-blocks");
     el("shared-blocks-list").innerHTML =
       sharedBlocks
-        .map(
-          (sb) =>
-            `<div class="simulation-row"><span>${escapeHtml(sb.name)} <span class="lock-badge">${escapeHtml(
-              blockLabel(sb.type)
-            )}</span></span><button type="button" class="usage-shared-block" data-id="${sb.id}" data-name="${escapeHtml(
-              sb.name
-            )}" title="See which pages use this reusable block">Usage</button><button type="button" class="insert-shared-block" data-id="${
-              sb.id
-            }"${currentPage ? "" : " disabled title=\"Open a page first\""}>Insert onto current page</button><button type="button" class="delete-shared-block" data-id="${
-              sb.id
-            }">Delete</button></div>`
-        )
+        .map((sb) => {
+          const issues = sharedBlockIssues(sb);
+          const issuesBadge = issues.length
+            ? ` <span class="lock-badge diagnostic-error" title="${escapeHtml(issues.join("; "))}">${issues.length} issue${issues.length === 1 ? "" : "s"}</span>`
+            : "";
+          return `<div class="simulation-row"><span>${escapeHtml(sb.name)} <span class="lock-badge">${escapeHtml(
+            blockLabel(sb.type)
+          )}</span>${issuesBadge}</span><button type="button" class="usage-shared-block" data-id="${sb.id}" data-name="${escapeHtml(
+            sb.name
+          )}" title="See which pages use this reusable block">Usage</button><button type="button" class="insert-shared-block" data-id="${
+            sb.id
+          }"${currentPage ? "" : " disabled title=\"Open a page first\""}>Insert onto current page</button><button type="button" class="delete-shared-block" data-id="${
+            sb.id
+          }">Delete</button></div>`;
+        })
         .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No reusable blocks yet — select a block on a page and use \"Save as reusable block…\" in its settings.</p>";
 
     el("shared-blocks-list")
