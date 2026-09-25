@@ -3216,3 +3216,24 @@ text). Both implemented:
   text; Low contrast (1.61:1)" above the usual usage summary; clicking
   the issue badge directly showed the same two issues in their own
   alert.
+
+### Seventh critic pass on the above
+- ✅ **The `#app`-scoped mobile CSS fix from the sixth pass was a no-op**
+  — every modal containing a `.simulation-row`/`.link-check-row`
+  (Simulations, Songs, Scans, Reusable Blocks, Trash, Diagnostics, Site
+  Health, SEO Report, etc.) is a sibling of `#app` in the DOM, not a
+  descendant of it — `#app` only wraps the main editor canvas/inspector.
+  So `#app .simulation-row span` matched nothing at all, and the
+  underlying bug (row content clipped to ~0-66px wide on phones) was
+  still fully present everywhere, unchanged. Re-fixed properly by
+  doubling the class itself (`.simulation-row.simulation-row`), which
+  raises specificity without depending on any particular ancestor
+  existing — works regardless of which modal a row happens to live in.
+  Also caught and fixed the exact same never-covered problem for
+  `.redirect-row`/`.redirect-paths` (Trash, Redirects, Topic Pages),
+  flagged by the critic as sharing the identical failure mode but never
+  included in the original fix's selector list. Verified via
+  Playwright at 390px with real long titles: a Reusable Blocks row and
+  a Trash row both now wrap to their full text (310px wide, `white-
+  space: normal`) instead of collapsing to a sliver or a single
+  truncated line.

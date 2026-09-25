@@ -1262,15 +1262,22 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
      several rows sharing a truncated prefix become indistinguishable.
      Letting them wrap to a few lines instead trades a taller row for
      actually being able to read what it says. */
-  /* #app-qualified: .simulation-row's own base rules (further down this
-     file, at plain .simulation-row/.simulation-row span specificity) come
-     later in source order, so at equal specificity they were silently
-     winning even inside this narrower-viewport override — nullifying the
-     wrap fix below and clipping row content (including badges) off
-     entirely on a phone. The #app prefix raises specificity above the
-     unscoped base rules regardless of source order. */
-  #app .link-check-url,
-  #app .simulation-row span {
+  /* A previous attempt qualified these with "#app " to win the
+     specificity tie against the equal-specificity base rules declared
+     later in this file — but every modal that actually contains a
+     .simulation-row/.link-check-row/.redirect-row (Simulations, Songs,
+     Scans, Reusable Blocks, Trash, Redirects, Diagnostics, Site Health,
+     etc.) is a sibling of #app, not a descendant of it, so that selector
+     matched nothing and the underlying bug was still fully present.
+     Doubling the class itself (.simulation-row.simulation-row) raises
+     specificity without depending on any particular ancestor existing —
+     works regardless of which modal a row happens to live in. Also
+     extended to .redirect-row/.redirect-paths (Trash, Redirects, Topic
+     Pages), which had the exact same truncation problem but was never
+     covered by the original fix at all. */
+  .link-check-url.link-check-url,
+  .simulation-row.simulation-row span,
+  .redirect-row.redirect-row .redirect-paths {
     white-space: normal;
     overflow-wrap: break-word;
   }
@@ -1282,11 +1289,13 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
      lets the title take the full row and pushes the actions onto their
      own row underneath, with enough padding to clear a reasonable
      touch-target size. */
-  #app .simulation-row {
+  .simulation-row.simulation-row,
+  .redirect-row.redirect-row {
     flex-wrap: wrap;
   }
 
-  #app .simulation-row span {
+  .simulation-row.simulation-row span,
+  .redirect-row.redirect-row .redirect-paths {
     flex-basis: 100%;
   }
 
