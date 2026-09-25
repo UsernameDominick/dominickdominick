@@ -1697,21 +1697,38 @@ enough detail to act on directly later.
   cleared or the parent is trashed (no warning, no orphan-detection).
 
 **SEO/structured data:**
-- `/topics/<anything>` returns an indexable 200 with a self-canonical
-  even for a tag with zero content ("Nothing tagged…") — unbounded thin
-  URLs; needs either `noindex` for empty topic pages or a real 404.
-  Empty `/topics` and `/archive` are also in the sitemap.
-- Draft previews (`?preview=1`, preview-token links) have no `noindex`
-  and their canonical points at the public URL — a leaked preview link
-  could get indexed as if it were the real page.
-- BlogPosting JSON-LD dates aren't ISO-8601 (`"2026-09-24 04:14:51"`,
-  no timezone) and lack `url`/`image`/`description`; regular pages only
-  ever get `WebSite` structured data, never `WebPage`.
+- ✅ `/topics/<anything>` now 404s with `noindex` when nothing's tagged
+  with it, instead of an indexable 200 "Nothing tagged…" — closes the
+  unbounded-thin-URL problem (every possible string used to render the
+  same page at a distinct, indexable URL). Individual `/topics/:tag`
+  sitemap entries were already scoped to tags with real content via
+  `getTagCounts`, so this didn't touch the sitemap; the bare `/topics`
+  and `/archive` index routes being unconditionally in the sitemap even
+  when momentarily empty is a much smaller version of the same issue,
+  left as a nitpick below rather than fixed here.
+- ✅ Draft/expired previews (`?preview=1`, preview-token links, preview-
+  mode cookie) now render `noindex` on both articles and projects —
+  `renderArticle`/`renderProject` pass `noindex: !!previewReason`.
+  Canonical URL is left pointing at the real public path on purpose
+  (that's where the content belongs once published); `noindex` alone is
+  what stops a leaked preview link from being indexed in its
+  draft/expired state.
+- ✅ JSON-LD/OG dates weren't valid ISO-8601 — D1's `datetime('now')`
+  columns come back as `"YYYY-MM-DD HH:MM:SS"` (space-separated, no
+  timezone), used raw in `datePublished`/`dateModified`/`dateCreated`
+  and the `article:published_time`/`modified_time` meta tags. Added a
+  `toIso8601()` helper (`index.js`) and applied it at all six call
+  sites. (`WebPage` structured data on regular pages, and `url`/
+  `image`/`description` on `BlogPosting`, are still not built — left
+  below.)
 - Gallery images have no alt-text field at all (not just "sometimes
   empty"); embed/video iframes have no `title`; neither the SEO nor the
   accessibility report catches either gap.
-- `og:title` always appends `" · Dominick"` even when the page title
-  already includes it contextually — cosmetic, low priority.
+- Regular (non-home) pages only ever get `WebSite` structured data,
+  never their own `WebPage` entry.
+- `og:title` always matches `<title>` exactly (includes `" · Dominick"`)
+  — on reflection this is normal, expected behavior (most sites do
+  this deliberately), not a bug; not changing it.
 
 **Lower priority / nitpicks:**
 - Header icon buttons render at inconsistent sizes (◐/⏸ noticeably
@@ -1723,10 +1740,26 @@ enough detail to act on directly later.
 - Print/PDF output includes share pills, reactions, and the preview
   banner, and dark-theme text prints near-invisible on white — needs a
   real print stylesheet.
-- An empty nav still draws its sliding indicator pill as a small dot.
-- `theme-color` is a fixed value and the site ignores the visitor's OS
-  light/dark preference on first visit (only the manual toggle sets
-  it).
+- ✅ An empty nav (zero pages with `nav_label` set) drew its `.tabs`
+  wrapper as a small rounded dot in the header regardless — the `<nav
+  class="tabs">` pill and its indicator span were unconditionally
+  emitted even with nothing inside them. Now the whole wrapper is
+  skipped when `navItems` is empty. Verified both states: no `.tabs` at
+  all with zero nav items (this site's actual current local-dev state,
+  incidentally — no pages have `nav_label` set yet), `.tabs` renders
+  correctly again once a nav-labeled page exists.
+- ✅ `theme-color` was a fixed dark value regardless of theme, and the
+  site always started dark on a first visit even if the OS/browser
+  preferred light (only the manual toggle ever set an explicit
+  preference). The blocking inline theme script now falls back to
+  `prefers-color-scheme` when nothing's stored yet, and both that
+  script and the theme-toggle click handler keep `<meta name="theme-
+  color" id="theme-color-meta">` in sync with whichever theme is
+  actually applied — not just OS preference, since a manual override in
+  either direction still needs to win. Verified via Playwright with
+  `colorScheme: "light"`/`"dark"` contexts (first-visit OS preference
+  respected in both directions) and an explicit `localStorage` override
+  correctly taking priority over a conflicting OS preference.
 - highlight.js and `<model-viewer>` load on every page regardless of
   whether that page uses them (mermaid and KaTeX already do this
   conditional-load correctly — same pattern should extend to these

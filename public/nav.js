@@ -353,6 +353,8 @@ document.addEventListener("input", function (e) {
     var current = root.getAttribute("data-theme") || "dark";
     var next = current === "light" ? "dark" : "light";
     root.setAttribute("data-theme", next);
+    var themeColorMeta = document.getElementById("theme-color-meta");
+    if (themeColorMeta) themeColorMeta.setAttribute("content", next === "light" ? "#ffffff" : "#0b0b0c");
     try {
       localStorage.setItem("theme", next);
     } catch (e) {}

@@ -321,8 +321,8 @@ async function renderArticle(env, article, navItems, previewReason = null) {
       "@context": "https://schema.org",
       "@type": "BlogPosting",
       headline: article.title,
-      datePublished: article.published_at,
-      dateModified: article.updated_at || article.published_at,
+      datePublished: toIso8601(article.published_at),
+      dateModified: toIso8601(article.updated_at || article.published_at),
       author: { "@type": "Person", name: "Dominick" },
       ...(article.tags && article.tags.length ? { keywords: article.tags.join(", ") } : {}),
     },
@@ -345,8 +345,8 @@ async function renderArticle(env, article, navItems, previewReason = null) {
     bodyHtml,
     jsonLd: withCustomJsonLd(jsonLd, article.custom_json_ld),
     ogType: "article",
-    publishedTime: article.published_at,
-    modifiedTime: article.updated_at,
+    publishedTime: toIso8601(article.published_at),
+    modifiedTime: toIso8601(article.updated_at),
     keywords: article.tags && article.tags.length ? article.tags.join(", ") : null,
     ogImage: article.og_image || defaultOgImage || null,
     canonicalUrl: article.canonical_url || null,
@@ -354,6 +354,11 @@ async function renderArticle(env, article, navItems, previewReason = null) {
     footerText,
     customHead,
     canvasClass: "canvas article-canvas",
+    // Reachable here only via preview mode's cookie or a one-off
+    // ?preview=1/preview-token link — a draft or expired article being
+    // previewed is never something to let a search engine index, even if
+    // the link leaks.
+    noindex: !!previewReason,
   });
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
@@ -441,8 +446,8 @@ async function renderProject(env, project, navItems, previewReason = null) {
       "@type": "CreativeWork",
       name: project.title,
       description,
-      dateCreated: project.created_at,
-      dateModified: project.updated_at,
+      dateCreated: toIso8601(project.created_at),
+      dateModified: toIso8601(project.updated_at),
       author: { "@type": "Person", name: "Dominick" },
       ...(project.tags && project.tags.length ? { keywords: project.tags.join(", ") } : {}),
     },
@@ -464,8 +469,8 @@ async function renderProject(env, project, navItems, previewReason = null) {
     bodyHtml,
     jsonLd: withCustomJsonLd(jsonLd, project.custom_json_ld),
     ogType: "article",
-    publishedTime: project.published_at,
-    modifiedTime: project.updated_at,
+    publishedTime: toIso8601(project.published_at),
+    modifiedTime: toIso8601(project.updated_at),
     keywords: project.tags && project.tags.length ? project.tags.join(", ") : null,
     ogImage: project.og_image || defaultOgImage || null,
     canonicalUrl: project.canonical_url || null,
@@ -473,6 +478,7 @@ async function renderProject(env, project, navItems, previewReason = null) {
     footerText,
     customHead,
     canvasClass: "canvas article-canvas",
+    noindex: !!previewReason,
   });
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
@@ -608,6 +614,7 @@ async function renderSavedPage(env, navItems) {
 async function renderTopicPage(env, tag, navItems) {
   const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
   const [{ articles, projects }, topicMeta] = await Promise.all([getContentByTag(env, tag), getTopicMeta(env, tag)]);
+  const isEmpty = articles.length + projects.length === 0;
   const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 16;">
     <h1>Tagged: ${esc(tag)}</h1>
     ${topicMeta?.description ? `<p class="topic-intro">${esc(topicMeta.description)}</p>` : ""}
@@ -624,8 +631,13 @@ async function renderTopicPage(env, tag, navItems) {
     theme,
     footerText,
     customHead,
+    // An arbitrary URL segment with nothing tagged under it is a thin,
+    // unbounded set of URLs (every possible string 404s to this same
+    // "Nothing tagged…" page) — never worth indexing, unlike a topic that
+    // actually has content.
+    noindex: isEmpty,
   });
-  return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
+  return new Response(html, { status: isEmpty ? 404 : 200, headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
 async function renderNotFound(env, navItems) {
@@ -682,6 +694,16 @@ function xmlEsc(str) {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+// D1's datetime('now') columns come back as "YYYY-MM-DD HH:MM:SS" (space-
+// separated, no timezone, implicitly UTC) — not valid ISO 8601, which the
+// Open Graph article:published_time/modified_time meta tags and schema.org
+// Date/DateTime properties both expect. Used everywhere one of those raw
+// column values goes into structured data or a meta tag.
+function toIso8601(dbDateString) {
+  if (!dbDateString) return null;
+  return new Date(dbDateString.replace(" ", "T") + "Z").toISOString();
 }
 
 // type: "article" | "project" (blank = both, sorted together by date).

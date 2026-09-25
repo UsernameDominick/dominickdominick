@@ -1265,14 +1265,14 @@ export function renderShell({
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
-<script>(function(){try{var t=localStorage.getItem("theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);var m=localStorage.getItem("motion");if(m==="reduce")document.documentElement.setAttribute("data-motion","reduce");var fs=parseFloat(localStorage.getItem("fontScale"));if(fs)document.documentElement.style.setProperty("--font-scale",fs);}catch(e){}})();</script>
 <meta charset="UTF-8">
+<meta name="theme-color" id="theme-color-meta" content="#0b0b0c">
+<script>(function(){try{var t=localStorage.getItem("theme");if(t!=="light"&&t!=="dark")t=window.matchMedia&&window.matchMedia("(prefers-color-scheme: light)").matches?"light":null;if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);if(t==="light"){var tc=document.getElementById("theme-color-meta");if(tc)tc.setAttribute("content","#ffffff");}var m=localStorage.getItem("motion");if(m==="reduce")document.documentElement.setAttribute("data-motion","reduce");var fs=parseFloat(localStorage.getItem("fontScale"));if(fs)document.documentElement.style.setProperty("--font-scale",fs);}catch(e){}})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(description)}">
 <meta name="author" content="Dominick">
 ${keywords ? `<meta name="keywords" content="${esc(keywords)}">` : ""}
-<meta name="theme-color" content="#0b0b0c">
 ${noindex ? `<meta name="robots" content="noindex">` : ""}
 <link rel="canonical" href="${canonical}">
 <link rel="icon" href="${FAVICON}">
@@ -1346,10 +1346,14 @@ ${customHead || ""}
   <div class="page">
     <header class="topbar">
       <a class="brand" href="/">dominick<span class="accent">.</span>dominick</a>
-      <nav class="tabs" aria-label="Sections">
+      ${
+        navItems.length
+          ? `<nav class="tabs" aria-label="Sections">
         ${navHtml}
         <span class="tab-indicator" aria-hidden="true"></span>
-      </nav>
+      </nav>`
+          : ""
+      }
       <div class="topbar-tools">
         <form class="site-search" action="/search" method="get" role="search" autocomplete="off">
           <input type="search" name="q" placeholder="Search" aria-label="Search" value="${esc(searchQuery || "")}" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="search-suggest-list">
