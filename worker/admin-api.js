@@ -232,6 +232,20 @@ function validateCustomJsonLd(body) {
   }
 }
 
+// Canonical URL had no validation at all before this — an admin typo (or a
+// deliberately malformed value) landed straight in renderShell()'s
+// <link rel="canonical">/og:url output, and until that output was also
+// properly escaped, a value containing quotes/angle-brackets could inject
+// arbitrary markup into every page's <head>. This is defense-in-depth
+// alongside that escaping fix, same pattern as validateCustomJsonLd above.
+function validateCanonicalUrl(body) {
+  if (!body.canonical_url) return null;
+  if (!/^https?:\/\//i.test(body.canonical_url)) {
+    return "Canonical URL must start with http:// or https://";
+  }
+  return null;
+}
+
 // Optimistic-concurrency guard for the article/page editors: the client
 // sends back the version number it last saw when it loaded (or last saved),
 // and if the row has moved on since — another tab, another device, this
@@ -405,6 +419,8 @@ async function routeAdminApi(request, env, url, ctx) {
     const body = await request.json().catch(() => ({}));
     const jsonLdError = validateCustomJsonLd(body);
     if (jsonLdError) return json({ error: jsonLdError }, { status: 400 });
+    const canonicalError = validateCanonicalUrl(body);
+    if (canonicalError) return json({ error: canonicalError }, { status: 400 });
     const slug = slugify(body.slug || body.title);
     if (!slug || RESERVED_SLUGS.has(slug)) {
       return json({ error: "Invalid or reserved slug" }, { status: 400 });
@@ -430,6 +446,8 @@ async function routeAdminApi(request, env, url, ctx) {
     const body = await request.json().catch(() => ({}));
     const jsonLdError = validateCustomJsonLd(body);
     if (jsonLdError) return json({ error: jsonLdError }, { status: 400 });
+    const canonicalError = validateCanonicalUrl(body);
+    if (canonicalError) return json({ error: canonicalError }, { status: 400 });
     const id = Number(pageMatch[1]);
     const conflict = await checkConflict(env, "pages", id, body.expected_version);
     if (conflict) return conflict;
@@ -630,6 +648,8 @@ async function routeAdminApi(request, env, url, ctx) {
     const body = await request.json().catch(() => ({}));
     const jsonLdError = validateCustomJsonLd(body);
     if (jsonLdError) return json({ error: jsonLdError }, { status: 400 });
+    const canonicalError = validateCanonicalUrl(body);
+    if (canonicalError) return json({ error: canonicalError }, { status: 400 });
     const slug = slugify(body.slug || body.title);
     if (!slug) return json({ error: "Title or slug required" }, { status: 400 });
     if (RESERVED_SLUGS.has(slug)) return json({ error: "Reserved slug" }, { status: 400 });
@@ -658,6 +678,8 @@ async function routeAdminApi(request, env, url, ctx) {
     const body = await request.json().catch(() => ({}));
     const jsonLdError = validateCustomJsonLd(body);
     if (jsonLdError) return json({ error: jsonLdError }, { status: 400 });
+    const canonicalError = validateCanonicalUrl(body);
+    if (canonicalError) return json({ error: canonicalError }, { status: 400 });
     const id = Number(articleMatch[1]);
     const conflict = await checkConflict(env, "articles", id, body.expected_version);
     if (conflict) return conflict;
@@ -771,6 +793,8 @@ async function routeAdminApi(request, env, url, ctx) {
     const body = await request.json().catch(() => ({}));
     const jsonLdError = validateCustomJsonLd(body);
     if (jsonLdError) return json({ error: jsonLdError }, { status: 400 });
+    const canonicalError = validateCanonicalUrl(body);
+    if (canonicalError) return json({ error: canonicalError }, { status: 400 });
     const slug = slugify(body.slug || body.title);
     if (!slug) return json({ error: "Title or slug required" }, { status: 400 });
     if (RESERVED_SLUGS.has(slug)) return json({ error: "Reserved slug" }, { status: 400 });
@@ -798,6 +822,8 @@ async function routeAdminApi(request, env, url, ctx) {
     const body = await request.json().catch(() => ({}));
     const jsonLdError = validateCustomJsonLd(body);
     if (jsonLdError) return json({ error: jsonLdError }, { status: 400 });
+    const canonicalError = validateCanonicalUrl(body);
+    if (canonicalError) return json({ error: canonicalError }, { status: 400 });
     const id = Number(projectMatch[1]);
     const conflict = await checkConflict(env, "projects", id, body.expected_version);
     if (conflict) return conflict;

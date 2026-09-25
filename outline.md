@@ -3520,3 +3520,31 @@ colliding) and found one new bug plus two pre-existing ones:
   without risking real data. Also verified both new endpoints
   correctly 401 unauthenticated, and that "Restore this backup…" is
   fully visible and reasonably sized on a 390px mobile viewport.
+
+### Twelfth critic pass — real security bug found and fixed
+- ✅ **Unescaped canonical URL / og:url enabled stored HTML injection into
+  every page's `<head>`** (medium-high severity, genuine security bug) —
+  `renderShell()` in worker/render.js interpolated the `canonical` value
+  raw in two places (`<link rel="canonical" href="${canonical}">` and
+  `<meta property="og:url" content="${canonical}">`), the sole omission
+  in a template where every other dynamic value (title, description,
+  keywords, og:image, twitter tags, etc.) already goes through the
+  codebase's own `esc()` helper. `canonical_url` is an ordinary admin-
+  editable plain-text field on pages/articles/projects with zero format
+  validation anywhere — an admin typo, or a deliberately crafted value,
+  landed straight in every visitor's page source. Even a normal real-
+  world canonical URL containing `&` (any query string) already produced
+  invalid HTML here. Fixed the root cause by wrapping both interpolations
+  in `esc()`, and added defense-in-depth: a new `validateCanonicalUrl()`
+  in worker/admin-api.js (same pattern as the existing
+  `validateCustomJsonLd()` guard) rejects a non-empty value that doesn't
+  start with `http://`/`https://`, applied at all 6 create/update routes
+  across pages/articles/projects. Verified via Playwright with a real
+  `<script>`-tag-embedding value: confirmed the script did NOT execute
+  and the output was correctly HTML-entity-escaped even when the
+  malformed value was written directly at the DB layer (bypassing the
+  new admin-api validation entirely) — proving the render-layer fix is
+  the actual protection, with validation as an additional layer, not a
+  substitute for it. Also confirmed a legitimate URL with `&` in its
+  query string still renders correctly (`&amp;`-escaped, valid HTML) and
+  a non-URL value is now rejected with a 400 at save time.

@@ -1415,14 +1415,14 @@ export function renderShell({
 <meta name="author" content="Dominick">
 ${keywords ? `<meta name="keywords" content="${esc(keywords)}">` : ""}
 ${noindex ? `<meta name="robots" content="noindex">` : ""}
-<link rel="canonical" href="${canonical}">
+<link rel="canonical" href="${esc(canonical)}">
 <link rel="icon" href="${FAVICON}">
 
 <meta property="og:type" content="${esc(ogType)}">
 <meta property="og:site_name" content="Dominick">
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(description)}">
-<meta property="og:url" content="${canonical}">
+<meta property="og:url" content="${esc(canonical)}">
 ${ogImage ? `<meta property="og:image" content="${esc(ogImage)}">` : ""}
 ${publishedTime ? `<meta property="article:published_time" content="${esc(publishedTime)}">` : ""}
 ${modifiedTime ? `<meta property="article:modified_time" content="${esc(modifiedTime)}">` : ""}
