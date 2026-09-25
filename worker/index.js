@@ -31,6 +31,7 @@ import {
   runScheduledLinkCheck,
   getTagCounts,
   getArchive,
+  SEARCH_PAGE_SIZE,
   getContentByTag,
   getTopicMeta,
 } from "./db.js";
@@ -365,14 +366,17 @@ async function renderProject(env, project, navItems, previewReason = null) {
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
-async function renderSearch(env, query, navItems, ctx, { type = "", sort = "newest" } = {}) {
+async function renderSearch(env, query, navItems, ctx, { type = "", sort = "newest", page = 1 } = {}) {
   const { defaultOgImage, theme, footerText, customHead, emptySearchText } = await getSiteContext(env);
-  const { pages, articles, projects } = query ? await publicSearch(env, query, { type, sort }) : { pages: [], articles: [], projects: [] };
+  const { pages, articles, projects, totalCount } = query
+    ? await publicSearch(env, query, { type, sort, page })
+    : { pages: [], articles: [], projects: [], totalCount: null };
   if (query) {
     const count = pages.length + articles.length + projects.length;
     ctx.waitUntil(logEvent(env, { name: "search", path: "/search", detail: JSON.stringify({ q: query, count }) }).catch(() => {}));
   }
-  const resultsHtml = renderSearchResultsHtml(query, pages, articles, projects, emptySearchText, { type, sort });
+  const totalPages = totalCount != null ? Math.max(1, Math.ceil(totalCount / SEARCH_PAGE_SIZE)) : null;
+  const resultsHtml = renderSearchResultsHtml(query, pages, articles, projects, emptySearchText, { type, sort, page, totalPages, totalCount });
   const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 16;">
     <h1>Search</h1>
     ${resultsHtml}
@@ -846,7 +850,8 @@ async function route(request, env, ctx) {
       const navItems = await listNavPages(env);
       const type = url.searchParams.get("type") || "";
       const sort = url.searchParams.get("sort") === "oldest" ? "oldest" : "newest";
-      return renderSearch(env, url.searchParams.get("q")?.trim() || "", navItems, ctx, { type, sort });
+      const page = Math.max(1, Number(url.searchParams.get("page")) || 1);
+      return renderSearch(env, url.searchParams.get("q")?.trim() || "", navItems, ctx, { type, sort, page });
     }
 
     // Type-ahead suggestions for the topbar search box — a lighter, higher-

@@ -310,7 +310,7 @@ export function excerpt(text, maxLen = 155) {
   return cut.slice(0, lastSpace > 0 ? lastSpace : maxLen).trim() + "…";
 }
 
-export function renderSearchResultsHtml(query, pages, articles, projects = [], customEmptyText = "", { type = "", sort = "newest" } = {}) {
+export function renderSearchResultsHtml(query, pages, articles, projects = [], customEmptyText = "", { type = "", sort = "newest", page = 1, totalPages = null, totalCount = null } = {}) {
   if (!query) {
     return `<p class="empty-hint">Enter a search term above to look through pages and posts.</p>`;
   }
@@ -318,6 +318,8 @@ export function renderSearchResultsHtml(query, pages, articles, projects = [], c
   // string intact) rather than a JS-driven form — every other listing page
   // on the site (topics, archive) already works this way with no client JS
   // needed at all, and it's just as easy to link to directly or bookmark.
+  // Switching type or sort always drops back to page 1 — a page number
+  // that made sense for one filter combination usually doesn't for another.
   const typeLink = (value, label) =>
     `<a href="/search?q=${encodeURIComponent(query)}${value ? `&type=${value}` : ""}${sort !== "newest" ? `&sort=${sort}` : ""}"${
       type === value ? ' class="is-active"' : ""
@@ -330,7 +332,19 @@ export function renderSearchResultsHtml(query, pages, articles, projects = [], c
     <span class="search-filter-group">${typeLink("", "All")} ${typeLink("page", "Pages")} ${typeLink("project", "Projects")} ${typeLink("article", "Posts")}</span>
     <span class="search-filter-group">${sortLink("newest", "Newest first")} ${sortLink("oldest", "Oldest first")}</span>
   </div>`;
-  const total = pages.length + articles.length + projects.length;
+  // Only meaningful once narrowed to one type — with all three shown at
+  // once there'd be three separate page counters on one screen.
+  const pageLink = (value, label, cssClass = "") =>
+    `<a href="/search?q=${encodeURIComponent(query)}&type=${type}${sort !== "newest" ? `&sort=${sort}` : ""}${
+      value > 1 ? `&page=${value}` : ""
+    }"${cssClass ? ` class="${cssClass}"` : ""}>${label}</a>`;
+  const paginationHtml =
+    type && totalPages && totalPages > 1
+      ? `<div class="search-pagination">${page > 1 ? pageLink(page - 1, "← Previous") : ""}<span>Page ${page} of ${totalPages}</span>${
+          page < totalPages ? pageLink(page + 1, "Next →") : ""
+        }</div>`
+      : "";
+  const total = totalCount != null ? totalCount : pages.length + articles.length + projects.length;
   if (!total) {
     const text = customEmptyText ? customEmptyText.replace("{query}", query) : `No results for "${query}".`;
     return `${filterBarHtml}<p class="empty-hint">${esc(text)}</p>`;
@@ -360,7 +374,8 @@ export function renderSearchResultsHtml(query, pages, articles, projects = [], c
   return `${filterBarHtml}<p class="search-result-count">${total} result${total === 1 ? "" : "s"} for "${esc(query)}"</p>
 ${pageItems ? `<h2>Pages</h2><ul class="search-results">${pageItems}</ul>` : ""}
 ${projectItems ? `<h2>Projects</h2><ul class="search-results">${projectItems}</ul>` : ""}
-${articleItems ? `<h2>Posts</h2><ul class="search-results">${articleItems}</ul>` : ""}`;
+${articleItems ? `<h2>Posts</h2><ul class="search-results">${articleItems}</ul>` : ""}
+${paginationHtml}`;
 }
 
 export function renderTopicsIndexHtml(tagCounts, customEmptyText = "") {

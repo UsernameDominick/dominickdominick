@@ -1967,21 +1967,30 @@ export async function search(env, q) {
 
 // Public-facing search: only live pages and published articles, unlike the
 // admin command palette's search() above which intentionally sees everything.
+export const SEARCH_PAGE_SIZE = 20;
+
 // `type` narrows to one category ("page"/"article"/"project"), skipping the
 // other queries entirely rather than just filtering their results client-
 // side. `sort` ("newest" default, or "oldest") only affects articles/
 // projects — pages have no publish date, so they always sort by title.
-export async function publicSearch(env, q, { type = "", sort = "newest" } = {}) {
+// `page` (1-indexed) only applies when `type` picks one specific category —
+// with all three shown together there'd be three separate page counters on
+// one screen, more confusing than the flat top-20-each it falls back to;
+// pagination is really only useful once you've already narrowed to one type.
+export async function publicSearch(env, q, { type = "", sort = "newest", page = 1 } = {}) {
   const like = `%${escapeLike(q)}%`;
   const dateOrder = sort === "oldest" ? "ASC" : "DESC";
   const now = new Date().toISOString();
-  const [pages, articles, projects] = await Promise.all([
+  const paginated = !!type;
+  const limit = paginated ? SEARCH_PAGE_SIZE : 20;
+  const offset = paginated ? (Math.max(1, page) - 1) * SEARCH_PAGE_SIZE : 0;
+  const [pages, articles, projects, pageCount, articleCount, projectCount] = await Promise.all([
     !type || type === "page"
       ? env.DB
           .prepare(
-            "SELECT id, slug, title, meta_description FROM pages WHERE deleted_at IS NULL AND (title LIKE ? ESCAPE '\\' OR meta_description LIKE ? ESCAPE '\\') ORDER BY title LIMIT 20"
+            `SELECT id, slug, title, meta_description FROM pages WHERE deleted_at IS NULL AND (title LIKE ? ESCAPE '\\' OR meta_description LIKE ? ESCAPE '\\') ORDER BY title LIMIT ? OFFSET ?`
           )
-          .bind(like, like)
+          .bind(like, like, limit, offset)
           .all()
       : { results: [] },
     !type || type === "article"
@@ -1990,9 +1999,9 @@ export async function publicSearch(env, q, { type = "", sort = "newest" } = {}) 
             `SELECT id, slug, title, body, tags, published_at FROM articles
              WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?) AND archived = 0
              AND (title LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\')
-             ORDER BY published_at ${dateOrder} LIMIT 20`
+             ORDER BY published_at ${dateOrder} LIMIT ? OFFSET ?`
           )
-          .bind(now, now, like, like, like)
+          .bind(now, now, like, like, like, limit, offset)
           .all()
       : { results: [] },
     !type || type === "project"
@@ -2001,13 +2010,45 @@ export async function publicSearch(env, q, { type = "", sort = "newest" } = {}) 
             `SELECT id, slug, title, summary, tags, published_at FROM projects
              WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?) AND archived = 0
              AND (title LIKE ? ESCAPE '\\' OR summary LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\')
-             ORDER BY published_at ${dateOrder} LIMIT 20`
+             ORDER BY published_at ${dateOrder} LIMIT ? OFFSET ?`
           )
-          .bind(now, now, like, like, like, like)
+          .bind(now, now, like, like, like, like, limit, offset)
           .all()
       : { results: [] },
+    paginated && type === "page"
+      ? env.DB
+          .prepare(`SELECT COUNT(*) AS n FROM pages WHERE deleted_at IS NULL AND (title LIKE ? ESCAPE '\\' OR meta_description LIKE ? ESCAPE '\\')`)
+          .bind(like, like)
+          .first()
+      : null,
+    paginated && type === "article"
+      ? env.DB
+          .prepare(
+            `SELECT COUNT(*) AS n FROM articles
+             WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?) AND archived = 0
+             AND (title LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\')`
+          )
+          .bind(now, now, like, like, like)
+          .first()
+      : null,
+    paginated && type === "project"
+      ? env.DB
+          .prepare(
+            `SELECT COUNT(*) AS n FROM projects
+             WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?) AND archived = 0
+             AND (title LIKE ? ESCAPE '\\' OR summary LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\')`
+          )
+          .bind(now, now, like, like, like, like)
+          .first()
+      : null,
   ]);
-  return { pages: pages.results, articles: articles.results.map(parseArticleRow), projects: projects.results.map(parseProjectRow) };
+  const totalCount = pageCount?.n ?? articleCount?.n ?? projectCount?.n ?? null;
+  return {
+    pages: pages.results,
+    articles: articles.results.map(parseArticleRow),
+    projects: projects.results.map(parseProjectRow),
+    totalCount: paginated ? totalCount : null,
+  };
 }
 
 // Related posts for an article: prefers shared tags (most overlap first,

@@ -1439,6 +1439,24 @@ h6 { font-size: 0.9rem; }
   font-weight: 600;
 }
 
+.search-pagination {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 20px;
+  font-size: 0.9rem;
+  color: var(--text-dim);
+}
+
+.search-pagination a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.search-pagination a:hover {
+  text-decoration: underline;
+}
+
 .topic-intro {
   font-size: 1.05rem;
   color: var(--text-dim);

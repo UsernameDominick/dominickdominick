@@ -606,7 +606,16 @@ health-check pass, predates this doc.
   empty-state text lives in JS, not here — left as-is (making those
   admin-editable would mean an extra settings fetch from every visitor's
   browser for a personal, low-traffic page, not worth it)
-- ☐ Pagination/load-more/infinite scroll, breadcrumb editor UI
+- 🔶 Pagination/load-more/infinite scroll (search results ✅, page-based —
+  only meaningful once narrowed to one type via the filter bar above, since
+  showing Pages/Projects/Posts all at once would need three separate page
+  counters on one screen; picking a type always resets back to page 1,
+  since a page number from one filter combination usually doesn't carry
+  meaning to another. `publicSearch()` now takes a `page` param, adding a
+  `LIMIT/OFFSET` plus one `COUNT(*)` query for whichever single category is
+  active, so the result count and "Page N of M" reflect the true total
+  rather than just what's on screen; archive/topic pages still show
+  everything on one page, untouched); ☐ breadcrumb editor UI
 - ✅ Related-content suggestions (automatic tag-based; manual override —
   `related_override` column on articles/projects, a multi-select in each
   editor excluding itself, checked first in `getRelatedArticles()`/
