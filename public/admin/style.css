@@ -1402,8 +1402,13 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
 }
 
 /* Settings modal */
+/* Was 500px from before the 7-tab row existed — never revisited once tabs
+   were added, so they wrapped into an uneven 5-then-2 second line instead
+   of fitting on one. 640px comfortably fits all 7 (~567px) with room to
+   spare, while staying narrower than the default 900px modal width, which
+   this content (simple form fields, not a grid) doesn't need. */
 .settings-modal-inner {
-  max-width: 500px;
+  max-width: 640px;
 }
 
 /* Site Settings used to be one long list under these headings, scrolling

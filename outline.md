@@ -3980,5 +3980,18 @@ instead:
   accessibility pass, not a redesign of the palette's actual hues —
   the existing dark violet-black + orange-coral identity (already
   documented with its own verified contrast ratios) is unchanged.
+- ✅ **Site Settings' 7 tabs wrapped into an uneven 5-then-2 second
+  row** — `.settings-modal-inner` had a `max-width: 500px` override
+  left over from before the tabs existed (when the modal held a single
+  simple form), never revisited once a 7-tab row was added on top of
+  it. Measured the tabs' actual rendered width (~567px including gaps)
+  against the available 500px and widened the override to 640px —
+  comfortably fits all 7 on one line with room to spare, while staying
+  narrower than the default 900px modal width this content (plain form
+  fields, not a grid) doesn't need. Verified via Playwright that all 7
+  tabs now share one row at 1440px width, and spot-checked two other
+  tabs (Integrations, Logs) at the new width to confirm their content
+  isn't left looking sparse or cramped by the change; mobile is
+  unaffected (already had its own width override for narrow screens).
   Spacing/symmetry auditing across the rest of the admin's popups
   continues as an ongoing pass at the user's request.
