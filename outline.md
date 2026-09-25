@@ -934,7 +934,10 @@ mode, slow-connection preview, embed-loading controls, cache
 status/refresh, embed-failure behavior, before/after perf comparisons.
 
 ### Admin interface
-- 🔶 Command palette (pages/articles/projects/blocks ✅; not exhaustive)
+- 🔶 Command palette (pages/articles/projects/blocks ✅; now also covers
+  Songs/Diagnostics/SEO Dashboard/Topic Pages and "Add new article"/"Add
+  new project" quick actions that were missing even though their menu
+  buttons already existed; still not literally exhaustive of every modal)
 - ☐ Customizable dashboard, interface density settings, saved workspace layouts
 - ✅ Light/dark admin theme
 - ✅ Favorites/pinning (☆ Pin button, client-side, leads the command palette) + recently-edited (client-side recency list, not activity-log-based since that only ever stored a label not an id)
