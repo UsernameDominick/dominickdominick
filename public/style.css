@@ -31,6 +31,28 @@
      (pure red vs. --accent's orange-coral) so the two are never
      confused. Verified 7.07:1 against --bg. */
   --error-text: #ff6b6b;
+  /* Same red family as --error-text, but tuned as a fixed BACKGROUND that
+     holds white text/icons on top (delete buttons, badges) — a different
+     contrast requirement than --error-text's "readable as text on --bg,"
+     the same reasoning --on-accent exists separately from --accent for.
+     Verified 5.62:1 against white; unlike --error-text this doesn't need
+     a light-theme override, since that same ratio holds regardless of the
+     page's own theme (a button's background luminance doesn't depend on
+     what's around it). Previously every consumer of this idea (delete
+     buttons, notification badges, broken-reference badges) picked its own
+     slightly different red rather than sharing one verified value. */
+  --error-bg: #c62828;
+  /* Success/warning/info below fill in a gap the palette never had: every
+     consumer of "green means ok," "amber means caution," "blue means info"
+     (callouts, the build journal, contrast/link-check indicators, save-
+     conflict warnings) picked its own one-off shade with no light-theme
+     variant at all — on the light theme, three of the four callout colors
+     measured under WCAG's 3:1 minimum for non-text contrast, making a
+     "warning" callout's colored border nearly invisible against a light
+     background. Verified against --bg like the tokens above. */
+  --success: #3fae5a;
+  --warning: #e0a63a;
+  --info: #4f8ff7;
   --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
   /* A slower-out, decelerating curve (vs. the browser default linear-ish
      "ease") for anything that should feel like it settles into place
@@ -59,6 +81,11 @@
      verified 5.12:1 against --accent and 7.10:1 against --accent-secondary. */
   --on-accent: #ffffff;
   --error-text: #c62828;
+  /* --error-bg is intentionally not overridden here — #c62828 above already
+     verifies at 5.62:1 against white regardless of page theme. */
+  --success: #1f7a3f;
+  --warning: #8a5a1f;
+  --info: #2f5fc7;
 }
 
 /* Smooth cross-page transitions where supported; a harmless no-op elsewhere */
@@ -2164,11 +2191,11 @@ h6 { font-size: 0.9rem; }
 }
 
 .journal-entry[data-entry-type="test"]::before {
-  background: #3fbf6f;
+  background: var(--success);
 }
 
 .journal-entry[data-entry-type="failed"]::before {
-  background: #e05555;
+  background: var(--error-text);
 }
 
 .journal-entry-meta {
@@ -2439,19 +2466,19 @@ pre.has-line-numbers {
 }
 
 .callout-note {
-  border-left-color: #4f8ff7;
+  border-left-color: var(--info);
 }
 
 .callout-tip {
-  border-left-color: #3fbf6f;
+  border-left-color: var(--success);
 }
 
 .callout-warning {
-  border-left-color: #e0a63a;
+  border-left-color: var(--warning);
 }
 
 .callout-danger {
-  border-left-color: #e05555;
+  border-left-color: var(--error-text);
 }
 
 .mermaid {

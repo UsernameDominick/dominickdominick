@@ -1,5 +1,10 @@
 .admin-body {
   overflow: hidden;
+  /* Referenced by .admin-sidebar's width and .modal's centering offset —
+     defined once, up here, since modal dialogs are siblings of #app (not
+     descendants), so a variable set on .admin-app wouldn't inherit down
+     to them at all. */
+  --admin-sidebar-width: 240px;
 }
 
 /* CSS specificity ties can make our own display:flex/grid rules beat the
@@ -55,7 +60,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
 }
 
 .login-error {
-  color: #e85a5a;
+  color: var(--error-text);
   font-size: 0.85rem;
 }
 
@@ -73,7 +78,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
    here are always visible with no click-to-reveal step, and there's no
    horizontal-space budget to run out of the way there was in a row. */
 .admin-sidebar {
-  width: 240px;
+  width: var(--admin-sidebar-width);
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -240,9 +245,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   position: absolute;
   top: -4px;
   right: -6px;
-  /* #e05252 only hit 3.82:1 against white text at this size, failing
-     WCAG AA's 4.5:1; this darker red is the same hue at ~5.6:1. */
-  background: #c62828;
+  background: var(--error-bg);
   color: #fff;
   font-size: 0.65rem;
   font-weight: 700;
@@ -484,8 +487,11 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   flex: 1;
 }
 
+/* White text on the old #e85a5a only reached 3.48:1 — under WCAG AA's
+   4.5:1 minimum for normal text. --error-bg is the verified-safe (5.62:1)
+   variant meant for exactly this "white text on a solid red" role. */
 .danger {
-  background: #e85a5a !important;
+  background: var(--error-bg) !important;
   color: #fff !important;
   margin-top: 16px !important;
 }
@@ -593,7 +599,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
 .alt-text-warning {
   display: block;
   font-size: 0.65rem;
-  color: #e0a030;
+  color: var(--warning);
   margin-top: 2px;
 }
 
@@ -644,6 +650,17 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   align-items: center;
   justify-content: center;
   z-index: 100;
+}
+
+/* The sidebar is a persistent, always-visible column on desktop (not an
+   off-canvas drawer the way it is on mobile) — centering a dialog on the
+   full window leaves it looking pulled left of where the actual workspace
+   starts. Excluding that width from the centering box instead means the
+   dialog centers in the same visible area the canvas/palette/inspector do. */
+@media (min-width: 861px) {
+  .modal {
+    left: var(--admin-sidebar-width);
+  }
 }
 
 .modal-inner {
@@ -901,15 +918,9 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   min-height: 1.2em;
 }
 
-/* Two shades so this stays readable (WCAG AA) against both the dark
-   admin theme's near-black background and the light theme's white one —
-   a single fixed color can't hit 4.5:1 against both at once. */
 .save-conflict {
-  color: #e8663a;
+  color: var(--warning);
   font-weight: 600;
-}
-:root[data-theme="light"] .save-conflict {
-  color: #c94f24;
 }
 
 .save-conflict-reload {
@@ -1354,7 +1365,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
 
 /* Overlap warning flash */
 @keyframes overlap-flash {
-  0%, 100% { border-color: #e85a5a; box-shadow: 0 0 0 2px rgba(232, 90, 90, 0.4); }
+  0%, 100% { border-color: var(--error-text); box-shadow: 0 0 0 2px rgba(232, 90, 90, 0.4); }
   50% { border-color: var(--border); box-shadow: none; }
 }
 
@@ -1559,22 +1570,12 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   border-radius: 6px;
 }
 
-/* Two shades, same reasoning as .save-conflict: #3fae5a reads at 6.95:1 on
-   the dark admin theme but only 2.83:1 on white — well under WCAG AA. */
 .contrast-pass {
-  color: #3fae5a;
-}
-
-:root[data-theme="light"] .contrast-pass {
-  color: #1f7a3f;
+  color: var(--success);
 }
 
 .contrast-fail {
-  color: #e8663a;
-}
-
-:root[data-theme="light"] .contrast-fail {
-  color: #c94f24;
+  color: var(--warning);
 }
 
 .link-warnings:empty {
@@ -1988,9 +1989,9 @@ kbd {
 
 .lock-badge.diagnostic-error,
 .lock-badge.broken-ref-badge {
-  background: #c0392b;
+  background: var(--error-bg);
   color: #fff;
-  border-color: #c0392b;
+  border-color: var(--error-bg);
 }
 
 .layer-preview {
@@ -2359,11 +2360,11 @@ kbd {
 }
 
 .sim-power-status.is-powered {
-  color: #ffbf4d;
+  color: var(--success);
 }
 
 .sim-power-status.is-danger {
-  color: #ff6b5c;
+  color: var(--error-text);
   font-weight: 600;
 }
 
@@ -2612,7 +2613,7 @@ kbd {
 }
 
 #pe-save-overwrite {
-  background: #e85a5a;
+  background: var(--error-bg);
   color: #fff;
 }
 
@@ -3046,11 +3047,11 @@ kbd {
 }
 
 .link-check-row.ok .link-check-status {
-  color: #50c878;
+  color: var(--success);
 }
 
 .link-check-row.broken .link-check-status {
-  color: #e85a5a;
+  color: var(--error-text);
 }
 
 /* Preview link */
@@ -3321,7 +3322,7 @@ kbd {
 
 .redirect-row button {
   background: transparent;
-  color: #e85a5a;
+  color: var(--error-text);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 4px 10px;

@@ -3911,3 +3911,74 @@ instead:
   `getBoundingClientRect()` rather than assuming a fixed window width,
   so the sidebar's ~240px doesn't affect any block drag/resize math,
   only how much room is left for the canvas to render in.
+
+### Twenty-first backlog item — theme/color consistency pass, at explicit user request
+- ✅ **Dialogs no longer center on the full window** — a direct
+  symmetry regression from the sidebar redesign above: `.modal` was
+  `position:fixed; inset:0` with the content flex-centered in it, which
+  correctly centered on the full browser width when there was no
+  persistent side column, but now visibly skews every dialog toward
+  the sidebar's 240px now that one exists (confirmed the sidebar
+  itself isn't actually a click-through/rendering bug first — it
+  really does sit under the dialog's backdrop, z-index and all; it's
+  purely a centering-box problem). Added a `--admin-sidebar-width`
+  variable (on `.admin-body`, not `.admin-app`, since dialogs are
+  DOM siblings of `#app` and wouldn't inherit a variable set there)
+  and, above the 860px mobile breakpoint (where the sidebar is a
+  persistent column rather than an off-canvas drawer), offset
+  `.modal`'s left edge by it so dialogs center in the same visible
+  workspace the canvas/palette/inspector already do. Verified via
+  screenshot across several modals (Redirects, Site Settings) at
+  1440×900 — dialogs now sit visibly centered in the canvas area
+  instead of pulled left.
+- ✅ **Consolidated scattered one-off status colors into shared,
+  WCAG-verified tokens, and fixed two real contrast bugs found in the
+  process** — audited every hardcoded hex color across both
+  stylesheets (excluding legitimate exceptions: a decorative SVG
+  illustration, device-mockup frame chrome, and white icons overlaid
+  on photographic media thumbnails, none of which are theme-driven by
+  design). Found the "danger/error red" concept alone had *four*
+  different one-off hex values (`#e85a5a`, `#c62828`, `#c0392b`, plus
+  an already-defined-but-unused `--error-text` token), "success green"
+  had three, and "warning amber" had four — each picked independently
+  per feature rather than sharing one considered value, with zero
+  light-theme adaptation on the public site's versions at all.
+  Tracing actual contrast ratios (same methodology as this palette's
+  existing verified-ratio comments) surfaced two genuine bugs, not
+  just inconsistency:
+  1. `.danger` and `#pe-save-overwrite` used `#e85a5a` as a
+     background with white text on top — 3.48:1, under WCAG AA's
+     4.5:1 minimum for text. That value was already correctly tuned
+     as *text* color against `--bg` (5.65:1, fine) but never verified
+     in the different "background holding white text" role.
+  2. The public site's `.callout-*` admonition boxes and the build
+     journal's colored timeline dots had **no light-theme override at
+     all** — three of the four callout colors measured under WCAG's
+     3:1 minimum for non-text contrast against the light theme's
+     background (as low as 2.09:1), making a "warning" callout's
+     colored border almost invisible to anyone using light mode.
+  Fixed by adding `--success`/`--warning`/`--info` (new) and
+  `--error-bg` (new; `--error-text` already existed but was only used
+  once) to `public/style.css`'s shared `:root`/`:root[data-theme=
+  "light"]` blocks — inherited by both the public site and the admin,
+  since admin pages load both stylesheets — each verified against
+  `--bg`/white the same way every existing token already documents.
+  Replaced all ~20 call sites across both stylesheets (delete buttons,
+  the broken-reference and diagnostic-error badges, save-conflict and
+  contrast-pass/fail indicators, link-check status, the simulation
+  builder's power-status readout, and the public site's callouts and
+  journal timeline) with the shared tokens, deleting three now-
+  redundant manual light/dark override blocks in the process (the
+  token itself is theme-aware, so a caller no longer needs its own
+  copy of that logic). Verified via Playwright: the delete button's
+  background is now the verified-safe `#c62828` everywhere; a test
+  article with all four callout types renders clearly differentiated
+  colors in both themes (previously-inaudible light-theme colors now
+  visibly distinct); the full regression suite and every sidebar nav
+  destination still pass with zero console errors.
+  Scope note: this was audited and fixed as a genuine consistency/
+  accessibility pass, not a redesign of the palette's actual hues —
+  the existing dark violet-black + orange-coral identity (already
+  documented with its own verified contrast ratios) is unchanged.
+  Spacing/symmetry auditing across the rest of the admin's popups
+  continues as an ongoing pass at the user's request.
