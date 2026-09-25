@@ -4677,3 +4677,294 @@ bug found and fixed:
 
 Full regression suite green; test article/project deleted and confirmed
 gone via D1.
+
+## 13. Creative-suite expansion backlog (2026-09-25)
+
+User handed over a 600-item wishlist asking to massively expand the
+three existing browser-based editors (Photo Editor, Song/DAW, Simulation
+builder) toward near-professional depth, with all editors + the CMS
+sharing one media library, project relationships, permissions, saving,
+and version history. Triaged via 4 parallel research passes (one per
+area), each reading the actual current implementation before ranking —
+not evaluating against Photoshop/Ableton/SPICE in the abstract. Workflow
+going forward: pull an item (easiest first), research + implement, get a
+critic agent to score it out of 10, fix and resubmit until it scores 9-10
+(or the only things left are minor polish / genuine out-of-scope calls),
+and log every finding a critic raises — not just the ones fixed in that
+pass — as its own line here.
+
+**Shared foundation, confirmed by all 4 passes independently**: pages/
+articles/projects already share `version` + `checkConflict()` optimistic
+locking, soft-delete/trash, a generic `revisions` table, `activity_log`,
+and autosave. Media already has real file-level versioning
+(`media_revisions` + `media_versions`, R2 `_versions/` prefix) and usage
+tracking (`findMediaUsage`/`getAllMediaUsage`). **`simulations` and
+`songs` have NONE of this** — bare `{id, name, data JSON, updated_at}`
+rows, zero autosave/conflict/revision/trash wiring in either
+simulation-builder.js or song-builder.js. This is the single biggest gap
+the whole wishlist is reaching for, and the natural fix is generalizing
+the existing media-revisions pattern into one generic `entity_versions`
+table (entity_type/entity_id/snapshot) plus a generic asset/relationship
+join, rather than building three separate systems.
+
+**Current reality per editor**, bluntly, since it drove every ranking:
+- **Photo Editor** (`public/admin/photo-editor.js`): a flat single-canvas
+  Canvas2D raster editor. No layer system, no vector paths, no true
+  selection engine (just a rectangular crop), no masks, no adjustment
+  layers. Adjustments are baked via CSS `ctx.filter`. Undo is a 15-deep
+  full-canvas-snapshot stack. Save is "as new" (fresh upload) or
+  "overwrite" (versioned PUT) — both already exist.
+- **Song/DAW** (`song-builder.js`/`song-engine.js`/`song-embed.js`): a
+  fixed 16-step drum+piano-roll sequencer, pure synthesized Web Audio
+  (oscillators/noise, no sample playback), single tempo, one melody
+  voice, no recording/mixing/effects/automation at all.
+- **Simulations** (`simulation-builder.js`/`sim-components.js`/
+  `sim-player.js`): "power"/analysis is a BFS reachability graph plus
+  Ohm's law over a single shortest path — not a real circuit solver.
+  Static SVG rendering (client canvas + a hand-duplicated server-side SVG
+  renderer for embeds). Undo is an in-memory JSON-snapshot stack, lost on
+  reload. No digital-logic engine, no MCU emulation, no audio engine, no
+  mechanical/thermal engine.
+- **Shared platform**: `preview_links` and `templates` are already
+  generic by content type; the full backup system already supports
+  inspect-before-restore, verify, download, and restore; `error_log` and
+  `webhook_deliveries` tables exist. No queue/job system beyond the daily
+  cron, no roles/permissions system (single admin cookie session only),
+  no automation-trigger engine.
+
+### Photo Editor — Easy
+2. Blank document creation — new modal + canvas init, same pattern as open().
+3. Document presets — static size list feeding #2.
+5. Canvas resizing independent of image — extend crop logic to allow canvas-only resize.
+6. Image resizing with aspect lock — ctx.drawImage scale + lock checkbox.
+8. Canvas-view rotation — CSS transform on stack, no pixel change.
+17. Layer colors/labels — metadata fields once layers exist.
+18. Search/filter layers — simple list filter UI.
+31. Rect/ellipse selection — canvas path, same overlay pattern as crop.
+32. Freehand lasso — pointer path capture, like brush stroke.
+33. Polygonal lasso — click-to-add-vertex overlay.
+40. Save/name selections — JSON blob like existing photo-presets.
+43. Mask-only inspection view — toggle rendering mask canvas alone.
+44. Colored mask overlays — tint mask canvas, trivial compositing.
+59. Named editing snapshots — extend undo snapshots with a name/label.
+71. Brush size/hardness/opacity/flow — extend existing brush params.
+72. Pen-pressure support — PointerEvent.pressure already available.
+76. Saved brush presets — same pattern as photo-presets.
+77. Hard-edged pencil — brush variant with no smoothing.
+78. Airbrush buildup — brush variant with cumulative alpha.
+80. Accurate brush footprint preview — extend existing drawBrushCursor.
+86. Dodge/burn brushes — brightness brush, same shape as existing blur brush.
+90. Magnified retouch comparison — reuse existing originalSnapshot + zoom.
+92. Saved crop ratios — static ratio list constraining existing crop.
+93. Horizon straightening — arbitrary-angle rotate + auto-crop.
+102. Shared access to website fonts — font already uploaded/served, just reference in canvas font.
+108. Reusable text styles — preset pattern like photo-presets.
+109. Missing-font warnings — font-load check + fallback message.
+112. Independent corner-radius — once basic rect shape object exists, simple param.
+129. Adjustable grain — random per-pixel noise injection.
+139. Local vs external-upload indicator — UI label only.
+143. Searchable command palette — static command list + filter/keydown.
+146. Before/after split view — reuse existing originalSnapshot.
+150. Status bar (dimensions/zoom) — read existing canvas state into UI.
+158. Explain resource limits — static UI text.
+161. Export quality/size preview — canvas.toBlob quality param + size readout.
+169. Transparency preview vs backgrounds — checkerboard/color toggle behind canvas.
+174. Light/dark theme preview — wrap canvas container in themed class.
+
+### Photo Editor — Medium
+4, 7, 9, 10, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 29, 30, 35, 36, 37,
+38, 39, 42, 45, 46, 48, 49, 53, 55, 58, 60, 61, 62, 63, 64, 65, 66, 67,
+68, 69, 70, 73, 74, 75, 79, 81, 85, 87, 88, 89, 91, 95, 98, 99, 101, 103,
+104, 107, 110, 111, 116, 118, 119, 121, 122, 123, 124, 126, 127, 130,
+140 (★ also enterprise-flagged: spending-limit bookkeeping), 142, 144,
+147, 148, 149, 151, 152, 154, 156, 157, 159, 160, 162 (AVIF pushes toward
+Hard), 170, 172, 173, 176, 177, 178 — full one-line reasons for each are
+in the design conversation this session (2026-09-25); pull from there
+when picking one up. Two recurring blockers worth designing around
+before working this tier: most of layers/compositing/masks/nondestructive-
+editing (#11-60) share ONE foundational dependency — a real layer-stack/
+object-model architecture, which doesn't exist and is itself Hard, but
+unlocks dozens of these cheaply once built. Recommended sequencing:
+layer engine → selection-mask engine → most of the rest becomes
+incremental.
+
+### Photo Editor — Hard
+1, 11, 12, 25, 26, 27, 28, 34, 41, 47, 50, 51, 52, 54, 56, 57, 94, 96,
+97, 100, 105, 106, 113, 114, 115, 117, 120, 125, 128, 131, 132, 133, 134,
+135 (external generative API + billing), 136, 137, 138, 141 (dockable-
+panel framework rebuild — enterprise/product-shaped, flagged), 145, 153,
+155, 163, 164, 165, 166 (RAW decoding — borderline infeasible in-browser),
+167, 168, 171, 179. Items 131-138 (ML-assisted selection/removal/upscale/
+background-replacement) all need either a browser ML model or an
+external API with real billing — none of that infra exists today.
+
+### Photo Editor — Already done
+175 (explicit "save as new" vs "overwrite" already exists —
+`pe-save-new`/`pe-save-overwrite`). 180 (flatten redactions / strip
+metadata — canvas re-export already flattens and drops EXIF; see this
+session's own EXIF-stripping feature for the upload-side equivalent).
+
+### DAW/Audio — Already done
+246 (step sequencer — the drum grid already in song-builder.js).
+
+### DAW/Audio — Easy
+184. Tempo/time-signature settings — tempo field exists; add a sibling field.
+189. Session templates — default-data presets, pattern already used.
+190. Multiple sessions via tabs — songs already separate D1 rows/list UI.
+195. Dedicated master bus — one GainNode before destination.
+196. Track colors/icons/notes — metadata fields + UI, same as song name.
+197. Track search/filtering — client-side list filter.
+198. Hide tracks without disabling audio — separate UI flag from mute.
+199. Reorder/duplicate tracks — array ops, duplicate-song pattern exists.
+217. Reverse selected audio — reverse a Float32Array.
+218. Normalize to peak — scan buffer max, apply gain.
+220. Remove DC offset — subtract mean from buffer.
+236. Humanization — bounded Math.random() offsets on existing grid data.
+237. Transpose semitone/octave — shift note index in existing note table.
+276. Polarity inversion — GainNode(-1).
+277. Mono compatibility button — ChannelMerger sum, toggle.
+301. Peak meters — AnalyserNode, same pattern as waveform render.
+302. RMS meters — compute from time-domain array.
+305. Spectrum analyzer — AnalyserNode FFT + canvas draw (mirrors existing waveform canvas).
+309. Track/master clipping history — log exceedances like existing `log()` action table.
+311. MIDI-device discovery — extend existing `requestMIDIAccess` call already present.
+314. On-screen keyboard — UI wired to existing `playMelodyNote`.
+315. Computer-keyboard note entry — keydown → existing note-play function.
+321. Background autosave — periodic PATCH to existing `/songs/:id` endpoint.
+328. Cache waveform previews — store existing `renderWaveformPeaks` output.
+329. Warn before heavy sample imports — file.size check pre-decode.
+339. Export session report — dump JSON session fields to text.
+341. Publish track to a project — `song_id` block linking already exists.
+349. Generate waveform cover art — `renderWaveformPeaks` + canvas.toDataURL + existing upload endpoint.
+350. Reusable audio-player themes — CSS variable presets on existing embed CSS.
+351. Save mix snapshots — snapshot the existing JSON blob as a new row.
+355. Reference track/production notes — plain metadata fields.
+356. Detect missing samples before export — reuse existing dangling-reference reconciliation in db.js.
+
+### DAW/Audio — Medium
+182, 183, 185, 186, 187, 188, 191, 192, 193, 194, 200, 201, 203, 204,
+207, 209, 211-216, 219, 221, 222, 224, 226-230, 231-235, 238, 239, 240,
+241, 242, 244, 245, 247-250, 251-253, 255-259, 260, 261, 263, 266, 268,
+269, 271-274, 278, 279, 281-285, 288-290, 300, 306-308, 310, 312, 313,
+316, 317, 320, 323-325, 327, 330, 331-335, 337, 343-348, 352-354, 357,
+358, 360. Nearly everything here needs a multitrack clip/timeline model
+that doesn't exist yet — building that once unlocks most of this tier
+incrementally, same "one foundational blocker" pattern as the Photo
+Editor's layer engine.
+
+### DAW/Audio — Hard
+181 (the whole missing multitrack/timeline foundation), 202, 205, 206,
+208, 210, 223, 225, 243, 254, 262, 264, 265, 267, 270, 275, 280, 286,
+287, 291-299 (real pitch/time DSP — phase vocoder, YIN, etc.), 303, 304,
+318, 319, 322, 326, 336 (proper K-weighted LUFS loudness, none exists),
+338 (compressed codecs need heavy client-side encoders), 340 (proprietary
+DAW project formats effectively infeasible to support faithfully), 342
+(★ also enterprise-flagged: "restricted mixer" implies per-viewer access
+control beyond single-admin), 352, 359 (a sandboxed plugin architecture —
+substantial new infra + security surface).
+
+### Simulations — Already done
+361 (native editable docs — the simulations table + builder). 371
+(multi-select — rubber-band + shift-click already works).
+
+### Simulations — Easy
+362. Separate draft/published — new `published_data` column + toggle, like other content types.
+363. Deterministic runs/seeds — sim is deterministic already; add a seed field for future randomness.
+366. Reset to initial state — snapshot `data` on load, add Reset button.
+367. Save checkpoints — named snapshots array in `data`, reuse the undo JSON pattern.
+373. Rotate/mirror — add transform + flip pin coords, small render change.
+375. Configurable snapping — GRID_SNAP is already a constant; expose as UI control.
+378. Search component on canvas — reuse palette search pattern, filter+highlight.
+380. Keyboard placement/connection — extend existing keydown handler.
+385. Show hidden connections — toggle a "ghost wires" overlay, data already there.
+387. Selectable breadboard sizes — new `cols` param variant of existing breadboard def.
+388. Warn same-hole leads — check during snap-drop, data already tracks hole ids.
+389. Mechanical vs electrical distinction — already implicit; just surface it in UI.
+391. Named nets (ground/supply) — add a `label` field to node groups.
+393. Manual wire bend points — extend wire path from 2-point to polyline.
+394. Wire labels — add label field + text render, like part labels already.
+396. Wire thickness/appearance — CSS/attr option per wire.
+397. Detect disconnected ends — pins with no wire, simple set diff already available.
+398. Highlight net from point — reuse existing BFS reach function for highlighting.
+401. Searchable specs — reuse palette search; add spec text field.
+402. Favorites/recent — localStorage list on top of existing palette.
+403-405. Resistor/capacitor/inductor basic params — extra content fields, same pattern as resistance.
+409. Relays/switches — variant of existing switch component.
+410. Datasheet links — a URL field on component content.
+411. Adjustable DC supply — variant of existing battery/power_supply with voltage field.
+415-416. Current source / battery internal resistance — extra numeric fields feeding existing Ohm's-law path.
+427. Power dissipation — already computed for resistor/LED; extend to more types.
+431-432. Voltage/current meter — read existing `analysis` results into a display component.
+434. Continuity tester — thin wrapper around existing `connected()` BFS check.
+441. Basic logic gates (static icons only, no dynamic sim) — new component type.
+445. Truth-table editor — simple UI table bound to a gate's static behavior.
+463. Potentiometer — new component with a value slider, no new solver needed.
+524. Comments on components — comment field + tooltip render, same as labels.
+531. Consistent embed controls — mostly CSS/UI consistency pass.
+533. Thumbnail from saved view — render existing SVG to canvas, export PNG.
+534. Public param controls — expose whitelisted fields already in `data` via player UI.
+539. Deep links to component/view — URL hash + scroll/select, trivial with existing ids.
+
+### Simulations — Medium
+364, 365, 368, 369, 370, 372, 374, 376, 377, 379, 381-384, 386, 390, 392,
+395, 399, 400, 406-408, 412-414, 417-420, 421-430 (DC op-point specifically;
+see Hard for transient/AC), 433, 435-440, 442-444, 446-450, 456-460,
+464-470, 471-478, 479-480 (feed/export audio to/from the DAW), 481-490,
+491-500 (guided lessons — real new authoring subsystem, no new solver),
+501-510, 511-520 (mostly documentation/QA + moderate validation code),
+521-523, 525-530 (522 ★ enterprise-flagged: public template marketplace
+framing; 498 ★ "…or optional account" implies multi-user), 532, 535-538,
+540.
+
+### Simulations — Hard
+421-424 general case (real transient/AC/frequency-domain analysis needs
+an MNA-style solver — most of a small SPICE), 430 (tunable solver
+accuracy implies that same real solver), 451-455 (MCU firmware
+compilation/emulation — real toolchains like avr-gcc can't run in a
+Cloudflare Worker, needs an external compute service to build/maintain),
+459 (peripheral-bus inspection inherits 451-455's blocker), 506
+(physically-accurate overload/failure cascades — simple threshold-check
+version is Medium, listed above), 514-516 as true guarantees (need the
+general solver from 421-424 first), 529-530 (general netlist import
+across SPICE-family dialects — substantial ongoing-maintenance parser
+work).
+
+### Shared platform — Already done
+553 (conflict detection — optimistic-locking `checkConflict()` covers
+pages/articles/projects). 554 (per-row revision restore already exists).
+558 (backup inspect-before-restore + verify already exist). 580 (generic
+`preview_links` table with token/expiry already exists). 583 (`activity_log`
++ `log()` already used everywhere). 588 (secrets/webhook URLs already
+live in env bindings, not content rows).
+
+### Shared platform — Easy
+544. Shared asset identifiers that survive renaming — media `key` is already the stable id.
+549. Project inbox for uncategorized uploads/ideas — a saved filter/view over unassigned media+content.
+567. Show storage used by originals/versions/previews/exports — sizes already recorded; just aggregate.
+569. Monitor editor crashes and failed saves — `error_log` table exists; wire client-side reporting from the 3 editors into it.
+572. Choose poster images/fallbacks before publishing — `scans.poster_key` pattern exists; extend to songs/simulations.
+576. Keep animated elements from moving surrounding text — CSS layout fix (reserved space/aspect-ratio).
+582. Protect source files containing private/sensitive material — mirrors the existing `private_notes` admin-only field pattern.
+584. Require stronger confirmation for destructive bulk operations — UI-only (typed confirm dialog).
+595. Searchable settings with direct navigation — `settings` k/v table exists; thin UI layer (may already be partly covered by this session's command-palette settings search — check before building).
+596. Contextual help explaining unfamiliar controls — static tooltip content, no infra.
+
+### Shared platform — Medium
+541-543, 545-548 (548's transcript search needs transcripts, which don't
+exist yet), 550, 551, 555, 557, 559, 560, 563, 566, 568, 570, 571,
+573-575, 577-579, 589, 591-594, 598 (★ "per-module" framing leans
+enterprise; the simple env-flag version is fine for single-admin), 599.
+
+### Shared platform — Hard (mostly flagged as likely out of scope for a single-admin site)
+552 [offline-first sync — out of scope], 556, 561-562 [job queue — out of
+scope], 564-565 [multiple compute backends / per-module spending limits —
+out of scope], 581 [roles/permissions beyond one admin — out of scope],
+585-587 [automation-trigger engine + loop prevention — out of scope],
+590 [depends on 581's nonexistent permissions — out of scope], 597
+[package/dependency system — out of scope], 600 [full module-platform
+governance spec — out of scope].
+
+Next: start pulling Easy items (any area — momentum matters more than
+strict item order) under the research → implement → critic-score →
+iterate-to-9-or-10 workflow, logging every critic finding here as its
+own line whether or not it's fixed in that pass.
