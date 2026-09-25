@@ -4209,10 +4209,30 @@ was done with each:
   single-column stacking on mobile, tags/dates/excerpts all rendering
   correctly; full regression suite green.
 
-Two items from the same review are real but need a decision only the
-user can make before building (see chat): the site currently has no
-persistent navigation to Articles/Projects/Topics anywhere (no pages
-have `nav_label` set, and Articles/Projects aren't rows in the `pages`
-table a nav entry could attach to), and the real Home page has no H1 —
-fixing the latter means writing actual heading text for a real,
-user-facing page, not a code change.
+Two items from the same review needed a decision only the user could
+make before building. The Home-page-H1 item is intentionally left for
+the user to write themselves — not a code change. The navigation item
+was resolved (user chose to always show Articles/Projects/Topics) and
+is implemented below.
+
+- ✅ **Persistent site navigation to Articles/Projects/Topics** — the
+  site had zero persistent nav; those routes were only reachable via
+  direct URL or a manually-placed page-builder link block, and
+  Articles/Projects aren't rows in the `pages` table so a normal
+  `nav_label` couldn't attach to them anyway. `listNavPages()`
+  (worker/db.js) now prepends a fixed `BASELINE_NAV_ITEMS` array
+  (Articles → `/random`, Projects → `/projects`, Topics → `/topics`)
+  ahead of whatever custom `nav_label` pages exist, so the three core
+  destinations always show up first in the tab bar on every page.
+  Since every route handler in worker/index.js already renders its nav
+  through this one function (14+ call sites), the fix applies
+  site-wide from a single change — no per-route edits needed. Also
+  fixed a latent bug this surfaced: `renderTopicsIndex()` was passing
+  `activeSlug: null` to `renderShell()` (harmless before there was a
+  "Topics" tab to highlight), so visiting `/topics` never lit up its
+  own nav tab — changed to `activeSlug: "topics"`. Verified via
+  Playwright across homepage, `/random`, `/projects`, `/topics`, and
+  the 404 page: correct active-tab highlighting everywhere, nav
+  renders cleanly at both desktop (1280px) and mobile (390px) widths,
+  and the existing content (e.g. the Home page's GitHub link) is
+  unaffected. Full regression suite green.

@@ -570,7 +570,7 @@ async function renderTopicsIndex(env, navItems) {
     description: "Browse everything on dominickdominick.com by topic.",
     path: "/topics",
     navItems,
-    activeSlug: null,
+    activeSlug: "topics",
     bodyHtml,
     ogImage: defaultOgImage || null,
     theme,

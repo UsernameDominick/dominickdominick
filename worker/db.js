@@ -43,6 +43,20 @@ export async function listTrashedPages(env) {
 // also be a parent (enforced both here and at save time in admin-api.js),
 // so there's no cycle or multi-level case to guard against when building
 // the tree: every child's parent is guaranteed to already be top-level.
+// Articles/Projects/Topics aren't rows in the pages table — there was no
+// page a nav_label could even attach to for them — so with zero nav_label
+// pages configured (the actual state until an admin sets one up), the site
+// had no persistent navigation at all: no way to reach any content from
+// any page. These three are prepended unconditionally as a baseline
+// alongside whatever custom nav_label pages exist, rather than being the
+// only way to get a working nav — an admin who does configure their own
+// pages just gets them appended after these, not instead of them.
+const BASELINE_NAV_ITEMS = [
+  { slug: "random", nav_label: "Articles", nav_parent_id: null, children: [] },
+  { slug: "projects", nav_label: "Projects", nav_parent_id: null, children: [] },
+  { slug: "topics", nav_label: "Topics", nav_parent_id: null, children: [] },
+];
+
 export async function listNavPages(env) {
   const { results } = await env.DB
     .prepare(
@@ -53,7 +67,7 @@ export async function listNavPages(env) {
   for (const p of topLevel) {
     p.children = results.filter((c) => c.nav_parent_id === p.id);
   }
-  return topLevel;
+  return [...BASELINE_NAV_ITEMS, ...topLevel];
 }
 
 export async function createPage(env, { slug, title, meta_description, nav_label, nav_order, og_image, canonical_url, custom_json_ld }) {
