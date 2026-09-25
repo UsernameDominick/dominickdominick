@@ -1711,8 +1711,19 @@
       return `<label>${f.label}<select data-key="${f.key}"${f.numeric ? ' data-numeric="1"' : ""}>${options}</select></label>`;
     }
     if (f.type === "color") {
+      // The bulk multi-select inspector always calls this with val
+      // undefined by design ("no prefilled values" — different selected
+      // blocks likely have different existing colors, see
+      // renderBulkInspector()), which meant Clear could never appear
+      // there at all: a <input type="color"> itself never has an empty
+      // value, so val is the only signal this function normally has for
+      // "there's something to clear." idPrefix === "bulk" is the one
+      // reliable way to tell "this render legitimately has nothing to
+      // show yet" apart from "there's truly nothing to clear" — bulk mode
+      // always wants the button, since applyStyleToAll(key, null) already
+      // works fine, it just had no button wired to reach it.
       return `<label>${f.label}<input data-key="${f.key}" type="color" value="${escapeHtml(val || "#000000")}">${
-        val ? `<button type="button" class="clear-color" data-key="${f.key}">Clear</button>` : ""
+        val || idPrefix === "bulk" ? `<button type="button" class="clear-color" data-key="${f.key}">Clear</button>` : ""
       }</label>`;
     }
     if (f.type === "image-url") {
@@ -5735,6 +5746,7 @@
   // ---------- Find & replace ----------
   function findReplaceResultLabel(r) {
     if (r.kind === "block") return `${blockLabel(r.blockType)} block on page "${r.pageTitle}"`;
+    if (r.kind === "project") return `Project "${r.projectTitle}" (${r.fields.join(", ")})`;
     return `Article "${r.articleTitle}" (${r.fields.join(", ")})`;
   }
 
@@ -6566,12 +6578,20 @@
             sub: `/${p.slug}`,
             // The remote /search endpoint deliberately searches every page
             // regardless of deleted_at ("sees everything"), so a trashed
-            // page's title can still surface here — RECENT_KIND_RUN.page
-            // already guards against exactly this (added for the same gap
-            // in the Recent dropdown/Favorites), reused here instead of a
-            // second copy of the same check.
-            run: () => {
+            // page's title can still surface here — that's the real-
+            // deletion case RECENT_KIND_RUN.page's existence check exists
+            // for. But routing straight through it was wrong for a
+            // *different* reason: /search is a live server query, so a
+            // page created moments ago in another tab/session can be a
+            // completely real, genuine result that just isn't in this
+            // tab's own stale `pages` cache yet (only refreshed by this
+            // tab's own create/delete/restore actions) — that's not "no
+            // longer exists," it's "cache hasn't caught up." Refresh the
+            // cache once before trusting a miss, since the search result
+            // already proved the page exists server-side a moment ago.
+            run: async () => {
               closeCommandPalette();
+              if (!pages.some((existing) => existing.id === p.id)) await loadPages();
               RECENT_KIND_RUN.page(p.id);
             },
           })

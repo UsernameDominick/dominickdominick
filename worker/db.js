@@ -1370,6 +1370,24 @@ export async function runFindReplace(env, { find, replace, apply }) {
     }
   }
 
+  // A project's title/summary/body are exactly as user-facing as an
+  // article's title/body, but this sweep only ever covered articles —
+  // an admin doing a sitewide rename would silently miss every project.
+  const projects = await listProjects(env);
+  for (const p of projects) {
+    if (p.locked) continue;
+    const fields = {};
+    if (typeof p.title === "string" && p.title.includes(find)) fields.title = p.title.split(find).join(replace);
+    if (typeof p.summary === "string" && p.summary.includes(find)) fields.summary = p.summary.split(find).join(replace);
+    if (typeof p.body === "string" && p.body.includes(find)) fields.body = p.body.split(find).join(replace);
+    if (!Object.keys(fields).length) continue;
+    results.push({ kind: "project", projectId: p.id, projectTitle: p.title, fields: Object.keys(fields) });
+    if (apply) {
+      await snapshotProject(env, p.id);
+      await updateProject(env, p.id, fields);
+    }
+  }
+
   return results;
 }
 

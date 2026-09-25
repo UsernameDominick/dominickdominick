@@ -3450,3 +3450,41 @@ colliding) and found one new bug plus two pre-existing ones:
   notification's action at its actual tab. Verified via Playwright with
   a real seeded error_log row: clicking the resulting "1 error(s) in the
   last 24h" notification now correctly lands on the Logs tab.
+
+### Eleventh critic pass — one real regression found, two suggestions shipped
+- ✅ **The centralized page-existence guard produced false positives for
+  a page found by live search but not yet in the client's local cache**
+  — routing the command-palette "Page:" search result through
+  `RECENT_KIND_RUN.page` (added last batch) was correct for the Recent/
+  Favorites entry points, whose local `pages` cache can only ever
+  reference pages this browser tab already touched — a miss there
+  really does mean deleted. But `/search` is a live server query that
+  can find a page created moments ago in another tab/session, before
+  this tab's own cache has any idea it exists — that's "cache hasn't
+  caught up," not "doesn't exist," and the shared guard couldn't tell
+  the difference. Fixed by having the search-result path refresh the
+  page cache once (`loadPages()`) before trusting a miss, since the
+  search result itself already proved the page exists server-side a
+  moment ago; the Recent/Favorites paths are untouched and still
+  correct as-is. Verified via Playwright: a page created via the API
+  after the admin tab loaded now opens correctly from search with no
+  alert, while a genuinely trashed page still correctly alerts.
+- ✅ **Find & Replace extended to cover Projects** — the sweep already
+  covered article titles/bodies and page block text, but never
+  projects, even though a project's title/summary/body are exactly as
+  user-facing. Mirrors the existing article-handling code exactly
+  (snapshot before writing, split/join replace, skip locked projects).
+  Verified via Playwright: a project containing a unique term now shows
+  up correctly in a Find & Replace preview alongside articles.
+- ✅ **Bulk multi-select "Clear" button for color-type style fields now
+  actually renders** — `renderBulkInspector()` always calls `fieldHtml()`
+  with `val` undefined by design (different selected blocks may have
+  different existing colors), but the Clear button's own visibility
+  check required a truthy `val` — so it could never appear in bulk
+  mode at all, even though the underlying `applyStyleToAll(key, null)`
+  handler it needed was already correctly wired and working. Fixed by
+  also showing the button when `idPrefix === "bulk"`. Verified via
+  Playwright with two real blocks (red and green text color): shift-
+  selecting both and clicking the now-visible bulk Clear button
+  correctly nulled `style.color` on both, confirmed via a direct D1
+  query.
