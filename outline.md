@@ -837,9 +837,16 @@ block already support any of these as a plain page:
   modal, no schema change or server-side binary parsing needed)
 - 🔶 Search by filename/tag/type/dimensions/usage (filename+tag ✅; type
   filter ✅ — Images/Audio/Other dropdown next to the folder filter,
-  derived from the key prefix/extension, no schema change; dimensions/
-  usage as filters ☐ — "usage" already exists as a per-file lookup, just
-  not as a library-wide filter)
+  derived from the key prefix/extension, no schema change; usage ✅ — a
+  "Used in…" text filter narrows the grid to files referenced from a
+  page/article/project matching that text. `findMediaUsage()` (the
+  existing per-file lookup) and the library's unused-file detection both
+  did their own full-site traversal separately; consolidated into one
+  shared `getMediaUsageMap()` walk so adding this filter's per-item usage
+  breakdown to the `/media` list response didn't mean a third traversal —
+  `GET /media` now returns each item's usage as flattened "Type: Title"
+  strings, matched as a plain substring like the filename/tag search
+  already works. Wired into saved searches too; dimensions still ☐)
 - ✅ Unused/orphaned file review
 - ☐ Image optimization comparison, video captions/transcripts, audio-file support (images only today), PDF/doc previews, direct-download controls, drag-to-page, resumable uploads, upload queue with retry, storage-by-type dashboard, private-metadata stripping
 

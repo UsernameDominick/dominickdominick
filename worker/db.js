@@ -1542,59 +1542,48 @@ export async function listMediaFolders(env) {
   return results.map((r) => r.folder);
 }
 
-// Walks every page block and article/project/setting field that can hold a
-// media URL, for "where is this used?" before someone deletes a file.
-export async function findMediaUsage(env, mediaUrl) {
-  const pages = await listPages(env);
-  const pageBlocks = await Promise.all(pages.map((p) => listBlocks(env, p.id)));
-  const articles = await listArticles(env);
-  const projects = await listProjects(env);
-  const usage = [];
-  pages.forEach((p, i) => {
-    if (p.og_image === mediaUrl) usage.push({ type: "Page share image", title: p.title });
-    for (const b of pageBlocks[i]) {
-      const c = b.content || {};
-      const style = b.style || {};
-      if (b.type === "image" && c.url === mediaUrl) usage.push({ type: "Image block", title: p.title });
-      if (b.type === "gallery" && Array.isArray(c.images) && c.images.includes(mediaUrl)) {
-        usage.push({ type: "Gallery block", title: p.title });
-      }
-      if (style.backgroundImage === mediaUrl) usage.push({ type: "Block background", title: p.title });
-    }
-  });
-  for (const a of articles) {
-    if (a.og_image === mediaUrl) usage.push({ type: "Article share image", title: a.title });
-  }
-  for (const pr of projects) {
-    if (pr.og_image === mediaUrl) usage.push({ type: "Project share image", title: pr.title });
-  }
-  const defaultOg = await getSetting(env, "default_og_image");
-  if (defaultOg === mediaUrl) usage.push({ type: "Site default share image", title: null });
-  return usage;
-}
-
-// Same traversal as findMediaUsage, but returns every referenced URL at
-// once (a Set) instead of the breakdown for one URL — used to flag unused
-// files in the library without an O(n) round of usage lookups per file.
-export async function getAllUsedMediaUrls(env) {
+// Single traversal producing every media URL's usage details at once — one
+// walk of pages/blocks/articles/projects/settings, not one per file. Both
+// findMediaUsage (one file's own breakdown) and the "usage" library filter
+// below derive from this instead of re-walking the site separately.
+async function getMediaUsageMap(env) {
   const pages = await listPages(env);
   const pageBlocks = await Promise.all(pages.map((p) => listBlocks(env, p.id)));
   const [articles, projects, defaultOg] = await Promise.all([listArticles(env), listProjects(env), getSetting(env, "default_og_image")]);
-  const used = new Set();
-  if (defaultOg) used.add(defaultOg);
-  for (const p of pages) if (p.og_image) used.add(p.og_image);
-  for (const a of articles) if (a.og_image) used.add(a.og_image);
-  for (const pr of projects) if (pr.og_image) used.add(pr.og_image);
-  for (const blocks of pageBlocks) {
-    for (const b of blocks) {
+  const usage = new Map();
+  const add = (url, type, title) => {
+    if (!url) return;
+    if (!usage.has(url)) usage.set(url, []);
+    usage.get(url).push({ type, title });
+  };
+  pages.forEach((p, i) => {
+    add(p.og_image, "Page share image", p.title);
+    for (const b of pageBlocks[i]) {
       const c = b.content || {};
       const style = b.style || {};
-      if (b.type === "image" && c.url) used.add(c.url);
-      if (b.type === "gallery" && Array.isArray(c.images)) c.images.forEach((u) => used.add(u));
-      if (style.backgroundImage) used.add(style.backgroundImage);
+      if (b.type === "image") add(c.url, "Image block", p.title);
+      if (b.type === "gallery" && Array.isArray(c.images)) c.images.forEach((u) => add(u, "Gallery block", p.title));
+      if (style.backgroundImage) add(style.backgroundImage, "Block background", p.title);
     }
-  }
-  return used;
+  });
+  for (const a of articles) add(a.og_image, "Article share image", a.title);
+  for (const pr of projects) add(pr.og_image, "Project share image", pr.title);
+  if (defaultOg) add(defaultOg, "Site default share image", null);
+  return usage;
+}
+
+// Walks every page block and article/project/setting field that can hold a
+// media URL, for "where is this used?" before someone deletes a file.
+export async function findMediaUsage(env, mediaUrl) {
+  const map = await getMediaUsageMap(env);
+  return map.get(mediaUrl) || [];
+}
+
+// The full per-location breakdown for every used URL at once, for the
+// library's "usage" filter — typing e.g. "About" narrows the grid to
+// files actually referenced from a page/article/project matching that text.
+export async function getAllMediaUsage(env) {
+  return getMediaUsageMap(env);
 }
 
 // ---------- 3D scans ----------

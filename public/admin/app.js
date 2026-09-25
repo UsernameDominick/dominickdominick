@@ -4002,6 +4002,7 @@
     const folderFilter = el("media-folder-filter").value;
     const typeFilter = el("media-type-filter").value;
     const search = el("media-search").value.trim().toLowerCase();
+    const usageSearch = el("media-usage-filter").value.trim().toLowerCase();
     const unusedOnly = el("media-unused-filter").checked;
     const duplicatesOnly = el("media-duplicates-filter").checked;
     const filtered = mediaItems.filter((item) => {
@@ -4009,6 +4010,7 @@
       if (typeFilter && mediaItemType(item) !== typeFilter) return false;
       if (unusedOnly && item.used) return false;
       if (duplicatesOnly && !item.isDuplicate) return false;
+      if (usageSearch && !(item.usage || []).some((u) => u.toLowerCase().includes(usageSearch))) return false;
       if (!search) return true;
       const filename = item.key.split("/").pop().toLowerCase();
       return filename.includes(search) || item.tags.some((t) => t.toLowerCase().includes(search));
@@ -4306,6 +4308,7 @@
   el("media-folder-filter").addEventListener("change", renderMediaGrid);
   el("media-type-filter").addEventListener("change", renderMediaGrid);
   el("media-search").addEventListener("input", renderMediaGrid);
+  el("media-usage-filter").addEventListener("input", renderMediaGrid);
 
   // ---------- Media saved searches ----------
   let mediaSavedSearches = [];
@@ -4325,6 +4328,7 @@
     el("media-folder-filter").value = f.folder || "";
     el("media-type-filter").value = f.type || "";
     el("media-search").value = f.search || "";
+    el("media-usage-filter").value = f.usage || "";
     el("media-unused-filter").checked = !!f.unused;
     el("media-duplicates-filter").checked = !!f.duplicates;
     renderMediaGrid();
@@ -4337,6 +4341,7 @@
       folder: el("media-folder-filter").value,
       type: el("media-type-filter").value,
       search: el("media-search").value,
+      usage: el("media-usage-filter").value,
       unused: el("media-unused-filter").checked,
       duplicates: el("media-duplicates-filter").checked,
     };

@@ -38,7 +38,7 @@ import {
   deleteMediaVersions,
   listMediaFolders,
   findMediaUsage,
-  getAllUsedMediaUrls,
+  getAllMediaUsage,
   getDuplicateMediaHashes,
   logActivity,
   listActivityLog,
@@ -911,14 +911,15 @@ async function routeAdminApi(request, env, url, ctx) {
   if (path === "/media" && method === "GET") {
     const listed = await env.MEDIA.list({ prefix: "uploads/", limit: 500 });
     const objects = listed.objects.sort((a, b) => new Date(b.uploaded) - new Date(a.uploaded));
-    const [meta, usedUrls, duplicateGroups] = await Promise.all([
+    const [meta, usageMap, duplicateGroups] = await Promise.all([
       getMediaMeta(env, objects.map((o) => o.key)),
-      getAllUsedMediaUrls(env),
+      getAllMediaUsage(env),
       getDuplicateMediaHashes(env),
     ]);
     const duplicateKeys = new Set(duplicateGroups.flatMap((g) => g.keys));
     const items = objects.map((o) => {
       const url = `/media/${o.key}`;
+      const usage = usageMap.get(url) || [];
       return {
         key: o.key,
         url,
@@ -932,7 +933,12 @@ async function routeAdminApi(request, env, url, ctx) {
         license: meta[o.key]?.license || null,
         hash: meta[o.key]?.hash || null,
         isDuplicate: duplicateKeys.has(o.key),
-        used: usedUrls.has(url),
+        used: usage.length > 0,
+        // Flattened "type: title" strings — the library's usage filter
+        // does a plain substring match against these, same as it already
+        // does for filename/tags, rather than the client needing to know
+        // this shape.
+        usage: usage.map((u) => (u.title ? `${u.type}: ${u.title}` : u.type)),
       };
     });
     return json(items);
