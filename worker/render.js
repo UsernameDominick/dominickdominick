@@ -417,6 +417,31 @@ export function renderArchiveHtml(archive, customEmptyText = "") {
     .join("");
 }
 
+// Shared "Page N of M" links for a single-type index page (articles or
+// projects) — same visual pattern as the search page's per-type pagination,
+// but simpler since there's no type/sort query string to preserve.
+export function renderIndexPaginationHtml(basePath, page, totalPages) {
+  if (totalPages <= 1) return "";
+  const link = (p, label) => `<a href="${basePath}${p > 1 ? `?page=${p}` : ""}">${label}</a>`;
+  return `<div class="search-pagination">${page > 1 ? link(page - 1, "← Previous") : ""}<span>Page ${page} of ${totalPages}</span>${
+    page < totalPages ? link(page + 1, "Next →") : ""
+  }</div>`;
+}
+
+export function renderArticlesIndexHtml(articles, customEmptyText = "") {
+  if (!articles.length) return `<p class="empty-hint">${esc(customEmptyText || "No articles published yet.")}</p>`;
+  const items = articles.map((a) => `<li><a href="/random/${esc(a.slug)}">${esc(a.title)}</a><p>${esc(excerpt(a.body, 140))}</p></li>`).join("");
+  return `<ul class="search-results">${items}</ul>`;
+}
+
+export function renderProjectsIndexHtml(projects, customEmptyText = "") {
+  if (!projects.length) return `<p class="empty-hint">${esc(customEmptyText || "No projects published yet.")}</p>`;
+  const items = projects
+    .map((p) => `<li><a href="/projects/${esc(p.slug)}">${esc(p.title)}</a>${p.summary ? `<p>${esc(p.summary)}</p>` : ""}</li>`)
+    .join("");
+  return `<ul class="search-results">${items}</ul>`;
+}
+
 export function renderByline(article) {
   const names = ["Dominick", ...(article.co_authors || [])];
   return names.length > 1 ? `<span class="byline">By ${names.map(esc).join(" & ")}</span>` : "";

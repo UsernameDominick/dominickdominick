@@ -13,6 +13,8 @@ export const RESERVED_SLUGS = new Set([
   "shuffle",
   "search",
   "media",
+  "random",
+  "projects",
 ]);
 
 // SQLite's LIKE treats % and _ as wildcards with no default escape, so a
@@ -496,6 +498,54 @@ export async function listArticles(env, { publishedOnly = false, limit = null, t
   if (tag) articles = articles.filter((a) => a.tags.includes(tag));
   if (featuredOnly) articles = articles.filter((a) => a.featured);
   return articles;
+}
+
+export const INDEX_PAGE_SIZE = 20;
+
+// Paginated published-articles listing, backing the /random index page —
+// listArticles() above only supports a flat LIMIT with no offset/total
+// count, which a real "page 2 of N" listing needs.
+export async function listArticlesPaged(env, { page = 1, perPage = INDEX_PAGE_SIZE } = {}) {
+  const now = new Date().toISOString();
+  const offset = (Math.max(1, page) - 1) * perPage;
+  const [{ results }, countRow] = await Promise.all([
+    env.DB
+      .prepare(
+        `SELECT * FROM articles WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?) AND archived = 0
+         ORDER BY pinned DESC, COALESCE(published_at, created_at) DESC LIMIT ? OFFSET ?`
+      )
+      .bind(now, now, perPage, offset)
+      .all(),
+    env.DB
+      .prepare(
+        `SELECT COUNT(*) AS n FROM articles WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?) AND archived = 0`
+      )
+      .bind(now, now)
+      .first(),
+  ]);
+  return { articles: results.map(parseArticleRow), totalCount: countRow?.n ?? 0 };
+}
+
+// Same as listArticlesPaged, for the /projects index page.
+export async function listProjectsPaged(env, { page = 1, perPage = INDEX_PAGE_SIZE } = {}) {
+  const now = new Date().toISOString();
+  const offset = (Math.max(1, page) - 1) * perPage;
+  const [{ results }, countRow] = await Promise.all([
+    env.DB
+      .prepare(
+        `SELECT * FROM projects WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?) AND archived = 0
+         ORDER BY COALESCE(published_at, created_at) DESC LIMIT ? OFFSET ?`
+      )
+      .bind(now, now, perPage, offset)
+      .all(),
+    env.DB
+      .prepare(
+        `SELECT COUNT(*) AS n FROM projects WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?) AND archived = 0`
+      )
+      .bind(now, now)
+      .first(),
+  ]);
+  return { projects: results.map(parseProjectRow), totalCount: countRow?.n ?? 0 };
 }
 
 export async function listTrashedArticles(env) {

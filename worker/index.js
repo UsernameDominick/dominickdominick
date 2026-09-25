@@ -31,6 +31,9 @@ import {
   runScheduledLinkCheck,
   getTagCounts,
   getArchive,
+  listArticlesPaged,
+  listProjectsPaged,
+  INDEX_PAGE_SIZE,
   SEARCH_PAGE_SIZE,
   getContentByTag,
   getTopicMeta,
@@ -60,6 +63,9 @@ import {
   renderRelatedMediaHtml,
   renderTopicsIndexHtml,
   renderArchiveHtml,
+  renderIndexPaginationHtml,
+  renderArticlesIndexHtml,
+  renderProjectsIndexHtml,
   renderTopicPageHtml,
   renderShareLinks,
   renderReactionsHtml,
@@ -309,14 +315,9 @@ async function renderArticle(env, article, navItems, previewReason = null) {
   // long-form article blows past, overlapping whatever came after it
   // (reactions, related articles). Flow layout can't overlap; each section
   // just takes the height its own content needs.
-  // "/random" (the URL prefix every article lives under) has no index page
-  // of its own to link to — /archive is the closest real, working stand-in
-  // (every article/project, newest first) rather than a breadcrumb (and,
-  // via the same data, a BreadcrumbList structured-data entry) pointing at
-  // a 404.
   const breadcrumbHtml = renderBreadcrumbHtml([
     { name: "Home", path: "/" },
-    { name: "Articles", path: "/archive" },
+    { name: "Articles", path: "/random" },
     { name: article.title, path: `/random/${article.slug}` },
   ]);
   const bodyHtml = `<div class="reading-progress"></div>
@@ -359,7 +360,7 @@ async function renderArticle(env, article, navItems, previewReason = null) {
       "@type": "BreadcrumbList",
       itemListElement: [
         { "@type": "ListItem", position: 1, name: "Home", item: "https://dominickdominick.com/" },
-        { "@type": "ListItem", position: 2, name: "Articles", item: "https://dominickdominick.com/archive" },
+        { "@type": "ListItem", position: 2, name: "Articles", item: "https://dominickdominick.com/random" },
         { "@type": "ListItem", position: 3, name: article.title, item: `https://dominickdominick.com/random/${article.slug}` },
       ],
     },
@@ -436,6 +437,7 @@ async function renderProject(env, project, navItems, previewReason = null) {
   // grid-row-span scheme.
   const breadcrumbHtml = renderBreadcrumbHtml([
     { name: "Home", path: "/" },
+    { name: "Projects", path: "/projects" },
     { name: project.title, path: `/projects/${project.slug}` },
   ]);
   const bodyHtml = `${renderPreviewBannerHtml(previewReason)}
@@ -484,7 +486,8 @@ async function renderProject(env, project, navItems, previewReason = null) {
       "@type": "BreadcrumbList",
       itemListElement: [
         { "@type": "ListItem", position: 1, name: "Home", item: "https://dominickdominick.com/" },
-        { "@type": "ListItem", position: 2, name: project.title, item: `https://dominickdominick.com/projects/${project.slug}` },
+        { "@type": "ListItem", position: 2, name: "Projects", item: "https://dominickdominick.com/projects" },
+        { "@type": "ListItem", position: 3, name: project.title, item: `https://dominickdominick.com/projects/${project.slug}` },
       ],
     },
   ];
@@ -595,6 +598,66 @@ async function renderArchive(env, navItems) {
     canvasClass: "canvas article-canvas",
   });
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
+}
+
+// A dedicated, paginated articles index at /random — previously the only
+// real link target for the article breadcrumb/nav/RSS was /archive, which
+// mixes in projects and pages and has no pagination at all.
+async function renderArticlesIndex(env, navItems, page) {
+  const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
+  const { articles, totalCount } = await listArticlesPaged(env, { page });
+  const totalPages = Math.max(1, Math.ceil(totalCount / INDEX_PAGE_SIZE));
+  const bodyHtml = `<div class="block">
+    <h1>Articles</h1>
+    ${renderArticlesIndexHtml(articles)}
+    ${renderIndexPaginationHtml("/random", page, totalPages)}
+  </div>`;
+  const html = renderShell({
+    title: page > 1 ? `Articles · Page ${page} · Dominick` : "Articles · Dominick",
+    description: "Every article published on dominickdominick.com, newest first.",
+    path: "/random",
+    navItems,
+    activeSlug: "random",
+    bodyHtml,
+    ogImage: defaultOgImage || null,
+    theme,
+    footerText,
+    customHead,
+    // A page-2-and-beyond URL is a real, working page (not a thin/empty
+    // one), but it's just a slice of the same content the page-1 URL
+    // already covers — same reasoning as the topic/search noindex calls
+    // elsewhere, just for pagination instead of an empty filter result.
+    noindex: page > 1,
+    canvasClass: "canvas article-canvas",
+  });
+  return new Response(html, { status: page > totalPages && totalCount > 0 ? 404 : 200, headers: { "Content-Type": "text/html;charset=UTF-8" } });
+}
+
+// Same as renderArticlesIndex, for /projects.
+async function renderProjectsIndex(env, navItems, page) {
+  const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
+  const { projects, totalCount } = await listProjectsPaged(env, { page });
+  const totalPages = Math.max(1, Math.ceil(totalCount / INDEX_PAGE_SIZE));
+  const bodyHtml = `<div class="block">
+    <h1>Projects</h1>
+    ${renderProjectsIndexHtml(projects)}
+    ${renderIndexPaginationHtml("/projects", page, totalPages)}
+  </div>`;
+  const html = renderShell({
+    title: page > 1 ? `Projects · Page ${page} · Dominick` : "Projects · Dominick",
+    description: "Every project on dominickdominick.com, newest first.",
+    path: "/projects",
+    navItems,
+    activeSlug: "projects",
+    bodyHtml,
+    ogImage: defaultOgImage || null,
+    theme,
+    footerText,
+    customHead,
+    noindex: page > 1,
+    canvasClass: "canvas article-canvas",
+  });
+  return new Response(html, { status: page > totalPages && totalCount > 0 ? 404 : 200, headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
 // Reading history lives entirely in the visitor's own browser (localStorage,
@@ -812,6 +875,8 @@ async function renderSitemap(env) {
     ...projects.filter((p) => !p.sitemap_exclude).map((p) => ({ loc: `/projects/${p.slug}`, lastmod: p.updated_at || p.published_at })),
     { loc: "/topics", lastmod: null },
     { loc: "/archive", lastmod: null },
+    { loc: "/random", lastmod: null },
+    { loc: "/projects", lastmod: null },
     ...tagCounts.map((t) => ({ loc: `/topics/${encodeURIComponent(t.tag)}`, lastmod: null })),
   ];
   const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries
@@ -1117,6 +1182,18 @@ async function route(request, env, ctx) {
     if (path === "/archive") {
       const navItems = await listNavPages(env);
       return renderArchive(env, navItems);
+    }
+
+    if (path === "/random") {
+      const navItems = await listNavPages(env);
+      const page = Math.max(1, Number(url.searchParams.get("page")) || 1);
+      return renderArticlesIndex(env, navItems, page);
+    }
+
+    if (path === "/projects") {
+      const navItems = await listNavPages(env);
+      const page = Math.max(1, Number(url.searchParams.get("page")) || 1);
+      return renderProjectsIndex(env, navItems, page);
     }
 
     if (path === "/history") {

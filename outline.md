@@ -2141,9 +2141,40 @@ enough detail to act on directly later.
 - ✅ Real mobile reflow for the page grid — see the ✅ entry under
   Layout/reflow above (auto-stack full-width in desktop order by
   default, with an optional per-block `mobileColSpan` override).
-- A built-in `/random` (or `/writing`) and `/projects` index page with
-  pagination, so breadcrumbs/RSS/nav have a real target instead of
-  falling back to `/archive`.
+- ✅ A built-in, paginated `/random` (articles) and `/projects` index
+  page — previously the only real link target for the article
+  breadcrumb was `/archive`, which mixes in projects/pages and has no
+  pagination at all. Added `listArticlesPaged()`/`listProjectsPaged()`
+  (`worker/db.js`) — the same published-only filtering as
+  `listArticles`/`listProjects` but with real `LIMIT`/`OFFSET` +
+  a `COUNT(*)` for a total, since neither existing helper supported an
+  offset — and two new routes, `renderArticlesIndex`/`renderProjectsIndex`,
+  reusing the exact `?page=N` / "Page N of M" pagination pattern the
+  search page already established. Both are `noindex` past page 1 (a
+  real, working slice of the same content the page-1 URL covers, not
+  worth indexing separately) and 404 if `page` is past the last real
+  page. The article breadcrumb (and its JSON-LD mirror) now points at
+  `/random` instead of `/archive`; the project page gained a "Projects"
+  breadcrumb segment pointing at the new `/projects` index (it
+  previously had none at all — just Home → title). Both new paths are
+  in the sitemap and added to `RESERVED_SLUGS` so a future custom Page
+  can't be created at either slug again.
+  **Note:** production already had two hand-built Pages sitting at
+  these exact slugs ("Projects · Dominick" / "Random · Dominick",
+  presumably built before this feature existed as a manual stand-in) —
+  confirmed via a direct D1 query before shipping this, and the user
+  explicitly confirmed replacing them (these new routes are checked
+  before the generic page-slug lookup, so they now take priority; the
+  two old Page rows are still sitting in the pages table, just
+  unreachable at their URL — worth deleting via the admin Trash UI
+  next time you're in there, since I didn't touch production data
+  directly).
+  Verified via Playwright against 25 test articles (more than one
+  page's worth): `/random` page 1 shows 20 items with a "Page 1 of 2"
+  / next link, page 2 shows the remaining 5 with a previous link and
+  `noindex`, `/random?page=999` 404s, `/projects` renders a test
+  project, and both the article and project breadcrumbs read "Home /
+  Articles / …" and "Home / Projects / …" respectively.
 - One consolidated "Site Health" dashboard merging Diagnostics, SEO,
   Accessibility, Link Checker, Orphans, and Content Health into a
   single severity-sorted list with jump-to-fix links, now that the
