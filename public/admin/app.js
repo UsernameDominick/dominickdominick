@@ -4584,6 +4584,93 @@
     URL.revokeObjectURL(url);
   });
 
+  // Minimal RFC4180-ish CSV parser (quoted fields, "" escapes, \r\n or \n
+  // line endings) -- good enough for both a re-imported export and a
+  // pasted-from-spreadsheet parts list, without pulling in a library for
+  // the one CSV-reading feature this admin has.
+  function parseCsvText(text) {
+    const rows = [];
+    let row = [];
+    let field = "";
+    let inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inQuotes) {
+        if (c === '"') {
+          if (text[i + 1] === '"') {
+            field += '"';
+            i++;
+          } else inQuotes = false;
+        } else field += c;
+      } else if (c === '"') inQuotes = true;
+      else if (c === ",") {
+        row.push(field);
+        field = "";
+      } else if (c === "\r") {
+        // ignore -- \n (below) is what actually ends the row
+      } else if (c === "\n") {
+        row.push(field);
+        rows.push(row);
+        row = [];
+        field = "";
+      } else field += c;
+    }
+    if (field !== "" || row.length) {
+      row.push(field);
+      rows.push(row);
+    }
+    return rows.filter((r) => r.some((cell) => cell !== ""));
+  }
+
+  function findCsvColumn(header, aliases) {
+    return header.findIndex((h) => aliases.includes(String(h).trim().toLowerCase()));
+  }
+
+  el("import-bom-csv-btn").addEventListener("click", () => el("import-bom-csv-input").click());
+  el("import-bom-csv-input").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (!file || !currentProjectId) return;
+    const rows = parseCsvText(await file.text());
+    if (rows.length < 2) return alert("No rows found in that CSV.");
+    const header = rows[0];
+    const col = {
+      item: findCsvColumn(header, ["item", "name", "part", "part name"]),
+      quantity: findCsvColumn(header, ["quantity", "qty"]),
+      price: findCsvColumn(header, ["price paid", "price", "unit price", "cost"]),
+      link: findCsvColumn(header, ["where to buy", "link", "url"]),
+      substitution: findCsvColumn(header, ["substitution note", "substitution", "sub", "notes"]),
+    };
+    if (col.item === -1) return alert('CSV needs a header column named "Item" (or "Name"/"Part").');
+    let imported = 0;
+    let skipped = 0;
+    // Sequential, not Promise.all -- these hit the same POST endpoint the
+    // one-at-a-time "Add item" button uses, and a big paste shouldn't fire
+    // dozens of concurrent writes at it.
+    for (const row of rows.slice(1)) {
+      const item = String(row[col.item] || "").trim();
+      if (!item) {
+        skipped++;
+        continue;
+      }
+      const body = {
+        item,
+        quantity: col.quantity !== -1 ? row[col.quantity] : 1,
+        price: col.price !== -1 && row[col.price] ? row[col.price] : null,
+        link: (col.link !== -1 && (row[col.link] || "").trim()) || null,
+        substitution: (col.substitution !== -1 && (row[col.substitution] || "").trim()) || null,
+      };
+      try {
+        await api(`/projects/${currentProjectId}/bom`, { method: "POST", body: JSON.stringify(body) });
+        imported++;
+      } catch (err) {
+        skipped++;
+      }
+    }
+    await loadBomItems();
+    alert(`Imported ${imported} item${imported === 1 ? "" : "s"}.${skipped ? ` Skipped ${skipped} row${skipped === 1 ? "" : "s"} with no item name.` : ""}`);
+  });
+
   el("save-bom-item-btn").addEventListener("click", async () => {
     if (!currentProjectId) return;
     if (!el("bom-item").value.trim()) return alert("Item name is required.");

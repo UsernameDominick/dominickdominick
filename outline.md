@@ -3735,3 +3735,29 @@ instead:
   two articles itself showed only its sibling (self-exclusion works),
   and a one-character-short partial match correctly showed no hint
   (exact match only, matching the server's own lookup semantics).
+
+### Nineteenth backlog item — BOM CSV import
+- ✅ **Bulk "Import CSV…" for a project's Bill of Materials**,
+  complementing the already-shipped CSV export — previously the only
+  way to get parts into a BOM was one row at a time through the "Add
+  item" form, which is painful for a parts list already sitting in a
+  spreadsheet or a vendor cart export. Added a client-side-only
+  feature (no schema change, no new endpoint — it just loops the
+  existing `POST /projects/:id/bom` the "Add item" button already
+  uses): a small hand-rolled RFC4180-ish CSV parser (quoted fields,
+  `""` escapes) plus header-name column matching (`Item`/`Name`/`Part`,
+  `Quantity`/`Qty`, `Price paid`/`Price`/`Cost`, `Where to buy`/`Link`/
+  `URL`, `Substitution note`/`Substitution`/`Notes` — case-insensitive,
+  order-independent) so it can both read a plain hand-made parts list
+  *and* round-trip the app's own CSV export unmodified, correctly
+  skipping that export's derived "Line total" column and its trailing
+  blank/"Total" summary rows (any row with an empty Item cell is
+  silently skipped, reported in the completion count). Rejects
+  up front with a clear message if the CSV has no recognizable Item-ish
+  column at all, rather than silently importing nothing. Verified via
+  Playwright: importing a CSV shaped exactly like this app's own export
+  (comma-in-a-quoted-item-name, a blank row, a trailing Total row)
+  correctly created exactly the 2 real parts and skipped the other 2
+  rows; a CSV with only Quantity/Price columns (no Item-like column)
+  was correctly rejected with zero rows written; an empty file was
+  rejected with a distinct "no rows found" message.
