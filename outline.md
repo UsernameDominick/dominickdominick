@@ -3294,3 +3294,43 @@ text). Both implemented:
   as clutter) down to the "Nothing trashed" placeholder, confirmed via
   a direct D1 count query — with the real Home page (id 9) untouched
   throughout, since it was never trashed.
+
+### Eighth critic pass on the above
+- ✅ **`relativeAge()` called a 363-day-old item "1 year ago" nearly a
+  week early** — years were computed by compounding two flooring
+  approximations (`Math.floor(days/30)` for months, then
+  `Math.floor(months/12)` for years), and `12 × 30 = 360`, not 365 —
+  so anything 360-364 days old already rounded up to "1 year." Fixed
+  by computing years straight from `days` (`Math.floor(days/365)`)
+  instead of from the already-floored month count. Verified via
+  Playwright against a real page with `deleted_at` set to exactly 363
+  days ago (via a direct D1 update): now correctly reads "12 months
+  ago", not "1 year ago".
+- ✅ **Misleading tooltips on the article/project "Delete template"
+  buttons** — both still read "Delete the template currently selected
+  in the picker above," copied from the page-template button where
+  that's accurate, but article/project template pickers reset to blank
+  immediately after applying (so there's nothing "currently selected"
+  to read) — those two actually prompt for the template's exact name.
+  Updated both tooltips to describe what actually happens.
+- ✅ **"Restore all" bulk action for Trash** — the shipped "Empty trash"
+  let an admin bulk-delete a whole trash section but restoring still
+  meant one item at a time; added a "Restore all" button per section
+  (pages/articles/projects) using the exact same loop-the-existing-
+  per-item-call pattern. Verified via Playwright: restoring all 5
+  trashed pages correctly emptied the Trash list and both real test
+  pages reappeared in the live pages list.
+- ✅ **Template count visible on the picker itself** — with several
+  near-duplicate templates able to pile up over time (this session's
+  own testing left behind 7-8 "Test Template..." entries), there was no
+  way to tell how cluttered a picker had gotten without opening it.
+  The blank/"start from scratch" option's own label now reads e.g.
+  "Blank page (8 templates saved)" — visible on the collapsed `<select>`
+  itself, not just a hover tooltip.
+- ✅ **Indeterminate checkbox state for Media "Select all shown"** — a
+  partial selection (some but not all of what's currently shown)
+  previously just left the checkbox unchecked, reading as "nothing
+  selected" even though the selected-count text right next to it said
+  otherwise. Now sets the standard DOM `.indeterminate` property.
+  Verified via Playwright: selecting 1 of 5 shown items correctly set
+  `checked: false, indeterminate: true`.

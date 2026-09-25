@@ -4534,7 +4534,13 @@
     el("media-bulk-move-btn").disabled = !n;
     el("media-bulk-tag-btn").disabled = !n;
     const shown = lastFilteredMediaKeys;
-    el("media-select-all").checked = shown.length > 0 && shown.every((k) => selectedMediaKeys.has(k));
+    const shownSelectedCount = shown.filter((k) => selectedMediaKeys.has(k)).length;
+    const selectAll = el("media-select-all");
+    selectAll.checked = shown.length > 0 && shownSelectedCount === shown.length;
+    // Without this, selecting some (not all) of what's shown just left the
+    // checkbox unchecked — reading as "nothing selected" even when the
+    // selected-count text right next to it said otherwise.
+    selectAll.indeterminate = shownSelectedCount > 0 && shownSelectedCount < shown.length;
   }
 
   function mediaItemType(item) {
@@ -5068,9 +5074,14 @@
     if (days < 1) return "today";
     if (days === 1) return "1 day ago";
     if (days < 30) return `${days} days ago`;
-    const months = Math.floor(days / 30);
-    if (months < 12) return `${months} month${months === 1 ? "" : "s"} ago`;
-    const years = Math.floor(months / 12);
+    // Years computed straight from days (365, not 12 * 30 = 360) — the
+    // compounded /30 then /12 flooring called a 363-day-old item "1 year
+    // ago" nearly a week early.
+    if (days < 365) {
+      const months = Math.floor(days / 30);
+      return `${months} month${months === 1 ? "" : "s"} ago`;
+    }
+    const years = Math.floor(days / 365);
     return `${years} year${years === 1 ? "" : "s"} ago`;
   }
   function renderTrashList(elId, items, kind, basePath) {
@@ -5126,6 +5137,25 @@
         await api(`${basePath}/${item.id}/permanent`, { method: "DELETE" }).catch(() => {});
       }
       await loadTrash();
+    });
+  });
+
+  // Same loop-the-existing-per-item-call pattern as "Empty trash" above,
+  // just for /restore instead of /permanent — useful after an accidental
+  // bulk-trash, or after the age labels above make it obvious a whole
+  // section is worth keeping rather than reviewing one item at a time.
+  document.querySelectorAll(".restore-all-trash-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const kind = btn.dataset.kind;
+      const basePath = btn.dataset.basePath;
+      const items = await api(`${basePath}/trash`);
+      if (!items.length) return alert(`No trashed ${kind}s to restore.`);
+      if (!confirm(`Restore all ${items.length} trashed ${kind}${items.length === 1 ? "" : "s"}?`)) return;
+      for (const item of items) {
+        await api(`${basePath}/${item.id}/restore`, { method: "POST" }).catch(() => {});
+      }
+      await loadTrash();
+      if (kind === "page") await loadPages();
     });
   });
 
@@ -6849,8 +6879,14 @@
     }
     const picker = el(TEMPLATE_PICKER_IDS[kind]);
     const blankLabel = TEMPLATE_BLANK_LABELS[kind];
+    const count = templateOptions[kind].length;
+    // Visible on the collapsed <select> itself (the blank option's own
+    // label), not just a hover tooltip — with several near-duplicate
+    // "Test Template ..." entries able to pile up over time, there was no
+    // way to tell at a glance how cluttered a picker had gotten without
+    // opening it.
     picker.innerHTML =
-      `<option value="">${blankLabel}</option>` +
+      `<option value="">${blankLabel}${count ? ` (${count} template${count === 1 ? "" : "s"} saved)` : ""}</option>` +
       templateOptions[kind].map((t) => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join("");
   }
 

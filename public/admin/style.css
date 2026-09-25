@@ -3144,7 +3144,13 @@ kbd {
   gap: 10px;
 }
 
-.empty-trash-btn {
+.trash-section-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.empty-trash-btn,
+.restore-all-trash-btn {
   font-size: 0.7rem;
   text-transform: none;
   letter-spacing: normal;
