@@ -2841,3 +2841,24 @@ in the admin. Fixed while addressing the rest of this report:
   references on the local Home page, left over from earlier testing
   this session), confirming it works on real accumulated data, not
   just contrived test cases.
+- ✅ **Reading-order editor** (★ priority) — the page builder's 24-column
+  grid controls where a block sits visually (`col`/`row`/`col_span`/
+  `row_span`), but until now that was also the only thing deciding DOM
+  order, so screen-reader and keyboard (Tab) order was locked to visual
+  position. A block placed for visual reasons (e.g. a sidebar callout
+  physically above the content it supplements) had no way to read or
+  tab in the order that actually made sense. Added a new
+  `style.readingOrder` field (inspector: "Reading order override",
+  number input, next to the other layout/background style fields) —
+  `renderBlocks()` now sorts blocks into a synthetic key sequence
+  (unoverridden blocks keep their natural row/col order, spaced 1000
+  apart) before rendering, and any block with a finite `readingOrder`
+  slots directly at that key instead, completely independent of its
+  visual grid placement. Verified via Playwright with a 3-block page
+  (Block A at row 1, Block B at row 3, Block C at row 5 with
+  `readingOrder: 1`): DOM order came back `["Block C", "Block A",
+  "Block B"]`, while a separate layout check confirmed Block C still
+  renders visually below Block A on screen (`top: 245` vs `top: 149`)
+  — confirming the two axes are genuinely decoupled, not just visually
+  coincidental. Test pages cleaned up via trash + permanent-delete and
+  confirmed gone via a direct D1 query.

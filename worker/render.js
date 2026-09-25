@@ -1131,7 +1131,26 @@ export async function renderBlocks(env, blocks, ctx = {}) {
       .filter((b) => !(b.style && b.style.hidden) && isBlockInDateWindow(b.style))
       .map(async (b) => ({ b, inner: await renderBlockInner(env, b, ctx) }))
   );
-  const parts = withInner
+  // The order these render in becomes DOM order, which is what a screen
+  // reader and Tab both actually walk — independent of the CSS grid's
+  // *visual* placement (grid-column/grid-row below). blocks arrives here
+  // already sorted by row/col (see listBlocks() in db.js), which tracks
+  // visual reading order well for straightforward layouts, but a block's
+  // "Reading order override" style field (a plain number, blank = use the
+  // natural row/col position) lets an admin fix the rare case where it
+  // doesn't — a decorative block visually first but logically less
+  // important, or a layout where the intended reading order genuinely
+  // isn't top-to-bottom/left-to-right. Un-overridden blocks get synthetic
+  // keys spaced 1000 apart in their existing order, so an override value
+  // just needs to land in the right gap (e.g. 1500 to slot between the
+  // 1st and 2nd block) rather than needing to renumber everything else.
+  const keyed = withInner.map((item, i) => {
+    const override = Number((item.b.style || {}).readingOrder);
+    return { item, key: Number.isFinite(override) ? override : (i + 1) * 1000 };
+  });
+  keyed.sort((a, b) => a.key - b.key);
+  const parts = keyed
+    .map(({ item }) => item)
     // renderBlockInner returns null (distinct from a spacer block's
     // intentional "") specifically for a simulation/scan/song block whose
     // reference no longer exists — skipped here so a visitor never sees a

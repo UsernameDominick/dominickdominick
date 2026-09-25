@@ -1587,6 +1587,11 @@
     { key: "visibleFrom", label: "Visible from (blank = always)", type: "datetime-local" },
     { key: "visibleUntil", label: "Visible until (blank = never expires)", type: "datetime-local" },
     {
+      key: "readingOrder",
+      label: "Reading order override (blank = follow visual position — a screen reader/Tab order fix for the rare layout where reading top-to-bottom, left-to-right isn't right; give it a number to slot it earlier or later, e.g. a low number like 1 to make it first)",
+      type: "number",
+    },
+    {
       key: "mobileColSpan",
       label: "Mobile column span override (1–24, blank = full width, matching how many of this block's desktop 24 columns to keep on mobile instead of stacking full-width)",
       type: "number",
