@@ -1635,14 +1635,22 @@ enough detail to act on directly later.
   it doesn't match what a real mobile visitor sees. Needs a real
   design decision (stack order source of truth, optional per-block
   mobile span override), not a CSS-only patch.
-- Fixed-height utility pages (search, topics, topic pages, archive,
-  history, saved, 404, and now the password gate) all use `grid-row: 1
-  / span 16` (376px) regardless of actual content — with a full page of
-  10+ search results (or a set footer), content overflows that fixed
-  height and a footer paints over it. These should switch to the
-  article-page flow layout (no fixed row span, height from content)
-  the way article/project pages already work — same fix, six-ish call
-  sites.
+- ✅ Search, Topics index, Archive, Reading History, Saved, 404, and a
+  single tag's Topic page all used a fixed `grid-row: 1 / span 16`
+  (376px) regardless of actual content — a full page of 10+ search
+  results, or a site with a footer set, could overflow that height with
+  the footer painting over the tail of the content. Switched all seven
+  to the same flow layout (`canvasClass: "canvas article-canvas"`)
+  article/project pages already use — height now comes from content,
+  which can't overlap in flow layout the same way a wrong grid-row
+  guess could. Verified via Playwright: all seven report the
+  `article-canvas` class, and with a real footer set, a full page of
+  archive content no longer overlaps it (previously confirmed
+  overlapping in the design review's screenshot). Left the password
+  gate (added this round, already a single self-contained form rather
+  than a content listing) and the standalone simulation-viewer page
+  (not named in the original finding) out of scope — both are
+  fixed-length by nature, much lower overflow risk than a growing list.
 - Video embeds can overflow their grid cell (16:9 box ~107px taller
   than its assigned row span in one observed case) — likely needs a
   `max-height`/`aspect-ratio` clamp tied to the block's actual row

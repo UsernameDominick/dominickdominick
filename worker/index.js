@@ -494,7 +494,12 @@ async function renderSearch(env, query, navItems, ctx, { type = "", sort = "newe
   }
   const totalPages = totalCount != null ? Math.max(1, Math.ceil(totalCount / SEARCH_PAGE_SIZE)) : null;
   const resultsHtml = renderSearchResultsHtml(query, pages, articles, projects, emptySearchText, { type, sort, page, totalPages, totalCount });
-  const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 16;">
+  // Flow layout, not a fixed grid-row span — a page of 10+ results (or a
+  // second page's worth) can be taller than any span picked ahead of
+  // time, and a fixed span let real content overflow into (and get
+  // covered by) the footer. Same fix as article/project pages already
+  // use, for the same reason.
+  const bodyHtml = `<div class="block">
     <h1>Search</h1>
     ${resultsHtml}
   </div>`;
@@ -511,6 +516,7 @@ async function renderSearch(env, query, navItems, ctx, { type = "", sort = "newe
     customHead,
     noindex: true,
     searchQuery: query,
+    canvasClass: "canvas article-canvas",
   });
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
@@ -518,7 +524,7 @@ async function renderSearch(env, query, navItems, ctx, { type = "", sort = "newe
 async function renderTopicsIndex(env, navItems) {
   const { defaultOgImage, theme, footerText, customHead, emptyTopicsText } = await getSiteContext(env);
   const tagCounts = await getTagCounts(env);
-  const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 16;">
+  const bodyHtml = `<div class="block">
     <h1>Topics</h1>
     <p>Everything tagged, across posts and projects.</p>
     ${renderTopicsIndexHtml(tagCounts, emptyTopicsText)}
@@ -534,6 +540,7 @@ async function renderTopicsIndex(env, navItems) {
     theme,
     footerText,
     customHead,
+    canvasClass: "canvas article-canvas",
   });
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
@@ -541,7 +548,7 @@ async function renderTopicsIndex(env, navItems) {
 async function renderArchive(env, navItems) {
   const { defaultOgImage, theme, footerText, customHead, emptyArchiveText } = await getSiteContext(env);
   const archive = await getArchive(env);
-  const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 16;">
+  const bodyHtml = `<div class="block">
     <h1>Archive</h1>
     <p>Everything published, by year.</p>
     ${renderArchiveHtml(archive, emptyArchiveText)}
@@ -557,6 +564,7 @@ async function renderArchive(env, navItems) {
     theme,
     footerText,
     customHead,
+    canvasClass: "canvas article-canvas",
   });
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
@@ -567,7 +575,7 @@ async function renderArchive(env, navItems) {
 // client-side JS fill it in from whatever's already in that browser.
 async function renderHistoryPage(env, navItems) {
   const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
-  const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 16;">
+  const bodyHtml = `<div class="block">
     <h1>Reading History</h1>
     <p>Stored only in your browser — never sent to or seen by this site. <button type="button" id="clear-history-btn">Clear history</button></p>
     <div id="reading-history-list"><noscript>Requires JavaScript.</noscript></div>
@@ -583,6 +591,7 @@ async function renderHistoryPage(env, navItems) {
     theme,
     footerText,
     customHead,
+    canvasClass: "canvas article-canvas",
   });
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
@@ -591,7 +600,7 @@ async function renderHistoryPage(env, navItems) {
 // visitor's own localStorage, this route just ships the empty shell.
 async function renderSavedPage(env, navItems) {
   const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
-  const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 16;">
+  const bodyHtml = `<div class="block">
     <h1>Saved</h1>
     <p>Stored only in your browser — never sent to or seen by this site. <button type="button" id="clear-saved-btn">Clear all</button></p>
     <div id="saved-items-list"><noscript>Requires JavaScript.</noscript></div>
@@ -607,6 +616,7 @@ async function renderSavedPage(env, navItems) {
     theme,
     footerText,
     customHead,
+    canvasClass: "canvas article-canvas",
   });
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
@@ -615,7 +625,7 @@ async function renderTopicPage(env, tag, navItems) {
   const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
   const [{ articles, projects }, topicMeta] = await Promise.all([getContentByTag(env, tag), getTopicMeta(env, tag)]);
   const isEmpty = articles.length + projects.length === 0;
-  const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 16;">
+  const bodyHtml = `<div class="block">
     <h1>Tagged: ${esc(tag)}</h1>
     ${topicMeta?.description ? `<p class="topic-intro">${esc(topicMeta.description)}</p>` : ""}
     ${renderTopicPageHtml(tag, articles, projects)}
@@ -636,13 +646,14 @@ async function renderTopicPage(env, tag, navItems) {
     // "Nothing tagged…" page) — never worth indexing, unlike a topic that
     // actually has content.
     noindex: isEmpty,
+    canvasClass: "canvas article-canvas",
   });
   return new Response(html, { status: isEmpty ? 404 : 200, headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
 async function renderNotFound(env, navItems) {
   const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
-  const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 16;">
+  const bodyHtml = `<div class="block">
     ${renderNotFoundHtml(navItems)}
   </div>`;
   const html = renderShell({
@@ -657,6 +668,7 @@ async function renderNotFound(env, navItems) {
     footerText,
     customHead,
     noindex: true,
+    canvasClass: "canvas article-canvas",
   });
   return new Response(html, { status: 404, headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
