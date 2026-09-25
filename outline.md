@@ -1759,8 +1759,16 @@ enough detail to act on directly later.
   `false` and visually hides the dropdown; hovering or Tabbing back in
   afterward correctly reopens it again (not permanently stuck closed);
   plain mouse hover is unaffected by any of this.
-- Mobile admin header overflows with 5+ nav items (horizontal scroll,
-  clipped label).
+- ✅ Checked, doesn't reproduce: at 390px, `.admin-header-right` (which
+  holds Notifications/Search/Articles/Projects/Media/More/Preview mode
+  — well past "5+ items") already collapses into a full off-canvas
+  "Menu" drawer via an existing mobile media query, predating this
+  critic-review round (the "Admin UX / mobile overhaul" work). No
+  horizontal scroll or clipped label — `body.scrollWidth` measured
+  equal to the viewport width via Playwright, and a screenshot showed
+  a clean header (hamburger, page picker, "+ Page", "Menu"). This
+  finding must reflect an earlier state of the admin UI than what's
+  live now; nothing to fix.
 - Notification bell: ✅ Escape now closes it (and the "More" menu,
   same handler), opening either one now closes the other (mutual
   exclusivity — verified via Playwright for both directions), the
