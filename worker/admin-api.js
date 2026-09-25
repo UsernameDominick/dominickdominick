@@ -44,6 +44,7 @@ import {
   logActivity,
   listActivityLog,
   listErrors,
+  logError,
   runScheduledBackup,
   listScheduledBackups,
   getBackupStatus,
@@ -1871,6 +1872,26 @@ async function routeAdminApi(request, env, url, ctx) {
   // /errors — recent uncaught worker errors, for the error log viewer
   if (path === "/errors" && method === "GET") {
     return json(await listErrors(env, Number(url.searchParams.get("limit")) || 50));
+  }
+
+  // /client-error — the same error_log the worker's own uncaught-exception
+  // handler already writes to, fed from the browser side instead. Previously
+  // only server-side crashes ever landed here — an uncaught JS error inside
+  // the Photo Editor, Song builder, or Simulation builder (all admin-only,
+  // canvas/Web-Audio-heavy code with real crash surface) just vanished with
+  // nothing to look back at later. `source` is folded into the existing
+  // `path` column with a "client:" prefix so the one viewer already built
+  // for this table can tell client crashes apart from worker ones at a
+  // glance, without a schema change.
+  if (path === "/client-error" && method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    if (!body.message) return json({ error: "message is required" }, { status: 400 });
+    await logError(env, {
+      message: body.message,
+      stack: body.stack || null,
+      path: `client:${body.source || "unknown"}`,
+    });
+    return json({ ok: true });
   }
 
   // /analytics

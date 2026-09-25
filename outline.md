@@ -4968,3 +4968,47 @@ Next: start pulling Easy items (any area — momentum matters more than
 strict item order) under the research → implement → critic-score →
 iterate-to-9-or-10 workflow, logging every critic finding here as its
 own line whether or not it's fixed in that pass.
+
+### First item: #569, monitor editor crashes and failed saves
+
+- ✅ **Client-side crash reporting, feeding the existing error_log table**
+  — previously `logError()`/the "Error Log" viewer in Site Settings only
+  ever received *server-side* worker exceptions (the main fetch
+  handler's catch-all, scheduled cron failures); an uncaught JS error
+  inside the Photo Editor, Song builder, or Simulation builder — all
+  admin-only, canvas/Web-Audio-heavy code with real crash surface — just
+  vanished with nothing to look back at later. Added `POST /client-error`
+  (`worker/admin-api.js`, reusing `logError()` unchanged) plus a single
+  pair of `window.addEventListener("error"/"unhandledrejection", ...)`
+  handlers in `app.js` — since the three editor scripts run as plain
+  `<script>` tags sharing this one page's `window` rather than importing
+  the admin app's IIFE (the same reason `window.adminApi`/
+  `window.adminUploadBlob`/`window.PhotoEditor` already exist as the
+  established cross-script sharing mechanism), one pair of listeners
+  here catches crashes from all three editors plus the rest of the admin
+  console at once — no per-editor wiring needed. Tags each report with
+  whichever editor modal (if any) is open at the time
+  (`photo-editor`/`song-builder`/`simulation-builder`/`admin`), folded
+  into the existing `path` column as `client:<source>` so the one viewer
+  already built for this table can tell client crashes apart from
+  worker ones at a glance, with zero schema change. Uses
+  `navigator.sendBeacon` (with a `fetch(..., {keepalive:true})` fallback)
+  matching the exact pattern `nav.js`'s `trackEvent` already
+  established, so a report fires reliably even if the crash is about to
+  navigate/reload the page away.
+  - **Bug caught before shipping**: `logError` was never imported into
+    `worker/admin-api.js` (only its sibling `listErrors` was) — the new
+    route 500'd on every call. Caught via a direct authenticated curl
+    (the Playwright test only showed a generic "500" status; curl
+    exposed the actual `{"error":"logError is not defined"}` body).
+    Fixed with a one-line import addition.
+  - Verified via Playwright: a plain uncaught error with no editor
+    modal open lands as `client:admin`; an uncaught error AND an
+    unhandled promise rejection while the Photo Editor is genuinely
+    open both land as `client:photo-editor`, all three visible via the
+    real `GET /errors` endpoint the admin UI already reads. Confirmed
+    the new endpoint requires auth (401 unauthenticated), added to the
+    session's regression suite alongside the other admin-API auth
+    checks. Test media upload cleaned up.
+
+Handed to a critic agent for scoring (per the new 9-or-10 workflow) — see next entry once it reports back.

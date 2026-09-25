@@ -7923,6 +7923,39 @@
     }
   }).observe(document.body, { attributes: true, attributeFilter: ["hidden"], subtree: true });
 
+  // Crash/failed-save monitoring — previously only the worker's own
+  // uncaught-exception handler ever wrote to error_log; a JS error inside
+  // the Photo Editor, Song builder, or Simulation builder (all admin-only,
+  // canvas/Web-Audio-heavy code with real crash surface) just vanished
+  // with nothing to look back at later, since those scripts run as plain
+  // <script> tags sharing this page's window rather than importing this
+  // IIFE. A single pair of window-level listeners here catches uncaught
+  // errors and promise rejections from all of them at once, tagged with
+  // whichever editor modal (if any) is open at the time so the existing
+  // Error Log viewer can tell them apart from a generic admin-page crash.
+  function reportClientError(message, stack, source) {
+    try {
+      const payload = JSON.stringify({ message: String(message || "Unknown error").slice(0, 2000), stack: stack ? String(stack).slice(0, 4000) : null, source });
+      if (navigator.sendBeacon) navigator.sendBeacon("/api/admin/client-error", payload);
+      else fetch("/api/admin/client-error", { method: "POST", body: payload, keepalive: true });
+    } catch {}
+  }
+  function currentEditorSource() {
+    const modal = getTopModal();
+    if (!modal) return "admin";
+    if (modal.id === "photo-editor-modal") return "photo-editor";
+    if (modal.id === "song-builder-modal") return "song-builder";
+    if (modal.id === "simulation-builder-modal") return "simulation-builder";
+    return "admin";
+  }
+  window.addEventListener("error", (e) => {
+    reportClientError(e.message, e.error && e.error.stack, currentEditorSource());
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    const reason = e.reason;
+    reportClientError(reason && reason.message ? reason.message : String(reason), reason && reason.stack, currentEditorSource());
+  });
+
   window.addEventListener("resize", () => renderCanvas());
   boot();
 })();
