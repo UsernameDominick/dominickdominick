@@ -1769,10 +1769,18 @@ enough detail to act on directly later.
   this deliberately), not a bug; not changing it.
 
 **Lower priority / nitpicks:**
-- Header icon buttons render at inconsistent sizes (◐/⏸ noticeably
-  smaller than ⇌/A), wrong font (Arial, not the site font), and the
-  font-size toggle's 4-step cycle has no visible "current value"
-  indicator.
+- ✅ Header icon buttons (theme/motion/font-size toggles) were rendering
+  in the browser's default UI font instead of the site font — root
+  cause of both halves of this finding at once: a `<button>` doesn't
+  inherit `font-family` from the page by default (only non-form-control
+  elements like the `.icon-link-btn` `<a>` next to them do), and two of
+  the toggle glyphs (◐, ⏸) happen to render much smaller than the
+  others (⇌, "A") in that fallback UI font at the same declared
+  font-size — a mismatch that vanishes once all four actually share one
+  font. Added `font-family: inherit` to the shared button rule.
+  Verified all four now report the same computed `font-family`.
+  (The font-size toggle's 4-step cycle still has no visible "current
+  value" indicator — not fixed this round.)
 - Unstyled default browser buttons on `/history` and `/saved` ("Clear
   history"/"Clear all").
 - Print/PDF output includes share pills, reactions, and the preview

@@ -350,6 +350,14 @@ body {
   width: 34px;
   height: 34px;
   font-size: 1rem;
+  /* A <button> doesn't inherit font-family from the page by default (its
+     UA stylesheet gives form controls the browser's own UI font) — an
+     <a> like .icon-link-btn does, with no rule needed. Without this, the
+     three buttons here fell back to that default UI font instead of the
+     site's, and rendered some of their symbol glyphs (◐, ⏸) noticeably
+     smaller than the .icon-link-btn's ⇌ at the same declared font-size,
+     since glyph proportions for a given symbol vary by font. */
+  font-family: inherit;
   line-height: 1;
   cursor: pointer;
   flex-shrink: 0;
