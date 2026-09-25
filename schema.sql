@@ -14,7 +14,8 @@ CREATE TABLE pages (
   locked INTEGER NOT NULL DEFAULT 0,
   sitemap_exclude INTEGER NOT NULL DEFAULT 0,
   custom_json_ld TEXT,
-  nav_parent_id INTEGER REFERENCES pages(id)
+  nav_parent_id INTEGER REFERENCES pages(id),
+  password_hash TEXT
 );
 
 -- A block "definition" that one or more page blocks can point at via

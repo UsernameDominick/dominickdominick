@@ -136,6 +136,12 @@
         <label>Canonical URL override (optional — blank = auto)<input id="page-canonical-url" type="text" spellcheck="false" placeholder="https://..."></label>
         <label title="Added alongside this page's auto-generated structured data, not instead of it. Must be valid JSON — one object, e.g. a FAQPage or HowTo schema.org type.">Custom structured data (JSON-LD, optional)<textarea id="page-custom-json-ld" rows="3" spellcheck="false" placeholder='{"@context":"https://schema.org","@type":"FAQPage",...}'></textarea></label>
         <label><input type="checkbox" id="page-sitemap-exclude"> Exclude from sitemap.xml</label>
+        <div class="tts-audio-field">
+          <label id="page-password-status">Password protection: <span id="page-password-status-text">not protected</span></label>
+          <input type="password" id="page-password-input" placeholder="New password" autocomplete="off">
+          <button type="button" id="page-set-password-btn">Set password</button>
+          <button type="button" id="page-remove-password-btn" hidden>Remove protection</button>
+        </div>
         <div class="og-preview-label">Share preview</div>
         <div class="og-preview" id="og-preview-page">
           <div class="og-preview-img" id="og-preview-page-img"></div>

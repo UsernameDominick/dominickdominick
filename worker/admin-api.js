@@ -3,6 +3,7 @@ import {
   listPages,
   createPage,
   updatePage,
+  setPagePassword,
   deletePage,
   restorePage,
   hardDeletePage,
@@ -134,7 +135,7 @@ import {
   updateBomItem,
   deleteBomItem,
 } from "./db.js";
-import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated } from "./auth.js";
+import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated, hmac } from "./auth.js";
 
 function json(data, init = {}) {
   return new Response(JSON.stringify(data), {
@@ -490,6 +491,28 @@ async function routeAdminApi(request, env, url, ctx) {
     const p = await env.DB.prepare("SELECT title FROM pages WHERE id = ?").bind(id).first();
     await hardDeletePage(env, id);
     log(ctx, env, "delete-forever", "page", p?.title || `#${id}`);
+    return json({ ok: true });
+  }
+
+  // /pages/:id/password — set or remove password protection. Separate from
+  // the generic PATCH /pages/:id above since the client never gets the
+  // current password back to round-trip (only its hash is ever stored).
+  const pagePasswordMatch = path.match(/^\/pages\/(\d+)\/password$/);
+  if (pagePasswordMatch && method === "PUT") {
+    const body = await request.json().catch(() => ({}));
+    if (!body.password || !body.password.trim()) return json({ error: "Password is required" }, { status: 400 });
+    const id = Number(pagePasswordMatch[1]);
+    const hash = await hmac(env.SESSION_SECRET, body.password);
+    await setPagePassword(env, id, hash);
+    const p = await env.DB.prepare("SELECT title FROM pages WHERE id = ?").bind(id).first();
+    log(ctx, env, "update", "page", `password protection set on "${p?.title || `#${id}`}"`);
+    return json({ ok: true });
+  }
+  if (pagePasswordMatch && method === "DELETE") {
+    const id = Number(pagePasswordMatch[1]);
+    await setPagePassword(env, id, null);
+    const p = await env.DB.prepare("SELECT title FROM pages WHERE id = ?").bind(id).first();
+    log(ctx, env, "update", "page", `password protection removed from "${p?.title || `#${id}`}"`);
     return json({ ok: true });
   }
 

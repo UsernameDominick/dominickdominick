@@ -7,7 +7,7 @@ function toHex(buffer) {
     .join("");
 }
 
-async function hmac(secret, message) {
+export async function hmac(secret, message) {
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(secret),
@@ -19,7 +19,7 @@ async function hmac(secret, message) {
   return toHex(sig);
 }
 
-function timingSafeEqual(a, b) {
+export function timingSafeEqual(a, b) {
   if (a.length !== b.length) return false;
   let diff = 0;
   for (let i = 0; i < a.length; i++) {

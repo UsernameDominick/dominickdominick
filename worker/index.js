@@ -35,7 +35,7 @@ import {
   getContentByTag,
   getTopicMeta,
 } from "./db.js";
-import { isAuthenticated, parseCookies } from "./auth.js";
+import { isAuthenticated, parseCookies, hmac, timingSafeEqual } from "./auth.js";
 import {
   renderShell,
   renderBlocks,
@@ -163,9 +163,58 @@ async function getSiteContext(env) {
   return { defaultOgImage, theme, footerText, customHead, emptySearchText, emptyArchiveText, emptyTopicsText };
 }
 
-async function renderPage(env, page, url) {
-  const [navItems, blocks, siteContext] = await Promise.all([listNavPages(env), listBlocks(env, page.id), getSiteContext(env)]);
+// A page's own "you already unlocked this" cookie — keyed to both the page
+// id and its current password_hash (not the raw password), so a token
+// stays valid until the password is next changed, at which point the old
+// token silently stops matching rather than needing an explicit revoke.
+async function pageAccessToken(env, page) {
+  return hmac(env.SESSION_SECRET, `page-access:${page.id}:${page.password_hash}`);
+}
+async function hasPageAccess(request, env, page) {
+  const cookies = parseCookies(request.headers.get("Cookie"));
+  const cookie = cookies[`page_pw_${page.id}`];
+  if (!cookie) return false;
+  const expected = await pageAccessToken(env, page);
+  return timingSafeEqual(cookie, expected);
+}
+
+function renderPagePasswordFormHtml(page, wrongPassword) {
+  return `<div class="block password-gate">
+    <h1>${esc(page.title)}</h1>
+    <p>This page is password protected.</p>
+    ${wrongPassword ? `<p class="password-gate-error">Wrong password — try again.</p>` : ""}
+    <form method="POST" action="/page-access/${esc(page.slug)}" class="password-gate-form">
+      <input type="password" name="password" placeholder="Password" required autofocus>
+      <button type="submit">Unlock</button>
+    </form>
+  </div>`;
+}
+
+async function renderPage(env, page, url, request) {
+  const [navItems, siteContext] = await Promise.all([listNavPages(env), getSiteContext(env)]);
   const { defaultOgImage, theme, footerText, customHead } = siteContext;
+  // An authenticated admin always sees the real content — same bypass
+  // maintenance mode and preview mode already use — so previewing/editing
+  // a password-protected page never means also knowing its password.
+  const locked = page.password_hash && !(await isAuthenticated(request, env)) && !(await hasPageAccess(request, env, page));
+  if (locked) {
+    const bodyHtml = renderPagePasswordFormHtml(page, url.searchParams.get("error") === "1");
+    const html = renderShell({
+      title: page.title,
+      description: page.meta_description,
+      path: page.slug === "home" ? "/" : `/${page.slug}`,
+      navItems,
+      activeSlug: page.slug,
+      bodyHtml,
+      ogImage: defaultOgImage || null,
+      theme,
+      footerText,
+      customHead,
+      noindex: true,
+    });
+    return new Response(html, { status: 401, headers: { "Content-Type": "text/html;charset=UTF-8" } });
+  }
+  const blocks = await listBlocks(env, page.id);
   const activeTagFilter = url.searchParams.get("tag") || null;
   const bodyHtml = await renderBlocks(env, blocks, { activeTagFilter });
   const jsonLd =
@@ -876,6 +925,27 @@ async function route(request, env, ctx) {
       });
     }
 
+    // /page-access/:slug — verifies a password-protected page's password
+    // and, on success, sets that page's own unlock cookie before redirecting
+    // right back to it (303, so a refresh never resubmits the form).
+    const pageAccessMatch = path.match(/^\/page-access\/([a-z0-9-]+)$/);
+    if (pageAccessMatch && request.method === "POST") {
+      const slug = pageAccessMatch[1];
+      const page = await getPageBySlug(env, slug);
+      const backTo = `${url.origin}/${slug === "home" ? "" : slug}`;
+      if (!page || !page.password_hash) return Response.redirect(backTo, 303);
+      const form = await request.formData().catch(() => null);
+      const candidate = form?.get("password") || "";
+      const candidateHash = candidate ? await hmac(env.SESSION_SECRET, candidate) : "";
+      if (!candidate || !timingSafeEqual(candidateHash, page.password_hash)) {
+        return Response.redirect(`${backTo}?error=1`, 303);
+      }
+      const token = await pageAccessToken(env, page);
+      const headers = new Headers({ Location: backTo });
+      headers.append("Set-Cookie", `page_pw_${page.id}=${token}; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax`);
+      return new Response(null, { status: 303, headers });
+    }
+
     if (path === "/sitemap.xml") {
       return renderSitemap(env);
     }
@@ -1057,7 +1127,7 @@ async function route(request, env, ctx) {
     const page = await getPageBySlug(env, slug);
     if (page) {
       trackView(ctx, env, request, path);
-      return renderPage(env, page, url);
+      return renderPage(env, page, url, request);
     }
 
     // Fall through to static assets (style.css, nav.js, /admin app, images, etc.)

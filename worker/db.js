@@ -89,6 +89,15 @@ export async function updatePage(env, id, fields) {
   await env.DB.prepare(`UPDATE pages SET ${cols.join(", ")} WHERE id = ?`).bind(...vals).run();
 }
 
+// Kept separate from updatePage()'s generic field list on purpose: unlike
+// every other field there, the client never gets the current value back
+// (there's nothing to send — only the hash is stored), so "set" and
+// "remove" have to be distinct actions rather than one field where blank
+// would be ambiguous between "no change" and "remove protection".
+export async function setPagePassword(env, id, passwordHash) {
+  await env.DB.prepare("UPDATE pages SET password_hash = ?, updated_at = datetime('now'), version = version + 1 WHERE id = ?").bind(passwordHash, id).run();
+}
+
 // "Delete" moves a page to the trash rather than actually removing it —
 // recoverable by default. hardDeletePage is the real, permanent removal,
 // used only from the trash view itself.

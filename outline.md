@@ -763,7 +763,21 @@ health-check pass, predates this doc.
 - ✅ Expiring, revocable, shareable draft-preview links (`?preview_token=`, 1/7/30 day options, works without admin login)
 - ✅ Link Checker resolves real publish state (draft/expired reported correctly; project links + project bodies/journal/links-blocks now actually scanned — both were silent gaps before)
 - ☐ Publish-as-package (related pages/nav/updates together), rollback of a package, affected-pages preview, URL-change impact preview
-- ☐ Private pages, password-protected pages; 🔶 unlisted (nav-excluded but reachable by URL) exists de facto
+- ✅ Password-protected pages — a new `password_hash` column on pages, set
+  via a "Set password"/"Remove protection" pair in Page settings (never a
+  single field, since the client can never get the current password back
+  to round-trip — only its hash is stored, so blank could otherwise mean
+  either "no change" or "remove"). A locked page shows a plain password
+  form (401) instead of its content; submitting the right one sets that
+  page's own unlock cookie, itself keyed to the page id *and* its current
+  `password_hash` (not the raw password) via HMAC with `SESSION_SECRET` —
+  so a saved cookie silently stops matching the moment the password is
+  next changed, with no separate revocation step needed. An authenticated
+  admin always bypasses the gate, same as maintenance mode's own admin
+  bypass. Private (fully hidden, no direct-URL access at all) is a
+  different, bigger feature — this is specifically "reachable by anyone
+  who has both the URL and the password"; 🔶 unlisted (nav-excluded but
+  reachable by URL) exists de facto
 
 ### Content administration and portability
 - ✅ Duplication exists for pages/articles/projects (always lands as

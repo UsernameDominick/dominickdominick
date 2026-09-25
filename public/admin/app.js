@@ -539,6 +539,9 @@
     el("page-canonical-url").value = currentPage.canonical_url || "";
     el("page-custom-json-ld").value = currentPage.custom_json_ld || "";
     el("page-sitemap-exclude").checked = !!currentPage.sitemap_exclude;
+    el("page-password-input").value = "";
+    el("page-password-status-text").textContent = currentPage.password_hash ? "protected" : "not protected";
+    el("page-remove-password-btn").hidden = !currentPage.password_hash;
     el("page-save-status").textContent = "";
     updateLockButton("lock-page-btn", !!currentPage.locked);
     updateFavoriteButton("favorite-page-btn", "page", currentPage.id);
@@ -658,6 +661,34 @@
         return;
       }
       el("page-save-status").textContent = "Save failed: " + err.message;
+      alert(err.message);
+    }
+  });
+
+  // ---------- Page password protection ----------
+  // Separate Set/Remove actions rather than one field, since there's no
+  // current value to show back (only its hash is ever stored) — a blank
+  // field can't mean "leave as-is" vs. "remove protection" unambiguously.
+  el("page-set-password-btn").addEventListener("click", async () => {
+    if (!currentPage) return;
+    const password = el("page-password-input").value;
+    if (!password.trim()) return alert("Enter a password first.");
+    try {
+      await api(`/pages/${currentPage.id}/password`, { method: "PUT", body: JSON.stringify({ password }) });
+      await loadPages();
+      await selectPage(currentPage.id);
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+  el("page-remove-password-btn").addEventListener("click", async () => {
+    if (!currentPage) return;
+    if (!confirm("Remove password protection from this page? Anyone with the link will be able to view it.")) return;
+    try {
+      await api(`/pages/${currentPage.id}/password`, { method: "DELETE" });
+      await loadPages();
+      await selectPage(currentPage.id);
+    } catch (err) {
       alert(err.message);
     }
   });
