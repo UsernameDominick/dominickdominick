@@ -6426,6 +6426,23 @@
     // so the bell stays empty for the rest of the session unless boot()
     // (which also runs right after a successful in-page login) reloads it.
     loadNotifications().catch(() => {});
+    await openDeepLinkedEditor();
+  }
+
+  // "Edit this" on the live public site links here as /admin/?edit=type:id
+  // (type is "page"/"article"/"project") — jumps straight to that record's
+  // editor instead of leaving a logged-in admin to find it themselves in
+  // Articles/Projects/the page picker. A bad/missing id is just ignored
+  // (no error shown) since there's nothing actionable to tell the admin.
+  async function openDeepLinkedEditor() {
+    const edit = new URLSearchParams(location.search).get("edit");
+    if (!edit) return;
+    const [type, idStr] = edit.split(":");
+    const id = Number(idStr);
+    if (!id) return;
+    if (type === "page") await selectPage(id);
+    else if (type === "article") await openArticleEditorById(id);
+    else if (type === "project") await openProjectEditorById(id);
   }
 
   document.querySelectorAll(".upload-trigger").forEach(wireUploadButton);

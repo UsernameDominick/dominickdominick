@@ -1275,6 +1275,7 @@ export function renderShell({
   searchQuery = null,
   canonicalUrl = null,
   canvasClass = "canvas",
+  editUrl = null,
 }) {
   const canonical = canonicalUrl || `https://dominickdominick.com${path}`;
   const themeVars = [];
@@ -1469,6 +1470,11 @@ ${customHead || ""}
           <input type="search" name="q" placeholder="Search" aria-label="Search" value="${esc(searchQuery || "")}" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="search-suggest-list">
           <div class="search-suggest" id="search-suggest-list" hidden></div>
         </form>
+        ${
+          editUrl
+            ? `<a class="icon-link-btn edit-this-btn" href="${esc(editUrl)}" title="Edit this in the admin" aria-label="Edit this in the admin">✎</a>`
+            : ""
+        }
         <a class="icon-link-btn" href="/shuffle" title="Random project or article" aria-label="Random project or article">⇌</a>
         <button type="button" id="motion-toggle" aria-label="Toggle reduced motion" title="Turn off entrance/hover animations">⏸</button>
         <button type="button" id="font-size-toggle" aria-label="Change text size" title="Change text size">A</button>

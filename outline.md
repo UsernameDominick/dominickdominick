@@ -2598,3 +2598,44 @@ bring the same aesthetic (not the parallax itself) into the admin panel.
 - Scope, per your answers: public site + admin (aesthetic only, no
   parallax in the CMS itself — motion there would just get in the way
   of editing), vibrant palette kept as-is from the previous round.
+
+## 12. Post-audit backlog (2026-09-25 onward)
+
+A very large (400+ item) wishlist came in after section 11. Triaged it
+down before touching anything: kept the ★-marked priorities plus other
+concretely-scoped items that extend what this codebase already does,
+and deliberately did **not** build anything that's enterprise/multi-
+tenant/SaaS-platform scale for a single-admin personal site — a module
+marketplace, payments/licensing/sales, multi-user accounts and
+editorial review workflows, staging-vs-production environment
+promotion, a video/3D transcoding pipeline via external processing
+services, an automation/workflow engine, a documentation/LMS platform,
+localization, search-relevance tuning (overkill at this site's scale),
+a phone quick-capture inbox, and an AI admin assistant chat feature.
+Building stub/fake versions of any of these would be exactly the kind
+of feature-theater bloat this project has been actively avoiding —
+noting them here as consciously out of scope rather than silently
+skipping them.
+
+- ✅ **"Edit this" from the live site** (★ priority) — while logged in
+  as admin, every page/article/project on the public site now shows a
+  pencil icon-button in the topbar (next to the shuffle "⇌" link),
+  linking to `/admin/?edit=page:<id>` / `article:<id>` / `project:<id>`.
+  `renderShell()` takes a new optional `editUrl` param; `renderPage`/
+  `renderArticle`/`renderProject` compute it only when
+  `isAuthenticated(request, env)` is true (an unauthenticated visitor
+  never sees the button or the link, verified below). On the admin
+  side, `boot()` now calls a new `openDeepLinkedEditor()` after its
+  normal startup sequence, which reads `?edit=` from the URL and
+  dispatches to whichever of the existing `selectPage()` /
+  `openArticleEditorById()` / `openProjectEditorById()` functions
+  already power the normal "click this in a list" flow — no new
+  editor-opening logic, just a new entry point into what already
+  existed. A missing/invalid id is silently ignored (nothing actionable
+  to tell the admin). Verified via Playwright: the button is present
+  and points at the right deep link for a real article/page/project
+  while authenticated, absent entirely for an anonymous visitor, and
+  clicking through each of the three deep-link URLs correctly opens
+  that exact record's editor (the Articles/Projects modal populated
+  with the right title, or the page selected in the main page-picker)
+  on a fresh page load.

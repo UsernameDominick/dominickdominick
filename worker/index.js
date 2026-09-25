@@ -211,7 +211,8 @@ async function renderPage(env, page, url, request) {
   // An authenticated admin always sees the real content — same bypass
   // maintenance mode and preview mode already use — so previewing/editing
   // a password-protected page never means also knowing its password.
-  const locked = page.password_hash && !(await isAuthenticated(request, env)) && !(await hasPageAccess(request, env, page));
+  const isAdmin = await isAuthenticated(request, env);
+  const locked = page.password_hash && !isAdmin && !(await hasPageAccess(request, env, page));
   if (locked) {
     const bodyHtml = renderPagePasswordFormHtml(page, url.searchParams.get("error") === "1");
     const html = renderShell({
@@ -283,11 +284,12 @@ async function renderPage(env, page, url, request) {
     theme,
     footerText,
     customHead,
+    editUrl: isAdmin ? `/admin/?edit=page:${page.id}` : null,
   });
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
-async function renderArticle(env, article, navItems, previewReason = null) {
+async function renderArticle(env, article, navItems, previewReason = null, isAdmin = false) {
   const description = excerpt(article.body) || article.title;
   const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
   const mins = readingTime(article.body);
@@ -388,11 +390,12 @@ async function renderArticle(env, article, navItems, previewReason = null) {
     // previewed is never something to let a search engine index, even if
     // the link leaks.
     noindex: !!previewReason,
+    editUrl: isAdmin ? `/admin/?edit=article:${article.id}` : null,
   });
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
-async function renderProject(env, project, navItems, previewReason = null) {
+async function renderProject(env, project, navItems, previewReason = null, isAdmin = false) {
   const description = project.summary || excerpt(project.body) || project.title;
   const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
 
@@ -510,6 +513,7 @@ async function renderProject(env, project, navItems, previewReason = null) {
     customHead,
     canvasClass: "canvas article-canvas",
     noindex: !!previewReason,
+    editUrl: isAdmin ? `/admin/?edit=project:${project.id}` : null,
   });
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
@@ -1287,7 +1291,14 @@ async function route(request, env, ctx) {
       }
       const navItems = await listNavPages(env);
       if (isPublished) trackView(ctx, env, request, path);
-      return renderArticle(env, article, navItems, !isPublished && isPreview ? (previewModeCookie && isAdminPreview ? "cookie" : "one-off") : null);
+      const isAdmin = isAdminPreview || (await isAuthenticated(request, env));
+      return renderArticle(
+        env,
+        article,
+        navItems,
+        !isPublished && isPreview ? (previewModeCookie && isAdminPreview ? "cookie" : "one-off") : null,
+        isAdmin
+      );
     }
 
     // Individual project page: /projects/:slug
@@ -1314,7 +1325,14 @@ async function route(request, env, ctx) {
       }
       const navItems = await listNavPages(env);
       if (isPublished) trackView(ctx, env, request, path);
-      return renderProject(env, project, navItems, !isPublished && isPreview ? (previewModeCookie && isAdminPreview ? "cookie" : "one-off") : null);
+      const isAdmin = isAdminPreview || (await isAuthenticated(request, env));
+      return renderProject(
+        env,
+        project,
+        navItems,
+        !isPublished && isPreview ? (previewModeCookie && isAdminPreview ? "cookie" : "one-off") : null,
+        isAdmin
+      );
     }
 
     const slug = path === "/" ? "home" : path.replace(/^\/+/, "").replace(/\/+$/, "");
