@@ -1818,10 +1818,23 @@ enough detail to act on directly later.
   Save button off mid-modal into a sticky bottom bar. Verified via
   Playwright: checkbox width is 13px (not stretched), "Security events
   only" label renders in full, no clipping.
-- Confusing/overlapping labels: "Site" opens a huge combined settings+
-  logs+backups modal; "Preview mode: Off" sits next to an unrelated
-  "Preview" button; Link Checker has both "Run automatic check now"
-  and "Check links".
+- ✅ Confusing/overlapping labels: "Site" opened the settings modal
+  with no hint of what "Site" meant — renamed to "Site Settings".
+  "Preview mode: Off" (a toggle that makes the live site show drafts
+  in this browser) sat right next to an unrelated "Preview" button
+  (which opens a responsive-width preview panel for the current page)
+  — renamed the latter to "Screen Preview" so the two are visually and
+  semantically distinct. Link Checker's "Run automatic check now" and
+  "Check links" are genuinely two different features (the former
+  triggers the same background job that also runs once a day and
+  writes a compact pass/fail summary; the latter runs a fresh scan and
+  lists every single link with its status) but the names didn't say
+  so — renamed to "Update daily check now" / "Scan all links (full
+  list)" with tooltips spelling out the difference, and reordered so
+  the daily-check summary appears before the full scan output.
+  Verified via Playwright: both link-checker buttons still trigger
+  their respective endpoints and render results correctly, and the
+  Site Settings modal still opens from its renamed button.
 - Admin editor canvas isn't keyboard-navigable (blocks can't be
   individually focused/selected via Tab).
 - ✅ Photo editor "Save preset" was dropping earlier adjustments —

@@ -71,13 +71,13 @@
               <button id="topic-pages-btn">Topic Pages</button>
               <button id="analytics-btn">Analytics</button>
               <button id="trash-btn">Trash</button>
-              <button id="site-settings-btn">Site</button>
+              <button id="site-settings-btn">Site Settings</button>
             </div>
             <div class="admin-more-group">
               <h3>View</h3>
               <a id="admin-view-live" href="/" target="_blank" class="admin-view-live">View live ↗</a>
               <button id="draft-preview-mode-toggle" aria-pressed="false" title="While on, browsing the live site (in this browser) shows draft/expired articles and projects too, following normal navigation instead of needing ?preview=1 on every link">Preview mode: Off</button>
-              <button id="preview-btn" title="Preview this page at different screen widths">Preview</button>
+              <button id="preview-btn" title="Preview this page at different screen widths">Screen Preview</button>
               <button id="focus-mode-btn" aria-pressed="false" title="Hide the block palette for more canvas room">Focus</button>
               <button id="content-only-mode-btn" aria-pressed="false" title="Locks every block's position/size so you can safely click around and edit content without nudging the layout">Content-only</button>
             </div>
@@ -1141,11 +1141,11 @@
         <button type="button" id="check-accessibility-btn">Run report</button>
         <div id="accessibility-report-results" class="link-check-results"></div>
         <h2>Link Checker</h2>
-        <label style="margin-bottom:0;">Scans every button/project-card link and article link for broken URLs.</label>
-        <label style="margin-bottom:0;">Also runs automatically once a day, so a link going dead doesn't wait to be noticed here.</label>
-        <button type="button" id="run-scheduled-link-check-btn">Run automatic check now</button>
+        <label style="margin-bottom:0;">This also runs automatically once a day in the background, so a link going dead doesn't wait to be noticed here.</label>
+        <button type="button" id="run-scheduled-link-check-btn" title="Manually trigger the same background check that otherwise runs once a day, and show its summary below">Update daily check now</button>
         <div id="scheduled-link-check-status"></div>
-        <button type="button" id="check-links-btn">Check links</button>
+        <label style="margin-bottom:0;">Scans every button/project-card link and article link for broken URLs and lists each one.</label>
+        <button type="button" id="check-links-btn" title="Scan every link right now and list each one with its status">Scan all links (full list)</button>
         <div id="link-check-results" class="link-check-results"></div>
         <h2>Orphan Pages</h2>
         <label style="margin-bottom:0;">Published pages/articles/projects nothing on the site links to internally, and that aren't in the header nav either — reachable only by someone who already has the URL.</label>
