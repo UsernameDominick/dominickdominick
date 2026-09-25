@@ -4938,9 +4938,9 @@ pages/articles/projects). 554 (per-row revision restore already exists).
 live in env bindings, not content rows).
 
 ### Shared platform — Easy
-544. Shared asset identifiers that survive renaming — media `key` is already the stable id.
+544. ✅ Shared asset identifiers that survive renaming — verified: `upsertMediaMeta()` updates `folder`/`tags`/`alt_text`/`caption`/`credit`/`license` via `UPDATE media SET ... WHERE key = ?`, never touching the `key` column itself — moving a file between folders or editing its metadata cannot change its key (and therefore its public `/media/<key>` URL and every reference to it) by construction. Already true, no work needed.
 549. ✅ Project inbox for uncategorized uploads/ideas — done, scoped to media (see the dated entry below this section).
-567. Show storage used by originals/versions/previews/exports — sizes already recorded; just aggregate.
+567. ✅ Show storage used by originals/versions/previews/exports — checked: "previews" and "exports" don't exist as distinct stored R2 artifacts in this codebase (no thumbnail-generation pipeline; `/export` streams a live JSON dump, never written to R2), so there's nothing to break out for those two categories. "Originals" vs "versions" is already covered — `getStorageUsage()`'s existing breakdown separates "Images" from "Image version history" (confirmed the `_versions/` PUT-overwrite route is itself content-type-restricted to images only, so that label is accurate, not just aspirational). No new work needed for what actually exists.
 569. ✅ Monitor editor crashes and failed saves — done (see the dated entry below this section).
 572. Choose poster images/fallbacks before publishing — `scans.poster_key` pattern exists; extend to songs/simulations.
 576. Keep animated elements from moving surrounding text — CSS layout fix (reserved space/aspect-ratio).
