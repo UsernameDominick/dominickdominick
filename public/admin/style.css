@@ -3138,6 +3138,23 @@ kbd {
   letter-spacing: 0.05em;
   color: var(--text-dim);
   margin: 4px 0 -4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.empty-trash-btn {
+  font-size: 0.7rem;
+  text-transform: none;
+  letter-spacing: normal;
+  padding: 3px 8px;
+  width: auto;
+}
+
+.trash-item-age {
+  color: var(--text-dim);
+  font-weight: normal;
 }
 
 .redirects-hint {

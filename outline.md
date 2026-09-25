@@ -3275,3 +3275,22 @@ text). Both implemented:
   deleting a page template via the picker and an article template via
   the name prompt both correctly removed them from their pickers and
   from `GET /templates`.
+- ✅ **Trash rows show how long ago they were deleted, plus a bulk
+  "Empty trash" per type** — `listTrashedPages`/`Articles`/`Projects`
+  already `SELECT *`, so `deleted_at` was sitting on every row the
+  Trash API returned; `renderTrashList()` just never read it, showing
+  only the title. Cleaning up an old trash pile meant guessing which
+  items were safe to nuke and clicking "Delete forever" one at a time
+  with zero date context — this local dev DB alone had accumulated 60+
+  un-purged test pages this way. Added a relative-age label ("Trashed
+  today" / "3 days ago" / "2 months ago" / "1 year ago") next to each
+  title, and an "Empty pages/articles/projects trash" button per
+  section that loops the exact same per-item `/permanent` DELETE the
+  "Delete forever" button already calls — no new endpoint. Verified via
+  Playwright: a freshly-trashed page correctly showed "Trashed today";
+  clicking "Empty pages trash" with a real confirm dialog removed every
+  trashed page (2 fresh test pages plus, incidentally, the 60+ pieces
+  of accumulated local-dev test debris a prior critic pass had flagged
+  as clutter) down to the "Nothing trashed" placeholder, confirmed via
+  a direct D1 count query — with the real Home page (id 9) untouched
+  throughout, since it was never trashed.

@@ -5056,12 +5056,31 @@
   });
 
   // ---------- Trash ----------
+  // Every trash row's item already carries deleted_at (the list endpoints
+  // are plain SELECT *), it just never made it into the row markup — with
+  // no age shown, an old, forgotten trash pile (this local dev DB alone
+  // has 7+ stale test pages sitting in it) gives no way to tell what's
+  // safe to nuke without opening each one.
+  function relativeAge(iso) {
+    if (!iso) return "";
+    const ms = Date.now() - new Date(iso).getTime();
+    const days = Math.floor(ms / 86400000);
+    if (days < 1) return "today";
+    if (days === 1) return "1 day ago";
+    if (days < 30) return `${days} days ago`;
+    const months = Math.floor(days / 30);
+    if (months < 12) return `${months} month${months === 1 ? "" : "s"} ago`;
+    const years = Math.floor(months / 12);
+    return `${years} year${years === 1 ? "" : "s"} ago`;
+  }
   function renderTrashList(elId, items, kind, basePath) {
     el(elId).innerHTML =
       items
         .map(
           (item) =>
-            `<div class="redirect-row" data-id="${item.id}"><span class="redirect-paths">${escapeHtml(item.title)}</span><button type="button" class="restore-trash-item" data-id="${item.id}">Restore</button><button type="button" class="danger delete-trash-item" data-id="${item.id}">Delete forever</button></div>`
+            `<div class="redirect-row" data-id="${item.id}"><span class="redirect-paths">${escapeHtml(
+              item.title
+            )} <span class="trash-item-age">Trashed ${escapeHtml(relativeAge(item.deleted_at))}</span></span><button type="button" class="restore-trash-item" data-id="${item.id}">Restore</button><button type="button" class="danger delete-trash-item" data-id="${item.id}">Delete forever</button></div>`
         )
         .join("") || `<p style='color:var(--text-dim);font-size:0.85rem;'>Nothing trashed.</p>`;
 
@@ -5091,6 +5110,24 @@
     renderTrashList("trash-articles-list", articles, "article", "/articles");
     renderTrashList("trash-projects-list", trashedProjects, "project", "/projects");
   }
+
+  // "Empty trash" just loops the same per-item /permanent DELETE the
+  // "Delete forever" button already calls — no new endpoint needed, just
+  // a bulk convenience for a pile that's otherwise one confirm dialog per
+  // item to actually clear out.
+  document.querySelectorAll(".empty-trash-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const kind = btn.dataset.kind;
+      const basePath = btn.dataset.basePath;
+      const items = await api(`${basePath}/trash`);
+      if (!items.length) return alert(`No trashed ${kind}s to delete.`);
+      if (!confirm(`Permanently delete all ${items.length} trashed ${kind}${items.length === 1 ? "" : "s"}? This can't be undone.`)) return;
+      for (const item of items) {
+        await api(`${basePath}/${item.id}/permanent`, { method: "DELETE" }).catch(() => {});
+      }
+      await loadTrash();
+    });
+  });
 
   el("trash-btn").addEventListener("click", async () => {
     el("trash-modal").hidden = false;
