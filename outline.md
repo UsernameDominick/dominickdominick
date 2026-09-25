@@ -2964,3 +2964,51 @@ in the admin. Fixed while addressing the rest of this report:
   `scroll` (persisting across a reload, since the choice is restored from
   localStorage before first paint) and flipped the header's
   `animation-name` from `page-header-parallax` to `none`.
+
+### Third critic pass on the above
+- ✅ **Reading-order override couldn't be cleared** — clearing the field
+  back to blank saved `style.readingOrder: null` (matching how every
+  other blank number field saves), but `renderBlocks()` computed
+  `Number(null)`, which is `0` — a perfectly valid *real* override — so
+  a cleared field was indistinguishable from an explicit "always render
+  this block first" and stayed stuck there permanently with no way
+  back to natural order, silently contradicting the field's own label.
+  Fixed by checking the raw stored value's actual type
+  (`typeof raw === "number" && Number.isFinite(raw)`) instead of
+  coercing first. Verified via Playwright: overriding block C to render
+  first (`C, A, B`), then clearing it back to `null`, now correctly
+  restores natural order (`A, B, C`).
+- ✅ **Motion audition's scrub/Play lagged ~90% behind the real scroll
+  position, then snapped at the very end** — `scrubPreviewTo()` called
+  the previewed page's `window.scrollTo()`, which inherits that page's
+  global `scroll-behavior: smooth`. Since this fires on every animation
+  frame during Play (and every drag event while scrubbing manually),
+  each frame re-targeted an already-in-flight smoothed scroll a little
+  further out, so the real position perpetually chased a moving target
+  instead of ever landing on one — defeating the whole point of a
+  scrubber. Fixed by using the object form of `scrollTo()` with
+  `behavior: "instant"`, which sets the position immediately instead of
+  animating toward it. Verified with a real scrollable test page: 2
+  seconds into a 6-second Play sweep, the scrubber read 33% and the
+  real scroll position matched the expected 33%-of-max value almost
+  exactly (3069px actual vs. 3068px expected), instead of sitting at 0.
+- ✅ **Field-change live preview was structurally unusable through the
+  actual admin UI** (★ priority, high severity) — Screen Preview used
+  the same full-viewport modal as every other modal in the admin, which
+  covered the inspector and canvas the auto-refresh feature depends on;
+  a real mouse click on any inspector field timed out with Playwright
+  reporting the modal's own backdrop intercepting the click. The
+  feature's own header text ("editing a field... automatically
+  refreshes the preview") was accurate in code but impossible to
+  trigger by mouse. Fixed by docking Screen Preview to just the canvas
+  strip on desktop (`left`/`right: 240px`, matching the palette/
+  inspector's existing fixed width) instead of covering the full
+  viewport — the canvas itself stays covered (nothing to see there
+  while the real preview is showing anyway), but the palette and
+  inspector stay fully clickable. Mobile keeps the old full-screen
+  behavior, since those panels are off-canvas drawers there with
+  nothing to preserve access to. Verified via Playwright with a real
+  mouse click (not a JS-dispatched event) on an inspector text field
+  while Screen Preview was open: the click succeeded, and the preview
+  auto-updated with the new text ~1.2s later. Also confirmed the mobile
+  preview modal still spans the full 390px viewport unchanged.

@@ -2991,6 +2991,32 @@ kbd {
   height: 92vh;
 }
 
+/* Screen Preview used to be a full-viewport modal like every other one,
+   which made "field-change live preview" (auto-refreshing this iframe as
+   you edit) structurally unusable: the modal's own backdrop covered the
+   inspector's fields and the canvas both live in, so there was no way to
+   actually edit anything while it was open. Docking it to just the canvas
+   strip — the same width the palette/inspector already reserve on desktop
+   (see .admin-palette/.admin-inspector) — leaves both fully clickable.
+   Mobile keeps the old full-screen behavior below 861px: those panels are
+   off-canvas drawers there, not fixed columns, so there's nothing to
+   preserve access to. */
+@media (min-width: 861px) {
+  #preview-modal {
+    left: 240px;
+    right: 240px;
+    align-items: stretch;
+    background: rgba(0, 0, 0, 0.25);
+  }
+
+  #preview-modal .preview-modal-inner {
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    border-radius: 0;
+  }
+}
+
 .preview-device-buttons {
   display: flex;
   gap: 6px;

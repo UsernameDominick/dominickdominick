@@ -2669,7 +2669,16 @@
     if (!win || !win.document || !win.document.documentElement) return;
     const doc = win.document;
     const max = Math.max(0, (doc.documentElement.scrollHeight || 0) - win.innerHeight);
-    win.scrollTo(0, max * fraction);
+    // The previewed page sets `scroll-behavior: smooth` globally (see
+    // style.css), so the 2-arg form of scrollTo() inherited that and
+    // animated toward each target — since this fires on every rAF tick
+    // during Play (and every drag input event), each frame re-targeted an
+    // already-in-flight smoothed scroll a little further out, so the real
+    // position perpetually chased a moving target and only caught up once
+    // the target stopped moving at the very end. behavior: "instant"
+    // bypasses that entirely — the scrubber needs to *set* a position, not
+    // animate to one.
+    win.scrollTo({ top: max * fraction, left: 0, behavior: "instant" });
   }
   el("motion-audition-scrub").addEventListener("input", (e) => {
     stopMotionAudition();

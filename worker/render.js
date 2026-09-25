@@ -1145,8 +1145,15 @@ export async function renderBlocks(env, blocks, ctx = {}) {
   // just needs to land in the right gap (e.g. 1500 to slot between the
   // 1st and 2nd block) rather than needing to renumber everything else.
   const keyed = withInner.map((item, i) => {
-    const override = Number((item.b.style || {}).readingOrder);
-    return { item, key: Number.isFinite(override) ? override : (i + 1) * 1000 };
+    // The raw style value, not Number(raw), decides whether an override is
+    // present — a cleared field saves as `null` (see fieldValue() in
+    // public/admin/app.js), and Number(null) is 0, a perfectly valid real
+    // override, so coercing first made "cleared" indistinguishable from
+    // "explicitly set to 0" and silently stuck the block at the front
+    // forever with no way back to natural order.
+    const raw = (item.b.style || {}).readingOrder;
+    const override = typeof raw === "number" && Number.isFinite(raw) ? raw : null;
+    return { item, key: override !== null ? override : (i + 1) * 1000 };
   });
   keyed.sort((a, b) => a.key - b.key);
   const parts = keyed
