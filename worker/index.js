@@ -874,7 +874,11 @@ async function renderSitemap(env) {
   const projects = await listProjects(env, { publishedOnly: true });
   const tagCounts = await getTagCounts(env);
   const entries = [
-    ...pages.filter((p) => !p.sitemap_exclude).map((p) => ({ loc: p.slug === "home" ? "/" : `/${p.slug}`, lastmod: p.updated_at })),
+    // A password-protected page 401s (with noindex) for anyone unauthenticated
+    // — advertising its URL in the sitemap contradicts that gate, the same
+    // "don't list a noindexed/gated URL" anti-pattern sitemap_exclude
+    // already exists to avoid for the intentional case.
+    ...pages.filter((p) => !p.sitemap_exclude && !p.password_hash).map((p) => ({ loc: p.slug === "home" ? "/" : `/${p.slug}`, lastmod: p.updated_at })),
     ...articles.filter((a) => !a.sitemap_exclude).map((a) => ({ loc: `/random/${a.slug}`, lastmod: a.updated_at || a.published_at })),
     ...projects.filter((p) => !p.sitemap_exclude).map((p) => ({ loc: `/projects/${p.slug}`, lastmod: p.updated_at || p.published_at })),
     { loc: "/topics", lastmod: null },

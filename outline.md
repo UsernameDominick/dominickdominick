@@ -3413,3 +3413,40 @@ three new bugs in untouched territory instead:
   ("3 days ago") already had the real `deleted_at` ISO string in hand;
   it's now also a `title=""` tooltip on the same span, for an admin who
   wants the precise deletion time before deciding what's safe to purge.
+
+### Tenth critic pass on the above
+The tenth critic pass confirmed all six items from the previous batch
+correct through every requested edge case (the exact 20-vs-21-result
+boundary for the search-count hint, re-publishing an article to un-orphan
+its topic_meta row, similarly-named page/simulation search results not
+colliding) and found one new bug plus two pre-existing ones:
+- ✅ **Stale favorited/recently-edited pages silently no-op'd** — the
+  same "trashed page still shows as a live, clickable result" gap just
+  fixed for command-palette search results had two more entry points:
+  the topbar "Recent" dropdown and the command palette's own local
+  Favorites/Recently-edited quick actions. Both reach pages through the
+  same shared `RECENT_KIND_RUN.page` function, so the existence check
+  now lives there once — closing all three entry points (including the
+  original search-result one, simplified to reuse this instead of its
+  own copy of the same check) instead of patching them one at a time.
+  Verified via Playwright: pinning a page, trashing it, then clicking
+  it from the Favorites panel now correctly alerts instead of doing
+  nothing.
+- ✅ **Password-protected pages were listed in sitemap.xml** — a page
+  gated behind a password 401s (with noindex) for anyone unauthenticated,
+  but its URL was still advertised in the sitemap, the same anti-pattern
+  the existing `sitemap_exclude` flag exists to avoid for the
+  intentional case. Added `&& !p.password_hash` alongside it. Verified
+  via a real password-protected test page: excluded from `/sitemap.xml`.
+- ✅ **Notification bell always opened Settings on Appearance, regardless
+  of what the notification was about** — clicking "3 errors in the last
+  24h" landed on Appearance instead of Logs; a failed-webhook notification
+  landed on Appearance instead of Integrations; a backup-failure
+  notification landed on Appearance instead of Backups — the exact
+  "hunting through 7 tabs" problem the settings search feature elsewhere
+  this session was built to solve, just never wired up here. Added a
+  small `openSettingsTab()` helper (same async-then-switch-tab pattern
+  the settings search results already use) and pointed each
+  notification's action at its actual tab. Verified via Playwright with
+  a real seeded error_log row: clicking the resulting "1 error(s) in the
+  last 24h" notification now correctly lands on the Logs tab.

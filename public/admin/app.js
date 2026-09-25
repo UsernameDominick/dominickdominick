@@ -81,13 +81,26 @@
     notifPanel.classList.remove("open");
     notifBtn.setAttribute("aria-expanded", "false");
   }
+  // Every notification used to just open Site Settings on whatever tab
+  // happened to be active (always Appearance, on a fresh open) instead of
+  // the tab the notification is actually about — an admin clicking "3
+  // errors" landed on Appearance and had to go find Logs themselves, the
+  // exact "hunting through 7 tabs" problem the settings search feature
+  // elsewhere in this file was built to solve. site-settings-btn's own
+  // handler is async (fetches settings before un-hiding the modal), so
+  // switching tabs has to wait for that, same as the settings-search
+  // results above do.
+  function openSettingsTab(tab) {
+    el("site-settings-btn").click();
+    setTimeout(() => switchSettingsTab(tab), 200);
+  }
   async function loadNotifications() {
     const s = await api("/notifications-summary");
     const items = [
-      s.backupFailed ? { label: "Last scheduled backup failed", action: () => el("site-settings-btn").click() } : null,
+      s.backupFailed ? { label: "Last scheduled backup failed", action: () => openSettingsTab("backups") } : null,
       s.brokenLinks ? { label: `${s.brokenLinks} broken link(s) found`, action: () => el("seo-dashboard-btn").click() } : null,
-      s.recentErrors ? { label: `${s.recentErrors} error(s) in the last 24h`, action: () => el("site-settings-btn").click() } : null,
-      s.recentFailedWebhooks ? { label: `${s.recentFailedWebhooks} failed webhook deliverie${s.recentFailedWebhooks === 1 ? "" : "s"} in the last 24h`, action: () => el("site-settings-btn").click() } : null,
+      s.recentErrors ? { label: `${s.recentErrors} error(s) in the last 24h`, action: () => openSettingsTab("logs") } : null,
+      s.recentFailedWebhooks ? { label: `${s.recentFailedWebhooks} failed webhook deliverie${s.recentFailedWebhooks === 1 ? "" : "s"} in the last 24h`, action: () => openSettingsTab("integrations") } : null,
     ].filter(Boolean);
     const badge = el("notifications-badge");
     badge.textContent = String(items.length);
@@ -384,8 +397,23 @@
   // dropdown below — one place that knows how to label/open a
   // recently-edited or favorited item, instead of two copies.
   const RECENT_KIND_LABEL = { page: "Page", article: "Article", project: "Project" };
+  // A stale favorite/recently-edited entry (the item was trashed since it
+  // was pinned or last touched) used to just silently do nothing when
+  // clicked from here or from the command palette's own Favorites/Recent
+  // quick actions — selectPage() itself no-ops on an unknown id with no
+  // feedback. openArticleEditorById/openProjectEditorById already guard
+  // this (added earlier this session for stale "Edit this" deep links);
+  // this closes the same gap for pages, in the one place both the Recent
+  // dropdown and the command palette's quick actions actually reach it,
+  // rather than adding the same check at each call site separately.
   const RECENT_KIND_RUN = {
-    page: (id) => selectPage(id),
+    page: (id) => {
+      if (!pages.some((p) => p.id === id)) {
+        alert("That page no longer exists (it may have been trashed).");
+        return;
+      }
+      selectPage(id);
+    },
     article: (id) => openArticleEditorById(id),
     project: (id) => openProjectEditorById(id),
   };
@@ -6537,21 +6565,14 @@
             label: `Page: ${p.title}`,
             sub: `/${p.slug}`,
             // The remote /search endpoint deliberately searches every page
-            // regardless of deleted_at ("sees everything"), but the local
-            // `pages` array selectPage() looks the id up in only holds
-            // active ones — so a trashed page's title could still surface
-            // here as a seemingly-live, clickable result that silently did
-            // nothing on click (selectPage()'s own no-op-on-miss is correct
-            // for its other callers, like a stale deep link, but a search
-            // result the admin just typed and clicked needs to say why
-            // nothing happened, not fail invisibly).
+            // regardless of deleted_at ("sees everything"), so a trashed
+            // page's title can still surface here — RECENT_KIND_RUN.page
+            // already guards against exactly this (added for the same gap
+            // in the Recent dropdown/Favorites), reused here instead of a
+            // second copy of the same check.
             run: () => {
               closeCommandPalette();
-              if (!pages.some((existing) => existing.id === p.id)) {
-                alert("That page no longer exists (it may have been trashed).");
-                return;
-              }
-              selectPage(p.id);
+              RECENT_KIND_RUN.page(p.id);
             },
           })
         );
