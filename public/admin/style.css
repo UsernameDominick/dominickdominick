@@ -605,13 +605,37 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
 }
 
 .article-editor textarea {
-  flex: 1;
+  /* Every textarea in this panel used to get flex:1, so the several
+     small ones (Summary rows="2", Downloads rows="4", custom JSON-LD,
+     correction note, private notes) competed equally with the one that
+     actually should grow (the body, rows="16"/"14") for the same
+     limited space — with more of them than room, all of them (body
+     included) got squeezed toward flexbox's implicit min-height:auto,
+     which for a textarea is far shorter than its own rows="" attribute
+     ever implied. flex-shrink:0 here means every textarea defaults to
+     its own rows-based height instead; #article-body/#project-body
+     opt back into growing to fill the rest of the panel below. */
+  flex-shrink: 0;
   resize: vertical;
   line-height: 1.5;
 }
 
+#article-body, #project-body {
+  /* flex-basis:auto (not the 0% a bare "flex:1" implies) starts sizing
+     from the textarea's own rows="" height — this panel has enough
+     other fields that there's often no real leftover space for a
+     basis:0% item to grow into anyway, which left the body just as
+     squeezed as every other textarea despite this rule. flex-grow:1
+     still lets it claim any leftover space when there is some;
+     flex-shrink:0 (inherited from the general rule below) is what
+     stops it, and everything else, being squeezed below its own
+     content size. */
+  flex: 1 0 auto;
+}
+
 .article-series-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
@@ -621,6 +645,11 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
 
 .article-series-row #article-series-order {
   width: 90px;
+}
+
+.article-series-row #project-status {
+  flex: 1;
+  min-width: 160px;
 }
 
 .article-flags-row {

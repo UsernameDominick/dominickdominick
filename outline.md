@@ -1666,9 +1666,40 @@ enough detail to act on directly later.
   video at its own boundary instead of overlapping the next block.
   Verified via Playwright: a video in a short row_span no longer
   overlaps a heading positioned right after it.
-- Projects editor form fields are visually crushed (Summary field
-  ~18px tall, Status ~22px wide, a checkbox label running past the
-  form edge) — admin CSS pass needed.
+- ✅ Projects (and Articles) editor form fields were visually crushed —
+  three separate bugs sharing the same root cause across
+  `.article-editor` (used by both editors):
+  1. Every textarea got `flex:1`, so the several small ones (Summary
+     `rows="2"`, Downloads, custom JSON-LD, correction note, private
+     notes) competed equally with the one that should actually grow
+     (Body, `rows="16"`/`"14"`) for the panel's limited space — with
+     more flex:1 items than room, all of them got squeezed toward
+     flexbox's implicit `min-height:auto`, far below their own `rows`
+     attribute. Fixed with `flex-shrink:0` on the general rule (every
+     textarea defaults to its own rows-based height) and — this part
+     took two tries — `flex: 1 0 auto` (not a bare `flex:1`, which
+     implies `flex-basis:0%` and made Body ignore its own `rows`-based
+     size and grow from *zero*, finding there usually isn't real
+     leftover space in a panel already dense enough to scroll) on
+     `#article-body`/`#project-body` specifically, so they still start
+     from their natural size and only grow into space if there
+     actually is any.
+  2. `#project-status` had no sizing rule of its own inside
+     `.article-series-row` (unlike `#article-series`, which already
+     got `flex:1`) — sharing a flex row with several fixed-width
+     checkboxes/number inputs squeezed it down to near its min-content
+     width. Gave it `flex:1; min-width:160px`.
+  3. `.article-series-row` had no `flex-wrap`, so a project with all of
+     Status + Featured + Featured order + Sort order + Exclude from
+     sitemap + Archived in one row could overflow past the panel's
+     right edge instead of wrapping. Added `flex-wrap: wrap`.
+  Verified via Playwright (correctly scoped to `#projects-modal` after
+  first catching myself measuring the *hidden* Articles modal's
+  identically-classed elements by mistake): Summary now renders at
+  ~58px (was ~18px), Body at ~298px, Status at ~205px wide (was
+  crushed), and no field overflows the row's edge. Re-verified the
+  Articles editor's own Body/Series fields are unaffected by these
+  shared-CSS changes.
 - ✅ Diagnostics' H1 check compared `Number(b.content.level) === 1`,
   which is `false` for a heading block with no stored `level` at all —
   but `headingLevel()` in `worker/render.js` actually renders such a
