@@ -1785,8 +1785,23 @@ async function routeAdminApi(request, env, url, ctx) {
   }
   if (path === "/settings" && method === "PUT") {
     const body = await request.json().catch(() => ({}));
+    // A settings save used to log as a bare "Updated settings" with no
+    // detail — the Activity Log told you *when* something changed, never
+    // *what*, so finding/reversing a specific change meant remembering
+    // which of the 7 tabs it was on and re-checking every field by eye.
+    // Diffing old vs. new per-key gives a real changelog entry instead.
+    // Values are truncated (some, like custom_head, can be long HTML) and
+    // a key with no actual change is left out entirely.
+    const before = await Promise.all(SETTINGS_KEYS.map((key) => getSetting(env, key)));
+    const truncate = (v) => (v && v.length > 60 ? v.slice(0, 60) + "…" : v);
+    const changes = SETTINGS_KEYS.map((key, i) => {
+      const oldVal = before[i] || "";
+      const newVal = body[key] || "";
+      if (oldVal === newVal) return null;
+      return `${key}: "${truncate(oldVal)}" → "${truncate(newVal)}"`;
+    }).filter(Boolean);
     await Promise.all(SETTINGS_KEYS.map((key) => setSetting(env, key, body[key] || "")));
-    log(ctx, env, "update", "settings", null);
+    log(ctx, env, "update", "settings", changes.length ? changes.join("; ") : "no changes");
     return json({ ok: true });
   }
 

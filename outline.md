@@ -2791,3 +2791,29 @@ in the admin. Fixed while addressing the rest of this report:
   with a simulation block pointing at a nonexistent id shows the red
   badge on canvas and the same finding in Diagnostics with a working
   "Select" button that jumps to the exact block.
+
+### Second backlog batch
+- ✅ **Recently changed settings** — `PUT /settings` used to log a bare
+  "Updated settings" with no detail (`log(ctx, env, "update", "settings",
+  null)`), so the Activity Log told you *when* a settings save
+  happened but never *what* changed — finding or reversing a specific
+  change meant remembering which of the 7 Site Settings tabs it was on
+  and re-checking every field by eye. Now fetches each key's value
+  before applying the update, diffs old vs. new per key, and logs a
+  real changelog entry (e.g. `site_footer: "" → "New footer text"`) —
+  unchanged keys are left out entirely rather than padding the entry
+  with noise. Long values (custom `<head>` code, webhook URLs) are
+  truncated to 60 characters so one long field doesn't make the log
+  entry unreadable. No new logging plumbing needed — the diff string
+  goes through the exact same `entity_label` field the Activity Log
+  already renders for every other action. Verified via a real settings
+  save through the API: the resulting Activity Log entry read exactly
+  `site_footer: "" → "SETTINGS DIFF TEST FOOTER"`, then confirmed the
+  test value was restored afterward.
+- Checked and already satisfied by the existing architecture, no work
+  needed: **"Separate file identity from filename"** — every upload
+  (`worker/admin-api.js`'s upload routes for images/audio/video/fonts/
+  scans) already stores under a `crypto.randomUUID()`-based R2 key,
+  completely independent of the original filename; nothing about a
+  file's identity or its links depends on what it was originally
+  called.
