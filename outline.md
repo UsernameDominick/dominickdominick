@@ -638,7 +638,16 @@ health-check pass, predates this doc.
   `:::warning`/`:::danger` fenced blocks in article/project bodies
   (a toolbar "Callout" button inserts the fence; supports the same
   inline rich text as a paragraph)
-- ☐ Mathematical notation
+- ✅ Mathematical notation — a ` ```math ` fenced block renders as a KaTeX
+  equation, the exact same conditional-CDN-load pattern already used for
+  ` ```mermaid ` diagrams: KaTeX's JS/CSS only load on a page that
+  actually has a `.katex-block` on it, not on every page. Block-level
+  only, deliberately no inline `$...$` span syntax — this site already
+  has real dollar-amount content (BOM build costs), which inline math
+  delimiters would collide with. Built into the shared `paragraphsHtml()`
+  markdown-lite renderer, so it works everywhere that already does (page
+  text blocks, journal entries, accordions, quotes, callouts), not just
+  article/project bodies
 - ✅ Accordion (expandable details)
 - ✅ Inline image captions/credits, device frames (browser/phone) on any image block
 - ✅ Before/after image comparison slider — both as a page-builder block AND a `[before-after: url1 | url2 | Label1 | Label2]` markdown-lite shortcode for article/project bodies

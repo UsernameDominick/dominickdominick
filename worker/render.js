@@ -254,6 +254,16 @@ export function paragraphsHtml(text) {
         if ((lang || "").toLowerCase() === "mermaid") {
           return `<div class="mermaid">${esc(code)}</div>`;
         }
+        // A ```math fenced block renders as a KaTeX equation instead of a
+        // code listing, same conditional-CDN-load pattern as mermaid above
+        // (see renderShell) — most pages have no math in them at all, so
+        // KaTeX's JS/CSS only loads on the ones that do. Deliberately
+        // block-level only, not inline $...$ spans: this site already has
+        // dollar-amount content (BOM build costs) that inline math syntax
+        // would collide with.
+        if ((lang || "").toLowerCase() === "math") {
+          return `<div class="katex-block">${esc(code)}</div>`;
+        }
         return `<pre><code class="language-${esc(lang || "plaintext")}">${esc(code)}</code></pre>`;
       }
       const table = tableMatch(trimmed);
@@ -1280,6 +1290,21 @@ ${breakpointStyle}
     import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs").then(({ default: mermaid }) => {
       mermaid.initialize({ startOnLoad: false, theme: document.documentElement.getAttribute("data-theme") === "light" ? "default" : "dark" });
       mermaid.run();
+    });
+  }
+</script>
+<script type="module">
+  if (document.querySelector(".katex-block")) {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css";
+    document.head.appendChild(link);
+    import("https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.mjs").then(({ default: katex }) => {
+      document.querySelectorAll(".katex-block").forEach((el) => {
+        try {
+          katex.render(el.textContent, el, { displayMode: true, throwOnError: false });
+        } catch (e) {}
+      });
     });
   }
 </script>
