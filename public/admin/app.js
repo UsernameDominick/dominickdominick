@@ -5105,7 +5105,11 @@
           (b) =>
             `<div class="link-check-row"><span class="link-check-url">${escapeHtml(b.key.replace("backups/", ""))}</span><span class="link-check-source">${formatBytes(
               b.size
-            )}</span><button type="button" class="view-backup-contents-btn" data-key="${escapeHtml(b.key)}">View contents</button></div><div class="backup-contents" data-key="${escapeHtml(
+            )}</span><button type="button" class="view-backup-contents-btn" data-key="${escapeHtml(
+              b.key
+            )}">View contents</button> <button type="button" class="verify-backup-btn" data-key="${escapeHtml(
+              b.key
+            )}">Verify integrity</button> <span class="backup-verify-result"></span></div><div class="backup-contents" data-key="${escapeHtml(
               b.key
             )}" hidden></div>`
         )
@@ -5128,6 +5132,34 @@
             panel.hidden = false;
           } catch (err) {
             alert(err.message);
+          }
+        });
+      });
+    // Re-hashes the file as it sits in R2 right now against the checksum
+    // stored when it was written — catches corruption/truncation before
+    // it's discovered mid-restore, rather than trusting the file blindly.
+    el("scheduled-backups-list")
+      .querySelectorAll(".verify-backup-btn")
+      .forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const resultEl = btn.nextElementSibling;
+          const originalText = btn.textContent;
+          btn.textContent = "Verifying…";
+          btn.disabled = true;
+          try {
+            const result = await api(`/scheduled-backups-verify?key=${encodeURIComponent(btn.dataset.key)}`);
+            if (!result.hasChecksum) {
+              resultEl.innerHTML = `<span class="contrast-fail">No stored checksum (backup predates this check)</span>`;
+            } else if (result.ok) {
+              resultEl.innerHTML = `<span class="contrast-pass">✓ Verified intact</span>`;
+            } else {
+              resultEl.innerHTML = `<span class="contrast-fail">⚠ Checksum mismatch — this file may be corrupted</span>`;
+            }
+          } catch (err) {
+            resultEl.textContent = err.message;
+          } finally {
+            btn.textContent = originalText;
+            btn.disabled = false;
           }
         });
       });

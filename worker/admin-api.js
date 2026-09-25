@@ -48,6 +48,7 @@ import {
   getBackupStatus,
   getStorageUsage,
   getBackupContents,
+  verifyBackupIntegrity,
   runFindReplace,
   slugExists,
   checkLoginRateLimit,
@@ -1501,6 +1502,18 @@ async function routeAdminApi(request, env, url, ctx) {
     if (!key) return json({ error: "key is required" }, { status: 400 });
     try {
       return json(await getBackupContents(env, key));
+    } catch (err) {
+      return json({ error: err.message }, { status: 400 });
+    }
+  }
+  // /scheduled-backups-verify?key=... — re-hashes the file as it sits in R2
+  // right now and compares it to the checksum stored when it was written,
+  // catching corruption/truncation before it's discovered mid-restore.
+  if (path === "/scheduled-backups-verify" && method === "GET") {
+    const key = url.searchParams.get("key");
+    if (!key) return json({ error: "key is required" }, { status: 400 });
+    try {
+      return json(await verifyBackupIntegrity(env, key));
     } catch (err) {
       return json({ error: err.message }, { status: 400 });
     }

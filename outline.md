@@ -1088,8 +1088,17 @@ changes with low value for a single-admin personal site; flagging as
   backup in Site Settings shows its exported-at time, format version, and
   a row count per table — read-only, no restore involved, so it's safe to
   check "is this the one I want" before ever touching the all-or-nothing
-  restore); ☐ periodic restore drills, selective restore, file-integrity
-  checks
+  restore); ✅ file-integrity checks — a SHA-256 checksum is computed and
+  stored as R2 custom metadata the moment a backup is written, then the
+  file is immediately read back and re-hashed to catch any corruption in
+  the write itself (a mismatch fails the whole scheduled backup, same as
+  any other write error, since an untrustworthy backup is as good as no
+  backup). A "Verify integrity" button next to "View contents" lets an
+  admin re-check any existing backup's current bytes against that stored
+  checksum later — e.g. right before actually trusting one for a restore.
+  A backup written before this shipped has no stored checksum to compare
+  against; that's reported as "no checksum" rather than a false failure;
+  ☐ periodic restore drills, selective restore
 - ☐ Health dashboard (DB/storage/uploads/publishing), failed-scheduled-publish alerts, cost/usage alerts
 - ✅ Storage/DB usage dashboard — a new "Storage" section in Site Settings,
   right below Backup. R2 usage broken down by prefix (images, audio,

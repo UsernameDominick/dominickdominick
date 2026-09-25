@@ -2453,11 +2453,28 @@ const BACKUP_KEEP = 30;
 // also gets) so the admin UI can show a clear "backups are fine" or
 // "last backup failed" status without digging through the error log —
 // the whole point of an "alert", not just a record after the fact.
+async function sha256Hex(buf) {
+  const digest = await crypto.subtle.digest("SHA-256", buf);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 export async function runScheduledBackup(env) {
   try {
     const data = await exportAll(env);
     const key = `${BACKUP_PREFIX}${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
-    await env.MEDIA.put(key, JSON.stringify(data), { httpMetadata: { contentType: "application/json" } });
+    const bytes = new TextEncoder().encode(JSON.stringify(data));
+    const checksum = await sha256Hex(bytes);
+    await env.MEDIA.put(key, bytes, { httpMetadata: { contentType: "application/json" }, customMetadata: { sha256: checksum } });
+    // Read the just-written object straight back and re-hash it — catches
+    // any corruption/truncation in the R2 write itself, rather than only
+    // finding out the file is bad the day it's actually needed for a
+    // restore. A mismatch fails the whole backup (same as any other
+    // exportAll/put error above), since a backup nobody can trust is as
+    // good as no backup at all.
+    const written = await env.MEDIA.get(key);
+    if (!written) throw new Error("Backup write succeeded but the file can't be read back");
+    const readBackHash = await sha256Hex(await written.arrayBuffer());
+    if (readBackHash !== checksum) throw new Error("Backup file failed integrity check after writing (hash mismatch)");
     const listed = await env.MEDIA.list({ prefix: BACKUP_PREFIX });
     const sorted = listed.objects.sort((a, b) => new Date(b.uploaded) - new Date(a.uploaded));
     const stale = sorted.slice(BACKUP_KEEP);
@@ -2474,6 +2491,22 @@ export async function runScheduledBackup(env) {
 export async function getBackupStatus(env) {
   const [lastAt, lastError] = await Promise.all([getSetting(env, "last_backup_at"), getSetting(env, "last_backup_error")]);
   return { lastAt: lastAt || null, lastError: lastError || null };
+}
+
+// On-demand re-verification of a backup already sitting in R2 — the write-
+// time check above only ever runs once, right after writing; this lets an
+// admin re-check an existing file's integrity later (e.g. before trusting
+// it for an actual restore). Backups written before this feature shipped
+// have no stored checksum to compare against, so that's reported distinctly
+// from an actual mismatch rather than treated as a failure.
+export async function verifyBackupIntegrity(env, key) {
+  if (!key.startsWith(BACKUP_PREFIX)) throw new Error("Not a backup file");
+  const obj = await env.MEDIA.get(key);
+  if (!obj) throw new Error("Backup file not found");
+  const storedHash = obj.customMetadata?.sha256 || null;
+  const actualHash = await sha256Hex(await obj.arrayBuffer());
+  if (!storedHash) return { ok: null, hasChecksum: false, actualHash };
+  return { ok: storedHash === actualHash, hasChecksum: true, storedHash, actualHash };
 }
 
 // A read-only peek inside a specific backup file — row counts per table
