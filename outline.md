@@ -4764,7 +4764,7 @@ join, rather than building three separate systems.
 129. Adjustable grain — random per-pixel noise injection.
 139. Local vs external-upload indicator — UI label only.
 143. Searchable command palette — static command list + filter/keydown.
-146. Before/after split view — reuse existing originalSnapshot.
+146. ✅ Before/after compare — done (see the dated entry below this section).
 150. Status bar (dimensions/zoom) — read existing canvas state into UI.
 158. Explain resource limits — static UI text.
 161. Export quality/size preview — canvas.toBlob quality param + size readout.
@@ -5350,4 +5350,39 @@ crop-size mismatch) re-run and confirmed unaffected. Full regression
 suite green; all test uploads across every test script (13 total, this
 round and earlier ones) cleaned up and confirmed gone.
 
-Resubmitted for a second scoring pass.
+**Critic round 2: 9/10 — cleared, item #146 done.** Every finding from
+round 1 re-verified *live* (not just re-read from code), including the
+exact original data-loss repro (dispatched a stuck `pointerdown` with
+no release, clicked Save, confirmed the upload now matches the real
+edit's bytes, not the original's) and the visual/touch/keyboard fixes
+checked against actual computed styles rather than just class
+presence. Confirmed the fix didn't break the common case either
+(normal undo/redo with Compare never touched still works exactly as
+before). One real gap found and closed immediately:
+- ✅ **The multi-touch guard from round 1 only worked in one direction**
+  — `startCompare()` correctly refused to start while another drag was
+  in progress, but nothing blocked the *reverse* order: a second touch
+  starting a brand-new crop drag while a compare was already showing
+  the swapped-in original (only possible if the image had already been
+  cropped/resized before that compare, so `originalSnapshot`'s
+  dimensions differ from the current canvas). The critic tried hard to
+  force this live with real distinct `pointerId`s and
+  `pointerType: 'touch'` but couldn't get the precondition (an existing
+  crop) to coincide with the reverse-order attempt in the same test
+  run, so it was flagged as "reasoned about, not fully live-confirmed"
+  rather than closed. Fixed with the symmetric guard the round-1 fix
+  was missing: `overlay`'s `pointerdown` handler now also refuses to
+  start a new drag while `isComparing()` is true. Verified via
+  Playwright with the exact precondition the critic couldn't
+  reconstruct: cropped a real image down (200×200 → 80×80), started
+  Compare (canvas correctly grew to the original's 200×200), dispatched
+  a second-pointer `pointerdown` on the overlay mid-hold, confirmed the
+  crop-apply button never appeared (the drag was blocked, not just
+  silently corrupted), released Compare, and confirmed the canvas
+  returned to the exact cropped 80×80 state with no corruption.
+
+Item #146 (Photo Editor before/after compare) is done: 2 critic
+rounds, 4/10 → 9/10, every real finding — including a genuine
+live-reproduced data-loss bug — fixed and verified live, closing even
+the one gap the second critic could only reason about rather than
+force to manifest.

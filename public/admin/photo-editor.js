@@ -599,6 +599,18 @@
   const SHAPE_TOOLS = ["rect", "circle", "line", "arrow"];
 
   overlay.addEventListener("pointerdown", (e) => {
+    // The reverse order of the guard already in startCompare() -- that one
+    // blocks starting a compare mid-drag; this blocks starting a NEW drag
+    // while a compare is already showing the original. Without it, on a
+    // touchscreen a second finger could start a crop drag while the canvas
+    // is temporarily resized to originalSnapshot's dimensions (only
+    // possible if the image was cropped/resized before this compare), and
+    // the resulting cropRect coordinates would then be computed against
+    // the wrong canvas size once the swap reverts on release -- the same
+    // corruption as before, just in the other temporal order. A second
+    // critic pass found this gap in the fix's symmetry after the first
+    // round only guarded one direction.
+    if (isComparing()) return;
     const p = pointFromEvent(e);
     dragging = true;
     dragStart = p;
