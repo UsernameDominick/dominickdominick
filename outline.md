@@ -892,7 +892,13 @@ Contact form, admin inbox, guestbook/comments, moderation, newsletter —
   appears as plain, not-yet-linked text, and a click wraps that exact
   span in a markdown link to it; client-side only, against the
   already-loaded pages/articles/projects arrays, no server round-trip)
-- ☐ Automatic redirect suggestions after URL changes
+- ✅ Automatic redirect suggestions after URL changes (not a suggestion to
+  approve — a slug change on something already live auto-creates a 301
+  from the old path to the new one, for pages/articles/projects alike; a
+  draft's slug change creates nothing, since nothing public could be
+  linking to it yet; never overwrites a redirect an admin already set up
+  from that same old path; the home page's slug maps to "/" rather than
+  "/home", handled as a special case)
 - 🔶 Link monitoring (on-demand Link Checker ✅; scheduled/ongoing ☐)
 - 🔶 Missing-metadata reports (SEO Report now covers meta description +
   alt text + missing social-share image on published articles/projects +

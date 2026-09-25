@@ -62,6 +62,7 @@ import {
   importAll,
   listRedirects,
   createRedirect,
+  getRedirect,
   updateRedirect,
   deleteRedirect,
   maybeSnapshotPage,
@@ -276,6 +277,28 @@ function log(ctx, env, action, entityType, entityLabel, detail) {
   ctx.waitUntil(logActivity(env, action, entityType, entityLabel, detail).catch(() => {}));
 }
 
+// A slug change on something that's live breaks whatever already links to
+// or bookmarked the old URL — auto-creating the redirect is a one-time
+// courtesy, not a standing rule: it only fires the moment the slug
+// actually changes, and never overwrites a redirect an admin already set
+// up from that same old path (their choice wins).
+async function maybeCreateSlugRedirect(env, ctx, { oldSlug, newSlug, pathPrefix, isLive }) {
+  if (!isLive || !oldSlug || !newSlug || oldSlug === newSlug) return;
+  const fromPath = `${pathPrefix}${oldSlug}`;
+  const toPath = `${pathPrefix}${newSlug}`;
+  if (isBlockedRedirectPath(fromPath) || fromPath === toPath) return;
+  try {
+    const existing = await getRedirect(env, fromPath);
+    if (existing) return;
+    await createRedirect(env, { from_path: fromPath, to_path: toPath, status_code: 301 });
+    log(ctx, env, "create", "redirect", `${fromPath} → ${toPath} (auto, from slug change)`);
+  } catch {
+    // Best-effort courtesy, not a hard requirement — a failure here
+    // (e.g. a race against a redirect created the same moment) shouldn't
+    // fail the slug change itself.
+  }
+}
+
 async function routeAdminApi(request, env, url, ctx) {
   const path = url.pathname.replace(/^\/api\/admin/, "");
   const method = request.method;
@@ -347,8 +370,14 @@ async function routeAdminApi(request, env, url, ctx) {
         return json({ error: "A page with that slug already exists" }, { status: 409 });
       }
     }
+    const beforePage = body.slug ? await env.DB.prepare("SELECT slug FROM pages WHERE id = ?").bind(id).first() : null;
     await updatePage(env, id, body);
     log(ctx, env, "update", "page", body.title || body.slug || `#${id}`);
+    // The home page's slug ("home") maps to "/", not "/home" — every
+    // other page is just "/" + its slug.
+    if (body.slug && beforePage && beforePage.slug !== "home") {
+      await maybeCreateSlugRedirect(env, ctx, { oldSlug: beforePage.slug, newSlug: body.slug, pathPrefix: "/", isLive: true });
+    }
     const fresh = await env.DB.prepare("SELECT version FROM pages WHERE id = ?").bind(id).first();
     return json({ ok: true, version: fresh?.version });
   }
@@ -518,6 +547,9 @@ async function routeAdminApi(request, env, url, ctx) {
     const wasPublished = !!(before && before.published_at && before.published_at <= new Date().toISOString());
     const newPublishedAt = "published_at" in body ? body.published_at : before && before.published_at;
     const isNowPublished = !!(newPublishedAt && newPublishedAt <= new Date().toISOString());
+    if (body.slug && before) {
+      await maybeCreateSlugRedirect(env, ctx, { oldSlug: before.slug, newSlug: body.slug, pathPrefix: "/random/", isLive: wasPublished });
+    }
     // Only the publish/unpublish transition is logged — plain content edits
     // fire this same endpoint every couple of seconds via autosave, which
     // would otherwise flood the log with noise revisions already capture.
@@ -615,7 +647,7 @@ async function routeAdminApi(request, env, url, ctx) {
         return json({ error: "A project with that slug already exists" }, { status: 409 });
       }
     }
-    const before = await env.DB.prepare("SELECT title, published_at FROM projects WHERE id = ?").bind(id).first();
+    const before = await env.DB.prepare("SELECT slug, title, published_at FROM projects WHERE id = ?").bind(id).first();
     await snapshotProject(env, id);
     await updateProject(env, id, body);
     const wasPublished = !!(before && before.published_at && before.published_at <= new Date().toISOString());
@@ -623,6 +655,9 @@ async function routeAdminApi(request, env, url, ctx) {
     const isNowPublished = !!(newPublishedAt && newPublishedAt <= new Date().toISOString());
     if (wasPublished !== isNowPublished) {
       log(ctx, env, isNowPublished ? "publish" : "unpublish", "project", body.title || (before && before.title));
+    }
+    if (body.slug && before) {
+      await maybeCreateSlugRedirect(env, ctx, { oldSlug: before.slug, newSlug: body.slug, pathPrefix: "/projects/", isLive: wasPublished });
     }
     const fresh = await env.DB.prepare("SELECT version, slug FROM projects WHERE id = ?").bind(id).first();
     return json({ ok: true, version: fresh?.version, slug: fresh?.slug });
