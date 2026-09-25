@@ -1189,15 +1189,23 @@ export async function renderBlocks(env, blocks, ctx = {}) {
       // on a <video>, and layering it into background-image would only
       // work for the image case. The plain, by-far-most-common case (no
       // video, no overlay) keeps the exact same simple markup as before.
+      // A plain internal integer id, already visible elsewhere (revision
+      // snapshots, the activity log) — exposing it here isn't a new
+      // information leak, and it's what lets the admin's own Diagnostics
+      // panel (in the parent document, checking this same markup rendered
+      // inside a hidden iframe) map a real-layout finding like "content
+      // overflows its box" or "broken image" back to the specific block
+      // that caused it, instead of just naming the problem with no way to
+      // jump to it.
       if (style.backgroundVideoUrl || (style.backgroundImage && style.overlayColor)) {
         const overlayRgba = style.overlayColor ? hexToRgba(style.overlayColor, style.overlayOpacity) : null;
-        return `<div class="block block-has-bg-layer${visibilityClass}${hoverClass}${mobileOverrideClass}${parallaxClass}" style="${gridStyle}${blockStyleAttr(style)}${animateDelayCss}"${dataAnimateAttr}>${
+        return `<div class="block block-has-bg-layer${visibilityClass}${hoverClass}${mobileOverrideClass}${parallaxClass}" data-block-id="${b.id}" style="${gridStyle}${blockStyleAttr(style)}${animateDelayCss}"${dataAnimateAttr}>${
           style.backgroundVideoUrl
             ? `<video class="block-bg-video" src="${esc(style.backgroundVideoUrl)}" autoplay muted loop playsinline></video>`
             : ""
         }${overlayRgba ? `<div class="block-bg-overlay" style="background:${overlayRgba};"></div>` : ""}<div class="block-content-over-bg">${inner}</div></div>`;
       }
-      return `<div class="block${visibilityClass}${hoverClass}${mobileOverrideClass}${parallaxClass}" style="${gridStyle}${blockStyleAttr(style)}${animateDelayCss}"${dataAnimateAttr}>${inner}</div>`;
+      return `<div class="block${visibilityClass}${hoverClass}${mobileOverrideClass}${parallaxClass}" data-block-id="${b.id}" style="${gridStyle}${blockStyleAttr(style)}${animateDelayCss}"${dataAnimateAttr}>${inner}</div>`;
     });
   return parts.join("\n");
 }

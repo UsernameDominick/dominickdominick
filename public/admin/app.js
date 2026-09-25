@@ -2336,16 +2336,32 @@
         }
         const issues = [];
         const MIN_TAP = 24; // WCAG 2.5.8 minimum target size
+        // Every block wrapper now carries data-block-id (see renderBlocks()
+        // in worker/render.js) — walking up to the nearest one lets these
+        // real-layout findings jump straight to their source block instead
+        // of just naming the problem with no "Select" button at all.
+        const blockIdFor = (node) => {
+          const wrapper = node.closest("[data-block-id]");
+          return wrapper ? Number(wrapper.dataset.blockId) : null;
+        };
         doc.querySelectorAll("a, button").forEach((node) => {
           const r = node.getBoundingClientRect();
           if (r.width > 0 && r.height > 0 && (r.width < MIN_TAP || r.height < MIN_TAP)) {
             const label = (node.textContent || "").trim().slice(0, 40) || node.tagName.toLowerCase();
-            issues.push({ severity: "warn", message: `Small tap target at desktop width (${Math.round(r.width)}×${Math.round(r.height)}px, ${MIN_TAP}×${MIN_TAP} minimum): "${label}"`, blockId: null });
+            issues.push({
+              severity: "warn",
+              message: `Small tap target at desktop width (${Math.round(r.width)}×${Math.round(r.height)}px, ${MIN_TAP}×${MIN_TAP} minimum): "${label}"`,
+              blockId: blockIdFor(node),
+            });
           }
         });
         doc.querySelectorAll(".block").forEach((node) => {
           if (node.scrollHeight > node.clientHeight + 4 || node.scrollWidth > node.clientWidth + 4) {
-            issues.push({ severity: "warn", message: "A block's content overflows its box at desktop width — may be visually clipped", blockId: null });
+            issues.push({
+              severity: "warn",
+              message: "A block's content overflows its box at desktop width — may be visually clipped",
+              blockId: blockIdFor(node),
+            });
           }
         });
         // native `loading="lazy"` images never actually fetch inside this
@@ -2355,7 +2371,19 @@
         // real image on the page. Re-request each distinct src directly in
         // the parent document instead, which sidesteps lazy-loading
         // entirely and also naturally dedupes repeated images.
-        const srcs = [...new Set([...doc.querySelectorAll("img")].map((img) => img.getAttribute("src")).filter(Boolean))];
+        // A src can appear in more than one block (the same image reused,
+        // or several images inside one gallery) — probed once per distinct
+        // src, but tracked back to every block that actually uses it so a
+        // broken image still gets its own "Select" per affected block.
+        const srcToBlockIds = new Map();
+        doc.querySelectorAll("img").forEach((img) => {
+          const src = img.getAttribute("src");
+          if (!src) return;
+          const id = blockIdFor(img);
+          if (!srcToBlockIds.has(src)) srcToBlockIds.set(src, new Set());
+          if (id !== null) srcToBlockIds.get(src).add(id);
+        });
+        const srcs = [...srcToBlockIds.keys()];
         Promise.all(
           srcs.map(
             (src) =>
@@ -2368,7 +2396,14 @@
               })
           )
         ).then((results) => {
-          results.filter(Boolean).forEach((src) => issues.push({ severity: "error", message: `Broken image (failed to load): ${src}`, blockId: null }));
+          results.filter(Boolean).forEach((src) => {
+            const blockIds = [...srcToBlockIds.get(src)];
+            if (!blockIds.length) {
+              issues.push({ severity: "error", message: `Broken image (failed to load): ${src}`, blockId: null });
+            } else {
+              blockIds.forEach((blockId) => issues.push({ severity: "error", message: `Broken image (failed to load): ${src}`, blockId }));
+            }
+          });
           finish(issues);
         });
         return;

@@ -2708,3 +2708,28 @@ skipping them.
   fade-in animations opened in one viewport show `--animate-delay`
   values of 0/80/160/240/320ms across the batch instead of all firing
   at 0ms.
+- ✅ **Diagnostics: layout findings now jump to their source block** —
+  `computeRenderedLayoutDiagnostics()` (the checks that need real
+  rendered-CSS measurements from a hidden iframe of the actual public
+  page: small tap targets, content overflow, broken images) always set
+  `blockId: null`, so none of those findings ever got a "Select"
+  button — only the separate `computePageDiagnostics()` checks (empty
+  heading, missing alt text, etc.), which already had the block's id
+  on hand from the `blocks` array directly, could jump anywhere. Fixed
+  the actual gap causing it: the public-facing rendered block wrapper
+  (`worker/render.js`'s `renderBlocks()`) never carried the block's id
+  in the DOM at all, so there was nothing in the iframe for the parent
+  document to map a finding back to. Added `data-block-id="${b.id}"`
+  to every block wrapper (harmless — it's an internal integer already
+  visible elsewhere, e.g. revision snapshots and the activity log), and
+  a small `blockIdFor(node)` helper in the Diagnostics code that walks
+  up to the nearest `[data-block-id]` ancestor for the tap-target and
+  overflow checks. The broken-image check needed one more step since
+  its network probe is deduped by image `src` (the same file can be
+  reused in several blocks, or appear multiple times in one gallery) —
+  built a `src → Set<blockId>` map first, then emit one issue per
+  affected block for anything that comes back broken, so each gets its
+  own "Select." Verified via Playwright: a page with a broken image
+  block shows the "Broken image" finding with a working "Select"
+  button, and clicking it correctly selects that exact block on the
+  canvas (confirmed by id, not just "a block got selected").
