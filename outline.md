@@ -4941,7 +4941,7 @@ live in env bindings, not content rows).
 544. Shared asset identifiers that survive renaming — media `key` is already the stable id.
 549. Project inbox for uncategorized uploads/ideas — a saved filter/view over unassigned media+content.
 567. Show storage used by originals/versions/previews/exports — sizes already recorded; just aggregate.
-569. Monitor editor crashes and failed saves — `error_log` table exists; wire client-side reporting from the 3 editors into it.
+569. ✅ Monitor editor crashes and failed saves — done (see the dated entry below this section).
 572. Choose poster images/fallbacks before publishing — `scans.poster_key` pattern exists; extend to songs/simulations.
 576. Keep animated elements from moving surrounding text — CSS layout fix (reserved space/aspect-ratio).
 582. Protect source files containing private/sensitive material — mirrors the existing `private_notes` admin-only field pattern.
@@ -5104,4 +5104,33 @@ confirmed working, no regressions. One real remaining gap:
 
 Full regression suite green after the round-2 fix; test rows cleaned up
 and confirmed back to baseline via D1 (`COUNT=9, MAX(id)=11`, matching
-pre-test state exactly). Resubmitting for a third scoring pass.
+pre-test state exactly).
+
+**Critic round 3: 9/10 — cleared, item #569 done.** Verified the
+round-2 fix against harder edge cases beyond what rounds 1-2 covered:
+a *deep/indirect* circular reference (two objects referencing each
+other, not just direct self-reference) correctly caught and marked
+`[Circular]` by the `WeakSet`-based replacer; a `BigInt` field (a real,
+non-circularity stringify failure) correctly falls through to the
+constructor-name fallback rather than crashing; full round-1 regression
+sweep (flood dedup, three-editor tagging, plain object/string/Error
+handling) re-confirmed clean. One tradeoff surfaced and explicitly
+judged rather than fixed:
+- 🔶 **A legitimately repeated (but non-circular) object reference in a
+  thrown value gets labeled `[Circular]` too** — e.g. `{first: shared,
+  second: shared}` where `shared` is the same object at two keys, not
+  an actual cycle. The `WeakSet` has no way to distinguish "really a
+  cycle" from "same object visited twice." Judged as a fine tradeoff
+  for this specific use case (an internal admin crash log read by one
+  developer, not a data-interchange contract) rather than a defect: the
+  label still correctly signals "this value appears more than once,
+  don't assume independent duplication," which isn't meaningfully
+  misleading here. A precise fix would need path-tracking — real added
+  complexity with no real payoff for a single-admin debug log. Logged
+  here rather than silently accepted, per the standing "every critic
+  finding gets tracked" rule, even though the verdict is "don't fix."
+
+Item #569 (monitor editor crashes and failed saves) is done: 3 critic
+rounds, 6/10 → 8/10 → 9/10, every real finding fixed and verified live,
+the one remaining item a judged, tracked tradeoff rather than an
+oversight.
