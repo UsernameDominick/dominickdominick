@@ -587,27 +587,35 @@
       </header>
       <p id="media-hint" class="media-hint" hidden>Click an image to use it.</p>
       <div class="media-toolbar">
-        <select id="media-folder-filter"><option value="">All folders</option></select>
-        <select id="media-type-filter">
-          <option value="">All types</option>
-          <option value="image">Images</option>
-          <option value="audio">Audio</option>
-          <option value="other">Other</option>
-        </select>
-        <input type="search" id="media-search" placeholder="Search filename or tag…">
-        <input type="search" id="media-usage-filter" placeholder="Used in… (page/article/project title)">
-        <label class="media-unused-filter"><input type="checkbox" id="media-unused-filter"> Unused only</label>
-        <label class="media-unused-filter"><input type="checkbox" id="media-duplicates-filter"> Possible duplicates only</label>
-        <select id="media-saved-search-select"><option value="">Saved searches…</option></select>
-        <button type="button" id="media-save-search-btn" title="Save the current filters under a name">Save search</button>
-        <button type="button" id="media-delete-search-btn" title="Delete the selected saved search">Delete search</button>
-        <button type="button" id="media-scan-duplicates-btn" title="Hash any uploads from before duplicate detection existed">Scan for duplicates</button>
-        <select id="media-upload-folder" title="New uploads go into this folder"><option value="">No folder</option></select>
-        <button type="button" id="media-upload-btn">Upload files…</button>
-        <span id="media-selected-count" class="media-selected-count"></span>
-        <button type="button" id="media-bulk-move-btn" disabled>Move to folder…</button>
-        <button type="button" id="media-bulk-tag-btn" disabled>Add tag…</button>
-        <button type="button" id="media-bulk-delete-btn" class="danger" disabled>Delete selected</button>
+        <div class="media-toolbar-group">
+          <select id="media-folder-filter"><option value="">All folders</option></select>
+          <select id="media-type-filter">
+            <option value="">All types</option>
+            <option value="image">Images</option>
+            <option value="audio">Audio</option>
+            <option value="other">Other</option>
+          </select>
+          <input type="search" id="media-search" placeholder="Search filename or tag…">
+          <input type="search" id="media-usage-filter" placeholder="Used in… (page/article/project title)">
+          <label class="media-unused-filter"><input type="checkbox" id="media-unused-filter"> Unused only</label>
+          <label class="media-unused-filter"><input type="checkbox" id="media-duplicates-filter"> Possible duplicates only</label>
+        </div>
+        <div class="media-toolbar-group">
+          <select id="media-saved-search-select"><option value="">Saved searches…</option></select>
+          <button type="button" id="media-save-search-btn" title="Save the current filters under a name">Save search</button>
+          <button type="button" id="media-delete-search-btn" title="Delete the selected saved search">Delete search</button>
+          <button type="button" id="media-scan-duplicates-btn" title="Hash any uploads from before duplicate detection existed">Scan for duplicates</button>
+        </div>
+        <div class="media-toolbar-group">
+          <select id="media-upload-folder" title="New uploads go into this folder"><option value="">No folder</option></select>
+          <button type="button" id="media-upload-btn">Upload files…</button>
+        </div>
+        <div class="media-toolbar-group">
+          <span id="media-selected-count" class="media-selected-count"></span>
+          <button type="button" id="media-bulk-move-btn" disabled>Move to folder…</button>
+          <button type="button" id="media-bulk-tag-btn" disabled>Add tag…</button>
+          <button type="button" id="media-bulk-delete-btn" class="danger" disabled>Delete selected</button>
+        </div>
       </div>
       <div id="media-grid" class="media-grid"></div>
     </div>

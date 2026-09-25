@@ -1804,9 +1804,20 @@ enough detail to act on directly later.
   and `cursor: not-allowed`. Verified via Playwright: a disabled
   "Delete selected" no longer shows the active red, and selecting an
   item to enable it still shows the correct red styling.
-- Media Library's desktop toolbar is still ~19 ungrouped native
-  controls with no visual grouping — not fixed this round (a bigger
-  layout redesign, not a quick CSS fix).
+- ✅ Media Library's desktop toolbar was ~19 ungrouped native controls
+  in one flat flex row with no visual grouping. Wrapped the existing
+  controls (no new functionality) into four `.media-toolbar-group`
+  divs by function — filters (folder/type/search/usage/unused/
+  duplicates), saved searches (select/save/delete/scan-duplicates),
+  upload (folder select/upload button), and bulk actions (selected
+  count/move/tag/delete) — each group getting a thin right-hand
+  divider (`border-right`) except the last, with `flex-wrap` on both
+  the outer toolbar and each group so it degrades to stacked rows on
+  narrow viewports. No JS changes needed since ids/behavior are
+  untouched. Verified via Playwright: four groups render, each
+  containing its expected controls, dividers separate them visually at
+  desktop width, and the layout wraps into readable rows at mobile
+  width (390px) without overlap.
 - ✅ Site Settings: checkboxes stretched to `width:100%` by a blanket
   `.settings-body input` rule, showing as a detached box above their
   label instead of inline; "Security events only" label clipped to one
