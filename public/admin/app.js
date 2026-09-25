@@ -2408,6 +2408,26 @@
         blockId: null,
       });
     }
+    // A custom text/background color pair is a per-block override the site
+    // theme's own contrast checker (below, for the global theme colors)
+    // never sees — nothing previously caught a block shipping unreadable
+    // text just because both colors happened to be set at the same time.
+    // contrastRatio()/relLuminance() are defined further down in this file
+    // (function declarations are hoisted within this IIFE) — same formula
+    // already used to check the theme's own colors, just applied per-block.
+    for (const b of visibleBlocks) {
+      const color = b.style && b.style.color;
+      const bg = b.style && b.style.bg;
+      if (!color || !bg || !/^#[0-9a-f]{6}$/i.test(color) || !/^#[0-9a-f]{6}$/i.test(bg)) continue;
+      const ratio = contrastRatio(color, bg);
+      if (ratio < 4.5) {
+        issues.push({
+          severity: "warn",
+          message: `This block's custom text/background colors have a contrast ratio of ${ratio.toFixed(2)}:1, below the WCAG AA minimum of 4.5:1 for text — likely hard to read.`,
+          blockId: b.id,
+        });
+      }
+    }
     return issues;
   }
 

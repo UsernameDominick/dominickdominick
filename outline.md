@@ -3084,3 +3084,21 @@ in the admin. Fixed while addressing the rest of this report:
   renders no badge, while confirming the block is genuinely visible on
   the live public page; the other three states (not-yet-visible,
   expired, will-hide-later) still render exactly as before.
+
+### Fifth backlog batch
+- ✅ **Diagnostics: per-block custom color contrast check** — the admin
+  already has a live WCAG contrast checker for the site's global theme
+  colors (text/background/accent, in Site Settings), but a block-level
+  style override (a custom `color`/`bg` pair, independent of the theme)
+  had no equivalent check — nothing caught a block shipping unreadable
+  text just because both colors happened to be set. Reuses the exact
+  same `contrastRatio()`/`relLuminance()` functions already used for
+  the theme checker (function hoisting means `computePageDiagnostics()`
+  can call them even though they're defined later in the file), applied
+  per-block wherever both colors are explicitly set as valid hex, flagged
+  as a warning below the WCAG AA 4.5:1 threshold for normal text.
+  Verified via Playwright with three real blocks: a deliberately low-
+  contrast pair (#cccccc on #ffffff, ratio 1.61:1) correctly flagged
+  with the exact computed ratio in the message and a working "Select"
+  button; a high-contrast pair (black on white) and a block with no
+  colors set at all both correctly produced no finding.
