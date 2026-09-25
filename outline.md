@@ -911,7 +911,15 @@ breadboard continuity, tolerances, limitations doc) — all ☐, untouched.
 - ☐ Everything else: library folders/tags beyond projects, fullscreen as distinct control, point-cloud/mesh toggle, measurement tools, annotations, saved camera views, comparisons, timeline, capture-date/equipment fields, inline embeds, mobile perf settings, download options, privacy controls, fallback images
 
 ### Search and content discovery
-- ✅ Site-wide search (articles + projects); ☐ filters/sorting
+- ✅ Site-wide search (articles + projects); ✅ filters/sorting — a
+  filter bar above results: type (All/Pages/Projects/Posts) and sort
+  (Newest/Oldest first, articles+projects only — pages have no publish
+  date to sort by). Plain `<a>` links rebuilding the `/search?q=&type=&sort=`
+  URL rather than a JS-driven form, matching how every other listing page
+  on the site (topics, archive) already needs no client JS at all —
+  bookmarkable and shareable as a side effect. `publicSearch()` skips
+  querying a category entirely when `type` excludes it, rather than
+  fetching all three and filtering client-side
 - ✅ Type-ahead suggestions (admin command palette; public search — debounced
   `/api/search-suggest` endpoint reusing `publicSearch()`, dropdown under
   the topbar search box with arrow-key nav and Enter-to-navigate, own

@@ -1967,33 +1967,45 @@ export async function search(env, q) {
 
 // Public-facing search: only live pages and published articles, unlike the
 // admin command palette's search() above which intentionally sees everything.
-export async function publicSearch(env, q) {
+// `type` narrows to one category ("page"/"article"/"project"), skipping the
+// other queries entirely rather than just filtering their results client-
+// side. `sort` ("newest" default, or "oldest") only affects articles/
+// projects — pages have no publish date, so they always sort by title.
+export async function publicSearch(env, q, { type = "", sort = "newest" } = {}) {
   const like = `%${escapeLike(q)}%`;
+  const dateOrder = sort === "oldest" ? "ASC" : "DESC";
+  const now = new Date().toISOString();
   const [pages, articles, projects] = await Promise.all([
-    env.DB
-      .prepare(
-        "SELECT id, slug, title, meta_description FROM pages WHERE deleted_at IS NULL AND (title LIKE ? ESCAPE '\\' OR meta_description LIKE ? ESCAPE '\\') ORDER BY title LIMIT 20"
-      )
-      .bind(like, like)
-      .all(),
-    env.DB
-      .prepare(
-        `SELECT id, slug, title, body, tags, published_at FROM articles
-         WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?) AND archived = 0
-         AND (title LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\')
-         ORDER BY published_at DESC LIMIT 20`
-      )
-      .bind(new Date().toISOString(), new Date().toISOString(), like, like, like)
-      .all(),
-    env.DB
-      .prepare(
-        `SELECT id, slug, title, summary, tags, published_at FROM projects
-         WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?) AND archived = 0
-         AND (title LIKE ? ESCAPE '\\' OR summary LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\')
-         ORDER BY published_at DESC LIMIT 20`
-      )
-      .bind(new Date().toISOString(), new Date().toISOString(), like, like, like, like)
-      .all(),
+    !type || type === "page"
+      ? env.DB
+          .prepare(
+            "SELECT id, slug, title, meta_description FROM pages WHERE deleted_at IS NULL AND (title LIKE ? ESCAPE '\\' OR meta_description LIKE ? ESCAPE '\\') ORDER BY title LIMIT 20"
+          )
+          .bind(like, like)
+          .all()
+      : { results: [] },
+    !type || type === "article"
+      ? env.DB
+          .prepare(
+            `SELECT id, slug, title, body, tags, published_at FROM articles
+             WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?) AND archived = 0
+             AND (title LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\')
+             ORDER BY published_at ${dateOrder} LIMIT 20`
+          )
+          .bind(now, now, like, like, like)
+          .all()
+      : { results: [] },
+    !type || type === "project"
+      ? env.DB
+          .prepare(
+            `SELECT id, slug, title, summary, tags, published_at FROM projects
+             WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?) AND archived = 0
+             AND (title LIKE ? ESCAPE '\\' OR summary LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\')
+             ORDER BY published_at ${dateOrder} LIMIT 20`
+          )
+          .bind(now, now, like, like, like, like)
+          .all()
+      : { results: [] },
   ]);
   return { pages: pages.results, articles: articles.results.map(parseArticleRow), projects: projects.results.map(parseProjectRow) };
 }

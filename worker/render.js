@@ -310,14 +310,30 @@ export function excerpt(text, maxLen = 155) {
   return cut.slice(0, lastSpace > 0 ? lastSpace : maxLen).trim() + "…";
 }
 
-export function renderSearchResultsHtml(query, pages, articles, projects = [], customEmptyText = "") {
+export function renderSearchResultsHtml(query, pages, articles, projects = [], customEmptyText = "", { type = "", sort = "newest" } = {}) {
   if (!query) {
     return `<p class="empty-hint">Enter a search term above to look through pages and posts.</p>`;
   }
+  // Filter/sort controls are plain links (rebuilding the URL with the query
+  // string intact) rather than a JS-driven form — every other listing page
+  // on the site (topics, archive) already works this way with no client JS
+  // needed at all, and it's just as easy to link to directly or bookmark.
+  const typeLink = (value, label) =>
+    `<a href="/search?q=${encodeURIComponent(query)}${value ? `&type=${value}` : ""}${sort !== "newest" ? `&sort=${sort}` : ""}"${
+      type === value ? ' class="is-active"' : ""
+    }>${label}</a>`;
+  const sortLink = (value, label) =>
+    `<a href="/search?q=${encodeURIComponent(query)}${type ? `&type=${type}` : ""}${value !== "newest" ? `&sort=${value}` : ""}"${
+      sort === value ? ' class="is-active"' : ""
+    }>${label}</a>`;
+  const filterBarHtml = `<div class="search-filter-bar">
+    <span class="search-filter-group">${typeLink("", "All")} ${typeLink("page", "Pages")} ${typeLink("project", "Projects")} ${typeLink("article", "Posts")}</span>
+    <span class="search-filter-group">${sortLink("newest", "Newest first")} ${sortLink("oldest", "Oldest first")}</span>
+  </div>`;
   const total = pages.length + articles.length + projects.length;
   if (!total) {
     const text = customEmptyText ? customEmptyText.replace("{query}", query) : `No results for "${query}".`;
-    return `<p class="empty-hint">${esc(text)}</p>`;
+    return `${filterBarHtml}<p class="empty-hint">${esc(text)}</p>`;
   }
   const pageItems = pages
     .map(
@@ -341,7 +357,7 @@ export function renderSearchResultsHtml(query, pages, articles, projects = [], c
         }</li>`
     )
     .join("");
-  return `<p class="search-result-count">${total} result${total === 1 ? "" : "s"} for "${esc(query)}"</p>
+  return `${filterBarHtml}<p class="search-result-count">${total} result${total === 1 ? "" : "s"} for "${esc(query)}"</p>
 ${pageItems ? `<h2>Pages</h2><ul class="search-results">${pageItems}</ul>` : ""}
 ${projectItems ? `<h2>Projects</h2><ul class="search-results">${projectItems}</ul>` : ""}
 ${articleItems ? `<h2>Posts</h2><ul class="search-results">${articleItems}</ul>` : ""}`;

@@ -1412,6 +1412,33 @@ h6 { font-size: 0.9rem; }
   font-size: 0.9rem;
 }
 
+.search-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-bottom: 16px;
+  font-size: 0.85rem;
+}
+
+.search-filter-group a {
+  color: var(--text-dim);
+  text-decoration: none;
+  margin-right: 10px;
+}
+
+.search-filter-group a:last-child {
+  margin-right: 0;
+}
+
+.search-filter-group a:hover {
+  color: var(--text);
+}
+
+.search-filter-group a.is-active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .topic-intro {
   font-size: 1.05rem;
   color: var(--text-dim);
