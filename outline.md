@@ -2883,3 +2883,44 @@ in the admin. Fixed while addressing the rest of this report:
   and flipped the button to "⏸ Stop", clicking it again reset the
   label, and a fresh preview load reset the scrubber back to 0 — no
   console errors at any step.
+
+### Second critic pass on the above
+- ✅ **Long Content Integrity status text crushed the row's page/project
+  title to unreadable or invisible** — `.link-check-row`'s title span
+  had `min-width: 0`, which let it shrink toward nothing whenever the
+  status text on the same row was long, and every prior check's status
+  text topped out around 17 characters ("Missing alt text") while
+  Content Integrity's ("Simulation block references a deleted item")
+  runs to 44 — a failure mode the row layout was never actually
+  exercised against before. Measured and confirmed: title width down
+  to 7.7px on desktop's aggregated "Run all checks" view and fully 0px
+  (invisible) in the standalone mobile panel. Fixed by giving the row
+  `flex-wrap: wrap`, a real `min-width: 100px` on the title (so the
+  browser wraps the status onto its own line instead of shrinking the
+  title away), and letting the status span itself wrap onto multiple
+  lines rather than forcing its full width. Verified via Playwright at
+  both viewports with a real broken-simulation-reference case: title
+  width went from crushed/invisible to 332px (desktop) and 207px
+  (mobile) — same fix, since the underlying row markup is shared,
+  applies to any future check with a long status string too.
+- ✅ **Unreachable dead code removed** — `getContentIntegrity`'s
+  `danglingNavParents` check could never actually find anything:
+  `nav_parent_id` is a real, D1-enforced foreign key
+  (`schema.sql`'s `REFERENCES pages(id)`), and every trash/delete/
+  permadelete path already nulls out a deleted page's children.
+  Confirmed via a direct D1 write attempt that a dangling value can't
+  exist. Removed the check itself along with its now-dead consumers in
+  the standalone panel and the "Run all checks" aggregator, and left a
+  comment explaining why it isn't checked (rather than silently having
+  three files reference a field that will never contain anything).
+- ✅ **Settings save no longer logs a no-op "no changes" entry** — a
+  re-save where nothing actually differs (opening and closing the tab)
+  used to still write an Activity Log row every time, which is exactly
+  the noise the settings-diff feature was built to cut. Now skips the
+  log write entirely when the diff is empty. Also capped the combined
+  multi-key diff string at 240 characters (each individual value was
+  already truncated, but saving several keys at once had no overall
+  cap, and the Activity Log renders this with no `title=""` attribute
+  to reveal the rest). Verified via the API: an identical-settings PUT
+  produced no new Activity Log row at all, confirmed by comparing the
+  log immediately before and after against real timestamps.

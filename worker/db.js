@@ -3473,13 +3473,17 @@ export async function getContentHealth(env) {
 // edit flow can leave behind without anything visibly breaking at save
 // time: a simulation/scan/song deleted after a block already pointed at it
 // (the single-page admin canvas badge added alongside this only warns
-// about whichever page happens to be open), a project's related-X arrays
-// still listing an id whose row is long gone (deleting a related article/
-// project/simulation/scan doesn't touch anything else's related_* JSON
-// array, so a stale id just sits there silently), and a page nested under
-// a nav_parent_id that no longer exists (the create/update-time check in
-// admin-api.js only validates a *new* parent assignment, not ones already
-// saved before that validation existed).
+// about whichever page happens to be open), and a project's related-X
+// arrays still listing an id whose row is long gone (deleting a related
+// article/project/simulation/scan doesn't touch anything else's
+// related_* JSON array, so a stale id just sits there silently).
+//
+// A dangling nav_parent_id was considered too, but schema.sql's
+// `nav_parent_id INTEGER REFERENCES pages(id)` is a real, D1-enforced
+// foreign key, and every trash/delete/permadelete path already nulls out
+// a deleted page's children (see the three `UPDATE pages SET
+// nav_parent_id = NULL` calls above) — confirmed via a direct D1 write
+// attempt that a dangling value can't exist, so it isn't checked here.
 export async function getContentIntegrity(env) {
   const [pages, articles, projects, simulations, scans, songs] = await Promise.all([
     listPages(env),
@@ -3495,7 +3499,6 @@ export async function getContentIntegrity(env) {
   const songIds = new Set(songs.map((s) => s.id));
   const articleIds = new Set(articles.map((a) => a.id));
   const projectIds = new Set(projects.map((p) => p.id));
-  const pageIds = new Set(pages.map((p) => p.id));
 
   const brokenBlockRefs = [];
   pages.forEach((p, i) => {
@@ -3529,11 +3532,7 @@ export async function getContentIntegrity(env) {
     });
   });
 
-  const danglingNavParents = pages
-    .filter((p) => p.nav_parent_id && !pageIds.has(Number(p.nav_parent_id)))
-    .map((p) => ({ title: p.title, slug: p.slug }));
-
-  return { brokenBlockRefs, danglingRelations, danglingNavParents };
+  return { brokenBlockRefs, danglingRelations };
 }
 
 // Site-wide SEO/accessibility sweep: pages missing a meta description

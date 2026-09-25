@@ -5142,7 +5142,7 @@
     btn.textContent = "Checking…";
     btn.disabled = true;
     try {
-      const { brokenBlockRefs, danglingRelations, danglingNavParents } = await api("/content-integrity");
+      const { brokenBlockRefs, danglingRelations } = await api("/content-integrity");
       const rows = [
         ...brokenBlockRefs.map(
           (r) =>
@@ -5155,12 +5155,6 @@
             `<div class="link-check-row broken"><span class="link-check-url">${escapeHtml(r.title)}</span><span class="link-check-source">/projects/${escapeHtml(
               r.slug
             )}</span><span class="link-check-status">${escapeHtml(r.field)} lists a deleted item</span></div>`
-        ),
-        ...danglingNavParents.map(
-          (r) =>
-            `<div class="link-check-row broken"><span class="link-check-url">${escapeHtml(r.title)}</span><span class="link-check-source">/${escapeHtml(
-              r.slug
-            )}</span><span class="link-check-status">Nested under a deleted parent page</span></div>`
         ),
       ];
       el("content-integrity-results").innerHTML = rows.join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No issues found.</p>";
@@ -5285,13 +5279,6 @@
           title: r.title,
           url: `/projects/${r.slug}`,
           status: `${r.field} lists a deleted item`,
-        })),
-        ...integrityData.danglingNavParents.map((r) => ({
-          severity: 2,
-          check: "Content Integrity",
-          title: r.title,
-          url: pagePath(r.slug),
-          status: "Nested under a deleted parent page",
         })),
         ...seoData.duplicateTitles.map((owners) => ({
           severity: 2,

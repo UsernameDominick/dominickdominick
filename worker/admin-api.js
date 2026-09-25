@@ -1808,7 +1808,19 @@ async function routeAdminApi(request, env, url, ctx) {
       return `${key}: "${truncate(oldVal)}" → "${truncate(newVal)}"`;
     }).filter(Boolean);
     await Promise.all(SETTINGS_KEYS.map((key) => setSetting(env, key, body[key] || "")));
-    log(ctx, env, "update", "settings", changes.length ? changes.join("; ") : "no changes");
+    // A re-save with nothing actually different (e.g. just opening and
+    // closing the tab) used to still log "no changes" every time — noise
+    // in the exact log this diff was built to make useful. Skip it.
+    if (changes.length) {
+      // Each value is already truncated, but saving several keys at once
+      // joins them into one string with no overall cap — since the
+      // Activity Log renders this with no title="" attribute, an
+      // unbounded join can run off the edge of the row with no way to
+      // see the rest. Same 60-char-ish budget as a single value.
+      let combined = changes.join("; ");
+      if (combined.length > 240) combined = combined.slice(0, 240) + "…";
+      log(ctx, env, "update", "settings", combined);
+    }
     return json({ ok: true });
   }
 

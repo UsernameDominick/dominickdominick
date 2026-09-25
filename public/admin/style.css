@@ -2857,7 +2857,8 @@ kbd {
 .link-check-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 4px 10px;
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -2927,8 +2928,15 @@ kbd {
 }
 
 .link-check-url {
-  flex: 1;
-  min-width: 0;
+  /* min-width used to be 0, which let a long status/badge on the same
+     row (Content Integrity's findings run well past the ~17-char
+     status text every older check produced) shrink this down to a
+     few px or nothing at all — exactly where an admin most needs to
+     read which page a finding is about. A real min-width forces
+     flex-wrap above to push the source/status onto their own line
+     instead of crushing the title to make room. */
+  flex: 1 1 140px;
+  min-width: 100px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2940,8 +2948,10 @@ kbd {
 }
 
 .link-check-status {
-  flex-shrink: 0;
+  flex: 0 1 auto;
   font-weight: 600;
+  white-space: normal;
+  overflow-wrap: break-word;
 }
 
 .link-check-row.ok .link-check-status {
