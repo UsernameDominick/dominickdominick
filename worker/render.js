@@ -573,6 +573,21 @@ export function renderCorrectionNoteHtml(note) {
   return `<div class="correction-note"><strong>Update:</strong> ${esc(note)}</div>`;
 }
 
+// Shown when a draft/expired article or project is being viewed by an
+// authenticated admin (either whole-site preview mode's cookie, or a
+// one-off ?preview=1 on this URL) — otherwise there'd be no visual cue
+// at all that what's on screen isn't what a normal visitor would see,
+// especially now that preview mode makes this reachable through ordinary
+// navigation rather than only a URL with the query param still attached.
+// Not shown for a shared preview-token link — there's no "mode" to turn
+// off there, and the visitor already knows it's a preview from how they
+// got the link in the first place.
+export function renderPreviewBannerHtml(reason) {
+  if (!reason) return "";
+  const toggle = reason === "cookie" ? `<button type="button" id="preview-mode-off-btn">Turn off preview mode</button>` : "";
+  return `<div class="preview-banner">Viewing a draft — not visible to other visitors.${toggle}</div>`;
+}
+
 export function renderTags(tags) {
   if (!tags || !tags.length) return "";
   // Links to the topic page (articles + projects together), not just the

@@ -34,7 +34,7 @@ import {
   getContentByTag,
   getTopicMeta,
 } from "./db.js";
-import { isAuthenticated } from "./auth.js";
+import { isAuthenticated, parseCookies } from "./auth.js";
 import {
   renderShell,
   renderBlocks,
@@ -65,12 +65,29 @@ import {
   renderCorrectionNoteHtml,
   renderTtsBarHtml,
   renderHeroVideoHtml,
+  renderPreviewBannerHtml,
   withCustomJsonLd,
   FAVICON_SVG,
   renderErrorPageHtml,
 } from "./render.js";
 import { handleAdminApi } from "./admin-api.js";
 import { renderSimulationSvg } from "./simulation-render.js";
+
+// Whole-site draft-inclusive preview mode — a plain, non-secret cookie an
+// admin toggles from the admin header's "Preview mode" button. Unlike
+// per-item ?preview=1, this follows normal navigation (nav links, related
+// content, search results, a URL typed by hand) without needing that query
+// param re-added everywhere, since the cookie rides along with every
+// request in the same browser automatically. It grants nothing on its
+// own — every check below still requires isAuthenticated too, so a visitor
+// setting this cookie themselves (nothing stops that; it's not a secret)
+// sees no more than they already could without it. Deliberately scoped to
+// individual article/project pages only, not listings/RSS/search/sitemap —
+// those still show published-only content even in preview mode, the same
+// way most CMS "preview" modes don't leak drafts into a subscribed feed.
+function hasPreviewModeCookie(request) {
+  return parseCookies(request.headers.get("Cookie")).preview_mode === "1";
+}
 
 async function getTheme(env) {
   const [accent, bg, font, text, border, headingFont, mobileBreakpoint] = await Promise.all([
@@ -140,7 +157,7 @@ async function renderPage(env, page, url) {
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
-async function renderArticle(env, article, navItems) {
+async function renderArticle(env, article, navItems, previewReason = null) {
   const description = excerpt(article.body) || article.title;
   const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
   const mins = readingTime(article.body);
@@ -169,6 +186,7 @@ async function renderArticle(env, article, navItems) {
   // (reactions, related articles). Flow layout can't overlap; each section
   // just takes the height its own content needs.
   const bodyHtml = `<div class="reading-progress"></div>
+  ${renderPreviewBannerHtml(previewReason)}
   <div class="block">
     <div class="article-meta">
       <time datetime="${esc(article.published_at)}">${esc((article.published_at || "").slice(0, 10))}</time>
@@ -233,7 +251,7 @@ async function renderArticle(env, article, navItems) {
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
-async function renderProject(env, project, navItems) {
+async function renderProject(env, project, navItems, previewReason = null) {
   const description = project.summary || excerpt(project.body) || project.title;
   const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
 
@@ -276,7 +294,8 @@ async function renderProject(env, project, navItems) {
   // variable-length optional sections (BOM, journal entries, downloads)
   // than an article does, all of which could overlap under the old fixed
   // grid-row-span scheme.
-  const bodyHtml = `<div class="block">
+  const bodyHtml = `${renderPreviewBannerHtml(previewReason)}
+  <div class="block">
     <div class="article-meta">
       ${project.status ? `<span>${esc(project.status)}</span><span class="article-meta-sep">·</span>` : ""}
       <time datetime="${esc(project.published_at)}">${esc((project.published_at || "").slice(0, 10))}</time>
@@ -933,7 +952,9 @@ async function route(request, env, ctx) {
       const article = await getArticleBySlug(env, articleMatch[1]);
       const now = new Date().toISOString();
       const isPublished = article && article.published_at && article.published_at <= now && (!article.expires_at || article.expires_at > now);
-      const isAdminPreview = url.searchParams.get("preview") === "1" && (await isAuthenticated(request, env));
+      const previewModeCookie = hasPreviewModeCookie(request);
+      const isAdminPreview =
+        (url.searchParams.get("preview") === "1" || previewModeCookie) && (await isAuthenticated(request, env));
       const previewToken = url.searchParams.get("preview_token");
       const isSharedPreview = article && previewToken && (await getValidPreviewLink(env, "article", article.id, previewToken));
       const isPreview = isAdminPreview || isSharedPreview;
@@ -944,7 +965,7 @@ async function route(request, env, ctx) {
       }
       const navItems = await listNavPages(env);
       if (isPublished) trackView(ctx, env, request, path);
-      return renderArticle(env, article, navItems);
+      return renderArticle(env, article, navItems, !isPublished && isPreview ? (previewModeCookie && isAdminPreview ? "cookie" : "one-off") : null);
     }
 
     // Individual project page: /projects/:slug
@@ -953,7 +974,9 @@ async function route(request, env, ctx) {
       const project = await getProjectBySlug(env, projectMatch[1]);
       const now = new Date().toISOString();
       const isPublished = project && project.published_at && project.published_at <= now && (!project.expires_at || project.expires_at > now);
-      const isAdminPreview = url.searchParams.get("preview") === "1" && (await isAuthenticated(request, env));
+      const previewModeCookie = hasPreviewModeCookie(request);
+      const isAdminPreview =
+        (url.searchParams.get("preview") === "1" || previewModeCookie) && (await isAuthenticated(request, env));
       const previewToken = url.searchParams.get("preview_token");
       const isSharedPreview = project && previewToken && (await getValidPreviewLink(env, "project", project.id, previewToken));
       const isPreview = isAdminPreview || isSharedPreview;
@@ -964,7 +987,7 @@ async function route(request, env, ctx) {
       }
       const navItems = await listNavPages(env);
       if (isPublished) trackView(ctx, env, request, path);
-      return renderProject(env, project, navItems);
+      return renderProject(env, project, navItems, !isPublished && isPreview ? (previewModeCookie && isAdminPreview ? "cookie" : "one-off") : null);
     }
 
     const slug = path === "/" ? "home" : path.replace(/^\/+/, "").replace(/\/+$/, "");

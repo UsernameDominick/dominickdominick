@@ -710,7 +710,28 @@ health-check pass, predates this doc.
   raw strings, since those columns mix SQLite's `datetime('now')` format
   and JS's `Date.toISOString()` format depending which code path wrote
   them, the same normalization `renderSitemap()` already needed)
-- 🔶 Full-site draft-inclusive preview mode (per-item `?preview=1` ✅; whole-site ☐)
+- ✅ Full-site draft-inclusive preview mode (per-item `?preview=1` ✅;
+  whole-site ✅ — a "Preview mode" toggle in the admin header's View
+  menu sets a plain, non-secret `preview_mode` cookie the public worker
+  now also checks (alongside the existing `?preview=1` query param) before
+  gating a draft/expired article or project. The cookie grants nothing on
+  its own — every check still also requires the real admin session cookie
+  — so a visitor setting it themselves sees no more than before; it just
+  lets an admin's *existing* browsing session keep seeing drafts through
+  normal navigation (nav links, related content, a URL typed by hand)
+  instead of needing that query param re-added to every single link.
+  Added a small dashed-border banner ("Viewing a draft…") on any page
+  shown only because of a preview, including the previously-silent
+  `?preview=1` case, with a "Turn off preview mode" button when it's the
+  cookie keeping it visible — a real bug surfaced while wiring that
+  button: it lives in `<main>`, which sits *after* `<script src="/nav.js">`
+  in the page, so nav.js's plain top-level `getElementById` ran before the
+  banner existed and silently found nothing; fixed by deferring that one
+  handler to `DOMContentLoaded`, the same pattern this file already used
+  elsewhere for exactly this reason. Deliberately scoped to individual
+  article/project pages only — listings/RSS/search/sitemap still show
+  published-only content even in preview mode, the same way most CMS
+  preview modes don't leak drafts into a subscribed feed)
 - ☐ Future-date preview for scheduled changes
 - ✅ Expiring, revocable, shareable draft-preview links (`?preview_token=`, 1/7/30 day options, works without admin login)
 - ✅ Link Checker resolves real publish state (draft/expired reported correctly; project links + project bodies/journal/links-blocks now actually scanned — both were silent gaps before)

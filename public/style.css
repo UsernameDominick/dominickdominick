@@ -1664,6 +1664,36 @@ h6 { font-size: 0.9rem; }
   color: var(--accent);
 }
 
+.preview-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--bg-elevated);
+  border: 1px dashed var(--accent);
+  border-radius: 8px;
+  padding: 10px 16px;
+  margin-bottom: 20px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.preview-banner #preview-mode-off-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  font-family: inherit;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.preview-banner #preview-mode-off-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
 .project-hero-video {
   display: block;
   width: 100%;

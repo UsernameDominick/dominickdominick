@@ -466,6 +466,28 @@
     if (localStorage.getItem("admin-focus-mode") === "1") applyFocusMode(true);
   } catch (e) {}
 
+  // ---------- Whole-site draft-preview mode ----------
+  // Sets a plain (non-httpOnly, non-secret) cookie the public worker reads
+  // in worker/index.js — it grants nothing on its own, since every check
+  // there also requires the real admin session cookie; this just lets
+  // that existing per-item ?preview=1 gate follow normal navigation
+  // (nav links, related content, a URL typed by hand) in this browser
+  // without needing the query param re-added on every link.
+  function applyPreviewModeButton(on) {
+    el("draft-preview-mode-toggle").textContent = "Preview mode: " + (on ? "On" : "Off");
+    el("draft-preview-mode-toggle").setAttribute("aria-pressed", on ? "true" : "false");
+  }
+  function hasPreviewModeCookie() {
+    return document.cookie.split("; ").some((c) => c === "preview_mode=1");
+  }
+  el("draft-preview-mode-toggle").addEventListener("click", () => {
+    const on = !hasPreviewModeCookie();
+    if (on) document.cookie = "preview_mode=1; path=/; max-age=" + 60 * 60 * 24 + "; samesite=lax";
+    else document.cookie = "preview_mode=; path=/; max-age=0";
+    applyPreviewModeButton(on);
+  });
+  applyPreviewModeButton(hasPreviewModeCookie());
+
   el("content-only-mode-btn").addEventListener("click", () => {
     contentOnlyMode = !contentOnlyMode;
     el("content-only-mode-btn").textContent = contentOnlyMode ? "Exit content-only" : "Content-only";

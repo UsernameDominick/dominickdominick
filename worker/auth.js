@@ -51,7 +51,7 @@ export function clearSessionCookie() {
   return `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`;
 }
 
-function parseCookies(header) {
+export function parseCookies(header) {
   const out = {};
   if (!header) return out;
   for (const part of header.split(";")) {

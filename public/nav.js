@@ -138,6 +138,31 @@ document.addEventListener("input", function (e) {
   window.addEventListener("resize", place);
 })();
 
+// "Turn off preview mode" button inside the draft-preview banner (see
+// renderPreviewBannerHtml in worker/render.js) — clears the cookie the
+// admin's "Preview mode" toggle set and reloads, landing back on this
+// same URL now showing whatever a normal visitor would actually see
+// (a 404, if this page is only reachable in preview at all). The banner
+// lives in <main>, which comes *after* this script tag in the page (see
+// renderShell), so — unlike the header buttons above, already in the DOM
+// by the time this plain synchronous script runs — this one has to wait
+// for the rest of the page to parse first.
+(function () {
+  function wire() {
+    var btn = document.getElementById("preview-mode-off-btn");
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+      document.cookie = "preview_mode=; path=/; max-age=0";
+      location.reload();
+    });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", wire);
+  } else {
+    wire();
+  }
+})();
+
 // Nav dropdown caret — hover/focus-within alone (pure CSS) already covers
 // mouse and keyboard use; this just adds a click-to-toggle path for touch,
 // where hover never fires. Only one dropdown open at a time, closed by an
