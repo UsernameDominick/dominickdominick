@@ -4939,7 +4939,7 @@ live in env bindings, not content rows).
 
 ### Shared platform — Easy
 544. Shared asset identifiers that survive renaming — media `key` is already the stable id.
-549. Project inbox for uncategorized uploads/ideas — a saved filter/view over unassigned media+content.
+549. ✅ Project inbox for uncategorized uploads/ideas — done, scoped to media (see the dated entry below this section).
 567. Show storage used by originals/versions/previews/exports — sizes already recorded; just aggregate.
 569. ✅ Monitor editor crashes and failed saves — done (see the dated entry below this section).
 572. Choose poster images/fallbacks before publishing — `scans.poster_key` pattern exists; extend to songs/simulations.
@@ -5173,11 +5173,12 @@ saved-search restore of the sentinel value. One real, confirmed bug:
   folder's row silently showed the built-in no-folder set instead. A
   narrow, self-inflicted edge case (requires typing an internal-looking
   double-underscore string as a folder name) but a genuine, reproducible
-  correctness bug, not hypothetical. Fixed in two places rather than
+  correctness bug, not hypothetical. Fixed at two layers rather than
   one, since the critic's own testing only checked the "+ New folder…"
-  prompt but a second, completely separate path — the bulk "Move
+  prompt but a second, completely separate client path — the bulk "Move
   selected files to folder" prompt — accepts an equally arbitrary
-  string with no shared validation between them:
+  string with no shared validation between them (round 2 found a
+  *third* such path too, see below):
   - Client-side: the "+ New folder…" handler now rejects the exact
     sentinel string with a friendly alert explaining why, rather than
     silently creating a shadow option.
@@ -5196,4 +5197,44 @@ saved-search restore of the sentinel value. One real, confirmed bug:
   suite green; no leftover test folders (folders are purely derived, so
   emptying one makes it vanish on its own).
 
-Resubmitted for a second scoring pass.
+**Critic round 2: 9/10 — cleared, item #549 done.** Re-verified both
+round-1 fixes live (the "+ New folder…" alert + no-duplicate-option
+check; the bulk-move path's server-side normalization to `null`,
+confirmed via direct D1 query), plus a full regression sweep (Uncategorized
++ type filter AND logic, "Select all shown" scoping, saved-search
+round-trip) — all intact. One genuinely new finding, and one
+documentation-precision nitpick, both logged:
+- ✅ **A third, previously-unnamed path to set a folder existed all
+  along — the single-item 🏷 info/tags modal's plain free-text folder
+  input** (`#media-info-folder`), with zero client-side guard of its
+  own. Typing the sentinel there and saving PATCHes `/media/:key`
+  directly. **This already worked correctly** without any additional
+  fix, because it also routes through `upsertMediaMeta()` — exactly
+  validating the server-side-fix design choice from round 1 ("the
+  single write path every caller already goes through," which turned
+  out to mean *three* callers, not the two originally named). No code
+  change needed; logged here so the actual number of entry points is
+  on record accurately, correcting the round-1 write-up's "two places"
+  framing above.
+- 🔶 **UX inconsistency between the three paths, judged as a fine
+  tradeoff rather than fixed**: the "+ New folder…" path gives a
+  friendly, explanatory alert and refuses the action; the bulk-move
+  prompt and the info-modal text field both silently normalize to "no
+  folder" with zero visible feedback — an admin typing the sentinel
+  there sees their folder assignment silently do nothing, with no
+  explanation. Self-acknowledged in the `worker/db.js` comment itself
+  ("this function has no error-reporting path back to most of its
+  callers"). Judged acceptable for this extreme, self-inflicted edge
+  case (deliberately typing an internal dunder string) on a
+  single-admin site rather than plumbing error-reporting through two
+  more call sites for a cosmetic inconsistency — logged per the
+  standing "track every finding" rule, not silently dropped.
+- Confirmed near-miss folder names ("My Uncategorized Sketches",
+  "uncategorized-drafts-uitest") are completely unaffected — the
+  normalization is a strict equality check, not a substring match.
+
+Item #549 (project inbox / uncategorized uploads) is done: 2 critic
+rounds, 7/10 → 9/10, the real bug (folder-name collision) fixed at its
+actual root (the shared write path, which robustly covered a third
+entry point neither round explicitly tested for), remaining findings
+judged and tracked rather than fixed or ignored.
