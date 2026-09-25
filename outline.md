@@ -947,7 +947,16 @@ changes with low value for a single-admin personal site; flagging as
 - ✅ Rate limits/abuse monitoring, security headers
 
 ### Integrations and automation
-- 🔶 Integration settings (single webhook URL field); 🔶 configurable triggers (one hard-coded: webhook on article publish)
+- 🔶 Integration settings (single webhook URL field); ✅ configurable
+  triggers (a "Also call it when a project is published" checkbox in Site
+  Settings — off by default, since it's new behavior an existing webhook
+  consumer wasn't built to expect; the payload now also carries
+  `contentType` so a receiver can tell which kind fired it. Found and
+  fixed a real bug while wiring this in: the project *create* route never
+  called `maybeFireWebhook` at all, even before this change — publishing
+  a brand-new project for the first time silently never fired the
+  webhook, only a later publish-via-edit did. Both create and edit now
+  fire it consistently, matching how articles already worked)
 - ✅ Webhook delivery history (last 200, status/error) + retry with original payload
 - ☐ Background-task management, failed-integration notifications, permission controls for external integrations
 

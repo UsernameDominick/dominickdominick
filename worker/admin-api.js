@@ -154,6 +154,7 @@ const SETTINGS_KEYS = [
   "site_footer",
   "custom_head",
   "webhook_url",
+  "webhook_on_project_publish",
   "empty_search_text",
   "empty_archive_text",
   "empty_topics_text",
@@ -258,14 +259,24 @@ async function deliverWebhook(env, webhookUrl, payload) {
 
 // A configured webhook fires (best-effort, non-blocking) the moment an
 // article transitions into "published" — not on every subsequent edit.
-async function maybeFireWebhook(env, ctx, { wasPublished, article }) {
+// contentType defaults to "article" (the original, always-on trigger) so
+// every existing call site keeps working unchanged. Project publish is a
+// second, separately configurable trigger — off by default, since it's
+// new behavior an existing webhook consumer wasn't built to expect.
+async function maybeFireWebhook(env, ctx, { wasPublished, article, contentType = "article" }) {
   if (wasPublished || !article.published_at || article.published_at > new Date().toISOString()) return;
+  if (contentType === "project") {
+    const enabled = await getSetting(env, "webhook_on_project_publish");
+    if (!enabled) return;
+  }
   const webhookUrl = await getSetting(env, "webhook_url");
   if (!webhookUrl) return;
+  const path = contentType === "project" ? "projects" : "random";
   const payload = {
+    contentType,
     title: article.title,
     slug: article.slug,
-    url: `https://dominickdominick.com/random/${article.slug}`,
+    url: `https://dominickdominick.com/${path}/${article.slug}`,
     published_at: article.published_at,
   };
   ctx.waitUntil(deliverWebhook(env, webhookUrl, payload));
@@ -638,6 +649,11 @@ async function routeAdminApi(request, env, url, ctx) {
     }
     const id = await createProject(env, { ...body, slug });
     log(ctx, env, "create", "project", body.title || slug);
+    await maybeFireWebhook(env, ctx, {
+      wasPublished: false,
+      article: { title: body.title, slug, published_at: body.published_at },
+      contentType: "project",
+    });
     return json({ id, slug });
   }
   const projectMatch = path.match(/^\/projects\/(\d+)$/);
@@ -664,6 +680,15 @@ async function routeAdminApi(request, env, url, ctx) {
     if (body.slug && before) {
       await maybeCreateSlugRedirect(env, ctx, { oldSlug: before.slug, newSlug: body.slug, pathPrefix: "/projects/", isLive: wasPublished });
     }
+    await maybeFireWebhook(env, ctx, {
+      wasPublished,
+      article: {
+        title: body.title || (before && before.title),
+        slug: body.slug || (before && before.slug),
+        published_at: newPublishedAt,
+      },
+      contentType: "project",
+    });
     const fresh = await env.DB.prepare("SELECT version, slug FROM projects WHERE id = ?").bind(id).first();
     return json({ ok: true, version: fresh?.version, slug: fresh?.slug });
   }

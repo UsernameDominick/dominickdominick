@@ -4438,6 +4438,7 @@
     el("settings-footer").value = settings.site_footer || "";
     el("settings-custom-head").value = settings.custom_head || "";
     el("settings-webhook-url").value = settings.webhook_url || "";
+    el("settings-webhook-on-project-publish").checked = settings.webhook_on_project_publish === "1";
     el("settings-empty-search").value = settings.empty_search_text || "";
     el("settings-empty-archive").value = settings.empty_archive_text || "";
     el("settings-empty-topics").value = settings.empty_topics_text || "";
@@ -4466,6 +4467,7 @@
           site_footer: el("settings-footer").value,
           custom_head: el("settings-custom-head").value,
           webhook_url: el("settings-webhook-url").value,
+          webhook_on_project_publish: el("settings-webhook-on-project-publish").checked ? "1" : "",
           empty_search_text: el("settings-empty-search").value,
           empty_archive_text: el("settings-empty-archive").value,
           empty_topics_text: el("settings-empty-topics").value,
