@@ -4996,7 +4996,8 @@
     const unusedOnly = el("media-unused-filter").checked;
     const duplicatesOnly = el("media-duplicates-filter").checked;
     const filtered = mediaItems.filter((item) => {
-      if (folderFilter && item.folder !== folderFilter) return false;
+      if (folderFilter === "__uncategorized__" && item.folder) return false;
+      else if (folderFilter && folderFilter !== "__uncategorized__" && item.folder !== folderFilter) return false;
       if (typeFilter && mediaItemType(item) !== typeFilter) return false;
       if (unusedOnly && item.used) return false;
       if (duplicatesOnly && !item.isDuplicate) return false;
@@ -5319,8 +5320,12 @@
     const folders = await api("/media/folders").catch(() => []);
     const currentFilter = el("media-folder-filter").value;
     const folderOptionsHtml = folders.map((f) => `<option value="${escapeHtml(f)}">${escapeHtml(f)}</option>`).join("");
-    el("media-folder-filter").innerHTML = `<option value="">All folders</option>${folderOptionsHtml}`;
-    el("media-folder-filter").value = folders.includes(currentFilter) ? currentFilter : "";
+    // "Uncategorized" — previously there was no way to filter down to just
+    // the uploads nobody has ever sorted into a folder ("All folders" shows
+    // everything, foldered and not); an upload dropped in without a folder
+    // could sit unnoticed indefinitely with no view surfacing it on its own.
+    el("media-folder-filter").innerHTML = `<option value="">All folders</option><option value="__uncategorized__">Uncategorized (no folder)</option>${folderOptionsHtml}`;
+    el("media-folder-filter").value = currentFilter === "__uncategorized__" || folders.includes(currentFilter) ? currentFilter : "";
     el("media-upload-folder").innerHTML = `<option value="">No folder</option>${folderOptionsHtml}<option value="__new__">+ New folder…</option>`;
     renderMediaGrid();
     updateMediaBulkBar();

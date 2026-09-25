@@ -5134,3 +5134,29 @@ Item #569 (monitor editor crashes and failed saves) is done: 3 critic
 rounds, 6/10 → 8/10 → 9/10, every real finding fixed and verified live,
 the one remaining item a judged, tracked tradeoff rather than an
 oversight.
+
+### Second item: #549, project inbox for uncategorized uploads
+
+- ✅ **"Uncategorized (no folder)" filter in the Media Library** —
+  previously there was no way to see just the uploads nobody has ever
+  sorted into a folder; "All folders" showed everything (foldered and
+  not) with no way to isolate the unsorted ones, so an upload dropped
+  in without a folder could sit unnoticed indefinitely. Added a
+  synthetic `__uncategorized__` sentinel option to the existing
+  `#media-folder-filter` dropdown (alongside "All folders" and the real
+  folder list), with matching logic in `renderMediaGrid()`'s filter.
+  Scoped narrowly to the Media Library's existing folder concept rather
+  than a broader cross-content-type "inbox" (the triage agent's own
+  framing — "just a saved filter/view over unassigned media" — matched
+  this scope exactly; a page/article/project equivalent would need a
+  genuinely different "uncategorized" definition per content type and
+  wasn't part of this pass). Verified via Playwright: uploaded one item
+  with no folder and one into a new folder, confirmed the new dropdown
+  option appears, and confirmed selecting it shows only the no-folder
+  item while correctly hiding the foldered one. Test uploads and the
+  now-empty test folder cleaned up (folders are purely derived from
+  `DISTINCT folder FROM media`, so deleting every item in one makes it
+  disappear from the list on its own — no separate folder-delete
+  endpoint needed or exists). Full regression suite green.
+
+Handed to a critic agent for scoring.
