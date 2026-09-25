@@ -17,6 +17,24 @@
   const isMobile = () => window.matchMedia("(max-width: 860px)").matches;
   const backdrop = el("drawer-backdrop");
 
+  // Articles and Projects share the same list-beside-editor markup
+  // (.articles-layout > .articles-list-wrap + .article-editor). On mobile
+  // that used to mean the list stayed permanently visible above the editor
+  // — a ~250px scroll-trap you had to get past on every visit, even after
+  // picking a real item to edit. This toggle just hides the list and
+  // expands the editor to the full pane (CSS-scoped to the mobile
+  // breakpoint, a no-op on desktop) — harmless to call unconditionally
+  // rather than gating every call site on isMobile() itself.
+  function showMobileEditorPane(modalId) {
+    el(modalId).querySelector(".articles-layout")?.classList.add("mobile-editing");
+  }
+  function showMobileListPane(modalId) {
+    el(modalId).querySelector(".articles-layout")?.classList.remove("mobile-editing");
+  }
+  document.querySelectorAll(".mobile-back-to-list-btn").forEach((btn) => {
+    btn.addEventListener("click", () => showMobileListPane(btn.closest(".modal").id));
+  });
+
   // Closing whichever drawer is already open before opening a new one keeps
   // two same-side drawers (the block palette and the sidebar both slide in
   // from the left) from ever being open at once if something taps both
@@ -3027,6 +3045,11 @@
 
   el("articles-btn").addEventListener("click", async () => {
     el("articles-modal").hidden = false;
+    // Always reopen to the list, not wherever a previous session's
+    // mobile view was left (the .mobile-editing class otherwise persists
+    // on this same DOM node across closes/reopens, since the modal is
+    // never destroyed, just hidden).
+    showMobileListPane("articles-modal");
     articles = await api("/articles");
     projects = await api("/projects");
     populateArticleRelatedProjectsSelect();
@@ -3180,6 +3203,7 @@
   });
 
   function populateArticleForm(article) {
+    showMobileEditorPane("articles-modal");
     // Switching articles must drop any pending autosave for the PREVIOUS
     // one — otherwise it could fire after currentArticleId has moved on
     // and silently overwrite the article now being edited.
@@ -3777,6 +3801,7 @@
   el("new-article").addEventListener("click", () => {
     clearArticleForm();
     checkArticleDraftRecovery(null);
+    showMobileEditorPane("articles-modal");
   });
 
   function parseTags(str) {
@@ -4133,6 +4158,7 @@
   }
 
   function populateProjectForm(project) {
+    showMobileEditorPane("projects-modal");
     recordRecentlyEdited("project", project.id, project.title);
     currentProjectId = project.id;
     currentProjectVersion = project.version || null;
@@ -4306,6 +4332,7 @@
 
   el("projects-btn").addEventListener("click", async () => {
     el("projects-modal").hidden = false;
+    showMobileListPane("projects-modal");
     projects = await api("/projects");
     articles = await api("/articles");
     populateProjectRelatedSelects();
@@ -4314,7 +4341,10 @@
   });
   closeModalOnClick("close-projects", "projects-modal");
 
-  el("new-project").addEventListener("click", () => clearProjectForm());
+  el("new-project").addEventListener("click", () => {
+    clearProjectForm();
+    showMobileEditorPane("projects-modal");
+  });
 
   el("save-project").addEventListener("click", async () => {
     const body = buildProjectBody();

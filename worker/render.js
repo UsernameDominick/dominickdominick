@@ -440,18 +440,41 @@ export function renderIndexPaginationHtml(basePath, page, totalPages) {
   }</div>`;
 }
 
+// These two are the actual default landing pages for a site visitor's
+// primary content-discovery routes (/articles, /projects) — previously the
+// weakest visual treatment in the codebase, a bare <ul class="search-results">
+// (bold title + one-line excerpt, no card, no border) shared with internal
+// search-result rows, while a proper card treatment (.project-card /
+// .project-list) already existed and was only ever used for "related
+// content" call-outs elsewhere. Reused here rather than inventing a
+// near-duplicate class, plus .index-grid (index pages only — not applied to
+// the narrower related-content call-outs, which read better single-column
+// in a body-width column) so it flows into a responsive grid instead of
+// staying single-column even at desktop widths.
 export function renderArticlesIndexHtml(articles, customEmptyText = "") {
   if (!articles.length) return `<p class="empty-hint">${esc(customEmptyText || "No articles published yet.")}</p>`;
-  const items = articles.map((a) => `<li><a href="/random/${esc(a.slug)}">${esc(a.title)}</a><p>${esc(excerpt(a.body, 140))}</p></li>`).join("");
-  return `<ul class="search-results">${items}</ul>`;
+  const items = articles
+    .map(
+      (a) =>
+        `<div class="project-card"><h2><a href="/random/${esc(a.slug)}">${esc(a.title)}</a></h2>${
+          a.published_at ? `<p class="index-card-date"><time datetime="${esc(a.published_at)}">${esc(a.published_at.slice(0, 10))}</time></p>` : ""
+        }<p>${esc(excerpt(a.body, 140))}</p>${renderTags(a.tags)}</div>`
+    )
+    .join("\n");
+  return `<div class="project-list index-grid">${items}</div>`;
 }
 
 export function renderProjectsIndexHtml(projects, customEmptyText = "") {
   if (!projects.length) return `<p class="empty-hint">${esc(customEmptyText || "No projects published yet.")}</p>`;
   const items = projects
-    .map((p) => `<li><a href="/projects/${esc(p.slug)}">${esc(p.title)}</a>${p.summary ? `<p>${esc(p.summary)}</p>` : ""}</li>`)
-    .join("");
-  return `<ul class="search-results">${items}</ul>`;
+    .map(
+      (p) =>
+        `<div class="project-card"><h2><a href="/projects/${esc(p.slug)}">${esc(p.title)}</a></h2>${
+          p.summary ? `<p>${esc(p.summary)}</p>` : ""
+        }${renderTags(p.tags)}</div>`
+    )
+    .join("\n");
+  return `<div class="project-list index-grid">${items}</div>`;
 }
 
 export function renderByline(article) {

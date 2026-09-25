@@ -681,6 +681,13 @@ body {
 }
 
 .block-links a {
+  /* inline-block + padding so the actual clickable/tappable area reaches
+     WCAG 2.5.8's 24x24px minimum target size — a bare inline text link at
+     normal font size measured 50x17px, under the minimum on the vertical
+     axis regardless of how long the link text itself is. */
+  display: inline-block;
+  padding: 4px 2px;
+  margin: -4px -2px;
   color: var(--accent);
   text-decoration: none;
 }
@@ -997,6 +1004,23 @@ h6 { font-size: 0.9rem; }
   margin: 0;
   color: var(--text-dim);
   line-height: 1.6;
+}
+
+.project-card .index-card-date {
+  margin: 0 0 6px;
+  font-size: 0.8rem;
+}
+
+/* Only the /articles and /projects index pages opt into this (not the
+   narrower "related content" call-outs elsewhere, which read better
+   staying single-column in a body-width column) -- lets the primary
+   content-discovery pages actually use desktop width instead of staying
+   single-column all the way up. */
+@media (min-width: 700px) {
+  .index-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  }
 }
 
 .video-embed {

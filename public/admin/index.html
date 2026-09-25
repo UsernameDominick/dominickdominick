@@ -248,18 +248,19 @@
           <div class="articles-list" id="articles-list"></div>
         </div>
         <div class="article-editor">
+          <button type="button" class="mobile-back-to-list-btn">← Back to list</button>
           <div class="field-row">
-            <input id="article-title" placeholder="Title">
-            <input id="article-slug" placeholder="URL slug (auto from title)" spellcheck="false">
+            <input id="article-title" placeholder="Title" aria-label="Title">
+            <input id="article-slug" placeholder="URL slug (auto from title)" spellcheck="false" aria-label="URL slug">
           </div>
           <div class="field-row">
-            <input id="article-tags" placeholder="Tags, comma separated (e.g. life, code)">
-            <input id="article-co-authors" placeholder="Co-authors, comma separated (optional byline credits)">
+            <input id="article-tags" placeholder="Tags, comma separated (e.g. life, code)" aria-label="Tags">
+            <input id="article-co-authors" placeholder="Co-authors, comma separated (optional byline credits)" aria-label="Co-authors">
           </div>
           <div class="article-series-row">
-            <input id="article-series" placeholder="Series name (optional, e.g. \"Rebuilding my deck\")" list="article-series-datalist">
+            <input id="article-series" placeholder="Series name (optional, e.g. \"Rebuilding my deck\")" list="article-series-datalist" aria-label="Series name">
             <datalist id="article-series-datalist"></datalist>
-            <input id="article-series-order" type="number" placeholder="Part #">
+            <input id="article-series-order" type="number" placeholder="Part #" aria-label="Series part number">
           </div>
           <p id="article-series-hint" class="article-series-hint" hidden></p>
           <div class="article-flags-row">
@@ -269,10 +270,10 @@
             <label title="Stays published and reachable at its URL, but drops out of every listing, tag page, related-content pick, and RSS feed"><input type="checkbox" id="article-archived"> Archived</label>
           </div>
           <div class="input-with-upload">
-            <input id="article-og-image" placeholder="Share image URL (og:image, blank = site default)" spellcheck="false">
+            <input id="article-og-image" placeholder="Share image URL (og:image, blank = site default)" spellcheck="false" aria-label="Share image URL">
             <button type="button" class="upload-trigger" data-target="#article-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#article-og-image">Browse…</button><br><button type="button" class="edit-image-trigger" data-target="#article-og-image">Edit / crop for social…</button>
           </div>
-          <input id="article-canonical-url" placeholder="Canonical URL override (optional — blank = auto)" spellcheck="false">
+          <input id="article-canonical-url" placeholder="Canonical URL override (optional — blank = auto)" spellcheck="false" aria-label="Canonical URL override">
           <label title="Added alongside this article's auto-generated structured data, not instead of it. Must be valid JSON — one object, e.g. a FAQPage or HowTo schema.org type.">Custom structured data (JSON-LD, optional)<textarea id="article-custom-json-ld" rows="3" spellcheck="false" placeholder='{"@context":"https://schema.org","@type":"FAQPage",...}'></textarea></label>
           <label>Correction/update note (optional — shown to readers in a callout at the top)<textarea id="article-correction-note" rows="2" placeholder="e.g. Updated Sept 2026 to reflect the new API."></textarea></label>
           <label>Private notes (never shown publicly — editorial reminders, todos, sources)<textarea id="article-private-notes" rows="2" placeholder="e.g. Still need to add the benchmark screenshots before publishing."></textarea></label>
@@ -371,17 +372,18 @@
           <div class="articles-list" id="projects-list"></div>
         </div>
         <div class="article-editor">
+          <button type="button" class="mobile-back-to-list-btn">← Back to list</button>
           <div class="field-row">
-            <input id="project-title" placeholder="Title">
-            <input id="project-slug" placeholder="URL slug (auto from title)" spellcheck="false">
+            <input id="project-title" placeholder="Title" aria-label="Title">
+            <input id="project-slug" placeholder="URL slug (auto from title)" spellcheck="false" aria-label="URL slug">
           </div>
-          <textarea id="project-summary" rows="2" placeholder="One or two sentence summary — shown on project lists and as the share description"></textarea>
+          <textarea id="project-summary" rows="2" placeholder="One or two sentence summary — shown on project lists and as the share description" aria-label="Summary"></textarea>
           <div class="field-row">
-            <input id="project-tags" placeholder="Tags, comma separated (e.g. electronics, woodworking)">
-            <input id="project-tech-stack" placeholder="Tech stack, comma separated (e.g. Arduino, KiCad, React)">
+            <input id="project-tags" placeholder="Tags, comma separated (e.g. electronics, woodworking)" aria-label="Tags">
+            <input id="project-tech-stack" placeholder="Tech stack, comma separated (e.g. Arduino, KiCad, React)" aria-label="Tech stack">
           </div>
           <div class="article-series-row">
-            <input id="project-status" placeholder="Status (e.g. In progress, Completed, Archived)">
+            <input id="project-status" placeholder="Status (e.g. In progress, Completed, Archived)" aria-label="Status">
             <label class="project-featured-label"><input type="checkbox" id="project-featured"> Featured</label>
             <label class="project-featured-label" title="Lower numbers lead the featured-projects list; blank falls back to newest-first">Featured order<input type="number" id="project-featured-order" style="width:70px;"></label>
             <label class="project-featured-label" title="Used by a Project List block set to 'Manual order' — lower numbers come first; blank falls back to newest-first">Sort order<input type="number" id="project-sort-order" style="width:70px;"></label>
@@ -389,17 +391,17 @@
             <label class="project-featured-label" title="Stays published and reachable at its URL, but drops out of every listing, tag page, related-content pick, and RSS feed — separate from the free-text Status field above"><input type="checkbox" id="project-archived"> Archived (hide from listings)</label>
           </div>
           <div class="project-links-row">
-            <input id="project-link-github" placeholder="GitHub URL">
-            <input id="project-link-demo" placeholder="Live demo URL">
-            <input id="project-link-docs" placeholder="Docs URL">
-            <input id="project-link-download" placeholder="Download URL (quick single link)">
+            <input id="project-link-github" placeholder="GitHub URL" aria-label="GitHub URL">
+            <input id="project-link-demo" placeholder="Live demo URL" aria-label="Live demo URL">
+            <input id="project-link-docs" placeholder="Docs URL" aria-label="Docs URL">
+            <input id="project-link-download" placeholder="Download URL (quick single link)" aria-label="Download URL">
           </div>
           <label>Download manifest (optional — one file per line: Label | URL | Description)<textarea id="project-downloads" rows="4" placeholder="Firmware v1.2 | /media/uploads/firmware.bin | Latest build, flash with esptool"></textarea></label>
           <div class="input-with-upload">
-            <input id="project-og-image" placeholder="Share/hero image URL (blank = site default)" spellcheck="false">
+            <input id="project-og-image" placeholder="Share/hero image URL (blank = site default)" spellcheck="false" aria-label="Share/hero image URL">
             <button type="button" class="upload-trigger" data-target="#project-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#project-og-image">Browse…</button><br><button type="button" class="edit-image-trigger" data-target="#project-og-image">Edit / crop for social…</button>
           </div>
-          <input id="project-canonical-url" placeholder="Canonical URL override (optional — blank = auto)" spellcheck="false">
+          <input id="project-canonical-url" placeholder="Canonical URL override (optional — blank = auto)" spellcheck="false" aria-label="Canonical URL override">
           <label title="Added alongside this project's auto-generated structured data, not instead of it. Must be valid JSON — one object, e.g. a Product or HowTo schema.org type.">Custom structured data (JSON-LD, optional)<textarea id="project-custom-json-ld" rows="3" spellcheck="false" placeholder='{"@context":"https://schema.org","@type":"Product",...}'></textarea></label>
           <label>Correction/update note (optional — shown to readers in a callout at the top)<textarea id="project-correction-note" rows="2" placeholder="e.g. Updated Sept 2026 with the v2 hardware revision."></textarea></label>
           <label>Private notes (never shown publicly — editorial reminders, todos, sources)<textarea id="project-private-notes" rows="2" placeholder="e.g. Waiting on the vendor datasheet before finishing the BOM."></textarea></label>

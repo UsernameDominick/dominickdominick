@@ -4142,3 +4142,77 @@ instead:
   checkboxes, the page-settings palette, Site Settings, and the Media
   Library toolbar; the full regression suite and every sidebar
   destination still pass with zero console errors.
+
+### Top-tier design review pass
+Spawned a design-review agent (framed as an expert web/product designer,
+not just a bug-hunter) to drive the whole site with Playwright — both the
+public site and the full admin, desktop and mobile, both themes — and
+report a prioritized, screenshot-backed critique. It correctly avoided
+re-flagging anything from the redesign work above. Findings, and what
+was done with each:
+
+- ✅ **The real Home page's own "GitHub" link had a 50×17px tap
+  target** — under WCAG 2.5.8's 24×24 minimum — confirmed by the
+  site's own Diagnostics tool against real content, not a hypothetical.
+  `.block-links a` had zero padding, just plain inline text. Fixed with
+  `display: inline-block; padding: 4px 2px; margin: -4px -2px` — the
+  negative margin keeps the link's visible text in exactly the same
+  position (no layout shift), only the invisible hit-area grows.
+  Verified via `getBoundingClientRect()`: now 53×34px.
+- ✅ **No text input in the Article or Project editors had an
+  accessible label anywhere** — placeholder-as-label throughout (a
+  real WCAG 3.3.2 issue: the field's purpose disappears once you start
+  typing, and screen readers get an inconsistent or empty accessible
+  name). Added `aria-label` to all 20 affected fields across both
+  editors (Title, Slug, Tags, Co-authors, Series name/part, Share
+  image URL, Canonical URL, Summary, Tech stack, Status, GitHub/Demo/
+  Docs/Download URLs) — the fields that already had a proper
+  `<label>` wrapper with visible text (JSON-LD, notes, related-content
+  pickers, Published, etc.) didn't need this. Verified each one's
+  computed `aria-label` directly.
+- ✅ **Mobile Articles/Projects editor was a genuine scroll-trap** — the
+  full article/project list stayed permanently visible in its own
+  independently-scrolling ~250px box above the edit form, even after
+  selecting a real item, meaning reaching Title required scrolling
+  past a nested scroll region first (the classic mobile "which thing
+  scrolls" trap). Added a `.mobile-editing` class (toggled from inside
+  `populateArticleForm`/`populateProjectForm` and the "New" buttons —
+  covering direct list clicks, "New", and deep-links equally, since
+  they all funnel through the same population functions) that hides
+  the list and gives the editor the full pane on mobile, plus a
+  "← Back to list" button at the top of the editor to return. Reopening
+  the modal fresh always resets to list view regardless of where a
+  previous mobile session left off (the class otherwise persists on
+  the same DOM node across closes/reopens, since the modal is hidden,
+  not destroyed). Verified via Playwright for both Articles and
+  Projects: list hides and Title is immediately visible after
+  selecting a real item, Back correctly restores the list, and a fresh
+  reopen after a previous edit doesn't get stuck in editor view.
+- ✅ **The /random (Articles) and /projects index pages — the actual
+  default landing pages for a visitor's primary content-discovery
+  routes — used the weakest visual treatment in the entire codebase**:
+  a bare `<ul class="search-results">` (bold title + one-line excerpt,
+  no card, no border) shared with internal search-result rows, while a
+  proper card treatment (`.project-card`/`.project-list`) already
+  existed and was only ever used for "related content" call-outs
+  elsewhere — the actual routes every visitor reaches by default got
+  the plain treatment, and the nicer one was buried behind a
+  page-builder block an author would have to deliberately place. Both
+  index pages also stayed single-column even at desktop widths.
+  Rewrote `renderArticlesIndexHtml`/`renderProjectsIndexHtml` to reuse
+  the existing card markup (adding a publish-date line for articles),
+  and added a `.index-grid` class (scoped to just these two index
+  pages, not the narrower related-content call-outs, which read better
+  staying single-column in a body-width column) that flows into a
+  responsive grid above 700px. Verified via Playwright with 3 real
+  articles/projects each: proper 3-column card grid at 1280px, clean
+  single-column stacking on mobile, tags/dates/excerpts all rendering
+  correctly; full regression suite green.
+
+Two items from the same review are real but need a decision only the
+user can make before building (see chat): the site currently has no
+persistent navigation to Articles/Projects/Topics anywhere (no pages
+have `nav_label` set, and Articles/Projects aren't rows in the `pages`
+table a nav entry could attach to), and the real Home page has no H1 —
+fixing the latter means writing actual heading text for a real,
+user-facing page, not a code change.
