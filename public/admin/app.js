@@ -4506,6 +4506,10 @@
   let mediaPickAppend = false;
   let mediaItems = [];
   let selectedMediaKeys = new Set();
+  // What the filters (folder/type/search/unused/duplicates) are currently
+  // showing — "Select all shown" needs to select just this subset, not the
+  // whole library, the same way the filter itself only shows this subset.
+  let lastFilteredMediaKeys = [];
 
   function formatBytes(n) {
     if (n < 1024) return n + " B";
@@ -4529,6 +4533,8 @@
     el("media-bulk-delete-btn").disabled = !n;
     el("media-bulk-move-btn").disabled = !n;
     el("media-bulk-tag-btn").disabled = !n;
+    const shown = lastFilteredMediaKeys;
+    el("media-select-all").checked = shown.length > 0 && shown.every((k) => selectedMediaKeys.has(k));
   }
 
   function mediaItemType(item) {
@@ -4554,6 +4560,7 @@
       const filename = item.key.split("/").pop().toLowerCase();
       return filename.includes(search) || item.tags.some((t) => t.toLowerCase().includes(search));
     });
+    lastFilteredMediaKeys = filtered.map((item) => item.key);
 
     el("media-grid").innerHTML =
       filtered
@@ -4664,7 +4671,20 @@
           }
         });
       });
+
+    updateMediaBulkBar();
   }
+
+  // Selects/deselects only the files the current filters are actually
+  // showing (lastFilteredMediaKeys, set fresh by renderMediaGrid every
+  // time it runs) — not the whole library, matching what "shown" means in
+  // the label. Articles/Projects lists' own "select all" selects
+  // everything because those lists have no filter to be "shown" by.
+  el("media-select-all").addEventListener("change", (e) => {
+    if (e.target.checked) lastFilteredMediaKeys.forEach((k) => selectedMediaKeys.add(k));
+    else lastFilteredMediaKeys.forEach((k) => selectedMediaKeys.delete(k));
+    renderMediaGrid();
+  });
 
   let mediaInfoKey = null;
   function openMediaInfoModal(key) {

@@ -3237,3 +3237,24 @@ text). Both implemented:
   a Trash row both now wrap to their full text (310px wide, `white-
   space: normal`) instead of collapsing to a sliver or a single
   truncated line.
+
+### Seventh backlog batch (remaining critic suggestions)
+- ✅ **Media Library "Select all shown"** — Articles and Projects lists
+  both already had a select-all checkbox for bulk actions; Media
+  Library had the same underlying primitive (a `selectedMediaKeys` Set
+  plus a working bulk-delete/move/tag) and useful filters ("Unused
+  only", "Possible duplicates only", folder, type, search) but no way
+  to select everything a filter was currently showing — clearing out,
+  say, every unused file meant ticking each one by hand first. Added
+  "Select all shown" next to the bulk-action buttons, scoped to
+  whatever `renderMediaGrid()`'s filters are currently displaying (not
+  the whole library) — tracked via a `lastFilteredMediaKeys` array
+  refreshed on every render, matching what "shown" actually means as
+  filters change. The checkbox's own checked state reflects "shown" too:
+  fully checked, unchecked, or reverting to unchecked whenever the
+  filtered set and the selection stop matching exactly. Verified via
+  Playwright: clicking it selected/deselected every currently-shown
+  checkbox; with a folder filter narrowing 6 items down to 1, selecting
+  and then clearing the filter correctly left the selection at 1 (not
+  jumping to all 6), and the checkbox itself correctly read unchecked
+  once selection and "shown" no longer matched.
