@@ -16,11 +16,17 @@
   // fire on autopilot after clicking through a routine bulk action.
   // Requiring the exact word "DELETE" to be typed forces a deliberate
   // pause before something with no undo path actually happens. Returns
-  // a Promise<boolean>; Cancel, Escape, the × button, or a backdrop
-  // click (there is none — this modal has no backdrop click handler by
-  // design, matching every other modal in this app) all resolve false.
+  // a Promise<boolean>; Cancel, Escape, the × button, and a backdrop
+  // click (the generic .modal backdrop-click-to-close handler covers
+  // this one too, same as every other modal in the app) all resolve false.
+  // Only one confirmTyped() can be pending at a time — a second call
+  // settles the first as false (no caller relies on overlapping calls,
+  // and neither of this modal's two call sites disables its trigger
+  // button while a confirm is open) rather than leaving that first
+  // await hanging forever.
   let typedConfirmResolve = null;
   function confirmTyped(message, { title = "Confirm", requiredWord = "DELETE" } = {}) {
+    if (typedConfirmResolve) settleTypedConfirm(false);
     return new Promise((resolve) => {
       typedConfirmResolve = resolve;
       el("typed-confirm-title").textContent = title;
@@ -46,7 +52,15 @@
   });
   el("typed-confirm-input").addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !el("typed-confirm-ok").disabled) settleTypedConfirm(true);
-    else if (e.key === "Escape") settleTypedConfirm(false);
+    else if (e.key === "Escape") {
+      // Without this, Escape bubbles to the document-level shortcut
+      // handler, which by then sees no open .modal (this one already
+      // hid itself) and falls through to its own Escape behavior —
+      // clearing the canvas block selection and closing the Inspector
+      // as an unrelated side effect of canceling a delete confirmation.
+      e.stopPropagation();
+      settleTypedConfirm(false);
+    }
   });
   el("typed-confirm-ok").addEventListener("click", () => settleTypedConfirm(true));
   el("typed-confirm-cancel").addEventListener("click", () => settleTypedConfirm(false));

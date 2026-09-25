@@ -4971,6 +4971,16 @@ exist yet), 550, 551, 555, 557, 559, 560, 563, 566, 568, 570, 571,
 573-575, 577-579, 589, 591-594, 598 (★ "per-module" framing leans
 enterprise; the simple env-flag version is fine for single-admin), 599.
 
+**Critic-surfaced, not yet numbered in the original 600-item list**
+(tracked per the "log every critic finding" rule, found while shipping
+#584's typed bulk-delete confirmation): no modal anywhere in this admin
+sets `role="dialog"`/`aria-modal="true"` — a real, app-wide accessibility
+gap that predates this feature and affects every one of the ~20 modals
+equally, so not something to special-case in any one feature's diff.
+Worth its own dedicated pass across every modal at once (add the
+attributes, verify each one's focus trap and label association still
+holds) rather than fixing piecemeal per-feature going forward.
+
 ### Shared platform — Hard (mostly flagged as likely out of scope for a single-admin site)
 552 [offline-first sync — out of scope], 556, 561-562 [job queue — out of
 scope], 564-565 [multiple compute backends / per-module spending limits —
@@ -5543,3 +5553,59 @@ called out of scope for this diff (no undo/redo in the Song builder;
   a testing-hygiene note (check what's already in Trash before exercising
   "Empty trash" against shared local dev state) rather than something to
   fix in the feature itself.
+
+Handed to a critic agent for scoring: **6/10**. Two real bugs found (both
+about incidental side effects of canceling or double-firing the dialog,
+not about the core "must type DELETE" guarantee, which held up in every
+path the critic tried):
+
+1. **(Fixed)** Escape inside the typed-confirm input closed the modal
+   correctly but the keydown event still bubbled to the document-level
+   global shortcut handler, which by then saw no open `.modal` (this one
+   had already hidden itself) and fell through to its own Escape
+   behavior — clearing the canvas block selection and closing the
+   Inspector as an unrelated side effect of simply canceling a delete
+   confirmation. Fixed by calling `e.stopPropagation()` in the input's
+   Escape branch. Live-reproduced pre-fix (selected a real block, opened
+   the typed-confirm modal via media bulk-delete, pressed Escape, watched
+   `.admin-block.selected` disappear) and confirmed post-fix the
+   selection survives.
+2. **(Fixed)** `confirmTyped()` used one module-level `typedConfirmResolve`
+   with no protection against a second call before the first settles —
+   neither call site disables its trigger button while a confirm is
+   pending, so a rapid double-trigger (e.g. two fast clicks landing before
+   the modal's own overlay starts intercepting pointer events) silently
+   overwrote the first call's resolver, leaving that first `await
+   confirmTyped(...)` hanging forever. Fixed by having `confirmTyped()`
+   settle any already-pending call as `false` before starting a new one,
+   so at most one call is ever left dangling and it resolves immediately
+   rather than never. Live-reproduced by dispatching two synchronous
+   click events on "Empty trash" (a real double-tap can land both before
+   the overlay paints) and confirming the typed-confirm input still
+   correctly reset and the subsequent real confirm still completed the
+   delete rather than hanging.
+3. **(Fixed, incidental)** A stale code comment claimed this modal "has
+   no backdrop click handler by design" — actually incorrect; the
+   generic per-`.modal` backdrop-click-to-close handler already covers
+   it, exactly like every other modal. Corrected the comment; no
+   behavior change needed.
+4. **(Logged, not fixed — pre-existing, app-wide, out of scope for this
+   diff)** No modal in this admin (not just this new one) sets
+   `role="dialog"`/`aria-modal`. A real gap, but predates this feature
+   and affects every modal equally — not something to special-case here.
+
+Re-verified via Playwright after the fixes: a real page+block selection
+survives pressing Escape inside the typed-confirm input (previously
+verified live to be cleared pre-fix); dispatching two synchronous click
+events on "Empty trash" back-to-back leaves the input correctly reset to
+empty rather than showing stale text, and the delete still completes
+normally afterward with no hang. Full regression suite green; all test
+pages/media/articles created during this round (plus leftover data from
+an earlier interrupted test run) cleaned up and confirmed gone.
+
+Item #584 is done: 1 critic round, 6/10, every real finding (2 bugs + 1
+stale comment) fixed and verified live; the one remaining item (no
+`role="dialog"` anywhere in the admin) is a pre-existing, app-wide gap
+explicitly out of scope for this diff, tracked here rather than silently
+dropped — a real future accessibility item worth its own pass across
+every modal at once rather than fixing piecemeal per-feature.
