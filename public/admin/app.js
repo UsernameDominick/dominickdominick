@@ -942,7 +942,13 @@
     if (style.visibleUntil) {
       return ` <span class="lock-badge" title="Currently visible — will hide ${fmt(style.visibleUntil)}">Hides ${fmt(style.visibleUntil)}</span>`;
     }
-    return ` <span class="lock-badge" title="Currently hidden, will become visible ${fmt(style.visibleFrom)}">Scheduled</span>`;
+    // Reachable only once the first three branches above have ruled out a
+    // future visibleFrom and any visibleUntil — a visibleFrom that's already
+    // passed with no end date set is just a normal, unconditionally-visible
+    // block from here on (matches worker/render.js's isBlockInDateWindow()
+    // exactly), so it needs no badge at all rather than a leftover
+    // "Scheduled" claiming a start date that already happened.
+    return "";
   }
 
   function blockBadgesHtml(b) {

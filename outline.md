@@ -3065,3 +3065,22 @@ in the admin. Fixed while addressing the rest of this report:
   Report panel and the aggregated "Run all checks" view. Verified via
   Playwright with two real pages sharing one meta description: both
   surfaces correctly reported "Duplicate meta description (2×)".
+
+### Fourth critic pass on the above
+- ✅ **Scheduled-visibility badge mislabeled a normal, currently-visible
+  block as hidden** — a block with `visibleFrom` already in the past
+  and no `visibleUntil` set is just a plain, unconditionally-visible
+  block from that point on (confirmed identical to
+  `worker/render.js`'s `isBlockInDateWindow()` gate), but the badge's
+  fallback branch only checked "not still in the future" for
+  `visibleFrom`, not "actually in the future" — so it fell through to
+  a "Scheduled" badge reading "Currently hidden, will become visible
+  [a date that already happened]," both parts of which were wrong.
+  This exact combination (visibleFrom-only, already past) wasn't among
+  the cases the original shipping commit tested. Fixed by making the
+  fallback unreachable once a future `visibleFrom` and any
+  `visibleUntil` are ruled out — that state needs no badge at all.
+  Verified via Playwright: the "already started, no end date" case now
+  renders no badge, while confirming the block is genuinely visible on
+  the live public page; the other three states (not-yet-visible,
+  expired, will-hide-later) still render exactly as before.
