@@ -528,3 +528,30 @@ document.addEventListener("DOMContentLoaded", function () {
   var motionBtn = document.getElementById("motion-toggle");
   if (motionBtn) motionBtn.addEventListener("click", sync);
 });
+
+// .tabs (the persistent Articles/Projects/Topics nav pill) scrolls
+// internally as a backstop when too many tabs -- or a long custom
+// nav_label -- don't all fit, rather than blowing out the whole page's
+// width. Two real gaps in that on its own: nothing hints there's more to
+// scroll to (a hidden scrollbar plus plain edge-cropped content gives zero
+// visual affordance), and Tab-focusing onto a tab that's only *partially*
+// clipped doesn't reliably get scrolled fully into view -- browsers only
+// auto-scroll a newly-focused element when it's judged not visible at all,
+// and a sliver already counts as "visible enough," so a keyboard user can
+// land on a focus ring with the tab's own label still invisible.
+document.addEventListener("DOMContentLoaded", function () {
+  var tabs = document.querySelector(".tabs");
+  if (!tabs) return;
+  var updateOverflowHints = function () {
+    tabs.classList.toggle("has-overflow-left", tabs.scrollLeft > 1);
+    tabs.classList.toggle("has-overflow-right", tabs.scrollLeft + tabs.clientWidth < tabs.scrollWidth - 1);
+  };
+  updateOverflowHints();
+  tabs.addEventListener("scroll", updateOverflowHints);
+  window.addEventListener("resize", updateOverflowHints);
+  tabs.addEventListener("focusin", function (e) {
+    if (!e.target.classList.contains("tab")) return;
+    e.target.scrollIntoView({ block: "nearest", inline: "nearest" });
+    updateOverflowHints();
+  });
+});

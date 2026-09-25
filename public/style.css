@@ -240,6 +240,22 @@ body {
   display: none;
 }
 
+/* Edge-fade cues for the .tabs scroll backstop above — a hidden scrollbar
+   plus plain edge-cropped content gave zero indication there was more to
+   scroll to. Classes toggled by nav.js based on actual scroll position, so
+   a cue only ever shows on the side that genuinely has more content. */
+.tabs.has-overflow-left {
+  box-shadow: inset 12px 0 8px -8px rgba(0, 0, 0, 0.15);
+}
+
+.tabs.has-overflow-right {
+  box-shadow: inset -12px 0 8px -8px rgba(0, 0, 0, 0.15);
+}
+
+.tabs.has-overflow-left.has-overflow-right {
+  box-shadow: inset 12px 0 8px -8px rgba(0, 0, 0, 0.15), inset -12px 0 8px -8px rgba(0, 0, 0, 0.15);
+}
+
 .tab {
   position: relative;
   z-index: 1;

@@ -173,6 +173,13 @@
   // on any decode error, since stripping metadata should never be the
   // reason a legitimate upload fails.
   async function stripImageMetadata(file) {
+    // A plain Blob (not a File) can only have come from in-app canvas
+    // processing — the Photo Editor's own save flow exports via
+    // canvas.toBlob(), which by construction already carries zero
+    // metadata — so re-decoding+re-encoding it here would be a pointless
+    // extra pass for no benefit. Every real upload path (file inputs,
+    // single or bulk) always hands over a real File.
+    if (!(file instanceof File)) return file;
     if (file.type !== "image/jpeg" && file.type !== "image/png") return file;
     try {
       const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
@@ -7032,6 +7039,13 @@
   }
 
   function openCommandPalette() {
+    // Recorded before .hidden flips and before focus moves into the
+    // palette's own search input -- the only modal in the app that moves
+    // focus into itself on open, which otherwise races the generic
+    // focus-return MutationObserver below (a microtask, so by the time it
+    // runs, document.activeElement is already #command-input, not the
+    // real trigger). See that observer's own comment for the other half.
+    modalFocusReturn.set(el("command-modal"), document.activeElement);
     el("command-modal").hidden = false;
     el("command-input").value = "";
     el("command-input").focus();
@@ -7704,7 +7718,20 @@
         const restore = modalFocusReturn.get(modal);
         modalFocusReturn.delete(modal);
         if (restore && document.body.contains(restore)) restore.focus();
-      } else {
+      } else if (!modalFocusReturn.has(modal)) {
+        // Only auto-capture if nothing already claimed this slot. A
+        // MutationObserver callback is a microtask — it doesn't run until
+        // the synchronous code that flipped `hidden` has finished, so for
+        // a modal that moves focus into itself on open (the command
+        // palette focusing its own search input), `document.activeElement`
+        // by the time this fires is already that input, not the real
+        // trigger. openCommandPalette() pre-records the correct element
+        // itself before moving focus; every other modal doesn't touch
+        // focus on open, so this fallback still gets the right answer for
+        // all of them unchanged. The map is guaranteed clear of stale
+        // entries here since the `hidden` branch above always deletes on
+        // close, so "already has a value" only ever means "claimed during
+        // this open," never leftover from a previous one.
         modalFocusReturn.set(modal, document.activeElement);
       }
     }

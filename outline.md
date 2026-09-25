@@ -4359,3 +4359,90 @@ Found two real, concrete bugs in the nav bar specifically, both fixed:
   `/topics` itself.
 
 Full regression suite green after both fixes.
+
+### Critic pass on the four newest fixes (focus trap, EXIF strip, nav overflow, topics active-tab)
+
+A second critic agent live-drove specifically the four items just shipped
+(focus trap, EXIF stripping, nav overflow fix, `/topics/:tag` active-tab).
+EXIF stripping and the `/topics/:tag` fix both checked out completely
+clean end-to-end (real GPS-tagged JPEG and tEXt-chunked PNG both came back
+with zero metadata; GIF/SVG passed through byte-identical; the Photo
+Editor and bulk uploader confirmed to share the same code path). Found
+two real, concrete bugs, both fixed, plus one low-priority perf nit also
+fixed while in there:
+
+- ✅ **The one modal that moves focus into itself on open — the command
+  palette — broke the new focus-return half of the trap** — a
+  `MutationObserver` callback is a microtask, so it doesn't run until
+  the synchronous code that flipped a modal's `hidden` attribute has
+  already finished. Every other modal in the app leaves focus alone on
+  open, so by the time the observer's callback reads
+  `document.activeElement` to remember "what to restore on close," it's
+  still correctly the trigger button. `openCommandPalette()` is the one
+  exception: it calls `el("command-input").focus()` synchronously right
+  after opening, so the observer was instead recording `#command-input`
+  itself — which then closes with the modal, making the stored restore
+  target unreachable and silently dropping focus to `<body>` instead of
+  back to whatever opened the palette (`#command-btn`, or nothing in
+  particular if opened via the Ctrl+K shortcut). Fixed by having
+  `openCommandPalette()` record the real trigger into `modalFocusReturn`
+  itself, *before* moving focus, and changing the observer's auto-
+  capture branch to only fill in a value if nothing already claimed that
+  slot (`if (!modalFocusReturn.has(modal))`) — safe because the `hidden`
+  branch always deletes a modal's entry on close, so "already has a
+  value" can only mean "claimed during this exact open," never a stale
+  leftover. Every other modal's behavior is unchanged since nothing else
+  pre-claims its slot. Verified via Playwright for both the click-to-open
+  and Ctrl+K paths: focus now correctly lands back on the real trigger
+  (`#command-btn` or whatever else was focused before Ctrl+K) after
+  Escape, not `<body>`; Settings/Media Library/etc. re-checked unaffected.
+- ✅ **The `.tabs` horizontal-scroll backstop (from the nav-overflow fix
+  above) had zero visual affordance and a real keyboard-accessibility
+  gap** — confirmed live with 7 mixed-length tabs (3 baseline + 4 custom
+  `nav_label` pages): a hidden scrollbar plus plain edge-cropped content
+  gave no hint there was more to scroll to, and Tab-focusing onto a tab
+  that was only *partially* clipped (not fully off-screen) didn't
+  reliably get scrolled into view — browsers only auto-scroll a newly-
+  focused element when it's judged not visible at all, and a sliver
+  already counts as "visible enough," so a keyboard user could land on a
+  focus ring with the tab's own label still invisible. Fixed in
+  `nav.js`: a `focusin` handler on `.tabs` explicitly calls
+  `scrollIntoView({ block: "nearest", inline: "nearest" })` on whichever
+  `.tab` receives focus, rather than relying on the browser's own
+  (confirmed insufficient) default behavior. Paired with a `has-overflow-
+  left`/`has-overflow-right` class pair (`style.css`), toggled on scroll/
+  resize based on actual `scrollLeft`/`scrollWidth`, driving a subtle
+  inset edge-shadow so there's now a visible cue when more tabs exist off
+  to either side. Verified via Playwright with the same 7-tab setup:
+  every tab (including "About the Studio," the exact one the critic
+  found broken) is now fully within `.tabs`' visible bounds when
+  Tab-focused, and the overflow-hint classes correctly flip based on real
+  scroll position (right-only at the start, left-only once scrolled to
+  the end).
+- ✅ **Photo Editor's "Save as new"/"Save overwrite" did a pointless
+  extra decode+re-encode pass** — `exportBlob()` already produces a PNG
+  straight off the canvas (zero metadata by construction), but it then
+  went through the same `stripImageMetadata()` as any other upload,
+  which re-decoded and re-encoded it a second time for no benefit (a
+  measured ~300ms+ of wasted work on a large image, confirmed via
+  instrumented call counts). Fixed with one added check: `canvas.toBlob()`
+  always yields a plain `Blob`, never a `File`, and every real upload
+  path (single or bulk) always hands over a real `File` from an
+  `<input type=file>` — so `if (!(file instanceof File)) return file;`
+  at the top of `stripImageMetadata()` skips the redundant pass for
+  canvas-sourced saves specifically, without touching any real upload
+  path. Verified via Playwright: `createImageBitmap` call count stayed
+  at 1 (from the original upload) through a full Photo Editor open →
+  Save-as-new cycle, confirming zero extra strip-pass calls, while the
+  saved copy still uploaded successfully with a real, non-empty size.
+
+Noted but not fixed, both explicitly low-priority: a modal with zero
+focusable elements would fully defeat the Tab trap (confirmed only via a
+synthetic test that strips a modal's own close button — not reachable
+with any real modal today, since every one ships with at least a close
+button); and pre-existing, unrelated leftover test data from earlier
+sessions (2 stale pages, 5 stale ~98-byte media uploads, all confirmed
+unused) was found and cleaned up directly as routine local-dev hygiene,
+not because it was caused by this round's work.
+
+Full regression suite green after all three fixes.
