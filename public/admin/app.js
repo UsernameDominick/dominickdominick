@@ -4019,6 +4019,7 @@
     el("media-info-credit").value = item.credit || "";
     el("media-info-license").value = item.license || "";
     el("media-info-history-list").innerHTML = "";
+    el("media-info-file-versions-list").innerHTML = "";
     el("media-info-modal").hidden = false;
   }
   closeModalOnClick("close-media-info", "media-info-modal");
@@ -4072,6 +4073,38 @@
                 openMediaInfoModal(mediaInfoKey);
               }
               el("media-info-history-btn").click();
+            } catch (err) {
+              alert(err.message);
+            }
+          });
+        });
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  el("media-info-file-versions-btn").addEventListener("click", async () => {
+    if (!mediaInfoKey) return;
+    try {
+      const versions = await api(`/media-file-versions?key=${encodeURIComponent(mediaInfoKey)}`);
+      el("media-info-file-versions-list").innerHTML =
+        versions
+          .map(
+            (v) =>
+              `<div class="link-check-row"><img src="${escapeHtml(v.url)}" alt="" style="width:32px;height:32px;object-fit:cover;border-radius:4px;flex-shrink:0;"><span class="link-check-url">${escapeHtml(
+                (v.created_at || "").replace("T", " ").slice(0, 19)
+              )}</span><span class="link-check-source">${formatBytes(v.size || 0)}</span><button type="button" class="restore-media-file-version-btn" data-id="${v.id}">Restore</button></div>`
+          )
+          .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No earlier file versions saved yet (only created by 'Overwrite original' in the photo editor).</p>";
+      el("media-info-file-versions-list")
+        .querySelectorAll(".restore-media-file-version-btn")
+        .forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            if (!confirm("Restore this file version? The current file is archived first, so this can be undone too.")) return;
+            try {
+              await api(`/media-file-versions/${btn.dataset.id}/restore`, { method: "POST" });
+              await loadMediaLibrary();
+              el("media-info-file-versions-btn").click();
             } catch (err) {
               alert(err.message);
             }

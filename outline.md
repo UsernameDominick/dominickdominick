@@ -766,7 +766,16 @@ block already support any of these as a plain page:
 - ✅ Usage tracking across pages/articles/projects/settings (including project share images — a real gap fixed)
 - 🔶 Bulk upload/move/tag/delete ✅; bulk rename ☐ (R2 keys are content-addressed, "rename" = alt text, already covered per-file)
 - ✅ Duplicate detection (SHA-256 at upload + backfill scan + immediate warning on byte-identical upload)
-- ☐ Replace-in-place without breaking placements, media version history
+- ✅ Replace-in-place without breaking placements (already existed via the
+  photo editor's "Overwrite original" — same key, same URL, so nothing
+  referencing it breaks — this note was stale); media version history ✅
+  (a new `media_versions` table + `_versions/` R2 prefix: the old bytes
+  get archived right before every in-place overwrite, with a "File
+  versions" panel in File details to browse thumbnails and restore any
+  earlier version — restoring archives the current bytes too, so it's
+  undoable the same way. Archived bytes are served through an admin-only
+  route, not the public `/media/:key` route, and both the R2 objects and
+  their D1 rows get cleaned up when the file itself is deleted)
 - ✅ Original-file preservation; ☐ responsive image variants/srcset, crop/focal-point per placement
 - ✅ Alt text/caption/credit/license fields (library-level + per-block prefill)
 - ✅ Metadata viewer (size, format from the file extension, and

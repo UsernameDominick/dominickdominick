@@ -1460,6 +1460,29 @@ export async function restoreMediaRevision(env, revisionId) {
   });
 }
 
+export async function recordMediaVersion(env, mediaKey, versionKey, size) {
+  await env.DB
+    .prepare("INSERT INTO media_versions (media_key, version_key, size) VALUES (?, ?, ?)")
+    .bind(mediaKey, versionKey, size ?? null)
+    .run();
+}
+
+export async function listMediaVersions(env, mediaKey) {
+  const { results } = await env.DB
+    .prepare("SELECT * FROM media_versions WHERE media_key = ? ORDER BY created_at DESC")
+    .bind(mediaKey)
+    .all();
+  return results;
+}
+
+export async function getMediaVersion(env, id) {
+  return await env.DB.prepare("SELECT * FROM media_versions WHERE id = ?").bind(id).first();
+}
+
+export async function deleteMediaVersions(env, mediaKey) {
+  await env.DB.prepare("DELETE FROM media_versions WHERE media_key = ?").bind(mediaKey).run();
+}
+
 // Every hash shared by more than one file, each with its list of keys —
 // for the "possible duplicates" filter in the library. A file uploaded
 // before hashing existed just has hash = NULL and won't match anything

@@ -308,6 +308,20 @@ CREATE TABLE media_revisions (
 );
 CREATE INDEX idx_media_revisions_key ON media_revisions(media_key);
 
+-- The actual file bytes from before an in-place "Overwrite original"
+-- (photo editor / PUT /media/:key) — media_revisions above only covers
+-- the metadata (alt/caption/etc.), never the image content itself. Each
+-- old version's bytes live in R2 under a `_versions/` prefix (kept out
+-- of the main `uploads/` listing), and this table just points at them.
+CREATE TABLE media_versions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  media_key TEXT NOT NULL,
+  version_key TEXT NOT NULL,
+  size INTEGER,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_media_versions_key ON media_versions(media_key);
+
 CREATE TABLE scans (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,

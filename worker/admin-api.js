@@ -32,6 +32,10 @@ import {
   deleteMediaMeta,
   listMediaRevisions,
   restoreMediaRevision,
+  recordMediaVersion,
+  listMediaVersions,
+  getMediaVersion,
+  deleteMediaVersions,
   listMediaFolders,
   findMediaUsage,
   getAllUsedMediaUrls,
@@ -853,6 +857,9 @@ async function routeAdminApi(request, env, url, ctx) {
   }
   const mediaKeyMatch = path.match(/^\/media\/(.+)$/);
   if (mediaKeyMatch && method === "DELETE") {
+    const versions = await listMediaVersions(env, mediaKeyMatch[1]);
+    await Promise.all(versions.map((v) => env.MEDIA.delete(v.version_key)));
+    await deleteMediaVersions(env, mediaKeyMatch[1]);
     await env.MEDIA.delete(mediaKeyMatch[1]);
     await deleteMediaMeta(env, mediaKeyMatch[1]);
     log(ctx, env, "delete", "media", mediaKeyMatch[1].split("/").pop());
@@ -878,7 +885,10 @@ async function routeAdminApi(request, env, url, ctx) {
     return json({ ok: true });
   }
   // Overwrites an existing upload's bytes in place — same key, same public
-  // URL — used by the photo editor's "Overwrite original" save.
+  // URL — used by the photo editor's "Overwrite original" save. The bytes
+  // being replaced are archived first (under a `_versions/` prefix, kept
+  // out of the main `uploads/` listing) so the overwrite itself can be
+  // undone later, the one gap plain in-place replacement otherwise has.
   if (mediaKeyMatch && method === "PUT") {
     const contentType = request.headers.get("Content-Type") || "";
     const allowed = ["image/png", "image/jpeg", "image/webp", "image/gif"];
@@ -890,10 +900,54 @@ async function routeAdminApi(request, env, url, ctx) {
       return json({ error: "File too large (8MB max)" }, { status: 400 });
     }
     const key = mediaKeyMatch[1];
-    const existing = await env.MEDIA.head(key);
-    if (!existing) return json({ error: "Original file not found" }, { status: 404 });
+    const existingObj = await env.MEDIA.get(key);
+    if (!existingObj) return json({ error: "Original file not found" }, { status: 404 });
+    const versionKey = `_versions/${key}/${Date.now()}`;
+    await env.MEDIA.put(versionKey, await existingObj.arrayBuffer(), { httpMetadata: existingObj.httpMetadata });
+    await recordMediaVersion(env, key, versionKey, existingObj.size);
     await env.MEDIA.put(key, buf, { httpMetadata: { contentType } });
     return json({ url: `/media/${key}` });
+  }
+  // /media-file-versions?key=... — same reasoning as /media-revisions:
+  // a query param, not a path segment, since a media key contains slashes.
+  if (path === "/media-file-versions" && method === "GET") {
+    const key = url.searchParams.get("key");
+    if (!key) return json({ error: "key is required" }, { status: 400 });
+    const versions = await listMediaVersions(env, key);
+    // Archived bytes live under `_versions/`, which the public /media/:key
+    // route deliberately doesn't serve (only uploads/scans/audio) — this
+    // admin-only image route is how the History panel's thumbnail loads.
+    return json(versions.map((v) => ({ ...v, url: `/api/admin/media-file-versions/${v.id}/image` })));
+  }
+  const mediaFileVersionImageMatch = path.match(/^\/media-file-versions\/(\d+)\/image$/);
+  if (mediaFileVersionImageMatch && method === "GET") {
+    const version = await getMediaVersion(env, Number(mediaFileVersionImageMatch[1]));
+    if (!version) return new Response("Not found", { status: 404 });
+    const obj = await env.MEDIA.get(version.version_key);
+    if (!obj) return new Response("Not found", { status: 404 });
+    const headers = new Headers();
+    obj.writeHttpMetadata(headers);
+    headers.set("Cache-Control", "private, max-age=3600");
+    return new Response(obj.body, { headers });
+  }
+  const mediaFileVersionRestoreMatch = path.match(/^\/media-file-versions\/(\d+)\/restore$/);
+  if (mediaFileVersionRestoreMatch && method === "POST") {
+    const version = await getMediaVersion(env, Number(mediaFileVersionRestoreMatch[1]));
+    if (!version) return json({ error: "Version not found" }, { status: 404 });
+    const versionObj = await env.MEDIA.get(version.version_key);
+    if (!versionObj) return json({ error: "Archived file is missing" }, { status: 404 });
+    // The current (about-to-be-replaced) bytes get archived too, exactly
+    // like a normal overwrite would — restoring is just another
+    // overwrite, so it's undoable the same way.
+    const currentObj = await env.MEDIA.get(version.media_key);
+    if (currentObj) {
+      const preRestoreKey = `_versions/${version.media_key}/${Date.now()}`;
+      await env.MEDIA.put(preRestoreKey, await currentObj.arrayBuffer(), { httpMetadata: currentObj.httpMetadata });
+      await recordMediaVersion(env, version.media_key, preRestoreKey, currentObj.size);
+    }
+    await env.MEDIA.put(version.media_key, await versionObj.arrayBuffer(), { httpMetadata: versionObj.httpMetadata });
+    log(ctx, env, "restore", "media-file-version", version.media_key);
+    return json({ ok: true });
   }
 
   // ---------- 3D scans ----------
