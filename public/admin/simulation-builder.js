@@ -15,6 +15,12 @@
   let placeY = 20;
   const PLACE_ROW_HEIGHT = 70;
   const PLACE_CANVAS_WIDTH = 1500;
+  // Snapshot taken right after openBuilder() loads/creates simData, so
+  // "Reset" can discard every in-progress edit and go back to exactly
+  // what was last saved (or the template/blank state a new simulation
+  // started from) -- same idea as the Photo Editor's "Reset" button and
+  // its originalSnapshot.
+  let initialSimSnapshot = null;
 
   // ---------- Undo / redo ----------
   // Snapshot-based rather than diff-based: simData is a small plain-JSON
@@ -51,6 +57,18 @@
     if (!redoStack.length) return;
     undoStack.push(JSON.stringify(simData));
     simData = JSON.parse(redoStack.pop());
+    selected = null;
+    wireStart = null;
+    updateHistoryButtons();
+    renderInspector();
+    renderBuilder();
+  }
+
+  function resetSimToInitial() {
+    if (!initialSimSnapshot) return;
+    if (!confirm("Discard all edits and go back to the last saved state?")) return;
+    pushHistory();
+    simData = JSON.parse(initialSimSnapshot);
     selected = null;
     wireStart = null;
     updateHistoryButtons();
@@ -213,6 +231,7 @@
       $("simulation-name").value = "New simulation";
       simData = { components: [], wires: [] };
     }
+    initialSimSnapshot = JSON.stringify(simData);
     $("simulations-modal").hidden = true;
     $("simulation-builder-modal").hidden = false;
     $("sim-palette-search").value = "";
@@ -993,10 +1012,18 @@
         const res = await window.adminApi("/simulations", { method: "POST", body: JSON.stringify({ name, data: simData }) });
         currentSimId = res.id;
       }
+      // Keeps "Reset" meaning "back to the last save" rather than "back to
+      // whatever this modal loaded with" -- the modal stays open after a
+      // save, so without this a Reset later in the same session would
+      // silently discard already-saved work, not just this session's
+      // in-progress edits.
+      initialSimSnapshot = JSON.stringify(simData);
       alert("Saved.");
       if (window.refreshSimulationOptions) window.refreshSimulationOptions();
     } catch (err) {
       alert(err.message);
     }
   });
+
+  $("sim-reset").addEventListener("click", resetSimToInitial);
 })();

@@ -4886,7 +4886,7 @@ substantial new infra + security surface).
 ### Simulations — Easy
 362. Separate draft/published — new `published_data` column + toggle, like other content types.
 363. Deterministic runs/seeds — sim is deterministic already; add a seed field for future randomness.
-366. Reset to initial state — snapshot `data` on load, add Reset button.
+366. ✅ Reset to initial state — done (see the dated entry below this section).
 367. Save checkpoints — named snapshots array in `data`, reuse the undo JSON pattern.
 373. Rotate/mirror — add transform + flip pin coords, small render change.
 375. Configurable snapping — GRID_SNAP is already a constant; expose as UI control.
@@ -5632,3 +5632,31 @@ never-actually-observed animation-replay edge case, not a bug.
 
 Item #584 is fully closed: 2 critic rounds, 6/10 → 9/10, every real
 finding from round 1 fixed and verified; round 2 found nothing new.
+
+### Seventh item: #366, reset a simulation to its initial state
+
+- ✅ **A "Reset" button next to Undo/Redo in the Simulation builder** —
+  same pattern as the Photo Editor's own Reset: `confirm()` before
+  discarding anything, and the reset itself pushed onto the existing
+  undo stack so it can be undone too. The one design decision worth
+  recording: "initial state" means the *last saved state*, not literally
+  whatever `simData` held the instant the builder modal opened. The
+  builder modal stays open after clicking Save (no close/reopen), so a
+  naive "snapshot on open, restore that forever" version would let an
+  admin save real progress, keep editing, then hit Reset expecting to
+  undo just their unsaved changes — and instead silently lose the saved
+  work too, wiping all the way back to session start. Fixed by having the
+  save handler re-snapshot `initialSimSnapshot` on every successful save,
+  so Reset always means "discard everything since the last save,"
+  matching what "Reset" would actually be expected to do and avoiding a
+  data-loss trap before it could ever ship. Verified via Playwright:
+  placed a component on a brand-new (never-saved) simulation, Reset
+  correctly cleared it back to 0 parts; placed a component, saved, placed
+  a second component, Reset correctly kept the first (saved) part and
+  dropped only the second (unsaved) one; undoing that Reset correctly
+  restored both parts. Full regression suite green; test simulation
+  deleted and confirmed gone (simulations have no soft-delete/trash —
+  `DELETE /simulations/:id` is already a hard delete, so no separate
+  permanent-delete call was needed).
+
+Handed to a critic agent for scoring.
