@@ -7973,14 +7973,38 @@
   // in particular sometimes throws a plain object or a bare string.
   // Coercing straight to a string in that case just produces
   // "[object Object]", a log row with zero actionable information.
+  // A plain object with a circular reference (a real, easy-to-hit shape in
+  // canvas/DOM-heavy code, e.g. accidentally throwing an event or a node
+  // that references its own parent) makes JSON.stringify throw — a second
+  // critic pass caught that this then fell back to plain String(value),
+  // silently reintroducing the exact "[object Object]" uselessness this
+  // helper exists to eliminate. A WeakSet-tracked replacer lets circular
+  // structures stringify successfully instead, marking the repeated
+  // reference rather than giving up on the whole object.
+  function safeStringify(value) {
+    const seen = new WeakSet();
+    try {
+      return JSON.stringify(value, (key, val) => {
+        if (val && typeof val === "object") {
+          if (seen.has(val)) return "[Circular]";
+          seen.add(val);
+        }
+        return val;
+      });
+    } catch {
+      return null;
+    }
+  }
   function describeThrown(value, fallback) {
     if (value instanceof Error) return { message: value.message, stack: value.stack };
     if (value && typeof value === "object") {
-      try {
-        return { message: JSON.stringify(value), stack: null };
-      } catch {
-        return { message: String(value), stack: null };
-      }
+      const json = safeStringify(value);
+      if (json) return { message: json, stack: null };
+      // Stringify failed for a reason other than circularity (e.g. a
+      // BigInt field) -- name at least the constructor rather than
+      // falling all the way back to a useless "[object Object]".
+      const name = value.constructor && value.constructor.name;
+      return { message: `[${name || "Object"} thrown, could not serialize]`, stack: null };
     }
     return { message: value !== undefined && value !== null ? String(value) : fallback, stack: null };
   }

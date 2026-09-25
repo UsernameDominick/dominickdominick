@@ -5074,5 +5074,34 @@ further):
   near-impossible edge case (the login screen essentially never throws).
 
 Full regression suite green after the round-1 fixes; test rows/media
-cleaned up and confirmed gone via D1. Resubmitted for a second scoring
-pass.
+cleaned up and confirmed gone via D1.
+
+**Critic round 2: 8/10.** Independently re-reproduced all three round-1
+fixes live (flood → exactly 1 row; a different error immediately after
+still landed, so dedup isn't over-broad; waited past the 10s window and
+confirmed the same error logs again rather than being permanently
+suppressed) plus the three-editor tagging regression check — all
+confirmed working, no regressions. One real remaining gap:
+- ✅ **A circular object throw/rejection still fell back to the exact
+  useless `"[object Object]"` this fix was built to eliminate** — a
+  self-referencing object (a realistic accidental throw target in
+  canvas/DOM-heavy editor code, e.g. an event or DOM node referencing
+  its own parent) makes `JSON.stringify` throw, and the catch-block
+  fallback was plain `String(value)`. Didn't crash anything and didn't
+  cause flooding (the message was at least *stable*, so dedup still
+  collapsed repeats correctly) but was a genuine functional shortfall,
+  not cosmetic. Fixed with a `safeStringify()` using a `WeakSet`-tracked
+  replacer that marks a repeated reference as `"[Circular]"` instead of
+  giving up on the whole object, plus a constructor-name fallback for
+  any other stringify failure (e.g. a `BigInt` field) rather than
+  falling all the way back to `[object Object]`. Verified via
+  Playwright: a self-referencing object thrown/rejected now logs
+  `{"name":"circularTestObj","value":42,"self":"[Circular]"}` instead
+  of the useless literal string, page stays fully responsive throughout,
+  and all of round 1's fixes (flood dedup, scoping, window expiry,
+  plain-object/string handling, three-editor tagging) re-verified
+  unaffected.
+
+Full regression suite green after the round-2 fix; test rows cleaned up
+and confirmed back to baseline via D1 (`COUNT=9, MAX(id)=11`, matching
+pre-test state exactly). Resubmitting for a third scoring pass.
