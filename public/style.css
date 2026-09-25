@@ -226,6 +226,18 @@ body {
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 4px;
+  /* Backstop for many nav items, or several long custom nav_labels, whose
+     combined width still doesn't fit even after each .tab's own max-width/
+     ellipsis below -- scrolls within itself instead of forcing the whole
+     page into horizontal scroll. */
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .tab {
@@ -241,6 +253,22 @@ body {
   padding: 8px 18px;
   border-radius: 999px;
   transition: color 0.3s var(--ease-smooth);
+  /* A custom nav_label has no length cap at the data layer. Without this,
+     a long one with spaces wraps inside the pill (inflating its height --
+     and border-radius: 999px turns that extra height straight into a
+     giant oval), while a long one without spaces just overflows .tabs'
+     width and drags the whole page into horizontal scroll instead. */
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* Without this, a flex item's default flex-shrink: 1 kicks in before
+     .tabs' own overflow-x: auto backstop ever gets the chance to -- one
+     long tab caused *every* tab, short baseline ones included, to shrink
+     down toward unreadable slivers ("A…", "P…", "T…") instead of just the
+     long one truncating while the row scrolls. Keeping each tab at its own
+     natural (up to max-width) size means only the overflow itself scrolls. */
+  flex-shrink: 0;
 }
 
 .tab.is-active {

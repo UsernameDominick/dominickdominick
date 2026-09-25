@@ -4306,3 +4306,52 @@ is implemented below.
   (34 bytes in, 34 out), confirming non-JPEG/PNG formats are correctly
   left alone. Full regression suite green; test uploads deleted and
   confirmed gone from both R2 (404 on refetch) and the `media` table.
+
+### Critic pass on the nav bar, sidebar, theme, and motion/diagnostics work above
+
+A fresh critic agent live-drove the persistent nav bar, admin sidebar,
+theme consolidation, motion budget, and Diagnostics jump-to-block
+features just shipped. Sidebar, theme tokens, motion-budget/reduced-
+motion ordering, and Diagnostics jump-to-block all checked out clean.
+Found two real, concrete bugs in the nav bar specifically, both fixed:
+
+- ✅ **A long custom `nav_label` broke the page, two different ways
+  depending on whether it had spaces** — `.tab` had no `white-space`/
+  `overflow`/`text-overflow` handling and `.tabs` had no width cap at
+  all, so a long label with spaces wrapped *inside* the pill (inflating
+  its height to 206px on mobile, and since `border-radius: 999px`
+  tracks the element's own height, that turned the whole nav bar into
+  a giant oval bleeding into the page), while a long label with no
+  spaces just overflowed `.tabs`' width outward, dragging the *entire
+  page* into horizontal scroll (`documentElement.scrollWidth` measured
+  795px against a 390px viewport). Fixed with `white-space: nowrap`,
+  `overflow: hidden`, `text-overflow: ellipsis`, and a `max-width: 220px`
+  cap on `.tab`, plus `.tabs` itself gaining `max-width: 100%` and a
+  scrollbar-hidden `overflow-x: auto` as a backstop for however many
+  tabs still don't fit after per-tab truncation. First pass introduced
+  its own regression, caught before shipping: a flex item's default
+  `flex-shrink: 1` let the *short* baseline tabs (Articles/Projects/
+  Topics) get squeezed down to unreadable "A…"/"P…"/"T…" slivers too,
+  since browsers distribute shrinkage across every flex item once the
+  row doesn't fit, and `overflow: hidden` text has no minimum content
+  width to resist that. Added `flex-shrink: 0` to `.tab` so only the
+  actual overflow scrolls — short tabs keep their natural size, and the
+  screenshot re-check confirmed "Articles"/"Projects"/"Topics" render
+  fully readable again. Verified via Playwright with a real long
+  `nav_label` page (both the spaced and unbroken-word variants): mobile
+  `scrollWidth` back to 390 (matching the viewport) in both cases, the
+  long tab's own height back to ~40px (not 200+), and the ellipsis
+  truncation reads cleanly at both 390px and 1440px. Test page deleted
+  (soft + permanent) and confirmed gone via D1.
+- ✅ **Individual topic pages (`/topics/:tag`) never highlighted their
+  own "Topics" nav tab** — the exact same `activeSlug: null` bug
+  already found and fixed for the topics *index* page earlier in this
+  section, just missed on the per-tag detail route
+  (`renderTopicPage()` in `worker/index.js`), which is the page a
+  visitor actually lands on after clicking a topic. Changed to
+  `activeSlug: "topics"`, matching the index page's fix. Verified via
+  curl against a real existing tag: `/topics/code` now renders
+  `class="tab is-active" href="/topics" aria-current="page"`, matching
+  `/topics` itself.
+
+Full regression suite green after both fixes.

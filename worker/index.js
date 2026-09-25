@@ -731,7 +731,7 @@ async function renderTopicPage(env, tag, navItems) {
     description: topicMeta?.description || `Posts and projects tagged "${tag}" on dominickdominick.com.`,
     path: `/topics/${encodeURIComponent(tag)}`,
     navItems,
-    activeSlug: null,
+    activeSlug: "topics",
     bodyHtml,
     ogImage: topicMeta?.og_image || defaultOgImage || null,
     theme,
