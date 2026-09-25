@@ -5473,8 +5473,35 @@ row/step, not just count), matching the transpose math exactly. Full
 regression suite (`test_security_seo.js`) re-run green; no leftover test
 songs in D1.
 
-Item #237 is done: 1 critic round, 8/10, both real findings fixed and
-verified live; the two remaining findings are pre-existing architectural
-gaps (no undo/redo in the Song builder; `refreshWaveformPreview()`'s
-async race) explicitly out of scope for this diff, tracked here rather
-than silently dropped.
+Resubmitted the fixed diff to a fresh critic per the strict workflow
+(new code changed since the 8/10 round). Round 2: **9/10**. Live-verified
+via Playwright against the actual commit (no persisted test data
+afterward): confirm-Cancel preserves state; confirm-OK applies correctly
+including the drop/keep split; an empty or non-destructive transpose
+stays a silent no-op; a >8-notes-dropped case correctly truncates the
+message to 8 named notes plus a count ("...and 8 more"); the
+source→target row mapping is a uniform array shift and therefore
+inherently collision-free (no two source notes can land on the same
+target and silently overwrite each other); rapid double-clicks are safe
+because `confirm()` is a synchronous blocking dialog, so a second click
+can't be dispatched until the first resolves; all four aria-labels
+render correctly at runtime. New minor items surfaced (not bugs, logged
+here rather than in a numbered backlog slot since they're this-feature-only
+polish, not standalone work):
+- The dropped-notes list in the confirm message is ordered by
+  pitch-row-then-step (iteration order) rather than chronologically by
+  step — a minor readability nit for a long list, not incorrect.
+- `title` and `aria-label` now carry identical redundant text per
+  button — harmless (aria-label correctly overrides the glyph-derived
+  accessible name, title still shows as a tooltip) but slightly
+  duplicative; not worth a special-case fix.
+- No automated test suite exists in this repo at all, so the lack of
+  committed tests for this logic is consistent with existing practice,
+  not a regression introduced by this diff.
+
+Item #237 is done: 2 critic rounds, 8/10 → 9/10, every real finding from
+both rounds fixed and verified live; the only items left standing are
+explicitly minor polish (this round) or pre-existing architectural gaps
+called out of scope for this diff (no undo/redo in the Song builder;
+`refreshWaveformPreview()`'s async race) — both tracked above under
+"DAW/Audio — Hard" rather than silently dropped.
