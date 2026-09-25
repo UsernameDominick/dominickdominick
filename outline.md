@@ -1915,11 +1915,24 @@ enough detail to act on directly later.
   (`public/article-extras.js`) actually reads the rendered DOM's own
   text directly and never called this function at all; confirmed zero
   call sites anywhere before deleting.
-- Hero/audio files replaced on a project are never deleted from R2
-  (matches this codebase's existing precedent of not cleaning up
-  replaced `default_og_image`, etc.) — user asked for this to be fixed
-  despite the precedent, given video files are much larger; not done
-  yet in this commit, next up.
+- ✅ Replacing (or removing) a project's hero video, or an article's/
+  project's TTS narration audio, now deletes the old R2 object instead
+  of leaving it orphaned — done despite this codebase's existing
+  precedent elsewhere (e.g. `default_og_image`) of not cleaning up
+  replaced files, at the user's explicit request, since video files
+  are large enough that this adds up. `updateArticle`/`updateProject`
+  fetch the current `tts_audio_key`/`hero_video` value only when that
+  field is actually part of the incoming update, and delete it
+  afterward if it changed (including changing to `null`, i.e. removed
+  entirely) — guarded per-field so patching one of the two on a
+  project (they're independent fields) never touches the other one's
+  file. `custom font` uploads (site-wide, in Settings, not per-content)
+  are a separate, deliberately-untouched case — still no precedent
+  reason to delete those. Verified via Playwright: replacing a hero
+  video deletes the old R2 object and keeps the new one servable,
+  removing it (set to `null`) deletes it, and updating an unrelated
+  field (title) on the same project doesn't touch it at all — same
+  three checks repeated for an article's TTS audio.
 
 ### Improvement ideas surfaced (not bugs, future backlog)
 - Real mobile reflow for the page grid: stack blocks in one column at

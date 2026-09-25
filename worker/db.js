@@ -577,6 +577,15 @@ export async function createArticle(
   return res.meta.last_row_id;
 }
 
+// tts_audio_key/hero_video store a "/media/..." URL (not a Media Library
+// entry — a one-off upload the admin UI treats as a plain field, not
+// something to keep around after it's replaced or removed), so deleting
+// the old file on change needs the URL's own R2 key extracted back out.
+async function deleteOldMediaUrl(env, url) {
+  if (!url || !url.startsWith("/media/")) return;
+  await env.MEDIA.delete(url.slice("/media/".length)).catch(() => {});
+}
+
 export async function updateArticle(env, id, fields) {
   const cols = [];
   const vals = [];
@@ -585,6 +594,10 @@ export async function updateArticle(env, id, fields) {
       cols.push(`${key} = ?`);
       vals.push(fields[key]);
     }
+  }
+  let oldTtsAudioKey;
+  if ("tts_audio_key" in fields) {
+    oldTtsAudioKey = (await env.DB.prepare("SELECT tts_audio_key FROM articles WHERE id = ?").bind(id).first())?.tts_audio_key;
   }
   if ("expires_at" in fields) {
     cols.push("expires_at = ?");
@@ -634,6 +647,9 @@ export async function updateArticle(env, id, fields) {
   cols.push("updated_at = datetime('now')", "version = version + 1");
   vals.push(id);
   await env.DB.prepare(`UPDATE articles SET ${cols.join(", ")} WHERE id = ?`).bind(...vals).run();
+  if (oldTtsAudioKey && oldTtsAudioKey !== fields.tts_audio_key) {
+    await deleteOldMediaUrl(env, oldTtsAudioKey);
+  }
 }
 
 // Locked articles are deliberately excluded from every bulk action — the
@@ -959,6 +975,10 @@ export async function updateProject(env, id, fields) {
       vals.push(fields[key]);
     }
   }
+  let oldMedia;
+  if ("tts_audio_key" in fields || "hero_video" in fields) {
+    oldMedia = await env.DB.prepare("SELECT tts_audio_key, hero_video FROM projects WHERE id = ?").bind(id).first();
+  }
   if ("tags" in fields) {
     cols.push("tags = ?");
     vals.push(JSON.stringify(Array.isArray(fields.tags) ? fields.tags : []));
@@ -1023,6 +1043,12 @@ export async function updateProject(env, id, fields) {
   cols.push("updated_at = datetime('now')", "version = version + 1");
   vals.push(id);
   await env.DB.prepare(`UPDATE projects SET ${cols.join(", ")} WHERE id = ?`).bind(...vals).run();
+  if ("tts_audio_key" in fields && oldMedia?.tts_audio_key && oldMedia.tts_audio_key !== fields.tts_audio_key) {
+    await deleteOldMediaUrl(env, oldMedia.tts_audio_key);
+  }
+  if ("hero_video" in fields && oldMedia?.hero_video && oldMedia.hero_video !== fields.hero_video) {
+    await deleteOldMediaUrl(env, oldMedia.hero_video);
+  }
 }
 
 export async function deleteProject(env, id) {
