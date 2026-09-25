@@ -513,7 +513,10 @@ health-check pass, predates this doc.
   scroll-triggered entrance animations), same `prefers-reduced-motion`
   scoping so a reduced-motion visitor sees the static look
 - ✅ Reduced-motion alternatives
-- 🔶 Shapes/dividers/masks (dividers ✅; shapes/masks ☐)
+- ✅ Shapes/dividers/masks (dividers ✅; shapes/masks ✅ — a "Shape mask"
+  style select on any block: circle, two diagonal cuts, hexagon, or a
+  blob, rendered as a `clip-path` polygon — especially effective on an
+  image block, but works on any block since it's just a style field)
 - 🔶 Hover/focus/mobile-state previews (mobile ✅ via responsive preview; hover/focus simulation ☐)
 - 🔶 Copy/paste blocks between pages (blocks ✅; "sections" n/a)
 - ☐ Bulk updates to pages sharing a template

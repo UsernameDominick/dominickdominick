@@ -1350,6 +1350,19 @@
     },
     { key: "visibleFrom", label: "Visible from (blank = always)", type: "datetime-local" },
     { key: "visibleUntil", label: "Visible until (blank = never expires)", type: "datetime-local" },
+    {
+      key: "shapeMask",
+      label: "Shape mask (clips the block to a shape — great on an image block)",
+      type: "select",
+      options: [
+        ["", "None"],
+        ["circle", "Circle"],
+        ["diagonal-tl-br", "Diagonal (top-left to bottom-right)"],
+        ["diagonal-tr-bl", "Diagonal (top-right to bottom-left)"],
+        ["hexagon", "Hexagon"],
+        ["blob", "Blob"],
+      ],
+    },
     { key: "customCss", label: "Custom CSS (advanced — raw declarations, e.g. transform: rotate(-2deg);)", type: "textarea", noSpellcheck: true },
     { key: "hidden", label: "Hide from live site", type: "checkbox" },
   ];

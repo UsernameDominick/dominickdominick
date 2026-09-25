@@ -611,6 +611,14 @@ function blockStyleAttr(style) {
     const offset = Number(style.stickyOffset);
     parts.push(`top:${Number.isFinite(offset) ? offset : 0}px`);
   }
+  const SHAPE_CLIP_PATHS = {
+    circle: "circle(50% at 50% 50%)",
+    "diagonal-tl-br": "polygon(0 0, 100% 0, 100% 85%, 0 100%)",
+    "diagonal-tr-bl": "polygon(0 0, 100% 0, 100% 100%, 0 85%)",
+    hexagon: "polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)",
+    blob: "polygon(44% 2%, 74% 8%, 94% 32%, 98% 62%, 78% 88%, 48% 98%, 18% 88%, 2% 60%, 6% 28%, 22% 6%)",
+  };
+  if (SHAPE_CLIP_PATHS[style.shapeMask]) parts.push(`clip-path:${SHAPE_CLIP_PATHS[style.shapeMask]}`);
   if (style.customCss && style.customCss.trim()) parts.push(esc(style.customCss.trim()));
   return parts.length ? parts.join(";") + ";" : "";
 }
