@@ -866,7 +866,13 @@ Contact form, admin inbox, guestbook/comments, moderation, newsletter —
   — plus a new sitemap-exclusions overview computed client-side from the
   already-loaded pages/articles/projects, no new endpoint needed)
 - ✅ Per-page title/description, canonical URL (auto + optional override), noindex controls
-- 🔶 Social-share image editor (upload/browse ✅; crop/preview editor ☐)
+- ✅ Social-share image editor (upload/browse ✅; preview ✅; crop ✅ — an
+  "Edit / crop for social…" button next to every og-image field (page,
+  article, project, site settings, topic pages) opens the existing photo
+  editor pre-loaded with that image, reusing its crop/rotate/filter tools
+  and in-place "Overwrite original" save rather than building a second
+  editor; only works for images already uploaded to this site's media
+  library, since the editor needs a real R2 key to save back to)
 - ✅ Social-share previews (pages/articles/projects)
 - ✅ Sitemap (auto; admin include/exclude — `sitemap_exclude` column on
   pages/articles/projects, a checkbox in each editor, filtered out of

@@ -153,6 +153,27 @@
     btn.addEventListener("click", () => openMediaModal(btn.dataset.target, btn.dataset.append === "1"));
   }
 
+  // Opens the same photo editor used from the Media Library, pre-loaded
+  // with whatever image the target field currently points to — the
+  // in-place "Overwrite original" save there already handles cropping,
+  // this just gives the social-share image fields a direct route into it
+  // instead of "go find this exact file in the library yourself first".
+  // Only works for images actually uploaded to this site's media library
+  // (the editor needs a real R2 key to save back to) — an external URL
+  // typed into the field can't be edited this way.
+  function wireEditImageButton(btn) {
+    btn.addEventListener("click", () => {
+      const input = document.querySelector(btn.dataset.target);
+      const value = (input.value || "").trim();
+      const m = value.match(/\/media\/(uploads\/[A-Za-z0-9_.\-\/]+)$/);
+      if (!m) {
+        alert("This only works for images uploaded to this site's media library — upload or browse to one first.");
+        return;
+      }
+      if (window.PhotoEditor) window.PhotoEditor.open(value, m[1]);
+    });
+  }
+
   async function api(path, opts = {}) {
     const res = await fetch("/api/admin" + path, {
       ...opts,
@@ -5747,6 +5768,7 @@
 
   document.querySelectorAll(".upload-trigger").forEach(wireUploadButton);
   document.querySelectorAll(".browse-trigger").forEach(wireBrowseButton);
+  document.querySelectorAll(".edit-image-trigger").forEach(wireEditImageButton);
 
   // Shared with photo-editor.js and simulation-builder.js, which are loaded
   // as separate plain scripts (not modules) and can't import from this IIFE.

@@ -129,7 +129,7 @@
         <label>Nav order<input id="page-nav-order" type="number"></label>
         <label>Share image URL (og:image, blank = site default)
           <input id="page-og-image" type="text" spellcheck="false">
-          <button type="button" class="upload-trigger" data-target="#page-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#page-og-image">Browse…</button>
+          <button type="button" class="upload-trigger" data-target="#page-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#page-og-image">Browse…</button><br><button type="button" class="edit-image-trigger" data-target="#page-og-image">Edit / crop for social…</button>
         </label>
         <label>Canonical URL override (optional — blank = auto)<input id="page-canonical-url" type="text" spellcheck="false" placeholder="https://..."></label>
         <label><input type="checkbox" id="page-sitemap-exclude"> Exclude from sitemap.xml</label>
@@ -233,7 +233,7 @@
           </div>
           <div class="input-with-upload">
             <input id="article-og-image" placeholder="Share image URL (og:image, blank = site default)" spellcheck="false">
-            <button type="button" class="upload-trigger" data-target="#article-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#article-og-image">Browse…</button>
+            <button type="button" class="upload-trigger" data-target="#article-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#article-og-image">Browse…</button><br><button type="button" class="edit-image-trigger" data-target="#article-og-image">Edit / crop for social…</button>
           </div>
           <input id="article-canonical-url" placeholder="Canonical URL override (optional — blank = auto)" spellcheck="false">
           <label>Correction/update note (optional — shown to readers in a callout at the top)<textarea id="article-correction-note" rows="2" placeholder="e.g. Updated Sept 2026 to reflect the new API."></textarea></label>
@@ -353,7 +353,7 @@
           <label>Download manifest (optional — one file per line: Label | URL | Description)<textarea id="project-downloads" rows="4" placeholder="Firmware v1.2 | /media/uploads/firmware.bin | Latest build, flash with esptool"></textarea></label>
           <div class="input-with-upload">
             <input id="project-og-image" placeholder="Share/hero image URL (blank = site default)" spellcheck="false">
-            <button type="button" class="upload-trigger" data-target="#project-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#project-og-image">Browse…</button>
+            <button type="button" class="upload-trigger" data-target="#project-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#project-og-image">Browse…</button><br><button type="button" class="edit-image-trigger" data-target="#project-og-image">Edit / crop for social…</button>
           </div>
           <input id="project-canonical-url" placeholder="Canonical URL override (optional — blank = auto)" spellcheck="false">
           <label>Correction/update note (optional — shown to readers in a callout at the top)<textarea id="project-correction-note" rows="2" placeholder="e.g. Updated Sept 2026 with the v2 hardware revision."></textarea></label>
@@ -686,7 +686,7 @@
         <h2>Share image</h2>
         <label>Default share image (og:image)<br>Used on any page/article that doesn't set its own.
           <input id="settings-og-image" type="text" placeholder="https://...">
-          <button type="button" class="upload-trigger" data-target="#settings-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#settings-og-image">Browse…</button>
+          <button type="button" class="upload-trigger" data-target="#settings-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#settings-og-image">Browse…</button><br><button type="button" class="edit-image-trigger" data-target="#settings-og-image">Edit / crop for social…</button>
         </label>
         <h2>Footer</h2>
         <label>Shown at the bottom of every page. Blank = no footer. Supports **bold**, *italic*, [link](url).
@@ -1088,7 +1088,7 @@
       <label>Intro blurb (shown under the "Tagged: X" heading, and used as the meta description)<textarea id="topic-meta-description" rows="3"></textarea></label>
       <div class="input-with-upload">
         <input id="topic-meta-og-image" placeholder="Share image URL (blank = site default)" spellcheck="false">
-        <button type="button" class="upload-trigger" data-target="#topic-meta-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#topic-meta-og-image">Browse…</button>
+        <button type="button" class="upload-trigger" data-target="#topic-meta-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#topic-meta-og-image">Browse…</button><br><button type="button" class="edit-image-trigger" data-target="#topic-meta-og-image">Edit / crop for social…</button>
       </div>
       <div class="article-actions">
         <button id="save-topic-meta">Save</button>
