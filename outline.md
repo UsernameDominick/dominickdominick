@@ -2188,9 +2188,29 @@ enough detail to act on directly later.
   published articles exist (using a real published test article, since
   the section renders nothing rather than an empty heading when there
   aren't any), and the archive link is present.
-- One consistent name for "articles" across nav/URLs/search filters/
-  RSS/admin (currently a mix of "Random", "Posts", "Articles",
-  "Writing").
+- ✅ One consistent public-facing name for "articles" — the admin panel
+  already called them "Articles" everywhere, but a visitor saw a mix:
+  the article breadcrumb (and its matching BreadcrumbList JSON-LD
+  entry) literally read "Random" (an echo of the `/random/:slug` URL
+  prefix), the search-filter pill and its section heading said "Posts",
+  and the type-filtered RSS feed's title suffix also said "Random" —
+  while the default (unfiltered) RSS feed's title fell back to the
+  nonsensical "Dominick — Random" even though that feed mixes articles,
+  projects, and pages together. Kept the URL itself as `/random/:slug`
+  (an explicit call — renaming it would need 301 redirects for every
+  existing article and would break already-shared links and cached RSS
+  entries, treated as out of scope for a same-meaning label cleanup)
+  and changed every other surface — breadcrumb text, its JSON-LD
+  mirror, the search filter pill, both `<h2>Posts</h2>` result-section
+  headings (search results and topic pages), and the RSS title suffix —
+  to say "Articles"; the default RSS feed's fallback suffix is now
+  simply dropped ("Dominick", not "Dominick — Random"), since it isn't
+  a filtered articles-only feed. Verified via Playwright/curl against a
+  real published test article: the search filter bar reads "All Pages
+  Projects Articles", a type=article search results heading reads
+  "Articles", `/rss.xml` title is plain "Dominick", `/rss.xml?type=article`
+  title is "Dominick — Articles", and the article page's breadcrumb
+  reads "Home / Articles / <title>".
 - Badge a simulation/scan/song block with a broken (deleted) reference
   red in the admin editor canvas — now that the public side just
   silently hides such a block, an admin has no in-editor signal that

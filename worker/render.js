@@ -329,7 +329,7 @@ export function renderSearchResultsHtml(query, pages, articles, projects = [], c
       sort === value ? ' class="is-active"' : ""
     }>${label}</a>`;
   const filterBarHtml = `<div class="search-filter-bar">
-    <span class="search-filter-group">${typeLink("", "All")} ${typeLink("page", "Pages")} ${typeLink("project", "Projects")} ${typeLink("article", "Posts")}</span>
+    <span class="search-filter-group">${typeLink("", "All")} ${typeLink("page", "Pages")} ${typeLink("project", "Projects")} ${typeLink("article", "Articles")}</span>
     <span class="search-filter-group">${sortLink("newest", "Newest first")} ${sortLink("oldest", "Oldest first")}</span>
   </div>`;
   // Only meaningful once narrowed to one type — with all three shown at
@@ -374,7 +374,7 @@ export function renderSearchResultsHtml(query, pages, articles, projects = [], c
   return `${filterBarHtml}<p class="search-result-count">${total} result${total === 1 ? "" : "s"} for "${esc(query)}"</p>
 ${pageItems ? `<h2>Pages</h2><ul class="search-results">${pageItems}</ul>` : ""}
 ${projectItems ? `<h2>Projects</h2><ul class="search-results">${projectItems}</ul>` : ""}
-${articleItems ? `<h2>Posts</h2><ul class="search-results">${articleItems}</ul>` : ""}
+${articleItems ? `<h2>Articles</h2><ul class="search-results">${articleItems}</ul>` : ""}
 ${paginationHtml}`;
 }
 
@@ -397,7 +397,7 @@ export function renderTopicPageHtml(tag, articles, projects) {
     .join("");
   return `<p class="search-result-count">${total} thing${total === 1 ? "" : "s"} tagged "${esc(tag)}"</p>
 ${projectItems ? `<h2>Projects</h2><ul class="search-results">${projectItems}</ul>` : ""}
-${articleItems ? `<h2>Posts</h2><ul class="search-results">${articleItems}</ul>` : ""}`;
+${articleItems ? `<h2>Articles</h2><ul class="search-results">${articleItems}</ul>` : ""}`;
 }
 
 export function renderArchiveHtml(archive, customEmptyText = "") {

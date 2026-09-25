@@ -316,7 +316,7 @@ async function renderArticle(env, article, navItems, previewReason = null) {
   // a 404.
   const breadcrumbHtml = renderBreadcrumbHtml([
     { name: "Home", path: "/" },
-    { name: "Random", path: "/archive" },
+    { name: "Articles", path: "/archive" },
     { name: article.title, path: `/random/${article.slug}` },
   ]);
   const bodyHtml = `<div class="reading-progress"></div>
@@ -359,7 +359,7 @@ async function renderArticle(env, article, navItems, previewReason = null) {
       "@type": "BreadcrumbList",
       itemListElement: [
         { "@type": "ListItem", position: 1, name: "Home", item: "https://dominickdominick.com/" },
-        { "@type": "ListItem", position: 2, name: "Random", item: "https://dominickdominick.com/archive" },
+        { "@type": "ListItem", position: 2, name: "Articles", item: "https://dominickdominick.com/archive" },
         { "@type": "ListItem", position: 3, name: article.title, item: `https://dominickdominick.com/random/${article.slug}` },
       ],
     },
@@ -787,11 +787,11 @@ async function renderRss(env, { type, tag } = {}) {
   </item>`
     )
     .join("\n");
-  const titleSuffix = [type ? (type === "project" ? "Projects" : "Random") : null, tag ? `"${xmlEsc(tag)}"` : null].filter(Boolean).join(" — ");
+  const titleSuffix = [type ? (type === "project" ? "Projects" : "Articles") : null, tag ? `"${xmlEsc(tag)}"` : null].filter(Boolean).join(" — ");
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
 <channel>
-  <title>Dominick${titleSuffix ? " — " + titleSuffix : " — Random"}</title>
+  <title>Dominick${titleSuffix ? " — " + titleSuffix : ""}</title>
   <link>https://dominickdominick.com/archive</link>
   <description>Notes, projects, and half-formed ideas from Dominick.</description>
   <language>en</language>
