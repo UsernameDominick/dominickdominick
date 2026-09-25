@@ -2635,6 +2635,39 @@
             });
           }
         });
+        // Focus-visible check — previously left undone (see outline.md):
+        // a static scan can't meaningfully evaluate computed :focus-visible
+        // styles, but this iframe already renders the real page with real
+        // CSS, so it can actually focus each element and diff its computed
+        // style before/after, the same technique real accessibility
+        // auditing tools use. Flags an interactive element whose focused
+        // and resting appearance are identical AND whose resting outline is
+        // already suppressed — i.e. a CSS reset (or an admin's custom head
+        // code) removed the browser's default focus ring with nothing put
+        // back in its place, which is invisible in normal use and only
+        // shows up the moment a keyboard user actually tries to tab through
+        // the page.
+        doc.querySelectorAll("a[href], button, input, select, textarea").forEach((node) => {
+          const r = node.getBoundingClientRect();
+          if (r.width <= 0 || r.height <= 0) return;
+          const before = doc.defaultView.getComputedStyle(node);
+          const snapshot = (cs) => `${cs.outlineStyle}|${cs.outlineWidth}|${cs.boxShadow}|${cs.borderColor}|${cs.borderWidth}`;
+          const beforeSnapshot = snapshot(before);
+          const outlineSuppressed = before.outlineStyle === "none" || before.outlineWidth === "0px";
+          if (!outlineSuppressed) return; // has its own default ring already — nothing to check
+          node.focus();
+          const after = doc.defaultView.getComputedStyle(node);
+          const changed = snapshot(after) !== beforeSnapshot;
+          node.blur();
+          if (!changed) {
+            const label = (node.textContent || node.getAttribute("aria-label") || node.getAttribute("placeholder") || "").trim().slice(0, 40) || node.tagName.toLowerCase();
+            issues.push({
+              severity: "warn",
+              message: `No visible focus indicator when tabbed to: "${label}" — a keyboard user can't tell it's selected`,
+              blockId: blockIdFor(node),
+            });
+          }
+        });
         // native `loading="lazy"` images never actually fetch inside this
         // off-screen iframe (it's nowhere near any viewport, so the
         // browser's own lazy-load heuristic just skips them forever) — so

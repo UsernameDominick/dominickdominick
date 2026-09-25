@@ -1145,9 +1145,7 @@ Contact form, admin inbox, guestbook/comments, moderation, newsletter —
 ### Accessibility
 - ✅ Alt-text checks, heading-order/hierarchy checks (full reading-order skip detection), tap-target checks, reduced-motion coverage
 - 🔶 Color-contrast (live WCAG checker for theme colors in Site Settings; no site-wide arbitrary-content checker)
-- ✅ Automated keyboard-nav checker (focus-state still ☐ — checking
-  computed `:focus-visible` styles across every element isn't something a
-  static scan can do meaningfully). A new "Accessibility Report" panel in
+- ✅ Automated keyboard-nav checker. A new "Accessibility Report" panel in
   the SEO Dashboard, scoped to "Raw HTML" blocks specifically — every
   other block type is already accessible by construction (semantic markup,
   real `<button>`/`<a>` elements, a dedicated alt-text field the SEO
@@ -1156,7 +1154,9 @@ Contact form, admin inbox, guestbook/comments, moderation, newsletter —
   matches for positive `tabindex` (breaks natural tab order), `onclick` on
   a non-interactive element (a `<div>`/`<span>`/etc., not keyboard-
   operable), `<img>` with no `alt`, and `<a href="#">` dead-end links —
-  heuristic like the site's other link/markdown scanners, not exhaustive
+  heuristic like the site's other link/markdown scanners, not exhaustive.
+  Focus-state ✅ too (see below — the reasoning for leaving it undone
+  didn't hold up once `computeRenderedLayoutDiagnostics()` existed)
 - ✅ Accessible alternatives for simulations/3D content (optional description → aria-label/aria-describedby/role=img; scan alt override)
 - ✅ Accessibility folded into the page diagnostics/publishing checklist
 
@@ -4446,3 +4446,32 @@ unused) was found and cleaned up directly as routine local-dev hygiene,
 not because it was caused by this round's work.
 
 Full regression suite green after all three fixes.
+
+### Diagnostics: focus-visible check for interactive elements
+
+- ✅ **Extended the "Accessibility Report" with a real focus-visible
+  check** — previously left undone (section 2's checklist) with the
+  reasoning that "checking computed `:focus-visible` styles across
+  every element isn't something a static scan can do meaningfully."
+  That reasoning predates `computeRenderedLayoutDiagnostics()` (added
+  for the tap-target/overflow/broken-image checks), which already
+  spins up a real hidden iframe of the live rendered page — meaning the
+  actual technique real accessibility auditors use (focus each element,
+  diff its computed style before/after) is now genuinely available, not
+  just theoretically possible. Added to that same iframe pass: for
+  every `a[href], button, input, select, textarea` with real geometry,
+  skip anything whose resting `outline` isn't already suppressed (has
+  its own default ring — nothing to check), then `.focus()` it and diff
+  `outlineStyle`/`outlineWidth`/`boxShadow`/`borderColor`/`borderWidth`
+  against the resting snapshot; if nothing changed, the element has no
+  visible way to show it's selected to a keyboard user. Verified via
+  Playwright with two real pages: a Raw HTML block containing
+  `<a href="#" style="outline:none;">` (no compensating focus style)
+  correctly produces a "No visible focus indicator" finding naming the
+  link, while an identical link with no inline style — relying on the
+  site's existing global `a:focus-visible { outline: 2px solid
+  var(--accent) }` rule — correctly produces none. Also ran it against
+  the real (messy, test-debris-filled) local Home page to check for
+  false positives across genuine content: zero spurious findings.
+  Cleaned up test pages (soft + permanent delete), confirmed gone via
+  D1. Full regression suite green.
