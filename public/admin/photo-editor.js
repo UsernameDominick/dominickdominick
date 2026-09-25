@@ -101,6 +101,36 @@
     restoreSnapshot(originalSnapshot);
   }
 
+  // Before/after compare — press and hold to see the original, release to
+  // return to the in-progress edit, with no history/undo effect either way
+  // (unlike Reset, nothing is actually changed; it's a look, not an edit).
+  // A plain drawImage swap rather than routing through restoreSnapshot(),
+  // which resets crop state and canvas dimensions meant for a real
+  // "return to this state" action, not a momentary preview.
+  let compareSavedState = null;
+  // A crop or canvas-resize since load leaves the canvas a different size
+  // than originalSnapshot -- swapping images without also swapping
+  // dimensions would draw the original clipped to the (possibly smaller)
+  // current canvas instead of showing it in full.
+  function startCompare() {
+    if (!originalSnapshot || compareSavedState) return;
+    compareSavedState = snapshotCanvas();
+    canvas.width = originalSnapshot.width;
+    canvas.height = originalSnapshot.height;
+    ctx.drawImage(originalSnapshot, 0, 0);
+    syncOverlaySize();
+    fitCanvasToViewport();
+  }
+  function endCompare() {
+    if (!compareSavedState) return;
+    canvas.width = compareSavedState.width;
+    canvas.height = compareSavedState.height;
+    ctx.drawImage(compareSavedState, 0, 0);
+    syncOverlaySize();
+    fitCanvasToViewport();
+    compareSavedState = null;
+  }
+
   // ---------- Pointer <-> canvas coordinate mapping ----------
   function pointFromEvent(e) {
     const rect = overlay.getBoundingClientRect();
@@ -593,6 +623,15 @@
   $("pe-undo").addEventListener("click", undo);
   $("pe-redo").addEventListener("click", redo);
   $("pe-reset").addEventListener("click", resetToOriginal);
+  // pointerdown/up (not click) since this is a press-and-hold gesture, not
+  // a toggle -- pointer events cover mouse and touch with one listener
+  // pair. pointerleave/pointercancel also end it, so dragging off the
+  // button (or an interrupted touch) can't leave the original showing
+  // indefinitely with no way to release it.
+  $("pe-compare").addEventListener("pointerdown", startCompare);
+  $("pe-compare").addEventListener("pointerup", endCompare);
+  $("pe-compare").addEventListener("pointerleave", endCompare);
+  $("pe-compare").addEventListener("pointercancel", endCompare);
 
   document.addEventListener("keydown", (e) => {
     if (modal.hidden) return;

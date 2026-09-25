@@ -5238,3 +5238,35 @@ rounds, 7/10 → 9/10, the real bug (folder-name collision) fixed at its
 actual root (the shared write path, which robustly covered a third
 entry point neither round explicitly tested for), remaining findings
 judged and tracked rather than fixed or ignored.
+
+### Third item: #146, Photo Editor before/after compare
+
+- ✅ **Press-and-hold "Compare" button** — reuses the existing
+  `originalSnapshot` (already captured at image load for the "Reset"
+  button) to show the untouched original while the button is held,
+  reverting to the in-progress edit on release. A `pointerdown`/
+  `pointerup` pair (plus `pointerleave`/`pointercancel` so dragging off
+  the button or an interrupted touch can't leave the original showing
+  indefinitely with no way to release it) rather than a toggle, since
+  "hold to compare" is the natural gesture here — the admin wants a
+  quick look, not a mode switch. Deliberately bypasses `pushUndo()`/
+  `restoreSnapshot()`: this is a momentary look, not an edit, and
+  shouldn't create an undo-stack entry or reset crop state the way a
+  real "return to this version" action should. Handles a real edge
+  case a naive version would get wrong: if the canvas has since been
+  cropped or resized, it's a different size than `originalSnapshot`, so
+  the compare swap also temporarily resizes the canvas to the
+  original's dimensions (and back on release) — otherwise the original
+  would render clipped to the current, possibly-smaller canvas instead
+  of showing the full original image. Verified via Playwright: made a
+  real edit (drew a rectangle annotation) on a real 200×200 test image,
+  confirmed the canvas pixel data actually changes during the hold
+  (showing the original) and exactly matches the pre-compare edited
+  state after release, and confirmed the undo button's enabled state is
+  unaffected throughout (no phantom undo entry). Separately verified
+  the crop-size-mismatch case: cropped the image down to 80×80,
+  confirmed the canvas correctly grows back to the full 200×200
+  original during the hold and returns to 80×80 on release. Full
+  regression suite green; test upload cleaned up.
+
+Handed to a critic agent for scoring.
