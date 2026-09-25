@@ -2887,6 +2887,28 @@ kbd {
   color: var(--accent);
 }
 
+#pe-compare {
+  /* A press-and-hold gesture, not a click -- without this a touchscreen's
+     own long-press text-selection/callout handling can hijack the
+     interaction before a clean pointerdown/pointerup pair ever reaches
+     the JS handlers (a critic pass flagged this as a real gap shared with
+     every other button in this toolbar, just unusually exposed here). */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#pe-compare.active {
+  /* The only positive confirmation an admin has that they're currently
+     looking at the original rather than their edit -- without this, a
+     stuck compare state (see photo-editor.js's blur/visibilitychange
+     backstops) would be indistinguishable from a normal idle button by
+     looking at the toolbar alone. */
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--bg-elevated);
+}
+
 .pe-toolbar button:disabled {
   opacity: 0.4;
   cursor: default;

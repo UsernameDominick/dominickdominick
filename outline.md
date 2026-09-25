@@ -5269,4 +5269,85 @@ judged and tracked rather than fixed or ignored.
   original during the hold and returns to 80×80 on release. Full
   regression suite green; test upload cleaned up.
 
-Handed to a critic agent for scoring.
+**Critic round 1: 4/10 — real, serious findings, including a live-
+reproduced data-loss path.** Not a "ship with caveats" score; two
+confirmed blocking bugs, all fixed:
+- ✅ **Ctrl+Z pressed while Compare is held corrupted the undo/redo
+  history** — the keydown shortcut has no awareness that the canvas is
+  currently showing a temporary preview, not real app state:
+  `undo()`/`redo()` operate on whatever's actually on the canvas at that
+  instant (the original), pushing a bogus entry onto the other stack,
+  and the undo's real effect was then silently discarded the moment
+  the button was released (`endCompare()` unconditionally overwrites
+  the canvas with the pre-compare state). Fixed with a one-line guard
+  in `undo()`/`redo()` themselves (`if (isComparing()) return;`) —
+  catches the keyboard shortcut AND the Undo/Redo buttons uniformly,
+  wherever they're triggered from, without needing to intercept the
+  keydown handler specifically.
+- ✅ **The most serious finding: if a Compare hold's release event was
+  ever missed for any reason, the canvas silently stayed on the
+  unedited original with zero visual indication, and Save at that
+  moment uploaded the original over the real edit** — live-reproduced
+  by dispatching `pointerdown` with no matching release and then
+  clicking Save; the resulting upload was confirmed pixel-for-pixel
+  identical to the untouched original. The three release listeners
+  (`pointerup`/`pointerleave`/`pointercancel`) only covered the common
+  accidental-release paths, with no backstop if none of them fired
+  (e.g. losing window focus with the pointer stationary). Fixed at two
+  layers: `window.addEventListener("blur", ...)` and a
+  `visibilitychange` listener force-end any in-progress compare
+  (covering the actual scenario reproduced), and — the real hard
+  backstop — `exportBlob()`, the one function both "Save as new" and
+  "Overwrite original" already funnel through, now unconditionally
+  calls `endCompare()` before exporting, so a save can never capture
+  the temporary preview no matter what specific path left it stuck.
+- ✅ **Multi-touch: a second finger pressing Compare mid-drag on another
+  tool computed that drag's coordinates in two different canvas
+  coordinate spaces** (the canvas's own pixel dimensions change during
+  a compare swap, so a crop-drag straddling the swap got corrupted
+  bounds) — single-pointer mouse/trackpad use can never trigger this,
+  but real on touch. Fixed by blocking `startCompare()` while `dragging`
+  (an existing tracked flag for any in-progress canvas interaction) is
+  true — verified correct by code reasoning against the existing,
+  already-tested `dragging` flag rather than a live multi-touch repro
+  (no real touch hardware available to test against), noted here for
+  honesty about confidence level.
+- ✅ **No visual feedback that Compare was active** — indistinguishable
+  from a normal idle button by looking at the toolbar, which directly
+  compounded the stuck-state risk above. Added a `.active` class
+  toggled in `startCompare()`/`endCompare()` with matching CSS
+  (accent-colored border, matching the existing `.pe-tool.active`
+  pattern already used for tool selection).
+- ✅ **No `touch-action`/`user-select` hardening** — for a press-and-hold
+  gesture specifically, a mobile browser's own long-press text-
+  selection/callout handling could hijack the interaction before a
+  clean pointer down/up pair ever reached the JS handlers. A
+  pre-existing gap shared with the rest of this toolbar's buttons, but
+  this feature is unusually exposed to it; added `touch-action: none`
+  and `user-select: none` scoped to just this button.
+- ✅ **Keyboard-only use of the button did nothing** — it only listened
+  for pointer events, so Tab-focusing it and pressing Enter/Space (a
+  `click` event, not pointer events) had no effect, unlike every other
+  control in the toolbar. Added matching `keydown`/`keyup` handling for
+  Space/Enter.
+- Also corrected an overstated claim in the original write-up above:
+  it framed pointerleave/pointercancel as meaning "an interrupted touch
+  can't leave the original showing indefinitely" — that was never
+  actually tested against and turned out to be false (see the stuck-
+  state finding above); the real guarantee now comes from the blur/
+  visibility/export-time backstops, not the release-event listeners
+  alone.
+
+Verified via Playwright: Ctrl+Z during a hold no longer alters the
+canvas or the undo button's state; a deliberately "stuck" compare
+(pointerdown with no release) followed by Save now correctly uploads
+the real edit, confirmed via the exact function (`exportBlob`) both
+save paths share; the `.active` class correctly toggles on
+press/release and is force-cleared by a simulated window blur even
+mid-hold; Space-key hold/release now drives the same compare behavior
+as a mouse hold. Both original round-0 checks (basic correctness,
+crop-size mismatch) re-run and confirmed unaffected. Full regression
+suite green; all test uploads across every test script (13 total, this
+round and earlier ones) cleaned up and confirmed gone.
+
+Resubmitted for a second scoring pass.

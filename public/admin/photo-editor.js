@@ -78,7 +78,16 @@
     fitCanvasToViewport();
   }
 
+  // A critic pass caught a real corruption bug: Ctrl+Z fired while Compare
+  // is held operated on whatever's currently ON the canvas -- which at that
+  // moment is the temporary original preview, not real app state -- pushing
+  // a bogus entry onto redoStack and having its own effect silently
+  // discarded when the button was released and endCompare() unconditionally
+  // overwrote the canvas again. Guarding here (not just in the keydown
+  // handler) closes it regardless of whether undo/redo is triggered by
+  // keyboard shortcut or by clicking the Undo/Redo buttons directly.
   function undo() {
+    if (isComparing()) return;
     const prev = undoStack.pop();
     if (!prev) return;
     redoStack.push(snapshotCanvas());
@@ -87,6 +96,7 @@
   }
 
   function redo() {
+    if (isComparing()) return;
     const next = redoStack.pop();
     if (!next) return;
     undoStack.push(snapshotCanvas());
@@ -95,7 +105,7 @@
   }
 
   function resetToOriginal() {
-    if (!originalSnapshot) return;
+    if (!originalSnapshot || isComparing()) return;
     if (!confirm("Discard all edits and go back to the original image?")) return;
     pushUndo();
     restoreSnapshot(originalSnapshot);
@@ -107,19 +117,45 @@
   // A plain drawImage swap rather than routing through restoreSnapshot(),
   // which resets crop state and canvas dimensions meant for a real
   // "return to this state" action, not a momentary preview.
+  //
+  // A critic pass found the original version had no backstop if the
+  // pointerup/pointerleave/pointercancel release events were ever missed
+  // (e.g. losing window focus with the pointer stationary) -- the canvas
+  // would silently stay on the unedited original with zero visual
+  // indication, and a Save at that moment would upload the original,
+  // silently discarding the real edit. Closed two ways: (1) window blur
+  // and tab-visibility changes force-end the compare, covering the most
+  // common ways a pointerup could get lost; (2) exportBlob() -- the one
+  // function both "Save as new" and "Overwrite original" funnel through --
+  // force-ends it unconditionally as a hard backstop, so even a release
+  // path neither of us thought of still can't make a save capture the
+  // temporary preview instead of the real edit.
   let compareSavedState = null;
+  function isComparing() {
+    return compareSavedState !== null;
+  }
   // A crop or canvas-resize since load leaves the canvas a different size
   // than originalSnapshot -- swapping images without also swapping
   // dimensions would draw the original clipped to the (possibly smaller)
   // current canvas instead of showing it in full.
   function startCompare() {
-    if (!originalSnapshot || compareSavedState) return;
+    // `dragging` (an in-progress crop/brush/shape interaction on the main
+    // canvas) is deliberately also blocked here: a critic pass found that
+    // on a touchscreen, a second finger pressing Compare mid-drag on
+    // another tool computed that drag's start/end coordinates in two
+    // different canvas coordinate spaces (pre- and post-compare-resize),
+    // since the canvas's own pixel dimensions change during a compare.
+    // Single-pointer mouse/trackpad use can never trigger this (only one
+    // interaction can be in progress at a time), so this only matters for
+    // touch, but it's a one-line guard against a real corrupted-crop risk.
+    if (!originalSnapshot || compareSavedState || dragging) return;
     compareSavedState = snapshotCanvas();
     canvas.width = originalSnapshot.width;
     canvas.height = originalSnapshot.height;
     ctx.drawImage(originalSnapshot, 0, 0);
     syncOverlaySize();
     fitCanvasToViewport();
+    $("pe-compare").classList.add("active");
   }
   function endCompare() {
     if (!compareSavedState) return;
@@ -129,6 +165,7 @@
     syncOverlaySize();
     fitCanvasToViewport();
     compareSavedState = null;
+    $("pe-compare").classList.remove("active");
   }
 
   // ---------- Pointer <-> canvas coordinate mapping ----------
@@ -632,6 +669,25 @@
   $("pe-compare").addEventListener("pointerup", endCompare);
   $("pe-compare").addEventListener("pointerleave", endCompare);
   $("pe-compare").addEventListener("pointercancel", endCompare);
+  // Backstop for a lost pointerup (e.g. alt-tabbing away, or switching tabs,
+  // with the pointer left stationary over the button) -- neither of those
+  // reliably fires pointerleave/pointercancel on their own.
+  window.addEventListener("blur", endCompare);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) endCompare();
+  });
+  // Keyboard equivalent (Tab to the button, hold Space or Enter) -- the
+  // pointer-only listeners above left this button, uniquely among the
+  // toolbar's controls, completely inert for keyboard-only use.
+  $("pe-compare").addEventListener("keydown", (e) => {
+    if (e.code === "Space" || e.code === "Enter") {
+      e.preventDefault(); // stop Space from also scrolling the page
+      startCompare();
+    }
+  });
+  $("pe-compare").addEventListener("keyup", (e) => {
+    if (e.code === "Space" || e.code === "Enter") endCompare();
+  });
 
   document.addEventListener("keydown", (e) => {
     if (modal.hidden) return;
@@ -653,7 +709,15 @@
   });
 
   // ---------- Save ----------
+  // Hard backstop against the data-loss path a critic pass found: if a
+  // Compare hold's release event were ever somehow missed, the canvas
+  // would still be showing the temporary unedited original with zero
+  // visual indication -- exporting at that exact moment would silently
+  // save the original over the real edit. Force-ending any in-progress
+  // compare right before every export, unconditionally, means a save can
+  // never capture the temporary preview no matter what left it stuck.
   function exportBlob(cb) {
+    endCompare();
     canvas.toBlob(cb, "image/png");
   }
 
