@@ -2639,31 +2639,68 @@
         // a static scan can't meaningfully evaluate computed :focus-visible
         // styles, but this iframe already renders the real page with real
         // CSS, so it can actually focus each element and diff its computed
-        // style before/after, the same technique real accessibility
-        // auditing tools use. Flags an interactive element whose focused
-        // and resting appearance are identical AND whose resting outline is
-        // already suppressed — i.e. a CSS reset (or an admin's custom head
-        // code) removed the browser's default focus ring with nothing put
-        // back in its place, which is invisible in normal use and only
-        // shows up the moment a keyboard user actually tries to tab through
-        // the page.
+        // style/geometry before and after, the same technique real
+        // accessibility auditing tools use.
+        //
+        // A first version of this only diffed outline/box-shadow/border and
+        // was caught by a critic pass producing both false positives (a
+        // legitimate color- or background-only focus style, or a
+        // reveal-on-focus technique like this site's own .skip-link, both
+        // flagged as "broken" even though focusing them genuinely changes
+        // something visible) and a false negative on exactly the defect
+        // class this check exists to catch (an `opacity: 0` element still
+        // registers an outline-style change on focus, so it passed clean
+        // despite being permanently invisible). Reworked to check actual
+        // visibility at each state instead of guessing from a fixed
+        // property list:
+        const nodeLabel = (node) => (node.textContent || node.getAttribute("aria-label") || node.getAttribute("placeholder") || "").trim().slice(0, 40) || node.tagName.toLowerCase();
+        const isRenderedVisible = (style, rect) => style.visibility !== "hidden" && parseFloat(style.opacity) > 0 && rect.width > 0 && rect.height > 0;
+        const styleSnapshot = (cs) => `${cs.outlineStyle}|${cs.outlineWidth}|${cs.boxShadow}|${cs.borderColor}|${cs.borderWidth}|${cs.color}|${cs.backgroundColor}`;
         doc.querySelectorAll("a[href], button, input, select, textarea").forEach((node) => {
-          const r = node.getBoundingClientRect();
-          if (r.width <= 0 || r.height <= 0) return;
-          const before = doc.defaultView.getComputedStyle(node);
-          const snapshot = (cs) => `${cs.outlineStyle}|${cs.outlineWidth}|${cs.boxShadow}|${cs.borderColor}|${cs.borderWidth}`;
-          const beforeSnapshot = snapshot(before);
-          const outlineSuppressed = before.outlineStyle === "none" || before.outlineWidth === "0px";
-          if (!outlineSuppressed) return; // has its own default ring already — nothing to check
+          if (node.disabled) return; // can never receive focus in the first place — nothing to check
+          const restingRect = node.getBoundingClientRect();
+          if (restingRect.width <= 0 || restingRect.height <= 0) return;
+          const restingStyle = doc.defaultView.getComputedStyle(node);
+          const restingVisible = isRenderedVisible(restingStyle, restingRect);
+          const outlineSuppressed = restingStyle.outlineStyle === "none" || restingStyle.outlineWidth === "0px";
+          const restingSnapshot = styleSnapshot(restingStyle);
+
           node.focus();
-          const after = doc.defaultView.getComputedStyle(node);
-          const changed = snapshot(after) !== beforeSnapshot;
+          // visibility:hidden (and similar) makes .focus() a genuine no-op —
+          // an element like that isn't reachable by keyboard at all, which
+          // is a different question from "does it show a focus ring," so
+          // it's out of scope for this specific check rather than worth a
+          // guess at what to call it.
+          if (doc.activeElement !== node) { node.blur(); return; }
+          const focusedRect = node.getBoundingClientRect();
+          const focusedStyle = doc.defaultView.getComputedStyle(node);
+          const focusedVisible = isRenderedVisible(focusedStyle, focusedRect);
+          const focusedSnapshot = styleSnapshot(focusedStyle);
           node.blur();
-          if (!changed) {
-            const label = (node.textContent || node.getAttribute("aria-label") || node.getAttribute("placeholder") || "").trim().slice(0, 40) || node.tagName.toLowerCase();
+
+          if (!focusedVisible) {
+            // Worse than "no focus ring": genuinely keyboard-reachable but
+            // never visible at all, focused or not (opacity: 0 and the
+            // like) — a keyboard user tabs here and sees literally nothing.
+            issues.push({
+              severity: "error",
+              message: `Keyboard-focusable but always invisible: "${nodeLabel(node)}" — a keyboard user can tab to it but never see it`,
+              blockId: blockIdFor(node),
+            });
+            return;
+          }
+          if (!restingVisible) return; // legit reveal-on-focus pattern (this site's own .skip-link does this) — fine, it's visible exactly when it needs to be
+          if (!outlineSuppressed) return; // has its own default/native ring already — nothing to check
+
+          const rectChanged =
+            Math.abs(restingRect.left - focusedRect.left) > 1 ||
+            Math.abs(restingRect.top - focusedRect.top) > 1 ||
+            Math.abs(restingRect.width - focusedRect.width) > 1 ||
+            Math.abs(restingRect.height - focusedRect.height) > 1;
+          if (!rectChanged && restingSnapshot === focusedSnapshot) {
             issues.push({
               severity: "warn",
-              message: `No visible focus indicator when tabbed to: "${label}" — a keyboard user can't tell it's selected`,
+              message: `No visible focus indicator when tabbed to: "${nodeLabel(node)}" — a keyboard user can't tell it's selected`,
               blockId: blockIdFor(node),
             });
           }

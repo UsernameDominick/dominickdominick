@@ -4475,3 +4475,62 @@ Full regression suite green after all three fixes.
   false positives across genuine content: zero spurious findings.
   Cleaned up test pages (soft + permanent delete), confirmed gone via
   D1. Full regression suite green.
+
+### Critic pass on the focus-visible check — 4 real bugs found, all from the same root cause
+
+A critic agent stress-tested the new focus-visible check specifically and
+found 4 concrete, live-reproduced bugs, all tracing back to one root
+cause: the original version only diffed `outline`/`box-shadow`/`border`
+as a proxy for "did focusing change anything visible," and never checked
+whether the element was actually *reachable or visible* in the first
+place. All fixed by reworking the check to test real visibility
+(`visibility`, `opacity`, geometry) at both the resting and focused state,
+plus widening the style diff and adding a bounding-rect diff:
+
+- ✅ **False positive: color- or background-only focus styles** (a
+  completely standard, WCAG-legal technique) **were wrongly flagged as
+  "no visible focus indicator"** — the diff never looked at `color`/
+  `backgroundColor` at all. Added both to the diffed property set.
+- ✅ **False positive: off-screen "reveal on focus" techniques — this
+  site's own `.skip-link` pattern — were wrongly flagged** — the diff
+  never accounted for position/geometry changes (`left`/`top`/
+  `transform`/etc. all end up affecting the element's bounding rect).
+  Added a `getBoundingClientRect()` diff between resting and focused
+  state as a second, independent signal alongside the style diff; a
+  meaningful position/size change counts as "visibly changed" regardless
+  of which CSS property caused it. Also added an explicit exemption: if
+  the element is invisible *at rest* but visible *once focused*, that's
+  exactly the legitimate skip-link pattern working as intended, not a bug.
+- ✅ **False negative — and the most serious of the four: an `opacity: 0`
+  element (permanently invisible, focused or not) passed the check
+  clean** — because focusing it still flipped `outlineStyle` from `none`
+  to `solid` internally (from the site's own global `:focus-visible`
+  rule), which the old diff read as "a change happened, so it's fine,"
+  even though that change is itself invisible. This is exactly the class
+  of defect the check exists to catch. Fixed by checking real rendered
+  visibility (`visibility !== "hidden"`, `opacity > 0`, non-zero
+  geometry) at the *focused* state specifically — if the element is
+  still invisible once focused, that's now its own distinct, more
+  severe finding ("Keyboard-focusable but always invisible"), reported
+  regardless of what the internal style diff shows.
+- ✅ **Misleading warnings on elements that can never actually be
+  tabbed to in the first place** — a `disabled` button and a
+  `visibility: hidden` link both got flagged with "a keyboard user
+  can't tell it's selected," which is nonsensical since a keyboard user
+  can never reach either one to begin with (`.focus()` is a confirmed
+  no-op on both). Fixed by skipping `disabled` elements outright before
+  any check runs, and by checking `document.activeElement === node`
+  right after calling `.focus()` — if focus didn't actually move (the
+  `visibility: hidden` case), the element is out of scope for a check
+  about focus *styling*, not focus *reachability*.
+
+Verified via Playwright reproducing all 4 original repros plus the two
+cases the critic confirmed already worked correctly (plain `:focus`
+selector, and a 115-element page for performance): all 8 now produce the
+correct result — the two legitimate techniques (color/background-only,
+skip-link-style reveal) no longer flagged, the `opacity: 0` element now
+correctly flagged as "always invisible" instead of silently passing, the
+unreachable elements (disabled, `visibility: hidden`) no longer produce
+any finding, and the genuinely broken case (bare `outline: none`, no
+compensating style) still correctly flags. Re-ran the real Home page
+check: still zero false positives. Full regression suite green.
