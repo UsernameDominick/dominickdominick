@@ -192,8 +192,61 @@ document.addEventListener("input", function (e) {
   document.addEventListener("click", function (e) {
     if (!e.target.closest(".tab-group")) closeAll();
   });
+  // The dropdown also opens via plain CSS :focus-within (Tabbing into a
+  // child link) with no JS/class involved at all — closeAll() only ever
+  // touched the click-toggled .open state, so aria-expanded never
+  // reflected that a keyboard user actually had one open, and Escape did
+  // nothing while focus was inside one (there was no .open class to
+  // remove, and removing it wouldn't have changed where focus actually
+  // was anyway). These two listeners cover the keyboard-focus path.
+  document.querySelectorAll(".tab-group").forEach(function (group) {
+    var caret = group.querySelector(".tab-caret");
+    if (!caret) return;
+    group.addEventListener("focusin", function (e) {
+      // Tabbing onto the group's own leading .tab link also fires this
+      // (it's a descendant of .tab-group) — that's exactly where Escape
+      // parks focus after closing, so treating it as "opening" would
+      // immediately undo the close it just did. Only the caret or
+      // something inside the dropdown itself should mark it open again.
+      var tab = group.querySelector(".tab");
+      if (e.target === tab) return;
+      caret.setAttribute("aria-expanded", "true");
+      group.classList.remove("force-closed");
+    });
+    group.addEventListener("focusout", function (e) {
+      // relatedTarget is where focus is going — still inside this same
+      // group means the dropdown should stay marked open.
+      if (!e.relatedTarget || !group.contains(e.relatedTarget)) {
+        caret.setAttribute("aria-expanded", "false");
+        // Escape's force-closed override is only meant to suppress the
+        // dropdown while focus is still resting on this group's own tab
+        // link right after closing it — once focus leaves the group
+        // entirely, a later, unrelated Tab back in should show the
+        // dropdown normally again (via :focus-within) rather than still
+        // being suppressed from something the user did minutes earlier.
+        group.classList.remove("force-closed");
+      }
+    });
+    group.addEventListener("mouseenter", function () {
+      group.classList.remove("force-closed");
+    });
+  });
   document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape") closeAll();
+    if (e.key !== "Escape") return;
+    closeAll();
+    var openGroup = document.activeElement && document.activeElement.closest(".tab-group");
+    if (openGroup) {
+      var tab = openGroup.querySelector(".tab");
+      var openCaret = openGroup.querySelector(".tab-caret");
+      // See the .force-closed rule in style.css — :focus-within on this
+      // group matches even once focus lands back on its own leading .tab
+      // link, so that alone wouldn't actually hide the dropdown; the
+      // focusout listener above won't clear aria-expanded either, since
+      // relatedTarget (the .tab link) is still inside this same group.
+      openGroup.classList.add("force-closed");
+      if (openCaret) openCaret.setAttribute("aria-expanded", "false");
+      if (tab) tab.focus();
+    }
   });
 })();
 

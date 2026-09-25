@@ -1279,10 +1279,20 @@ export function renderShell({
             `<a href="/${esc(c.slug)}"${c.slug === activeSlug ? ' aria-current="page" class="is-active"' : ""}>${esc(c.nav_label)}</a>`
         )
         .join("\n");
+      // No role="menu" here — that ARIA role commits to full application-
+      // menu keyboard behavior (arrow keys, Home/End, type-ahead between
+      // menuitems), which nothing here implements; a screen reader user
+      // who gets a "menu" announcement but only plain Tab-order behavior
+      // is worse off than one who's simply told about a list of links.
+      // This is the "Disclosure Navigation Menu" pattern instead: a
+      // plain button (aria-expanded/aria-controls, wired up in nav.js)
+      // revealing ordinary links, which normal Tab order already
+      // handles correctly with no special role needed.
+      const dropdownId = `nav-dropdown-${esc(n.slug)}`;
       return `<div class="tab-group">
         ${tab}
-        <button type="button" class="tab-caret" aria-label="Show ${esc(n.nav_label)} submenu" aria-expanded="false">▾</button>
-        <div class="tab-dropdown" role="menu">${childLinks}</div>
+        <button type="button" class="tab-caret" aria-label="Show ${esc(n.nav_label)} submenu" aria-expanded="false" aria-controls="${dropdownId}">▾</button>
+        <div class="tab-dropdown" id="${dropdownId}">${childLinks}</div>
       </div>`;
     })
     .join("\n");

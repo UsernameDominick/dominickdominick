@@ -256,6 +256,18 @@ body {
   display: flex;
 }
 
+/* :focus-within on .tab-group matches even when just the leading .tab
+   link itself has focus (by design — Tab-ing onto it shows the dropdown
+   immediately, matching hover), which means moving focus back onto that
+   same link — the usual "Escape returns focus to what opened this" move
+   — doesn't actually make :focus-within stop matching. This override
+   (added by nav.js only while Escape is closing an open dropdown, removed
+   again the moment focus or hover re-enters the group) is what lets
+   Escape actually hide it despite that. */
+.tab-group.force-closed .tab-dropdown {
+  display: none !important;
+}
+
 .tab-dropdown a {
   display: block;
   padding: 8px 12px;

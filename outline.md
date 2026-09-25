@@ -1721,10 +1721,44 @@ enough detail to act on directly later.
   unrelated issue — not investigated or fixed this round.)
 
 **Admin UX:**
-- Nav dropdown keyboard/screen-reader behavior: Escape doesn't close it
-  while focus is inside, the caret's `aria-expanded` doesn't reflect
-  actual open state, `role="menu"` has no `menuitem` children or
-  arrow-key handling.
+- ✅ Nav dropdown keyboard/screen-reader behavior, three issues:
+  1. `role="menu"` on `.tab-dropdown` with no `menuitem` children or
+     arrow-key/Home-End/type-ahead handling — committing to the ARIA
+     "menu" role obligates all of that; a screen reader user told
+     "menu" but only getting plain Tab order is worse off than one
+     simply told about a list of links. Removed the role entirely — the
+     ARIA APG's own "Disclosure Navigation Menu" pattern is exactly
+     this (a plain button revealing ordinary links), and needs no
+     special role since normal Tab order already handles it correctly.
+  2. `aria-expanded` on the caret only ever updated inside its own click
+     handler — the dropdown *also* opens via plain CSS `:focus-within`
+     (Tabbing into a child link, no JS/class involved), which never
+     touched it. Added `focusin`/`focusout` listeners per `.tab-group`.
+  3. Escape did nothing while focus was inside a `:focus-within`-opened
+     dropdown: `closeAll()` only ever removed the click-toggled `.open`
+     class, which was never set in that case, and even after fixing
+     Escape to move focus back to the group's own `.tab` link (the
+     usual "return focus to what opened this" convention), the
+     dropdown *stayed visually open* — `.tab-group`'s `:focus-within`
+     matches on that same leading link too (by design, so hover and
+     Tab-in both flow the same way), so landing focus back on it never
+     stops matching on its own. Added a `.tab-group.force-closed`
+     override (applied by Escape, cleared again the moment focus or
+     hover genuinely re-enters the group) — this took two more
+     iterations to get right: a `focusin` listener firing when focus
+     literally landed on that same `.tab` link was originally
+     re-triggering "this group is open" and undoing the close within
+     the same synchronous call, then a version that only reopened it
+     correctly the *first* time back in but stayed stuck closed on a
+     later, unrelated visit was fixed by also clearing the override on
+     the group's own `focusout` (focus leaving entirely).
+  Also gave the caret `aria-controls` pointing at the dropdown's now-
+  present `id` (previously had none). Verified via Playwright: no
+  `role="menu"` remains; `aria-expanded` correctly becomes `true` when
+  Tabbing into a dropdown link; Escape correctly sets it back to
+  `false` and visually hides the dropdown; hovering or Tabbing back in
+  afterward correctly reopens it again (not permanently stuck closed);
+  plain mouse hover is unaffected by any of this.
 - Mobile admin header overflows with 5+ nav items (horizontal scroll,
   clipped label).
 - Notification bell: ✅ Escape now closes it (and the "More" menu,
