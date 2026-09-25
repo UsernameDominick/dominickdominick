@@ -46,7 +46,9 @@
       scans
         .map(
           (s) =>
-            `<div class="simulation-row"><span>${escapeXml(s.name)}</span><button type="button" class="edit-scan" data-id="${
+            `<div class="simulation-row"><span>${escapeXml(s.name)}</span><button type="button" class="usage-scan" data-id="${
+              s.id
+            }" data-name="${escapeXml(s.name)}" title="See which pages/projects use this scan">Usage</button><button type="button" class="edit-scan" data-id="${
               s.id
             }">Edit</button><button type="button" class="delete-scan" data-id="${s.id}">Delete</button></div>`
         )
@@ -55,6 +57,9 @@
     $("scans-list")
       .querySelectorAll(".edit-scan")
       .forEach((btn) => btn.addEventListener("click", () => openScanEditor(Number(btn.dataset.id))));
+    $("scans-list")
+      .querySelectorAll(".usage-scan")
+      .forEach((btn) => btn.addEventListener("click", () => window.showContentUsage("scan", btn.dataset.id, btn.dataset.name)));
     $("scans-list")
       .querySelectorAll(".delete-scan")
       .forEach((btn) => btn.addEventListener("click", () => deleteScan(Number(btn.dataset.id))));

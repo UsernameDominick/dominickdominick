@@ -2657,3 +2657,32 @@ skipping them.
   both integrations-tab entries; and two deliberately-indirect
   phrasings ("homepage spacing", "copyright") each resolve to the
   right underlying field despite not matching its label directly.
+- ✅ **Unified "what uses this" / dependency view** — usage-checking
+  existed already but split across three near-duplicate, incomplete
+  functions (`findScanUsage` only checked page blocks, missing a
+  project's "Related scans" picker entirely; `findSharedBlockUsage`
+  was fine but separate; simulations/songs/tags had no usage check at
+  all). Replaced with one `findContentUsage(env, type, id)` in db.js
+  covering `scan`/`simulation`/`song` (checks both page blocks *and*,
+  for scans/simulations, a project's related-X array — the real gap:
+  a scan referenced only via "Related scans" could be deleted with no
+  warning before this), `shared-block` (delegates to the existing,
+  already-correct function), and `tag` (every article/project with
+  that tag, published or not — the existing `getContentByTag` used
+  elsewhere is published-only, which is right for public tag pages but
+  wrong for "will deleting/renaming this tag affect anything," where a
+  draft still counts). Exposed via a new `GET /content-usage?type=&id=`
+  endpoint plus a shared `window.showContentUsage(type, id, label)`
+  helper (one place other admin scripts loaded as plain scripts —
+  simulation-builder.js, song-builder.js, scan-builder.js — call into,
+  rather than each rolling its own fetch-and-alert). Added a "Usage"
+  button next to Edit/Delete in Simulations, Songs, Scans, Reusable
+  Blocks, and Topic Pages' tag list, and upgraded scan/song/simulation
+  delete confirmations to show real usage instead of a generic warning
+  (scans already did this via the old function; simulations/songs
+  didn't). Verified via Playwright and direct API calls: a scan
+  referenced only through a project's "Related scans" array (not any
+  block) is now correctly found; a tag used only by a draft article is
+  found via the new tag-usage check where the published-only archive
+  logic would've missed it; and the "Usage" button renders and works
+  end-to-end in the real Simulations list.

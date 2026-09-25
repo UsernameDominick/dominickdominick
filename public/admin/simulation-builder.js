@@ -117,7 +117,9 @@
           (s) =>
             `<div class="simulation-row"><span>${escapeXml(s.name)}</span><a href="/simulation/${
               s.id
-            }" target="_blank" class="view-simulation-link">View ↗</a><button type="button" class="duplicate-simulation" data-id="${
+            }" target="_blank" class="view-simulation-link">View ↗</a><button type="button" class="usage-simulation" data-id="${
+              s.id
+            }" data-name="${escapeXml(s.name)}" title="See which pages/projects use this simulation">Usage</button><button type="button" class="duplicate-simulation" data-id="${
               s.id
             }">Duplicate</button><button type="button" class="edit-simulation" data-id="${
               s.id
@@ -128,6 +130,9 @@
     $("simulations-list")
       .querySelectorAll(".edit-simulation")
       .forEach((btn) => btn.addEventListener("click", () => openBuilder(Number(btn.dataset.id))));
+    $("simulations-list")
+      .querySelectorAll(".usage-simulation")
+      .forEach((btn) => btn.addEventListener("click", () => window.showContentUsage("simulation", btn.dataset.id, btn.dataset.name)));
     $("simulations-list")
       .querySelectorAll(".duplicate-simulation")
       .forEach((btn) =>
@@ -140,7 +145,11 @@
       .querySelectorAll(".delete-simulation")
       .forEach((btn) =>
         btn.addEventListener("click", async () => {
-          if (!confirm('Delete this simulation? Any block using it will show "not found".')) return;
+          const usage = await window.adminApi(`/content-usage?type=simulation&id=${btn.dataset.id}`).catch(() => []);
+          const msg = usage.length
+            ? `This simulation is used in: ${usage.map((u) => u.title).join(", ")}. Delete anyway? Those blocks will show "not found".`
+            : "Delete this simulation? This can't be undone.";
+          if (!confirm(msg)) return;
           await window.adminApi(`/simulations/${btn.dataset.id}`, { method: "DELETE" });
           await loadSimulationsList();
         })

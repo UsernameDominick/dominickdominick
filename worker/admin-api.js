@@ -97,6 +97,7 @@ import {
   updateScan,
   deleteScan,
   findScanUsage,
+  findContentUsage,
   listSimulations,
   getSimulation,
   createSimulation,
@@ -1257,6 +1258,21 @@ async function routeAdminApi(request, env, url, ctx) {
     const scanId = Number(url.searchParams.get("id"));
     if (!scanId) return json({ error: "id required" }, { status: 400 });
     return json(await findScanUsage(env, scanId));
+  }
+  // /content-usage — the general "what uses this" check behind findScanUsage/
+  // findSharedBlockUsage above, extended to simulations/songs/tags too (a
+  // scan/simulation used only via a project's "Related X" picker, or a tag
+  // used only by drafts, wasn't previously checkable at all for those types).
+  if (path === "/content-usage" && method === "GET") {
+    const type = url.searchParams.get("type");
+    const rawId = url.searchParams.get("id");
+    if (!type || !rawId) return json({ error: "type and id required" }, { status: 400 });
+    const id = type === "tag" ? rawId : Number(rawId);
+    if (type !== "tag" && !id) return json({ error: "id required" }, { status: 400 });
+    if (!["scan", "simulation", "song", "shared-block", "tag"].includes(type)) {
+      return json({ error: "Unsupported type" }, { status: 400 });
+    }
+    return json(await findContentUsage(env, type, id));
   }
   const scanMatch = path.match(/^\/scans\/(\d+)$/);
   if (scanMatch && method === "GET") {

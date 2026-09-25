@@ -295,7 +295,9 @@
       songs
         .map(
           (s) =>
-            `<div class="simulation-row"><span>${escapeXml(s.name)}</span><button type="button" class="duplicate-song" data-id="${
+            `<div class="simulation-row"><span>${escapeXml(s.name)}</span><button type="button" class="usage-song" data-id="${
+              s.id
+            }" data-name="${escapeXml(s.name)}" title="See which pages use this song">Usage</button><button type="button" class="duplicate-song" data-id="${
               s.id
             }">Duplicate</button><button type="button" class="edit-song" data-id="${s.id}">Edit</button><button type="button" class="delete-song" data-id="${s.id}">Delete</button></div>`
         )
@@ -303,6 +305,9 @@
     $("songs-list")
       .querySelectorAll(".edit-song")
       .forEach((btn) => btn.addEventListener("click", () => openBuilder(Number(btn.dataset.id))));
+    $("songs-list")
+      .querySelectorAll(".usage-song")
+      .forEach((btn) => btn.addEventListener("click", () => window.showContentUsage("song", btn.dataset.id, btn.dataset.name)));
     $("songs-list")
       .querySelectorAll(".duplicate-song")
       .forEach((btn) =>
@@ -315,7 +320,11 @@
       .querySelectorAll(".delete-song")
       .forEach((btn) =>
         btn.addEventListener("click", async () => {
-          if (!confirm('Delete this song? Any block using it will show "not found".')) return;
+          const usage = await window.adminApi(`/content-usage?type=song&id=${btn.dataset.id}`).catch(() => []);
+          const msg = usage.length
+            ? `This song is used in: ${usage.map((u) => u.title).join(", ")}. Delete anyway? Those blocks will show "not found".`
+            : "Delete this song? This can't be undone.";
+          if (!confirm(msg)) return;
           await window.adminApi(`/songs/${btn.dataset.id}`, { method: "DELETE" });
           await loadSongsList();
         })

@@ -1814,17 +1814,60 @@ export async function deleteScan(env, id) {
 // Which pages currently embed this scan via a "scan" block — same idea as
 // findMediaUsage, so deleting a scan a page depends on isn't a silent trap.
 export async function findScanUsage(env, scanId) {
+  return findContentUsage(env, "scan", scanId);
+}
+
+// Unified "what uses this" check for the reusable library items that can be
+// deleted out from under something still pointing at them — a scan/
+// simulation/song can be referenced by a page block (block.content.scan_id/
+// simulation_id/song_id) *and*, for scans/simulations specifically, by a
+// project's "Related X" multi-select (project.related_scans/
+// related_simulations — songs have no such relation field). findScanUsage()
+// above used to only check blocks, missing the project-relation case
+// entirely; this covers both for every type from one place instead of
+// three near-duplicate functions each with their own gaps. "shared-block"
+// and "tag" are included too so every "usage" concept in the admin (the
+// confirm-before-delete on scans/simulations/songs, the Reusable Blocks
+// list, a tag rename/merge) can go through one function.
+export async function findContentUsage(env, type, id) {
+  const blockTypeKey = { scan: "scan_id", simulation: "simulation_id", song: "song_id" };
+  if (type === "shared-block") return findSharedBlockUsage(env, id);
+  if (type === "tag") {
+    const [articles, projects] = await Promise.all([listArticles(env), listProjects(env)]);
+    return [
+      ...articles.filter((a) => a.tags.includes(id)).map((a) => ({ type: "Article", title: a.title })),
+      ...projects.filter((p) => p.tags.includes(id)).map((p) => ({ type: "Project", title: p.title })),
+    ];
+  }
+  const contentKey = blockTypeKey[type];
+  if (!contentKey) return [];
   const pages = await listPages(env);
   const pageBlocks = await Promise.all(pages.map((p) => listBlocks(env, p.id)));
   const usage = [];
   pages.forEach((p, i) => {
     for (const b of pageBlocks[i]) {
-      if (b.type === "scan" && Number((b.content || {}).scan_id) === Number(scanId)) {
-        usage.push({ type: "3D Scan block", title: p.title });
+      if (b.type === type && Number((b.content || {})[contentKey]) === Number(id)) {
+        usage.push({ type: `${blockLabel(type)} block`, title: p.title });
       }
     }
   });
+  if (type === "scan" || type === "simulation") {
+    const relatedKey = type === "scan" ? "related_scans" : "related_simulations";
+    const projects = await listProjects(env);
+    projects.forEach((p) => {
+      if ((p[relatedKey] || []).map(Number).includes(Number(id))) {
+        usage.push({ type: "Project (Related)", title: p.title });
+      }
+    });
+  }
   return usage;
+}
+
+// Matches the admin SPA's own blockLabel() naming for the block types this
+// covers — kept minimal (only what findContentUsage needs) rather than
+// duplicating the SPA's full type-name map.
+function blockLabel(type) {
+  return { scan: "3D Scan", simulation: "Simulation", song: "Song" }[type] || type;
 }
 
 // ---------- Templates ----------

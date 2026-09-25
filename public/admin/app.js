@@ -2133,13 +2133,19 @@
           (sb) =>
             `<div class="simulation-row"><span>${escapeHtml(sb.name)} <span class="lock-badge">${escapeHtml(
               blockLabel(sb.type)
-            )}</span></span><button type="button" class="insert-shared-block" data-id="${
+            )}</span></span><button type="button" class="usage-shared-block" data-id="${sb.id}" data-name="${escapeHtml(
+              sb.name
+            )}" title="See which pages use this reusable block">Usage</button><button type="button" class="insert-shared-block" data-id="${
               sb.id
             }"${currentPage ? "" : " disabled title=\"Open a page first\""}>Insert onto current page</button><button type="button" class="delete-shared-block" data-id="${
               sb.id
             }">Delete</button></div>`
         )
         .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No reusable blocks yet — select a block on a page and use \"Save as reusable block…\" in its settings.</p>";
+
+    el("shared-blocks-list")
+      .querySelectorAll(".usage-shared-block")
+      .forEach((btn) => btn.addEventListener("click", () => window.showContentUsage("shared-block", btn.dataset.id, btn.dataset.name)));
 
     el("shared-blocks-list")
       .querySelectorAll(".insert-shared-block")
@@ -5014,13 +5020,20 @@
           (t) =>
             `<div class="redirect-row"><span class="redirect-paths">${escapeHtml(t.tag)} <span class="topic-page-count">(${t.count})</span>${
               t.description || t.og_image ? ` <span class="lock-badge" title="Has a custom intro or share image">Customized</span>` : ""
-            }</span><button type="button" class="edit-topic-meta-btn" data-tag="${escapeHtml(t.tag)}">Edit</button></div>`
+            }</span><button type="button" class="usage-tag-btn" data-tag="${escapeHtml(
+              t.tag
+            )}" title="See every article/project tagged with this, including drafts">Usage</button><button type="button" class="edit-topic-meta-btn" data-tag="${escapeHtml(t.tag)}">Edit</button></div>`
         )
         .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No tags in use yet.</p>";
     el("topic-pages-list")
       .querySelectorAll(".edit-topic-meta-btn")
       .forEach((btn) => {
         btn.addEventListener("click", () => openTopicMetaEdit(btn.dataset.tag));
+      });
+    el("topic-pages-list")
+      .querySelectorAll(".usage-tag-btn")
+      .forEach((btn) => {
+        btn.addEventListener("click", () => window.showContentUsage("tag", btn.dataset.tag, btn.dataset.tag));
       });
   }
 
@@ -6523,6 +6536,23 @@
   window.refreshSimulationOptions = loadSimulationOptions;
   window.refreshScanOptions = loadScanOptions;
   window.refreshSongOptions = loadSongOptions;
+  // Shared "what uses this" checker for the reusable-library builders
+  // (simulations/songs/scans) and Reusable Blocks — one /content-usage
+  // call + one alert format, instead of each builder script rolling its
+  // own usage-fetch-and-display.
+  window.showContentUsage = async function (type, id, label) {
+    try {
+      const usage = await api(`/content-usage?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`);
+      if (!usage.length) {
+        alert(`"${label}" isn't used anywhere.`);
+        return;
+      }
+      const lines = usage.map((u) => `• ${u.type} — ${u.title}`).join("\n");
+      alert(`"${label}" is used in ${usage.length} place${usage.length === 1 ? "" : "s"}:\n\n${lines}`);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
 
   // Escape and backdrop-click close whichever modal is open, via its own
   // close button (not by setting .hidden directly) — several modals
