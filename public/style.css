@@ -2326,6 +2326,15 @@ pre.has-line-numbers {
 }
 
 @media print {
+  :root {
+    --bg: #fff;
+    --bg-elevated: #fff;
+    --border: #ccc;
+    --text: #000;
+    --text-dim: #333;
+    --accent: #000;
+  }
+
   .topbar,
   .site-footer,
   .reading-progress,
@@ -2334,6 +2343,9 @@ pre.has-line-numbers {
   .print-pdf-btn,
   .table-of-contents,
   .site-search,
+  .share-links,
+  .reactions,
+  .preview-banner,
   #theme-toggle,
   #motion-toggle,
   #font-size-toggle {

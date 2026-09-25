@@ -1979,9 +1979,27 @@ enough detail to act on directly later.
   sentence) rather than introducing a second button style. Verified
   via Playwright: computed background is transparent and border/cursor
   match the intended link-like style on both pages.
-- Print/PDF output includes share pills, reactions, and the preview
-  banner, and dark-theme text prints near-invisible on white — needs a
-  real print stylesheet.
+- ✅ Print/PDF output included share links, reactions, and the preview
+  banner, and dark-theme text printed near-invisible on white. The
+  chrome elements were a simple hide-list miss — added `.share-links`,
+  `.reactions`, and `.preview-banner` to the existing `@media print`
+  hide rule. The invisible-text bug was more subtle: `body { color:
+  #000 }` inside `@media print` only sets the `<body>` element's own
+  color — every block/heading/paragraph that sets `color: var(--text)`
+  (which resolves to a light gray/white in dark theme) still uses
+  whatever the `--text`/`--text-dim`/`--bg`/`--border`/`--accent`
+  custom properties currently hold, since overriding one element's
+  computed color doesn't touch the variables descendants read from.
+  Fixed by overriding those custom properties themselves at `:root`
+  inside `@media print` (forcing `--bg`/`--bg-elevated: #fff`,
+  `--text: #000`, `--text-dim: #333`, `--accent: #000`), so every
+  themed element resolves to readable print colors regardless of which
+  theme was active on screen. Verified via Playwright with
+  `page.emulateMedia({ media: "print" })` on a real published article:
+  body background/color are white/black, `.share-links` and
+  `.reactions` compute to `display: none`, and body text renders black
+  even though the article was loaded in dark theme (`--text` resolves
+  to `#17171a`, not the dark-theme `#ededf0`).
 - ✅ An empty nav (zero pages with `nav_label` set) drew its `.tabs`
   wrapper as a small rounded dot in the header regardless — the `<nav
   class="tabs">` pill and its indicator span were unconditionally
