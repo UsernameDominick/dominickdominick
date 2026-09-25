@@ -37,6 +37,7 @@ import {
   SEARCH_PAGE_SIZE,
   getContentByTag,
   getTopicMeta,
+  isInSitemap,
 } from "./db.js";
 import { isAuthenticated, parseCookies, hmac, timingSafeEqual } from "./auth.js";
 import {
@@ -874,13 +875,14 @@ async function renderSitemap(env) {
   const projects = await listProjects(env, { publishedOnly: true });
   const tagCounts = await getTagCounts(env);
   const entries = [
-    // A password-protected page 401s (with noindex) for anyone unauthenticated
-    // — advertising its URL in the sitemap contradicts that gate, the same
-    // "don't list a noindexed/gated URL" anti-pattern sitemap_exclude
-    // already exists to avoid for the intentional case.
-    ...pages.filter((p) => !p.sitemap_exclude && !p.password_hash).map((p) => ({ loc: p.slug === "home" ? "/" : `/${p.slug}`, lastmod: p.updated_at })),
-    ...articles.filter((a) => !a.sitemap_exclude).map((a) => ({ loc: `/random/${a.slug}`, lastmod: a.updated_at || a.published_at })),
-    ...projects.filter((p) => !p.sitemap_exclude).map((p) => ({ loc: `/projects/${p.slug}`, lastmod: p.updated_at || p.published_at })),
+    // isInSitemap() is shared with getSeoReport()'s sitemapCanonicalMismatch
+    // check, so the two can't independently drift on what "excluded from
+    // the sitemap" means the way they briefly did (a password-protected
+    // page was correctly excluded here but not recognized as excluded
+    // there, producing a false-positive "still in sitemap.xml" finding).
+    ...pages.filter((p) => isInSitemap(p, "page")).map((p) => ({ loc: p.slug === "home" ? "/" : `/${p.slug}`, lastmod: p.updated_at })),
+    ...articles.filter((a) => isInSitemap(a, "article")).map((a) => ({ loc: `/random/${a.slug}`, lastmod: a.updated_at || a.published_at })),
+    ...projects.filter((p) => isInSitemap(p, "project")).map((p) => ({ loc: `/projects/${p.slug}`, lastmod: p.updated_at || p.published_at })),
     { loc: "/topics", lastmod: null },
     { loc: "/archive", lastmod: null },
     { loc: "/random", lastmod: null },

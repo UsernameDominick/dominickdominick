@@ -158,6 +158,50 @@ function normalizePath(p) {
   return s;
 }
 
+// A redirect's to_path can be a full external URL (new URL(to_path, origin)
+// in the request-serving code handles both) as well as an internal path —
+// an external destination is always a safe dead end for loop-detection
+// purposes, since the serving code only ever looks up from_path matches in
+// this site's own redirects table, so it can never be revisited as part of
+// a chain. Only normalize (leading slash, no trailing slash) when it looks
+// like an internal path — running an absolute URL through normalizePath
+// would corrupt it (prepending a stray "/").
+function normalizeRedirectTarget(p) {
+  return /^https?:\/\//i.test(p) ? p : normalizePath(p);
+}
+
+// Redirects can chain (A -> B, B -> C, ...), and the request-serving code
+// does a single-hop lookup per request with no server-side chain
+// resolution — so a cycle anywhere in the chain becomes an actual
+// browser-visible redirect loop, not just a modeling inconvenience. Walks
+// the graph with the pending edge applied (so it catches a loop this exact
+// change would create, not just ones that already exist) starting from
+// to_path: a direct self-redirect (A -> A) is just the zero-hop case of
+// this same walk, so this replaces the old separate, narrower
+// from_path === to_path check entirely rather than needing both — that
+// check only ever caught the zero-hop case and, being POST-only, never
+// caught it on PATCH at all.
+async function wouldCreateRedirectLoop(env, fromPath, toPath, excludeId) {
+  const rows = await listRedirects(env);
+  const map = new Map();
+  for (const r of rows) {
+    if (excludeId != null && r.id === excludeId) continue;
+    map.set(r.from_path, r.to_path);
+  }
+  map.set(fromPath, toPath);
+  let current = normalizeRedirectTarget(toPath);
+  const seen = new Set();
+  for (let hops = 0; hops < 25; hops++) {
+    if (current === fromPath) return true;
+    const next = map.get(current);
+    if (next === undefined) return false;
+    if (seen.has(current)) return false; // a separate, pre-existing loop this edge doesn't participate in
+    seen.add(current);
+    current = normalizeRedirectTarget(next);
+  }
+  return true; // hop limit hit without terminating -- treat defensively as a loop
+}
+
 const SETTINGS_KEYS = [
   "default_og_image",
   "theme_accent",
@@ -1354,7 +1398,9 @@ async function routeAdminApi(request, env, url, ctx) {
     if (isBlockedRedirectPath(from_path)) {
       return json({ error: "That path is reserved and can't be redirected" }, { status: 400 });
     }
-    if (from_path === to_path) return json({ error: "A path can't redirect to itself" }, { status: 400 });
+    if (await wouldCreateRedirectLoop(env, from_path, to_path, null)) {
+      return json({ error: "This would create a redirect loop" }, { status: 400 });
+    }
     try {
       const id = await createRedirect(env, { from_path, to_path, status_code: Number(body.status_code) || 301 });
       log(ctx, env, "create", "redirect", `${from_path} → ${to_path}`);
@@ -1376,8 +1422,22 @@ async function routeAdminApi(request, env, url, ctx) {
     if (fields.from_path && isBlockedRedirectPath(fields.from_path)) {
       return json({ error: "That path is reserved and can't be redirected" }, { status: 400 });
     }
+    const redirectId = Number(redirectMatch[1]);
+    if (fields.from_path !== undefined || fields.to_path !== undefined) {
+      // PATCH can change just one side of an edge — the loop check needs
+      // the row as it would exist *after* this update, not just whichever
+      // field happened to be sent, so it's checked against the existing
+      // row merged with the incoming changes (excluding this row's own
+      // current edge from the graph, since it's being replaced).
+      const existing = await env.DB.prepare("SELECT from_path, to_path FROM redirects WHERE id = ?").bind(redirectId).first();
+      const effectiveFrom = fields.from_path ?? existing?.from_path;
+      const effectiveTo = fields.to_path ?? existing?.to_path;
+      if (effectiveFrom && effectiveTo && (await wouldCreateRedirectLoop(env, effectiveFrom, effectiveTo, redirectId))) {
+        return json({ error: "This would create a redirect loop" }, { status: 400 });
+      }
+    }
     try {
-      await updateRedirect(env, Number(redirectMatch[1]), fields);
+      await updateRedirect(env, redirectId, fields);
     } catch (err) {
       if (String(err.message).includes("UNIQUE")) {
         return json({ error: "A redirect from that path already exists" }, { status: 409 });

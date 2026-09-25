@@ -3592,6 +3592,17 @@ export async function getContentIntegrity(env) {
   return { brokenBlockRefs, danglingRelations };
 }
 
+// Shared with worker/index.js's renderSitemap(), so the two never
+// independently drift on what "excluded from the sitemap" means — a
+// password-protected page 401s (with noindex) for anyone unauthenticated,
+// so listing it contradicts that gate the same way sitemap_exclude does
+// for the intentional case; only pages have a password_hash field.
+export function isInSitemap(item, type) {
+  if (item.sitemap_exclude) return false;
+  if (type === "page" && item.password_hash) return false;
+  return true;
+}
+
 // Site-wide SEO/accessibility sweep: pages missing a meta description
 // (falls back to the title, which is worse for search-result snippets and
 // social shares), and every image block missing alt text (aggregating
@@ -3658,7 +3669,7 @@ export async function getSeoReport(env) {
   const sitemapCanonicalMismatch = [];
   for (const [items, type] of [[pages, "page"], [articles, "article"], [projects, "project"]]) {
     for (const item of items) {
-      if (!item.canonical_url || item.sitemap_exclude) continue;
+      if (!item.canonical_url || !isInSitemap(item, type)) continue;
       // Trailing slash on the site root is the one legitimate case where
       // the canonical URL and the computed URL differ by punctuation only.
       const own = ownUrl[type](item).replace(/\/$/, "") || "https://dominickdominick.com";

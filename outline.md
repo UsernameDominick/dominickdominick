@@ -3634,3 +3634,43 @@ instead:
   canonical URL that matches the page's own URL never flags in the
   first place; and both admin surfaces correctly display the finding
   with the actual canonical URL it points to.
+
+### Fourteenth critic pass — two high-severity bugs found and fixed
+- ✅ **Redirects had no cycle detection — A→B→A (or a self-loop via
+  PATCH) created a real, browser-visible infinite redirect loop** (high
+  severity, visitor-facing) — the redirect-serving code does a single-
+  hop lookup per request with no server-side chain resolution, so any
+  cycle anywhere in the chain becomes an actual `ERR_TOO_MANY_REDIRECTS`
+  for a visitor. `POST /redirects` only ever checked the zero-hop case
+  (`from_path === to_path`) and nothing checked a multi-hop cycle
+  through other existing redirects at all; `PATCH /redirects/:id` didn't
+  even have the zero-hop check, since it was never copied over from
+  POST — a single-field edit could point a redirect at itself with zero
+  warning. Fixed by replacing both narrow checks with one shared
+  `wouldCreateRedirectLoop()` that walks the actual redirect graph with
+  the pending edge applied (bounded to 25 hops), used by both POST and
+  PATCH — the old zero-hop check is just the first step of this same
+  walk, so nothing needed two separate mechanisms. An external redirect
+  target (a full `https://...` URL, which `to_path` is allowed to be)
+  is correctly treated as a safe dead end, since the serving code can
+  never revisit it as a `from_path`. Verified via Playwright: creating
+  A→B then attempting B→A now correctly rejects with "This would
+  create a redirect loop"; PATCHing an existing redirect to point at
+  itself is now rejected identically; a 3-hop chain (A→B→C) where B's
+  target is PATCHed back to A is also correctly caught; a real,
+  non-cyclic redirect still resolves normally with a single 301.
+- ✅ **The just-shipped sitemap/canonical-URL check false-positived on
+  password-protected pages** — it excluded a page via `sitemap_exclude`
+  but didn't also check `password_hash`, while the actual sitemap
+  generator (fixed earlier this session) excludes password-protected
+  pages regardless of `sitemap_exclude`. A password-gated page with a
+  mismatched canonical URL got flagged as "still in sitemap.xml" even
+  though it was never actually listed there — the two exclusion rules
+  had quietly drifen apart. Fixed properly per the critic's own
+  suggestion: extracted a single shared `isInSitemap(item, type)`
+  helper in worker/db.js, used by both the real sitemap generator
+  (worker/index.js) and the new consistency check, so they can't drift
+  apart again the same way. Verified via Playwright: a password-
+  protected page with a deliberately mismatched canonical URL no longer
+  appears in `sitemapCanonicalMismatch`, confirmed alongside a direct
+  check that the page is genuinely absent from `/sitemap.xml`.
