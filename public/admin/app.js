@@ -3929,7 +3929,12 @@
   });
   el("convert-article-to-project-btn").addEventListener("click", async () => {
     if (!currentArticleId) return;
-    if (!confirm('Create a project draft from this article\'s content? The article itself is kept as-is — nothing is deleted.')) return;
+    if (
+      !confirm(
+        'Create a project draft from this article\'s content? The article itself is kept as-is — nothing is deleted. If you publish this draft without adding distinct content (build photos, BOM, journal), it and the original article will have near-identical text at two different URLs — consider expanding it or adding a canonical URL first.'
+      )
+    )
+      return;
     try {
       const res = await api(`/articles/${currentArticleId}/convert-to-project`, { method: "POST" });
       el("articles-modal").hidden = true;
@@ -4519,6 +4524,30 @@
     bomItems = await api(`/projects/${currentProjectId}/bom`);
     renderBomList();
   }
+
+  // The BOM feature already computes everything needed to shop/order
+  // parts (item, qty, price, where-to-buy link, substitution note, and a
+  // grand total) but had no way to get that list out of the admin at all.
+  // Reuses the exact same toCsvRow()/Blob-download pattern the Analytics
+  // export button already established, just for this data instead.
+  el("export-bom-csv-btn").addEventListener("click", () => {
+    if (!bomItems.length) return alert("No BOM items to export yet.");
+    let csv = toCsvRow(["Item", "Quantity", "Price paid", "Line total", "Where to buy", "Substitution note"]);
+    bomItems.forEach((b) => {
+      const lineTotal = b.price != null ? (b.price * b.quantity).toFixed(2) : "";
+      csv += toCsvRow([b.item, b.quantity, b.price != null ? b.price.toFixed(2) : "", lineTotal, b.link || "", b.substitution || ""]);
+    });
+    const total = bomItems.reduce((sum, b) => sum + (b.price != null ? b.price * b.quantity : 0), 0);
+    csv += toCsvRow(["", "", "", "", "", ""]) + toCsvRow(["", "", "Total", total.toFixed(2), "", ""]);
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const project = projects.find((p) => p.id === currentProjectId);
+    a.download = `bom-${(project && project.slug) || currentProjectId}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
 
   el("save-bom-item-btn").addEventListener("click", async () => {
     if (!currentProjectId) return;

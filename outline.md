@@ -3548,3 +3548,24 @@ colliding) and found one new bug plus two pre-existing ones:
   substitute for it. Also confirmed a legitimate URL with `&` in its
   query string still renders correctly (`&amp;`-escaped, valid HTML) and
   a non-URL value is now rejected with a 400 at save time.
+
+### Thirteenth backlog batch (remaining twelfth-critic suggestions)
+- ✅ **"Export CSV" for a project's Bill of Materials** — the BOM feature
+  already models everything needed to actually shop/order parts (item,
+  quantity, price paid, where-to-buy link, substitution note) and
+  computes a grand total, but there was no way to get that list out of
+  the admin. Added an "Export CSV" button next to the BOM section
+  heading, reusing the exact same `toCsvRow()`/Blob-download pattern
+  the Analytics export button already established rather than
+  introducing a second CSV-writing approach. Includes a trailing
+  total row. Verified via Playwright with two real BOM items: the
+  downloaded file's rows and computed total (25.50) matched exactly.
+- ✅ **Duplicate-content-risk note added to the "Convert to Project"
+  confirm dialog** — converting an article copies its title/body
+  verbatim into a new draft while the original article stays live and
+  unchanged; publishing that draft without adding anything distinct
+  would put near-identical text at two URLs. The dialog's existing
+  "nothing is deleted" wording was accurate but didn't mention this —
+  added one sentence suggesting expanding the content or setting a
+  canonical URL before publishing. No behavior change, just an
+  awareness nudge at the one moment it's actually relevant.
