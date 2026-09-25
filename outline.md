@@ -637,7 +637,15 @@ health-check pass, predates this doc.
 - ☐ Side-by-side compare of conflicting versions (currently just "reload to see latest")
 - ✅ Crash recovery, unsaved-change (beforeunload) guard
 - ✅ Descriptive revision history with labels, side-by-side text diffs, visual layout diffs
-- 🔶 Restore individual fields/blocks/pages/articles/media (whole-item + per-block ✅; field-level + media revisions ☐)
+- 🔶 Restore individual fields/blocks/pages/articles/media (whole-item +
+  per-block ✅; media revisions ✅ — a new `media_revisions` table
+  snapshots a file's folder/tags/alt/caption/credit/license right before
+  each editorial edit in the File details modal, with a History button
+  to browse and restore any earlier version; restoring itself snapshots
+  the pre-restore state the same way, so a restore can be undone too;
+  deliberately NOT triggered by upload or the hash-backfill scan, which
+  would otherwise create a noisy revision per file; field-level restore
+  within a single edit ☐)
 - ✅ Trash/soft-delete for pages/articles/projects, activity log
 - ☐ Separate working revisions of already-published content (editing live edits it directly)
 - ✅ Locking to freeze finished items against bulk edits

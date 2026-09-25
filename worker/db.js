@@ -1371,8 +1371,21 @@ export async function getMediaMeta(env, keys) {
 }
 
 export async function upsertMediaMeta(env, key, { folder, tags, alt_text, caption, credit, license, hash } = {}) {
-  const existing = await env.DB.prepare("SELECT key FROM media WHERE key = ?").bind(key).first();
+  const existing = await env.DB.prepare("SELECT * FROM media WHERE key = ?").bind(key).first();
   if (existing) {
+    // Snapshot before overwriting — but only for an actual editorial edit
+    // (folder/tags/alt/caption/credit/license), not the hash-only calls
+    // from upload or the duplicate-detection backfill scan, which would
+    // otherwise create a noisy revision for every file on every scan.
+    const isEditorialChange = [folder, tags, alt_text, caption, credit, license].some((v) => v !== undefined);
+    if (isEditorialChange) {
+      await env.DB
+        .prepare(
+          "INSERT INTO media_revisions (media_key, folder, tags, alt_text, caption, credit, license) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        )
+        .bind(existing.key, existing.folder, existing.tags, existing.alt_text, existing.caption, existing.credit, existing.license)
+        .run();
+    }
     const cols = [];
     const vals = [];
     if (folder !== undefined) {
@@ -1421,6 +1434,30 @@ export async function upsertMediaMeta(env, key, { folder, tags, alt_text, captio
       )
       .run();
   }
+}
+
+export async function listMediaRevisions(env, key) {
+  const { results } = await env.DB
+    .prepare("SELECT * FROM media_revisions WHERE media_key = ? ORDER BY created_at DESC")
+    .bind(key)
+    .all();
+  return results.map((r) => ({ ...r, tags: JSON.parse(r.tags || "[]") }));
+}
+
+// Restoring doesn't itself snapshot the pre-restore state — the restore
+// goes through upsertMediaMeta just like a normal edit would, so it gets
+// its own "before" snapshot the same way, and can itself be undone.
+export async function restoreMediaRevision(env, revisionId) {
+  const rev = await env.DB.prepare("SELECT * FROM media_revisions WHERE id = ?").bind(revisionId).first();
+  if (!rev) throw new Error("Revision not found");
+  await upsertMediaMeta(env, rev.media_key, {
+    folder: rev.folder,
+    tags: JSON.parse(rev.tags || "[]"),
+    alt_text: rev.alt_text,
+    caption: rev.caption,
+    credit: rev.credit,
+    license: rev.license,
+  });
 }
 
 // Every hash shared by more than one file, each with its list of keys —

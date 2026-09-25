@@ -289,6 +289,25 @@ CREATE TABLE media (
 );
 CREATE INDEX idx_media_hash ON media(hash);
 
+-- Snapshots of a media file's editable metadata, taken right before each
+-- editorial change (not on upload or the hash-backfill scan) — lets an
+-- accidental overwrite of alt text/caption/credit/etc. be undone. Keyed
+-- by media_key (not a foreign key: media rows can be deleted while their
+-- revision history stays, same as pages/articles/projects already do
+-- with the revisions table).
+CREATE TABLE media_revisions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  media_key TEXT NOT NULL,
+  folder TEXT,
+  tags TEXT NOT NULL DEFAULT '[]',
+  alt_text TEXT,
+  caption TEXT,
+  credit TEXT,
+  license TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_media_revisions_key ON media_revisions(media_key);
+
 CREATE TABLE scans (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,

@@ -30,6 +30,8 @@ import {
   getMediaMeta,
   upsertMediaMeta,
   deleteMediaMeta,
+  listMediaRevisions,
+  restoreMediaRevision,
   listMediaFolders,
   findMediaUsage,
   getAllUsedMediaUrls,
@@ -859,6 +861,20 @@ async function routeAdminApi(request, env, url, ctx) {
   if (mediaKeyMatch && method === "PATCH") {
     const body = await request.json().catch(() => ({}));
     await upsertMediaMeta(env, mediaKeyMatch[1], body);
+    return json({ ok: true });
+  }
+  // /media-revisions?key=... — a query param rather than a path segment,
+  // since a media key itself contains slashes (uploads/xxx.png), which
+  // would collide with a /media/:key/revisions-style route.
+  if (path === "/media-revisions" && method === "GET") {
+    const key = url.searchParams.get("key");
+    if (!key) return json({ error: "key is required" }, { status: 400 });
+    return json(await listMediaRevisions(env, key));
+  }
+  const mediaRevisionRestoreMatch = path.match(/^\/media-revisions\/(\d+)\/restore$/);
+  if (mediaRevisionRestoreMatch && method === "POST") {
+    await restoreMediaRevision(env, Number(mediaRevisionRestoreMatch[1]));
+    log(ctx, env, "restore", "media-revision", mediaRevisionRestoreMatch[1]);
     return json({ ok: true });
   }
   // Overwrites an existing upload's bytes in place — same key, same public

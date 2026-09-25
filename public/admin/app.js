@@ -4018,6 +4018,7 @@
     el("media-info-caption").value = item.caption || "";
     el("media-info-credit").value = item.credit || "";
     el("media-info-license").value = item.license || "";
+    el("media-info-history-list").innerHTML = "";
     el("media-info-modal").hidden = false;
   }
   closeModalOnClick("close-media-info", "media-info-modal");
@@ -4037,6 +4038,45 @@
       });
       el("media-info-modal").hidden = true;
       await loadMediaLibrary();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  el("media-info-history-btn").addEventListener("click", async () => {
+    if (!mediaInfoKey) return;
+    try {
+      const revisions = await api(`/media-revisions?key=${encodeURIComponent(mediaInfoKey)}`);
+      el("media-info-history-list").innerHTML =
+        revisions
+          .map(
+            (r) =>
+              `<div class="link-check-row"><span class="link-check-url">${escapeHtml(
+                (r.created_at || "").replace("T", " ").slice(0, 19)
+              )}</span><span class="link-check-source">${escapeHtml(
+                [r.folder, (r.tags || []).join(", "), r.alt_text, r.caption, r.credit, r.license].filter(Boolean).join(" · ") || "(all blank)"
+              )}</span><button type="button" class="restore-media-revision-btn" data-id="${r.id}">Restore</button></div>`
+          )
+          .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No earlier versions saved yet.</p>";
+      el("media-info-history-list")
+        .querySelectorAll(".restore-media-revision-btn")
+        .forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            if (!confirm("Restore this version? The current metadata is saved as its own history entry first, so this can be undone too.")) return;
+            try {
+              await api(`/media-revisions/${btn.dataset.id}/restore`, { method: "POST" });
+              const item = mediaItems.find((m) => m.key === mediaInfoKey);
+              if (item) {
+                const fresh = await api("/media");
+                mediaItems = fresh;
+                openMediaInfoModal(mediaInfoKey);
+              }
+              el("media-info-history-btn").click();
+            } catch (err) {
+              alert(err.message);
+            }
+          });
+        });
     } catch (err) {
       alert(err.message);
     }
