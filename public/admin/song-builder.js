@@ -291,25 +291,41 @@
   // pitch decreasing as the index increases, so "up" moves toward lower
   // indices. A note that would land outside the piano roll's fixed 2-octave
   // range (C3-B4) is dropped -- there's no way to display a note above or
-  // below the visible grid -- with a count surfaced so a big shift doesn't
-  // silently lose notes off either end with no explanation.
+  // below the visible grid.
+  //
+  // A critic pass flagged the original version (a post-hoc alert naming
+  // only a count, with no confirmation first) as a real gap: this is the
+  // single most bulk-destructive one-click action in a builder with no
+  // undo at all, and it's inconsistent with this same file's own
+  // established pattern for destructive actions (deleting a song already
+  // uses confirm() before acting, not just a notice after). Reworked to
+  // compute the full effect first without mutating anything, then confirm
+  // before applying if anything would actually be lost -- naming the
+  // specific notes/steps, not just a count, so the admin can make an
+  // informed choice while it's still reversible by just clicking Cancel.
   function transposeMelody(semitones) {
     const oldNotes = songData.melody.notes;
     const newNotes = {};
     PIANO_NOTES.forEach((n) => (newNotes[n] = new Array(STEPS).fill(false)));
-    let dropped = 0;
+    const dropped = [];
     PIANO_NOTES.forEach((sourceName, sourceIndex) => {
       const targetName = PIANO_NOTES[sourceIndex - semitones];
       for (let step = 0; step < STEPS; step++) {
         if (!oldNotes[sourceName][step]) continue;
         if (targetName) newNotes[targetName][step] = true;
-        else dropped++;
+        else dropped.push(`${sourceName} (step ${step + 1})`);
       }
     });
+    if (dropped.length) {
+      const shown = dropped.slice(0, 8).join(", ") + (dropped.length > 8 ? `, and ${dropped.length - 8} more` : "");
+      const ok = confirm(
+        `This will remove ${dropped.length} note${dropped.length === 1 ? "" : "s"} that would move outside the piano roll's range: ${shown}. Continue?`
+      );
+      if (!ok) return;
+    }
     songData.melody.notes = newNotes;
     renderPianoRoll();
     refreshWaveformPreview();
-    if (dropped) alert(`${dropped} note${dropped === 1 ? "" : "s"} moved outside the piano roll's range and ${dropped === 1 ? "was" : "were"} removed.`);
   }
 
   // ---------- List modal ----------

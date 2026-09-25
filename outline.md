@@ -4863,6 +4863,22 @@ DAW project formats effectively infeasible to support faithfully), 342
 control beyond single-admin), 352, 359 (a sandboxed plugin architecture —
 substantial new infra + security surface).
 
+**Critic-surfaced, not yet numbered in the original 600-item list**
+(tracked per the "log every critic finding" rule, found while shipping
+#237's melody transpose):
+- The Song builder has **no undo/redo mechanism at all** — every edit
+  (note toggles, transpose, drum-pattern changes) is immediately
+  permanent with no way to step back, unlike Photo Editor's 15-deep undo
+  stack. Falls under the same #181 multitrack-foundation umbrella but is
+  worth calling out on its own since it affects basic editing safety, not
+  just advanced timeline features.
+- `refreshWaveformPreview()` has a pre-existing fire-and-forget async
+  race: rapid successive calls (e.g. several quick transposes or note
+  edits in a row) can resolve out of order, so the visible waveform can
+  end up reflecting a stale intermediate state rather than the latest
+  edit. Needs a generation counter or abort/cancel-in-flight guard around
+  whatever produces the waveform data.
+
 ### Simulations — Already done
 361 (native editable docs — the simulations table + builder). 371
 (multi-select — rubber-band + shift-click already works).
@@ -5418,4 +5434,47 @@ force to manifest.
   cleared, not just visually updated client-side. Full regression suite
   green; test song deleted and confirmed gone.
 
-Handed to a critic agent for scoring.
+Handed to a critic agent for scoring: **8/10**. Findings:
+
+1. **(Fixed)** The destructive-drop path used a post-hoc `alert()` showing
+   only a count ("1 note moved outside the piano roll's range and was
+   removed") *after* already applying the transpose — inconsistent with
+   the codebase's own convention (e.g. the existing song-delete flow) of
+   confirming destructive actions *before* acting. Reworked
+   `transposeMelody(semitones)` to compute the full effect first —
+   including exactly which notes would be dropped, as `"NOTE (step N)"`
+   strings — then show a `confirm()` naming the specific notes (e.g.
+   `"This will remove 1 note that would move outside the piano roll's
+   range: B4 (step 3). Continue?"`) before mutating any state, only
+   applying on OK. A non-destructive transpose (nothing would be dropped)
+   shows no dialog at all.
+2. **(Fixed)** The four transpose buttons had `title` attributes but no
+   `aria-label`, so a screen reader announced them only by their terse
+   glyphs ("↓", "Oct ↑"). Added matching `aria-label`s to all four.
+3. **(Logged, not fixed — pre-existing, out of scope for this diff)** The
+   Song builder has no undo/redo mechanism at all, so a transpose (even
+   with the new confirm gate) can't be undone the way Photo Editor edits
+   can. This is a real, bigger architectural gap shared by the whole
+   builder, not something to bolt onto this one feature.
+4. **(Logged, not fixed — pre-existing, out of scope for this diff)**
+   `refreshWaveformPreview()` has a pre-existing fire-and-forget async
+   race (rapid successive calls can resolve out of order) that transpose
+   merely triggers more often; not something to fix inside this feature's
+   diff.
+
+Re-verified via Playwright (`test_transpose_confirm.js`) after the fix:
+all 4 aria-labels present and mutually distinct; a non-destructive
+transpose (C4→C#4) fires no dialog and still applies; a destructive
+transpose (B4 up one semitone) fires a `confirm()` with the exact
+expected message; clicking Cancel leaves the B4 note untouched; clicking
+OK applies it — combined with an earlier C#4→D4 shift from the same test
+run, the piano roll ends with exactly one note on, at D4 (confirmed by
+row/step, not just count), matching the transpose math exactly. Full
+regression suite (`test_security_seo.js`) re-run green; no leftover test
+songs in D1.
+
+Item #237 is done: 1 critic round, 8/10, both real findings fixed and
+verified live; the two remaining findings are pre-existing architectural
+gaps (no undo/redo in the Song builder; `refreshWaveformPreview()`'s
+async race) explicitly out of scope for this diff, tracked here rather
+than silently dropped.
