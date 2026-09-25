@@ -1714,6 +1714,26 @@ enough detail to act on directly later.
   label survives both a parent's `nav_label` being cleared and the
   parent being trashed, appearing top-level in both cases instead of
   disappearing from the nav.
+- ✅ A simulation/scan/song block whose reference had been deleted
+  rendered a raw "Simulation/Scan/Song not found." message straight to
+  real visitors, and still reserved its full grid-row span as blank
+  space. `renderBlockInner` now returns `null` (kept distinct from a
+  spacer block's intentional `""`) for these three "reference no longer
+  exists" cases, and `renderBlocks` skips wrapping/positioning any
+  block whose inner content came back `null` — the block disappears
+  entirely instead of showing an error or reserving space. Scoped only
+  to the "id set but the thing was deleted" case, not "no simulation/
+  scan/song selected yet" (unchanged, still shows its placeholder — a
+  page in that state isn't expected to be live yet). This only touches
+  the real public render path (`renderBlocks` has exactly one caller,
+  `renderPage` in `index.js`) — the admin editor's own canvas preview
+  is separate client-side code, untouched, so an admin still needs
+  their own way to notice a broken reference while editing (not fixed
+  here; a red badge in the editor is listed as a future idea below).
+  Verified via Playwright: a page with a broken simulation/scan/song
+  block renders zero `.block` divs for them (no reserved space, no
+  error text) while a real, valid reference on the same block type
+  still renders its actual content.
 
 **SEO/structured data:**
 - ✅ `/topics/<anything>` now 404s with `noindex` when nothing's tagged
@@ -1855,10 +1875,12 @@ enough detail to act on directly later.
 - Split the giant Site Settings modal into tabs (Appearance, Sharing/
   SEO, Integrations, Maintenance, Logs, Backups) with a sticky Save
   bar, instead of one long scrolling list.
-- Follow the visitor's OS light/dark preference on first visit
-  (currently always starts dark regardless of `prefers-color-scheme`).
 - A richer 404 page (search box, recent posts, archive link) instead
   of the current bare message.
 - One consistent name for "articles" across nav/URLs/search filters/
   RSS/admin (currently a mix of "Random", "Posts", "Articles",
   "Writing").
+- Badge a simulation/scan/song block with a broken (deleted) reference
+  red in the admin editor canvas — now that the public side just
+  silently hides such a block, an admin has no in-editor signal that
+  one of their pages has one at all.

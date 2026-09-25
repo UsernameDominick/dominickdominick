@@ -1006,7 +1006,11 @@ async function renderBlockInner(env, block, ctx) {
     case "simulation": {
       if (!c.simulation_id) return `<p class="empty-hint">No simulation selected.</p>`;
       const sim = await getSimulation(env, c.simulation_id);
-      if (!sim) return `<p class="empty-hint">Simulation not found.</p>`;
+      // A deleted simulation is a broken reference, not something a real
+      // visitor should ever see an error about — the whole block is
+      // skipped (see renderBlocks' null check) rather than showing an
+      // "X not found" message and still reserving its grid space.
+      if (!sim) return null;
       const uid = `sim-${block.id}`;
       // The SVG itself is a visual circuit diagram with no inherent text
       // equivalent — an interactive canvas like this needs someone to
@@ -1025,13 +1029,13 @@ async function renderBlockInner(env, block, ctx) {
     case "scan": {
       if (!c.scan_id) return `<p class="empty-hint">No 3D scan selected.</p>`;
       const scan = await getScan(env, c.scan_id);
-      if (!scan) return `<p class="empty-hint">Scan not found.</p>`;
+      if (!scan) return null;
       return modelViewerHtml(scan, c.description);
     }
     case "song": {
       if (!c.song_id) return `<p class="empty-hint">No song selected.</p>`;
       const song = await getSong(env, c.song_id);
-      if (!song) return `<p class="empty-hint">Song not found.</p>`;
+      if (!song) return null;
       return renderSongBlockHtml(song);
     }
     case "project-card":
@@ -1092,46 +1096,53 @@ function isBlockInDateWindow(style) {
 }
 
 export async function renderBlocks(env, blocks, ctx = {}) {
-  const parts = await Promise.all(
+  const withInner = await Promise.all(
     blocks
       .filter((b) => !(b.style && b.style.hidden) && isBlockInDateWindow(b.style))
-      .map(async (b) => {
-        const gridStyle = `grid-column:${b.col} / span ${b.col_span};grid-row:${b.row} / span ${b.row_span};`;
-        const style = b.style || {};
-        const inner = await renderBlockInner(env, b, ctx);
-        // The scroll-triggered reveal itself (adding .is-visible) is plain
-        // JS (nav.js) reacting to this attribute — see the CSS for how
-        // prefers-reduced-motion disables the whole effect without any JS
-        // branching, by simply never defining the animated styles at all.
-        // The delay is folded into the block's single style="" attribute
-        // below (a second style attribute on the same element would just
-        // clobber the first, silently breaking the grid positioning).
-        const hasAnimation = ["fade-in", "slide-up", "slide-left", "slide-right", "zoom-in"].includes(style.animation);
-        const dataAnimateAttr = hasAnimation ? ` data-animate="${style.animation}"` : "";
-        const delayMs = Number(style.animationDelay);
-        const animateDelayCss = hasAnimation && Number.isFinite(delayMs) && delayMs > 0 ? `--animate-delay:${delayMs}ms;` : "";
-        // Device-conditional visibility is plain CSS (a media-query class),
-        // not server-side UA sniffing — same reasoning as the reduced-motion
-        // approach: it works with zero JS and needs no client hint at all.
-        const visibilityClass =
-          style.visibility === "desktop-only" ? " block-hide-mobile" : style.visibility === "mobile-only" ? " block-hide-desktop" : "";
-        const hoverClass = ["lift", "grow", "glow", "darken"].includes(style.hoverEffect) ? ` block-hover-${style.hoverEffect}` : "";
-        // A background video (or an image with a tint overlay) needs real
-        // stacked elements — there's no CSS property that overlays a color
-        // on a <video>, and layering it into background-image would only
-        // work for the image case. The plain, by-far-most-common case (no
-        // video, no overlay) keeps the exact same simple markup as before.
-        if (style.backgroundVideoUrl || (style.backgroundImage && style.overlayColor)) {
-          const overlayRgba = style.overlayColor ? hexToRgba(style.overlayColor, style.overlayOpacity) : null;
-          return `<div class="block block-has-bg-layer${visibilityClass}${hoverClass}" style="${gridStyle}${blockStyleAttr(style)}${animateDelayCss}"${dataAnimateAttr}>${
-            style.backgroundVideoUrl
-              ? `<video class="block-bg-video" src="${esc(style.backgroundVideoUrl)}" autoplay muted loop playsinline></video>`
-              : ""
-          }${overlayRgba ? `<div class="block-bg-overlay" style="background:${overlayRgba};"></div>` : ""}<div class="block-content-over-bg">${inner}</div></div>`;
-        }
-        return `<div class="block${visibilityClass}${hoverClass}" style="${gridStyle}${blockStyleAttr(style)}${animateDelayCss}"${dataAnimateAttr}>${inner}</div>`;
-      })
+      .map(async (b) => ({ b, inner: await renderBlockInner(env, b, ctx) }))
   );
+  const parts = withInner
+    // renderBlockInner returns null (distinct from a spacer block's
+    // intentional "") specifically for a simulation/scan/song block whose
+    // reference no longer exists — skipped here so a visitor never sees a
+    // "not found" error, and so the deleted block's grid space isn't
+    // reserved as blank either.
+    .filter(({ inner }) => inner !== null)
+    .map(({ b, inner }) => {
+      const gridStyle = `grid-column:${b.col} / span ${b.col_span};grid-row:${b.row} / span ${b.row_span};`;
+      const style = b.style || {};
+      // The scroll-triggered reveal itself (adding .is-visible) is plain
+      // JS (nav.js) reacting to this attribute — see the CSS for how
+      // prefers-reduced-motion disables the whole effect without any JS
+      // branching, by simply never defining the animated styles at all.
+      // The delay is folded into the block's single style="" attribute
+      // below (a second style attribute on the same element would just
+      // clobber the first, silently breaking the grid positioning).
+      const hasAnimation = ["fade-in", "slide-up", "slide-left", "slide-right", "zoom-in"].includes(style.animation);
+      const dataAnimateAttr = hasAnimation ? ` data-animate="${style.animation}"` : "";
+      const delayMs = Number(style.animationDelay);
+      const animateDelayCss = hasAnimation && Number.isFinite(delayMs) && delayMs > 0 ? `--animate-delay:${delayMs}ms;` : "";
+      // Device-conditional visibility is plain CSS (a media-query class),
+      // not server-side UA sniffing — same reasoning as the reduced-motion
+      // approach: it works with zero JS and needs no client hint at all.
+      const visibilityClass =
+        style.visibility === "desktop-only" ? " block-hide-mobile" : style.visibility === "mobile-only" ? " block-hide-desktop" : "";
+      const hoverClass = ["lift", "grow", "glow", "darken"].includes(style.hoverEffect) ? ` block-hover-${style.hoverEffect}` : "";
+      // A background video (or an image with a tint overlay) needs real
+      // stacked elements — there's no CSS property that overlays a color
+      // on a <video>, and layering it into background-image would only
+      // work for the image case. The plain, by-far-most-common case (no
+      // video, no overlay) keeps the exact same simple markup as before.
+      if (style.backgroundVideoUrl || (style.backgroundImage && style.overlayColor)) {
+        const overlayRgba = style.overlayColor ? hexToRgba(style.overlayColor, style.overlayOpacity) : null;
+        return `<div class="block block-has-bg-layer${visibilityClass}${hoverClass}" style="${gridStyle}${blockStyleAttr(style)}${animateDelayCss}"${dataAnimateAttr}>${
+          style.backgroundVideoUrl
+            ? `<video class="block-bg-video" src="${esc(style.backgroundVideoUrl)}" autoplay muted loop playsinline></video>`
+            : ""
+        }${overlayRgba ? `<div class="block-bg-overlay" style="background:${overlayRgba};"></div>` : ""}<div class="block-content-over-bg">${inner}</div></div>`;
+      }
+      return `<div class="block${visibilityClass}${hoverClass}" style="${gridStyle}${blockStyleAttr(style)}${animateDelayCss}"${dataAnimateAttr}>${inner}</div>`;
+    });
   return parts.join("\n");
 }
 
