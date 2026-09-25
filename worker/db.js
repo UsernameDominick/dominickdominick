@@ -3590,11 +3590,35 @@ export async function getSeoReport(env) {
   return { missingMeta, missingAlt, missingOgImage, duplicateTitles, duplicateMeta };
 }
 
-// Every block type except the "html" escape hatch is already accessible by
-// construction (semantic markup, real <button>/<a> elements, a dedicated
-// alt-text field the SEO report above already checks) — this is the one
-// place arbitrary admin-authored markup can land, so it's the only place
-// worth pattern-matching for known keyboard-nav/focus anti-patterns.
+// Same WCAG relative-luminance contrast formula used both by the Site
+// Settings theme-color checker and the per-page Diagnostics per-block
+// check (public/admin/app.js) — duplicated here rather than shared,
+// since the admin bundle and the worker have no common module between
+// them to put it in.
+function relLuminance(hex) {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16) / 255;
+  const g = parseInt(h.slice(2, 4), 16) / 255;
+  const b = parseInt(h.slice(4, 6), 16) / 255;
+  const f = (c) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+}
+function contrastRatio(hexA, hexB) {
+  const l1 = relLuminance(hexA);
+  const l2 = relLuminance(hexB);
+  const lighter = Math.max(l1, l2);
+  const darker = Math.min(l1, l2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+const HEX_RE = /^#[0-9a-f]{6}$/i;
+
+// Most block types are already accessible by construction (semantic markup,
+// real <button>/<a> elements, a dedicated alt-text field the SEO report
+// above already checks) — "html" is the one place arbitrary admin-authored
+// markup can land, so it's the only place worth pattern-matching for known
+// keyboard-nav/focus anti-patterns. Any block type can carry a custom
+// color/bg style override though, which is checked across all of them
+// below, independent of the per-type checks.
 // Regex-based HTML scanning is inherently approximate (same trade-off the
 // markdown-link scanning elsewhere in this file already makes) — flags
 // likely issues, not a substitute for actually tabbing through the page.
@@ -3621,6 +3645,28 @@ export async function checkAccessibility(env) {
         const missingAlt = images.some((img) => (typeof img === "string" ? true : !img || !img.alt));
         if (missingAlt) {
           issues.push({ pageTitle: p.title, pageSlug: p.slug, blockId: b.id, issue: "Gallery image with no alt text" });
+        }
+      }
+      // The per-page Diagnostics panel already catches this one page at a
+      // time, but there was no way to sweep the whole site for it — an
+      // admin had to happen to open Diagnostics on the specific page a bad
+      // color pair landed on. Same threshold, applied everywhere at once.
+      // WCAG AA allows a relaxed 3:1 for large text; headings are the block
+      // type most likely to actually be large enough to qualify, so they
+      // get that lower bar instead of flagging pairs that are technically
+      // compliant.
+      const color = b.style && b.style.color;
+      const bg = b.style && b.style.bg;
+      if (color && bg && HEX_RE.test(color) && HEX_RE.test(bg)) {
+        const ratio = contrastRatio(color, bg);
+        const threshold = b.type === "heading" ? 3 : 4.5;
+        if (ratio < threshold) {
+          issues.push({
+            pageTitle: p.title,
+            pageSlug: p.slug,
+            blockId: b.id,
+            issue: `Custom text/background colors have a contrast ratio of ${ratio.toFixed(2)}:1, below the WCAG AA minimum of ${threshold}:1`,
+          });
         }
       }
     }

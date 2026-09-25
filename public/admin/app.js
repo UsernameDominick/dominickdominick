@@ -2420,10 +2420,16 @@
       const bg = b.style && b.style.bg;
       if (!color || !bg || !/^#[0-9a-f]{6}$/i.test(color) || !/^#[0-9a-f]{6}$/i.test(bg)) continue;
       const ratio = contrastRatio(color, bg);
-      if (ratio < 4.5) {
+      // WCAG AA allows a relaxed 3:1 for large text — headings are the
+      // block type most likely to actually be large enough to qualify
+      // (matches the theme checker's own 3:1 "Accent vs background" bar),
+      // so they get that lower threshold instead of flagging pairs that
+      // are technically compliant.
+      const threshold = b.type === "heading" ? 3 : 4.5;
+      if (ratio < threshold) {
         issues.push({
           severity: "warn",
-          message: `This block's custom text/background colors have a contrast ratio of ${ratio.toFixed(2)}:1, below the WCAG AA minimum of 4.5:1 for text — likely hard to read.`,
+          message: `This block's custom text/background colors have a contrast ratio of ${ratio.toFixed(2)}:1, below the WCAG AA minimum of ${threshold}:1 — likely hard to read.`,
           blockId: b.id,
         });
       }

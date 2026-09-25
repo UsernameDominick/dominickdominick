@@ -3102,3 +3102,32 @@ in the admin. Fixed while addressing the rest of this report:
   with the exact computed ratio in the message and a working "Select"
   button; a high-contrast pair (black on white) and a block with no
   colors set at all both correctly produced no finding.
+
+### Fifth critic pass — no bugs, suggestions acted on
+The fifth critic pass found the per-block contrast diagnostic correct
+across every edge case it tried (only-color-set, only-bg-set, no
+override at all, 3-digit hex, non-hex CSS functions — all correctly
+un-flagged) and reported no bugs. It also suggested, per its "think
+like the admin" mandate, feeding the same check into the site-wide
+Accessibility Report (previously per-page only) and relaxing the
+threshold to 3:1 for headings (WCAG AA's own allowance for large
+text). Both implemented:
+- ✅ **Site-wide per-block contrast sweep** — `checkAccessibility()` in
+  worker/db.js (previously only pattern-matched raw "html" blocks and
+  gallery alt text) now also checks every block's own `style.color`/
+  `style.bg` pair against the same WCAG formula, site-wide — closing
+  the gap where a bad color pair only ever surfaced if the admin
+  happened to open Diagnostics on that specific page. Automatically
+  picked up by both the standalone Accessibility Report panel and the
+  "Run all checks" aggregator, since both already consume this
+  function's output in the existing `{pageTitle, pageSlug, blockId,
+  issue}` shape. Verified via Playwright/API: a real low-contrast block
+  on a fresh test page showed up correctly in `GET /accessibility-report`
+  with the exact computed ratio.
+- ✅ **Relaxed 3:1 threshold for heading blocks** (both the per-page
+  client-side check and the new site-wide one) — matches the theme
+  checker's own existing 3:1 "Accent vs background" bar, which uses the
+  same WCAG allowance for large text. Verified with a real heading at a
+  contrast ratio of 3.45:1 (fails the normal 4.5:1 bar, passes the
+  relaxed one): correctly un-flagged as a heading, while an identical
+  3.45:1 pair on a plain text block was correctly still flagged.
