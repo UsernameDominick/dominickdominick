@@ -1469,6 +1469,32 @@ h6 { font-size: 0.9rem; }
   .canvas {
     padding: 32px 20px;
     gap: 12px;
+    /* Desktop layout is a real 24-column grid with explicit row
+       placement, sized for desktop-width columns and fixed 16px grid
+       rows — at phone width those same columns are too narrow for
+       side-by-side blocks to stay readable, and content that now wraps
+       to more lines than it did at desktop width would overflow a row
+       height computed for the wider layout. Auto-flow + auto rows lets
+       each block size to its own content instead. */
+    grid-auto-flow: row;
+    grid-auto-rows: auto;
+  }
+
+  /* Every block stacks full-width, in the same top-to-bottom,
+     left-to-right order it was placed in on the desktop grid (blocks
+     are rendered in that exact `ORDER BY row, col` order — see
+     renderBlocks — so document order already matches desktop reading
+     order with no reshuffling needed). A block can opt out of full
+     width via --mobile-col-span (set from its "Mobile column span
+     override" field), which lets e.g. two blocks that should stay
+     side-by-side on mobile keep a partial width instead — the grid's
+     normal auto-placement then packs them into the same row if they fit. */
+  .block {
+    grid-column: 1 / -1 !important;
+    grid-row: auto !important;
+  }
+  .block.block-mobile-col-override {
+    grid-column: span var(--mobile-col-span) !important;
   }
 
   h1 {

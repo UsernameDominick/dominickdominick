@@ -1627,14 +1627,46 @@ Real findings, lower priority relative to the above or requiring more
 design/testing time than a quick fix allows. Grouped by area; each has
 enough detail to act on directly later.
 
-**Layout/reflow (bigger structural work):**
-- Pages don't reflow on mobile — desktop grid col/row positions are
-  kept verbatim at any width (an image block placed `1 / span 12` on
-  desktop stays 12/24 columns wide, ~169px, on a 390px screen); the
-  admin's own mobile editor preview shows a single stacked column, so
-  it doesn't match what a real mobile visitor sees. Needs a real
-  design decision (stack order source of truth, optional per-block
-  mobile span override), not a CSS-only patch.
+- ✅ Pages didn't reflow on mobile — the public site's 24-column CSS
+  grid kept desktop `grid-column`/`grid-row` placements verbatim at any
+  width (an image block placed `1 / span 12` on desktop stayed 12/24
+  columns wide, ~169px, on a 390px screen), and the fixed 16px
+  `grid-auto-rows`/explicit row-span sizing (tuned for desktop-width
+  line-wrapping) could clip content that wrapped to more lines at a
+  narrower width — a real mismatch from what the admin's own mobile
+  editor preview (already a single stacked column) suggested a visitor
+  would see. Went with auto-stack-by-default plus an optional per-block
+  override, matching the same 24-column numbering the desktop grid
+  already uses so it's one consistent mental model: inside the
+  existing `@media (max-width: 640px)` block, `.canvas` switches to
+  `grid-auto-flow: row; grid-auto-rows: auto` and every `.block` gets
+  `grid-column: 1 / -1 !important; grid-row: auto !important` — full
+  width, auto-sized height, and stacked in the same order blocks are
+  already fetched in (`ORDER BY row, col` in `listBlocks`/`getBlocks`,
+  which is exactly desktop top-to-bottom/left-to-right reading order,
+  so no separate "mobile order" field or reshuffling was needed). A new
+  per-block style key, `mobileColSpan` (1–24), opts a block out of full
+  width: `blockStyleAttr()` (`worker/render.js`) emits it as a
+  `--mobile-col-span` CSS variable, `renderBlocks()` adds a
+  `block-mobile-col-override` class when it's set, and that class's
+  rule (`grid-column: span var(--mobile-col-span) !important`) lets the
+  grid's normal auto-placement pack e.g. two blocks that should stay
+  side-by-side on mobile into the same row if they fit — added to the
+  inspector as "Mobile column span override" alongside the other
+  per-block style fields (fully generic — no bespoke save-path code
+  needed, `STYLE_FIELDS` already round-trips arbitrary keys through
+  `block.style`). A site with a custom mobile/desktop breakpoint (Site
+  Settings → Appearance) gets the same stacking rules re-asserted at
+  its custom width too, via the same per-request `<style>` injection
+  mechanism already used for the desktop/mobile block-visibility
+  breakpoint override. Verified via Playwright: two blocks placed
+  side-by-side on desktop (`col 1/span 12` and `col 13/span 12`) render
+  full-width and stacked in order at 390px width; a third block with
+  `mobileColSpan: 12` renders at half the canvas width instead of
+  stacking full-width, and the generated HTML carries both the
+  `block-mobile-col-override` class and `--mobile-col-span:12`; the
+  inspector shows the new field with its full label when a block is
+  selected.
 - ✅ Search, Topics index, Archive, Reading History, Saved, 404, and a
   single tag's Topic page all used a fixed `grid-row: 1 / span 16`
   (376px) regardless of actual content — a full page of 10+ search
@@ -2106,10 +2138,9 @@ enough detail to act on directly later.
   three checks repeated for an article's TTS audio.
 
 ### Improvement ideas surfaced (not bugs, future backlog)
-- Real mobile reflow for the page grid: stack blocks in one column at
-  the mobile breakpoint using the admin's existing stacked editor
-  order, with an optional per-block mobile-span override for anyone
-  who wants finer control.
+- ✅ Real mobile reflow for the page grid — see the ✅ entry under
+  Layout/reflow above (auto-stack full-width in desktop order by
+  default, with an optional per-block `mobileColSpan` override).
 - A built-in `/random` (or `/writing`) and `/projects` index page with
   pagination, so breadcrumbs/RSS/nav have a real target instead of
   falling back to `/archive`.

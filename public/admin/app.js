@@ -1531,6 +1531,11 @@
     { key: "visibleFrom", label: "Visible from (blank = always)", type: "datetime-local" },
     { key: "visibleUntil", label: "Visible until (blank = never expires)", type: "datetime-local" },
     {
+      key: "mobileColSpan",
+      label: "Mobile column span override (1–24, blank = full width, matching how many of this block's desktop 24 columns to keep on mobile instead of stacking full-width)",
+      type: "number",
+    },
+    {
       key: "shapeMask",
       label: "Shape mask (clips the block to a shape — great on an image block)",
       type: "select",
