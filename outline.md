@@ -1781,10 +1781,32 @@ enough detail to act on directly later.
   at the top instead of scrolling to the relevant section — not fixed
   this round (a bigger admin-navigation change than this pass's other
   fixes).
-- Media Library: mobile grid rows overlap at 160px items in 134px row
-  height; desktop toolbar is ~19 ungrouped native controls with no
-  visual grouping; a `.danger { ... !important }` rule makes disabled
-  Delete/Trash buttons look active.
+- ✅ Media Library mobile grid rows overlapped — `.media-item` used CSS
+  `aspect-ratio: 1`, but a grid's auto row-track height needs to come
+  from its tallest item, and an aspect-ratio item's own height is
+  itself derived from that same row's cross-size — a circular
+  dependency the browser under-resolved, computing a track only
+  ~134px tall for a ~160px item and letting every row visually spill
+  into the next one. Measured the exact mechanism via Playwright before
+  fixing (an `align-items: start` attempt changed nothing, since the
+  row-height computation itself was the actual problem, not stretch);
+  switched to the classic padding-bottom aspect-ratio technique
+  instead, which has no such dependency (percentage padding resolves
+  from the item's own already-known width). Verified via Playwright:
+  rows now have the correct 12px gap with zero overlap on mobile, and
+  desktop's grid is visually unaffected.
+- ✅ `.danger`'s `background`/`color` `!important` rules were winning
+  over the browser's own muted appearance for `:disabled`, making a
+  disabled Delete/Trash/"Apply to all matches" look exactly as
+  clickable as an active one. Added a `.danger:disabled` rule (a
+  pseudo-class on the same class has the specificity edge needed to
+  win once both sides use `!important`) with a muted background/text
+  and `cursor: not-allowed`. Verified via Playwright: a disabled
+  "Delete selected" no longer shows the active red, and selecting an
+  item to enable it still shows the correct red styling.
+- Media Library's desktop toolbar is still ~19 ungrouped native
+  controls with no visual grouping — not fixed this round (a bigger
+  layout redesign, not a quick CSS fix).
 - Site Settings: checkboxes stretched to `width:100%` by a blanket
   input rule, showing as a detached box above their label instead of
   inline; "Security events only" label clipped to one visible letter;

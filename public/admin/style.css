@@ -365,6 +365,19 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   margin-top: 16px !important;
 }
 
+/* .danger's own !important on background/color otherwise wins over
+   whatever muted appearance the browser would normally give a disabled
+   button, making a disabled Delete/Trash look exactly as active as a
+   clickable one — this needs its own matching !important (a pseudo-
+   class on top of the same class already has the higher specificity
+   needed to win the tie, once both sides use !important). */
+.danger:disabled {
+  background: var(--bg-elevated) !important;
+  color: var(--text-dim) !important;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 #lock-article-btn.is-locked,
 #lock-page-btn.is-locked {
   background: var(--accent-dim);
@@ -1476,12 +1489,24 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
-  aspect-ratio: 1;
   cursor: pointer;
   background: var(--bg);
+  /* Not aspect-ratio: an auto grid row's height needs to come from its
+     tallest item, but an aspect-ratio item's own height is derived from
+     the row's cross-size in the first place — that circular dependency
+     computed a shorter row track than the item's real (width-derived)
+     height in testing (measured ~134px row for a ~160px item), so each
+     row visually overflowed into the next one. The classic padding-
+     bottom technique doesn't have this problem: percentage padding
+     resolves from the item's own (already-known) width, giving the grid
+     a real, non-circular height to lay the row out around. */
+  height: 0;
+  padding-bottom: 100%;
 }
 
 .media-item img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
