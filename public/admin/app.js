@@ -4531,6 +4531,16 @@
     projectAutosaveTimer = setTimeout(autosaveProject, 2000);
   }
   PROJECT_DRAFT_FIELD_IDS.forEach((id) => el(id).addEventListener("input", scheduleProjectAutosave));
+  // The four related-content multi-selects are deliberately excluded from
+  // PROJECT_DRAFT_FIELD_IDS (crash-recovery snapshotting needs
+  // getMultiSelectValues, not .value) -- but that's not a reason to also
+  // leave them out of autosave itself, matching how article-related-override
+  // gets its own "change" listener despite the same crash-recovery
+  // exclusion. Without this, selecting a related item as the only edit
+  // before a crash/tab-close was unprotected two ways instead of one.
+  ["project-related-articles", "project-related-simulations", "project-related-scans", "project-related-override"].forEach((id) =>
+    el(id).addEventListener("change", scheduleProjectAutosave)
+  );
 
   el("projects-btn").addEventListener("click", async () => {
     el("projects-modal").hidden = false;

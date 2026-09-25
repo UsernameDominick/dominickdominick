@@ -4644,3 +4644,36 @@ reload-or-lose-it — is still open; this round brought Projects up to the
 same baseline Articles already had (including fixing a bug Articles had
 too) rather than building the fancier compare view on top of an
 inconsistent foundation.
+
+### Critic pass on the project autosave parity work
+
+A critic agent stress-tested the parity change specifically. Confirmed
+clean, no issues found: the reload-latest-version fix itself (verified
+via a real concurrent-edit simulation), `PROJECT_DRAFT_FIELD_IDS` against
+every actual form field (no typos/omissions), new-project crash-recovery
+draft behavior (including two abandoned drafts in a row correctly
+overwriting via the same key, matching Articles), the full create → id
+→ autosave flow, and no regressions in lock/unlock/duplicate. One real
+bug found and fixed:
+
+- ✅ **The four related-content multi-selects
+  (`project-related-articles/-simulations/-scans/-override`) never
+  triggered autosave at all** — deliberately excluded from
+  `PROJECT_DRAFT_FIELD_IDS` (multi-selects need `getMultiSelectValues`,
+  not `.value`, so they can't go through the same raw-capture path),
+  but that's a reason to exclude them from the *crash-recovery
+  snapshot*, not from *autosave itself* — Articles' equivalent field
+  (`article-related-override`) already gets its own dedicated
+  `"change"` listener calling `scheduleAutosave` despite the same
+  crash-recovery exclusion, and Projects never got the matching one.
+  Selecting a related item as the *only* edit before a crash or tab
+  close was unprotected two ways instead of one: no autosave PATCH ever
+  fired for it, and it was also outside the local draft snapshot by
+  design. Added the same `"change"` listener pattern for all four
+  fields. Verified via Playwright: selecting a related article with no
+  other field touched now shows "Saved [time]" ~2s later, confirmed
+  persisted server-side (`related_articles: [id]`) — previously this
+  produced no autosave at all.
+
+Full regression suite green; test article/project deleted and confirmed
+gone via D1.
