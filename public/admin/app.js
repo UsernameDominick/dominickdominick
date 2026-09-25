@@ -5071,6 +5071,42 @@
     }
   });
 
+  el("check-content-integrity-btn").addEventListener("click", async () => {
+    const btn = el("check-content-integrity-btn");
+    const originalText = btn.textContent;
+    btn.textContent = "Checking…";
+    btn.disabled = true;
+    try {
+      const { brokenBlockRefs, danglingRelations, danglingNavParents } = await api("/content-integrity");
+      const rows = [
+        ...brokenBlockRefs.map(
+          (r) =>
+            `<div class="link-check-row broken"><span class="link-check-url">${escapeHtml(r.pageTitle)}</span><span class="link-check-source">/${escapeHtml(
+              r.pageSlug
+            )}</span><span class="link-check-status">${escapeHtml(r.blockType)} block references a deleted item</span></div>`
+        ),
+        ...danglingRelations.map(
+          (r) =>
+            `<div class="link-check-row broken"><span class="link-check-url">${escapeHtml(r.title)}</span><span class="link-check-source">/projects/${escapeHtml(
+              r.slug
+            )}</span><span class="link-check-status">${escapeHtml(r.field)} lists a deleted item</span></div>`
+        ),
+        ...danglingNavParents.map(
+          (r) =>
+            `<div class="link-check-row broken"><span class="link-check-url">${escapeHtml(r.title)}</span><span class="link-check-source">/${escapeHtml(
+              r.slug
+            )}</span><span class="link-check-status">Nested under a deleted parent page</span></div>`
+        ),
+      ];
+      el("content-integrity-results").innerHTML = rows.join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No issues found.</p>";
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      btn.textContent = originalText;
+      btn.disabled = false;
+    }
+  });
+
   // ---------- Topic pages (per-tag /topics/:tag customization) ----------
   let topicPagesData = [];
   let editingTopicTag = null;
@@ -5135,7 +5171,7 @@
     }
   });
 
-  // ---------- Site Health (aggregates the 5 site-wide checks below) ----------
+  // ---------- Site Health (aggregates the 6 site-wide checks below) ----------
   // Each check already has its own "Run report" button further down this
   // modal, returning its own shape of results — this doesn't replace those
   // (still useful individually), it just runs all five at once and merges
@@ -5151,12 +5187,13 @@
     const summaryEl = el("site-health-summary");
     const resultsEl = el("site-health-results");
     try {
-      const [linkResults, orphanData, healthData, seoData, a11yIssues] = await Promise.all([
+      const [linkResults, orphanData, healthData, seoData, a11yIssues, integrityData] = await Promise.all([
         api("/link-check"),
         api("/orphan-content"),
         api("/content-health"),
         api("/seo-report"),
         api("/accessibility-report"),
+        api("/content-integrity"),
       ]);
       const typePath = { article: "/random/", project: "/projects/", page: "/" };
       const pagePath = (slug) => `/${slug === "home" ? "" : slug}`;
@@ -5170,6 +5207,27 @@
         ...a11yIssues.map((i) => ({ severity: 3, check: "Accessibility", title: i.pageTitle, url: pagePath(i.pageSlug), status: i.issue })),
         ...healthData.emptyPages.map((p) => ({ severity: 3, check: "Content Health", title: p.title, url: pagePath(p.slug), status: "Empty page" })),
         ...seoData.missingAlt.map((m) => ({ severity: 3, check: "SEO", title: m.title, url: m.url, status: "Missing alt text" })),
+        ...integrityData.brokenBlockRefs.map((r) => ({
+          severity: 3,
+          check: "Content Integrity",
+          title: r.pageTitle,
+          url: pagePath(r.pageSlug),
+          status: `${r.blockType} block references a deleted item`,
+        })),
+        ...integrityData.danglingRelations.map((r) => ({
+          severity: 2,
+          check: "Content Integrity",
+          title: r.title,
+          url: `/projects/${r.slug}`,
+          status: `${r.field} lists a deleted item`,
+        })),
+        ...integrityData.danglingNavParents.map((r) => ({
+          severity: 2,
+          check: "Content Integrity",
+          title: r.title,
+          url: pagePath(r.slug),
+          status: "Nested under a deleted parent page",
+        })),
         ...seoData.duplicateTitles.map((owners) => ({
           severity: 2,
           check: "SEO",
@@ -5192,7 +5250,7 @@
         })),
       ];
       issues.sort((a, b) => b.severity - a.severity || a.title.localeCompare(b.title));
-      summaryEl.textContent = issues.length ? `${issues.length} issue${issues.length === 1 ? "" : "s"} found across 5 checks.` : "No issues found across any check.";
+      summaryEl.textContent = issues.length ? `${issues.length} issue${issues.length === 1 ? "" : "s"} found across 6 checks.` : "No issues found across any check.";
       resultsEl.innerHTML = issues
         .map(
           (i) =>

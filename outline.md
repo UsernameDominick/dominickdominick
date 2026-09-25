@@ -2817,3 +2817,27 @@ in the admin. Fixed while addressing the rest of this report:
   completely independent of the original filename; nothing about a
   file's identity or its links depends on what it was originally
   called.
+- ✅ **Content integrity checks** (★ priority) — a new site-wide sweep,
+  `getContentIntegrity(env)`, for dangling references that don't break
+  anything visibly at save time: a page block pointing at a simulation/
+  scan/song that's since been deleted (the per-page "Broken reference"
+  badge added earlier only warns about whichever page is currently
+  open — this is the same check, run across every page at once), a
+  project's `related_articles`/`related_simulations`/`related_scans`/
+  `related_override` array still naming an id that no longer exists
+  (deleting an article/project/simulation/scan doesn't touch anything
+  else's related-X JSON array, so a stale id just sits there silently),
+  and a page nested under a `nav_parent_id` that no longer exists (a
+  defensive backstop — normal deletion already promotes/clears a
+  deleted parent's children, so this mainly catches data that predates
+  that logic or came in through a path that bypassed it). Added as its
+  own "Content Integrity" section in the Site Health modal (new
+  `GET /content-integrity` endpoint) and folded into the existing "Run
+  all checks" aggregator (now 6 checks, not 5). Verified via Playwright
+  against real synthetic cases (a block referencing a nonexistent
+  simulation id, a project with a dangling `related_articles` id) — and
+  incidentally, the check also surfaced genuine pre-existing debris in
+  local dev's own fixture data (two already-broken simulation-block
+  references on the local Home page, left over from earlier testing
+  this session), confirming it works on real accumulated data, not
+  just contrived test cases.

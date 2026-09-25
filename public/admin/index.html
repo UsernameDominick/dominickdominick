@@ -1142,7 +1142,7 @@
       </header>
       <div class="settings-body">
         <h2>Overview</h2>
-        <label style="margin-bottom:0;">Runs the SEO, Accessibility, Link Checker, Orphan Pages, and Content Health reports below all at once, merged into one severity-sorted list with a link to each affected page.</label>
+        <label style="margin-bottom:0;">Runs the SEO, Accessibility, Link Checker, Orphan Pages, Content Health, and Content Integrity reports below all at once, merged into one severity-sorted list with a link to each affected page.</label>
         <button type="button" id="run-site-health-btn">Run all checks</button>
         <div id="site-health-summary"></div>
         <div id="site-health-results" class="link-check-results"></div>
@@ -1172,6 +1172,10 @@
         <label style="margin-bottom:0;">Pages with no real content, and published articles/projects nobody has touched in over a year.</label>
         <button type="button" id="check-content-health-btn">Run check</button>
         <div id="content-health-results" class="link-check-results"></div>
+        <h2>Content Integrity</h2>
+        <label style="margin-bottom:0;">Dangling references that don't break anything visibly at save time — a block pointing at a deleted simulation/scan/song, a project's "Related X" list still naming something that's gone, or a page nested under a deleted parent.</label>
+        <button type="button" id="check-content-integrity-btn">Run check</button>
+        <div id="content-integrity-results" class="link-check-results"></div>
       </div>
     </div>
   </div>

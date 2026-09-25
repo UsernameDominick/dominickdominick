@@ -3469,6 +3469,73 @@ export async function getContentHealth(env) {
   };
 }
 
+// Site-wide "content integrity" sweep — dangling references that a normal
+// edit flow can leave behind without anything visibly breaking at save
+// time: a simulation/scan/song deleted after a block already pointed at it
+// (the single-page admin canvas badge added alongside this only warns
+// about whichever page happens to be open), a project's related-X arrays
+// still listing an id whose row is long gone (deleting a related article/
+// project/simulation/scan doesn't touch anything else's related_* JSON
+// array, so a stale id just sits there silently), and a page nested under
+// a nav_parent_id that no longer exists (the create/update-time check in
+// admin-api.js only validates a *new* parent assignment, not ones already
+// saved before that validation existed).
+export async function getContentIntegrity(env) {
+  const [pages, articles, projects, simulations, scans, songs] = await Promise.all([
+    listPages(env),
+    listArticles(env),
+    listProjects(env),
+    listSimulations(env),
+    listScans(env),
+    listSongs(env),
+  ]);
+  const pageBlocks = await Promise.all(pages.map((p) => listBlocks(env, p.id)));
+  const simIds = new Set(simulations.map((s) => s.id));
+  const scanIds = new Set(scans.map((s) => s.id));
+  const songIds = new Set(songs.map((s) => s.id));
+  const articleIds = new Set(articles.map((a) => a.id));
+  const projectIds = new Set(projects.map((p) => p.id));
+  const pageIds = new Set(pages.map((p) => p.id));
+
+  const brokenBlockRefs = [];
+  pages.forEach((p, i) => {
+    for (const b of pageBlocks[i]) {
+      const c = b.content || {};
+      if (b.type === "simulation" && c.simulation_id && !simIds.has(Number(c.simulation_id))) {
+        brokenBlockRefs.push({ pageTitle: p.title, pageSlug: p.slug, blockType: "Simulation" });
+      }
+      if (b.type === "scan" && c.scan_id && !scanIds.has(Number(c.scan_id))) {
+        brokenBlockRefs.push({ pageTitle: p.title, pageSlug: p.slug, blockType: "3D Scan" });
+      }
+      if (b.type === "song" && c.song_id && !songIds.has(Number(c.song_id))) {
+        brokenBlockRefs.push({ pageTitle: p.title, pageSlug: p.slug, blockType: "Song" });
+      }
+    }
+  });
+
+  const danglingRelations = [];
+  projects.forEach((p) => {
+    (p.related_articles || []).forEach((id) => {
+      if (!articleIds.has(Number(id))) danglingRelations.push({ title: p.title, slug: p.slug, field: "Related articles" });
+    });
+    (p.related_simulations || []).forEach((id) => {
+      if (!simIds.has(Number(id))) danglingRelations.push({ title: p.title, slug: p.slug, field: "Related simulations" });
+    });
+    (p.related_scans || []).forEach((id) => {
+      if (!scanIds.has(Number(id))) danglingRelations.push({ title: p.title, slug: p.slug, field: "Related scans" });
+    });
+    (p.related_override || []).forEach((id) => {
+      if (!projectIds.has(Number(id))) danglingRelations.push({ title: p.title, slug: p.slug, field: "Related projects override" });
+    });
+  });
+
+  const danglingNavParents = pages
+    .filter((p) => p.nav_parent_id && !pageIds.has(Number(p.nav_parent_id)))
+    .map((p) => ({ title: p.title, slug: p.slug }));
+
+  return { brokenBlockRefs, danglingRelations, danglingNavParents };
+}
+
 // Site-wide SEO/accessibility sweep: pages missing a meta description
 // (falls back to the title, which is worse for search-result snippets and
 // social shares), and every image block missing alt text (aggregating

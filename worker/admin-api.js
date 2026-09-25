@@ -87,6 +87,7 @@ import {
   checkAccessibility,
   getOrphanContent,
   getContentHealth,
+  getContentIntegrity,
   getTagCounts,
   listTopicMeta,
   setTopicMeta,
@@ -1412,6 +1413,12 @@ async function routeAdminApi(request, env, url, ctx) {
   // /content-health — site-wide empty-page and stale-content inventory.
   if (path === "/content-health" && method === "GET") {
     return json(await getContentHealth(env));
+  }
+
+  // /content-integrity — site-wide dangling-reference sweep (broken block
+  // references, stale related-X ids, orphaned nav-parent assignments).
+  if (path === "/content-integrity" && method === "GET") {
+    return json(await getContentIntegrity(env));
   }
 
   // /topic-meta — optional per-tag description/share-image override for
