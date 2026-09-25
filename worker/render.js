@@ -1042,7 +1042,7 @@ async function renderBlockInner(env, block, ctx) {
       )}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>`;
     }
     case "quote":
-      return `<blockquote class="block-quote">${paragraphsHtml(c.text)}${c.cite ? `<footer>${esc(c.cite)}</footer>` : ""}</blockquote>`;
+      return `<blockquote class="block-quote${c.large ? " block-quote-large" : ""}">${paragraphsHtml(c.text)}${c.cite ? `<footer>${esc(c.cite)}</footer>` : ""}</blockquote>`;
     case "embed":
       return genericEmbedHtml(c.url);
     case "gallery": {

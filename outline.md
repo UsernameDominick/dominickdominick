@@ -671,7 +671,10 @@ health-check pass, predates this doc.
 - ✅ Accordion (expandable details)
 - ✅ Inline image captions/credits, device frames (browser/phone) on any image block
 - ✅ Before/after image comparison slider — both as a page-builder block AND a `[before-after: url1 | url2 | Label1 | Label2]` markdown-lite shortcode for article/project bodies
-- 🔶 Pull quotes (✅) / margin notes (☐)
+- ✅ Pull quotes (a distinct large/bold style, not just the base quote
+  block — see section 12); margin notes: consciously not built as a
+  distinct layout (see section 12) — footnotes already cover "an aside
+  note attached to a specific point in the text" reasonably well
 - ✅ Generalized embeds (CodePen/Spotify/Figma/CodeSandbox/Gist + raw-iframe fallback)
 - ✅ Readability info (Flesch Reading Ease approximation next to the
   word count — "Easy (85)" style label, standard vowel-group syllable
@@ -4534,3 +4537,48 @@ unreachable elements (disabled, `visibility: hidden`) no longer produce
 any finding, and the genuinely broken case (bare `outline: none`, no
 compensating style) still correctly flags. Re-ran the real Home page
 check: still zero false positives. Full regression suite green.
+
+### Pull quotes / margin notes (section 2's checklist)
+
+Section 2 had marked "Pull quotes (✅)" — checked and it was stale: the
+`quote` block only ever had one modest citation-style look (small accent
+left border, 1.05rem italic text), which is a normal attributed
+blockquote, not what "pull quote" actually means typographically (a
+large, bold excerpt meant to stand out while skimming a page). Also
+checked "margin notes (☐)" against the current layout before building
+anything:
+
+- ✅ **Added a real large-pull-quote style, distinct from the base
+  quote block** — a new "Display as a large pull quote" checkbox on
+  the Quote block's content fields (`content.large`), rendered as an
+  added `block-quote-large` class (`worker/render.js`) that swaps in
+  centered, bold, 1.7rem text with a large decorative opening quote
+  mark, no border — visually distinct from the modest default rather
+  than a variation on it. Chosen as a content field (alongside the
+  quote's existing `text`/`cite`) rather than a new generic style-panel
+  toggle, since it's specific to this one block type and the codebase
+  already has a data-driven per-block-type content-fields map to hang
+  it on. Verified via Playwright: a normal quote and a `large: true`
+  quote on the same page render with `block-quote` vs. `block-quote
+  block-quote-large` respectively, the admin inspector shows the new
+  checkbox, and the visual result (screenshot-checked) reads as a
+  genuine pull quote next to the existing modest style.
+- Margin notes deliberately not built as a distinct layout: a true
+  margin note needs actual reserved margin space beside the running
+  text to float into, and this site's article/project body currently
+  runs the full ~1036px canvas width with no narrower text column
+  reserving side space (`.canvas`'s `max-width: 1100px` minus padding —
+  checked directly, no dedicated prose-width rule exists). Building
+  "margin notes" without real margin space would just be a footnote by
+  another name, and this site already has a working footnote system
+  (`[^label]` syntax, numbered references, a footnotes section) that
+  covers the actual underlying need — an aside attached to a specific
+  point in the text without derailing the main reading flow. A true
+  margin-note layout would mean narrowing the article text column
+  site-wide to carve out permanent side space, which is a real visual
+  redesign affecting every article/project page, not a small addition —
+  noted here as a documented, reasoned scope call rather than left
+  ambiguous, so a future pass doesn't re-litigate it without first
+  answering that layout question.
+
+Full regression suite green.

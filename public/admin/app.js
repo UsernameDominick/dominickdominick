@@ -1542,6 +1542,7 @@
     quote: [
       { key: "text", label: "Quote text", type: "textarea" },
       { key: "cite", label: "Attribution (optional)", type: "text" },
+      { key: "large", label: "Display as a large pull quote", type: "checkbox" },
     ],
     gallery: [{ key: "images", label: "Images", type: "gallery-urls" }],
     "before-after": [

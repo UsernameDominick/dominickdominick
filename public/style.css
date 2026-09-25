@@ -1110,6 +1110,36 @@ h6 { font-size: 0.9rem; }
   content: "— ";
 }
 
+/* Large pull quote — an opt-in per-block variant (the "Display as a large
+   pull quote" checkbox on the Quote block) for an excerpt meant to stand
+   out and draw the eye while skimming, distinct from .block-quote's
+   default modest citation-style treatment. */
+.block-quote-large {
+  border-left: none;
+  border-image: none;
+  padding: 0;
+  margin: 8px 0;
+  text-align: center;
+  font-style: normal;
+  font-weight: 600;
+  font-size: 1.7rem;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.block-quote-large::before {
+  content: "“";
+  display: block;
+  font-size: 3rem;
+  line-height: 1;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.block-quote-large footer {
+  text-align: center;
+}
+
 .image-figure {
   margin: 0;
 }
