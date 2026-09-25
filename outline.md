@@ -4765,7 +4765,7 @@ join, rather than building three separate systems.
 139. Local vs external-upload indicator — UI label only.
 143. Searchable command palette — static command list + filter/keydown.
 146. ✅ Before/after compare — done (see the dated entry below this section).
-150. Status bar (dimensions/zoom) — read existing canvas state into UI.
+150. ✅ Status bar (dimensions/zoom) — done (see the dated entry below this section).
 158. Explain resource limits — static UI text.
 161. Export quality/size preview — canvas.toBlob quality param + size readout.
 169. Transparency preview vs backgrounds — checkerboard/color toggle behind canvas.
@@ -5767,3 +5767,22 @@ never exposed to this class of bug in the first place.
 
 Item #367 is fully closed: 2 critic rounds, 8/10 → 9/10, the one real
 finding from round 1 fixed and verified; round 2 found nothing new.
+
+### Ninth item: #150, Photo Editor status bar (dimensions/zoom)
+
+- ✅ **A small status readout next to the existing hint text** — this
+  editor has no manual zoom control, it auto-fits the canvas to the
+  viewport (`fitCanvasToViewport()`), so "zoom" here means the actual
+  fit ratio currently in effect, alongside the image's real pixel
+  dimensions. Hooked the update into `fitCanvasToViewport()` itself
+  rather than each individual caller, since every place that changes
+  canvas dimensions (load, crop, rotate, undo/redo/reset, Compare
+  start/end, window resize) already calls it — one hook point,
+  automatically correct everywhere with no risk of a caller forgetting
+  to update it separately. Verified via Playwright: opened a real
+  1200×630 image, status bar read "1200 × 630px · 79% displayed";
+  rotating 90° correctly swapped to "630 × 1200px · 42% displayed";
+  undoing the rotate correctly reverted to the exact original string.
+  Full regression suite green; test media deleted and confirmed gone.
+
+Handed to a critic agent for scoring.

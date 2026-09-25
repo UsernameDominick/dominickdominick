@@ -36,6 +36,18 @@
     overlay.style.height = h + "px";
     stack.style.width = w + "px";
     stack.style.height = h + "px";
+    updateStatusBar(scale);
+  }
+
+  // Real pixel dimensions and the scale actually being displayed at right
+  // now (this editor auto-fits to the viewport rather than having a manual
+  // zoom control, so "zoom" here just means that fit ratio) — an admin
+  // cropping/resizing has no other way to see the current pixel size
+  // without exporting first.
+  function updateStatusBar(scale) {
+    const el2 = $("pe-status-bar");
+    if (!el2) return;
+    el2.textContent = `${canvas.width} × ${canvas.height}px · ${Math.round(scale * 100)}% displayed`;
   }
 
   function clearOverlay() {

@@ -2993,6 +2993,12 @@ kbd {
   flex-shrink: 0;
 }
 
+.pe-status-bar {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
 .pe-hint {
   flex: 1;
   color: var(--text-dim);
