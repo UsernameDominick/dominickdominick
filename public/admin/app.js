@@ -34,8 +34,14 @@
   el("close-site-menu").addEventListener("click", closeDrawers);
   backdrop.addEventListener("click", closeDrawers);
   // Tapping a nav item inside the mobile menu drawer should close it, not leave it open behind the modal it opened.
+  // Excludes the three toggle buttons that open a *nested* dropdown inside
+  // this same drawer (Recent/Notifications/More) — closing the whole drawer
+  // on every click on them would fire alongside their own open/close
+  // toggle (both listeners sit on the same element, so the toggle handler's
+  // own stopPropagation() doesn't prevent this one from also running) and
+  // immediately collapse the drawer they just opened.
   el("admin-header-right").querySelectorAll("button, a").forEach((node) => {
-    if (node.id === "close-site-menu") return;
+    if (["close-site-menu", "recent-items-btn", "notifications-btn", "admin-more-btn"].includes(node.id)) return;
     node.addEventListener("click", () => {
       if (isMobile()) closeDrawers();
     });
@@ -81,7 +87,7 @@
       s.backupFailed ? { label: "Last scheduled backup failed", action: () => el("site-settings-btn").click() } : null,
       s.brokenLinks ? { label: `${s.brokenLinks} broken link(s) found`, action: () => el("seo-dashboard-btn").click() } : null,
       s.recentErrors ? { label: `${s.recentErrors} error(s) in the last 24h`, action: () => el("site-settings-btn").click() } : null,
-      s.recentFailedWebhooks ? { label: `${s.recentFailedWebhooks} failed webhook delivery/deliveries in the last 24h`, action: () => el("site-settings-btn").click() } : null,
+      s.recentFailedWebhooks ? { label: `${s.recentFailedWebhooks} failed webhook deliverie${s.recentFailedWebhooks === 1 ? "" : "s"} in the last 24h`, action: () => el("site-settings-btn").click() } : null,
     ].filter(Boolean);
     const badge = el("notifications-badge");
     badge.textContent = String(items.length);
@@ -805,6 +811,30 @@
     const top = (b.row - 1) * (rowH + gap);
     const height = b.row_span * rowH + (b.row_span - 1) * gap;
     return { left, top, width, height };
+  }
+
+  // Re-applies each already-rendered block's pixel geometry against the
+  // canvas's *current* width, without touching the DOM nodes themselves —
+  // called after anything that can change the canvas's available width
+  // (showing/hiding the Inspector shrinks/grows it) without a full
+  // renderCanvas(). Without this, a block selected while the Inspector was
+  // closed keeps the wider left/width values computed for the pre-Inspector
+  // canvas, so a block whose col_span reaches the old width (e.g. any
+  // freshly-added block, which defaults to the full 24 columns) visually
+  // overflows under the now-narrower Inspector panel — including its
+  // resize handle, making it unreachable until the block is resized some
+  // other way first.
+  function repositionBlocks() {
+    if (isMobile()) return;
+    canvas.querySelectorAll(".admin-block").forEach((div) => {
+      const block = blocks.find((b) => b.id === Number(div.dataset.id));
+      if (!block) return;
+      const style = blockPixelStyle(block);
+      div.style.left = style.left + "px";
+      div.style.top = style.top + "px";
+      div.style.width = style.width + "px";
+      div.style.height = style.height + "px";
+    });
   }
 
   function blockLabel(type) {
@@ -1716,6 +1746,11 @@
   }
 
   function renderInspector() {
+    renderInspectorInner();
+    repositionBlocks();
+  }
+
+  function renderInspectorInner() {
     const inspector = el("inspector");
     if (multiSelectedIds.size > 0) {
       inspector.hidden = false;
@@ -4749,10 +4784,10 @@
   el("site-settings-btn").addEventListener("click", async () => {
     const settings = await api("/settings");
     el("settings-og-image").value = settings.default_og_image || "";
-    el("settings-accent").value = settings.theme_accent || "#e8a13a";
-    el("settings-bg").value = settings.theme_bg || "#0b0b0c";
-    el("settings-text").value = settings.theme_text || "#ededf0";
-    el("settings-border").value = settings.theme_border || "#232326";
+    el("settings-accent").value = settings.theme_accent || "#ff7a45";
+    el("settings-bg").value = settings.theme_bg || "#0c0a16";
+    el("settings-text").value = settings.theme_text || "#f4eefc";
+    el("settings-border").value = settings.theme_border || "#2a2438";
     el("settings-font").value = settings.theme_font || "";
     el("settings-heading-font").value = settings.theme_heading_font || "";
     el("settings-footer").value = settings.site_footer || "";
@@ -6419,7 +6454,17 @@
     if (writingFocusState) closeWritingFocus();
     else if (morePanel.classList.contains("open")) closeMoreMenu();
     else if (el("recent-items-panel").classList.contains("open")) closeRecentItemsMenu();
-    else closeTopModal();
+    else if (!closeTopModal() && (selectedBlockId !== null || multiSelectedIds.size > 0)) {
+      // Nothing else consumed Escape (no modal/dropdown open) — fall back
+      // to deselecting whatever's selected on the canvas, closing the
+      // Inspector along with it. Previously a dead end: every other
+      // Escape-dismissible surface in the app already handled it, but
+      // canvas selection was the one place it did nothing at all.
+      selectedBlockId = null;
+      multiSelectedIds.clear();
+      renderCanvas();
+      renderInspector();
+    }
   });
   document.querySelectorAll(".modal").forEach((modal) => {
     modal.addEventListener("click", (e) => {

@@ -2271,3 +2271,266 @@ enough detail to act on directly later.
   red in the admin editor canvas — now that the public side just
   silently hides such a block, an admin has no in-editor signal that
   one of their pages has one at all.
+
+## 10. Design redesign + health/security/bug audit round (2026-09-25)
+
+Two things happened together in this round: a full color-scheme redesign
+("bold & vibrant," more character than the previous muted amber-on-black
+default), and a three-way audit (one security/correctness pass over the
+whole codebase, plus two hands-on Playwright critiques of the admin
+console — one at iPhone width, one at a normal laptop width) with every
+real finding fixed before deploying.
+
+### Design redesign
+- ✅ Replaced the muted amber/near-black default theme with a bolder,
+  more distinctive palette in both light and dark mode, computed against
+  actual WCAG contrast ratios rather than eyeballed (every text/background
+  pairing below is ≥4.5:1, most well above): dark theme background moved
+  from neutral near-black (`#0b0b0c`) to a deep violet-black (`#0c0a16`,
+  7.59:1 for the new accent against it), light theme background moved
+  from clinical white to a warm off-white (`#fffaf5`). The accent shifted
+  from a muted amber (`#e8a13a`/`#996414`) to a vivid orange-coral
+  (`#ff7a45`/`#c1440e`), paired with a new secondary accent, a soft violet
+  (`#c9a5ff`/`#6d28d9`), via a new `--accent-gradient` token — used as a
+  deliberate "character" touch on three signature elements: the brand
+  logo's accent dot (background-clip: text gradient), the active nav
+  tab's pill indicator, and the block-quote's left border (via
+  `border-image`). Every other `var(--accent)` usage across the whole
+  site and admin panel picks up the new solid color automatically, since
+  it's one shared set of CSS custom properties in `public/style.css`
+  that both stylesheets read from — no need to touch individual
+  component rules. `--error-text` was nudged brighter to match the new
+  theme's saturation while staying a clearly distinct hue (pure red) from
+  the new orange-leaning accent, so the two are never confused.
+- ✅ Swept every hardcoded fallback that duplicated the old hex values
+  instead of reading the CSS variables, so the whole codebase agrees on
+  one palette instead of half of it silently keeping the old colors:
+  the favicon SVG and its data-URI twin, the fully-self-contained error
+  and maintenance pages (deliberately independent of `/style.css`, so
+  their colors are baked in as literal strings), the `theme-color` meta
+  tag and its JS toggle in `nav.js`, the Site Settings custom-theme
+  color pickers' default values (both the JS fallback and the static
+  HTML `value=""` attributes — these are what a site that hasn't set a
+  custom theme override shows as its "default" color, and needed to
+  match the new real default), the photo editor's annotation-tool
+  default stroke color, the song builder's played-note fill, and a
+  stray `fill: #e8a13a` on the simulation-builder's active pin marker
+  (switched to `var(--accent)` so it now stays in sync automatically).
+- ✅ Found and fixed a real blocker while verifying this: the site's
+  Settings table had `theme_bg`/`theme_accent`/`theme_text`/
+  `theme_border` stored with the *exact* old hex values — not an
+  intentional customization, just the old CSS defaults baked in as a
+  permanent per-site override from early on, which silently shadowed
+  every new default via `renderShell()`'s inline `<style>` injection
+  (`worker/render.js`'s `themeVars` — sets `--bg` etc. via inline CSS
+  when a setting is non-empty, which beats the linked stylesheet's own
+  `:root`). Cleared all four settings to empty via the Site Settings
+  API on the site actually being redesigned, letting the new CSS
+  defaults take over as intended (a site that's set a genuine custom
+  theme wouldn't have this problem, since intentional Appearance-tab
+  values would look nothing like the shipped default).
+- Scope: covers both the public site and the admin console (per your
+  answer to scope this both ways), and both light and dark mode.
+  Verified via Playwright screenshots at desktop and mobile width, in
+  both themes, plus direct computed-style checks confirming the
+  gradient renders correctly on the three signature elements.
+
+### Security/correctness audit (general-purpose code review, no dynamic testing)
+Full pass over `worker/*.js` looking specifically for what's *left* after
+this session's earlier hardening rounds, not re-litigating already-fixed
+issues. Overall verdict: well-hardened for a single-admin personal CMS —
+auth gating, HMAC domain separation, SQL parameterization, XSS escaping,
+SVG upload sanitization, CSV injection neutralization, mass-assignment
+whitelisting, and rate limiting on every other unauthenticated
+guess-a-secret endpoint were all independently re-verified clean. Two
+real, if low-severity, gaps found and fixed:
+- ✅ Preview-link tokens (`/random/:slug?preview_token=...` and
+  `/projects/:slug?preview_token=...`) had no rate limiting, unlike
+  every other unauthenticated "guess a secret" endpoint in the app
+  (login, page-password). A 128-bit random hex token makes brute force
+  impractical regardless, so this was a defense-in-depth gap rather
+  than an exploitable one — but fixed for consistency with the rest of
+  the codebase's posture: added the same `checkRateLimit`/
+  `recordRateLimitHit` pattern already used for `/page-access` (15
+  min / 20 attempts per IP), gated on a preview_token actually being
+  present so normal published-content requests are unaffected. A
+  rate-limited request just falls through to the existing generic 404
+  (wrong token and no token already look identical), rather than a
+  distinct 429 — arguably safer than revealing that a rate limit
+  exists on this specific path. Verified: a real, valid preview link
+  still returns 200; unfiltered requests are unaffected.
+- 🔶 `DELETE /scans/:id` deletes the scan's R2 model files without an
+  independent server-side usage check, even though `findScanUsage()`
+  exists — but the admin's own delete flow (`scan-builder.js`) already
+  calls that same endpoint first and shows a confirm dialog naming
+  every page/article/project the scan is used in before deleting.
+  Since this is a single-admin site with no untrusted caller of this
+  endpoint, the UI-level warning is the real safeguard in practice —
+  left as-is rather than duplicating the check server-side, which
+  would be reasonable defense-in-depth for a multi-user CMS but adds
+  complexity this app's actual threat model doesn't need.
+- Also flagged, not acted on: a cosmetic gap where a page nested under
+  a since-trashed parent isn't excluded from the nav-parent validation
+  query (no security/rendering impact — `listNavPages()` already
+  filters it out either way), and a couple of `Promise.all`-parallelized
+  per-page loops that are technically O(n) queries but fine at this
+  site's actual scale.
+
+### Mobile admin critique (iPhone width, 390×844) — real findings, all fixed
+- ✅ The notifications dropdown (and, if it were ever made visible on
+  mobile, the "Recent" dropdown) was permanently forced open inside the
+  mobile "Menu" drawer, and the bell icon's tap did nothing visible.
+  Two compounding causes: (1) `public/admin/style.css`'s mobile
+  "flatten the More menu into the drawer" rule targeted the *shared*
+  `.admin-more-panel` class instead of `#admin-more-panel` specifically
+  — `#notifications-panel` and `#recent-items-panel` share that class
+  too, so they got force-shown along with it, even though their own
+  trigger buttons (unlike "More ▾") stay visible and clickable on
+  mobile and are supposed to behave as real toggleable dropdowns.
+  Scoped the flatten rule to the specific id. (2) Even after that fix,
+  clicking the notifications button still immediately closed the whole
+  drawer: a separate "tapping any nav item in the drawer closes it"
+  listener (meant for Articles/Media/etc., which navigate away) was
+  wired to *every* button inside the drawer with no exclusion for the
+  three toggle buttons that open a *nested* dropdown instead of
+  navigating — since both listeners sit on the same button, the
+  toggle's own `stopPropagation()` doesn't stop this second listener
+  from also firing. Added `notifications-btn`/`recent-items-btn`/
+  `admin-more-btn` to the existing exclusion list (which already
+  excluded `close-site-menu` for the same reason). Verified via
+  Playwright: the dropdown now starts closed, opens/closes correctly on
+  tap, fits within the viewport, and the drawer itself stays open while
+  toggling it.
+- ✅ The Inspector (and Add-block palette) drawer's "×" close button
+  scrolled away with the panel's own content on any block with a long
+  style panel — since `.admin-inspector`/`.admin-palette` were both the
+  fixed-position, transform-animated drawer *and* their own scroll
+  container (`overflow-y: auto` on the same element), an absolutely-
+  positioned child scrolled right along with everything else. Split the
+  drawer into two layers: the outer `<aside>` stays fixed/non-scrolling
+  and now only holds the close button; a new inner `.drawer-scroll-content`
+  wrapper (added around each drawer's existing content in
+  `public/admin/index.html`) holds the actual scrollable content. (A
+  first attempt used `position: fixed` on the button instead of
+  restructuring the DOM, but `.admin-inspector`'s own `transform` for
+  the slide animation creates a *containing block* for fixed descendants
+  too, per spec, so that alone didn't escape the scroll — confirmed by
+  testing before committing to the DOM-split approach instead.) Verified
+  via Playwright: scrolling either drawer's content to the bottom no
+  longer moves the close button from its fixed corner position, in
+  either drawer, and a real desktop screenshot confirms no visual
+  regression there (the wrapper is a no-op layout-wise outside the
+  mobile drawer transform).
+- ✅ Diagnostics, Site Health/Link Checker, Trash, Layers, and Reusable
+  Blocks rows all hard-truncated their one identifying string
+  (`white-space: nowrap; text-overflow: ellipsis`) with no `title=`
+  attribute anywhere and no way to read the full value — barely
+  noticeable at desktop's much wider modal column, but several rows
+  sharing a truncated prefix became indistinguishable at phone width.
+  Rather than touching the ~25 separate JS call sites that build these
+  rows (each would need a carefully-escaped `title=""` added), let
+  `.link-check-url`/`.simulation-row span` wrap onto multiple lines
+  instead of truncating, scoped to the existing mobile media query —
+  trades a taller row for actually being able to read what it says,
+  with one CSS rule covering every affected list at once.
+- ✅ `<select multiple>` fields (Related projects/articles/
+  simulations/scans in the article/project editor) rendered as the
+  browser's unstyled default white listbox, a jarring bright rectangle
+  in an otherwise fully dark-themed panel — `.article-editor input,
+  .article-editor textarea` never included `select`. Added it, plus a
+  little extra padding for the multi-select case specifically.
+- ✅ Simulations/Songs/Scans/Reusable Blocks rows crammed a truncated
+  title plus "View ↗ / Duplicate / Edit / Delete" onto one line, with
+  "Edit" and a destructive "Delete" as little as 10px apart, both under
+  any reasonable touch-target floor — a real mis-tap hazard on a
+  touchscreen. Wrapped the row (title takes the full first line, action
+  buttons wrap to their own row underneath) and bumped button padding/
+  min-height, scoped to the mobile media query.
+- ✅ Site Settings' "Save" button — the single most important action in
+  the whole modal — was a completely unstyled native `<button>` (46×21px,
+  default browser grey), because it lives in the sibling
+  `.settings-save-bar` rather than inside `.settings-body`, which is
+  what the existing accent-button styling targeted. Gave the save bar
+  its own matching button style.
+- ✅ Media Library grid overlay icons (edit-pencil and delete-X at
+  24×24, the info button at 20×20, the select checkbox at the browser
+  default ~13×13) were all under any reasonable touch-target size in a
+  dense grid of ~170px tiles. Bumped to 30×30 / 26×26 / 18×18
+  respectively — a meaningful improvement within the space a small
+  grid tile actually has, not full 44px targets.
+
+### Desktop admin critique (1440×900) — real findings, all fixed
+- ✅ **Broke my own just-shipped feature**: every result list in the new
+  Site Health dashboard (`Run all checks`, and every individual
+  per-check "Run report" button, including the pre-existing SEO/
+  Accessibility/Orphans/Content Health reports) rendered at `height: 0`
+  — the API calls succeeded and populated real HTML, but none of it was
+  visible, so opening the modal looked like every check just... found
+  nothing. Root cause: `.settings-panel > * { flex-shrink: 0; }` (added
+  earlier this session specifically to stop a scrollable flex child
+  from collapsing to 0 height) only applies inside `.settings-panel` —
+  which the *tabbed* Site Settings modal wraps its sections in, but the
+  Site Health modal never did, since it isn't tabbed and its sections
+  sit directly under `.settings-body`. Extended the rule to
+  `.settings-body`'s own direct children too. Verified via Playwright:
+  `#site-health-results` now measures a real 240px (was 0), and the
+  pre-existing `#seo-report-results` (which had the *exact same*
+  latent bug, just never triggered because a normal Settings-tab
+  workflow never opens this particular non-tabbed modal) now measures
+  111px too.
+- ✅ A block whose column span reaches the canvas's current width (the
+  common case — Heading, Article List, Project List, Gallery,
+  Changelog, HTML, Simulation, Scan, Divider, and Spacer all default to
+  the full 24-column span) had its resize handle rendered underneath
+  the Inspector panel and completely unreachable, as soon as that block
+  was selected. Cause: selecting a block calls `renderInspector()`
+  directly (not a full `renderCanvas()`, deliberately, so a drag can
+  start on the same pointerdown that also selects), but nothing
+  recomputed the already-rendered blocks' pixel geometry against the
+  canvas's new, narrower width once the Inspector's own width claimed
+  some of the layout — every block kept the wider `left`/`width`
+  values computed while the Inspector was closed. Added a
+  `repositionBlocks()` helper (reads current `canvasMetrics()` and
+  re-applies each block's `left`/`top`/`width`/`height` in place,
+  without touching/recreating any DOM node, so an in-progress drag is
+  unaffected) and wired it to run after every `renderInspector()` call
+  via a thin wrapper, so any code path that shows/hides/resizes the
+  Inspector — not just this one selection handler — stays in sync.
+  Verified via Playwright on an isolated full-width test block: after
+  selecting it, the block visibly shrinks to the canvas's new width and
+  `document.elementFromPoint()` at the resize handle's own coordinates
+  correctly resolves to the handle itself, not the Inspector.
+- ✅ Escape did nothing to deselect a block or blocks on the canvas —
+  every other Escape-dismissible surface in the app (modals, the
+  notifications/more dropdowns, writing-focus mode) already handled it,
+  but canvas selection was the one dead end. Added a fallback branch to
+  the existing global Escape handler: if nothing else consumed the key
+  (no modal/dropdown was open to close), clear the current selection
+  and close the Inspector. Verified via Playwright: selecting a block
+  then pressing Escape now deselects it and hides the Inspector.
+- ✅ Cosmetic copy bug in the notifications panel: "2 failed webhook
+  delivery/deliveries in the last 24h" — literally rendered the
+  slash-form instead of picking one, unlike its two sibling lines
+  ("1 broken link(s) found", "7 error(s) in the last 24h") which use
+  the app's normal shorthand. Fixed to pluralize correctly.
+- 🔶 Two findings noted but deliberately not built this round, both
+  real but bigger in scope than a fix-in-place: no modal in the app
+  traps keyboard focus (Tab from inside an open modal walks into
+  background page controls — affects every modal, not one), and two
+  blocks that fully overlap on the canvas (pre-existing test content,
+  not something this round created) can't be clicked through to select
+  the one underneath, only via the Layers panel's "Select" button. Both
+  are legitimate accessibility/UX gaps worth a dedicated pass later,
+  not a quick CSS or one-line fix.
+
+### Incidental: local dev fixture recovery
+One of the critique agents' own test cleanup accidentally renamed and
+soft-deleted the actual "home" page in the *local dev* database (not
+production) while probing an edge case — caught because it made the
+standing regression suite's "homepage 200" check fail immediately
+after. Restored via the admin API (`/pages/9/restore` + a title patch)
+and re-ran the full suite to confirm; the block content itself was
+untouched throughout (only the page's title and trash state were
+affected), and the desktop critique agent's own later cleanup pass
+independently re-verified the Home page was intact with its original
+title and all 26 blocks.

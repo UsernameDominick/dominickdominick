@@ -139,7 +139,7 @@
     octx.fillStyle = "rgba(0,0,0,0.5)";
     octx.fillRect(0, 0, overlay.width, overlay.height);
     octx.clearRect(r.x, r.y, r.w, r.h);
-    octx.strokeStyle = "#e8a13a";
+    octx.strokeStyle = "#ff7a45";
     octx.lineWidth = Math.max(2, canvas.width * 0.002);
     octx.setLineDash([8, 6]);
     octx.strokeRect(r.x, r.y, r.w, r.h);
@@ -422,7 +422,7 @@
     clearOverlay();
     octx.beginPath();
     octx.arc(point.x, point.y, brushSize() / 2, 0, Math.PI * 2);
-    octx.strokeStyle = "#e8a13a";
+    octx.strokeStyle = "#ff7a45";
     octx.lineWidth = Math.max(1, canvas.width * 0.0015);
     octx.stroke();
   }

@@ -99,6 +99,7 @@
     <div class="admin-body-layout">
       <aside id="palette" class="admin-palette">
         <button id="close-palette" class="mobile-only close-drawer" aria-label="Close">×</button>
+        <div class="drawer-scroll-content">
         <h2>Add block</h2>
         <button type="button" id="paste-block-btn" hidden>Paste block</button>
         <h2>Text &amp; media</h2>
@@ -165,6 +166,7 @@
         <button type="button" id="lock-page-btn" title="Locking protects this page from global find-replace — it doesn't affect editing it directly">Lock</button>
         <button type="button" id="favorite-page-btn" title="Pin to the top of the command palette">☆ Pin</button>
         <button id="delete-page-btn" class="danger">Delete this page</button>
+        </div>
       </aside>
 
       <main class="admin-canvas-wrap">
@@ -173,6 +175,7 @@
 
       <aside id="inspector" class="admin-inspector" hidden>
         <button id="close-inspector" class="mobile-only close-drawer" aria-label="Close">×</button>
+        <div class="drawer-scroll-content">
         <div id="single-block-inspector">
           <h2>Edit block</h2>
           <div id="shared-block-banner" hidden></div>
@@ -208,6 +211,7 @@
           <div id="bulk-style-fields"></div>
           <button type="button" id="bulk-duplicate-btn">Duplicate all</button>
           <button type="button" id="bulk-delete-btn" class="danger">Delete all</button>
+        </div>
         </div>
       </aside>
     </div>
@@ -705,10 +709,10 @@
         <div class="settings-panel" data-panel="appearance">
           <h2>Theme</h2>
           <p class="settings-hint">These override the dark theme's built-in colors (the light theme visitors can switch to keeps its own fixed palette, so it stays readable regardless of what's set here).</p>
-          <label>Accent color<input id="settings-accent" type="color" value="#e8a13a"></label>
-          <label>Background color<input id="settings-bg" type="color" value="#0b0b0c"></label>
-          <label>Text color<input id="settings-text" type="color" value="#ededf0"></label>
-          <label>Border color<input id="settings-border" type="color" value="#232326"></label>
+          <label>Accent color<input id="settings-accent" type="color" value="#ff7a45"></label>
+          <label>Background color<input id="settings-bg" type="color" value="#0c0a16"></label>
+          <label>Text color<input id="settings-text" type="color" value="#f4eefc"></label>
+          <label>Border color<input id="settings-border" type="color" value="#2a2438"></label>
           <div id="theme-contrast-check" class="theme-contrast-check"></div>
           <label>Body font
             <select id="settings-font">
@@ -922,7 +926,7 @@
             <button type="button" class="pe-tool" data-tool="arrow" title="Arrow">↗</button>
             <button type="button" class="pe-tool" data-tool="text" title="Text">Text</button>
             <button type="button" class="pe-tool" data-tool="eyedropper" title="Pick a color from the image">💧</button>
-            <input type="color" id="pe-annotate-color" value="#e8a13a" title="Annotation color">
+            <input type="color" id="pe-annotate-color" value="#ff7a45" title="Annotation color">
             <label>Size <input type="range" id="pe-annotate-size" min="1" max="20" value="4"></label>
           </div>
           <div class="pe-tool-group">

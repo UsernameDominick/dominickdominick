@@ -88,7 +88,7 @@
     const barW = w / previewPeaks.length;
     previewPeaks.forEach((p, i) => {
       const played = i / previewPeaks.length <= progress;
-      c2d.fillStyle = played ? "#e8a13a" : "rgba(255,255,255,0.25)";
+      c2d.fillStyle = played ? "#ff7a45" : "rgba(255,255,255,0.25)";
       const yTop = mid + p[1] * mid;
       const yBot = mid + p[0] * mid;
       c2d.fillRect(i * barW, yTop, Math.max(1, barW - 1), Math.max(1, yBot - yTop));

@@ -1,42 +1,58 @@
 :root {
-  --bg: #0b0b0c;
-  --bg-elevated: #131315;
-  --border: #232326;
-  --text: #ededf0;
-  --text-dim: #9a9aa2;
-  --accent: #e8a13a;
+  /* Deep violet-black rather than neutral gray-black — same near-black
+     depth as before, but with a color cast that gives the whole dark
+     theme a warmer, more distinctive identity instead of reading as a
+     generic "dark mode gray." */
+  --bg: #0c0a16;
+  --bg-elevated: #17131f;
+  --border: #2a2438;
+  --text: #f4eefc;
+  --text-dim: #b6a9d1;
+  /* A vivid orange-coral instead of the previous muted amber — same
+     general warmth, considerably more saturated/alive. Paired with
+     --accent-secondary (a soft violet) for the gradient touches on the
+     logo mark, active nav tab, and quote-block border — verified
+     7.59:1 against --bg. */
+  --accent: #ff7a45;
+  --accent-secondary: #c9a5ff;
+  --accent-gradient: linear-gradient(135deg, var(--accent), var(--accent-secondary));
   /* Used as a text color (article/changelog date labels), not a background —
-     #7a5a24 only hit 3.11:1 against --bg, failing WCAG AA's 4.5:1 for normal
-     text. This is lighter/more muted-amber so it reads clearly at that size. */
-  --accent-dim: #a17e35;
+     a muted version of the new --accent, verified 9.07:1 against --bg. */
+  --accent-dim: #e0a37e;
   /* Text color for things drawn ON TOP of an --accent-colored background
      (buttons, the active nav tab's pill, the skip link) — kept separate
      from --accent itself since that token is tuned to read well as text
-     on --bg, a different contrast requirement than "readable on --accent". */
-  --on-accent: #0b0b0c;
-  --error-text: #e05252;
+     on --bg, a different contrast requirement than "readable on --accent".
+     Verified against both --accent and --accent-secondary (used together
+     in --accent-gradient), 7.59:1 and 9.63:1 respectively. */
+  --on-accent: #0c0a16;
+  /* A touch brighter than before to match the new theme's higher
+     saturation, while staying clearly distinct in hue from --accent
+     (pure red vs. --accent's orange-coral) so the two are never
+     confused. Verified 7.07:1 against --bg. */
+  --error-text: #ff6b6b;
   --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
 }
 
 :root[data-theme="light"] {
-  --bg: #ffffff;
-  --bg-elevated: #f4f4f6;
-  --border: #e2e2e6;
-  --text: #17171a;
-  --text-dim: #6b6b73;
-  /* The dark theme's bright --accent (#e8a13a) only hits 2.19:1 against white
-     — well under WCAG AA. This is the same hue, darkened for legibility. */
-  --accent: #996414;
-  /* --accent-dim is also text-only (see :root above); the previous light tan
-     (#f3d9ad) was only 1.37:1 against white — barely visible. The dark
-     theme's original --accent-dim value happens to read well on white too. */
-  --accent-dim: #7a5a24;
+  /* A warm off-white rather than clinical pure white, mirroring the dark
+     theme's violet-black with a matching warm cast instead of neutral gray. */
+  --bg: #fffaf5;
+  --bg-elevated: #f7ede0;
+  --border: #e8dcc8;
+  --text: #241832;
+  --text-dim: #6e5f82;
+  /* Same orange-coral hue as the dark theme's --accent, darkened for
+     legibility on a light background — verified 4.94:1 against --bg. */
+  --accent: #c1440e;
+  --accent-secondary: #6d28d9;
+  --accent-gradient: linear-gradient(135deg, var(--accent), var(--accent-secondary));
+  /* --accent-dim is also text-only (see :root above) — verified 6.07:1
+     against --bg. */
+  --accent-dim: #8a5232;
   /* This theme's darker --accent needs light text on top instead of dark —
-     dark-on-dark (#0b0b0c on #996414) only hit 3.92:1, failing WCAG AA;
-     white on it is ~5:1. */
+     verified 5.12:1 against --accent and 7.10:1 against --accent-secondary. */
   --on-accent: #ffffff;
-  /* #e05252 only hits 3.82:1 against white, failing WCAG AA; this darker
-     red is the same hue at ~5.6:1. */
   --error-text: #c62828;
 }
 
@@ -160,7 +176,10 @@ body {
 }
 
 .brand .accent {
-  color: var(--accent);
+  background: var(--accent-gradient);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
 }
 
 .tabs {
@@ -203,7 +222,7 @@ body {
   height: calc(100% - 8px);
   width: var(--indicator-width, 0px);
   transform: translateX(var(--indicator-x, 0px));
-  background: var(--accent);
+  background: var(--accent-gradient);
   border-radius: 999px;
   z-index: 0;
 }
@@ -895,7 +914,8 @@ h6 { font-size: 0.9rem; }
 .block-quote {
   margin: 0;
   padding: 4px 0 4px 20px;
-  border-left: 3px solid var(--accent);
+  border-left: 3px solid transparent;
+  border-image: var(--accent-gradient) 1 100%;
   color: var(--text-dim);
   font-size: 1.05rem;
   font-style: italic;

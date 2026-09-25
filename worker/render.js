@@ -1201,10 +1201,10 @@ export async function renderBlocks(env, blocks, ctx = {}) {
 // <link rel="icon"> data-URI below, and without a real response there it's
 // a 404 on every single page load.
 export const FAVICON_SVG =
-  "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='#0b0b0c'/><text x='50' y='68' font-family='Arial,sans-serif' font-size='60' font-weight='700' fill='#e8a13a' text-anchor='middle'>D</text></svg>";
+  "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='#0c0a16'/><text x='50' y='68' font-family='Arial,sans-serif' font-size='60' font-weight='700' fill='#ff7a45' text-anchor='middle'>D</text></svg>";
 
 const FAVICON =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230b0b0c'/%3E%3Ctext x='50' y='68' font-family='Arial,sans-serif' font-size='60' font-weight='700' fill='%23e8a13a' text-anchor='middle'%3ED%3C/text%3E%3C/svg%3E";
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230c0a16'/%3E%3Ctext x='50' y='68' font-family='Arial,sans-serif' font-size='60' font-weight='700' fill='%23ff7a45' text-anchor='middle'%3ED%3C/text%3E%3C/svg%3E";
 
 // The top-level fetch() catch calls this directly — deliberately fully
 // self-contained (no DB reads for nav/theme/settings, no imports beyond
@@ -1223,8 +1223,8 @@ export function renderErrorPageHtml() {
 <style>
   html, body { margin: 0; height: 100%; }
   body {
-    background: #0b0b0c;
-    color: #f2f2f2;
+    background: #0c0a16;
+    color: #f4eefc;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     display: flex;
     align-items: center;
@@ -1234,8 +1234,8 @@ export function renderErrorPageHtml() {
   }
   .error-box { max-width: 480px; }
   h1 { font-size: 1.6rem; margin-bottom: 12px; }
-  p { color: #a3a3a3; line-height: 1.5; }
-  a { color: #e8a13a; text-decoration: none; }
+  p { color: #b6a9d1; line-height: 1.5; }
+  a { color: #ff7a45; text-decoration: none; }
   a:hover { text-decoration: underline; }
 </style>
 </head>
@@ -1354,8 +1354,8 @@ export function renderShell({
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="theme-color" id="theme-color-meta" content="#0b0b0c">
-<script>(function(){try{var t=localStorage.getItem("theme");if(t!=="light"&&t!=="dark")t=window.matchMedia&&window.matchMedia("(prefers-color-scheme: light)").matches?"light":null;if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);if(t==="light"){var tc=document.getElementById("theme-color-meta");if(tc)tc.setAttribute("content","#ffffff");}var m=localStorage.getItem("motion");if(m==="reduce")document.documentElement.setAttribute("data-motion","reduce");var fs=parseFloat(localStorage.getItem("fontScale"));if(fs)document.documentElement.style.setProperty("--font-scale",fs);}catch(e){}})();</script>
+<meta name="theme-color" id="theme-color-meta" content="#0c0a16">
+<script>(function(){try{var t=localStorage.getItem("theme");if(t!=="light"&&t!=="dark")t=window.matchMedia&&window.matchMedia("(prefers-color-scheme: light)").matches?"light":null;if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);if(t==="light"){var tc=document.getElementById("theme-color-meta");if(tc)tc.setAttribute("content","#fffaf5");}var m=localStorage.getItem("motion");if(m==="reduce")document.documentElement.setAttribute("data-motion","reduce");var fs=parseFloat(localStorage.getItem("fontScale"));if(fs)document.documentElement.style.setProperty("--font-scale",fs);}catch(e){}})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(description)}">

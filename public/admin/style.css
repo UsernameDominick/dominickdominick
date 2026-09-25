@@ -46,7 +46,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
 
 .login-form button {
   background: var(--accent);
-  color: #0b0b0c;
+  color: var(--on-accent);
   border: none;
   padding: 10px 12px;
   border-radius: 8px;
@@ -239,7 +239,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
 
 #focus-mode-btn[aria-pressed="true"] {
   background: var(--accent);
-  color: #0b0b0c;
+  color: var(--on-accent);
   border-color: var(--accent);
 }
 
@@ -249,13 +249,28 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   flex-shrink: 0;
   background: var(--bg-elevated);
   border-right: 1px solid var(--border);
-  padding: 16px;
-  overflow-y: auto;
+  position: relative;
 }
 
 .admin-inspector {
   border-right: none;
   border-left: 1px solid var(--border);
+}
+
+/* The actual scrolling happens in here now, not on .admin-palette/
+   .admin-inspector themselves — those also become the mobile drawer's
+   fixed-position, transform-animated outer box (see the mobile media
+   query below), and a close button living directly inside a scrolling
+   container scrolls away with everything else. Splitting the "drawer
+   frame" (fixed position, non-scrolling, holds the always-visible close
+   button) from the "drawer content" (this div, the only thing that
+   scrolls) means the close button just sits in the frame at a fixed
+   spot, however far the content itself has been scrolled. */
+.drawer-scroll-content {
+  height: 100%;
+  box-sizing: border-box;
+  padding: 16px;
+  overflow-y: auto;
 }
 
 .admin-palette h2, .admin-inspector h2 {
@@ -339,7 +354,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
 .admin-palette button:not(.palette-btn), .admin-inspector button {
   width: 100%;
   background: var(--accent);
-  color: #0b0b0c;
+  color: var(--on-accent);
   border: none;
   border-radius: 6px;
   padding: 8px;
@@ -612,7 +627,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   overflow-y: auto;
 }
 
-.article-editor input, .article-editor textarea {
+.article-editor input, .article-editor textarea, .article-editor select {
   width: 100%;
   background: var(--bg);
   color: var(--text);
@@ -620,6 +635,14 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   border-radius: 6px;
   padding: 8px 10px;
   font-family: inherit;
+}
+
+/* A native <select multiple> (Related projects/articles/simulations/scans)
+   can't be restyled beyond background/color/border — those three alone
+   were still missing here, so it rendered as the browser's default white
+   listbox, jarring against every other dark-themed field in this panel. */
+.article-editor select[multiple] {
+  padding: 4px;
 }
 
 .article-editor textarea {
@@ -859,7 +882,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
 
 .article-actions button {
   background: var(--accent);
-  color: #0b0b0c;
+  color: var(--on-accent);
   border: none;
   border-radius: 6px;
   padding: 8px 14px;
@@ -926,7 +949,12 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
 }
 
 /* Beats the generic ".admin-palette button:not(.palette-btn)" rule, which
-   has identical specificity and would otherwise win by source order. */
+   has identical specificity and would otherwise win by source order.
+   position: absolute here works correctly (stays fixed in the corner
+   regardless of how far the panel's content is scrolled) now that the
+   close button's containing block — .admin-palette/.admin-inspector — is
+   no longer the scrolling element itself; that scrolling moved to the
+   inner .drawer-scroll-content wrapper instead (see above). */
 .admin-palette button.close-drawer,
 .admin-inspector button.close-drawer {
   position: absolute;
@@ -941,6 +969,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   font-weight: 400;
   cursor: pointer;
   margin-top: 0 !important;
+  z-index: 51;
 }
 
 .drawer-backdrop {
@@ -1110,12 +1139,17 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
 
   /* The "More" dropdown is a desktop-only affordance for topbar overflow —
      on mobile everything already lives in this same off-canvas drawer, so
-     just flatten it back into the column instead of a floating panel. */
+     just flatten it back into the column instead of a floating panel.
+     Scoped to #admin-more-panel specifically, not the shared
+     .admin-more-panel class — #notifications-panel and #recent-items-panel
+     share that class too, but their trigger buttons stay visible (not
+     .desktop-only) on mobile, so they still need to behave as real
+     toggleable dropdowns instead of being permanently flattened open. */
   .desktop-only {
     display: none;
   }
 
-  .admin-more-panel {
+  #admin-more-panel {
     position: static;
     display: flex;
     background: transparent;
@@ -1214,6 +1248,40 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
     border-right: none;
     border-bottom: 1px solid var(--border);
   }
+
+  /* These single-line ellipsis truncations (Diagnostics, Site Health/Link
+     Checker, Trash, Layers, Reusable Blocks, Simulations/Songs/Scans) are
+     the one identifying string in each row, with no title="" attribute
+     anywhere they're built and no way to see the full value — barely
+     noticeable at desktop's much wider modal column, but at phone width
+     several rows sharing a truncated prefix become indistinguishable.
+     Letting them wrap to a few lines instead trades a taller row for
+     actually being able to read what it says. */
+  .link-check-url,
+  .simulation-row span {
+    white-space: normal;
+    overflow-wrap: break-word;
+  }
+
+  /* Simulations/Songs/Scans/Reusable Blocks rows crammed "View ↗ /
+     Duplicate / Edit / Delete" into one line, each button ~25px tall
+     with as little as 10px between "Edit" and a destructive "Delete"
+     right next to it — a real mis-tap hazard on a touchscreen. Wrapping
+     lets the title take the full row and pushes the actions onto their
+     own row underneath, with enough padding to clear a reasonable
+     touch-target size. */
+  .simulation-row {
+    flex-wrap: wrap;
+  }
+
+  .simulation-row span {
+    flex-basis: 100%;
+  }
+
+  .simulation-row button {
+    padding: 8px 12px;
+    min-height: 40px;
+  }
 }
 
 /* Overlap warning flash */
@@ -1246,7 +1314,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
 
 .undo-toast button {
   background: var(--accent);
-  color: #0b0b0c;
+  color: var(--on-accent);
   border: none;
   border-radius: 6px;
   padding: 6px 12px;
@@ -1312,8 +1380,15 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
    shrink to fit — without this, a nested scrollable box (anything with its
    own overflow:auto, like .link-check-results below) has an automatic flex
    min-height of 0 per spec, so the flex layout can collapse it to 0px
-   instead of letting it show its own max-height and scroll internally. */
-.settings-panel > * {
+   instead of letting it show its own max-height and scroll internally.
+   Applied to .settings-body's own direct children too, not just
+   .settings-panel's — the Site Health/SEO Dashboard modal puts its
+   .link-check-results divs straight under .settings-body (it isn't
+   tabbed, so it never wrapped its sections in .settings-panel), and
+   without this rule here too every one of its result lists collapsed to
+   0px the same way, silently hiding whatever a check just found. */
+.settings-panel > *,
+.settings-body > * {
   flex-shrink: 0;
 }
 
@@ -1358,6 +1433,17 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
 .settings-save-bar {
   padding: 12px 20px;
   border-top: 1px solid var(--border);
+}
+
+.settings-save-bar button {
+  background: var(--accent);
+  color: var(--on-accent);
+  border: none;
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
 }
 
 .settings-body input[type="color"] {
@@ -1465,7 +1551,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
 .settings-body button {
   align-self: flex-start;
   background: var(--accent);
-  color: #0b0b0c;
+  color: var(--on-accent);
   border: none;
   border-radius: 6px;
   padding: 8px 16px;
@@ -1605,8 +1691,11 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   position: absolute;
   top: 4px;
   right: 4px;
-  width: 24px !important;
-  height: 24px;
+  /* Was 24x24 — a precision-pointer-only size in a dense grid of small
+     tiles. Bumped toward a real touch target without crowding the tile
+     corner too much (the item itself is only ~170px square). */
+  width: 30px !important;
+  height: 30px;
   background: rgba(0, 0, 0, 0.7) !important;
   color: #fff !important;
   border: none !important;
@@ -1622,8 +1711,8 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   position: absolute;
   top: 4px;
   left: 4px;
-  width: 24px !important;
-  height: 24px;
+  width: 30px !important;
+  height: 30px;
   background: rgba(0, 0, 0, 0.7) !important;
   color: #fff !important;
   border: none !important;
@@ -1651,6 +1740,11 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
 .media-select-checkbox {
   margin: 0;
   flex-shrink: 0;
+  /* Was the browser default (~13x13) — smallest tappable control in the
+     whole grid. */
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
 }
 
 .media-folder-badge {
@@ -1664,8 +1758,8 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
 }
 
 .media-info {
-  width: 20px !important;
-  height: 20px;
+  width: 26px !important;
+  height: 26px;
   background: transparent !important;
   color: #fff !important;
   border: none !important;
@@ -1834,7 +1928,7 @@ kbd {
 #new-simulation-btn {
   align-self: flex-start;
   background: var(--accent);
-  color: #0b0b0c;
+  color: var(--on-accent);
   border: none;
   border-radius: 6px;
   padding: 8px 14px;
@@ -1882,7 +1976,7 @@ kbd {
 
 #save-simulation {
   background: var(--accent) !important;
-  color: #0b0b0c !important;
+  color: var(--on-accent) !important;
   border: none !important;
   font-weight: 600;
 }
@@ -2240,7 +2334,7 @@ kbd {
 }
 
 .sim-pin-active {
-  fill: #e8a13a;
+  fill: var(--accent);
 }
 
 @media (max-width: 860px) {
@@ -2431,7 +2525,7 @@ kbd {
 
 .pe-actions button {
   background: var(--accent);
-  color: #0b0b0c;
+  color: var(--on-accent);
   border: none;
   border-radius: 6px;
   padding: 8px 14px;
@@ -2585,7 +2679,7 @@ kbd {
 
 .revision-row button {
   background: var(--accent);
-  color: #0b0b0c;
+  color: var(--on-accent);
   border: none;
   border-radius: 6px;
   padding: 6px 12px;
@@ -2904,7 +2998,7 @@ kbd {
 .modal-inner header .preview-device-btn.is-active,
 .stress-toggle-btn.is-active {
   background: var(--accent);
-  color: #0b0b0c;
+  color: var(--on-accent);
   border-color: var(--accent);
 }
 
@@ -2987,7 +3081,7 @@ kbd {
 
 .redirect-form button {
   background: var(--accent);
-  color: #0b0b0c;
+  color: var(--on-accent);
   border: none;
   border-radius: 6px;
   padding: 8px 14px;

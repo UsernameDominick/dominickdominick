@@ -407,7 +407,7 @@ document.addEventListener("input", function (e) {
     var next = current === "light" ? "dark" : "light";
     root.setAttribute("data-theme", next);
     var themeColorMeta = document.getElementById("theme-color-meta");
-    if (themeColorMeta) themeColorMeta.setAttribute("content", next === "light" ? "#ffffff" : "#0b0b0c");
+    if (themeColorMeta) themeColorMeta.setAttribute("content", next === "light" ? "#fffaf5" : "#0c0a16");
     try {
       localStorage.setItem("theme", next);
     } catch (e) {}

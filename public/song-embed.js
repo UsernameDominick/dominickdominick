@@ -53,7 +53,7 @@
       const mid = h / 2;
       c2d.clearRect(0, 0, w, h);
       const barW = w / peaks.length;
-      const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#e8a13a";
+      const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#ff7a45";
       peaks.forEach((p, i) => {
         const x = i * barW;
         const played = i / peaks.length <= progress;

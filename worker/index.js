@@ -120,10 +120,10 @@ function renderMaintenanceHtml(message) {
 <meta name="robots" content="noindex">
 <title>Down for maintenance · Dominick</title>
 <style>
-  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #0b0b0c; color: #f5f5f5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-align: center; padding: 24px; }
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #0c0a16; color: #f4eefc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-align: center; padding: 24px; }
   .maintenance-box { max-width: 480px; }
   h1 { font-size: 1.4rem; margin-bottom: 12px; }
-  p { color: #a0a0a5; line-height: 1.6; }
+  p { color: #b6a9d1; line-height: 1.6; }
 </style>
 </head>
 <body>
@@ -1269,7 +1269,16 @@ async function route(request, env, ctx) {
       const isAdminPreview =
         (url.searchParams.get("preview") === "1" || previewModeCookie) && (await isAuthenticated(request, env));
       const previewToken = url.searchParams.get("preview_token");
-      const isSharedPreview = article && previewToken && (await getValidPreviewLink(env, "article", article.id, previewToken));
+      // Same rate-limit posture as /page-access below — a preview token is
+      // 128-bit random hex, so brute force is impractical regardless, but
+      // every other unauthenticated guess-a-secret endpoint in this app is
+      // rate-limited and this one wasn't, purely by oversight.
+      const previewIp = request.headers.get("CF-Connecting-IP") || "unknown";
+      const previewAllowed =
+        !previewToken || (await checkRateLimit(env, "preview-link", previewIp, { windowMinutes: 15, maxAttempts: 20 }));
+      if (previewToken) ctx.waitUntil(recordRateLimitHit(env, "preview-link", previewIp).catch(() => {}));
+      const isSharedPreview =
+        article && previewToken && previewAllowed && (await getValidPreviewLink(env, "article", article.id, previewToken));
       const isPreview = isAdminPreview || isSharedPreview;
       if (!article || (!isPublished && !isPreview)) {
         const assetResponse = await env.ASSETS.fetch(request);
@@ -1291,7 +1300,12 @@ async function route(request, env, ctx) {
       const isAdminPreview =
         (url.searchParams.get("preview") === "1" || previewModeCookie) && (await isAuthenticated(request, env));
       const previewToken = url.searchParams.get("preview_token");
-      const isSharedPreview = project && previewToken && (await getValidPreviewLink(env, "project", project.id, previewToken));
+      const previewIp = request.headers.get("CF-Connecting-IP") || "unknown";
+      const previewAllowed =
+        !previewToken || (await checkRateLimit(env, "preview-link", previewIp, { windowMinutes: 15, maxAttempts: 20 }));
+      if (previewToken) ctx.waitUntil(recordRateLimitHit(env, "preview-link", previewIp).catch(() => {}));
+      const isSharedPreview =
+        project && previewToken && previewAllowed && (await getValidPreviewLink(env, "project", project.id, previewToken));
       const isPreview = isAdminPreview || isSharedPreview;
       if (!project || (!isPublished && !isPreview)) {
         const assetResponse = await env.ASSETS.fetch(request);
