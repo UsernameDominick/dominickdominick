@@ -87,6 +87,15 @@ export async function updatePage(env, id, fields) {
   cols.push("updated_at = datetime('now')", "version = version + 1");
   vals.push(id);
   await env.DB.prepare(`UPDATE pages SET ${cols.join(", ")} WHERE id = ?`).bind(...vals).run();
+  // listNavPages() only builds a page's dropdown children when the page
+  // itself passes its own nav_label/deleted_at filter — clearing this
+  // page's nav_label used to silently drop every child from the nav
+  // entirely (still nav_label'd themselves, but never picked up as
+  // top-level since they still point at this now-invisible parent).
+  // Promoting them to top-level keeps them visible instead.
+  if ("nav_label" in fields && !fields.nav_label) {
+    await env.DB.prepare("UPDATE pages SET nav_parent_id = NULL WHERE nav_parent_id = ?").bind(id).run();
+  }
 }
 
 // Kept separate from updatePage()'s generic field list on purpose: unlike
@@ -103,6 +112,10 @@ export async function setPagePassword(env, id, passwordHash) {
 // used only from the trash view itself.
 export async function deletePage(env, id) {
   await env.DB.prepare("UPDATE pages SET deleted_at = datetime('now'), version = version + 1 WHERE id = ?").bind(id).run();
+  // Same reasoning as updatePage()'s nav_label clear above: a trashed
+  // parent is invisible to listNavPages(), which used to take its
+  // children down with it rather than promoting them to top-level.
+  await env.DB.prepare("UPDATE pages SET nav_parent_id = NULL WHERE nav_parent_id = ?").bind(id).run();
 }
 
 export async function restorePage(env, id) {

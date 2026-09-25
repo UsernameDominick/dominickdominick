@@ -1700,8 +1700,20 @@ enough detail to act on directly later.
   real UI): brightness +20 then contrast +10 now correctly saves
   `{brightness: 20, contrast: 10}` instead of `{brightness: 0,
   contrast: 10}`.
-- Dropdown nav children vanish silently if the parent's `nav_label` is
-  cleared or the parent is trashed (no warning, no orphan-detection).
+- ✅ Dropdown nav children used to vanish silently if the parent's
+  `nav_label` was cleared or the parent was trashed — `listNavPages()`
+  filters to `nav_label IS NOT NULL AND deleted_at IS NULL` before
+  building the tree, so an invisible parent was dropped from the
+  results entirely, taking its still-nav_label'd children with it
+  (they were never picked up as top-level either, since they still
+  pointed at that now-absent parent id). Both `updatePage()` (clearing
+  `nav_label`) and `deletePage()` (trashing) now promote any children
+  to top-level (`nav_parent_id = NULL`) instead, matching the same
+  "detach, don't discard" fix already applied to `hardDeletePage()`
+  earlier this round. Verified via Playwright: a child page's nav
+  label survives both a parent's `nav_label` being cleared and the
+  parent being trashed, appearing top-level in both cases instead of
+  disappearing from the nav.
 
 **SEO/structured data:**
 - ✅ `/topics/<anything>` now 404s with `noindex` when nothing's tagged
