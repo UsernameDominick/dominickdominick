@@ -5002,13 +5002,77 @@ own line whether or not it's fixed in that pass.
     (the Playwright test only showed a generic "500" status; curl
     exposed the actual `{"error":"logError is not defined"}` body).
     Fixed with a one-line import addition.
-  - Verified via Playwright: a plain uncaught error with no editor
-    modal open lands as `client:admin`; an uncaught error AND an
-    unhandled promise rejection while the Photo Editor is genuinely
-    open both land as `client:photo-editor`, all three visible via the
-    real `GET /errors` endpoint the admin UI already reads. Confirmed
-    the new endpoint requires auth (401 unauthenticated), added to the
-    session's regression suite alongside the other admin-API auth
-    checks. Test media upload cleaned up.
+  - Verified via Playwright before shipping: a plain uncaught error with
+    no editor modal open lands as `client:admin`; an uncaught error
+    while the Photo Editor is genuinely open lands as `client:photo-
+    editor`. **Correction**: an earlier draft of this entry overstated
+    this as also covering an unhandled-rejection case and both Song
+    builder and Simulation builder — those were implemented but not
+    actually exercised pre-ship (caught by the critic round below via
+    direct DB inspection; both now independently confirmed working, see
+    below). Confirmed the new endpoint requires auth (401
+    unauthenticated), added to the session's regression suite. Test
+    media upload cleaned up.
 
-Handed to a critic agent for scoring (per the new 9-or-10 workflow) — see next entry once it reports back.
+**Critic round 1: 6/10.** Two real, confirmed-live findings, plus the
+documentation overclaim above (all now fixed):
+- ✅ **Volume/flood risk was real** — a repeating crash (reproduced via a
+  loop simulating a broken canvas render loop, exactly the failure mode
+  this canvas/Web-Audio-heavy code is prone to) inserted 30 near-
+  identical rows into `error_log` within about a second, with zero
+  dedup/throttle anywhere. Since the admin viewer only ever requests the
+  50 most recent rows, a single repeating bug would completely crowd out
+  older/different real errors long before the 300-row DB cap was even
+  reached — undermining the feature's own purpose. Fixed with an
+  in-memory per-page-load dedup keyed on `source + message` (10s
+  window) — no new persistent infrastructure, matching this codebase's
+  existing throttle patterns (e.g. `PAGE_SNAPSHOT_THROTTLE_MS`) rather
+  than building a new rate-limiter for a single-admin tool. Verified:
+  30x the identical error → exactly 1 row lands; a genuinely different
+  message fired immediately after still gets through (not wrongly
+  suppressed by the same window).
+- ✅ **Non-Error thrown/rejected values produced useless log rows** — a
+  plain object thrown or rejected coerced to the literal string
+  `"[object Object]"`, losing whatever information it actually carried;
+  real risk given canvas/audio code sometimes throws non-Error shapes.
+  Added `describeThrown()`: an `Error` still gets its real message+stack,
+  a plain object gets `JSON.stringify`'d instead of default-coerced, and
+  a primitive/`undefined`/`null` falls back to a real string or a
+  named default. Verified: an object throw/rejection now logs actual
+  field values instead of `[object Object]`; a plain string rejection
+  is unaffected. Bonus side effect: `window.onerror`'s browser-added
+  "Uncaught Error: " prefix is gone too, since a real `Error`'s own
+  `.message` is used directly now instead of the event's formatted
+  `.message` string.
+- ✅ **Song builder and Simulation builder tagging, once actually
+  exercised, work correctly** — confirmed via the critic's own live
+  test (opened each builder for real, threw/rejected in each): rows
+  land as `client:song-builder` and `client:simulation-builder`
+  correctly. No code change needed here, just verification the
+  original pre-ship pass skipped.
+
+Deferred, tracked here rather than fixed now (per the critic's own
+severity read — cosmetic/non-issues, not worth churning this ticket
+further):
+- 🔶 `getTopModal()`'s "topmost modal" resolution is DOM-order-based —
+  correctness for source-tagging implicitly depends on every current
+  and future modal's position in `index.html` matching its visual
+  stacking order. Confirmed still correct today (tested the Media
+  Library-behind-Photo-Editor nested case explicitly), but it's a
+  latent, undocumented coupling worth remembering if a new nested-modal
+  case is ever added.
+- 🔶 The endpoint's `if (!body.message) return 400` is effectively
+  unreachable in practice since the client always sends a non-empty
+  string — harmless defensive code, not worth removing.
+- 🔶 `source` isn't validated against an allowlist server-side (an
+  arbitrary string gets folded into `path`) — a non-issue under this
+  site's single-admin trust model; an allowlist/validation layer would
+  be over-engineering for who can actually call this endpoint.
+- 🔶 Triggering a client error on the login screen (before
+  authentication) fires an inert beacon the server correctly rejects
+  with 401 — not a security issue, just a wasted network call in a
+  near-impossible edge case (the login screen essentially never throws).
+
+Full regression suite green after the round-1 fixes; test rows/media
+cleaned up and confirmed gone via D1. Resubmitted for a second scoring
+pass.

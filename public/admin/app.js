@@ -7933,9 +7933,30 @@
   // errors and promise rejections from all of them at once, tagged with
   // whichever editor modal (if any) is open at the time so the existing
   // Error Log viewer can tell them apart from a generic admin-page crash.
+  // A critic pass caught two real gaps in the first version: (1) a
+  // repeating crash (a requestAnimationFrame/canvas render loop throwing
+  // every frame — exactly the failure mode this canvas/Web-Audio-heavy
+  // code is prone to) flooded error_log with dozens of near-identical
+  // rows within a second, crowding real/older errors out of both the
+  // 300-row DB cap and the admin viewer's own 50-row display; (2) a
+  // non-Error thrown/rejected value (a plain object, a bare string)
+  // produced a useless "[object Object]" row with no real information.
+  // The dedup window is per-page-load only (a plain in-memory Map, not
+  // persisted) — a fresh reload is itself a reasonable "give it another
+  // chance to log" reset point, matching this codebase's existing
+  // throttle patterns (e.g. db.js's PAGE_SNAPSHOT_THROTTLE_MS) rather
+  // than building new persistent rate-limit infrastructure for a
+  // single-admin tool.
+  const recentClientErrors = new Map();
+  const CLIENT_ERROR_DEDUP_MS = 10000;
   function reportClientError(message, stack, source) {
     try {
-      const payload = JSON.stringify({ message: String(message || "Unknown error").slice(0, 2000), stack: stack ? String(stack).slice(0, 4000) : null, source });
+      const safeMessage = String(message ?? "Unknown error").slice(0, 2000);
+      const key = source + "|" + safeMessage.slice(0, 200);
+      const now = Date.now();
+      if (now - (recentClientErrors.get(key) || 0) < CLIENT_ERROR_DEDUP_MS) return;
+      recentClientErrors.set(key, now);
+      const payload = JSON.stringify({ message: safeMessage, stack: stack ? String(stack).slice(0, 4000) : null, source });
       if (navigator.sendBeacon) navigator.sendBeacon("/api/admin/client-error", payload);
       else fetch("/api/admin/client-error", { method: "POST", body: payload, keepalive: true });
     } catch {}
@@ -7948,12 +7969,28 @@
     if (modal.id === "simulation-builder-modal") return "simulation-builder";
     return "admin";
   }
+  // A thrown/rejected value isn't always an Error — canvas/Web-Audio code
+  // in particular sometimes throws a plain object or a bare string.
+  // Coercing straight to a string in that case just produces
+  // "[object Object]", a log row with zero actionable information.
+  function describeThrown(value, fallback) {
+    if (value instanceof Error) return { message: value.message, stack: value.stack };
+    if (value && typeof value === "object") {
+      try {
+        return { message: JSON.stringify(value), stack: null };
+      } catch {
+        return { message: String(value), stack: null };
+      }
+    }
+    return { message: value !== undefined && value !== null ? String(value) : fallback, stack: null };
+  }
   window.addEventListener("error", (e) => {
-    reportClientError(e.message, e.error && e.error.stack, currentEditorSource());
+    const { message, stack } = describeThrown(e.error, e.message);
+    reportClientError(message, stack, currentEditorSource());
   });
   window.addEventListener("unhandledrejection", (e) => {
-    const reason = e.reason;
-    reportClientError(reason && reason.message ? reason.message : String(reason), reason && reason.stack, currentEditorSource());
+    const { message, stack } = describeThrown(e.reason, "Unhandled promise rejection");
+    reportClientError(message, stack, currentEditorSource());
   });
 
   window.addEventListener("resize", () => renderCanvas());
