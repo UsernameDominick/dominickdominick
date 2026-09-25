@@ -1651,10 +1651,21 @@ enough detail to act on directly later.
   than a content listing) and the standalone simulation-viewer page
   (not named in the original finding) out of scope — both are
   fixed-length by nature, much lower overflow risk than a growing list.
-- Video embeds can overflow their grid cell (16:9 box ~107px taller
-  than its assigned row span in one observed case) — likely needs a
-  `max-height`/`aspect-ratio` clamp tied to the block's actual row
-  span, not just its column span.
+- ✅ A video embed's 16:9 box sizes its height purely from its own
+  width, independent of the row_span the admin actually assigned it —
+  a wide column with a short row_span rendered taller than its own
+  grid cell and visually spilled into whatever came after it. An
+  `<iframe>`'s embedded content can't be letterboxed/cropped the way
+  an `<img>`/`<video>` could with `object-fit`, so there's no clean way
+  to shrink the video itself to fit a too-short row without visually
+  squishing the player — instead, gave the video block's own wrapper
+  `overflow: hidden`, scoped specifically to `block.type === "video"`
+  (not every block, since that would also clip other blocks'
+  intentional escape-the-box effects, like a hover-lift's shadow or a
+  slide-in animation's start position). A too-short row now crops the
+  video at its own boundary instead of overlapping the next block.
+  Verified via Playwright: a video in a short row_span no longer
+  overlaps a heading positioned right after it.
 - Projects editor form fields are visually crushed (Summary field
   ~18px tall, Status ~22px wide, a checkbox label running past the
   form edge) — admin CSS pass needed.

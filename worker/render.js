@@ -1099,7 +1099,19 @@ export async function renderBlocks(env, blocks, ctx = {}) {
     // reserved as blank either.
     .filter(({ inner }) => inner !== null)
     .map(({ b, inner }) => {
-      const gridStyle = `grid-column:${b.col} / span ${b.col_span};grid-row:${b.row} / span ${b.row_span};`;
+      // A video block's 16:9 aspect-ratio box sizes its height purely from
+      // its own width, independent of the row_span the admin actually
+      // assigned it — a column wide enough (relative to a short row_span)
+      // could render taller than its own grid cell and visually spill
+      // into whatever's positioned after it. Clipping just this block
+      // type at its own boundary means a mismatched row_span crops the
+      // video instead of overlapping other content — better than either
+      // outcome being unpredictable. Scoped to "video" specifically
+      // rather than every block, since overflow:hidden here would also
+      // clip other blocks' intentional escape-the-box effects (e.g. a
+      // hover-lift's shadow, a slide-in animation's start position).
+      const overflowStyle = b.type === "video" ? "overflow:hidden;" : "";
+      const gridStyle = `grid-column:${b.col} / span ${b.col_span};grid-row:${b.row} / span ${b.row_span};${overflowStyle}`;
       const style = b.style || {};
       // The scroll-triggered reveal itself (adding .is-visible) is plain
       // JS (nav.js) reacting to this attribute — see the CSS for how
