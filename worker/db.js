@@ -2400,15 +2400,31 @@ export async function exportAll(env) {
 const BACKUP_PREFIX = "backups/";
 const BACKUP_KEEP = 30;
 
+// Records success/failure to settings (not just the error_log a failure
+// also gets) so the admin UI can show a clear "backups are fine" or
+// "last backup failed" status without digging through the error log —
+// the whole point of an "alert", not just a record after the fact.
 export async function runScheduledBackup(env) {
-  const data = await exportAll(env);
-  const key = `${BACKUP_PREFIX}${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
-  await env.MEDIA.put(key, JSON.stringify(data), { httpMetadata: { contentType: "application/json" } });
-  const listed = await env.MEDIA.list({ prefix: BACKUP_PREFIX });
-  const sorted = listed.objects.sort((a, b) => new Date(b.uploaded) - new Date(a.uploaded));
-  const stale = sorted.slice(BACKUP_KEEP);
-  await Promise.all(stale.map((o) => env.MEDIA.delete(o.key)));
-  return key;
+  try {
+    const data = await exportAll(env);
+    const key = `${BACKUP_PREFIX}${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+    await env.MEDIA.put(key, JSON.stringify(data), { httpMetadata: { contentType: "application/json" } });
+    const listed = await env.MEDIA.list({ prefix: BACKUP_PREFIX });
+    const sorted = listed.objects.sort((a, b) => new Date(b.uploaded) - new Date(a.uploaded));
+    const stale = sorted.slice(BACKUP_KEEP);
+    await Promise.all(stale.map((o) => env.MEDIA.delete(o.key)));
+    await setSetting(env, "last_backup_at", new Date().toISOString());
+    await setSetting(env, "last_backup_error", "");
+    return key;
+  } catch (err) {
+    await setSetting(env, "last_backup_error", err.message || "Backup failed");
+    throw err;
+  }
+}
+
+export async function getBackupStatus(env) {
+  const [lastAt, lastError] = await Promise.all([getSetting(env, "last_backup_at"), getSetting(env, "last_backup_error")]);
+  return { lastAt: lastAt || null, lastError: lastError || null };
 }
 
 export async function listScheduledBackups(env) {

@@ -45,6 +45,7 @@ import {
   listErrors,
   runScheduledBackup,
   listScheduledBackups,
+  getBackupStatus,
   runFindReplace,
   slugExists,
   checkLoginRateLimit,
@@ -1439,6 +1440,9 @@ async function routeAdminApi(request, env, url, ctx) {
     const key = await runScheduledBackup(env);
     log(ctx, env, "create", "backup", key);
     return json({ key });
+  }
+  if (path === "/backup-status" && method === "GET") {
+    return json(await getBackupStatus(env));
   }
 
   // /activity — recent admin actions, for the audit trail viewer

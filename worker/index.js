@@ -756,7 +756,15 @@ export default {
   // Media files in R2 aren't included (they're already durably stored there
   // as-is); this covers the D1-side content that only lives in one place.
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(runScheduledBackup(env));
+    // Unlike a request handler's errors (caught by the top-level try/catch
+    // in fetch() below), a rejection inside a cron ctx.waitUntil is only
+    // ever visible in Cloudflare's own dashboard logs — nothing surfaces
+    // it to the admin. runScheduledBackup already records the failure to
+    // settings for the UI status line; this also gets it into the same
+    // error_log every other uncaught error already goes to.
+    ctx.waitUntil(
+      runScheduledBackup(env).catch((err) => logError(env, { message: err.message, stack: err.stack, path: "scheduled:backup" }))
+    );
   },
 };
 

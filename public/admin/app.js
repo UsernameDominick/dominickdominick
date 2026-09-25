@@ -4964,7 +4964,7 @@
 
   // ---------- Scheduled backups ----------
   async function loadScheduledBackups() {
-    const items = await api("/scheduled-backups");
+    const [items, status] = await Promise.all([api("/scheduled-backups"), api("/backup-status")]);
     el("scheduled-backups-list").innerHTML =
       items
         .map(
@@ -4974,6 +4974,14 @@
             )}</span></div>`
         )
         .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No backups yet.</p>";
+    const statusEl = el("scheduled-backup-status");
+    if (status.lastError) {
+      statusEl.innerHTML = `<span class="contrast-fail">⚠ Last backup attempt failed: ${escapeHtml(status.lastError)}</span>`;
+    } else if (status.lastAt) {
+      statusEl.innerHTML = `<span class="contrast-pass">✓ Last backup succeeded ${escapeHtml(new Date(status.lastAt).toLocaleString())}</span>`;
+    } else {
+      statusEl.innerHTML = "";
+    }
   }
   el("run-backup-now-btn").addEventListener("click", async () => {
     const btn = el("run-backup-now-btn");

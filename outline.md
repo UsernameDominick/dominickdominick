@@ -977,7 +977,13 @@ changes with low value for a single-admin personal site; flagging as
 ### Backups, health, and operating costs
 - ✅ Automated daily D1→R2 JSON backup (cron)
 - 🔶 R2 asset backup (media lives durably in R2 already, as primary store, not separately re-copied)
-- ☐ Backup-failure alerts
+- ✅ Backup-failure alerts (the scheduled cron backup previously had no
+  error handling at all — a failure inside `ctx.waitUntil` on a cron
+  trigger is only ever visible in Cloudflare's own dashboard logs, never
+  surfaced to the admin. Now it logs to the same `error_log` every other
+  uncaught error goes to, AND records success/failure to a `last_backup_at`/
+  `last_backup_error` setting so Site Settings shows a clear ✓/⚠ status
+  line without digging through the error log)
 - 🔶 Restore tested repeatedly via Playwright; no written human runbook
 - ☐ Periodic restore drills, backup contents browser, selective restore (currently all-or-nothing), file-integrity checks
 - ☐ Health dashboard (DB/storage/uploads/publishing), failed-scheduled-publish alerts, storage/DB usage dashboard, cost/usage alerts
