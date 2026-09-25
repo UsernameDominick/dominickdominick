@@ -2215,6 +2215,29 @@
         .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>Nothing currently excluded.</p>";
   }
 
+  async function loadScheduledLinkCheckStatus() {
+    const status = await api("/link-check-status");
+    const statusEl = el("scheduled-link-check-status");
+    if (!status.lastAt) {
+      statusEl.innerHTML = "";
+      return;
+    }
+    const when = escapeHtml(new Date(status.lastAt).toLocaleString());
+    if (!status.broken.length) {
+      statusEl.innerHTML = `<span class="contrast-pass">✓ Last automatic check ${when} — no broken links</span>`;
+      return;
+    }
+    const rows = status.broken
+      .map(
+        (r) =>
+          `<div class="link-check-row broken"><span class="link-check-url">${escapeHtml(r.url)}</span><span class="link-check-source">${escapeHtml(
+            r.source
+          )}</span><span class="link-check-status">${escapeHtml(r.status)}</span></div>`
+      )
+      .join("");
+    statusEl.innerHTML = `<span class="contrast-fail">⚠ Last automatic check ${when} — ${status.broken.length} broken link(s) found</span>${rows}`;
+  }
+
   el("seo-dashboard-btn").addEventListener("click", async () => {
     el("seo-dashboard-modal").hidden = false;
     // Pages/articles/projects need to be loaded for the exclusions list to
@@ -2224,6 +2247,23 @@
     articles = await api("/articles");
     projects = await api("/projects");
     renderSitemapExclusions();
+    loadScheduledLinkCheckStatus().catch(() => {});
+  });
+
+  el("run-scheduled-link-check-btn").addEventListener("click", async () => {
+    const btn = el("run-scheduled-link-check-btn");
+    const originalText = btn.textContent;
+    btn.textContent = "Checking…";
+    btn.disabled = true;
+    try {
+      await api("/link-check-status/run", { method: "POST" });
+      await loadScheduledLinkCheckStatus();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      btn.textContent = originalText;
+      btn.disabled = false;
+    }
   });
   closeModalOnClick("close-seo-dashboard", "seo-dashboard-modal");
 

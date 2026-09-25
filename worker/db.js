@@ -2936,6 +2936,31 @@ export async function checkLinks(env) {
   return found.map((f) => ({ ...f, ...statusByUrl[f.url] }));
 }
 
+// The on-demand Link Checker above only ever runs when an admin opens the
+// SEO Dashboard and clicks the button — a link can quietly go dead (a
+// third-party page taken down, a demo site expiring) for weeks before
+// anyone notices. Runs on the same daily cron as the scheduled backup,
+// storing just the broken subset (not a run history — same "latest only"
+// scope as the backup-failure status line) so the SEO Dashboard can show
+// "N broken links found" without anyone having to click "Check links" first.
+export async function runScheduledLinkCheck(env) {
+  const results = await checkLinks(env);
+  const broken = results.filter((r) => r.ok === false).map((r) => ({ url: r.url, source: r.source, status: r.status }));
+  await setSetting(env, "last_link_check_at", new Date().toISOString());
+  await setSetting(env, "last_link_check_broken", JSON.stringify(broken));
+}
+
+export async function getLinkCheckStatus(env) {
+  const [lastAt, brokenRaw] = await Promise.all([getSetting(env, "last_link_check_at"), getSetting(env, "last_link_check_broken")]);
+  let broken = [];
+  try {
+    broken = JSON.parse(brokenRaw || "[]");
+  } catch {
+    broken = [];
+  }
+  return { lastAt: lastAt || null, broken };
+}
+
 // Orphan-page detection: published pages/articles/projects that nothing
 // else on the site links to internally (via a button/links/text block, a
 // markdown link in an article/project body or journal entry, or a

@@ -980,7 +980,15 @@ Contact form, admin inbox, guestbook/comments, moderation, newsletter —
   linking to it yet; never overwrites a redirect an admin already set up
   from that same old path; the home page's slug maps to "/" rather than
   "/home", handled as a special case)
-- 🔶 Link monitoring (on-demand Link Checker ✅; scheduled/ongoing ☐)
+- ✅ Link monitoring (on-demand Link Checker ✅; scheduled/ongoing ✅ — the
+  same `checkLinks()` walk now also runs on the existing daily backup cron
+  (`worker/index.js`'s `scheduled()`, one shared trigger rather than a
+  second cron schedule), storing just the broken subset + a timestamp to
+  settings, same "latest run only, not a history" scope as the
+  backup-failure status line. The SEO Dashboard's Link Checker section
+  shows that status (✓/⚠ + a broken-link list) as soon as it opens, no
+  click required, plus a "Run automatic check now" button for testing/
+  immediate use — same convenience "Run a backup now" already has)
 - 🔶 Missing-metadata reports (SEO Report now covers meta description +
   alt text + missing social-share image on published articles/projects +
   duplicate titles across pages/articles/projects; not every conceivable

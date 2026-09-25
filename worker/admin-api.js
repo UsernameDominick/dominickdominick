@@ -78,6 +78,8 @@ import {
   restorePageRevisionBlock,
   search,
   checkLinks,
+  getLinkCheckStatus,
+  runScheduledLinkCheck,
   getSeoReport,
   getOrphanContent,
   getContentHealth,
@@ -1193,6 +1195,18 @@ async function routeAdminApi(request, env, url, ctx) {
   // /link-check — walks every button/project-card/article link and reports status
   if (path === "/link-check" && method === "GET") {
     return json(await checkLinks(env));
+  }
+  // /link-check-status — the last scheduled (daily-cron) run's broken-link
+  // subset, so the dashboard can show it without running a fresh check.
+  if (path === "/link-check-status" && method === "GET") {
+    return json(await getLinkCheckStatus(env));
+  }
+  // /link-check-status/run — manually fires the same check the daily cron
+  // runs, same "run it now" convenience as scheduled backups already have.
+  if (path === "/link-check-status/run" && method === "POST") {
+    await runScheduledLinkCheck(env);
+    log(ctx, env, "run", "link-check", null);
+    return json(await getLinkCheckStatus(env));
   }
 
   // /seo-report — pages missing a meta description, and image blocks
