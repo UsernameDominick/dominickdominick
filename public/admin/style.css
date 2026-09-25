@@ -125,7 +125,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
   padding: 4px 12px 12px;
 }
 
@@ -150,17 +150,26 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   text-align: left;
   background: transparent;
   color: var(--text-dim);
-  border: 1px solid transparent;
-  border-radius: 6px;
-  padding: 7px 8px;
+  border: none;
+  border-left: 2px solid transparent;
+  border-radius: 0 6px 6px 0;
+  padding: 6px 10px;
   font-size: 0.85rem;
   cursor: pointer;
   text-decoration: none;
+  transition: color 0.15s var(--ease-smooth), background-color 0.15s var(--ease-smooth),
+    border-left-color 0.15s var(--ease-smooth), transform 0.1s var(--ease-smooth);
 }
 
 .admin-sidebar-group button:hover, .admin-sidebar-group a:hover {
   color: var(--text);
   background: var(--bg);
+  border-left-color: var(--accent);
+  transform: translateX(2px);
+}
+
+.admin-sidebar-group button:active, .admin-sidebar-group a:active {
+  transform: translateX(2px) scale(0.98);
 }
 
 .admin-sidebar-footer {
@@ -284,6 +293,12 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
 
 .admin-more-panel.open {
   display: flex;
+  animation: dropdown-in 0.15s var(--ease-smooth);
+}
+
+@keyframes dropdown-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .admin-more-group {
@@ -650,6 +665,41 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   align-items: center;
   justify-content: center;
   z-index: 100;
+  /* Plays once whenever the [hidden] attribute is removed (an `animation`,
+     unlike a `transition`, can start right from display:none since it
+     doesn't need to interpolate from a prior computed value) -- opening a
+     dialog fades/slides it in instead of an instant snap-into-place.
+     Closing stays instant, which reads as "responsive" rather than
+     needing a matching exit animation of its own. */
+  animation: modal-backdrop-in 0.15s ease;
+}
+
+@keyframes modal-backdrop-in {
+  from { background-color: rgba(0, 0, 0, 0); }
+  to { background-color: rgba(0, 0, 0, 0.6); }
+}
+
+@keyframes modal-inner-in {
+  from { opacity: 0; transform: scale(0.97) translateY(4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Covers every animation/transform-on-hover introduced above (modal open,
+   dropdown open, sidebar nav hover) — same accessibility intent as the
+   public site's data-motion="reduce" toggle, but this one follows the OS
+   setting directly rather than needing its own opt-in switch, since it's
+   only this admin's own operator using it, not site visitors at large. */
+@media (prefers-reduced-motion: reduce) {
+  .modal, .modal-inner, .admin-more-panel.open {
+    animation: none;
+  }
+  .admin-sidebar-group button, .admin-sidebar-group a {
+    transition: none;
+  }
+  .admin-sidebar-group button:hover, .admin-sidebar-group a:hover,
+  .admin-sidebar-group button:active, .admin-sidebar-group a:active {
+    transform: none;
+  }
 }
 
 /* The sidebar is a persistent, always-visible column on desktop (not an
@@ -673,6 +723,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  animation: modal-inner-in 0.18s var(--ease-smooth);
 }
 
 .modal-inner header {
@@ -1435,6 +1486,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   font-family: inherit;
   cursor: pointer;
   margin-bottom: -1px;
+  transition: color 0.15s var(--ease-smooth), border-bottom-color 0.15s var(--ease-smooth);
 }
 
 .settings-tab:hover {
@@ -1562,6 +1614,55 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   border-radius: 6px;
   font-size: 1rem;
   color: var(--text);
+}
+
+/* Quick-pick starting points for the four color fields below, rather than
+   fiddling with four independent color pickers to land on a combination
+   that actually looks intentional together. Each button previews its own
+   preset via CSS variables set inline (--preset-bg/--preset-accent) rather
+   than a shared class per preset, so adding one later is a one-line HTML
+   change with no matching CSS to also update. Clicking one fills in the
+   four inputs below (still editable afterward) rather than being a
+   separate locked-in "mode" — this is a starting point, not a constraint. */
+.theme-preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 2px 0 16px;
+}
+
+.theme-preset-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px 7px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--preset-bg);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.8rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s var(--ease-smooth), transform 0.15s var(--ease-smooth), box-shadow 0.15s var(--ease-smooth);
+}
+
+.theme-preset-btn::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--preset-accent);
+  flex-shrink: 0;
+}
+
+.theme-preset-btn:hover {
+  transform: translateY(-1px);
+  border-color: var(--preset-accent);
+}
+
+.theme-preset-btn.is-active {
+  border-color: var(--preset-accent);
+  box-shadow: 0 0 0 1px var(--preset-accent);
 }
 
 .theme-contrast-check,

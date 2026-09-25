@@ -3995,3 +3995,61 @@ instead:
   unaffected (already had its own width override for narrow screens).
   Spacing/symmetry auditing across the rest of the admin's popups
   continues as an ongoing pass at the user's request.
+- ✅ **Theme preset "tab select" + subtle nav animation, at explicit
+  user request** — following up on "condense things and make it
+  intuitive... theme colors could be better and maybe like a tab
+  select for the colors... that snappy simple but complex look":
+  - Added 5 curated, WCAG-verified color-scheme presets (Coral Violet
+    — the existing default, Ocean, Forest, Sunset, Monochrome) as a
+    row of clickable pill "tabs" above the four raw color pickers in
+    Site Settings → Appearance. Each pill previews its own bg+accent
+    pairing via a colored dot and background, so the choice is visual,
+    not four independent hex inputs to reason about together.
+    Clicking one fills the same four inputs Save already reads (still
+    freely editable afterward — a starting point, not a locked mode),
+    live-updates the existing contrast checker, and highlights
+    whichever preset (if any) exactly matches the current four values
+    — clearing automatically the moment any field is hand-edited away
+    from an exact match, the same "tab select" convention an OS
+    theme/appearance picker uses. All 5 verified ≥4.5:1 text/bg and
+    ≥3:1 accent/bg, matching this codebase's existing contrast rigor.
+  - Added subtle, CSS-only entrance motion: dialogs now fade+scale in
+    on open (an `animation`, not a `transition`, since it needs to
+    play starting from `display:none` — closing stays instant, which
+    reads as responsive rather than sluggish), the Recent/Notifications
+    dropdowns fade+slide in, and sidebar nav items get a sliding
+    left-accent-bar + slight shift on hover (the same idiom Linear/
+    Notion/Slack use) instead of an instant flat color swap. All of it
+    respects `prefers-reduced-motion: reduce`. Also tightened the
+    sidebar's inter-group spacing (18px → 14px) for a denser feel.
+  Verified via Playwright: clicking each preset fills the four fields
+  correctly and updates the live contrast readout; hand-editing a
+  field afterward correctly clears the active-preset highlight;
+  saving, closing, and reopening Settings correctly re-selects the
+  saved preset; the full regression suite and every sidebar
+  destination still pass with zero console errors in both themes and
+  at both viewport sizes.
+- **Home page test-debris cleanup (local dev database only — did not
+  reach production)**, at explicit user request after seeing screenshots
+  of the real public Home page rendering overlapping test blocks
+  ("Updated via field preview test" over a "GitHub" link, three
+  duplicate "New heading" placeholders, a broken image, a rickroll
+  video embed ×2, "This is a test quote — Someone Famous" ×2, six
+  identical "hello from custom html" blocks, two broken simulation
+  references, three "Write something here." placeholders). Deleted all
+  25 confirmed-test blocks via the admin API, keeping and repositioning
+  the one genuinely real block (a GitHub profile link) to the top.
+  **Important discovery made in the process**: `wrangler dev` in this
+  environment runs against a local-only D1 copy — confirmed via
+  `wrangler whoami` (no Cloudflare credentials configured anywhere in
+  this sandbox) — completely disconnected from the real production
+  database. Every test article/page/block this entire session created
+  and cleaned up, and this Home page edit, only ever touched that local
+  copy; none of it reached the real site's data in either direction.
+  Code changes (everything else in this file) did reach production via
+  the normal git push → Cloudflare Workers Build pipeline; this is
+  specifically about D1 *content*, which is a separate mechanism. If
+  the real production Home page carries the same debris, it's
+  unaffected by this entry and needs the same cleanup applied directly
+  (either by hand in the real admin panel, or by giving a future
+  session real Cloudflare API credentials).

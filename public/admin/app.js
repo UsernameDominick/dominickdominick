@@ -5438,6 +5438,7 @@
     el("settings-modal").hidden = false;
     switchSettingsTab("appearance");
     updateThemeContrastCheck();
+    highlightActiveThemePreset();
     updateFontPreview("settings-font", "settings-font-preview");
     updateFontPreview("settings-heading-font", "settings-heading-font-preview");
     loadActivityLog().catch(() => {});
@@ -5578,6 +5579,52 @@
       .join("");
   }
   ["settings-bg", "settings-text", "settings-accent"].forEach((id) => el(id).addEventListener("input", updateThemeContrastCheck));
+
+  // Quick-pick starting points for the four fields above, rather than
+  // requiring four independent color pickers to land on a combination that
+  // actually looks intentional together. Applying one just fills the same
+  // inputs Save already reads -- it's a starting point, not a separate
+  // locked-in mode, so editing any field afterward works exactly as before.
+  const THEME_PRESETS = {
+    coral: { bg: "#0c0a16", text: "#f4eefc", border: "#2a2438", accent: "#ff7a45" },
+    ocean: { bg: "#0a1420", text: "#e8f4fa", border: "#1e3a4f", accent: "#3fb8e8" },
+    forest: { bg: "#0a140f", text: "#e8f5ec", border: "#1e3a2a", accent: "#4ade80" },
+    sunset: { bg: "#1a0a14", text: "#f7e8f0", border: "#3a1e2f", accent: "#ff4d94" },
+    mono: { bg: "#121212", text: "#f0f0f0", border: "#333333", accent: "#d8d8d8" },
+  };
+  function highlightActiveThemePreset() {
+    const current = {
+      bg: el("settings-bg").value,
+      text: el("settings-text").value,
+      border: el("settings-border").value,
+      accent: el("settings-accent").value,
+    };
+    el("theme-preset-row")
+      .querySelectorAll(".theme-preset-btn")
+      .forEach((btn) => {
+        const p = THEME_PRESETS[btn.dataset.preset];
+        const matches = p && p.bg === current.bg && p.text === current.text && p.border === current.border && p.accent === current.accent;
+        btn.classList.toggle("is-active", !!matches);
+        btn.setAttribute("aria-selected", String(!!matches));
+      });
+  }
+  el("theme-preset-row")
+    .querySelectorAll(".theme-preset-btn")
+    .forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const p = THEME_PRESETS[btn.dataset.preset];
+        if (!p) return;
+        el("settings-bg").value = p.bg;
+        el("settings-text").value = p.text;
+        el("settings-border").value = p.border;
+        el("settings-accent").value = p.accent;
+        updateThemeContrastCheck();
+        highlightActiveThemePreset();
+      });
+    });
+  ["settings-bg", "settings-text", "settings-border", "settings-accent"].forEach((id) =>
+    el(id).addEventListener("input", highlightActiveThemePreset)
+  );
 
   el("check-links-btn").addEventListener("click", async () => {
     const btn = el("check-links-btn");

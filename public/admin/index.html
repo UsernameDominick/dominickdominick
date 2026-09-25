@@ -727,6 +727,13 @@
         <div class="settings-panel" data-panel="appearance">
           <h2>Theme</h2>
           <p class="settings-hint">These override the dark theme's built-in colors (the light theme visitors can switch to keeps its own fixed palette, so it stays readable regardless of what's set here).</p>
+          <div class="theme-preset-row" id="theme-preset-row" role="tablist" aria-label="Theme presets">
+            <button type="button" class="theme-preset-btn" data-preset="coral" style="--preset-bg:#0c0a16;--preset-accent:#ff7a45;" role="tab">Coral Violet</button>
+            <button type="button" class="theme-preset-btn" data-preset="ocean" style="--preset-bg:#0a1420;--preset-accent:#3fb8e8;" role="tab">Ocean</button>
+            <button type="button" class="theme-preset-btn" data-preset="forest" style="--preset-bg:#0a140f;--preset-accent:#4ade80;" role="tab">Forest</button>
+            <button type="button" class="theme-preset-btn" data-preset="sunset" style="--preset-bg:#1a0a14;--preset-accent:#ff4d94;" role="tab">Sunset</button>
+            <button type="button" class="theme-preset-btn" data-preset="mono" style="--preset-bg:#121212;--preset-accent:#d8d8d8;" role="tab">Monochrome</button>
+          </div>
           <label>Accent color<input id="settings-accent" type="color" value="#ff7a45"></label>
           <label>Background color<input id="settings-bg" type="color" value="#0c0a16"></label>
           <label>Text color<input id="settings-text" type="color" value="#f4eefc"></label>
