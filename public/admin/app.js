@@ -4853,6 +4853,30 @@
     }
   });
 
+  el("check-accessibility-btn").addEventListener("click", async () => {
+    const btn = el("check-accessibility-btn");
+    const originalText = btn.textContent;
+    btn.textContent = "Checking…";
+    btn.disabled = true;
+    try {
+      const issues = await api("/accessibility-report");
+      el("accessibility-report-results").innerHTML =
+        issues
+          .map(
+            (i) =>
+              `<div class="link-check-row broken"><span class="link-check-url">${escapeHtml(i.pageTitle)}</span><span class="link-check-source">/${escapeHtml(
+                i.pageSlug === "home" ? "" : i.pageSlug
+              )}</span><span class="link-check-status">${escapeHtml(i.issue)}</span></div>`
+          )
+          .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No issues found.</p>";
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      btn.textContent = originalText;
+      btn.disabled = false;
+    }
+  });
+
   // ---------- Find & replace ----------
   function findReplaceResultLabel(r) {
     if (r.kind === "block") return `${blockLabel(r.blockType)} block on page "${r.pageTitle}"`;

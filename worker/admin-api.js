@@ -82,6 +82,7 @@ import {
   getLinkCheckStatus,
   runScheduledLinkCheck,
   getSeoReport,
+  checkAccessibility,
   getOrphanContent,
   getContentHealth,
   getTagCounts,
@@ -1292,6 +1293,13 @@ async function routeAdminApi(request, env, url, ctx) {
   // missing alt text, across the whole site.
   if (path === "/seo-report" && method === "GET") {
     return json(await getSeoReport(env));
+  }
+
+  // /accessibility-report — known keyboard-nav/focus anti-patterns inside
+  // "html" (raw, unescaped) blocks specifically — every other block type
+  // is already accessible by construction.
+  if (path === "/accessibility-report" && method === "GET") {
+    return json(await checkAccessibility(env));
   }
 
   // /orphan-content — published pages/articles/projects nothing internally

@@ -1081,7 +1081,18 @@ Contact form, admin inbox, guestbook/comments, moderation, newsletter —
 ### Accessibility
 - ✅ Alt-text checks, heading-order/hierarchy checks (full reading-order skip detection), tap-target checks, reduced-motion coverage
 - 🔶 Color-contrast (live WCAG checker for theme colors in Site Settings; no site-wide arbitrary-content checker)
-- ☐ Automated keyboard-nav checker, automated focus-state checker (both work manually, no automated check)
+- ✅ Automated keyboard-nav checker (focus-state still ☐ — checking
+  computed `:focus-visible` styles across every element isn't something a
+  static scan can do meaningfully). A new "Accessibility Report" panel in
+  the SEO Dashboard, scoped to "Raw HTML" blocks specifically — every
+  other block type is already accessible by construction (semantic markup,
+  real `<button>`/`<a>` elements, a dedicated alt-text field the SEO
+  Report already checks), so the html escape-hatch block is the one place
+  arbitrary admin-authored markup can introduce a real problem. Regex-
+  matches for positive `tabindex` (breaks natural tab order), `onclick` on
+  a non-interactive element (a `<div>`/`<span>`/etc., not keyboard-
+  operable), `<img>` with no `alt`, and `<a href="#">` dead-end links —
+  heuristic like the site's other link/markdown scanners, not exhaustive
 - ✅ Accessible alternatives for simulations/3D content (optional description → aria-label/aria-describedby/role=img; scan alt override)
 - ✅ Accessibility folded into the page diagnostics/publishing checklist
 

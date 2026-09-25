@@ -3128,3 +3128,33 @@ export async function getSeoReport(env) {
   const duplicateTitles = [...titleOwners.values()].filter((owners) => owners.length > 1);
   return { missingMeta, missingAlt, missingOgImage, duplicateTitles };
 }
+
+// Every block type except the "html" escape hatch is already accessible by
+// construction (semantic markup, real <button>/<a> elements, a dedicated
+// alt-text field the SEO report above already checks) — this is the one
+// place arbitrary admin-authored markup can land, so it's the only place
+// worth pattern-matching for known keyboard-nav/focus anti-patterns.
+// Regex-based HTML scanning is inherently approximate (same trade-off the
+// markdown-link scanning elsewhere in this file already makes) — flags
+// likely issues, not a substitute for actually tabbing through the page.
+export async function checkAccessibility(env) {
+  const pages = await listPages(env);
+  const pageBlocks = await Promise.all(pages.map((p) => listBlocks(env, p.id)));
+  const checks = [
+    { test: /tabindex\s*=\s*["']?\s*[1-9]/i, issue: "Positive tabindex value (breaks the natural tab order)" },
+    { test: /<(div|span|li|td|tr|p|section|article)\b[^>]*\bonclick\s*=/i, issue: "onclick on a non-interactive element (not reachable or operable by keyboard)" },
+    { test: /<img\b(?![^>]*\balt\s*=)[^>]*>/i, issue: "<img> with no alt attribute" },
+    { test: /<a\b[^>]*\bhref\s*=\s*["']\s*#\s*["'][^>]*>/i, issue: '<a href="#"> with no real destination' },
+  ];
+  const issues = [];
+  pages.forEach((p, i) => {
+    for (const b of pageBlocks[i]) {
+      if (b.type !== "html") continue;
+      const html = (b.content && b.content.html) || "";
+      for (const { test, issue } of checks) {
+        if (test.test(html)) issues.push({ pageTitle: p.title, pageSlug: p.slug, blockId: b.id, issue });
+      }
+    }
+  });
+  return issues;
+}
