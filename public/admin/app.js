@@ -7578,14 +7578,23 @@
     }
   };
 
+  // Shared "which modal is actually on top" resolution — when a picker
+  // modal (e.g. Media Library) is opened from inside another modal (e.g.
+  // the Articles editor), both are simultaneously `.modal:not([hidden])`;
+  // the later one in DOM order is the one that visually renders on top.
+  // Escape-handling and the focus trap below both need this same answer.
+  function getTopModal() {
+    const open = document.querySelectorAll(".modal:not([hidden])");
+    return open.length ? open[open.length - 1] : null;
+  }
+
   // Escape and backdrop-click close whichever modal is open, via its own
   // close button (not by setting .hidden directly) — several modals
   // (Songs, Simulations builders) run cleanup like stopping playback in
   // their close handler, which a bare .hidden = true would skip.
   function closeTopModal() {
-    const open = Array.from(document.querySelectorAll(".modal:not([hidden])"));
-    if (!open.length) return false;
-    const modal = open[open.length - 1];
+    const modal = getTopModal();
+    if (!modal) return false;
     const closeBtn = modal.querySelector('button[id^="close-"]');
     if (closeBtn) closeBtn.click();
     else modal.hidden = true;
@@ -7612,6 +7621,66 @@
       if (e.target === modal) closeTopModal();
     });
   });
+
+  // Focus trap — previously no modal in the app managed keyboard focus at
+  // all, so Tab from inside an open modal walked straight into whatever
+  // background page control happened to be next in DOM order (the canvas,
+  // the sidebar nav, another modal's controls hidden behind this one).
+  // Reuses getTopModal() so a modal opened from inside another modal (e.g.
+  // Media Library from the Articles editor) traps against the one actually
+  // on top, not the one underneath it.
+  function focusableIn(container) {
+    return Array.from(
+      container.querySelectorAll(
+        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )
+    ).filter((node) => node.offsetParent !== null);
+  }
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Tab") return;
+    const modal = getTopModal();
+    if (!modal) return;
+    const focusable = focusableIn(modal);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    } else if (!modal.contains(document.activeElement)) {
+      // Focus already isn't inside the modal at all (e.g. it landed on
+      // <body> because whatever previously held it got hidden/removed) —
+      // pull it back in rather than letting the next Tab continue drifting.
+      e.preventDefault();
+      first.focus();
+    }
+  });
+
+  // The other half of the same pattern: once a modal closes, return focus
+  // to whatever triggered it, rather than leaving it wherever the modal's
+  // own contents last had it (often nowhere, since closing typically hides
+  // the focused element itself, dropping focus to <body>). A
+  // MutationObserver on the shared `hidden` attribute — not a wrapper
+  // around every individual open/close call site — since several modals
+  // (Songs, Simulations builders) already run their own cleanup in a
+  // dedicated close handler that a second wrapper risks double-firing.
+  const modalFocusReturn = new WeakMap();
+  new MutationObserver((mutations) => {
+    for (const m of mutations) {
+      const modal = m.target;
+      if (!(modal instanceof HTMLElement) || !modal.classList.contains("modal")) continue;
+      if (modal.hidden) {
+        const restore = modalFocusReturn.get(modal);
+        modalFocusReturn.delete(modal);
+        if (restore && document.body.contains(restore)) restore.focus();
+      } else {
+        modalFocusReturn.set(modal, document.activeElement);
+      }
+    }
+  }).observe(document.body, { attributes: true, attributeFilter: ["hidden"], subtree: true });
 
   window.addEventListener("resize", () => renderCanvas());
   boot();

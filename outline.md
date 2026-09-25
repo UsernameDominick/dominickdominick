@@ -2513,15 +2513,15 @@ real, if low-severity, gaps found and fixed:
   slash-form instead of picking one, unlike its two sibling lines
   ("1 broken link(s) found", "7 error(s) in the last 24h") which use
   the app's normal shorthand. Fixed to pluralize correctly.
-- 🔶 Two findings noted but deliberately not built this round, both
+- Two findings noted but deliberately not built this round, both
   real but bigger in scope than a fix-in-place: no modal in the app
   traps keyboard focus (Tab from inside an open modal walks into
-  background page controls — affects every modal, not one), and two
-  blocks that fully overlap on the canvas (pre-existing test content,
-  not something this round created) can't be clicked through to select
-  the one underneath, only via the Layers panel's "Select" button. Both
-  are legitimate accessibility/UX gaps worth a dedicated pass later,
-  not a quick CSS or one-line fix.
+  background page controls — affects every modal, not one; ✅ fixed
+  later, see "Modal focus trap" in section 12), and two blocks that
+  fully overlap on the canvas (pre-existing test content, not
+  something this round created) can't be clicked through to select
+  the one underneath, only via the Layers panel's "Select" button —
+  still open, a legitimate accessibility/UX gap worth a dedicated pass.
 
 ### Incidental: local dev fixture recovery
 One of the critique agents' own test cleanup accidentally renamed and
@@ -4236,3 +4236,34 @@ is implemented below.
   renders cleanly at both desktop (1280px) and mobile (390px) widths,
   and the existing content (e.g. the Home page's GitHub link) is
   unaffected. Full regression suite green.
+
+### Modal focus trap
+
+- ✅ **No modal in the admin app managed keyboard focus** — Tab from
+  inside any open modal (Articles, Projects, Media Library, Settings,
+  all ~20 of them) walked straight into whatever background control
+  happened to sit next in DOM order, since none of them individually
+  handled this (a real WAI-ARIA dialog pattern gap, and worse on this
+  site than most since the 24-column canvas sits directly behind every
+  modal with dozens of its own focusable blocks). Built as one generic,
+  site-wide fix rather than touching every modal's open/close code:
+  extracted the existing `closeTopModal()`'s "which `.modal:not([hidden])`
+  is actually on top" resolution into a shared `getTopModal()` (unchanged
+  behavior, just reused), then added a `keydown` listener that cycles Tab/
+  Shift+Tab between the topmost modal's first and last focusable elements
+  instead of letting focus leave it, correctly targeting the *topmost*
+  modal when one picker (e.g. Media Library) is opened from inside another
+  (e.g. the Articles editor) rather than the one behind it. Paired with
+  the other half of the same pattern — returning focus to whatever
+  triggered a modal once it closes — via a `MutationObserver` on the
+  shared `hidden` attribute rather than a wrapper around every close path,
+  since a few modals (Songs, Simulations builders) already run their own
+  cleanup in a dedicated close handler that a second wrapper risked
+  double-firing. Verified via Playwright: tabbing 90 times inside the
+  Articles editor (85 real focusable elements) never left the modal;
+  Shift+Tab from the first element wrapped to the last; closing it
+  returned focus to the "Articles" button that opened it; and the nested
+  case (Media Library opened from the Articles editor's "Browse…" image
+  picker) trapped against Media Library specifically, left the Articles
+  modal open underneath, and returned focus to the Browse button — not
+  the outer modal's trigger — on close. Full regression suite green.
