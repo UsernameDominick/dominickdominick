@@ -5753,5 +5753,17 @@ confirmed neither button's confirm() dialog fires or touches
 `simCheckpoints` anymore, while a real selection still restores/deletes
 correctly. Full regression suite green.
 
-Item #367 is done: 1 critic round, 8/10, the one real finding fixed and
-verified live.
+Resubmitted for a fresh critic round (new code changed since the 8/10
+round). Round 2: **9/10, zero findings**. Reproduced the round-1 critic's
+exact scenario (force-enable Restore/Delete while the select sits at
+blank) and confirmed neither button fires its confirm() or touches
+`simCheckpoints` anymore; confirmed `simCheckpoints[-1]` really is
+`undefined` in JS so the `-1` sentinel can never collide with a real
+index; confirmed the normal select→Restore/Delete path still works
+correctly (no regression from the fix); checked the Save handler and
+`openBuilder()`'s load/reset paths for any similar blank/zero confusion
+and found none — the save path never reads the select at all, so it was
+never exposed to this class of bug in the first place.
+
+Item #367 is fully closed: 2 critic rounds, 8/10 → 9/10, the one real
+finding from round 1 fixed and verified; round 2 found nothing new.
