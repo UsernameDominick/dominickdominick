@@ -3344,7 +3344,17 @@
       hint.textContent = "";
       return;
     }
-    const parts = siblings.map((a) => (a.series_order != null ? `Part ${a.series_order}: ${a.title}` : a.title));
+    const parts = siblings.map((a) => {
+      const label = a.series_order != null ? `Part ${a.series_order}: ${a.title}` : a.title;
+      // getSeriesArticles() (worker/db.js) — the server-side lookup that
+      // actually drives the public "Part N of M" nav — only counts a
+      // sibling once it's published and its publish date has arrived.
+      // Without this check the hint would claim a draft/future-scheduled
+      // article is already "in this series" when nothing on the live
+      // site shows it yet.
+      const isLive = a.published_at && new Date(a.published_at) <= new Date();
+      return isLive ? label : `${label} (not live yet)`;
+    });
     hint.hidden = false;
     hint.textContent = `Other parts already in this series: ${parts.join(", ")}`;
   }
@@ -5532,30 +5542,40 @@
     rounded: `'Trebuchet MS', Verdana, sans-serif`,
   };
   let customFontPreviewFaceInjected = null; // tracks which URL is currently injected
-  function updateFontPreview(selectId, previewId) {
+  // Body and Heading share the empty-string sentinel but it means two
+  // different things: for Body it's "use the system default"; for Heading
+  // it's "same as body", which needs to actually resolve to whatever the
+  // Body select currently has (recursing once) rather than clearing to a
+  // fixed default -- otherwise picking a non-default body font left the
+  // heading preview silently showing a plain sans stack instead of matching,
+  // even though the real site's CSS does inherit the body font here.
+  function resolveFontStack(selectId) {
     const value = el(selectId).value;
-    const preview = el(previewId);
-    if (!value) {
-      preview.style.fontFamily = "";
-      return;
-    }
+    if (!value) return selectId === "settings-heading-font" ? resolveFontStack("settings-font") : "";
     if (value === "custom") {
-      if (currentCustomFontUrl) {
-        if (customFontPreviewFaceInjected !== currentCustomFontUrl) {
-          const styleEl = document.createElement("style");
-          styleEl.textContent = `@font-face{font-family:"AdminCustomFontPreview";src:url("${escapeHtml(currentCustomFontUrl)}");}`;
-          document.head.appendChild(styleEl);
-          customFontPreviewFaceInjected = currentCustomFontUrl;
-        }
-        preview.style.fontFamily = `"AdminCustomFontPreview", sans-serif`;
-      } else {
-        preview.style.fontFamily = "sans-serif";
+      if (!currentCustomFontUrl) return "sans-serif";
+      if (customFontPreviewFaceInjected !== currentCustomFontUrl) {
+        const styleEl = document.createElement("style");
+        // JSON.stringify, not escapeHtml -- this is a CSS string inside
+        // .textContent (never parsed as HTML), so it needs CSS/JS-style
+        // quote escaping, not HTML-entity escaping.
+        styleEl.textContent = `@font-face{font-family:"AdminCustomFontPreview";src:url(${JSON.stringify(currentCustomFontUrl)});}`;
+        document.head.appendChild(styleEl);
+        customFontPreviewFaceInjected = currentCustomFontUrl;
       }
-      return;
+      return `"AdminCustomFontPreview", sans-serif`;
     }
-    preview.style.fontFamily = ADMIN_FONT_STACKS[value] || "";
+    return ADMIN_FONT_STACKS[value] || "";
   }
-  el("settings-font").addEventListener("change", () => updateFontPreview("settings-font", "settings-font-preview"));
+  function updateFontPreview(selectId, previewId) {
+    el(previewId).style.fontFamily = resolveFontStack(selectId);
+  }
+  el("settings-font").addEventListener("change", () => {
+    updateFontPreview("settings-font", "settings-font-preview");
+    // The heading preview may currently be resolving to "same as body" --
+    // a body change needs to be reflected there too, not just its own box.
+    updateFontPreview("settings-heading-font", "settings-heading-font-preview");
+  });
   el("settings-heading-font").addEventListener("change", () => updateFontPreview("settings-heading-font", "settings-heading-font-preview"));
 
   function updateThemeContrastCheck() {
@@ -7390,6 +7410,14 @@
       simulationOptions = [];
     }
     renderInspector();
+    // The canvas's "Broken reference" badge (blockBadgesHtml) checks a
+    // simulation/scan/song block's target against this same array — if the
+    // canvas already rendered before this resolved (e.g. loadPages() ran
+    // first, or a slow network delayed this past the initial render), every
+    // valid block would show a false "broken" badge that renderInspector()
+    // alone can't clear. Re-rendering the canvas here means that false state
+    // can never outlive the fetch that caused it.
+    renderCanvas();
   }
 
   async function loadScanOptions() {
@@ -7399,6 +7427,7 @@
       scanOptions = [];
     }
     renderInspector();
+    renderCanvas();
   }
 
   async function loadSongOptions() {
@@ -7408,6 +7437,7 @@
       songOptions = [];
     }
     renderInspector();
+    renderCanvas();
   }
 
   async function boot() {
@@ -7417,10 +7447,13 @@
       return;
     }
     showApp();
-    await loadPages();
+    // Loaded before loadPages() specifically so the very first canvas render
+    // already has real simulation/scan/song data to check "Broken reference"
+    // badges against, instead of the empty arrays these start as.
     await loadSimulationOptions();
     await loadScanOptions();
     await loadSongOptions();
+    await loadPages();
     await loadStylePresets();
     populateStylePresetSelect();
     await loadMediaSavedSearches();

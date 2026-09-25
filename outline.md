@@ -3761,3 +3761,96 @@ instead:
   rows; a CSV with only Quantity/Price columns (no Item-like column)
   was correctly rejected with zero rows written; an empty file was
   rejected with a distinct "no rows found" message.
+
+### Critic pass on the redirect-loop, sitemap-check, font-preview, bulk-alt-text, and series-autocomplete features
+- ✅ **"Broken reference" badge false-positived on valid simulation/scan/
+  song blocks under real network latency, and never self-corrected** —
+  `boot()` called `await loadPages()` (which renders the initial
+  canvas) *before* `loadSimulationOptions()/loadScanOptions()/
+  loadSongOptions()` resolved, so the very first canvas render checked
+  every simulation/scan/song block against still-empty option arrays.
+  Once those loads actually finished, only `renderInspector()` ran —
+  never `renderCanvas()` — so a false "broken" badge could outlive the
+  fetch that caused it indefinitely, only clearing if the admin
+  switched to a different page and back. Fixed on both ends: reordered
+  `boot()` to load simulation/scan/song options *before* `loadPages()`
+  (so the first render already has real data), and added
+  `renderCanvas()` alongside the existing `renderInspector()` call in
+  all three load functions, so any future stale-badge window
+  self-heals the moment the real data arrives rather than requiring a
+  page switch. Verified via Playwright with `/api/admin/simulations`
+  artificially delayed 1.5s: no false badge appeared at any point
+  during or after the load on a real, valid simulation-block reference.
+- ✅ **Series-autocomplete hint could claim an unpublished draft was
+  already "in this series"** — `updateSeriesHint()` matched on
+  `series` equality alone, unlike the server-side `getSeriesArticles()`
+  it's supposed to mirror, which only counts a sibling once it's
+  actually published and its publish date has passed. An admin editing
+  a published article could see an unpublished/future-scheduled
+  sibling listed as if it were already live. Rather than hiding drafts
+  entirely (losing real planning value — knowing a part 2 draft
+  already exists is useful), each non-live sibling in the hint is now
+  suffixed `(not live yet)`. Verified via Playwright: a series with one
+  published and one intentionally-unpublished article shows the
+  unpublished one correctly labeled.
+- ✅ **Heading font "Same as body" preview didn't actually preview the
+  body font** — `updateFontPreview()` treated the heading select's
+  empty ("Same as body") value the same as the body select's own empty
+  ("Default") value: just clear to blank. On the real site this
+  genuinely inherits the body font (`public/style.css`:
+  `font-family: var(--heading-font-family, inherit)`), so the preview
+  was actively misrepresenting what headings would look like — e.g.
+  Body=Serif + Heading="Same as body" showed the heading preview in
+  the default sans stack instead of serif. Refactored into a
+  `resolveFontStack(selectId)` helper that recurses into the body
+  select when the heading select is blank, and wired the body select's
+  `change` handler to also refresh the heading preview (since a body
+  change can affect what "same as body" now resolves to). Also fixed a
+  related code smell caught in the same pass: the custom-font
+  `@font-face` injection used `escapeHtml()` (HTML-entity escaping) on
+  a value going into `.textContent` of a `<style>` tag, which is never
+  parsed as HTML — harmless today only because uploaded font URLs are
+  always plain UUID paths, but the wrong tool for the job. Switched to
+  `JSON.stringify()`, which produces a correctly-escaped CSS/JS string
+  literal. Verified via Playwright: Body=Serif + Heading="Same as
+  body" now correctly previews serif in both boxes, and changing Body
+  afterward live-updates the heading preview too.
+- ✅ **Bulk "Set alt text…" tooltip didn't disclose that it can't
+  retroactively fix already-placed images** — the media library's
+  `alt_text` only ever gets copied onto a block's own `content.alt`
+  once, at pick time, and only into a currently-blank field (true of
+  single-file edits too, not something this feature changed) — so
+  running it on files already flagged by the SEO report's "missing alt
+  text" check (which reads each block's own `content.alt`, not the
+  media library) doesn't clear that finding, contrary to what the
+  original commit message implied. Rather than building a broader
+  retroactive block-rewriting feature to scan every page/article/
+  project for placements of the edited file (real scope creep for what
+  this tool is), updated the button's tooltip to say plainly that it
+  only updates the Media Library entry and won't touch images already
+  placed on a page.
+- ✅ **Redirect-loop check's fixed 25-hop cutoff misreported long,
+  genuinely non-cyclic redirect chains as loops** — the walk's own
+  `seen` set already detects any real cycle exactly; the hop cap was
+  only ever meant as a defensive backstop, but a fixed constant meant
+  a chain that happened to be longer than it (built up over years of
+  incremental slug renames, plausible for a real site) got rejected
+  with "this would create a redirect loop" even with zero actual
+  cycles. Changed the cap to the redirect table's own size (+1) —
+  since a true cycle must repeat a node within that many steps
+  (pigeonhole), any real loop is still caught exactly, but a
+  non-cyclic chain can never be misreported just for being "too long"
+  again. Verified via Playwright: a real 31-hop non-cyclic chain (past
+  the old 25-hop cutoff) now correctly accepts a new redirect pointing
+  at its head, while actually closing that same chain into a real loop
+  is still correctly rejected.
+- Noted, not fixed: the critic pass surfaced that the production D1
+  database already carries a fair amount of leftover test debris from
+  earlier QA sessions (draft articles with junk `series` values like
+  "Test Series 1790220605718", junk simulations, a couple of stray
+  test pages) — none of it created by this pass. It's mostly invisible
+  clutter except that the new series `<datalist>` now surfaces several
+  of those garbage series names directly in the real admin's
+  autocomplete. Left alone rather than bulk-deleting a lot of
+  pre-existing records unilaterally — worth a deliberate cleanup pass
+  with the user's go-ahead.

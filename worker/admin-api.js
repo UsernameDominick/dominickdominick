@@ -191,7 +191,15 @@ async function wouldCreateRedirectLoop(env, fromPath, toPath, excludeId) {
   map.set(fromPath, toPath);
   let current = normalizeRedirectTarget(toPath);
   const seen = new Set();
-  for (let hops = 0; hops < 25; hops++) {
+  // The `seen` check below already detects any cycle exactly, so the hop
+  // cap only needs to be large enough that a genuinely non-cyclic chain can
+  // finish walking before hitting it -- a chain can visit at most map.size
+  // distinct from_paths before it must either terminate or repeat one
+  // (pigeonhole), so bounding on the graph's own size (rather than a fixed
+  // constant like 25) means a long-but-real redirect chain can no longer be
+  // misreported as a loop just for being longer than an arbitrary cutoff.
+  const maxHops = map.size + 1;
+  for (let hops = 0; hops < maxHops; hops++) {
     if (current === fromPath) return true;
     const next = map.get(current);
     if (next === undefined) return false;
