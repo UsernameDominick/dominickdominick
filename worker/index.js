@@ -95,13 +95,15 @@ function hasPreviewModeCookie(request) {
 // site down to one plain "we'll be back" page while an admin is doing
 // something risky. Exempts /admin (and /api/admin, already routed
 // elsewhere before this ever runs) so a logged-out admin can still reach
-// the login screen to turn it back off, plus anything that looks like a
-// static asset — the exempt list is deliberately broad (covers what the
-// maintenance page or the admin panel could need) rather than trying to
-// enumerate every route that should still work.
-const MAINTENANCE_EXEMPT_EXT = /\.(css|js|mjs|json|svg|png|jpg|jpeg|webp|gif|ico|woff2?|ttf|mp3|mp4|webm|glb|gltf|usdz|wasm|txt)$/i;
+// the login screen to turn it back off, plus the actual static files and
+// uploaded media the site needs. This used to be a blanket file-extension
+// regex, which let real content through by accident: a topic tag like
+// "node.js" (extension "js") or a page slug starting with "admin" (prefix
+// match, not an exact one) fully rendered its real content instead of the
+// maintenance page. An explicit allowlist can't have that failure mode.
+const MAINTENANCE_EXEMPT_FILES = new Set(["/nav.js", "/sim-player.js", "/song-embed.js", "/song-engine.js", "/style.css", "/favicon.ico"]);
 function isMaintenanceExempt(path) {
-  return path.startsWith("/admin") || MAINTENANCE_EXEMPT_EXT.test(path);
+  return path === "/admin" || path.startsWith("/admin/") || path.startsWith("/media/") || MAINTENANCE_EXEMPT_FILES.has(path);
 }
 function renderMaintenanceHtml(message) {
   return `<!DOCTYPE html>
@@ -186,10 +188,13 @@ function renderPagePasswordFormHtml(page, wrongPassword) {
   return `<div class="block password-gate">
     <h1>${esc(page.title)}</h1>
     <p>This page is password protected.</p>
-    ${wrongPassword ? `<p class="password-gate-error">Wrong password — try again.</p>` : ""}
+    <p class="password-gate-error" role="alert">${wrongPassword ? "Wrong password — try again." : ""}</p>
     <form method="POST" action="/page-access/${esc(page.slug)}" class="password-gate-form">
-      <input type="password" name="password" placeholder="Password" required autofocus>
-      <button type="submit">Unlock</button>
+      <label for="page-password-input">Password</label>
+      <div class="password-gate-input-row">
+        <input id="page-password-input" type="password" name="password" placeholder="Password" required autofocus>
+        <button type="submit">Unlock</button>
+      </div>
     </form>
   </div>`;
 }
@@ -276,9 +281,14 @@ async function renderArticle(env, article, navItems, previewReason = null) {
   // long-form article blows past, overlapping whatever came after it
   // (reactions, related articles). Flow layout can't overlap; each section
   // just takes the height its own content needs.
+  // "/random" (the URL prefix every article lives under) has no index page
+  // of its own to link to — /archive is the closest real, working stand-in
+  // (every article/project, newest first) rather than a breadcrumb (and,
+  // via the same data, a BreadcrumbList structured-data entry) pointing at
+  // a 404.
   const breadcrumbHtml = renderBreadcrumbHtml([
     { name: "Home", path: "/" },
-    { name: "Random", path: "/random" },
+    { name: "Random", path: "/archive" },
     { name: article.title, path: `/random/${article.slug}` },
   ]);
   const bodyHtml = `<div class="reading-progress"></div>
@@ -321,7 +331,7 @@ async function renderArticle(env, article, navItems, previewReason = null) {
       "@type": "BreadcrumbList",
       itemListElement: [
         { "@type": "ListItem", position: 1, name: "Home", item: "https://dominickdominick.com/" },
-        { "@type": "ListItem", position: 2, name: "Random", item: "https://dominickdominick.com/random" },
+        { "@type": "ListItem", position: 2, name: "Random", item: "https://dominickdominick.com/archive" },
         { "@type": "ListItem", position: 3, name: article.title, item: `https://dominickdominick.com/random/${article.slug}` },
       ],
     },
@@ -703,12 +713,12 @@ async function renderRss(env, { type, tag } = {}) {
   </item>`
     )
     .join("\n");
-  const titleSuffix = [type ? (type === "project" ? "Projects" : "Random") : null, tag ? `"${tag}"` : null].filter(Boolean).join(" — ");
+  const titleSuffix = [type ? (type === "project" ? "Projects" : "Random") : null, tag ? `"${xmlEsc(tag)}"` : null].filter(Boolean).join(" — ");
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0">
 <channel>
   <title>Dominick${titleSuffix ? " — " + titleSuffix : " — Random"}</title>
-  <link>https://dominickdominick.com/random</link>
+  <link>https://dominickdominick.com/archive</link>
   <description>Notes, projects, and half-formed ideas from Dominick.</description>
   <language>en</language>
 ${items}
@@ -832,9 +842,12 @@ const SECURITY_HEADERS = {
     // Worker + WASM fetched from the same origin as the script itself,
     // hence the matching allowances on worker-src/connect-src too.
     "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net",
-    "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com",
+    // jsdelivr here too — KaTeX (for ```math blocks) loads its stylesheet
+    // and glyph fonts from the same jsdelivr build as its JS module, which
+    // script-src above already trusts.
+    "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net",
     "img-src 'self' data: https:",
-    "font-src 'self' https://cdnjs.cloudflare.com data:",
+    "font-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net data:",
     "connect-src 'self' https://cdn.jsdelivr.net",
     "worker-src 'self' blob: https://cdn.jsdelivr.net",
     // The Generic Embed block is deliberately "any iframe-able link" —
@@ -938,15 +951,19 @@ async function route(request, env, ctx) {
       const page = await getPageBySlug(env, slug);
       const backTo = `${url.origin}/${slug === "home" ? "" : slug}`;
       if (!page || !page.password_hash) return Response.redirect(backTo, 303);
+      const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+      const allowed = await checkRateLimit(env, "page-access", ip, { windowMinutes: 15, maxAttempts: 8 });
+      if (!allowed) return new Response("Too many attempts. Try again later.", { status: 429 });
+      ctx.waitUntil(recordRateLimitHit(env, "page-access", ip).catch(() => {}));
       const form = await request.formData().catch(() => null);
       const candidate = form?.get("password") || "";
-      const candidateHash = candidate ? await hmac(env.SESSION_SECRET, candidate) : "";
+      const candidateHash = candidate ? await hmac(env.SESSION_SECRET, `page-password:${candidate}`) : "";
       if (!candidate || !timingSafeEqual(candidateHash, page.password_hash)) {
         return Response.redirect(`${backTo}?error=1`, 303);
       }
       const token = await pageAccessToken(env, page);
       const headers = new Headers({ Location: backTo });
-      headers.append("Set-Cookie", `page_pw_${page.id}=${token}; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax`);
+      headers.append("Set-Cookie", `page_pw_${page.id}=${token}; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=Lax; HttpOnly; Secure`);
       return new Response(null, { status: 303, headers });
     }
 
@@ -978,9 +995,11 @@ async function route(request, env, ctx) {
       if (!allowed) return new Response("Too many searches. Try again in a minute.", { status: 429 });
       ctx.waitUntil(recordRateLimitHit(env, "search", ip).catch(() => {}));
       const navItems = await listNavPages(env);
-      const type = url.searchParams.get("type") || "";
+      const rawType = url.searchParams.get("type") || "";
+      const type = ["page", "article", "project"].includes(rawType) ? rawType : "";
       const sort = url.searchParams.get("sort") === "oldest" ? "oldest" : "newest";
-      const page = Math.max(1, Number(url.searchParams.get("page")) || 1);
+      const rawPage = Math.floor(Number(url.searchParams.get("page")));
+      const page = Number.isFinite(rawPage) && rawPage > 0 ? Math.min(rawPage, 10000) : 1;
       return renderSearch(env, url.searchParams.get("q")?.trim() || "", navItems, ctx, { type, sort, page });
     }
 
@@ -1012,7 +1031,13 @@ async function route(request, env, ctx) {
     const topicMatch = path.match(/^\/topics\/([^/]+)$/);
     if (topicMatch) {
       const navItems = await listNavPages(env);
-      return renderTopicPage(env, decodeURIComponent(topicMatch[1]), navItems);
+      let tag;
+      try {
+        tag = decodeURIComponent(topicMatch[1]);
+      } catch {
+        tag = topicMatch[1];
+      }
+      return renderTopicPage(env, tag, navItems);
     }
 
     if (path === "/archive") {

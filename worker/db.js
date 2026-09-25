@@ -110,6 +110,12 @@ export async function restorePage(env, id) {
 }
 
 export async function hardDeletePage(env, id) {
+  // nav_parent_id has no ON DELETE clause, so D1's foreign-key enforcement
+  // rejects deleting a page that's still some other page's nav parent —
+  // detach any children first rather than leaving them permanently
+  // undeletable (they just fall back to top-level nav, same as any page
+  // whose parent was ever removed from the nav).
+  await env.DB.prepare("UPDATE pages SET nav_parent_id = NULL WHERE nav_parent_id = ?").bind(id).run();
   await env.DB.prepare("DELETE FROM pages WHERE id = ?").bind(id).run();
 }
 
@@ -134,6 +140,15 @@ export async function duplicatePage(env, id) {
     nav_order: null,
     og_image: source.og_image,
   });
+  // A password-protected or sitemap-excluded source must not silently
+  // become public through its copy — carry both over explicitly, since
+  // createPage's field list doesn't accept them at insert time.
+  if (source.password_hash || source.sitemap_exclude) {
+    await env.DB
+      .prepare("UPDATE pages SET password_hash = ?, sitemap_exclude = ? WHERE id = ?")
+      .bind(source.password_hash || null, source.sitemap_exclude ? 1 : 0, newId)
+      .run();
+  }
   const blocks = await listBlocks(env, id);
   for (const b of blocks) {
     await createBlock(env, newId, b);
@@ -615,6 +630,14 @@ export async function updateArticle(env, id, fields) {
 // Shared by bulkArticleAction/bulkProjectAction — adding a tag reads each
 // affected row's own tags array (can't do a set-union in raw SQL against a
 // JSON text column) and writes back only the ones that didn't already have it.
+// A near-empty body shouldn't be publishable through any path — single-item
+// create/update in admin-api.js and the bulk "Publish" action below both
+// enforce this same floor.
+export const MIN_PUBLISH_BODY_LENGTH = 50;
+export function publishBodyTooShort(effectiveBody) {
+  return !effectiveBody || effectiveBody.trim().length <= MIN_PUBLISH_BODY_LENGTH;
+}
+
 async function bulkAddTag(env, table, affectedIds, tag) {
   const placeholders = affectedIds.map(() => "?").join(",");
   const { results } = await env.DB.prepare(`SELECT id, tags FROM ${table} WHERE id IN (${placeholders})`).bind(...affectedIds).all();
@@ -644,11 +667,25 @@ export async function bulkArticleAction(env, ids, action, opts = {}) {
   const affectedIds = validIds.filter((id) => !lockedRows.results.some((r) => r.id === id));
   if (!affectedIds.length) return { affected: 0, skippedLocked };
   const affectedPlaceholders = affectedIds.map(() => "?").join(",");
+  let skippedTooShort = 0;
   if (action === "publish") {
-    await env.DB
-      .prepare(`UPDATE articles SET published_at = COALESCE(published_at, datetime('now')), updated_at = datetime('now'), version = version + 1 WHERE id IN (${affectedPlaceholders})`)
+    // The single-item PUT/PATCH routes in admin-api.js reject publishing a
+    // near-empty body — bulk "Publish" is just another way to set
+    // published_at, so it needs the same floor, or it's a one-click way
+    // around a check that exists specifically to stop that.
+    const rows = await env.DB
+      .prepare(`SELECT id, published_at, body FROM articles WHERE id IN (${affectedPlaceholders})`)
       .bind(...affectedIds)
-      .run();
+      .all();
+    const toPublish = rows.results.filter((r) => r.published_at || !publishBodyTooShort(r.body)).map((r) => r.id);
+    skippedTooShort = affectedIds.length - toPublish.length;
+    if (toPublish.length) {
+      const publishPlaceholders = toPublish.map(() => "?").join(",");
+      await env.DB
+        .prepare(`UPDATE articles SET published_at = COALESCE(published_at, datetime('now')), updated_at = datetime('now'), version = version + 1 WHERE id IN (${publishPlaceholders})`)
+        .bind(...toPublish)
+        .run();
+    }
   } else if (action === "unpublish") {
     await env.DB
       .prepare(`UPDATE articles SET published_at = NULL, updated_at = datetime('now'), version = version + 1 WHERE id IN (${affectedPlaceholders})`)
@@ -665,7 +702,7 @@ export async function bulkArticleAction(env, ids, action, opts = {}) {
   } else {
     throw new Error("Invalid bulk action");
   }
-  return { affected: affectedIds.length, skippedLocked };
+  return { affected: affectedIds.length - skippedTooShort, skippedLocked, skippedTooShort };
 }
 
 export async function bulkProjectAction(env, ids, action, opts = {}) {
@@ -680,11 +717,21 @@ export async function bulkProjectAction(env, ids, action, opts = {}) {
   const affectedIds = validIds.filter((id) => !lockedRows.results.some((r) => r.id === id));
   if (!affectedIds.length) return { affected: 0, skippedLocked };
   const affectedPlaceholders = affectedIds.map(() => "?").join(",");
+  let skippedTooShort = 0;
   if (action === "publish") {
-    await env.DB
-      .prepare(`UPDATE projects SET published_at = COALESCE(published_at, datetime('now')), updated_at = datetime('now'), version = version + 1 WHERE id IN (${affectedPlaceholders})`)
+    const rows = await env.DB
+      .prepare(`SELECT id, published_at, body FROM projects WHERE id IN (${affectedPlaceholders})`)
       .bind(...affectedIds)
-      .run();
+      .all();
+    const toPublish = rows.results.filter((r) => r.published_at || !publishBodyTooShort(r.body)).map((r) => r.id);
+    skippedTooShort = affectedIds.length - toPublish.length;
+    if (toPublish.length) {
+      const publishPlaceholders = toPublish.map(() => "?").join(",");
+      await env.DB
+        .prepare(`UPDATE projects SET published_at = COALESCE(published_at, datetime('now')), updated_at = datetime('now'), version = version + 1 WHERE id IN (${publishPlaceholders})`)
+        .bind(...toPublish)
+        .run();
+    }
   } else if (action === "unpublish") {
     await env.DB
       .prepare(`UPDATE projects SET published_at = NULL, updated_at = datetime('now'), version = version + 1 WHERE id IN (${affectedPlaceholders})`)
@@ -701,7 +748,7 @@ export async function bulkProjectAction(env, ids, action, opts = {}) {
   } else {
     throw new Error("Invalid bulk action");
   }
-  return { affected: affectedIds.length, skippedLocked };
+  return { affected: affectedIds.length - skippedTooShort, skippedLocked, skippedTooShort };
 }
 
 // "Delete" moves an article to the trash rather than actually removing it
@@ -1555,10 +1602,31 @@ export async function listMediaFolders(env) {
 // walk of pages/blocks/articles/projects/settings, not one per file. Both
 // findMediaUsage (one file's own breakdown) and the "usage" library filter
 // below derive from this instead of re-walking the site separately.
+// Matches the same `[before-after: url1 | url2 | label | label]` shortcode
+// render.js's paragraphsHtml() looks for in article/project body text —
+// kept in sync with that regex since it's the other place this syntax is
+// parsed.
+const BEFORE_AFTER_LINE = /^\[before-after:\s*([^\]]+)\]$/gim;
+function findBeforeAfterUrls(body) {
+  const urls = [];
+  for (const m of (body || "").matchAll(BEFORE_AFTER_LINE)) {
+    const parts = m[1].split("|").map((s) => s.trim());
+    if (parts[0]) urls.push(parts[0]);
+    if (parts[1]) urls.push(parts[1]);
+  }
+  return urls;
+}
+
 async function getMediaUsageMap(env) {
   const pages = await listPages(env);
   const pageBlocks = await Promise.all(pages.map((p) => listBlocks(env, p.id)));
-  const [articles, projects, defaultOg] = await Promise.all([listArticles(env), listProjects(env), getSetting(env, "default_og_image")]);
+  const [articles, projects, defaultOg, topicMeta, scans] = await Promise.all([
+    listArticles(env),
+    listProjects(env),
+    getSetting(env, "default_og_image"),
+    listTopicMeta(env),
+    listScans(env),
+  ]);
   const usage = new Map();
   const add = (url, type, title) => {
     if (!url) return;
@@ -1572,12 +1640,26 @@ async function getMediaUsageMap(env) {
       const style = b.style || {};
       if (b.type === "image") add(c.url, "Image block", p.title);
       if (b.type === "gallery" && Array.isArray(c.images)) c.images.forEach((u) => add(u, "Gallery block", p.title));
+      if (b.type === "before-after") {
+        add(c.beforeUrl, "Before/after block", p.title);
+        add(c.afterUrl, "Before/after block", p.title);
+      }
       if (style.backgroundImage) add(style.backgroundImage, "Block background", p.title);
     }
   });
-  for (const a of articles) add(a.og_image, "Article share image", a.title);
-  for (const pr of projects) add(pr.og_image, "Project share image", pr.title);
+  for (const a of articles) {
+    add(a.og_image, "Article share image", a.title);
+    findBeforeAfterUrls(a.body).forEach((u) => add(u, "Before/after in article body", a.title));
+  }
+  for (const pr of projects) {
+    add(pr.og_image, "Project share image", pr.title);
+    findBeforeAfterUrls(pr.body).forEach((u) => add(u, "Before/after in project body", pr.title));
+  }
   if (defaultOg) add(defaultOg, "Site default share image", null);
+  for (const t of topicMeta) add(t.og_image, "Topic share image", t.tag);
+  for (const s of scans) {
+    if (s.poster_key) add(s.poster_key.startsWith("/") ? s.poster_key : `/media/${s.poster_key}`, "3D scan poster", s.name);
+  }
   return usage;
 }
 
@@ -2477,7 +2559,23 @@ export async function setSetting(env, key, value) {
 const BACKUP_VERSION = 1;
 
 export async function exportAll(env) {
-  const [pages, blocks, articles, settings, redirects, templates, media, scans, sharedBlocks, projects, journalEntries, bomItems] = await Promise.all([
+  const [
+    pages,
+    blocks,
+    articles,
+    settings,
+    redirects,
+    templates,
+    media,
+    scans,
+    sharedBlocks,
+    projects,
+    journalEntries,
+    bomItems,
+    simulations,
+    songs,
+    topicMeta,
+  ] = await Promise.all([
     env.DB.prepare("SELECT * FROM pages ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM blocks ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM articles ORDER BY id").all(),
@@ -2490,6 +2588,9 @@ export async function exportAll(env) {
     env.DB.prepare("SELECT * FROM projects ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM journal_entries ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM bom_items ORDER BY id").all(),
+    env.DB.prepare("SELECT * FROM simulations ORDER BY id").all(),
+    env.DB.prepare("SELECT * FROM songs ORDER BY id").all(),
+    env.DB.prepare("SELECT * FROM topic_meta ORDER BY tag").all(),
   ]);
   return {
     version: BACKUP_VERSION,
@@ -2506,6 +2607,9 @@ export async function exportAll(env) {
     projects: projects.results,
     journal_entries: journalEntries.results,
     bom_items: bomItems.results,
+    simulations: simulations.results,
+    songs: songs.results,
+    topic_meta: topicMeta.results,
   };
 }
 
@@ -2684,6 +2788,9 @@ export async function importAll(env, data) {
     projects = [],
     journal_entries: journalEntries = [],
     bom_items: bomItems = [],
+    simulations = [],
+    songs = [],
+    topic_meta: topicMeta = [],
   } = data;
   if (
     !Array.isArray(pages) ||
@@ -2697,7 +2804,10 @@ export async function importAll(env, data) {
     !Array.isArray(sharedBlocks) ||
     !Array.isArray(projects) ||
     !Array.isArray(journalEntries) ||
-    !Array.isArray(bomItems)
+    !Array.isArray(bomItems) ||
+    !Array.isArray(simulations) ||
+    !Array.isArray(songs) ||
+    !Array.isArray(topicMeta)
   ) {
     throw new Error("This doesn't look like a dominickdominick backup file (missing pages/blocks/articles/settings)");
   }
@@ -2715,14 +2825,17 @@ export async function importAll(env, data) {
     env.DB.prepare("DELETE FROM journal_entries"),
     env.DB.prepare("DELETE FROM bom_items"),
     env.DB.prepare("DELETE FROM projects"),
+    env.DB.prepare("DELETE FROM simulations"),
+    env.DB.prepare("DELETE FROM songs"),
+    env.DB.prepare("DELETE FROM topic_meta"),
   ];
 
   for (const p of pages) {
     stmts.push(
       env.DB
         .prepare(
-          `INSERT INTO pages (id, slug, title, meta_description, nav_label, nav_order, og_image, deleted_at, created_at, updated_at, version, locked)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO pages (id, slug, title, meta_description, nav_label, nav_order, og_image, canonical_url, deleted_at, created_at, updated_at, version, locked, sitemap_exclude, custom_json_ld, nav_parent_id, password_hash)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           p.id,
@@ -2732,13 +2845,27 @@ export async function importAll(env, data) {
           p.nav_label ?? null,
           p.nav_order ?? null,
           p.og_image ?? null,
+          p.canonical_url ?? null,
           p.deleted_at ?? null,
           p.created_at,
           p.updated_at,
           p.version ?? 1,
-          p.locked ?? 0
+          p.locked ?? 0,
+          p.sitemap_exclude ?? 0,
+          p.custom_json_ld ?? null,
+          // Deferred to a second pass below: nav_parent_id is a
+          // self-reference, and a child can have a lower id than its
+          // parent, so setting it here could insert-order-fail the FK
+          // check against a parent row that doesn't exist yet.
+          null,
+          p.password_hash ?? null
         )
     );
+  }
+  for (const p of pages) {
+    if (p.nav_parent_id != null) {
+      stmts.push(env.DB.prepare("UPDATE pages SET nav_parent_id = ? WHERE id = ?").bind(p.nav_parent_id, p.id));
+    }
   }
 
   // Inserted before blocks (which may reference these) even though it's
@@ -2783,8 +2910,8 @@ export async function importAll(env, data) {
     stmts.push(
       env.DB
         .prepare(
-          `INSERT INTO articles (id, slug, title, body, tags, og_image, published_at, deleted_at, series, series_order, co_authors, created_at, updated_at, version, locked, featured, pinned)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO articles (id, slug, title, body, tags, og_image, canonical_url, published_at, deleted_at, series, series_order, co_authors, created_at, updated_at, version, locked, featured, pinned, expires_at, correction_note, tts_audio_key, sitemap_exclude, related_override, archived, private_notes, custom_json_ld)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           a.id,
@@ -2793,6 +2920,7 @@ export async function importAll(env, data) {
           a.body ?? "",
           a.tags ?? "[]",
           a.og_image ?? null,
+          a.canonical_url ?? null,
           a.published_at ?? null,
           a.deleted_at ?? null,
           a.series ?? null,
@@ -2803,7 +2931,15 @@ export async function importAll(env, data) {
           a.version ?? 1,
           a.locked ?? 0,
           a.featured ?? 0,
-          a.pinned ?? 0
+          a.pinned ?? 0,
+          a.expires_at ?? null,
+          a.correction_note ?? null,
+          a.tts_audio_key ?? null,
+          a.sitemap_exclude ?? 0,
+          a.related_override ?? "[]",
+          a.archived ?? 0,
+          a.private_notes ?? null,
+          a.custom_json_ld ?? null
         )
     );
   }
@@ -2831,8 +2967,10 @@ export async function importAll(env, data) {
   for (const m of media) {
     stmts.push(
       env.DB
-        .prepare("INSERT INTO media (key, folder, tags, alt_text, created_at) VALUES (?, ?, ?, ?, ?)")
-        .bind(m.key, m.folder ?? null, m.tags ?? "[]", m.alt_text ?? null, m.created_at)
+        .prepare(
+          "INSERT INTO media (key, folder, tags, alt_text, caption, credit, license, hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        )
+        .bind(m.key, m.folder ?? null, m.tags ?? "[]", m.alt_text ?? null, m.caption ?? null, m.credit ?? null, m.license ?? null, m.hash ?? null, m.created_at)
     );
   }
 
@@ -2863,8 +3001,8 @@ export async function importAll(env, data) {
     stmts.push(
       env.DB
         .prepare(
-          `INSERT INTO projects (id, slug, title, summary, body, tech_stack, status, links, og_image, tags, featured, published_at, deleted_at, created_at, updated_at, version, locked, related_articles, related_simulations, related_scans)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          `INSERT INTO projects (id, slug, title, summary, body, tech_stack, status, links, og_image, canonical_url, tags, featured, published_at, deleted_at, created_at, updated_at, version, locked, related_articles, related_simulations, related_scans, expires_at, correction_note, tts_audio_key, sitemap_exclude, related_override, archived, featured_order, private_notes, sort_order, hero_video, custom_json_ld)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(
           p.id,
@@ -2876,6 +3014,7 @@ export async function importAll(env, data) {
           p.status ?? null,
           p.links ?? "{}",
           p.og_image ?? null,
+          p.canonical_url ?? null,
           p.tags ?? "[]",
           p.featured ?? 0,
           p.published_at ?? null,
@@ -2886,7 +3025,18 @@ export async function importAll(env, data) {
           p.locked ?? 0,
           p.related_articles ?? "[]",
           p.related_simulations ?? "[]",
-          p.related_scans ?? "[]"
+          p.related_scans ?? "[]",
+          p.expires_at ?? null,
+          p.correction_note ?? null,
+          p.tts_audio_key ?? null,
+          p.sitemap_exclude ?? 0,
+          p.related_override ?? "[]",
+          p.archived ?? 0,
+          p.featured_order ?? null,
+          p.private_notes ?? null,
+          p.sort_order ?? null,
+          p.hero_video ?? null,
+          p.custom_json_ld ?? null
         )
     );
   }
@@ -2910,6 +3060,30 @@ export async function importAll(env, data) {
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
         )
         .bind(b.id, b.project_id, b.item, b.quantity ?? 1, b.price ?? null, b.link ?? null, b.substitution ?? null, b.created_at, b.updated_at)
+    );
+  }
+
+  for (const s of simulations) {
+    stmts.push(
+      env.DB
+        .prepare("INSERT INTO simulations (id, name, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?)")
+        .bind(s.id, s.name, s.data ?? "{}", s.created_at, s.updated_at)
+    );
+  }
+
+  for (const s of songs) {
+    stmts.push(
+      env.DB
+        .prepare("INSERT INTO songs (id, name, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?)")
+        .bind(s.id, s.name, s.data ?? "{}", s.created_at, s.updated_at)
+    );
+  }
+
+  for (const t of topicMeta) {
+    stmts.push(
+      env.DB
+        .prepare("INSERT INTO topic_meta (tag, description, og_image, updated_at) VALUES (?, ?, ?, ?)")
+        .bind(t.tag, t.description ?? null, t.og_image ?? null, t.updated_at)
     );
   }
 

@@ -400,7 +400,11 @@ document.addEventListener("input", function (e) {
   if (!btn) return;
   var SCALES = [1, 1.15, 1.3, 0.9];
   var root = document.documentElement;
-  var current = parseFloat(localStorage.getItem("fontScale")) || 1;
+  var storedScale;
+  try {
+    storedScale = localStorage.getItem("fontScale");
+  } catch (e) {}
+  var current = parseFloat(storedScale) || 1;
   var apply = function (scale) {
     current = scale;
     if (scale === 1) root.style.removeProperty("--font-scale");
@@ -425,7 +429,7 @@ document.addEventListener("input", function (e) {
 // prefers-reduced-motion setting and this site's own manual motion toggle
 // above. Re-synced on every click of that toggle, same as the CSS overrides
 // it already drives.
-(function () {
+document.addEventListener("DOMContentLoaded", function () {
   var videos = document.querySelectorAll(".project-hero-video");
   if (!videos.length) return;
   var prefersReducedMotion = function () {
@@ -443,4 +447,4 @@ document.addEventListener("input", function (e) {
   sync();
   var motionBtn = document.getElementById("motion-toggle");
   if (motionBtn) motionBtn.addEventListener("click", sync);
-})();
+});

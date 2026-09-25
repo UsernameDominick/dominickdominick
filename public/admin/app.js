@@ -101,7 +101,6 @@
   document.addEventListener("click", (e) => {
     if (notifPanel.classList.contains("open") && !notifPanel.contains(e.target) && e.target !== notifBtn) closeNotifMenu();
   });
-  loadNotifications().catch(() => {});
 
   let pages = [];
   let currentPage = null;
@@ -851,7 +850,11 @@
   function escapeHtml(s) {
     const d = document.createElement("div");
     d.textContent = s;
-    return d.innerHTML;
+    // textContent->innerHTML escapes <, >, & for text-node safety, but
+    // this is also used inside HTML attribute values (e.g. title="…")
+    // throughout this file, so quotes need escaping too or a value
+    // containing one can break out of the attribute.
+    return d.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
 
   function blockBadgesHtml(b) {
@@ -2697,8 +2700,11 @@
       articles = await api("/articles");
       if (currentArticleId && !articles.some((a) => a.id === currentArticleId)) clearArticleForm();
       renderArticlesList();
-      if (result.skippedLocked) {
-        alert(`${result.affected} article(s) ${label.toLowerCase()}ed. ${result.skippedLocked} skipped because they're locked.`);
+      if (result.skippedLocked || result.skippedTooShort) {
+        const reasons = [];
+        if (result.skippedLocked) reasons.push(`${result.skippedLocked} skipped because they're locked`);
+        if (result.skippedTooShort) reasons.push(`${result.skippedTooShort} skipped because their body is too short to publish`);
+        alert(`${result.affected} article(s) ${label.toLowerCase()}ed. ${reasons.join("; ")}.`);
       }
     } catch (err) {
       alert(err.message);
@@ -3568,8 +3574,11 @@
       projects = await api("/projects");
       if (currentProjectId && !projects.some((p) => p.id === currentProjectId)) clearProjectForm();
       renderProjectsList();
-      if (result.skippedLocked) {
-        alert(`${result.affected} project(s) ${label.toLowerCase()}ed. ${result.skippedLocked} skipped because they're locked.`);
+      if (result.skippedLocked || result.skippedTooShort) {
+        const reasons = [];
+        if (result.skippedLocked) reasons.push(`${result.skippedLocked} skipped because they're locked`);
+        if (result.skippedTooShort) reasons.push(`${result.skippedTooShort} skipped because their body is too short to publish`);
+        alert(`${result.affected} project(s) ${label.toLowerCase()}ed. ${reasons.join("; ")}.`);
       }
     } catch (err) {
       alert(err.message);
@@ -6216,6 +6225,10 @@
     await loadTemplates("page");
     await loadTemplates("article");
     await loadTemplates("project");
+    // The page-load call at startup 401s before login and never retries,
+    // so the bell stays empty for the rest of the session unless boot()
+    // (which also runs right after a successful in-page login) reloads it.
+    loadNotifications().catch(() => {});
   }
 
   document.querySelectorAll(".upload-trigger").forEach(wireUploadButton);

@@ -335,7 +335,7 @@ export function renderSearchResultsHtml(query, pages, articles, projects = [], c
       type === value ? ' class="is-active"' : ""
     }>${label}</a>`;
   const sortLink = (value, label) =>
-    `<a href="/search?q=${encodeURIComponent(query)}${type ? `&type=${type}` : ""}${value !== "newest" ? `&sort=${value}` : ""}"${
+    `<a href="/search?q=${encodeURIComponent(query)}${type ? `&type=${encodeURIComponent(type)}` : ""}${value !== "newest" ? `&sort=${value}` : ""}"${
       sort === value ? ' class="is-active"' : ""
     }>${label}</a>`;
   const filterBarHtml = `<div class="search-filter-bar">
@@ -345,7 +345,7 @@ export function renderSearchResultsHtml(query, pages, articles, projects = [], c
   // Only meaningful once narrowed to one type — with all three shown at
   // once there'd be three separate page counters on one screen.
   const pageLink = (value, label, cssClass = "") =>
-    `<a href="/search?q=${encodeURIComponent(query)}&type=${type}${sort !== "newest" ? `&sort=${sort}` : ""}${
+    `<a href="/search?q=${encodeURIComponent(query)}&type=${encodeURIComponent(type)}${sort !== "newest" ? `&sort=${sort}` : ""}${
       value > 1 ? `&page=${value}` : ""
     }"${cssClass ? ` class="${cssClass}"` : ""}>${label}</a>`;
   const paginationHtml =

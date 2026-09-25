@@ -135,6 +135,8 @@ import {
   createBomItem,
   updateBomItem,
   deleteBomItem,
+  MIN_PUBLISH_BODY_LENGTH,
+  publishBodyTooShort,
 } from "./db.js";
 import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated, hmac } from "./auth.js";
 
@@ -212,10 +214,9 @@ function sanitizeSvg(text) {
 // at the moment something transitions from unpublished to published (not
 // on every subsequent edit — an already-published short piece shouldn't
 // suddenly start failing to save because of an unrelated tag change).
-const MIN_PUBLISH_BODY_LENGTH = 50;
-function publishBodyTooShort(effectiveBody) {
-  return !effectiveBody || effectiveBody.trim().length <= MIN_PUBLISH_BODY_LENGTH;
-}
+// MIN_PUBLISH_BODY_LENGTH/publishBodyTooShort now live in db.js so
+// bulkArticleAction/bulkProjectAction (bulk "Publish") can enforce the
+// same floor as these single-item routes do.
 
 function validateCustomJsonLd(body) {
   if (!body.custom_json_ld) return null;
@@ -381,7 +382,13 @@ async function routeAdminApi(request, env, url, ctx) {
   }
 
   if (path === "/logout" && method === "POST") {
-    log(ctx, env, "logout", "session", "Admin logout", request.headers.get("CF-Connecting-IP") || "unknown");
+    // Only log a real logout — this route sits above the auth gate below
+    // (so a signed-out browser can always clear a stale cookie), which
+    // would otherwise let anyone spam the activity log with fake "Admin
+    // logout" entries just by hitting this endpoint repeatedly.
+    if (await isAuthenticated(request, env)) {
+      log(ctx, env, "logout", "session", "Admin logout", request.headers.get("CF-Connecting-IP") || "unknown");
+    }
     return json({ ok: true }, { headers: { "Set-Cookie": clearSessionCookie() } });
   }
 
@@ -503,9 +510,15 @@ async function routeAdminApi(request, env, url, ctx) {
   const pagePasswordMatch = path.match(/^\/pages\/(\d+)\/password$/);
   if (pagePasswordMatch && method === "PUT") {
     const body = await request.json().catch(() => ({}));
-    if (!body.password || !body.password.trim()) return json({ error: "Password is required" }, { status: 400 });
+    if (typeof body.password !== "string" || body.password.trim().length < 4) {
+      return json({ error: "Password must be at least 4 characters" }, { status: 400 });
+    }
     const id = Number(pagePasswordMatch[1]);
-    const hash = await hmac(env.SESSION_SECRET, body.password);
+    // "page-password:" keeps this HMAC's message space disjoint from the
+    // session-cookie signature (see auth.js) — both share SESSION_SECRET
+    // as their key, so without a distinct prefix a chosen page password
+    // could double as a forged admin session signature.
+    const hash = await hmac(env.SESSION_SECRET, `page-password:${body.password}`);
     await setPagePassword(env, id, hash);
     const p = await env.DB.prepare("SELECT title FROM pages WHERE id = ?").bind(id).first();
     log(ctx, env, "update", "page", `password protection set on "${p?.title || `#${id}`}"`);
@@ -628,7 +641,12 @@ async function routeAdminApi(request, env, url, ctx) {
       return json({ error: "An article with that slug already exists" }, { status: 409 });
     }
     const resolvedPublishedAt = body.published_at !== undefined ? body.published_at : body.published ? new Date().toISOString() : null;
-    if (resolvedPublishedAt && resolvedPublishedAt <= new Date().toISOString() && publishBodyTooShort(body.body)) {
+    // Any non-null published_at — not just one that's already in the past —
+    // commits this article to eventually going live with whatever body it
+    // has right now; nothing re-checks length at the moment a *future*
+    // published_at actually arrives, so scheduling ahead can't be used to
+    // dodge this the way checking only "publishing right now" allowed.
+    if (resolvedPublishedAt && publishBodyTooShort(body.body)) {
       return json({ error: `Body needs more than ${MIN_PUBLISH_BODY_LENGTH} characters before publishing.` }, { status: 400 });
     }
     const id = await createArticle(env, { ...body, slug });
@@ -657,7 +675,11 @@ async function routeAdminApi(request, env, url, ctx) {
     const wasPublished = !!(before && before.published_at && before.published_at <= new Date().toISOString());
     const newPublishedAt = "published_at" in body ? body.published_at : before && before.published_at;
     const isNowPublished = !!(newPublishedAt && newPublishedAt <= new Date().toISOString());
-    if (!wasPublished && isNowPublished) {
+    // Same reasoning as the POST /articles check above: a draft picking up
+    // *any* published_at (now or scheduled ahead) is what needs the body
+    // check, not just one landing in the past already.
+    const hadAnyPublishDate = !!(before && before.published_at);
+    if (!hadAnyPublishDate && newPublishedAt) {
       const effectiveBody = "body" in body ? body.body : before && before.body;
       if (publishBodyTooShort(effectiveBody)) {
         return json({ error: `Body needs more than ${MIN_PUBLISH_BODY_LENGTH} characters before publishing.` }, { status: 400 });
@@ -700,7 +722,15 @@ async function routeAdminApi(request, env, url, ctx) {
       return json({ error: "Invalid action" }, { status: 400 });
     }
     const result = await bulkArticleAction(env, ids, body.action, { tag: body.tag });
-    log(ctx, env, body.action, "article", `${result.affected} article(s)${result.skippedLocked ? `, ${result.skippedLocked} skipped (locked)` : ""}`);
+    log(
+      ctx,
+      env,
+      body.action,
+      "article",
+      `${result.affected} article(s)${result.skippedLocked ? `, ${result.skippedLocked} skipped (locked)` : ""}${
+        result.skippedTooShort ? `, ${result.skippedTooShort} skipped (body too short)` : ""
+      }`
+    );
     return json({ ok: true, ...result });
   }
   if (path === "/articles/trash" && method === "GET") {
@@ -752,7 +782,10 @@ async function routeAdminApi(request, env, url, ctx) {
       return json({ error: "A project with that slug already exists" }, { status: 409 });
     }
     const resolvedPublishedAt = body.published_at !== undefined ? body.published_at : body.published ? new Date().toISOString() : null;
-    if (resolvedPublishedAt && resolvedPublishedAt <= new Date().toISOString() && publishBodyTooShort(body.body)) {
+    // See the matching comment in POST /articles above: any non-null
+    // published_at, not just an immediate one, commits this to eventually
+    // going live with whatever body it has now.
+    if (resolvedPublishedAt && publishBodyTooShort(body.body)) {
       return json({ error: `Body needs more than ${MIN_PUBLISH_BODY_LENGTH} characters before publishing.` }, { status: 400 });
     }
     const id = await createProject(env, { ...body, slug });
@@ -782,7 +815,8 @@ async function routeAdminApi(request, env, url, ctx) {
     const wasPublished = !!(before && before.published_at && before.published_at <= new Date().toISOString());
     const newPublishedAt = "published_at" in body ? body.published_at : before && before.published_at;
     const isNowPublished = !!(newPublishedAt && newPublishedAt <= new Date().toISOString());
-    if (!wasPublished && isNowPublished) {
+    const hadAnyPublishDate = !!(before && before.published_at);
+    if (!hadAnyPublishDate && newPublishedAt) {
       const effectiveBody = "body" in body ? body.body : before && before.body;
       if (publishBodyTooShort(effectiveBody)) {
         return json({ error: `Body needs more than ${MIN_PUBLISH_BODY_LENGTH} characters before publishing.` }, { status: 400 });
@@ -823,7 +857,15 @@ async function routeAdminApi(request, env, url, ctx) {
       return json({ error: "Invalid action" }, { status: 400 });
     }
     const result = await bulkProjectAction(env, ids, body.action, { tag: body.tag });
-    log(ctx, env, body.action, "project", `${result.affected} project(s)${result.skippedLocked ? `, ${result.skippedLocked} skipped (locked)` : ""}`);
+    log(
+      ctx,
+      env,
+      body.action,
+      "project",
+      `${result.affected} project(s)${result.skippedLocked ? `, ${result.skippedLocked} skipped (locked)` : ""}${
+        result.skippedTooShort ? `, ${result.skippedTooShort} skipped (body too short)` : ""
+      }`
+    );
     return json({ ok: true, ...result });
   }
   if (path === "/projects/trash" && method === "GET") {
@@ -1696,7 +1738,18 @@ async function routeAdminApi(request, env, url, ctx) {
       contentType: url.searchParams.get("contentType") || null,
     };
     const { pageviews, events } = await getRawAnalyticsEvents(env, Math.min(Math.max(days, 1), 90), filters);
-    const csvCell = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    // A cell starting with =, +, -, or @ is a live formula to Excel/Sheets/
+    // LibreOffice even when quoted — pageview referrer/path/event-detail
+    // values come straight from public, unauthenticated requests (see
+    // POST /api/track), so a crafted one could run a formula the moment
+    // an admin opens this export. Prefixing with a tab neutralizes it
+    // (rendered as leading whitespace, not evaluated) without visibly
+    // altering the cell the way a leading apostrophe would.
+    const csvCell = (v) => {
+      let s = String(v ?? "");
+      if (/^[=+\-@]/.test(s)) s = "\t" + s;
+      return `"${s.replace(/"/g, '""')}"`;
+    };
     const csvRow = (cells) => cells.map(csvCell).join(",") + "\r\n";
     let csv = csvRow(["Pageviews"]) + csvRow(["Time (UTC)", "Path", "Referrer", "Device", "Browser", "Country", "Region", "City"]);
     for (const p of pageviews) csv += csvRow([p.created_at, p.path, p.referrer, p.device, p.browser, p.country, p.region, p.city]);

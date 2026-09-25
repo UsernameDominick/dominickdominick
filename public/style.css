@@ -9,6 +9,12 @@
      #7a5a24 only hit 3.11:1 against --bg, failing WCAG AA's 4.5:1 for normal
      text. This is lighter/more muted-amber so it reads clearly at that size. */
   --accent-dim: #a17e35;
+  /* Text color for things drawn ON TOP of an --accent-colored background
+     (buttons, the active nav tab's pill, the skip link) — kept separate
+     from --accent itself since that token is tuned to read well as text
+     on --bg, a different contrast requirement than "readable on --accent". */
+  --on-accent: #0b0b0c;
+  --error-text: #e05252;
   --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
 }
 
@@ -25,6 +31,13 @@
      (#f3d9ad) was only 1.37:1 against white — barely visible. The dark
      theme's original --accent-dim value happens to read well on white too. */
   --accent-dim: #7a5a24;
+  /* This theme's darker --accent needs light text on top instead of dark —
+     dark-on-dark (#0b0b0c on #996414) only hit 3.92:1, failing WCAG AA;
+     white on it is ~5:1. */
+  --on-accent: #ffffff;
+  /* #e05252 only hits 3.82:1 against white, failing WCAG AA; this darker
+     red is the same hue at ~5.6:1. */
+  --error-text: #c62828;
 }
 
 /* Smooth cross-page transitions where supported; a harmless no-op elsewhere */
@@ -54,7 +67,7 @@
   left: 12px;
   z-index: 1000;
   background: var(--accent);
-  color: #0b0b0c;
+  color: var(--on-accent);
   padding: 10px 16px;
   border-radius: 6px;
   text-decoration: none;
@@ -176,7 +189,7 @@ body {
 }
 
 .tab.is-active {
-  color: #0b0b0c;
+  color: var(--on-accent);
 }
 
 .tab:hover:not(.is-active) {
@@ -1286,7 +1299,7 @@ h6 { font-size: 0.9rem; }
 }
 .sim-power-btn {
   background: var(--accent);
-  color: #0b0b0c;
+  color: var(--on-accent);
   border: none;
   border-radius: 6px;
   padding: 8px 16px;
@@ -1307,7 +1320,7 @@ h6 { font-size: 0.9rem; }
 
 .scan-ar-btn {
   background: var(--accent);
-  color: #0b0b0c;
+  color: var(--on-accent);
   border: none;
   border-radius: 999px;
   padding: 10px 18px;
@@ -1387,6 +1400,27 @@ h6 { font-size: 0.9rem; }
 @media (max-width: 640px) {
   .topbar {
     padding: 16px 20px;
+  }
+
+  /* .search-suggest is `position: absolute` relative to .site-search,
+     which on mobile is only ~110px wide (measured: x 20-130 of a 390px
+     viewport) — anchoring the 260px-wide dropdown to that box's right edge
+     (the desktop layout, where .site-search sits flush against the
+     viewport's right side) ran it off the left edge of the screen instead.
+     Repointing the positioning context to .topbar-tools (the search box
+     plus the icon buttons after it, x 20-306 in that same measurement)
+     keeps the dropdown within that wider, still on-screen span. */
+  .topbar-tools {
+    position: relative;
+  }
+  .site-search {
+    position: static;
+  }
+  .search-suggest {
+    left: 0;
+    right: 0;
+    min-width: 0;
+    max-width: none;
   }
 
   .canvas {
@@ -1711,11 +1745,33 @@ h6 { font-size: 0.9rem; }
   color: var(--accent);
 }
 
+/* Placed as though it were an admin-positioned block, but it's the only
+   thing on the page — full-width and tall enough that it isn't squeezed
+   into a single 1/24-column auto-placed grid cell (the ~35px-wide box a
+   bare .block with no grid-column/grid-row falls back to). */
+.password-gate {
+  grid-column: 1 / -1;
+  grid-row: 1 / span 16;
+}
+
 .password-gate-form {
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 8px;
   margin-top: 16px;
   max-width: 320px;
+}
+
+.password-gate-form label {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.password-gate-form .password-gate-input-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
 }
 
 .password-gate-form input {
@@ -1730,7 +1786,7 @@ h6 { font-size: 0.9rem; }
 
 .password-gate-form button {
   background: var(--accent);
-  color: #0b0b0c;
+  color: var(--on-accent);
   border: none;
   border-radius: 8px;
   padding: 8px 16px;
@@ -1740,7 +1796,7 @@ h6 { font-size: 0.9rem; }
 }
 
 .password-gate-error {
-  color: #e05252;
+  color: var(--error-text);
 }
 
 .breadcrumbs {

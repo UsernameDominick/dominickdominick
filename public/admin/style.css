@@ -1219,6 +1219,15 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   flex: 1;
 }
 
+/* .settings-body already scrolls on its own, so its children never need to
+   shrink to fit — without this, a nested scrollable box (anything with its
+   own overflow:auto, like .link-check-results below) has an automatic flex
+   min-height of 0 per spec, so the flex layout can collapse it to 0px
+   instead of letting it show its own max-height and scroll internally. */
+.settings-body > * {
+  flex-shrink: 0;
+}
+
 .settings-body label {
   display: block;
   font-size: 0.85rem;

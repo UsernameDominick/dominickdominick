@@ -32,9 +32,15 @@ export async function checkPassword(env, candidate) {
   if (!env.ADMIN_PASSWORD || !candidate) return false;
   // Hash both sides first so comparison length never leaks the real
   // password's length via timing, then compare the fixed-length digests.
+  // The "admin-login:" prefix keeps this HMAC's message space disjoint
+  // from the session-cookie signature and page-password hash below —
+  // all three share the same SESSION_SECRET key, so without a distinct
+  // prefix each, a value computed for one purpose could be replayed as
+  // another (e.g. a page password chosen to look like a session's exp
+  // timestamp would otherwise double as a forged admin session).
   const [a, b] = await Promise.all([
-    hmac(env.SESSION_SECRET || "pw", candidate),
-    hmac(env.SESSION_SECRET || "pw", env.ADMIN_PASSWORD),
+    hmac(env.SESSION_SECRET || "pw", `admin-login:${candidate}`),
+    hmac(env.SESSION_SECRET || "pw", `admin-login:${env.ADMIN_PASSWORD}`),
   ]);
   return timingSafeEqual(a, b);
 }
@@ -42,7 +48,7 @@ export async function checkPassword(env, candidate) {
 export async function createSessionCookie(env) {
   const exp = Date.now() + MAX_AGE_SECONDS * 1000;
   const payload = String(exp);
-  const sig = await hmac(env.SESSION_SECRET, payload);
+  const sig = await hmac(env.SESSION_SECRET, `session:${payload}`);
   const token = `${payload}.${sig}`;
   return `${COOKIE_NAME}=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${MAX_AGE_SECONDS}`;
 }
@@ -70,7 +76,7 @@ export async function isAuthenticated(request, env) {
   if (dotIdx === -1) return false;
   const payload = token.slice(0, dotIdx);
   const sig = token.slice(dotIdx + 1);
-  const expected = await hmac(env.SESSION_SECRET, payload);
+  const expected = await hmac(env.SESSION_SECRET, `session:${payload}`);
   if (!timingSafeEqual(sig, expected)) return false;
   const exp = Number(payload);
   if (!Number.isFinite(exp) || Date.now() > exp) return false;

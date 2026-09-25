@@ -1455,3 +1455,314 @@ Re-verify periodically, especially after any new public page/route:
       planned admin mobile overhaul
 - [ ] Color contrast checked for any new UI color, not just theme
       tokens
+
+---
+
+## 9. Critic review round 1 (2026-09-25)
+
+Per standing instruction: after each batch of shipped work, spawn two
+parallel read-only review agents (security/correctness/dead-code, and
+design/a11y/SEO/UX) and act on real findings. This is the first run,
+covering the 23 features shipped in the session before it plus custom
+font upload. Both reports in full are in this session's transcript;
+summarized and triaged below.
+
+### Fixed this round
+
+**Critical/high security:**
+- Reflected XSS via `/search?type=` — the raw query param was placed
+  unescaped into `href` attributes in the sort/pagination links, and an
+  invalid value still rendered (0 results, filter bar shown regardless).
+  Fixed at the source: `type` is now validated against an allow-list
+  (`page`/`article`/`project`/empty) in `index.js` before it ever
+  reaches `render.js`, plus `encodeURIComponent` on it in the link
+  templates as defense in depth.
+- Session-cookie / page-password HMAC collision — both used
+  `hmac(SESSION_SECRET, <raw string>)` with no domain separation, so a
+  page password chosen to look like a future millisecond timestamp
+  could double as a forged admin session cookie (`auth.js`,
+  `admin-api.js`). Fixed by prefixing every such HMAC's message with a
+  purpose tag (`"session:"`, `"admin-login:"`, `"page-password:"`) so
+  values from one context can never be replayed as another. This
+  invalidates existing sessions/page-passwords once deployed (expected,
+  one-time; no page passwords were in real use yet).
+- Duplicating a password-protected page produced an unprotected,
+  sitemap-included copy (`password_hash`/`sitemap_exclude` weren't in
+  `createPage`'s field list). `duplicatePage` now copies both explicitly
+  via a follow-up UPDATE.
+- Backup restore (`importAll`) silently dropped columns added after the
+  original implementation — page passwords, `nav_parent_id`,
+  `custom_json_ld`, article/project `expires_at`/`archived`/
+  `sitemap_exclude`/etc., and media `caption`/`credit`/`license`/`hash`
+  — because each table's INSERT only listed a fixed, stale column set.
+  Rewrote every INSERT to match the current schema exactly, added the
+  three tables `exportAll` was missing entirely (`simulations`, `songs`,
+  `topic_meta`) to both export and import, and handled `pages
+  .nav_parent_id` (a self-reference) with a two-pass insert — first pass
+  NULLs it, a second pass UPDATEs it — since a child row can have a
+  lower id than its parent and D1 checks foreign keys immediately, not
+  at commit.
+- Page password brute-forcing had no rate limit and accepted 1-character
+  passwords; the unlock cookie had neither `HttpOnly` nor `Secure`.
+  Added an 8-per-15-minute rate limit on `POST /page-access/:slug`
+  (matching admin login's own limit), a 4-character minimum, and
+  `HttpOnly; Secure` on the cookie.
+- CSV formula injection in the raw analytics export — a cell starting
+  with `=`/`+`/`-`/`@` is a live formula to Excel/Sheets even when
+  quoted, and pageview/event rows come from public, unauthenticated
+  `POST /api/track` calls. Cells now get a leading tab when they'd
+  otherwise start with one of those characters.
+- `escapeHtml` in the admin app (`app.js`) escaped `<`/`>`/`&` but not
+  quotes, unsafe in the ~23 places it's used inside an HTML attribute
+  (e.g. a stored analytics referrer rendered as an `<option>`'s text,
+  reachable via a crafted `Referer` header). Now also escapes `"`/`'`.
+- `POST /api/admin/logout` sat above the auth gate (so a signed-out
+  browser can still clear a stale cookie) but logged "Admin logout" on
+  every call regardless — anyone could flood the activity log by
+  hitting it repeatedly. Now only logs when a session was actually
+  authenticated.
+- RSS `?tag=` was written into `<title>` unescaped (pre-existing, not
+  from this session) — now run through the same `xmlEsc` every other
+  RSS field uses.
+- Publish-validation bypass: the "body must be >50 chars to publish"
+  check only ran when `published_at` was already in the past, so
+  scheduling a near-empty article/project for a future date, or bulk-
+  "Publish"-ing one, both skipped it entirely (nothing re-checks length
+  when a future date actually arrives). Fixed by validating on *any*
+  non-null `published_at`, not just an immediate one, in both single-
+  item routes; bulk `publish` in `db.js` now queries affected rows first
+  and skips (rather than force-publishes) any that are still too short,
+  surfaced to the admin as "N skipped (body too short)" the same way
+  locked-item skips already are.
+
+**Correctness bugs:**
+- `nav.js`'s project-hero-video autoplay/motion-sync IIFE ran
+  synchronously before `<main>` exists in the page source (same root
+  cause as an earlier-session preview-mode-button bug), so
+  `querySelectorAll(".project-hero-video")` always found nothing —
+  hero videos never played and never responded to the motion toggle.
+  Deferred to `DOMContentLoaded`.
+- The font-size toggle's `localStorage.getItem` read wasn't wrapped in
+  try/catch (only the write was) — in a browser with blocked/cleared
+  site storage, this threw uncaught during nav.js's initial top-to-
+  bottom run, which (per how a classic script executes) silently
+  aborted every statement after it in the file. Now guarded.
+- KaTeX's stylesheet/fonts load from jsdelivr, but the CSP's
+  `style-src`/`font-src` only allowed cdnjs (script-src already allowed
+  both) — math blocks rendered as garbled, doubled HTML/MathML text.
+  Added jsdelivr to both directives.
+- `hardDeletePage` could 500 with a FK-constraint error when the page
+  being permanently deleted was still some other page's `nav_parent_id`
+  (no `ON DELETE` clause on that self-reference, and D1 enforces FKs).
+  Now nulls out any children's `nav_parent_id` first.
+- The notification bell never reloaded after logging in from the login
+  screen within the same page load — `loadNotifications()` only ran
+  once, before auth, and 401'd silently. Moved it into `boot()`, which
+  runs after every successful auth check (page load or in-page login).
+- The media-usage map (used by the library's "Unused" filter before a
+  bulk delete) missed `before-after` blocks and the `[before-after: …]`
+  body shortcode, per-topic share images, and 3D-scan poster images —
+  any of these could be flagged "unused" and deleted while still live
+  on the site. All four are now tracked in `getMediaUsageMap`.
+- `/topics/<malformed-percent-encoding>` (e.g. `%E0%A4%A`) 500'd on an
+  uncaught `decodeURIComponent` throw; `/search?...&page=<huge number>`
+  also 500'd (no upper bound before it reached the SQL LIMIT/OFFSET).
+  Both are public, unauthenticated, and each 500 writes an `error_log`
+  row (capped at 300), so either could drown out real errors. Fixed:
+  the topic decode is now try/caught (falls back to the raw segment,
+  which just won't match anything), and `page` is clamped to a sane
+  integer range.
+- The breadcrumb (and its JSON-LD `BreadcrumbList`, and the RSS feed's
+  `<channel><link>`) on every article page linked to `/random`, which
+  has no index route and 404s — pointed at `/archive` instead (the
+  closest real, working "everything, newest first" page) until a real
+  `/random`/`/writing` index exists (see idea list below).
+- Mobile search suggestions (`.search-suggest`) were `position:
+  absolute; right: 0` relative to `.site-search`, which is only ~110px
+  wide on a phone (the input's own `max-width: 40vw`) — the 260px-wide
+  dropdown ran off the left edge of the screen. Verified via Playwright
+  at 390px before and after: repositioned relative to `.topbar-tools`
+  (the search box plus the icon buttons after it) at the existing
+  640px breakpoint, confirmed fully on-screen (x 20–306 of 390) with no
+  change to desktop's layout (verified unchanged at 1280px).
+
+**Design/accessibility:**
+- Every scrollable result list inside Site Settings and the SEO
+  Dashboard modal (SEO report, accessibility report, orphans, content
+  health, link-check results, activity log, error log, scheduled
+  backups, webhook deliveries, storage) rendered at 0px height — a real
+  flexbox trap: `.settings-body` is `display:flex; flex-direction:
+  column; overflow-y:auto`, and a flex child with its own
+  `overflow:auto` has an automatic minimum size of 0 per spec, so
+  flexbox could shrink it to nothing instead of respecting its own
+  `max-height`. Fixed with `.settings-body > * { flex-shrink: 0; }`
+  (the parent already scrolls; children never needed to shrink).
+  Verified via Playwright: activity log (100 rows), error log (5),
+  webhook deliveries (2), and scheduled backups (22) all now render at
+  their real heights instead of 0.
+- The password-gate page had three stacked issues: no `grid-column`/
+  `grid-row` (fell back to auto-placement — a single 1/24-column,
+  16px-tall cell, ~35px wide on desktop, ~3px on mobile), the password
+  input had only a placeholder and no `<label>`, and the error message
+  wasn't announced to assistive tech. Fixed: explicit `grid-column: 1 /
+  -1; grid-row: 1 / span 16` (matching the convention already used for
+  search/topics/archive), a real `<label for="page-password-input">`,
+  and `role="alert"` on the error paragraph. Verified full-width
+  (1036px at 1280px viewport, was ~35px) via Playwright.
+- Site-wide light-theme contrast failure: `--accent` in light mode
+  (`#996414`, darkened specifically to work as *text* on white) was
+  also being used as a *button background* with hardcoded `#0b0b0c`
+  text on top — that combination is only 3.92:1, under WCAG AA's
+  4.5:1. Affected the active nav tab, skip link, Unlock button, and the
+  simulation/3D-scan power buttons (5 identical `background: var(
+  --accent); color: #0b0b0c` pairs). Introduced a separate `--on-accent`
+  token (dark in dark theme, white in light theme, ~5:1) and repointed
+  all five. Also gave `.password-gate-error`'s red (`#e05252`, 3.82:1
+  on white) a theme-aware `--error-text` token (`#c62828` in light
+  theme, ~5.6:1).
+
+### Deferred to backlog (not fixed this round)
+
+Real findings, lower priority relative to the above or requiring more
+design/testing time than a quick fix allows. Grouped by area; each has
+enough detail to act on directly later.
+
+**Layout/reflow (bigger structural work):**
+- Pages don't reflow on mobile — desktop grid col/row positions are
+  kept verbatim at any width (an image block placed `1 / span 12` on
+  desktop stays 12/24 columns wide, ~169px, on a 390px screen); the
+  admin's own mobile editor preview shows a single stacked column, so
+  it doesn't match what a real mobile visitor sees. Needs a real
+  design decision (stack order source of truth, optional per-block
+  mobile span override), not a CSS-only patch.
+- Fixed-height utility pages (search, topics, topic pages, archive,
+  history, saved, 404, and now the password gate) all use `grid-row: 1
+  / span 16` (376px) regardless of actual content — with a full page of
+  10+ search results (or a set footer), content overflows that fixed
+  height and a footer paints over it. These should switch to the
+  article-page flow layout (no fixed row span, height from content)
+  the way article/project pages already work — same fix, six-ish call
+  sites.
+- Video embeds can overflow their grid cell (16:9 box ~107px taller
+  than its assigned row span in one observed case) — likely needs a
+  `max-height`/`aspect-ratio` clamp tied to the block's actual row
+  span, not just its column span.
+- Projects editor form fields are visually crushed (Summary field
+  ~18px tall, Status ~22px wide, a checkbox label running past the
+  form edge) — admin CSS pass needed.
+- Diagnostics overlap detection has a false negative (claims "overlap
+  can't happen" but a real overlap was observed on the homepage,
+  heading hidden under a Links block) and a false H1 check (heading
+  blocks saved with no explicit level render as H1 but the check
+  requires `level === 1` in storage, so it reports "No H1" on a page
+  that has one) — and doesn't warn about *multiple* H1s at all, even
+  though new heading blocks default to H1. Needs the actual overlap
+  math re-checked against real block positions, and the H1 check fixed
+  to use the same "no explicit level = renders as H1" rule the
+  renderer uses.
+
+**Admin UX:**
+- Nav dropdown keyboard/screen-reader behavior: Escape doesn't close it
+  while focus is inside, the caret's `aria-expanded` doesn't reflect
+  actual open state, `role="menu"` has no `menuitem` children or
+  arrow-key handling.
+- Mobile admin header overflows with 5+ nav items (horizontal scroll,
+  clipped label).
+- Notification bell: deep-links open Site Settings at the top instead
+  of scrolling to the relevant section (made worse once the 0px-height
+  bug above is the reason those sections were invisible); Escape
+  doesn't close it; can be open simultaneously with the "More" menu;
+  badge contrast (white on `#e05252`, 3.82:1); no `aria-label` (reads
+  as "🔔 3" to a screen reader).
+- Media Library: mobile grid rows overlap at 160px items in 134px row
+  height; desktop toolbar is ~19 ungrouped native controls with no
+  visual grouping; a `.danger { ... !important }` rule makes disabled
+  Delete/Trash buttons look active.
+- Site Settings: checkboxes stretched to `width:100%` by a blanket
+  input rule, showing as a detached box above their label instead of
+  inline; "Security events only" label clipped to one visible letter;
+  Save button sits mid-modal with six tool sections below it (order/
+  grouping, not urgent).
+- Confusing/overlapping labels: "Site" opens a huge combined settings+
+  logs+backups modal; "Preview mode: Off" sits next to an unrelated
+  "Preview" button; Link Checker has both "Run automatic check now"
+  and "Check links".
+- Admin editor canvas isn't keyboard-navigable (blocks can't be
+  individually focused/selected via Tab).
+- Photo editor "Save preset" resets sliders before recording them —
+  each slider's own `change` handler zeroes the other two before the
+  save reads them, so a multi-adjustment preset only ever saves the
+  last slider touched.
+- Dropdown nav children vanish silently if the parent's `nav_label` is
+  cleared or the parent is trashed (no warning, no orphan-detection).
+
+**SEO/structured data:**
+- `/topics/<anything>` returns an indexable 200 with a self-canonical
+  even for a tag with zero content ("Nothing tagged…") — unbounded thin
+  URLs; needs either `noindex` for empty topic pages or a real 404.
+  Empty `/topics` and `/archive` are also in the sitemap.
+- Draft previews (`?preview=1`, preview-token links) have no `noindex`
+  and their canonical points at the public URL — a leaked preview link
+  could get indexed as if it were the real page.
+- BlogPosting JSON-LD dates aren't ISO-8601 (`"2026-09-24 04:14:51"`,
+  no timezone) and lack `url`/`image`/`description`; regular pages only
+  ever get `WebSite` structured data, never `WebPage`.
+- Gallery images have no alt-text field at all (not just "sometimes
+  empty"); embed/video iframes have no `title`; neither the SEO nor the
+  accessibility report catches either gap.
+- `og:title` always appends `" · Dominick"` even when the page title
+  already includes it contextually — cosmetic, low priority.
+
+**Lower priority / nitpicks:**
+- Header icon buttons render at inconsistent sizes (◐/⏸ noticeably
+  smaller than ⇌/A), wrong font (Arial, not the site font), and the
+  font-size toggle's 4-step cycle has no visible "current value"
+  indicator.
+- Unstyled default browser buttons on `/history` and `/saved` ("Clear
+  history"/"Clear all").
+- Print/PDF output includes share pills, reactions, and the preview
+  banner, and dark-theme text prints near-invisible on white — needs a
+  real print stylesheet.
+- An empty nav still draws its sliding indicator pill as a small dot.
+- `theme-color` is a fixed value and the site ignores the visitor's OS
+  light/dark preference on first visit (only the manual toggle sets
+  it).
+- highlight.js and `<model-viewer>` load on every page regardless of
+  whether that page uses them (mermaid and KaTeX already do this
+  conditional-load correctly — same pattern should extend to these
+  two).
+- Three near-identical hex/SHA helper functions exist across the
+  codebase (`auth.js` `toHex`, `admin-api.js` `hashBytes`, `db.js`
+  `sha256Hex`) — dead-code/duplication nitpick, harmless but could
+  consolidate.
+- `getStorageUsage`'s table-name array is duplicated in two places in
+  `db.js` and must be kept in sync by hand.
+- `plainText` export in `render.js` is unused (predates this session).
+- Hero/audio files replaced on a project are never deleted from R2
+  (matches this codebase's existing precedent of not cleaning up
+  replaced `default_og_image`, etc. — not fixed for consistency's sake,
+  but worth a deliberate look since video files are much larger).
+
+### Improvement ideas surfaced (not bugs, future backlog)
+- Real mobile reflow for the page grid: stack blocks in one column at
+  the mobile breakpoint using the admin's existing stacked editor
+  order, with an optional per-block mobile-span override for anyone
+  who wants finer control.
+- A built-in `/random` (or `/writing`) and `/projects` index page with
+  pagination, so breadcrumbs/RSS/nav have a real target instead of
+  falling back to `/archive`.
+- One consolidated "Site Health" dashboard merging Diagnostics, SEO,
+  Accessibility, Link Checker, Orphans, and Content Health into a
+  single severity-sorted list with jump-to-fix links, now that the
+  underlying 0px-height bug that made several of these unusable is
+  fixed.
+- Split the giant Site Settings modal into tabs (Appearance, Sharing/
+  SEO, Integrations, Maintenance, Logs, Backups) with a sticky Save
+  bar, instead of one long scrolling list.
+- Follow the visitor's OS light/dark preference on first visit
+  (currently always starts dark regardless of `prefers-color-scheme`).
+- A richer 404 page (search box, recent posts, archive link) instead
+  of the current bare message.
+- One consistent name for "articles" across nav/URLs/search filters/
+  RSS/admin (currently a mix of "Random", "Posts", "Articles",
+  "Writing").
