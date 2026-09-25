@@ -7,6 +7,109 @@
   --admin-sidebar-width: 240px;
 }
 
+/* Every checkbox in the admin was a bare, unstyled native checkbox —
+   whatever flat square the OS/browser draws by default, no accent color,
+   no rounding. `appearance: none` plus a hand-drawn checkmark (the
+   rotated-border-box trick, no SVG asset needed) replaces that with a
+   small rounded swatch that fills with the theme's own accent color when
+   checked, matching every other themed control in this file. Still a
+   real <input type="checkbox"> under the hood — keyboard/space-to-toggle,
+   :focus-visible, and screen readers all keep working exactly as before,
+   only the paint changes. */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+  cursor: pointer;
+  position: relative;
+  transition: background-color 0.15s var(--ease-smooth), border-color 0.15s var(--ease-smooth);
+}
+
+input[type="checkbox"]:hover {
+  border-color: var(--accent);
+}
+
+input[type="checkbox"]:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border: solid var(--on-accent);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+/* "Select all" checkboxes toggle this via JS (n > 0 && n < total) when
+   only some rows are selected -- appearance: none above would otherwise
+   silently drop the native dash the browser draws for this state. */
+input[type="checkbox"]:indeterminate {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+input[type="checkbox"]:indeterminate::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 7px;
+  width: 10px;
+  height: 2px;
+  background: var(--on-accent);
+}
+
+input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+input[type="checkbox"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Baseline for every button in the admin — 30+ scoped rules already style
+   buttons for their own specific context (.settings-body button,
+   .admin-header button, .articles-bulk-bar button, etc.), each with more
+   specificity than this bare-tag selector, so this never overrides any of
+   them. It only catches whatever button, present or future, isn't covered
+   by one of those — the actual native, unstyled browser button look
+   ("Windows 95") only happens where no context-specific rule exists, and
+   this makes that impossible instead of relying on none ever being missed. */
+button {
+  font-family: inherit;
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: color 0.15s var(--ease-smooth), background-color 0.15s var(--ease-smooth), border-color 0.15s var(--ease-smooth);
+}
+
+button:hover {
+  color: var(--text);
+  border-color: var(--text-dim);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* CSS specificity ties can make our own display:flex/grid rules beat the
    browser's default [hidden]{display:none} — force it to always win. */
 [hidden] {
@@ -444,8 +547,11 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   margin-bottom: 10px;
 }
 
-.admin-palette input, .admin-palette textarea, .admin-palette select,
-.admin-inspector input, .admin-inspector textarea, .admin-inspector select {
+/* :not([type="checkbox"]) for the same reason .article-editor input has
+   it — a checkbox stretched to width:100% by this rule now that
+   appearance:none makes it fully honor that width. */
+.admin-palette input:not([type="checkbox"]), .admin-palette textarea, .admin-palette select,
+.admin-inspector input:not([type="checkbox"]), .admin-inspector textarea, .admin-inspector select {
   width: 100%;
   background: var(--bg);
   color: var(--text);
@@ -805,7 +911,13 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   overflow-y: auto;
 }
 
-.article-editor input, .article-editor textarea, .article-editor select {
+/* :not([type="checkbox"]) — without it, a checkbox (Featured/Pinned/
+   Published/etc.) inherits width:100% same as every text input here,
+   stretching it into a full-width bar instead of a small square (now
+   that appearance:none makes it fully honor that width, unlike its
+   native rendering before, which mostly ignored it). Same reasoning as
+   the pre-existing .settings-body input:not([type="checkbox"]) rule. */
+.article-editor input:not([type="checkbox"]), .article-editor textarea, .article-editor select {
   width: 100%;
   background: var(--bg);
   color: var(--text);
@@ -876,6 +988,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
 .article-series-row {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 10px;
 }
 
@@ -900,20 +1013,29 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
 
 .article-flags-row {
   display: flex;
-  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 20px;
 }
 
+/* white-space: nowrap so a longer flag ("Exclude from sitemap.xml") wraps
+   as one whole unit onto its own line below the others (flex-wrap above)
+   instead of wrapping its own text mid-phrase while everything else stays
+   jammed onto one line — a checkbox+label with its text broken across 3
+   lines while its neighbors sit single-line looked like a layout bug even
+   though nothing was technically broken. */
 .article-flags-row label {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   font-size: 0.85rem;
+  white-space: nowrap;
 }
 
 .project-featured-label {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   font-size: 0.85rem;
   white-space: nowrap;
 }

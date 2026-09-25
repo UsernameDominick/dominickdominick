@@ -4096,3 +4096,49 @@ instead:
   render side-by-side and fully legible on desktop, stack cleanly on
   mobile, and a full article save (title/tags/co-authors) round-trips
   correctly through the new markup with zero console errors.
+- ✅ **Modernized checkboxes and gave every button a styled baseline, at
+  explicit user request** ("fix spacing between checkboxes and labels
+  and buttons and make them look modern and not have that windows 95
+  look"). Every checkbox in the admin (20 of them) was a completely
+  unstyled native `<input type="checkbox">` — whatever flat square the
+  OS/browser draws by default. Replaced with `appearance: none` plus a
+  small hand-drawn checkmark (the rotated-border-box trick, no SVG
+  needed): a rounded 18px swatch that fills with the theme's accent
+  color when checked, including proper `:indeterminate` (the dash
+  "Select all" rows show when only some items are selected) and
+  `:focus-visible` states so keyboard nav and screen readers keep
+  working exactly as before — only the paint changed. Also added one
+  global `button` baseline (lower specificity than any of the ~30
+  existing context-specific button rules, so it never overrides them —
+  it only catches whatever button isn't covered by one of those,
+  making the literal "native unstyled button" look structurally
+  impossible instead of relying on none ever being missed; confirmed
+  it actually was catching real gaps — Trash's "Restore"/"Restore all"
+  buttons had no dedicated rule before this).
+  **Bug found and fixed in the same pass**: turning on `appearance:
+  none` made every checkbox start fully honoring `width: 100%` from
+  whatever ancestor's `input` rule was already stretching every *text*
+  input in that panel — harmless before, since native checkbox
+  rendering mostly ignores explicit sizing, but now a real bug once the
+  checkbox was fully CSS-controlled. Caught immediately via a before/
+  after screenshot (the Featured/Pinned/Archived flags row rendered as
+  four overlapping, garbled full-width boxes) rather than shipped
+  blind. Traced every broad `input` selector in the file and added
+  `:not([type="checkbox"])` to the two that actually had checkboxes in
+  scope (`.article-editor input` — articles, projects, and the
+  Published checkbox all share this container; `.admin-palette input`/
+  `.admin-inspector input` — the page-settings sitemap-exclude
+  checkbox and every block's dynamically-rendered style-field
+  checkboxes), mirroring the identical `.settings-body input:not(...)`
+  pattern already established elsewhere in this same file for the
+  exact same reason. Also fixed `.article-flags-row`'s missing
+  `flex-wrap`, which had been forcing "Exclude from sitemap.xml" to
+  wrap its own text across 3 lines while its neighbors stayed
+  single-line, instead of the whole label moving to its own row.
+  Verified via Playwright in both themes: checked/unchecked/
+  indeterminate states all render correctly at the right size (18×18
+  confirmed via computed style, not just visually) in the article
+  flags row, the block inspector's dynamically-rendered style
+  checkboxes, the page-settings palette, Site Settings, and the Media
+  Library toolbar; the full regression suite and every sidebar
+  destination still pass with zero console errors.
