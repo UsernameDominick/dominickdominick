@@ -2256,6 +2256,33 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   max-width: 480px;
 }
 
+.typed-confirm-modal-inner {
+  max-width: 420px;
+}
+
+.typed-confirm-modal-inner #typed-confirm-message {
+  margin: 0 0 14px;
+}
+
+.typed-confirm-modal-inner #typed-confirm-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-dim);
+  font-size: 0.9em;
+}
+
+.typed-confirm-modal-inner #typed-confirm-input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 16px;
+}
+
+.typed-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 .shortcuts-list {
   display: flex;
   flex-direction: column;

@@ -902,6 +902,22 @@
     </div>
   </div>
 
+  <div id="typed-confirm-modal" class="modal" hidden>
+    <div class="modal-inner typed-confirm-modal-inner">
+      <header>
+        <h1 id="typed-confirm-title">Confirm</h1>
+        <button id="close-typed-confirm" aria-label="Close">×</button>
+      </header>
+      <p id="typed-confirm-message"></p>
+      <label for="typed-confirm-input" id="typed-confirm-label"></label>
+      <input type="text" id="typed-confirm-input" autocomplete="off" spellcheck="false">
+      <div class="typed-confirm-actions">
+        <button type="button" id="typed-confirm-cancel">Cancel</button>
+        <button type="button" id="typed-confirm-ok" class="danger" disabled>Confirm</button>
+      </div>
+    </div>
+  </div>
+
   <div id="revisions-modal" class="modal" hidden>
     <div class="modal-inner revisions-modal-inner">
       <header>

@@ -4961,8 +4961,8 @@ live in env bindings, not content rows).
 572. Choose poster images/fallbacks before publishing — `scans.poster_key` pattern exists; extend to songs/simulations.
 576. Keep animated elements from moving surrounding text — CSS layout fix (reserved space/aspect-ratio).
 582. Protect source files containing private/sensitive material — mirrors the existing `private_notes` admin-only field pattern.
-584. Require stronger confirmation for destructive bulk operations — UI-only (typed confirm dialog).
-595. Searchable settings with direct navigation — `settings` k/v table exists; thin UI layer (may already be partly covered by this session's command-palette settings search — check before building).
+584. ✅ Require stronger confirmation for destructive bulk operations — done (see the dated entry below this section).
+595. ✅ Searchable settings with direct navigation — checked: already done earlier this session as the "Where is this setting?" search (see the dated entry above, section 12) — `SETTINGS_SEARCH_INDEX` covers all 7 Site Settings tabs with plain-language keyword matching and jumps straight to the right tab/field via the command palette.
 596. Contextual help explaining unfamiliar controls — static tooltip content, no infra.
 
 ### Shared platform — Medium
@@ -5505,3 +5505,41 @@ explicitly minor polish (this round) or pre-existing architectural gaps
 called out of scope for this diff (no undo/redo in the Song builder;
 `refreshWaveformPreview()`'s async race) — both tracked above under
 "DAW/Audio — Hard" rather than silently dropped.
+
+### Sixth item: #584, stronger confirmation for destructive bulk operations
+
+- ✅ **Typed-confirmation modal for genuinely irreversible bulk actions**
+  — checked which of this admin's bulk/permanent operations actually
+  have no undo path: bulk block-delete has an undo toast, article/project
+  bulk-trash is a soft-delete recoverable from Trash, but media
+  bulk-delete and "Empty trash" (which loops the same permanent-delete
+  call across every trashed row of a kind) are both truly final, and both
+  previously guarded only by a single native `confirm()` — an "OK" a
+  reflexive click or Enter-press away. Added a reusable `confirmTyped()`
+  modal (`#typed-confirm-modal`) requiring the exact word "DELETE" typed
+  into a field before its Confirm button enables at all; Cancel, ×, or
+  Escape all resolve false without touching anything. Wired it into
+  media bulk-delete and "Empty trash" (kept the plain single-item
+  "Delete forever" `confirm()` as-is — one target, not a bulk sweep).
+  Reused the existing generic modal-focus-return `MutationObserver`
+  rather than adding new focus-management code, since it already handles
+  any element with the `.modal` class.
+  Verified via Playwright: uploaded 2 throwaway images, selected both,
+  confirmed the typed-confirm modal (not a native dialog) opens with the
+  right title/message; Confirm stays disabled for no input, wrong case
+  ("delete"), and a partial match ("DELET"); Cancel leaves both files
+  untouched; reopening and typing the exact word enables Confirm, and
+  clicking it actually deletes both files. Same pattern verified for
+  "Empty trash": created and soft-deleted a throwaway article, opened
+  Empty trash, confirmed Cancel leaves it in Trash, typing "DELETE" and
+  confirming permanently removes it (confirmed via the trash-list API
+  going empty for that row). Full regression suite green; all created
+  test rows either deleted by the test itself or already gone by design
+  (permanent-delete is the assertion). Note: "Empty trash" is,
+  correctly, an all-or-nothing sweep of every trashed row of that kind —
+  running it during this test also cleared several other already-trashed
+  leftover articles from earlier in this session's own testing, which is
+  the button doing exactly what it says, not a bug; worth remembering as
+  a testing-hygiene note (check what's already in Trash before exercising
+  "Empty trash" against shared local dev state) rather than something to
+  fix in the feature itself.

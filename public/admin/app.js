@@ -9,6 +9,49 @@
   // Ones that also need to reset state (media picker, command palette,
   // simulation builder) wire their own close handler instead of using this.
   const closeModalOnClick = (btnId, modalId) => el(btnId).addEventListener("click", () => (el(modalId).hidden = true));
+
+  // A stronger confirmation for bulk operations that are actually
+  // irreversible (media bulk-delete, empty trash) — a plain confirm()'s
+  // "OK" button is a single reflexive click/Enter-press away, easy to
+  // fire on autopilot after clicking through a routine bulk action.
+  // Requiring the exact word "DELETE" to be typed forces a deliberate
+  // pause before something with no undo path actually happens. Returns
+  // a Promise<boolean>; Cancel, Escape, the × button, or a backdrop
+  // click (there is none — this modal has no backdrop click handler by
+  // design, matching every other modal in this app) all resolve false.
+  let typedConfirmResolve = null;
+  function confirmTyped(message, { title = "Confirm", requiredWord = "DELETE" } = {}) {
+    return new Promise((resolve) => {
+      typedConfirmResolve = resolve;
+      el("typed-confirm-title").textContent = title;
+      el("typed-confirm-message").textContent = message;
+      el("typed-confirm-label").textContent = `Type ${requiredWord} to confirm:`;
+      const input = el("typed-confirm-input");
+      const okBtn = el("typed-confirm-ok");
+      input.value = "";
+      okBtn.disabled = true;
+      input.dataset.requiredWord = requiredWord;
+      el("typed-confirm-modal").hidden = false;
+      input.focus();
+    });
+  }
+  function settleTypedConfirm(result) {
+    el("typed-confirm-modal").hidden = true;
+    const resolve = typedConfirmResolve;
+    typedConfirmResolve = null;
+    if (resolve) resolve(result);
+  }
+  el("typed-confirm-input").addEventListener("input", (e) => {
+    el("typed-confirm-ok").disabled = e.target.value !== e.target.dataset.requiredWord;
+  });
+  el("typed-confirm-input").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !el("typed-confirm-ok").disabled) settleTypedConfirm(true);
+    else if (e.key === "Escape") settleTypedConfirm(false);
+  });
+  el("typed-confirm-ok").addEventListener("click", () => settleTypedConfirm(true));
+  el("typed-confirm-cancel").addEventListener("click", () => settleTypedConfirm(false));
+  el("close-typed-confirm").addEventListener("click", () => settleTypedConfirm(false));
+
   const canvas = el("canvas");
   const loginScreen = el("login-screen");
   const app = el("app");
@@ -5459,7 +5502,8 @@
 
   el("media-bulk-delete-btn").addEventListener("click", async () => {
     if (!selectedMediaKeys.size) return;
-    if (!confirm(`Permanently delete ${selectedMediaKeys.size} file(s)? This can't be undone.`)) return;
+    const ok = await confirmTyped(`Permanently delete ${selectedMediaKeys.size} file(s)? This can't be undone.`, { title: "Delete files" });
+    if (!ok) return;
     try {
       await api("/media/bulk-delete", { method: "POST", body: JSON.stringify({ keys: [...selectedMediaKeys] }) });
       selectedMediaKeys = new Set();
@@ -5606,7 +5650,8 @@
       const basePath = btn.dataset.basePath;
       const items = await api(`${basePath}/trash`);
       if (!items.length) return alert(`No trashed ${kind}s to delete.`);
-      if (!confirm(`Permanently delete all ${items.length} trashed ${kind}${items.length === 1 ? "" : "s"}? This can't be undone.`)) return;
+      const ok = await confirmTyped(`Permanently delete all ${items.length} trashed ${kind}${items.length === 1 ? "" : "s"}? This can't be undone.`, { title: "Empty trash" });
+      if (!ok) return;
       for (const item of items) {
         await api(`${basePath}/${item.id}/permanent`, { method: "DELETE" }).catch(() => {});
       }
