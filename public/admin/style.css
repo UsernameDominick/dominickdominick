@@ -852,6 +852,27 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   flex: 1 0 auto;
 }
 
+/* General-purpose "pair two or more short fields into one row instead of
+   full-width stacked rows" utility — every child shares the row equally
+   and wraps to its own line below 160px, so it degrades to the old
+   stacked layout automatically on mobile/narrow modals rather than
+   needing a separate mobile override. Used wherever two fields are each
+   short enough that stacking them was just spending a whole row of
+   vertical scroll on very little content (Title+Slug, Tags+Co-authors)
+   — deliberately not used in the ~240px block palette, which is already
+   width-constrained enough that pairing fields there would cramp them
+   instead of saving anything real. */
+.field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.field-row > * {
+  flex: 1;
+  min-width: 160px;
+}
+
 .article-series-row {
   display: flex;
   flex-wrap: wrap;
@@ -1219,6 +1240,16 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
 @media (max-width: 860px) {
   .mobile-only {
     display: block;
+  }
+
+  /* .field-row's side-by-side pairing is a desktop-width space saving —
+     at phone width neither field has enough room left to stay legible
+     (each one's own placeholder text starts clipping), so this reverts
+     to the plain stacked layout every field used before, same as the
+     single-column start every one of these forms already falls back to
+     at this width for everything else. */
+  .field-row {
+    flex-direction: column;
   }
 
   /* The sidebar becomes an off-canvas drawer instead of a persistent

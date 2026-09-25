@@ -248,16 +248,20 @@
           <div class="articles-list" id="articles-list"></div>
         </div>
         <div class="article-editor">
-          <input id="article-title" placeholder="Title">
-          <input id="article-slug" placeholder="URL slug (auto from title)" spellcheck="false">
-          <input id="article-tags" placeholder="Tags, comma separated (e.g. life, code)">
+          <div class="field-row">
+            <input id="article-title" placeholder="Title">
+            <input id="article-slug" placeholder="URL slug (auto from title)" spellcheck="false">
+          </div>
+          <div class="field-row">
+            <input id="article-tags" placeholder="Tags, comma separated (e.g. life, code)">
+            <input id="article-co-authors" placeholder="Co-authors, comma separated (optional byline credits)">
+          </div>
           <div class="article-series-row">
             <input id="article-series" placeholder="Series name (optional, e.g. \"Rebuilding my deck\")" list="article-series-datalist">
             <datalist id="article-series-datalist"></datalist>
             <input id="article-series-order" type="number" placeholder="Part #">
           </div>
           <p id="article-series-hint" class="article-series-hint" hidden></p>
-          <input id="article-co-authors" placeholder="Co-authors, comma separated (optional byline credits)">
           <div class="article-flags-row">
             <label><input type="checkbox" id="article-featured"> Featured</label>
             <label><input type="checkbox" id="article-pinned"> Pinned to top</label>
@@ -367,11 +371,15 @@
           <div class="articles-list" id="projects-list"></div>
         </div>
         <div class="article-editor">
-          <input id="project-title" placeholder="Title">
-          <input id="project-slug" placeholder="URL slug (auto from title)" spellcheck="false">
+          <div class="field-row">
+            <input id="project-title" placeholder="Title">
+            <input id="project-slug" placeholder="URL slug (auto from title)" spellcheck="false">
+          </div>
           <textarea id="project-summary" rows="2" placeholder="One or two sentence summary — shown on project lists and as the share description"></textarea>
-          <input id="project-tags" placeholder="Tags, comma separated (e.g. electronics, woodworking)">
-          <input id="project-tech-stack" placeholder="Tech stack, comma separated (e.g. Arduino, KiCad, React)">
+          <div class="field-row">
+            <input id="project-tags" placeholder="Tags, comma separated (e.g. electronics, woodworking)">
+            <input id="project-tech-stack" placeholder="Tech stack, comma separated (e.g. Arduino, KiCad, React)">
+          </div>
           <div class="article-series-row">
             <input id="project-status" placeholder="Status (e.g. In progress, Completed, Archived)">
             <label class="project-featured-label"><input type="checkbox" id="project-featured"> Featured</label>

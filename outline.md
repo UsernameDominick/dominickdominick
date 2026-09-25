@@ -4070,3 +4070,29 @@ instead:
   correctly renders the exact same dark value the admin's own chrome
   uses by default, which is why it visually blends with its own card
   background rather than a rendering bug.
+- ✅ **Generalized the "condense into a row" principle from the swatch
+  grid to the rest of the editors, at explicit user request** — "focus
+  on achieving situations like that where it can be condensed to give
+  more space so the user doesn't have to scroll while also not
+  limiting anything." Added a general-purpose `.field-row` utility
+  (equal-width flex children, wraps below 160px each) and applied it
+  to the two fields where it was a clean, obviously-safe win: Title +
+  URL slug, and Tags + Co-authors (articles) / Tech stack (projects) —
+  each pair is two short single-line inputs that were previously each
+  eating a full row for very little content. Deliberately did *not*
+  apply this to the ~240px block palette (already width-constrained
+  enough that pairing fields there would cramp them, not save
+  anything) or to the Sharing & SEO tab's "Empty States" fields (each
+  carries substantial multi-line guidance text that would wrap
+  awkwardly in a narrower column) — "condense" only where there's
+  real slack being wasted, not everywhere reflexively. Added a mobile
+  override (`.field-row { flex-direction: column }` below the existing
+  860px breakpoint) after finding the two fields otherwise stayed
+  side-by-side at phone width with clipped placeholder text — the
+  160px-each minimum was technically still satisfied by a ~175px
+  available half at that width, just barely, so nothing actually
+  broke, but the "not limiting anything" bar meant it needed fixing
+  anyway. Verified via Playwright at both viewport sizes: fields
+  render side-by-side and fully legible on desktop, stack cleanly on
+  mobile, and a full article save (title/tags/co-authors) round-trips
+  correctly through the new markup with zero console errors.
