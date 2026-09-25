@@ -1817,8 +1817,18 @@ enough detail to act on directly later.
   are now unconditional — not admin-optional — there's nothing for the
   accessibility report to additionally check here, unlike gallery alt
   text above. Verified via Playwright for both block types.
-- Regular (non-home) pages only ever get `WebSite` structured data,
-  never their own `WebPage` entry.
+- ✅ Regular (non-home) pages used to have no structured data of their
+  own at all beyond the site-wide `WebSite` entry every page already
+  gets, unless the admin manually added `custom_json_ld` — the same
+  minimum every other content type here has (`BlogPosting` for
+  articles, `CreativeWork` for projects) was missing for the generic
+  page-builder pages. Every non-home page now also gets a `WebPage`
+  entry (name/description/url, using the same `description` — real or
+  fallback — as the page's own meta tags), still combined with any
+  `custom_json_ld` the admin added on top, same as before. Verified via
+  Playwright: a plain page gets `WebPage` with the correct name/URL,
+  and a page with `custom_json_ld` set gets both that entry and the new
+  `WebPage` one side by side.
 - `og:title` always matches `<title>` exactly (includes `" · Dominick"`)
   — on reflection this is normal, expected behavior (most sites do
   this deliberately), not a bug; not changing it.

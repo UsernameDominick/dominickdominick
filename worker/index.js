@@ -242,6 +242,7 @@ async function renderPage(env, page, url, request) {
         .join(" ")
     ) ||
     page.title;
+  const pagePath = page.slug === "home" ? "/" : `/${page.slug}`;
   const jsonLd =
     page.slug === "home"
       ? {
@@ -251,11 +252,22 @@ async function renderPage(env, page, url, request) {
           url: "https://dominickdominick.com/",
           sameAs: ["https://github.com/UsernameDominick"],
         }
-      : null;
+      : // Every other page previously shipped with no structured data at
+        // all (unless the admin manually added custom_json_ld) — a plain
+        // WebPage entry is the same minimum every other content type here
+        // already gets (BlogPosting for articles, CreativeWork for
+        // projects), just for the generic page-builder pages.
+        {
+          "@context": "https://schema.org",
+          "@type": "WebPage",
+          name: page.title,
+          description,
+          url: `https://dominickdominick.com${pagePath}`,
+        };
   const html = renderShell({
     title: page.title,
     description,
-    path: page.slug === "home" ? "/" : `/${page.slug}`,
+    path: pagePath,
     navItems,
     activeSlug: page.slug,
     bodyHtml,
