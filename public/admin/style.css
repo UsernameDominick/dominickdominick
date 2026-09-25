@@ -1254,13 +1254,53 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   max-width: 500px;
 }
 
+/* Site Settings used to be one long list under these headings, scrolling
+   for several screens with Save buried partway down and six read-only
+   tool sections below it. Split into tabs (one .settings-panel per tab,
+   all but the active one [hidden]) with a sticky Save bar, so Save is
+   always reachable and each tab is a short, focused screen instead of
+   one long scroll. */
+.settings-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 10px 20px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-dim);
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  font-family: inherit;
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+
+.settings-tab:hover {
+  color: var(--text);
+}
+
+.settings-tab.is-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
 .settings-body {
   padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
   overflow-y: auto;
   flex: 1;
+}
+
+.settings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 /* .settings-body already scrolls on its own, so its children never need to
@@ -1268,7 +1308,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
    own overflow:auto, like .link-check-results below) has an automatic flex
    min-height of 0 per spec, so the flex layout can collapse it to 0px
    instead of letting it show its own max-height and scroll internally. */
-.settings-body > * {
+.settings-panel > * {
   flex-shrink: 0;
 }
 
@@ -1278,7 +1318,11 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   color: var(--text-dim);
 }
 
-.settings-body input, .settings-body select, .settings-body textarea {
+/* :not([type="checkbox"]) — a checkbox stretched to width:100% by this
+   rule rendered as a large detached box sitting above its label text
+   instead of a normal small checkbox inline with it. Checkbox rows use
+   .settings-checkbox-row below instead, which sizes them normally. */
+.settings-body input:not([type="checkbox"]), .settings-body select, .settings-body textarea {
   width: 100%;
   background: var(--bg);
   color: var(--text);
@@ -1288,6 +1332,27 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   margin-top: 6px;
   font-family: inherit;
   font-size: 0.85rem;
+}
+
+/* A checkbox + its descriptive text, side by side at their natural sizes
+   — same shape as .project-featured-label elsewhere, but without
+   white-space:nowrap, since some of these labels (e.g. "Security events
+   only (logins, logouts, failed attempts)") are too long to fit one line
+   in this modal's 500px width and were clipping instead of wrapping. */
+.settings-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-checkbox-row input[type="checkbox"] {
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.settings-save-bar {
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
 }
 
 .settings-body input[type="color"] {

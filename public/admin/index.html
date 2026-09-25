@@ -684,115 +684,142 @@
         <h1>Site Settings</h1>
         <button id="close-settings">×</button>
       </header>
+      <div class="settings-tabs" role="tablist">
+        <button type="button" class="settings-tab is-active" data-panel="appearance" role="tab" aria-selected="true">Appearance</button>
+        <button type="button" class="settings-tab" data-panel="sharing" role="tab" aria-selected="false">Sharing &amp; SEO</button>
+        <button type="button" class="settings-tab" data-panel="integrations" role="tab" aria-selected="false">Integrations</button>
+        <button type="button" class="settings-tab" data-panel="maintenance" role="tab" aria-selected="false">Maintenance</button>
+        <button type="button" class="settings-tab" data-panel="tools" role="tab" aria-selected="false">Tools</button>
+        <button type="button" class="settings-tab" data-panel="logs" role="tab" aria-selected="false">Logs</button>
+        <button type="button" class="settings-tab" data-panel="backups" role="tab" aria-selected="false">Backups</button>
+      </div>
       <div class="settings-body">
-        <h2>Theme</h2>
-        <p class="settings-hint">These override the dark theme's built-in colors (the light theme visitors can switch to keeps its own fixed palette, so it stays readable regardless of what's set here).</p>
-        <label>Accent color<input id="settings-accent" type="color" value="#e8a13a"></label>
-        <label>Background color<input id="settings-bg" type="color" value="#0b0b0c"></label>
-        <label>Text color<input id="settings-text" type="color" value="#ededf0"></label>
-        <label>Border color<input id="settings-border" type="color" value="#232326"></label>
-        <div id="theme-contrast-check" class="theme-contrast-check"></div>
-        <label>Body font
-          <select id="settings-font">
-            <option value="">Default (system sans)</option>
-            <option value="sans">Sans-serif</option>
-            <option value="serif">Serif</option>
-            <option value="mono">Monospace</option>
-            <option value="rounded">Rounded (Trebuchet)</option>
-            <option value="custom">Custom (uploaded below)</option>
-          </select>
-        </label>
-        <label>Heading font (blank = same as body)
-          <select id="settings-heading-font">
-            <option value="">Same as body</option>
-            <option value="sans">Sans-serif</option>
-            <option value="serif">Serif</option>
-            <option value="mono">Monospace</option>
-            <option value="rounded">Rounded (Trebuchet)</option>
-            <option value="custom">Custom (uploaded below)</option>
-          </select>
-        </label>
-        <div class="tts-audio-field">
-          <label>Custom font file (optional — WOFF2/WOFF/TTF/OTF, 5MB max). Select "Custom" above to use it.</label>
-          <input id="settings-custom-font-name" type="text" placeholder="Font name (e.g. My Brand Sans)">
-          <input type="file" id="settings-custom-font-file" accept=".woff2,.woff,.ttf,.otf,font/woff2,font/woff,font/ttf,font/otf" hidden>
-          <button type="button" id="settings-custom-font-upload-btn">Upload font…</button>
-          <button type="button" id="settings-custom-font-remove-btn" hidden>Remove custom font</button>
-          <span id="settings-custom-font-status"></span>
+        <div class="settings-panel" data-panel="appearance">
+          <h2>Theme</h2>
+          <p class="settings-hint">These override the dark theme's built-in colors (the light theme visitors can switch to keeps its own fixed palette, so it stays readable regardless of what's set here).</p>
+          <label>Accent color<input id="settings-accent" type="color" value="#e8a13a"></label>
+          <label>Background color<input id="settings-bg" type="color" value="#0b0b0c"></label>
+          <label>Text color<input id="settings-text" type="color" value="#ededf0"></label>
+          <label>Border color<input id="settings-border" type="color" value="#232326"></label>
+          <div id="theme-contrast-check" class="theme-contrast-check"></div>
+          <label>Body font
+            <select id="settings-font">
+              <option value="">Default (system sans)</option>
+              <option value="sans">Sans-serif</option>
+              <option value="serif">Serif</option>
+              <option value="mono">Monospace</option>
+              <option value="rounded">Rounded (Trebuchet)</option>
+              <option value="custom">Custom (uploaded below)</option>
+            </select>
+          </label>
+          <label>Heading font (blank = same as body)
+            <select id="settings-heading-font">
+              <option value="">Same as body</option>
+              <option value="sans">Sans-serif</option>
+              <option value="serif">Serif</option>
+              <option value="mono">Monospace</option>
+              <option value="rounded">Rounded (Trebuchet)</option>
+              <option value="custom">Custom (uploaded below)</option>
+            </select>
+          </label>
+          <div class="tts-audio-field">
+            <label>Custom font file (optional — WOFF2/WOFF/TTF/OTF, 5MB max). Select "Custom" above to use it.</label>
+            <input id="settings-custom-font-name" type="text" placeholder="Font name (e.g. My Brand Sans)">
+            <input type="file" id="settings-custom-font-file" accept=".woff2,.woff,.ttf,.otf,font/woff2,font/woff,font/ttf,font/otf" hidden>
+            <button type="button" id="settings-custom-font-upload-btn">Upload font…</button>
+            <button type="button" id="settings-custom-font-remove-btn" hidden>Remove custom font</button>
+            <span id="settings-custom-font-status"></span>
+          </div>
+          <label>Mobile/desktop breakpoint (px)<br>Where a block's "Desktop only"/"Mobile only" visibility switches over. Default 640.
+            <input id="settings-mobile-breakpoint" type="number" min="320" max="1200" placeholder="640">
+          </label>
+          <h2>Footer</h2>
+          <label>Shown at the bottom of every page. Blank = no footer. Supports **bold**, *italic*, [link](url).
+            <textarea id="settings-footer" rows="3" placeholder="© 2026 Dominick"></textarea>
+          </label>
         </div>
-        <label>Mobile/desktop breakpoint (px)<br>Where a block's "Desktop only"/"Mobile only" visibility switches over. Default 640.
-          <input id="settings-mobile-breakpoint" type="number" min="320" max="1200" placeholder="640">
-        </label>
-        <h2>Share image</h2>
-        <label>Default share image (og:image)<br>Used on any page/article that doesn't set its own.
-          <input id="settings-og-image" type="text" placeholder="https://...">
-          <button type="button" class="upload-trigger" data-target="#settings-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#settings-og-image">Browse…</button><br><button type="button" class="edit-image-trigger" data-target="#settings-og-image">Edit / crop for social…</button>
-        </label>
-        <h2>Footer</h2>
-        <label>Shown at the bottom of every page. Blank = no footer. Supports **bold**, *italic*, [link](url).
-          <textarea id="settings-footer" rows="3" placeholder="© 2026 Dominick"></textarea>
-        </label>
-        <h2>Empty States</h2>
-        <label>Search — no results<br>Shown on /search when a query matches nothing. Blank = default.
-          <input id="settings-empty-search" type="text" placeholder='No results for "{query}".'>
-        </label>
-        <label>Archive — nothing published<br>Shown on /archive when there's nothing published yet. Blank = default.
-          <input id="settings-empty-archive" type="text" placeholder="Nothing published yet.">
-        </label>
-        <label>Topics — no tagged content<br>Shown on /topics when nothing has a tag yet. Blank = default.
-          <input id="settings-empty-topics" type="text" placeholder="No tagged content yet.">
-        </label>
-        <h2>Advanced</h2>
-        <label>Custom &lt;head&gt; code<br>Inserted as-is on every page — for a script tag, verification meta tag, etc. Trusted content only.
-          <textarea id="settings-custom-head" rows="3" placeholder="&lt;script&gt;...&lt;/script&gt;"></textarea>
-        </label>
-        <label>Webhook URLs (one per line)<br>Each one gets its own POST when an article is published. Blank = off.
-          <textarea id="settings-webhook-url" rows="3" placeholder="https://...&#10;https://..."></textarea>
-        </label>
-        <label><input type="checkbox" id="settings-webhook-on-project-publish"> Also call them when a project is published</label>
-        <label title="Takes the whole public site down to one plain 'we'll be back' page. You (logged in) can still browse normally — this only affects logged-out visitors — so you can safely turn it on, do risky work, then turn it back off from here."><input type="checkbox" id="settings-maintenance-mode"> Maintenance mode (site shows a "down for maintenance" page to visitors)</label>
-        <label>Maintenance message (optional — shown on that page, blank = default)
-          <input id="settings-maintenance-message" type="text" placeholder="We'll be back shortly.">
-        </label>
+        <div class="settings-panel" data-panel="sharing" hidden>
+          <h2>Share image</h2>
+          <label>Default share image (og:image)<br>Used on any page/article that doesn't set its own.
+            <input id="settings-og-image" type="text" placeholder="https://...">
+            <button type="button" class="upload-trigger" data-target="#settings-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#settings-og-image">Browse…</button><br><button type="button" class="edit-image-trigger" data-target="#settings-og-image">Edit / crop for social…</button>
+          </label>
+          <h2>Empty States</h2>
+          <label>Search — no results<br>Shown on /search when a query matches nothing. Blank = default.
+            <input id="settings-empty-search" type="text" placeholder='No results for "{query}".'>
+          </label>
+          <label>Archive — nothing published<br>Shown on /archive when there's nothing published yet. Blank = default.
+            <input id="settings-empty-archive" type="text" placeholder="Nothing published yet.">
+          </label>
+          <label>Topics — no tagged content<br>Shown on /topics when nothing has a tag yet. Blank = default.
+            <input id="settings-empty-topics" type="text" placeholder="No tagged content yet.">
+          </label>
+        </div>
+        <div class="settings-panel" data-panel="integrations" hidden>
+          <h2>Advanced</h2>
+          <label>Custom &lt;head&gt; code<br>Inserted as-is on every page — for a script tag, verification meta tag, etc. Trusted content only.
+            <textarea id="settings-custom-head" rows="3" placeholder="&lt;script&gt;...&lt;/script&gt;"></textarea>
+          </label>
+          <h2>Webhooks</h2>
+          <label>Webhook URLs (one per line)<br>Each one gets its own POST when an article is published. Blank = off.
+            <textarea id="settings-webhook-url" rows="3" placeholder="https://...&#10;https://..."></textarea>
+          </label>
+          <label class="settings-checkbox-row"><input type="checkbox" id="settings-webhook-on-project-publish"> Also call them when a project is published</label>
+          <h2>Webhook Deliveries</h2>
+          <label style="margin-bottom:0;">Recent attempts to call the webhook URLs above. Failed ones can be retried with the exact same payload.</label>
+          <button type="button" id="load-webhook-deliveries-btn">Refresh</button>
+          <div id="webhook-deliveries-list" class="link-check-results"></div>
+        </div>
+        <div class="settings-panel" data-panel="maintenance" hidden>
+          <h2>Maintenance mode</h2>
+          <label class="settings-checkbox-row" title="Takes the whole public site down to one plain 'we'll be back' page. You (logged in) can still browse normally — this only affects logged-out visitors — so you can safely turn it on, do risky work, then turn it back off from here."><input type="checkbox" id="settings-maintenance-mode"> Maintenance mode (site shows a "down for maintenance" page to visitors)</label>
+          <label>Maintenance message (optional — shown on that page, blank = default)
+            <input id="settings-maintenance-message" type="text" placeholder="We'll be back shortly.">
+          </label>
+        </div>
+        <div class="settings-panel" data-panel="tools" hidden>
+          <h2>Find &amp; Replace</h2>
+          <label style="margin-bottom:0;">Searches article titles/bodies and page block text (headings, text, quotes, buttons, project cards, links, changelog entries — not raw HTML/CSS blocks). Always preview before applying.</label>
+          <div class="find-replace-row">
+            <input type="text" id="find-replace-find" placeholder="Find text" spellcheck="false">
+            <input type="text" id="find-replace-replace" placeholder="Replace with" spellcheck="false">
+          </div>
+          <div class="find-replace-actions">
+            <button type="button" id="find-replace-preview-btn">Preview</button>
+            <button type="button" id="find-replace-apply-btn" class="danger" disabled>Apply to all matches</button>
+          </div>
+          <div id="find-replace-results" class="link-check-results"></div>
+        </div>
+        <div class="settings-panel" data-panel="logs" hidden>
+          <h2>Activity Log</h2>
+          <label style="margin-bottom:0;">Recent admin actions on this site.</label>
+          <button type="button" id="load-activity-btn">Refresh</button>
+          <label class="settings-checkbox-row"><input type="checkbox" id="activity-security-only-filter"> Security events only (logins, logouts, failed attempts)</label>
+          <div id="activity-log-list" class="link-check-results"></div>
+          <h2>Error Log</h2>
+          <label style="margin-bottom:0;">Uncaught errors the live site has hit.</label>
+          <button type="button" id="load-errors-btn">Refresh</button>
+          <div id="error-log-list" class="link-check-results"></div>
+        </div>
+        <div class="settings-panel" data-panel="backups" hidden>
+          <h2>Backup</h2>
+          <label style="margin-bottom:0;">Download everything — pages, blocks, articles, settings — as one file.</label>
+          <button type="button" id="export-btn">Download backup</button>
+          <label style="margin-bottom:0;">Restore from a backup file. <strong>Replaces all current content.</strong></label>
+          <button type="button" id="import-btn" class="danger">Restore from file…</button>
+          <label style="margin-bottom:0;">Automatic daily backups, kept for 30 days.</label>
+          <button type="button" id="run-backup-now-btn">Run a backup now</button>
+          <div id="scheduled-backup-status"></div>
+          <div id="scheduled-backups-list" class="link-check-results"></div>
+          <h2>Storage</h2>
+          <label style="margin-bottom:0;">R2 bucket usage and an approximate database size.</label>
+          <button type="button" id="load-storage-usage-btn">Refresh</button>
+          <div id="storage-usage-summary"></div>
+          <div id="storage-usage-list" class="link-check-results"></div>
+        </div>
+      </div>
+      <div class="settings-save-bar">
         <button id="save-settings">Save</button>
-        <h2>Webhook Deliveries</h2>
-        <label style="margin-bottom:0;">Recent attempts to call the webhook URLs above. Failed ones can be retried with the exact same payload.</label>
-        <button type="button" id="load-webhook-deliveries-btn">Refresh</button>
-        <div id="webhook-deliveries-list" class="link-check-results"></div>
-        <h2>Find &amp; Replace</h2>
-        <label style="margin-bottom:0;">Searches article titles/bodies and page block text (headings, text, quotes, buttons, project cards, links, changelog entries — not raw HTML/CSS blocks). Always preview before applying.</label>
-        <div class="find-replace-row">
-          <input type="text" id="find-replace-find" placeholder="Find text" spellcheck="false">
-          <input type="text" id="find-replace-replace" placeholder="Replace with" spellcheck="false">
-        </div>
-        <div class="find-replace-actions">
-          <button type="button" id="find-replace-preview-btn">Preview</button>
-          <button type="button" id="find-replace-apply-btn" class="danger" disabled>Apply to all matches</button>
-        </div>
-        <div id="find-replace-results" class="link-check-results"></div>
-        <h2>Activity Log</h2>
-        <label style="margin-bottom:0;">Recent admin actions on this site.</label>
-        <button type="button" id="load-activity-btn">Refresh</button>
-        <label class="media-unused-filter"><input type="checkbox" id="activity-security-only-filter"> Security events only (logins, logouts, failed attempts)</label>
-        <div id="activity-log-list" class="link-check-results"></div>
-        <h2>Error Log</h2>
-        <label style="margin-bottom:0;">Uncaught errors the live site has hit.</label>
-        <button type="button" id="load-errors-btn">Refresh</button>
-        <div id="error-log-list" class="link-check-results"></div>
-        <h2>Backup</h2>
-        <label style="margin-bottom:0;">Download everything — pages, blocks, articles, settings — as one file.</label>
-        <button type="button" id="export-btn">Download backup</button>
-        <label style="margin-bottom:0;">Restore from a backup file. <strong>Replaces all current content.</strong></label>
-        <button type="button" id="import-btn" class="danger">Restore from file…</button>
-        <label style="margin-bottom:0;">Automatic daily backups, kept for 30 days.</label>
-        <button type="button" id="run-backup-now-btn">Run a backup now</button>
-        <div id="scheduled-backup-status"></div>
-        <div id="scheduled-backups-list" class="link-check-results"></div>
-        <h2>Storage</h2>
-        <label style="margin-bottom:0;">R2 bucket usage and an approximate database size.</label>
-        <button type="button" id="load-storage-usage-btn">Refresh</button>
-        <div id="storage-usage-summary"></div>
-        <div id="storage-usage-list" class="link-check-results"></div>
       </div>
     </div>
   </div>

@@ -4740,6 +4740,7 @@
     el("find-replace-results").innerHTML = "";
     el("find-replace-apply-btn").disabled = true;
     el("settings-modal").hidden = false;
+    switchSettingsTab("appearance");
     updateThemeContrastCheck();
     loadActivityLog().catch(() => {});
     loadErrors().catch(() => {});
@@ -4747,6 +4748,21 @@
     loadWebhookDeliveries().catch(() => {});
   });
   closeModalOnClick("close-settings", "settings-modal");
+
+  // ---------- Site settings tabs ----------
+  function switchSettingsTab(name) {
+    document.querySelectorAll(".settings-tab").forEach((btn) => {
+      const active = btn.dataset.panel === name;
+      btn.classList.toggle("is-active", active);
+      btn.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    document.querySelectorAll(".settings-panel").forEach((panel) => {
+      panel.hidden = panel.dataset.panel !== name;
+    });
+  }
+  document.querySelectorAll(".settings-tab").forEach((btn) => {
+    btn.addEventListener("click", () => switchSettingsTab(btn.dataset.panel));
+  });
   el("save-settings").addEventListener("click", async () => {
     try {
       await api("/settings", {

@@ -1807,11 +1807,17 @@ enough detail to act on directly later.
 - Media Library's desktop toolbar is still ~19 ungrouped native
   controls with no visual grouping — not fixed this round (a bigger
   layout redesign, not a quick CSS fix).
-- Site Settings: checkboxes stretched to `width:100%` by a blanket
-  input rule, showing as a detached box above their label instead of
-  inline; "Security events only" label clipped to one visible letter;
-  Save button sits mid-modal with six tool sections below it (order/
-  grouping, not urgent).
+- ✅ Site Settings: checkboxes stretched to `width:100%` by a blanket
+  `.settings-body input` rule, showing as a detached box above their
+  label instead of inline; "Security events only" label clipped to one
+  visible letter. Fixed the blanket rule to exclude checkboxes
+  (`input:not([type="checkbox"])`) and wrapped each checkbox+label pair
+  in a `.settings-checkbox-row` flex container so the box sits inline
+  at its natural size next to full label text. This landed together
+  with the Settings-modal tabs restructure below, which also moved the
+  Save button off mid-modal into a sticky bottom bar. Verified via
+  Playwright: checkbox width is 13px (not stretched), "Security events
+  only" label renders in full, no clipping.
 - Confusing/overlapping labels: "Site" opens a huge combined settings+
   logs+backups modal; "Preview mode: Off" sits next to an unrelated
   "Preview" button; Link Checker has both "Run automatic check now"
@@ -2053,9 +2059,31 @@ enough detail to act on directly later.
   single severity-sorted list with jump-to-fix links, now that the
   underlying 0px-height bug that made several of these unusable is
   fixed.
-- Split the giant Site Settings modal into tabs (Appearance, Sharing/
-  SEO, Integrations, Maintenance, Logs, Backups) with a sticky Save
-  bar, instead of one long scrolling list.
+- ✅ Split the giant Site Settings modal into tabs (Appearance, Sharing
+  & SEO, Integrations, Maintenance, Tools, Logs, Backups) with a
+  sticky Save bar, instead of one long scrolling list. Added a
+  `.settings-tabs` row of buttons above the existing `.settings-body`,
+  each with a `data-panel` attribute; the body's fields were grouped
+  into seven `.settings-panel` divs carrying matching `data-panel`
+  values (Appearance = theme + breakpoint + footer; Sharing & SEO =
+  share image + empty states; Integrations = custom head + webhooks +
+  webhook deliveries; Maintenance = maintenance mode/message; Tools =
+  find & replace; Logs = activity/error log; Backups = backup/restore/
+  scheduled backups + storage usage). All seven panels stay mounted in
+  the DOM at all times — `switchSettingsTab()` only toggles their
+  `hidden` attribute and the active-tab styling — so field values
+  aren't lost switching tabs, and the existing Save handler (which
+  reads every field by id regardless of which tab is visible) needed
+  no changes. The Save button moved into a new `.settings-save-bar`
+  sibling below `.settings-body`, sticky at the bottom of the modal
+  instead of buried mid-scroll. Verified via Playwright across two
+  scripts: `test_settings_tabs.js` confirmed each tab shows exactly
+  one panel, the default tab (Appearance) is active on open, and Save
+  still closes the modal; `test_settings_save_roundtrip.js` confirmed
+  field values survive switching tabs (DOM never destroyed) and a save
+  round-trip works correctly for fields spread across different tabs
+  (footer from Appearance, maintenance_mode/message from Maintenance),
+  with test values reset afterward via a direct API PUT.
 - A richer 404 page (search box, recent posts, archive link) instead
   of the current bare message.
 - One consistent name for "articles" across nav/URLs/search filters/
