@@ -606,11 +606,11 @@ health-check pass, predates this doc.
   word count — "Easy (85)" style label, standard vowel-group syllable
   heuristic); ✅ word-count goals (a "Goal" input next to word count,
   persisted per-article in localStorage since it's personal scratch
-  state, not published content — no schema change needed); ☐ internal-
-  link suggestions while writing (a fuzzier, lower-confidence feature —
-  actively proposing links to add based on title-text matching — not
-  attempted this round; the live broken-link *checking* above is the
-  related, higher-confidence half of this line and is done)
+  state, not published content — no schema change needed); ✅ internal-
+  link suggestions while writing (this note was stale — see the SEO and
+  sharing section below, where the same feature is correctly marked ✅:
+  a "Link suggestions" row that proposes links based on title-text
+  matching against existing published content)
 - ✅ Broken-link warnings (site-wide on-demand Link Checker; live inline
   while typing — checks internal markdown links (`/random/:slug`,
   `/projects/:slug`, `/:page-slug`) against the already-loaded articles/
