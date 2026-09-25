@@ -2166,7 +2166,7 @@ export async function restoreArticleRevision(env, articleId, revisionId) {
 // ---------- Search ----------
 export async function search(env, q) {
   const like = `%${escapeLike(q)}%`;
-  const [pages, articles, blocks, projects] = await Promise.all([
+  const [pages, articles, blocks, projects, simulations, songs, scans, sharedBlocks] = await Promise.all([
     env.DB
       .prepare(
         "SELECT id, slug, title FROM pages WHERE title LIKE ? ESCAPE '\\' OR meta_description LIKE ? ESCAPE '\\' OR nav_label LIKE ? ESCAPE '\\' OR slug LIKE ? ESCAPE '\\' LIMIT 15"
@@ -2186,8 +2186,25 @@ export async function search(env, q) {
       )
       .bind(like, like, like, like, like)
       .all(),
+    // Simulations/Songs/Scans/Reusable Blocks each have their own dedicated
+    // editor (opened via the "More" menu, not a URL), so unlike
+    // pages/articles/projects there's no slug to also match against — just
+    // the one name field each is keyed by.
+    env.DB.prepare("SELECT id, name FROM simulations WHERE name LIKE ? ESCAPE '\\' LIMIT 15").bind(like).all(),
+    env.DB.prepare("SELECT id, name FROM songs WHERE name LIKE ? ESCAPE '\\' LIMIT 15").bind(like).all(),
+    env.DB.prepare("SELECT id, name FROM scans WHERE name LIKE ? ESCAPE '\\' LIMIT 15").bind(like).all(),
+    env.DB.prepare("SELECT id, name, type FROM shared_blocks WHERE name LIKE ? ESCAPE '\\' LIMIT 15").bind(like).all(),
   ]);
-  return { pages: pages.results, articles: articles.results, blocks: blocks.results, projects: projects.results };
+  return {
+    pages: pages.results,
+    articles: articles.results,
+    blocks: blocks.results,
+    projects: projects.results,
+    simulations: simulations.results,
+    songs: songs.results,
+    scans: scans.results,
+    sharedBlocks: sharedBlocks.results,
+  };
 }
 
 // Public-facing search: only live pages and published articles, unlike the
@@ -2240,13 +2257,20 @@ export async function publicSearch(env, q, { type = "", sort = "newest", page = 
           .bind(now, now, like, like, like, like, limit, offset)
           .all()
       : { results: [] },
-    paginated && type === "page"
+    // Counted whenever a category is included at all, not just when
+    // paginated — the unfiltered "All" view used to skip these entirely
+    // and fall back to however many rows happened to come back from its
+    // own LIMIT 20, silently showing "20 results" (and rendering exactly
+    // 20 rows) even when there were genuinely more, with no indication
+    // anything was cut off. These are cheap COUNT(*) queries against the
+    // same WHERE clause the row query already uses.
+    !type || type === "page"
       ? env.DB
           .prepare(`SELECT COUNT(*) AS n FROM pages WHERE deleted_at IS NULL AND (title LIKE ? ESCAPE '\\' OR meta_description LIKE ? ESCAPE '\\')`)
           .bind(like, like)
           .first()
       : null,
-    paginated && type === "article"
+    !type || type === "article"
       ? env.DB
           .prepare(
             `SELECT COUNT(*) AS n FROM articles
@@ -2256,7 +2280,7 @@ export async function publicSearch(env, q, { type = "", sort = "newest", page = 
           .bind(now, now, like, like, like)
           .first()
       : null,
-    paginated && type === "project"
+    !type || type === "project"
       ? env.DB
           .prepare(
             `SELECT COUNT(*) AS n FROM projects
@@ -2267,12 +2291,16 @@ export async function publicSearch(env, q, { type = "", sort = "newest", page = 
           .first()
       : null,
   ]);
-  const totalCount = pageCount?.n ?? articleCount?.n ?? projectCount?.n ?? null;
+  // Filtered to one type: that type's own exact count (used for real
+  // pagination). Unfiltered: the true sum across all three, so "N
+  // results" is never just "however many rows fit under each category's
+  // 20-row display cap."
+  const totalCount = paginated ? pageCount?.n ?? articleCount?.n ?? projectCount?.n ?? null : (pageCount?.n || 0) + (articleCount?.n || 0) + (projectCount?.n || 0);
   return {
     pages: pages.results,
     articles: articles.results.map(parseArticleRow),
     projects: projects.results.map(parseProjectRow),
-    totalCount: paginated ? totalCount : null,
+    totalCount,
   };
 }
 

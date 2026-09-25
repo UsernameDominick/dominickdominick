@@ -1614,6 +1614,12 @@ h6 { font-size: 0.9rem; }
   font-size: 0.9rem;
 }
 
+.search-truncation-hint {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
 .search-filter-bar {
   display: flex;
   flex-wrap: wrap;

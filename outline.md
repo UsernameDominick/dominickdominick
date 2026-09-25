@@ -3334,3 +3334,82 @@ text). Both implemented:
   otherwise. Now sets the standard DOM `.indeterminate` property.
   Verified via Playwright: selecting 1 of 5 shown items correctly set
   `checked: false, indeterminate: true`.
+
+### Ninth critic pass — no bugs in the five shipped items, three new bugs found elsewhere
+The ninth critic pass ran a full day-by-day sweep of `relativeAge()` (0-800
+days, every boundary clean), verified "Restore all" can never hit a slug
+conflict (`slugExists()` checks every row regardless of `deleted_at`, so a
+restored item colliding with an active page's slug is blocked at the
+source, not just unlikely), and confirmed the template count and Media
+indeterminate checkbox both recompute correctly through every transition.
+All five items from the previous batch: solid, no changes needed. It found
+three new bugs in untouched territory instead:
+- ✅ **Command palette surfaced trashed pages as dead, silently-failing
+  search results** — the remote search behind Ctrl+K deliberately searches
+  every page regardless of `deleted_at` ("sees everything"), but clicking
+  a "Page: ..." result called `selectPage()` directly, which just no-ops
+  if the id isn't in the currently-loaded (trashed-excluded) `pages` array
+  — the exact "looks clickable, does nothing" anti-pattern this session
+  already fixed once for stale "Edit this" deep links, just with one more
+  entry point. Fixed by checking the loaded `pages` array before calling
+  `selectPage()` and alerting "That page no longer exists (it may have
+  been trashed)" if it's gone — scoped to just this command-palette
+  result, since a stale deep link's existing silent-no-op behavior was
+  determined intentional earlier this session and shouldn't change.
+- ✅ **Public search silently under-counted and truncated results with no
+  type filter applied** (visitor-facing correctness bug) — `publicSearch()`
+  only ran real `COUNT(*)` queries when narrowed to one content type; the
+  default "All" view fell back to whatever a hard `LIMIT 20` per category
+  happened to return, so 25 real matches displayed as a flatly wrong
+  "20 results" with 5 silently dropped and no indication anything was
+  cut off. Now runs the same lightweight count query for every category
+  whenever it's included at all (not just when paginated), summing them
+  for the true total in the unfiltered view. Also added a "Showing the
+  first N of M — narrow to one type above to see the rest" hint when the
+  real total exceeds what's actually rendered. Verified via Playwright
+  with 25 real published articles sharing a unique word: unfiltered
+  search now correctly reads "25 results" (was "20"), the hint appears,
+  and exactly 20 rows still render (the display cap itself is unchanged
+  and reasonable — the bug was the wrong number, not the cap).
+- ✅ **Orphaned `topic_meta` rows became permanently invisible but kept
+  rendering stale content** — the Topic Pages admin panel only ever
+  listed tags from `getTagCounts()` (currently-published content only);
+  once the last published item carrying a tag was unpublished or
+  deleted, the tag vanished from that list forever, but its saved
+  custom description/share-image row was never cleaned up and
+  `/topics/:tag` kept rendering it into the page `<head>` — with the
+  admin having no way to even see the row existed, let alone clear it
+  (the actual "delete on blank save" mechanism already existed in the
+  PUT handler, it just had no way to be reached). Fixed by having the
+  `GET /topic-meta` endpoint also include topic_meta rows with no
+  matching live tag, flagged `orphaned: true` and shown as a distinct
+  red "Orphaned" badge (no "Usage" button, since there's nothing to show
+  usage of) — reaching it now unlocks the exact same pre-existing Edit
+  flow, where saving with both fields blank deletes it. Verified via
+  Playwright: unpublishing a tag's only article made its custom-blurb
+  topic_meta row appear in the admin list marked "Orphaned," and saving
+  it blank correctly removed it from the list.
+
+### Ninth backlog batch (remaining critic suggestions)
+- ✅ **Command palette now also searches Simulations, Songs, 3D Scans,
+  and Reusable Blocks** — the admin's Ctrl+K search only ever covered
+  pages/articles/blocks/projects, even though these four other content
+  types each have their own dedicated editor and (as of this session) a
+  "Usage" concept of their own. Extended `search()` in worker/db.js to
+  also query each by its one name field. Since these four don't have a
+  single-item URL route the way pages/articles/projects do, clicking a
+  result opens the right list-and-editor modal rather than one exact
+  item — still a real improvement over not being searchable here at
+  all, especially since a match is usually one of a short list once
+  the right modal is open. Verified via Playwright: searching for a
+  real simulation's and a real shared block's name both surfaced them
+  correctly.
+- ✅ **Indeterminate checkbox state for Articles/Projects "select all"**
+  — the exact same partial-selection gap just fixed for Media's select-
+  all existed in the two other list-with-bulk-actions places sharing
+  the same shape (`updateBulkBar()`/`updateProjectBulkBar()`); both now
+  set `.indeterminate` the same way.
+- ✅ **Exact timestamp on Trash age labels** — the relative-age text
+  ("3 days ago") already had the real `deleted_at` ISO string in hand;
+  it's now also a `title=""` tooltip on the same span, for an admin who
+  wants the precise deletion time before deciding what's safe to purge.

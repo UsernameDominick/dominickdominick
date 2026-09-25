@@ -3087,6 +3087,10 @@
     el("bulk-tag-btn").disabled = !n;
     el("bulk-trash-btn").disabled = !n;
     el("articles-select-all").checked = n > 0 && n === articles.length;
+    // Same fix as Media's "Select all shown" — a partial selection used to
+    // just leave this unchecked, reading as "nothing selected" even with
+    // the count right next to it saying otherwise.
+    el("articles-select-all").indeterminate = n > 0 && n < articles.length;
   }
 
   function renderArticlesList() {
@@ -3961,6 +3965,7 @@
     el("bulk-project-tag-btn").disabled = !n;
     el("bulk-project-trash-btn").disabled = !n;
     el("projects-select-all").checked = n > 0 && n === projects.length;
+    el("projects-select-all").indeterminate = n > 0 && n < projects.length;
   }
 
   function renderProjectsList() {
@@ -5091,7 +5096,7 @@
           (item) =>
             `<div class="redirect-row" data-id="${item.id}"><span class="redirect-paths">${escapeHtml(
               item.title
-            )} <span class="trash-item-age">Trashed ${escapeHtml(relativeAge(item.deleted_at))}</span></span><button type="button" class="restore-trash-item" data-id="${item.id}">Restore</button><button type="button" class="danger delete-trash-item" data-id="${item.id}">Delete forever</button></div>`
+            )} <span class="trash-item-age" title="${escapeHtml(item.deleted_at || "")}">Trashed ${escapeHtml(relativeAge(item.deleted_at))}</span></span><button type="button" class="restore-trash-item" data-id="${item.id}">Restore</button><button type="button" class="danger delete-trash-item" data-id="${item.id}">Delete forever</button></div>`
         )
         .join("") || `<p style='color:var(--text-dim);font-size:0.85rem;'>Nothing trashed.</p>`;
 
@@ -5459,10 +5464,26 @@
         .map(
           (t) =>
             `<div class="redirect-row"><span class="redirect-paths">${escapeHtml(t.tag)} <span class="topic-page-count">(${t.count})</span>${
-              t.description || t.og_image ? ` <span class="lock-badge" title="Has a custom intro or share image">Customized</span>` : ""
-            }</span><button type="button" class="usage-tag-btn" data-tag="${escapeHtml(
-              t.tag
-            )}" title="See every article/project tagged with this, including drafts">Usage</button><button type="button" class="edit-topic-meta-btn" data-tag="${escapeHtml(t.tag)}">Edit</button></div>`
+              // An orphaned row's last published article/project lost the
+              // tag (unpublished/deleted/retagged) without ever clearing
+              // its saved description/share-image — /topics/:tag still
+              // renders that stale content into the page <head> even
+              // though nothing links here anymore. Flagged distinctly so
+              // it doesn't read as just another customized, in-use topic.
+              t.orphaned
+                ? ` <span class="lock-badge diagnostic-error" title="No published content carries this tag anymore, but its custom description/share image is still saved and still rendered on /topics/${escapeHtml(
+                    t.tag
+                  )} — edit it and save with both fields blank to clear it">Orphaned</span>`
+                : t.description || t.og_image
+                ? ` <span class="lock-badge" title="Has a custom intro or share image">Customized</span>`
+                : ""
+            }</span>${
+              t.orphaned
+                ? ""
+                : `<button type="button" class="usage-tag-btn" data-tag="${escapeHtml(
+                    t.tag
+                  )}" title="See every article/project tagged with this, including drafts">Usage</button>`
+            }<button type="button" class="edit-topic-meta-btn" data-tag="${escapeHtml(t.tag)}">Edit</button></div>`
         )
         .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No tags in use yet.</p>";
     el("topic-pages-list")
@@ -6515,8 +6536,21 @@
           items.push({
             label: `Page: ${p.title}`,
             sub: `/${p.slug}`,
+            // The remote /search endpoint deliberately searches every page
+            // regardless of deleted_at ("sees everything"), but the local
+            // `pages` array selectPage() looks the id up in only holds
+            // active ones — so a trashed page's title could still surface
+            // here as a seemingly-live, clickable result that silently did
+            // nothing on click (selectPage()'s own no-op-on-miss is correct
+            // for its other callers, like a stale deep link, but a search
+            // result the admin just typed and clicked needs to say why
+            // nothing happened, not fail invisibly).
             run: () => {
               closeCommandPalette();
+              if (!pages.some((existing) => existing.id === p.id)) {
+                alert("That page no longer exists (it may have been trashed).");
+                return;
+              }
               selectPage(p.id);
             },
           })
@@ -6541,6 +6575,24 @@
             sub: "",
             run: () => openProjectEditorById(p.id),
           })
+        );
+        // Simulations/Songs/Scans/Reusable Blocks each have their own
+        // dedicated list-and-editor modal rather than a single-item route,
+        // so unlike pages/articles/projects there's no "open this exact
+        // one" to jump to — landing on the right modal (where the match is
+        // usually one of a short list) is still a real improvement over
+        // these four content types not being searchable from here at all.
+        (results.simulations || []).forEach((s) =>
+          items.push({ label: `Simulation: ${s.name}`, sub: "", run: () => { closeCommandPalette(); el("simulations-btn").click(); } })
+        );
+        (results.songs || []).forEach((s) =>
+          items.push({ label: `Song: ${s.name}`, sub: "", run: () => { closeCommandPalette(); el("songs-btn").click(); } })
+        );
+        (results.scans || []).forEach((s) =>
+          items.push({ label: `3D Scan: ${s.name}`, sub: "", run: () => { closeCommandPalette(); el("scans-btn").click(); } })
+        );
+        (results.sharedBlocks || []).forEach((s) =>
+          items.push({ label: `Reusable Block: ${s.name}`, sub: blockLabel(s.type), run: () => { closeCommandPalette(); el("shared-blocks-btn").click(); } })
         );
         renderCommandResults(items);
       } catch {

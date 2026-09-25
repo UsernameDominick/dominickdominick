@@ -371,7 +371,19 @@ export function renderSearchResultsHtml(query, pages, articles, projects = [], c
         }</li>`
     )
     .join("");
+  // Unfiltered "All" caps each category at 20 rows (see publicSearch()) so
+  // the page doesn't render three full result sets at once — the count
+  // above is now the real total regardless, but without this a visitor
+  // with, say, 45 matching articles would see "45 results" yet only ever
+  // find 20 of them with no clue the other 25 exist. The type filters in
+  // filterBarHtml right above are the way to actually reach them.
+  const shownCount = pages.length + articles.length + projects.length;
+  const truncationHint =
+    !type && total > shownCount
+      ? `<p class="search-truncation-hint">Showing the first ${shownCount} of ${total} — narrow to one type above to see the rest.</p>`
+      : "";
   return `${filterBarHtml}<p class="search-result-count">${total} result${total === 1 ? "" : "s"} for "${esc(query)}"</p>
+${truncationHint}
 ${pageItems ? `<h2>Pages</h2><ul class="search-results">${pageItems}</ul>` : ""}
 ${projectItems ? `<h2>Projects</h2><ul class="search-results">${projectItems}</ul>` : ""}
 ${articleItems ? `<h2>Articles</h2><ul class="search-results">${articleItems}</ul>` : ""}

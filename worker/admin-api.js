@@ -1429,9 +1429,20 @@ async function routeAdminApi(request, env, url, ctx) {
   if (path === "/topic-meta" && method === "GET") {
     const [tags, metaRows] = await Promise.all([getTagCounts(env), listTopicMeta(env)]);
     const metaByTag = new Map(metaRows.map((m) => [m.tag, m]));
-    return json(
-      tags.map((t) => ({ tag: t.tag, count: t.count, description: metaByTag.get(t.tag)?.description || "", og_image: metaByTag.get(t.tag)?.og_image || "" }))
-    );
+    const rows = tags.map((t) => ({ tag: t.tag, count: t.count, description: metaByTag.get(t.tag)?.description || "", og_image: metaByTag.get(t.tag)?.og_image || "" }));
+    // A tag's last published article/project can be unpublished or deleted
+    // without ever touching its topic_meta row — the tag then silently
+    // drops out of getTagCounts (and this list), but /topics/:tag still
+    // renders the stale description/og:image into the page <head> forever,
+    // with no way for the admin to even see the row exists, let alone
+    // clear it. Surfacing it with count 0 makes it reachable through the
+    // exact same Edit flow every other row already uses — saving it with
+    // both fields blank already deletes it (see the PUT handler below).
+    const knownTags = new Set(tags.map((t) => t.tag));
+    for (const m of metaRows) {
+      if (!knownTags.has(m.tag)) rows.push({ tag: m.tag, count: 0, orphaned: true, description: m.description || "", og_image: m.og_image || "" });
+    }
+    return json(rows);
   }
   if (path === "/topic-meta" && method === "PUT") {
     const body = await request.json().catch(() => ({}));
