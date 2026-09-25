@@ -3037,3 +3037,18 @@ in the admin. Fixed while addressing the rest of this report:
   expired, will-hide-later, reading-order override, and a plain block
   with no badges) — each rendered exactly the expected badge text and
   title, and the plain block correctly rendered none.
+- ✅ **Diagnostics: motion-budget warnings for a whole page** (★
+  priority) — the motion-budget stagger added earlier this session
+  smooths out fast scrolling past several animated blocks at once,
+  but does nothing for a page that's just genuinely saturated with
+  motion — a visitor scrolling normally down a page with parallax on
+  most of its blocks still gets "everything is moving" the entire way,
+  and nothing ever flagged that. Added two new Diagnostics findings,
+  scoped to the whole page rather than one block (no single block is
+  "wrong," the page as a whole reads as busy): more than 3 blocks with
+  parallax enabled, or more than 8 with an entrance animation set. Both
+  are warnings, not errors — reserving motion for a couple of focal
+  blocks is a judgment call, not a bug, so this nudges rather than
+  blocks. Verified via Playwright with a real 4-parallax-block test
+  page: the finding appeared in Diagnostics with the correct count and
+  wording.

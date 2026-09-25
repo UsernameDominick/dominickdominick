@@ -2377,6 +2377,31 @@
         });
       }
     }
+    // Motion budget: nav.js's IntersectionObserver already staggers
+    // simultaneous entrance animations so they don't all fire in one
+    // instant, but that's a band-aid for *fast scrolling*, not for a page
+    // that's just genuinely saturated with motion — a visitor who scrolls
+    // slowly on a page with parallax on most of its blocks still gets
+    // "everything is moving" the whole way down. No hard rule for what's
+    // too much, so this flags the page rather than any one block — an
+    // admin who wanted every block to move presumably knows that; this is
+    // for the page nobody looked at as a whole after building it block by block.
+    const parallaxCount = visibleBlocks.filter((b) => b.style && b.style.parallax).length;
+    if (parallaxCount > 3) {
+      issues.push({
+        severity: "warn",
+        message: `${parallaxCount} blocks on this page have parallax enabled — likely to feel busy rather than "restrained." Consider reserving it for one or two focal blocks.`,
+        blockId: null,
+      });
+    }
+    const animatedCount = visibleBlocks.filter((b) => b.style && b.style.animation).length;
+    if (animatedCount > 8) {
+      issues.push({
+        severity: "warn",
+        message: `${animatedCount} blocks on this page have an entrance animation — a long scroll of constant reveals can read as noisy rather than "considered" motion.`,
+        blockId: null,
+      });
+    }
     return issues;
   }
 
