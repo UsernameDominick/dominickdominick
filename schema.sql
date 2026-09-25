@@ -337,7 +337,9 @@ CREATE TABLE pageviews (
   country TEXT,
   device TEXT,
   browser TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  region TEXT,
+  city TEXT
 );
 
 CREATE INDEX idx_blocks_page ON blocks(page_id);

@@ -622,6 +622,12 @@ function trackView(ctx, env, request, path) {
     }
   }
   const country = request.cf?.country || null;
+  // region/city come from the same Cloudflare-populated request.cf object
+  // as country — free, no separate geolocation lookup needed. Both are
+  // undefined in local `wrangler dev` (which fills request.cf with a
+  // placeholder), so this only actually gets a value on the real edge.
+  const region = request.cf?.region || null;
+  const city = request.cf?.city || null;
   const { device, browser } = parseUserAgent(request.headers.get("User-Agent"));
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
   // Generous — this fires on every normal page load, so the point is only
@@ -631,7 +637,10 @@ function trackView(ctx, env, request, path) {
     checkRateLimit(env, "pageview", ip, { windowMinutes: 1, maxAttempts: 90 })
       .then((allowed) => {
         if (!allowed) return;
-        return Promise.all([recordPageview(env, { path, referrer, country, device, browser }), recordRateLimitHit(env, "pageview", ip)]);
+        return Promise.all([
+          recordPageview(env, { path, referrer, country, device, browser, region, city }),
+          recordRateLimitHit(env, "pageview", ip),
+        ]);
       })
       .catch(() => {})
   );

@@ -2156,10 +2156,10 @@ export async function recordLoginAttempt(env, ip) {
     .catch(() => {});
 }
 
-export async function recordPageview(env, { path, referrer, country, device, browser }) {
+export async function recordPageview(env, { path, referrer, country, device, browser, region, city }) {
   await env.DB
-    .prepare("INSERT INTO pageviews (path, referrer, country, device, browser) VALUES (?, ?, ?, ?, ?)")
-    .bind(path, referrer || null, country || null, device || null, browser || null)
+    .prepare("INSERT INTO pageviews (path, referrer, country, device, browser, region, city) VALUES (?, ?, ?, ?, ?, ?, ?)")
+    .bind(path, referrer || null, country || null, device || null, browser || null, region || null, city || null)
     .run();
 }
 
@@ -2214,6 +2214,7 @@ export async function getAnalytics(env, days = 7, filters = {}) {
     topPaths,
     topReferrers,
     topCountries,
+    topLocations,
     topDevices,
     topBrowsers,
     topEvents,
@@ -2269,6 +2270,17 @@ export async function getAnalytics(env, days = 7, filters = {}) {
       )
       .bind(...filterBinds)
       .all(),
+    // City/region come from the same Cloudflare-populated request.cf as
+    // country, so they're free — just unset on `wrangler dev` locally,
+    // which doesn't have real edge geolocation. Grouped together as one
+    // "City, Region" location rather than three separate breakdowns.
+    env.DB
+      .prepare(
+        `SELECT COALESCE(city, '?') AS city, COALESCE(region, '?') AS region, COUNT(*) AS n FROM pageviews
+         WHERE created_at > ${since} ${filterSql} GROUP BY city, region ORDER BY n DESC LIMIT 10`
+      )
+      .bind(...filterBinds)
+      .all(),
     env.DB
       .prepare(
         `SELECT COALESCE(device, '?') AS device, COUNT(*) AS n FROM pageviews
@@ -2299,6 +2311,7 @@ export async function getAnalytics(env, days = 7, filters = {}) {
     topPaths: topPaths.results,
     topReferrers: topReferrers.results,
     topCountries: topCountries.results,
+    topLocations: topLocations.results.map((r) => ({ location: r.city !== "?" ? `${r.city}, ${r.region}` : "?", n: r.n })),
     topDevices: topDevices.results,
     topBrowsers: topBrowsers.results,
     topEvents,

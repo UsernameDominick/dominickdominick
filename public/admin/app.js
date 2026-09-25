@@ -5420,6 +5420,7 @@
     renderList("analytics-pages", data.topPaths, "path");
     renderList("analytics-referrers", data.topReferrers, "referrer");
     renderList("analytics-countries", data.topCountries, "country");
+    renderList("analytics-locations", data.topLocations, "location");
     renderList("analytics-devices", data.topDevices, "device");
     renderList("analytics-browsers", data.topBrowsers, "browser");
     renderList("analytics-events", data.topEvents, "name");
@@ -5468,6 +5469,8 @@
     data.topReferrers.forEach((r) => (csv += toCsvRow([r.referrer, r.n])));
     csv += "\r\n" + toCsvRow(["Top countries"]) + toCsvRow(["Country", "Views"]);
     data.topCountries.forEach((r) => (csv += toCsvRow([r.country, r.n])));
+    csv += "\r\n" + toCsvRow(["Top locations"]) + toCsvRow(["Location", "Views"]);
+    data.topLocations.forEach((r) => (csv += toCsvRow([r.location, r.n])));
     csv += "\r\n" + toCsvRow(["Devices"]) + toCsvRow(["Device", "Views"]);
     data.topDevices.forEach((r) => (csv += toCsvRow([r.device, r.n])));
     csv += "\r\n" + toCsvRow(["Browsers"]) + toCsvRow(["Browser", "Views"]);

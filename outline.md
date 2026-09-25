@@ -832,7 +832,14 @@ Contact form, admin inbox, guestbook/comments, moderation, newsletter —
 
 ### Analytics
 - ✅ Real-time visitor count, device/browser breakdown (coarse label only, never raw UA — no new fingerprinting surface), outbound-link + download tracking, internal search-term + no-results reporting
-- 🔶 Event analytics (generic tracking exists; no dedicated report surface); 🔶 geographic (country ✅, region/city ☐)
+- 🔶 Event analytics (generic tracking exists; no dedicated report
+  surface); ✅ geographic (country ✅; region/city ✅ — new `region`/`city`
+  columns on `pageviews`, populated free from the same Cloudflare-
+  provided `request.cf` object country already used, no separate
+  geolocation lookup; a new "Top locations" breakdown in the Analytics
+  dashboard groups them as "City, Region"; both are unset in local
+  `wrangler dev`, which doesn't have real edge geolocation data, so only
+  populate on the actual deployed site)
 - ☐ Per-page engagement/scroll depth, project-card click paths, conversion goals, period comparisons, chart annotations, bot filtering, data-retention settings, scheduled summaries, rearrangeable widgets
 - 🔶 Custom admin-defined events (mechanism supports it; no UI); ✅ filters
   (date-range ✅; content-type/referrer/device ✅ — three dropdowns above
