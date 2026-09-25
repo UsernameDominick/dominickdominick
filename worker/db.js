@@ -1589,6 +1589,18 @@ export async function getMediaMeta(env, keys) {
 }
 
 export async function upsertMediaMeta(env, key, { folder, tags, alt_text, caption, credit, license, hash } = {}) {
+  // "__uncategorized__" is the sentinel the admin's "Uncategorized (no
+  // folder)" filter option uses (public/admin/app.js). A real folder named
+  // exactly that would collide with it in the filter dropdown and become
+  // permanently unreachable there (found by a critic pass) — guarded here,
+  // the single write path every caller (upload, bulk-move, single-item
+  // edit) already goes through, rather than in each individual client-side
+  // prompt, so no future caller can reintroduce the collision. Silently
+  // normalized to "no folder" rather than rejected with an error: an admin
+  // typing that exact string didn't mean anything other than "no folder"
+  // in spirit, and this function has no error-reporting path back to most
+  // of its callers.
+  if (folder === "__uncategorized__") folder = null;
   const existing = await env.DB.prepare("SELECT * FROM media WHERE key = ?").bind(key).first();
   if (existing) {
     // Snapshot before overwriting — but only for an actual editorial edit

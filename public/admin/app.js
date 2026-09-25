@@ -5401,6 +5401,19 @@
       e.target.value = "";
       return;
     }
+    // A real folder named exactly this collides with the sentinel value the
+    // "Uncategorized (no folder)" filter option uses (found by a critic
+    // pass: the dropdown would render two <option>s sharing one value, and
+    // since a <select>'s .value always resolves to the first match, the
+    // real folder became permanently unreachable through this filter no
+    // matter which row was actually clicked). Rejecting it at the one place
+    // a folder name is ever created is simpler and more robust than trying
+    // to disambiguate two same-valued options after the fact.
+    if (name === "__uncategorized__") {
+      alert('"__uncategorized__" is reserved for the built-in "Uncategorized (no folder)" filter — pick a different folder name.');
+      e.target.value = "";
+      return;
+    }
     const opt = document.createElement("option");
     opt.value = name;
     opt.textContent = name;

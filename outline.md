@@ -5159,4 +5159,41 @@ oversight.
   disappear from the list on its own — no separate folder-delete
   endpoint needed or exists). Full regression suite green.
 
-Handed to a critic agent for scoring.
+**Critic round 1: 7/10.** Confirmed clean via live testing: interaction
+with all four other Media Library filters (type/search/unused/duplicates,
+correct AND logic), bulk-selection scoping (selecting "Uncategorized"
+then "Select all shown" only selects the visible items, a bulk move
+correctly removes an item from the Uncategorized view afterward), and
+saved-search restore of the sentinel value. One real, confirmed bug:
+- ✅ **A real folder named literally `__uncategorized__` collided with
+  the filter's sentinel value and became permanently unreachable** — the
+  dropdown would render two `<option>`s sharing one `value`, and since a
+  `<select>`'s `.value` always resolves to the *first* matching option
+  regardless of which row was actually clicked, clicking the real
+  folder's row silently showed the built-in no-folder set instead. A
+  narrow, self-inflicted edge case (requires typing an internal-looking
+  double-underscore string as a folder name) but a genuine, reproducible
+  correctness bug, not hypothetical. Fixed in two places rather than
+  one, since the critic's own testing only checked the "+ New folder…"
+  prompt but a second, completely separate path — the bulk "Move
+  selected files to folder" prompt — accepts an equally arbitrary
+  string with no shared validation between them:
+  - Client-side: the "+ New folder…" handler now rejects the exact
+    sentinel string with a friendly alert explaining why, rather than
+    silently creating a shadow option.
+  - Server-side (the more robust fix): `upsertMediaMeta()` — the single
+    write path every caller (upload, bulk-move, single-item edit)
+    already goes through — silently normalizes a `folder` value of
+    exactly `"__uncategorized__"` to `null` before it's ever persisted,
+    so no current or future caller can reintroduce the collision by a
+    path this review didn't happen to check.
+  Verified via Playwright: the "+ New folder…" path now shows the exact
+  alert text and creates no duplicate option; the bulk-move path now
+  silently normalizes to no-folder, confirmed by the item appearing
+  under the "Uncategorized" filter afterward instead of under a shadow
+  folder. Original interaction tests (other filters, bulk selection,
+  basic correctness) re-run and confirmed unaffected. Full regression
+  suite green; no leftover test folders (folders are purely derived, so
+  emptying one makes it vanish on its own).
+
+Resubmitted for a second scoring pass.
