@@ -312,12 +312,17 @@ async function routeAdminApi(request, env, url, ctx) {
     const body = await request.json().catch(() => ({}));
     await recordLoginAttempt(env, ip);
     const ok = await checkPassword(env, body.password);
-    if (!ok) return json({ error: "Wrong password" }, { status: 401 });
+    if (!ok) {
+      log(ctx, env, "login_failed", "session", "Failed login attempt", ip);
+      return json({ error: "Wrong password" }, { status: 401 });
+    }
+    log(ctx, env, "login", "session", "Admin login", ip);
     const cookie = await createSessionCookie(env);
     return json({ ok: true }, { headers: { "Set-Cookie": cookie } });
   }
 
   if (path === "/logout" && method === "POST") {
+    log(ctx, env, "logout", "session", "Admin logout", request.headers.get("CF-Connecting-IP") || "unknown");
     return json({ ok: true }, { headers: { "Set-Cookie": clearSessionCookie() } });
   }
 

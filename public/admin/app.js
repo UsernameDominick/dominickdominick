@@ -4755,23 +4755,35 @@
   function activityLabel(a) {
     const verb = { "create": "Created", "update": "Updated", "trash": "Trashed", "restore": "Restored", "delete-forever": "Permanently deleted",
       "duplicate": "Duplicated", "publish": "Published", "unpublish": "Unpublished", "upload": "Uploaded", "delete": "Deleted",
-      "import": "Restored backup", "find-replace": "Find & replace", "restore-revision": "Restored a revision" }[a.action] || a.action;
+      "import": "Restored backup", "find-replace": "Find & replace", "restore-revision": "Restored a revision",
+      "login": "Logged in", "login_failed": "Failed login attempt", "logout": "Logged out" }[a.action] || a.action;
+    if (a.entity_type === "session") return `${verb}${a.detail ? ` (${a.detail})` : ""}`;
     return `${verb} ${a.entity_type}${a.entity_label ? `: ${a.entity_label}` : ""}`;
   }
 
-  async function loadActivityLog() {
-    const items = await api("/activity?limit=100");
+  let lastActivityItems = [];
+  const SECURITY_ACTIONS = new Set(["login", "login_failed", "logout"]);
+
+  function renderActivityLog() {
+    const securityOnly = el("activity-security-only-filter").checked;
+    const items = securityOnly ? lastActivityItems.filter((a) => SECURITY_ACTIONS.has(a.action)) : lastActivityItems;
     el("activity-log-list").innerHTML =
       items
         .map(
           (a) =>
-            `<div class="link-check-row"><span class="link-check-url">${escapeHtml(activityLabel(a))}</span><span class="link-check-source">${escapeHtml(
+            `<div class="link-check-row${a.action === "login_failed" ? " broken" : ""}"><span class="link-check-url">${escapeHtml(activityLabel(a))}</span><span class="link-check-source">${escapeHtml(
               new Date(a.created_at.replace(" ", "T") + "Z").toLocaleString()
             )}</span></div>`
         )
         .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>Nothing logged yet.</p>";
   }
+
+  async function loadActivityLog() {
+    lastActivityItems = await api("/activity?limit=100");
+    renderActivityLog();
+  }
   el("load-activity-btn").addEventListener("click", () => loadActivityLog().catch((err) => alert(err.message)));
+  el("activity-security-only-filter").addEventListener("change", renderActivityLog);
 
   // ---------- Webhook delivery history ----------
   // ---------- TTS audio narration upload ----------

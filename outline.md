@@ -939,7 +939,11 @@ changes with low value for a single-admin personal site; flagging as
 "legitimately low priority" rather than silently ignoring:
 - ☐ 2FA, passkeys, recovery codes, roles/permissions, scoped API tokens, reauthentication for sensitive actions, sandboxed custom-code previews, secret management separate from content
 - ☐ Session list/remote revocation (would need a real session-store rearchitecture — currently nothing to list)
-- 🔶 Security-audit trail (general activity log exists; not specifically flagged/separated)
+- ✅ Security-audit trail (login/failed-login/logout now log to the same
+  `activity_log` table as everything else, with the IP in the detail
+  field — a "Security events only" filter checkbox in the Activity Log
+  panel isolates them, and a failed attempt gets the same red row styling
+  the Link Checker already uses for a broken link, so it stands out)
 - ✅ Rate limits/abuse monitoring, security headers
 
 ### Integrations and automation
