@@ -1,3 +1,5 @@
+import { toHex } from "./auth.js";
+
 export const RESERVED_SLUGS = new Set([
   "admin",
   "api",
@@ -2639,9 +2641,12 @@ const BACKUP_KEEP = 30;
 // also gets) so the admin UI can show a clear "backups are fine" or
 // "last backup failed" status without digging through the error log —
 // the whole point of an "alert", not just a record after the fact.
-async function sha256Hex(buf) {
-  const digest = await crypto.subtle.digest("SHA-256", buf);
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+// Shared with admin-api.js's media upload dedup — previously three
+// near-identical copies of "digest, then hex-encode" existed across
+// auth.js/admin-api.js/db.js; toHex (the hex-encoding half, needed on its
+// own for HMAC signatures in auth.js) is now the one shared building block.
+export async function sha256Hex(buf) {
+  return toHex(await crypto.subtle.digest("SHA-256", buf));
 }
 
 export async function runScheduledBackup(env) {
@@ -2742,6 +2747,8 @@ async function sumR2Prefix(env, prefix) {
 // D1 reports size_after on every query's meta; fall back to null if a
 // future D1 runtime version ever stops populating it, rather than assume
 // it's always there.
+const STORAGE_USAGE_TABLE_NAMES = ["pages", "articles", "projects", "pageviews", "events", "media", "revisions", "webhook_deliveries"];
+
 export async function getStorageUsage(env) {
   const [images, audio, video, scans, backups, versions, sizeProbe, rowCounts] = await Promise.all([
     sumR2Prefix(env, "uploads/"),
@@ -2751,11 +2758,7 @@ export async function getStorageUsage(env) {
     sumR2Prefix(env, BACKUP_PREFIX),
     sumR2Prefix(env, "_versions/"),
     env.DB.prepare("SELECT 1").run(),
-    Promise.all(
-      ["pages", "articles", "projects", "pageviews", "events", "media", "revisions", "webhook_deliveries"].map((table) =>
-        env.DB.prepare(`SELECT COUNT(*) AS n FROM ${table}`).first()
-      )
-    ),
+    Promise.all(STORAGE_USAGE_TABLE_NAMES.map((table) => env.DB.prepare(`SELECT COUNT(*) AS n FROM ${table}`).first())),
   ]);
   const byPrefix = [
     { label: "Images", prefix: "uploads/", ...images },
@@ -2765,7 +2768,6 @@ export async function getStorageUsage(env) {
     { label: "Backups", prefix: BACKUP_PREFIX, ...backups },
     { label: "Image version history", prefix: "_versions/", ...versions },
   ];
-  const tableNames = ["pages", "articles", "projects", "pageviews", "events", "media", "revisions", "webhook_deliveries"];
   return {
     r2: {
       totalBytes: byPrefix.reduce((sum, p) => sum + p.bytes, 0),
@@ -2774,7 +2776,7 @@ export async function getStorageUsage(env) {
     },
     d1: {
       sizeBytes: sizeProbe.meta?.size_after ?? null,
-      rowCounts: tableNames.reduce((acc, name, i) => ((acc[name] = rowCounts[i]?.n || 0), acc), {}),
+      rowCounts: STORAGE_USAGE_TABLE_NAMES.reduce((acc, name, i) => ((acc[name] = rowCounts[i]?.n || 0), acc), {}),
     },
   };
 }

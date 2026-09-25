@@ -302,16 +302,6 @@ export function readingTime(text) {
   return Math.max(1, Math.round(words / 200));
 }
 
-// Full plain-text version of a markdown-lite body (not truncated, unlike
-// excerpt()) — used as the source text for the browser-based "Read aloud"
-// button, which needs the whole thing, not a summary.
-export function plainText(text) {
-  return stripMarkdown(text)
-    .replace(/^\[before-after:[^\]]+\]$/gm, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 export function excerpt(text, maxLen = 155) {
   const flat = stripMarkdown(text).replace(/\s+/g, " ").trim();
   if (flat.length <= maxLen) return flat;

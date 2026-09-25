@@ -137,6 +137,7 @@ import {
   deleteBomItem,
   MIN_PUBLISH_BODY_LENGTH,
   publishBodyTooShort,
+  sha256Hex,
 } from "./db.js";
 import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated, hmac } from "./auth.js";
 
@@ -226,14 +227,6 @@ function validateCustomJsonLd(body) {
   } catch {
     return "Custom structured data (JSON-LD) is not valid JSON";
   }
-}
-
-// SHA-256 of the raw file bytes, hex-encoded — the actual pixels/bytes, so
-// two uploads of the same underlying file always match regardless of
-// filename, upload date, or which folder/tags they got afterward.
-async function hashBytes(buf) {
-  const digest = await crypto.subtle.digest("SHA-256", buf);
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 // Optimistic-concurrency guard for the article/page editors: the client
@@ -959,7 +952,7 @@ async function routeAdminApi(request, env, url, ctx) {
     const ext = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif", "image/svg+xml": "svg" }[
       contentType
     ];
-    const hash = await hashBytes(buf);
+    const hash = await sha256Hex(buf);
     const duplicate = await env.DB.prepare("SELECT key FROM media WHERE hash = ? LIMIT 1").bind(hash).first();
     const key = `uploads/${crypto.randomUUID()}.${ext}`;
     await env.MEDIA.put(key, buf, { httpMetadata: { contentType } });
@@ -1083,7 +1076,7 @@ async function routeAdminApi(request, env, url, ctx) {
     for (const o of missing) {
       const obj = await env.MEDIA.get(o.key);
       if (!obj) continue;
-      const hash = await hashBytes(await obj.arrayBuffer());
+      const hash = await sha256Hex(await obj.arrayBuffer());
       await upsertMediaMeta(env, o.key, { hash });
       hashed++;
     }

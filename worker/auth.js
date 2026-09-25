@@ -1,7 +1,7 @@
 const COOKIE_NAME = "session";
 const MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days
 
-function toHex(buffer) {
+export function toHex(buffer) {
   return Array.from(new Uint8Array(buffer))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");

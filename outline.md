@@ -1898,17 +1898,28 @@ enough detail to act on directly later.
   the homepage (no code blocks/scans) requests neither script, and a
   "publish now" article's `article:published_time` meta and
   `datePublished` JSON-LD are both valid ISO 8601.
-- Three near-identical hex/SHA helper functions exist across the
-  codebase (`auth.js` `toHex`, `admin-api.js` `hashBytes`, `db.js`
-  `sha256Hex`) — dead-code/duplication nitpick, harmless but could
-  consolidate.
-- `getStorageUsage`'s table-name array is duplicated in two places in
-  `db.js` and must be kept in sync by hand.
-- `plainText` export in `render.js` is unused (predates this session).
+- ✅ Consolidated the three near-identical hex/SHA helpers. `toHex`
+  (hex-encoding a buffer, `auth.js`) is now exported and reused by a
+  single `sha256Hex` (digest + hex) exported from `db.js`;
+  `admin-api.js`'s own copy (`hashBytes`) is deleted, its two call
+  sites now import and call the shared `sha256Hex`. Verified via
+  Playwright: media upload dedup (which uses this hash to detect an
+  identical file re-upload) and the scheduled-backup integrity check
+  (which uses it to verify a written backup reads back byte-identical)
+  both still work correctly after the refactor.
+- ✅ `getStorageUsage`'s table-name array existed as two separate
+  literal copies that had to be kept in sync by hand — now one
+  `STORAGE_USAGE_TABLE_NAMES` constant used by both.
+- ✅ Removed the unused `plainText` export from `render.js` — its own
+  comment claimed it fed the "Read aloud" button, but that feature
+  (`public/article-extras.js`) actually reads the rendered DOM's own
+  text directly and never called this function at all; confirmed zero
+  call sites anywhere before deleting.
 - Hero/audio files replaced on a project are never deleted from R2
   (matches this codebase's existing precedent of not cleaning up
-  replaced `default_og_image`, etc. — not fixed for consistency's sake,
-  but worth a deliberate look since video files are much larger).
+  replaced `default_og_image`, etc.) — user asked for this to be fixed
+  despite the precedent, given video files are much larger; not done
+  yet in this commit, next up.
 
 ### Improvement ideas surfaced (not bugs, future backlog)
 - Real mobile reflow for the page grid: stack blocks in one column at
