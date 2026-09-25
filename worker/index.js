@@ -226,6 +226,22 @@ async function renderPage(env, page, url, request) {
   const blocks = await listBlocks(env, page.id);
   const activeTagFilter = url.searchParams.get("tag") || null;
   const bodyHtml = await renderBlocks(env, blocks, { activeTagFilter });
+  // A page has no single body-text field to fall back to the way an
+  // article/project's excerpt(body) already does — build an equivalent
+  // fallback from its own text/heading blocks (reading order, same
+  // top-to-bottom/left-to-right sort Diagnostics uses) so a page whose
+  // admin never filled in "Meta description" doesn't ship an empty
+  // <meta name="description"> and empty og:description instead.
+  const description =
+    page.meta_description ||
+    excerpt(
+      blocks
+        .filter((b) => (b.type === "text" || b.type === "heading") && b.content && b.content.text)
+        .sort((a, b) => a.row - b.row || a.col - b.col)
+        .map((b) => b.content.text)
+        .join(" ")
+    ) ||
+    page.title;
   const jsonLd =
     page.slug === "home"
       ? {
@@ -238,7 +254,7 @@ async function renderPage(env, page, url, request) {
       : null;
   const html = renderShell({
     title: page.title,
-    description: page.meta_description,
+    description,
     path: page.slug === "home" ? "/" : `/${page.slug}`,
     navItems,
     activeSlug: page.slug,

@@ -1759,6 +1759,18 @@ enough detail to act on directly later.
   still renders its actual content.
 
 **SEO/structured data:**
+- ✅ A Page with no "Meta description" set shipped an empty
+  `<meta name="description">` and empty `og:description` — articles/
+  projects never had this gap since they don't have a separate
+  meta-description field at all; they already fall back to
+  `excerpt(body)`. Added the equivalent for pages: when
+  `meta_description` is empty, build one from the page's own text/
+  heading blocks (sorted into reading order, same as Diagnostics'
+  heading-order check) run through the same `excerpt()` truncation, or
+  the page title if there's no text at all. An explicit
+  `meta_description` still always wins. Verified via Playwright both
+  ways: an empty-`meta_description` page now gets a real description
+  from its blocks, and a page with one set keeps using it untouched.
 - ✅ `/topics/<anything>` now 404s with `noindex` when nothing's tagged
   with it, instead of an indexable 200 "Nothing tagged…" — closes the
   unbounded-thin-URL problem (every possible string used to render the
