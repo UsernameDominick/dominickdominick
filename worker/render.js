@@ -538,6 +538,17 @@ export function renderTtsBarHtml(audioUrl) {
   </div>`;
 }
 
+// A project's hero video (muted/looping background clip). No `autoplay`
+// attribute here — whether it plays is decided client-side in nav.js so it
+// can respect both the OS-level prefers-reduced-motion and this site's own
+// manual motion toggle, neither of which is knowable at render time.
+export function renderHeroVideoHtml(videoUrl, posterUrl) {
+  if (!videoUrl) return "";
+  return `<video class="project-hero-video" muted loop playsinline preload="metadata"${posterUrl ? ` poster="${esc(posterUrl)}"` : ""}>
+    <source src="${esc(videoUrl)}">
+  </video>`;
+}
+
 export function renderCorrectionNoteHtml(note) {
   if (!note) return "";
   return `<div class="correction-note"><strong>Update:</strong> ${esc(note)}</div>`;

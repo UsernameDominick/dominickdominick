@@ -834,6 +834,26 @@ async function routeAdminApi(request, env, url, ctx) {
     return json({ url: `/media/${key}`, key });
   }
 
+  // /upload-video — a project's hero video, kept separate from /upload
+  // (images only) for the same reason as /upload-audio above: one file per
+  // project, not a reusable Media Library asset. 40MB covers a short muted
+  // background loop at a reasonable bitrate without a resumable-upload flow.
+  if (path === "/upload-video" && method === "POST") {
+    const contentType = request.headers.get("Content-Type") || "";
+    const allowed = { "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov" };
+    if (!allowed[contentType]) {
+      return json({ error: "Only MP4, WebM, or MOV video files are allowed" }, { status: 400 });
+    }
+    const buf = await request.arrayBuffer();
+    if (buf.byteLength > 40 * 1024 * 1024) {
+      return json({ error: "File too large (40MB max)" }, { status: 400 });
+    }
+    const key = `video/${crypto.randomUUID()}.${allowed[contentType]}`;
+    await env.MEDIA.put(key, buf, { httpMetadata: { contentType } });
+    log(ctx, env, "upload", "video", key.split("/").pop());
+    return json({ url: `/media/${key}`, key });
+  }
+
   // /media — list uploaded files (enriched with folder/tags/alt text), for
   // the media library picker.
   if (path === "/media" && method === "GET") {

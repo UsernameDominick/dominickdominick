@@ -106,7 +106,8 @@ CREATE TABLE projects (
   archived INTEGER NOT NULL DEFAULT 0,
   featured_order INTEGER,
   private_notes TEXT,
-  sort_order INTEGER
+  sort_order INTEGER,
+  hero_video TEXT
 );
 
 -- A project's build journal — dated entries telling the story of building

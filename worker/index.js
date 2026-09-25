@@ -63,6 +63,7 @@ import {
   renderReactionsHtml,
   renderCorrectionNoteHtml,
   renderTtsBarHtml,
+  renderHeroVideoHtml,
   FAVICON_SVG,
   renderErrorPageHtml,
 } from "./render.js";
@@ -253,6 +254,7 @@ async function renderProject(env, project, navItems) {
   const downloadsHtml = renderDownloadsHtml(downloads);
   const correctionNoteHtml = renderCorrectionNoteHtml(project.correction_note);
   const ttsBarHtml = renderTtsBarHtml(project.tts_audio_key);
+  const heroVideoHtml = renderHeroVideoHtml(project.hero_video, project.og_image);
   const wasUpdated = project.updated_at && project.published_at && new Date(project.updated_at) - new Date(project.published_at) > 24 * 3600 * 1000;
   // Build journals can add a lot of reading beyond the project body itself
   // (that's the whole point of a "long project page") — same reasoning
@@ -287,6 +289,7 @@ async function renderProject(env, project, navItems) {
     ${renderTags(project.tags)}
     ${linkButtons ? `<p>${linkButtons}</p>` : ""}
   </div>
+  ${heroVideoHtml ? `<div class="block">${heroVideoHtml}</div>` : ""}
   <div class="block">${ttsBarHtml}</div>
   ${correctionNoteHtml ? `<div class="block">${correctionNoteHtml}</div>` : ""}
   <div class="block">
@@ -875,10 +878,10 @@ async function route(request, env, ctx) {
       return renderSimulationPage(env, sim, navItems);
     }
 
-    // Scoped to "uploads/", "scans/", and "audio/" specifically — the same
-    // R2 bucket also holds scheduled backups under "backups/", which must
-    // never be servable through this public route.
-    const mediaMatch = path.match(/^\/media\/((?:uploads|scans|audio)\/[A-Za-z0-9_.\-\/]+)$/);
+    // Scoped to "uploads/", "scans/", "audio/", and "video/" specifically —
+    // the same R2 bucket also holds scheduled backups under "backups/",
+    // which must never be servable through this public route.
+    const mediaMatch = path.match(/^\/media\/((?:uploads|scans|audio|video)\/[A-Za-z0-9_.\-\/]+)$/);
     if (mediaMatch) {
       const obj = await env.MEDIA.get(mediaMatch[1]);
       if (!obj) return new Response("Not found", { status: 404 });

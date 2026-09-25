@@ -366,6 +366,13 @@
             <button type="button" id="project-tts-audio-remove-btn" hidden>Remove audio</button>
             <audio id="project-tts-audio-preview" controls hidden></audio>
           </div>
+          <div class="tts-audio-field">
+            <label>Hero video (optional — muted, looping background clip shown near the top of the project page; respects visitors' reduced-motion preference)</label>
+            <input type="file" id="project-hero-video-file" accept="video/mp4,video/webm,video/quicktime" hidden>
+            <button type="button" id="project-hero-video-upload-btn">Upload video…</button>
+            <button type="button" id="project-hero-video-remove-btn" hidden>Remove video</button>
+            <video id="project-hero-video-preview" controls muted hidden style="max-width:320px;"></video>
+          </div>
           <div class="project-related-row">
             <label>Related articles<select id="project-related-articles" multiple size="4"></select></label>
             <label>Related simulations<select id="project-related-simulations" multiple size="4"></select></label>

@@ -352,3 +352,29 @@ document.addEventListener("input", function (e) {
     window.trackEvent("font_size_toggle", String(next));
   });
 })();
+
+// A project's hero video has no `autoplay` attribute in the server-rendered
+// HTML (see renderHeroVideoHtml in worker/render.js) — whether it plays is
+// decided here instead, since only the client knows both the OS-level
+// prefers-reduced-motion setting and this site's own manual motion toggle
+// above. Re-synced on every click of that toggle, same as the CSS overrides
+// it already drives.
+(function () {
+  var videos = document.querySelectorAll(".project-hero-video");
+  if (!videos.length) return;
+  var prefersReducedMotion = function () {
+    return (
+      document.documentElement.getAttribute("data-motion") === "reduce" ||
+      (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches)
+    );
+  };
+  var sync = function () {
+    for (var i = 0; i < videos.length; i++) {
+      if (prefersReducedMotion()) videos[i].pause();
+      else videos[i].play().catch(function () {});
+    }
+  };
+  sync();
+  var motionBtn = document.getElementById("motion-toggle");
+  if (motionBtn) motionBtn.addEventListener("click", sync);
+})();

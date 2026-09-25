@@ -109,6 +109,19 @@
     return res.json();
   }
 
+  async function uploadVideoFile(file) {
+    const res = await fetch("/api/admin/upload-video", {
+      method: "POST",
+      headers: { "Content-Type": file.type },
+      body: file,
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || "Upload failed");
+    }
+    return res.json();
+  }
+
   // Fills a field with a URL — either replacing its value (used by single
   // image fields) or appending it as a new line (used by the gallery block's
   // one-URL-per-line textarea).
@@ -3476,6 +3489,8 @@
     el("project-private-notes").value = project.private_notes || "";
     currentProjectTtsAudio = project.tts_audio_key || null;
     refreshProjectTtsAudio();
+    currentProjectHeroVideo = project.hero_video || null;
+    refreshProjectHeroVideo();
     el("project-body").value = project.body || "";
     setMultiSelectValues(el("project-related-articles"), project.related_articles);
     setMultiSelectValues(el("project-related-simulations"), project.related_simulations);
@@ -3524,6 +3539,8 @@
     el("project-private-notes").value = "";
     currentProjectTtsAudio = null;
     refreshProjectTtsAudio();
+    currentProjectHeroVideo = null;
+    refreshProjectHeroVideo();
     el("project-body").value = "";
     setMultiSelectValues(el("project-related-articles"), []);
     setMultiSelectValues(el("project-related-simulations"), []);
@@ -3598,6 +3615,7 @@
       correction_note: el("project-correction-note").value || null,
       private_notes: el("project-private-notes").value || null,
       tts_audio_key: currentProjectTtsAudio,
+      hero_video: currentProjectHeroVideo,
       body: el("project-body").value,
       related_articles: getMultiSelectValues(el("project-related-articles")),
       related_simulations: getMultiSelectValues(el("project-related-simulations")),
@@ -4869,6 +4887,48 @@
     () => currentProjectTtsAudio,
     (v) => (currentProjectTtsAudio = v)
   );
+
+  // ---------- Project hero video upload ----------
+  // Same "plain URL string, not a Media Library entry" reasoning as the TTS
+  // audio above, and the same upload/preview/remove shape — just its own
+  // small function rather than folding video into wireTtsAudio, since the
+  // upload endpoint, accepted file types, and preview element tag differ.
+  let currentProjectHeroVideo = null;
+  function wireHeroVideo() {
+    const fileInput = el("project-hero-video-file");
+    const uploadBtn = el("project-hero-video-upload-btn");
+    const removeBtn = el("project-hero-video-remove-btn");
+    const preview = el("project-hero-video-preview");
+    function refresh() {
+      preview.hidden = !currentProjectHeroVideo;
+      removeBtn.hidden = !currentProjectHeroVideo;
+      if (currentProjectHeroVideo) preview.src = currentProjectHeroVideo;
+    }
+    uploadBtn.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      uploadBtn.disabled = true;
+      uploadBtn.textContent = "Uploading…";
+      try {
+        const res = await uploadVideoFile(file);
+        currentProjectHeroVideo = res.url;
+        refresh();
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = "Upload video…";
+        fileInput.value = "";
+      }
+    });
+    removeBtn.addEventListener("click", () => {
+      currentProjectHeroVideo = null;
+      refresh();
+    });
+    return refresh;
+  }
+  const refreshProjectHeroVideo = wireHeroVideo();
 
   // ---------- Shareable preview links ----------
   function previewLinkUrl(kind, slug, token) {

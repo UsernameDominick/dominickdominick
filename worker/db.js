@@ -824,12 +824,13 @@ export async function createProject(
     featured_order,
     private_notes,
     sort_order,
+    hero_video,
   }
 ) {
   const res = await env.DB
     .prepare(
-      `INSERT INTO projects (slug, title, summary, body, published_at, tags, tech_stack, status, links, og_image, canonical_url, featured, related_articles, related_simulations, related_scans, expires_at, sitemap_exclude, archived, related_override, featured_order, private_notes, sort_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO projects (slug, title, summary, body, published_at, tags, tech_stack, status, links, og_image, canonical_url, featured, related_articles, related_simulations, related_scans, expires_at, sitemap_exclude, archived, related_override, featured_order, private_notes, sort_order, hero_video)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .bind(
       slug,
@@ -853,7 +854,8 @@ export async function createProject(
       JSON.stringify(Array.isArray(related_override) ? related_override : []),
       Number.isFinite(Number(featured_order)) ? Number(featured_order) : null,
       private_notes || null,
-      Number.isFinite(Number(sort_order)) ? Number(sort_order) : null
+      Number.isFinite(Number(sort_order)) ? Number(sort_order) : null,
+      hero_video || null
     )
     .run();
   return res.meta.last_row_id;
@@ -862,7 +864,7 @@ export async function createProject(
 export async function updateProject(env, id, fields) {
   const cols = [];
   const vals = [];
-  for (const key of ["slug", "title", "summary", "body", "og_image", "canonical_url", "status", "correction_note", "tts_audio_key", "private_notes"]) {
+  for (const key of ["slug", "title", "summary", "body", "og_image", "canonical_url", "status", "correction_note", "tts_audio_key", "private_notes", "hero_video"]) {
     if (key in fields) {
       cols.push(`${key} = ?`);
       vals.push(fields[key]);

@@ -736,7 +736,22 @@ block already support any of these as a plain page:
 
 ### Projects and portfolio
 - ☐ Independent per-project layouts (fixed template like articles)
-- ✅ Project templates; 🔶 hero image ✅/hero video ☐/inline demos ☐ (related sims/scans exist, not embedded inline)
+- ✅ Project templates; 🔶 hero image ✅ (really the share/og image field,
+  reused loosely — it isn't rendered as an on-page banner, only in social
+  meta tags)/hero video ✅/inline demos ☐ (related sims/scans exist, not
+  embedded inline)
+  - Hero video: a new `hero_video` column on projects, uploaded through its
+    own `/upload-video` route (mirroring the existing `/upload-audio`
+    pattern — MP4/WebM/MOV, 40MB cap, own `video/` R2 prefix, not part of
+    the general Media Library) rather than widening `/upload`'s image-only
+    allowlist. Renders as a muted/looping `<video>` near the top of the
+    project page, sized/cropped with `object-fit: cover`. Deliberately
+    ships with no `autoplay` HTML attribute — the server can't know a
+    visitor's motion preference at render time, so `nav.js` decides
+    playback client-side instead, checking both OS-level
+    `prefers-reduced-motion` and this site's own manual motion toggle
+    (re-synced every time that toggle is clicked), the same dual check the
+    CSS-side motion overrides already use.
 - ✅ Tech stack, GitHub/demo/docs/download links, screenshots with captions + device frames, before/after comparisons, status field
 - ✅ Timelines/milestones (the build journal is now a genuine connected
   timeline — a single vertical rail with a dot per entry, color-coded by
