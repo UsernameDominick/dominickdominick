@@ -53,6 +53,7 @@
   }
   moreBtn.addEventListener("click", (e) => {
     e.stopPropagation();
+    closeNotifMenu();
     const isOpen = morePanel.classList.toggle("open");
     moreBtn.setAttribute("aria-expanded", String(isOpen));
   });
@@ -85,6 +86,12 @@
     const badge = el("notifications-badge");
     badge.textContent = String(items.length);
     badge.hidden = items.length === 0;
+    // The button's own accessible name is otherwise just its emoji plus
+    // the badge's bare number ("🔔 3") — this gives it a real one instead.
+    notifBtn.setAttribute(
+      "aria-label",
+      items.length ? `Notifications, ${items.length} item${items.length === 1 ? "" : "s"} need attention` : "Notifications, nothing needs attention"
+    );
     el("notifications-list").innerHTML =
       items.map((it, i) => `<button type="button" class="notifications-item" data-i="${i}">${escapeHtml(it.label)}</button>`).join("") ||
       "<p style='color:var(--text-dim);font-size:0.85rem;padding:8px 12px;'>Nothing needs attention.</p>";
@@ -94,12 +101,21 @@
   }
   notifBtn.addEventListener("click", (e) => {
     e.stopPropagation();
+    closeMoreMenu();
     const isOpen = notifPanel.classList.toggle("open");
     notifBtn.setAttribute("aria-expanded", String(isOpen));
     if (isOpen) loadNotifications().catch(() => {});
   });
   document.addEventListener("click", (e) => {
     if (notifPanel.classList.contains("open") && !notifPanel.contains(e.target) && e.target !== notifBtn) closeNotifMenu();
+  });
+  // Escape closes whichever of these two header dropdowns is open — the
+  // same behavior every modal already has via closeTopModal() below, just
+  // for these two, which aren't modals.
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (morePanel.classList.contains("open")) closeMoreMenu();
+    if (notifPanel.classList.contains("open")) closeNotifMenu();
   });
 
   let pages = [];

@@ -127,7 +127,9 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   position: absolute;
   top: -4px;
   right: -6px;
-  background: #e05252;
+  /* #e05252 only hit 3.82:1 against white text at this size, failing
+     WCAG AA's 4.5:1; this darker red is the same hue at ~5.6:1. */
+  background: #c62828;
   color: #fff;
   font-size: 0.65rem;
   font-weight: 700;

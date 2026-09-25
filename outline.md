@@ -1668,12 +1668,18 @@ enough detail to act on directly later.
   arrow-key handling.
 - Mobile admin header overflows with 5+ nav items (horizontal scroll,
   clipped label).
-- Notification bell: deep-links open Site Settings at the top instead
-  of scrolling to the relevant section (made worse once the 0px-height
-  bug above is the reason those sections were invisible); Escape
-  doesn't close it; can be open simultaneously with the "More" menu;
-  badge contrast (white on `#e05252`, 3.82:1); no `aria-label` (reads
-  as "🔔 3" to a screen reader).
+- Notification bell: ✅ Escape now closes it (and the "More" menu,
+  same handler), opening either one now closes the other (mutual
+  exclusivity — verified via Playwright for both directions), the
+  badge is now the same darker `#c62828` red used elsewhere this round
+  (was `#e05252` on white text, 3.82:1, now ~5.6:1), and the bell
+  button gets a real `aria-label` ("Notifications, N items need
+  attention" / "…nothing needs attention") updated every time the
+  count refreshes, instead of a screen reader reading its emoji plus
+  the bare badge number as "🔔 3". Deep-links still open Site Settings
+  at the top instead of scrolling to the relevant section — not fixed
+  this round (a bigger admin-navigation change than this pass's other
+  fixes).
 - Media Library: mobile grid rows overlap at 160px items in 134px row
   height; desktop toolbar is ~19 ungrouped native controls with no
   visual grouping; a `.danger { ... !important }` rule makes disabled
