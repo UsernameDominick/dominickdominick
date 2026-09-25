@@ -5659,4 +5659,26 @@ finding from round 1 fixed and verified; round 2 found nothing new.
   `DELETE /simulations/:id` is already a hard delete, so no separate
   permanent-delete call was needed).
 
-Handed to a critic agent for scoring.
+Handed to a critic agent for scoring: **9/10**, no real bugs. Specifically
+checked and confirmed correct on the first try: Reset on a never-saved
+simulation goes to blank/template state; a failed save (network/API
+error) leaves `initialSimSnapshot` untouched since the re-snapshot line
+sits after the `await` inside the `try` block, so a rejected save can't
+poison what Reset targets; Reset→Undo→edit→Reset again correctly
+re-targets the same unchanged snapshot; "Save as template" (a separate
+copy-out action) correctly leaves the snapshot alone; switching between
+two different simulations in the same session shows no snapshot leakage
+across them (`openBuilder()` unconditionally recaptures on every call);
+importing a JSON circuit only pushes undo history, so Reset after an
+Import correctly discards the imported data back to the last real save.
+Minor items logged only (both are pre-existing UX precedent already
+shared by the Photo Editor's own Reset button, not something to
+special-case here): the Reset button has no disabled state when nothing
+would actually change, and it uses blocking `confirm()`/`alert()` like
+the rest of this admin.
+
+Item #366 is done: 1 critic round, 9/10, no real findings — the design's
+deliberate "snapshot targets the last save, not the state on open"
+choice held up under every edge case tried, including the save-failure
+and cross-simulation-switch cases that would have been the most likely
+places for a subtle data-loss bug to hide.
