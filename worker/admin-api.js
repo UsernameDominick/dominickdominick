@@ -198,6 +198,18 @@ function sanitizeSvg(text) {
 // actually inspects the rendered <script type="application/ld+json"> tag —
 // or worse, get swallowed by JSON.stringify re-serializing whatever
 // half-broken value made it into the column. Reject it at save time instead.
+// The publishing checklist in the admin UI has always shown "Body has
+// enough content to publish" as a checkmark, but never actually stopped
+// anyone from publishing anyway — a real gap, not just cosmetic, since
+// the checklist looked like validation without being any. Enforced only
+// at the moment something transitions from unpublished to published (not
+// on every subsequent edit — an already-published short piece shouldn't
+// suddenly start failing to save because of an unrelated tag change).
+const MIN_PUBLISH_BODY_LENGTH = 50;
+function publishBodyTooShort(effectiveBody) {
+  return !effectiveBody || effectiveBody.trim().length <= MIN_PUBLISH_BODY_LENGTH;
+}
+
 function validateCustomJsonLd(body) {
   if (!body.custom_json_ld) return null;
   try {
@@ -586,6 +598,10 @@ async function routeAdminApi(request, env, url, ctx) {
     if (await slugExists(env, "articles", slug)) {
       return json({ error: "An article with that slug already exists" }, { status: 409 });
     }
+    const resolvedPublishedAt = body.published_at !== undefined ? body.published_at : body.published ? new Date().toISOString() : null;
+    if (resolvedPublishedAt && resolvedPublishedAt <= new Date().toISOString() && publishBodyTooShort(body.body)) {
+      return json({ error: `Body needs more than ${MIN_PUBLISH_BODY_LENGTH} characters before publishing.` }, { status: 400 });
+    }
     const id = await createArticle(env, { ...body, slug });
     log(ctx, env, "create", "article", body.title || slug);
     await maybeFireWebhook(env, ctx, {
@@ -608,12 +624,18 @@ async function routeAdminApi(request, env, url, ctx) {
         return json({ error: "An article with that slug already exists" }, { status: 409 });
       }
     }
-    const before = await env.DB.prepare("SELECT slug, title, published_at FROM articles WHERE id = ?").bind(id).first();
-    await snapshotArticle(env, id);
-    await updateArticle(env, id, body);
+    const before = await env.DB.prepare("SELECT slug, title, published_at, body FROM articles WHERE id = ?").bind(id).first();
     const wasPublished = !!(before && before.published_at && before.published_at <= new Date().toISOString());
     const newPublishedAt = "published_at" in body ? body.published_at : before && before.published_at;
     const isNowPublished = !!(newPublishedAt && newPublishedAt <= new Date().toISOString());
+    if (!wasPublished && isNowPublished) {
+      const effectiveBody = "body" in body ? body.body : before && before.body;
+      if (publishBodyTooShort(effectiveBody)) {
+        return json({ error: `Body needs more than ${MIN_PUBLISH_BODY_LENGTH} characters before publishing.` }, { status: 400 });
+      }
+    }
+    await snapshotArticle(env, id);
+    await updateArticle(env, id, body);
     if (body.slug && before) {
       await maybeCreateSlugRedirect(env, ctx, { oldSlug: before.slug, newSlug: body.slug, pathPrefix: "/random/", isLive: wasPublished });
     }
@@ -700,6 +722,10 @@ async function routeAdminApi(request, env, url, ctx) {
     if (await slugExists(env, "projects", slug)) {
       return json({ error: "A project with that slug already exists" }, { status: 409 });
     }
+    const resolvedPublishedAt = body.published_at !== undefined ? body.published_at : body.published ? new Date().toISOString() : null;
+    if (resolvedPublishedAt && resolvedPublishedAt <= new Date().toISOString() && publishBodyTooShort(body.body)) {
+      return json({ error: `Body needs more than ${MIN_PUBLISH_BODY_LENGTH} characters before publishing.` }, { status: 400 });
+    }
     const id = await createProject(env, { ...body, slug });
     log(ctx, env, "create", "project", body.title || slug);
     await maybeFireWebhook(env, ctx, {
@@ -723,12 +749,18 @@ async function routeAdminApi(request, env, url, ctx) {
         return json({ error: "A project with that slug already exists" }, { status: 409 });
       }
     }
-    const before = await env.DB.prepare("SELECT slug, title, published_at FROM projects WHERE id = ?").bind(id).first();
-    await snapshotProject(env, id);
-    await updateProject(env, id, body);
+    const before = await env.DB.prepare("SELECT slug, title, published_at, body FROM projects WHERE id = ?").bind(id).first();
     const wasPublished = !!(before && before.published_at && before.published_at <= new Date().toISOString());
     const newPublishedAt = "published_at" in body ? body.published_at : before && before.published_at;
     const isNowPublished = !!(newPublishedAt && newPublishedAt <= new Date().toISOString());
+    if (!wasPublished && isNowPublished) {
+      const effectiveBody = "body" in body ? body.body : before && before.body;
+      if (publishBodyTooShort(effectiveBody)) {
+        return json({ error: `Body needs more than ${MIN_PUBLISH_BODY_LENGTH} characters before publishing.` }, { status: 400 });
+      }
+    }
+    await snapshotProject(env, id);
+    await updateProject(env, id, body);
     if (wasPublished !== isNowPublished) {
       log(ctx, env, isNowPublished ? "publish" : "unpublish", "project", body.title || (before && before.title));
     }

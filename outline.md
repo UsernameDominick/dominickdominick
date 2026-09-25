@@ -582,7 +582,18 @@ health-check pass, predates this doc.
 - ✅ Edit relationships from either connected item (article editor's "Related projects" writes the same project.related_articles field)
 - ✅ Series; ☐ manual/automatic collections generically
 - ✅ Featured + pinned (articles both; projects featured only)
-- ☐ Centrally managed option lists (free text only), required-field validation beyond title
+- 🔶 Centrally managed option lists (free text only) ☐; required-field
+  validation beyond title ✅ — the admin editor's "Publishing checklist"
+  had shown a "Body has enough content to publish" ✗/✓ line for a while,
+  but never actually enforced it: you could check "Published" on an
+  empty article and it would just save. Now the article/project create
+  and update routes reject the exact transition from unpublished to
+  published when the body is 50 characters or under, matching the
+  checklist's own threshold, with a plain 400 + message that surfaces
+  through the existing autosave-status/alert() error paths — no new UI
+  needed. Deliberately transition-only: editing an already-published
+  piece's body back down later isn't blocked, so an ongoing edit to live
+  content never starts failing to save over something unrelated
 - ✅ Computed fields (BOM total build cost)
 - 🔶 Repeating layouts / visual query builder / display templates (article-list/project-list blocks cover the basics; not admin-customizable beyond limit+tag+featured filters)
 - ☐ Conditional sections based on available content
