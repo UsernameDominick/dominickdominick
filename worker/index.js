@@ -70,13 +70,14 @@ import { handleAdminApi } from "./admin-api.js";
 import { renderSimulationSvg } from "./simulation-render.js";
 
 async function getTheme(env) {
-  const [accent, bg, font, text, border, headingFont] = await Promise.all([
+  const [accent, bg, font, text, border, headingFont, mobileBreakpoint] = await Promise.all([
     getSetting(env, "theme_accent"),
     getSetting(env, "theme_bg"),
     getSetting(env, "theme_font"),
     getSetting(env, "theme_text"),
     getSetting(env, "theme_border"),
     getSetting(env, "theme_heading_font"),
+    getSetting(env, "mobile_breakpoint"),
   ]);
   return {
     accent: accent || null,
@@ -85,6 +86,7 @@ async function getTheme(env) {
     text: text || null,
     border: border || null,
     headingFont: headingFont || null,
+    mobileBreakpoint: Number(mobileBreakpoint) || 640,
   };
 }
 

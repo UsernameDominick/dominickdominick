@@ -492,7 +492,14 @@ health-check pass, predates this doc.
 - 🔶 Navigation editor (ordering ✅; nested/dropdown menus ☐)
 - ☐ Separate desktop/tablet/phone layout settings (needs schema change + reworked drag/resize — deliberately deferred)
 - 🔶 Per-device spacing/ordering/visibility (visibility ✅; spacing/ordering ☐)
-- 🔶 Custom breakpoint controls (preview modal ✅; custom breakpoint values ☐, fixed at 640px)
+- ✅ Custom breakpoint controls (preview modal ✅; custom breakpoint value
+  ✅ — a "Mobile/desktop breakpoint" number field in Site Settings; since
+  the actual media-query rules live in the static `style.css` (can't be
+  edited per-request), a non-default value injects an override `<style>`
+  block with the same selectors at the custom width, same mechanism
+  theme colors already use — only one of the two media queries ever
+  matches a given viewport, so there's no cascade fight with the
+  original 640px rule, whichever one applies just wins on its own)
 - ✅ Fullscreen/Focus mode editing
 - ✅ Layers panel (flat list — no real nesting exists yet)
 - ☐ Block grouping/ungrouping

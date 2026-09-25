@@ -157,6 +157,7 @@ const SETTINGS_KEYS = [
   "custom_head",
   "webhook_url",
   "webhook_on_project_publish",
+  "mobile_breakpoint",
   "empty_search_text",
   "empty_archive_text",
   "empty_topics_text",

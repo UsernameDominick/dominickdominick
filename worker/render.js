@@ -1092,6 +1092,20 @@ export function renderShell({
   if (theme.font && FONT_STACKS[theme.font]) themeVars.push(`--font-family:${FONT_STACKS[theme.font]}`);
   if (theme.headingFont && FONT_STACKS[theme.headingFont]) themeVars.push(`--heading-font-family:${FONT_STACKS[theme.headingFont]}`);
   const themeStyle = themeVars.length ? `<style>:root{${themeVars.join(";")};}</style>` : "";
+  // The mobile/desktop device-visibility breakpoint (.block-hide-mobile/
+  // .block-hide-desktop in style.css) is fixed at 640px in that static
+  // stylesheet. A custom value can't edit that file per-request, so this
+  // overrides it with the same selectors at the custom width instead —
+  // only one of the two media queries ever matches a given viewport, so
+  // there's no cascade-order fight with the original rule, just whichever
+  // width range actually applies.
+  const breakpoint = Number(theme.mobileBreakpoint) || 640;
+  const breakpointStyle =
+    breakpoint !== 640
+      ? `<style>@media (max-width:${breakpoint}px){.block-hide-mobile{display:none !important;}}@media (min-width:${
+          breakpoint + 1
+        }px){.block-hide-desktop{display:none !important;}}</style>`
+      : "";
   const navHtml = navItems
     .map(
       (n) =>
@@ -1132,6 +1146,7 @@ ${ogImage ? `<meta name="twitter:image" content="${esc(ogImage)}">` : ""}
 
 <link rel="stylesheet" href="/style.css">
 ${themeStyle}
+${breakpointStyle}
 <script src="/sim-player.js" defer></script>
 <script src="/article-extras.js" defer></script>
 <script src="/song-engine.js" defer></script>
