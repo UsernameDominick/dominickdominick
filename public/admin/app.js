@@ -943,17 +943,26 @@
         (b.style && b.style.hidden ? " block-is-hidden" : "") +
         (b.locked ? " block-locked" : "");
       div.dataset.id = b.id;
+      div.tabIndex = 0;
+      div.setAttribute("role", "button");
+      div.setAttribute("aria-label", `${blockLabel(b.type)} block`);
       div.innerHTML = `<div class="block-type-label">${blockLabel(b.type)}${blockBadgesHtml(b)}</div><div class="block-preview">${blockPreview(
         b
       )}</div><div class="stacked-block-controls"><button type="button" class="stacked-move-up" aria-label="Move up"${
         i === 0 ? " disabled" : ""
       }>↑</button><button type="button" class="stacked-move-down" aria-label="Move down"${i === sorted.length - 1 ? " disabled" : ""}>↓</button></div>`;
-      div.addEventListener("click", () => {
+      const selectThisBlock = () => {
         selectedBlockId = b.id;
         multiSelectedIds.clear();
         renderCanvas();
         renderInspector();
         openDrawer(el("inspector"));
+      };
+      div.addEventListener("click", selectThisBlock);
+      div.addEventListener("keydown", (e) => {
+        if ((e.key !== "Enter" && e.key !== " ") || e.target !== div) return;
+        e.preventDefault();
+        selectThisBlock();
       });
       const moveUp = div.querySelector(".stacked-move-up");
       const moveDown = div.querySelector(".stacked-move-down");
@@ -1050,6 +1059,23 @@
   }
 
   function wireBlockInteractions(div, block) {
+    div.tabIndex = 0;
+    div.setAttribute("role", "button");
+    div.setAttribute("aria-label", `${blockLabel(block.type)} block`);
+    div.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      if (e.target !== div) return;
+      e.preventDefault();
+      multiSelectedIds.clear();
+      selectedBlockId = block.id;
+      renderCanvas();
+      renderInspector();
+      // renderCanvas() rebuilds every block div from scratch, so the one
+      // that just received Enter/Space no longer exists — refocus its
+      // replacement or a keyboard user's Tab position silently resets to
+      // the top of the canvas every time they select a block.
+      canvas.querySelector(`.admin-block[data-id="${block.id}"]`)?.focus();
+    });
     div.addEventListener("pointerdown", (e) => {
       if (e.target.classList.contains("resize-handle")) return;
       if (e.shiftKey) {

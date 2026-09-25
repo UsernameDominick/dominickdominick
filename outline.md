@@ -1846,8 +1846,25 @@ enough detail to act on directly later.
   Verified via Playwright: both link-checker buttons still trigger
   their respective endpoints and render results correctly, and the
   Site Settings modal still opens from its renamed button.
-- Admin editor canvas isn't keyboard-navigable (blocks can't be
-  individually focused/selected via Tab).
+- ✅ Admin editor canvas wasn't keyboard-navigable — every block was a
+  plain `<div>` with no `tabindex`, so Tab skipped the whole canvas and
+  selecting a block required a mouse click. Added `tabIndex = 0`,
+  `role="button"`, and an `aria-label` naming the block type to both
+  the desktop absolute-positioned blocks and the mobile stacked-list
+  blocks, plus a `keydown` handler on each (Enter or Space) that runs
+  the same selection logic as a click — on desktop that's select +
+  re-render + refocus (re-rendering rebuilds every block div from
+  scratch, so without an explicit refocus of the replacement node,
+  keyboard focus would silently reset to the top of the canvas every
+  time a block was selected); on mobile it also opens the inspector
+  drawer, matching the existing tap behavior. Added a visible
+  `:focus-visible` outline on `.admin-block` since it had none before.
+  Verified via Playwright: blocks report `tabIndex: 0`/`role="button"`/
+  a descriptive `aria-label`; focusing a block and pressing Enter
+  selects it, populates the inspector, and leaves focus on the
+  (re-rendered) selected block rather than losing it; the same works
+  on the mobile stacked layout, where Enter also opens the inspector
+  drawer.
 - ✅ Photo editor "Save preset" was dropping earlier adjustments —
   `onAdjustCommit()` replaced `lastAdjust` wholesale from the three
   sliders' current values each time, but the sliders reset to 0 after
