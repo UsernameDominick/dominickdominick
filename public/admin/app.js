@@ -6832,6 +6832,45 @@
     }
   });
 
+  // DELETE /templates/:id already existed with nothing in the UI ever
+  // calling it — a typo'd or since-obsolete template just sat permanently
+  // in the picker dropdown with no way to remove it. The page picker keeps
+  // its selected value after use (see "+ Page" above, which reads it),
+  // so its delete button can reuse that value directly, same pattern as
+  // the style-preset delete button. Article/project pickers apply their
+  // template and immediately reset to blank (so re-selecting the same
+  // template a second time still fires a change event) — there's no
+  // "just highlighted, not yet applied" state to read there, so those two
+  // ask for the template's name instead rather than forcing an unwanted
+  // re-apply just to select which one to delete.
+  el("delete-page-template-btn").addEventListener("click", async () => {
+    const id = Number(el("page-template-picker").value);
+    if (!id) return alert("Select a template from the picker first.");
+    const t = templateOptions.page.find((x) => x.id === id);
+    if (!confirm(`Delete template "${t ? t.name : id}"? This can't be undone.`)) return;
+    try {
+      await api(`/templates/${id}`, { method: "DELETE" });
+      await loadTemplates("page");
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+  async function deleteTemplateByName(kind) {
+    const list = templateOptions[kind];
+    if (!list.length) return alert(`No ${kind} templates saved yet.`);
+    const name = prompt(`Delete which template? Type its exact name:\n\n${list.map((t) => t.name).join("\n")}`);
+    if (!name) return;
+    const t = list.find((x) => x.name === name.trim());
+    if (!t) return alert("No template with that exact name.");
+    if (!confirm(`Delete template "${t.name}"? This can't be undone.`)) return;
+    try {
+      await api(`/templates/${t.id}`, { method: "DELETE" });
+      await loadTemplates(kind);
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
   el("save-article-template-btn").addEventListener("click", async () => {
     const name = prompt("Template name:");
     if (!name) return;
@@ -6857,6 +6896,7 @@
     updateArticleOgPreview();
     scheduleAutosave();
   });
+  el("delete-article-template-btn").addEventListener("click", () => deleteTemplateByName("article"));
 
   el("save-project-template-btn").addEventListener("click", async () => {
     const name = prompt("Template name:");
@@ -6892,6 +6932,7 @@
     el("project-tech-stack").value = t.data.tech_stack || "";
     el("project-status").value = t.data.status || "";
   });
+  el("delete-project-template-btn").addEventListener("click", () => deleteTemplateByName("project"));
 
   // ---------- Boot ----------
   async function loadSimulationOptions() {

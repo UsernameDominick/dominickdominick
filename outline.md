@@ -3258,3 +3258,20 @@ text). Both implemented:
   and then clearing the filter correctly left the selection at 1 (not
   jumping to all 6), and the checkbox itself correctly read unchecked
   once selection and "shown" no longer matched.
+- ✅ **Wired up template deletion** — `DELETE /templates/:id` already
+  existed server-side and worked (used nowhere), but nothing in the
+  admin UI ever called it — a typo'd or since-obsolete page/article/
+  project template had no way to be removed and just sat permanently
+  in its picker dropdown. Added a "Delete template" button next to each
+  of the three "Save as template" buttons. The page picker keeps its
+  selected value after use (read by "+ Page" to apply it), so its
+  delete button reuses that value directly, same pattern as the
+  existing style-preset delete button. Article/project pickers apply
+  their template and immediately reset to blank (so re-selecting the
+  same template a second time still fires a change event) — there's no
+  "just highlighted" state to read there, so those two ask for the
+  template's exact name via a prompt instead of forcing an unwanted
+  re-apply just to select which one to delete. Verified via Playwright:
+  deleting a page template via the picker and an article template via
+  the name prompt both correctly removed them from their pickers and
+  from `GET /templates`.
