@@ -3613,3 +3613,24 @@ instead:
   `findScanUsage()` wrapper. Verified via Playwright: deleting a scan
   through the real admin UI still shows the correct usage-aware confirm
   dialog, and the legacy route now correctly 404s.
+
+### Fifteenth backlog item — sitemap/canonical consistency check
+- ✅ **SEO: flag content whose canonical URL points elsewhere but is still
+  listed in sitemap.xml/rss.xml** — a canonical URL set to a different
+  page (e.g. a project deliberately converted from an article, per that
+  flow's own new confirm-dialog advice) is exactly the signal that
+  means "the real version of this is over there," but the sitemap/RSS
+  generators always list a page's own slug URL regardless of that
+  signal — search engines get told two contradictory things at once.
+  `sitemap_exclude` already exists for exactly this situation; this new
+  check just flags where it was probably meant to be set but wasn't.
+  Added `sitemapCanonicalMismatch` to `getSeoReport()`: any page/
+  article/project with a non-empty `canonical_url` that doesn't match
+  its own computed URL and isn't already sitemap-excluded. Wired into
+  both the standalone SEO Report panel and the "Run all checks"
+  aggregator. Verified via Playwright across all four cases: an
+  external canonical still in the sitemap correctly flags; the same
+  content with `sitemap_exclude` set correctly stops flagging; a
+  canonical URL that matches the page's own URL never flags in the
+  first place; and both admin surfaces correctly display the finding
+  with the actual canonical URL it points to.

@@ -3644,7 +3644,31 @@ export async function getSeoReport(env) {
     metaOwners.get(key).push({ title: p.title, slug: p.slug });
   }
   const duplicateMeta = [...metaOwners.values()].filter((owners) => owners.length > 1);
-  return { missingMeta, missingAlt, missingOgImage, duplicateTitles, duplicateMeta };
+  // A canonical URL pointing somewhere else is exactly the signal to use
+  // for "the real version of this is over there" (e.g. a project
+  // deliberately converted from an article, per the editor's own
+  // confirm-dialog advice) — but sitemap.xml/rss.xml always list a page's
+  // own slug URL regardless, with no awareness of that signal. Search
+  // engines get told two contradictory things at once: the sitemap says
+  // "index this," the page's own <link rel="canonical"> says "no, index
+  // that instead." sitemap_exclude already exists for exactly this
+  // situation; this just flags where it was probably meant to be set but
+  // wasn't.
+  const ownUrl = { page: (p) => (p.slug === "home" ? "https://dominickdominick.com/" : `https://dominickdominick.com/${p.slug}`), article: (a) => `https://dominickdominick.com/random/${a.slug}`, project: (p) => `https://dominickdominick.com/projects/${p.slug}` };
+  const sitemapCanonicalMismatch = [];
+  for (const [items, type] of [[pages, "page"], [articles, "article"], [projects, "project"]]) {
+    for (const item of items) {
+      if (!item.canonical_url || item.sitemap_exclude) continue;
+      // Trailing slash on the site root is the one legitimate case where
+      // the canonical URL and the computed URL differ by punctuation only.
+      const own = ownUrl[type](item).replace(/\/$/, "") || "https://dominickdominick.com";
+      const canonical = item.canonical_url.replace(/\/$/, "");
+      if (canonical !== own) {
+        sitemapCanonicalMismatch.push({ title: item.title, slug: item.slug, type, canonicalUrl: item.canonical_url });
+      }
+    }
+  }
+  return { missingMeta, missingAlt, missingOgImage, duplicateTitles, duplicateMeta, sitemapCanonicalMismatch };
 }
 
 // Same WCAG relative-luminance contrast formula used both by the Site

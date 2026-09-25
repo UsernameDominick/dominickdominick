@@ -5666,6 +5666,13 @@
           url: pagePath(owners[0].slug),
           status: `Duplicate meta description (${owners.length}×)`,
         })),
+        ...seoData.sitemapCanonicalMismatch.map((m) => ({
+          severity: 2,
+          check: "SEO",
+          title: m.title,
+          url: typePath[m.type] + (m.slug === "home" ? "" : m.slug),
+          status: `Canonical URL points elsewhere but still in sitemap.xml (→ ${m.canonicalUrl})`,
+        })),
         ...orphanData.pages.map((p) => ({ severity: 2, check: "Orphan", title: p.title, url: pagePath(p.slug), status: "Page — no links, not in nav" })),
         ...orphanData.articles.map((a) => ({ severity: 2, check: "Orphan", title: a.title, url: `/random/${a.slug}`, status: "Article — no internal links" })),
         ...orphanData.projects.map((p) => ({ severity: 2, check: "Orphan", title: p.title, url: `/projects/${p.slug}`, status: "Project — no internal links" })),
@@ -5705,7 +5712,7 @@
     btn.textContent = "Checking…";
     btn.disabled = true;
     try {
-      const { missingMeta, missingAlt, missingOgImage, duplicateTitles, duplicateMeta } = await api("/seo-report");
+      const { missingMeta, missingAlt, missingOgImage, duplicateTitles, duplicateMeta, sitemapCanonicalMismatch } = await api("/seo-report");
       const typePath = { article: "/random/", project: "/projects/", page: "/" };
       const rows = [
         ...missingMeta.map(
@@ -5737,6 +5744,12 @@
             `<div class="link-check-row broken"><span class="link-check-url">${escapeHtml(owners[0].title)}</span><span class="link-check-source">${owners
               .map((o) => escapeHtml(o.slug === "home" ? "/" : `/${o.slug}`))
               .join(", ")}</span><span class="link-check-status">Duplicate meta description (${owners.length}×)</span></div>`
+        ),
+        ...sitemapCanonicalMismatch.map(
+          (m) =>
+            `<div class="link-check-row broken"><span class="link-check-url">${escapeHtml(m.title)}</span><span class="link-check-source">${escapeHtml(
+              typePath[m.type] + (m.slug === "home" ? "" : m.slug)
+            )}</span><span class="link-check-status">Canonical URL points elsewhere but still in sitemap.xml (→ ${escapeHtml(m.canonicalUrl)})</span></div>`
         ),
       ];
       el("seo-report-results").innerHTML = rows.join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No issues found.</p>";
