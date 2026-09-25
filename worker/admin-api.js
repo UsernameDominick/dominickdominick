@@ -1173,14 +1173,20 @@ async function routeAdminApi(request, env, url, ctx) {
     log(ctx, env, "delete", "media", `${keys.length} file(s)`);
     return json({ ok: true });
   }
-  // Bulk move (set folder) and/or bulk tag (add one tag, keeping each
-  // file's existing tags) across a selection — same shape as bulk-delete,
-  // since both come from the same selection checkboxes in the library grid.
+  // Bulk move (set folder), bulk tag (add one tag, keeping each file's
+  // existing tags), and/or bulk alt-text (overwrite, same string for every
+  // selected file — meant for a batch of near-duplicate images, e.g. a
+  // gallery of the same product from different angles, not a substitute
+  // for writing distinct alt text per image) across a selection — same
+  // shape as bulk-delete, since all of these come from the same selection
+  // checkboxes in the library grid.
   if (path === "/media/bulk-update" && method === "POST") {
     const body = await request.json().catch(() => ({}));
     const keys = Array.isArray(body.keys) ? body.keys : [];
     if (!keys.length) return json({ error: "No files selected" }, { status: 400 });
-    if (body.folder === undefined && !body.addTag) return json({ error: "Nothing to update" }, { status: 400 });
+    if (body.folder === undefined && !body.addTag && body.altText === undefined) {
+      return json({ error: "Nothing to update" }, { status: 400 });
+    }
     if (body.addTag) {
       const meta = await getMediaMeta(env, keys);
       await Promise.all(
@@ -1188,11 +1194,15 @@ async function routeAdminApi(request, env, url, ctx) {
           const tags = meta[k]?.tags || [];
           const patch = { tags: tags.includes(body.addTag) ? tags : [...tags, body.addTag] };
           if (body.folder !== undefined) patch.folder = body.folder;
+          if (body.altText !== undefined) patch.alt_text = body.altText;
           return upsertMediaMeta(env, k, patch);
         })
       );
     } else {
-      await Promise.all(keys.map((k) => upsertMediaMeta(env, k, { folder: body.folder })));
+      const patch = {};
+      if (body.folder !== undefined) patch.folder = body.folder;
+      if (body.altText !== undefined) patch.alt_text = body.altText;
+      await Promise.all(keys.map((k) => upsertMediaMeta(env, k, patch)));
     }
     log(ctx, env, "update", "media", `${keys.length} file(s)`);
     return json({ ok: true });

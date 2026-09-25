@@ -4606,6 +4606,7 @@
     el("media-bulk-delete-btn").disabled = !n;
     el("media-bulk-move-btn").disabled = !n;
     el("media-bulk-tag-btn").disabled = !n;
+    el("media-bulk-alt-btn").disabled = !n;
     const shown = lastFilteredMediaKeys;
     const shownSelectedCount = shown.filter((k) => selectedMediaKeys.has(k)).length;
     const selectAll = el("media-select-all");
@@ -4924,6 +4925,23 @@
     if (!tag) return;
     try {
       await api("/media/bulk-update", { method: "POST", body: JSON.stringify({ keys: [...selectedMediaKeys], addTag: tag }) });
+      await loadMediaLibrary();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  // The SEO report already surfaces "missing alt text" sitewide, but fixing
+  // N flagged images one at a time (the only path before this) is real
+  // friction right after running Site Health. Sets the same string on
+  // every selected file — meant for a batch of genuinely-identical images
+  // (the button's own title says so), not a shortcut around writing
+  // distinct alt text where it actually matters.
+  el("media-bulk-alt-btn").addEventListener("click", async () => {
+    const altText = prompt("Set this alt text on all selected files:", "");
+    if (altText === null) return;
+    try {
+      await api("/media/bulk-update", { method: "POST", body: JSON.stringify({ keys: [...selectedMediaKeys], altText: altText.trim() }) });
       await loadMediaLibrary();
     } catch (err) {
       alert(err.message);

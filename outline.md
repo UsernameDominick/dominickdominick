@@ -3695,3 +3695,20 @@ instead:
   stack, selecting "Custom" with nothing uploaded fell back safely with
   zero console errors, and clearing back to "Default" correctly removed
   the inline override.
+
+### Seventeenth backlog item — bulk alt-text editing in Media Library
+- ✅ **Bulk "Set alt text…" for multi-selected media** — the SEO report
+  already surfaces "missing alt text" as a sitewide finding, but fixing
+  it meant opening each flagged image individually; there was no bulk
+  path at all (only "Move to folder…" and "Add tag…" existed for a
+  multi-selection). Extended the existing `/media/bulk-update` endpoint
+  (already shared by move/tag) to also accept an `altText` value applied
+  to every selected file, and added a matching "Set alt text…" button
+  next to the other two — same prompt-dialog UX as "Add tag…" for
+  consistency. Scoped deliberately to a batch of genuinely similar
+  images (the button's own tooltip says so) rather than a shortcut
+  around writing distinct alt text where it actually matters. Gets
+  per-file revision history for free, since `upsertMediaMeta()` already
+  snapshots before any editorial change. Verified via Playwright with
+  two real uploaded images: selecting both and setting alt text applied
+  the exact same string to both, confirmed via a direct API read.
