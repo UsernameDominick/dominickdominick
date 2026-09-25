@@ -2366,6 +2366,34 @@ export async function getAnalytics(env, days = 7, filters = {}) {
   };
 }
 
+// Raw, unaggregated rows for the "export raw events" CSV — every
+// individual pageview and event, not the top-N breakdowns getAnalytics()
+// returns. Same date-range and pageview filters (device/referrer/
+// contentType) as the dashboard; events have no device/referrer/path-type
+// columns to filter on, same limitation the dashboard's own filters
+// already carry (see the "raw event export" outline note). Capped at
+// 20,000 rows each — plenty for a personal-blog volume of traffic without
+// risking an unbounded response.
+const RAW_EXPORT_ROW_LIMIT = 20000;
+
+export async function getRawAnalyticsEvents(env, days = 7, filters = {}) {
+  const since = `datetime('now', '-${Math.max(1, Math.floor(days))} days')`;
+  const { sql: filterSql, binds: filterBinds } = buildPageviewFilter(filters);
+  const [pageviews, events] = await Promise.all([
+    env.DB
+      .prepare(
+        `SELECT created_at, path, referrer, device, browser, country, region, city FROM pageviews
+         WHERE created_at > ${since} ${filterSql} ORDER BY created_at DESC LIMIT ${RAW_EXPORT_ROW_LIMIT}`
+      )
+      .bind(...filterBinds)
+      .all(),
+    env.DB
+      .prepare(`SELECT created_at, name, path, detail FROM events WHERE created_at > ${since} ORDER BY created_at DESC LIMIT ${RAW_EXPORT_ROW_LIMIT}`)
+      .all(),
+  ]);
+  return { pageviews: pageviews.results, events: events.results };
+}
+
 export async function setSetting(env, key, value) {
   await env.DB
     .prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")

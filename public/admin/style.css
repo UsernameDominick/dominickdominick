@@ -2905,7 +2905,8 @@ kbd {
   border-color: var(--accent);
 }
 
-#export-analytics-btn {
+#export-analytics-btn,
+#export-analytics-raw-btn {
   background: var(--bg) !important;
   color: var(--text-dim) !important;
   border: 1px solid var(--border) !important;
@@ -2915,9 +2916,15 @@ kbd {
   cursor: pointer;
 }
 
-#export-analytics-btn:hover {
+#export-analytics-btn:hover,
+#export-analytics-raw-btn:hover {
   color: var(--text) !important;
   border-color: var(--accent) !important;
+}
+
+#export-analytics-raw-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .analytics-body {
@@ -3053,7 +3060,8 @@ kbd {
     order: 3;
     flex: 1 1 100%;
   }
-  #export-analytics-btn {
+  #export-analytics-btn,
+  #export-analytics-raw-btn {
     order: 2;
   }
 }

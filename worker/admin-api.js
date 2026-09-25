@@ -60,6 +60,7 @@ import {
   revokePreviewLink,
   setSetting,
   getAnalytics,
+  getRawAnalyticsEvents,
   exportAll,
   importAll,
   listRedirects,
@@ -1497,6 +1498,34 @@ async function routeAdminApi(request, env, url, ctx) {
       contentType: url.searchParams.get("contentType") || null,
     };
     return json(await getAnalytics(env, Math.min(Math.max(days, 1), 90), filters));
+  }
+
+  // /analytics/export-raw — every individual pageview/event row in the
+  // selected window, not the top-N breakdowns /analytics returns. Generated
+  // server-side (unlike the breakdown CSV, which the client already has
+  // the aggregated numbers for and builds itself) since raw rows aren't
+  // otherwise sent to the browser.
+  if (path === "/analytics/export-raw" && method === "GET") {
+    const days = Number(url.searchParams.get("days")) || 7;
+    const filters = {
+      device: url.searchParams.get("device") || null,
+      referrer: url.searchParams.get("referrer") || null,
+      contentType: url.searchParams.get("contentType") || null,
+    };
+    const { pageviews, events } = await getRawAnalyticsEvents(env, Math.min(Math.max(days, 1), 90), filters);
+    const csvCell = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const csvRow = (cells) => cells.map(csvCell).join(",") + "\r\n";
+    let csv = csvRow(["Pageviews"]) + csvRow(["Time (UTC)", "Path", "Referrer", "Device", "Browser", "Country", "Region", "City"]);
+    for (const p of pageviews) csv += csvRow([p.created_at, p.path, p.referrer, p.device, p.browser, p.country, p.region, p.city]);
+    csv += "\r\n" + csvRow(["Events"]) + csvRow(["Time (UTC)", "Name", "Path", "Detail"]);
+    for (const e of events) csv += csvRow([e.created_at, e.name, e.path, e.detail]);
+    log(ctx, env, "export", "analytics-raw", `${pageviews.length} pageviews, ${events.length} events`);
+    return new Response(csv, {
+      headers: {
+        "Content-Type": "text/csv",
+        "Content-Disposition": `attachment; filename="dominickdominick-raw-events-${new Date().toISOString().slice(0, 10)}.csv"`,
+      },
+    });
   }
 
   // /settings — SETTINGS_KEYS is the single source of truth for which keys

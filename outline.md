@@ -918,7 +918,18 @@ Contact form, admin inbox, guestbook/comments, moderation, newsletter —
   daily chart, and all five breakdown lists; event-based panels — top
   events/search terms/outbound links/downloads — aren't filtered by
   these, since the `events` table has no device/referrer columns to
-  filter on); 🔶 raw event export (breakdown CSV ✅, raw per-event unconfirmed)
+  filter on); ✅ raw event export (breakdown CSV ✅; a new "Export raw
+  events" button next to it downloads every individual pageview/event row
+  in the selected range — not the top-N breakdowns the dashboard shows —
+  as a two-section CSV (Pageviews, then Events), generated server-side via
+  a new `/analytics/export-raw` route since raw rows, unlike the
+  aggregates, were never sent to the browser for the breakdown export to
+  reuse. Shares the exact same date-range and device/referrer/contentType
+  filters as the dashboard; events still aren't filterable by those, same
+  pre-existing limitation as the dashboard's own event panels, since the
+  `events` table has no device/referrer columns. Capped at 20,000 rows per
+  section — comfortably above what a personal-blog's traffic would ever
+  produce in a 90-day window, while keeping the response bounded)
 
 ### SEO and sharing
 - ✅ Central SEO dashboard (new "SEO Dashboard" panel under Tools,

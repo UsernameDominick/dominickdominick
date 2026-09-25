@@ -5690,6 +5690,33 @@
     URL.revokeObjectURL(url);
   });
 
+  // Raw per-event export — every individual pageview/event row, generated
+  // server-side (unlike the breakdown CSV above, which already has the
+  // aggregated numbers client-side and just formats them). Same
+  // fetch-blob-then-<a download> shape as the full JSON backup download.
+  el("export-analytics-raw-btn").addEventListener("click", async () => {
+    const btn = el("export-analytics-raw-btn");
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Exporting…";
+    try {
+      const res = await fetch(`/api/admin/analytics/export-raw?${analyticsFilterQuery()}`);
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `raw-events-${analyticsRange}d-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  });
+
   document.querySelectorAll(".range-btn").forEach((btn) => {
     if (Number(btn.dataset.days) === analyticsRange) btn.classList.add("active");
     btn.addEventListener("click", async () => {
