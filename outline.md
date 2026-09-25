@@ -939,7 +939,11 @@ block already support any of these as a plain page:
   strings, matched as a plain substring like the filename/tag search
   already works. Wired into saved searches too; dimensions still ☐)
 - ✅ Unused/orphaned file review
-- ☐ Image optimization comparison, video captions/transcripts, audio-file support (images only today), PDF/doc previews, direct-download controls, drag-to-page, resumable uploads, upload queue with retry, storage-by-type dashboard
+- ☐ Image optimization comparison, video captions/transcripts, audio-file support (images only today), PDF/doc previews, direct-download controls, drag-to-page, resumable uploads, upload queue with retry
+- ✅ Storage-by-type dashboard — already built (`getStorageUsage()`'s
+  R2-by-prefix breakdown: Images/Audio/Video/3D scans/Backups/Image
+  version history, surfaced in Site Settings → Backups → "Storage
+  usage"); this line was just stale, no new work needed
 - ✅ Private-metadata stripping (EXIF GPS/device data on upload — see section 12)
 
 ### Photo editor
