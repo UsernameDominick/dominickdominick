@@ -5009,9 +5009,12 @@
       items
         .map(
           (d) =>
+            // Multiple webhook URLs can now be configured, so the same
+            // publish fires one row per URL — the destination is shown
+            // alongside the timestamp so those rows are distinguishable.
             `<div class="link-check-row ${d.status === "failed" ? "broken" : "ok"}"><span class="link-check-url">${escapeHtml(
               d.payload?.title || d.url
-            )}</span><span class="link-check-source">${escapeHtml(
+            )}</span><span class="link-check-source">${escapeHtml(d.url)} · ${escapeHtml(
               new Date(d.created_at.replace(" ", "T") + "Z").toLocaleString()
             )}</span><span class="link-check-status">${escapeHtml(d.status === "failed" ? d.error || "Failed" : "Delivered")}${
               d.status === "failed" ? ` <button type="button" class="retry-webhook-btn" data-id="${d.id}">Retry</button>` : ""

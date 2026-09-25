@@ -1022,7 +1022,14 @@ changes with low value for a single-admin personal site; flagging as
 - ✅ Rate limits/abuse monitoring, security headers
 
 ### Integrations and automation
-- 🔶 Integration settings (single webhook URL field); ✅ configurable
+- ✅ Integration settings (multiple webhook URLs — the field is now a
+  textarea, one URL per line, rather than a single input; every non-blank
+  line gets its own independent delivery attempt and its own row in the
+  Webhook Deliveries history/retry list, so one endpoint being down
+  doesn't affect whether the others get called or get retried. The
+  deliveries list now shows each row's destination URL alongside its
+  timestamp, since the same publish can produce more than one row with
+  the same title once multiple URLs are configured); ✅ configurable
   triggers (a "Also call it when a project is published" checkbox in Site
   Settings — off by default, since it's new behavior an existing webhook
   consumer wasn't built to expect; the payload now also carries

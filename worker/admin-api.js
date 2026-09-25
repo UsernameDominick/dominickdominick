@@ -268,14 +268,19 @@ async function deliverWebhook(env, webhookUrl, payload) {
 // every existing call site keeps working unchanged. Project publish is a
 // second, separately configurable trigger — off by default, since it's
 // new behavior an existing webhook consumer wasn't built to expect.
+// webhook_url holds one URL per line (multiple endpoints, e.g. separate
+// build hooks for a couple of downstream services) — every non-blank line
+// gets its own independent delivery attempt/history row, so one endpoint
+// being down doesn't affect whether the others get called or get retried.
 async function maybeFireWebhook(env, ctx, { wasPublished, article, contentType = "article" }) {
   if (wasPublished || !article.published_at || article.published_at > new Date().toISOString()) return;
   if (contentType === "project") {
     const enabled = await getSetting(env, "webhook_on_project_publish");
     if (!enabled) return;
   }
-  const webhookUrl = await getSetting(env, "webhook_url");
-  if (!webhookUrl) return;
+  const rawUrls = await getSetting(env, "webhook_url");
+  const webhookUrls = (rawUrls || "").split("\n").map((u) => u.trim()).filter(Boolean);
+  if (!webhookUrls.length) return;
   const path = contentType === "project" ? "projects" : "random";
   const payload = {
     contentType,
@@ -284,7 +289,9 @@ async function maybeFireWebhook(env, ctx, { wasPublished, article, contentType =
     url: `https://dominickdominick.com/${path}/${article.slug}`,
     published_at: article.published_at,
   };
-  ctx.waitUntil(deliverWebhook(env, webhookUrl, payload));
+  for (const webhookUrl of webhookUrls) {
+    ctx.waitUntil(deliverWebhook(env, webhookUrl, payload));
+  }
 }
 
 // Fire-and-forget activity log write — never blocks or fails the request
