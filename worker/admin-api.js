@@ -46,6 +46,7 @@ import {
   runScheduledBackup,
   listScheduledBackups,
   getBackupStatus,
+  getBackupContents,
   runFindReplace,
   slugExists,
   checkLoginRateLimit,
@@ -1443,6 +1444,17 @@ async function routeAdminApi(request, env, url, ctx) {
   }
   if (path === "/backup-status" && method === "GET") {
     return json(await getBackupStatus(env));
+  }
+  // /scheduled-backups-contents?key=... — a query param, not a path
+  // segment, since a backup key contains slashes (backups/2026-...json).
+  if (path === "/scheduled-backups-contents" && method === "GET") {
+    const key = url.searchParams.get("key");
+    if (!key) return json({ error: "key is required" }, { status: 400 });
+    try {
+      return json(await getBackupContents(env, key));
+    } catch (err) {
+      return json({ error: err.message }, { status: 400 });
+    }
   }
 
   // /activity — recent admin actions, for the audit trail viewer

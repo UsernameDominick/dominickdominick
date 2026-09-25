@@ -4971,9 +4971,32 @@
           (b) =>
             `<div class="link-check-row"><span class="link-check-url">${escapeHtml(b.key.replace("backups/", ""))}</span><span class="link-check-source">${formatBytes(
               b.size
-            )}</span></div>`
+            )}</span><button type="button" class="view-backup-contents-btn" data-key="${escapeHtml(b.key)}">View contents</button></div><div class="backup-contents" data-key="${escapeHtml(
+              b.key
+            )}" hidden></div>`
         )
         .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No backups yet.</p>";
+    el("scheduled-backups-list")
+      .querySelectorAll(".view-backup-contents-btn")
+      .forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const panel = btn.closest(".link-check-row").nextElementSibling;
+          if (!panel.hidden) {
+            panel.hidden = true;
+            return;
+          }
+          try {
+            const contents = await api(`/scheduled-backups-contents?key=${encodeURIComponent(btn.dataset.key)}`);
+            const rows = Object.entries(contents.counts)
+              .map(([table, count]) => `<span class="backup-contents-row">${escapeHtml(table)}: ${count}</span>`)
+              .join("");
+            panel.innerHTML = `<div class="backup-contents-meta">Exported ${escapeHtml(new Date(contents.exported_at).toLocaleString())} (backup format v${contents.version})</div>${rows}`;
+            panel.hidden = false;
+          } catch (err) {
+            alert(err.message);
+          }
+        });
+      });
     const statusEl = el("scheduled-backup-status");
     if (status.lastError) {
       statusEl.innerHTML = `<span class="contrast-fail">⚠ Last backup attempt failed: ${escapeHtml(status.lastError)}</span>`;

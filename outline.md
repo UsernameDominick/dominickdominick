@@ -985,7 +985,12 @@ changes with low value for a single-admin personal site; flagging as
   `last_backup_error` setting so Site Settings shows a clear ✓/⚠ status
   line without digging through the error log)
 - 🔶 Restore tested repeatedly via Playwright; no written human runbook
-- ☐ Periodic restore drills, backup contents browser, selective restore (currently all-or-nothing), file-integrity checks
+- ✅ Backup contents browser (a "View contents" toggle on each scheduled
+  backup in Site Settings shows its exported-at time, format version, and
+  a row count per table — read-only, no restore involved, so it's safe to
+  check "is this the one I want" before ever touching the all-or-nothing
+  restore); ☐ periodic restore drills, selective restore, file-integrity
+  checks
 - ☐ Health dashboard (DB/storage/uploads/publishing), failed-scheduled-publish alerts, storage/DB usage dashboard, cost/usage alerts
 - 🔶 Traffic dashboard (analytics covers visitor traffic; not Worker CPU/processing usage)
 

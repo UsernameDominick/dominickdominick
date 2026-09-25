@@ -2427,6 +2427,21 @@ export async function getBackupStatus(env) {
   return { lastAt: lastAt || null, lastError: lastError || null };
 }
 
+// A read-only peek inside a specific backup file — row counts per table
+// and its exported_at/version, so an admin can sanity-check "is this the
+// one I want" without doing a full (currently all-or-nothing) restore.
+export async function getBackupContents(env, key) {
+  if (!key.startsWith(BACKUP_PREFIX)) throw new Error("Not a backup file");
+  const obj = await env.MEDIA.get(key);
+  if (!obj) throw new Error("Backup file not found");
+  const data = JSON.parse(await obj.text());
+  const counts = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (Array.isArray(v)) counts[k] = v.length;
+  }
+  return { version: data.version, exported_at: data.exported_at, counts };
+}
+
 export async function listScheduledBackups(env) {
   const listed = await env.MEDIA.list({ prefix: BACKUP_PREFIX });
   return listed.objects
