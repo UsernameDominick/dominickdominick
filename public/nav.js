@@ -354,7 +354,14 @@ document.addEventListener("input", function (e) {
   document.addEventListener("DOMContentLoaded", function () {
     var targets = document.querySelectorAll("[data-animate]");
     if (!targets.length) return;
-    var reducedMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // Checks both the OS-level setting and this site's own manual toggle
+    // (data-motion="reduce", restored from localStorage before this script
+    // runs — see the inline head script in renderShell) — matches the same
+    // dual check the hero-video sync below already does, so the two don't
+    // disagree about whether motion is currently reduced.
+    var reducedMotion =
+      document.documentElement.getAttribute("data-motion") === "reduce" ||
+      (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
     if (reducedMotion || !("IntersectionObserver" in window)) {
       // Reduced motion (or no observer support): the CSS never defines an
       // animated state for these anyway, so adding the class is a harmless

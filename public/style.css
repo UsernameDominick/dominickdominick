@@ -590,6 +590,21 @@ body {
   filter: none;
 }
 
+/* The parallax/smooth-motion pass shipped after this toggle only ever
+   checked the OS-level prefers-reduced-motion media query, not this
+   manual override — so a visitor who clicked "Turn off animations" still
+   got the fixed-background parallax and the header's scroll-timeline
+   animation. Both need an explicit override here since they're not
+   driven by [data-animate]/transition properties the rules above
+   already catch. */
+:root[data-motion="reduce"] .block-parallax {
+  background-attachment: scroll;
+}
+
+:root[data-motion="reduce"] .page-header {
+  animation: none;
+}
+
 .btn {
   display: inline-block;
   color: var(--accent);

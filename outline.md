@@ -2942,3 +2942,25 @@ in the admin. Fixed while addressing the rest of this report:
   ~1.2s with no manual reload; closing the modal and editing again left
   `preview-frame.src` at `about:blank` (confirming the debounce timer
   correctly no-ops rather than firing a reload nobody would see).
+- ✅ **Restrained motion controls: manual "reduce motion" toggle now
+  actually covers the newer motion effects** (★ priority) — the site's
+  existing ⏸ "reduce motion" header button (independent of the OS-level
+  `prefers-reduced-motion` setting) only ever overrode the older
+  entrance/hover animations. The parallax backgrounds and the article/
+  project header's scroll-timeline animation, both shipped in the later
+  motion pass, were only ever gated by the OS media query — a visitor
+  who clicked "off" still got both effects, which defeats the point of
+  a manual override that's supposed to mean "off, period." Added the
+  missing `:root[data-motion="reduce"]` overrides for `.block-parallax`
+  (forces `background-attachment: scroll`) and `.page-header` (`animation:
+  none`), same higher-specificity pattern the existing overrides already
+  use so it wins regardless of source order. Also fixed nav.js's entrance-
+  animation `IntersectionObserver` setup, which checked only the OS media
+  query and not this manual toggle — harmless visually (the CSS override
+  already forced full opacity) but it was still doing needless observer
+  work for a visitor who'd explicitly asked for less. Verified via
+  Playwright against a real parallax block and a real published article:
+  clicking the toggle flipped `background-attachment` from `fixed` to
+  `scroll` (persisting across a reload, since the choice is restored from
+  localStorage before first paint) and flipped the header's
+  `animation-name` from `page-header-parallax` to `none`.
