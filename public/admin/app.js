@@ -1200,6 +1200,7 @@
       { key: "label", label: "Label", type: "text" },
       { key: "url", label: "URL", type: "text" },
       { key: "external", label: "Open in new tab", type: "checkbox" },
+      { key: "trackEvent", label: "Track clicks as (optional custom analytics event name)", type: "text" },
     ],
     "project-card": [
       { key: "title", label: "Title", type: "text" },

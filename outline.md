@@ -911,7 +911,16 @@ Contact form, admin inbox, guestbook/comments, moderation, newsletter —
   `wrangler dev`, which doesn't have real edge geolocation data, so only
   populate on the actual deployed site)
 - ☐ Per-page engagement/scroll depth, project-card click paths, conversion goals, period comparisons, chart annotations, bot filtering, data-retention settings, scheduled summaries, rearrangeable widgets
-- 🔶 Custom admin-defined events (mechanism supports it; no UI); ✅ filters
+- ✅ Custom admin-defined events (the underlying mechanism —
+  `window.trackEvent(name, detail)` posting to `/api/track` — already
+  supported any name; there was just no way to attach one from the admin
+  UI without hand-writing JS. Added a "Track clicks as" field to the
+  Button block, rendered as a `data-track-event` attribute on its `<a>`;
+  nav.js's existing site-wide delegated click handler checks for that
+  attribute first, ahead of its own outbound-link/download
+  auto-detection, since a name the admin chose on purpose is the more
+  useful signal than the generic one. Scoped to the Button block only for
+  now, not every block type with a URL); ✅ filters
   (date-range ✅; content-type/referrer/device ✅ — three dropdowns above
   the Analytics tiles, populated from the same top-lists the dashboard
   already computes, filtering every pageview-based number: tiles, the

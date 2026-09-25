@@ -797,7 +797,9 @@ async function renderBlockInner(env, block, ctx) {
       return `<figure class="image-figure">${img}<figcaption>${esc(c.caption || "")}${creditHtml}</figcaption></figure>`;
     }
     case "button":
-      return `<a class="btn" href="${esc(safeHref(c.url))}"${c.external ? ' target="_blank" rel="noopener"' : ""}>${esc(c.label)}</a>`;
+      return `<a class="btn" href="${esc(safeHref(c.url))}"${c.external ? ' target="_blank" rel="noopener"' : ""}${
+        c.trackEvent ? ` data-track-event="${esc(c.trackEvent)}"` : ""
+      }>${esc(c.label)}</a>`;
     case "divider":
       return `<hr>`;
     case "spacer":

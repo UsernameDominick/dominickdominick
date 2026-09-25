@@ -12,12 +12,19 @@ window.trackEvent = function (name, detail) {
 
 // Outbound-link and download tracking, site-wide. A "download" match wins
 // over "outbound" even for an external host, since knowing which file
-// left is more useful than just knowing a click left the site.
+// left is more useful than just knowing a click left the site. A block
+// with an admin-configured custom event name (currently just the Button
+// block's "Track clicks as" field) wins over both of those — the admin
+// named this click on purpose, so that's the more useful signal.
 document.addEventListener("click", function (e) {
   var a = e.target.closest("a[href]");
   if (!a) return;
   var href = a.getAttribute("href");
   if (!href) return;
+  if (a.dataset.trackEvent) {
+    window.trackEvent(a.dataset.trackEvent, href);
+    return;
+  }
   if (a.hasAttribute("download") || /\.(zip|pdf|glb|gltf|usdz|dmg|exe|apk|csv|docx?|xlsx?|pptx?)(\?|$)/i.test(href) || href.indexOf("/media/") === 0) {
     window.trackEvent("download", href);
     return;
