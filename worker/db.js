@@ -3408,10 +3408,18 @@ export async function checkAccessibility(env) {
   const issues = [];
   pages.forEach((p, i) => {
     for (const b of pageBlocks[i]) {
-      if (b.type !== "html") continue;
-      const html = (b.content && b.content.html) || "";
-      for (const { test, issue } of checks) {
-        if (test.test(html)) issues.push({ pageTitle: p.title, pageSlug: p.slug, blockId: b.id, issue });
+      if (b.type === "html") {
+        const html = (b.content && b.content.html) || "";
+        for (const { test, issue } of checks) {
+          if (test.test(html)) issues.push({ pageTitle: p.title, pageSlug: p.slug, blockId: b.id, issue });
+        }
+      }
+      if (b.type === "gallery") {
+        const images = Array.isArray(b.content && b.content.images) ? b.content.images : [];
+        const missingAlt = images.some((img) => (typeof img === "string" ? true : !img || !img.alt));
+        if (missingAlt) {
+          issues.push({ pageTitle: p.title, pageSlug: p.slug, blockId: b.id, issue: "Gallery image with no alt text" });
+        }
       }
     }
   });

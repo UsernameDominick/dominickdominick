@@ -1548,8 +1548,10 @@
     }
     if (f.type === "gallery-urls") {
       const fieldId = `${idPrefix}-${f.key}`;
-      const text = (Array.isArray(val) ? val : []).join("\n");
-      return `<label>${f.label} (one URL per line)<textarea id="${fieldId}" data-key="${f.key}" data-gallery="1" rows="5">${escapeHtml(
+      const text = (Array.isArray(val) ? val : [])
+        .map((img) => (typeof img === "string" ? img : `${img.url || ""}${img.alt ? ` | ${img.alt}` : ""}`))
+        .join("\n");
+      return `<label>${f.label} (one image per line: <code>URL</code> or <code>URL | alt text</code>)<textarea id="${fieldId}" data-key="${f.key}" data-gallery="1" rows="5">${escapeHtml(
         text
       )}</textarea><button type="button" class="upload-trigger" data-target="#${fieldId}" data-append="1">Add image (upload)</button> <button type="button" class="browse-trigger" data-target="#${fieldId}" data-append="1">Add from library…</button></label>`;
     }
@@ -1616,7 +1618,12 @@
       return input.value
         .split("\n")
         .map((s) => s.trim())
-        .filter(Boolean);
+        .filter(Boolean)
+        .map((line) => {
+          const idx = line.indexOf("|");
+          if (idx === -1) return { url: line, alt: "" };
+          return { url: line.slice(0, idx).trim(), alt: line.slice(idx + 1).trim() };
+        });
     }
     if (input.dataset.linklist) {
       return input.value

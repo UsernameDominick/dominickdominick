@@ -1740,9 +1740,22 @@ enough detail to act on directly later.
   sites. (`WebPage` structured data on regular pages, and `url`/
   `image`/`description` on `BlogPosting`, are still not built — left
   below.)
-- Gallery images have no alt-text field at all (not just "sometimes
-  empty"); embed/video iframes have no `title`; neither the SEO nor the
-  accessibility report catches either gap.
+- ✅ Gallery images now have a real per-image alt-text field. The
+  gallery block's `content.images` array now holds `{url, alt}` objects
+  (a bare string is still accepted and treated as `alt: ""`, so every
+  existing gallery keeps rendering unchanged); the admin's textarea
+  format is `URL` or `URL | alt text` per line (only the first `|`
+  splits — an alt containing one of its own still round-trips intact),
+  matching the same pipe-delimited convention already used for the
+  link-list/changelog-list/etc. fields. The accessibility report now
+  also flags a gallery block containing any image with no alt text,
+  the same way it already flags a bare `<img>` in an HTML block.
+  Verified via Playwright: a legacy bare-string image renders
+  `alt=""`, an image with alt text renders it correctly, and the
+  accessibility report correctly flags the block. (Embed/video iframes
+  still have no `title` — not fixed this round.)
+- Embed/video iframes have no `title` attribute; the accessibility
+  report doesn't catch this gap either.
 - Regular (non-home) pages only ever get `WebSite` structured data,
   never their own `WebPage` entry.
 - `og:title` always matches `<title>` exactly (includes `" · Dominick"`)

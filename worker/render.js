@@ -975,9 +975,15 @@ async function renderBlockInner(env, block, ctx) {
     case "embed":
       return genericEmbedHtml(c.url);
     case "gallery": {
-      const images = Array.isArray(c.images) ? c.images.filter(Boolean) : [];
+      // Each entry is either a bare URL string (older galleries, and any
+      // newly-appended image before its alt text is filled in) or a
+      // {url, alt} object — normalize both to give every <img> a real alt
+      // attribute when one's been provided.
+      const images = Array.isArray(c.images)
+        ? c.images.map((img) => (typeof img === "string" ? { url: img, alt: "" } : img)).filter((img) => img && img.url)
+        : [];
       if (!images.length) return `<p class="empty-hint">No images yet.</p>`;
-      return `<div class="gallery">${images.map((url) => `<img src="${esc(url)}" loading="lazy">`).join("")}</div>`;
+      return `<div class="gallery">${images.map((img) => `<img src="${esc(img.url)}" alt="${esc(img.alt || "")}" loading="lazy">`).join("")}</div>`;
     }
     case "before-after": {
       if (!c.beforeUrl || !c.afterUrl) return `<p class="empty-hint">Add both a "before" and "after" image.</p>`;
