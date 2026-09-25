@@ -3195,3 +3195,24 @@ text). Both implemented:
   extended the same check to scan every block's color contrast and
   gallery alt text site-wide. Updated the label to describe what it
   actually checks now.
+
+### Sixth backlog batch (remaining critic suggestions)
+- ✅ **Shared block issues surfaced in the Usage popup too, and tap-
+  friendly on mobile** — two of the sixth critic's suggestions: (1) an
+  admin clicking "Usage" on a shared block to see which pages reference
+  it had no way to also see the block's own content problems in that
+  same view, even though `sharedBlockIssues()` already computes them
+  right next to it; (2) the issue badge's explanation only lived in a
+  `title=""` tooltip, which never fires on a touch screen — the exact
+  audience most likely to just want a quick glance at what's wrong.
+  `window.showContentUsage()` (shared by simulations/songs/scans/shared-
+  blocks/tags) gained an optional `extraInfo` line shown above the
+  usage list, and the Reusable Blocks "Usage" button now passes the
+  block's own issues into it. The issue badge itself is now also a
+  click target (`cursor:pointer`) that shows the same issue list as a
+  plain alert — works identically on desktop and mobile, unlike the
+  tooltip it complements rather than replaces. Verified via Playwright:
+  clicking "Usage" on a shared block with 2 real issues showed "⚠ Empty
+  text; Low contrast (1.61:1)" above the usual usage summary; clicking
+  the issue badge directly showed the same two issues in their own
+  alert.

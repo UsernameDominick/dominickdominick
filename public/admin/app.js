@@ -2253,14 +2253,21 @@
       sharedBlocks
         .map((sb) => {
           const issues = sharedBlockIssues(sb);
+          // title="" tooltips never fire on a touch screen, so the issue
+          // list would be readable on desktop (hover) but invisible on
+          // mobile (the exact place this session already found the badge
+          // itself was clipped away entirely) — a click/tap handler below
+          // shows the same text as an alert, which works on both.
           const issuesBadge = issues.length
-            ? ` <span class="lock-badge diagnostic-error" title="${escapeHtml(issues.join("; "))}">${issues.length} issue${issues.length === 1 ? "" : "s"}</span>`
+            ? ` <span class="lock-badge diagnostic-error shared-block-issues-badge" data-issues="${escapeHtml(
+                issues.join("; ")
+              )}" title="Tap for details: ${escapeHtml(issues.join("; "))}">${issues.length} issue${issues.length === 1 ? "" : "s"}</span>`
             : "";
           return `<div class="simulation-row"><span>${escapeHtml(sb.name)} <span class="lock-badge">${escapeHtml(
             blockLabel(sb.type)
           )}</span>${issuesBadge}</span><button type="button" class="usage-shared-block" data-id="${sb.id}" data-name="${escapeHtml(
             sb.name
-          )}" title="See which pages use this reusable block">Usage</button><button type="button" class="insert-shared-block" data-id="${
+          )}" data-issues="${escapeHtml(issues.join("; "))}" title="See which pages use this reusable block">Usage</button><button type="button" class="insert-shared-block" data-id="${
             sb.id
           }"${currentPage ? "" : " disabled title=\"Open a page first\""}>Insert onto current page</button><button type="button" class="delete-shared-block" data-id="${
             sb.id
@@ -2269,8 +2276,15 @@
         .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No reusable blocks yet — select a block on a page and use \"Save as reusable block…\" in its settings.</p>";
 
     el("shared-blocks-list")
+      .querySelectorAll(".shared-block-issues-badge")
+      .forEach((badge) => badge.addEventListener("click", () => alert(`Issues with this reusable block:\n\n${badge.dataset.issues}`)));
+
+    el("shared-blocks-list")
       .querySelectorAll(".usage-shared-block")
-      .forEach((btn) => btn.addEventListener("click", () => window.showContentUsage("shared-block", btn.dataset.id, btn.dataset.name)));
+      .forEach((btn) => {
+        const extraInfo = btn.dataset.issues ? `⚠ ${btn.dataset.issues}` : "";
+        btn.addEventListener("click", () => window.showContentUsage("shared-block", btn.dataset.id, btn.dataset.name, extraInfo));
+      });
 
     el("shared-blocks-list")
       .querySelectorAll(".insert-shared-block")
@@ -6943,15 +6957,21 @@
   // (simulations/songs/scans) and Reusable Blocks — one /content-usage
   // call + one alert format, instead of each builder script rolling its
   // own usage-fetch-and-display.
-  window.showContentUsage = async function (type, id, label) {
+  // extraInfo (optional) is shown above the usage list — used by the
+  // Reusable Blocks "Usage" button to surface the same content-quality
+  // issues (empty content, bad contrast, a broken reference) shown as a
+  // badge in the list, right where an admin investigating usage would
+  // want to know what fixing this one source would fix everywhere.
+  window.showContentUsage = async function (type, id, label, extraInfo) {
     try {
       const usage = await api(`/content-usage?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`);
+      const prefix = extraInfo ? `${extraInfo}\n\n` : "";
       if (!usage.length) {
-        alert(`"${label}" isn't used anywhere.`);
+        alert(`${prefix}"${label}" isn't used anywhere.`);
         return;
       }
       const lines = usage.map((u) => `• ${u.type} — ${u.title}`).join("\n");
-      alert(`"${label}" is used in ${usage.length} place${usage.length === 1 ? "" : "s"}:\n\n${lines}`);
+      alert(`${prefix}"${label}" is used in ${usage.length} place${usage.length === 1 ? "" : "s"}:\n\n${lines}`);
     } catch (err) {
       alert(err.message);
     }
