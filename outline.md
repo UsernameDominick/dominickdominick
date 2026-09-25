@@ -2862,3 +2862,24 @@ in the admin. Fixed while addressing the rest of this report:
   — confirming the two axes are genuinely decoupled, not just visually
   coincidental. Test pages cleaned up via trash + permanent-delete and
   confirmed gone via a direct D1 query.
+- ✅ **Motion audition mode** (★ priority) — the parallax/scroll-timeline
+  effects shipped in the motion pass only ever play back in response to
+  real scrolling, so checking a page's full sequence of scroll-driven
+  motion meant manually scrolling the Screen Preview by hand every
+  time, with no way to jump straight to a specific point partway down.
+  Added a scrubber and a "Play" button to the existing Preview modal
+  (next to the device-width and stress-test controls it already has):
+  dragging the scrubber calls `contentWindow.scrollTo()` on the preview
+  iframe directly, mapped to 0-100% of its real scrollable height, so
+  every scroll-linked effect plays back exactly as it does live —
+  nothing is faked or re-simulated. "Play" automates the same scrubber
+  from top to bottom over a fixed 6-second sweep via
+  `requestAnimationFrame`, so a whole page's motion can be watched once
+  without touching anything, and doubles as a "Stop" button mid-sweep.
+  Reloading the preview (switching pages, or toggling a stress test)
+  resets the scrubber to 0 rather than leaving it stale. Verified via
+  Playwright: scrubbing to 50% moved the iframe's real `scrollY`,
+  clicking Play advanced `scrollY` further on its own within a second
+  and flipped the button to "⏸ Stop", clicking it again reset the
+  label, and a fresh preview load reset the scrubber back to 0 — no
+  console errors at any step.

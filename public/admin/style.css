@@ -3010,6 +3010,35 @@ kbd {
   padding: 10px 20px 0;
 }
 
+.preview-motion-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px 0;
+}
+
+.preview-motion-label {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+#motion-audition-play-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  border-radius: 6px;
+  padding: 6px 12px;
+  width: auto;
+  white-space: nowrap;
+}
+
+#motion-audition-scrub {
+  flex: 1;
+  accent-color: var(--accent);
+}
+
 .preview-body {
   flex: 1;
   overflow: auto;

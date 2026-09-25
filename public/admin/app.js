@@ -2618,6 +2618,66 @@
     if (el("preview-frame").src) el("preview-frame").contentWindow.location.reload();
   });
 
+  // Motion audition: scroll-driven effects (parallax backgrounds, the
+  // scroll-timeline header animation) only play back when the page actually
+  // scrolls, so there was no way to see the full sequence of a page's
+  // motion without manually scrolling the preview by hand every time.
+  // A scrubber maps 0-1000 to 0-100% of the iframe's scrollable height and
+  // drives contentWindow.scrollTo() directly — real scroll, so every
+  // scroll-linked effect plays back exactly as it would live. "Play" just
+  // automates moving that same scrubber top to bottom over a fixed
+  // duration so the whole page's motion can be watched once without
+  // touching anything.
+  let motionAuditionRaf = null;
+  function stopMotionAudition() {
+    if (motionAuditionRaf) cancelAnimationFrame(motionAuditionRaf);
+    motionAuditionRaf = null;
+    el("motion-audition-play-btn").textContent = "▶ Play";
+  }
+  function scrubPreviewTo(fraction) {
+    let win;
+    try {
+      win = el("preview-frame").contentWindow;
+    } catch (e) {
+      return;
+    }
+    if (!win || !win.document || !win.document.documentElement) return;
+    const doc = win.document;
+    const max = Math.max(0, (doc.documentElement.scrollHeight || 0) - win.innerHeight);
+    win.scrollTo(0, max * fraction);
+  }
+  el("motion-audition-scrub").addEventListener("input", (e) => {
+    stopMotionAudition();
+    scrubPreviewTo(Number(e.target.value) / 1000);
+  });
+  el("motion-audition-play-btn").addEventListener("click", () => {
+    if (motionAuditionRaf) {
+      stopMotionAudition();
+      return;
+    }
+    const durationMs = 6000;
+    const start = performance.now();
+    el("motion-audition-play-btn").textContent = "⏸ Stop";
+    const step = (now) => {
+      const t = Math.min(1, (now - start) / durationMs);
+      el("motion-audition-scrub").value = String(Math.round(t * 1000));
+      scrubPreviewTo(t);
+      if (t >= 1) {
+        stopMotionAudition();
+        return;
+      }
+      motionAuditionRaf = requestAnimationFrame(step);
+    };
+    motionAuditionRaf = requestAnimationFrame(step);
+  });
+  // A fresh page load resets scroll to the top and stops any in-progress
+  // audition — starting from a stale scrub position on a different page
+  // would be confusing, not helpful.
+  el("preview-frame").addEventListener("load", () => {
+    stopMotionAudition();
+    el("motion-audition-scrub").value = "0";
+  });
+
   // ---------- Undo (blocks only, in-memory, ~8s window) ----------
   let undoTimer = null;
   function showUndoToast(text, onUndo) {

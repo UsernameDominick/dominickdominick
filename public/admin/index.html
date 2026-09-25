@@ -1115,6 +1115,11 @@
         <button type="button" id="stress-long-text-btn" class="stress-toggle-btn" title="Temporarily lengthens headings/paragraphs in the preview to check how the layout holds up">Stress: long text</button>
         <button type="button" id="stress-broken-images-btn" class="stress-toggle-btn" title="Temporarily breaks every image in the preview to check how the layout holds up">Stress: missing images</button>
       </div>
+      <div class="preview-motion-row" title="Scrub or auto-play through the page's scroll-driven effects (parallax, scroll-timeline animations) without manually scrolling the preview">
+        <span class="preview-motion-label">Motion audition</span>
+        <button type="button" id="motion-audition-play-btn">▶ Play</button>
+        <input type="range" id="motion-audition-scrub" min="0" max="1000" value="0" step="1" aria-label="Scroll position">
+      </div>
       <div class="preview-body">
         <iframe id="preview-frame" title="Page preview"></iframe>
       </div>
