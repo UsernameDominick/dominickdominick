@@ -4768,7 +4768,7 @@ join, rather than building three separate systems.
 150. ✅ Status bar (dimensions/zoom) — done (see the dated entry below this section).
 158. Explain resource limits — static UI text.
 161. ✅ Export quality/size preview — done (see the dated entry below this section).
-169. Transparency preview vs backgrounds — checkerboard/color toggle behind canvas.
+169. ✅ Transparency preview vs backgrounds — done (see the dated entry below this section).
 174. Light/dark theme preview — wrap canvas container in themed class.
 - ✅ (found by critic review of #92's crop-ratio feature) `rotate90()`/
   `flip()` leaving a stale crop selection after a transform -- fixed (see
@@ -8793,3 +8793,74 @@ margin) all fixed with a reused/extended generation-guard pattern and
 independently re-verified by hand-tracing both the race scenarios and
 the rounding math, plus two minor fixes (error handling, an unsaved-song
 UX note) alongside them.
+
+### Thirty-second item: #169, Photo Editor transparency-preview background toggle
+
+- ✅ **A new "Preview against" select** (Checkerboard/White/Black/Gray)
+  next to the canvas in `public/admin/index.html`, swapping a CSS class
+  on the canvas wrapper (`#pe-canvas-wrap`) so a transparent PNG's actual
+  transparent areas can be checked against different real-world
+  backgrounds instead of only the existing fixed checkerboard "this is
+  transparent" indicator. Purely cosmetic: never touches canvas pixel
+  data, pushes no undo entry, and isn't persisted anywhere. Resets to
+  checkerboard every time an image is opened, matching this builder's
+  existing per-session UI-preference-reset convention (crop ratio,
+  adjustment sliders, etc.).
+
+Handed to a critic agent for scoring: **7/10**. Findings:
+
+1. **(Fixed)** The CSS class to remove was hardcoded as a literal array
+   in two separate places in `photo-editor.js` — the `change` listener
+   and `open()`'s reset — with nothing tying either list to the
+   `<select>`'s actual `<option>` elements or the CSS classes. A future
+   5th option added to the HTML/CSS without updating both hardcoded JS
+   lists would leave two `pe-bg-*` classes on the wrapper at once, a
+   regression the existing test (which only exercised the 4 current
+   options) wouldn't have caught. Fixed with a single `applyBgPreview(value)`
+   helper that derives the classes to remove from the select's own live
+   DOM options (`Array.from(bgPreviewSelect.options).forEach(...)`)
+   rather than a hand-maintained list, used identically by both call
+   sites — making the drift impossible by construction instead of
+   relying on remembering to update two places 90 lines apart.
+2. **(Fixed)** `.pe-actions` (the toolbar row the new select was added
+   to, already holding a status bar, hint text, export format, quality
+   slider, size estimate, and 2 buttons) had no `flex-wrap`, unlike its
+   sibling `.pe-toolbar` row which already gets an explicit narrow-
+   viewport treatment — adding one more fixed-width control made an
+   already-crowded row more likely to squeeze or overflow on a narrower
+   admin window. Fixed with `flex-wrap: wrap` so the row degrades to
+   multiple lines instead.
+3. **(Fixed, minor)** The `change` listener re-queried the select for
+   its own value via `getElementById` instead of using the event target
+   it was already bound to — changed to `e.target.value`.
+
+Sent for a round-2 critic pass specifically confirming `applyBgPreview`
+is genuinely used in both call sites (not fixed in one and left
+hardcoded in the other), checking for an edge case where the wrapper
+could end up with zero `pe-bg-*` classes instead of a duplicate, and
+sanity-checking the `flex-wrap` layout change against the row's existing
+`flex: 1` hint element and other children. Confirmed all three fixes
+correct and complete: grepped the whole file for `pe-bg-` and found no
+hardcoded literal arrays remaining anywhere; independently verified the
+drift fix by adding a genuinely new 5th `<option>` purely via the DOM
+(zero JS changes, exactly the scenario the fix targets) and confirming
+switching to it leaves exactly one class, not two; confirmed the
+`<select>`'s options are static HTML present from page load, so there's
+no race where `applyBgPreview` could run before the options exist; noted
+that a hypothetical future option added to HTML without a matching CSS
+rule would still correctly end up with exactly one (just visually
+inert) class rather than zero or duplicate classes, so the originally-
+reported bug class is fully closed, with only a separate, minor,
+never-actually-possible-with-today's-4-options edge case left
+undefended; and confirmed the `flex-wrap` change causes no layout
+regression, since the row's `flex: 1` hint element behaves normally once
+wrapped and no sibling relies on constant row height. Final score:
+**9/10** — ships.
+
+Item #169 is done: 2 critic rounds, 7/10 → 9/10, two real findings (a
+class-list drift risk from duplicated hardcoded state, and a toolbar row
+made measurably more crowded with no wrap handling) fixed by deriving
+state from the DOM instead of hand-maintaining it twice and adding
+`flex-wrap`, both independently re-verified — the drift fix specifically
+confirmed against a live, never-before-seen 5th option rather than just
+re-reading the fix's own description.
