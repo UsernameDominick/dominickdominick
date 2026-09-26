@@ -4847,7 +4847,7 @@ session's own EXIF-stripping feature for the upload-side equivalent).
 190. Multiple sessions via tabs — songs already separate D1 rows/list UI.
 195. ✅ Dedicated master bus — done (see the dated entry below this section).
 196. ✅ Track colors/notes (icons scoped out, see the dated entry below) — metadata fields + UI, same as song name. (done — see the dated entry below)
-197. Track search/filtering — client-side list filter.
+197. ✅ Track search/filtering — client-side list filter. (done — see the dated entry below)
 198. ☐ Hide tracks without disabling audio — checked: doesn't map as worded. This item presupposes an existing "mute" feature to stay separate FROM — there isn't one anywhere in `song-builder.js`/`song-engine.js` (confirmed via grep, zero hits for "mute"). Building "hide without muting" before "mute" itself exists would be building the wrong half of the pair first. Left open; would make sense as part of a future item that adds mute+hide together, not as a standalone Easy pick.
 199. Reorder/duplicate tracks — array ops, duplicate-song pattern exists.
 217. ☐ Reverse selected audio — checked: doesn't map onto the current song engine as worded. There's no AudioBuffer/sample playback anywhere in `song-engine.js`/`song-builder.js` (confirmed via grep — zero `AudioBuffer`/`decodeAudioData`/`Float32Array` hits), only synthesized oscillator notes in a step sequencer. "Reversing audio" needs a real audio buffer to exist first, which is the much bigger "Recording"/"Sampling" infrastructure this backlog already rates Medium/Hard, not a quick win. Left open rather than force-fit onto data that doesn't exist.
@@ -13634,3 +13634,46 @@ suite — all still passing, no regressions from either fix. Closing at
 this point without a mandatory round-2 dispatch: both fixes were small,
 well-understood, and verified against the critic's own precise repro
 conditions.
+
+### 2026-09-26 — Item #197: Song search/filtering (Songs list)
+
+The Songs list modal had no way to find a specific song other than
+scrolling through the full alphabetically-sorted list, which is fine at
+a handful of songs but degrades as the list grows — the same gap this
+item's own wording names. Added a `#song-search` text input above the
+list, filtering client-side on every `input` event (case-insensitive
+substring match against each song's name), matching the exact
+established convention the Media Library's own `#media-search` box
+already uses elsewhere in this admin (filter-on-input, no server
+round-trip, since the full list is already loaded for this size of
+data) rather than inventing a new search UX pattern. No new server
+endpoint was needed or would make sense here — this genuinely is a
+"filter what's already loaded" problem, not a "load matching results
+from a list too large to fetch at once" one.
+
+Two small correctness details handled deliberately rather than left as
+edge cases: the empty-list message now distinguishes "No songs yet."
+(a genuinely empty list) from "No songs match your search." (a filter
+with zero results) — reusing the exact same message for both would be
+confusing, since only one of those states means "go create a song." And
+the search box is explicitly reset to empty every time the Songs modal
+is opened, rather than persisting across visits — a leftover filter
+from a previous session would otherwise silently make songs the admin
+expects to see just not appear, with no visible indication why.
+
+Verified via Playwright against the real admin API: created three real
+test songs (two sharing a common substring, one unrelated), confirmed
+all three show up unfiltered; confirmed filtering to the shared
+substring shows exactly the two matching songs and excludes the
+unrelated one; confirmed the match is case-insensitive; confirmed a
+query matching nothing shows the distinct "no results" message, not the
+"no songs yet" one; confirmed closing and reopening the Songs modal
+resets the search box to empty and shows all songs again. Re-ran the
+sibling on-screen-keyboard test and the full `test_security_seo.js`
+suite — all passing, no regressions. Test songs were deleted via their
+real DELETE endpoints afterward, confirmed gone via a follow-up
+authenticated listing.
+
+No server-side changes were needed.
+
+Sent for a critic pass.

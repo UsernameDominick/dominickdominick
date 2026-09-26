@@ -847,9 +847,23 @@
     return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
+  // Client-side substring filter over the songs list (item #197) --
+  // matches the exact convention the media library's own search box
+  // already uses (case-insensitive, filters on every "input" event, no
+  // server round-trip since the full list is already loaded). A list
+  // this small never needed a server-side search endpoint; this is
+  // purely about finding one song quickly once there are more than a
+  // handful, not about scaling to a list too large to load at once.
+  function filteredSongs() {
+    const q = $("song-search").value.trim().toLowerCase();
+    if (!q) return songs;
+    return songs.filter((s) => s.name.toLowerCase().includes(q));
+  }
+
   function renderSongsList() {
+    const visible = filteredSongs();
     $("songs-list").innerHTML =
-      songs
+      visible
         .map(
           (s) =>
             `<div class="simulation-row"><span>${escapeXml(s.name)}</span><button type="button" class="usage-song" data-id="${
@@ -858,7 +872,10 @@
               s.id
             }">Duplicate</button><button type="button" class="edit-song" data-id="${s.id}">Edit</button><button type="button" class="delete-song" data-id="${s.id}">Delete</button></div>`
         )
-        .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No songs yet.</p>";
+        .join("") ||
+      `<p style='color:var(--text-dim);font-size:0.85rem;'>${
+        songs.length ? "No songs match your search." : "No songs yet."
+      }</p>`;
     $("songs-list")
       .querySelectorAll(".edit-song")
       .forEach((btn) => btn.addEventListener("click", () => openBuilder(Number(btn.dataset.id))));
@@ -935,10 +952,12 @@
 
   $("songs-btn").addEventListener("click", async () => {
     $("songs-modal").hidden = false;
+    $("song-search").value = ""; // reset on open -- a leftover filter from a previous visit would silently hide songs the admin expects to see
     await loadSongsList();
     await loadSongTemplates();
   });
   $("close-songs").addEventListener("click", () => ($("songs-modal").hidden = true));
+  $("song-search").addEventListener("input", renderSongsList);
   $("new-song-btn").addEventListener("click", () => {
     const templateId = Number($("song-template-picker").value) || null;
     openBuilder(null, templateId);
