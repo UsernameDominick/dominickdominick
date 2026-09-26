@@ -12096,3 +12096,66 @@ data so nothing about it belongs in this item's own narrative beyond
 noting it was found and removed in passing.
 
 Sent for a critic pass.
+
+The critic found ONE real blocking bug via careful, adversarial testing
+(not just re-checking what the implementation's own test already
+covered): `renderWaveformPeaks` schedules step 0 at real time `0` against
+an `OfflineAudioContext` (unlike live playback, which always starts
+comfortably ahead of `ctx.currentTime`), and a negative jitter draw on
+that step passed a negative `time` straight to `osc.start()`/
+`gain.setValueAtTime()`, throwing `RangeError: Time must be a finite
+non-negative number`. Reproduced live in the real admin UI (a song with
+`visualization:"waveform"`, `humanize:100`, kick on step 0 threw on the
+very first render) and directly against the engine (roughly half of
+repeated trials failed). Neither `song-builder.js`'s
+`refreshWaveformPreview()` nor `song-embed.js`'s equivalent call had a
+`.catch`, so this was a silent unhandled-rejection failure (a blank/stale
+waveform, no visible error to the admin) on BOTH the admin builder's
+preview and the public-facing embed's own waveform visualization — a
+real, previously-unflagged regression this feature introduced, not a
+pre-existing issue (impossible without humanize, since `time` was never
+negative before this feature). Also found a real, if non-blocking,
+reproducibility gap: two consecutive `renderWaveformPeaks` calls on an
+identical humanize>0 song produced visibly different peak data in every
+bucket, which could read as "the preview is broken/flaky" to an admin
+even though nothing was actually edited. All other findings were
+"verified good, no issue": default/off behavior is genuinely unchanged;
+real audio-timing accuracy holds (max single-note deviation 14.89ms
+against the documented ±15ms bound, max combined same-step deviation
+26.4ms against the documented ~30ms bound); zero scheduler drift across
+6 full loops; public-embed parity confirmed by constructing and loading
+the actual HTML the server would emit; and no regression to per-track
+colors, step-toggle, autosave, or the export report. Final score:
+**5/10 — real crash bug, not shippable as-is.**
+
+Fixed both findings. The crash: clamped the jittered time to
+`Math.max(0, time + humanizeJitter(songData))` at the exact point it's
+handed to a voice's synthesis call — the same fix point for both the live
+scheduler and the offline waveform renderer, since they share this one
+`scheduleStep` function; a negative draw now floors at 0 (playing exactly
+on time) rather than throwing, which only meaningfully occurs in the
+one context (offline rendering pinned to real time 0) where "the
+jittered time is a few ms before absolute zero" is even reachable. The
+reproducibility gap: mirrored the exact precedent this same function
+already set for `master_volume` (forced to 1 during preview rendering
+"so the pattern's shape stays fixed" per that code's own comment) by
+also forcing `humanize: 0` during preview rendering — the preview exists
+to show the pattern's rhythmic shape, not to prove humanize is doing
+something, so a stable, reproducible preview is strictly better UX with
+no real downside.
+
+Re-verified via Playwright targeting the exact crash scenario: called
+`renderWaveformPeaks` 40 times in a row with humanize=100 and a kick hit
+on step 0 (the exact reproduction) — zero throws across all 40, versus
+the critic's ~50% failure rate pre-fix. Confirmed two renders of an
+identical humanize=100 song now differ only by float32-level rendering
+noise (~1.2e-7, the same order of magnitude as `OfflineAudioContext`'s
+own inherent non-bit-exact rendering floor for perfectly deterministic
+input) rather than the large, real, humanize-driven differences the
+critic measured before this fix — not a byte-exact match (that's not a
+meaningful bar given the engine's own float noise), but down at the
+engine's noise floor rather than showing real pattern-shape drift.
+Re-ran the full `test_song_humanize.js` suite (still confirms real,
+correctly-bounded jitter during actual live playback, which is
+untouched by this fix) and the full `test_security_seo.js` regression
+suite — both all-pass.

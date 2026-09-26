@@ -213,14 +213,22 @@ window.SongEngine = (function () {
     const kit = songData.kit || "acoustic";
     if (songData.tracks) {
       Object.keys(songData.tracks).forEach((track) => {
-        if (songData.tracks[track][step] && PLAYERS[track]) PLAYERS[track](ctx, time + humanizeJitter(songData), kit);
+        // Clamped to 0 rather than passed through raw -- a negative jitter
+        // draw on step 0 of an OfflineAudioContext render (renderWaveformPeaks
+        // schedules step 0 at real time 0, unlike live playback which always
+        // starts comfortably ahead of ctx.currentTime) would otherwise hand
+        // AudioBufferSourceNode/OscillatorNode.start() a negative time, which
+        // throws a RangeError and kills the whole render -- a critic pass
+        // caught this live (silently broken waveform preview, admin builder
+        // AND public embed both, since they share this exact code path).
+        if (songData.tracks[track][step] && PLAYERS[track]) PLAYERS[track](ctx, Math.max(0, time + humanizeJitter(songData)), kit);
       });
     }
     if (songData.melody) {
       const waveform = songData.melody.waveform || "sine";
       const duration = stepDurationFor(songData.tempo);
       Object.keys(songData.melody.notes).forEach((note) => {
-        if (songData.melody.notes[note][step]) playMelodyNote(ctx, time + humanizeJitter(songData), noteToFreq(note), waveform, duration);
+        if (songData.melody.notes[note][step]) playMelodyNote(ctx, Math.max(0, time + humanizeJitter(songData)), noteToFreq(note), waveform, duration);
       });
     }
   }
@@ -292,7 +300,17 @@ window.SongEngine = (function () {
     // hide the pattern entirely at 0), which is a readability regression
     // with no corresponding benefit. Render at full volume regardless of
     // the song's actual master_volume so the preview's scale stays fixed.
-    const previewData = songData.master_volume === 1 ? songData : Object.assign({}, songData, { master_volume: 1 });
+    // Same reasoning for humanize as master_volume just above: the preview
+    // should show a stable, reproducible shape of the actual pattern, not
+    // a slightly different random result every single render. A critic
+    // pass found two consecutive renders of an identical humanize>0 song
+    // produced visibly different peak data in every bucket -- confusing
+    // ("did I change something?") for no benefit, since the preview is
+    // about the pattern's shape, not proving the humanize feature works.
+    const previewData =
+      songData.master_volume === 1 && !songData.humanize
+        ? songData
+        : Object.assign({}, songData, { master_volume: 1, humanize: 0 });
     for (let step = 0; step < STEPS; step++) scheduleStep(ctx, previewData, step, step * stepDur);
     const buffer = await ctx.startRendering();
     const data = buffer.getChannelData(0);
