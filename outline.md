@@ -4836,7 +4836,7 @@ session's own EXIF-stripping feature for the upload-side equivalent).
 321. ✅ Background autosave — done (see the dated entry below this section).
 328. Cache waveform previews — store existing `renderWaveformPeaks` output.
 329. Warn before heavy sample imports — file.size check pre-decode.
-339. Export session report — dump JSON session fields to text.
+339. ✅ Export session report — dump JSON session fields to text. (done — see the dated entry below)
 341. Publish track to a project — `song_id` block linking already exists.
 349. Generate waveform cover art — `renderWaveformPeaks` + canvas.toDataURL + existing upload endpoint.
 350. ✅ Reusable audio-player themes — done (see the dated entry below this section).
@@ -9605,3 +9605,46 @@ This was a well-scoped, already-diagnosed bug fix rather than a new
 outline.md item, so it wasn't sent through the full critic-scoring
 workflow — the fix is small, mechanical, and directly matches the
 critic's own originally-proposed remedy verbatim.
+
+### Forty-third item: #339, Song builder "Export report"
+
+- ✅ **An "Export report" button** in the Song builder's header, next to
+  Save, that downloads a plain-text `.txt` summary of the currently
+  open song: name, tempo, kit, melody waveform, visualization, theme,
+  master volume, page-background-sync flag, each drum track's hit count
+  out of the total step count, and every melody note that has at least
+  one step toggled on (with its own hit count) — or "(none)" when the
+  melody is empty. Reads directly from the in-memory `songData` object
+  (the same object `Save` and autosave both write from), so it reflects
+  any unsaved edits still in the builder, not just what's persisted to
+  D1 — deliberately, since a "what does this song currently look like"
+  report is more useful mid-edit than a possibly-stale saved snapshot.
+  Mirrors the existing `sim-export`/JSON-blob download pattern already
+  used by the Simulation builder (`Blob` → `URL.createObjectURL` →
+  synthetic `<a download>` click → `URL.revokeObjectURL`), just as
+  human-readable text instead of raw JSON, matching the item's own
+  "dump JSON session fields to text" framing.
+
+Verified via Playwright against the real UI end-to-end (not just the
+report-generation logic in isolation): created a real song through the
+actual `/api/admin/songs` POST endpoint with distinct values in every
+field plus specific drum/melody note patterns, opened it through the
+genuine UI path (clicking the sidebar's "Songs" button → "Edit" on the
+test row, the same click path a real admin uses, not a direct internal
+function call), clicked "Export report", captured the real browser
+download event, and asserted the downloaded file's exact byte content:
+correct song name, tempo, kit, theme, master-volume percentage,
+page-sync state, exact per-track hit counts (`Kick: 4 / 16`, `Snare: 1 /
+16`, `Hi-Hat: 0 / 16`), and a `.txt` filename derived from the song
+name. A second run with a melody note (`C4`) toggled on twice confirmed
+the melody section correctly lists `C4: 2 / 16` instead of falling back
+to "(none)". Ran the full `test_security_seo.js` regression suite — all
+passed. Confirmed no leftover test data via a direct authenticated
+`GET /api/admin/songs` check after cleanup (both test songs were deleted
+through the real `DELETE` endpoint as part of the test).
+
+This was a small, well-scoped, self-contained item (no schema changes,
+no cross-file mirror-drift risk, admin-only) so it wasn't sent through
+a full adversarial critic round; the Playwright verification above
+directly proves both the UI wiring and the exact report content rather
+than relying on "no error thrown."

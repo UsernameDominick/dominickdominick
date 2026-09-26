@@ -753,4 +753,40 @@
       alert(err.message);
     }
   });
+
+  // ---------- Export session report ----------
+  // A plain-text summary of this song's current in-memory settings and
+  // note counts -- reads songData directly, so it reflects any unsaved
+  // edits still in the builder, not just what's persisted.
+  $("song-export-report").addEventListener("click", () => {
+    const name = $("song-name").value.trim() || "Untitled song";
+    const lines = [
+      `Song: ${name}`,
+      `Tempo: ${songData.tempo} BPM`,
+      `Drum kit: ${songData.kit}`,
+      `Melody waveform: ${songData.melody.waveform}`,
+      `Visualization: ${songData.visualization}`,
+      `Theme: ${songData.theme}`,
+      `Master volume: ${Math.round((typeof songData.master_volume === "number" ? songData.master_volume : 1) * 100)}%`,
+      `Page background sync: ${songData.page_sync ? "on" : "off"}`,
+      "",
+      "Drum tracks (steps hit / total):",
+      ...TRACKS.map((t) => `  ${TRACK_LABELS[t]}: ${songData.tracks[t].filter(Boolean).length} / ${STEPS}`),
+      "",
+      "Melody notes used:",
+    ];
+    const usedNotes = PIANO_NOTES.filter((n) => songData.melody.notes[n] && songData.melody.notes[n].some(Boolean));
+    if (usedNotes.length) {
+      usedNotes.forEach((n) => lines.push(`  ${n}: ${songData.melody.notes[n].filter(Boolean).length} / ${STEPS}`));
+    } else {
+      lines.push("  (none)");
+    }
+    const blob = new Blob([lines.join("\n") + "\n"], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${name.replace(/[^a-z0-9-_]+/gi, "-") || "song"}-report.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
 })();
