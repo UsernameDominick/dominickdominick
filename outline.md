@@ -12522,3 +12522,26 @@ required by this item's own scope, but a real hygiene fix worth doing
 once found rather than leaving cluttering the live database, per
 Dominick's own standing "use your judgment, log and pursue" decision
 from earlier today.
+
+Sent for a critic pass, which independently verified all 5 tooltip
+texts (the 4 new ones plus the pre-existing Internal resistance one)
+against the actual electrical analysis code in
+`worker/simulation-render.js` line by line — confirmed the potentiometer
+tooltip correctly describes a two-terminal variable resistor (`ohms =
+maxR * wiperPct/100`), NOT a three-terminal voltage divider the
+simulator doesn't actually model, avoiding a subtly-wrong overclaim;
+confirmed all live `title` attributes match verbatim; confirmed no other
+component field was inconsistently skipped; confirmed a full real
+edit-and-save round trip (battery voltage + internal resistance) still
+works with the value genuinely persisted; and cross-referenced the
+28-simulation cleanup against the activity log, confirming every single
+deleted row really was test data (by name and by "this fully accounts
+for the zero-simulations end state, nothing else was ever present in
+this dev DB") rather than just trusting the pre-deletion usage check
+alone. Final score: **9/10 — production-ready.** One documentation-
+clarity nit noted (this file's own wording about the cleanup could read
+ambiguously out of context to a future skimmer) — noted here rather than
+worth its own edit cycle for a wording nuance on an already-accurate,
+already-verified claim.
+
+Item #596 is done: 1 critic round, 9/10 on the first pass.
