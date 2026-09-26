@@ -680,16 +680,30 @@
     $("pe-resize-width").value = canvas.width;
     $("pe-resize-height").value = canvas.height;
   }
+  // A critic pass found that typing/pasting a value above MAX_DIMENSION
+  // (the HTML `max` attribute only affects spinner arrows/form
+  // validation, never a raw `.value` read) let the LOCKED counterpart get
+  // computed from that oversized, not-yet-clamped number -- e.g. a
+  // 500x2000 image with height typed as 100000 computed a locked width of
+  // 25000, which the apply-time clamp then silently squashed to 2000x2000,
+  // breaking the very aspect ratio "Lock ratio" promised to preserve, with
+  // no warning. Clamping the just-edited field to MAX_DIMENSION here,
+  // before computing its counterpart, means the counterpart is always
+  // computed from the same clamped value Apply will actually use -- the
+  // ratio the admin sees while typing is the ratio that actually applies.
+  function clampResizeDimension(n) {
+    return Math.max(1, Math.min(MAX_DIMENSION, Math.round(n) || 1));
+  }
   $("pe-resize-width").addEventListener("input", () => {
-    if (!$("pe-resize-lock").checked) return;
-    const w = Number($("pe-resize-width").value);
-    if (!w || !canvas.width) return;
+    const w = clampResizeDimension(Number($("pe-resize-width").value));
+    $("pe-resize-width").value = w;
+    if (!$("pe-resize-lock").checked || !canvas.width) return;
     $("pe-resize-height").value = Math.max(1, Math.round((w * canvas.height) / canvas.width));
   });
   $("pe-resize-height").addEventListener("input", () => {
-    if (!$("pe-resize-lock").checked) return;
-    const h = Number($("pe-resize-height").value);
-    if (!h || !canvas.height) return;
+    const h = clampResizeDimension(Number($("pe-resize-height").value));
+    $("pe-resize-height").value = h;
+    if (!$("pe-resize-lock").checked || !canvas.height) return;
     $("pe-resize-width").value = Math.max(1, Math.round((h * canvas.width) / canvas.height));
   });
   $("pe-apply-resize").addEventListener("click", () => {
@@ -699,14 +713,19 @@
     // a value frozen from when the modal opened -- so it stays correct
     // even after an intervening rotate/crop/undo changes what "current"
     // means, with no separate tracked-aspect variable to keep in sync.
-    const w = Math.max(1, Math.min(MAX_DIMENSION, Math.round(Number($("pe-resize-width").value) || canvas.width)));
-    const h = Math.max(1, Math.min(MAX_DIMENSION, Math.round(Number($("pe-resize-height").value) || canvas.height)));
+    const w = clampResizeDimension(Number($("pe-resize-width").value) || canvas.width);
+    const h = clampResizeDimension(Number($("pe-resize-height").value) || canvas.height);
     if (w === canvas.width && h === canvas.height) return;
     pushUndo();
     const snap = snapshotCanvas();
     canvas.width = w;
     canvas.height = h;
-    ctx.clearRect(0, 0, w, h);
+    // Higher-quality resampling than the browser default (which several
+    // engines leave at "low") -- most noticeable on a large downscale,
+    // where the default can look visibly blockier than necessary for a
+    // one-shot "resize the image" operation.
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
     ctx.drawImage(snap, 0, 0, snap.width, snap.height, 0, 0, w, h);
     syncOverlaySize();
     cancelActiveDrag();

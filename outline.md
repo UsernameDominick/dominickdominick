@@ -11071,3 +11071,55 @@ test suite to confirm the `fitCanvasToViewport()` change introduced no
 regression to that unrelated feature. No test data was created (only
 in-memory canvas dimensions/pixels of an existing library image, undone
 via Undo before the test ends).
+
+Handed to a critic agent for scoring: **8/10**, below the ship
+threshold. Round-1 findings:
+
+1. **(Fixed, real UX gap)** The HTML `max="2000"` attribute on the
+   width/height inputs only affects spinner-arrow/form-submit
+   validation, never a raw `.value` read — so typing or pasting a value
+   above `MAX_DIMENSION` let the LOCKED counterpart get computed from
+   that still-oversized number before any clamp ever ran. A concrete
+   example: a 500×2000 (1:4 ratio) image with height typed as 100000
+   computed a locked width of 25000, which the apply-time clamp then
+   silently squashed BOTH dimensions to 2000×2000 — breaking the exact
+   ratio "Lock ratio" promised to preserve, with zero warning that
+   anything unusual had happened. Fixed by clamping each field to
+   `MAX_DIMENSION` immediately inside its own `input` listener, before
+   computing the OTHER field's locked value — so the ratio the admin
+   sees live while typing is always the same ratio Apply will actually
+   use, with no gap between what's displayed and what happens.
+2. **(Fixed, minor quality improvement)** The resize draw relied on the
+   browser's default canvas smoothing, which several engines leave at a
+   lower implicit quality — most noticeable on a large downscale, where
+   it can look visibly blockier than necessary for a one-shot "resize
+   the image" operation. Fixed by explicitly setting
+   `ctx.imageSmoothingQuality = "high"` before the scaling `drawImage`
+   call.
+3. **(Fixed, dead code)** A redundant `ctx.clearRect(0, 0, w, h)`
+   immediately after reassigning `canvas.width`/`canvas.height` — those
+   assignments already clear the canvas as a side effect, per the
+   Canvas2D spec, making the explicit clear a harmless no-op. Removed.
+
+One finding was explicitly left as-is, matching this file's own
+established convention rather than treated as a gap: typing exactly `0`
+(or a value that parses to `0`/`NaN`) is silently treated as "no
+change" via the `|| default` fallback pattern, rather than surfaced as
+an explicit validation error — consistent with how this same file
+already handles invalid numeric input everywhere else (e.g. the
+pre-existing brush size/opacity fields), not a new inconsistency
+introduced by this feature.
+
+Re-verified via Playwright with a test targeting the exact fixed
+scenario: set up a real 500×2000 (1:4) canvas, typed a wildly oversized
+height (100000) with Lock ratio on, and confirmed the height field
+itself is immediately clamped to 2000 rather than staying at the raw
+overshoot, confirmed the locked width field correctly computes to 500 —
+preserving the true 1:4 ratio — rather than being silently squashed to
+2000 (which would have meant the ratio broke to 1:1), and confirmed
+clicking Resize applies exactly the dimensions the fields displayed,
+with no surprise mismatch between what was shown and what happened.
+Re-ran the full prior resize test suite (aspect lock, undo, unlock
+behavior, oversized-clamp) to confirm no regression — all still pass.
+Ran the full `test_security_seo.js` regression suite — all passed. Sent
+for a round-2 critic pass.
