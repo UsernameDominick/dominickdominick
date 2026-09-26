@@ -341,13 +341,44 @@
     scheduleAutosave();
   });
 
+  // Live peak meter -- reads the real master-bus signal via a metering
+  // AnalyserNode tapped off the master gain (see song-engine.js), not a
+  // decorative animation driven by note data. requestAnimationFrame
+  // rather than a fixed setInterval since this is purely visual and
+  // should track the display's own refresh rate.
+  let peakMeterRaf = null;
+  function startPeakMeter() {
+    const analyser = Engine.getPeakMeterAnalyser(getAudioCtx());
+    const buffer = new Float32Array(analyser.fftSize);
+    const fill = $("song-peak-meter-fill");
+    function tick() {
+      analyser.getFloatTimeDomainData(buffer);
+      let peak = 0;
+      for (let i = 0; i < buffer.length; i++) peak = Math.max(peak, Math.abs(buffer[i]));
+      const pct = Math.min(100, Math.round(peak * 100));
+      fill.style.width = pct + "%";
+      fill.classList.toggle("song-peak-meter-clip", peak >= 0.98);
+      peakMeterRaf = requestAnimationFrame(tick);
+    }
+    tick();
+  }
+  function stopPeakMeter() {
+    if (peakMeterRaf) cancelAnimationFrame(peakMeterRaf);
+    peakMeterRaf = null;
+    const fill = $("song-peak-meter-fill");
+    fill.style.width = "0%";
+    fill.classList.remove("song-peak-meter-clip");
+  }
+
   function startPlayback() {
     player.start();
+    startPeakMeter();
     $("song-play").textContent = "⏸ Stop";
   }
 
   function stopPlayback() {
     player.stop();
+    stopPeakMeter();
     document.querySelectorAll(".song-step").forEach((el) => el.classList.remove("song-step-playing"));
     $("song-preview-bars")
       .querySelectorAll(".song-embed-bar")

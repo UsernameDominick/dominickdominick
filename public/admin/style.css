@@ -2530,6 +2530,27 @@ kbd {
   width: 60px;
 }
 
+/* Peak meter -- a live readout of the actual master-bus signal via
+   AnalyserNode (see Engine.getPeakMeterAnalyser), not a decorative
+   animation. Empty/at 0% while stopped. */
+.song-peak-meter {
+  width: 70px;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--bg-alt, rgba(255, 255, 255, 0.08));
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.song-peak-meter-fill {
+  height: 100%;
+  width: 0%;
+  background: #4dff6a;
+  transition: width 0.05s linear;
+}
+.song-peak-meter-fill.song-peak-meter-clip {
+  background: #ff4d3d;
+}
+
 .song-sequencer {
   display: flex;
   flex-direction: column;
