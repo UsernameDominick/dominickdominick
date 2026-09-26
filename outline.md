@@ -4785,7 +4785,7 @@ join, rather than building three separate systems.
 78. ✅ Airbrush buildup — brush variant with cumulative alpha. (done — see the dated entry below)
 80. ✅ Accurate brush footprint preview — extend existing drawBrushCursor. (done — see the dated entry below)
 86. ✅ Dodge/burn brushes — brightness brush, same shape as existing blur brush. (done — see the dated entry below)
-90. Magnified retouch comparison — reuse existing originalSnapshot + zoom.
+90. ☐ Magnified retouch comparison — checked: doesn't map as worded. This item's own description presupposes an existing "zoom" feature to reuse — there isn't one (confirmed via grep: zero real zoom-level/magnifier control anywhere in `photo-editor.js`; the one "zoom" hit in the file is an explicit comment clarifying that the auto-fit-to-viewport scaling is NOT a real zoom control). The existing press-and-hold "Compare" feature (original vs current, full canvas swap) already exists and works well on its own, but "magnified" specifically needs real zoom/pan infrastructure this editor doesn't have yet. Left open pending a genuine zoom feature being built first.
 92. ✅ Saved crop ratios — done (see the dated entry below this section).
 93. Horizon straightening — arbitrary-angle rotate + auto-crop.
 102. ✅ Shared access to website fonts — done (see the dated entry below this section).
@@ -4942,7 +4942,7 @@ substantial new infra + security surface).
 387. Selectable breadboard sizes — new `cols` param variant of existing breadboard def.
 388. Warn same-hole leads — check during snap-drop, data already tracks hole ids.
 389. Mechanical vs electrical distinction — already implicit; just surface it in UI.
-391. Named nets (ground/supply) — add a `label` field to node groups.
+391. ✅ Named nets (ground/supply) — checked: already effectively covered by item #394's existing wire-label feature. This simulator has no persisted "node group"/net object to attach a label to independent of wires (a net is just whatever set of wires/pins a live BFS connectivity check finds connected at any moment, never stored as its own entity) — but `sim-wire-label`/`wire.label` already lets an admin label any individual wire with free text, rendered on the canvas at that wire's midpoint, and the feature's OWN placeholder example text is literally `"GND"`/`"5V"` — the exact use case this item asks for. Labeling the wire nearest a net's defining source (e.g. the wire leaving a battery's ground terminal) already delivers the documentation value "named nets" is after, with no new data model needed. No new work required.
 393. Manual wire bend points — extend wire path from 2-point to polyline.
 394. ✅ Wire labels — done (see the dated entry below this section).
 396. ✅ Wire thickness/appearance — done (see the dated entry below this section).
