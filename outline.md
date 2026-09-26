@@ -11697,32 +11697,111 @@ with anything I want to or could conceive"), logged below as a backlog
 item since it's far too broad to implement as literally stated and
 needs scoping first.
 
-### Backlog item: admin freeform creative / custom-animation tool
+### Backlog item: admin custom-animation editor — SCOPED, 2026-09-26
 
-Not yet scoped or started. As literally requested ("do anything with
-anything I could conceive") this isn't a buildable spec on its own —
-logging concrete interpretations here for whoever picks this up to
-scope down into an actual first deliverable, rather than losing the ask
-entirely:
-- A proper animation editor in the admin: keyframe/timeline UI (not
-  just the existing raw custom-CSS/JS textarea in Site Settings) that
-  lets Dominick define entrance/scroll/hover animations on page
-  elements visually, generating CSS `@keyframes`/`animation` (or Web
-  Animations API calls) under the hood, previewed live against the real
-  page before publishing.
-- Extending the existing custom-CSS/custom-JS Site Settings fields
-  (already present — raw text injection) with a friendlier authoring
-  surface: syntax highlighting, live preview pane, maybe a small
-  library of drop-in effect snippets (parallax, fade-in-on-scroll,
-  particle backgrounds) as a starting point rather than a blank textarea.
-- A more general "creative sandbox" page in the admin — a scratch canvas
-  wired to the same Photo Editor / Song builder / Simulation builder
-  infrastructure but with no fixed purpose, for prototyping ideas before
-  they become a real page element.
-None of these are committed to yet — this is a placeholder capturing the
-ask so it isn't lost, to be turned into a real item (with its own
-research + critic-review cycle, same as every other item in this file)
-once there's a concrete enough spec to implement against.
+Dominick picked a direction (of 4 offered): build a real keyframe/
+timeline animation editor, not the smaller "upgrade the raw CSS/JS
+textarea" or "freeform sandbox" alternatives. Researched the existing
+infrastructure before designing this, since a huge amount of it already
+exists and the whole point is extending it rather than building a
+parallel system:
+
+**What already exists** (found via `worker/render.js`, `public/nav.js`,
+`public/style.css`, and the admin block-style panel in
+`public/admin/app.js` around its `animation`/`hoverEffect` field
+definitions): every content block already has a generic `style` JSON
+object with a declarative field-schema-driven editor panel (key/label/
+type/options — the same pattern that already renders background/
+gradient/position/etc. controls). `style.animation` is currently a FIXED
+5-option preset dropdown (fade-in/slide-up/slide-left/slide-right/
+zoom-in) plus `style.animationDelay` (ms). Server-side, `render.js`
+turns that into a `data-animate="<preset>"` attribute plus a
+`--animate-delay` CSS custom property. Client-side, `nav.js` has a
+real, already-hardened `IntersectionObserver`-driven reveal system: it
+watches every `[data-animate]` element, adds an `.is-visible` class when
+it scrolls into view, staggers same-batch reveals (capped total stagger),
+and fully respects both the OS `prefers-reduced-motion` media query AND
+this site's own manual "reduce motion" toggle by SCOPING every animated
+CSS rule inside `@media (prefers-reduced-motion: no-preference)` (a
+reduced-motion visitor never has an animated rule defined at all, so
+`.is-visible` is a harmless no-op for them — no JS branching needed).
+Critically, today's mechanism is a plain CSS `transition` between two
+states (an initial transform/opacity and the `.is-visible` end state) —
+NOT `@keyframes`, so it's inherently a 2-stop system, not a real
+timeline. `hoverEffect` is a separate, similarly small fixed-preset
+system (lift/grow/glow/darken) via plain CSS `:hover` transitions.
+
+**The plan**: add a genuine multi-keyframe option that plugs into this
+SAME trigger/reduced-motion infrastructure rather than building a new
+one:
+1. New `style.animation` value: `"custom"`. A new `style.customKeyframes`
+   field holds an array of keyframe stops, each
+   `{ offset: 0-100, opacity?, x?, y?, scale?, rotate? }` (a constrained,
+   GUI-safe property set — translate/scale/rotate/opacity, not arbitrary
+   CSS — keeps it visual/guided rather than degrading into "just another
+   raw-code textarea," and keeps codegen simple and safe to escape).
+   `style.animationDuration` (ms) and `style.animationEasing` (a fixed
+   set: linear/ease/ease-in/ease-out/ease-in-out, plus 1-2 named
+   cubic-bezier "character" curves like a slight overshoot/back-ease) are
+   new fields alongside it. The existing 5 presets and `animationDelay`
+   are untouched — old blocks using them keep rendering exactly as today,
+   byte-for-byte, since `"custom"` is purely an ADDED option, not a
+   replacement.
+2. Server-side (`render.js`): when `style.animation === "custom"` and
+   `customKeyframes` is a valid array (≥2 stops, each offset/value
+   numeric and in range — malformed/missing data falls back to no
+   animation at all, same "fail closed" pattern `custom_json_ld` already
+   uses for malformed admin input), generate a scoped
+   `@keyframes block-anim-<blockId> { <offset>% { opacity:…; transform:… } … }`
+   rule (one unique name per block, so two different blocks' custom
+   animations on the same page never collide) inside the SAME
+   `@media (prefers-reduced-motion: no-preference)` scoping the existing 5
+   presets already use, collected into one `<style>` tag emitted once per
+   page (not per block) alongside the existing per-block inline
+   `style=""` attribute. The block gets
+   `data-animate="custom:block-anim-<blockId>"` instead of a preset name;
+   a small change to `nav.js`'s existing observer is NOT needed at all —
+   it already just adds `.is-visible` to any `[data-animate]` element
+   with no knowledge of what the value actually is, so this reuses that
+   exact same trigger/stagger/reduced-motion code with zero JS changes.
+   The CSS for the custom case sets `animation: block-anim-<id>
+   <duration>ms <easing> both; animation-delay: var(--animate-delay,0s);`
+   on the `.is-visible` state (reusing the same `--animate-delay` custom
+   property the stagger logic already writes to, so per-block delay and
+   scroll-triggered staggering both keep working identically for custom
+   animations too, with no new JS needed there either) instead of the
+   existing system's plain `transition:`.
+3. Admin UI: a new small modal (matching the `pe-new-doc-modal`/
+   `typed-confirm` established modal patterns, including the
+   `.modal-actions` right-aligned button row the design audit just
+   standardized) launched by a new "Edit custom animation…" button that
+   appears next to the `animation` select only when "Custom…" is chosen.
+   Inside: an editable list of keyframe rows (offset% + the constrained
+   property set above, add/remove rows), duration + easing selects, and
+   a **live preview** — a small demo box in the modal that actually plays
+   the animation on demand via the real browser Web Animations API
+   (`element.animate(keyframesArray, {duration, easing})`), which is
+   ALSO structurally the same keyframe-array shape the server-side CSS
+   codegen needs — one canonical keyframe data structure feeds both the
+   live WAAPI preview and the generated CSS, rather than maintaining two
+   parallel representations that could drift out of sync.
+4. Explicitly OUT of scope for v1 (logged so it isn't silently forgotten,
+   not because it's unwanted): applying a custom keyframe animation to
+   the `hoverEffect` trigger (v1 only covers the scroll-reveal entrance
+   trigger, matching where the existing 5-preset system already lives);
+   arbitrary raw CSS properties in a keyframe stop beyond
+   opacity/translate/scale/rotate; a true drag-and-drop visual timeline
+   scrubber UI (v1's keyframe list is a structured form, not a graphical
+   timeline widget — a real timeline scrubber is a much bigger, separate
+   UI-engineering undertaking better attempted once the underlying data
+   model/codegen above is proven out and actually being used).
+
+Not yet implemented as of this writing — this is the scoping/design pass
+only, done so implementation can start cleanly (data model, codegen
+approach, and UI plan all settled) in a following work session, following
+the same implement → test → critic-review-to-9-or-10 → ship cycle as
+every other item in this file, just a bigger one spanning several turns
+rather than a single Easy-tier item.
 
 ### Design/UX audit — dispatched to an agent
 
