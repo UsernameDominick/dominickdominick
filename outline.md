@@ -13972,6 +13972,37 @@ Playwright screenshots at 1440px and 390px plus the regression suites.
 | Media library toolbar | 4 | 4 | **Not redone yet:** about 12 controls come before any content. Next candidate. |
 | Block inspector | 5 | 5 | **Not redone yet:** same long flat-form problem the editors had. It should get the same collapsible-section treatment. |
 
+### Round 2 — everything to 9 (2026-09-26)
+
+Dominick: "Get it to a 9." Every area that scored under 9 above was
+reworked and re-rated, testing only against locally seeded content,
+which was cleaned up afterward.
+
+| Area | Was | Now | What got it there |
+|---|---|---|---|
+| Media library | 4 | 9 | Upload in the header. One find bar with Unused and Duplicates chips. Bulk actions only appear once something is selected. Tiles show a title, dimensions, size, folder and badges (including "No alt"). Clicking a tile opens its details. Maintenance tools moved to Settings > Tools. |
+| Block inspector | 5 | 9 | Style fields sit in 7 collapsible groups with "N set" counts (3,486px down to ~1,250px). Presets get their own row, actions are a grid, and an unset color shows as "Not set" instead of black. |
+| Homepage / lists | 7 | 9 | Excerpts drop heading lines, dates are readable, and the list dividers match the text width. |
+| Header / nav | 8 | 9 | The nav strip fades at whichever edge has more tabs. Motion and text-size toggles stay hidden on phones on purpose: the OS already covers both, and showing them would push the header to three rows. |
+| Article / project pages | 8 | 9 | Tighter spacing, heading line-height, status badge, readable "More to read" dates. |
+| Index pages | – | 9 | Wider column, three cards across, and a post/project count. |
+| Search | – | 9 | Segmented type/sort pills and small group labels. |
+| Theme coherence | 8 | 9 | The favicon and theme-color follow the theme. With no saved border, one is derived instead of the old violet ("Match theme" option). Light mode uses the saved accent darkened to 4.5:1 instead of the fixed coral/violet, on the public site and in the admin. |
+| SEO: meta + structured data | 8 | 9 | og/twitter image alt and size, article:tag, author url, publisher, mainEntityOfPage, inLanguage, wordCount, and a CollectionPage/ItemList on the indexes. |
+| Page weight | 8 | 9 | No change needed. **Left on purpose:** CSS/JS are revalidated on each view (max-age=0). Long caching would need versioned asset URLs, and the admin's static HTML loads the same files unversioned, so a long cache would serve stale CSS after deploys. |
+| Article / project editor | 8 | 9 | Build journal and BOM are collapsible sections with counts. List bulk buttons only show when something is selected. Titles sit beside their checkboxes. |
+| Admin dialogs | – | 9 | Site Health is an Overview card plus collapsible report cards. Primary buttons are consistent. Restore/Usage are no longer red. Trash actions line up. A dialog opened from inside another dialog now stacks on top (it could land underneath and be unclickable). |
+| Simulation builder | 8 | 9 | Name, Save and close share the top row, and the groups get the full width (they were overflowing). Strip corners are fixed. The part list uses field corners. |
+| Song builder | ~5 | 9 | Labeled Transport, Sound, Player look, Export and Save panels. The meters are labeled. The phone drum grid is 2×8, fixing a 260px sideways overflow (its test had been failing). |
+| Photo editor | ~7 | 9 | Labeled tool rail beside the canvas, History first. Footer labels are consistent. |
+
+Tests: every existing suite touched (security/SEO, simulation, song and
+photo-editor Playwright scripts) passes, plus new ones for media,
+inspector groups, the palette, editor sections, control presets and the
+border option. The only failure left is test_song_templates, which
+assumes zero songs exist and trips over the seeded "Demo loop"; its own
+test song was deleted as expected.
+
 ### Content policy
 Production has no articles or projects yet, on purpose. Never add
 boilerplate or placeholder content to the live site. Seed test data
