@@ -6070,3 +6070,27 @@ the one explicitly pre-existing/unrelated gap (the fake-"Saved"-on-a-
 deleted-row bug), which is tracked in the backlog above rather than
 fixed inline since it needs a small shared server-side change, not a
 client-only one scoped to this feature.
+
+Resubmitted for a fresh critic round (new code changed since the 6/10
+round). Round 2: **9/10**. All three round-1 fixes independently
+re-verified live under the exact same reproductions (delayed-fetch
+overlapping-open race, status-bleed-on-stale-autosave, and the full
+five-step `beforeunload` lifecycle including after a manual Save, not
+just an autosave). Explicitly hunted for new bugs the generation-counter
+fix itself might introduce — opening the same song twice in a row or a
+brand-new blank song never gets wrongly dropped as "superseded" (the
+new-song branch has no `await` to straddle a generation bump at all),
+and no legitimate autosave was ever wrongly suppressed in any tested
+path. Correctly did not re-flag the already-deferred `PATCH /songs/:id`
+existence-check gap. The only note: the fix that lets `autosaveSong()`
+safely capture `openGeneration` only once its timer callback actually
+starts (relying on `openBuilder()`'s unconditional `clearTimeout` to
+guarantee no stale timer can still be pending by then) is an implicit
+invariant rather than something explicitly asserted — added a comment
+tying the two together so a future edit that removed that `clearTimeout`
+would have a pointer to what else needs to move with it, rather than
+silently reintroducing the bug.
+
+Item #321 is fully closed: 2 critic rounds, 6/10 → 9/10, every real
+finding from round 1 fixed and verified; round 2 found nothing new
+beyond a documentation nit, addressed with a comment.

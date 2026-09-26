@@ -91,6 +91,14 @@
     if (!currentSongId) return;
     const name = $("song-name").value.trim();
     if (!name) return;
+    // Safe to capture openGeneration here (only once this timer callback
+    // actually starts running, not at scheduleAutosave() time) precisely
+    // because openBuilder() unconditionally clears autosaveTimer on every
+    // call -- a still-pending (not yet fired) timer for the previously
+    // open song is always cancelled before this line could ever run
+    // against a generation that's already moved on. If that clearTimeout
+    // were ever removed, this generation check would need to move to
+    // scheduleAutosave() instead to stay correct.
     const gen = openGeneration;
     const id = currentSongId;
     const data = songData;
