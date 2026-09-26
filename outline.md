@@ -11471,6 +11471,32 @@ leftover file).
 
 Sent for a critic pass.
 
+The critic went well past the implementer's own test: verified all 9
+anchor positions mathematically exact (not just the 3 the original test
+covered), an asymmetric dual-axis resize (width growing, height
+shrinking, in one call, with the two axes computed fully independently),
+confirmed `refreshCanvasResizeFields()` genuinely stays in sync via
+`fitCanvasToViewport()` after a rotate (not just after using the
+canvas-resize control itself), confirmed per-axis MAX_DIMENSION clamping
+holds even when one axis is bypassed past the input-clamp handler (a
+simulated paste), confirmed shrinking a canvas out from under a pending
+uncommitted crop rectangle cleanly clears the stale crop state via the
+existing `cancelActiveDrag()` reuse, confirmed the no-op-resize guard
+correctly avoids wasting an undo-stack entry, confirmed 3 consecutive
+resizes fully round-trip through undo AND redo with exact dimensions and
+pixel content at every step (not just dimensions), confirmed the feature
+composes correctly with a real existing library image without touching
+`originalKey`/the overwrite path, and confirmed zero regressions to
+Resize-image, Crop, or Rotate/Flip. Zero console errors across roughly
+77 live Playwright assertions. No blocking or non-blocking bugs found —
+only cosmetic code-quality observations (anchor key/option-value
+spelling matches exactly, so the `|| [0.5, 0.5]` fallback is dead code in
+practice; the handler's reuse of hardened shared helpers means it
+inherits their existing fixes for free). Final score: **10/10 — ships,
+zero reservations.**
+
+Item #5 is done: 1 critic round, 10/10 on the first pass.
+
 ## 14. Design/UX audit + admin creative freeform tool (2026-09-26)
 
 Dominick asked directly (not from the item-by-item creative-suite
