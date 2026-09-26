@@ -4969,7 +4969,7 @@ live in env bindings, not content rows).
 549. ✅ Project inbox for uncategorized uploads/ideas — done, scoped to media (see the dated entry below this section).
 567. ✅ Show storage used by originals/versions/previews/exports — checked: "previews" and "exports" don't exist as distinct stored R2 artifacts in this codebase (no thumbnail-generation pipeline; `/export` streams a live JSON dump, never written to R2), so there's nothing to break out for those two categories. "Originals" vs "versions" is already covered — `getStorageUsage()`'s existing breakdown separates "Images" from "Image version history" (confirmed the `_versions/` PUT-overwrite route is itself content-type-restricted to images only, so that label is accurate, not just aspirational). No new work needed for what actually exists.
 569. ✅ Monitor editor crashes and failed saves — done (see the dated entry below this section).
-572. Choose poster images/fallbacks before publishing — `scans.poster_key` pattern exists; extend to songs/simulations.
+572. ✅ Choose poster images/fallbacks before publishing — done for simulations, deliberately not songs (see the dated entry below this section for why).
 576. Keep animated elements from moving surrounding text — CSS layout fix (reserved space/aspect-ratio).
 582. ✅ Protect source files containing private/sensitive material — done (see the dated entry below this section).
 584. ✅ Require stronger confirmation for destructive bulk operations — done (see the dated entry below this section).
@@ -6518,3 +6518,53 @@ the button's active state exactly matching the boolean's parity every
 time, no desync.
 
 Item #385 is done: 1 critic round, 9/10, no real findings.
+
+### Seventeenth item: #572, poster/share images for simulations
+
+- ✅ **A per-simulation poster/share image, done for simulations,
+  deliberately scoped away from songs** — checked what `scans.poster_key`
+  actually does before extending it: it's the `poster=""` attribute on
+  the 3D `<model-viewer>` element, shown while the model loads and as a
+  fallback for browsers that can't render WebGL — a real loading-state
+  gap that exists specifically because a 3D scan has no inherent static
+  representation. Neither songs nor simulations have that problem the
+  same way: a simulation's standalone `/simulation/:id` page already
+  renders a real, static SVG circuit diagram server-side immediately
+  (`renderSimulationSvg()`), no loading gap to fill. What simulations
+  DID lack: `renderSimulationPage()` always set `ogImage: defaultOgImage
+  || null` — sharing a link to any circuit, however visually distinct,
+  always showed the site's one generic default share image, with no
+  per-item override at all (unlike articles/projects, which already
+  support one). That's the real, well-scoped version of "poster image"
+  that applies here: a share-image override, not a loading fallback.
+  Added a "Poster / share image" field (text input + the existing
+  Upload/Browse trigger buttons, same reusable pattern the scan builder
+  already uses) as its own row in the Simulation builder, deliberately
+  NOT part of `simData` or the undo/redo history — it's page-level
+  metadata read straight from its own input at save time, exactly like
+  the simulation name field already is, not circuit state. A template
+  built from a simulation with a poster image does NOT carry it over
+  (same "template is a fresh start" reasoning already applied to
+  checkpoints not carrying over either).
+  Deliberately did NOT extend this to songs in the same pass: songs have
+  no standalone public page or OG-image concept at all (a song only ever
+  appears embedded inside an article/page's own block, inheriting
+  whatever OG tags the containing page already has), so the actual gap
+  this item is meant to close doesn't exist for songs the same way. A
+  song "cover image" would mean something different — a static visual
+  shown in the embed's own preview area before playback — which overlaps
+  with the separate, still-open #349 ("Generate waveform cover art," an
+  auto-generated version of the same idea) rather than being a clean
+  extension of this exact pattern. Logged rather than force-fit, matching
+  this session's own established practice for a backlog item that turns
+  out to only cleanly apply to part of what it names.
+  Verified via Playwright: a brand-new simulation's poster field starts
+  empty; setting one and saving correctly sets the standalone page's
+  `og:image` meta tag to that exact URL; closing and reopening the
+  builder correctly shows the saved value back in the field (round-
+  tripped through `data.og_image`, not just held in memory); clearing the
+  field and saving again correctly removes the custom `og:image` tag
+  rather than leaving the old URL stuck. Full regression suite green;
+  test simulation deleted and confirmed gone.
+
+Handed to a critic agent for scoring.

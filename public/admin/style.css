@@ -2429,6 +2429,26 @@ kbd {
   font-weight: 600;
 }
 
+.sim-poster-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.sim-poster-row label {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.sim-poster-row input {
+  flex: 1;
+  min-width: 200px;
+}
+
 .sim-builder-body {
   flex: 1;
   display: flex;

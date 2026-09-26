@@ -795,7 +795,7 @@ async function renderSimulationPage(env, sim, navItems) {
     theme,
     footerText,
     customHead,
-    ogImage: defaultOgImage || null,
+    ogImage: (sim.data && sim.data.og_image) || defaultOgImage || null,
   });
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }

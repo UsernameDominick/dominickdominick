@@ -309,15 +309,22 @@
       const wires = sim.data && Array.isArray(sim.data.wires) ? sim.data.wires : [];
       simData = { components, wires };
       simCheckpoints = sim.data && Array.isArray(sim.data.checkpoints) ? sim.data.checkpoints : [];
+      $("sim-poster-url").value = (sim.data && sim.data.og_image) || "";
     } else if (templateId) {
       const t = simTemplates.find((x) => x.id === templateId);
       $("simulation-name").value = "New simulation";
       simData = t && Array.isArray(t.data.components) ? JSON.parse(JSON.stringify({ components: t.data.components, wires: t.data.wires || [] })) : { components: [], wires: [] };
       simCheckpoints = [];
+      // A template is a fresh starting point -- its own poster/share image
+      // (if the simulation it was saved from had one) shouldn't carry over
+      // into every new simulation created from it, same reasoning already
+      // applied to not carrying over checkpoints from a template.
+      $("sim-poster-url").value = "";
     } else {
       $("simulation-name").value = "New simulation";
       simData = { components: [], wires: [] };
       simCheckpoints = [];
+      $("sim-poster-url").value = "";
     }
     initialSimSnapshot = JSON.stringify(simData);
     $("simulations-modal").hidden = true;
@@ -1233,8 +1240,11 @@
     // persist across reloads) but are kept out of `simData` itself the
     // rest of the time, purely to avoid every undo-stack entry
     // duplicating every checkpoint's full circuit snapshot -- see the
-    // comment on simCheckpoints above.
-    const payloadData = { ...simData, checkpoints: simCheckpoints };
+    // comment on simCheckpoints above. The poster/share image is a plain
+    // string read straight from its own input at save time, same as the
+    // name field -- not part of simData/undo history either, since it's
+    // page-level metadata, not circuit state.
+    const payloadData = { ...simData, checkpoints: simCheckpoints, og_image: $("sim-poster-url").value.trim() || null };
     try {
       if (currentSimId) {
         await window.adminApi(`/simulations/${currentSimId}`, { method: "PATCH", body: JSON.stringify({ name, data: payloadData }) });

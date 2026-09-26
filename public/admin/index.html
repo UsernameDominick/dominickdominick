@@ -1055,6 +1055,12 @@
         <button type="button" id="save-sim-template-btn" title="Save this circuit as a reusable starting point">Save as template</button>
         <button id="close-simulation-builder">×</button>
       </header>
+      <div class="sim-poster-row">
+        <label for="sim-poster-url">Poster / share image (shown when this simulation's link is shared, and as a fallback before the circuit loads)</label>
+        <input id="sim-poster-url" type="text" placeholder="https://... (blank = site default)" spellcheck="false">
+        <button type="button" class="upload-trigger" data-target="#sim-poster-url">Upload image</button>
+        <button type="button" class="browse-trigger" data-target="#sim-poster-url">Browse…</button>
+      </div>
       <div class="sim-builder-body">
         <aside class="sim-palette">
           <h2>Add part</h2>
