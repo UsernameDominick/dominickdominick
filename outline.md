@@ -8364,5 +8364,38 @@ reopening the builder for a new session. Full regression suite green; no
 server-side state was created (the test simulation was never saved), so
 no cleanup was needed.
 
-Sent to a critic pass next per the standing workflow before calling it
-done.
+Sent to a critic pass on commit 436e741. Scored 9/10 -- ship, first try.
+Traced every reference to the search-query variable (only 3 in the whole
+file: declaration, the input listener, and the one read inside the
+match-checking function) and confirmed it's used exclusively as the
+right-hand side of a boolean `.includes()` comparison, never concatenated
+into any rendered string -- no XSS surface. Confirmed the per-render
+match check is asymptotically identical cost to lookups already done for
+every component every render (no meaningful performance concern, no
+pathological-input slowdown, since `.includes()` cost is bounded by the
+short haystack strings, not the needle). Confirmed a component that's
+simultaneously selected AND search-matched renders two concentric
+outline rings (the existing dashed selection box, then the new pulsing
+teal search box drawn after it, both larger than the last) rather than
+one obscuring the other, and that the "damaged" state doesn't add an
+outline at all (it only recolors internal shapes), so there's no
+three-way stacking conflict to worry about. Confirmed non-string
+label/type values from JSON import can't reach the match-check function
+at all, since it's only ever called after the same `def` registry-lookup
+guard that already filters those out. Independently re-verified (not
+just trusted from this outline's own write-up) that the `openBuilder()`
+reset sits before the new/template/existing branch split, so all three
+entry paths get it.
+
+One minor, non-blocking accessibility gap was noted: the new search
+input has no `<label>`, only a `placeholder`/`title` -- but this exactly
+matches the existing, unlabeled `#sim-palette-search` field two lines
+away in the same toolbar, so it's a pre-existing toolbar-wide convention
+gap, not a regression this feature introduced. Logged as a candidate for
+a future accessibility pass across every unlabeled search/filter input in
+the builder toolbar, rather than fixed inconsistently for just this one
+field.
+
+Item #378 is done: 1 critic round, 9/10, no real findings -- one minor,
+already-existing-convention accessibility gap logged as an accepted,
+non-blocking observation.
