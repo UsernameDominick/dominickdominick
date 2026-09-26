@@ -259,6 +259,34 @@ function sanitizeSvg(text) {
     .replace(/((?:xlink:)?href|src)\s*=\s*'\s*javascript:[^']*'/gi, "$1='#'");
 }
 
+// Shared by every parser below (raster header formats and the SVG
+// attribute reader alike) as the one place that decides a parsed
+// {width,height} is actually plausible, rather than trusting whatever
+// bytes/text happened to be at the expected offset. A corrupted or
+// adversarial file can put anything in that spot -- a critic pass found
+// a garbage GIF parsing to a huge nonsense size, and a PNG/SVG with an
+// absurd value (e.g. 0xFFFFFFFF, or "999999999999") sailing straight
+// through into a real rendered <img> tag, which doesn't just fail to
+// help with layout shift, it actively causes it by reserving the wrong
+// amount of space. 20000px is far past any real photo/graphic this site
+// would ever legitimately hold.
+const MAX_PLAUSIBLE_IMAGE_DIMENSION = 20000;
+function plausibleDims(dims) {
+  if (!dims) return null;
+  const { width, height } = dims;
+  if (
+    !Number.isFinite(width) ||
+    !Number.isFinite(height) ||
+    width <= 0 ||
+    height <= 0 ||
+    width > MAX_PLAUSIBLE_IMAGE_DIMENSION ||
+    height > MAX_PLAUSIBLE_IMAGE_DIMENSION
+  ) {
+    return null;
+  }
+  return dims;
+}
+
 // Reads an image's pixel width/height straight from its file header --
 // no decoding needed, and no image-decode API exists in Workers anyway.
 // Used so an <img> can carry width/height attributes, letting the
@@ -275,14 +303,19 @@ function readImageDimensions(buf, contentType) {
       // type (always "IHDR" -- guaranteed to be the first chunk), then
       // width/height as big-endian uint32s.
       if (view.getUint32(12) === 0x49484452 /* "IHDR" */) {
-        return { width: view.getUint32(16), height: view.getUint32(20) };
+        return plausibleDims({ width: view.getUint32(16), height: view.getUint32(20) });
       }
       return null;
     }
     if (contentType === "image/gif" && buf.byteLength >= 10) {
-      // 6-byte "GIF87a"/"GIF89a" signature, then width/height as
+      // 6-byte "GIF87a"/"GIF89a" signature (checked -- unlike every other
+      // branch here, this one previously trusted the bytes at this offset
+      // with no signature check at all, so arbitrary garbage labeled
+      // image/gif would parse to a nonsense "size"), then width/height as
       // little-endian uint16s.
-      return { width: view.getUint16(6, true), height: view.getUint16(8, true) };
+      const sig = String.fromCharCode(view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3), view.getUint8(4), view.getUint8(5));
+      if (sig !== "GIF87a" && sig !== "GIF89a") return null;
+      return plausibleDims({ width: view.getUint16(6, true), height: view.getUint16(8, true) });
     }
     if (contentType === "image/jpeg") {
       // Walk marker segments looking for a Start-Of-Frame marker (any of
@@ -307,7 +340,7 @@ function readImageDimensions(buf, contentType) {
           (marker >= 0xc9 && marker <= 0xcb) ||
           (marker >= 0xcd && marker <= 0xcf);
         if (isSof) {
-          return { height: view.getUint16(offset + 5), width: view.getUint16(offset + 7) };
+          return plausibleDims({ height: view.getUint16(offset + 5), width: view.getUint16(offset + 7) });
         }
         offset += 2 + segmentLength;
       }
@@ -320,14 +353,14 @@ function readImageDimensions(buf, contentType) {
         // (width-1)/(height-1) as 24-bit little-endian integers.
         const width = 1 + (view.getUint8(24) | (view.getUint8(25) << 8) | (view.getUint8(26) << 16));
         const height = 1 + (view.getUint8(27) | (view.getUint8(28) << 8) | (view.getUint8(29) << 16));
-        return { width, height };
+        return plausibleDims({ width, height });
       }
       if (fourCC === "VP8 ") {
         // Lossy: 3-byte frame tag, then a 3-byte start code that's always
         // 0x9d 0x01 0x2a, then 14-bit width/height (the top 2 bits of
         // each field are an unrelated scale factor, masked off).
         if (view.getUint8(23) === 0x9d && view.getUint8(24) === 0x01 && view.getUint8(25) === 0x2a) {
-          return { width: view.getUint16(26, true) & 0x3fff, height: view.getUint16(28, true) & 0x3fff };
+          return plausibleDims({ width: view.getUint16(26, true) & 0x3fff, height: view.getUint16(28, true) & 0x3fff });
         }
         return null;
       }
@@ -337,7 +370,7 @@ function readImageDimensions(buf, contentType) {
         // alpha flag, 3-bit version.
         if (view.getUint8(20) === 0x2f) {
           const bits = view.getUint32(21, true);
-          return { width: (bits & 0x3fff) + 1, height: ((bits >> 14) & 0x3fff) + 1 };
+          return plausibleDims({ width: (bits & 0x3fff) + 1, height: ((bits >> 14) & 0x3fff) + 1 });
         }
         return null;
       }
@@ -355,21 +388,35 @@ function readImageDimensions(buf, contentType) {
 // viewBox, matching how a browser itself resolves an SVG's intrinsic
 // size. Returns null rather than a fabricated guess when neither is
 // present or parseable.
+// Extracts a `width`/`height`-style attribute's numeric value ONLY when
+// it's a bare number or has an explicit "px" unit -- returns null for a
+// percentage or any other CSS unit (em, in, cm, ...), rather than
+// silently reading just the leading digits as if they were pixels. A
+// critic pass found the previous version treated `width="100%"` as a
+// literal 100px, which for a responsive SVG (a very common real-world
+// pattern, relying on viewBox for its actual proportions) can silently
+// produce a wrong aspect ratio whenever the two percentages don't happen
+// to match the viewBox's own ratio.
+function readSvgPixelAttr(openTag, attrName) {
+  const match = openTag.match(new RegExp(`\\b${attrName}\\s*=\\s*["']?([\\d.]+)\\s*(%|px|em|ex|pt|pc|cm|mm|in)?`, "i"));
+  if (!match) return null;
+  const unit = match[2];
+  if (unit && unit.toLowerCase() !== "px") return null;
+  return Number(match[1]);
+}
+
 function readSvgDimensions(svgText) {
   const openTagMatch = svgText.match(/<svg\b[^>]*>/i);
   const openTag = openTagMatch ? openTagMatch[0] : "";
-  const widthMatch = openTag.match(/\bwidth\s*=\s*["']?([\d.]+)/i);
-  const heightMatch = openTag.match(/\bheight\s*=\s*["']?([\d.]+)/i);
-  if (widthMatch && heightMatch) {
-    const width = Math.round(Number(widthMatch[1]));
-    const height = Math.round(Number(heightMatch[1]));
-    if (width > 0 && height > 0) return { width, height };
+  const width = readSvgPixelAttr(openTag, "width");
+  const height = readSvgPixelAttr(openTag, "height");
+  if (width !== null && height !== null) {
+    const dims = plausibleDims({ width: Math.round(width), height: Math.round(height) });
+    if (dims) return dims;
   }
   const viewBoxMatch = svgText.match(/<svg\b[^>]*\bviewBox\s*=\s*["']?\s*[\d.-]+\s+[\d.-]+\s+([\d.]+)\s+([\d.]+)/i);
   if (viewBoxMatch) {
-    const width = Math.round(Number(viewBoxMatch[1]));
-    const height = Math.round(Number(viewBoxMatch[2]));
-    if (width > 0 && height > 0) return { width, height };
+    return plausibleDims({ width: Math.round(Number(viewBoxMatch[1])), height: Math.round(Number(viewBoxMatch[2])) });
   }
   return null;
 }

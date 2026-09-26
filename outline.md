@@ -6664,4 +6664,60 @@ XSS injection attempt, with none found), no real findings.
   separate surface worth its own look, not something to assume is fine
   just because the block-level image case is now solid.
 
-Handed to a critic agent for scoring.
+Handed to a critic agent for scoring, with an explicit ask for
+adversarial/malformed-input testing since the header-parsing logic was
+the highest-risk part of this diff: **6/10**. Confirmed correct on real
+files: JPEG marker-walking on both baseline and progressive encodings,
+correctly skipping a real EXIF/APP1 segment without descending into it;
+all three WebP sub-formats (lossy, lossless, and a real RGBA-triggered
+VP8X); `GET /media` genuinely returns width/height; the backfill route
+handles mixed readable/unreadable batches correctly with accurate
+counters and no throw; no uncaught exception on any malformed input
+tried. Three real bugs found, all fixed:
+
+1. **(Fixed)** The GIF branch was the one format with no magic-byte
+   check before trusting the bytes at the expected offset — PNG checks
+   the IHDR chunk type, WebP checks the RIFF/WEBP fourCC, but GIF only
+   checked `byteLength >= 10` and read straight through. Ten bytes of
+   arbitrary garbage labeled `image/gif` parsed to a nonsense
+   `{width:2055, height:2569}` that the critic confirmed actually reaches
+   a real rendered `<img>` tag. Fixed by checking for the `GIF87a`/
+   `GIF89a` signature first, matching every other format's own check.
+2. **(Fixed)** No parser anywhere enforced an upper bound on its output —
+   a corrupted PNG with its IHDR width/height set to `0xFFFFFFFF` parsed
+   straight through with no bound check in `readImageDimensions`,
+   `upsertMediaMeta`, or `imgSizeAttrs`, and the critic confirmed the
+   same gap in `readSvgDimensions` (an SVG with `width="999999999999"`
+   rendered exactly that value into a real page). This doesn't just fail
+   to help with layout shift, it actively causes severe shift/breakage
+   once the real image loads — the opposite of the feature's purpose.
+   Fixed with one shared `plausibleDims()` check (width/height both
+   finite, `> 0`, and `<= 20000`, far past any real image this site would
+   legitimately hold) applied at every single return point across all
+   four raster-format branches and both SVG code paths, rather than
+   scattering the same bound check across each one separately.
+3. **(Fixed)** `readSvgDimensions` matched only the leading digits of a
+   `width`/`height` attribute, so `width="100%"` was silently read as a
+   literal 100px instead of being recognized as a percentage and falling
+   through to the `viewBox` fallback — a very common real-world pattern
+   for a responsive SVG. The critic confirmed this can silently write a
+   wrong aspect ratio whenever the two percentages don't happen to match
+   the viewBox's own ratio (e.g. `width="50%" height="100%"` on a 4:1
+   viewBox). Fixed with a new `readSvgPixelAttr()` helper that captures
+   the unit alongside the number and only accepts a bare value or an
+   explicit `px` suffix, rejecting `%` and every other CSS unit so those
+   cases correctly fall through to `viewBox` instead.
+
+Re-verified via Playwright: all five valid formats (PNG/JPEG/GIF/WebP/SVG)
+still parse correctly against Pillow ground truth with no regression
+from the fixes; the same 10-byte garbage-labeled-as-GIF file now
+correctly reports `null`/`null` instead of a fabricated size; a
+hand-crafted PNG with `0xFFFFFFFF` IHDR dimensions and an SVG with a
+12-digit width both now correctly report `null`/`null` instead of the
+absurd value; an SVG with `width="50%" height="100%"` and a `viewBox`
+of `0 0 400 100` now correctly reports `400x100` from the viewBox rather
+than a wrong `50x100` from the percentages. Full regression suite green;
+all test uploads deleted and confirmed gone.
+
+Item #576 is done: 1 critic round, 6/10, all three real findings fixed
+and verified live with no regression to the already-working formats.
