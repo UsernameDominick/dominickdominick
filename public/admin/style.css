@@ -2222,6 +2222,26 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   color: #ff6b6b;
 }
 
+.image-url-source-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+.image-url-source-badge.is-local {
+  background: rgba(45, 212, 191, 0.15);
+  color: #2dd4bf;
+}
+
+.image-url-source-badge.is-external {
+  background: rgba(255, 165, 0, 0.15);
+  color: #ffa500;
+}
+
 .media-info-modal-inner {
   max-width: 420px;
 }

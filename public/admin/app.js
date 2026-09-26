@@ -334,6 +334,37 @@
     btn.addEventListener("click", () => openMediaModal(btn.dataset.target, btn.dataset.append === "1"));
   }
 
+  // Wires any <span class="image-url-source-badge" data-target="#id"> to
+  // show whether the target field's current value is a file actually
+  // uploaded to this site (relative /media/... URL, same check db.js's
+  // own dangling-reference reconciliation uses for "is this a locally-
+  // hosted media reference") or a URL typed/pasted in directly -- most
+  // commonly hotlinking someone else's image, which this field's plain
+  // text input has always silently allowed with no indication either way
+  // that it's a fundamentally different, less durable kind of reference
+  // than an upload. Updates live as the field is typed into or filled by
+  // Upload/Browse, not just once on initial render.
+  function wireImageUrlSourceBadge(badge) {
+    const input = document.querySelector(badge.dataset.target);
+    if (!input) return;
+    const update = () => {
+      const value = (input.value || "").trim();
+      if (!value) {
+        badge.textContent = "";
+        badge.className = "image-url-source-badge";
+      } else if (value.startsWith("/media/")) {
+        badge.textContent = "Local upload";
+        badge.className = "image-url-source-badge is-local";
+      } else {
+        badge.textContent = "External URL";
+        badge.className = "image-url-source-badge is-external";
+      }
+    };
+    input.addEventListener("input", update);
+    input.addEventListener("change", update);
+    update();
+  }
+
   // Opens the same photo editor used from the Media Library, pre-loaded
   // with whatever image the target field currently points to — the
   // in-place "Overwrite original" save there already handles cropping,
@@ -1823,7 +1854,7 @@
       const fieldId = `${idPrefix}-${f.key}`;
       return `<label>${f.label}<input id="${fieldId}" data-key="${f.key}" type="text" spellcheck="false" value="${escapeHtml(
         val ?? ""
-      )}"><button type="button" class="upload-trigger" data-target="#${fieldId}">Upload image</button> <button type="button" class="browse-trigger" data-target="#${fieldId}">Browse…</button></label>`;
+      )}"><button type="button" class="upload-trigger" data-target="#${fieldId}">Upload image</button> <button type="button" class="browse-trigger" data-target="#${fieldId}">Browse…</button> <span class="image-url-source-badge" data-target="#${fieldId}" title="Whether this URL points at a file uploaded to this site's media library, or is hotlinked from somewhere else -- an external image can disappear or change without warning if the other site removes or replaces it."></span></label>`;
     }
     if (f.type === "gallery-urls") {
       const fieldId = `${idPrefix}-${f.key}`;
@@ -2026,6 +2057,7 @@
 
     container.querySelectorAll(".upload-trigger").forEach(wireUploadButton);
     container.querySelectorAll(".browse-trigger").forEach(wireBrowseButton);
+    container.querySelectorAll(".image-url-source-badge").forEach(wireImageUrlSourceBadge);
     container.querySelectorAll(".manage-simulations-btn").forEach((btn) => {
       btn.addEventListener("click", () => el("simulations-btn").click());
     });
@@ -2178,6 +2210,7 @@
     container.innerHTML = STYLE_FIELDS.map((f) => fieldHtml(f, undefined, "bulk")).join("");
     container.querySelectorAll(".upload-trigger").forEach(wireUploadButton);
     container.querySelectorAll(".browse-trigger").forEach(wireBrowseButton);
+    container.querySelectorAll(".image-url-source-badge").forEach(wireImageUrlSourceBadge);
 
     async function applyStyleToAll(key, value) {
       const targets = selectedBlocksList();
@@ -7891,6 +7924,7 @@
 
   document.querySelectorAll(".upload-trigger").forEach(wireUploadButton);
   document.querySelectorAll(".browse-trigger").forEach(wireBrowseButton);
+  document.querySelectorAll(".image-url-source-badge").forEach(wireImageUrlSourceBadge);
   document.querySelectorAll(".edit-image-trigger").forEach(wireEditImageButton);
 
   // Shared with photo-editor.js and simulation-builder.js, which are loaded

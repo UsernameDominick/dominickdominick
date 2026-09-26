@@ -4762,7 +4762,7 @@ join, rather than building three separate systems.
 109. Missing-font warnings — font-load check + fallback message.
 112. Independent corner-radius — once basic rect shape object exists, simple param.
 129. Adjustable grain — random per-pixel noise injection.
-139. Local vs external-upload indicator — UI label only.
+139. ✅ Local vs external-upload indicator — the Photo Editor itself already covered this (pe-hint's "Editing a library image" vs "Editing an external image" text); extended the same idea to the page builder's own image-url fields (see the dated entry below this section).
 143. Searchable command palette — static command list + filter/keydown.
 146. ✅ Before/after compare — done (see the dated entry below this section).
 150. ✅ Status bar (dimensions/zoom) — done (see the dated entry below this section).
@@ -7231,3 +7231,46 @@ the several mutation call sites individually -- verified exhaustive, not
 just spot-checked -- plus a small accessibility addition (aria-live on
 the result span) folded in alongside it, with one minor aria-live
 re-announcement side effect logged as an accepted, non-blocking gap.
+
+### Twenty-second item: #139, local-vs-external image indicator for the page builder's image-url fields
+
+Investigated where this genuinely applied before implementing anything,
+since the Photo Editor itself already covers this exact idea: opening an
+image in the editor shows "Editing a library image" vs. "Editing an
+external image" in its hint text (`pe-hint`, pre-existing). The actual
+gap was elsewhere -- the page builder's generic "Image URL" field type
+(used by the plain image block, the before/after block's two image
+fields, and background-image style fields) is a plain text input that's
+always silently accepted either an uploaded file's `/media/...` URL or
+any arbitrary external URL typed/pasted in directly, with zero
+indication afterward of which kind a given field actually holds. An
+admin coming back to edit a page months later has no way to tell, at a
+glance, whether an image is durably hosted on this site or could vanish
+the moment some other site takes it down or reorganizes its own URLs.
+
+Added a small badge next to the field's existing Upload/Browse buttons:
+"Local upload" (teal) or "External URL" (amber), or nothing when the
+field is empty. Reuses the exact same detection rule `worker/db.js`
+already uses elsewhere for "is this a site-local media reference"
+(`url.startsWith("/media/")`) rather than inventing a new heuristic, so
+the definition of "local" stays consistent across the codebase. The
+badge updates live on every keystroke/paste and whenever Upload/Browse
+fill the field, not just once on initial render, via the same
+`input`/`change` event pattern the codebase already uses for other
+field-linked UI (`setFieldUrl`'s dispatched `change` event). Wired into
+all three places `.upload-trigger`/`.browse-trigger` buttons themselves
+get wired (the block inspector, the bulk style-edit panel, and the
+top-level document listener), so it covers every context this field type
+appears in without needing a separate registration per call site.
+
+Tested via Playwright: created a page, added an image block, opened its
+inspector -- the field starts empty with no badge text; typing a
+`/media/uploads/...` path shows "Local upload" with the teal `is-local`
+class; replacing it with an external `https://...` URL shows "External
+URL" with the amber `is-external` class; clearing the field back to
+empty removes the badge text again. Full regression suite green; the
+test page was deleted (both soft- and hard-delete) and confirmed gone
+from the pages list afterward.
+
+Item #139 is done: implemented and self-verified; sent to a critic pass
+next per the standing workflow before calling it fully closed.
