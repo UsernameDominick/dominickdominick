@@ -1655,7 +1655,7 @@ export async function upsertMediaMeta(env, key, { folder, tags, alt_text, captio
     await env.DB.prepare(`UPDATE media SET ${cols.join(", ")} WHERE key = ?`).bind(...vals).run();
   } else {
     await env.DB
-      .prepare("INSERT INTO media (key, folder, tags, alt_text, caption, credit, license, hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+      .prepare("INSERT INTO media (key, folder, tags, alt_text, caption, credit, license, hash, private) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
       .bind(
         key,
         folder || null,
@@ -1664,7 +1664,8 @@ export async function upsertMediaMeta(env, key, { folder, tags, alt_text, captio
         caption || null,
         credit || null,
         license || null,
-        hash || null
+        hash || null,
+        isPrivate ? 1 : 0
       )
       .run();
   }

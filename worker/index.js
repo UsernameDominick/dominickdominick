@@ -1238,9 +1238,11 @@ async function route(request, env, ctx) {
       // marked private-capable), so this lookup only ever gates that one
       // prefix -- a miss for any other prefix just means "not private,"
       // preserving today's always-public behavior for those file kinds.
+      let isPrivateFile = false;
       if (mediaMatch[1].startsWith("uploads/")) {
         const meta = await env.DB.prepare("SELECT private FROM media WHERE key = ?").bind(mediaMatch[1]).first();
-        if (meta && meta.private && !(await isAuthenticated(request, env))) {
+        isPrivateFile = !!(meta && meta.private);
+        if (isPrivateFile && !(await isAuthenticated(request, env))) {
           return new Response("Not found", { status: 404 });
         }
       }
@@ -1248,12 +1250,19 @@ async function route(request, env, ctx) {
       if (!obj) return new Response("Not found", { status: 404 });
       const headers = new Headers();
       obj.writeHttpMetadata(headers);
-      // Short + revalidate rather than immutable: the photo editor can
-      // overwrite a file in place at the same URL, and a year-long
-      // immutable cache would hide that change from readers.
-      headers.set("Cache-Control", "public, max-age=300, must-revalidate");
+      // A private file is never cached by any shared cache (a CDN/proxy
+      // in front of this worker, or a browser sharing a machine) and
+      // never persisted client-side either -- otherwise a copy fetched
+      // while the file was still public (or a copy fetched by the admin,
+      // who can always see it) could keep being served to a DIFFERENT,
+      // unauthenticated visitor for up to the cache lifetime after the
+      // file is marked private, defeating the point of the flag. Public
+      // files keep the existing short + revalidate behavior: the photo
+      // editor can overwrite a file in place at the same URL, and a
+      // year-long immutable cache would hide that change from readers.
+      headers.set("Cache-Control", isPrivateFile ? "private, no-store" : "public, max-age=300, must-revalidate");
       headers.set("ETag", obj.httpEtag);
-      if (request.headers.get("If-None-Match") === obj.httpEtag) {
+      if (!isPrivateFile && request.headers.get("If-None-Match") === obj.httpEtag) {
         return new Response(null, { status: 304, headers });
       }
       return new Response(obj.body, { headers });

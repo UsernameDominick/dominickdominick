@@ -6164,4 +6164,60 @@ beyond a documentation nit, addressed with a comment.
   the file becomes unreachable anonymously. Full regression suite green;
   all test pages/media deleted and confirmed gone.
 
-Handed to a critic agent for scoring.
+Handed to a critic agent for scoring — this being a genuine security
+feature, asked specifically for a hard bypass hunt: **8/10, no bypass
+found**. The critic tried case-uppercasing the whole path, a trailing
+slash, `/./` and `..` traversal, a double slash, a URL-encoded segment,
+and a query string against a marked-private file — all correctly 404'd,
+none reached the bytes. Confirmed `_versions/` (overwrite-history) keys
+can never match the public route's regex at all regardless of privacy
+status (pre-existing, not a regression), and the only route that DOES
+serve version bytes sits behind the blanket admin-API auth gate.
+Confirmed `isAuthenticated()` fails closed on every bad-input path
+(missing cookie, malformed token, bad HMAC, expired/non-numeric
+timestamp) with no throw path and nothing defaulting open. Confirmed the
+usage-warning's coverage (image/gallery/before-after/background blocks,
+every OG-image field, before-after body shortcodes, scan posters) has no
+silent gap, and un-marking a file private correctly restores public
+access. Two real, minor findings, both fixed:
+
+1. **(Fixed)** `upsertMediaMeta()`'s INSERT branch (used when a media row
+   doesn't already exist) never included the `private` column, so a
+   theoretical `upsertMediaMeta(env, key, { private: true })` call
+   against a key with no existing row would silently create it as public
+   instead. Not reachable through any real UI flow today (upload always
+   creates the row via a separate `{ hash }` call before the info modal's
+   PATCH could ever fire), but a real defense-in-depth gap in a security
+   feature's own write path — fixed by adding `private` to the INSERT
+   statement's column list. Verified by PATCHing a key that had never
+   been uploaded (forcing the INSERT branch) and confirming via a direct
+   D1 read that the row actually persisted `private = 1`, not silently 0.
+2. **(Fixed)** The route's pre-existing `Cache-Control: public,
+   max-age=300, must-revalidate` header now has real security relevance
+   it didn't before: a copy of a file cached by a shared cache (a CDN/
+   proxy in front of the worker, or any cache honoring "public") while
+   the file was still public could keep being served to a completely
+   different, unauthenticated visitor for up to 5 minutes after the file
+   is marked private, since `max-age=300` means no revalidation request
+   happens at all within that window — this doesn't retroactively purge
+   copies already cached from before the flip (no CDN purge-API
+   integration exists to do that, and adding one is real infrastructure
+   work disproportionate to a personal single-admin site), but it should
+   at minimum stop making the problem worse going forward. Fixed by
+   serving `Cache-Control: private, no-store` specifically for a private
+   file's response (and skipping the ETag/304 shortcut for it too, since
+   there's nothing left to revalidate against) — public files keep the
+   exact previous behavior unchanged.
+
+Re-verified via Playwright: a public file still returns
+`public, max-age=300, must-revalidate`; a private file, fetched
+authenticated (the only party who can reach it now), returns
+`private, no-store` with a 200; the INSERT-branch fix confirmed via a raw
+D1 read. Full regression suite green; all test data (including the
+fake, never-uploaded key used to force the INSERT branch) cleaned up —
+that one via a direct D1 delete, since a row with no real R2 object
+never appears in the media list a normal bulk-delete would operate on.
+
+Item #582 is done: 1 critic round, 8/10, both real findings fixed and
+verified; no bypass of the actual privacy gate was found in any tested
+path, including live encoding/traversal/case-tampering attempts.
