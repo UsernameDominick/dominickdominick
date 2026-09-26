@@ -35,6 +35,11 @@ force-push or rewrite history on `main`; a clean fast-forward only. If
 `production` and `main` have ever diverged (shouldn't happen under this
 workflow, but check), stop and ask rather than force anything.
 
+**No boilerplate content (Dominick, 2026-09-26):** the live site has no
+articles or projects yet, on purpose. Never add or suggest placeholder
+or filler copy for production (no intro text, sample posts, etc.). For
+testing, seed data into the LOCAL D1 only and clean it up afterward.
+
 **Backlog scope/pace — Dominick's explicit decisions, 2026-09-26:**
 1. Once the Easy-tier creative-suite items (section 13) run low, move
    into Medium-tier and Hard-tier items too, same one-at-a-time
