@@ -4873,7 +4873,7 @@ session's own EXIF-stripping feature for the upload-side equivalent).
 350. ✅ Reusable audio-player themes — done (see the dated entry below this section).
 351. ✅ Save mix snapshots — snapshot the existing JSON blob as a new row. (done — see the dated entry below)
 355. Reference track/production notes — plain metadata fields.
-356. Detect missing samples before export — reuse existing dangling-reference reconciliation in db.js.
+356. ☐ Detect missing samples before export — checked: doesn't map onto the current song engine, same root cause as #217/#220's earlier findings this session. `song-engine.js`'s own leading comment says it outright: "Drum synthesis (Web Audio, no samples — no licensing to worry about)" -- confirmed via grep, there is no uploaded/imported audio sample file anywhere in this engine, every drum and melody voice is a procedurally-synthesized oscillator/noise node. "Missing samples" needs an engine that actually references external sample files (an uploaded kick.wav, a media library key, etc.) to go missing in the first place -- this one has none. Left open; would make sense once a real sample-import feature exists, not as a standalone Easy pick today.
 
 ### DAW/Audio — Medium
 182, 183, 185, 186, 187, 188, 191, 192, 193, 194, 200, 201, 203, 204,
