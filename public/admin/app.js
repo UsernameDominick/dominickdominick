@@ -360,6 +360,18 @@
         badge.className = "image-url-source-badge is-external";
       }
     };
+    // Stashed on the input (rather than only closed over here) so a code
+    // path that sets `.value` directly without going through a real user
+    // interaction -- the media modal's image-block autofill branch below
+    // is exactly such a path -- can refresh the badge without dispatching
+    // a synthetic "change" event on a shared input. A critic pass found
+    // dispatching one there re-triggered this same input's OWN unrelated
+    // generic autosave-on-change listener (every [data-key] field gets
+    // one), firing an extra, incomplete PATCH mid-branch that raced the
+    // branch's own deliberate merged save -- reintroducing the exact
+    // "independent saves can race and silently drop a field" failure mode
+    // that merged save was written to avoid in the first place.
+    input._imageUrlBadgeUpdate = update;
     input.addEventListener("input", update);
     input.addEventListener("change", update);
     update();
@@ -5141,14 +5153,21 @@
             const block = item && input.id.endsWith("-url") ? blocks.find((b) => b.id === selectedBlockId) : null;
             if (block) {
               input.value = div.dataset.url;
-              // Unlike setFieldUrl() below, this branch never went through
-              // a dispatched "change" -- harmless before the image-url
-              // source badge existed (nothing else was listening), but a
-              // critic pass found it left that badge stale after Browse,
-              // since renderCanvas() below only rebuilds the block's
-              // on-canvas preview, never the inspector panel this input
-              // and its badge actually live in.
-              input.dispatchEvent(new Event("change", { bubbles: true }));
+              // A critic pass found this left the image-url source badge
+              // stale after Browse, since renderCanvas() below only
+              // rebuilds the block's on-canvas preview, never the
+              // inspector panel the badge lives in. Fixed by calling the
+              // badge's own update function directly rather than
+              // dispatching a synthetic "change" event on this input --
+              // a first attempt at that dispatched a real event, which a
+              // second critic pass caught also re-triggering this same
+              // input's own unrelated generic autosave-on-change listener
+              // (every [data-key] field gets one), firing an extra,
+              // incomplete PATCH mid-branch that raced the merged save
+              // two lines below -- reintroducing the exact
+              // "independent saves can race and drop a field" bug the
+              // comment above this block was written to avoid.
+              if (input._imageUrlBadgeUpdate) input._imageUrlBadgeUpdate();
               block.content.url = div.dataset.url;
               [
                 ["alt", "alt_text"],

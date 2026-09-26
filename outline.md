@@ -7317,8 +7317,57 @@ round-1 tests (empty/local/external/cleared states) were re-run unchanged
 and still pass. Full regression suite green; the test page was deleted
 and the test upload removed, both confirmed gone.
 
-Item #139 is done: 1 critic round, 4/10, the one real finding (badge
-going stale after Browse on the image block's main field, the most
-common path) fixed and verified live, with one detection-rule edge case
-(absolute URLs to this site's own domain) logged as an accepted,
-pre-existing, codebase-consistent limitation rather than fixed.
+Sent back for a round-2 critic pass on commit 279d26d. Scored 5/10 --
+the round-1 fix itself was confirmed genuinely correct (live-reproduced:
+the dispatched `change` does reach the badge's own listener, attached
+directly to the input, and bubbling is irrelevant since the listener is
+on the target element itself), but the FIX'S OWN MECHANISM reintroduced
+a real regression on the exact code path it touched. The image url
+field's `data-key="url"` attribute means it already has a generic,
+unrelated autosave-on-change listener wired by the inspector (every
+`[data-key]` field gets one, firing its own `PATCH /blocks/:id` on
+change). Dispatching a real `change` event to notify the badge also
+fired that pre-existing listener -- synchronously, mid-branch, BEFORE the
+alt/caption/credit autofill loop below it ran -- sending an incomplete
+PATCH with only the url, immediately followed by the branch's own
+deliberate merged-save PATCH with all four fields two lines later. The
+critic captured both PATCH bodies live, ~1ms apart, and confirmed this
+is exactly the "independent saves can race and silently drop a field"
+failure mode the surrounding code's own comment was originally written
+to guard against -- the round-1 fix broke that guarantee via a side
+channel (an unrelated listener on the same element) rather than a
+second deliberate save. Under adverse request-ordering, the incomplete
+PATCH could persist last, silently reverting the alt/caption/credit
+autofill while the in-memory state and on-screen inspector still showed
+the correct values -- invisible until a reload.
+
+Fixed by not dispatching a real event at all: `wireImageUrlSourceBadge()`
+now stashes its `update` closure directly on the input element
+(`input._imageUrlBadgeUpdate`), and the media-modal's block-autofill
+branch calls that function directly instead of `dispatchEvent(new
+Event("change"))`. This refreshes the badge with zero risk of also
+triggering any other listener attached to the same shared input, present
+or future -- a synthetic DOM event was never actually necessary here,
+since the badge only ever needed its own update logic to re-run, not a
+generic "something changed" signal broadcast to every listener on the
+element.
+
+Re-verified via Playwright with network-level PATCH capture: uploading a
+real image, setting alt/caption/credit on it, then Browse-picking it into
+a blank image block now fires exactly one `PATCH /blocks/:id`, containing
+all four autofilled fields together (url/alt/caption/credit), with zero
+incomplete intermediate request -- confirming the race is gone, not just
+less likely. The badge still correctly reads "Local upload" immediately
+afterward with no reselection needed, confirming the original round-1
+fix's actual goal survived the correction. The original round-1 badge
+tests (empty/local/external/cleared states) were re-run unchanged and
+still pass. Full regression suite green; test page and test upload both
+deleted and confirmed gone.
+
+Item #139 is done: 2 critic rounds (4/10, 5/10), two real findings across
+both rounds -- the original stale-badge bug, and the double-save race the
+first fix attempt introduced on the same path -- both fixed and verified
+live via network-level request capture, not just UI-state inspection,
+with one detection-rule edge case (absolute URLs to this site's own
+domain) logged as an accepted, pre-existing, codebase-consistent
+limitation rather than fixed.
