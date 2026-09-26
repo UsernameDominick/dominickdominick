@@ -3269,6 +3269,14 @@ kbd {
   font-size: 0.8rem;
 }
 
+.pe-limits-info {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  white-space: nowrap;
+  cursor: help;
+  flex-shrink: 0;
+}
+
 .pe-actions button {
   background: var(--accent);
   color: var(--on-accent);
