@@ -909,6 +909,35 @@ export function controlVars(theme) {
 // Near-black or white text for a given background hex, whichever has the
 // higher WCAG contrast -- so a custom accent that's dark (a deep blue)
 // doesn't end up with the default near-black label on it.
+// WCAG contrast between two #rrggbb colors.
+function contrastRatio(a, b) {
+  const lum = (hex) => {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+    const lin = (c) => {
+      const v = parseInt(c, 16) / 255;
+      return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    };
+    const [r, g, bl] = [m[1].slice(0, 2), m[1].slice(2, 4), m[1].slice(4, 6)].map(lin);
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  };
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+// The saved accent, darkened in small steps toward black until it reads
+// as text on the light theme's background (WCAG AA, 4.5:1) -- so light
+// mode keeps the site's own hue instead of switching to a fixed palette.
+export function accentForLightTheme(hex, bg = "#fffaf5") {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ""));
+  if (!m) return null;
+  const rgb = [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16));
+  for (let t = 0; t <= 1.0001; t += 0.04) {
+    const c = "#" + rgb.map((v) => Math.round(v * (1 - t)).toString(16).padStart(2, "0")).join("");
+    if (contrastRatio(c, bg) >= 4.5) return c;
+  }
+  return "#000000";
+}
+
 function readableOn(hex) {
   const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ""));
   if (!m) return "#0c0a16";
@@ -1753,7 +1782,26 @@ export function renderShell({
           theme.customFontName
         )}', sans-serif;}`
       : "";
-  const themeStyle = themeVars.length || customFontFace ? `<style>${customFontFace}:root{${themeVars.join(";")};}</style>` : "";
+  // Light theme: the same accent hue, darkened to stay readable, with the
+  // rest of the palette derived from it -- instead of the built-in
+  // coral/violet, which made the site change character between themes.
+  const lightAccent = theme.accent ? accentForLightTheme(theme.accent) : null;
+  const lightVars = lightAccent
+    ? [
+        `--accent:${lightAccent}`,
+        "--accent-secondary:color-mix(in oklch, var(--accent), black 22%)",
+        "--accent-dim:color-mix(in oklch, var(--accent) 75%, var(--text))",
+        `--on-accent:${readableOn(lightAccent)}`,
+        "--text:#1d1a17",
+        "--text-dim:color-mix(in oklch, var(--text) 72%, var(--bg))",
+        "--bg-elevated:color-mix(in oklch, var(--bg), var(--accent) 7%)",
+        "--border:color-mix(in oklch, var(--bg), var(--text) 14%)",
+      ]
+    : [];
+  const themeStyle =
+    themeVars.length || customFontFace
+      ? `<style>${customFontFace}:root{${themeVars.join(";")};}${lightVars.length ? `:root[data-theme="light"]{${lightVars.join(";")};}` : ""}</style>`
+      : "";
   // The mobile/desktop device-visibility breakpoint (.block-hide-mobile/
   // .block-hide-desktop in style.css) is fixed at 640px in that static
   // stylesheet. A custom value can't edit that file per-request, so this

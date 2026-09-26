@@ -6406,8 +6406,27 @@
     }
     // Colors only for the dark theme, same as the public site: the light
     // theme keeps its own fixed palette so it always stays readable.
+    // Light theme: same accent hue, darkened until it passes 4.5:1 as text
+    // on the light background -- mirrors accentForLightTheme() in
+    // worker/render.js so the admin and public light themes match.
+    let light = "";
+    if (accent) {
+      const rgb = [1, 3, 5].map((i) => parseInt(accent.slice(i, i + 2), 16));
+      let dark = "#000000";
+      for (let t = 0; t <= 1.0001; t += 0.04) {
+        const c = "#" + rgb.map((v) => Math.round(v * (1 - t)).toString(16).padStart(2, "0")).join("");
+        if (contrastRatio(c, "#fffaf5") >= 4.5) {
+          dark = c;
+          break;
+        }
+      }
+      light = `:root[data-theme="light"]{--accent:${dark};--accent-secondary:color-mix(in oklch, var(--accent), black 22%);--accent-dim:color-mix(in oklch, var(--accent) 75%, var(--text));--on-accent:${
+        relLuminance(dark) > 0.189 ? "#0c0a16" : "#ffffff"
+      };--text:#1d1a17;--text-dim:color-mix(in oklch, var(--text) 72%, var(--bg));--bg-elevated:color-mix(in oklch, var(--bg), var(--accent) 7%);--border:color-mix(in oklch, var(--bg), var(--text) 14%)}`;
+    }
     styleEl.textContent =
       (colors.length ? `:root:not([data-theme="light"]){${colors.join(";")}}` : "") +
+      light +
       (controls.length ? `:root{${controls.join(";")}}` : "");
   }
   window.applySiteThemeToAdmin = applySiteThemeToAdmin;
