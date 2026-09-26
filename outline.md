@@ -10100,3 +10100,33 @@ confirmed the button's label/disabled state correctly restore after the
 async save. Ran the full `test_security_seo.js` regression suite — all
 passed. Cleaned up both the original test song and the snapshot it
 created via the real DELETE endpoint.
+
+Handed to a critic agent for scoring: **9/10 — ships.** Confirmed the
+`JSON.parse(JSON.stringify(songData))` deep-clone runs synchronously
+before the `await`, so a later edit to `songData` (even one made while
+the POST is still in flight) can't corrupt an already-sent request
+body. Confirmed no race with the existing `autosaveSong()` mechanism —
+one PATCHes the existing row, the other POSTs a new one, and both
+capture their bodies synchronously before their own `await`, so there's
+no shared mutable state either could stomp. Most notably, confirmed
+this feature correctly does NOT need this file's own established
+`openGeneration`-counter pattern (used repeatedly elsewhere for exactly
+this class of race) — the button is a fixed DOM node independent of
+whatever song is open, and the success alert only ever displays a
+value captured synchronously at click-time, so switching to a different
+song mid-flight can't corrupt what gets shown or saved. This is
+notable as a case where the critic verified an *absence* of a familiar
+pattern was the correct call, not a gap. Confirmed no uniqueness
+constraint on song names makes duplicate-name snapshots a non-issue,
+confirmed error handling matches the established `catch { alert(err.
+message) }` convention used elsewhere in this file, and confirmed the
+handler's structure (disable/relabel/restore-in-`finally`,
+`window.adminApi` usage, `refreshSongOptions()` call after success)
+closely matches the very similar recently-added `song-export-report`
+and `save-song` handlers. One minor, explicitly non-blocking note: the
+timestamp has no date component, so two snapshots on different days at
+the same wall-clock second would display identically — consistent with
+song names never being a functional key in this codebase, not worth
+blocking on.
+
+Item #351 is done: 1 critic round, 9/10 on the first pass.
