@@ -1646,6 +1646,28 @@
       const btn = $("sim-delete-selected");
       if (btn) btn.click();
     }
+    // Keyboard placement: nudge every selected component by arrow key,
+    // same idea as a normal drag but without needing a mouse/touch --
+    // reuses the exact same gridSnapSize the drag-to-move handler already
+    // snaps to (1px plain, a full grid-snap step held with Shift, matching
+    // the common "fine vs. coarse" nudge convention most drag-and-drop
+    // editors already use). Wire endpoints need no separate update here --
+    // they're computed from the CURRENT comp.x/y at render time, the same
+    // reason a mouse-drag move never needs to touch wire data either.
+    const ARROW_DELTAS = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
+    if (ARROW_DELTAS[e.key] && selectedIds().length) {
+      e.preventDefault();
+      const step = e.shiftKey && gridSnapSize > 0 ? gridSnapSize : 1;
+      const [dx, dy] = ARROW_DELTAS[e.key];
+      pushHistory();
+      selectedIds().forEach((id) => {
+        const comp = simData.components.find((c) => c.id === id);
+        if (!comp) return;
+        comp.x += dx * step;
+        comp.y += dy * step;
+      });
+      renderBuilder();
+    }
   });
 
   // ---------- Thumbnail from current view ----------
