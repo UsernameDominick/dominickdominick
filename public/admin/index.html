@@ -993,6 +993,22 @@
             <label title="Keep width and height proportional as you change one of them">Lock ratio <input type="checkbox" id="pe-resize-lock" checked></label>
             <button type="button" id="pe-apply-resize" title="Scale the actual image pixels to the size above -- unlike Crop, this doesn't cut anything off, it stretches/shrinks the whole image">Resize image</button>
           </div>
+          <div class="pe-tool-group">
+            <label>Canvas W <input type="number" id="pe-canvas-width" min="1" max="2000" title="New canvas width in pixels -- doesn't scale the image content, just the canvas around it"></label>
+            <label>Canvas H <input type="number" id="pe-canvas-height" min="1" max="2000" title="New canvas height in pixels -- doesn't scale the image content, just the canvas around it"></label>
+            <select id="pe-canvas-anchor" title="Which side the existing image content stays anchored to as the canvas grows or shrinks">
+              <option value="top-left">↖ Top-left</option>
+              <option value="top-center">↑ Top-center</option>
+              <option value="top-right">↗ Top-right</option>
+              <option value="middle-left">← Middle-left</option>
+              <option value="center" selected>• Center</option>
+              <option value="middle-right">→ Middle-right</option>
+              <option value="bottom-left">↙ Bottom-left</option>
+              <option value="bottom-center">↓ Bottom-center</option>
+              <option value="bottom-right">↘ Bottom-right</option>
+            </select>
+            <button type="button" id="pe-apply-canvas-resize" title="Resize the canvas itself without scaling the image -- growing adds transparent space, shrinking crops away edges, both anchored to the side picked above">Resize canvas</button>
+          </div>
           <div class="pe-tool-group pe-adjust-group">
             <label>Brightness <input type="range" id="pe-brightness" min="-100" max="100" value="0"></label>
             <label>Contrast <input type="range" id="pe-contrast" min="-100" max="100" value="0"></label>

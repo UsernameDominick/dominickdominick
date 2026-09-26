@@ -174,6 +174,7 @@
     // silently misleading an admin about what "no change" (leaving the
     // fields alone) would actually do on their next Resize click.
     refreshResizeFields();
+    refreshCanvasResizeFields();
   }
 
   // Real pixel dimensions and the scale actually being displayed at right
@@ -727,6 +728,48 @@
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(snap, 0, 0, snap.width, snap.height, 0, 0, w, h);
+    syncOverlaySize();
+    cancelActiveDrag();
+    fitCanvasToViewport();
+  });
+
+  // ---------- Canvas resize (grows/shrinks the canvas itself around the
+  // existing image content, unlike Resize image above which scales the
+  // pixels -- same idea as Photoshop's Image > Canvas Size) ----------
+  function refreshCanvasResizeFields() {
+    $("pe-canvas-width").value = canvas.width;
+    $("pe-canvas-height").value = canvas.height;
+  }
+  $("pe-canvas-width").addEventListener("input", () => {
+    $("pe-canvas-width").value = clampResizeDimension(Number($("pe-canvas-width").value));
+  });
+  $("pe-canvas-height").addEventListener("input", () => {
+    $("pe-canvas-height").value = clampResizeDimension(Number($("pe-canvas-height").value));
+  });
+  // fx/fy are how much of the size DELTA gets applied before the existing
+  // content -- 0 keeps content flush against that edge (top/left), 1 keeps
+  // it flush against the opposite edge (bottom/right), 0.5 centers it. The
+  // same formula handles both growing (adds transparent padding on the
+  // side(s) away from the anchor) and shrinking (crops away the side(s)
+  // away from the anchor) with no special-casing between the two.
+  const CANVAS_ANCHOR_FRACTIONS = {
+    "top-left": [0, 0], "top-center": [0.5, 0], "top-right": [1, 0],
+    "middle-left": [0, 0.5], "center": [0.5, 0.5], "middle-right": [1, 0.5],
+    "bottom-left": [0, 1], "bottom-center": [0.5, 1], "bottom-right": [1, 1],
+  };
+  $("pe-apply-canvas-resize").addEventListener("click", () => {
+    if (isComparing()) return;
+    const w = clampResizeDimension(Number($("pe-canvas-width").value) || canvas.width);
+    const h = clampResizeDimension(Number($("pe-canvas-height").value) || canvas.height);
+    if (w === canvas.width && h === canvas.height) return;
+    pushUndo();
+    const snap = snapshotCanvas();
+    const [fx, fy] = CANVAS_ANCHOR_FRACTIONS[$("pe-canvas-anchor").value] || [0.5, 0.5];
+    const dx = Math.round(fx * (w - snap.width));
+    const dy = Math.round(fy * (h - snap.height));
+    canvas.width = w;
+    canvas.height = h;
+    ctx.drawImage(snap, dx, dy);
     syncOverlaySize();
     cancelActiveDrag();
     fitCanvasToViewport();

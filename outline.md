@@ -4735,7 +4735,7 @@ join, rather than building three separate systems.
 ### Photo Editor — Easy
 2. ✅ Blank document creation — new modal + canvas init, same pattern as open(). (done — see the dated entry below, shipped together with #3)
 3. ✅ Document presets — static size list feeding #2. (done — see the dated entry below, shipped together with #2)
-5. Canvas resizing independent of image — extend crop logic to allow canvas-only resize.
+5. ✅ Canvas resizing independent of image — extend crop logic to allow canvas-only resize. (done — see the dated entry below)
 6. ✅ Image resizing with aspect lock — ctx.drawImage scale + lock checkbox. (done — see the dated entry below)
 8. ✅ Canvas-view rotation — CSS transform on stack, no pixel change. (done — see the dated entry below)
 17. Layer colors/labels — metadata fields once layers exist.
@@ -11406,3 +11406,67 @@ Item #2/#3 is done: 2 critic rounds, 8/10 → 9/10. The two out-of-scope
 findings above (unsaved-changes guard, modal z-order stacking) remain
 logged here as open, tracked issues for a future item — not silently
 dropped.
+
+### Sixty-first item: #5, Photo Editor canvas resizing independent of image
+
+- ✅ **A "Resize canvas" control** (canvas width/height number inputs,
+  a 9-position anchor `<select>`, and a "Resize canvas" button) that
+  changes the canvas's bounds WITHOUT scaling any existing pixel
+  content — the Photoshop "Image > Canvas Size" idea, distinct from the
+  existing "Resize image" control which stretches/shrinks the actual
+  pixels, and distinct from Crop which only ever cuts down to a
+  rectangular sub-region the admin drags out by hand. Growing the canvas
+  adds transparent space around the existing content; shrinking it crops
+  away whatever falls outside the new bounds — both directions driven by
+  the same anchor point, with no special-casing between grow and shrink.
+
+The anchor math is one shared formula for both axes:
+`offset = anchorFraction * (newSize - oldSize)`, where `anchorFraction`
+is `0` for an edge that should stay flush against its old position
+(left/top), `1` for the opposite edge (right/bottom), and `0.5` to
+center. This single formula handles growing (a positive offset pushes
+the old content away from the near edge(s), leaving new transparent
+space there) and shrinking (a negative offset shifts old content so the
+cropped-away part is always on the side(s) away from the anchor) with
+identical code — there's no separate "if growing... else if
+shrinking..." branch anywhere in the implementation. Reused the
+existing `clampResizeDimension()` helper (already established by item
+#6's resize feature) for the same `MAX_DIMENSION` (2000) clamp-on-input
+behavior on the canvas-resize fields, and reused the exact same
+`pushUndo()` / `snapshotCanvas()` / `syncOverlaySize()` /
+`cancelActiveDrag()` / `fitCanvasToViewport()` sequence every other
+dimension-changing operation in this editor already follows — no new
+plumbing needed. Also hooked a new `refreshCanvasResizeFields()` into
+`fitCanvasToViewport()` alongside the pre-existing `refreshResizeFields()`
+call, the same "free ride on an already-universal hook" pattern used for
+the Resize image fields, so the canvas-resize width/height fields always
+reflect the genuine current size after any crop/rotate/undo/redo/load —
+not just after using this control itself.
+
+Verified via Playwright end-to-end on a real blank canvas created
+through the item #2/#3 flow: confirmed the canvas-resize fields are
+correctly pre-populated with the real starting size (400×300); confirmed
+growing the canvas with the top-left anchor keeps a marker drawn at the
+original (0,0) corner exactly in place while the newly added space is
+genuinely transparent (sampled pixel alpha 0, not just visually blank);
+confirmed growing again with the center anchor correctly shifts the
+existing content to stay centered in the larger canvas (marker moved
+from its old position to exactly the expected new offset, with the
+vacated old position now transparent padding); confirmed shrinking with
+the bottom-right anchor correctly crops away the top/left while
+preserving a marker drawn flush against the bottom-right corner;
+confirmed typing an oversized value (99999) into either field clamps
+immediately to `MAX_DIMENSION` (2000), matching the same input-time
+clamp convention item #6 established; and confirmed Undo correctly
+reverts a canvas-resize back to the exact prior dimensions. Re-ran the
+full `test_pe_resize.js` and `test_pe_resize_clamp_fix.js` suites (item
+#6) and `test_pe_new_blank.js` (items #2/#3) to confirm touching
+`photo-editor.js` again introduced no regression to either — all still
+pass, including a genuine real-upload/cleanup round-trip. Ran the full
+`test_security_seo.js` regression suite — all passed. No test data was
+left behind (the one real test upload from the `test_pe_new_blank.js`
+re-run was cleaned up by that script's own existing DELETE call,
+confirmed via a direct authenticated API check afterward showing no
+leftover file).
+
+Sent for a critic pass.
