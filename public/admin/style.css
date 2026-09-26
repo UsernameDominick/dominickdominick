@@ -3505,6 +3505,21 @@ kbd {
 .pe-canvas-wrap.pe-bg-gray {
   background: #808080;
 }
+/* The real site's own theme background colors (see public/style.css's
+   :root and :root[data-theme="light"] --bg values) -- generic
+   white/black/gray swatches don't tell you how an image will actually
+   look against this site's specific warm off-white / deep violet-black,
+   which are both a good deal off from pure white/black. Fixed hex values
+   rather than reading the live CSS variable, since a static admin page
+   can't show both themes' colors as separately selectable swatches from
+   one variable that only ever resolves to whichever theme is currently
+   active in THIS page. */
+.pe-canvas-wrap.pe-bg-site-light {
+  background: #fffaf5;
+}
+.pe-canvas-wrap.pe-bg-site-dark {
+  background: #0c0a16;
+}
 
 .pe-canvas-stack {
   position: relative;

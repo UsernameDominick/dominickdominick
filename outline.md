@@ -4781,7 +4781,7 @@ join, rather than building three separate systems.
 71. ✅ Brush opacity/flow (of size/hardness/opacity/flow) — done (see the dated entry below). Hardness scoped out: this editor's brushes have always been hard-edged, solid-stroke shapes with no feathering/soft-edge concept anywhere in the rendering pipeline, so a "hardness" control would need a genuinely new feathered-brush rendering path (a real gradient/soft-mask brush tip), not a parameter on the existing one — left open as future work rather than force-fit onto an architecture that doesn't have the underlying concept yet. Size already existed.
 72. ✅ Pen-pressure support — PointerEvent.pressure already available. (done — see the dated entry below)
 76. ✅ Saved brush presets — same pattern as photo-presets. (done — see the dated entry below)
-77. Hard-edged pencil — brush variant with no smoothing.
+77. ☐ Hard-edged pencil — checked: doesn't map as worded. This item presupposes an existing SMOOTH freehand paint-with-color brush tool to make a "hard-edged variant" OF — there isn't one. Every "brush" this editor actually has (Erase/Blur/Pixelate/Dodge/Burn) is a destructive filter effect over existing pixels, not a tool that paints a chosen color, and the shape tools (rect/circle/line/arrow) aren't freehand. Same root cause as #198/#220/#276/#277's earlier findings this session: the wishlist assumes a piece of infrastructure (here, a real freehand color-paint tool) that doesn't exist yet. Left open — would make sense as part of a future "add a real paintbrush tool" item, with hard-edged as one of its variants, not a standalone Easy pick on its own.
 78. ✅ Airbrush buildup — brush variant with cumulative alpha. (done — see the dated entry below)
 80. ✅ Accurate brush footprint preview — extend existing drawBrushCursor. (done — see the dated entry below)
 86. ✅ Dodge/burn brushes — brightness brush, same shape as existing blur brush. (done — see the dated entry below)
@@ -4800,7 +4800,7 @@ join, rather than building three separate systems.
 158. ✅ Explain resource limits — done (see the dated entry below this section).
 161. ✅ Export quality/size preview — done (see the dated entry below this section).
 169. ✅ Transparency preview vs backgrounds — done (see the dated entry below this section).
-174. Light/dark theme preview — wrap canvas container in themed class.
+174. ✅ Light/dark theme preview — wrap canvas container in themed class. (done — see the dated entry below)
 - ✅ (found by critic review of #92's crop-ratio feature) `rotate90()`/
   `flip()` leaving a stale crop selection after a transform -- fixed (see
   the dated entry below this section).
@@ -12740,3 +12740,52 @@ anyway made "close it properly" strictly better than "log and move on."
 
 Item #108 is done: 1 critic round, 8/10, with both findings fixed
 same-day (including the pre-existing sibling instance the fix uncovered).
+
+### Sixty-seventh item: #174, Photo Editor light/dark theme preview
+
+- ✅ **Two new "Preview against" options**, "Site (light theme)" and
+  "Site (dark theme)", added to the existing checkerboard/white/black/
+  gray transparency-preview dropdown (item #169, already done earlier
+  this session) — genuinely useful beyond the generic swatches already
+  there, since this site's real theme colors (a warm off-white `#fffaf5`
+  light background, a deep violet-black `#0c0a16` dark background, both
+  from the earlier "bold & vibrant" redesign) are noticeably off from
+  pure white/black/gray. A transparent logo or icon that reads fine
+  against pure white can look different against the site's actual warm
+  off-white, and this lets that be checked directly rather than
+  approximated.
+
+The entire implementation is 2 new `<option>`s plus 2 new CSS rules —
+`applyBgPreview()` already derives which `pe-bg-*` class to remove/add
+directly from the `<select>`'s own live option list (a critic pass
+earlier this session specifically hardened it against exactly this kind
+of future-option-drift), so adding two more options needed zero
+JavaScript changes at all. Used fixed hex values matching the real
+`--bg`/`:root[data-theme="light"] --bg` values from `public/style.css`,
+rather than reading the live CSS variable — a static admin page showing
+two SEPARATELY selectable swatches can't derive both from one variable
+that only ever resolves to whichever theme happens to be active on that
+one page at a time.
+
+While scoping this item, also checked and logged item #77 (hard-edged
+pencil) as not applicable: it presupposes an existing smooth freehand
+paint-with-color brush tool to build a hard-edged variant OF, and this
+editor doesn't have one (every "brush" here — erase/blur/pixelate/
+dodge/burn — is a destructive filter effect, not a paint-a-color tool).
+Same root cause as this session's other not-applicable findings.
+
+Verified via Playwright: confirmed selecting "Site (dark theme)" sets
+the canvas wrapper's real computed `background-color` to exactly
+`rgb(12, 10, 22)` (`#0c0a16`) and "Site (light theme)" to exactly
+`rgb(255, 250, 245)` (`#fffaf5`); confirmed switching between options
+twice leaves exactly one `pe-bg-*` class on the wrapper at any time (no
+leftover classes accumulating); confirmed the pre-existing "black" option
+still works correctly (no regression to the 4 original choices); and
+confirmed the preview correctly resets to "checkerboard" on a fresh
+editor session rather than persisting the last-picked option across
+sessions. Ran the full `test_security_seo.js` regression suite — all
+passed. No test data was created (only in-memory canvas state on a
+throwaway blank document, discarded when the browser closed — nothing
+was ever saved/uploaded).
+
+Sent for a critic pass.
