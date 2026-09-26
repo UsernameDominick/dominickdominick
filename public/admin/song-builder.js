@@ -549,8 +549,15 @@
         // up automatically instead of silently doing nothing until the page
         // is reloaded and "Connect MIDI" clicked again.
         function refreshMidiDevices() {
-          access.inputs.forEach((input) => (input.onmidimessage = handleMidiMessage));
-          const names = Array.from(access.inputs.values()).map((i) => i.name || "Unnamed device");
+          // Per the Web MIDI spec, unplugging a device does NOT remove its
+          // entry from `access.inputs` -- the port object is kept around
+          // (so replugging the same physical device can reuse it) and only
+          // its `.state` flips from "connected" to "disconnected". Wiring
+          // and counting every entry unconditionally would keep reporting
+          // an unplugged device as connected forever.
+          const connected = Array.from(access.inputs.values()).filter((i) => i.state !== "disconnected");
+          connected.forEach((input) => (input.onmidimessage = handleMidiMessage));
+          const names = connected.map((i) => i.name || "Unnamed device");
           if (names.length === 0) {
             $("song-midi-connect").textContent = "🎹 No MIDI devices found";
             $("song-midi-connect").title = "Plug in a MIDI keyboard/controller — it'll be picked up automatically, no need to click again.";

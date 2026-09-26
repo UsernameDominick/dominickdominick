@@ -13202,3 +13202,45 @@ created via the real admin API were deleted via their real DELETE
 endpoints afterward.
 
 Sent for a critic pass.
+
+Critic round 1 (score 6/10): confirmed `refreshMidiDevices()` is
+genuinely one reused function for both the initial call and
+`onstatechange` (non-issue); confirmed the add/hot-plug direction,
+zero-device case, and rapid repeated add/remove flapping are all
+correct, since the button is always recomputed fresh from
+`access.inputs`'s current contents with nothing cached between calls
+(non-issue); confirmed a newly hot-plugged device's `onmidimessage` is
+actually wired and functional, not just cosmetically listed (non-issue);
+confirmed the existing note-play/record path and the sibling
+computer-keyboard feature are unaffected, full regression suite passing
+(non-issue).
+
+One real, moderately severe bug: per the Web MIDI spec, unplugging a
+device does NOT remove its entry from `access.inputs` — the browser
+keeps the exact same port object in the map (so replugging the same
+physical device later can reuse it) and only flips that object's
+`.state` from `"connected"` to `"disconnected"`, while still correctly
+firing `onstatechange`. `refreshMidiDevices()` never checked `.state`
+at all — it iterated and counted the whole map unconditionally, so on
+real hardware, unplugging a MIDI keyboard would leave the button
+claiming it was still connected indefinitely, exactly contradicting the
+commit's own "hot-plugged devices work" claim for the removal direction
+specifically. Both of the original tests modeled "unplug" by literally
+deleting the Map entry, which isn't how real browsers behave and gave a
+false pass — this is exactly the gap the critic prompt asked to stress
+specifically because it wasn't covered.
+
+Fixed by filtering to `i.state !== "disconnected"` before both wiring
+`onmidimessage` and computing the displayed count/names, so a
+disconnected port is treated as absent even though it's still sitting in
+the map. Verified with a spec-accurate test (mocking the real behavior:
+same port object kept in the Map, only `.state` flipped) confirming the
+button correctly falls back to "No MIDI devices found" the instant a
+single connected device disconnects, and correctly reports it as
+connected again if the same physical device (same port object) is
+replugged. Re-ran the pre-existing discovery/zero-device tests and the
+full `test_security_seo.js` regression suite — all still passing, no
+regressions from the fix. Closing at this point without a mandatory
+round-2 dispatch: the fix is small, precisely targeted at the one real
+gap identified, and verified against the exact spec-accurate scenario
+the critic used to prove the bug.
