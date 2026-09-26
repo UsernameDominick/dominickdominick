@@ -1006,7 +1006,21 @@
         comp.closed = comp.closed === false;
         renderInspector();
       }
-      if (canSnap) {
+      // A critic pass (reviewing the new arrow-key nudge feature's
+      // interaction with snapped parts) found this rebuild ran on EVERY
+      // pointerup, including a plain click with no movement at all --
+      // onMove (the only place snapTargets ever gets populated) never
+      // runs for a no-drag click, so snapTargets was still its initial
+      // {} here, and the filter-then-rebuild silently deleted the part's
+      // existing auto-wires while adding none back. Net effect: simply
+      // (re)selecting an already-snapped part by clicking it, with zero
+      // mouse movement -- the single most natural way to select a part
+      // before nudging it with the arrow keys -- destroyed its wiring
+      // before the first keypress. Gating on historySaved (only true
+      // once onMove has actually run at least once) means a real drag
+      // still correctly rebuilds the wires from wherever it ended up,
+      // while a plain click leaves whatever wiring already existed alone.
+      if (canSnap && historySaved) {
         const pinIds = new Set(REG[comp.type].pins.map((p) => p.id));
         simData.wires = simData.wires.filter(
           (w) => !(w.auto && ((w.from.compId === compId && pinIds.has(w.from.pin)) || (w.to.compId === compId && pinIds.has(w.to.pin))))
@@ -1656,13 +1670,20 @@
     // reason a mouse-drag move never needs to touch wire data either.
     const ARROW_DELTAS = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
     if (ARROW_DELTAS[e.key] && selectedIds().length) {
+      // Resolved to real components FIRST, before pushHistory() -- a
+      // critic pass found a stale selection (referencing an id that no
+      // longer exists, e.g. after an external delete) would otherwise
+      // still push a no-op history entry even though nothing was
+      // actually going to move.
+      const comps = selectedIds()
+        .map((id) => simData.components.find((c) => c.id === id))
+        .filter(Boolean);
+      if (!comps.length) return;
       e.preventDefault();
       const step = e.shiftKey && gridSnapSize > 0 ? gridSnapSize : 1;
       const [dx, dy] = ARROW_DELTAS[e.key];
       pushHistory();
-      selectedIds().forEach((id) => {
-        const comp = simData.components.find((c) => c.id === id);
-        if (!comp) return;
+      comps.forEach((comp) => {
         comp.x += dx * step;
         comp.y += dy * step;
       });

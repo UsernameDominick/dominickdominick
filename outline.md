@@ -12847,4 +12847,59 @@ regression suite — all passed. No test data was created (the simulation
 was never saved — only in-memory canvas state, discarded when the
 browser closed).
 
-Sent for a critic pass.
+Sent for a critic pass, which found the nudge code itself correct across
+multi-selection, live grid-snap-value reading, boundary/rapid-press
+cases, and full undo/redo granularity — but found a real, BLOCKING
+pre-existing bug in code the nudge feature didn't touch, squarely in the
+exact interaction the review was asked to check: `onComponentPointerDown`'s
+`onUp()` unconditionally ran the auto-wire filter-then-rebuild whenever
+`canSnap` was true, using `snapTargets` — a variable ONLY EVER populated
+inside `onMove`, which never fires for a plain click with zero movement.
+Net effect: simply (re)selecting an already-snapped part by clicking it
+— the single most natural way to select a part before nudging it —
+silently deleted its auto-wires before the very first arrow-key press,
+with no visible feedback anything was lost. Not introduced by this diff,
+but it directly undermines the "select a snapped part, then nudge it"
+workflow the feature exists for. Final score: **6/10** — nudge code
+itself sound, but the combined feature not fully production-ready until
+this is fixed.
+
+Fixed by gating the wire filter/rebuild on `historySaved` (only true
+once `onMove` has actually run at least once during that pointer
+session) — a real drag still correctly rebuilds wires from wherever the
+part ended up; a plain click with no movement now leaves whatever wiring
+already existed untouched. Also fixed a smaller, related non-blocking
+finding from the same review: the nudge handler pushed a history entry
+unconditionally whenever `selectedIds().length` was truthy, even if
+none of those ids still resolved to a real component (e.g. a stale
+selection referencing an already-deleted part) — now resolves the
+actual component list FIRST and bails out with no history entry at all
+if nothing would move.
+
+Verifying the wire-deletion fix live took real effort to get right: an
+exact pixel-perfect drag-to-snap-a-part-onto-a-hole scripted through
+Playwright mouse events proved too fragile to reliably reproduce (the
+part DID genuinely snap — confirmed via an exact 0px-distance check
+against the target hole — but a part plugged directly into a hole with
+zero cable length is DELIBERATELY never rendered as a visible wire at
+all, an existing, correct, documented guard in `renderWireSvg` that has
+nothing to do with this bug but made the click-deletion invisible to
+check visually). Switched to seeding a simulation with a breadboard and
+an already-snapped, already-wired part directly via the real
+`/api/admin/simulations` endpoint (with the part offset a few pixels
+off-hole so the resulting wire has real, visible length) — loaded it in
+the real admin UI, and confirmed: the 2 pre-existing auto-wires survive
+a genuine plain click (zero mouse movement) on the now-selected part
+(previously they'd have been deleted); the same wires then correctly
+follow 3 arrow-key nudges (endpoint recomputed from live position, path
+changes as expected). Also confirmed the fix's own testing surfaced (and
+resolved) a false alarm from an EARLIER attempt at this same test:
+duplicate leftover simulations from this session's own iterative test
+debugging (not from any product bug) had briefly caused a stale, wrong
+row to be opened by a name-substring lookup — cleaned up, and the final
+test switched to selecting by the simulation's own unique id instead of
+a name substring, avoiding the same ambiguity permanently. Re-ran the
+original `test_sim_keyboard_nudge.js` suite (no regression) and the full
+`test_security_seo.js` regression suite — both pass. No test data left
+behind, confirmed via a direct authenticated simulations listing showing
+zero remaining.
