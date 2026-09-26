@@ -1054,7 +1054,7 @@
     container.innerHTML =
       `<h3>Recently used</h3>` +
       recent
-        .map((type) => `<button type="button" class="sim-palette-recent-btn" data-sim-type="${type}">${escapeXml(REG[type].label)}</button>`)
+        .map((type) => `<button type="button" class="sim-palette-recent-btn" data-sim-type="${escapeXml(type)}">${escapeXml(REG[type].label)}</button>`)
         .join("");
     container.querySelectorAll(".sim-palette-recent-btn").forEach((btn) => {
       btn.addEventListener("click", () => addComponentFromPalette(btn.dataset.simType));

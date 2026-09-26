@@ -8126,8 +8126,44 @@ heading renders, not zero or two. The original round-1 tests (hidden
 when empty, correct order, adds a component, persists across sessions)
 were re-run unchanged and still pass. Full regression suite green.
 
-Item #402 is done: 1 critic round, 6/10, the one real finding (a
+Sent back for a round-2 critic pass on commit 34edbb2. Scored 9/10 --
+ship. The `hasOwnProperty` fix was independently re-verified against a
+battery of adversarial payloads, including the one case most fixes of
+this shape actually miss: `"__proto__"` specifically (distinct from an
+ordinary inherited method name) -- confirmed via a live Node check that
+`hasOwnProperty.call(REG, "__proto__")` correctly returns `false`, since
+`REG` is a plain object literal where `__proto__` is only ever an
+accessor on `Object.prototype`, never an own property, and `JSON.parse`
+on an array containing that string creates a perfectly ordinary string
+element with no special prototype semantics. Also confirmed case
+sensitivity (`"Resistor"` vs. the real `"resistor"` key correctly
+rejected), empty/very-long/unicode strings, and traced `recordRecentType()`'s
+one write path back to its only two callers (trusted static HTML and the
+already-filtered recent list) to confirm there's no way to write a bad
+value in without the already-fixed read-path tampering. The `<h3>`
+removal was confirmed non-breaking against the CSS's plain descendant
+selector.
+
+One more minor, explicitly non-blocking hardening note: `data-sim-type="${type}"`
+in `renderRecentPalette()` was still interpolated unescaped, unlike the
+adjacent `escapeXml(REG[type].label)` on the same line -- not exploitable
+today, since `type` is guaranteed safe by the fixed own-property filter
+against a fully static, developer-authored registry with plain-identifier
+keys, but flagged as latent risk if component types ever became partly
+dynamic in the future. Applied the one-line `escapeXml(type)` fix anyway
+since it costs nothing and removes the risk before it could ever become
+real, rather than leaving it as a footnote for a future feature to
+rediscover the hard way.
+
+Re-verified via Playwright: re-ran both round-1 test suites (normal
+placement/order/persistence, and the poisoned-localStorage repro with
+prototype names/non-strings/null) unchanged, all still pass with zero
+page errors. Full regression suite green.
+
+Item #402 is done: 2 critic rounds (6/10, 9/10), the one real finding (a
 prototype-chain filter bypass that could permanently break the builder
-canvas from tampered localStorage) fixed and verified live via the
-critic's own exact repro, plus a minor markup-duplication cleanup folded
-in alongside it.
+canvas from tampered localStorage) fixed and independently re-verified
+against the classic `__proto__` edge case specifically, plus one
+proactive defense-in-depth hardening applied even though not required
+for today's exploitability, and a minor markup-duplication cleanup
+folded in alongside it.
