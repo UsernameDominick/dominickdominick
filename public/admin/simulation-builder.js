@@ -337,6 +337,7 @@
     placeY = 20;
     undoStack = [];
     redoStack = [];
+    renderRecentPalette();
     if (id) {
       const sim = await window.adminApi(`/simulations/${id}`);
       $("simulation-name").value = sim.name;
@@ -1005,22 +1006,69 @@
     switch: { closed: true },
   };
 
-  document.querySelectorAll(".sim-palette-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      pushHistory();
-      const type = btn.dataset.simType;
-      const def = REG[type];
-      const pos = nextPlacement(def);
-      simData.components.push({
-        id: newLocalId(type),
-        type,
-        x: pos.x,
-        y: pos.y,
-        label: def.label,
-        ...(DEFAULT_CONTENT_BY_TYPE[type] || {}),
-      });
-      renderBuilder();
+  // ---------- Recently-used parts ----------
+  // A localStorage list rather than per-simulation state -- "what did I
+  // just reach for" is a builder-wide habit, not something tied to one
+  // circuit, so it should carry over between simulations the same way a
+  // real toolbox's most-used bin would.
+  const RECENT_TYPES_KEY = "sim_recent_component_types";
+  const MAX_RECENT_TYPES = 6;
+  function getRecentTypes() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(RECENT_TYPES_KEY) || "[]");
+      // Filters out any type from an older session that no longer exists
+      // in the current component registry (e.g. after a component type is
+      // ever removed) -- a stale localStorage entry would otherwise
+      // silently show a recent-part button that does nothing when clicked.
+      return Array.isArray(raw) ? raw.filter((t) => REG[t]) : [];
+    } catch {
+      return [];
+    }
+  }
+  function recordRecentType(type) {
+    const list = getRecentTypes().filter((t) => t !== type);
+    list.unshift(type);
+    try {
+      localStorage.setItem(RECENT_TYPES_KEY, JSON.stringify(list.slice(0, MAX_RECENT_TYPES)));
+    } catch {
+      // localStorage can throw in a private-browsing/storage-blocked
+      // context -- recent-parts is a convenience, not a feature anything
+      // else depends on, so failing silently here is correct.
+    }
+  }
+  function renderRecentPalette() {
+    const container = $("sim-palette-recent");
+    const recent = getRecentTypes();
+    container.hidden = recent.length === 0;
+    container.innerHTML =
+      `<h3>Recently used</h3>` +
+      recent
+        .map((type) => `<button type="button" class="sim-palette-recent-btn" data-sim-type="${type}">${escapeXml(REG[type].label)}</button>`)
+        .join("");
+    container.querySelectorAll(".sim-palette-recent-btn").forEach((btn) => {
+      btn.addEventListener("click", () => addComponentFromPalette(btn.dataset.simType));
     });
+  }
+
+  function addComponentFromPalette(type) {
+    pushHistory();
+    const def = REG[type];
+    const pos = nextPlacement(def);
+    simData.components.push({
+      id: newLocalId(type),
+      type,
+      x: pos.x,
+      y: pos.y,
+      label: def.label,
+      ...(DEFAULT_CONTENT_BY_TYPE[type] || {}),
+    });
+    recordRecentType(type);
+    renderRecentPalette();
+    renderBuilder();
+  }
+
+  document.querySelectorAll(".sim-palette-btn").forEach((btn) => {
+    btn.addEventListener("click", () => addComponentFromPalette(btn.dataset.simType));
   });
 
   $("sim-palette-search").addEventListener("input", (e) => {

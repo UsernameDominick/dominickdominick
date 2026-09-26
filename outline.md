@@ -4917,7 +4917,7 @@ substantial new infra + security surface).
 397. ✅ Detect disconnected ends — done (see the dated entry below this section).
 398. ✅ Highlight net from point — done (see the dated entry below this section).
 401. Searchable specs — reuse palette search; add spec text field.
-402. Favorites/recent — localStorage list on top of existing palette.
+402. ✅ Favorites/recent — done, scoped to recent (see the dated entry below this section for why favorites wasn't also built).
 403-405. Resistor/capacitor/inductor basic params — extra content fields, same pattern as resistance.
 409. Relays/switches — variant of existing switch component.
 410. Datasheet links — a URL field on component content.
@@ -8024,3 +8024,54 @@ vulnerability's reachability vector" matters more for security findings
 than for ordinary bugs, where the blast radius of "this exact input path
 has zero validation" is worth mapping in full rather than patching one
 symptom at a time.
+
+### Twenty-fifth item: #402, recently-used parts in the simulation palette
+
+Scoped to "recent" only, not "favorites": a recent-use tracker (localStorage,
+capped at 6 distinct types, most-recent-first, deduped so re-placing an
+already-recent type just moves it to the front rather than listing it
+twice) requires zero new UI beyond a rendered list -- it's purely derived
+from what the admin already does. "Favorites" would need an explicit
+mark/unmark affordance on every palette button and its own persisted
+set, a genuinely separate feature rather than a one-line variant of this
+one, and the backlog item's own description ("localStorage list on top
+of existing palette") maps far more directly onto auto-tracked recency
+than onto a manually-curated favorites list. Left as a distinct future
+item rather than force-fit into this one's scope.
+
+Implementation: a new "Recently used" section at the top of the parts
+palette, hidden entirely when no history exists yet, shown as small
+pill-style buttons above the full static list once at least one part has
+been placed. Clicking a recent-part button adds that component exactly
+like its full-list counterpart -- both now route through one shared
+`addComponentFromPalette(type)` function (previously only the static
+buttons' own inline click handler), which also records the just-placed
+type into the recent list on every placement, static or recent-shortcut
+alike. Stored in localStorage (not per-simulation state), since "what did
+I just reach for" is a builder-wide habit that should carry over between
+different simulations, the same way a real toolbox's most-used bin
+would. Recent-list entries from an old session referencing a component
+type that no longer exists in the current registry are filtered out on
+read, so a future removed component type can't leave a dead, do-nothing
+button behind. Deliberately given its own CSS class
+(`sim-palette-recent-btn`) rather than reusing `.sim-palette-btn`, so the
+existing search-filter logic (which specifically targets `.sim-palette-btn`)
+doesn't apply to it -- the recent shortcuts are meant to stay visible
+as a fixed quick-access row regardless of what's typed into the parts
+search box, not be filtered the same way the full list is.
+
+Tested via Playwright: confirmed the recent section starts hidden with a
+freshly-cleared localStorage; placed a resistor then an LED and confirmed
+the section became visible with both listed most-recent-first ("LED",
+"Resistor"); clicked the recent LED shortcut and confirmed it actually
+added a new component (component count went from 2 to 3, not just a
+UI-only action); closed the builder and opened a fresh one (simulating a
+new session) and confirmed the recent list persisted via localStorage
+across that boundary. Cleaned up the test's own localStorage key
+afterward so it doesn't leave state for future test runs or the real
+admin's actual usage history. Full regression suite green; no
+simulations were saved during this test, so no server-side cleanup was
+needed.
+
+Sent to a critic pass next per the standing workflow before calling it
+done.

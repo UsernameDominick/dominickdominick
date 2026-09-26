@@ -2724,6 +2724,36 @@ kbd {
   font-size: 0.85rem;
 }
 
+.sim-palette-recent {
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sim-palette-recent h3 {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  margin: 0 0 8px;
+}
+
+.sim-palette-recent-btn {
+  display: inline-block;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 4px 10px;
+  margin: 0 6px 6px 0;
+  cursor: pointer;
+  font-size: 0.78rem;
+}
+
+.sim-palette-recent-btn:hover {
+  border-color: var(--accent);
+}
+
 .sim-palette-btn.is-hidden-by-search {
   display: none;
 }
