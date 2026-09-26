@@ -4830,7 +4830,7 @@ session's own EXIF-stripping feature for the upload-side equivalent).
 311. MIDI-device discovery — extend existing `requestMIDIAccess` call already present.
 314. On-screen keyboard — UI wired to existing `playMelodyNote`.
 315. Computer-keyboard note entry — keydown → existing note-play function.
-321. Background autosave — periodic PATCH to existing `/songs/:id` endpoint.
+321. ✅ Background autosave — done (see the dated entry below this section).
 328. Cache waveform previews — store existing `renderWaveformPeaks` output.
 329. Warn before heavy sample imports — file.size check pre-decode.
 339. Export session report — dump JSON session fields to text.
@@ -5923,3 +5923,62 @@ not a functional problem at this site's actual single-admin scale.
 
 Item #161 is fully closed: 2 critic rounds, 7/10 → 9/10, both real
 findings from round 1 fixed and verified; round 2 found nothing new.
+
+### Eleventh item: #321, Song builder background autosave
+
+- ✅ **Autosave on every edit path, matching the article/project
+  pattern** — the Song builder previously had zero autosave/crash-
+  recovery wiring at all (flagged twice earlier this session as an
+  out-of-scope finding while working on unrelated Song builder items),
+  unlike pages/articles/projects which all share the same debounced-
+  autosave pattern. Rather than piggyback on the existing
+  `refreshWaveformPreview()` function (called from nearly every edit
+  site, which would have made it a tempting single hook point like the
+  Photo Editor's `fitCanvasToViewport()` or the Simulation builder's
+  save handler), I checked its body first and found an early return —
+  `if (visualization !== "waveform") return;` — meaning it does nothing
+  at all for the two other visualization modes ("bars"/"pulse"). Hooking
+  autosave there would have meant autosave silently never firing for the
+  majority of songs (bars is the default). Wired `scheduleAutosave()`
+  explicitly into every real mutation site instead: step toggles (shared
+  by both the drum grid and piano roll), tempo/kit/waveform/visualization/
+  page-sync controls, the song name field, and `transposeMelody()`.
+  Only autosaves a song that's already been explicitly saved once (has an
+  id) — a brand-new song still needs a deliberate first Save, same
+  reasoning as the article/project autosave's own guard. No optimistic-
+  locking/conflict system exists for songs (no version column, unlike
+  articles/projects), so unlike those two this can't detect a concurrent
+  edit from another tab — an accepted gap on a single-admin site with no
+  realistic concurrent-editor scenario, and not a regression this feature
+  introduces (the existing manual Save button has no conflict check
+  either).
+  Found and fixed one real subtle bug before it could ever ship: because
+  `openBuilder()` is async and awaits a fetch before reassigning
+  `songData`, a pending autosave timer from song A could fire *during*
+  that await window — after `currentSongId` had already moved on to song
+  B but `songData` was still A's stale content — silently overwriting
+  B's row with A's data. Fixed by clearing the pending timer at the very
+  start of `openBuilder()`, before reassigning anything, mirroring the
+  article editor's own documented fix for the identical race. The
+  tradeoff this introduces (accepted, matching the article pattern
+  exactly): switching songs within the ~2-second debounce window of an
+  edit discards that specific edit rather than risking it landing on the
+  wrong song — silent data loss of a few seconds' work is the safer
+  failure mode than silent data corruption of a different song, and this
+  exact tradeoff already exists in the article/project autosave too.
+  Verified via Playwright: a step toggle on a never-saved song shows no
+  autosave status at all (no id yet); after an explicit first Save,
+  toggling another step shows "Unsaved changes…" then "Saved HH:MM:SS"
+  ~2s later, and the change is confirmed actually persisted server-side
+  via a fresh GET, not just cosmetic; a tempo change autosaves and
+  persists correctly too. Race-condition repro: created song B, made an
+  edit to song A (scheduling A's timer), immediately switched to B and
+  waited well past the debounce window — confirmed song B's tempo and
+  melody were completely untouched by A's data (the corruption case is
+  closed), and separately confirmed that giving an edit the full 2-second
+  window before switching away does correctly persist it (the accepted
+  discard-on-immediate-switch tradeoff only bites when switching faster
+  than a human realistically would after a single toggle). Full
+  regression suite green; test songs deleted and confirmed gone.
+
+Handed to a critic agent for scoring.

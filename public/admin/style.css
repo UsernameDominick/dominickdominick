@@ -2999,6 +2999,12 @@ kbd {
   white-space: nowrap;
 }
 
+.song-autosave-status {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
 .pe-export-size-estimate {
   color: var(--text-dim);
   font-size: 0.8rem;

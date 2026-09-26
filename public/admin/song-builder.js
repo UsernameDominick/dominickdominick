@@ -43,6 +43,45 @@
   let currentSongId = null;
   let songData = defaultSongData();
 
+  // ---------- Autosave ----------
+  // Songs previously had zero autosave/crash-recovery wiring at all,
+  // unlike pages/articles/projects (each of which shares scheduleAutosave/
+  // conflict-detection patterns) -- a crash or an accidental close mid-
+  // session lost every unsaved edit. No optimistic-locking/conflict
+  // system exists for songs (no version column), so unlike the article/
+  // project autosave this can't detect a concurrent edit from another tab
+  // -- an acceptable gap on a single-admin site with no realistic
+  // concurrent-editor scenario, matching how the manual Save button
+  // already has no conflict check either; this isn't a regression this
+  // feature introduces. Only autosaves a song that's already been
+  // explicitly saved once (has an id) -- a brand-new song still needs a
+  // deliberate first Save so its name is intentional, not whatever a few
+  // keystrokes happened to produce (same reasoning as the article/project
+  // autosave's own "only an existing draft" guard).
+  let autosaveTimer = null;
+  function setAutosaveStatus(text) {
+    const el2 = $("song-autosave-status");
+    if (el2) el2.textContent = text;
+  }
+  async function autosaveSong() {
+    if (!currentSongId) return;
+    const name = $("song-name").value.trim();
+    if (!name) return;
+    try {
+      await window.adminApi(`/songs/${currentSongId}`, { method: "PATCH", body: JSON.stringify({ name, data: songData }) });
+      setAutosaveStatus("Saved " + new Date().toLocaleTimeString());
+      if (window.refreshSongOptions) window.refreshSongOptions();
+    } catch (err) {
+      setAutosaveStatus("Autosave failed: " + err.message);
+    }
+  }
+  function scheduleAutosave() {
+    if (!currentSongId) return;
+    setAutosaveStatus("Unsaved changes…");
+    clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(autosaveSong, 2000);
+  }
+
   // Playback and drum/melody synthesis both live in the shared engine
   // (public/song-engine.js) — the exact same code the public Song block
   // uses to play a song on an article/project page. Only the admin-
@@ -99,8 +138,12 @@
     songData.visualization = $("song-visualization").value;
     updatePreviewVisibility();
     refreshWaveformPreview();
+    scheduleAutosave();
   });
-  $("song-page-sync").addEventListener("change", () => (songData.page_sync = $("song-page-sync").checked));
+  $("song-page-sync").addEventListener("change", () => {
+    songData.page_sync = $("song-page-sync").checked;
+    scheduleAutosave();
+  });
 
   // Same shared-overlay approach as the public embed (public/song-embed.js)
   // — one fixed layer, flashed on any beat, so trying "Sync page background"
@@ -154,16 +197,22 @@
   $("song-tempo").addEventListener("input", () => {
     songData.tempo = Number($("song-tempo").value) || 120;
     refreshWaveformPreview();
+    scheduleAutosave();
   });
   $("song-kit").addEventListener("change", () => {
     songData.kit = $("song-kit").value;
     refreshWaveformPreview();
+    scheduleAutosave();
   });
   $("song-waveform").addEventListener("change", () => {
     songData.melody.waveform = $("song-waveform").value;
     refreshWaveformPreview();
+    scheduleAutosave();
   });
-  $("song-name").addEventListener("input", () => ($("song-preview-name").textContent = $("song-name").value || "Song name"));
+  $("song-name").addEventListener("input", () => {
+    $("song-preview-name").textContent = $("song-name").value || "Song name";
+    scheduleAutosave();
+  });
 
   function startPlayback() {
     player.start();
@@ -260,6 +309,7 @@
           setOn(key, step, next);
           btn.classList.toggle("song-step-on", next);
           refreshWaveformPreview();
+          scheduleAutosave();
         });
       });
   }
@@ -326,6 +376,7 @@
     songData.melody.notes = newNotes;
     renderPianoRoll();
     refreshWaveformPreview();
+    scheduleAutosave();
   }
 
   // ---------- List modal ----------
@@ -389,6 +440,14 @@
   // ---------- Open / close builder ----------
   async function openBuilder(id) {
     stopPlayback();
+    // Switching songs must drop any pending autosave for the PREVIOUS one
+    // first — openBuilder awaits a fetch before songData is reassigned,
+    // so without this, a timer scheduled while editing song A could fire
+    // during that await window, after currentSongId has already moved on
+    // to song B but songData is still A's stale content, silently
+    // overwriting B's row with A's data.
+    clearTimeout(autosaveTimer);
+    setAutosaveStatus("");
     currentSongId = id;
     if (id) {
       const song = await window.adminApi(`/songs/${id}`);
