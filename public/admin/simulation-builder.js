@@ -1285,17 +1285,17 @@
       // characters, so this closes the injection and fixes the
       // semantically-wrong display (a stray string) in one step.
       if (comp.type === "resistor") {
-        extraFieldsHtml = `<label>Resistance (ohms)<input id="sim-comp-resistance" type="number" min="1" value="${Number(comp.resistance) || 220}"></label>`;
+        extraFieldsHtml = `<label title="How much the resistor limits current flow through it -- higher values let less current through. A common LED current-limiting resistor is 220-330 ohms.">Resistance (ohms)<input id="sim-comp-resistance" type="number" min="1" value="${Number(comp.resistance) || 220}"></label>`;
       } else if (comp.type === "potentiometer") {
         const maxR = Number(comp.maxResistance) || 10000;
         const wiperPct = Number.isFinite(Number(comp.wiper)) ? Math.max(0, Math.min(100, Number(comp.wiper))) : 50;
-        extraFieldsHtml = `<label>Max resistance (ohms)<input id="sim-comp-max-resistance" type="number" min="1" value="${maxR}"></label>
-        <label>Wiper position: <span id="sim-comp-wiper-value">${wiperPct}</span>%<input id="sim-comp-wiper" type="range" min="0" max="100" value="${wiperPct}"></label>`;
+        extraFieldsHtml = `<label title="The potentiometer's full end-to-end resistance -- the Wiper position below sets what fraction of that range is actually in the circuit right now, the same way turning a real knob does.">Max resistance (ohms)<input id="sim-comp-max-resistance" type="number" min="1" value="${maxR}"></label>
+        <label title="How far the sliding contact sits along the resistive track, from 0% (minimum resistance) to 100% (maximum) -- same idea as turning a real knob from one end to the other.">Wiper position: <span id="sim-comp-wiper-value">${wiperPct}</span>%<input id="sim-comp-wiper" type="range" min="0" max="100" value="${wiperPct}"></label>`;
       } else if (comp.type === "battery") {
-        extraFieldsHtml = `<label>Voltage (V)<input id="sim-comp-voltage" type="number" min="0.1" step="0.1" value="${Number(comp.voltage) || 9}"></label>
+        extraFieldsHtml = `<label title="The battery's nominal voltage -- how much electrical 'push' it supplies to the circuit, matching the voltage printed on a real battery (1.5V AA, 9V, etc.).">Voltage (V)<input id="sim-comp-voltage" type="number" min="0.1" step="0.1" value="${Number(comp.voltage) || 9}"></label>
         <label title="Real batteries aren't perfect voltage sources -- this models a non-ideal battery's own resistance, in series with the rest of the circuit. Leave at 0 for an ideal source (the default, matching every simulation saved before this field existed).">Internal resistance (ohms)<input id="sim-comp-internal-resistance" type="number" min="0" step="0.1" value="${Math.max(0, Number(comp.internalResistance) || 0)}"></label>`;
       } else if (comp.type === "power_supply") {
-        extraFieldsHtml = `<label>Output voltage<select id="sim-comp-output-voltage">${[3.3, 5, 9, 12]
+        extraFieldsHtml = `<label title="The fixed DC voltage this supply outputs, like the labeled output on a real bench or wall power adapter -- unlike a battery, it doesn't run down over time.">Output voltage<select id="sim-comp-output-voltage">${[3.3, 5, 9, 12]
           .map((v) => `<option value="${v}" ${Number(comp.outputVoltage) === v ? "selected" : ""}>${v}V DC</option>`)
           .join("")}</select></label>`;
       } else if (comp.type === "led") {

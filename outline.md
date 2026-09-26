@@ -5011,7 +5011,7 @@ live in env bindings, not content rows).
 582. ✅ Protect source files containing private/sensitive material — done (see the dated entry below this section).
 584. ✅ Require stronger confirmation for destructive bulk operations — done (see the dated entry below this section).
 595. ✅ Searchable settings with direct navigation — checked: already done earlier this session as the "Where is this setting?" search (see the dated entry above, section 12) — `SETTINGS_SEARCH_INDEX` covers all 7 Site Settings tabs with plain-language keyword matching and jumps straight to the right tab/field via the command palette.
-596. Contextual help explaining unfamiliar controls — static tooltip content, no infra.
+596. ✅ Contextual help explaining unfamiliar controls — static tooltip content, no infra. (done — see the dated entry below)
 
 ### Shared platform — Medium
 541-543, 545-548 (548's transcript search needs transcripts, which don't
@@ -12467,3 +12467,58 @@ point being the documentation-accuracy correction above, not a code
 defect). All test songs (including one crashed-test leftover, id 64)
 cleaned up via the real DELETE endpoint, confirmed via a follow-up GET
 showing zero songs remaining.
+
+### Sixty-fourth item: #596, Simulation builder contextual help tooltips
+
+- ✅ **`title` tooltips on every genuinely jargon-heavy component
+  parameter field** in the simulation builder's inspector panel:
+  Resistance (resistor), Max resistance + Wiper position (potentiometer),
+  Voltage (battery), and Output voltage (power supply). Each explains
+  what the value actually does in the circuit and, where it helps,
+  relates it to something a non-electronics-background admin would
+  recognize (a real battery's printed voltage, a real potentiometer
+  knob, a common LED resistor value). No new infrastructure needed —
+  this file already had exactly one field (battery's "Internal
+  resistance") with a good explanatory `title`, added in an earlier
+  session; this item is that same pattern applied consistently to the
+  fields that were missing it, closing a real inconsistency (one
+  field explained, its siblings not) rather than introducing a new
+  mechanism.
+
+Audited every `<label>` in the component inspector to find the actual
+gap before writing anything: `Color` (LED), `Closed (conducting)`
+(switch, already self-explanatory inline), `Label`, and `Datasheet link`
+all already read clearly on their own or already have inline
+parenthetical explanations — genuinely didn't need a tooltip added just
+to have one everywhere. Confirmed no `capacitor`/`inductor`/`transistor`
+component types exist yet (per this backlog's own #403-405/415 notes),
+so there was nothing else with unexplained electronics jargon to cover
+in this pass.
+
+Verified via Playwright: placed a real resistor, potentiometer, battery,
+and power supply component one at a time in a real simulation, selected
+each via a genuine pointer-event click (not a synthetic one — this
+builder's part selection is wired through `pointerdown`, confirmed by
+reading the code rather than assuming a plain click would work), and
+confirmed each field's `title` attribute is present with the exact
+expected explanatory text. Ran the full `test_security_seo.js`
+regression suite — all passed.
+
+While checking for leftover test data from this item's own testing (none
+was created — my test never saved the simulation, just read the
+in-memory inspector), found a large, unrelated pile of pre-existing
+leftover test data from PRIOR sessions that had never been cleaned up:
+28 simulations with unmistakably test-only names ("Batch9 Test …",
+"Big Feature Test", "mobile-drag-check", "__test_thumbnail_mobile_sim",
+"unique-realistic-bb-check", etc.), dated across this session's own
+history. Checked every one against the real `/content-usage?type=
+simulation&id=…` endpoint first (confirmed zero are referenced by any
+page/article/project) before deleting any of them, then deleted all 28
+via the real `DELETE /api/admin/simulations/:id` endpoint (a genuine
+hard delete for this content type — `deleteSimulation()` in `db.js` has
+no trash/soft-delete table, unlike pages/articles), confirmed via a
+follow-up authenticated list showing zero simulations remain. Not
+required by this item's own scope, but a real hygiene fix worth doing
+once found rather than leaving cluttering the live database, per
+Dominick's own standing "use your judgment, log and pursue" decision
+from earlier today.
