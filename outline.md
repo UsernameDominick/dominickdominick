@@ -6221,3 +6221,29 @@ never appears in the media list a normal bulk-delete would operate on.
 Item #582 is done: 1 critic round, 8/10, both real findings fixed and
 verified; no bypass of the actual privacy gate was found in any tested
 path, including live encoding/traversal/case-tampering attempts.
+
+Resubmitted for a fresh, independent bypass hunt (new code changed since
+the 8/10 round, and this is a real security feature). Round 2: **9/10,
+no bypass found**. Both fixes independently re-verified: the INSERT-
+branch fix confirmed via a direct D1 read after forcing that exact code
+path (PATCHing a never-uploaded key), with the `undefined` case (a plain
+`{hash}` upload/dedup call) confirmed to still default correctly to 0,
+matching the schema default and the UPDATE branch's own guard; the
+cache fix confirmed by capturing a real ETag while a file was still
+public, marking it private, then sending that same ETag back as
+`If-None-Match` while authenticated and confirming a full `200` with
+byte-identical content came back rather than a `304` — proving the
+ETag/304 shortcut is actually skipped for a private file, not just that
+the header text changed. A fresh, independent bypass attempt (not
+reusing round 1's list) tried Range requests, HEAD, a percent-encoded
+slash, double URL-encoding, an embedded null byte, overlong-UTF8
+encoding, and a case-varied path prefix against the same private file —
+all correctly 404/401'd, none reached the bytes. Un-marking the file
+private was confirmed to fully restore normal public GET/304/Range/HEAD
+behavior, ruling out any regression to the ordinary public path from
+either fix.
+
+Item #582 is fully closed: 1 critic round at 8/10 finding two real,
+fixable gaps (no security bypass, both defense-in-depth/exposure-window
+issues), fixed and verified; a second, independent round specifically
+hunting for a bypass of the core privacy gate found none.
