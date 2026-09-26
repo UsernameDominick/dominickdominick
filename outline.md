@@ -4924,7 +4924,8 @@ substantial new infra + security surface).
 411. Adjustable DC supply — variant of existing battery/power_supply with voltage field.
 415-416. Current source / battery internal resistance — extra numeric fields feeding existing Ohm's-law path.
 427. ✅ Power dissipation — done (see the dated entry below this section).
-431-432. Voltage/current meter — read existing `analysis` results into a display component.
+431. Voltage meter — checked: needs real per-node voltage computation this simulator's single-shortest-path model doesn't have (a true voltmeter is measured in parallel, at two arbitrary points, not something the existing single-series-path analysis can derive) — left open as genuine solver work for a future Medium-tier pass rather than force-fit. See #432's dated entry below for the reasoning and for the current-meter half of this pair, which does fit the existing analysis.
+432. ✅ Current meter (ammeter) — done (see the dated entry below this section).
 434. ✅ Continuity tester — done (see the dated entry below this section).
 441. Basic logic gates (static icons only, no dynamic sim) — new component type.
 445. Truth-table editor — simple UI table bound to a gate's static behavior.
@@ -9171,3 +9172,75 @@ and CSS specificity/compositing reasoning rather than re-reading the
 fix's own claims, plus one real cross-DOM-scoping limitation explicitly
 documented as an accepted design tradeoff rather than silently left
 unaddressed.
+
+### Thirty-seventh item: #432, ammeter (current meter) component for the simulation builder
+
+- ✅ **An idealized zero-resistance ammeter**, placed in series like the
+  existing switch component, mirrored identically in
+  `public/admin/sim-components.js` and `worker/simulation-render.js` as
+  a new `"ammeter"` analysis-edge kind (not reusing an existing kind the
+  way the potentiometer reused `"resistor"`, since a pure current
+  measurement has no wattage/status-gating logic to inherit). First
+  checked #431 (voltmeter) from the same backlog pairing and found it
+  genuinely doesn't fit: a real voltmeter measures in PARALLEL, at two
+  arbitrary points, and needs actual per-node voltage computation this
+  simulator's single-shortest-path model doesn't have — real solver
+  work belonging in a future Medium-tier pass, not force-fit here. The
+  ammeter, placed IN SERIES, fits the existing single-path current
+  analysis directly with zero new solver math, so it's the half of this
+  pair that's genuinely Easy.
+
+Handed to a critic agent for scoring: **8/10**. Findings:
+
+1. **(Fixed, cosmetic)** The SVG symbol had a visible 5px gap on each
+   side between where the lead lines ended (x=0→6, x=34→40) and where
+   the body circle began (radius 9 centered at x=20, spanning x=11→29)
+   — unlike every other bodied component in this registry (switch,
+   resistor), which draw the body overlapping the lead ends, this could
+   visually read as a broken/disconnected wire on a "did I wire this
+   right" teaching tool. Fixed by extending the leads to x=11/x=29,
+   exactly touching the circle's edges, in both mirrored files.
+2. **(Fixed, real product gap)** The public embed never rendered ANY
+   analysis-result number anywhere — server-side analysis was only ever
+   used to toggle a "damaged" CSS class, never to print a value. For an
+   ammeter specifically, this meant the component's entire reason for
+   existing (showing a current reading) never actually appeared to a
+   real site visitor, only in the admin's own separate inspector panel,
+   and only after selecting the part. Fixed by printing the live current
+   directly on the part itself — matching how the microcontroller
+   component already prints its own label visibly — in both the admin
+   canvas render and the public embed's server-side render, correctly
+   showing "∞mA" (not a crash or "NaN") for a dead-short reading. This
+   required bumping the component's declared height from 20 to 34 in
+   both files so the reading has room within its own bounding box
+   instead of rendering outside it; pins stayed at their original y:10
+   since only horizontal lead spacing matters for breadboard snapping.
+
+Sent for a round-2 critic pass specifically confirming both fixes are
+byte-identical across the two mirrored component-registry files (this
+codebase's single biggest recurring drift risk), that the live-reading
+guard (`comp.type === "ammeter" && info`) correctly renders nothing at
+all — not "undefinedmA" or a stray text node — for an ammeter that isn't
+on any analyzed path, and that the height bump introduces no new hit-
+testing or overlap regression. Confirmed both fixes genuinely identical
+in all the places they needed to be (the two component-registry files
+for the lead geometry, plus a third copy of the reading-render logic in
+the admin builder itself); confirmed the guard behaves correctly by
+reading the exact ternary rather than trusting the claim; grepped every
+use of the bumped height value and found only the rubber-band multi-
+select overlap check depends on it, with no placement/snap logic
+affected, making the taller hit area a cosmetically-correct side effect
+rather than a regression; confirmed the reading text's position fits
+within the new bounding box with a thin-but-real margin; confirmed a
+realistic reading string (including "∞mA") doesn't visually overflow the
+40px-wide component at the chosen font size; and independently traced
+the CSS styling chain end-to-end to confirm the public embed's reading
+text gets the same `--text-dim` styling as the admin canvas, not
+unstyled/invisible text. Final score: **9/10** — ships.
+
+Item #432 is done: 2 critic rounds, 8/10 → 9/10, one cosmetic SVG gap
+and one real product gap (a "current meter" whose reading never actually
+reached a real site visitor) fixed and independently re-verified across
+every mirrored copy of the affected logic, plus #431 (voltmeter)
+explicitly re-scoped as genuine future solver work rather than forced
+into this pass.
