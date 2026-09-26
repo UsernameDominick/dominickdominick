@@ -968,20 +968,41 @@
     songData.page_sync = $("song-page-sync").checked;
     songData.master_volume = Number($("song-master-volume").value) / 100;
     songData.humanize = Number($("song-humanize").value) || 0;
-    await refreshCachedWaveformPeaks(songData);
+    // Captured *before* the await below, exactly like autosaveSong() does
+    // -- a critic pass found that adding this feature's peaks-render
+    // await here (with nothing captured beforehand) opened a real race:
+    // clicking Save, then switching to a different song before the
+    // render resolved, would PATCH the NEW current song's id/data with
+    // the OLD song's name still sitting in the `name` local, silently
+    // renaming the wrong song while this song's own edits were never
+    // persisted at all. Re-checking `gen !== openGeneration` after the
+    // await (and again after the request) means a stale save is simply
+    // dropped instead of corrupting whatever song is now open -- the
+    // next autosave or an explicit re-Save on the original song (once
+    // it's reopened) picks it up correctly instead.
+    const gen = openGeneration;
+    const id = currentSongId;
+    const data = songData;
+    await refreshCachedWaveformPeaks(data);
+    if (gen !== openGeneration) {
+      alert("A different song was opened before this save finished -- nothing was saved. Please save again.");
+      return;
+    }
     try {
-      if (currentSongId) {
-        await window.adminApi(`/songs/${currentSongId}`, { method: "PATCH", body: JSON.stringify({ name, data: songData }) });
+      if (id) {
+        await window.adminApi(`/songs/${id}`, { method: "PATCH", body: JSON.stringify({ name, data }) });
       } else {
-        const res = await window.adminApi("/songs", { method: "POST", body: JSON.stringify({ name, data: songData }) });
-        currentSongId = res.id;
+        const res = await window.adminApi("/songs", { method: "POST", body: JSON.stringify({ name, data }) });
+        if (gen === openGeneration) currentSongId = res.id;
       }
+      if (gen !== openGeneration) return; // saved successfully, but a different song is open now -- don't touch its autosave-status/timer or claim success for the wrong song
       clearTimeout(autosaveTimer);
       songHasUnsavedChanges = false;
       setAutosaveStatus("Saved " + new Date().toLocaleTimeString());
       alert("Saved.");
       if (window.refreshSongOptions) window.refreshSongOptions();
     } catch (err) {
+      if (gen !== openGeneration) return;
       alert(err.message);
     }
   });

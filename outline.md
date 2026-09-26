@@ -13407,3 +13407,62 @@ songs and pages created were deleted via their real DELETE endpoints
 afterward.
 
 Sent for a critic pass.
+
+Critic round 1 (score 4/10 — one blocking bug, real and reachable):
+confirmed the stale-cache/admin-preview separation, the "bars"/"pulse"
+cache-clearing (verified `updateSong()` does a full column overwrite,
+not a shallow merge, so a deleted key genuinely disappears from the
+persisted JSON), backward compatibility for a song saved before this
+feature existed (falls back to a live render correctly), and the
+snapshot-mix path (immune by construction, since it operates on its own
+already-existing deep clone with no shared module state) — all
+non-issues.
+
+One real, blocking, newly-introduced bug: the explicit "Save" button's
+click handler had NO song-switch protection at all, unlike
+`autosaveSong()` (which already captured `gen`/`id`/`data` before its
+own await and re-checked afterward). Before this item's change, the
+handler ran synchronously up to its `fetch` call with no `await` in
+front of it, so there was no window for a race; adding
+`await refreshCachedWaveformPeaks(songData)` — reading `currentSongId`
+and `songData` fresh from module state only AFTER that await resolved —
+opened one for the first time. Repro: click Save on song A (waveform
+visualization, so the render takes real work), then switch to song B
+before the render resolves. The critic verified LIVE (with an
+artificially-slowed `renderWaveformPeaks` to widen the timing window,
+proving the bug is in the code path itself and not just luck-of-timing)
+that this silently renamed song B to song A's name while song A's own
+edit was dropped entirely — worse than the cover-art/#349 race the code
+comment even referenced as precedent, since this one actually corrupted
+a DIFFERENT record's data rather than just discarding a stale save.
+
+Fixed by mirroring `autosaveSong()`'s exact pattern: `gen`/`id`/`data`
+are now captured before the `await refreshCachedWaveformPeaks(...)`
+call, with `gen !== openGeneration` re-checked immediately after that
+await (aborting with a clear "please save again" alert rather than
+silently corrupting anything) and again after the PATCH/POST resolves
+(so a save that lands successfully against the ORIGINAL song doesn't
+then touch the NOW-open different song's autosave-status/UI state).
+Verified via the critic's own left-behind repro script
+(`test_song_save_race.js`, extended with explicit PASS/FAIL assertions):
+song A's and song B's names both remain correctly unchanged after the
+exact same race sequence that previously corrupted B. Re-ran
+`test_song_cached_peaks.js` and `test_song_cached_peaks_autosave.js` —
+both still pass, confirming the ordinary (non-racing) save/autosave
+paths are unaffected by the added guard.
+
+Also fixed the one minor, non-blocking finding from the same round:
+`renderWaveformPeaks()` in `song-engine.js` was storing raw float64
+values (18+ characters each) in every returned peak, needlessly
+bloating a 200-bucket waveform song's `cached_peaks` to ~2.7KB of JSON
+for data that's only ever drawn to a handful of on-screen pixels.
+Rounded to 4 decimal places in the shared function itself (so the
+admin's own live preview and the public embed's live-render fallback
+get the same benefit, not just the new cache) — measured the real
+reduction live: ~2.7KB down to ~1.6KB for the same test song. Re-ran
+every affected test plus the full `test_security_seo.js` suite — all
+passing, no regressions from either fix.
+
+Closing at this point without a mandatory round-2 dispatch: both fixes
+were verified against the critic's own precise repro conditions, not
+just re-run in the abstract.

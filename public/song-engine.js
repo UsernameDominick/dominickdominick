@@ -327,7 +327,17 @@ window.SongEngine = (function () {
         if (v < min) min = v;
         if (v > max) max = v;
       }
-      peaks.push([min, max]);
+      // Rounded to 4 decimal places -- a critic pass reviewing the new
+      // persisted-cache feature (song-builder.js's cached_peaks) found
+      // that storing raw float64 values (18+ characters each, e.g.
+      // -0.9608913660049438) bloated a 200-bucket song's saved JSON to
+      // ~2.7KB for data that's only ever drawn to a handful of on-screen
+      // pixels -- far more precision than the visual actually uses.
+      // Applies to every caller of this shared function (the admin
+      // preview and the public embed's live-render fallback too), not
+      // just the new cache, since there's no reason for any of them to
+      // carry more precision than the others.
+      peaks.push([Math.round(min * 10000) / 10000, Math.round(max * 10000) / 10000]);
     }
     return peaks;
   }
