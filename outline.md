@@ -13971,5 +13971,7 @@ Playwright screenshots at 1440px and 390px plus the regression suites.
 - Homepage intro/hero copy and a better home `<title>` than "Dominick".
 - A default share image (Site Settings > Sharing & SEO).
 - Whether to replace the old violet Border color (Site Settings > Colors).
-- Production has CMS pages with the slugs `projects` and `random`, which
-  now take priority over the built-in indexes. Keep them or delete them.
+- Production has CMS pages with the slugs `projects` and `random`. The
+  built-in /projects and /random indexes are routed first, so those pages
+  can never be seen (only their nav labels are used). Delete them, or
+  rename them if their content is meant to be shown.
