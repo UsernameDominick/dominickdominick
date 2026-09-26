@@ -296,6 +296,7 @@
     wireStart = null;
     previewOn = false;
     showDisconnected = false;
+    showGhostWires = false;
     zoomLevel = defaultZoomLevel();
     placeX = 20;
     placeY = 20;
@@ -369,16 +370,24 @@
     })">${titleSvg}${def.render(comp)}${sel ? `<rect class="sim-select-box" x="-4" y="-4" width="${def.w + 8}" height="${def.h + 8}" />` : ""}</g>`;
   }
 
-  function renderWireSvg(wire, poweredWires, netNodeIds) {
+  function renderWireSvg(wire, poweredWires, netNodeIds, ghost) {
     const fromComp = simData.components.find((c) => c.id === wire.from.compId);
     const toComp = simData.components.find((c) => c.id === wire.to.compId);
     if (!fromComp || !toComp) return "";
     const p1 = pinPosition(fromComp, wire.from.pin);
     const p2 = pinPosition(toComp, wire.to.pin);
     if (!p1 || !p2) return "";
+    const d = `M${p1.x},${p1.y} L${p2.x},${p2.y}`;
+    // The ghost pass is a purely visual second copy drawn on top of
+    // components -- deliberately NOT given the .sim-wire class (so
+    // attachBuilderEvents()'s click-to-select wiring never binds to it,
+    // avoiding a confusing "clicking near a component actually selected
+    // a wire" surprise) and explicitly non-interactive either way.
+    if (ghost) {
+      return `<path class="sim-wire-ghost" d="${d}"/>`;
+    }
     const sel = selected && selected.kind === "wire" && selected.id === wire.id;
     const inNet = netNodeIds && netNodeIds.has(window.simNodeId(fromComp, wire.from.pin));
-    const d = `M${p1.x},${p1.y} L${p2.x},${p2.y}`;
     return `<path class="sim-wire sim-wire-${wire.kind || "wire"}${sel ? " sim-selected" : ""}${
       inNet ? " sim-net-highlight" : ""
     }" data-id="${wire.id}" data-animated="${
@@ -431,6 +440,10 @@
   // build, so this is an on-demand toggle rather than an always-on
   // overlay that would just be noisy for any circuit still in progress.
   let showDisconnected = false;
+  // Same reasoning for keeping this a toggle rather than always-on: most
+  // wires are never actually hidden under anything, so a permanent
+  // dashed duplicate over every single wire would just be visual clutter.
+  let showGhostWires = false;
   function isPinConnected(compId, pinId) {
     return simData.wires.some(
       (w) => (w.from.compId === compId && w.from.pin === pinId) || (w.to.compId === compId && w.to.pin === pinId)
@@ -480,9 +493,22 @@
     const wiresSvg = simData.wires.map((w) => renderWireSvg(w, poweredWires, netNodeIds)).join("");
     const compsSvg = simData.components.map((c) => renderComponentSvg(c, poweredComps, analysis)).join("");
     const pinsSvg = simData.components.map((c) => renderPinDots(c, netNodeIds)).join("");
+    // Wires render BEFORE components in normal SVG paint order, so a wire
+    // routed underneath an opaque part (most commonly a breadboard, the
+    // widest/tallest body on the canvas) is genuinely invisible with
+    // nothing else on screen hinting it's there. Rather than computing
+    // which specific wires are actually occluded (a bounding-box
+    // intersection test against every component, for a purely cosmetic
+    // debug aid), this just redraws every wire a second time on TOP of
+    // components as a dashed "ghost" outline when toggled on -- the data
+    // needed is exactly the same `simData.wires` already rendered once,
+    // no new tracking required.
+    const ghostWiresSvg = showGhostWires
+      ? simData.wires.map((w) => renderWireSvg(w, poweredWires, netNodeIds, true)).join("")
+      : "";
     $("sim-builder-canvas").innerHTML = `<svg id="sim-builder-svg" viewBox="0 0 1500 700" xmlns="http://www.w3.org/2000/svg" class="sim-svg${
       previewOn ? " is-on" : ""
-    }">${window.SIM_DEFS_SVG}${wiresSvg}${compsSvg}${pinsSvg}</svg>`;
+    }">${window.SIM_DEFS_SVG}${wiresSvg}${compsSvg}${ghostWiresSvg}${pinsSvg}</svg>`;
     attachBuilderEvents();
     applyZoom();
     if (showDisconnected) {
@@ -492,10 +518,20 @@
       $("sim-show-disconnected").textContent = "Show disconnected pins";
     }
     $("sim-show-disconnected").classList.toggle("is-active", showDisconnected);
+    // Synced here (not just in the click handler) so opening a different
+    // simulation -- which resets showGhostWires but never touches this
+    // button's DOM class on its own -- can't leave a stale "active" look
+    // on a toggle that's actually back off.
+    $("sim-show-ghost-wires").classList.toggle("is-active", showGhostWires);
   }
 
   $("sim-show-disconnected").addEventListener("click", () => {
     showDisconnected = !showDisconnected;
+    renderBuilder();
+  });
+
+  $("sim-show-ghost-wires").addEventListener("click", () => {
+    showGhostWires = !showGhostWires;
     renderBuilder();
   });
 

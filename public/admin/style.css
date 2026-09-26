@@ -2796,6 +2796,25 @@ kbd {
   stroke: #2dd4bf;
 }
 
+/* Drawn a second time on top of components (see renderBuilder()'s
+   ghost pass) -- deliberately not the wire's normal solid stroke, so a
+   revealed wire reads as "here for reference" rather than looking like
+   a real, currently-visible connection sitting on top of the part. */
+.sim-wire-ghost {
+  fill: none;
+  stroke: #2dd4bf;
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+  stroke-linecap: round;
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+#sim-show-ghost-wires.is-active {
+  background: #2dd4bf;
+  color: #fff;
+}
+
 .sim-pin.sim-net-highlight {
   fill: #2dd4bf;
 }

@@ -4903,7 +4903,7 @@ substantial new infra + security surface).
 375. Configurable snapping — GRID_SNAP is already a constant; expose as UI control.
 378. Search component on canvas — reuse palette search pattern, filter+highlight.
 380. Keyboard placement/connection — extend existing keydown handler.
-385. Show hidden connections — toggle a "ghost wires" overlay, data already there.
+385. ✅ Show hidden connections — done (see the dated entry below this section).
 387. Selectable breadboard sizes — new `cols` param variant of existing breadboard def.
 388. Warn same-hole leads — check during snap-drop, data already tracks hole ids.
 389. Mechanical vs electrical distinction — already implicit; just surface it in UI.
@@ -6447,3 +6447,47 @@ suite green.
 Item #524 is done: 1 critic round, 9/10 (explicitly including a real XSS
 injection attempt in both render paths, with none found), the one real
 finding (redundant Teensy tooltip) fixed and verified.
+
+### Sixteenth item: #385, show wires hidden underneath components
+
+- ✅ **"Show hidden wires" toggle in the Simulation builder** — wires
+  render before components in normal SVG paint order, so a wire routed
+  underneath an opaque part (most commonly a breadboard, the widest/
+  tallest body on the canvas) is genuinely invisible with nothing on
+  screen hinting it's there. Rather than computing which specific wires
+  are actually occluded (a bounding-box intersection test against every
+  component, for what's purely a cosmetic debug aid), the toggle just
+  redraws every wire a second time on top of every component as a
+  dashed, semi-transparent "ghost" outline — the data needed is exactly
+  the same `simData.wires` already rendered once, no new occlusion-
+  tracking required, matching the backlog's own "data already there"
+  framing. The ghost pass deliberately does NOT reuse the `.sim-wire`
+  class (so `attachBuilderEvents()`'s click-to-select wiring never binds
+  to it) and is explicitly `pointer-events: none`, so it can't intercept
+  a click meant for whatever's underneath or create a confusing
+  "clicking near a component actually selected a wire" surprise. Same
+  on-demand-toggle reasoning as #397/#398's own toggles: most wires are
+  never actually hidden under anything, so an always-on dashed duplicate
+  over every wire would just be clutter.
+  Caught one real bug before it could ship: the button's own `.is-active`
+  visual state was originally only ever set inside its click handler —
+  `openBuilder()` correctly resets the underlying `showGhostWires`
+  boolean to `false` on every open (matching #397's toggle), but nothing
+  synced the button's DOM class to match, so opening a different
+  simulation right after leaving the toggle on could leave the button
+  looking active while the boolean underneath was actually off. Fixed by
+  moving the active-class sync into `renderBuilder()` itself (which
+  already runs on every simulation open), matching exactly how the
+  disconnected-pins toggle already keeps its own button state
+  synchronized on every render rather than only in its click handler.
+  Verified via Playwright: toggling on with one real wire correctly shows
+  exactly one ghost wire, non-interactive (`pointer-events: none`
+  confirmed via computed style); adding a second wire while the toggle
+  stays on correctly grows the ghost count to 2 live, without needing to
+  re-toggle; toggling off correctly clears all ghosts; toggling on then
+  opening a brand-new simulation correctly reset both the boolean AND the
+  button's visual active state to off (the exact bug just found and
+  fixed, re-verified live). Full regression suite green; this test never
+  saved the simulation, so no test data needed cleanup.
+
+Handed to a critic agent for scoring.
