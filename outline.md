@@ -10816,3 +10816,28 @@ this shared hot-path function — both still pass identically. Ran the
 full `test_security_seo.js` regression suite — all passed. No test data
 was created (only in-memory canvas/overlay pixels of an existing
 library image).
+
+Handed to a critic agent for scoring: **9/10 — ships.** Confirmed
+`globalAlpha` changes are fully contained within `save()`/`restore()`
+with no early-return path that could skip the restore, and confirmed
+the other overlay-drawing branches (crop/shape preview) are mutually
+exclusive with the brush branch and each clear the overlay themselves
+first, so there's no leak risk even hypothetically. Confirmed the
+fill-then-stroke sequence correctly reuses the SAME `beginPath()`/
+`arc()` path for both operations (`fill()`/`stroke()` are both
+non-destructive reads of the current path, valid Canvas2D usage), so
+the layering is genuinely "outline on top of fill" as intended, not a
+silent no-op or wrong-shape risk. Independently re-derived
+`brushOpacity()`'s exact clamp expression from source and confirmed
+both new alpha expressions land in their intended ranges with no
+double-clamp or percentage/fraction unit mismatch. Confirmed the
+preview applies uniformly across all five brush tools via the single
+shared `BRUSH_TOOLS`-gated `pointermove` handler, not just the Dodge
+tool this session's own test happened to cover. One informational,
+non-blocking note: the new translucent fill IS a visible cosmetic
+addition even at the default 100% opacity setting (the outline itself
+renders identically unchanged, but the fill is new) — assessed as a
+reasonable, intentional enhancement consistent with the feature's own
+stated purpose, not an unwanted regression.
+
+Item #80 is done: 1 critic round, 9/10 on the first pass.
