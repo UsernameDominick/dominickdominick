@@ -244,6 +244,67 @@
     restoreSnapshot(originalSnapshot);
   }
 
+  // ---------- Named snapshots ----------
+  // A separate, unbounded-within-reason list an admin explicitly names
+  // and jumps directly back to, unlike the plain 15-deep linear undo
+  // stack (which is capped, unnamed, and only ever steps one edit at a
+  // time). Reuses the exact same restoreSnapshot() helper Reset already
+  // uses, so restoring correctly handles canvas resize/overlay sync/
+  // stale-drag invalidation identically -- no separate restore logic to
+  // keep in sync with future changes to that function.
+  const NAMED_SNAPSHOT_LIMIT = 5;
+  let namedSnapshots = []; // { name, canvas }
+
+  function escapeHtmlAttr(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  function renderSnapshotSelect() {
+    const select = $("pe-snapshot-select");
+    const prevValue = select.value;
+    if (!namedSnapshots.length) {
+      select.innerHTML = `<option value="">No snapshots yet</option>`;
+      select.disabled = true;
+    } else {
+      select.innerHTML = namedSnapshots.map((s, i) => `<option value="${i}">${escapeHtmlAttr(s.name)}</option>`).join("");
+      select.disabled = false;
+      // Keep the same selection across a re-render (e.g. after deleting a
+      // different entry) when that index is still valid, rather than
+      // always snapping back to the first snapshot.
+      if (prevValue && Number(prevValue) < namedSnapshots.length) select.value = prevValue;
+    }
+  }
+
+  $("pe-save-snapshot").addEventListener("click", () => {
+    const name = prompt("Name this snapshot:", `Snapshot ${namedSnapshots.length + 1}`);
+    if (!name || !name.trim()) return;
+    namedSnapshots.push({ name: name.trim(), canvas: snapshotCanvas() });
+    // Full-size canvas copies held in memory -- capped like the undo stack
+    // so a long editing session on a large (MAX_DIMENSION-sized) image
+    // can't quietly accumulate an unbounded number of them.
+    if (namedSnapshots.length > NAMED_SNAPSHOT_LIMIT) namedSnapshots.shift();
+    renderSnapshotSelect();
+    $("pe-snapshot-select").value = String(namedSnapshots.length - 1);
+  });
+
+  $("pe-restore-snapshot").addEventListener("click", () => {
+    if (isComparing()) return;
+    const idx = Number($("pe-snapshot-select").value);
+    const snap = namedSnapshots[idx];
+    if (!snap) return;
+    if (!confirm(`Jump back to the "${snap.name}" snapshot? Your current state stays undoable afterward with Undo.`)) return;
+    pushUndo();
+    restoreSnapshot(snap.canvas);
+  });
+
+  $("pe-delete-snapshot").addEventListener("click", () => {
+    const idx = Number($("pe-snapshot-select").value);
+    if (!namedSnapshots[idx]) return;
+    if (!confirm(`Delete the "${namedSnapshots[idx].name}" snapshot? This can't be undone (it's separate from the image's own Undo/Redo history).`)) return;
+    namedSnapshots.splice(idx, 1);
+    renderSnapshotSelect();
+  });
+
   // Before/after compare — press and hold to see the original, release to
   // return to the in-progress edit, with no history/undo effect either way
   // (unlike Reset, nothing is actually changed; it's a look, not an edit).
@@ -1398,6 +1459,8 @@
         undoStack = [];
         redoStack = [];
         updateHistoryButtons();
+        namedSnapshots = [];
+        renderSnapshotSelect();
         originalSnapshot = snapshotCanvas();
         cropRect = null;
         baseSnapshot = null;

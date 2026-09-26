@@ -4746,7 +4746,7 @@ join, rather than building three separate systems.
 40. Save/name selections — JSON blob like existing photo-presets.
 43. Mask-only inspection view — toggle rendering mask canvas alone.
 44. Colored mask overlays — tint mask canvas, trivial compositing.
-59. Named editing snapshots — extend undo snapshots with a name/label.
+59. ✅ Named editing snapshots — extend undo snapshots with a name/label. (done — see the dated entry below)
 71. ✅ Brush opacity/flow (of size/hardness/opacity/flow) — done (see the dated entry below). Hardness scoped out: this editor's brushes have always been hard-edged, solid-stroke shapes with no feathering/soft-edge concept anywhere in the rendering pipeline, so a "hardness" control would need a genuinely new feathered-brush rendering path (a real gradient/soft-mask brush tip), not a parameter on the existing one — left open as future work rather than force-fit onto an architecture that doesn't have the underlying concept yet. Size already existed.
 72. Pen-pressure support — PointerEvent.pressure already available.
 76. Saved brush presets — same pattern as photo-presets.
@@ -10280,3 +10280,48 @@ which also lack one) and no busy-indicator for a large-image grain pass
 file, none of which have one either).
 
 Item #129 is done: 1 critic round, 9/10 on the first pass.
+
+### Fifty-second item: #59, Photo Editor named editing snapshots
+
+- ✅ **A "📌 Save snapshot" button plus a named-snapshot select/Restore/
+  Delete row**, next to Undo/Redo/Reset/Compare. Distinct from the
+  existing 15-deep linear undo stack: named snapshots are explicitly
+  labeled (via a `prompt()`), unbounded-relative-to-undo (capped
+  separately at 5, `NAMED_SNAPSHOT_LIMIT`), and restorable directly by
+  name at any point — not just one linear step at a time like Undo/Redo.
+  Reuses the exact same `restoreSnapshot()` helper the pre-existing
+  Reset button already calls, so restoring a named snapshot correctly
+  handles canvas resize, overlay resync, and stale-drag invalidation
+  identically, with no separate restore logic to keep in sync with any
+  future change to that shared function. Restoring pushes a real
+  `pushUndo()` entry first (same as Reset), so restoring is itself
+  always undoable via the plain Undo button. Named snapshots are reset
+  (cleared) on every `open()` call, since they hold actual pixel data
+  tied to one specific image-editing session, not a UI preference that
+  should persist across different images the way brush size/opacity do.
+
+Security note worth logging explicitly: snapshot names are
+admin-supplied free text inserted into `<option>` element markup — added
+a small local `escapeHtmlAttr()` helper (this file had no existing
+HTML-escaping utility to reuse) and verified it specifically against a
+crafted XSS-shaped name
+(`<img src=x onerror=alert(1)>"></option><script>window.__xss=1</script>`)
+before considering this shippable, confirming the payload renders back
+as inert literal text with no script execution and no `<option>`
+markup breakout.
+
+Verified via Playwright against a real image, using distinct solid
+fill colors as unambiguous state markers: saved a "Red state" snapshot,
+then a "Blue state" snapshot, confirmed both appear correctly in the
+select list, changed the canvas to a third (unsaved) green state,
+restored "Red state" and confirmed the canvas actually flipped back to
+red, then confirmed Undo correctly reverted the restore itself back to
+the pre-restore green state — proving `pushUndo()` fires on restore.
+Confirmed deleting "Blue state" removes only that entry, leaving "Red
+state" intact. Separately verified: a whitespace-only name is rejected
+as a no-op (no blank snapshot saved), cancelling the name prompt is
+also a no-op, the malicious XSS-shaped name test above, and that saving
+a 6th snapshot correctly evicts the oldest one, capping the list at
+exactly 5. Ran the full `test_security_seo.js` regression suite — all
+passed. No test data was created (only in-memory canvas state of an
+existing library image).

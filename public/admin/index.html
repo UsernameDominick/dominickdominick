@@ -1011,6 +1011,10 @@
             <button type="button" id="pe-redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
             <button type="button" id="pe-reset">Reset</button>
             <button type="button" id="pe-compare" title="Press and hold to see the original">Compare</button>
+            <button type="button" id="pe-save-snapshot" title="Save the current state as a named snapshot you can jump straight back to later, unlike the linear Undo/Redo history">📌 Save snapshot</button>
+            <select id="pe-snapshot-select" title="Named snapshots saved this editing session" disabled><option value="">No snapshots yet</option></select>
+            <button type="button" id="pe-restore-snapshot" title="Jump back to the selected named snapshot (your current state stays undoable afterward)">Restore</button>
+            <button type="button" id="pe-delete-snapshot" title="Delete the selected named snapshot">Delete</button>
           </div>
         </div>
         <div id="pe-canvas-wrap" class="pe-canvas-wrap pe-bg-checkerboard">
