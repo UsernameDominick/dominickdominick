@@ -15,35 +15,70 @@
   const UNDO_LIMIT = 15;
 
   // The site's one uploaded custom font (see worker/admin-api.js's
-  // /upload-font, Site Settings' custom_font_name/custom_font_url) --
-  // loaded once, lazily, the first time the Text tool is actually
-  // selected rather than on every editor open, since most sessions never
-  // touch the Text tool at all. `null` means "not yet checked", `false`
-  // means "checked and none is configured" (or loading failed), and a
-  // string means the font's own family name, ready to use in ctx.font.
-  let customFontFamily = null;
-  async function ensureCustomFontLoaded() {
-    if (customFontFamily !== null) return customFontFamily;
-    try {
-      const settings = await window.adminApi("/settings");
-      const name = settings && settings.custom_font_name;
-      const url = settings && settings.custom_font_url;
-      if (!name || !url) {
-        customFontFamily = false;
-      } else {
-        const face = new FontFace(name, `url(${url})`);
-        await face.load();
-        document.fonts.add(face);
-        customFontFamily = name;
+  // /upload-font, Site Settings' custom_font_name/custom_font_url).
+  // Site Settings can be opened and saved without leaving this same
+  // single-page admin app, so a critic pass found that caching the
+  // resolved family name forever (only checking Settings once, the
+  // first time the Text tool was ever selected in this page load) went
+  // permanently stale the moment an admin configured a font AFTER
+  // already having opened the Photo Editor once with none configured --
+  // exactly the sequence someone trying this feature for the first time
+  // would follow, not an obscure edge case. Settings are re-fetched every
+  // time the Text tool is selected (cheap), but the actual FontFace load
+  // (the real network/CPU cost) is only redone if the name+url actually
+  // changed since the last successful load.
+  let loadedFontKey = null; // `${name}|${url}` of the currently-loaded custom font, or null
+  let loadedFontFamily = null; // family name once loaded, else null
+  // De-dupes concurrent calls (e.g. rapidly switching Text -> another
+  // tool -> Text again before the first check resolves) -- a critic pass
+  // found that without this, two overlapping fetch+load calls could race,
+  // and whichever settled last would silently overwrite the other's
+  // result even if the earlier one had already succeeded.
+  let fontCheckPromise = null;
+  function ensureCustomFontLoaded() {
+    if (fontCheckPromise) return fontCheckPromise;
+    fontCheckPromise = (async () => {
+      try {
+        const settings = await window.adminApi("/settings");
+        const name = settings && settings.custom_font_name;
+        const url = settings && settings.custom_font_url;
+        if (!name || !url) {
+          loadedFontKey = null;
+          loadedFontFamily = null;
+          return null;
+        }
+        const key = `${name}|${url}`;
+        if (key !== loadedFontKey) {
+          // JSON.stringify quotes and escapes the URL for safe embedding
+          // as a CSS string, matching how this exact value is already
+          // handled everywhere else it reaches a CSS url() in this
+          // codebase (worker/render.js's esc()-wrapped url('...'), the
+          // admin's own live Settings preview) -- custom_font_url is a
+          // plain string accepted by the settings API with no server-side
+          // format validation, so a hand-edited value containing a space,
+          // parenthesis, or quote needs the same defensive handling here,
+          // not just for values that only ever come from the upload UI.
+          const face = new FontFace(name, `url(${JSON.stringify(url)})`);
+          await face.load();
+          document.fonts.add(face);
+          loadedFontKey = key;
+          loadedFontFamily = name;
+        }
+        return loadedFontFamily;
+      } catch {
+        // A failed fetch/parse/load leaves the custom option silently
+        // unavailable rather than surfacing an error over something as
+        // minor as an optional font choice -- placeText() below falls
+        // back to sans-serif in exactly the same way as "not configured
+        // at all".
+        loadedFontKey = null;
+        loadedFontFamily = null;
+        return null;
+      } finally {
+        fontCheckPromise = null;
       }
-    } catch {
-      // A failed fetch/parse/load leaves the custom option silently
-      // unavailable rather than surfacing an error over something as
-      // minor as an optional font choice -- placeText() below falls back
-      // to sans-serif in exactly the same way as "not configured at all".
-      customFontFamily = false;
-    }
-    return customFontFamily;
+    })();
+    return fontCheckPromise;
   }
 
   let originalKey = null;
@@ -882,14 +917,14 @@
     pushUndo();
     const fontSize = Math.max(16, annotateSize() * 6);
     ctx.fillStyle = annotateColor();
-    // customFontFamily is only ever a real family name once
-    // ensureCustomFontLoaded() has resolved truthy (checked again here,
-    // not just trusted from the dropdown's selection, in case the async
-    // load hadn't actually finished -- or failed -- by the time this
-    // fires) -- otherwise this falls back to the same plain sans-serif
-    // as before the font picker existed.
-    const useCustom = $("pe-text-font").value === "custom" && customFontFamily;
-    const fontFamily = useCustom ? `'${customFontFamily}', sans-serif` : "sans-serif";
+    // loadedFontFamily is only ever a real family name once a load has
+    // actually succeeded (checked again here, not just trusted from the
+    // dropdown's selection, in case the async check hadn't actually
+    // finished -- or failed -- by the time this fires) -- otherwise this
+    // falls back to the same plain sans-serif as before the font picker
+    // existed.
+    const useCustom = $("pe-text-font").value === "custom" && loadedFontFamily;
+    const fontFamily = useCustom ? `'${loadedFontFamily}', sans-serif` : "sans-serif";
     ctx.font = `bold ${fontSize}px ${fontFamily}`;
     ctx.textBaseline = "top";
     ctx.fillText(text, point.x, point.y);
