@@ -150,9 +150,19 @@
     }
   }
 
+  // Dragging the new volume slider fires many rapid 'input' events, each
+  // triggering a re-render here -- an OfflineAudioContext render is async,
+  // so several can be in flight at once and resolve out of order. A
+  // generation token discards any render whose result comes back after a
+  // newer one was already started, the same pattern used for the
+  // open-song race above.
+  let waveformPreviewGeneration = 0;
   async function refreshWaveformPreview() {
     if ((songData.visualization || "bars") !== "waveform") return;
-    previewPeaks = await Engine.renderWaveformPeaks(songData, 200);
+    const myGeneration = ++waveformPreviewGeneration;
+    const peaks = await Engine.renderWaveformPeaks(songData, 200);
+    if (myGeneration !== waveformPreviewGeneration) return;
+    previewPeaks = peaks;
     drawWaveformPreview(0);
   }
 
@@ -251,7 +261,15 @@
   });
   $("song-master-volume").addEventListener("input", () => {
     songData.master_volume = Number($("song-master-volume").value) / 100;
-    refreshWaveformPreview();
+    // Apply immediately rather than waiting for scheduleStep's next pass —
+    // otherwise dragging the slider while playback is stopped (or before
+    // the next scheduled step) has no audible effect, and a MIDI-keyboard
+    // preview note (which plays via Engine.playMelodyNote directly, not
+    // through scheduleStep) would play at a stale volume. The waveform
+    // preview intentionally always renders at full scale regardless of
+    // master_volume (see renderWaveformPeaks), so it doesn't need a
+    // refresh here.
+    Engine.setMasterVolume(getAudioCtx(), songData.master_volume);
     scheduleAutosave();
   });
   $("song-name").addEventListener("input", () => {
@@ -528,6 +546,11 @@
     $("song-visualization").value = songData.visualization || "bars";
     $("song-page-sync").checked = !!songData.page_sync;
     $("song-master-volume").value = Math.round((typeof songData.master_volume === "number" ? songData.master_volume : 1) * 100);
+    // The shared AudioContext (and its master GainNode) persists across
+    // songs -- without this, opening song B right after playing song A
+    // would leave the gain at A's last value until B's own playback
+    // schedules its first step.
+    Engine.setMasterVolume(getAudioCtx(), songData.master_volume);
     $("song-preview-name").textContent = $("song-name").value || "Song name";
     // songData was just reassigned to a new object — the player has to be
     // rebuilt against it, since createPlayer captured the old reference.

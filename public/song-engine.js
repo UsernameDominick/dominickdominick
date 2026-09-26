@@ -49,6 +49,23 @@ window.SongEngine = (function () {
     return gain;
   }
 
+  // Applies a master-volume value to ctx's gain node with a short ramp
+  // rather than a bare `.value =` jump, which produces an audible click if
+  // the slider is dragged during active playback. Exposed publicly (not
+  // just called from scheduleStep) so a caller can apply a volume change
+  // immediately -- e.g. dragging the slider while stopped, or opening a
+  // different song into an AudioContext that's still holding the
+  // previous song's gain value -- rather than waiting for the next
+  // scheduled step to pick it up.
+  function setMasterVolume(ctx, value) {
+    const clamped = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 1;
+    const gainParam = getMasterGain(ctx).gain;
+    const now = ctx.currentTime;
+    gainParam.cancelScheduledValues(now);
+    gainParam.setValueAtTime(gainParam.value, now);
+    gainParam.linearRampToValueAtTime(clamped, now + 0.03);
+  }
+
   const KIT_PARAMS = {
     acoustic: { kickFreq: 150, kickDecay: 0.35, snareTone: 200, snareDecay: 0.18, hihatDecay: 0.06, clapDecay: 0.12 },
     electronic: { kickFreq: 90, kickDecay: 0.25, snareTone: 320, snareDecay: 0.12, hihatDecay: 0.04, clapDecay: 0.08 },
@@ -146,9 +163,10 @@ window.SongEngine = (function () {
   function scheduleStep(ctx, songData, step, time) {
     // Read fresh every step, same as tempo/kit below, so a live volume-
     // slider drag while a song is already playing takes effect on the next
-    // scheduled step without needing a separate "set master volume" call.
-    const vol = songData.master_volume;
-    getMasterGain(ctx).gain.value = typeof vol === "number" ? Math.max(0, Math.min(1, vol)) : 1;
+    // scheduled step too (on top of the immediate application a caller
+    // does directly via setMasterVolume -- this is a cheap idempotent
+    // re-application, not the only place the value gets applied).
+    setMasterVolume(ctx, songData.master_volume);
     const kit = songData.kit || "acoustic";
     if (songData.tracks) {
       Object.keys(songData.tracks).forEach((track) => {
@@ -225,7 +243,14 @@ window.SongEngine = (function () {
     const sampleRate = 44100;
     const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     const ctx = new OfflineCtx(1, Math.ceil(sampleRate * duration), sampleRate);
-    for (let step = 0; step < STEPS; step++) scheduleStep(ctx, songData, step, step * stepDur);
+    // The waveform preview shows the song's rhythmic/melodic pattern shape,
+    // not its loudness -- rendering it at the actual master_volume would
+    // shrink it toward a flat line as the volume slider is lowered (and
+    // hide the pattern entirely at 0), which is a readability regression
+    // with no corresponding benefit. Render at full volume regardless of
+    // the song's actual master_volume so the preview's scale stays fixed.
+    const previewData = songData.master_volume === 1 ? songData : Object.assign({}, songData, { master_volume: 1 });
+    for (let step = 0; step < STEPS; step++) scheduleStep(ctx, previewData, step, step * stepDur);
     const buffer = await ctx.startRendering();
     const data = buffer.getChannelData(0);
     const count = peakCount || 200;
@@ -255,5 +280,6 @@ window.SongEngine = (function () {
     playMelodyNote,
     createPlayer,
     renderWaveformPeaks,
+    setMasterVolume,
   };
 })();
