@@ -784,6 +784,13 @@
     return Number($("pe-brush-size").value);
   }
 
+  // 1-100 (never 0 -- the slider's own min is 1) so a stroke always
+  // applies at least a little, matching how a real low-flow brush works
+  // rather than silently doing nothing at the bottom of the range.
+  function brushOpacity() {
+    return Math.max(1, Math.min(100, Number($("pe-brush-opacity").value) || 100)) / 100;
+  }
+
   function strokeTo(point) {
     const size = brushSize();
     maskCtx.lineCap = "round";
@@ -836,6 +843,7 @@
     if (currentTool === "erase") {
       ctx.save();
       ctx.globalCompositeOperation = "destination-out";
+      ctx.globalAlpha = brushOpacity();
       ctx.drawImage(maskCanvas, 0, 0);
       ctx.restore();
       return;
@@ -848,7 +856,10 @@
     tctx.drawImage(effect, 0, 0);
     tctx.globalCompositeOperation = "destination-in";
     tctx.drawImage(maskCanvas, 0, 0);
+    ctx.save();
+    ctx.globalAlpha = brushOpacity();
     ctx.drawImage(tmp, 0, 0);
+    ctx.restore();
   }
 
   function drawBrushCursor(point) {
