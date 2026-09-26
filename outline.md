@@ -7980,3 +7980,47 @@ reaches an HTML attribute in the same file, and "the reachability vector
 is unvalidated JSON import" is worth treating as an instruction to sweep
 the whole render path for that vector's blast radius, not just patch the
 one field a bug report happened to name.
+
+Sent for a round-3 pass explicitly framed as an exhaustive, from-scratch
+security sweep (not a diminishing-returns re-check) of the entire file
+plus its rendering dependency `sim-components.js`, checking every
+component-type's `render()` function individually rather than just the
+two already fixed. Scored 9/10 -- ship. Built a systematic field-by-field
+inventory of every `comp.`/`wire.` value reaching an HTML/SVG string
+across both files and confirmed each one is escaped, whitelisted, or
+numerically coerced: `power_supply`'s `outputVoltage`, `led`'s `color`,
+`resistor`'s `resistance` (routed through a lookup table that only ever
+emits fixed hex values), `switch`'s `closed` (boolean-coerced),
+`battery`'s `voltage`, and `mcu_teensy`'s `label` in `sim-components.js`
+were all already safe (that file's own local `escXml` already correctly
+escaped quotes, unlike the flaw round 1 found in the builder's copy);
+checkpoints/templates are populated only from the admin's own `prompt()`
+calls, never touched by JSON import, so they carry no additional
+exposure; the downstream electrical-analysis layer that feeds the
+inspector's status text was traced to confirm every value passing through
+it is a genuine JS number by construction before it ever reaches a
+template literal, regardless of what a malicious JSON import put in the
+original field.
+
+One point held back for a real but non-security robustness gap, logged
+rather than fixed: `querySelector` template strings built from unescaped
+`wire.id`/component `id` (used to look up an element by id during drag/
+wire-update operations) throw a `DOMException` if an imported id contains
+a `"`, since that breaks CSS-selector syntax -- a crash-on-malformed-
+import bug, not XSS, so it doesn't block closing this item, but worth a
+follow-up if imported-data robustness (as opposed to injection safety)
+gets its own pass later.
+
+Item #394 is done: 3 critic rounds (6/10, 4/10, 9/10), eight real
+security findings across the first two rounds -- all fixed and verified
+live via actual crafted JSON-import attack payloads -- confirmed complete
+by a third, genuinely exhaustive, from-scratch sweep of the whole file
+and its rendering dependency, not just a re-check of what earlier rounds
+already found. What started as a small feature request (a text label on
+wires) surfaced and closed a real, multi-site XSS vulnerability class in
+the simulation builder's JSON import path -- a good example of why "send
+the critic back with instructions to search more broadly around a found
+vulnerability's reachability vector" matters more for security findings
+than for ordinary bugs, where the blast radius of "this exact input path
+has zero validation" is worth mapping in full rather than patching one
+symptom at a time.
