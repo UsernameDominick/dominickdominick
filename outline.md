@@ -4761,7 +4761,7 @@ join, rather than building three separate systems.
 108. Reusable text styles — preset pattern like photo-presets.
 109. Missing-font warnings — font-load check + fallback message.
 112. ✅ Independent corner-radius — done (see the dated entry below this section).
-129. Adjustable grain — random per-pixel noise injection.
+129. ✅ Adjustable grain — random per-pixel noise injection. (done — see the dated entry below)
 139. ✅ Local vs external-upload indicator — the Photo Editor itself already covered this (pe-hint's "Editing a library image" vs "Editing an external image" text); extended the same idea to the page builder's own image-url fields (see the dated entry below this section).
 143. Searchable command palette — static command list + filter/keydown.
 146. ✅ Before/after compare — done (see the dated entry below this section).
@@ -10209,3 +10209,42 @@ slider's own `min="1"` and no code anywhere setting the field's value
 programmatically, so not worth guarding against.
 
 Item #71 is done: 1 critic round, 9/10 on the first pass.
+
+### Fifty-first item: #129, Photo Editor adjustable grain
+
+- ✅ **A "Grain" amount slider (1-50, default 15) plus an "Add grain"
+  button**, next to the existing one-click Grayscale/Sepia/Invert
+  filters. Unlike those three, which are all implementable as a single
+  CSS `filter` string applied via `ctx.filter` + `drawImage`, there's no
+  CSS filter function for random noise — this needed real per-pixel
+  manipulation via `getImageData`/`putImageData` instead, a genuinely
+  different implementation shape from the existing filter buttons it
+  sits beside. Applies one random offset PER PIXEL (not independently
+  per channel) to that pixel's R/G/B channels identically, matching real
+  film grain's monochromatic luminance-noise look rather than the
+  chromatic color-static look independent per-channel randomness would
+  produce. Alpha is left untouched, so grain never changes which pixels
+  are transparent. Reuses the exact same `pushUndo()`/`isComparing()`
+  guard/`cancelActiveDrag()` pattern the existing one-shot filters
+  already establish, for the same reasons those filters need it (a
+  critic pass on those earlier this session found a stale-drag-resume
+  bug from skipping `cancelActiveDrag()`).
+
+Verified via Playwright on a real image filled with a flat, fully-opaque
+mid-gray (`rgb(128,128,128)`) — chosen specifically so any per-pixel
+variance introduced by grain is unambiguous, since a flat starting color
+has exactly one distinct pixel value to begin with. Confirmed applying
+grain at amount=20 introduces real variance (41 distinct pixel values
+where there was previously exactly 1, spanning 108-148 — correctly
+straddling the original 128 in both directions, not just brightening or
+darkening), confirmed the spread stays bounded by the requested amount
+(a max-min spread of 40, matching the ±20 range the amount=20 setting
+implies) rather than blowing past it, confirmed alpha stays fully opaque
+throughout, confirmed Undo restores the exact flat baseline (not an
+approximately-restored one), and confirmed a heavier amount (45)
+produces a meaningfully wider spread than the lighter amount (20) on a
+fresh identical baseline — proving the intensity slider has a real,
+scaling effect rather than being cosmetic. Ran the full
+`test_security_seo.js` regression suite — all passed. No test data was
+created (only in-memory canvas pixels of an existing library image,
+undone before the test ends).

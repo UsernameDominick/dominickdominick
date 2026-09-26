@@ -601,6 +601,29 @@
     // flip() already needed for the identical reason.
     cancelActiveDrag();
   }
+  // Grain is real per-pixel noise, not a CSS filter -- there's no
+  // filter(1)-style CSS function for it, unlike grayscale/sepia/invert
+  // above. One random offset per PIXEL (not per channel) is applied
+  // identically to its R/G/B channels, matching real film grain's
+  // luminance-only noise look rather than per-channel color static.
+  function applyGrain(amount) {
+    if (isComparing()) return;
+    pushUndo();
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imgData.data;
+    for (let i = 0; i < data.length; i += 4) {
+      const noise = (Math.random() - 0.5) * 2 * amount;
+      data[i] = Math.max(0, Math.min(255, data[i] + noise));
+      data[i + 1] = Math.max(0, Math.min(255, data[i + 1] + noise));
+      data[i + 2] = Math.max(0, Math.min(255, data[i + 2] + noise));
+      // Alpha (data[i + 3]) is left untouched -- grain shouldn't change
+      // which pixels are transparent.
+    }
+    ctx.putImageData(imgData, 0, 0);
+    cancelActiveDrag();
+  }
+  $("pe-filter-grain").addEventListener("click", () => applyGrain(Number($("pe-grain-amount").value) || 15));
+
   $("pe-filter-grayscale").addEventListener("click", () => applyOneShotFilter("grayscale(1)"));
   $("pe-filter-sepia").addEventListener("click", () => applyOneShotFilter("sepia(1)"));
   $("pe-filter-invert").addEventListener("click", () => applyOneShotFilter("invert(1)"));
