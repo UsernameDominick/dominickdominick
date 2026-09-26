@@ -4839,7 +4839,7 @@ session's own EXIF-stripping feature for the upload-side equivalent).
 339. Export session report — dump JSON session fields to text.
 341. Publish track to a project — `song_id` block linking already exists.
 349. Generate waveform cover art — `renderWaveformPeaks` + canvas.toDataURL + existing upload endpoint.
-350. Reusable audio-player themes — CSS variable presets on existing embed CSS.
+350. ✅ Reusable audio-player themes — done (see the dated entry below this section).
 351. Save mix snapshots — snapshot the existing JSON blob as a new row.
 355. Reference track/production notes — plain metadata fields.
 356. Detect missing samples before export — reuse existing dangling-reference reconciliation in db.js.
@@ -9073,3 +9073,101 @@ actually used to flag danger) both fixed and independently re-verified
 byte-for-byte across this codebase's two hand-duplicated analysis
 engines, plus one pre-existing display-only inaccuracy logged as an
 explicitly out-of-scope follow-up.
+
+### Thirty-sixth item: #350, reusable player color themes for the Song/DAW builder
+
+- ✅ **A new "Player color theme" select** (Default/Sunset/Ocean/Mono/
+  Neon) letting an admin pick a per-song accent color for the public
+  embed without touching the site's own global theme. Implemented as a
+  scoped CSS variable override — `.song-embed.song-theme-*` re-declares
+  `--accent`, so every existing embed rule already reading
+  `var(--accent)` (play-button hover, active step bar, pulse core) picks
+  it up automatically via ordinary CSS cascading, with zero changes
+  needed to those rules; "Default" means no `song-theme-*` class at all,
+  falling through to the site's global accent unchanged. Surfaced a real
+  pre-existing bug along the way: the waveform-visualization canvas (both
+  the public embed and the admin builder's own live preview, the latter
+  of which had its color hardcoded to a literal string rather than
+  reading any CSS variable at all) read `--accent` off the page's
+  document root instead of the specific `.song-embed` element, so a
+  per-instance theme override would have been silently invisible to the
+  canvas-drawn waveform while the CSS-only bars/pulse correctly followed
+  it — both now resolve `--accent` from the embed element itself.
+  `worker/render.js` whitelists the theme value against the same 4 known
+  names before building the class name, since `song.data` rides through
+  arbitrary stored/imported JSON.
+
+Handed to a critic agent for scoring: **5/10**. Findings:
+
+1. **(Fixed, high severity — accessibility regression)** The four theme
+   colors had no light-mode variant at all, unlike the site's own base
+   `--accent` (deliberately darkened under `:root[data-theme="light"]`,
+   verified 4.94:1 against `--bg`). Applied unconditionally, "Mono"
+   (#d8d8d8) or "Sunset" (#ff7a45) against the light theme's
+   `--bg-elevated` (#f7ede0, a warm near-white) measured roughly 1.2:1
+   contrast — the active bar, hover border, pulse core, and waveform all
+   became nearly invisible. Fixed by adding a
+   `:root[data-theme="light"] .song-embed.song-theme-*` override for
+   each theme, following the site's own darkened-same-hue pattern, each
+   independently computed and verified against the real `--bg-elevated`
+   hex value: sunset `#a83a0c` (5.55:1 — reusing the site's own
+   light-mode accent as-is only measured 4.42:1 against this specific,
+   slightly darker background, just under the 4.5:1 threshold, so a
+   further-darkened value was used), ocean `#1a5c8a` (6.18:1), mono
+   `#4a4a4a` (7.68:1), neon `#176b3f` (5.66:1).
+2. **(Fixed, medium severity — incomplete theming)** The pulse-
+   visualization beat-hit ring flash was a hardcoded
+   `rgba(232, 161, 58, ...)` — a stale amber left over from before this
+   site's own `--accent` was changed to `#ff7a45` — not `var(--accent)`
+   at all, so it never matched even the GLOBAL accent, let alone a
+   theme: one of the visual elements this feature's own description
+   promised was themed but wasn't actually wired up. Fixed using
+   `color-mix(in srgb, var(--accent) N%, transparent)` for both keyframe
+   stops, so the ring now derives from whatever `--accent` is currently
+   in scope (global or themed) instead of a fixed color.
+3. **(Logged, explicitly not fixed — a documented, deliberate scope
+   decision)** The page-wide "Sync page background" overlay is appended
+   to `document.body`, a sibling of any `.song-embed`, not a descendant
+   — so its own `var(--accent)` always resolves the global accent, never
+   a themed song's override, since CSS custom properties only inherit
+   down the DOM tree. A themed song's beat-flash won't match its own
+   theme. Left as-is with a comment added at the overlay's declaration
+   explicitly documenting this as a known, accepted limitation of the
+   single-shared-overlay design (the realistic fixes — duplicating the
+   overlay per song, or threading a dynamic color into each flash call —
+   both undercut the point of sharing one overlay across every song on
+   the page) rather than an unnoticed gap.
+
+Sent for a round-2 critic pass specifically re-deriving the WCAG contrast
+math from raw hex values independently (not trusting the reported
+numbers), checking CSS selector specificity to confirm the light-mode
+override rules genuinely win regardless of source order, verifying
+`color-mix()`'s 0%-accent endpoint is genuinely fully transparent with
+no flash-of-wrong-color quirk, and confirming nothing round-1 already
+validated (theme whitelist parity between the admin builder and worker,
+XSS escaping, no stale-reference race in `openBuilder()`) was disturbed
+by these CSS-focused changes. Confirmed all three fixes correct: an
+independent from-scratch luminance recomputation for all four light-mode
+hex values landed within rounding noise of the reported figures, all
+comfortably clearing 4.5:1; the light-mode selectors' specificity
+((0,4,0) via `:root` + the attribute selector + two classes) beats the
+dark-mode rules' (0,2,0) unconditionally, with the light-mode rules also
+physically placed after the dark ones in the file as a belt-and-suspenders
+match; `color-mix()` mixing 0% accent with transparent produces alpha 0
+regardless of the underlying RGB channels, so there's no wrong-color
+flash at the animation's end; and the pulse-hit rule sits on a genuine
+descendant of the themed `.song-embed`, so it correctly resolves the
+themed accent rather than the global one. The deferred page-sync-overlay
+finding was independently confirmed accurate (the overlay really is a
+`document.body`-appended sibling, and the comment neither overstates nor
+understates the tradeoff). Final score: **9/10** — ships.
+
+Item #350 is done: 2 critic rounds, 5/10 → 9/10, one accessibility
+regression (theme colors nearly invisible against the light theme, with
+no light-mode variant at all) and one incomplete-theming gap (a themed
+visual element that was never actually wired to the theme) fixed and
+independently re-verified via from-scratch WCAG contrast recomputation
+and CSS specificity/compositing reasoning rather than re-reading the
+fix's own claims, plus one real cross-DOM-scoping limitation explicitly
+documented as an accepted design tradeoff rather than silently left
+unaddressed.
