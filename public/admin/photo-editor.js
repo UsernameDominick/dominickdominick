@@ -740,10 +740,30 @@
   // side (very possible since the slider's max is fixed at 100 regardless
   // of how small a rectangle is actually dragged) degrades gracefully into
   // a rounded pill/circle shape rather than throwing or corrupting the
-  // path -- no manual clamping needed here.
+  // path -- no manual clamping needed here. A zero-width or zero-height
+  // rect (a click without dragging, or a perfectly horizontal/vertical
+  // drag -- reachable since there's no minimum-drag-distance gate) hits
+  // the same spec-mandated clamping (the effective radius scales to 0
+  // along with the degenerate dimension), so it's covered by the same
+  // path, not a separate case.
+  //
+  // Feature-detected rather than called unconditionally -- a critic pass
+  // found that on a browser old enough to lack roundRect() (added to the
+  // spec circa 2021-2022; plausible for "whatever laptop/phone is handy"
+  // on a personal-site admin tool, unlike the main site's assumed
+  // audience), calling a nonexistent method throws a plain TypeError with
+  // no surrounding try/catch anywhere in the pointerup handler that leads
+  // here. That's a strictly worse failure mode than the strokeRect() this
+  // replaced (which never throws): the exception would abort mid-handler
+  // after pushUndo() already ran but before clearOverlay()/dragStart reset
+  // could run, pushing a stray empty undo entry, leaving a stuck preview
+  // stroke, and corrupting the next drag's state. Falling back to the
+  // plain, always-available rect() degrades to "the radius setting is
+  // silently ignored on this browser" instead -- a worse-looking rectangle,
+  // never a wedged tool.
   function strokeRectMaybeRounded(c, x, y, w, h, radius) {
     c.beginPath();
-    if (radius > 0) c.roundRect(x, y, w, h, radius);
+    if (radius > 0 && typeof c.roundRect === "function") c.roundRect(x, y, w, h, radius);
     else c.rect(x, y, w, h);
     c.stroke();
   }
