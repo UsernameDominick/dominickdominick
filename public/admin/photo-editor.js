@@ -339,6 +339,21 @@
     strokeActive = false;
     lastPoint = null;
     clearOverlay();
+    // A fourth species of the same problem, found by a second critic pass
+    // on this exact function: an adjust-slider drag (brightness/contrast/
+    // saturate) in progress holds `baseSnapshot`, a canvas clone taken at
+    // the OLD dimensions/orientation when the drag started. The already-
+    // filtered pixels up to this point stay correctly baked into the
+    // canvas (onAdjustInput already drew them before this transform ran),
+    // but the NEXT slider tick would otherwise clearRect the NEW
+    // dimensions and paint the OLD-sized `baseSnapshot` back over it --
+    // discarding it and resetting the sliders abandons the interrupted
+    // drag cleanly instead of corrupting it, the same "cancel, don't
+    // resume against stale state" choice already made for crop/brush/shape.
+    baseSnapshot = null;
+    $("pe-brightness").value = 0;
+    $("pe-contrast").value = 0;
+    $("pe-saturate").value = 0;
   }
 
   function rotate90(clockwise) {

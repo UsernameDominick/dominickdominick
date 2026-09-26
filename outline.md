@@ -7476,8 +7476,55 @@ still held real, non-corrupted image data rather than a botched
 composite from the mismatched pre/post-transform stroke. Full regression
 suite green; test upload deleted and confirmed gone.
 
-Done: 1 critic round, 8/10, the one real finding (the same class of bug
-generalizing from crop selections to brush/shape-tool drag state, and
-present identically in the pre-existing `restoreSnapshot()` precedent)
-fixed with a shared helper covering all three call sites at once, rather
-than patching only the two functions the critic happened to name.
+Sent to a round-2 critic pass on commit 81af099. Scored 8/10 again --
+the `cancelActiveDrag()` fix itself was confirmed genuinely correct with
+no new bugs: the hoisting concern from round 1 doesn't apply in practice
+(the function is only ever called from click/keydown listeners that
+can't fire until the whole module has finished executing, by which point
+every `let` binding it references is initialized); resetting `dragging`
+turned out to make the `strokeActive`/`dragStart` resets technically
+redundant-but-harmless, since `pointerup`'s own `if (!dragging) return;`
+guard already exits before either would matter; `ensureMask()`'s
+existing dimension check already correctly reallocates a stale
+`maskCanvas` before the next brush stroke; and calling the shared helper
+from all three call sites was confirmed idempotent for the overwhelming
+common case where nothing was actually in progress. But the critic found
+a fourth species of the exact same bug class in the exact same two
+functions this fix was reviewing: `baseSnapshot`, the canvas clone an
+adjust-slider (brightness/contrast/saturate) drag holds while in
+progress, was never cleared by `cancelActiveDrag()` -- so a multi-touch
+scenario (holding a slider drag with one finger, tapping rotate/flip
+with another) would leave the next slider tick painting an OLD-sized/
+oriented `baseSnapshot` onto the NEW post-transform canvas, the identical
+"resumes against stale state instead of being cancelled" failure this
+whole fix chain has been closing off, just for a fourth interaction type
+nobody had checked yet.
+
+Fixed by extending `cancelActiveDrag()` once more: now also nulls
+`baseSnapshot` and resets the three adjustment sliders to 0, discarding
+an interrupted slider drag the same way crop/brush/shape are discarded
+rather than letting it resume against mismatched state. The pixels
+already baked into the canvas by the adjustment up to the interruption
+point stay correctly in place (rotate/flip transforms whatever's
+currently on the canvas, filtered or not); only the *next* slider tick's
+would-be corruption is what's prevented.
+
+Re-verified via Playwright with the exact scenario described: started a
+brightness-slider drag (dispatching a synthetic `input` event to set
+`baseSnapshot`), fired a rotate mid-drag, confirmed the canvas correctly
+swapped dimensions AND the brightness slider reset to 0; then continued
+moving the same slider afterward -- the precise moment that would have
+tried to paint an 800x600 snapshot onto a 600x800 canvas if `baseSnapshot`
+hadn't been cleared -- and confirmed the canvas dimensions stayed correct
+with real, non-corrupted pixel data, no exception. The round-1 regression
+tests (crop-clear-on-rotate, undo reverting correctly, mid-brush-stroke
+rotate not crashing) were re-run unchanged and still pass. Full
+regression suite green; test uploads deleted and confirmed gone.
+
+Done: 2 critic rounds (8/10, 8/10), two real findings across both rounds
+-- brush/shape-tool drag state, then adjust-slider `baseSnapshot` state --
+both fixed by extending the same shared `cancelActiveDrag()` helper
+rather than treating each as a separate one-off patch, closing what
+turned out to be four distinct species of the identical underlying bug
+class (crop, brush, shape, and adjustment-slider state all pinned to a
+canvas that transforms out from under them) in one place.
