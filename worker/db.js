@@ -2002,10 +2002,11 @@ export async function createSimulation(env, { name, data }) {
 }
 
 export async function updateSimulation(env, id, { name, data }) {
-  await env.DB
+  const res = await env.DB
     .prepare("UPDATE simulations SET name = ?, data = ?, updated_at = datetime('now') WHERE id = ?")
     .bind(name, JSON.stringify(data || {}), id)
     .run();
+  return res.meta.changes > 0;
 }
 
 export async function deleteSimulation(env, id) {
@@ -2042,10 +2043,11 @@ export async function createSong(env, { name, data }) {
 }
 
 export async function updateSong(env, id, { name, data }) {
-  await env.DB
+  const res = await env.DB
     .prepare("UPDATE songs SET name = ?, data = ?, updated_at = datetime('now') WHERE id = ?")
     .bind(name, JSON.stringify(data || {}), id)
     .run();
+  return res.meta.changes > 0;
 }
 
 export async function deleteSong(env, id) {

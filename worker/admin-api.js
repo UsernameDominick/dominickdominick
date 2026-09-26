@@ -1930,7 +1930,8 @@ async function routeAdminApi(request, env, url, ctx) {
   if (simMatch && method === "PATCH") {
     const body = await request.json().catch(() => ({}));
     if (!body.name || !String(body.name).trim()) return json({ error: "Name is required" }, { status: 400 });
-    await updateSimulation(env, Number(simMatch[1]), { name: body.name.trim(), data: body.data || {} });
+    const updated = await updateSimulation(env, Number(simMatch[1]), { name: body.name.trim(), data: body.data || {} });
+    if (!updated) return json({ error: "Not found" }, { status: 404 });
     return json({ ok: true });
   }
   if (simMatch && method === "DELETE") {
@@ -1967,7 +1968,8 @@ async function routeAdminApi(request, env, url, ctx) {
   if (songMatch && method === "PATCH") {
     const body = await request.json().catch(() => ({}));
     if (!body.name || !String(body.name).trim()) return json({ error: "Name is required" }, { status: 400 });
-    await updateSong(env, Number(songMatch[1]), { name: body.name.trim(), data: body.data || {} });
+    const updated = await updateSong(env, Number(songMatch[1]), { name: body.name.trim(), data: body.data || {} });
+    if (!updated) return json({ error: "Not found" }, { status: 404 });
     return json({ ok: true });
   }
   if (songMatch && method === "DELETE") {

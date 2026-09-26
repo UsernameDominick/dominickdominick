@@ -4891,7 +4891,8 @@ substantial new infra + security surface).
   check the D1 `.run()` result's `meta.changes` (or a `SELECT` first) and
   return 404 if nothing was actually updated, then have both the manual
   Save handler and `autosaveSong()` surface that as a real error instead
-  of a false "Saved."
+  of a false "Saved." **✅ Fixed** (see the Forty-second item entry below
+  this section).
 
 ### Simulations — Already done
 361 (native editable docs — the simulations table + builder). 371
@@ -9557,3 +9558,50 @@ emptive `pointFromEvent` inverse-transform fix (done before any critic
 review, once the coordinate-mismatch risk was recognized while
 implementing) meant the one round of adversarial review found no
 must-fix bugs, only a minor deferred cosmetic edge case.
+
+### Forty-second item: fix the critic-surfaced silent-save-loss bug in `PATCH /songs/:id` and `PATCH /simulations/:id`
+
+- ✅ **A real data-integrity bug**, originally surfaced by a critic
+  reviewing #321's autosave feature but not fixed at the time: both
+  `updateSong()` and `updateSimulation()` in `worker/db.js` ran an
+  unconditional `UPDATE ... WHERE id = ?` with no existence check and no
+  inspection of how many rows were actually affected, so the route
+  handlers in `worker/admin-api.js` always responded `{ ok: true }`
+  regardless of whether a matching row existed. Deleting a song or
+  simulation's row (e.g. from its list view) while its builder happened
+  to still be open in another tab or an earlier click, then editing a
+  field and saving, produced a confident "Saved" (manual Save button) or
+  "Saved HH:MM:SS" (autosave) with the edit silently discarded
+  server-side — zero rows actually changed.
+
+Fixed by having both `updateSong()` and `updateSimulation()` return
+`res.meta.changes > 0` from the D1 `.run()` result, and having both PATCH
+route handlers return `404 { error: "Not found" }` when that comes back
+false. Checked the client contract before assuming this would actually
+surface correctly: `window.adminApi()` (`public/admin/app.js`) already
+throws on any non-2xx response using the server's own `error` field as
+the message, and both call sites already had a `catch` — the Song
+builder's manual Save handler does `alert(err.message)` and
+`autosaveSong()` sets `#song-autosave-status` to `"Autosave failed: " +
+err.message` — so no client-side changes were needed at all; the bug was
+purely the server never telling the client anything had gone wrong.
+Also fixed `updateSimulation()` identically, since it shared the exact
+same bug shape and the simulation builder's own Save handler has the
+same `adminApi()`-based catch already wired up.
+
+Verified against the real API (not a re-implementation) via Playwright:
+created a song, deleted it, then PATCHed the same id and confirmed a
+real `404 {"error":"Not found"}` response; confirmed a PATCH against a
+still-existing row still returns `200 {"ok":true}` (no false positives
+introduced); repeated both checks for simulations; and directly called
+`window.adminApi()` against the deleted song's PATCH endpoint to confirm
+it actually throws with `err.status === 404` and `err.message === "Not
+found"`, the exact contract both catch handlers depend on. Ran the full
+`test_security_seo.js` regression suite — all passed. No test data left
+behind (every created row in the test was itself deleted as part of the
+test, whether as the intentional pre-condition or as cleanup).
+
+This was a well-scoped, already-diagnosed bug fix rather than a new
+outline.md item, so it wasn't sent through the full critic-scoring
+workflow — the fix is small, mechanical, and directly matches the
+critic's own originally-proposed remedy verbatim.
