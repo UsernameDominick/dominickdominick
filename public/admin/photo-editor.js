@@ -213,6 +213,7 @@
     currentTool = tool;
     document.querySelectorAll(".pe-tool").forEach((b) => b.classList.toggle("active", b.dataset.tool === tool));
     $("pe-apply-crop").hidden = tool !== "select" || !cropRect;
+    $("pe-rect-radius-label").hidden = tool !== "rect";
     clearOverlay();
   }
 
@@ -728,6 +729,25 @@
     context.fill();
   }
 
+  // Corner radius only applies to the rect tool -- read once here rather
+  // than in each of the two call sites (preview + commit) that need it.
+  function rectRadius() {
+    return Number($("pe-rect-radius").value) || 0;
+  }
+
+  // ctx.roundRect() clamps an oversized radius to fit the rect automatically
+  // per spec, so a radius larger than half the drawn rectangle's smaller
+  // side (very possible since the slider's max is fixed at 100 regardless
+  // of how small a rectangle is actually dragged) degrades gracefully into
+  // a rounded pill/circle shape rather than throwing or corrupting the
+  // path -- no manual clamping needed here.
+  function strokeRectMaybeRounded(c, x, y, w, h, radius) {
+    c.beginPath();
+    if (radius > 0) c.roundRect(x, y, w, h, radius);
+    else c.rect(x, y, w, h);
+    c.stroke();
+  }
+
   function drawAnnotatePreview(x0, y0, x1, y1) {
     clearOverlay();
     const color = annotateColor();
@@ -735,7 +755,7 @@
     octx.strokeStyle = color;
     octx.lineWidth = size;
     if (currentTool === "rect") {
-      octx.strokeRect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0));
+      strokeRectMaybeRounded(octx, Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0), rectRadius());
     } else if (currentTool === "circle") {
       const rx = Math.abs(x1 - x0) / 2;
       const ry = Math.abs(y1 - y0) / 2;
@@ -759,7 +779,7 @@
     if (currentTool === "rect") {
       ctx.strokeStyle = color;
       ctx.lineWidth = size;
-      ctx.strokeRect(Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0));
+      strokeRectMaybeRounded(ctx, Math.min(x0, x1), Math.min(y0, y1), Math.abs(x1 - x0), Math.abs(y1 - y0), rectRadius());
     } else if (currentTool === "circle") {
       const rx = Math.abs(x1 - x0) / 2;
       const ry = Math.abs(y1 - y0) / 2;
@@ -1109,6 +1129,7 @@
         $("pe-saturate").value = 0;
         $("pe-apply-preset").value = "";
         $("pe-crop-ratio").value = "free";
+        $("pe-rect-radius").value = 0;
         bgPreviewSelect.value = "checkerboard";
         applyBgPreview("checkerboard");
         loadPhotoPresets();
