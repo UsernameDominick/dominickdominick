@@ -888,6 +888,7 @@
         setTool("select");
         $("pe-export-format").value = "image/png";
         $("pe-export-quality-label").hidden = true;
+        $("pe-export-quality").value = 85;
         modal.hidden = false;
         requestAnimationFrame(fitCanvasToViewport);
       };

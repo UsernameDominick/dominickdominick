@@ -1178,7 +1178,23 @@ async function routeAdminApi(request, env, url, ctx) {
     const body = await request.json().catch(() => ({}));
     const keys = Array.isArray(body.keys) ? body.keys : [];
     if (!keys.length) return json({ error: "No files selected" }, { status: 400 });
-    await Promise.all(keys.map((k) => Promise.all([env.MEDIA.delete(k), deleteMediaMeta(env, k)])));
+    // Mirrors the single-item DELETE route above: without this, a file's
+    // "Overwrite" version history (both the archived R2 bytes under
+    // _versions/ and their media_versions rows) survived the file's own
+    // deletion when done through a bulk selection instead of one at a
+    // time -- orphaned R2 objects with nothing left pointing to them, and
+    // dead D1 rows next to them. A real bug found while testing an
+    // unrelated feature, fixed here since it's the same shape as the
+    // existing single-delete cleanup and touches the same table.
+    await Promise.all(
+      keys.map(async (k) => {
+        const versions = await listMediaVersions(env, k);
+        await Promise.all(versions.map((v) => env.MEDIA.delete(v.version_key)));
+        await deleteMediaVersions(env, k);
+        await env.MEDIA.delete(k);
+        await deleteMediaMeta(env, k);
+      })
+    );
     log(ctx, env, "delete", "media", `${keys.length} file(s)`);
     return json({ ok: true });
   }

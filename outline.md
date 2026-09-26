@@ -5851,4 +5851,55 @@ Item #150 is done: 1 critic round, 9/10, no real findings.
   format-preservation fix. Full regression suite green; all test media
   deleted and confirmed gone.
 
-Handed to a critic agent for scoring.
+Handed to a critic agent for scoring: **7/10**. One real (low-severity)
+finding, plus one real but pre-existing, out-of-scope bug surfaced along
+the way:
+
+1. **(Fixed)** `#pe-export-quality`'s slider *value* was never reset when
+   opening a new image — only the format dropdown and the quality label's
+   `hidden` state were. Set format=JPEG, quality=15% on image A, close,
+   open a different image B: format correctly reset to PNG (quality
+   control correctly hidden), but the underlying slider value silently
+   stayed at 15 instead of the declared 85 default. If the admin then
+   switched image B's format to JPEG/WebP, they'd silently get 15%
+   quality instead of the expected default, unless they noticed the
+   slider's visual position. Never caused an estimate/actual-save
+   mismatch (both always read live DOM state at the moment of use), so a
+   UX/state-hygiene bug, not a data-corruption one. Fixed by also
+   resetting the slider's `.value` to 85 in the same reset block.
+2. **(Fixed, pre-existing, unrelated to this diff but found while
+   reviewing it)** `/media/bulk-delete` never cleaned up a file's
+   "Overwrite" version history — the single-item `DELETE /media/:key`
+   route already deletes each archived `_versions/` R2 blob and its
+   `media_versions` D1 rows before deleting the file itself, but the
+   bulk-delete route only ever deleted the file's own R2 object and
+   metadata row, leaving orphaned R2 objects and dead D1 rows behind for
+   any file that had ever been overwritten and was later deleted via a
+   bulk selection instead of one at a time. Confirmed via the critic's
+   own testing (their overwrite-test files left `_versions/` blobs behind
+   after bulk-delete) and fixed by mirroring the single-item route's
+   cleanup logic into bulk-delete. Not something to leave "logged only"
+   given it was cheap, directly related to the version-history mechanism
+   I'd been exercising all session, and a genuine storage-leak bug on a
+   real destructive-action code path.
+3. Everything else the critic checked came back correct on the first
+   pass: "Save as new" actually saves in the selected format/quality
+   (verified byte-for-byte consistent with the live estimate, not just
+   cosmetically matching); Overwrite's format-preservation fix works for
+   JPEG and WebP originals too, not just PNG, confirmed all the way to
+   the R2-stored content-type, not just client-side; format/quality
+   selection survives Undo/Redo/Reset/Compare correctly; switching images
+   correctly resets the format dropdown (just not, until this fix, the
+   slider value); `formatBytesLite()`'s boundary cases (0 bytes, exactly
+   1024 bytes) render correctly.
+
+Re-verified via Playwright: reopening an image after selecting
+JPEG/15% on a previous one now correctly shows PNG selected and the
+slider back at 85; overwriting a file after one prior overwrite (one
+`media_versions` row + one archived R2 blob) then bulk-deleting it now
+correctly shows 0 remaining version rows instead of leaking. Full
+regression suite green.
+
+Item #161 is done: 1 critic round, 7/10, both real findings (the slider
+reset bug, and the pre-existing bulk-delete version-cleanup gap) fixed
+and verified live.
