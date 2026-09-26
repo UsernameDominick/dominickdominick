@@ -7190,8 +7190,44 @@ normal wire-drawing) were re-run unchanged and still pass. Full
 regression suite green; no server-side state was touched in either
 round (test simulations were never saved), so no cleanup was needed.
 
-Item #434 is done: 1 critic round, 5/10, the one real finding (stale
-cached continuity result surviving simData mutations) fixed by making
-the result reactively self-healing rather than patching each of the
-several mutation call sites individually, plus a small accessibility
-addition (aria-live on the result span) folded in alongside it.
+Sent back for a round-2 critic pass on commit 8455522. Scored 9/10 --
+ship. Re-ran the exact round-1 repro live (wire a battery to an LED,
+probe them for "Connected," undo the wire) and confirmed it now
+self-heals to "Not connected" immediately with the highlight cleared.
+Exhaustively grepped every `simData`-mutating call site in the file
+(undo, redo, reset-to-saved, checkpoint restore, all three `openBuilder`
+entry paths, place/duplicate/delete for single and multi-select, wire
+draw/delete/kind-change, every property-edit field, and import) and
+confirmed every single one already calls `renderBuilder()` right after
+mutating -- meaning the "recompute fresh every render" fix is exhaustive
+by construction rather than by having enumerated and patched each site,
+so a future mutation site inherits correctness automatically as long as
+it follows the file's existing universal render-after-mutate convention.
+Also confirmed the wire-deleted-but-components-survive case (the actual
+original repro) and the component-deleted case are handled by two
+logically independent mechanisms, not aliases of the same check, and
+that recomputing `wireOnlyNetNodes()` on every render has no realistic
+performance or torn-state concern at this scale given JS's single-
+threaded execution and the function's O(wires+components) BFS.
+
+One new minor finding, logged rather than fixed: because `renderBuilder()`
+now unconditionally rewrites the result span's `textContent` and classes
+on every render whenever a probe is active -- not just when the
+Connected/Not-connected value actually changes -- a screen reader is
+likely to re-announce the same "Connected"/"Not connected" text on
+completely unrelated actions (dragging another component, editing a
+resistor's value, toggling an unrelated show/hide button) while a result
+is still showing. This is a direct trade-off of the same unconditional-
+recompute strategy that fixed the real bug, not a new defect it
+introduced independently, and not a data-correctness issue -- a future
+fix would skip the DOM write when the text/class state is unchanged from
+the last render, worth doing if screen-reader users actually exercise
+this tool, but not blocking.
+
+Item #434 is done: 2 critic rounds (5/10, 9/10), the one real finding
+(stale cached continuity result surviving simData mutations) fixed by
+making the result reactively self-healing rather than patching each of
+the several mutation call sites individually -- verified exhaustive, not
+just spot-checked -- plus a small accessibility addition (aria-live on
+the result span) folded in alongside it, with one minor aria-live
+re-announcement side effect logged as an accepted, non-blocking gap.
