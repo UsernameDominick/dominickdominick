@@ -6,6 +6,19 @@
   // "page_sync" on flashes it, regardless of which block's visualization
   // is active. A single overlay avoids stacking one per embed on a page
   // with multiple songs.
+  //
+  // Known, deliberate limitation (flagged by a critic pass on the player
+  // color themes feature): this overlay is appended to document.body, a
+  // sibling of any .song-embed, not a descendant -- so its CSS
+  // var(--accent) always resolves the site's global accent, never a
+  // themed song's per-element override (CSS custom properties only
+  // inherit down the DOM tree). A themed song's beat-flash will always be
+  // the global accent color even though its own bars/waveform/pulse
+  // correctly follow its theme. Scoping this to each song's own theme
+  // would mean either duplicating the overlay per song (defeating the
+  // single-shared-overlay design this comment starts with) or having each
+  // flash set an inline color read from the playing song's own theme --
+  // deferred as out of scope for now, not fixed by accident.
   let pageSyncOverlay = null;
   function getPageSyncOverlay() {
     if (!pageSyncOverlay) {

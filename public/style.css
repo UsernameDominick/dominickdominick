@@ -1259,9 +1259,17 @@ h6 { font-size: 0.9rem; }
   animation: song-pulse-hit 0.3s ease-out;
 }
 
+/* color-mix() with `transparent` gives a translucent version of the
+   CURRENT --accent -- a critic pass found the previous fixed
+   rgba(232,161,58,...) was a stale hardcoded amber left over from before
+   this site's --accent was changed to #ff7a45 (see the :root comment
+   above), so the pulse's beat-hit ring never matched the global accent
+   even before per-song themes existed, and wouldn't have followed a
+   theme's accent either -- the one themed visual element this feature's
+   own description promised but didn't actually wire up. */
 @keyframes song-pulse-hit {
-  0% { box-shadow: 0 0 0 0 rgba(232, 161, 58, 0.5); }
-  100% { box-shadow: 0 0 0 24px rgba(232, 161, 58, 0); }
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 50%, transparent); }
+  100% { box-shadow: 0 0 0 24px color-mix(in srgb, var(--accent) 0%, transparent); }
 }
 
 /* Reusable player themes -- each just re-declares --accent scoped to this
@@ -1271,7 +1279,17 @@ h6 { font-size: 0.9rem; }
    element, see song-embed.js) all pick it up automatically, with zero
    changes needed to those rules. No theme selected (the "default" value)
    means no song-theme-* class is rendered at all, so the embed falls
-   through to the site's own global --accent unchanged. */
+   through to the site's own global --accent unchanged.
+
+   These dark-mode values are only half the story -- a critic pass found
+   they had no light-mode variant at all, unlike the site's own base
+   --accent (see :root[data-theme="light"] above, which deliberately
+   darkens the same hue for legibility). Applied unconditionally, "Mono"
+   or "Sunset" against the light theme's --bg-elevated (#f7ede0, a warm
+   near-white) dropped to ~1.2:1 contrast -- the active bar, hover
+   border, pulse core and waveform became nearly invisible. The
+   light-mode block below follows the same darkened-same-hue pattern and
+   is verified the same way. */
 .song-embed.song-theme-sunset {
   --accent: #ff7a45;
 }
@@ -1283,6 +1301,27 @@ h6 { font-size: 0.9rem; }
 }
 .song-embed.song-theme-neon {
   --accent: #39ff8f;
+}
+:root[data-theme="light"] .song-embed.song-theme-sunset {
+  /* Same hue as the site's own light-mode --accent (#c1440e, verified
+     4.94:1 against --bg), darkened slightly further since this embed
+     sits on --bg-elevated (#f7ede0), a touch darker than --bg itself --
+     reusing #c1440e as-is only measured 4.42:1 here, just under the
+     4.5:1 threshold the rest of this file's accent tokens clear.
+     Verified 5.54:1 against --bg-elevated. */
+  --accent: #a83a0c;
+}
+:root[data-theme="light"] .song-embed.song-theme-ocean {
+  /* Verified 6.17:1 against --bg-elevated (#f7ede0). */
+  --accent: #1a5c8a;
+}
+:root[data-theme="light"] .song-embed.song-theme-mono {
+  /* Verified 7.67:1 against --bg-elevated (#f7ede0). */
+  --accent: #4a4a4a;
+}
+:root[data-theme="light"] .song-embed.song-theme-neon {
+  /* Verified 5.66:1 against --bg-elevated (#f7ede0). */
+  --accent: #176b3f;
 }
 
 /* Page-wide beat-sync overlay — a single shared fixed layer any playing
