@@ -4820,7 +4820,7 @@ session's own EXIF-stripping feature for the upload-side equivalent).
 198. Hide tracks without disabling audio — separate UI flag from mute.
 199. Reorder/duplicate tracks — array ops, duplicate-song pattern exists.
 217. ☐ Reverse selected audio — checked: doesn't map onto the current song engine as worded. There's no AudioBuffer/sample playback anywhere in `song-engine.js`/`song-builder.js` (confirmed via grep — zero `AudioBuffer`/`decodeAudioData`/`Float32Array` hits), only synthesized oscillator notes in a step sequencer. "Reversing audio" needs a real audio buffer to exist first, which is the much bigger "Recording"/"Sampling" infrastructure this backlog already rates Medium/Hard, not a quick win. Left open rather than force-fit onto data that doesn't exist.
-218. Normalize to peak — scan buffer max, apply gain.
+218. ✅ Normalize to peak — done (see the dated entry below this section).
 220. Remove DC offset — subtract mean from buffer.
 236. Humanization — bounded Math.random() offsets on existing grid data.
 237. ✅ Transpose semitone/octave — done (see the dated entry below this section).
@@ -8701,3 +8701,95 @@ architecture required the same logic to be written twice) fixed and
 independently re-verified against real JS semantics for every edge
 case, plus one minor wording nit fixed alongside it and one pre-existing
 non-regression quirk explicitly logged as out of scope.
+
+### Thirty-first item: #218, normalize to peak for the Song/DAW builder
+
+- ✅ **A new "Normalize to peak" button** in the Song builder toolbar,
+  reusing the #195 master-bus feature's `renderWaveformPeaks()` (which
+  always renders one full loop at forced full volume via an
+  `OfflineAudioContext`, regardless of the song's saved
+  `master_volume`, since it exists to show the waveform preview's
+  *shape*). Rather than just visualizing that data, this feature reads
+  it to find the song's real synthesized peak amplitude — several drum
+  hits and melody notes landing on the same 16th-note step can sum well
+  past a single voice's own level — and auto-sets `master_volume` so the
+  loudest moment lands just under full scale (a 0.98 target, not exactly
+  1.0, for a small safety margin) instead of clipping. Guards a silent
+  song (peak ~0) from a divide-by-zero blowup with a small epsilon
+  floor, and caps the result at 100% since this builder's master gain
+  only ever attenuates, never boosts above unity. The button disables
+  itself with a "Scanning…" label during the async render.
+
+Handed to a critic agent for scoring: **3/10**. Findings:
+
+1. **(Fixed, critical)** The async handler had no staleness guard at
+   all. Clicking Normalize, then switching to a different song before
+   the offline render resolved, silently wrote the FIRST song's computed
+   volume onto the SECOND song's `songData` object (since `songData`/
+   `currentSongId` are reassigned in place when switching songs) and
+   then triggered the second song's autosave with the wrong value —
+   real, reachable cross-song data corruption. Fixed by capturing the
+   same `openGeneration` counter `openBuilder()` itself already
+   increments on every song switch (and already uses to guard its own
+   async `GET` request against this identical class of bug) before
+   starting the render, and bailing out with no state mutation if it's
+   changed by the time the render resolves.
+2. **(Fixed)** The scan had no protection against a concurrent manual
+   slider drag — if the admin dragged the volume slider while a scan was
+   in flight, the scan's eventual (stale) result unconditionally
+   overwrote the manual adjustment with no warning, since the existing
+   `normalizingPeak` flag only guarded re-entering the same button's own
+   handler, not a different writer touching the same field. Fixed with a
+   new `volumeInputGeneration` counter, bumped as the literal first line
+   of the slider's own `input` handler, checked in the same combined
+   guard as finding #1 — any manual slider touch during a scan makes the
+   scan back off silently on completion rather than clobbering it.
+3. **(Fixed)** Full float precision was stored into `songData.master_volume`
+   while only the slider's *displayed* percentage was rounded, so the
+   file's separate explicit Save handler (which recomputes
+   `master_volume` from the current rounded slider value) and autosave
+   (persisting the unrounded value) could silently disagree about what
+   the same on-screen percentage numerically meant — and rounding to
+   *nearest* rather than *down* could push the persisted volume above
+   the level the scan actually proved safe against clipping, quietly
+   undoing part of the safety margin the feature exists to provide.
+   Fixed by flooring once to a whole percent and using that single value
+   for the slider, the live gain, and the persisted field alike.
+4. **(Fixed, minor)** A `try/finally` with no `catch` meant a
+   `renderWaveformPeaks`/`OfflineAudioContext` failure became a silent
+   unhandled promise rejection. Added a `catch` with an `alert`, matching
+   this file's established pattern for other async failures.
+5. **(Fixed, minor/UX)** Normalizing a brand-new unsaved song updates
+   `songData` in memory but persists nothing (matching this file's
+   existing "autosave only for a saved draft" convention — not a bug on
+   its own), so the completion alert now notes "(Save the song to keep
+   this.)" in that case.
+
+Sent for a round-2 critic pass specifically tracing the combined
+generation-guard against both race scenarios independently, re-deriving
+the flooring math by hand for several peak values, and checking for any
+new race introduced by combining two counters. Confirmed all three fixes
+genuinely correct: `openBuilder()` bumps `openGeneration` synchronously
+before either place `songData` is ever reassigned, so there's no gap
+where the object could change without the counter changing; the volume
+counter increments before the slider handler even touches
+`songData.master_volume` itself; the bail-out on either mismatch happens
+strictly before any state mutation, with no partial write and no alert;
+and since both counters are monotonically-incrementing and never reset,
+no interleaving (switch → drag → switch back) can coincidentally "cancel
+out" and slip past the OR-guard. Independently verified the flooring
+math numerically for several peak values, confirming it only ever rounds
+toward more conservative (quieter), never past the proven-safe level.
+Confirmed the `catch`'s early return still runs the `finally` correctly
+(no way to leave the button stuck disabled), and that the original
+happy-path behavior (silent song → 100%, dense song → correct low
+percentage, button state during a normal unraced scan) is unaffected.
+Final score: **9/10** — ships.
+
+Item #218 is done: 2 critic rounds, 3/10 → 9/10, three real bugs (a
+cross-song data-corruption race, a concurrent-edit clobber, and a
+rounding mismatch that could silently erode the feature's own safety
+margin) all fixed with a reused/extended generation-guard pattern and
+independently re-verified by hand-tracing both the race scenarios and
+the rounding math, plus two minor fixes (error handling, an unsaved-song
+UX note) alongside them.
