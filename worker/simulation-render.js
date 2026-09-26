@@ -287,14 +287,20 @@ export const SIM_COMPONENTS = {
   ammeter: {
     label: "Ammeter",
     w: 40,
-    h: 20,
+    // Taller than the switch it otherwise mirrors (h:20) so the live
+    // current reading (see renderComponentSvg in both this file and
+    // public/admin/sim-components.js) has room within the part's own
+    // declared bounding box instead of rendering below it -- pins stay
+    // at their original y:10 (the lead-spacing math that matters for
+    // breadboard snapping is horizontal, unaffected by this).
+    h: 34,
     passthrough: [["p1", "p2"]],
     pins: [
       { id: "p1", x: 0, y: 10 },
       { id: "p2", x: 40, y: 10 },
     ],
     render: () =>
-      `<line class="ammeter-lead" x1="0" y1="10" x2="6" y2="10"/><circle class="ammeter-body" cx="20" cy="10" r="9"/><text class="ammeter-label" x="20" y="13" text-anchor="middle" font-size="9">A</text><line class="ammeter-lead" x1="34" y1="10" x2="40" y2="10"/>`,
+      `<line class="ammeter-lead" x1="0" y1="10" x2="11" y2="10"/><circle class="ammeter-body" cx="20" cy="10" r="9"/><text class="ammeter-label" x="20" y="13" text-anchor="middle" font-size="9">A</text><line class="ammeter-lead" x1="29" y1="10" x2="40" y2="10"/>`,
   },
   // A two-terminal variable resistor -- no separate wiper-tap pin, so no
   // voltage-divider behavior (that needs a real multi-branch solver, out
@@ -723,9 +729,21 @@ function renderComponentSvg(comp, poweredComps, analysis) {
   // which already prints the same text visibly -- a tooltip repeating it
   // would just be redundant (a critic pass found this).
   const titleSvg = comp.label && comp.type !== "mcu_teensy" ? `<title>${escXml(comp.label)}</title>` : "";
+  // An ammeter's whole reason for existing is showing a number -- a critic
+  // pass found the public embed never rendered ANY analysis result (only
+  // used them to toggle a "damaged" CSS class), so a site visitor placed
+  // in front of a published ammeter would never actually see a reading,
+  // only the admin's own inspector panel. Printed directly on the part,
+  // matching how mcu_teensy already prints its own label visibly.
+  const readingSvg =
+    comp.type === "ammeter" && info
+      ? `<text class="ammeter-reading" x="20" y="32" text-anchor="middle" font-size="8">${
+          info.currentMa === Infinity ? "∞" : info.currentMa.toFixed(1)
+        }mA</text>`
+      : "";
   return `<g class="sim-comp sim-comp-${escXml(comp.type)}${statusClass}" data-id="${escXml(comp.id)}" data-powered="${
     poweredComps.has(comp.id) ? "true" : "false"
-  }" transform="translate(${comp.x},${comp.y})">${titleSvg}${def.render(comp)}</g>`;
+  }" transform="translate(${comp.x},${comp.y})">${titleSvg}${def.render(comp)}${readingSvg}</g>`;
 }
 
 function renderWireSvg(wire, components, poweredWires) {

@@ -451,13 +451,23 @@
     // same text as visible SVG <text>, so a tooltip repeating it would
     // just be redundant (a critic pass found this).
     const titleSvg = comp.label && comp.type !== "mcu_teensy" ? `<title>${escapeXml(comp.label)}</title>` : "";
+    // Mirrors the public embed's own live reading (worker/simulation-
+    // render.js) -- an ammeter's whole reason for existing is showing a
+    // number, so the admin canvas shows it directly on the part too, not
+    // just in the separate inspector panel one has to select the part to see.
+    const readingSvg =
+      comp.type === "ammeter" && info
+        ? `<text class="ammeter-reading" x="20" y="32" text-anchor="middle" font-size="8">${
+            info.currentMa === Infinity ? "∞" : info.currentMa.toFixed(1)
+          }mA</text>`
+        : "";
     return `<g class="sim-comp sim-comp-${comp.type}${sel ? " sim-selected" : ""}${damaged ? " sim-damaged" : ""}${
       searchMatch ? " sim-search-match" : ""
     }" data-id="${escapeXml(
       comp.id
     )}" data-powered="${poweredComps.has(comp.id) ? "true" : "false"}" transform="translate(${comp.x},${
       comp.y
-    })">${titleSvg}${def.render(comp)}${sel ? `<rect class="sim-select-box" x="-4" y="-4" width="${def.w + 8}" height="${def.h + 8}" />` : ""}${
+    })">${titleSvg}${def.render(comp)}${readingSvg}${sel ? `<rect class="sim-select-box" x="-4" y="-4" width="${def.w + 8}" height="${def.h + 8}" />` : ""}${
       searchMatch ? `<rect class="sim-search-match-box" x="-6" y="-6" width="${def.w + 12}" height="${def.h + 12}" />` : ""
     }</g>`;
   }

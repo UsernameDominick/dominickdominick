@@ -1551,6 +1551,11 @@ h6 { font-size: 0.9rem; }
   font-weight: 700;
   pointer-events: none;
 }
+.sim-comp .ammeter-reading {
+  fill: var(--text-dim);
+  text-anchor: middle;
+  pointer-events: none;
+}
 
 /* Battery */
 .sim-comp .battery-body {
