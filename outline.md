@@ -10484,3 +10484,45 @@ at `z-index: 200` still correctly renders above everything, including
 the command palette). No test data was created (only in-memory editor
 state on an existing library image, with the test rotation undone
 before the test ends).
+
+Handed to a critic agent for scoring: **6/10**, below the ship
+threshold. Round-1 finding:
+
+1. **(Fixed, real, confirmed bug)** "Photo Editor: Compare with
+   original" was a completely silent dead command. `#pe-compare` is
+   wired exclusively via `pointerdown`/`pointerup`/`pointerleave`/
+   `pointercancel`/`keydown`/`keyup`/`blur` — a genuine press-and-hold
+   gesture with no `click` listener anywhere. Calling `.click()` on it
+   (as this entry did) dispatches only a synthetic `click` `MouseEvent`,
+   which none of those listeners respond to — selecting this palette
+   entry did nothing at all, with zero visual feedback and no error,
+   which is worse than a crash since the admin has no signal it failed.
+   Fixed by removing the entry entirely rather than inventing a
+   click-to-toggle behavior for a control that's a momentary hold-to-
+   preview gesture everywhere else in the editor — there's no sensible
+   "select once from a list" equivalent to build instead.
+
+The critic separately verified (no changes needed) that the z-index fix
+is a genuinely COMPLETE general fix, not narrowly scoped to just the
+Photo Editor case as the write-up had modestly framed it: `z-index: 110`
+overrides the shared `.modal` rule unconditionally, and the critic
+enumerated every `.modal` in `index.html` — several (Simulations, Song
+builder, Scans, Preview, Topic Pages, Layers, and more) come AFTER
+`#photo-editor-modal` in DOM order, and the command palette now
+correctly renders above all of them, not just the one case this item
+happened to test. Also confirmed all ~29 remaining `peClick`/
+`peToolClick` id/tool string references check out exactly against the
+current HTML (no typos), confirmed `pe-apply-crop`'s own internal
+`if (!cropRect) return;` guard makes firing it with no active crop a
+correct no-op rather than a bug, confirmed no stale-`hidden` race is
+possible since `PhotoEditor.open()` only sets `modal.hidden = false`
+after all internal state init has already completed, and confirmed no
+naming collisions with any pre-existing palette entry.
+
+Re-verified via Playwright: confirmed searching "compare" while the
+Photo Editor is open no longer surfaces any dead entry, and re-ran the
+full original test suite for this item (Dodge activation, Rotate right
+actually executing, entries appearing/disappearing correctly with the
+editor's open state) — all still pass. Ran the full
+`test_security_seo.js` regression suite — all passed. Sent for a
+round-2 critic pass.

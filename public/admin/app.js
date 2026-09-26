@@ -7266,7 +7266,15 @@
         { label: "Photo Editor: Undo", sub: "Ctrl+Z", run: peClick("pe-undo") },
         { label: "Photo Editor: Redo", sub: "Ctrl+Shift+Z", run: peClick("pe-redo") },
         { label: "Photo Editor: Reset to original", sub: "", run: peClick("pe-reset") },
-        { label: "Photo Editor: Compare with original", sub: "Press and hold", run: peClick("pe-compare") },
+        // Deliberately no "Compare with original" entry -- #pe-compare is
+        // wired exclusively via pointerdown/pointerup/keydown/keyup (a real
+        // press-and-hold gesture), not a "click" listener at all, so a
+        // synthetic .click() from here would be a completely silent no-op
+        // (a critic pass caught this reachable exactly as a dead palette
+        // entry). A momentary hold-to-preview gesture has no sensible
+        // "select once from a list" equivalent to invent instead, so this
+        // is left out rather than built into a toggle that doesn't match
+        // how Compare works anywhere else in the editor.
         { label: "Photo Editor: Save named snapshot", sub: "", run: peClick("pe-save-snapshot") },
         { label: "Photo Editor: Restore named snapshot", sub: "", run: peClick("pe-restore-snapshot") },
         { label: "Photo Editor: Select / Crop tool", sub: "", run: peToolClick("select") },
