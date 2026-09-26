@@ -1588,6 +1588,29 @@ export async function getMediaMeta(env, keys) {
   return map;
 }
 
+// The one place that decides a media item's width/height is actually
+// plausible, rather than trusting whatever a caller passed in. Enforced
+// here inside upsertMediaMeta itself -- the single write path every
+// caller (upload, backfill, and PATCH /media/:key) already goes
+// through -- rather than only in the header parsers that normally
+// produce these values, after a critic pass found `PATCH /media/:key`
+// forwards its raw request body straight through with no field
+// allowlist, so a stray width/height in that body previously bypassed
+// every parser-side check entirely and got rendered as-is into a real
+// <img> tag. 20000px is far past any real photo/graphic this site would
+// ever legitimately hold.
+const MAX_PLAUSIBLE_IMAGE_DIMENSION = 20000;
+function boundedImageDim(v) {
+  return Number.isFinite(v) && v > 0 && v <= MAX_PLAUSIBLE_IMAGE_DIMENSION ? v : null;
+}
+export function plausibleDims(dims) {
+  if (!dims) return null;
+  const width = boundedImageDim(dims.width);
+  const height = boundedImageDim(dims.height);
+  if (width === null || height === null) return null;
+  return { width, height };
+}
+
 export async function upsertMediaMeta(
   env,
   key,
@@ -1605,6 +1628,15 @@ export async function upsertMediaMeta(
   // in spirit, and this function has no error-reporting path back to most
   // of its callers.
   if (folder === "__uncategorized__") folder = null;
+  // Enforced here, the one write path every caller (upload, backfill, and
+  // the admin PATCH route) goes through, rather than only in the header
+  // parsers that normally produce these values -- a critic pass found
+  // `PATCH /media/:key` forwards its raw request body straight through
+  // with no field allowlist, so a stray/adversarial width or height in
+  // that body previously bypassed every parser-side plausibility check
+  // entirely and got rendered as-is into a real <img> tag.
+  if (width !== undefined) width = boundedImageDim(width);
+  if (height !== undefined) height = boundedImageDim(height);
   const existing = await env.DB.prepare("SELECT * FROM media WHERE key = ?").bind(key).first();
   if (existing) {
     // Snapshot before overwriting — but only for an actual editorial edit

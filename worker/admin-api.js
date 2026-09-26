@@ -141,6 +141,7 @@ import {
   MIN_PUBLISH_BODY_LENGTH,
   publishBodyTooShort,
   sha256Hex,
+  plausibleDims,
 } from "./db.js";
 import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated, hmac } from "./auth.js";
 
@@ -257,34 +258,6 @@ function sanitizeSvg(text) {
     .replace(/\son\w+\s*=\s*[^\s"'>]+/gi, "")
     .replace(/((?:xlink:)?href|src)\s*=\s*"\s*javascript:[^"]*"/gi, '$1="#"')
     .replace(/((?:xlink:)?href|src)\s*=\s*'\s*javascript:[^']*'/gi, "$1='#'");
-}
-
-// Shared by every parser below (raster header formats and the SVG
-// attribute reader alike) as the one place that decides a parsed
-// {width,height} is actually plausible, rather than trusting whatever
-// bytes/text happened to be at the expected offset. A corrupted or
-// adversarial file can put anything in that spot -- a critic pass found
-// a garbage GIF parsing to a huge nonsense size, and a PNG/SVG with an
-// absurd value (e.g. 0xFFFFFFFF, or "999999999999") sailing straight
-// through into a real rendered <img> tag, which doesn't just fail to
-// help with layout shift, it actively causes it by reserving the wrong
-// amount of space. 20000px is far past any real photo/graphic this site
-// would ever legitimately hold.
-const MAX_PLAUSIBLE_IMAGE_DIMENSION = 20000;
-function plausibleDims(dims) {
-  if (!dims) return null;
-  const { width, height } = dims;
-  if (
-    !Number.isFinite(width) ||
-    !Number.isFinite(height) ||
-    width <= 0 ||
-    height <= 0 ||
-    width > MAX_PLAUSIBLE_IMAGE_DIMENSION ||
-    height > MAX_PLAUSIBLE_IMAGE_DIMENSION
-  ) {
-    return null;
-  }
-  return dims;
 }
 
 // Reads an image's pixel width/height straight from its file header --
@@ -1496,6 +1469,18 @@ async function routeAdminApi(request, env, url, ctx) {
     await env.MEDIA.put(versionKey, await existingObj.arrayBuffer(), { httpMetadata: existingObj.httpMetadata });
     await recordMediaVersion(env, key, versionKey, existingObj.size);
     await env.MEDIA.put(key, buf, { httpMetadata: { contentType } });
+    // Recompute width/height against the new bytes -- a critic pass found
+    // an overwrite (e.g. the photo editor cropping the image) otherwise
+    // left the old dimensions in place, so a page rendering this image
+    // would reserve the wrong amount of layout space for the new file,
+    // exactly the failure mode this whole feature exists to prevent.
+    // This is an UPDATE on an existing row (unlike a fresh /upload
+    // INSERT), so passing `undefined` here would make upsertMediaMeta
+    // skip the width/height columns entirely and leave the old file's
+    // now-stale dimensions in place when the new bytes can't be parsed --
+    // explicit `null` is required to actually clear them.
+    const dims = readImageDimensions(buf, contentType);
+    await upsertMediaMeta(env, key, { width: dims ? dims.width : null, height: dims ? dims.height : null });
     return json({ url: `/media/${key}` });
   }
   // /media-file-versions?key=... — same reasoning as /media-revisions:

@@ -6807,15 +6807,75 @@ now correctly reports `null`/`null` instead of a fabricated `800x600`.
 Full regression suite green; all test uploads deleted and confirmed
 gone.
 
-Item #576 is done: 3 critic rounds (6/10, 6/10, 6/10), seven real
-findings across all three rounds all fixed and verified live except the
-one pre-existing backfill-pagination limitation (logged as a deferred
-Medium item, shared with `/media/backfill-hashes`, not a regression from
-this feature), with no regression to the working formats. Each round's
-fix was scoped too narrowly to that round's exact complaints and missed
-a sibling instance of the same bug class in a format nobody had
-re-examined yet (GIF -> JPEG/WebP/SVG-regex -> PNG) -- a pattern worth
-remembering for future header-parsing work: when a critic finds a
-missing-validation bug in one branch of a multi-format function, audit
-every other branch for the identical gap in the same pass, rather than
-only fixing the one branch that was called out.
+Sent back for a round-4 critic pass on commit af54486, this time asking
+for an explicit symmetric audit (all five formats checked against the
+same questions side by side) rather than another open-ended search,
+given the round-1/2/3 pattern of always finding one more sibling gap in
+a format nobody had re-examined. Result: the five-format parser itself
+is now genuinely symmetric and correct -- the critic confirmed, format
+by format, that every one of PNG/GIF/JPEG/WebP/SVG validates its magic
+bytes/envelope before any offset read, routes every return path through
+`plausibleDims`, and has sufficiently-guarded buffer reads for the
+offsets each branch actually uses (including WebP's three sub-formats
+individually). No new parsing gap found. Scored 6/10 anyway, because the
+audit's own last question -- whether any code path lets a computed
+width/height bypass `plausibleDims` entirely -- turned up a real one
+outside the parser: `PATCH /media/:key` forwarded its raw JSON request
+body straight into `upsertMediaMeta` with no field allowlist, and
+`upsertMediaMeta` itself never validated `width`/`height` before writing
+them, so a request body like `{"width": 999999999, "height": -5}`
+bypassed every one of the previous three rounds' parser hardening and
+still got rendered as-is into the `<img>` tag `imgSizeAttrs()` emits.
+The admin UI itself never sends those fields today, but the backend
+route enforced nothing, so any future caller (a UI bug, a direct API
+call) could reintroduce the exact "absurd value reaches a real page"
+failure every prior round was fixing.
+
+Fixed by moving `plausibleDims()` (and the `MAX_PLAUSIBLE_IMAGE_DIMENSION`
+constant) from admin-api.js into db.js and enforcing it directly inside
+`upsertMediaMeta` itself -- the one write path every caller (upload,
+both backfill routes, and PATCH) already goes through -- rather than
+only inside the header parsers that normally produce these values. This
+makes it a single enforcement point no future caller can route around,
+instead of relying on every caller to remember to validate before
+calling in. admin-api.js now imports `plausibleDims` from db.js for its
+own parser code (avoiding a circular import, since admin-api.js already
+imports from db.js). The critic's secondary finding -- `PUT /media/:key`
+(the photo editor's "Overwrite original" save) replaced a file's bytes
+without recomputing width/height, so a crop or other dimension-changing
+edit left the old file's stale dimensions in the DB, reserving the wrong
+layout space for the new image -- was fixed too, by recomputing dims
+from the new bytes via the same `readImageDimensions()` call already used
+elsewhere and passing them through explicitly (using `null`, not
+`undefined`, since this is an UPDATE on an existing row where `undefined`
+would skip the column and leave the stale value in place).
+
+Re-verified via Playwright: all five valid formats and all four earlier
+adversarial fixtures (fake-signature GIF/JPEG/WebP/PNG, percentage and
+stroke-width-colliding SVGs) still behave correctly after the refactor,
+confirming no regression from moving `plausibleDims` to a different
+file. Three new adversarial checks for this round's fix: a `PATCH` with
+`{width: 999999999, height: -5}` on a real uploaded file now correctly
+nulls both fields instead of writing them; a `PATCH` with plausible
+values (`{width: 500, height: 400}`) is still correctly accepted,
+confirming the fix doesn't over-reject legitimate metadata edits; and a
+`PUT` overwrite with a 222x333 image on a file that previously had
+100x100 dimensions now correctly reports 222x333 instead of the stale
+value. Full regression suite green; all test uploads deleted and
+confirmed gone.
+
+Item #576 is done: 4 critic rounds (6/10 x4), nine real findings across
+all four rounds all fixed and verified live except the one pre-existing
+backfill-pagination limitation (logged as a deferred Medium item, shared
+with `/media/backfill-hashes`, not a regression from this feature), with
+no regression to the working formats at any step. Rounds 1-3 each found
+a sibling instance of the same missing-validation bug class in a raster
+format nobody had re-examined yet (GIF -> JPEG/WebP/SVG-regex -> PNG);
+round 4's explicit symmetric audit finally closed that specific pattern
+out, but surfaced a different, more consequential gap in the same
+family: hardening every parser is worthless if the write path around the
+parsers (an admin API route forwarding a raw request body) can skip them
+entirely. The fix for that -- enforcing the invariant inside the shared
+write function itself, not just inside the code paths that are expected
+to produce valid input -- is the more durable pattern going forward for
+this kind of validation.
