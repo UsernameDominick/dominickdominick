@@ -4766,7 +4766,7 @@ join, rather than building three separate systems.
 143. Searchable command palette — static command list + filter/keydown.
 146. ✅ Before/after compare — done (see the dated entry below this section).
 150. ✅ Status bar (dimensions/zoom) — done (see the dated entry below this section).
-158. Explain resource limits — static UI text.
+158. ✅ Explain resource limits — done (see the dated entry below this section).
 161. ✅ Export quality/size preview — done (see the dated entry below this section).
 169. ✅ Transparency preview vs backgrounds — done (see the dated entry below this section).
 174. Light/dark theme preview — wrap canvas container in themed class.
@@ -9386,3 +9386,92 @@ URL inconsistency and an unde-duplicated concurrency race, all fixed and
 independently re-verified by tracing the actual cache-key comparison
 logic and confirming the fixes against real Site Settings mutations
 rather than mocked state.
+
+### Fortieth item: #158, Photo Editor resource-limits tooltip (plus two real bugs it surfaced)
+
+- ✅ **A small "ℹ️ Limits" tooltip** in the bottom toolbar, explaining
+  three previously-silent constraints: images over 2000px on the long
+  edge get automatically downscaled on open, undo/redo keeps only the
+  last 15 steps, and exported files are capped at 8MB. What started as a
+  purely static-text item turned into a multi-round chain after writing
+  the advice text surfaced two genuine, previously-invisible bugs in the
+  editor's actual save behavior.
+
+Handed to a critic agent for scoring: **4/10**. Round-1 findings:
+
+1. **(Fixed, major, real functional bug)** "Overwrite original" never
+   passed a `quality` argument to `canvas.toBlob()` at all, so the
+   quality slider had zero effect on overwriting a JPEG/WebP-original
+   image — this editor's own hint text calls that out as the primary
+   save action for a library image ("overwrite updates it everywhere
+   it's used"). The tooltip's own "lower the quality slider" advice was
+   therefore actively false for the most common save path. Fixed by
+   threading the same quality value "Save as new" already uses through
+   the overwrite handler (skipped for PNG, matching "Save as new"'s own
+   PNG handling).
+2. **(Fixed, related visibility gap the fix surfaced)** The quality
+   slider's shown/hidden state was only ever driven by "Save as new"'s
+   own format dropdown, which `open()` always resets to PNG by default —
+   so overwriting a JPEG-original image left the one control that now
+   genuinely affects its output completely invisible unless the admin
+   happened to also change the unrelated "Save as new" dropdown first.
+   Fixed by showing the slider whenever EITHER save path would use it.
+3. **(Fixed)** The tooltip's advice offered nothing for PNG exports
+   hitting the cap (no quality concept, and this editor's own default
+   format) — now names PNG's actual remedies (crop/resize, or switch
+   format via "Save as new").
+4. **(Fixed)** The three numbers were a separate hardcoded string with
+   no link to the real `MAX_DIMENSION`/`UNDO_LIMIT` constants — now
+   interpolated from them directly at render time, plus a new named
+   `MAX_EXPORT_MB` constant for the server-side cap (necessarily a
+   separate literal, since a client module has no way to query the
+   Worker's own hardcoded limit, but centralized rather than a bare
+   number).
+
+Sent for a round-2 critic pass verifying all four fixes and independently
+proving the overwrite fix by measuring real output bytes. Confirmed
+correct — and found a NEW issue in the exact area it was checking:
+
+5. **(Fixed, round 2, moderate)** `updateSizeEstimate()` always computed
+   its displayed estimate against "Save as new"'s own format (PNG by
+   default), even when the quality slider was visible purely because of
+   the overwrite path. Dragging the slider genuinely changed the real
+   overwrite output (proven: 8.7KB at quality 10 vs 206KB at quality
+   100), but the displayed estimate stayed completely frozen at PNG's
+   fixed size regardless of slider position — an admin could reasonably
+   conclude the control was broken, when only the *display* was
+   disconnected from the real save path. Fixed by computing and showing
+   BOTH paths' real estimates whenever an original file exists to
+   overwrite, each against its own actual format/quality, with a
+   generation-counter guard against the two newly-chained async
+   `canvas.toBlob()` calls resolving out of order across rapid slider
+   drags.
+
+Sent for a round-3 critic pass specifically tracing the generation-
+counter guard across both the outer and inner chained async calls for a
+genuine race, and checking two edge cases: a PNG-original image (would
+both estimates show identically, and is that confusing) and the no-
+original-key case (does it correctly show only "Save as new" with no
+dangling separator). Confirmed the generation guard is correctly checked
+independently at both callback levels, so an older, slower-resolving
+pair of chained calls is always discarded regardless of resolution
+order, and that starting the inner call without a fresh generation
+check first is harmless since the inner callback's own check at
+resolution time is what actually matters. Confirmed the no-original-key
+path correctly shows only "Save as new" with no dangling text. One
+minor, non-blocking cosmetic nit was noted: a PNG-original image with
+"Save as new" also left at PNG shows two identical-looking numbers
+under different labels ("Save as new"/"Overwrite") — technically
+accurate (both truly would produce identical bytes) but could read as a
+glitch; left as an optional future simplification rather than blocking
+on it, since the numbers themselves are never wrong. Final score:
+**9/10** — ships.
+
+Item #158 is done: 3 critic rounds, 4/10 → 9/10. What began as a static
+informational tooltip surfaced two real, previously-invisible bugs in
+this editor's actual save behavior (overwrite silently ignoring the
+quality slider entirely, and a size estimate that looked broken exactly
+when the fix for the first bug made it matter) — both fixed and proven
+with real measured output bytes rather than just "no error thrown,"
+each independently re-verified by a fresh critic round tracing the
+actual code paths and async-race handling involved.
