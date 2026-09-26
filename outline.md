@@ -13111,3 +13111,45 @@ note-name/frequency helpers (`Engine.NOTE_NAMES`, `Engine.noteToFreq`)
 and the pre-existing piano-roll data structure untouched.
 
 Sent for a critic pass.
+
+Critic round 1 (score 8/10): verified the note mapping empirically by
+monkeypatching `SongEngine.playMelodyNote` and pressing all 24 mapped
+keys individually, comparing each against `noteToFreq()` for the
+expected note — all 24 matched exactly, no typos or off-by-one errors
+(non-issue). Confirmed the isTyping guard correctly lets literal
+characters through when typing into `#song-tempo`/`#song-waveform`
+(non-issue). Confirmed Ctrl+Z and other modified keypresses are
+correctly ignored, with no collision against any other keydown handler
+in the admin (simulation-builder.js, photo-editor.js, app.js) since each
+is gated on its own modal's visibility (non-issue). Confirmed recording
+writes the correct note into the correct row/step with no cross-row
+leakage and is safely idempotent if the same key is pressed twice at the
+same step (non-issue). Confirmed the repeat-guard code itself is
+correct, though noted Playwright/CDP can't fully simulate genuine OS
+key-repeat to prove it end-to-end — a tooling limitation, not a code
+concern (non-issue, low residual risk). Ran the full
+`test_security_seo.js` suite and manually re-verified play/stop,
+transpose, and MIDI-connect-button visibility — all still work, zero
+regressions.
+
+Two real, non-blocking findings: (1) the isTyping guard checked only
+`tagName` for INPUT/TEXTAREA/SELECT, unlike the equivalent guard
+elsewhere in the admin (app.js's global handler) which also checks
+`document.activeElement.isContentEditable` — not currently exploitable
+since the song builder modal has zero contenteditable elements today,
+but an inconsistency that would silently break if one is ever added.
+Fixed by adding the same `isContentEditable` check, matching the
+established pattern. Re-verified via the same Playwright test plus the
+full regression suite — no change in behavior, all still passing. (2)
+No on-screen legend/diagram of which keys map to which notes anywhere
+in the modal — the only hint is a hover-only tooltip on the record
+checkbox that doesn't even mention the black-key rows. Judged as a fair
+but non-blocking UX gap that's arguably out of scope for this item,
+since it's covered by the separate, still-open backlog item #314
+("On-screen keyboard") — left open rather than folded into this item,
+to keep #315 scoped to the actual keyboard-input mechanism rather than
+also building a visual keyboard UI.
+
+Closing at 8/10 with the one small, cheap, well-understood finding fixed
+and verified inline, and the UX gap explicitly logged rather than
+silently dropped — matching the precedent set by items #108 and #539.

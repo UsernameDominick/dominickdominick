@@ -576,7 +576,7 @@
     if ($("song-builder-modal").hidden) return;
     if (e.repeat) return; // a held key must play the note once, not retrigger on every OS auto-repeat tick
     const tag = document.activeElement && document.activeElement.tagName;
-    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (document.activeElement && document.activeElement.isContentEditable)) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const key = e.key.toLowerCase();
     if (!(key in KEYBOARD_NOTE_MAP)) return;
