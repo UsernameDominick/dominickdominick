@@ -6777,7 +6777,45 @@ and the `stroke-width`-colliding SVG now correctly reads `600x400` from
 its real `width`/`height` attributes instead of `1x400`. Full regression
 suite green; all test uploads deleted and confirmed gone.
 
-Item #576 is done: 2 critic rounds (6/10, 6/10), six real findings across
-both rounds all fixed and verified live except the pre-existing
-backfill-pagination limitation (logged as a deferred Medium item, shared
-with `/media/backfill-hashes`), with no regression to the working formats.
+Sent back for a round-3 critic pass on commit 0a6a5a6. Scored 6/10 a
+third time. The round-2 fixes were re-verified as correct with no
+regressions or new bugs of their own (the SVG regex's new `(?:^|[\s<])`
+boundary was specifically checked against `min-width` and other
+hyphenated-attribute collisions and holds up), and `imgSizeAttrs()` in
+render.js was checked for the hypothesized "read another image's
+metadata via URL manipulation" attack and found not exploitable (the
+same R2 key that's regex-extracted for the DB lookup is the same key
+already embedded in the `src` the caller rendered). But the round-3
+critic did one more adversarial pass across all formats specifically
+looking for a sibling of the exact bug family both prior rounds had been
+fixing (missing signature/envelope validation before trusting bytes at a
+fixed offset) -- and found PNG was the one raster format that had never
+gotten this treatment. `readImageDimensions`'s PNG branch checked only
+that bytes 12-15 spelled `"IHDR"`, never that bytes 0-7 were the real
+8-byte PNG magic number (`89 50 4E 47 0D 0A 1A 0A`) -- despite a comment
+directly above it claiming the signature was accounted for. A 24-byte
+buffer of zeroes with `IHDR` spliced at offset 12 and arbitrary
+width/height at 16-23, labeled `image/png`, parsed to fabricated
+dimensions for a file that isn't a PNG at all. Fixed with the same
+pattern as the other three formats: `view.getUint32(0) !== 0x89504e47 ||
+view.getUint32(4) !== 0x0d0a1a0a` rejects before the IHDR check runs.
+
+Re-verified via Playwright: all five valid formats still parse correctly
+with no regression from this fourth fix, and a hand-crafted fake-PNG
+fixture (IHDR fourCC at offset 12, no real signature, labeled image/png)
+now correctly reports `null`/`null` instead of a fabricated `800x600`.
+Full regression suite green; all test uploads deleted and confirmed
+gone.
+
+Item #576 is done: 3 critic rounds (6/10, 6/10, 6/10), seven real
+findings across all three rounds all fixed and verified live except the
+one pre-existing backfill-pagination limitation (logged as a deferred
+Medium item, shared with `/media/backfill-hashes`, not a regression from
+this feature), with no regression to the working formats. Each round's
+fix was scoped too narrowly to that round's exact complaints and missed
+a sibling instance of the same bug class in a format nobody had
+re-examined yet (GIF -> JPEG/WebP/SVG-regex -> PNG) -- a pattern worth
+remembering for future header-parsing work: when a critic finds a
+missing-validation bug in one branch of a multi-format function, audit
+every other branch for the identical gap in the same pass, rather than
+only fixing the one branch that was called out.

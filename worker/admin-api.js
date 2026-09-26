@@ -299,9 +299,13 @@ function readImageDimensions(buf, contentType) {
   try {
     const view = new DataView(buf);
     if (contentType === "image/png" && buf.byteLength >= 24) {
-      // 8-byte signature, then the IHDR chunk: 4-byte length, 4-byte
-      // type (always "IHDR" -- guaranteed to be the first chunk), then
-      // width/height as big-endian uint32s.
+      // 8-byte signature (checked -- a critic pass found this was the one
+      // raster format left trusting the IHDR fourCC without ever
+      // validating the file's actual magic bytes first, the same gap
+      // already fixed for GIF/JPEG/WebP), then the IHDR chunk: 4-byte
+      // length, 4-byte type (always "IHDR" -- guaranteed to be the first
+      // chunk), then width/height as big-endian uint32s.
+      if (view.getUint32(0) !== 0x89504e47 || view.getUint32(4) !== 0x0d0a1a0a) return null;
       if (view.getUint32(12) === 0x49484452 /* "IHDR" */) {
         return plausibleDims({ width: view.getUint32(16), height: view.getUint32(20) });
       }
