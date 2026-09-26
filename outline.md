@@ -11470,3 +11470,64 @@ confirmed via a direct authenticated API check afterward showing no
 leftover file).
 
 Sent for a critic pass.
+
+## 14. Design/UX audit + admin creative freeform tool (2026-09-26)
+
+Dominick asked directly (not from the item-by-item creative-suite
+backlog above) for two things: (1) a full design/UX audit of both the
+public site and the admin console, hunting for real bugs, overflow, and
+inconsistent/dated design language, with a specific complaint that
+modal/popup action buttons across the admin aren't consistently
+centered/organized — fixable issues to be fixed directly, bigger
+visual-identity ("clean indie-looking site with cool graphics and art")
+ideas to come back as proposals rather than be silently implemented
+without his sign-off; and (2) a new admin capability: freeform custom
+animations and effectively open-ended creative control ("do anything
+with anything I want to or could conceive"), logged below as a backlog
+item since it's far too broad to implement as literally stated and
+needs scoping first.
+
+### Backlog item: admin freeform creative / custom-animation tool
+
+Not yet scoped or started. As literally requested ("do anything with
+anything I could conceive") this isn't a buildable spec on its own —
+logging concrete interpretations here for whoever picks this up to
+scope down into an actual first deliverable, rather than losing the ask
+entirely:
+- A proper animation editor in the admin: keyframe/timeline UI (not
+  just the existing raw custom-CSS/JS textarea in Site Settings) that
+  lets Dominick define entrance/scroll/hover animations on page
+  elements visually, generating CSS `@keyframes`/`animation` (or Web
+  Animations API calls) under the hood, previewed live against the real
+  page before publishing.
+- Extending the existing custom-CSS/custom-JS Site Settings fields
+  (already present — raw text injection) with a friendlier authoring
+  surface: syntax highlighting, live preview pane, maybe a small
+  library of drop-in effect snippets (parallax, fade-in-on-scroll,
+  particle backgrounds) as a starting point rather than a blank textarea.
+- A more general "creative sandbox" page in the admin — a scratch canvas
+  wired to the same Photo Editor / Song builder / Simulation builder
+  infrastructure but with no fixed purpose, for prototyping ideas before
+  they become a real page element.
+None of these are committed to yet — this is a placeholder capturing the
+ask so it isn't lost, to be turned into a real item (with its own
+research + critic-review cycle, same as every other item in this file)
+once there's a concrete enough spec to implement against.
+
+### Design/UX audit — dispatched to an agent
+
+Dispatched a design-and-fix agent (not yet reported back as of this
+writing) to Playwright-screenshot the public site and every reachable
+admin screen/modal at both desktop and mobile widths, hunting for: real
+bugs, layout overflow, inconsistent modal/popup button placement and
+spacing (the specific complaint — action buttons in various popups
+aren't uniformly centered/organized), and any other dated or
+inconsistent design-language rough edges. Scoped to fix safe, purely
+cosmetic/layout CSS-and-markup issues directly (test, run the full
+`test_security_seo.js` regression suite, commit, push to `production`
+only), and to bring back a written list of ideas — not yet implemented —
+for the bigger "clean indie-looking site with cool graphics and art"
+visual-identity direction Dominick wants, since that's a subjective
+creative-direction call that needs his sign-off before real
+implementation work starts. Findings and outcome to be logged here once
+it reports back.
