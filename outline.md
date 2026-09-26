@@ -10044,3 +10044,25 @@ transparency), and confirmed Undo is correctly enabled after a stroke
 created (this feature only edits in-memory canvas pixels of an existing
 library image already present for testing, with every change undone
 before the test ends).
+
+Handed to a critic agent for scoring: **9/10 — ships.** Confirmed there
+is no reachable code path that calls `buildEffectCanvas` with a tool
+name matching none of its branches (erase is special-cased with its own
+early return in `commitBrushStroke`, and `BRUSH_TOOLS` exactly matches
+the three `buildEffectCanvas` branches plus erase). Confirmed the
+compositing is not just correct but correctly *cumulative*: each
+`buildEffectCanvas` call reads the live, already-mutated main canvas,
+so painting Dodge twice over the same spot compounds brightness
+progressively (140% of 140%, etc.) — genuine expected dodge-tool
+behavior, not an artifact. Confirmed Canvas2D's `brightness()` filter
+needs no feature-detection guard (unlike the earlier `roundRect()`
+case) since it's been supported in all major browsers since 2016 and
+clamps cleanly at pixel extremes. Confirmed exactly one undo-history
+entry per stroke (pushed at `pointerdown`, not per `pointermove`) and
+confirmed Dodge/Burn route through the exact same rotation-aware
+`pointFromEvent()` as every other brush tool, with no tool-specific
+coordinate logic that could bypass it. One trivial, now-fixed nit: the
+section's own header comment still said "erase / blur / pixelate"
+without mentioning the two new tools — corrected to name all five.
+
+Item #86 is done: 1 critic round, 9/10 on the first pass.

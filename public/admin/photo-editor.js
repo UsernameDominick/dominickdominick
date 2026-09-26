@@ -766,7 +766,7 @@
     }
   });
 
-  // ---------- Brush tools: erase / blur / pixelate ----------
+  // ---------- Brush tools: erase / blur / pixelate / dodge / burn ----------
   let maskCanvas = null;
   let maskCtx = null;
   let strokeActive = false;
