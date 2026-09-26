@@ -2270,6 +2270,40 @@ async function routeAdminApi(request, env, url, ctx) {
     return json({ ok: true });
   }
 
+  // /brush-presets — named brush tool/size/opacity combos, same storage
+  // pattern (and own settings key) as the adjustment presets above --
+  // kept as a separate resource rather than folded into /photo-presets
+  // since that endpoint's own validation is specifically shaped around
+  // `adjust: {brightness, contrast, saturate}`, not brush parameters.
+  const BRUSH_PRESET_TOOLS = new Set(["erase", "blur", "pixelate", "dodge", "burn"]);
+  if (path === "/brush-presets" && method === "GET") {
+    const raw = await getSetting(env, "photo_editor_brush_presets");
+    return json(JSON.parse(raw || "[]"));
+  }
+  if (path === "/brush-presets" && method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    if (!body.name || !BRUSH_PRESET_TOOLS.has(body.tool)) {
+      return json({ error: "name and a valid tool are required" }, { status: 400 });
+    }
+    const size = Math.max(5, Math.min(150, Number(body.size) || 30));
+    const opacity = Math.max(1, Math.min(100, Number(body.opacity) || 100));
+    const presets = JSON.parse((await getSetting(env, "photo_editor_brush_presets")) || "[]");
+    const id = presets.reduce((max, p) => Math.max(max, p.id || 0), 0) + 1;
+    presets.push({ id, name: String(body.name).slice(0, 60), tool: body.tool, size, opacity });
+    await setSetting(env, "photo_editor_brush_presets", JSON.stringify(presets));
+    log(ctx, env, "create", "brush-preset", body.name);
+    return json({ id });
+  }
+  const brushPresetMatch = path.match(/^\/brush-presets\/(\d+)$/);
+  if (brushPresetMatch && method === "DELETE") {
+    const id = Number(brushPresetMatch[1]);
+    const presets = JSON.parse((await getSetting(env, "photo_editor_brush_presets")) || "[]");
+    const target = presets.find((p) => p.id === id);
+    await setSetting(env, "photo_editor_brush_presets", JSON.stringify(presets.filter((p) => p.id !== id)));
+    log(ctx, env, "delete", "brush-preset", target?.name || `#${id}`);
+    return json({ ok: true });
+  }
+
   // /media-saved-searches — a named snapshot of the media library's
   // filter controls (folder/type/search text/unused/duplicates), same
   // storage pattern as style presets above and for the same reason: an

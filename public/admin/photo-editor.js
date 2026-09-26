@@ -884,6 +884,67 @@
     return Math.max(1, Math.min(100, Number($("pe-brush-opacity").value) || 100)) / 100;
   }
 
+  // ---------- Saved brush presets ----------
+  // Named tool/size/opacity combos, server-persisted the same way the
+  // existing brightness/contrast/saturation presets already are, but as
+  // a separate /brush-presets resource -- that endpoint's own validation
+  // is specifically shaped around `adjust: {brightness,contrast,saturate}`,
+  // not brush parameters, so this isn't folded into it.
+  const BRUSH_PRESET_TOOLS = new Set(["erase", "blur", "pixelate", "dodge", "burn"]);
+  let brushPresets = [];
+
+  async function loadBrushPresets() {
+    try {
+      brushPresets = (await window.adminApi("/brush-presets")) || [];
+    } catch (e) {
+      brushPresets = [];
+    }
+    const select = $("pe-apply-brush-preset");
+    select.innerHTML =
+      `<option value="">Apply brush preset…</option>` +
+      brushPresets.map((p) => `<option value="${p.id}">${p.name.replace(/</g, "&lt;")}</option>`).join("");
+  }
+
+  $("pe-apply-brush-preset").addEventListener("change", () => {
+    const id = Number($("pe-apply-brush-preset").value);
+    const preset = brushPresets.find((p) => p.id === id);
+    if (!preset) return;
+    setTool(preset.tool);
+    $("pe-brush-size").value = preset.size;
+    $("pe-brush-opacity").value = preset.opacity;
+  });
+
+  $("pe-save-brush-preset").addEventListener("click", async () => {
+    if (!BRUSH_PRESET_TOOLS.has(currentTool)) {
+      alert("Select a brush tool (Erase, Blur, Pixelate, Dodge, or Burn) first, then save it as a preset.");
+      return;
+    }
+    const name = prompt("Brush preset name:");
+    if (!name || !name.trim()) return;
+    try {
+      await window.adminApi("/brush-presets", {
+        method: "POST",
+        body: JSON.stringify({ name: name.trim(), tool: currentTool, size: brushSize(), opacity: Number($("pe-brush-opacity").value) }),
+      });
+      await loadBrushPresets();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  $("pe-delete-brush-preset").addEventListener("click", async () => {
+    const id = Number($("pe-apply-brush-preset").value);
+    const preset = brushPresets.find((p) => p.id === id);
+    if (!preset) return;
+    if (!confirm(`Delete brush preset "${preset.name}"?`)) return;
+    try {
+      await window.adminApi(`/brush-presets/${id}`, { method: "DELETE" });
+      await loadBrushPresets();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
   function strokeTo(point) {
     const size = brushSize();
     maskCtx.lineCap = "round";
@@ -1489,6 +1550,7 @@
         $("pe-contrast").value = 0;
         $("pe-saturate").value = 0;
         $("pe-apply-preset").value = "";
+        $("pe-apply-brush-preset").value = "";
         $("pe-crop-ratio").value = "free";
         $("pe-rect-radius").value = 0;
         $("pe-text-font").value = "sans-serif";
@@ -1497,6 +1559,7 @@
         bgPreviewSelect.value = "checkerboard";
         applyBgPreview("checkerboard");
         loadPhotoPresets();
+        loadBrushPresets();
         $("pe-hint").textContent = originalKey
           ? "Editing a library image — overwrite updates it everywhere it's used."
           : "Editing an external image — only \"Save as new\" is available.";

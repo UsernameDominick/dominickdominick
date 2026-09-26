@@ -4749,7 +4749,7 @@ join, rather than building three separate systems.
 59. ✅ Named editing snapshots — extend undo snapshots with a name/label. (done — see the dated entry below)
 71. ✅ Brush opacity/flow (of size/hardness/opacity/flow) — done (see the dated entry below). Hardness scoped out: this editor's brushes have always been hard-edged, solid-stroke shapes with no feathering/soft-edge concept anywhere in the rendering pipeline, so a "hardness" control would need a genuinely new feathered-brush rendering path (a real gradient/soft-mask brush tip), not a parameter on the existing one — left open as future work rather than force-fit onto an architecture that doesn't have the underlying concept yet. Size already existed.
 72. Pen-pressure support — PointerEvent.pressure already available.
-76. Saved brush presets — same pattern as photo-presets.
+76. ✅ Saved brush presets — same pattern as photo-presets. (done — see the dated entry below)
 77. Hard-edged pencil — brush variant with no smoothing.
 78. Airbrush buildup — brush variant with cumulative alpha.
 80. Accurate brush footprint preview — extend existing drawBrushCursor.
@@ -10538,3 +10538,61 @@ no sibling defect was missed). Confirmed the z-index fix from earlier
 remains intact and unregressed. Final score: **10/10 — ships.**
 
 Item #143 is done: 2 critic rounds, 6/10 → 10/10.
+
+### Fifty-fourth item: #76, Photo Editor saved brush presets
+
+- ✅ **Named brush tool/size/opacity combos**, server-persisted the
+  exact same way the pre-existing brightness/contrast/saturation
+  presets already are (own settings key, `GET`/`POST`/`DELETE` routes,
+  a select + "Save"/"Delete" button pair) — but as a genuinely separate
+  `/brush-presets` resource with its own `photo_editor_brush_presets`
+  settings key, rather than folded into the existing `/photo-presets`
+  endpoint, since that endpoint's own server-side validation is
+  specifically shaped around `adjust: {brightness, contrast, saturate}`,
+  not brush parameters. Saving requires a real brush tool (Erase, Blur,
+  Pixelate, Dodge, or Burn) to be selected first — matching the
+  pre-existing adjust-preset's own guard requiring a nonzero adjustment
+  before it can be saved — with a clear rejection message rather than
+  silently saving a preset for whatever the default "select" tool
+  happens to be. Applying a preset sets the active tool, brush size, and
+  brush opacity all at once via the exact same `setTool()`/slider-value
+  assignment a manual tool click + two slider drags would produce — no
+  new tool-switching logic, no `isComparing()` guard needed (tool
+  selection is pure UI-mode state, not a canvas mutation, matching how
+  clicking a `.pe-tool` button directly already works unconditionally
+  regardless of Compare state). The preset select resets to its
+  placeholder on every `open()` (matching the existing adjust-preset
+  select's own reset), while the underlying brush size/opacity slider
+  VALUES themselves are deliberately left untouched — consistent with
+  how those two sliders have never been reset per-image since they were
+  first added, unlike per-image state such as crop ratio or view
+  rotation.
+
+Server-side validation clamps `size` to `[5,150]` and `opacity` to
+`[1,100]` — matching the sliders' own declared HTML ranges — and
+requires the tool to be one of the five real brush tools, rejecting
+anything else (a crafted request with a bogus tool string, or one of
+the non-brush tools like `select`/`text`/`rect`) with a 400, the same
+defense-in-depth this codebase applies at both the client AND server
+layer for every other validated input.
+
+Verified via Playwright against the real `/api/admin/brush-presets`
+endpoint (not a mock): confirmed saving with the default non-brush tool
+selected is correctly rejected with an alert and creates nothing,
+confirmed selecting Dodge with a distinctive size (77) and opacity (42)
+and saving actually persists and lists a real named preset, confirmed
+switching to a completely different tool/size/opacity and then applying
+the saved preset correctly restores the exact original tool, size, and
+opacity — not just one or two of the three fields. Critically, also
+confirmed genuine SERVER persistence (not just in-memory JS state) by
+closing the editor entirely and reopening it fresh: the saved preset
+was still listed after that full round-trip, while the select itself
+correctly reset to its placeholder on the new open. Confirmed deleting
+the preset removes it from the list. Confirmed unauthenticated requests
+to the new endpoint correctly return 401 (the blanket admin-auth guard
+at the top of `handleAdminApi` covers it automatically, with no
+separate route registration needed). Ran the full `test_security_seo.js`
+regression suite — all passed. Confirmed no leftover test data via a
+direct authenticated `GET /api/admin/brush-presets` check after
+cleanup (the test's own delete step already removed it as part of the
+test flow).

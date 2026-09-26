@@ -990,6 +990,11 @@
             <button type="button" class="pe-tool" data-tool="burn" title="Darken where you paint">Burn</button>
             <label>Brush <input type="range" id="pe-brush-size" min="5" max="150" value="30"></label>
             <label title="How strongly each stroke applies -- lower it to build an effect up gradually over several passes instead of all at once">Opacity <input type="range" id="pe-brush-opacity" min="1" max="100" value="100"></label>
+            <select id="pe-apply-brush-preset" title="Apply a saved brush tool/size/opacity combo">
+              <option value="">Apply brush preset…</option>
+            </select>
+            <button type="button" id="pe-save-brush-preset" title="Save the current brush tool, size, and opacity as a named preset">Save brush preset</button>
+            <button type="button" id="pe-delete-brush-preset" title="Delete the selected brush preset">Delete brush preset</button>
           </div>
           <div class="pe-tool-group">
             <button type="button" class="pe-tool" data-tool="rect" title="Rectangle">▭</button>
