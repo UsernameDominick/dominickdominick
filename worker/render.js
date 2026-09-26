@@ -1212,7 +1212,90 @@ function isBlockInDateWindow(style) {
   return true;
 }
 
+// A fixed easing name/keyword set, not a raw admin-typed cubic-bezier
+// string — same "constrained, GUI-safe" reasoning as customKeyframes'
+// property set below: keeps codegen trivially safe to emit with no
+// escaping/validation of arbitrary CSS syntax, and keeps the admin UI a
+// dropdown instead of a place to paste broken CSS.
+const CUSTOM_ANIMATION_EASINGS = {
+  linear: "linear",
+  ease: "ease",
+  "ease-in": "ease-in",
+  "ease-out": "ease-out",
+  "ease-in-out": "ease-in-out",
+  overshoot: "cubic-bezier(0.34, 1.56, 0.64, 1)",
+};
+
+// Builds the transform: value for one keyframe stop from its constrained
+// x/y/scale/rotate fields, in a fixed translate->scale->rotate order so
+// combined stops compose predictably. Returns null (omit the property
+// entirely, rather than "transform: ;") when a stop sets none of them --
+// most custom animations only touch opacity, or only touch transform, and
+// a stop shouldn't force the other property to something it never opted
+// into.
+function customKeyframeTransform(stop) {
+  const x = Number.isFinite(stop.x) ? stop.x : 0;
+  const y = Number.isFinite(stop.y) ? stop.y : 0;
+  const scale = Number.isFinite(stop.scale) ? stop.scale : 1;
+  const rotate = Number.isFinite(stop.rotate) ? stop.rotate : 0;
+  if (x === 0 && y === 0 && scale === 1 && rotate === 0) return null;
+  return `translate(${x}px,${y}px) scale(${scale}) rotate(${rotate}deg)`;
+}
+
+// Validates + generates the @keyframes rule (and the two supporting
+// selector rules that hook it into the exact same data-animate/.is-
+// visible/reduced-motion mechanism the 5 fixed presets already use --
+// see nav.js's IntersectionObserver and style.css's reduced-motion
+// scoping, neither of which needs to change at all for this to work,
+// since they only ever look at [data-animate] as a bare attribute
+// selector, never caring what its value actually is) for one block's
+// custom keyframe animation. Returns null on ANY malformed input (fewer
+// than 2 stops, a non-numeric offset, an offset outside 0-100, an
+// unrecognized easing) rather than emitting broken/partial CSS -- same
+// "fail closed on bad admin-authored data" precedent withCustomJsonLd
+// above already established for custom_json_ld.
+function customAnimationCss(blockId, style) {
+  const stops = style.customKeyframes;
+  if (!Array.isArray(stops) || stops.length < 2) return null;
+  const easing = CUSTOM_ANIMATION_EASINGS[style.animationEasing] || CUSTOM_ANIMATION_EASINGS.ease;
+  const duration = Number(style.animationDuration);
+  const durationMs = Number.isFinite(duration) && duration > 0 ? duration : 600;
+  const parsedStops = [];
+  for (const stop of stops) {
+    if (!stop || typeof stop !== "object") return null;
+    const offset = Number(stop.offset);
+    if (!Number.isFinite(offset) || offset < 0 || offset > 100) return null;
+    parsedStops.push({ offset, opacity: Number.isFinite(stop.opacity) ? Math.max(0, Math.min(1, stop.opacity)) : null, transform: customKeyframeTransform(stop) });
+  }
+  const name = `block-anim-${blockId}`;
+  const body = parsedStops
+    .map((s) => {
+      const decls = [];
+      if (s.opacity !== null) decls.push(`opacity:${s.opacity}`);
+      if (s.transform) decls.push(`transform:${s.transform}`);
+      return decls.length ? `${s.offset}%{${decls.join(";")}}` : "";
+    })
+    .filter(Boolean)
+    .join("");
+  if (!body) return null; // every stop was empty -- nothing to actually animate
+  const first = parsedStops[0];
+  const initialDecls = [];
+  if (first.opacity !== null) initialDecls.push(`opacity:${first.opacity}`);
+  if (first.transform) initialDecls.push(`transform:${first.transform}`);
+  return `@media (prefers-reduced-motion: no-preference) {
+[data-animate="custom:${name}"]{${initialDecls.join(";")}}
+[data-animate="custom:${name}"].is-visible{animation:${name} ${durationMs}ms ${easing} both;animation-delay:var(--animate-delay,0s);}
+@keyframes ${name}{${body}}
+}`;
+}
+
 export async function renderBlocks(env, blocks, ctx = {}) {
+  // Collected across all blocks below and emitted once as a single
+  // trailing <style> tag (one @keyframes per block that actually has a
+  // valid custom animation) rather than duplicating a <style> tag per
+  // block -- a <style> tag anywhere in the body is valid HTML5, so this
+  // needs no changes to where renderBlocks' return value gets embedded.
+  const customAnimationCssBlocks = [];
   const withInner = await Promise.all(
     blocks
       .filter((b) => !(b.style && b.style.hidden) && isBlockInDateWindow(b.style))
@@ -1273,8 +1356,20 @@ export async function renderBlocks(env, blocks, ctx = {}) {
       // The delay is folded into the block's single style="" attribute
       // below (a second style attribute on the same element would just
       // clobber the first, silently breaking the grid positioning).
-      const hasAnimation = ["fade-in", "slide-up", "slide-left", "slide-right", "zoom-in"].includes(style.animation);
-      const dataAnimateAttr = hasAnimation ? ` data-animate="${style.animation}"` : "";
+      const hasPresetAnimation = ["fade-in", "slide-up", "slide-left", "slide-right", "zoom-in"].includes(style.animation);
+      // "custom" reuses the exact same data-animate attribute + reveal
+      // mechanism as the 5 fixed presets -- nav.js's observer and the
+      // reduced-motion CSS scoping only ever check for the attribute's
+      // PRESENCE, never inspect its value, so a custom animation needs no
+      // changes to either. customAnimationCss() (defined above
+      // isBlockInDateWindow) validates the stored keyframe data and
+      // returns null on anything malformed, in which case this silently
+      // falls back to "no animation" rather than emitting a broken
+      // data-animate value with no matching CSS behind it.
+      const customAnimCss = style.animation === "custom" ? customAnimationCss(b.id, style) : null;
+      const hasAnimation = hasPresetAnimation || !!customAnimCss;
+      const dataAnimateAttr = hasPresetAnimation ? ` data-animate="${style.animation}"` : customAnimCss ? ` data-animate="custom:block-anim-${b.id}"` : "";
+      if (customAnimCss) customAnimationCssBlocks.push(customAnimCss);
       const delayMs = Number(style.animationDelay);
       const animateDelayCss = hasAnimation && Number.isFinite(delayMs) && delayMs > 0 ? `--animate-delay:${delayMs}ms;` : "";
       // Device-conditional visibility is plain CSS (a media-query class),
@@ -1320,7 +1415,8 @@ export async function renderBlocks(env, blocks, ctx = {}) {
       }
       return `<div class="block${visibilityClass}${hoverClass}${mobileOverrideClass}${parallaxClass}" data-block-id="${b.id}" style="${gridStyle}${blockStyleAttr(style)}${animateDelayCss}"${dataAnimateAttr}>${inner}</div>`;
     });
-  return parts.join("\n");
+  const customAnimationStyleTag = customAnimationCssBlocks.length ? `<style>${customAnimationCssBlocks.join("\n")}</style>` : "";
+  return customAnimationStyleTag + parts.join("\n");
 }
 
 // The raw SVG markup, exported separately so worker/index.js can serve it

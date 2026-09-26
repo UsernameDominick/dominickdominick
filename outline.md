@@ -11803,6 +11803,101 @@ the same implement → test → critic-review-to-9-or-10 → ship cycle as
 every other item in this file, just a bigger one spanning several turns
 rather than a single Easy-tier item.
 
+### Custom-animation editor — implemented (2026-09-26)
+
+Built the full spec above in one pass, both halves together (server-side
+codegen + admin UI), rather than shipping a backend-only slice with
+nothing able to reach it yet:
+
+- ✅ **Server-side (`worker/render.js`)**: `customAnimationCss(blockId,
+  style)` validates `style.customKeyframes` (≥2 stops, each with a
+  numeric 0-100 `offset`) and `style.animationEasing`/
+  `animationDuration`, generating a scoped `@keyframes block-anim-<id>`
+  rule plus the two selector rules that hook it into the exact same
+  `data-animate`/`.is-visible`/reduced-motion mechanism the 5 fixed
+  presets already use — confirmed by reading `nav.js`'s
+  `IntersectionObserver` and `style.css`'s reduced-motion scoping, and
+  verifying NEITHER needed a single line changed, since both only ever
+  check for `[data-animate]`'s presence, never its value. Malformed data
+  (bad offset, non-array, empty) fails closed to "no animation" rather
+  than emitting broken CSS, the same precedent `withCustomJsonLd`
+  established for `custom_json_ld`. `customKeyframeTransform()` builds a
+  fixed `translate/scale/rotate` transform string per stop from a
+  constrained property set (opacity/x/y/scale/rotate only — no raw CSS),
+  and deliberately omits an identity transform (`translate(0,0)
+  scale(1) rotate(0deg)`) entirely when a stop sets none of them, since
+  that's mathematically equivalent to no `transform:` declaration at all
+  — smaller generated CSS with zero behavioral difference. All generated
+  `@keyframes` for a page are collected and emitted once as a single
+  trailing `<style>` tag from `renderBlocks()`, not duplicated per block.
+- ✅ **Admin UI**: a new `"custom"` option on the existing "Entrance
+  animation" preset dropdown, revealing an "Edit custom animation…"
+  button (a new `keyframe-editor` field type in the same declarative
+  field-schema system every other block-style control already uses) that
+  opens a dedicated modal (`#keyframe-editor-modal`, following the
+  `.modal-actions`/padding conventions the design audit just
+  standardized): an editable list of keyframe rows (offset % + opacity/
+  x/y/scale/rotate, add/remove), duration + easing fields, and a live
+  **Preview** button that plays the exact keyframe array on a small demo
+  box via the real browser Web Animations API
+  (`element.animate(keyframes, {duration, easing})`) — the SAME
+  keyframe-array shape (just reformatted from 0-100 offsets to WAAPI's
+  0-1 range) feeds both this preview and the server-side codegen, so
+  there's one canonical data structure, not two representations that
+  could drift apart. Removing a keyframe is blocked below 2 rows (an
+  animation needs a start and an end) with an explanatory alert rather
+  than silently no-op'ing or allowing an invalid 1-or-0-keyframe save.
+  Cancel discards all in-progress edits; Save writes
+  `customKeyframes`/`animationDuration`/`animationEasing` onto the
+  block's `style` object and reuses the exact same
+  `saveBlockStyleAndContent()`/`renderInspector()` pair every other
+  style-field change already calls, so it's indistinguishable from any
+  other style edit as far as autosave/persistence is concerned.
+
+Known, deliberate v1 simplification (not a bug): the "Edit custom
+animation…" button always renders in the style panel regardless of which
+animation preset is currently selected, rather than being hidden unless
+"Custom…" is chosen — the declarative field-schema renderer
+(`fieldHtml()`) has no conditional-visibility mechanism today (each
+field only ever receives its own value, not the whole block's style
+object), and adding one just for this single field felt like the wrong
+place to introduce that capability. The button is harmless when shown
+for a non-custom preset (it edits data that simply won't be used unless
+the admin also switches the dropdown to "Custom…"), so this is cosmetic
+clutter, not a functional gap — logged here rather than silently
+accepted, in case a future field genuinely needs conditional visibility
+and this becomes worth solving properly at that point.
+
+Verified via Playwright end-to-end through the REAL admin UI (not just
+the server API directly, though that was tested first as its own layer):
+selected "Custom…" on a real block, confirmed the trigger button
+appears; opened the editor, confirmed it starts with 2 sensible default
+keyframes; added a 3rd row, filled in concrete offset/opacity/y values
+for an overshoot-style entrance, set duration 450ms and easing
+"overshoot", clicked Preview and confirmed a real `Animation` object
+was actually running on the demo box (`getAnimations().length >= 1`);
+removed a row back down to 2, then confirmed trying to go below 2 shows
+the explanatory alert and leaves the row count unchanged; saved, and
+confirmed via a real authenticated `GET /pages/:id/blocks` that the
+exact keyframes/duration/easing were persisted server-side (not just
+sitting in the in-memory `block.style` object); confirmed the trigger
+button's own label updated to "Edit (2 keyframes)…"; fetched the REAL
+public page and confirmed it contains the actual generated
+`data-animate="custom:block-anim-<id>"` attribute and matching
+`@keyframes` rule — full round trip, admin UI to live page; and
+confirmed Cancel genuinely discards an in-progress edit (changed the
+duration field, clicked Cancel, re-checked the server's stored value was
+untouched). Separately re-verified the pre-existing 5 fixed presets
+still work correctly through the same admin UI paths this change
+touched (`fade-in` + a delay saves and renders identically to before).
+Ran the full `test_security_seo.js` regression suite — all passed. No
+test data left behind: both throwaway pages created during testing (the
+main end-to-end test and the regression check) were deleted via the real
+`DELETE /api/admin/pages/:id` endpoint, confirmed via a follow-up
+authenticated pages listing showing no leftover test-slugged pages.
+
+Not yet critic-reviewed as of this writing — sent for review next.
+
 ### Design/UX audit — dispatched to an agent
 
 Dispatched a design-and-fix agent (not yet reported back as of this

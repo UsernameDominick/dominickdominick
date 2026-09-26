@@ -2255,14 +2255,16 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
    new wrapper element in the markup. */
 .media-info-modal-inner,
 .pe-new-doc-modal-inner,
-.topic-meta-edit-modal-inner {
+.topic-meta-edit-modal-inner,
+.keyframe-editor-modal-inner {
   padding: 0 20px 20px;
   overflow-y: auto;
 }
 
 .media-info-modal-inner header,
 .pe-new-doc-modal-inner header,
-.topic-meta-edit-modal-inner header {
+.topic-meta-edit-modal-inner header,
+.keyframe-editor-modal-inner header {
   margin: 0 -20px;
 }
 
@@ -2393,6 +2395,105 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
 
 .topic-meta-edit-modal-inner .input-with-upload input {
   margin-top: 0;
+}
+
+.keyframe-editor-modal-inner {
+  max-width: 640px;
+}
+
+.keyframe-editor-modal-inner label {
+  display: block;
+  margin-top: 10px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.keyframe-editor-modal-inner select,
+.keyframe-editor-modal-inner input:not([type="number"].keyframe-field) {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-top: 6px;
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+
+#keyframe-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.keyframe-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+}
+
+.keyframe-row label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.keyframe-field {
+  width: 56px;
+  box-sizing: border-box;
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 0.8rem;
+  font-family: inherit;
+}
+
+#keyframe-add-row {
+  margin-top: 10px;
+}
+
+.keyframe-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.keyframe-preview-stage {
+  width: 160px;
+  height: 80px;
+  background: var(--bg);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+#keyframe-preview-box {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 24px;
+  height: 24px;
+  margin: -12px 0 0 -12px;
+  background: var(--accent);
+  border-radius: 4px;
 }
 
 .media-info-preview {

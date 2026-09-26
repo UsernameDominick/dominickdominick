@@ -1423,6 +1423,37 @@
     </div>
   </div>
 
+  <div id="keyframe-editor-modal" class="modal" hidden>
+    <div class="modal-inner keyframe-editor-modal-inner">
+      <header>
+        <h1>Custom animation</h1>
+        <button id="close-keyframe-editor">×</button>
+      </header>
+      <p class="pe-new-doc-hint">Define how this block moves in as it scrolls into view. Each keyframe is a moment in the animation (0% = start, 100% = end) with the values it should have at that moment — anything left blank keeps its current/default value at that keyframe.</p>
+      <div id="keyframe-rows"></div>
+      <button type="button" id="keyframe-add-row">+ Add keyframe</button>
+      <label>Duration (ms) <input type="number" id="keyframe-duration" min="50" max="10000" value="600"></label>
+      <label>Easing
+        <select id="keyframe-easing">
+          <option value="ease">Ease (default)</option>
+          <option value="linear">Linear</option>
+          <option value="ease-in">Ease in</option>
+          <option value="ease-out">Ease out</option>
+          <option value="ease-in-out">Ease in-out</option>
+          <option value="overshoot">Overshoot (slight bounce past the end)</option>
+        </select>
+      </label>
+      <div class="keyframe-preview-row">
+        <div class="keyframe-preview-stage"><div id="keyframe-preview-box"></div></div>
+        <button type="button" id="keyframe-preview-play">▶ Preview</button>
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="cancel-keyframe-editor">Cancel</button>
+        <button type="button" id="save-keyframe-editor">Save</button>
+      </div>
+    </div>
+  </div>
+
   <div id="layers-modal" class="modal" hidden>
     <div class="modal-inner redirects-modal-inner">
       <header>

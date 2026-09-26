@@ -1762,9 +1762,17 @@
         ["slide-left", "Slide in from right"],
         ["slide-right", "Slide in from left"],
         ["zoom-in", "Zoom in"],
+        ["custom", "Custom (build your own)…"],
       ],
     },
     { key: "animationDelay", label: "Animation delay (ms)", type: "number" },
+    // Duration/easing/the keyframe list itself only matter when Entrance
+    // animation above is set to "custom" -- they're owned by the
+    // dedicated keyframe-editor modal (one focused place to define all of
+    // it together, with a live preview) rather than three more always-
+    // visible fields in this panel that do nothing for every other
+    // animation choice.
+    { key: "customKeyframes", label: "Custom animation keyframes", type: "keyframe-editor" },
     {
       key: "hoverEffect",
       label: "Hover effect",
@@ -1922,6 +1930,12 @@
       return `<label>${f.label}<select data-key="${f.key}" data-numeric="1"><option value="">— choose —</option>${
         options || "<option disabled>No songs yet</option>"
       }</select> <button type="button" class="manage-songs-btn">Manage songs…</button></label>`;
+    }
+    if (f.type === "keyframe-editor") {
+      const stops = Array.isArray(val) ? val.length : 0;
+      return `<label>${f.label}<br><button type="button" class="edit-keyframes-btn" data-key="${f.key}">${
+        stops ? `Edit (${stops} keyframes)…` : "Create custom animation…"
+      }</button></label>`;
     }
     if (f.type === "datetime-local") {
       return `<label>${f.label}<input id="${idPrefix}-${f.key}" data-key="${f.key}" data-datetime="1" type="datetime-local" value="${escapeHtml(
@@ -2105,6 +2119,15 @@
         save();
         renderInspector();
       });
+    });
+
+    styleContainer.querySelectorAll(".edit-keyframes-btn").forEach((btn) => {
+      btn.addEventListener("click", () =>
+        openKeyframeEditor(block, () => {
+          save();
+          renderInspector();
+        })
+      );
     });
   }
 
@@ -6307,6 +6330,132 @@
     } catch (err) {
       alert(err.message);
     }
+  });
+
+  // ---------- Custom animation (keyframe) editor ----------
+  // A block's style.animation can be "custom" instead of one of the 5
+  // fixed presets, backed by style.customKeyframes (an array of
+  // {offset, opacity?, x?, y?, scale?, rotate?} stops) plus
+  // animationDuration/animationEasing -- see worker/render.js's
+  // customAnimationCss() for how this gets turned into a real @keyframes
+  // rule reusing the exact same data-animate/.is-visible/reduced-motion
+  // mechanism the 5 presets already use. This modal is the one place all
+  // of that gets authored together, with a live preview, rather than
+  // several more always-visible fields in the style panel that do
+  // nothing for every other animation choice.
+  let keyframeEditorState = null; // { block, onSaved } while the modal is open
+  let keyframeEditorRows = [];
+
+  // Mirrors worker/render.js's customKeyframeTransform() -- same fixed
+  // translate/scale/rotate property set, same fixed stacking order, so
+  // what the live preview shows here is what the real generated CSS will
+  // actually do, not an approximation of it.
+  function keyframeRowTransform(row) {
+    const x = Number(row.x) || 0;
+    const y = Number(row.y) || 0;
+    const scale = row.scale === "" || row.scale === undefined || row.scale === null || Number.isNaN(Number(row.scale)) ? 1 : Number(row.scale);
+    const rotate = Number(row.rotate) || 0;
+    return `translate(${x}px,${y}px) scale(${scale}) rotate(${rotate}deg)`;
+  }
+
+  function renderKeyframeRows() {
+    el("keyframe-rows").innerHTML = keyframeEditorRows
+      .map(
+        (row, i) => `<div class="keyframe-row" data-index="${i}">
+          <label>Offset % <input type="number" class="keyframe-field kf-offset" min="0" max="100" value="${row.offset ?? ""}"></label>
+          <label>Opacity <input type="number" class="keyframe-field kf-opacity" min="0" max="1" step="0.05" value="${row.opacity ?? ""}"></label>
+          <label>X (px) <input type="number" class="keyframe-field kf-x" value="${row.x ?? ""}"></label>
+          <label>Y (px) <input type="number" class="keyframe-field kf-y" value="${row.y ?? ""}"></label>
+          <label>Scale <input type="number" class="keyframe-field kf-scale" step="0.05" value="${row.scale ?? ""}"></label>
+          <label>Rotate (deg) <input type="number" class="keyframe-field kf-rotate" value="${row.rotate ?? ""}"></label>
+          <button type="button" class="keyframe-remove-row" title="Remove this keyframe">×</button>
+        </div>`
+      )
+      .join("");
+    el("keyframe-rows")
+      .querySelectorAll(".keyframe-row")
+      .forEach((rowEl) => {
+        const i = Number(rowEl.dataset.index);
+        const readNum = (cls) => {
+          const v = rowEl.querySelector(cls).value;
+          return v === "" ? undefined : Number(v);
+        };
+        rowEl.querySelectorAll("input").forEach((inp) => {
+          inp.addEventListener("input", () => {
+            keyframeEditorRows[i] = {
+              offset: readNum(".kf-offset"),
+              opacity: readNum(".kf-opacity"),
+              x: readNum(".kf-x"),
+              y: readNum(".kf-y"),
+              scale: readNum(".kf-scale"),
+              rotate: readNum(".kf-rotate"),
+            };
+          });
+        });
+        rowEl.querySelector(".keyframe-remove-row").addEventListener("click", () => {
+          if (keyframeEditorRows.length <= 2) return alert("An animation needs at least 2 keyframes (a start and an end).");
+          keyframeEditorRows.splice(i, 1);
+          renderKeyframeRows();
+        });
+      });
+  }
+
+  function openKeyframeEditor(block, onSaved) {
+    keyframeEditorState = { block, onSaved };
+    const existing = Array.isArray(block.style.customKeyframes) ? block.style.customKeyframes : null;
+    keyframeEditorRows = existing && existing.length >= 2 ? existing.map((s) => ({ ...s })) : [
+      { offset: 0, opacity: 0, y: 20 },
+      { offset: 100, opacity: 1, y: 0 },
+    ];
+    renderKeyframeRows();
+    el("keyframe-duration").value = Number.isFinite(block.style.animationDuration) ? block.style.animationDuration : 600;
+    el("keyframe-easing").value = block.style.animationEasing || "ease";
+    el("keyframe-editor-modal").hidden = false;
+  }
+
+  el("keyframe-add-row").addEventListener("click", () => {
+    keyframeEditorRows.push({ offset: 100, opacity: 1 });
+    renderKeyframeRows();
+  });
+
+  const KEYFRAME_EASING_CSS = {
+    linear: "linear",
+    ease: "ease",
+    "ease-in": "ease-in",
+    "ease-out": "ease-out",
+    "ease-in-out": "ease-in-out",
+    overshoot: "cubic-bezier(0.34, 1.56, 0.64, 1)",
+  };
+  el("keyframe-preview-play").addEventListener("click", () => {
+    const box = el("keyframe-preview-box");
+    const sorted = [...keyframeEditorRows].filter((r) => Number.isFinite(r.offset)).sort((a, b) => a.offset - b.offset);
+    if (sorted.length < 2) return alert("Add at least 2 keyframes with a valid offset first.");
+    const waapiKeyframes = sorted.map((r) => {
+      const kf = { offset: Math.max(0, Math.min(100, r.offset)) / 100 };
+      if (Number.isFinite(r.opacity)) kf.opacity = Math.max(0, Math.min(1, r.opacity));
+      kf.transform = keyframeRowTransform(r);
+      return kf;
+    });
+    const duration = Number(el("keyframe-duration").value) || 600;
+    const easing = KEYFRAME_EASING_CSS[el("keyframe-easing").value] || "ease";
+    box.getAnimations().forEach((a) => a.cancel()); // stop any still-running preview before starting a fresh one
+    box.animate(waapiKeyframes, { duration, easing, fill: "both" });
+  });
+
+  closeModalOnClick("close-keyframe-editor", "keyframe-editor-modal");
+  closeModalOnClick("cancel-keyframe-editor", "keyframe-editor-modal");
+
+  el("save-keyframe-editor").addEventListener("click", () => {
+    if (!keyframeEditorState) return;
+    const valid = keyframeEditorRows.filter((r) => Number.isFinite(r.offset) && r.offset >= 0 && r.offset <= 100);
+    if (valid.length < 2) return alert("Add at least 2 keyframes, each with an offset between 0 and 100, before saving.");
+    const { block, onSaved } = keyframeEditorState;
+    block.style.customKeyframes = valid;
+    block.style.animationDuration = Number(el("keyframe-duration").value) || 600;
+    block.style.animationEasing = el("keyframe-easing").value || "ease";
+    el("keyframe-editor-modal").hidden = true;
+    keyframeEditorState = null;
+    onSaved();
   });
 
   // ---------- Site Health (aggregates the 6 site-wide checks below) ----------
