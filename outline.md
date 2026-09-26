@@ -4917,7 +4917,7 @@ substantial new infra + security surface).
 396. ✅ Wire thickness/appearance — done (see the dated entry below this section).
 397. ✅ Detect disconnected ends — done (see the dated entry below this section).
 398. ✅ Highlight net from point — done (see the dated entry below this section).
-401. Searchable specs — reuse palette search; add spec text field.
+401. ✅ Searchable specs — reuse palette search; add spec text field. (done — see the dated entry below)
 402. ✅ Favorites/recent — done, scoped to recent (see the dated entry below this section for why favorites wasn't also built).
 403-405. Resistor/capacitor/inductor basic params — extra content fields, same pattern as resistance.
 409. Relays/switches — variant of existing switch component.
@@ -9863,3 +9863,44 @@ independently re-run the specific test itself — not a defect in the
 change.
 
 Item #533 is done: 2 critic rounds, 5/10 → 9/10.
+
+### Forty-sixth item: #401, Simulation builder searchable part specs
+
+- ✅ **Extended the existing "Search parts…" palette filter** to also
+  match against a new `keywords` field on each part's own
+  `window.SIM_COMPONENTS` registry entry (the exact same single source
+  of truth already used for rendering and electrical analysis, not a
+  new parallel data structure), instead of only matching the button's
+  visible label text. Added spec/synonym keywords to all 11 existing
+  parts — e.g. Potentiometer now also matches "dimmer", "volume knob",
+  "rheostat"; Resistor matches "current limiting", "ohms"; Microcontroller
+  (Teensy) matches "arduino", "MCU", "programmable"; Wall Outlet matches
+  "mains", "120V", "AC power" — so an admin searching by function or a
+  more familiar synonym finds the right part even when that word never
+  appears in the part's own display name.
+
+Deliberately did NOT add `keywords` to `worker/simulation-render.js`'s
+own `SIM_COMPONENTS` mirror, unlike every previous simulation-component
+change this session (potentiometer, ammeter, teensy wattage) — those all
+needed byte-identical mirroring because they're physics/rendering-
+relevant fields the worker's own server-side analysis and SVG output
+actually read. `keywords` is pure client-side admin-search UI metadata,
+never read by any server-side code path, so mirroring it there would
+just be unused dead data with no drift risk to guard against — a
+judgment call worth logging explicitly given this session's own
+established (and previously critic-relevant) convention of mirroring
+component definitions between the two files.
+
+Verified via Playwright against a real (empty) simulation opened through
+the genuine UI: confirmed all 11 parts show with an empty query,
+confirmed searching "dimmer" matches only the Potentiometer (a word that
+never appears in its label), confirmed "current limiting" matches only
+the Resistor, confirmed "arduino" matches only the Microcontroller
+(Teensy) — a real-world synonym absent from its actual label text —
+confirmed the pre-existing label-only search (searching "LED") still
+works unchanged, confirmed clearing the search restores all 11 parts,
+and confirmed a nonsense query correctly hides everything with no
+crash. Ran the full `test_security_seo.js` regression suite — all
+passed. No test data left behind (the test simulation was deleted
+through the real API as part of the test; the search feature itself
+touches no persisted data at all, only in-memory registry lookups).

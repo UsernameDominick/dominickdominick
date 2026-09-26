@@ -120,6 +120,7 @@
   window.SIM_COMPONENTS = {
     outlet: {
       label: "Wall Outlet",
+      keywords: "mains, wall socket, 120V, AC power, hot, neutral",
       w: 40,
       h: 60,
       isSource: true,
@@ -134,6 +135,7 @@
     },
     power_supply: {
       label: "Power Supply",
+      keywords: "DC adapter, wall wart, transformer, converts AC to DC, voltage source",
       w: 70,
       h: 40,
       passthrough: [
@@ -159,6 +161,7 @@
     // the top rails are NOT connected to the bottom rails.
     breadboard: {
       label: "Breadboard",
+      keywords: "prototyping board, protoboard, tie points, rails",
       w: 1200,
       h: 150,
       cols: 30,
@@ -192,6 +195,7 @@
     },
     led: {
       label: "LED",
+      keywords: "light emitting diode, indicator light, polarized, anode, cathode",
       w: 40,
       h: 40,
       polarity: { pos: "anode", neg: "cathode" },
@@ -209,6 +213,7 @@
     },
     resistor: {
       label: "Resistor",
+      keywords: "current limiting, ohms, resistance, color bands",
       w: 80,
       h: 16,
       passthrough: [["p1", "p2"]],
@@ -226,6 +231,7 @@
     },
     switch: {
       label: "Switch",
+      keywords: "on/off, button, toggle, open circuit, closed circuit",
       w: 40,
       h: 20,
       passthrough: [["p1", "p2"]],
@@ -251,6 +257,7 @@
     // that fits the existing analysis for free.
     ammeter: {
       label: "Ammeter",
+      keywords: "current meter, measure current, amps",
       w: 40,
       // Taller than the switch it otherwise mirrors (h:20) so the live
       // current reading (see renderComponentSvg in both this file and
@@ -274,6 +281,7 @@
     // on a real pot used in this two-terminal "rheostat" configuration.
     potentiometer: {
       label: "Potentiometer",
+      keywords: "variable resistor, dimmer, volume knob, pot, wiper, rheostat",
       w: 80,
       h: 32,
       passthrough: [["p1", "p2"]],
@@ -302,6 +310,7 @@
     },
     battery: {
       label: "Battery",
+      keywords: "DC power source, cell, 9V, AA",
       w: 50,
       h: 26,
       isSource: true,
@@ -317,6 +326,7 @@
     },
     mcu_teensy: {
       label: "Microcontroller (Teensy)",
+      keywords: "arduino, MCU, embedded, programmable, code, digital pins",
       w: 90,
       h: 36,
       passthrough: [["vin", "gnd"]],
@@ -335,6 +345,7 @@
     },
     tv: {
       label: "TV / Display",
+      keywords: "screen, monitor, output device",
       w: 130,
       h: 84,
       pins: [{ id: "hdmi", x: 0, y: 42 }],

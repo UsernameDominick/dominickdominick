@@ -1181,7 +1181,15 @@
   $("sim-palette-search").addEventListener("input", (e) => {
     const q = e.target.value.trim().toLowerCase();
     document.querySelectorAll(".sim-palette-btn").forEach((btn) => {
-      btn.classList.toggle("is-hidden-by-search", q.length > 0 && !btn.textContent.toLowerCase().includes(q));
+      // Matches against the part's own spec/synonym keywords (from its
+      // window.SIM_COMPONENTS registry entry, the single source of truth
+      // also used for rendering/analysis) in addition to its visible
+      // label, so searching "dimmer" or "current limiting" finds the
+      // Potentiometer/Resistor even though neither word appears on the
+      // button itself.
+      const def = window.SIM_COMPONENTS[btn.dataset.simType];
+      const haystack = `${btn.textContent} ${(def && def.keywords) || ""}`.toLowerCase();
+      btn.classList.toggle("is-hidden-by-search", q.length > 0 && !haystack.includes(q));
     });
   });
 
