@@ -650,6 +650,18 @@
   });
   $("song-record-label").hidden = false;
 
+  // Inverted from KEYBOARD_NOTE_MAP/KEYBOARD_NOTE_OCTAVE (note+octave ->
+  // the physical key that plays it) rather than a second, separately
+  // maintained table -- used by the on-screen keyboard below (item #314)
+  // to show each note's own keyboard shortcut, so it doubles as the
+  // legend a critic pass on the computer-keyboard feature (#315) noted
+  // was otherwise completely undiscoverable (no on-screen hint existed
+  // anywhere for which keys played which notes).
+  const NOTE_TO_KEYBOARD_KEY = {};
+  Object.keys(KEYBOARD_NOTE_MAP).forEach((key) => {
+    NOTE_TO_KEYBOARD_KEY[KEYBOARD_NOTE_MAP[key] + KEYBOARD_NOTE_OCTAVE[key]] = key.toUpperCase();
+  });
+
   // ---------- Sequencer grid ----------
   // Shared by the drum sequencer and the piano roll — both are just a set
   // of named rows, each STEPS long, toggled the same way. Parameterized by
@@ -659,7 +671,14 @@
   // (2 octaves) would be far too many controls to be useful, whereas the 4
   // fixed drum tracks are exactly the kind of small, named "channel" list a
   // per-row color/label actually helps distinguish at a glance.
-  function renderStepGrid(containerId, rowKeys, rowLabel, getOn, setOn, rowClass, getMeta, onMetaChange) {
+  // `onLabelClick` is optional and only passed for the piano roll (item
+  // #314, "on-screen keyboard") -- rendering the row label as a clickable
+  // button that previews/records the note wired to the exact same
+  // playAndMaybeRecordNote() the computer-keyboard and MIDI paths already
+  // use, rather than a third parallel implementation of "play this note."
+  // Not passed for the drum sequencer, since its rows are sounds, not a
+  // pitched instrument with keys to click.
+  function renderStepGrid(containerId, rowKeys, rowLabel, getOn, setOn, rowClass, getMeta, onMetaChange, onLabelClick) {
     $(containerId).innerHTML = rowKeys
       .map((key) => {
         const label = rowLabel(key);
@@ -669,7 +688,20 @@
           ? `<input type="color" class="song-track-color" data-row="${key}" value="${escapeXml(meta.color)}" title="${label} color" aria-label="${label} color">` +
             `<input type="text" class="song-track-note" data-row="${key}" value="${escapeXml(meta.note)}" placeholder="note…" maxlength="60" title="${label} note" aria-label="${label} note">`
           : "";
-        return `<div class="song-track-row${rowClass ? rowClass(key) : ""}"${rowStyle}><span class="song-track-label">${label}</span>${metaHtml}<div class="song-steps" data-row="${key}">${Array.from(
+        // The keyboard-shortcut hint (e.g. "Q") is shown right in the
+        // clickable label itself rather than only in a hover tooltip --
+        // a tooltip alone (as this session's #315 critic pass on the
+        // typing-keyboard feature found) requires already knowing to
+        // hover over the right element, which defeats its own purpose as
+        // a discoverability aid for someone who doesn't already know the
+        // key layout exists.
+        const keyHint = onLabelClick && NOTE_TO_KEYBOARD_KEY[key] ? ` <span class="song-key-hint">${NOTE_TO_KEYBOARD_KEY[key]}</span>` : "";
+        const labelHtml = onLabelClick
+          ? `<button type="button" class="song-track-label song-track-label-playable" data-row="${key}" title="Click to preview this note (or press its keyboard shortcut, ${
+              NOTE_TO_KEYBOARD_KEY[key] || "?"
+            }, anywhere in this modal)">${label}${keyHint}</button>`
+          : `<span class="song-track-label">${label}</span>`;
+        return `<div class="song-track-row${rowClass ? rowClass(key) : ""}"${rowStyle}>${labelHtml}${metaHtml}<div class="song-steps" data-row="${key}">${Array.from(
           { length: STEPS },
           (_, i) =>
             `<button type="button" class="song-step${getOn(key, i) ? " song-step-on" : ""}${
@@ -678,6 +710,13 @@
         ).join("")}</div></div>`;
       })
       .join("");
+    if (onLabelClick) {
+      $(containerId)
+        .querySelectorAll(".song-track-label-playable")
+        .forEach((btn) => {
+          btn.addEventListener("click", () => onLabelClick(btn.dataset.row));
+        });
+    }
     $(containerId)
       .querySelectorAll(".song-step")
       .forEach((btn) => {
@@ -731,7 +770,10 @@
       (n) => n,
       (n, i) => songData.melody.notes[n][i],
       (n, i, v) => (songData.melody.notes[n][i] = v),
-      (n) => (n.includes("#") ? " song-row-black-key" : "")
+      (n) => (n.includes("#") ? " song-row-black-key" : ""),
+      undefined,
+      undefined,
+      (n) => playAndMaybeRecordNote(n)
     );
   }
 

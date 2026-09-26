@@ -4862,7 +4862,7 @@ session's own EXIF-stripping feature for the upload-side equivalent).
 305. ✅ Spectrum analyzer — AnalyserNode FFT + canvas draw (mirrors existing waveform canvas). (done — see the dated entry below)
 309. Track/master clipping history — log exceedances like existing `log()` action table.
 311. ✅ MIDI-device discovery — extend existing `requestMIDIAccess` call already present. (done — see the dated entry below)
-314. On-screen keyboard — UI wired to existing `playMelodyNote`.
+314. ✅ On-screen keyboard — UI wired to existing `playMelodyNote`. (done — see the dated entry below)
 315. ✅ Computer-keyboard note entry — keydown → existing note-play function. (done — see the dated entry below)
 321. ✅ Background autosave — done (see the dated entry below this section).
 328. ✅ Cache waveform previews — store existing `renderWaveformPeaks` output. (done — see the dated entry below)
@@ -13526,3 +13526,60 @@ Closing at this point: the original blocking cross-song corruption is
 confirmed fixed across every race shape tried across two independent
 critic rounds, and the follow-up data-loss gap the second round found
 is now also fixed and verified against that exact scenario.
+
+### 2026-09-26 — Item #314: On-screen keyboard (Song builder)
+
+Turned the melody piano roll's own existing row labels into a real,
+playable on-screen keyboard: each note name (e.g. "C4") is now a
+`<button>` rather than a plain `<span>`, wired to the exact same
+`playAndMaybeRecordNote(noteName)` function the computer-keyboard
+(#315) and MIDI-input paths already call — always plays a live preview,
+and additionally writes the note into the grid at the current step only
+while the sequencer is playing and "Record" is checked. No new "play
+this note" implementation was written; this just gives the existing one
+a third, mouse-friendly entry point alongside typing and a MIDI device.
+The drum sequencer's own row labels (kick/snare/hihat/clap) were
+deliberately left as plain, non-clickable spans — they're sounds, not a
+pitched instrument with individual keys to click, and #314's own wording
+("wired to existing `playMelodyNote`") is specifically about melody.
+
+Each note label also shows its own computer-keyboard shortcut right in
+the label text itself (e.g. "C4 Q"), not just in a hover tooltip — this
+directly closes a real, previously-logged gap: the #315 critic pass
+found the typing-keyboard feature had zero on-screen legend anywhere,
+only a hover-only tooltip on the unrelated record checkbox that didn't
+even mention the black-key rows, and judged it a fair but genuine UX
+gap (deliberately left open at the time as arguably belonging to this
+very item rather than #315 itself). The hint is built by inverting the
+existing `KEYBOARD_NOTE_MAP`/`KEYBOARD_NOTE_OCTAVE` tables into a single
+`NOTE_TO_KEYBOARD_KEY` lookup, rather than a second, separately
+maintained mapping that could drift out of sync with the real one.
+
+Implementation: `renderStepGrid()` (shared by both the drum sequencer
+and piano roll) gained a new optional 9th parameter, `onLabelClick` —
+only the piano roll's own `renderPianoRoll()` call passes one; the drum
+sequencer's call is unchanged. When provided, the row label renders as
+a `<button class="song-track-label song-track-label-playable">` with
+its keyboard hint appended, and a click listener calls `onLabelClick`
+with that row's note name. CSS resets the button's default browser
+chrome (no border/background/font override) so it reads identically to
+the old plain label at rest, with a hover/focus accent-color highlight
+as the only visible affordance that it's now interactive.
+
+Verified via Playwright against the real admin UI: confirmed the C4
+row's label is genuinely a `<button>` (not a span) and its text includes
+its correct keyboard shortcut ("Q"); confirmed a drum row's label is
+still an unaffected plain `<span>` with no `-playable` class; confirmed
+clicking a note label while NOT playing/recording only plays a live
+preview and does not write into the grid; confirmed clicking a
+DIFFERENT note's label while playing with "Record" checked correctly
+writes it into the grid at the currently-playing step. Ran the sibling
+computer-keyboard-notes, MIDI-discovery, and cached-waveform-peaks tests
+plus the full `test_security_seo.js` suite — all still passing, no
+regressions from the shared `renderStepGrid()` signature change. Test
+song created via the real admin API was deleted via its real DELETE
+endpoint afterward.
+
+No server-side changes were needed.
+
+Sent for a critic pass.

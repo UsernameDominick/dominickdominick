@@ -2824,6 +2824,33 @@ kbd {
   color: var(--text-dim);
 }
 
+/* The piano roll's row labels are real <button> elements (item #314,
+   on-screen keyboard) so a note can be previewed/recorded by clicking
+   its name -- reset away the browser's default button chrome so it
+   still reads as a plain label at rest, just like the drum sequencer's
+   plain <span> labels, only with an interactive affordance on hover. */
+.song-track-label-playable {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.song-track-label-playable:hover,
+.song-track-label-playable:focus-visible {
+  color: var(--accent);
+}
+.song-key-hint {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 4px;
+  font-size: 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text-dim);
+}
+
 .song-track-color {
   width: 22px;
   height: 22px;
