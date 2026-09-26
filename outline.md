@@ -7818,3 +7818,11 @@ inventory finding progressively fewer and more scattered gaps rather than
 repeatedly missing the same area -- is the actual signal that this
 pattern search has converged, not merely that enough rounds have
 happened. Closing this out here.
+
+A final, narrow targeted check (not another full audit, per the round-6
+critic's own recommendation) confirmed the `placeText()` fix is correctly
+ordered (mutate-then-invalidate, matching every other fixed call site)
+and re-verified that text and eyedropper are genuinely the only two
+`pointerdown`-synchronous canvas actions -- crop/brush/shape all defer
+their real mutation to `pointerup`, already covered. Ship confirmed.
+Fix chain closed at commit 6309587.
