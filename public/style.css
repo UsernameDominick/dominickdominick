@@ -1545,6 +1545,12 @@ h6 { font-size: 0.9rem; }
   opacity: 0.7;
   pointer-events: none;
 }
+.sim-wire-label {
+  font-size: 11px;
+  fill: #888;
+  pointer-events: none;
+  user-select: none;
+}
 .sim-wire-hdmi {
   stroke: #7a2424;
   stroke-width: 5;

@@ -2847,6 +2847,13 @@ kbd {
   stroke: var(--accent) !important;
 }
 
+.sim-wire-label {
+  font-size: 11px;
+  fill: var(--text-dim, #888);
+  pointer-events: none;
+  user-select: none;
+}
+
 /* No !important, unlike .sim-selected -- the exact clicked wire should
    keep showing the stronger accent "selected" color, while every OTHER
    wire sharing its net gets this distinct, secondary highlight color. */

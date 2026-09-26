@@ -422,11 +422,21 @@
     }
     const sel = selected && selected.kind === "wire" && selected.id === wire.id;
     const inNet = netNodeIds && netNodeIds.has(window.simNodeId(fromComp, wire.from.pin));
+    // Positioned at the wire's midpoint with a small upward offset, the
+    // same "text sits just above the thing it labels" convention the
+    // breadboard's own rail labels and each part's own body label already
+    // use elsewhere in this file, rather than inventing a new placement
+    // rule just for wires.
+    const labelSvg = wire.label
+      ? `<text class="sim-wire-label" x="${(p1.x + p2.x) / 2}" y="${(p1.y + p2.y) / 2 - 6}" text-anchor="middle">${escapeXml(
+          wire.label
+        )}</text>`
+      : "";
     return `<path class="sim-wire sim-wire-${wire.kind || "wire"}${sel ? " sim-selected" : ""}${
       inNet ? " sim-net-highlight" : ""
     }" data-id="${wire.id}" data-animated="${
       poweredWires.has(wire.id) ? "true" : "false"
-    }" d="${d}"/><path class="sim-wire-shine sim-wire-shine-${wire.kind || "wire"}" d="${d}"/>`;
+    }" d="${d}"/><path class="sim-wire-shine sim-wire-shine-${wire.kind || "wire"}" d="${d}"/>${labelSvg}`;
   }
 
   // "Net" here means the set of pins tied to the same electrical point by
@@ -1220,12 +1230,28 @@
             <option value="hdmi" ${wire.kind === "hdmi" ? "selected" : ""}>Cable (HDMI-style)</option>
           </select>
         </label>
+        <label>Label (shown on the canvas, e.g. "GND" or "5V")<input id="sim-wire-label" type="text" value="${escapeXml(
+          wire.label || ""
+        )}"></label>
         <button type="button" id="sim-delete-selected" class="danger">Delete wire</button>
       `;
       $("sim-wire-kind").addEventListener("change", (e) => {
         pushHistory();
         wire.kind = e.target.value;
         renderBuilder();
+      });
+      const wireLabelInput = $("sim-wire-label");
+      let wireLabelHistorySaved = false;
+      wireLabelInput.addEventListener("input", () => {
+        if (!wireLabelHistorySaved) {
+          pushHistory();
+          wireLabelHistorySaved = true;
+        }
+        wire.label = wireLabelInput.value;
+        renderBuilder();
+      });
+      wireLabelInput.addEventListener("blur", () => {
+        wireLabelHistorySaved = false;
       });
       $("sim-delete-selected").addEventListener("click", () => {
         pushHistory();

@@ -649,13 +649,21 @@ function renderWireSvg(wire, components, poweredWires) {
   // physically, not cabled, so there's nothing to draw.
   if (Math.hypot(p2.x - p1.x, p2.y - p1.y) < 0.5) return "";
   const d = `M${p1.x},${p1.y} L${p2.x},${p2.y}`;
+  // Same admin-builder convention: a label sits just above the wire's
+  // midpoint, mirrored here so a wire labeled in the builder (e.g. "GND"/
+  // "5V") shows the same way on the public embed, not just in the admin.
+  const labelSvg = wire.label
+    ? `<text class="sim-wire-label" x="${(p1.x + p2.x) / 2}" y="${(p1.y + p2.y) / 2 - 6}" text-anchor="middle">${escXml(
+        wire.label
+      )}</text>`
+    : "";
   // Two overlapping strokes — a wide dull base plus a thin bright offset
   // highlight — read as a rounded, insulated cable instead of a flat line.
   return `<path class="sim-wire sim-wire-${escXml(wire.kind || "wire")}" data-id="${escXml(
     wire.id
   )}" data-animated="${poweredWires.has(wire.id) ? "true" : "false"}" d="${d}"/><path class="sim-wire-shine sim-wire-shine-${escXml(
     wire.kind || "wire"
-  )}" d="${d}"/>`;
+  )}" d="${d}"/>${labelSvg}`;
 }
 
 export function renderSimulationSvg(data, { width = 1500, height = 700 } = {}) {

@@ -4912,7 +4912,7 @@ substantial new infra + security surface).
 389. Mechanical vs electrical distinction — already implicit; just surface it in UI.
 391. Named nets (ground/supply) — add a `label` field to node groups.
 393. Manual wire bend points — extend wire path from 2-point to polyline.
-394. Wire labels — add label field + text render, like part labels already.
+394. ✅ Wire labels — done (see the dated entry below this section).
 396. Wire thickness/appearance — CSS/attr option per wire.
 397. ✅ Detect disconnected ends — done (see the dated entry below this section).
 398. ✅ Highlight net from point — done (see the dated entry below this section).
@@ -7826,3 +7826,38 @@ and re-verified that text and eyedropper are genuinely the only two
 `pointerdown`-synchronous canvas actions -- crop/brush/shape all defer
 their real mutation to `pointerup`, already covered. Ship confirmed.
 Fix chain closed at commit 6309587.
+
+### Twenty-fourth item: #394, simulation wire labels
+
+Added a `label` field to wires, mirroring the existing per-component
+label pattern exactly: a text input in the wire's inspector panel (shown
+when a wire is selected, alongside its existing Style dropdown and
+Delete button), rendered as a small SVG `<text>` positioned just above
+the wire's midpoint when non-empty -- the same "text sits just above the
+thing it labels" convention the breadboard's rail labels and each part's
+own body label already use, rather than inventing a new placement rule.
+Typical use: labeling a wire "GND" or "5V" on a more complex circuit
+where tracing which rail a given wire belongs to isn't obvious at a
+glance.
+
+Implemented in both places a simulation's SVG gets rendered: the admin
+builder (`simulation-builder.js`'s `renderWireSvg()`) and the public-
+facing embed (`worker/simulation-render.js`'s own `renderWireSvg()`),
+using the exact same midpoint-and-offset placement formula in both so a
+wire labeled in the builder shows identically on the public page, not
+just in the admin. Added matching `.sim-wire-label` CSS to both
+stylesheets (`public/admin/style.css` for the builder, `public/style.css`
+for the public embed).
+
+Tested via Playwright: wired two components together, selected the wire,
+confirmed the label input exists and no label renders while empty; typed
+"GND" and confirmed a `.sim-wire-label` text element with that exact
+content appeared on the canvas; saved the simulation and loaded its
+public embed page in a fresh browser context, confirming the same "GND"
+label rendered there too via the worker-side render path, not just the
+admin builder's client-side one. Full regression suite green; the test
+simulation was deleted (soft- and hard-delete) and confirmed gone from
+the simulations list afterward.
+
+Sent to a critic pass next per the standing workflow before calling it
+done.
