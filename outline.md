@@ -13008,3 +13008,41 @@ their real DELETE endpoints, confirmed via follow-up authenticated
 listings showing neither remains.
 
 Sent for a critic pass.
+
+Critic round 1 (score 8/10): tested against a real running wrangler dev
+instance with two separate test simulations embedded on the same test
+page whose components deliberately shared a colliding id, all cleaned up
+afterward via real DELETE endpoints. Confirmed as PASS: XSS/injection
+safety of the `CSS.escape()`-built selector (tried a number of
+attribute-breakout payloads, all safely neutralized — noted the
+surrounding try/catch appears to be unreachable dead code for any input
+actually testable in modern Chromium, informational only, not fixed);
+regex correctness for malformed, non-numeric, and nonexistent-block hash
+values; correct per-simulation scoping via `getElementById` (no bleed
+between two embedded simulations on the same page sharing a colliding
+component id); reduced-motion suppression of the glow pulse correctly
+working under BOTH the OS `prefers-reduced-motion: reduce` media query
+AND the site's own manual `data-motion="reduce"` toggle; correct
+highlight-class cleanup/re-trigger timing (~3.6-3.9s).
+
+One real (though explicitly non-blocking) finding: the code's own
+comment claimed a reduced-motion visitor "still gets the scroll... an
+instant jump, not a smooth animated one" — false as written, since
+`scrollIntoView({behavior:"smooth"})` was called unconditionally with no
+reduced-motion branching at all. The critic measured the target element
+NOT yet in the viewport at +300ms under `prefers-reduced-motion: reduce`,
+only settling into view by roughly +1000ms, confirming the scroll
+animation still ran smoothly even under reduced motion (only the glow
+pulse was actually suppressed). Fixed by reading both reduced-motion
+signals (the OS media query via `matchMedia`, and the site's own manual
+`data-motion="reduce"` toggle) right before scrolling and passing
+`behavior: "auto"` instead of `"smooth"` when either is active, matching
+the same two-signal pattern already used for the CSS animation
+suppression above. Verified live: under `prefers-reduced-motion: reduce`
+the target is now already inside the viewport at +300ms (an instant
+jump, matching the comment's original claim); under normal motion the
+scroll is unaffected and still lands by +1200ms. Re-ran
+`test_sim_deep_link.js` and the full `test_security_seo.js` suite — all
+passed, no regressions. Closing at this point without a mandatory
+round-2 dispatch: the one real finding was small, well-scoped, and fixed
+inline and verified live, matching the precedent set by item #108.

@@ -31,7 +31,10 @@ document.addEventListener("click", (e) => {
       return; // an invalid/malformed hash fragment -- nothing to do
     }
     if (!target) return;
-    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    const reduceMotion =
+      (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) ||
+      document.documentElement.dataset.motion === "reduce";
+    target.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
     // Re-triggerable: removing the class before re-adding it (rather than
     // just adding it once) means clicking the SAME deep link a second
     // time -- e.g. from a "jump back to X" button -- replays the
