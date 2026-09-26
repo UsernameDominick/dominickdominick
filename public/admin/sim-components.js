@@ -250,7 +250,16 @@
       ],
       render: (c) => {
         const maxR = Math.max(1, Number(c.maxResistance) || 10000);
-        const wiperPct = Math.max(0, Math.min(100, Number(c.wiper) ?? 50));
+        // `Number(x) ?? 50` was dead-fallback code -- Number() never
+        // returns null/undefined, only a number or NaN, and `NaN ?? 50` is
+        // still NaN (NaN is not nullish). A missing/non-numeric wiper (an
+        // imported or hand-edited simulation) silently produced "NaNΩ" on
+        // the label and a NaN resistance value feeding the electrical
+        // analysis. Number.isFinite() is the check that actually catches
+        // NaN and falls back correctly, while still preserving an explicit
+        // 0 (unlike `|| 50`, which would treat 0 as falsy too).
+        const rawWiper = Number(c.wiper);
+        const wiperPct = Math.max(0, Math.min(100, Number.isFinite(rawWiper) ? rawWiper : 50));
         const ohms = Math.max(1, Math.round(maxR * (wiperPct / 100)));
         const wiperX = 10 + 60 * (wiperPct / 100);
         return `<line class="resistor-lead" x1="0" y1="16" x2="10" y2="16"/><rect class="resistor-body" x="10" y="10" width="60" height="12" rx="3"/><line class="resistor-lead" x1="70" y1="16" x2="80" y2="16"/><line class="pot-wiper" x1="${wiperX}" y1="0" x2="${wiperX}" y2="10"/><polygon class="pot-wiper-arrow" points="${
@@ -453,7 +462,8 @@
         // the exact same current/wattage/overheating analysis for free
         // rather than duplicating that logic under a new kind.
         const maxR = Math.max(1, Number(c.maxResistance) || 10000);
-        const wiperPct = Math.max(0, Math.min(100, Number(c.wiper) ?? 50));
+        const rawWiper = Number(c.wiper);
+        const wiperPct = Math.max(0, Math.min(100, Number.isFinite(rawWiper) ? rawWiper : 50));
         link(nodeId(c, "p1"), nodeId(c, "p2"), { compId: c.id, kind: "resistor", resistance: Math.max(1, Math.round(maxR * (wiperPct / 100))) });
       } else if (c.type === "switch") {
         if (isSwitchClosed(c)) link(nodeId(c, "p1"), nodeId(c, "p2"), { compId: c.id, kind: "wire", resistance: 0 });

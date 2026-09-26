@@ -1225,12 +1225,18 @@
           // A potentiometer's analysis result also comes back as kind
           // "resistor" (it's wired as a plain two-terminal rheostat, see
           // sim-components.js) -- same current/wattage math, just with
-          // part-appropriate wording instead of hardcoding "resistor".
-          const partWord = comp.type === "potentiometer" ? "potentiometer" : "1/4W resistor";
+          // part-appropriate wording. A fixed resistor's rating comes from
+          // its real-world 1/4W spec (RESISTOR_WATTAGE_RATING); a
+          // potentiometer's is admin-configurable per instance, so calling
+          // it "a typical 1/4W resistor" would be a wrong-part reference.
+          const overheatMsg =
+            comp.type === "potentiometer"
+              ? `🔥 Overheating — dissipating ${info.watts.toFixed(2)}W, more than this potentiometer can safely handle.`
+              : `🔥 Overheating — dissipating ${info.watts.toFixed(2)}W, more than a typical 1/4W resistor can handle.`;
           if (info.dangerous) {
             electricalHtml = `<p class="sim-power-status is-danger">🔥 Charred instantly — this loop is running straight off 120V mains.</p>`;
           } else if (info.status === "overheating") {
-            electricalHtml = `<p class="sim-power-status is-danger">🔥 Overheating — dissipating ${info.watts.toFixed(2)}W, more than a typical ${partWord} can handle.</p>`;
+            electricalHtml = `<p class="sim-power-status is-danger">${overheatMsg}</p>`;
           } else {
             electricalHtml = `<p class="sim-power-status is-powered">✓ ${ma}mA flowing, dissipating ${info.watts.toFixed(2)}W — well within its rating.</p>`;
           }
