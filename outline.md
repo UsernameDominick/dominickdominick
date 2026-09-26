@@ -11896,7 +11896,88 @@ main end-to-end test and the regression check) were deleted via the real
 `DELETE /api/admin/pages/:id` endpoint, confirmed via a follow-up
 authenticated pages listing showing no leftover test-slugged pages.
 
-Not yet critic-reviewed as of this writing — sent for review next.
+Sent for a critic pass, which read `worker/render.js`, `public/admin/
+app.js`'s keyframe-editor logic, `public/style.css`'s reduced-motion
+rules, and `public/nav.js`'s reveal/manual-toggle logic in full, then
+verified everything live. Final score: **6/10 — one real blocking
+accessibility bug.**
+
+**Blocking, fixed:** the site's own manual "reduce motion" toggle
+(the header ⏸ button, `data-motion="reduce"`, independent of the OS
+`prefers-reduced-motion` setting) did NOT actually stop a custom
+animation from playing, contradicting this feature's own design claim
+that it reuses the existing reduced-motion mechanism with zero changes
+needed. Root cause: the 5 built-in presets are `transition`-driven, and
+the manual override's existing `:root[data-motion="reduce"]
+[data-animate] { opacity:1; transform:none; transition:none; }` rule
+correctly neutralizes a `transition` regardless of specificity — but the
+custom-keyframe type drives motion via the CSS `animation` property
+instead, and a RUNNING `animation` overrides non-`!important` cascaded
+property values for whatever it's animating, for its own duration,
+regardless of that override rule's specificity. The claim WAS true for
+OS-level `prefers-reduced-motion: reduce` (verified via
+`page.emulateMedia`) — the entire generated `<style>` block is scoped
+inside `@media (prefers-reduced-motion: no-preference)` so it's simply
+never parsed there — but the manual toggle needed its own explicit
+`animation: none` added to that same override rule, which it didn't
+have (it had never needed one before this feature existed, since
+nothing on this site used the `animation` property until now). Fixed by
+adding `animation: none;` to that one existing rule in `public/style.css`.
+
+**Non-blocking, fixed:**
+1. No server-side cap on `customKeyframes` array length — a 60-stop test
+   array worked but produced ~1.75KB of CSS for one block with no upper
+   bound, a real (if low-severity, since it needs authenticated admin API
+   access already) page-bloat vector. Added `MAX_CUSTOM_KEYFRAME_STOPS =
+   20` (generous for anything hand-built one row at a time in the admin's
+   list editor) to `worker/render.js`'s existing fail-closed validation.
+2. A latent data-loss footgun: `.edit-keyframes-btn` carries `data-key=
+   "customKeyframes"` to fit the declarative `STYLE_FIELDS` pattern, and
+   the generic `styleContainer.querySelectorAll("[data-key]")` wiring
+   assumes every match is a normal input and attaches a `change`
+   listener. Unreachable through ordinary mouse/keyboard use (a
+   `<button>` never fires `change` on click) but a critic pass found that
+   a SYNTHETIC `change` event dispatched directly at the button hits
+   `fieldValue()`'s generic fallback (a button's own `.value`, `""`),
+   silently wiping the block's entire saved keyframe array to `null` with
+   no confirmation or error. Fixed by excluding buttons from both the
+   content- and style-field generic query (`[data-key]:not(button)`),
+   closing the whole footgun class rather than just this one instance.
+
+**Non-blocking, left as-is (logged, not fixed):** a representational
+(not behavioral) mismatch between the admin preview's WAAPI keyframes
+(always emits an explicit identity `transform` on a "resting" stop) and
+the server's generated CSS (omits the `transform` declaration entirely
+on an identical resting stop). Confirmed harmless today — the browser
+synthesizes an identical `transform:none` fallback for the missing
+value on the actually-shipped CSS animation, since no block has any
+other persistent `transform` outside this feature — but flagged by the
+critic as fragile if that assumption ever stops holding. Left open
+rather than "fixed" by making the two representations byte-identical,
+since the current omission is a deliberate, working size optimization
+(see the "Sixty-third item" entry above) and forcing the preview to also
+omit identity transforms would only make the PREVIEW's own code more
+complex for a difference that's already behaviorally invisible.
+
+Re-verified all three fixes live via Playwright: confirmed a real
+custom-animated block, with the manual toggle ON, shows `opacity:1` and
+`animationName:"none"` (not just visually still, actually not running)
+even right after a fresh page load — the exact scenario nav.js's manual-
+toggle short-circuit (`.is-visible` added immediately, not on scroll)
+makes worse than the OS-preference path; confirmed OS-level
+`prefers-reduced-motion` and normal (non-reduced) playback are both
+unaffected by this fix; confirmed a 21-stop array is now correctly
+rejected (no `data-animate`/`@keyframes` emitted) while exactly 20 (the
+new cap) still works; and confirmed the exact synthetic-`change`-event
+reproduction the critic used no longer touches `customKeyframes` at all.
+Re-ran `test_custom_animation_codegen.js` and `test_keyframe_editor_ui.js`
+(both prior test suites for this feature) plus the full
+`test_security_seo.js` regression suite — all still pass, no regression
+from these fixes. No test data left behind (two throwaway pages created
+for this round's testing, both deleted via the real `DELETE` endpoint,
+confirmed gone).
+
+Sent for a round-2 critic pass.
 
 ### Design/UX audit — dispatched to an agent
 

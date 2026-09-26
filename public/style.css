@@ -638,10 +638,25 @@ body {
    plain selectors inside that block ([data-motion="reduce"] [data-animate]
    beats [data-animate] alone) so it wins regardless of source order,
    whether or not the OS itself already prefers reduced motion. */
+/* animation: none is required here, not just transition: none -- the 5
+   built-in presets are transition-driven (transition:none fully
+   neutralizes them), but the custom-keyframe animation type drives motion
+   via the CSS `animation` property instead, and a running `animation`
+   overrides non-!important cascaded opacity/transform values for the
+   properties it's animating regardless of this rule's specificity. A
+   critic pass caught this live: with the manual toggle on, a custom
+   animation still visibly played once on load (nav.js's manual-toggle
+   short-circuit adds .is-visible to every target immediately) even though
+   opacity/transform here said otherwise -- OS-level prefers-reduced-motion
+   already worked correctly since the whole custom-animation <style> block
+   is scoped inside @media (prefers-reduced-motion: no-preference) and is
+   simply never parsed, but this manual override needed the same coverage
+   spelled out explicitly. */
 :root[data-motion="reduce"] [data-animate] {
   opacity: 1;
   transform: none;
   transition: none;
+  animation: none;
 }
 
 :root[data-motion="reduce"] .block-hover-lift:hover {

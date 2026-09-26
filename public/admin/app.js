@@ -2098,14 +2098,22 @@
       saveBlockStyleAndContent(block);
     }
 
-    container.querySelectorAll("[data-key]").forEach((input) => {
+    // :not(button) excludes .edit-keyframes-btn (and any future button-type
+    // field control) -- a critic pass found that a synthetic "change" event
+    // dispatched at a button (never fired by real mouse/keyboard use, but
+    // reachable via a dispatchEvent call, a future refactor, or some
+    // assistive-tech synthesis) would otherwise hit fieldValue()'s generic
+    // fallback (a button's own .value, which is "") and silently overwrite
+    // that field with `"" || null` -- for customKeyframes specifically,
+    // silently wiping a saved animation with no confirmation or error.
+    container.querySelectorAll("[data-key]:not(button)").forEach((input) => {
       input.addEventListener("change", () => {
         block.content[input.dataset.key] = fieldValue(input);
         save();
       });
     });
 
-    styleContainer.querySelectorAll("[data-key]").forEach((input) => {
+    styleContainer.querySelectorAll("[data-key]:not(button)").forEach((input) => {
       input.addEventListener("change", () => {
         block.style[input.dataset.key] = fieldValue(input) || null;
         save();

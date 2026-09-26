@@ -1254,9 +1254,18 @@ function customKeyframeTransform(stop) {
 // unrecognized easing) rather than emitting broken/partial CSS -- same
 // "fail closed on bad admin-authored data" precedent withCustomJsonLd
 // above already established for custom_json_ld.
+// Generous for anything a human would actually build one row at a time in
+// the admin's keyframe-list editor, but bounds how much @keyframes CSS one
+// block can inject into every page load -- the admin UI itself has no way
+// to create more than a handful quickly, but the API takes raw JSON, so
+// this is a real (if low-severity, since it needs authenticated admin
+// access already) size ceiling rather than trusting client-side UI limits
+// alone.
+const MAX_CUSTOM_KEYFRAME_STOPS = 20;
+
 function customAnimationCss(blockId, style) {
   const stops = style.customKeyframes;
-  if (!Array.isArray(stops) || stops.length < 2) return null;
+  if (!Array.isArray(stops) || stops.length < 2 || stops.length > MAX_CUSTOM_KEYFRAME_STOPS) return null;
   const easing = CUSTOM_ANIMATION_EASINGS[style.animationEasing] || CUSTOM_ANIMATION_EASINGS.ease;
   const duration = Number(style.animationDuration);
   const durationMs = Number.isFinite(duration) && duration > 0 ? duration : 600;
