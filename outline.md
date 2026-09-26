@@ -4861,7 +4861,7 @@ session's own EXIF-stripping feature for the upload-side equivalent).
 302. ✅ RMS meters — done (see the dated entry below this section).
 305. ✅ Spectrum analyzer — AnalyserNode FFT + canvas draw (mirrors existing waveform canvas). (done — see the dated entry below)
 309. Track/master clipping history — log exceedances like existing `log()` action table.
-311. MIDI-device discovery — extend existing `requestMIDIAccess` call already present.
+311. ✅ MIDI-device discovery — extend existing `requestMIDIAccess` call already present. (done — see the dated entry below)
 314. On-screen keyboard — UI wired to existing `playMelodyNote`.
 315. ✅ Computer-keyboard note entry — keydown → existing note-play function. (done — see the dated entry below)
 321. ✅ Background autosave — done (see the dated entry below this section).
@@ -13153,3 +13153,52 @@ also building a visual keyboard UI.
 Closing at 8/10 with the one small, cheap, well-understood finding fixed
 and verified inline, and the UX gap explicitly logged rather than
 silently dropped — matching the precedent set by items #108 and #539.
+
+### 2026-09-26 — Item #311: MIDI-device discovery (Song builder)
+
+The pre-existing "Connect MIDI" button already called
+`navigator.requestMIDIAccess()` and wired every input's `onmidimessage`
+to the same handler, but gave zero feedback about WHAT it actually
+found — the button just said "MIDI connected" whether zero, one, or
+five devices were present, with no device names shown anywhere, and a
+device plugged in AFTER clicking connect was never picked up until the
+whole page was reloaded and the button clicked again (the wiring only
+ever ran once, at click time).
+
+Extended the existing click handler rather than replacing it: pulled
+the wiring logic out into a `refreshMidiDevices()` closure that (1)
+wires `onmidimessage` on every currently-known input, and (2) updates
+the button's own text to actually say how many devices were found
+("🎹 2 MIDI devices connected" / "🎹 No MIDI devices found" when the
+Map is empty, rather than a misleading blanket "connected"), with the
+button's `title` tooltip listing each device's real name (from
+`MIDIInput.name`) for anyone with more than one plugged in. Called once
+immediately after `requestMIDIAccess()` resolves, then assigned as
+`access.onstatechange` so a device plugged in or unplugged mid-session
+re-runs the same function automatically — no reload or re-click needed,
+matching how real MIDI hardware is expected to behave (hot-pluggable).
+
+Real MIDI hardware isn't available in this headless test environment,
+so verification used a mocked `navigator.requestMIDIAccess` (a fake
+`MIDIAccess` object with a real, mutable `Map` for `.inputs` and a
+capturable `onstatechange` setter) injected via Playwright's
+`addInitScript` before the page loads — this exercises the actual
+production code path (the real click handler, the real
+`refreshMidiDevices` closure) against a controlled fake data source,
+rather than testing a separate mock of the app's own logic. Verified:
+the button correctly shows "1 MIDI device connected" and the real
+device name in its tooltip after the first connect; simulating a
+hot-plugged second device by adding to the mocked `inputs` Map and
+firing the captured `onstatechange` handler correctly updates the count
+to "2 MIDI devices connected" and both names in the tooltip, with NO
+re-click needed; confirmed the newly hot-plugged device's
+`onmidimessage` handler was actually wired (not just the first device
+that existed at connect time) by firing a real note-on message through
+it and confirming it executed without error; separately verified the
+zero-devices case shows "No MIDI devices found" rather than falsely
+claiming success. Ran the full `test_security_seo.js` suite — all
+passed, no regressions. No server-side changes were needed. Test songs
+created via the real admin API were deleted via their real DELETE
+endpoints afterward.
+
+Sent for a critic pass.

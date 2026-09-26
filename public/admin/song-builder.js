@@ -543,8 +543,24 @@
     $("song-midi-connect").addEventListener("click", async () => {
       try {
         const access = await navigator.requestMIDIAccess();
-        access.inputs.forEach((input) => (input.onmidimessage = handleMidiMessage));
-        $("song-midi-connect").textContent = "🎹 MIDI connected";
+        // Wires up every currently-known input AND re-runs on every future
+        // `statechange` (a device plugged in or unplugged after the initial
+        // connect) -- so a MIDI keyboard plugged in mid-session gets picked
+        // up automatically instead of silently doing nothing until the page
+        // is reloaded and "Connect MIDI" clicked again.
+        function refreshMidiDevices() {
+          access.inputs.forEach((input) => (input.onmidimessage = handleMidiMessage));
+          const names = Array.from(access.inputs.values()).map((i) => i.name || "Unnamed device");
+          if (names.length === 0) {
+            $("song-midi-connect").textContent = "🎹 No MIDI devices found";
+            $("song-midi-connect").title = "Plug in a MIDI keyboard/controller — it'll be picked up automatically, no need to click again.";
+          } else {
+            $("song-midi-connect").textContent = `🎹 ${names.length} MIDI device${names.length === 1 ? "" : "s"} connected`;
+            $("song-midi-connect").title = names.join(", ");
+          }
+        }
+        refreshMidiDevices();
+        access.onstatechange = refreshMidiDevices;
         $("song-midi-connect").disabled = true;
         $("song-record-label").hidden = false;
       } catch (err) {
