@@ -4814,7 +4814,7 @@ session's own EXIF-stripping feature for the upload-side equivalent).
 184. Tempo/time-signature settings — tempo field exists; add a sibling field.
 189. Session templates — default-data presets, pattern already used.
 190. Multiple sessions via tabs — songs already separate D1 rows/list UI.
-195. Dedicated master bus — one GainNode before destination.
+195. ✅ Dedicated master bus — done (see the dated entry below this section).
 196. Track colors/icons/notes — metadata fields + UI, same as song name.
 197. Track search/filtering — client-side list filter.
 198. Hide tracks without disabling audio — separate UI flag from mute.
@@ -8490,3 +8490,126 @@ one of eight thickness/kind/stroke combinations) fixed and independently
 re-verified, with every other adversarial angle the critic checked
 confirmed already correct on direct verification rather than just
 re-reading the outline's own claims.
+
+### Twenty-ninth item: #195, dedicated master bus for the Song/DAW builder
+
+- ✅ **One shared `GainNode` per `AudioContext`** in `public/song-engine.js`
+  (`getMasterGain(ctx)`, a `WeakMap<AudioContext, GainNode>` so the admin
+  builder's persistent context, the public embed's lazily-created
+  context, and any throwaway `OfflineAudioContext` used for waveform
+  rendering each get their own node) that every synthesized voice
+  (`playKick`/`playSnare`/`playHihat`/`playClap`/`playMelodyNote`) now
+  routes through instead of connecting to `ctx.destination` directly.
+  `songData.master_volume` (0-1, default `undefined`→1) is read fresh
+  every scheduled step inside `scheduleStep()`, the same pattern already
+  used for `tempo`/`kit`, so a live edit takes effect without any
+  separate wiring. A new `#song-master-volume` range slider (0-100) was
+  added to the admin builder's toolbar
+  (`public/admin/index.html`), synced on song open/save exactly like the
+  adjacent tempo/kit/waveform controls. The public Song embed
+  (`public/song-embed.js`) needed **zero changes** — it creates its own
+  `AudioContext` and calls the same shared `createPlayer`/`scheduleStep`
+  path, so it picks up master-volume support for free from the one
+  engine change.
+
+Handed to a critic agent for scoring: **5/10**. Findings:
+
+1. **(Fixed)** `renderWaveformPeaks()` rendered the offline waveform
+   preview at the song's actual `master_volume`, so the waveform display
+   in both the admin builder's live preview and the public embed visibly
+   shrank as the volume slider was lowered and went completely flat at
+   volume 0 — a real, reachable readability regression with no benefit,
+   since the preview exists to show the pattern's *shape*, not the
+   song's loudness. Fixed by having `renderWaveformPeaks` build a
+   shallow-copied `previewData` with `master_volume` forced to 1
+   whenever the real value isn't already 1, and scheduling the offline
+   render against that copy instead of the real `songData` — leaving the
+   actual persisted `master_volume` and the live-playback path
+   completely untouched.
+2. **(Fixed)** The master gain value was only ever applied inside
+   `scheduleStep()`, which only runs once playback is actively
+   scheduling steps. Two consequences: (a) MIDI-keyboard live-preview
+   notes (played via `Engine.playMelodyNote` directly, bypassing
+   `scheduleStep`) played at whatever gain the shared node happened to
+   already hold, not the current slider position; (b) since the admin
+   builder's `AudioContext` (and therefore its master `GainNode`) is
+   created once and reused across every song opened in that session,
+   opening song B right after playing song A left the gain at A's last
+   value — audible as a stale-volume flash — until B's own playback got
+   around to running `scheduleStep` for the first time. Fixed by adding
+   a new public `SongEngine.setMasterVolume(ctx, value)` and calling it
+   immediately from two places in `song-builder.js`: the volume slider's
+   `input` handler, and `openSong()` right after loading a song's data
+   (before creating its player) — on top of `scheduleStep()`'s existing
+   per-step re-application, which stays as a redundant-but-harmless
+   safety net.
+3. **(Fixed)** Setting `gain.value = ...` directly during active
+   playback risks an audible click/zipper artifact on the abrupt jump.
+   Fixed by having `setMasterVolume()` use the standard
+   `cancelScheduledValues` → `setValueAtTime(current, now)` →
+   `linearRampToValueAtTime(target, now + 0.03)` ramp pattern instead of
+   a bare assignment. Also switched the clamping check from
+   `typeof value === "number"` to `Number.isFinite(value)`, closing a
+   gap where a `NaN` (which passes `typeof x === "number"`) could have
+   slipped through unclamped.
+4. **(Fixed)** The new volume slider fires many rapid `input` events
+   while being dragged, and `refreshWaveformPreview()`'s
+   `OfflineAudioContext` render is async with no protection against
+   out-of-order resolution — several renders could be in flight at once,
+   with whichever happened to resolve last (not necessarily the one
+   matching the final slider position) winning and leaving a stale
+   preview. Fixed with the same generation-token guard already used
+   elsewhere in `song-builder.js` for the open-song race
+   (`waveformPreviewGeneration`, incremented per call, checked after the
+   `await` before committing the result). Confirmed by the round-2
+   critic to still be genuinely necessary and reachable even after fix
+   #2 removed the volume-slider's own call to
+   `refreshWaveformPreview()` — the tempo/kit/waveform controls still
+   call it and remain exposed to the same race.
+5. **(Logged, not fixed — matches a pre-existing pattern, not a
+   regression)** Neither the `/songs` POST nor `/songs/:id` PATCH
+   endpoint in `worker/admin-api.js` validates any field inside the
+   song's `data` JSON blob, `master_volume` included — identical to the
+   existing, already-unvalidated `tempo`/`kit`/etc. fields. Not a
+   security issue (a corrupted/out-of-range value is just an audio gain
+   consumed by Web Audio, and `setMasterVolume()`'s own
+   `Number.isFinite` + clamp handles it defensively on every use
+   regardless of what's stored), so left as-is rather than expanding
+   scope to add validation this codebase has never had for this data
+   shape.
+6. **(Confirmed already correct, not a bug)** The song-duplicate
+   endpoint (`worker/db.js`'s `duplicateSong`) copies the whole `data`
+   blob verbatim, so `master_volume` correctly carries over to a
+   duplicated song. Autosave is already debounced (a 2-second timer,
+   cleared on each call), so dragging the volume slider does not spam
+   the autosave endpoint.
+
+Sent for a round-2 critic pass specifically re-verifying each of the four
+fixes above against the real source (not just re-reading the fix
+descriptions), plus a broader look for anything new. Confirmed genuinely
+correct and complete: the waveform-preview shallow copy doesn't leak
+back into the real `songData` (nothing in `scheduleStep` ever *writes*
+to `songData.tracks`/`songData.melody`, only reads, so sharing those
+nested references between the copy and the original is safe); both
+stale-gain sub-cases are closed (grepped every direct `Engine.play*`/
+`scheduleStep` call site in `song-builder.js` — only the MIDI-preview
+handler and the scheduler itself exist, and both are now covered);
+`Number.isFinite(0)` correctly still accepts an explicit 0-volume rather
+than treating it as falsy; and the generation-token race guard is
+confirmed still live and necessary via the tempo/kit/waveform controls,
+not dead code. Two new minor, non-blocking observations: `setMasterVolume`
+applies at `ctx.currentTime` ("now") rather than exactly on the next
+beat boundary, so a mid-playback slider drag jumps volume immediately
+rather than snapping to the beat — cosmetic only; and the public embed
+was independently confirmed (not just asserted) to inherit both the
+master-volume feature and the waveform-decoupling fix for free, since it
+passes its parsed `songData` into the exact same shared engine calls
+with no embed-specific code path. Final score: **9/10** — ships.
+
+Item #195 is done: 2 critic rounds, 5/10 → 9/10, four real findings (a
+waveform-preview loudness/shape regression, two stale-gain sub-cases, a
+click-artifact risk, and an async preview-race) all fixed and
+independently re-verified against the live source rather than the fix
+descriptions, plus one pre-existing non-regression gap (no server-side
+validation of song `data` fields) explicitly logged as intentionally
+left alone.
