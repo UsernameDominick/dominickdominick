@@ -4971,7 +4971,7 @@ live in env bindings, not content rows).
 569. ✅ Monitor editor crashes and failed saves — done (see the dated entry below this section).
 572. Choose poster images/fallbacks before publishing — `scans.poster_key` pattern exists; extend to songs/simulations.
 576. Keep animated elements from moving surrounding text — CSS layout fix (reserved space/aspect-ratio).
-582. Protect source files containing private/sensitive material — mirrors the existing `private_notes` admin-only field pattern.
+582. ✅ Protect source files containing private/sensitive material — done (see the dated entry below this section).
 584. ✅ Require stronger confirmation for destructive bulk operations — done (see the dated entry below this section).
 595. ✅ Searchable settings with direct navigation — checked: already done earlier this session as the "Where is this setting?" search (see the dated entry above, section 12) — `SETTINGS_SEARCH_INDEX` covers all 7 Site Settings tabs with plain-language keyword matching and jumps straight to the right tab/field via the command palette.
 596. Contextual help explaining unfamiliar controls — static tooltip content, no infra.
@@ -6094,3 +6094,74 @@ silently reintroducing the bug.
 Item #321 is fully closed: 2 critic rounds, 6/10 → 9/10, every real
 finding from round 1 fixed and verified; round 2 found nothing new
 beyond a documentation nit, addressed with a comment.
+
+### Twelfth item: #582, protect private/sensitive source files
+
+- ✅ **A "Private" flag on individual media library files, gating the
+  public `/media/:key` route** — checked what "protection" actually meant
+  in this codebase today and found there wasn't any at all: any uploaded
+  file under `uploads/`, `scans/`, `audio/`, `video/`, or `fonts/` is
+  servable via `/media/<key>` to anyone with the link, forever, with the
+  file's unguessable key as the only real barrier. A source file with
+  genuinely private/sensitive content (a personal document scan, an
+  unreleased draft) uploaded into the media library for admin-only
+  reference had no way to actually stay admin-only. Added a `private`
+  column to the `media` table (applied to local D1 directly, matching how
+  every other schema addition this session went in, since there's no
+  migration runner in this project) and gated the public route: an
+  `uploads/`-prefixed key with `private = 1` now 404s for anyone not
+  authenticated — 404, not 401, so an anonymous request can't distinguish
+  "private" from "doesn't exist," matching this route's existing
+  not-found behavior rather than confirming a private file's existence to
+  an outside observer. Scoped the DB lookup to `uploads/` specifically:
+  that's the only prefix with rows in the `media` table at all
+  (scans/audio/video/fonts are managed by their own tables and were never
+  "private-capable"), so a lookup miss for those just means "not private,"
+  preserving their existing always-public behavior with zero risk of an
+  accidental new gate.
+  Wired a checkbox into the existing media info modal (`upsertMediaMeta()`
+  already had a clean single-write-path pattern to extend — same one the
+  folder-collision fix from earlier this session went through). Reused
+  the same "warn before an action with a visible consequence" pattern
+  already used before deleting a used file: turning "Private" ON for a
+  file currently referenced by a published page/article now shows exactly
+  which page(s)/article(s) use it and requires confirming, since marking
+  it private breaks that reference's direct URL for anonymous visitors
+  the moment it saves — worded for this case rather than reusing delete's
+  "safe to delete" phrasing verbatim. Added a small red "Private" badge
+  to the media grid (stacked below the existing Unused/Duplicate badges,
+  all three can coexist on one file) so an admin can see at a glance
+  which files are gated without opening each one's info modal.
+  Found and fixed a real bug of my own before it could ship: the `GET
+  /media` list route hand-builds each returned item from an explicit
+  field list rather than spreading the DB row, so the new `private`
+  column silently never reached the client even though the server-side
+  write path was already correct — the checkbox always showed unchecked
+  and the badge never appeared, despite the actual protection already
+  working. Fixed by adding `private` to that explicit field list.
+  Also checked a real regression risk before considering this done: the
+  Photo Editor's own image loader sets `img.crossOrigin = "anonymous"`,
+  which for a plain cross-origin image strips cookies from the request —
+  if that also applied to a same-origin `/media/...` request, marking a
+  file private would have broken the admin's own ability to ever open it
+  in the Photo Editor again, even while logged in. Verified live that
+  this is NOT the case: Chromium correctly still sends same-origin
+  cookies alongside `crossOrigin="anonymous"` (the attribute only
+  suppresses credentials for a genuinely cross-origin request), so
+  editing a private file continued to work correctly with no change
+  needed there.
+  Verified via Playwright: an uploaded file is publicly fetchable (200)
+  before marking private; marking it private correctly returns 404 to an
+  anonymous request (using `cache: "no-store"` in the test itself after
+  first catching my own test-methodology mistake — a plain `fetch()` on
+  the same URL from the same browser context just replayed the route's
+  own `max-age=300` cached response without hitting the network again,
+  which looked exactly like a live bug until isolated with a fresh
+  no-cache request and a fresh anonymous context); still fetchable by the
+  authenticated admin; the Photo Editor still opens it for editing; the
+  grid badge appears; canceling the usage-warning dialog correctly leaves
+  the file untouched and still public; accepting it correctly saves and
+  the file becomes unreachable anonymously. Full regression suite green;
+  all test pages/media deleted and confirmed gone.
+
+Handed to a critic agent for scoring.

@@ -5079,6 +5079,8 @@
               item.used ? "" : '<span class="media-unused-badge" title="Not referenced anywhere on the site">Unused</span>'
             }${
               item.isDuplicate ? '<span class="media-unused-badge media-duplicate-badge" title="Byte-for-byte identical to another upload">Duplicate</span>' : ""
+            }${
+              item.private ? '<span class="media-unused-badge media-private-badge" title="Admin-only — not publicly reachable, even by direct link">Private</span>' : ""
             }<div class="media-item-bottom"><input type="checkbox" class="media-select-checkbox" data-key="${escapeHtml(
               item.key
             )}"${selectedMediaKeys.has(item.key) ? " checked" : ""}><span class="media-folder-badge">${escapeHtml(
@@ -5212,6 +5214,7 @@
     el("media-info-caption").value = item.caption || "";
     el("media-info-credit").value = item.credit || "";
     el("media-info-license").value = item.license || "";
+    el("media-info-private").checked = !!item.private;
     el("media-info-history-list").innerHTML = "";
     el("media-info-file-versions-list").innerHTML = "";
     el("media-info-modal").hidden = false;
@@ -5219,6 +5222,23 @@
   closeModalOnClick("close-media-info", "media-info-modal");
   el("save-media-info").addEventListener("click", async () => {
     if (!mediaInfoKey) return;
+    const item = mediaItems.find((m) => m.key === mediaInfoKey);
+    const turningPrivateOn = el("media-info-private").checked && !(item && item.private);
+    if (turningPrivateOn) {
+      // Marking a file private breaks its direct URL for anonymous
+      // visitors immediately -- if it's currently embedded in a published
+      // page/article, that page's image would 404 the moment this saves.
+      // Same "warn before an action with a visible consequence" pattern
+      // already used before deleting a file, just worded for this case
+      // instead of borrowing delete's "safe to delete" phrasing.
+      const usage = await api(`/media/usage?url=${encodeURIComponent(item.url)}`).catch(() => []);
+      if (usage.length) {
+        const list = usage.map((u) => `- ${u.type}${u.title ? `: "${u.title}"` : ""}`).join("\n");
+        if (!confirm(`This file is currently used in:\n${list}\n\nMarking it private will break its direct link there for anyone not logged in. Continue?`)) {
+          return;
+        }
+      }
+    }
     try {
       await api(`/media/${mediaInfoKey}`, {
         method: "PATCH",
@@ -5229,6 +5249,7 @@
           caption: el("media-info-caption").value.trim() || null,
           credit: el("media-info-credit").value.trim() || null,
           license: el("media-info-license").value.trim() || null,
+          private: el("media-info-private").checked,
         }),
       });
       el("media-info-modal").hidden = true;

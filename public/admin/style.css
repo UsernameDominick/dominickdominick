@@ -2213,6 +2213,15 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   left: 4px;
 }
 
+/* Stacked below unused/duplicate (all three can apply to the same file) --
+   given a distinct color since this one's a security-relevant marker, not
+   just a housekeeping note. */
+.media-private-badge {
+  top: 48px;
+  left: 4px;
+  color: #ff6b6b;
+}
+
 .media-info-modal-inner {
   max-width: 420px;
 }

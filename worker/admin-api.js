@@ -1137,6 +1137,7 @@ async function routeAdminApi(request, env, url, ctx) {
         credit: meta[o.key]?.credit || null,
         license: meta[o.key]?.license || null,
         hash: meta[o.key]?.hash || null,
+        private: !!meta[o.key]?.private,
         isDuplicate: duplicateKeys.has(o.key),
         used: usage.length > 0,
         // Flattened "type: title" strings — the library's usage filter

@@ -1588,7 +1588,7 @@ export async function getMediaMeta(env, keys) {
   return map;
 }
 
-export async function upsertMediaMeta(env, key, { folder, tags, alt_text, caption, credit, license, hash } = {}) {
+export async function upsertMediaMeta(env, key, { folder, tags, alt_text, caption, credit, license, hash, private: isPrivate } = {}) {
   // "__uncategorized__" is the sentinel the admin's "Uncategorized (no
   // folder)" filter option uses (public/admin/app.js). A real folder named
   // exactly that would collide with it in the filter dropdown and become
@@ -1607,7 +1607,7 @@ export async function upsertMediaMeta(env, key, { folder, tags, alt_text, captio
     // (folder/tags/alt/caption/credit/license), not the hash-only calls
     // from upload or the duplicate-detection backfill scan, which would
     // otherwise create a noisy revision for every file on every scan.
-    const isEditorialChange = [folder, tags, alt_text, caption, credit, license].some((v) => v !== undefined);
+    const isEditorialChange = [folder, tags, alt_text, caption, credit, license, isPrivate].some((v) => v !== undefined);
     if (isEditorialChange) {
       await env.DB
         .prepare(
@@ -1645,6 +1645,10 @@ export async function upsertMediaMeta(env, key, { folder, tags, alt_text, captio
     if (hash !== undefined) {
       cols.push("hash = ?");
       vals.push(hash || null);
+    }
+    if (isPrivate !== undefined) {
+      cols.push("private = ?");
+      vals.push(isPrivate ? 1 : 0);
     }
     if (!cols.length) return;
     vals.push(key);

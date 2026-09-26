@@ -292,6 +292,14 @@ CREATE TABLE media (
   credit TEXT,
   license TEXT,
   hash TEXT,
+  -- Source files containing private/sensitive material (a raw personal
+  -- document scan, an unreleased draft, anything not meant for a public
+  -- URL) previously had no protection beyond an unguessable key -- the
+  -- public /media/:key route served any uploaded file to anyone with the
+  -- link, forever. Marking a file private gates that same route behind
+  -- admin auth instead, mirroring how private_notes on articles/projects
+  -- is an admin-only field never exposed publicly.
+  private INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX idx_media_hash ON media(hash);

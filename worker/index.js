@@ -1233,6 +1233,17 @@ async function route(request, env, ctx) {
     // "backups/", which must never be servable through this public route.
     const mediaMatch = path.match(/^\/media\/((?:uploads|scans|audio|video|fonts)\/[A-Za-z0-9_.\-\/]+)$/);
     if (mediaMatch) {
+      // Only "uploads/" keys have a row in the `media` table at all (scans/
+      // audio/video/fonts are managed by their own tables and were never
+      // marked private-capable), so this lookup only ever gates that one
+      // prefix -- a miss for any other prefix just means "not private,"
+      // preserving today's always-public behavior for those file kinds.
+      if (mediaMatch[1].startsWith("uploads/")) {
+        const meta = await env.DB.prepare("SELECT private FROM media WHERE key = ?").bind(mediaMatch[1]).first();
+        if (meta && meta.private && !(await isAuthenticated(request, env))) {
+          return new Response("Not found", { status: 404 });
+        }
+      }
       const obj = await env.MEDIA.get(mediaMatch[1]);
       if (!obj) return new Response("Not found", { status: 404 });
       const headers = new Headers();
