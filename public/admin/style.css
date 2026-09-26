@@ -2800,6 +2800,28 @@ kbd {
   fill: var(--accent);
 }
 
+.sim-pin-disconnected {
+  fill: #ff4d4d;
+  stroke: #ff4d4d;
+  animation: sim-pin-disconnected-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes sim-pin-disconnected-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sim-pin-disconnected {
+    animation: none;
+  }
+}
+
+#sim-show-disconnected.is-active {
+  background: #ff4d4d;
+  color: #fff;
+}
+
 @media (max-width: 860px) {
   .simulation-builder-inner header {
     flex-wrap: wrap;

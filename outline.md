@@ -4911,7 +4911,7 @@ substantial new infra + security surface).
 393. Manual wire bend points — extend wire path from 2-point to polyline.
 394. Wire labels — add label field + text render, like part labels already.
 396. Wire thickness/appearance — CSS/attr option per wire.
-397. Detect disconnected ends — pins with no wire, simple set diff already available.
+397. ✅ Detect disconnected ends — done (see the dated entry below this section).
 398. Highlight net from point — reuse existing BFS reach function for highlighting.
 401. Searchable specs — reuse palette search; add spec text field.
 402. Favorites/recent — localStorage list on top of existing palette.
@@ -6247,3 +6247,39 @@ Item #582 is fully closed: 1 critic round at 8/10 finding two real,
 fixable gaps (no security bypass, both defense-in-depth/exposure-window
 issues), fixed and verified; a second, independent round specifically
 hunting for a bypass of the core privacy gate found none.
+
+### Thirteenth item: #397, detect disconnected pins in a circuit
+
+- ✅ **"Show disconnected pins" toggle in the Simulation builder** —
+  an on-demand toggle rather than an always-on overlay, since a
+  component just placed with no wires yet is completely normal mid-build
+  and an always-on red-pulse on every fresh part would just be noise.
+  Reused the wire data's existing `{from:{compId,pin}, to:{compId,pin}}`
+  shape directly (`isPinConnected()` is a plain `.some()` over
+  `simData.wires`, no new data structure needed) rather than the
+  server-side BFS-based `connected()` reachability function the backlog
+  item referenced — that function answers "are these two specific pins
+  on the same net," a different question from "does this pin have any
+  wire touching it at all," and pulling in a whole net-connectivity pass
+  for a much simpler direct lookup would have been solving the wrong
+  problem. Clicking the toggle highlights every currently-unwired pin
+  with a pulsing red ring (respecting `prefers-reduced-motion`) and
+  updates the button's own label to a live count ("Disconnected pins: 3"
+  / "No disconnected pins"), recomputed on every render so wiring or
+  deleting a connection while the toggle is on updates the highlighting
+  and count immediately, not just on the next explicit toggle. Reset to
+  off whenever a different (or new) simulation is opened, matching how
+  every other per-session UI toggle in this builder already resets on
+  open.
+  Verified via Playwright: placed a resistor and a battery (4 pins,
+  0 wired) and toggled on — correctly flagged all 4 with the label
+  "Disconnected pins: 4"; wired one pair together — correctly dropped to
+  2 flagged pins and updated the label live without re-toggling; toggled
+  off — confirmed zero pins carry the highlighting class even though 2
+  are still genuinely unwired (the toggle actually gates the visual, not
+  just the count); wired the remaining pair and toggled back on —
+  correctly showed "No disconnected pins" with zero highlighted. Full
+  regression suite green; this test never saved the simulation, so no
+  test data needed cleanup.
+
+Handed to a critic agent for scoring.

@@ -295,6 +295,7 @@
     selected = null;
     wireStart = null;
     previewOn = false;
+    showDisconnected = false;
     zoomLevel = defaultZoomLevel();
     placeX = 20;
     placeY = 20;
@@ -373,14 +374,36 @@
     }" d="${d}"/><path class="sim-wire-shine sim-wire-shine-${wire.kind || "wire"}" d="${d}"/>`;
   }
 
+  // A component just placed with no wires yet is completely normal mid-
+  // build, so this is an on-demand toggle rather than an always-on
+  // overlay that would just be noisy for any circuit still in progress.
+  let showDisconnected = false;
+  function isPinConnected(compId, pinId) {
+    return simData.wires.some(
+      (w) => (w.from.compId === compId && w.from.pin === pinId) || (w.to.compId === compId && w.to.pin === pinId)
+    );
+  }
+  function countDisconnectedPins() {
+    let n = 0;
+    simData.components.forEach((c) => {
+      const def = REG[c.type];
+      if (!def) return;
+      def.pins.forEach((p) => {
+        if (!isPinConnected(c.id, p.id)) n++;
+      });
+    });
+    return n;
+  }
+
   function renderPinDots(comp) {
     const def = REG[comp.type];
     return def.pins
       .map((p) => {
         const active = wireStart && wireStart.compId === comp.id && wireStart.pin === p.id;
-        return `<circle class="sim-pin${active ? " sim-pin-active" : ""}" data-comp="${comp.id}" data-pin="${p.id}" cx="${
-          comp.x + p.x
-        }" cy="${comp.y + p.y}" r="5"/>`;
+        const disconnected = showDisconnected && !isPinConnected(comp.id, p.id);
+        return `<circle class="sim-pin${active ? " sim-pin-active" : ""}${
+          disconnected ? " sim-pin-disconnected" : ""
+        }" data-comp="${comp.id}" data-pin="${p.id}" cx="${comp.x + p.x}" cy="${comp.y + p.y}" r="5"/>`;
       })
       .join("");
   }
@@ -396,7 +419,19 @@
     }">${window.SIM_DEFS_SVG}${wiresSvg}${compsSvg}${pinsSvg}</svg>`;
     attachBuilderEvents();
     applyZoom();
+    if (showDisconnected) {
+      const n = countDisconnectedPins();
+      $("sim-show-disconnected").textContent = n ? `Disconnected pins: ${n}` : "No disconnected pins";
+    } else {
+      $("sim-show-disconnected").textContent = "Show disconnected pins";
+    }
+    $("sim-show-disconnected").classList.toggle("is-active", showDisconnected);
   }
+
+  $("sim-show-disconnected").addEventListener("click", () => {
+    showDisconnected = !showDisconnected;
+    renderBuilder();
+  });
 
   function svgPoint(evt) {
     const svg = $("sim-builder-svg");
