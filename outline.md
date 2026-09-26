@@ -4753,7 +4753,7 @@ join, rather than building three separate systems.
 77. Hard-edged pencil — brush variant with no smoothing.
 78. Airbrush buildup — brush variant with cumulative alpha.
 80. Accurate brush footprint preview — extend existing drawBrushCursor.
-86. Dodge/burn brushes — brightness brush, same shape as existing blur brush.
+86. ✅ Dodge/burn brushes — brightness brush, same shape as existing blur brush. (done — see the dated entry below)
 90. Magnified retouch comparison — reuse existing originalSnapshot + zoom.
 92. ✅ Saved crop ratios — done (see the dated entry below this section).
 93. Horizon straightening — arbitrary-angle rotate + auto-crop.
@@ -10009,3 +10009,38 @@ already-existing `currentAmps = 0` branch rather than any incorrect or
 unsafe behavior, so it wasn't treated as a real issue.
 
 Item #416 is done: 1 critic round, 9/10 on the first pass.
+
+### Forty-eighth item: #86, Photo Editor dodge/burn brushes
+
+- ✅ **Two new brush tools, "Dodge" and "Burn"**, classic darkroom-style
+  local brightening/darkening brushes, added to the Photo Editor's
+  existing brush-tool family (Erase/Blur/Pixelate). Reuses the exact
+  same effect-canvas-plus-mask compositing pipeline those tools already
+  share — `buildEffectCanvas(tool)` builds a full-canvas copy filtered
+  by `brightness(140%)` (dodge) or `brightness(65%)` (burn), and the
+  pre-existing `commitBrushStroke()` masks that copy by the accumulated
+  brush-stroke path exactly like Blur/Pixelate already do — so no new
+  compositing logic was needed, just two new filter branches. While
+  making this change, also refactored the previous `if (blur) {...}
+  else {pixelate}` structure into explicit `if/else if` branches per
+  tool name — the old implicit "anything that isn't blur is pixelate"
+  fallback would have silently mis-treated Dodge/Burn as Pixelate if
+  left as-is, and the explicit structure is also safer for any future
+  brush tool (falling through to a blank/no-op effect rather than
+  silently reusing pixelate's logic by accident).
+
+Verified via Playwright against a real image, filled with a known flat
+mid-gray (`rgb(128,128,128)`) specifically so brightness changes are
+unambiguous — real photo content could have already-clipped white/black
+pixels that would mask or exaggerate the effect. Confirmed a single
+Dodge click with a large brush measurably brightens the sampled center
+pixel (128→179), confirmed Undo correctly restores the exact baseline,
+confirmed a Burn click on that same fresh baseline measurably darkens it
+(128→83), confirmed both strokes keep full alpha/opacity (unlike Erase,
+which is the one existing brush tool that's supposed to introduce
+transparency), and confirmed Undo is correctly enabled after a stroke
+(a real history entry was pushed, not silently skipped). Ran the full
+`test_security_seo.js` regression suite — all passed. No test data was
+created (this feature only edits in-memory canvas pixels of an existing
+library image already present for testing, with every change undone
+before the test ends).

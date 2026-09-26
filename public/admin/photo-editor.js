@@ -812,7 +812,15 @@
     if (tool === "blur") {
       cx.filter = `blur(${Math.max(4, canvas.width * 0.012)}px)`;
       cx.drawImage(canvas, 0, 0);
-    } else {
+    } else if (tool === "dodge" || tool === "burn") {
+      // Classic darkroom dodge/burn: a brush that locally brightens
+      // (dodge) or darkens (burn) instead of adding/removing/blurring
+      // pixels. Reuses the exact same effect-canvas + mask compositing
+      // pipeline as blur/pixelate -- just a brightness-filtered full copy
+      // of the canvas instead of a blurred or downscaled one.
+      cx.filter = tool === "dodge" ? "brightness(140%)" : "brightness(65%)";
+      cx.drawImage(canvas, 0, 0);
+    } else if (tool === "pixelate") {
       const scale = 0.05;
       const small = document.createElement("canvas");
       small.width = Math.max(1, Math.round(canvas.width * scale));
@@ -1008,7 +1016,7 @@
   }
 
   // ---------- Pointer routing ----------
-  const BRUSH_TOOLS = ["erase", "blur", "pixelate"];
+  const BRUSH_TOOLS = ["erase", "blur", "pixelate", "dodge", "burn"];
   const SHAPE_TOOLS = ["rect", "circle", "line", "arrow"];
 
   overlay.addEventListener("pointerdown", (e) => {
