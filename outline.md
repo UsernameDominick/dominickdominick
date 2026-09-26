@@ -14013,3 +14013,55 @@ locally only (local D1 via wrangler dev) and judge designs against that.
 - Production has CMS pages with the slugs `projects` and `random`. The
   built-in /projects and /random indexes are routed first, so those pages
   can never be seen (only their nav labels are used).
+
+## 16. Production-branch loop, resumed (2026-09-27)
+
+Dominick: "do the production branch loop where you do something from the
+list of to do and the critic rates it and you try to get a 9 then
+continue and on and on." Standing per-item workflow unchanged from
+section 13: pick an item, implement, critic review, fix to 9+, log every
+finding, test, commit, push.
+
+### Item #355 — Song builder: private production notes
+
+Free-text "Production notes" field for songs (mix references,
+arrangement ideas, todos), matching the `private_notes` pattern
+articles/projects already have. Songs store every setting in one JSON
+blob, and that whole blob is serialized directly into the public embed's
+`data-song` attribute (`renderSongBlockHtml()` in worker/render.js) so
+playback works without a live fetch — a naive "just add a field" would
+have leaked these notes to every visitor via View Source. Fixed by
+explicitly destructuring `private_notes` out of `song.data` before that
+`JSON.stringify()`, while every other setting (tempo, tracks, theme,
+etc.) still rides through unchanged. "Save as template" also excludes
+it — a template is a reusable starting point for future unrelated
+songs, and a note like "old preset, don't ship this" shouldn't reappear
+in every song made from it, the same reasoning already applied to a
+template's own name not carrying over. "Snapshot mix" and "Duplicate"
+correctly keep it, since both are meant as a full fork of the same
+production. The admin-only "Export report" download includes it.
+
+Critic review (independent agent, full read of the diff plus every
+`getSong()`/song-data call site, the schema, and both public runtime
+files): **10/10**. Two things logged per "log everything," neither a
+bug in this diff:
+- The 2-second autosave debounce can silently drop an edit (to any
+  field, notes included) if the admin switches to a different song
+  within that window — pre-existing, by-design, identical behavior
+  across every field in this builder, not introduced or worsened here.
+- A theoretical, UI-unreachable case: if `song.data` were ever a
+  non-object primitive (only possible via a raw API call bypassing the
+  builder entirely), the new destructuring coerces it to `{}` before
+  serializing instead of passing the primitive through as-is like the
+  old code did. Harmless either way — such data was already
+  non-functional for playback.
+
+Verified via Playwright: round-trips through save/reload; confirmed
+absent from `/components`' raw public HTML (plain and HTML-escaped)
+while real playback data (tempo, etc.) stays present; confirmed excluded
+from a saved template but present in a snapshot-mix fork; confirmed
+present in the export report. Full regression suite green. Test data
+(a template) cleaned up; the seeded demo song was restored to its
+original state.
+
+Commit `23f11a5` on `production`, fast-forwarded to `main`.
