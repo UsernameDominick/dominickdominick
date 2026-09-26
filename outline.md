@@ -11335,3 +11335,74 @@ confirm the fixes introduced no regression to the already-passing
 flows — still all pass, including the real upload/cleanup round-trip.
 Ran the full `test_security_seo.js` regression suite — all passed. Sent
 for a round-2 critic pass.
+
+Round-2 independently reproduced each round-1 bug's original symptom
+mentally against the pre-fix guard logic before confirming the new code
+actually closes it, then verified all four fixes live rather than
+trusting the summary above:
+
+- Cancel-leaves-blank-page: confirmed the dedicated `close-pe-new-doc`
+  handler reopens the media library. Went further than the original ask
+  and also checked Escape and backdrop-click dismissal — both route
+  through the app's shared `closeTopModal()`, which finds
+  `button[id^="close-"]` inside the modal and clicks it programmatically,
+  so all three dismissal paths correctly hit the real fix, not just the
+  literal × button.
+- Stale-field-leak: confirmed `resetNewDocModal()` genuinely resets the
+  picker to 1200×630 every time it's reopened, reproducing the exact
+  select-preset → edit-width → switch-to-custom → cancel → reopen
+  sequence from round 1.
+- Negative-dimension guard: confirmed `!(w > 0) || !(h > 0)` rejects a
+  forced `-500` width with the expected alert and leaves the picker
+  open, instead of silently opening a broken canvas.
+- `openBlank()` internal clamp: confirmed `openBlank(0, 0)` now
+  genuinely produces a `1×1` canvas rather than falling back to
+  `1200×630`. Additionally verified `openBlank(99999, 99999)` still
+  clamps to `MAX_DIMENSION` and `openBlank(NaN, "abc")` still correctly
+  falls back to the default — confirming the `Number.isFinite` rewrite
+  didn't change behavior for the cases that are SUPPOSED to hit the
+  default, only the ones that shouldn't.
+
+Fresh adversarial pass beyond the four re-verifications found no new
+bugs from this round's fixes: no duplicate/conflicting listeners on
+either button, the pre-existing `open()` (edit-an-existing-image) flow
+still works identically, and `resetNewDocModal()` can only fire from its
+one entry point. The critic specifically tried to reach a theoretical
+data-loss hazard — opening a fresh blank canvas over an unsaved in-
+progress edit with no confirmation — via Ctrl+K → "Open Media Library"
+while the editor was open, but found it's not currently reachable by a
+real user: the Photo Editor's own toolbar stays visually on top of a
+modal opened later and intercepts pointer events, so
+`media-new-blank-btn` can't actually be clicked in that state today.
+Re-ran the full save-as-new happy path end-to-end for good measure
+(800×600 preset → draw → save → real authenticated GET confirming
+`width:800, height:600` → real DELETE cleanup, confirmed gone via a
+second GET) — fully intact.
+
+Two things were flagged as explicitly out of scope for this item and
+logged rather than fixed:
+
+1. **(Logged, not fixed — latent risk, currently unreachable)**
+   `initEditorSession()`/`openBlank()` has no unsaved-changes
+   confirmation. It's harmless today only because of the unrelated
+   modal-stacking quirk below; if that quirk is ever independently
+   fixed, `openBlank()` would then silently discard an in-progress edit
+   with zero warning. Worth a `confirm()` gated on `undoStack.length` in
+   a future pass, not required for this item's scope.
+2. **(Logged, not fixed — pre-existing, unrelated to this feature)** A
+   modal z-order bug: opening a second modal (e.g. via Ctrl+K → "Open
+   Media Library") while the Photo Editor is already open leaves both
+   modals reporting `hidden = false`, but the editor's own toolbar stays
+   visually on top and intercepts pointer events meant for the modal
+   underneath — making the newer modal's own controls unclickable in
+   that state. Pre-dates this feature and affects any modal opened this
+   way, not specific to the blank-document picker; worth its own
+   backlog item rather than folding into this one.
+
+Ran the full `test_security_seo.js` regression suite once more — all
+passed. Final score: **9/10 — ships.**
+
+Item #2/#3 is done: 2 critic rounds, 8/10 → 9/10. The two out-of-scope
+findings above (unsaved-changes guard, modal z-order stacking) remain
+logged here as open, tracked issues for a future item — not silently
+dropped.
