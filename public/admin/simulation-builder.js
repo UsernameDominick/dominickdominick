@@ -358,7 +358,7 @@
     })">${def.render(comp)}${sel ? `<rect class="sim-select-box" x="-4" y="-4" width="${def.w + 8}" height="${def.h + 8}" />` : ""}</g>`;
   }
 
-  function renderWireSvg(wire, poweredWires) {
+  function renderWireSvg(wire, poweredWires, netNodeIds) {
     const fromComp = simData.components.find((c) => c.id === wire.from.compId);
     const toComp = simData.components.find((c) => c.id === wire.to.compId);
     if (!fromComp || !toComp) return "";
@@ -366,12 +366,54 @@
     const p2 = pinPosition(toComp, wire.to.pin);
     if (!p1 || !p2) return "";
     const sel = selected && selected.kind === "wire" && selected.id === wire.id;
+    const inNet = netNodeIds && netNodeIds.has(window.simNodeId(fromComp, wire.from.pin));
     const d = `M${p1.x},${p1.y} L${p2.x},${p2.y}`;
-    return `<path class="sim-wire sim-wire-${wire.kind || "wire"}${
-      sel ? " sim-selected" : ""
+    return `<path class="sim-wire sim-wire-${wire.kind || "wire"}${sel ? " sim-selected" : ""}${
+      inNet ? " sim-net-highlight" : ""
     }" data-id="${wire.id}" data-animated="${
       poweredWires.has(wire.id) ? "true" : "false"
     }" d="${d}"/><path class="sim-wire-shine sim-wire-shine-${wire.kind || "wire"}" d="${d}"/>`;
+  }
+
+  // "Net" here means the set of pins tied to the same electrical point by
+  // wires alone -- deliberately NOT the same as the power-flow graph
+  // computeSimPoweredSet()/window.simNodeId's own callers build (which
+  // also links a resistor/LED's two legs as "connected" for current-flow
+  // purposes, since current can flow through a component). Two ends of a
+  // resistor are NOT the same node -- a voltage drop happens across it --
+  // so reusing that broader graph here would incorrectly highlight both
+  // legs of every component along the way as one giant "net" instead of
+  // just the wire-tied group a real net actually is. Reuses window.simNodeId
+  // (so breadboard rail/rows still correctly count as one shared node,
+  // same as everywhere else in this file) and a plain BFS, just over a
+  // wires-only adjacency built fresh here instead of the shared
+  // component-conducting one in sim-components.js.
+  function wireOnlyNetNodes(startNode) {
+    const adjacency = new Map();
+    const link = (a, b) => {
+      if (!adjacency.has(a)) adjacency.set(a, new Set());
+      if (!adjacency.has(b)) adjacency.set(b, new Set());
+      adjacency.get(a).add(b);
+      adjacency.get(b).add(a);
+    };
+    simData.wires.forEach((w) => {
+      const fromComp = simData.components.find((c) => c.id === w.from.compId);
+      const toComp = simData.components.find((c) => c.id === w.to.compId);
+      if (!fromComp || !toComp) return;
+      link(window.simNodeId(fromComp, w.from.pin), window.simNodeId(toComp, w.to.pin));
+    });
+    const visited = new Set([startNode]);
+    const queue = [startNode];
+    while (queue.length) {
+      const cur = queue.shift();
+      (adjacency.get(cur) || new Set()).forEach((n) => {
+        if (!visited.has(n)) {
+          visited.add(n);
+          queue.push(n);
+        }
+      });
+    }
+    return visited;
   }
 
   // A component just placed with no wires yet is completely normal mid-
@@ -395,15 +437,18 @@
     return n;
   }
 
-  function renderPinDots(comp) {
+  function renderPinDots(comp, netNodeIds) {
     const def = REG[comp.type];
     return def.pins
       .map((p) => {
         const active = wireStart && wireStart.compId === comp.id && wireStart.pin === p.id;
         const disconnected = showDisconnected && !isPinConnected(comp.id, p.id);
+        const inNet = netNodeIds && netNodeIds.has(window.simNodeId(comp, p.id));
         return `<circle class="sim-pin${active ? " sim-pin-active" : ""}${
           disconnected ? " sim-pin-disconnected" : ""
-        }" data-comp="${comp.id}" data-pin="${p.id}" cx="${comp.x + p.x}" cy="${comp.y + p.y}" r="5"/>`;
+        }${inNet ? " sim-net-highlight" : ""}" data-comp="${comp.id}" data-pin="${p.id}" cx="${comp.x + p.x}" cy="${
+          comp.y + p.y
+        }" r="5"/>`;
       })
       .join("");
   }
@@ -411,9 +456,19 @@
   function renderBuilder() {
     const { poweredComps, poweredWires } = window.computeSimPoweredSet(simData);
     const analysis = window.computeSimElectricalAnalysis(simData);
-    const wiresSvg = simData.wires.map((w) => renderWireSvg(w, poweredWires)).join("");
+    // Selecting a wire highlights the whole wire-tied net it belongs to,
+    // not just that one segment -- clicking any wire is a cheap, already-
+    // familiar way to trigger this without a new interaction mode that
+    // would compete with a pin click already meaning "start a new wire."
+    let netNodeIds = null;
+    if (selected && selected.kind === "wire") {
+      const w = simData.wires.find((x) => x.id === selected.id);
+      const fromComp = w && simData.components.find((c) => c.id === w.from.compId);
+      if (fromComp) netNodeIds = wireOnlyNetNodes(window.simNodeId(fromComp, w.from.pin));
+    }
+    const wiresSvg = simData.wires.map((w) => renderWireSvg(w, poweredWires, netNodeIds)).join("");
     const compsSvg = simData.components.map((c) => renderComponentSvg(c, poweredComps, analysis)).join("");
-    const pinsSvg = simData.components.map(renderPinDots).join("");
+    const pinsSvg = simData.components.map((c) => renderPinDots(c, netNodeIds)).join("");
     $("sim-builder-canvas").innerHTML = `<svg id="sim-builder-svg" viewBox="0 0 1500 700" xmlns="http://www.w3.org/2000/svg" class="sim-svg${
       previewOn ? " is-on" : ""
     }">${window.SIM_DEFS_SVG}${wiresSvg}${compsSvg}${pinsSvg}</svg>`;

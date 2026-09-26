@@ -4912,7 +4912,7 @@ substantial new infra + security surface).
 394. Wire labels — add label field + text render, like part labels already.
 396. Wire thickness/appearance — CSS/attr option per wire.
 397. ✅ Detect disconnected ends — done (see the dated entry below this section).
-398. Highlight net from point — reuse existing BFS reach function for highlighting.
+398. ✅ Highlight net from point — done (see the dated entry below this section).
 401. Searchable specs — reuse palette search; add spec text field.
 402. Favorites/recent — localStorage list on top of existing palette.
 403-405. Resistor/capacitor/inductor basic params — extra content fields, same pattern as resistance.
@@ -6305,3 +6305,40 @@ is on — arguably correct (the pin genuinely has no wire yet), not scored
 against.
 
 Item #397 is done: 1 critic round, 9/10, no real findings.
+
+### Fourteenth item: #398, highlight the electrical net from a point
+
+- ✅ **Clicking a wire highlights every wire/pin tied to the same
+  electrical net** — the one real design decision worth recording: the
+  backlog wording said "reuse existing BFS reach function," pointing at
+  the server-side `connected()`/client-side `computeSimPoweredSet()`
+  machinery from item #397's writeup and the shared power-flow graph in
+  `sim-components.js`. That graph deliberately links a component's own
+  pins together too (a resistor's or LED's two legs count as "connected"
+  there, since current can flow through them) — correct for answering
+  "is this powered," wrong for "what's the same net," since a resistor's
+  two legs are NOT the same electrical node — a voltage drop happens
+  across it. Reusing that broader graph as-is would have made clicking
+  any wire highlight both legs of every component along the way as one
+  sprawling "net," not the actual wire-tied group a real net is. Built a
+  separate, wires-only adjacency in the admin builder instead (reusing
+  `window.simNodeId()` so breadboard rail/row grouping still counts
+  correctly, and the same plain BFS traversal shape, just over a graph
+  built fresh from `simData.wires` alone rather than sim-components.js's
+  shared component-conducting one) — a closer reading of "the BFS reach
+  function" as "the traversal technique," not "that exact graph object."
+  UX-wise, clicking a wire (already an established interaction — wires
+  are already selectable, shown with an accent-colored highlight) now
+  also highlights every other wire/pin sharing its net in a second,
+  distinct color, rather than adding a new interaction mode that would
+  have competed with a pin click already meaning "start a new wire."
+  Verified via Playwright: built a 3-way net (three resistors, two wires
+  joining R1's second leg / R2's first leg / R3's first leg into one tied
+  point) and clicked either wire — both wires and exactly the 3 pins on
+  that net highlighted, while R1's unwired first leg and R3's unconnected
+  second leg (a genuinely separate node) correctly did NOT highlight;
+  deselecting by clicking empty canvas correctly cleared every highlight.
+  Full regression suite green; this test never saved the simulation, so
+  no test data needed cleanup.
+
+Handed to a critic agent for scoring.

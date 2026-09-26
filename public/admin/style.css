@@ -2789,6 +2789,17 @@ kbd {
   stroke: var(--accent) !important;
 }
 
+/* No !important, unlike .sim-selected -- the exact clicked wire should
+   keep showing the stronger accent "selected" color, while every OTHER
+   wire sharing its net gets this distinct, secondary highlight color. */
+.sim-wire.sim-net-highlight {
+  stroke: #2dd4bf;
+}
+
+.sim-pin.sim-net-highlight {
+  fill: #2dd4bf;
+}
+
 .sim-pin {
   fill: #4a90d9;
   stroke: #fff;
