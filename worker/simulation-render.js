@@ -644,7 +644,13 @@ export function computeCircuitAnalysis(data) {
         results[info.compId] = { kind: "resistor", currentMa, watts, status, dangerous: domain.dangerous };
       } else if (info.kind === "teensy") {
         const status = domain.dangerous ? "burnt" : "normal";
-        results[info.compId] = { kind: "teensy", currentMa, voltage: domain.voltage, status, dangerous: domain.dangerous };
+        // Same power-dissipation math as the resistor branch above (P =
+        // I*V), extended to the microcontroller load -- previously this
+        // result had current/voltage but never the derived wattage a
+        // resistor's result already exposed.
+        const amps = currentMa === Infinity ? 0 : currentMa / 1000;
+        const watts = amps * domain.voltage;
+        results[info.compId] = { kind: "teensy", currentMa, voltage: domain.voltage, watts, status, dangerous: domain.dangerous };
       }
     });
   });

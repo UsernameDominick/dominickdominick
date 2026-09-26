@@ -1243,7 +1243,7 @@
         } else if (info.kind === "teensy") {
           electricalHtml = info.dangerous
             ? `<p class="sim-power-status is-danger">🔥 Destroyed instantly — 120V mains directly to a microcontroller.</p>`
-            : `<p class="sim-power-status is-powered">Drawing ~${ma}mA at ${info.voltage}V.</p>`;
+            : `<p class="sim-power-status is-powered">Drawing ~${ma}mA at ${info.voltage}V — dissipating ${info.watts.toFixed(2)}W.</p>`;
         }
       }
 
