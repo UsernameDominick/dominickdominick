@@ -196,7 +196,15 @@
   function escapeXml(s) {
     const d = document.createElement("div");
     d.textContent = s == null ? "" : String(s);
-    return d.innerHTML;
+    // A critic pass found this only ever escaped &/</> -- correct for the
+    // SVG text-node uses this function was originally written for, but
+    // this same helper is also used to build HTML attribute values (e.g.
+    // wire/component label <input value="...">), where an unescaped "
+    // breaks out of the attribute and injects live markup. .innerHTML's
+    // text-node serialization never escapes quotes (they only matter in
+    // attribute-value context, which this function has no way to know
+    // it's being used for), so they're escaped explicitly here instead.
+    return d.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
 
   function newLocalId(prefix) {
@@ -411,6 +419,17 @@
     const p1 = pinPosition(fromComp, wire.from.pin);
     const p2 = pinPosition(toComp, wire.to.pin);
     if (!p1 || !p2) return "";
+    // A part snapped directly onto a breadboard hole has a zero-length
+    // "wire" (its pin and the hole are the same point) -- it's plugged in
+    // physically, not cabled, so there's nothing to draw. The public-
+    // facing render (worker/simulation-render.js) already has this guard;
+    // a critic pass found the admin builder's own copy of this function
+    // never did, which was harmless before labels existed (an invisible
+    // zero-length path is a no-op either way) but would render an
+    // orphaned floating label with no visible wire under it once a
+    // degenerate wire like this (reachable via JSON import, or in
+    // principle the breadboard auto-snap path) is given a label.
+    if (Math.hypot(p2.x - p1.x, p2.y - p1.y) < 0.5) return "";
     const d = `M${p1.x},${p1.y} L${p2.x},${p2.y}`;
     // The ghost pass is a purely visual second copy drawn on top of
     // components -- deliberately NOT given the .sim-wire class (so

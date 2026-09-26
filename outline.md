@@ -7859,5 +7859,67 @@ admin builder's client-side one. Full regression suite green; the test
 simulation was deleted (soft- and hard-delete) and confirmed gone from
 the simulations list afterward.
 
-Sent to a critic pass next per the standing workflow before calling it
-done.
+Sent to a critic pass on commit 0feb17f. Scored 6/10 -- three real,
+narrow, single-file fixes, plus confirmation that persistence, multi-wire
+scoping, and undo/redo all work correctly with no bug found in any of
+those. Findings:
+
+1. **Security**: the shared `escapeXml()` helper (used for both SVG text
+   content and, for both wire and component labels, HTML attribute values
+   like `value="..."`) only ever escaped `&`/`</`/`>` -- correct for its
+   original SVG-text use, but never quotes, since `.innerHTML`'s DOM-based
+   text-node serialization has no reason to escape a character that only
+   matters in attribute-value context. A label containing a `"` (e.g.
+   `"><img src=x onerror=...>`, reachable via the JSON import feature,
+   which loads arbitrary untrusted JSON with no field validation, or a
+   shared template/export file from elsewhere) breaks out of the input's
+   `value` attribute and injects live markup into the admin inspector.
+   Not a new bug this feature introduced -- it's a structural copy of a
+   pre-existing identical flaw already present on `comp.label` -- but this
+   feature doubled the attack surface by reusing the same flawed helper
+   for a second field.
+2. **Degenerate-wire edge case**: the public embed's `renderWireSvg()`
+   already skips zero-length "wires" (a part plugged directly into a
+   breadboard hole, not a real cable) before doing anything else, but the
+   admin builder's own copy of that function never had the same guard --
+   harmless before labels existed (an invisible zero-length path is a
+   no-op either way), but a labeled degenerate wire (reachable via JSON
+   import) would render an orphaned floating label with no visible wire
+   under it in the admin canvas specifically.
+3. **Minor contrast bug**: the public stylesheet's `.sim-wire-label`
+   hardcoded `fill: #888` instead of the theme-aware `var(--text-dim)`
+   every comparable "dim secondary text" rule in the file already uses
+   (the admin stylesheet's own equivalent rule already got this right) --
+   under WCAG AA contrast against the light theme's near-white background.
+
+Fixed all three: `escapeXml()` now also escapes `"`/`'` after its
+existing DOM-based `&`/`<`/`>` escaping, closing the flaw for both wire
+labels and (as a side effect, since it's the same shared helper)
+component labels; the admin's `renderWireSvg()` now has the identical
+zero-length-wire early return the worker's sibling function already had;
+`public/style.css`'s `.sim-wire-label` now uses `var(--text-dim)` instead
+of a hardcoded color. A fourth, non-blocking observation (fixed-offset
+label placement can crowd a very short or steep wire) was logged rather
+than fixed, since it matches an existing, unchanged codebase convention
+(every other label in this file uses a single fixed offset with no
+collision awareness) rather than being a regression this feature
+introduced.
+
+Re-verified via Playwright: typed an XSS-style payload
+(`"><img src=x onerror="window.__xssFired=true">`) into the wire label
+field and confirmed it never executed, the input correctly roundtrips
+the raw text, and no stray `<img>` element was injected into the
+inspector DOM; imported a hand-crafted zero-length labeled wire via the
+JSON import flow (the exact reachability path the critic identified) and
+confirmed zero `.sim-wire-label` elements rendered, versus the orphaned
+label the bug would have produced. The original round-1 tests (label
+input exists, renders on canvas, persists through save and shows on the
+public embed) were re-run unchanged and still pass. Full regression
+suite green; no test simulations left behind in either round.
+
+Item #394 is done: 1 critic round, 6/10, all three real findings fixed
+and verified live -- including closing a pre-existing, structurally
+identical XSS flaw on the component-label field as a side effect of
+fixing the shared helper this feature also relied on -- with one minor,
+already-existing-convention label-placement observation logged as an
+accepted, non-blocking gap.

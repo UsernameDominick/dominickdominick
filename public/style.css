@@ -1547,7 +1547,7 @@ h6 { font-size: 0.9rem; }
 }
 .sim-wire-label {
   font-size: 11px;
-  fill: #888;
+  fill: var(--text-dim);
   pointer-events: none;
   user-select: none;
 }
