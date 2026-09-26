@@ -8476,9 +8476,17 @@ pass; specifically tested the exact combination the critic found broken
 `0.9px`, not the float-noise literal, with the main stroke correctly at
 `3px`. Full regression suite green.
 
-Item #396 is done: 1 critic round, 8/10, the one real finding (floating-
-point precision noise in one of eight thickness/kind/stroke
-combinations) fixed and verified against the exact broken combination,
-with every other adversarial angle the critic checked confirmed already
-correct on direct verification rather than just re-reading the outline's
-own claims.
+Sent for a narrow, targeted follow-up check (not a full re-audit) focused
+specifically on the `roundPx()` fix: confirmed it covers all 4 required
+call sites in both the admin builder and public embed, resolves the
+exact hdmi/thin/shine float-noise case (0.8999999999999999 -> 0.9)
+without introducing new precision issues for any of the 8 wire-thickness
+combinations, and is a purely cosmetic/formatting change with no
+behavioral difference. Verdict: ship.
+
+Item #396 is done: 1 critic round (8/10) plus a targeted follow-up
+confirmation, the one real finding (floating-point precision noise in
+one of eight thickness/kind/stroke combinations) fixed and independently
+re-verified, with every other adversarial angle the critic checked
+confirmed already correct on direct verification rather than just
+re-reading the outline's own claims.
