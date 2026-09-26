@@ -4757,7 +4757,7 @@ join, rather than building three separate systems.
 90. Magnified retouch comparison — reuse existing originalSnapshot + zoom.
 92. ✅ Saved crop ratios — done (see the dated entry below this section).
 93. Horizon straightening — arbitrary-angle rotate + auto-crop.
-102. Shared access to website fonts — font already uploaded/served, just reference in canvas font.
+102. ✅ Shared access to website fonts — done (see the dated entry below this section).
 108. Reusable text styles — preset pattern like photo-presets.
 109. Missing-font warnings — font-load check + fallback message.
 112. ✅ Independent corner-radius — done (see the dated entry below this section).
@@ -9307,3 +9307,82 @@ behavior it replaced) fixed with feature detection and independently
 re-verified by tracing the exact control-flow path the finding
 described, plus explicit tests added for a previously-untested
 degenerate-input edge case.
+
+### Thirty-ninth item: #102, Photo Editor Text tool using the site's uploaded custom font
+
+- ✅ **A new font select** (Sans-serif / Site's custom font) for the
+  Text annotation tool, letting placed text use the same one custom font
+  already uploaded through Site Settings (`worker/admin-api.js`'s
+  `/upload-font`) instead of only the hardcoded "sans-serif" that
+  existed before. Loaded via the FontFace API
+  (`new FontFace(name, url).load()` + `document.fonts.add(...)`) since
+  referencing an unregistered font family in `ctx.font` silently falls
+  back to a default rather than erroring — the option only becomes
+  selectable once a load has genuinely succeeded.
+
+Handed to a critic agent for scoring: **5/10**. Findings:
+
+1. **(Fixed, high severity, ship-blocking)** The custom-font check was
+   cached forever after the FIRST Text-tool selection in a page load.
+   Since the admin app is a single-page app where opening the Photo
+   Editor and saving Site Settings both happen in the same page load
+   with no navigation between them, this meant: open the editor with no
+   font configured, click Text (resolves to "unavailable", cached
+   forever), close the editor, configure a font via Site Settings,
+   reopen the editor, click Text again — the option stays disabled
+   forever until a hard page reload. This is exactly the sequence
+   someone trying the feature for the first time would follow, not an
+   obscure edge case. Fixed by re-fetching Site Settings every time the
+   Text tool is selected (cheap), while only redoing the actual
+   `FontFace` construction + load (the real cost) if the name+url pair
+   has genuinely changed since the last successful load, tracked via a
+   small cache key.
+2. **(Fixed)** The font URL was interpolated into `url(${url})`
+   unquoted, inconsistent with every OTHER place this exact
+   `custom_font_url` value reaches a CSS `url()` in this codebase
+   (`worker/render.js`'s `esc()`-wrapped version, the admin's own live
+   Settings preview's `JSON.stringify`-wrapped version) — since
+   `custom_font_url` is a plain string accepted by the settings API with
+   no server-side format validation, a hand-edited value containing a
+   space/parenthesis/quote would silently break font loading instead of
+   being handled the way this codebase already handles the same value
+   everywhere else. Fixed with the same `JSON.stringify(url)` quoting
+   the admin's own Settings preview already uses.
+3. **(Fixed, minor)** Concurrent calls to the font-check function (e.g.
+   rapidly switching Text → another tool → Text again before the first
+   check resolved) weren't de-duplicated — two overlapping fetch+load
+   calls could race, and whichever settled last would silently overwrite
+   the other's result, so a successful load could get clobbered back to
+   "unavailable" by an unrelated, unlucky duplicate request. Fixed by
+   caching the in-flight promise itself, so a second call while one is
+   already running returns the same promise instead of starting an
+   independent one.
+
+Sent for a round-2 critic pass specifically tracing the key-comparison
+logic for both a font-to-font change and a font-removal case, confirming
+the promise cache correctly resets for later genuinely-new calls rather
+than getting stuck, and probing for a subtler remaining race between the
+promise-caching and staleness fixes. Confirmed all three fixes correct:
+explicitly traced a font-A-to-font-B change correctly triggering a
+reload via the differing cache key; confirmed clearing a configured font
+back to empty correctly resets the cached family to null and re-disables
+the option; confirmed the in-flight promise is cleared in a `finally`
+block so a later call after full resolution always starts fresh rather
+than reusing a stale promise; and confirmed the `JSON.stringify`
+quoting fix lives at the actual `FontFace` construction call site, not
+just in a comment. One narrow, inherent, self-healing gap was
+identified and explicitly accepted rather than blocking on: if Site
+Settings changes while a check is already in flight, a second call
+arriving before the first resolves gets the same (now slightly stale)
+in-flight promise rather than a truly fresh one — but this self-corrects
+on the very next Text-tool selection, and Text-tool selection is a
+discrete UI click, not a hot loop, so this wasn't treated as a real
+defect. Final score: **9/10** — ships.
+
+Item #102 is done: 2 critic rounds, 5/10 → 9/10, one ship-blocking
+staleness bug (reachable via the exact sequence a first-time user of
+this feature would follow, not an obscure edge case) plus an unquoted-
+URL inconsistency and an unde-duplicated concurrency race, all fixed and
+independently re-verified by tracing the actual cache-key comparison
+logic and confirming the fixes against real Site Settings mutations
+rather than mocked state.
