@@ -125,6 +125,8 @@
     const gen = openGeneration;
     const id = currentSongId;
     const data = songData;
+    await refreshCachedWaveformPeaks(data);
+    if (gen !== openGeneration) return; // a different song opened while the peaks render was in flight -- this autosave is stale, let the next one (against the now-current song) handle it
     try {
       await window.adminApi(`/songs/${id}`, { method: "PATCH", body: JSON.stringify({ name, data }) });
       if (gen !== openGeneration) return; // a different song opened while this PATCH was in flight
@@ -186,6 +188,46 @@
     if (myGeneration !== waveformPreviewGeneration) return;
     previewPeaks = peaks;
     drawWaveformPreview(0);
+  }
+
+  // ---------- Cached waveform peaks (persisted with the song) ----------
+  // The public embed (public/song-embed.js) used to run its own
+  // OfflineAudioContext render of renderWaveformPeaks() on EVERY page
+  // load of a "waveform"-visualization song, just to draw the static
+  // preview bars -- pure wasted CPU/battery for every visitor, since the
+  // peaks are a deterministic function of songData that only actually
+  // changes when the admin edits and saves the song. Computing it once
+  // here at save time (reusing the exact same 200-bucket call the admin
+  // preview above already makes, so the cached shape matches what the
+  // admin already saw while editing) and persisting it as part of the
+  // saved song data means every future page load can skip the render
+  // entirely and just draw the already-computed numbers -- worker/
+  // render.js's renderSongBlockHtml() already serializes the WHOLE
+  // song.data blob into the embed's data-song attribute, so this needed
+  // no server-side change at all to reach the public page.
+  // Only computed for "waveform" visualization songs, since that's the
+  // only mode with a canvas to draw peaks into at all -- storing it for
+  // "bars"/"pulse" songs would just be dead weight in the saved JSON
+  // that nothing ever reads. Recomputed fresh on every save (rather than
+  // tracked with a separate dirty flag) so it can never go stale against
+  // whatever content was actually saved.
+  // Takes `data` as an explicit parameter (rather than reading the
+  // module-level `songData` directly) so the object this writes onto is
+  // fixed at the moment it's called, not re-resolved after the `await`
+  // -- otherwise switching to a different song while this render is
+  // still in flight (the same shape of race a critic pass already
+  // stress-tested for the "Generate cover art" feature) could attach one
+  // song's freshly-computed peaks onto a DIFFERENT song's data object.
+  async function refreshCachedWaveformPeaks(data) {
+    if ((data.visualization || "bars") === "waveform") {
+      try {
+        data.cached_peaks = await Engine.renderWaveformPeaks(data, 200);
+      } catch (err) {
+        delete data.cached_peaks; // a broken/partial cache would be worse than none -- the embed falls back to a live render when this is absent
+      }
+    } else {
+      delete data.cached_peaks;
+    }
   }
 
   function drawWaveformPreview(progress) {
@@ -926,6 +968,7 @@
     songData.page_sync = $("song-page-sync").checked;
     songData.master_volume = Number($("song-master-volume").value) / 100;
     songData.humanize = Number($("song-humanize").value) || 0;
+    await refreshCachedWaveformPeaks(songData);
     try {
       if (currentSongId) {
         await window.adminApi(`/songs/${currentSongId}`, { method: "PATCH", body: JSON.stringify({ name, data: songData }) });
@@ -1051,6 +1094,7 @@
       // Deep-cloned so this snapshot is a true independent copy, unaffected
       // by any further live edits made to songData after this point.
       const data = JSON.parse(JSON.stringify(songData));
+      await refreshCachedWaveformPeaks(data);
       await window.adminApi("/songs", { method: "POST", body: JSON.stringify({ name: snapshotName, data }) });
       if (window.refreshSongOptions) window.refreshSongOptions();
       alert(`Saved as a new song: "${snapshotName}". You're still editing the original -- open it separately from the Songs list to compare.`);

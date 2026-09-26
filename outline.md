@@ -4865,7 +4865,7 @@ session's own EXIF-stripping feature for the upload-side equivalent).
 314. On-screen keyboard — UI wired to existing `playMelodyNote`.
 315. ✅ Computer-keyboard note entry — keydown → existing note-play function. (done — see the dated entry below)
 321. ✅ Background autosave — done (see the dated entry below this section).
-328. Cache waveform previews — store existing `renderWaveformPeaks` output.
+328. ✅ Cache waveform previews — store existing `renderWaveformPeaks` output. (done — see the dated entry below)
 329. Warn before heavy sample imports — file.size check pre-decode.
 339. ✅ Export session report — dump JSON session fields to text. (done — see the dated entry below)
 341. Publish track to a project — `song_id` block linking already exists.
@@ -13337,3 +13337,73 @@ builder mid-render still lets the completion `alert()` fire against the
 admin page afterward, matching the same alert-based pattern already
 used by the sibling `song-export-report` button. Closing at 9/10, no
 fix needed.
+
+### 2026-09-26 — Item #328: Cache waveform previews (Song builder / public embed)
+
+Every visitor loading a page with a "waveform"-visualization Song block
+was running their OWN full `OfflineAudioContext` render of
+`Engine.renderWaveformPeaks()` (`public/song-embed.js`) just to draw the
+static preview bars — pure wasted CPU/battery on every single page
+load, even though the peaks are a deterministic function of the song's
+own saved content that only actually changes when an admin edits and
+saves it.
+
+Added a new `refreshCachedWaveformPeaks(data)` helper in
+`song-builder.js` that computes the same 200-bucket
+`renderWaveformPeaks()` call the admin preview already makes and stores
+it as `data.cached_peaks`, called right before every path that persists
+song data: the explicit "Save" button, the 2-second-debounced autosave,
+and "Snapshot mix" (on its already-existing deep-cloned copy). Only
+computed for `visualization === "waveform"` songs — deleted otherwise,
+since a "bars"/"pulse" song has no canvas to draw peaks into at all, and
+storing an unused array would just be dead weight in the saved JSON.
+Recomputed fresh on every save rather than tracked with a separate dirty
+flag, so it can never silently drift out of sync with whatever content
+was actually saved.
+
+No server-side change was needed at all: `worker/render.js`'s
+`renderSongBlockHtml()` already serializes the WHOLE `song.data` blob
+into the embed's `data-song` attribute, so a `cached_peaks` field added
+to that same object automatically reaches the public page for free.
+`public/song-embed.js` was changed to check for a valid
+`Array.isArray(songData.cached_peaks) && songData.cached_peaks.length`
+first and use it directly, falling back to the original live
+`OfflineAudioContext` render only for songs saved before this cache
+existed (or one whose computation itself failed and was left
+deliberately absent by `refreshCachedWaveformPeaks`'s own catch branch).
+
+One race explicitly guarded against, following the exact same shape a
+critic pass already stress-tested on the sibling "Generate cover art"
+feature (item #349): `refreshCachedWaveformPeaks` takes its target
+object as an explicit parameter rather than reading the module-level
+`songData` variable directly, so the object it writes `cached_peaks`
+onto is fixed at the moment it's called and can't drift onto a
+DIFFERENT song's data object if the admin switches songs while the
+render is still in flight. The autosave path additionally re-checks its
+existing `gen !== openGeneration` guard immediately after this await,
+discarding a now-stale autosave rather than persisting cached peaks for
+a song that's no longer the one open (the next autosave, against
+whichever song is now actually open, picks it up correctly instead).
+
+Verified via Playwright against the real admin + public site: saved a
+song with hits and `visualization: "waveform"` and confirmed via a real
+authenticated `GET /songs/:id` that `cached_peaks` was persisted with
+exactly 200 entries; switched to "bars" and re-saved, confirming
+`cached_peaks` was correctly cleared (not left stale); switched back to
+"waveform" and saved again to confirm the value returns. Separately
+confirmed the 2-second autosave debounce (with no explicit Save click at
+all) also persists `cached_peaks` correctly. Built a real page with a
+real Song block, loaded the actual PUBLIC page, and confirmed: the
+embed's `data-song` JSON carries the cached array; the waveform canvas
+is actually drawn (checked via real pixel data, not just "no error");
+and — the core point of this item — a wrapped/spied
+`window.SongEngine.renderWaveformPeaks` was never called at all on that
+page load, proving the drawn waveform came purely from the cache with
+zero live re-render. Ran the full `test_security_seo.js` suite and
+re-ran the sibling song-builder tests (computer-keyboard note entry,
+MIDI discovery, cover art generation) — all still passing, no
+regressions from the new `await` added to the shared save paths. Test
+songs and pages created were deleted via their real DELETE endpoints
+afterward.
+
+Sent for a critic pass.

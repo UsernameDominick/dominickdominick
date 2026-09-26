@@ -84,11 +84,26 @@
       });
     }
 
-    if (canvas && window.SongEngine.renderWaveformPeaks) {
-      window.SongEngine.renderWaveformPeaks(songData, 200).then((p) => {
-        peaks = p;
+    if (canvas) {
+      // A cached copy computed by the admin song builder at save time
+      // (see refreshCachedWaveformPeaks in public/admin/song-builder.js)
+      // means every visitor doesn't have to run their own
+      // OfflineAudioContext render just to draw the static preview bars
+      // -- the peaks are a deterministic function of the song's own
+      // content, so a value computed once at save time is exactly as
+      // correct as computing it fresh on every single page load, at zero
+      // ongoing cost. Falls back to a live render for any song saved
+      // before this cache existed (or one whose cache computation
+      // itself failed and was left absent, see refreshCachedWaveformPeaks).
+      if (Array.isArray(songData.cached_peaks) && songData.cached_peaks.length) {
+        peaks = songData.cached_peaks;
         drawWaveform(0);
-      });
+      } else if (window.SongEngine.renderWaveformPeaks) {
+        window.SongEngine.renderWaveformPeaks(songData, 200).then((p) => {
+          peaks = p;
+          drawWaveform(0);
+        });
+      }
     }
 
     function onStep(step) {
