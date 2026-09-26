@@ -408,12 +408,16 @@
       spectrumCtx.clearRect(0, 0, w, h);
       const binsPerBar = Math.floor(freqData.length / SPECTRUM_BARS);
       const barWidth = w / SPECTRUM_BARS;
-      spectrumCtx.fillStyle = "#4dff6a"; // matches the peak meter's own color -- this is an admin monitoring tool, not the themeable public embed
+      spectrumCtx.fillStyle = "#4dff6a"; // matches the pre-existing peak meter's own hardcoded fill color (style.css's .song-peak-meter-fill), not var(--accent) -- consistent with that established VU-meter-color convention, not a themeable element
       for (let bar = 0; bar < SPECTRUM_BARS; bar++) {
         let sum = 0;
         const start = bar * binsPerBar;
-        for (let i = start; i < start + binsPerBar; i++) sum += freqData[i];
-        const avg = sum / binsPerBar; // 0-255
+        // The last bar absorbs any remainder bins from the floor() above
+        // (1024 bins / 24 bars leaves 16 left over) so the highest-
+        // frequency content is folded in rather than silently never drawn.
+        const end = bar === SPECTRUM_BARS - 1 ? freqData.length : start + binsPerBar;
+        for (let i = start; i < end; i++) sum += freqData[i];
+        const avg = sum / (end - start); // 0-255
         const barHeight = (avg / 255) * h;
         spectrumCtx.fillRect(bar * barWidth, h - barHeight, Math.max(1, barWidth - 1), barHeight);
       }

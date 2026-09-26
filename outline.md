@@ -9701,5 +9701,38 @@ This is an admin-only monitoring tool (not a new public-embed
 visualization mode, which would be considerably more scope — a new
 `song-visualization` option needing public-embed rendering support,
 theming, and cross-file mirroring), so it was implemented at the same
-scope as the existing peak/RMS meters it sits beside. Handed to a critic
-agent for scoring.
+scope as the existing peak/RMS meters it sits beside.
+
+Handed to a critic agent for scoring: **8/10**, below the ship
+threshold. Round-1 findings:
+
+1. **(Fixed, minor)** The bucketing math (`1024` frequency bins /
+   `24` bars = `42` remainder `16`) silently dropped the top 16 bins
+   (roughly the ~21.7-22kHz range) since the loop only ever covered
+   `24 * 42 = 1008` of the 1024 bins — no crash or out-of-bounds access,
+   just a real, silent coverage gap at the very top of the spectrum.
+   Fixed by having the last bar's range extend to `freqData.length`
+   instead of a fixed `binsPerBar` width, so the remainder bins get
+   folded into the last bar's average rather than never being read.
+2. **(Fixed, comment-only)** The original code comment justified
+   hardcoding `#4dff6a` instead of `var(--accent)` by claiming an
+   `--accent` lookup "would have been dead code" in the admin
+   stylesheet — factually wrong, since `--accent` is defined and used
+   extensively throughout `admin/style.css`. Corrected the comment to
+   state the real reasoning: matching the pre-existing peak meter's own
+   already-hardcoded fill color (an established VU-meter-color
+   convention in this file), not an "unused variable" argument.
+3. **(Noted, explicitly deferred)** Linear (non-logarithmic) frequency
+   bucketing means the low bars covering roughly 0-900Hz will show most
+   of the visible movement for typical drum/melody content, while the
+   upper bars sit comparatively quiet — a real design limitation of
+   linear bucketing versus a perceptually-scaled one, but not something
+   that makes the feature useless (kick/bass/hi-hat energy is still
+   clearly visible), and reworking to log-scaled bucketing is a
+   reasonable future enhancement rather than a blocking fix for a
+   lightweight admin monitoring tool.
+
+Re-verified via the same Playwright spectrum test (blank before
+playback, real drawn content during playback, cleared after Stop plus
+the drain window) and the full regression suite — both still pass after
+the fix. Sent for a round-2 critic pass.
