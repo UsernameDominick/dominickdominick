@@ -8210,5 +8210,81 @@ payload, then clicked the neutralized link and confirmed no `alert()`
 fired. Full regression suite green; no server-side test state was
 created (the test simulation was never saved), so no cleanup was needed.
 
-Sent to a critic pass next per the standing workflow before calling it
-done.
+Sent to a critic pass on commit 398adef. Scored 6/10 -- explicitly asked
+to adversarially probe the scheme-blocklist regex given this file's XSS
+history, and found a real, browser-confirmed bypass in the exact
+denylist-regex approach the new `safeHref()` helper was modeled on: a
+tab or newline embedded INSIDE the scheme name (`java\tscript:alert(1)`)
+doesn't match `/^(javascript|data|vbscript):/i` tested against a merely-
+`.trim()`'d string, since `.trim()` only strips leading/trailing
+whitespace, not embedded characters -- but a real browser's URL parser
+strips every ASCII tab/newline anywhere in the string before ever
+reading the scheme, so the href resolves to a genuine `javascript:` URL
+despite passing the regex check. Same gap for a leading C0 control
+character (`\x01javascript:alert(1)`), which `.trim()` also leaves alone
+but the URL parser strips. The critic confirmed both live in Chromium:
+setting either payload as a same-tab anchor's `href` and clicking it
+executes the script; only the `target="_blank"` attribute already on the
+rendered link happened to incidentally block navigation in current
+Chrome specifically, which the critic correctly refused to treat as a
+real defense ("a denylist regex on a string the browser will further
+normalize is fundamentally the wrong approach... 'the sanitizer should
+actually sanitize'"). Critically, this exact function was explicitly
+described as mirroring `worker/render.js`'s own production `safeHref()`
+-- which turned out to have the identical bypass, and several of ITS call
+sites render links with no `target="_blank"` at all, so no incidental
+same-tab protection exists there either.
+
+A second, lower-severity but confirmed real bug: the datasheet link's
+visible `<a>` element was only (re)created on the input's `blur` event
+via a full `renderInspector()` call that replaces the entire inspector
+panel's `innerHTML` -- including the anchor itself. Clicking the just-
+typed "Open datasheet" link fires a `blur` on the input first, which
+synchronously tears down and rebuilds the very element being clicked,
+silently swallowing that first click (no navigation happens; a second
+click, against the now-correctly-rebuilt anchor, works).
+
+Fixed both, and extended the fix beyond just this feature's own file:
+replaced the denylist-regex approach in both the new client-side
+`safeHref()` (`simulation-builder.js`) AND the pre-existing server-side
+`safeHref()` (`worker/render.js`, used across the whole public site's
+link rendering -- project links, changelog entries, link-list blocks,
+button blocks) with real URL parsing via the runtime's own WHATWG-
+compliant `URL` object and a protocol allowlist (`http:`/`https:`/
+`mailto:`/`tel:`) instead of denylisting patterns in raw input text.
+This is correct by construction: whatever ends up in `.protocol` after
+parsing IS what a browser will actually navigate as, so there's no gap
+between what the check inspects and what happens on click -- unlike a
+hand-rolled regex trying to anticipate every normalization a real parser
+might apply. For the swallowed-click bug, gave the datasheet link a
+stable id and update its `href`/`hidden` state directly on every `input`
+keystroke instead of waiting for `blur` to trigger a full inspector
+rebuild, so the element being clicked is never torn down out from under
+an in-flight click.
+
+Re-verified via Playwright and Node: reproduced the critic's exact two
+bypass payloads (`java\tscript:alert(1)`, `\x01javascript:alert(1)`)
+plus four more variants (embedded newline, vertical tab, a plain
+`javascript:` control, and a legitimate `https://` URL) against the live
+admin UI and confirmed every dangerous payload now neutralizes to `#`
+while the legitimate URL passes through unchanged; unit-tested the
+worker-side fix directly in Node against 14 cases (all three dangerous
+schemes, all four previously-passing-through legitimate URL shapes --
+https/http/mailto/tel/relative-with-slash/relative-without-slash -- plus
+an empty string), all passing; confirmed end-to-end on an actual public
+page with two button blocks (one a real external link, one the
+tab-embedded bypass payload) that the real link rendered correctly and
+the malicious one rendered as `#`. Confirmed the swallowed-first-click
+fix by clicking the datasheet link immediately after typing (no blur in
+between) and verifying a new tab actually opens on the first click. Full
+regression suite green; no server-side test state was created in either
+round (a scratch page created for the end-to-end worker test was
+deleted, both soft- and hard-delete, and confirmed gone).
+
+Item #410 is done: 1 critic round, 6/10, both real findings fixed and
+verified live -- including closing an identical, live, production-
+affecting bypass in the pre-existing server-side `safeHref()` this
+feature's own client-side version was explicitly modeled on, the same
+"the reachability/correctness question this critic asked about the new
+code turned out to apply just as much to the trusted original it copied"
+pattern this session already hit once with `escapeXml()` in #394.

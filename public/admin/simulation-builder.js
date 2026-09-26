@@ -209,18 +209,44 @@
 
   // escapeXml() alone stops HTML injection but a href value is still live
   // even after escaping -- "javascript:alert(1)" has nothing to escape, so
-  // it would run as-is on click. Mirrors the exact same helper/reasoning
-  // already used server-side for public page links (worker/render.js's
-  // safeHref()) -- a component's datasheet-link field is exactly the same
-  // "user-supplied URL that becomes a real clickable href" shape, reachable
-  // here via the JSON import feature the same way this file's other
-  // recent critic findings were. Blocks only the dangerous schemes;
-  // relative paths, mailto:, tel:, and bare domains all pass through
-  // unchanged since those are legitimate.
+  // it would run as-is on click. A component's datasheet-link field is
+  // exactly this "user-supplied URL that becomes a real clickable href"
+  // shape, reachable here via the JSON import feature the same way this
+  // file's other recent critic findings were.
+  //
+  // A critic pass found a first version of this that denylisted
+  // "javascript:"/"data:"/"vbscript:" via a regex tested against the raw,
+  // merely-.trim()'d string had a real, browser-confirmed bypass: a tab or
+  // newline embedded INSIDE the scheme name (e.g. "java\tscript:alert(1)")
+  // doesn't match the anchored regex, since .trim() only strips leading/
+  // trailing whitespace, not embedded -- but the browser's own URL parser
+  // strips ALL ASCII tab/newline characters anywhere in the string before
+  // ever looking at the scheme, so the href actually resolves to a real
+  // "javascript:" URL despite passing the regex check. Same story for a
+  // leading C0 control character, which .trim() also doesn't strip but the
+  // URL parser does. A denylist regex on a string the browser will further
+  // normalize afterward is the wrong shape of check.
+  //
+  // Fixed by actually parsing the URL the same way the browser will (via
+  // the real URL parser, not a hand-rolled approximation of it) and
+  // allowlisting the resulting protocol instead of denylisting the raw
+  // input text -- this is correct by construction: whatever value ends up
+  // in `.protocol` after parsing IS what the browser will actually
+  // navigate as, so there's no gap between what this function checks and
+  // what happens on click. `location.href` as the base lets a relative
+  // path or bare domain-without-scheme still parse (resolving to this
+  // admin page's own origin) while a URL with its own explicit scheme
+  // parses to that scheme regardless of what it's relative to.
   function safeHref(url) {
     const trimmed = String(url == null ? "" : url).trim();
-    if (/^(javascript|data|vbscript):/i.test(trimmed)) return "#";
-    return trimmed;
+    if (!trimmed) return "#";
+    try {
+      const parsed = new URL(trimmed, location.href);
+      const allowedProtocols = ["http:", "https:", "mailto:", "tel:"];
+      return allowedProtocols.includes(parsed.protocol) ? trimmed : "#";
+    } catch {
+      return "#";
+    }
   }
 
   function newLocalId(prefix) {
@@ -1203,11 +1229,9 @@
         ${extraFieldsHtml}
         <label>Label${comp.type === "mcu_teensy" ? " (shown on the part)" : " (shown as a hover tooltip, including on the public embed)"}<input id="sim-comp-label" type="text" value="${escapeXml(comp.label || "")}"></label>
         <label>Datasheet link (for your own reference -- admin only, not shown on the public embed)<input id="sim-comp-datasheet" type="url" placeholder="https://…" value="${escapeXml(comp.datasheetUrl || "")}"></label>
-        ${
-          comp.datasheetUrl
-            ? `<a class="sim-datasheet-link" href="${escapeXml(safeHref(comp.datasheetUrl))}" target="_blank" rel="noopener noreferrer">Open datasheet ↗</a>`
-            : ""
-        }
+        <a id="sim-datasheet-link" class="sim-datasheet-link" href="${escapeXml(safeHref(comp.datasheetUrl || ""))}" target="_blank" rel="noopener noreferrer" ${
+          comp.datasheetUrl ? "" : "hidden"
+        }>Open datasheet ↗</a>
         <button type="button" id="sim-duplicate-selected">Duplicate part</button>
         <button type="button" id="sim-delete-selected" class="danger">Delete part</button>
       `;
@@ -1271,6 +1295,7 @@
         labelHistorySaved = false;
       });
       const datasheetInput = $("sim-comp-datasheet");
+      const datasheetLink = $("sim-datasheet-link");
       let datasheetHistorySaved = false;
       datasheetInput.addEventListener("input", () => {
         if (!datasheetHistorySaved) {
@@ -1278,17 +1303,21 @@
           datasheetHistorySaved = true;
         }
         comp.datasheetUrl = datasheetInput.value;
+        // Updates the link's own attributes directly instead of a full
+        // renderInspector() call -- a critic pass found the original
+        // blur-triggered re-render replaced the ENTIRE inspector panel's
+        // innerHTML, including the anchor itself, so clicking the just-
+        // appeared "Open datasheet" link (which fires a blur on the input
+        // first) tore down and rebuilt the very element being clicked out
+        // from under the in-flight click, silently swallowing that first
+        // click. Setting the href/hidden state directly on every
+        // keystroke keeps the same element alive throughout, so it's
+        // always immediately clickable with no rebuild in the way.
+        datasheetLink.href = safeHref(comp.datasheetUrl) || "#";
+        datasheetLink.hidden = !comp.datasheetUrl;
       });
       datasheetInput.addEventListener("blur", () => {
         datasheetHistorySaved = false;
-        // Re-renders just the inspector (not renderBuilder(), since the
-        // datasheet link is inspector-only and never drawn on the canvas)
-        // so the "Open datasheet" link's visibility and href refresh to
-        // match what was just typed -- it only needs to happen once, on
-        // blur/commit, not on every keystroke, the same reasoning the
-        // label input's own `input`-vs-something-coarser split already
-        // uses elsewhere in this function.
-        renderInspector();
       });
       $("sim-duplicate-selected").addEventListener("click", () => {
         pushHistory();

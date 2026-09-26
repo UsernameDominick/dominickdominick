@@ -12,13 +12,41 @@ export function esc(str) {
 
 // esc() stops HTML injection but a href/src value is still live even after
 // escaping — "javascript:alert(1)" has nothing to escape, so it would run
-// as-is on click. Blocks the dangerous schemes only; anything else (mailto:,
-// tel:, relative paths, bare domains without a scheme) passes through
-// unchanged, since those are all legitimate and already relied on.
+// as-is on click.
+//
+// A critic pass reviewing a client-side port of this exact function (for
+// simulation-builder.js's datasheet links) found the original denylist-
+// regex approach had a real, browser-confirmed bypass: a tab or newline
+// embedded INSIDE the scheme name (e.g. "java\tscript:alert(1)") doesn't
+// match an anchored `/^(javascript|...)/` regex tested against a merely-
+// .trim()'d string, since .trim() only strips leading/trailing whitespace,
+// not embedded characters -- but a browser's own URL parser strips ALL
+// ASCII tab/newline characters anywhere in the string before ever reading
+// the scheme, so the href actually resolves to a real "javascript:" URL
+// despite passing the regex check. Several call sites of this exact
+// function render the result without `target="_blank"` (e.g. the
+// link-list block below), so there's no incidental new-tab-navigation
+// protection masking the gap the way there might be elsewhere.
+//
+// Fixed the same way as the client-side port: parse the URL for real
+// (via the runtime's own WHATWG-compliant URL parser, which normalizes
+// embedded control characters exactly the way a browser will before it
+// ever gets to look at the scheme) and allowlist the resulting protocol,
+// instead of denylisting patterns in the raw input text. `env` isn't
+// needed here since Workers' global `URL` doesn't require a request
+// context; a fixed placeholder base lets a relative path or bare
+// domain-without-scheme still resolve without needing this site's own
+// real origin plumbed through every caller.
 export function safeHref(url) {
   const trimmed = String(url ?? "").trim();
-  if (/^(javascript|data|vbscript):/i.test(trimmed)) return "#";
-  return trimmed;
+  if (!trimmed) return "#";
+  try {
+    const parsed = new URL(trimmed, "https://dominickdominick.invalid/");
+    const allowedProtocols = ["http:", "https:", "mailto:", "tel:"];
+    return allowedProtocols.includes(parsed.protocol) ? trimmed : "#";
+  } catch {
+    return "#";
+  }
 }
 
 // JSON.stringify() doesn't escape "</script>" — a value containing that
