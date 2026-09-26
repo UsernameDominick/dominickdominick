@@ -172,7 +172,15 @@
     // Single-pointer mouse/trackpad use can never trigger this (only one
     // interaction can be in progress at a time), so this only matters for
     // touch, but it's a one-line guard against a real corrupted-crop risk.
-    if (!originalSnapshot || compareSavedState || dragging) return;
+    // `baseSnapshot` (an in-progress brightness/contrast/saturate slider
+    // drag) is blocked for the same reason -- a critic pass found this one
+    // reachable via completely ordinary keyboard+mouse, not just
+    // multi-touch, and guarding `onAdjustInput()`/`onAdjustCommit()`
+    // against starting mid-compare already prevents the corruption on its
+    // own; this is the belt-and-suspenders other half, stopping Compare
+    // from starting mid-slider-drag in the first place rather than only
+    // stopping the slider from acting while Compare is already active.
+    if (!originalSnapshot || compareSavedState || dragging || baseSnapshot) return;
     compareSavedState = snapshotCanvas();
     canvas.width = originalSnapshot.width;
     canvas.height = originalSnapshot.height;
@@ -435,6 +443,17 @@
   }
 
   function onAdjustInput() {
+    // A critic pass's exhaustive cross-reference of every canvas-mutating
+    // action against the isComparing() guard (added elsewhere in this file
+    // for rotate/flip/filters/crop-apply/preset-apply) found this one --
+    // and its `change` counterpart below -- were missed, and live-
+    // reproduced the exact same silent-data-loss/undo-corruption failure
+    // via a slider drag that starts, continues, or finishes while Compare
+    // is held: `pushUndo()` captures the temporary original-image preview
+    // instead of the real edit, and `baseSnapshot` gets set to a clone of
+    // that same temporary canvas, corrupting whatever the slider paints
+    // next even after Compare is released.
+    if (isComparing()) return;
     if (!baseSnapshot) {
       pushUndo();
       baseSnapshot = document.createElement("canvas");
@@ -452,6 +471,13 @@
   let lastAdjust = { brightness: 0, contrast: 0, saturate: 0 };
 
   function onAdjustCommit() {
+    // Same isComparing() guard as onAdjustInput() above, for the same
+    // reason: if Compare is still held when the slider's "change" fires,
+    // accumulating the current slider value into lastAdjust would record
+    // an adjustment that was never actually applied to the real edit (it
+    // was blocked from painting by onAdjustInput()'s own guard), and would
+    // reset baseSnapshot/the sliders as if a real edit had just completed.
+    if (isComparing()) return;
     // The slider handler already baked the filtered pixels into the canvas;
     // accumulate onto lastAdjust (for "Save preset", since the sliders
     // themselves are about to reset to 0) then reset sliders/snapshot so
@@ -507,7 +533,18 @@
   }
 
   $("pe-apply-preset").addEventListener("change", () => {
-    if (isComparing()) return;
+    if (isComparing()) {
+      // A native <select>'s displayed value updates before "change" fires,
+      // so returning here alone would leave the dropdown showing a preset
+      // name that was never actually applied -- and since re-picking that
+      // SAME option later wouldn't fire "change" again (no value
+      // transition), there'd be no obvious way to actually apply it
+      // without picking something else first. Resetting the value back to
+      // the placeholder makes the UI honestly reflect that nothing
+      // happened, and leaves the option immediately re-selectable.
+      $("pe-apply-preset").value = "";
+      return;
+    }
     const id = Number($("pe-apply-preset").value);
     const preset = photoPresets.find((p) => p.id === id);
     if (!preset) return;

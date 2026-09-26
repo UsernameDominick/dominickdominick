@@ -7587,3 +7587,78 @@ with no connection to the original crop finding at all -- a reminder that
 "send it back to a fresh critic with instructions to look for more of the
 same pattern" can surface real bugs a narrower re-review of just the
 latest diff would never have found.
+
+Sent to a round-4 critic pass on commit 473ef97, explicitly asked to
+exhaustively cross-reference every canvas-mutating action against which
+ones now have the `isComparing()` guard, since the pattern had already
+recurred five times. Scored 5/10 -- found a sixth, and live-reproduced it:
+`onAdjustInput()`/`onAdjustCommit()` (the brightness/contrast/saturate
+slider handlers) were never guarded, and -- unlike the five fixed last
+round -- `startCompare()`'s existing `dragging` check doesn't cover an
+adjust-slider drag either, since sliders don't set `dragging` (that flag
+is reserved for canvas pointer tools). So the gap was bidirectional:
+Compare could start mid-slider-drag, and a slider could act while Compare
+was already active. Live-reproduced the exact failure: applied grayscale
+(the real edit), held Compare (correctly showed the original), moved the
+brightness slider while held (pushed a bogus undo entry and set
+`baseSnapshot` to the temporary preview), released Compare (correctly
+restored the grayscale edit), then moved the slider again -- the real
+edit was silently destroyed and replaced with content derived from the
+stale, compare-time `baseSnapshot`. The critic noted this is arguably the
+MOST likely of all six gaps to actually get hit in practice, since
+sliders are dragged continuously, unlike a single button click.
+
+Fixed by adding `if (isComparing()) return;` to both `onAdjustInput()`
+and `onAdjustCommit()`, and, as a belt-and-suspenders symmetry fix,
+adding a `baseSnapshot` check alongside the existing `dragging` check in
+`startCompare()`'s own guard -- so Compare can't start mid-slider-drag in
+the first place, not just get correctly ignored by the slider if it does.
+Also fixed a related minor issue the critic flagged: the Apply Preset
+`<select>`'s displayed value updates before its own `change` event fires,
+so blocking the change while comparing left the dropdown showing a preset
+name that was never applied, with no way to re-trigger applying it
+without picking something else first (a `<select>` doesn't fire `change`
+on re-selecting its already-displayed value) -- fixed by resetting the
+dropdown back to its placeholder when the guard fires.
+
+The critic also flagged, as a real (not hypothetical) observation rather
+than a blocking finding: the scattered `if (isComparing()) return;`
+pattern, now copy-pasted across eight call sites, has no structural
+enforcement -- proven by the fact that an exhaustive, dedicated
+cross-reference pass still missed one of the eight candidates. Logged as
+tech debt worth a future pass (e.g. a single `performEdit(mutateFn)`
+wrapper every canvas-mutating action routes through, checking
+`isComparing()` once in one place) rather than continuing to rely on
+every future addition remembering to paste the same guard -- not fixed
+now, since restructuring every call site is a larger, riskier change than
+this bug-fix chain's scope justifies.
+
+Re-verified via Playwright, reproducing the critic's exact scenario: the
+full grayscale -> hold-Compare -> move-slider-while-held -> release ->
+move-slider-again sequence now correctly preserves the grayscale edit
+throughout, confirmed by sampling the same pixel at each step (gray ->
+original -> gray again, never corrupted); confirmed the reverse direction
+(starting a slider drag, then attempting to start Compare mid-drag) is
+also now blocked, with Compare's `active` class never applying. All prior
+rounds' regression tests (crop-clear, mid-stroke rotate, mid-adjust
+rotate, the five-guard Compare-block tests) were re-run unchanged and
+still pass. Full regression suite green; test uploads deleted and
+confirmed gone.
+
+Done: 4 critic rounds (8/10, 8/10, 5/10, 5/10), four real findings across
+all four rounds -- brush/shape-tool drag state, adjust-slider
+`baseSnapshot` state (found twice, once for the transform-clearing side
+in round 3 and once for the missing Compare-guard side in round 4),
+brush/shape-tool drag state, and the five-then-six missing
+`isComparing()` guards -- all fixed, plus one deliberately-deferred tech-
+debt observation (the scattered-guard maintenance risk) logged rather
+than acted on. What began as a single deferred crop-selection bug from an
+unrelated feature's critic review turned into finding and closing six
+distinct instances of the same "cached interaction state outlives the
+canvas/comparison state that invalidated it" bug class, the last two of
+which were real, easily-triggered silent-data-loss bugs reachable with
+completely ordinary keyboard-and-mouse use -- not the multi-touch edge
+case the fix chain started out chasing. Closing this out after four
+rounds given the pattern search has now been run exhaustively twice (once
+per critic instance) with no further findings on the second exhaustive
+pass beyond the one already fixed in that same round.
