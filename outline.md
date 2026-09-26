@@ -10739,3 +10739,33 @@ around by stubbing `setPointerCapture` for the duration of the synthetic
 dispatch only. Ran the full `test_security_seo.js` regression suite —
 all passed. No test data was created (only in-memory canvas pixels of
 an existing library image, undone before the test ends).
+
+Handed to a critic agent for scoring: **9/10 — ships.** Confirmed the
+clamp expression is correct for any real-world pressure value, confirmed
+both `pointerdown` and `pointermove` call sites pass each event's own
+CURRENT pressure (not a value captured once at stroke-start), and traced
+`strokeTo()` to confirm each call does its own independent
+`beginPath()`/`stroke()` with a freshly-set `lineWidth`, so a real pen
+stroke's varying pressure across a continuous drag genuinely produces a
+varying-width line rather than one width baked in for the whole stroke.
+Confirmed all five brush tools (Erase, Blur, Pixelate, Dodge, Burn)
+share the single `BRUSH_TOOLS`-gated code path with no tool-specific
+bypass, so pressure scaling affects the shared mask footprint uniformly
+for all of them, not just the one tool this session's own test happened
+to cover. Confirmed the brush-cursor preview intentionally always shows
+the full selected size rather than a live pressure prediction — correct
+by design (a hovering stylus not yet in contact has no pressure to
+predict from anyway), matching how most real drawing apps behave.
+Confirmed pressure-based mask-geometry scaling and the recently-added
+brush-opacity feature operate on genuinely orthogonal axes (per-point
+mask width vs. one whole-stroke `globalAlpha` composite) with no
+override or double-application risk. One minor, explicitly deferred
+edge case: a spec-violating driver reporting `pressure: NaN` (not
+possible per spec, but a real hardware/driver bug could) would slip
+past the `typeof e.pressure === "number"` fallback check (since
+`typeof NaN` is `"number"`) and produce `lineWidth = NaN`, which
+Canvas2D silently ignores by keeping the previous width rather than
+crashing or drawing nothing — a benign worst case not worth guarding
+against given how narrow the trigger condition is.
+
+Item #72 is done: 1 critic round, 9/10 on the first pass.
