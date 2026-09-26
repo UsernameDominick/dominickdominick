@@ -143,6 +143,33 @@ function renderMaintenanceHtml(message) {
 
 const CONTROL_SETTING_KEYS = Object.keys(CONTROL_PRESETS);
 
+// Author/publisher for structured data -- the url ties posts back to the
+// site's Person entity (the homepage JSON-LD) for search engines.
+const SITE_AUTHOR = { "@type": "Person", name: "Dominick", url: "https://dominickdominick.com/" };
+
+// /random and /projects: a CollectionPage whose ItemList names every item
+// on the page, so search engines read it as an index, not a thin page.
+function indexJsonLd(name, path, items) {
+  return [
+    {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      name,
+      url: `https://dominickdominick.com${path}`,
+      inLanguage: "en",
+      mainEntity: {
+        "@type": "ItemList",
+        itemListElement: items.map((item, i) => ({ "@type": "ListItem", position: i + 1, name: item.name, url: item.url })),
+      },
+    },
+  ];
+}
+
+function wordCount(md) {
+  const words = String(md || "").replace(/```[\s\S]*?```/g, " ").match(/[\p{L}\p{N}'’-]+/gu);
+  return words ? words.length : 0;
+}
+
 async function getTheme(env) {
   const [accent, bg, font, text, border, headingFont, mobileBreakpoint, customFontName, customFontUrl, ...controls] = await Promise.all([
     getSetting(env, "theme_accent"),
@@ -370,7 +397,11 @@ async function renderArticle(env, article, navItems, previewReason = null, isAdm
       ...(article.og_image || defaultOgImage ? { image: [absoluteUrl(article.og_image || defaultOgImage)] } : {}),
       datePublished: toIso8601(article.published_at),
       dateModified: toIso8601(article.updated_at || article.published_at),
-      author: { "@type": "Person", name: "Dominick" },
+      author: SITE_AUTHOR,
+      publisher: SITE_AUTHOR,
+      mainEntityOfPage: `https://dominickdominick.com/random/${article.slug}`,
+      inLanguage: "en",
+      wordCount: wordCount(article.body),
       ...(article.tags && article.tags.length ? { keywords: article.tags.join(", ") } : {}),
     },
     {
@@ -396,6 +427,7 @@ async function renderArticle(env, article, navItems, previewReason = null, isAdm
     modifiedTime: toIso8601(article.updated_at),
     keywords: article.tags && article.tags.length ? article.tags.join(", ") : null,
     ogImage: article.og_image || defaultOgImage || null,
+    ogImageSize: await coverSizeAttrs(env, article.og_image || defaultOgImage),
     canonicalUrl: article.canonical_url || null,
     theme,
     footerText,
@@ -512,8 +544,11 @@ async function renderProject(env, project, navItems, previewReason = null, isAdm
       url: `https://dominickdominick.com/projects/${project.slug}`,
       ...(project.og_image || defaultOgImage ? { image: [absoluteUrl(project.og_image || defaultOgImage)] } : {}),
       dateCreated: toIso8601(project.created_at),
+      ...(project.published_at ? { datePublished: toIso8601(project.published_at) } : {}),
       dateModified: toIso8601(project.updated_at),
-      author: { "@type": "Person", name: "Dominick" },
+      author: SITE_AUTHOR,
+      mainEntityOfPage: `https://dominickdominick.com/projects/${project.slug}`,
+      inLanguage: "en",
       ...(project.tags && project.tags.length ? { keywords: project.tags.join(", ") } : {}),
     },
     {
@@ -539,6 +574,7 @@ async function renderProject(env, project, navItems, previewReason = null, isAdm
     modifiedTime: toIso8601(project.updated_at),
     keywords: project.tags && project.tags.length ? project.tags.join(", ") : null,
     ogImage: project.og_image || defaultOgImage || null,
+    ogImageSize: await coverSizeAttrs(env, project.og_image || defaultOgImage),
     canonicalUrl: project.canonical_url || null,
     theme,
     footerText,
@@ -655,6 +691,7 @@ async function renderArticlesIndex(env, navItems, page) {
     navItems,
     activeSlug: "random",
     bodyHtml,
+    jsonLd: indexJsonLd("Articles", "/random", articles.map((x) => ({ name: x.title, url: `https://dominickdominick.com/random/${x.slug}` }))),
     ogImage: defaultOgImage || null,
     theme,
     footerText,
@@ -686,6 +723,7 @@ async function renderProjectsIndex(env, navItems, page) {
     navItems,
     activeSlug: "projects",
     bodyHtml,
+    jsonLd: indexJsonLd("Projects", "/projects", projects.map((x) => ({ name: x.title, url: `https://dominickdominick.com/projects/${x.slug}` }))),
     ogImage: defaultOgImage || null,
     theme,
     footerText,

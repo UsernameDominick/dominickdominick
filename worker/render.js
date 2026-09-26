@@ -1683,6 +1683,9 @@ export function renderShell({
   bodyHtml,
   jsonLd,
   ogType = "website",
+  // ' width="…" height="…"' as returned by imgSizeAttrs(), when known --
+  // lets share previews reserve the image's shape before it downloads.
+  ogImageSize = "",
   publishedTime = null,
   modifiedTime = null,
   keywords = null,
@@ -1697,6 +1700,11 @@ export function renderShell({
   editUrl = null,
 }) {
   const canonical = canonicalUrl || `https://dominickdominick.com${path}`;
+  // The browser-chrome color follows the saved background instead of the
+  // old built-in violet.
+  const themeColorDark = /^#[0-9a-f]{6}$/i.test(theme.bg || "") ? theme.bg : "#0c0a16";
+  const ogSizeMatch = /width="(\d+)" height="(\d+)"/.exec(ogImageSize || "");
+  const articleTags = ogType === "article" && keywords ? String(keywords).split(",").map((t) => t.trim()).filter(Boolean) : [];
   const themeVars = [];
   if (theme.accent) themeVars.push(`--accent:${esc(theme.accent)}`);
   if (theme.bg) themeVars.push(`--bg:${esc(theme.bg)}`);
@@ -1796,7 +1804,7 @@ export function renderShell({
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="theme-color" id="theme-color-meta" content="#0c0a16">
+<meta name="theme-color" id="theme-color-meta" content="${esc(themeColorDark)}" data-dark="${esc(themeColorDark)}">
 <script>(function(){try{var t=localStorage.getItem("theme");if(t!=="light"&&t!=="dark")t=window.matchMedia&&window.matchMedia("(prefers-color-scheme: light)").matches?"light":null;if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);if(t==="light"){var tc=document.getElementById("theme-color-meta");if(tc)tc.setAttribute("content","#fffaf5");}var m=localStorage.getItem("motion");if(m==="reduce")document.documentElement.setAttribute("data-motion","reduce");var fs=parseFloat(localStorage.getItem("fontScale"));if(fs)document.documentElement.style.setProperty("--font-scale",fs);}catch(e){}})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${esc(title)}</title>
@@ -1812,13 +1820,18 @@ ${noindex ? "" : `<link rel="canonical" href="${esc(canonical)}">`}
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(description)}">
 <meta property="og:url" content="${esc(canonical)}">
-${ogImage ? `<meta property="og:image" content="${esc(absoluteUrl(ogImage))}">` : ""}
+${ogImage ? `<meta property="og:image" content="${esc(absoluteUrl(ogImage))}">
+<meta property="og:image:alt" content="${esc(title.replace(/ · Dominick$/, ""))}">` : ""}
+${ogImage && ogSizeMatch ? `<meta property="og:image:width" content="${ogSizeMatch[1]}">
+<meta property="og:image:height" content="${ogSizeMatch[2]}">` : ""}
+${articleTags.map((t) => `<meta property="article:tag" content="${esc(t)}">`).join("\n")}
 ${publishedTime ? `<meta property="article:published_time" content="${esc(publishedTime)}">` : ""}
 ${modifiedTime ? `<meta property="article:modified_time" content="${esc(modifiedTime)}">` : ""}
 <meta name="twitter:card" content="${ogImage ? "summary_large_image" : "summary"}">
 <meta name="twitter:title" content="${esc(title)}">
 <meta name="twitter:description" content="${esc(description)}">
-${ogImage ? `<meta name="twitter:image" content="${esc(absoluteUrl(ogImage))}">` : ""}
+${ogImage ? `<meta name="twitter:image" content="${esc(absoluteUrl(ogImage))}">
+<meta name="twitter:image:alt" content="${esc(title.replace(/ · Dominick$/, ""))}">` : ""}
 <link rel="alternate" type="application/rss+xml" title="Dominick — RSS feed" href="/rss.xml">
 
 <link rel="stylesheet" href="/style.css">
