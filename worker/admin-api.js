@@ -2285,8 +2285,16 @@ async function routeAdminApi(request, env, url, ctx) {
     if (!body.name || !BRUSH_PRESET_TOOLS.has(body.tool)) {
       return json({ error: "name and a valid tool are required" }, { status: 400 });
     }
-    const size = Math.max(5, Math.min(150, Number(body.size) || 30));
-    const opacity = Math.max(1, Math.min(100, Number(body.opacity) || 100));
+    // Number.isFinite, not `|| default` -- a critic pass reviewing the
+    // sibling /text-styles endpoint (which deliberately copies this exact
+    // pattern) found `|| default` silently discards an explicit,
+    // legitimate `0` in favor of the default instead of clamping it to
+    // the real minimum, since `0` is falsy. Fixed here too rather than
+    // leaving the original instance of the bug in place once found.
+    const rawSize = Number(body.size);
+    const size = Math.max(5, Math.min(150, Number.isFinite(rawSize) ? rawSize : 30));
+    const rawOpacity = Number(body.opacity);
+    const opacity = Math.max(1, Math.min(100, Number.isFinite(rawOpacity) ? rawOpacity : 100));
     const presets = JSON.parse((await getSetting(env, "photo_editor_brush_presets")) || "[]");
     const id = presets.reduce((max, p) => Math.max(max, p.id || 0), 0) + 1;
     presets.push({ id, name: String(body.name).slice(0, 60), tool: body.tool, size, opacity });
@@ -2322,7 +2330,14 @@ async function routeAdminApi(request, env, url, ctx) {
     if (!/^#[0-9a-fA-F]{6}$/.test(body.color || "")) {
       return json({ error: "A valid #rrggbb color is required" }, { status: 400 });
     }
-    const size = Math.max(1, Math.min(20, Number(body.size) || 4));
+    // Number.isFinite, not `|| 4` -- a critic pass found the sibling
+    // /brush-presets endpoint's `Number(x) || default` falls through to
+    // the default for an explicit, legitimate `0` (since `0` is falsy),
+    // silently saving 4 instead of clamping to the real minimum of 1. Not
+    // copying that bug into this new endpoint even though it's the same
+    // storage pattern being deliberately mirrored elsewhere.
+    const rawSize = Number(body.size);
+    const size = Math.max(1, Math.min(20, Number.isFinite(rawSize) ? rawSize : 4));
     const styles = JSON.parse((await getSetting(env, "photo_editor_text_styles")) || "[]");
     const id = styles.reduce((max, s) => Math.max(max, s.id || 0), 0) + 1;
     styles.push({ id, name: String(body.name).slice(0, 60), font: body.font, color: body.color, size });

@@ -12689,4 +12689,54 @@ test-harness issue, not a product bug — was found and cleaned up before
 the final passing run; the passing run's own data was cleaned up via the
 real DELETE endpoint as always).
 
-Sent for a critic pass.
+Sent for a critic pass, which threw a genuinely wide net of malformed
+inputs at the server-side validation (missing/invalid name, font, and
+color; size at 0/-5/21/1000/NaN/non-numeric) and confirmed every case
+either clamps sensibly or 400s cleanly, with the stored settings blob
+staying valid JSON throughout. Two real, non-blocking findings, both
+explicitly noted as INHERITED from the sibling `/brush-presets` pattern
+this item deliberately copied, not new defects this item introduced:
+
+1. **Size=0 silently became 4, not clamped to 1.** `Math.max(1,
+   Math.min(20, Number(body.size) || 4))` — since `0` is falsy,
+   `Number("0") || 4` evaluates to the default `4` instead of the real
+   value `0`, which then never reaches the `Math.max(1, ...)` clamp at
+   all. The critic confirmed the exact same bug already existed in
+   `/brush-presets`' `size`/`opacity` fields (present since before this
+   item). Fixed in `/text-styles` with an explicit `Number.isFinite`
+   check instead of `||`, and — since it's the same bug now found and
+   understood, not a hypothetical — fixed the ORIGINAL instance in
+   `/brush-presets` too rather than leaving a known-bad pattern in place
+   once identified.
+2. **Preset-name escaping only covered `<`, not `>`/quotes/`&`.** Not
+   currently exploitable — the critic verified live that a crafted
+   `"><img src=x onerror=alert(1)>` name landed as an inert text node
+   with no injected `<img>` element, because the numeric `id` (the only
+   attribute-position value) can't be reached by the name at all — but
+   flagged it as fragile: a future change putting `name` into an
+   attribute value without separate escaping would make this
+   exploitable. This repo already has a proper, dedicated
+   `escapeHtmlAttr()` helper (used correctly by the named-snapshots
+   picker) that the copied brush-preset pattern just wasn't using.
+   Switched all three sibling picker renderers (text styles, brush
+   presets, AND photo presets, which had the identical `<`-only
+   pattern) to use it — closing the actual class of fragility across
+   every instance found, not just the one this item happened to touch.
+   (Checked photo-presets' own numeric-field defaulting too:
+   `Number(brightness) || 0` there is NOT the same bug, since its
+   default `0` already equals its own valid minimum — no fix needed.)
+
+Re-verified both fixes live: an explicit `size: 0` POST to `/text-styles`
+now stores `1`; an explicit `size: 0, opacity: 0` POST to
+`/brush-presets` now stores `5`/`1` (their real minimums) instead of the
+old defaults `30`/`100`; and the same XSS-payload name now renders with
+`>` correctly escaped in the live picker (confirmed via the option's
+actual `outerHTML`, not just assumed from the source). Re-ran the full
+`test_text_styles.js` suite (no regression from the fixes) and the full
+`test_security_seo.js` regression suite — both pass. Final score:
+**8/10 — production-ready**, both findings fixed rather than merely
+logged, since they were cheap, well-understood, and touching the file
+anyway made "close it properly" strictly better than "log and move on."
+
+Item #108 is done: 1 critic round, 8/10, with both findings fixed
+same-day (including the pre-existing sibling instance the fix uncovered).

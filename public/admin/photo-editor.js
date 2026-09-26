@@ -920,7 +920,7 @@
     const select = $("pe-apply-preset");
     select.innerHTML =
       `<option value="">Apply preset…</option>` +
-      photoPresets.map((p) => `<option value="${p.id}">${p.name.replace(/</g, "&lt;")}</option>`).join("");
+      photoPresets.map((p) => `<option value="${p.id}">${escapeHtmlAttr(p.name)}</option>`).join("");
   }
 
   $("pe-apply-preset").addEventListener("change", () => {
@@ -1107,7 +1107,7 @@
     const select = $("pe-apply-brush-preset");
     select.innerHTML =
       `<option value="">Apply brush preset…</option>` +
-      brushPresets.map((p) => `<option value="${p.id}">${p.name.replace(/</g, "&lt;")}</option>`).join("");
+      brushPresets.map((p) => `<option value="${p.id}">${escapeHtmlAttr(p.name)}</option>`).join("");
   }
 
   $("pe-apply-brush-preset").addEventListener("change", () => {
@@ -1167,7 +1167,7 @@
     }
     const select = $("pe-apply-text-style");
     select.innerHTML =
-      `<option value="">Apply text style…</option>` + textStyles.map((s) => `<option value="${s.id}">${s.name.replace(/</g, "&lt;")}</option>`).join("");
+      `<option value="">Apply text style…</option>` + textStyles.map((s) => `<option value="${s.id}">${escapeHtmlAttr(s.name)}</option>`).join("");
   }
 
   $("pe-apply-text-style").addEventListener("change", () => {
