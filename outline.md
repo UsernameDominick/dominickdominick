@@ -9904,3 +9904,27 @@ crash. Ran the full `test_security_seo.js` regression suite — all
 passed. No test data left behind (the test simulation was deleted
 through the real API as part of the test; the search feature itself
 touches no persisted data at all, only in-memory registry lookups).
+
+Handed to a critic agent for scoring: **9/10 — ships.** Confirmed the
+`(def && def.keywords) || ""` guard is complete (never throws even if a
+`data-sim-type` value somehow had no registry entry), confirmed all 11
+palette buttons have an exact 1:1 matching `keywords` field (none
+skipped), confirmed the deliberate choice not to mirror `keywords` to
+`worker/simulation-render.js` is sound (that file's only generic
+property access on a component def is the breadboard's own named
+`railGroups` field, never a blanket `Object.keys(def)`/spread, and
+`SIM_COMPONENTS` is never serialized into any public API response
+there), confirmed the pre-existing label-only search is unaffected
+(the new keywords are strictly additive to the search haystack, not a
+replacement), confirmed no XSS surface (`keywords` is a hardcoded
+literal read only via `.includes()`, never written to any DOM sink),
+and confirmed the separate `#sim-canvas-search` "Find on canvas…"
+feature was correctly left untouched since it's a distinct search
+(already-placed components, not the add-a-part palette). One minor,
+explicitly non-blocking note: very short queries (e.g. a single letter)
+will now match a few more parts via keyword text than before — a
+natural side effect of richer matching, not a regression, since
+single-character label-only search was already weakly discriminating
+to begin with.
+
+Item #401 is done: 1 critic round, 9/10 on the first pass.
