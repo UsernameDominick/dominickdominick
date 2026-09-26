@@ -822,4 +822,36 @@
     a.click();
     URL.revokeObjectURL(url);
   });
+
+  // ---------- Snapshot mix ----------
+  // Creates a brand-new, separate song row from the CURRENT in-memory
+  // songData -- including any unsaved edits still in the builder, not
+  // just what's persisted -- so an admin can try a different mixing
+  // direction (volumes, theme, kit, notes) without losing this exact
+  // version, and without it disturbing the song still open in this
+  // builder (currentSongId/songHasUnsavedChanges are left untouched;
+  // this only ever creates a new row, never overwrites the original).
+  $("song-snapshot-mix").addEventListener("click", async () => {
+    const name = $("song-name").value.trim();
+    if (!name) return alert("Name is required before snapshotting.");
+    const timestamp = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    const snapshotName = `${name} (snapshot ${timestamp})`;
+    const btn = $("song-snapshot-mix");
+    const originalText = btn.textContent;
+    btn.textContent = "Snapshotting…";
+    btn.disabled = true;
+    try {
+      // Deep-cloned so this snapshot is a true independent copy, unaffected
+      // by any further live edits made to songData after this point.
+      const data = JSON.parse(JSON.stringify(songData));
+      await window.adminApi("/songs", { method: "POST", body: JSON.stringify({ name: snapshotName, data }) });
+      if (window.refreshSongOptions) window.refreshSongOptions();
+      alert(`Saved as a new song: "${snapshotName}". You're still editing the original -- open it separately from the Songs list to compare.`);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      btn.textContent = originalText;
+      btn.disabled = false;
+    }
+  });
 })();

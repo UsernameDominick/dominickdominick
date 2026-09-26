@@ -4840,7 +4840,7 @@ session's own EXIF-stripping feature for the upload-side equivalent).
 341. Publish track to a project — `song_id` block linking already exists.
 349. Generate waveform cover art — `renderWaveformPeaks` + canvas.toDataURL + existing upload endpoint.
 350. ✅ Reusable audio-player themes — done (see the dated entry below this section).
-351. Save mix snapshots — snapshot the existing JSON blob as a new row.
+351. ✅ Save mix snapshots — snapshot the existing JSON blob as a new row. (done — see the dated entry below)
 355. Reference track/production notes — plain metadata fields.
 356. Detect missing samples before export — reuse existing dangling-reference reconciliation in db.js.
 
@@ -10066,3 +10066,37 @@ section's own header comment still said "erase / blur / pixelate"
 without mentioning the two new tools — corrected to name all five.
 
 Item #86 is done: 1 critic round, 9/10 on the first pass.
+
+### Forty-ninth item: #351, Song builder "Snapshot mix"
+
+- ✅ **A "Snapshot mix" button** in the Song builder's header, next to
+  the recently-added "Export report" button, that saves the CURRENT
+  in-memory `songData` (including any unsaved edits still in the
+  builder, not just what's already persisted) as a brand-new, separate
+  song row named `"<name> (snapshot HH:MM:SS)"`, via the same `POST
+  /songs` endpoint the "New song"/duplicate flows already use. Lets an
+  admin try a different mixing direction (volumes, theme, kit, notes)
+  without losing this exact in-progress version — and, critically,
+  without disturbing the song still open in the builder: `currentSongId`
+  and the unsaved-changes flag are left completely untouched, since this
+  only ever creates a new row, never overwrites or navigates away from
+  the original. This is the deliberate distinction from the pre-existing
+  "Duplicate" button in the songs list, which only ever copies a song's
+  last-*saved* row — Snapshot mix specifically captures live, in-progress
+  edits an admin hasn't committed yet.
+
+Verified via Playwright against a real song, opened through the genuine
+UI: made an UNSAVED tempo edit (100→180 BPM) without ever clicking Save,
+clicked Snapshot mix, and confirmed via the real `/api/admin/songs` API
+(not just trusting the UI) that a genuinely new, separate song row was
+created with a distinct id, that its persisted data captured the
+unsaved 180 BPM edit (proving it snapshots live state, not the
+last-saved version), and that the ORIGINAL song's own persisted row
+still correctly shows 100 BPM — completely untouched by the snapshot
+operation. Also confirmed the builder was still showing/editing the
+original song afterward (no silent switch to the new snapshot),
+confirmed the confirmation dialog correctly names the new song, and
+confirmed the button's label/disabled state correctly restore after the
+async save. Ran the full `test_security_seo.js` regression suite — all
+passed. Cleaned up both the original test song and the snapshot it
+created via the real DELETE endpoint.
