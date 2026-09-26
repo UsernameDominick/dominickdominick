@@ -13,6 +13,31 @@
   // plenty for a personal blog, and keeps brush/undo snapshots fast.
   const MAX_DIMENSION = 2000;
   const UNDO_LIMIT = 15;
+  // Mirrors worker/admin-api.js's /upload and PUT /media/:key size caps
+  // (both 8MB) -- a separate literal here, not read from the server,
+  // since there's no request-independent way for this client-side
+  // module to ask the Worker what its own hardcoded limit is. Kept in
+  // one named constant rather than a second copy of the number, so a
+  // future change to the actual server-side cap only has to also update
+  // this one spot (still manual, but a single spot instead of a bare
+  // number duplicated inline in the tooltip text below).
+  const MAX_EXPORT_MB = 8;
+
+  // Interpolates the real constants above into the tooltip text rather
+  // than a separate hardcoded string, so a future change to any of them
+  // can't silently drift out of sync with what the UI tells an admin (a
+  // critic pass found the original static string had no link back to
+  // MAX_DIMENSION/UNDO_LIMIT/the export cap at all). Also fixed a factual
+  // gap the same pass found: "lower the quality slider" only ever helped
+  // the JPEG/WebP case (PNG has no quality concept, canvas.toBlob()
+  // ignores the argument for it) -- PNG is also this editor's own default
+  // export format, so the advice silently didn't apply to its own
+  // starting state. Now names PNG's actual remedies (crop/resize, or
+  // switch format) instead of repeating advice that does nothing for it.
+  $("pe-limits-info").title =
+    `Images wider or taller than ${MAX_DIMENSION}px are automatically downscaled when opened, to keep editing responsive. ` +
+    `Undo/redo keeps the last ${UNDO_LIMIT} steps. ` +
+    `Exported files are capped at ${MAX_EXPORT_MB}MB -- for JPEG/WebP, lower the quality slider; for PNG (no quality setting), try cropping/resizing first, or use "Save as new" with a JPEG/WebP format instead.`;
 
   // The site's one uploaded custom font (see worker/admin-api.js's
   // /upload-font, Site Settings' custom_font_name/custom_font_url).
@@ -1133,8 +1158,24 @@
     if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
     return `${(n / (1024 * 1024)).toFixed(1)} MB`;
   }
+  // Shown whenever EITHER save path would actually use it -- "Save as
+  // new"'s own format selector, or "Overwrite original"'s fixed original-
+  // file format (now that overwrite respects this slider too, see the
+  // fix at pe-save-overwrite's click handler). Without checking the
+  // overwrite path too, opening a JPEG-original image (which always
+  // resets "Save as new"'s format to PNG by default in open()) would
+  // leave this control hidden even though overwriting that same file
+  // now genuinely depends on it -- an admin would have no visible way to
+  // adjust the one value that actually affects their overwrite's quality
+  // unless they happened to also change the unrelated "Save as new"
+  // format dropdown first.
+  function updateQualityVisibility() {
+    const saveAsNewNeedsIt = $("pe-export-format").value !== "image/png";
+    const overwriteNeedsIt = !!originalKey && originalMimeType() !== "image/png";
+    $("pe-export-quality-label").hidden = !saveAsNewNeedsIt && !overwriteNeedsIt;
+  }
   $("pe-export-format").addEventListener("change", () => {
-    $("pe-export-quality-label").hidden = $("pe-export-format").value === "image/png";
+    updateQualityVisibility();
     scheduleSizeEstimate();
   });
   // Display-only -- changes what's behind the canvas so a transparent
@@ -1179,6 +1220,18 @@
       return;
     }
     if (!confirm("Overwrite the original file? This updates it everywhere it's used on the site and can't be undone.")) return;
+    const mimeType = originalMimeType();
+    // A critic pass found this call previously passed no quality argument
+    // at all, so canvas.toBlob() silently fell back to the browser's own
+    // default JPEG/WebP encoder quality regardless of whatever the admin
+    // had the "Save as new" quality slider set to -- the slider had zero
+    // effect on the save path this codebase's own hint text calls out as
+    // the primary one ("Editing a library image — overwrite updates it
+    // everywhere it's used"). Reads the same slider "Save as new" already
+    // uses, since it's the one quality control this editor has; PNG has
+    // no quality concept at all (canvas.toBlob() ignores the argument for
+    // lossless formats), matching "Save as new"'s own PNG handling.
+    const quality = mimeType === "image/png" ? undefined : Number($("pe-export-quality").value) / 100;
     exportBlob(async (blob) => {
       try {
         const res = await fetch(`/api/admin/media/${originalKey}`, {
@@ -1195,7 +1248,7 @@
       } catch (err) {
         alert(err.message);
       }
-    }, originalMimeType());
+    }, mimeType, quality);
   });
 
   // ---------- Open / close ----------
@@ -1248,8 +1301,8 @@
           : "Editing an external image — only \"Save as new\" is available.";
         setTool("select");
         $("pe-export-format").value = "image/png";
-        $("pe-export-quality-label").hidden = true;
         $("pe-export-quality").value = 85;
+        updateQualityVisibility();
         modal.hidden = false;
         requestAnimationFrame(fitCanvasToViewport);
       };
