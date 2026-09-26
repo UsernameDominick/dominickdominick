@@ -60,6 +60,13 @@
   // and whichever settled last would silently overwrite the other's
   // result even if the earlier one had already succeeded.
   let fontCheckPromise = null;
+  // Distinguishes "no custom font configured at all" from "one IS
+  // configured but actually failed to load" -- both used to collapse
+  // into the same null result and the same generic "(none uploaded)"
+  // label, silently hiding a real, actionable problem (a broken font
+  // URL, an unsupported font format, a CORS-blocked host) behind text
+  // that reads as if nothing had ever been set up.
+  let lastFontLoadFailed = false;
   function ensureCustomFontLoaded() {
     if (fontCheckPromise) return fontCheckPromise;
     fontCheckPromise = (async () => {
@@ -70,6 +77,7 @@
         if (!name || !url) {
           loadedFontKey = null;
           loadedFontFamily = null;
+          lastFontLoadFailed = false;
           return null;
         }
         const key = `${name}|${url}`;
@@ -89,15 +97,20 @@
           loadedFontKey = key;
           loadedFontFamily = name;
         }
+        lastFontLoadFailed = false;
         return loadedFontFamily;
       } catch {
-        // A failed fetch/parse/load leaves the custom option silently
-        // unavailable rather than surfacing an error over something as
-        // minor as an optional font choice -- placeText() below falls
-        // back to sans-serif in exactly the same way as "not configured
-        // at all".
+        // A failed fetch/parse/load leaves the custom option unavailable
+        // rather than surfacing an error over something as minor as an
+        // optional font choice -- placeText() below falls back to
+        // sans-serif the same way as "not configured at all". The
+        // DISTINCTION is only in the label text (see setTool()'s "text"
+        // branch): a configured-but-broken font gets an actionable
+        // "(failed to load)" message instead of the misleading "(none
+        // uploaded)" this used to show for both cases identically.
         loadedFontKey = null;
         loadedFontFamily = null;
+        lastFontLoadFailed = true;
         return null;
       } finally {
         fontCheckPromise = null;
@@ -426,7 +439,11 @@
         const fontSelect = $("pe-text-font");
         const customOption = fontSelect.querySelector('option[value="custom"]');
         customOption.disabled = !family;
-        customOption.textContent = family ? `Site's custom font (${family})` : "Site's custom font (none uploaded)";
+        customOption.textContent = family
+          ? `Site's custom font (${family})`
+          : lastFontLoadFailed
+          ? "Site's custom font (failed to load — check Site Settings)"
+          : "Site's custom font (none uploaded)";
         // Don't leave the dropdown silently pointed at an option that just
         // got disabled -- e.g. the admin picked "custom" before this
         // async check resolved false, or a font was uploaded then later

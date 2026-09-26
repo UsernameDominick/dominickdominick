@@ -4759,7 +4759,7 @@ join, rather than building three separate systems.
 93. Horizon straightening — arbitrary-angle rotate + auto-crop.
 102. ✅ Shared access to website fonts — done (see the dated entry below this section).
 108. Reusable text styles — preset pattern like photo-presets.
-109. Missing-font warnings — font-load check + fallback message.
+109. ✅ Missing-font warnings — font-load check + fallback message. (done — see the dated entry below)
 112. ✅ Independent corner-radius — done (see the dated entry below this section).
 129. ✅ Adjustable grain — random per-pixel noise injection. (done — see the dated entry below)
 139. ✅ Local vs external-upload indicator — the Photo Editor itself already covered this (pe-hint's "Editing a library image" vs "Editing an external image" text); extended the same idea to the page builder's own image-url fields (see the dated entry below this section).
@@ -10624,3 +10624,44 @@ sliders' own `min` never allows 0) and already present identically in
 the pre-existing adjust-preset handler this session didn't touch.
 
 Item #76 is done: 1 critic round, 9/10 on the first pass.
+
+### Fifty-fifth item: #109, Photo Editor missing-font warning
+
+- ✅ **Distinguished two previously-identical states** in the Text
+  tool's custom-font dropdown: "no custom font configured in Site
+  Settings at all" versus "one IS configured but actually failed to
+  load" (a broken URL, an unsupported/corrupt font file, a
+  CORS-blocked host). Both used to collapse into the exact same generic
+  "Site's custom font (none uploaded)" label via `ensureCustomFontLoaded()`'s
+  single shared `catch` block — silently hiding a real, actionable
+  problem behind text that reads as if nothing had ever been configured
+  at all, when in fact something WAS configured and is broken. Added a
+  `lastFontLoadFailed` flag, set `true` only inside the `catch` (a real
+  fetch/parse/`FontFace.load()` failure) and `false` on both a genuine
+  success and the "nothing configured" early-return path, so the two
+  cases can finally be told apart. The option now reads "Site's custom
+  font (failed to load — check Site Settings)" specifically for the
+  broken-but-configured case, pointing the admin toward where to
+  actually fix it, rather than the misleading "(none uploaded)" that
+  used to appear for the exact same failure.
+
+Verified via Playwright across all three real states, restoring the
+site's actual custom-font settings to their exact original values
+afterward (this feature reads/writes genuine Site Settings, not
+test-scoped data): (1) confirmed "not configured at all" still shows
+the original, unchanged "(none uploaded)" message with no regression;
+(2) configured a real (if intentionally broken) font URL pointing at a
+guaranteed-404 path and confirmed the dropdown now shows the new,
+distinct "(failed to load — check Site Settings)" message instead of
+the old generic one, with the option still correctly disabled; (3)
+uploaded a REAL, valid local TTF font file through the actual
+`/upload-font` endpoint (working around this sandboxed environment's
+own external-network restriction, which blocked a Google Fonts URL
+test with an unrelated `NetworkError` — confirmed via a standalone
+`FontFace.load()` probe that this was a sandbox/proxy limitation, not a
+product bug) and confirmed a genuinely successful load still shows the
+correct, un-regressed success label and correctly re-enables the
+option. Ran the full `test_security_seo.js` regression suite — all
+passed. Cleaned up the uploaded test font media file via the real
+DELETE endpoint and confirmed the site's Settings were restored to
+their exact pre-test values (both were empty strings before and after).
