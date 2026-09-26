@@ -6071,6 +6071,8 @@
     el("settings-bg").value = settings.theme_bg || "#0c0a16";
     el("settings-text").value = settings.theme_text || "#f4eefc";
     el("settings-border").value = settings.theme_border || "#2a2438";
+    el("settings-border-auto").checked = !settings.theme_border;
+    el("settings-border").disabled = !settings.theme_border;
     el("settings-font").value = settings.theme_font || "";
     el("settings-heading-font").value = settings.theme_heading_font || "";
     el("settings-footer").value = settings.site_footer || "";
@@ -6125,7 +6127,7 @@
           theme_accent: el("settings-accent").value,
           theme_bg: el("settings-bg").value,
           theme_text: el("settings-text").value,
-          theme_border: el("settings-border").value,
+          theme_border: el("settings-border-auto").checked ? "" : el("settings-border").value,
           theme_font: el("settings-font").value,
           theme_heading_font: el("settings-heading-font").value,
           site_footer: el("settings-footer").value,
@@ -6273,6 +6275,8 @@
         el("settings-bg").value = p.bg;
         el("settings-text").value = p.text;
         el("settings-border").value = p.border;
+        el("settings-border-auto").checked = false;
+        el("settings-border").disabled = false;
         el("settings-accent").value = p.accent;
         updateThemeContrastCheck();
         highlightActiveThemePreset();
@@ -6281,6 +6285,9 @@
   ["settings-bg", "settings-text", "settings-border", "settings-accent"].forEach((id) =>
     el(id).addEventListener("input", highlightActiveThemePreset)
   );
+  el("settings-border-auto").addEventListener("change", () => {
+    el("settings-border").disabled = el("settings-border-auto").checked;
+  });
 
   // ---------- Buttons & controls ----------
   // Mirrors CONTROL_PRESETS in worker/render.js (the public site's copy) --
@@ -6367,6 +6374,7 @@
     if (bg || text) {
       colors.push("--bg-elevated:color-mix(in oklch, var(--bg), var(--text) 6%)");
       colors.push("--text-dim:color-mix(in oklch, var(--text) 68%, var(--bg))");
+      if (!border) colors.push("--border:color-mix(in oklch, var(--bg), var(--text) 16%)");
     }
     const controls = [];
     for (const [key, options] of Object.entries(ADMIN_CONTROL_PRESETS)) {

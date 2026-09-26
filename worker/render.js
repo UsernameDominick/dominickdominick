@@ -1596,11 +1596,21 @@ export async function renderBlocks(env, blocks, ctx = {}) {
 // directly at /favicon.ico — browsers probe that path regardless of the
 // <link rel="icon"> data-URI below, and without a real response there it's
 // a 404 on every single page load.
-export const FAVICON_SVG =
-  "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='#0c0a16'/><text x='50' y='68' font-family='Arial,sans-serif' font-size='60' font-weight='700' fill='#ff7a45' text-anchor='middle'>D</text></svg>";
+// The "D" mark in the site's own colors (saved accent on saved background)
+// rather than the built-in violet/coral, so the browser tab matches the
+// theme. Falls back to the defaults for anything that isn't a plain hex.
+export function faviconSvg(theme = {}) {
+  const hex = (v, d) => (/^#[0-9a-f]{6}$/i.test(v || "") ? v : d);
+  const bg = hex(theme.bg, "#0c0a16");
+  const fg = hex(theme.accent, "#ff7a45");
+  return `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='${bg}'/><text x='50' y='68' font-family='Arial,sans-serif' font-size='60' font-weight='700' fill='${fg}' text-anchor='middle'>D</text></svg>`;
+}
 
-const FAVICON =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230c0a16'/%3E%3Ctext x='50' y='68' font-family='Arial,sans-serif' font-size='60' font-weight='700' fill='%23ff7a45' text-anchor='middle'%3ED%3C/text%3E%3C/svg%3E";
+function faviconDataUri(theme) {
+  return "data:image/svg+xml," + encodeURIComponent(faviconSvg(theme)).replace(/%20/g, " ").replace(/%3D/g, "=").replace(/%3A/g, ":").replace(/%2F/g, "/");
+}
+
+const FAVICON = faviconDataUri();
 
 // The top-level fetch() catch calls this directly — deliberately fully
 // self-contained (no DB reads for nav/theme/settings, no imports beyond
@@ -1724,6 +1734,9 @@ export function renderShell({
   if (theme.bg || theme.text) {
     themeVars.push("--bg-elevated:color-mix(in oklch, var(--bg), var(--text) 6%)");
     themeVars.push("--text-dim:color-mix(in oklch, var(--text) 68%, var(--bg))");
+    // No saved border ("Match theme" in Site Settings) = one derived from
+    // the chosen colors, not style.css's built-in violet.
+    if (!theme.border) themeVars.push("--border:color-mix(in oklch, var(--bg), var(--text) 16%)");
   }
   themeVars.push(...controlVars(theme));
   if (theme.font && FONT_STACKS[theme.font]) themeVars.push(`--font-family:${FONT_STACKS[theme.font]}`);
@@ -1813,7 +1826,7 @@ export function renderShell({
 ${keywords ? `<meta name="keywords" content="${esc(keywords)}">` : ""}
 ${noindex ? `<meta name="robots" content="noindex">` : ""}
 ${noindex ? "" : `<link rel="canonical" href="${esc(canonical)}">`}
-<link rel="icon" href="${FAVICON}">
+<link rel="icon" href="${faviconDataUri(theme)}">
 
 <meta property="og:type" content="${esc(ogType)}">
 <meta property="og:site_name" content="Dominick">

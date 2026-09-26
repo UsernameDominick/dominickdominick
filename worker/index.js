@@ -80,7 +80,7 @@ import {
   renderPreviewBannerHtml,
   renderBreadcrumbHtml,
   withCustomJsonLd,
-  FAVICON_SVG,
+  faviconSvg,
   renderErrorPageHtml,
   CONTROL_PRESETS,
 } from "./render.js";
@@ -1361,7 +1361,7 @@ async function route(request, env, ctx) {
     // rel="icon"> data-URI already in the page head — without this, every
     // single page load logs a 404 for it.
     if (path === "/favicon.ico") {
-      return new Response(FAVICON_SVG, { headers: { "Content-Type": "image/svg+xml", "Cache-Control": "public, max-age=86400" } });
+      return new Response(faviconSvg(await getTheme(env)), { headers: { "Content-Type": "image/svg+xml", "Cache-Control": "public, max-age=86400" } });
     }
 
     // Redirects for old URLs that no longer resolve on their own — checked

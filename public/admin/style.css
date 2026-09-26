@@ -2387,6 +2387,18 @@ code.color-field-value {
   margin-bottom: 14px;
 }
 
+.theme-border-auto {
+  display: flex !important;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.theme-color-field input[type="color"]:disabled {
+  opacity: 0.35;
+}
+
 .theme-color-field {
   display: flex !important;
   flex-direction: column;

@@ -875,7 +875,11 @@
             <label class="theme-color-field">Accent<input id="settings-accent" type="color" value="#ff7a45"></label>
             <label class="theme-color-field">Background<input id="settings-bg" type="color" value="#0c0a16"></label>
             <label class="theme-color-field">Text<input id="settings-text" type="color" value="#f4eefc"></label>
-            <label class="theme-color-field">Border<input id="settings-border" type="color" value="#2a2438"></label>
+            <div class="theme-color-field">
+              <label for="settings-border">Border</label>
+              <input id="settings-border" type="color" value="#2a2438">
+              <label class="theme-border-auto" title="Derive the border from the background and text colors instead of a fixed color"><input type="checkbox" id="settings-border-auto"> Match theme</label>
+            </div>
           </div>
           <div id="theme-contrast-check" class="theme-contrast-check"></div>
           </section>
