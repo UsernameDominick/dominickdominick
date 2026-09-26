@@ -211,12 +211,21 @@
 
   // ---------- Crop / select ----------
   function normalizedCrop(r) {
-    return {
-      x: Math.round(Math.min(r.x0, r.x1)),
-      y: Math.round(Math.min(r.y0, r.y1)),
-      w: Math.round(Math.abs(r.x1 - r.x0)),
-      h: Math.round(Math.abs(r.y1 - r.y0)),
-    };
+    // x/y and w/h are rounded independently here, but x0/y0/x1/y1 are
+    // continuous mouse-derived coordinates (see pointFromEvent) -- so a
+    // rect whose unrounded edges land exactly on the canvas boundary (the
+    // ratio-lock clamp in applyCropRatio deliberately produces exactly
+    // this when a drag is clamped against an edge) can round to a width
+    // one pixel past that edge. getImageData doesn't throw for that, it
+    // silently reads a transparent-black strip past the edge, so the
+    // extra pixel bakes a real (if 1px) defect into the crop instead of
+    // erroring. Clamping x/y first, then w/h against what's actually left
+    // of the canvas from there, keeps the final rect provably in-bounds.
+    const x = Math.max(0, Math.min(canvas.width, Math.round(Math.min(r.x0, r.x1))));
+    const y = Math.max(0, Math.min(canvas.height, Math.round(Math.min(r.y0, r.y1))));
+    const w = Math.max(0, Math.min(canvas.width - x, Math.round(Math.abs(r.x1 - r.x0))));
+    const h = Math.max(0, Math.min(canvas.height - y, Math.round(Math.abs(r.y1 - r.y0))));
+    return { x, y, w, h };
   }
 
   // Constrains a drag endpoint to a fixed aspect ratio, keeping x0/y0 as
@@ -275,7 +284,14 @@
   // to (applyCropRatio only runs during the drag itself, not on an
   // already-finished selection).
   $("pe-crop-ratio").addEventListener("change", () => {
-    if (!cropRect) return;
+    // Also guards on currentTool -- without it, switching to another tool
+    // (e.g. Erase) after drawing a selection and then changing the ratio
+    // "just to see" redraws the crop mask overlay (a full-canvas dark fill
+    // plus the dashed selection rect) on top of whatever tool is actually
+    // active, since setTool() doesn't clear cropRect when switching away
+    // from "select" -- it stays there until the next pointermove happens
+    // to clear the overlay for its own tool's reasons.
+    if (currentTool !== "select" || !cropRect) return;
     const constrained = applyCropRatio(cropRect.x0, cropRect.y0, cropRect.x1, cropRect.y1);
     cropRect.x1 = constrained.x1;
     cropRect.y1 = constrained.y1;

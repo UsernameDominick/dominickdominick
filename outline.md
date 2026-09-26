@@ -4770,6 +4770,17 @@ join, rather than building three separate systems.
 161. ✅ Export quality/size preview — done (see the dated entry below this section).
 169. Transparency preview vs backgrounds — checkerboard/color toggle behind canvas.
 174. Light/dark theme preview — wrap canvas container in themed class.
+- **(found by critic review of #92's crop-ratio feature)** `rotate90()`
+  and `flip()` in photo-editor.js never clear `cropRect` or hide the
+  Apply Crop button. A crop selection drawn before a rotate/flip survives
+  with stale coordinates against the new (possibly dimension-swapped, for
+  a 90° rotate) canvas, and applying it afterward can read past the new
+  bounds -- `getImageData` doesn't throw for that, it silently returns a
+  transparent-padded crop instead of the intended region. Predates the
+  crop-ratio feature (plain free-form crop already had this gap) and
+  isn't made worse by it, so not fixed as part of that diff. Small,
+  targeted fix: clear `cropRect` and hide `pe-apply-crop` at the top of
+  both functions, same as the reset-to-original path already does.
 
 ### Photo Editor — Medium
 4, 7, 9, 10, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 29, 30, 35, 36, 37,
@@ -6949,3 +6960,67 @@ produced a square crop (36x36) rather than a non-square one truncated by
 the edge clamp or a crop that silently ignored the edge and tried to
 read out-of-bounds pixel data. Full regression suite green; test upload
 deleted and confirmed gone.
+
+Sent to a critic pass on commit dbd352d. Scored 5/10 -- the ratio-locking
+math itself was confirmed correct (hand-traced and proved algebraically
+that the two-pass clamp can only shrink, never regrow, so it can't
+overflow the canvas or break the ratio), and "Free" mode confirmed as a
+provable no-op passthrough, but two real bugs shipped anyway:
+
+1. `normalizedCrop()` independently rounds x/y and w/h from continuous,
+   mouse-derived coordinates -- fine on its own, but the new ratio-lock
+   clamp deliberately produces rectangles whose *unrounded* edge lands
+   exactly on the canvas boundary whenever a drag is clamped there (a
+   very ordinary gesture: dragging to the edge at a fixed ratio). Two
+   independent roundings of numbers that were only equal as floats could
+   push the rounded width one pixel past the canvas edge. `getImageData`
+   doesn't throw for that, it silently returns transparent-black for the
+   out-of-range pixels, so the applied crop got a 1px fully-transparent
+   strip baked into it on what should have been an exact-ratio edge crop.
+2. The `pe-crop-ratio` "change" handler only checked `if (!cropRect)`,
+   not whether the "select" tool was even still active. `setTool()`
+   never clears `cropRect` when switching to a different tool, so
+   drawing a selection, switching to e.g. Erase, and then changing the
+   ratio dropdown "just to see" redrew the full-canvas dark crop-mask
+   overlay on top of whatever tool was actually active -- it stayed
+   there until the next pointermove over the canvas happened to clear it
+   for an unrelated reason.
+
+Both fixed: `normalizedCrop()` now clamps x/y to the canvas first, then
+clamps w/h to whatever's actually left of the canvas from there (rather
+than rounding the raw drag distance independently), which provably keeps
+the returned rect in-bounds regardless of where its unrounded edges
+landed -- this also hardens the pre-existing free-form crop path against
+the same 1px overflow, not just the new ratio-locked one. The ratio
+dropdown's change handler now also checks `currentTool !== "select"`
+before touching the overlay.
+
+The critic also surfaced a third, pre-existing issue not introduced by
+this feature and not fixed here: `rotate90()`/`flip()` never clear
+`cropRect` or hide the Apply Crop button, so a selection drawn before a
+rotate/flip survives with stale coordinates against the new (possibly
+dimension-swapped) canvas, and applying it afterward can read past the
+new bounds the same silent-transparent-padding way. This already existed
+for plain free-form crop before this commit, so it's not a regression
+from #92 -- logged here as a Photo Editor Easy/Medium item worth its own
+small fix (clear `cropRect` and hide `pe-apply-crop` at the top of both
+`rotate90()` and `flip()`), tracked separately rather than expanding this
+diff's scope.
+
+Re-verified via Playwright on a 1000x1000 test image: a 1:1 drag from a
+deliberately fractional anchor (10.3, 10.3) dragged 500px past both
+canvas edges now produces an equal, in-bounds crop (979x979) instead of
+a 1px-overflowing one; drawing a selection, switching to the Erase tool,
+and changing the ratio dropdown now leaves the overlay canvas empty
+(sampled for any nonzero alpha) with Erase still the active tool, instead
+of painting the stale crop mask over it. The original round-1 tests
+(dropdown resets to Free, 1:1/16:9 ratio-locked drags, near-corner
+clamping) were re-run unchanged and still pass, confirming no regression
+from the fix. Full regression suite green; test uploads deleted and
+confirmed gone.
+
+Item #92 is done: 1 critic round, 5/10, both real findings fixed and
+verified live (including hardening the pre-existing free-form crop path
+against the same rounding bug), with the third finding (stale cropRect
+surviving rotate/flip) logged as a separate pre-existing Photo Editor
+item rather than expanding this diff.
