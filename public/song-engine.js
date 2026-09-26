@@ -57,11 +57,13 @@ window.SongEngine = (function () {
   // different song into an AudioContext that's still holding the
   // previous song's gain value -- rather than waiting for the next
   // scheduled step to pick it up.
-  // A read-only metering tap off the master gain, for a live peak meter --
-  // never connected onward to ctx.destination itself, so it doesn't add a
-  // second copy of the audio to the output, just observes the same signal
-  // everything else already hears. One per AudioContext, same rationale as
-  // the master gain itself.
+  // A read-only metering tap off the master gain, backing both the live
+  // peak meter and the RMS (average loudness) meter -- both read the same
+  // underlying time-domain samples each animation frame. Never connected
+  // onward to ctx.destination itself, so it doesn't add a second copy of
+  // the audio to the output, just observes the same signal everything
+  // else already hears. One per AudioContext, same rationale as the
+  // master gain itself.
   const peakMeterAnalysers = new WeakMap();
   function getPeakMeterAnalyser(ctx) {
     let analyser = peakMeterAnalysers.get(ctx);

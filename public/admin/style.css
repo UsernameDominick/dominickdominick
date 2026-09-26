@@ -2550,6 +2550,13 @@ kbd {
 .song-peak-meter-fill.song-peak-meter-clip {
   background: #ff4d3d;
 }
+/* RMS (average loudness) sits alongside the peak meter, sharing the same
+   box styling but a distinct color -- it's always lower than the peak
+   reading for any real musical signal, which is expected (that gap is
+   itself informationally useful, not a mismatch to fix). */
+.song-rms-meter-fill {
+  background: #4da6ff;
+}
 
 .song-sequencer {
   display: flex;

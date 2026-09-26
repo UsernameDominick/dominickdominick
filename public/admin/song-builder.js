@@ -341,16 +341,19 @@
     scheduleAutosave();
   });
 
-  // Live peak meter -- reads the real master-bus signal via a metering
-  // AnalyserNode tapped off the master gain (see song-engine.js), not a
-  // decorative animation driven by note data. requestAnimationFrame
-  // rather than a fixed setInterval since this is purely visual and
-  // should track the display's own refresh rate.
-  // Covers this engine's longest realistic decay tail after scheduling
-  // stops: up to 0.1s (SCHEDULE_AHEAD_S in song-engine.js) for an
-  // already-scheduled note to actually start, plus up to ~0.6s for the
-  // slowest kit's kick decay (the "808" kit's kickDecay 0.55s + its own
-  // 0.05s stop buffer) to finish ringing out.
+  // Live peak + RMS meters -- both read the real master-bus signal via the
+  // same metering AnalyserNode tapped off the master gain (see
+  // song-engine.js), not a decorative animation driven by note data. One
+  // shared requestAnimationFrame loop drives both bars from the same
+  // buffer read each frame (RMS = root-mean-square, the average-loudness
+  // companion figure a peak reading alone doesn't give -- it's always
+  // lower than the peak for any real musical signal, which is expected,
+  // not a bug in either meter).
+  // PEAK_METER_DRAIN_MS covers this engine's longest realistic decay tail
+  // after scheduling stops: up to 0.1s (SCHEDULE_AHEAD_S in
+  // song-engine.js) for an already-scheduled note to actually start, plus
+  // up to ~0.6s for the slowest kit's kick decay (the "808" kit's
+  // kickDecay 0.55s + its own 0.05s stop buffer) to finish ringing out.
   const PEAK_METER_DRAIN_MS = 800;
   let peakMeterRaf = null;
   let peakMeterDrainTimer = null;
@@ -360,14 +363,22 @@
     if (peakMeterRaf) return; // already running -- e.g. Stop then Play again before the drain finished
     const analyser = Engine.getPeakMeterAnalyser(getAudioCtx());
     const buffer = new Float32Array(analyser.fftSize);
-    const fill = $("song-peak-meter-fill");
+    const peakFill = $("song-peak-meter-fill");
+    const rmsFill = $("song-rms-meter-fill");
     function tick() {
       analyser.getFloatTimeDomainData(buffer);
       let peak = 0;
-      for (let i = 0; i < buffer.length; i++) peak = Math.max(peak, Math.abs(buffer[i]));
-      const pct = Math.min(100, Math.round(peak * 100));
-      fill.style.width = pct + "%";
-      fill.classList.toggle("song-peak-meter-clip", peak >= 0.98);
+      let sumSquares = 0;
+      for (let i = 0; i < buffer.length; i++) {
+        const v = buffer[i];
+        const abs = Math.abs(v);
+        if (abs > peak) peak = abs;
+        sumSquares += v * v;
+      }
+      const rms = Math.sqrt(sumSquares / buffer.length);
+      peakFill.style.width = Math.min(100, Math.round(peak * 100)) + "%";
+      peakFill.classList.toggle("song-peak-meter-clip", peak >= 0.98);
+      rmsFill.style.width = Math.min(100, Math.round(rms * 100)) + "%";
       peakMeterRaf = requestAnimationFrame(tick);
     }
     tick();
@@ -378,16 +389,17 @@
     // decaying on their own for up to PEAK_METER_DRAIN_MS. A critic pass
     // found that hard-resetting the meter to 0% the instant Stop is
     // clicked visibly disagreed with drum/melody sound that was still
-    // actually audible. Keep the same rAF loop running so the meter
-    // keeps tracking the real, decaying signal, and only reset once the
+    // actually audible. Keep the same rAF loop running so both meters
+    // keep tracking the real, decaying signal, and only reset once the
     // tail has had time to finish.
     clearTimeout(peakMeterDrainTimer);
     peakMeterDrainTimer = setTimeout(() => {
       if (peakMeterRaf) cancelAnimationFrame(peakMeterRaf);
       peakMeterRaf = null;
-      const fill = $("song-peak-meter-fill");
-      fill.style.width = "0%";
-      fill.classList.remove("song-peak-meter-clip");
+      const peakFill = $("song-peak-meter-fill");
+      peakFill.style.width = "0%";
+      peakFill.classList.remove("song-peak-meter-clip");
+      $("song-rms-meter-fill").style.width = "0%";
     }, PEAK_METER_DRAIN_MS);
   }
 
