@@ -10248,3 +10248,35 @@ scaling effect rather than being cosmetic. Ran the full
 `test_security_seo.js` regression suite — all passed. No test data was
 created (only in-memory canvas pixels of an existing library image,
 undone before the test ends).
+
+Handed to a critic agent for scoring: **9/10 — ships.** Confirmed the
+noise formula's math traces correctly to a `[-amount, +amount)` range,
+confirmed the explicit clamp is redundant-but-harmless given
+`Uint8ClampedArray`'s own automatic clamp-and-round write behavior,
+confirmed exactly one `Math.random()` call per pixel shared across all
+three channels (matching the monochromatic-grain intent, not
+independent per-channel noise), confirmed `pushUndo()`/`isComparing()`/
+`cancelActiveDrag()` are placed byte-for-byte in the same order as the
+pre-existing `applyOneShotFilter` (no reintroduction of the
+stale-drag-resume bug a prior critic pass on this same file already
+fixed), and confirmed the transparency-preview checkerboard is a pure
+CSS class toggle that never reads canvas pixel data, so grain touching
+RGB under fully-transparent pixels has no visible interaction. One
+finding worth recording precisely because the critic caught the task
+framing being slightly off: this editor is NOT guaranteed same-origin
+(`PhotoEditor.open()` explicitly supports external images via
+`crossOrigin="anonymous"`), so a `SecurityError` on `getImageData` is a
+real, reachable failure mode in principle — but the critic confirmed
+this risk already exists identically at two pre-existing call sites
+(crop-apply, the eyedropper) with no try/catch at either, so grain adds
+a third call site to an already-existing, already-accepted gap rather
+than introducing a new one; not treated as a blocker for this specific
+feature, but worth a note for a future cross-origin-hardening pass
+across all three sites. Two other minor/optional notes, both consistent
+with existing conventions rather than regressions: no live numeric
+readout on the grain slider (matching Brightness/Contrast/Saturation,
+which also lack one) and no busy-indicator for a large-image grain pass
+(matching every other `getImageData`/`putImageData` operation in this
+file, none of which have one either).
+
+Item #129 is done: 1 critic round, 9/10 on the first pass.
