@@ -3573,7 +3573,8 @@ kbd {
     grid-column: 2;
     grid-row: 1;
   }
-  .simulation-builder-inner #close-simulation-builder {
+  .simulation-builder-inner #close-simulation-builder,
+  .simulation-builder-inner #close-song-builder {
     grid-column: 3;
     grid-row: 1;
   }
@@ -3633,7 +3634,8 @@ kbd {
   cursor: default;
 }
 
-#save-simulation {
+#save-simulation,
+#save-song {
   background: var(--accent) !important;
   color: var(--on-accent) !important;
   border: none !important;
@@ -3876,6 +3878,18 @@ kbd {
    a border-color change alone wasn't visually distinct enough. */
 .song-step-beat:not(:first-child) {
   margin-left: 8px;
+}
+
+/* Phones: 16 steps at a tappable 32px can't fit one row (596px in a
+   ~358px panel), so the pattern wraps to two rows of eight -- two beats
+   per row, still grouped by the beat gap. */
+@media (max-width: 640px) {
+  .song-steps {
+    grid-template-columns: repeat(8, 1fr);
+  }
+  .song-steps > .song-step:nth-child(9) {
+    margin-left: 0;
+  }
 }
 
 .song-step-on {
@@ -4378,7 +4392,8 @@ kbd {
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   }
 
-  #close-simulation-builder {
+  #close-simulation-builder,
+  #close-song-builder {
     order: -1;
   }
 
@@ -5721,5 +5736,52 @@ kbd {
   .simulation-builder-inner .sim-toolbar-group-buttons > .sim-snap-label + button {
     margin-left: 0;
     border-radius: var(--control-radius);
+  }
+}
+
+/* Song builder header: same labeled panel groups as the simulation
+   builder, but each holds mixed controls (sliders, selects, labels), so
+   they flow with gaps instead of forming one connected strip. */
+.song-group-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.song-meter-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--field-radius);
+}
+
+.song-meter-label {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+.song-toolbar .song-autosave-status:empty {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .song-toolbar .sim-toolbar-groups {
+    order: 1;
+  }
+  .song-meter-group {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+  }
+  .song-meter-group .song-spectrum {
+    flex: 1 1 0;
+    min-width: 0;
+    width: 60px;
+  }
+  .song-group-controls > * {
+    flex: 1 1 auto;
   }
 }

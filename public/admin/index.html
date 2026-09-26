@@ -1434,51 +1434,78 @@
 
   <div id="song-builder-modal" class="modal" hidden>
     <div class="modal-inner simulation-builder-inner">
-      <header>
+      <header class="sim-toolbar song-toolbar">
         <input id="song-name" class="simulation-name-input" placeholder="Song name">
-        <label class="song-tempo-label">BPM<input type="number" id="song-tempo" min="40" max="240" value="120"></label>
-        <select id="song-kit">
-          <option value="acoustic">Acoustic kit</option>
-          <option value="electronic">Electronic kit</option>
-          <option value="808">808 kit</option>
-        </select>
-        <select id="song-waveform" title="Melody instrument waveform" aria-label="Melody instrument waveform">
-          <option value="sine">Sine</option>
-          <option value="square">Square</option>
-          <option value="sawtooth">Sawtooth</option>
-          <option value="triangle">Triangle</option>
-        </select>
-        <select id="song-visualization" title="Public page visualization" aria-label="Public page visualization">
-          <option value="bars">Bars</option>
-          <option value="waveform">Waveform</option>
-          <option value="pulse">Pulse</option>
-        </select>
-        <select id="song-theme" title="Player color theme" aria-label="Player color theme">
-          <option value="default">Default theme</option>
-          <option value="sunset">Sunset</option>
-          <option value="ocean">Ocean</option>
-          <option value="mono">Mono</option>
-          <option value="neon">Neon</option>
-        </select>
-        <label class="song-record-label" title="Also flash the whole page in time with the beat, not just the block">
-          <input type="checkbox" id="song-page-sync">Sync page background
-        </label>
-        <label class="song-tempo-label" title="Master volume">Vol<input type="range" id="song-master-volume" min="0" max="100" value="100"></label>
-        <label class="song-tempo-label" title="Adds a small random timing nudge to each drum hit and melody note, independently, so playback feels less mechanically quantized. 0 = perfectly on-grid.">Humanize<input type="range" id="song-humanize" min="0" max="100" value="0"></label>
-        <div id="song-peak-meter" class="song-peak-meter" title="Live master peak level while playing"><div id="song-peak-meter-fill" class="song-peak-meter-fill"></div></div>
-        <div id="song-rms-meter" class="song-peak-meter" title="Live master RMS (average loudness) while playing"><div id="song-rms-meter-fill" class="song-peak-meter-fill song-rms-meter-fill"></div></div>
-        <canvas id="song-spectrum" class="song-spectrum" width="120" height="24" title="Live frequency spectrum of the master bus while playing"></canvas>
-        <button type="button" id="song-normalize-peak" title="Scan the song's actual synthesized peak level and set master volume so overlapping drum/melody hits don't clip">Normalize to peak</button>
-        <button type="button" id="song-play">▶ Play</button>
-        <button type="button" id="song-midi-connect" hidden>🎹 Connect MIDI</button>
-        <label class="song-record-label" id="song-record-label" hidden title="Also works with the ZXCVBNM/QWERTYU computer-keyboard note keys below, not just a connected MIDI device"><input type="checkbox" id="song-record">⏺ Record into piano roll</label>
-        <span id="song-autosave-status" class="song-autosave-status"></span>
-        <button type="button" id="song-export-report" title="Download a plain-text summary of this song's settings and note counts">Export report</button>
-        <button type="button" id="song-generate-cover-art" title="Render this song's waveform as a 1200x630 cover image and add it to the Media Library">Generate cover art</button>
-        <button type="button" id="song-snapshot-mix" title="Save the current in-progress mix as a new, separate song -- lets you try a different direction without losing this exact version, even if it hasn't been saved yet">Snapshot mix</button>
-        <button type="button" id="save-song">Save</button>
-        <button type="button" id="save-song-template-btn" title="Save this song as a reusable starting point">Save as template</button>
+        <div class="sim-toolbar-group sim-toolbar-group-save">
+          <span class="sim-toolbar-group-label">Save</span>
+          <div class="song-group-controls">
+            <button type="button" id="save-song">Save</button>
+            <button type="button" id="save-song-template-btn" title="Save this song as a reusable starting point">Save as template</button>
+            <span id="song-autosave-status" class="song-autosave-status"></span>
+          </div>
+        </div>
         <button id="close-song-builder">×</button>
+        <div class="sim-toolbar-groups">
+          <div class="sim-toolbar-group" data-group="transport">
+            <span class="sim-toolbar-group-label">Transport</span>
+            <div class="song-group-controls">
+              <button type="button" id="song-play">▶ Play</button>
+              <label class="song-tempo-label" title="Master volume">Vol<input type="range" id="song-master-volume" min="0" max="100" value="100"></label>
+              <span class="song-meter-group" title="Live output while playing: peak, average loudness, and spectrum"><span class="song-meter-label">Level</span><div id="song-peak-meter" class="song-peak-meter" title="Live master peak level while playing"><div id="song-peak-meter-fill" class="song-peak-meter-fill"></div></div>
+              <div id="song-rms-meter" class="song-peak-meter" title="Live master RMS (average loudness) while playing"><div id="song-rms-meter-fill" class="song-peak-meter-fill song-rms-meter-fill"></div></div>
+              <canvas id="song-spectrum" class="song-spectrum" width="120" height="24" title="Live frequency spectrum of the master bus while playing"></canvas></span>
+              <button type="button" id="song-normalize-peak" title="Scan the song's actual synthesized peak level and set master volume so overlapping drum/melody hits don't clip">Normalize to peak</button>
+              <button type="button" id="song-midi-connect" hidden>🎹 Connect MIDI</button>
+              <label class="song-record-label" id="song-record-label" hidden title="Also works with the ZXCVBNM/QWERTYU computer-keyboard note keys below, not just a connected MIDI device"><input type="checkbox" id="song-record">⏺ Record into piano roll</label>
+            </div>
+          </div>
+          <div class="sim-toolbar-group" data-group="sound">
+            <span class="sim-toolbar-group-label">Sound</span>
+            <div class="song-group-controls">
+              <label class="song-tempo-label">BPM<input type="number" id="song-tempo" min="40" max="240" value="120"></label>
+              <select id="song-kit">
+              <option value="acoustic">Acoustic kit</option>
+              <option value="electronic">Electronic kit</option>
+              <option value="808">808 kit</option>
+              </select>
+              <select id="song-waveform" title="Melody instrument waveform" aria-label="Melody instrument waveform">
+              <option value="sine">Sine</option>
+              <option value="square">Square</option>
+              <option value="sawtooth">Sawtooth</option>
+              <option value="triangle">Triangle</option>
+              </select>
+              <label class="song-tempo-label" title="Adds a small random timing nudge to each drum hit and melody note, independently, so playback feels less mechanically quantized. 0 = perfectly on-grid.">Humanize<input type="range" id="song-humanize" min="0" max="100" value="0"></label>
+            </div>
+          </div>
+          <div class="sim-toolbar-group" data-group="look">
+            <span class="sim-toolbar-group-label">Player look</span>
+            <div class="song-group-controls">
+              <select id="song-visualization" title="Public page visualization" aria-label="Public page visualization">
+              <option value="bars">Bars</option>
+              <option value="waveform">Waveform</option>
+              <option value="pulse">Pulse</option>
+              </select>
+              <select id="song-theme" title="Player color theme" aria-label="Player color theme">
+              <option value="default">Default theme</option>
+              <option value="sunset">Sunset</option>
+              <option value="ocean">Ocean</option>
+              <option value="mono">Mono</option>
+              <option value="neon">Neon</option>
+              </select>
+              <label class="song-record-label" title="Also flash the whole page in time with the beat, not just the block">
+              <input type="checkbox" id="song-page-sync">Sync page background
+              </label>
+            </div>
+          </div>
+          <div class="sim-toolbar-group" data-group="export">
+            <span class="sim-toolbar-group-label">Export</span>
+            <div class="song-group-controls">
+              <button type="button" id="song-export-report" title="Download a plain-text summary of this song's settings and note counts">Export report</button>
+              <button type="button" id="song-generate-cover-art" title="Render this song's waveform as a 1200x630 cover image and add it to the Media Library">Generate cover art</button>
+              <button type="button" id="song-snapshot-mix" title="Save the current in-progress mix as a new, separate song -- lets you try a different direction without losing this exact version, even if it hasn't been saved yet">Snapshot mix</button>
+            </div>
+          </div>
+        </div>
       </header>
       <div class="song-builder-body">
         <h2 class="song-section-heading">Preview (as it appears on the page)</h2>
