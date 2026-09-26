@@ -67,7 +67,18 @@ window.SongEngine = (function () {
     let analyser = peakMeterAnalysers.get(ctx);
     if (!analyser) {
       analyser = ctx.createAnalyser();
-      analyser.fftSize = 256; // small and fast -- a peak level doesn't need spectral resolution
+      // 2048 (not a smaller, "faster" size) is deliberate: a critic pass
+      // found that at 256 samples, each poll only covers ~5.8ms of audio
+      // while requestAnimationFrame polls roughly every ~16.7ms (60fps) --
+      // leaving most of the audio between polls unsampled and able to
+      // scroll out of the analyser's buffer unread, so a brief drum
+      // transient landing in an unpolled gap could be silently missed
+      // entirely (a "peak meter" that can under-report the true peak
+      // defeats its own purpose). At 2048 samples (~46ms of audio at a
+      // typical 44.1kHz context), each poll's window is wider than the
+      // gap between polls, so consecutive windows overlap and nothing
+      // slips through unsampled.
+      analyser.fftSize = 2048;
       getMasterGain(ctx).connect(analyser);
       peakMeterAnalysers.set(ctx, analyser);
     }

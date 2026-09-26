@@ -346,8 +346,18 @@
   // decorative animation driven by note data. requestAnimationFrame
   // rather than a fixed setInterval since this is purely visual and
   // should track the display's own refresh rate.
+  // Covers this engine's longest realistic decay tail after scheduling
+  // stops: up to 0.1s (SCHEDULE_AHEAD_S in song-engine.js) for an
+  // already-scheduled note to actually start, plus up to ~0.6s for the
+  // slowest kit's kick decay (the "808" kit's kickDecay 0.55s + its own
+  // 0.05s stop buffer) to finish ringing out.
+  const PEAK_METER_DRAIN_MS = 800;
   let peakMeterRaf = null;
+  let peakMeterDrainTimer = null;
   function startPeakMeter() {
+    clearTimeout(peakMeterDrainTimer);
+    peakMeterDrainTimer = null;
+    if (peakMeterRaf) return; // already running -- e.g. Stop then Play again before the drain finished
     const analyser = Engine.getPeakMeterAnalyser(getAudioCtx());
     const buffer = new Float32Array(analyser.fftSize);
     const fill = $("song-peak-meter-fill");
@@ -363,11 +373,22 @@
     tick();
   }
   function stopPeakMeter() {
-    if (peakMeterRaf) cancelAnimationFrame(peakMeterRaf);
-    peakMeterRaf = null;
-    const fill = $("song-peak-meter-fill");
-    fill.style.width = "0%";
-    fill.classList.remove("song-peak-meter-clip");
+    // player.stop() only clears the step-scheduling timer -- it doesn't
+    // stop already-triggered oscillators/buffer sources, which keep
+    // decaying on their own for up to PEAK_METER_DRAIN_MS. A critic pass
+    // found that hard-resetting the meter to 0% the instant Stop is
+    // clicked visibly disagreed with drum/melody sound that was still
+    // actually audible. Keep the same rAF loop running so the meter
+    // keeps tracking the real, decaying signal, and only reset once the
+    // tail has had time to finish.
+    clearTimeout(peakMeterDrainTimer);
+    peakMeterDrainTimer = setTimeout(() => {
+      if (peakMeterRaf) cancelAnimationFrame(peakMeterRaf);
+      peakMeterRaf = null;
+      const fill = $("song-peak-meter-fill");
+      fill.style.width = "0%";
+      fill.classList.remove("song-peak-meter-clip");
+    }, PEAK_METER_DRAIN_MS);
   }
 
   function startPlayback() {
