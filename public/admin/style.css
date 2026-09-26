@@ -2890,6 +2890,25 @@ kbd {
   color: #fff;
 }
 
+#sim-continuity-test.is-active {
+  background: #2dd4bf;
+  color: #fff;
+}
+
+.sim-continuity-result {
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sim-continuity-result.sim-continuity-yes {
+  color: #2dd4bf;
+}
+
+.sim-continuity-result.sim-continuity-no {
+  color: #ff4d4d;
+}
+
 @media (max-width: 860px) {
   .simulation-builder-inner header {
     flex-wrap: wrap;

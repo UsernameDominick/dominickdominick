@@ -9,6 +9,15 @@
   let simData = { components: [], wires: [] };
   let selected = null; // { kind: "component" | "wire", id }
   let wireStart = null; // { compId, pin }
+  // ---------- Continuity tester ----------
+  // A toggle mode rather than a modifier key or separate always-on tool,
+  // matching showDisconnected/showGhostWires elsewhere in this file --
+  // pin clicks otherwise always mean "start/finish a wire," so this needs
+  // an explicit mode switch rather than trying to layer a second meaning
+  // onto the same click.
+  let continuityMode = false;
+  let continuityProbe = null; // { compId, pin, node }
+  let continuityNetNodes = null; // net highlighted after a "connected" result, cleared on the next probe
   let previewOn = false;
   let localIdCounter = 1;
   let placeX = 20;
@@ -299,6 +308,11 @@
     showGhostWires = false;
     gridSnapSize = 5;
     $("sim-grid-snap").value = "5";
+    continuityMode = false;
+    continuityProbe = null;
+    continuityNetNodes = null;
+    $("sim-continuity-result").textContent = "";
+    $("sim-continuity-result").classList.remove("sim-continuity-yes", "sim-continuity-no");
     zoomLevel = defaultZoomLevel();
     placeX = 20;
     placeY = 20;
@@ -474,7 +488,9 @@
     const def = REG[comp.type];
     return def.pins
       .map((p) => {
-        const active = wireStart && wireStart.compId === comp.id && wireStart.pin === p.id;
+        const active =
+          (wireStart && wireStart.compId === comp.id && wireStart.pin === p.id) ||
+          (continuityProbe && continuityProbe.compId === comp.id && continuityProbe.pin === p.id);
         const disconnected = showDisconnected && !isPinConnected(comp.id, p.id);
         const inNet = netNodeIds && netNodeIds.has(window.simNodeId(comp, p.id));
         return `<circle class="sim-pin${active ? " sim-pin-active" : ""}${
@@ -498,6 +514,8 @@
       const w = simData.wires.find((x) => x.id === selected.id);
       const fromComp = w && simData.components.find((c) => c.id === w.from.compId);
       if (fromComp) netNodeIds = wireOnlyNetNodes(window.simNodeId(fromComp, w.from.pin));
+    } else if (continuityNetNodes) {
+      netNodeIds = continuityNetNodes;
     }
     const wiresSvg = simData.wires.map((w) => renderWireSvg(w, poweredWires, netNodeIds)).join("");
     const compsSvg = simData.components.map((c) => renderComponentSvg(c, poweredComps, analysis)).join("");
@@ -532,6 +550,7 @@
     // button's DOM class on its own -- can't leave a stale "active" look
     // on a toggle that's actually back off.
     $("sim-show-ghost-wires").classList.toggle("is-active", showGhostWires);
+    $("sim-continuity-test").classList.toggle("is-active", continuityMode);
   }
 
   $("sim-show-disconnected").addEventListener("click", () => {
@@ -548,6 +567,22 @@
   // during the next drag, not anything currently on screen.
   $("sim-grid-snap").addEventListener("change", (e) => {
     gridSnapSize = Number(e.target.value) || 0;
+  });
+
+  $("sim-continuity-test").addEventListener("click", () => {
+    continuityMode = !continuityMode;
+    // Clearing wireStart too: leaving a half-drawn wire in progress while
+    // switching into continuity mode would mean the next pin click (now
+    // interpreted as a continuity probe) never finishes that wire, but
+    // the stale wireStart would still render its own "active" highlight
+    // on the original pin, which is confusing next to a mode that no
+    // longer draws wires at all.
+    wireStart = null;
+    continuityProbe = null;
+    continuityNetNodes = null;
+    $("sim-continuity-result").textContent = "";
+    $("sim-continuity-result").classList.remove("sim-continuity-yes", "sim-continuity-no");
+    renderBuilder();
   });
 
   function svgPoint(evt) {
@@ -608,6 +643,7 @@
         // A plain click on empty canvas — deselect, same as before.
         selected = null;
         wireStart = null;
+        continuityProbe = null;
         renderInspector();
         renderBuilder();
         return;
@@ -827,11 +863,51 @@
     g.addEventListener("pointerup", onUp);
   }
 
+  // A thin wrapper around the same wire-tied-net BFS wireOnlyNetNodes()
+  // already computes for the wire-selection highlight -- "continuity"
+  // between two probed pins is exactly "are they in the same wire-only
+  // net," no separate solver logic needed.
+  function handleContinuityClick(compId, pin) {
+    const comp = simData.components.find((c) => c.id === compId);
+    if (!comp) return;
+    const node = window.simNodeId(comp, pin);
+    if (!continuityProbe) {
+      continuityProbe = { compId, pin, node };
+      continuityNetNodes = null;
+      $("sim-continuity-result").textContent = "Probe set on one pin -- click a second pin to test continuity.";
+      $("sim-continuity-result").classList.remove("sim-continuity-yes", "sim-continuity-no");
+      renderBuilder();
+      return;
+    }
+    if (continuityProbe.compId === compId && continuityProbe.pin === pin) {
+      // Clicking the same pin twice cancels the probe rather than
+      // reporting "connected to itself," which isn't a meaningful
+      // continuity result.
+      continuityProbe = null;
+      $("sim-continuity-result").textContent = "";
+      $("sim-continuity-result").classList.remove("sim-continuity-yes", "sim-continuity-no");
+      renderBuilder();
+      return;
+    }
+    const netNodes = wireOnlyNetNodes(continuityProbe.node);
+    const isConnected = netNodes.has(node);
+    $("sim-continuity-result").textContent = isConnected ? "Connected" : "Not connected";
+    $("sim-continuity-result").classList.toggle("sim-continuity-yes", isConnected);
+    $("sim-continuity-result").classList.toggle("sim-continuity-no", !isConnected);
+    continuityNetNodes = isConnected ? netNodes : null;
+    continuityProbe = null;
+    renderBuilder();
+  }
+
   function onPinClick(e) {
     e.stopPropagation();
     const dot = e.currentTarget;
     const compId = dot.dataset.comp;
     const pin = dot.dataset.pin;
+    if (continuityMode) {
+      handleContinuityClick(compId, pin);
+      return;
+    }
     if (!wireStart) {
       wireStart = { compId, pin };
       renderBuilder();

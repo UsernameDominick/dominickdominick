@@ -4933,7 +4933,7 @@ substantial new infra + security surface).
 415-416. Current source / battery internal resistance — extra numeric fields feeding existing Ohm's-law path.
 427. Power dissipation — already computed for resistor/LED; extend to more types.
 431-432. Voltage/current meter — read existing `analysis` results into a display component.
-434. Continuity tester — thin wrapper around existing `connected()` BFS check.
+434. ✅ Continuity tester — done (see the dated entry below this section).
 441. Basic logic gates (static icons only, no dynamic sim) — new component type.
 445. Truth-table editor — simple UI table bound to a gate's static behavior.
 463. Potentiometer — new component with a value slider, no new solver needed.
@@ -7099,3 +7099,46 @@ Item #375 is done: implemented and verified with a single 9/10 critic
 round and no real findings -- confirms the earlier note that "small"
 doesn't guarantee a critic pass is unnecessary, but this one held up
 clean on the first submission.
+
+### Twenty-first item: #434, simulation builder continuity tester
+
+Added a "Continuity test" toggle mode to the simulation builder,
+mirroring a real multimeter's continuity check: click one pin, then a
+second pin, and it reports "Connected" or "Not connected" based on
+whether they're on the same wire-tied net. Built as a genuinely thin
+wrapper as the backlog item predicted: `handleContinuityClick()` reuses
+`wireOnlyNetNodes()` (the wires-only BFS #398's net-highlight feature
+already built earlier this session) unchanged -- "are these two pins
+continuous" is exactly "are they in the same wire-only net," no new
+solver logic needed.
+
+Implementation notes: a toggle button (matching the existing
+showDisconnected/showGhostWires pattern) rather than a modifier key or
+separate always-on tool, since a pin click otherwise always means
+"start/finish a wire" and needed an explicit mode switch to mean
+something else instead. Turning the mode on clears any in-progress wire
+draw (`wireStart`) so a half-drawn wire can't linger showing its own
+stale "active" pin highlight once pin clicks stop meaning "draw a wire."
+Clicking the same pin twice cancels the probe rather than reporting a
+meaningless "connected to itself." A successful "Connected" result
+reuses the existing net-highlight rendering path (the same
+`netNodeIds`/`sim-net-highlight` machinery #398 built) to visually trace
+the whole net, not just flash a text label. Deselecting to empty canvas
+also clears an in-progress probe, and the whole mode resets (off, no
+probe, no result text) every time the builder opens, matching the
+existing precedent for per-session UI toggles.
+
+Tested via Playwright: wired two components' pins together, left a
+third unconnected; toggling continuity mode on and probing the two wired
+pins correctly reported "Connected" (with the net-highlight class
+applied) and created zero new wires in the process (confirming the mode
+switch actually suppresses wire-drawing, not just relabels the button);
+probing one of the wired pins against the unconnected third component
+correctly reported "Not connected"; clicking the same pin twice
+correctly cleared the probe with no result shown; and toggling the mode
+back off and clicking two pins resumed normal wire-drawing (wire count
+went from 1 to 2). No server-side state was touched (the test simulation
+was never saved), so no cleanup was needed. Full regression suite green.
+
+Sent to a critic pass next per the standing workflow before calling it
+done.
