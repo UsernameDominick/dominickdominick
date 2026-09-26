@@ -10179,3 +10179,33 @@ existing full-strength brush behavior. Ran the full `test_security_seo.js`
 regression suite — all passed. No test data was created (only in-memory
 canvas pixels of an existing library image, undone before the test
 ends).
+
+Handed to a critic agent for scoring: **9/10 — ships.** Confirmed the
+clamp expression's operator precedence is genuinely correct, not just
+accidentally so — `Number(...) || 100` evaluates as a single
+sub-expression before ever reaching `Math.min`/`Math.max`, so a `NaN`
+input is replaced by `100` before the clamp runs, sidestepping the
+`Math.max(1, NaN) === NaN` trap the critic prompt specifically raised.
+Confirmed against the pre-change diff that `globalAlpha` was inserted
+INSIDE the erase branch's pre-existing `save()`/`restore()` pair (no
+leakage) and that the non-erase branch's `save()`/`restore()` wrapping
+the final `drawImage` is genuinely new, not a duplicate of an
+already-existing pair (the prior code had a bare, unwrapped
+`drawImage`). Confirmed single-drag self-overlap correctly gets one
+uniform opacity rather than double-applying, since the mask canvas
+itself stays flatly opaque regardless of overlapping segments (opaque
+`source-over` painted onto opaque), with `globalAlpha` applied exactly
+once at the final composite. Confirmed the default value of 100
+produces an exact `1.0` with zero float drift and zero behavioral
+change from the pre-existing (unset-globalAlpha) code path. Confirmed
+partial-opacity Dodge/Burn strokes correctly interact with this
+session's earlier-verified cumulative-brightening behavior as a real
+linear interpolation per pass, exactly matching the new tooltip's own
+claim ("build an effect up gradually over several passes"), not an
+accidental side effect. One minor, explicitly non-blocking nit: `0` is
+falsy in JS, so a literal `0` opacity would be coerced to the 100
+fallback rather than clamped to 1 — unreachable in practice given the
+slider's own `min="1"` and no code anywhere setting the field's value
+programmatically, so not worth guarding against.
+
+Item #71 is done: 1 critic round, 9/10 on the first pass.
