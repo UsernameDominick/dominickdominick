@@ -12903,3 +12903,31 @@ original `test_sim_keyboard_nudge.js` suite (no regression) and the full
 `test_security_seo.js` regression suite — both pass. No test data left
 behind, confirmed via a direct authenticated simulations listing showing
 zero remaining.
+
+Sent for a round-2 critic pass, which independently re-verified the core
+fix (plain click preserves wires, confirmed with its own freshly-seeded
+simulation) and stress-tested it further than round 1 did: 5 consecutive
+plain clicks in a row never degraded the wires; a genuine multi-step
+mouse drag still correctly rebuilds wires both directions (dragging a
+snapped part fully off the breadboard removes its auto-wires, dragging
+it back onto a hole re-adds them — verified via a real Save +
+authenticated re-GET, not just the DOM, specifically because landing
+exactly on a hole is the legitimate zero-length-wire case that never
+renders visibly, so the underlying saved data was the only way to
+confirm the rebuild genuinely happened); click-then-nudge shows the wire
+recomputing at every single nudge step; and the adjacent switch-toggle-
+on-click behavior (which shares the same `historySaved` variable for an
+unrelated purpose) is completely unaffected. The secondary fix (no
+phantom history entry for a stale selection) was confirmed correct by
+reading the code and via the Undo button's disabled state never
+enabling after repeated plain clicks, though the critic noted it
+couldn't independently construct a live stale-selection scenario
+through the UI, since every code path that can invalidate a selected id
+already also clears the selection in the same handler — meaning this
+guard is currently defensive/dead code from a live-reachability
+standpoint, not a hole it's actually closing today. Noted as non-
+blocking. Final score: **9/10 — production-ready, no other issues
+found.**
+
+Item #380 is done: 1 critic round (6/10, one real blocking bug found and
+fixed) + 1 round-2 confirmation round (9/10).
