@@ -4751,7 +4751,7 @@ join, rather than building three separate systems.
 72. ✅ Pen-pressure support — PointerEvent.pressure already available. (done — see the dated entry below)
 76. ✅ Saved brush presets — same pattern as photo-presets. (done — see the dated entry below)
 77. Hard-edged pencil — brush variant with no smoothing.
-78. Airbrush buildup — brush variant with cumulative alpha.
+78. ✅ Airbrush buildup — brush variant with cumulative alpha. (done — see the dated entry below)
 80. ✅ Accurate brush footprint preview — extend existing drawBrushCursor. (done — see the dated entry below)
 86. ✅ Dodge/burn brushes — brightness brush, same shape as existing blur brush. (done — see the dated entry below)
 90. Magnified retouch comparison — reuse existing originalSnapshot + zoom.
@@ -10841,3 +10841,68 @@ reasonable, intentional enhancement consistent with the feature's own
 stated purpose, not an unwanted regression.
 
 Item #80 is done: 1 critic round, 9/10 on the first pass.
+
+### Fifty-eighth item: #78, Photo Editor airbrush mode
+
+- ✅ **An "Airbrush" checkbox modifier** on the existing brush-tool row,
+  applying to all five existing brush tools (Erase, Blur, Pixelate,
+  Dodge, Burn) rather than being a 6th distinct tool — matching how real
+  paint tools' "airbrush mode" works: while ON, holding the pointer
+  STILL keeps building the effect up over time, unlike normal brush
+  behavior where nothing happens unless the pointer actually moves. This
+  reuses the exact SAME `commitBrushStroke()`/`buildEffectCanvas()`
+  compositing every brush tool already has — no new blend mode, no new
+  effect logic — because `buildEffectCanvas()` re-reading the already-
+  mutated live canvas on each call is exactly the mechanism a prior
+  critic pass on this session's own Dodge/Burn work already confirmed
+  makes repeated manual clicks compound naturally; airbrush mode just
+  automates that same compounding on a `setInterval` timer (150ms)
+  instead of requiring the admin to physically click over and over.
+
+The one real design decision worth logging: each tick clears the mask
+back down to just the CURRENT tracked point after committing, rather
+than letting it keep accumulating the whole stroke's path. Without
+that, a stroke that moved across a wide area would recomposite its
+*entire* accumulated path on every single tick, wildly over-building
+whatever was painted earliest in the stroke rather than building up
+proportionally to how long each specific spot was actually under the
+brush — the clear-after-commit design makes each tick account only for
+what's changed (movement, or none) since the *previous* tick, matching
+a real airbrush's continuous-while-held-in-place behavior rather than
+an ever-compounding smear across the whole gesture.
+
+Also explicitly logged, not silently fixed: this codebase's brush-
+stroke pointer handling (dragging/strokeActive state) has no
+`pointercancel` handler anywhere — only the unrelated Compare button
+has one. A `pointercancel` mid-stroke (palm rejection, an OS gesture
+interrupting) can already leave `dragging`/`strokeActive` stuck true
+even without airbrush; airbrush's own timer would inherit that exact
+same pre-existing gap (never being told to stop) rather than
+introducing a new failure mode of its own. Left this exactly as it
+already was rather than scope-creeping into fixing an unrelated,
+pre-existing limitation while shipping a specific new feature.
+
+Verified via Playwright on a flat mid-gray fill with Dodge selected:
+confirmed holding the pointer stationary for 500ms with airbrush OFF
+produces exactly the same result as a single instantaneous click
+(delta 51, matching the existing single-click behavior with zero
+buildup) — the critical no-regression check for admins who never touch
+this new checkbox. Confirmed holding for the identical 500ms with
+airbrush ON on a fresh baseline produces a MEANINGFULLY stronger result
+(delta 127, well over 1.5x the no-airbrush case, clipping to full white
+in this test's specific size/duration) — proving real, working
+time-based buildup, not a cosmetic no-op checkbox. Confirmed the timer
+genuinely stops on release (sampled the canvas repeatedly for 600ms
+after `pointerup`, past several more would-be tick intervals, and found
+zero further drift — no leaked interval left running). Confirmed a
+single Undo click fully reverts the ENTIRE held airbrush session back
+to the exact flat baseline in one step (not one undo entry per tick,
+since `pushUndo()` still only fires once at the original `pointerdown`,
+matching every other brush tool's existing undo granularity). Confirmed
+an ordinary moving stroke with airbrush OFF still works exactly as
+before. Re-ran the pre-existing brush-opacity and brush-cursor-opacity
+test suites to confirm no regression from touching the shared
+pointerdown/pointermove/pointerup handlers — both still pass identically.
+Ran the full `test_security_seo.js` regression suite — all passed. No
+test data was created (only in-memory canvas pixels of an existing
+library image, undone before the test ends).

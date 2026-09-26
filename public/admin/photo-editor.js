@@ -882,6 +882,52 @@
   let strokeActive = false;
   let lastPoint = null;
 
+  // ---------- Airbrush mode ----------
+  // A modifier on the existing 5 brush tools (not a 6th tool of its own),
+  // matching how "airbrush mode" works in real paint tools: holding the
+  // pointer STILL still keeps building the effect up over time, unlike
+  // normal brush behavior where nothing happens unless you actually move.
+  // Reuses the exact same commitBrushStroke()/buildEffectCanvas()
+  // compositing every other brush tool already has -- each tick just
+  // commits again, and buildEffectCanvas() re-reading the already-mutated
+  // live canvas is exactly the mechanism that already makes repeated
+  // manual clicks with Dodge/Burn compound (confirmed by an earlier critic
+  // pass on this session's own Dodge/Burn work); this just automates that
+  // same compounding on a timer instead of requiring repeated clicks.
+  const AIRBRUSH_INTERVAL_MS = 150;
+  let airbrushTimer = null;
+  let airbrushPoint = null;
+
+  function airbrushMode() {
+    return $("pe-airbrush-mode").checked;
+  }
+
+  function airbrushTick() {
+    if (!strokeActive || !airbrushPoint) return;
+    commitBrushStroke();
+    // Reset the mask to just the current point after each commit -- if
+    // this DIDN'T clear, a stroke that moved across a wide area would
+    // recomposite its entire accumulated path on every single tick,
+    // wildly over-building the parts painted earliest rather than
+    // building up proportionally to how long each spot was actually
+    // under the brush. Clearing means each tick only accounts for
+    // whatever's happened (movement, or none) since the LAST tick,
+    // exactly like a real airbrush's continuous-while-held behavior.
+    maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+    lastPoint = null;
+    strokeTo(airbrushPoint);
+  }
+
+  function startAirbrushTimer() {
+    stopAirbrushTimer();
+    airbrushTimer = setInterval(airbrushTick, AIRBRUSH_INTERVAL_MS);
+  }
+
+  function stopAirbrushTimer() {
+    if (airbrushTimer) clearInterval(airbrushTimer);
+    airbrushTimer = null;
+  }
+
   function ensureMask() {
     if (maskCanvas && maskCanvas.width === canvas.width && maskCanvas.height === canvas.height) return;
     maskCanvas = document.createElement("canvas");
@@ -1264,6 +1310,8 @@
       strokeActive = true;
       lastPoint = null;
       strokeTo(p, pressureMultiplier(e));
+      airbrushPoint = p;
+      if (airbrushMode()) startAirbrushTimer();
     } else if (currentTool === "text") {
       placeText(p);
       dragging = false;
@@ -1281,7 +1329,10 @@
       cropRect.y1 = constrained.y1;
       drawCropOverlay();
     } else if (BRUSH_TOOLS.includes(currentTool)) {
-      if (dragging && strokeActive) strokeTo(p, pressureMultiplier(e));
+      if (dragging && strokeActive) {
+        strokeTo(p, pressureMultiplier(e));
+        airbrushPoint = p;
+      }
       drawBrushCursor(p);
     } else if (SHAPE_TOOLS.includes(currentTool) && dragging && dragStart) {
       drawAnnotatePreview(dragStart.x, dragStart.y, p.x, p.y);
@@ -1296,6 +1347,7 @@
     if (currentTool === "select") {
       $("pe-apply-crop").hidden = !cropRect;
     } else if (BRUSH_TOOLS.includes(currentTool)) {
+      stopAirbrushTimer();
       if (strokeActive) {
         commitBrushStroke();
         // A critic pass found the same baseSnapshot-staleness gap here as
