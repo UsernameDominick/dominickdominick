@@ -276,6 +276,15 @@
   }
 
   $("pe-save-snapshot").addEventListener("click", () => {
+    // While Compare is held, the live canvas is temporarily swapped to
+    // show originalSnapshot's pixels (a plain drawImage swap, not routed
+    // through restoreSnapshot() -- see startCompare()'s own comment).
+    // Without this guard, snapshotCanvas() here would capture that
+    // temporary pre-edit preview instead of the actual current edit,
+    // silently saving a mislabeled snapshot with the wrong content --
+    // the exact bug class already hunted down and fixed for Undo/Redo/
+    // Reset/Restore, just missed for this one.
+    if (isComparing()) return;
     const name = prompt("Name this snapshot:", `Snapshot ${namedSnapshots.length + 1}`);
     if (!name || !name.trim()) return;
     namedSnapshots.push({ name: name.trim(), canvas: snapshotCanvas() });
@@ -1229,6 +1238,17 @@
   $("pe-compare").addEventListener("keyup", (e) => {
     if (e.code === "Space" || e.code === "Enter") endCompare();
   });
+  // Backstop for the keyboard-hold path specifically: if focus moves away
+  // from this button WHILE Space/Enter is still held down (e.g. clicking
+  // a different toolbar button without releasing Space first), the keyup
+  // for that held key fires on whichever element focus landed on instead
+  // of here, so this element's own "keyup" listener above never runs and
+  // endCompare() would otherwise never fire -- leaving the editor stuck
+  // permanently "comparing" (every history action guarded by
+  // isComparing() would silently no-op from then on). The window "blur"
+  // listener above only covers losing focus to a DIFFERENT window/tab,
+  // not focus moving to another element within this same page.
+  $("pe-compare").addEventListener("blur", endCompare);
 
   document.addEventListener("keydown", (e) => {
     if (modal.hidden) return;

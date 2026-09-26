@@ -10325,3 +10325,67 @@ a 6th snapshot correctly evicts the oldest one, capping the list at
 exactly 5. Ran the full `test_security_seo.js` regression suite — all
 passed. No test data was created (only in-memory canvas state of an
 existing library image).
+
+Handed to a critic agent for scoring: **7/10**, below the ship
+threshold. Round-1 finding:
+
+1. **(Fixed, major, real bug)** "Save snapshot" was missing the
+   `isComparing()` guard that every other history-mutating action in
+   this file already has (Undo, Redo, Reset, and this feature's own
+   Restore button all start with `if (isComparing()) return;`). While
+   Compare is held, the live canvas is temporarily swapped to show
+   `originalSnapshot`'s pixels — so saving a named snapshot mid-Compare
+   would silently capture that stale pre-edit preview under whatever
+   name the admin typed, discoverable only later when restoring it and
+   finding the real edits gone. This is the exact bug class this
+   session's own codebase had already hunted down and fixed for
+   Undo/Redo/Reset/Restore (documented in this file's own comments,
+   reachable via multi-touch or a keyboard-held Compare plus a click
+   elsewhere) — Save Snapshot was simply missed. Fixed by adding the
+   same `if (isComparing()) return;` guard.
+
+Writing a Playwright test to actually reproduce this (not just add the
+one-line fix and trust it) surfaced a SECOND, more severe, genuinely
+pre-existing latent bug in the unrelated Compare feature itself,
+independent of this session's own named-snapshot work: `startCompare()`
+begins via a `keydown` (Space/Enter) on the `#pe-compare` button, and
+`endCompare()` was only ever wired to that SAME element's own
+`keyup`/`pointerup`/`pointerleave`/`pointercancel` events. If focus
+shifts away from `#pe-compare` WHILE the key is still physically held
+(e.g. clicking a different toolbar button without releasing Space
+first — ordinary keyboard+mouse use, not an exotic edge case), the
+browser dispatches that key's eventual `keyup` to whichever element now
+has focus instead, so `#pe-compare`'s own `keyup` listener never fires
+and `endCompare()` is never called — leaving the ENTIRE editor stuck
+permanently "comparing," silently no-op'ing every `isComparing()`-guarded
+action (Undo, Redo, Reset, Restore, and now Save Snapshot) from that
+point on, with no visible way to recover short of closing and reopening
+the editor. Fixed with the same defense-in-depth convention this file's
+Compare handling already establishes (multiple independent event types
+already converge on the same `endCompare()` cleanup — a `window` "blur"
+listener already exists as a backstop for losing focus to a different
+window/tab): added an ELEMENT-level `blur` listener on `#pe-compare`
+itself, closing the gap for focus moving to another element within the
+same page.
+
+Verified the fix precisely, not just its absence of a crash: reproduced
+the exact scenario via keyboard (focus `#pe-compare`, hold Space, click
+Save Snapshot without releasing Space first) and confirmed two
+independent, both-safe outcomes are now possible depending on DOM event
+ordering — either the `isComparing()` guard blocks the save outright, or
+(per the spec's own mousedown→blur→focus→click ordering) clicking Save
+Snapshot shifts focus away from Compare first, firing the new `blur`
+listener and restoring the real edited canvas BEFORE the click handler
+runs, so the guard sees `isComparing()` already false and the resulting
+snapshot correctly captures the genuine edit rather than the stale
+original — confirmed by actually restoring that snapshot afterward and
+sampling its real pixel content (a solid green test fill) rather than
+assuming correctness from either code path alone. Also confirmed
+Compare is no longer stuck "active" after releasing Space in this
+scenario (proving the blur backstop actually fired), and separately
+confirmed ordinary press-and-release-in-place Compare usage — both via
+mouse and via keyboard, with no focus change involved — is completely
+unaffected by the new listener. Re-ran every prior test in this item's
+own suite (the red/blue snapshot save-restore-delete flow, the XSS/
+whitespace/cap edge cases) plus the full `test_security_seo.js`
+regression suite — all still pass. Sent for a round-2 critic pass.
