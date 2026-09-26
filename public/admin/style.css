@@ -2619,6 +2619,29 @@ kbd {
   color: var(--text-dim);
 }
 
+.song-track-color {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+}
+
+.song-track-note {
+  width: 90px;
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
+}
+
 .song-steps {
   display: grid;
   grid-template-columns: repeat(16, 1fr);
@@ -2644,8 +2667,8 @@ kbd {
 }
 
 .song-step-on {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--track-color, var(--accent));
+  border-color: var(--track-color, var(--accent));
 }
 
 /* Deliberately a different hue from .song-step-on's accent color — this

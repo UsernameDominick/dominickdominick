@@ -4815,7 +4815,7 @@ session's own EXIF-stripping feature for the upload-side equivalent).
 189. Session templates — default-data presets, pattern already used.
 190. Multiple sessions via tabs — songs already separate D1 rows/list UI.
 195. ✅ Dedicated master bus — done (see the dated entry below this section).
-196. Track colors/icons/notes — metadata fields + UI, same as song name.
+196. ✅ Track colors/notes (icons scoped out, see the dated entry below) — metadata fields + UI, same as song name. (done — see the dated entry below)
 197. Track search/filtering — client-side list filter.
 198. Hide tracks without disabling audio — separate UI flag from mute.
 199. Reorder/duplicate tracks — array ops, duplicate-song pattern exists.
@@ -11496,6 +11496,82 @@ inherits their existing fixes for free). Final score: **10/10 — ships,
 zero reservations.**
 
 Item #5 is done: 1 critic round, 10/10 on the first pass.
+
+### Sixty-second item: #196, Song builder track colors/notes
+
+- ✅ **Per-track color** — an inline `<input type="color">` swatch on each
+  of the 4 fixed drum-sequencer rows (kick/snare/hihat/clap), defaulting
+  to a distinct, deliberately differentiable color per track
+  (`#ff7a45`/`#ffd166`/`#4ecdc4`/`#c9a5ff` — the first and last match this
+  session's own `--accent`/secondary-violet redesign tokens from section
+  10, so the defaults feel native to the site's palette rather than
+  arbitrary) so a freshly-created song already reads as 4 distinguishable
+  lanes at a glance, not 4 identical rows sharing one accent color until
+  an admin manually customizes anything.
+- ✅ **Per-track note** — a short (60-char) free-text field per track,
+  same idea as the existing song-name field, for a lightweight label like
+  "punchy" or a mix reminder.
+- Scoped OUT: **icons**. There's no icon-asset infrastructure anywhere in
+  this codebase (no icon picker, no icon library, no font-icon set) —
+  building one from scratch just to attach an icon to 4 fixed drum-track
+  rows would be a disproportionate amount of new infrastructure for a
+  small polish item explicitly rated Easy in this backlog. Left open as
+  future work rather than force-fit onto something that doesn't exist
+  yet, the same call made for #77/#93/etc.'s adjacent Medium/Hard-tier
+  neighbors.
+
+Implementation: added `trackMeta: { <track>: { color, note } }` to
+`defaultSongData()` (backfilled per-track for any song saved before this
+feature existed, same pattern already established for the piano roll's
+own `melody.notes` backfill a few lines above it). The shared
+`renderStepGrid()` function (already used for both the drum sequencer
+and the piano roll) took two new OPTIONAL parameters, `getMeta`/
+`onMetaChange`, passed only from `renderSequencer()` — the piano roll
+call site passes neither, so its 2-octave, 24-row grid gets zero new
+controls. Giving 24 individual piano-roll rows their own color/note pair
+would be far more UI than a "channel list" metaphor can usefully support
+and isn't what "track" means in this feature's own wording; the 4 fixed,
+named drum tracks are exactly the kind of small mixer-style list a
+per-row color/label is meant for.
+
+The color actually DOES something beyond cosmetics: `.song-step-on`'s
+CSS changed from a hardcoded `var(--accent)` to
+`var(--track-color, var(--accent))`, and each track row now sets
+`--track-color` as an inline custom property from its own `trackMeta`
+entry — so a track's active steps genuinely render in ITS OWN color, a
+real readability improvement for a 4-lane grid that previously rendered
+every active step in the exact same shared accent color regardless of
+which drum it belonged to. The piano roll's rows never set
+`--track-color`, so its steps keep falling back to the plain
+`var(--accent)`, unchanged.
+
+Verified via Playwright end-to-end: confirmed the 4 default colors are
+genuinely distinct and each row's inline `--track-color` custom property
+matches its own color input's value on a freshly-created song; confirmed
+turning on a step actually renders with that track's specific color
+(sampled the button's real computed `background-color` and matched it
+byte-for-byte against the expected RGB conversion of the hex, correctly
+waiting past the pre-existing global `button { transition:
+background-color 0.15s }` rule rather than sampling mid-transition, which
+was this test's own one false-start before adding the wait); confirmed
+changing a track's color live immediately updates both the CSS variable
+and the already-toggled-on step's rendered color with no page reload
+needed; confirmed a color AND a note (deliberately containing `&`/`<`/`>`
+to test the existing `escapeXml()` helper this file already used
+elsewhere) both survive a genuine save-to-server-then-reload-from-server
+round trip with the note coming back correctly unescaped, not
+double-encoded or truncated; confirmed the piano roll's rows correctly
+have zero color/note controls; and confirmed zero page errors throughout.
+Also checked mobile width (390px): the wider track rows (label + color
+swatch + note field + 16-step grid) don't introduce any NEW page-level
+horizontal overflow beyond the sequencer's own pre-existing internal
+horizontal scroll for its 16-column grid at narrow widths. Ran the full
+`test_security_seo.js` regression suite — all passed. No test data was
+left behind: the one saved test song was deleted via the real UI delete
+flow, confirmed via a direct authenticated `GET /api/admin/songs`
+afterward showing zero songs.
+
+Sent for a critic pass.
 
 ## 14. Design/UX audit + admin creative freeform tool (2026-09-26)
 

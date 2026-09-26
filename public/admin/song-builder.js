@@ -6,6 +6,10 @@
   const Engine = window.SongEngine;
   const TRACKS = ["kick", "snare", "hihat", "clap"];
   const TRACK_LABELS = { kick: "Kick", snare: "Snare", hihat: "Hi-Hat", clap: "Clap" };
+  // Distinct default swatch per track so a freshly-created song's grid
+  // already reads as 4 differentiable lanes at a glance, rather than every
+  // track sharing the same accent color until an admin manually picks one.
+  const DEFAULT_TRACK_COLORS = { kick: "#ff7a45", snare: "#ffd166", hihat: "#4ecdc4", clap: "#c9a5ff" };
   const STEPS = Engine.STEPS;
 
   // Piano roll: 2 octaves (C3-B4), highest pitch first — the usual
@@ -41,6 +45,10 @@
       master_volume: 1,
       tracks: TRACKS.reduce((acc, t) => {
         acc[t] = new Array(STEPS).fill(false);
+        return acc;
+      }, {}),
+      trackMeta: TRACKS.reduce((acc, t) => {
+        acc[t] = { color: DEFAULT_TRACK_COLORS[t], note: "" };
         return acc;
       }, {}),
       melody: {
@@ -537,11 +545,22 @@
   // Shared by the drum sequencer and the piano roll — both are just a set
   // of named rows, each STEPS long, toggled the same way. Parameterized by
   // plain get/set functions rather than duplicated per grid.
-  function renderStepGrid(containerId, rowKeys, rowLabel, getOn, setOn, rowClass) {
+  // `getMeta`/`onMetaChange` are optional and only passed for the drum
+  // sequencer, not the piano roll -- a color+note swatch per PIANO_NOTES row
+  // (2 octaves) would be far too many controls to be useful, whereas the 4
+  // fixed drum tracks are exactly the kind of small, named "channel" list a
+  // per-row color/label actually helps distinguish at a glance.
+  function renderStepGrid(containerId, rowKeys, rowLabel, getOn, setOn, rowClass, getMeta, onMetaChange) {
     $(containerId).innerHTML = rowKeys
       .map((key) => {
         const label = rowLabel(key);
-        return `<div class="song-track-row${rowClass ? rowClass(key) : ""}"><span class="song-track-label">${label}</span><div class="song-steps" data-row="${key}">${Array.from(
+        const meta = getMeta ? getMeta(key) : null;
+        const rowStyle = meta ? ` style="--track-color: ${escapeXml(meta.color)}"` : "";
+        const metaHtml = meta
+          ? `<input type="color" class="song-track-color" data-row="${key}" value="${escapeXml(meta.color)}" title="${label} color" aria-label="${label} color">` +
+            `<input type="text" class="song-track-note" data-row="${key}" value="${escapeXml(meta.note)}" placeholder="note…" maxlength="60" title="${label} note" aria-label="${label} note">`
+          : "";
+        return `<div class="song-track-row${rowClass ? rowClass(key) : ""}"${rowStyle}><span class="song-track-label">${label}</span>${metaHtml}<div class="song-steps" data-row="${key}">${Array.from(
           { length: STEPS },
           (_, i) =>
             `<button type="button" class="song-step${getOn(key, i) ? " song-step-on" : ""}${
@@ -563,6 +582,24 @@
           scheduleAutosave();
         });
       });
+    if (!onMetaChange) return;
+    $(containerId)
+      .querySelectorAll(".song-track-color")
+      .forEach((inp) => {
+        inp.addEventListener("input", () => {
+          onMetaChange(inp.dataset.row, "color", inp.value);
+          inp.closest(".song-track-row").style.setProperty("--track-color", inp.value);
+          scheduleAutosave();
+        });
+      });
+    $(containerId)
+      .querySelectorAll(".song-track-note")
+      .forEach((inp) => {
+        inp.addEventListener("input", () => {
+          onMetaChange(inp.dataset.row, "note", inp.value);
+          scheduleAutosave();
+        });
+      });
   }
 
   function renderSequencer() {
@@ -571,7 +608,10 @@
       TRACKS,
       (t) => TRACK_LABELS[t],
       (t, i) => songData.tracks[t][i],
-      (t, i, v) => (songData.tracks[t][i] = v)
+      (t, i, v) => (songData.tracks[t][i] = v),
+      undefined,
+      (t) => songData.trackMeta[t],
+      (t, field, value) => (songData.trackMeta[t][field] = value)
     );
   }
 
@@ -723,6 +763,13 @@
       if (!songData.melody.notes) songData.melody.notes = defaultSongData().melody.notes;
       PIANO_NOTES.forEach((n) => {
         if (!songData.melody.notes[n]) songData.melody.notes[n] = new Array(STEPS).fill(false);
+      });
+      // A song saved before per-track colors/notes existed won't have
+      // `trackMeta` at all -- backfill per-track rather than letting the
+      // grid render throw on a missing key.
+      if (!songData.trackMeta) songData.trackMeta = defaultSongData().trackMeta;
+      TRACKS.forEach((t) => {
+        if (!songData.trackMeta[t]) songData.trackMeta[t] = { color: DEFAULT_TRACK_COLORS[t], note: "" };
       });
     } else {
       $("song-name").value = "New song";
