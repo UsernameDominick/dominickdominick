@@ -4767,7 +4767,7 @@ join, rather than building three separate systems.
 146. ✅ Before/after compare — done (see the dated entry below this section).
 150. ✅ Status bar (dimensions/zoom) — done (see the dated entry below this section).
 158. Explain resource limits — static UI text.
-161. Export quality/size preview — canvas.toBlob quality param + size readout.
+161. ✅ Export quality/size preview — done (see the dated entry below this section).
 169. Transparency preview vs backgrounds — checkerboard/color toggle behind canvas.
 174. Light/dark theme preview — wrap canvas container in themed class.
 
@@ -5804,3 +5804,51 @@ load-time image size), and the status bar has no `aria-live` region for
 screen readers (an accessibility nicety, not a regression).
 
 Item #150 is done: 1 critic round, 9/10, no real findings.
+
+### Tenth item: #161, Photo Editor export quality/size preview
+
+- ✅ **Format selector (PNG/JPEG/WebP), quality slider, and a live
+  estimated-size readout for "Save as new"** — while scoping this I found
+  a real pre-existing bug worth fixing in the same diff rather than
+  working around it: `exportBlob()` always hardcoded `"image/png"`, which
+  meant "Overwrite original" on a JPEG or WebP source image silently
+  converted it to PNG bytes stored under its original (non-`.png`) R2 key
+  — a real, previously invisible content-type/extension mismatch with
+  every use of that file. Fixed by adding `originalMimeType()`, which
+  derives the correct format from the original key's own extension, and
+  making "Overwrite" always use that — regardless of what format is
+  selected in the new dropdown — since the R2 object key's extension is
+  fixed once uploaded and can't be changed by an overwrite. GIF/SVG
+  originals still fall back to PNG on overwrite (unchanged from before):
+  `canvas.toBlob()` has no encoder for either format, and a GIF's
+  animation is already destroyed the moment it's loaded into a canvas at
+  all (only the first frame is ever drawn) — an unavoidable limitation of
+  canvas-based export, not something fixable here, logged rather than
+  silently left unmentioned.
+  "Save as new" gets the real feature: a format dropdown (defaulting to
+  PNG, matching prior behavior) with a quality slider that only appears
+  for JPEG/WebP (PNG's toBlob quality argument is meaningless and ignored
+  by browsers), and a debounced (150ms) live size estimate recomputed on
+  every format/quality change and on every canvas-dimension-changing edit
+  (reusing the same `fitCanvasToViewport()` hook point the status-bar
+  feature added). Deliberately scoped the live estimate to NOT refresh on
+  every content-only edit (a brush stroke, a filter, an adjustment slider)
+  — hooking that would mean scattering size-estimate calls across many
+  scattered mutation points for a bigger win than an "Easy" item
+  warrants; the actual uploaded/overwritten file is always encoded fresh
+  from the live canvas regardless, so this scoping only affects how
+  current the *preview number* looks, never what actually gets saved.
+  Verified via Playwright with a real photographic-content test image
+  (a synthetic noisy PNG, not a flat single-color one — an earlier test
+  run with a solid-color fixture showed no size difference between
+  quality levels purely because a flat color has nothing left to compress
+  away, not because of an app bug): PNG estimate ~184.6 KB, JPEG @85%
+  ~64.6 KB, JPEG @10% ~5.9 KB — quality clearly affects the estimate in
+  the right direction. Saving as new at JPEG format produced a real
+  `.jpg`-extensioned key with `content-type: image/jpeg` actually served.
+  Overwriting a PNG original with JPEG selected in the dropdown correctly
+  still wrote back `content-type: image/png`, confirming the
+  format-preservation fix. Full regression suite green; all test media
+  deleted and confirmed gone.
+
+Handed to a critic agent for scoring.

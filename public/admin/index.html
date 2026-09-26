@@ -1000,6 +1000,13 @@
         <div class="pe-actions">
           <span id="pe-status-bar" class="pe-status-bar" title="Actual image size · displayed scale"></span>
           <span id="pe-hint" class="pe-hint"></span>
+          <select id="pe-export-format" title="Format for &quot;Save as new&quot; -- &quot;Overwrite original&quot; always keeps the original file's own format">
+            <option value="image/png">PNG</option>
+            <option value="image/jpeg">JPEG</option>
+            <option value="image/webp">WebP</option>
+          </select>
+          <label id="pe-export-quality-label" hidden>Quality <input type="range" id="pe-export-quality" min="1" max="100" value="85"></label>
+          <span id="pe-export-size-estimate" class="pe-export-size-estimate" title="Estimated file size at the current format/quality"></span>
           <button type="button" id="pe-save-new">Save as new</button>
           <button type="button" id="pe-save-overwrite">Overwrite original</button>
         </div>

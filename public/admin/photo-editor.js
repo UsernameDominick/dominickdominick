@@ -37,6 +37,15 @@
     stack.style.width = w + "px";
     stack.style.height = h + "px";
     updateStatusBar(scale);
+    // Covers every dimension-changing edit (crop, rotate, undo/redo/reset,
+    // load) for free since they all already call this function. Content-
+    // only edits that don't change dimensions (a brush stroke, a filter)
+    // don't refresh the estimate until the format/quality controls are
+    // next touched or the image is actually saved -- the real exported
+    // file is always encoded fresh from the live canvas regardless, so
+    // this only affects how current the *preview number* looks, never
+    // what actually gets uploaded.
+    scheduleSizeEstimate();
   }
 
   // Real pixel dimensions and the scale actually being displayed at right
@@ -740,12 +749,63 @@
   // save the original over the real edit. Force-ending any in-progress
   // compare right before every export, unconditionally, means a save can
   // never capture the temporary preview no matter what left it stuck.
-  function exportBlob(cb) {
+  function exportBlob(cb, mimeType, quality) {
     endCompare();
-    canvas.toBlob(cb, "image/png");
+    canvas.toBlob(cb, mimeType || "image/png", quality);
   }
 
+  // "Overwrite" always keeps the ORIGINAL file's own format, regardless
+  // of the "Save as new" format selector -- the R2 object key's extension
+  // is fixed once uploaded, so exporting a different format under the
+  // same key would leave its content-type mismatched with its own file
+  // extension. Before this feature, exportBlob() always hardcoded PNG,
+  // which meant overwriting a JPEG/WebP original silently converted it to
+  // PNG bytes under its original (non-.png) key -- a real, if previously
+  // invisible, pre-existing bug. GIF/SVG originals still fall back to PNG
+  // here since canvas.toBlob() has no encoder for either format (and a
+  // GIF's animation is already destroyed the moment it's loaded into a
+  // canvas at all, only the first frame ever gets drawn) -- an unavoidable
+  // limitation of canvas-based export, not something fixable here.
+  function originalMimeType() {
+    const ext = (originalKey || "").split(".").pop().toLowerCase();
+    return { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp" }[ext] || "image/png";
+  }
+
+  // Debounced live estimate of the exported file size at the currently
+  // selected format/quality -- canvas.toBlob() is async, and re-running it
+  // on every single slider-drag tick would be wasteful and could visibly
+  // lag the slider.
+  let sizeEstimateTimer = null;
+  function scheduleSizeEstimate() {
+    clearTimeout(sizeEstimateTimer);
+    sizeEstimateTimer = setTimeout(updateSizeEstimate, 150);
+  }
+  function updateSizeEstimate() {
+    const format = $("pe-export-format").value;
+    const quality = Number($("pe-export-quality").value) / 100;
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) return;
+        $("pe-export-size-estimate").textContent = `~${formatBytesLite(blob.size)} ("Save as new")`;
+      },
+      format,
+      format === "image/png" ? undefined : quality
+    );
+  }
+  function formatBytesLite(n) {
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  $("pe-export-format").addEventListener("change", () => {
+    $("pe-export-quality-label").hidden = $("pe-export-format").value === "image/png";
+    scheduleSizeEstimate();
+  });
+  $("pe-export-quality").addEventListener("input", scheduleSizeEstimate);
+
   $("pe-save-new").addEventListener("click", () => {
+    const format = $("pe-export-format").value;
+    const quality = format === "image/png" ? undefined : Number($("pe-export-quality").value) / 100;
     exportBlob(async (blob) => {
       try {
         await window.adminUploadBlob(blob);
@@ -754,7 +814,7 @@
       } catch (err) {
         alert(err.message);
       }
-    });
+    }, format, quality);
   });
 
   $("pe-save-overwrite").addEventListener("click", () => {
@@ -779,7 +839,7 @@
       } catch (err) {
         alert(err.message);
       }
-    });
+    }, originalMimeType());
   });
 
   // ---------- Open / close ----------
@@ -826,6 +886,8 @@
           ? "Editing a library image — overwrite updates it everywhere it's used."
           : "Editing an external image — only \"Save as new\" is available.";
         setTool("select");
+        $("pe-export-format").value = "image/png";
+        $("pe-export-quality-label").hidden = true;
         modal.hidden = false;
         requestAnimationFrame(fitCanvasToViewport);
       };
