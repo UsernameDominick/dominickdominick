@@ -4853,7 +4853,7 @@ session's own EXIF-stripping feature for the upload-side equivalent).
 217. ☐ Reverse selected audio — checked: doesn't map onto the current song engine as worded. There's no AudioBuffer/sample playback anywhere in `song-engine.js`/`song-builder.js` (confirmed via grep — zero `AudioBuffer`/`decodeAudioData`/`Float32Array` hits), only synthesized oscillator notes in a step sequencer. "Reversing audio" needs a real audio buffer to exist first, which is the much bigger "Recording"/"Sampling" infrastructure this backlog already rates Medium/Hard, not a quick win. Left open rather than force-fit onto data that doesn't exist.
 218. ✅ Normalize to peak — done (see the dated entry below this section).
 220. Remove DC offset — subtract mean from buffer.
-236. Humanization — bounded Math.random() offsets on existing grid data.
+236. ✅ Humanization — bounded Math.random() offsets on existing grid data. (done — see the dated entry below)
 237. ✅ Transpose semitone/octave — done (see the dated entry below this section).
 276. Polarity inversion — GainNode(-1).
 277. Mono compatibility button — ChannelMerger sum, toggle.
@@ -11945,3 +11945,75 @@ not mood-board language:
 None of these were implemented — per the task brief, real visual-
 identity/illustration work needs Dominick's sign-off before it's built,
 since it's a subjective creative-direction call, not a bug fix.
+
+### Sixty-third item: #236, Song builder humanization
+
+- ✅ **A "Humanize" slider** (0-100%, next to the existing master-volume
+  slider) that adds a small, independent, bounded random timing nudge to
+  each individual drum hit and melody note at playback time, so a
+  pattern stops sounding mechanically quantized without needing any new
+  audio-buffer/sampling infrastructure — matching the wishlist's own
+  "bounded Math.random() offsets on existing grid data" framing exactly.
+  `0` (the default, matching every existing song saved before this
+  feature existed) means perfectly on-grid, byte-identical to today's
+  behavior with zero performance cost (the jitter helper short-circuits
+  to a literal `0` without even calling `Math.random()` when the amount
+  is falsy, rather than computing then discarding a `0 * anything`).
+
+Implemented in the ONE shared `song-engine.js` used by both the admin
+builder's live playback AND the public embed's player (`song-embed.js`
+just `JSON.parse`s the stored `data` blob wholesale and hands it straight
+to `Engine.createPlayer` — no field whitelist anywhere in that path — so
+a song saved with a nonzero humanize value plays humanized on the actual
+public page too, not just in the admin preview) — one fix covers both
+surfaces, the same reasoning already established for every other
+`song-engine.js` change this session.
+
+Design decision: the jitter is applied PER NOTE, inside `scheduleStep`,
+to the individual `time` argument passed to each voice's synthesis call
+(`PLAYERS[track](ctx, time + humanizeJitter(songData), kit)` and the
+equivalent for melody notes) — NOT once per step to the step's own
+scheduled time. Two drums landing on the same step (e.g. kick+hihat both
+on beat 1) each get their OWN independent random nudge this way, which
+reads as genuinely more human than the whole step just sliding together
+as one atomic unit (real drummers don't hit every simultaneous note in
+perfect lockstep either). Deliberately did NOT touch the scheduler
+loop's own `nextStepTime` bookkeeping in `createPlayer` — that stays the
+clean, unjittered grid clock driving the lookahead scheduling loop itself
+(per Chris Wilson's "A Tale of Two Clocks" pattern this file already
+uses), with jitter applied only at the final "hand this exact moment to
+the AudioNode" boundary. This avoids any risk of jitter compounding into
+long-term tempo drift across a loop, since each step's BASE time is
+always still `step * stepDuration`, only ever nudged by a fresh
+independent random value right before use, never accumulated forward.
+Chose a small ±15ms max nudge at 100% humanize — enough to read as "not
+robotically exact" without sounding sloppy/off-time, deliberately
+conservative rather than trying to model a specific genre's "feel" curve.
+
+Verified via Playwright with a real audio-graph-level test, not just UI
+state: toggled every step of the kick track on, then monkey-patched
+`OscillatorNode.prototype.start`/`AudioBufferSourceNode.prototype.start`
+(the one choke point every synthesized voice in this file funnels
+through) to record the actual absolute times passed to real playback —
+confirmed that with humanize at its default 0, every consecutive kick
+hit lands EXACTLY one 16th-note apart (0.125s at 120 BPM, to within
+floating-point epsilon) with zero variance across the whole run, proving
+the off case is truly byte-identical to pre-feature behavior; confirmed
+that with humanize at 100%, consecutive gaps show genuine, non-repeating
+random deviation from that exact grid value, correctly bounded to within
+the documented combined range (two independent ±15ms nudges, one on each
+end of a gap, can combine to shift a single gap by up to ~30ms); and
+confirmed the setting persists correctly through a real save-to-server-
+then-reload-from-server round trip. Re-ran `test_song_track_colors.js`
+(item #196) to confirm no regression from touching the shared
+`song-engine.js`/`song-builder.js` files, and ran the full
+`test_security_seo.js` regression suite — both all-pass. Also found and
+cleaned up an unrelated piece of leftover test data from the design-audit
+agent's own mobile-overflow testing pass (a stray `__overflow_test` song,
+id 51, with no real content) while checking for a clean `/api/admin/songs`
+list before/after this item's own test — deleted via the real DELETE
+endpoint, confirmed gone via a follow-up `GET`, and not this item's own
+data so nothing about it belongs in this item's own narrative beyond
+noting it was found and removed in passing.
+
+Sent for a critic pass.

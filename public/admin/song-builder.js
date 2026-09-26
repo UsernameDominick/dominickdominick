@@ -43,6 +43,7 @@
       theme: "default",
       page_sync: false,
       master_volume: 1,
+      humanize: 0,
       tracks: TRACKS.reduce((acc, t) => {
         acc[t] = new Array(STEPS).fill(false);
         return acc;
@@ -311,6 +312,10 @@
     // master_volume (see renderWaveformPeaks), so it doesn't need a
     // refresh here.
     Engine.setMasterVolume(getAudioCtx(), songData.master_volume);
+    scheduleAutosave();
+  });
+  $("song-humanize").addEventListener("input", () => {
+    songData.humanize = Number($("song-humanize").value) || 0;
     scheduleAutosave();
   });
   // Renders the song's actual synthesized mix at full volume (via the same
@@ -783,6 +788,7 @@
     applySongTheme($("song-preview-embed"), songData.theme);
     $("song-page-sync").checked = !!songData.page_sync;
     $("song-master-volume").value = Math.round((typeof songData.master_volume === "number" ? songData.master_volume : 1) * 100);
+    $("song-humanize").value = typeof songData.humanize === "number" ? songData.humanize : 0;
     // The shared AudioContext (and its master GainNode) persists across
     // songs -- without this, opening song B right after playing song A
     // would leave the gain at A's last value until B's own playback
@@ -817,6 +823,7 @@
     songData.theme = $("song-theme").value;
     songData.page_sync = $("song-page-sync").checked;
     songData.master_volume = Number($("song-master-volume").value) / 100;
+    songData.humanize = Number($("song-humanize").value) || 0;
     try {
       if (currentSongId) {
         await window.adminApi(`/songs/${currentSongId}`, { method: "PATCH", body: JSON.stringify({ name, data: songData }) });
@@ -848,6 +855,7 @@
       `Visualization: ${songData.visualization}`,
       `Theme: ${songData.theme}`,
       `Master volume: ${Math.round((typeof songData.master_volume === "number" ? songData.master_volume : 1) * 100)}%`,
+      `Humanize: ${typeof songData.humanize === "number" ? songData.humanize : 0}%`,
       `Page background sync: ${songData.page_sync ? "on" : "off"}`,
       "",
       "Drum tracks (steps hit / total):",

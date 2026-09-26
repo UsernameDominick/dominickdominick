@@ -190,6 +190,19 @@ window.SongEngine = (function () {
     return 60 / (tempo || 120) / 4; // 16th notes
   }
 
+  // Max timing nudge at 100% humanize -- small enough to still read as "the
+  // same quantized pattern, just not robotically exact" rather than
+  // sloppy/off-time. Applied per NOTE (not once per step), so two drums
+  // landing on the same step each get their own independent nudge instead
+  // of the whole step just sliding together, which is what actually reads
+  // as more human than a mechanically identical grid.
+  const HUMANIZE_MAX_JITTER_S = 0.015;
+  function humanizeJitter(songData) {
+    const amount = songData.humanize || 0;
+    if (!amount) return 0; // skip Math.random() entirely for the (default, common) off case
+    return (Math.random() * 2 - 1) * HUMANIZE_MAX_JITTER_S * (amount / 100);
+  }
+
   function scheduleStep(ctx, songData, step, time) {
     // Read fresh every step, same as tempo/kit below, so a live volume-
     // slider drag while a song is already playing takes effect on the next
@@ -200,14 +213,14 @@ window.SongEngine = (function () {
     const kit = songData.kit || "acoustic";
     if (songData.tracks) {
       Object.keys(songData.tracks).forEach((track) => {
-        if (songData.tracks[track][step] && PLAYERS[track]) PLAYERS[track](ctx, time, kit);
+        if (songData.tracks[track][step] && PLAYERS[track]) PLAYERS[track](ctx, time + humanizeJitter(songData), kit);
       });
     }
     if (songData.melody) {
       const waveform = songData.melody.waveform || "sine";
       const duration = stepDurationFor(songData.tempo);
       Object.keys(songData.melody.notes).forEach((note) => {
-        if (songData.melody.notes[note][step]) playMelodyNote(ctx, time, noteToFreq(note), waveform, duration);
+        if (songData.melody.notes[note][step]) playMelodyNote(ctx, time + humanizeJitter(songData), noteToFreq(note), waveform, duration);
       });
     }
   }
