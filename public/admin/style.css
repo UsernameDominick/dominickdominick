@@ -3513,23 +3513,78 @@ kbd {
    having its own separate, gapped box -- square corners throughout,
    with only the strip's own two outer ends rounded, so the whole row
    reads as one connected control the way a synth's own button row does. */
-.sim-toolbar-group-buttons > button,
-.sim-toolbar-group-buttons > select {
+/* Scoped under .simulation-builder-inner so it outranks the generic
+   ".simulation-builder-inner header button" rule below -- without that,
+   every strip button got its own full pill corners and the strip read as
+   a row of overlapping pills instead of one connected control. */
+.simulation-builder-inner .sim-toolbar-group-buttons > button,
+.simulation-builder-inner .sim-toolbar-group-buttons > select {
   border-radius: 0;
   margin-left: -1px;
 }
 
-.sim-toolbar-group-buttons > button:first-child,
-.sim-toolbar-group-buttons > select:first-child {
+.simulation-builder-inner .sim-toolbar-group-buttons > button:first-child,
+.simulation-builder-inner .sim-toolbar-group-buttons > select:first-child {
   margin-left: 0;
   border-top-left-radius: var(--control-radius);
   border-bottom-left-radius: var(--control-radius);
 }
 
-.sim-toolbar-group-buttons > button:last-child,
-.sim-toolbar-group-buttons > select:last-child {
+.simulation-builder-inner .sim-toolbar-group-buttons > button:last-child,
+.simulation-builder-inner .sim-toolbar-group-buttons > select:last-child {
   border-top-right-radius: var(--control-radius);
   border-bottom-right-radius: var(--control-radius);
+}
+
+/* A strip's end is also wherever the next control breaks the run (the
+   search box / Snap label sit apart), so the buttons either side of those
+   get rounded ends too. */
+.simulation-builder-inner .sim-toolbar-group-buttons > button:has(+ #sim-continuity-result),
+.simulation-builder-inner .sim-toolbar-group-buttons > button:has(+ input[type="search"]),
+.simulation-builder-inner .sim-toolbar-group-buttons > button:has(+ .sim-snap-label) {
+  border-top-right-radius: var(--control-radius);
+  border-bottom-right-radius: var(--control-radius);
+}
+
+.simulation-builder-inner .sim-toolbar-group-buttons > input[type="search"] + button,
+.simulation-builder-inner .sim-toolbar-group-buttons > .sim-snap-label + button {
+  margin-left: 10px;
+  border-top-left-radius: var(--control-radius);
+  border-bottom-left-radius: var(--control-radius);
+}
+
+/* Desktop: name, Save and close share the top row; the tool groups get
+   the full width underneath instead of being squeezed beside the name
+   field, which made Checkpoints and Test & view overflow their boxes. */
+@media (min-width: 641px) {
+  .simulation-builder-inner header.sim-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    column-gap: 12px;
+    row-gap: 18px;
+    padding-top: 20px;
+  }
+  .simulation-builder-inner .simulation-name-input {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .simulation-builder-inner .sim-toolbar-group-save {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .simulation-builder-inner #close-simulation-builder {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .simulation-builder-inner .sim-toolbar-groups {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .simulation-builder-inner .sim-toolbar-group[data-group="test"] .sim-toolbar-group-buttons {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
 }
 
 /* A control that isn't part of the seamless strip (the canvas-search
@@ -3966,9 +4021,11 @@ kbd {
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: var(--control-radius);
-  padding: 8px 10px;
-  margin-bottom: 6px;
+  /* A list of parts, like the block palette's tiles -- field corners, not
+     full pills, so a column of them reads as a list, not a stack of bars. */
+  border-radius: var(--field-radius);
+  padding: 7px 10px;
+  margin-bottom: 4px;
   cursor: pointer;
   font-size: 0.85rem;
 }
@@ -4271,8 +4328,9 @@ kbd {
   }
 
   .simulation-name-input {
-    flex: 1 1 100%;
-    order: -1;
+    flex: 1 1 0;
+    min-width: 0;
+    order: -2;
   }
 
   /* The direct fix for the "wall of buttons" phone screenshot: every
@@ -4321,7 +4379,7 @@ kbd {
   }
 
   #close-simulation-builder {
-    order: 3;
+    order: -1;
   }
 
   /* Consistent, touch-friendly sizing for every control inside a group --
@@ -5652,4 +5710,16 @@ kbd {
 
 .redirect-row {
   align-items: center;
+}
+
+/* Phone: the toolbar groups are grids of individually boxed buttons, not
+   connected strips -- undo every strip rule above at the same specificity. */
+@media (max-width: 640px) {
+  .simulation-builder-inner .sim-toolbar-group-buttons > button,
+  .simulation-builder-inner .sim-toolbar-group-buttons > select,
+  .simulation-builder-inner .sim-toolbar-group-buttons > input[type="search"] + button,
+  .simulation-builder-inner .sim-toolbar-group-buttons > .sim-snap-label + button {
+    margin-left: 0;
+    border-radius: var(--control-radius);
+  }
 }
