@@ -9839,3 +9839,27 @@ zoomed-out scenario the critic described, confirming the button still
 produces a correctly-sized (1500×700) thumbnail with real circuit
 content in that scenario. Ran the full `test_security_seo.js`
 regression suite — all passed. Sent for a round-2 critic pass.
+
+Round-2 confirmed the fix is correctly placed (clone → clear inline
+style → set XML attributes → serialize), exactly mirrors `applyZoom()`'s
+own existing zoom-level-1 convention rather than inventing a new
+pattern, is a true no-op on the unaffected desktop/zoom=1 path,
+disturbs no other CSS-driven property (the SVG's inline `style` is
+grep-confirmed to only ever be touched by `applyZoom()` for
+width/height, nothing else), and endorsed keeping the fix despite its
+non-reproduction in Chromium as the correct call — relying on one
+browser's specific, spec-permitted-to-vary resolution of an SVG
+`<img>`'s intrinsic size would be a worse bet than removing the
+ambiguity outright. Also explicitly endorsed the round-1 disclosure
+practice itself: writing down "the theoretical bug didn't empirically
+reproduce, but I verified via direct instrumentation and kept the
+defensive fix anyway" was judged better engineering than silently
+reporting a clean repro-then-fix narrative that didn't actually happen
+that way. Final score: **9/10 — ships**, held back from a 10 only
+because this project's own established convention of never committing
+its throwaway Playwright test scripts (logged consistently across
+every earlier item in this outline) meant the critic couldn't
+independently re-run the specific test itself — not a defect in the
+change.
+
+Item #533 is done: 2 critic rounds, 5/10 → 9/10.
