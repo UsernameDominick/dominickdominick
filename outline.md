@@ -4826,7 +4826,7 @@ session's own EXIF-stripping feature for the upload-side equivalent).
 237. ✅ Transpose semitone/octave — done (see the dated entry below this section).
 276. Polarity inversion — GainNode(-1).
 277. Mono compatibility button — ChannelMerger sum, toggle.
-301. Peak meters — AnalyserNode, same pattern as waveform render.
+301. ✅ Peak meters — done (see the dated entry below this section).
 302. RMS meters — compute from time-domain array.
 305. Spectrum analyzer — AnalyserNode FFT + canvas draw (mirrors existing waveform canvas).
 309. Track/master clipping history — log exceedances like existing `log()` action table.
@@ -8864,3 +8864,82 @@ state from the DOM instead of hand-maintaining it twice and adding
 `flex-wrap`, both independently re-verified — the drift fix specifically
 confirmed against a live, never-before-seen 5th option rather than just
 re-reading the fix's own description.
+
+### Thirty-third item: #301, live peak meter for the Song/DAW builder
+
+- ✅ **A new metering `AnalyserNode`** tapped directly off the #195
+  master-bus `GainNode` (`public/song-engine.js`'s
+  `getPeakMeterAnalyser(ctx)`, one per `AudioContext`, never connected
+  onward to `ctx.destination` itself so it can't add a second copy of
+  the audio to the output), driving a visual peak-level bar next to the
+  master-volume slider in the admin Song builder toolbar. Reads the
+  exact same post-fader signal every voice already feeds into, not a
+  decorative animation driven by note/track data. Started on Play and
+  stopped/reset on Stop or on closing the builder (both already routed
+  through the single `stopPlayback()` choke point), driven by
+  `requestAnimationFrame` rather than a fixed interval.
+
+Handed to a critic agent for scoring: **7/10**. Findings:
+
+1. **(Fixed)** `analyser.fftSize` was `256`, giving each animation-frame
+   poll only a ~5.8ms window of audio while `requestAnimationFrame`
+   polls roughly every ~16.7ms (60fps) — leaving roughly two-thirds of
+   playback time never sampled at all and able to scroll out of the
+   analyser's internal buffer completely unread. A brief, fast-decaying
+   drum transient (hihat decay as low as 0.04s) landing entirely inside
+   an unpolled gap could be silently missed, meaning a feature called a
+   "peak meter" could under-report — or even show 0% during — the
+   loudest moment of a song, the opposite of what a peak meter is
+   supposed to guarantee. Fixed by bumping `fftSize` to `2048` (~46ms at
+   a typical 44.1kHz context, ~43ms even at 48kHz) — comfortably wider
+   than the gap between polls at any realistic sample rate, so
+   consecutive polled windows overlap and nothing can fall entirely
+   between two polls.
+2. **(Fixed)** `stopPeakMeter()` hard-reset the meter to 0% the instant
+   Stop was clicked, but `player.stop()` only clears the step-scheduling
+   timer — it doesn't stop already-triggered oscillators/buffer sources,
+   which keep decaying on their own envelope for up to ~0.6-0.7s (the
+   "808" kit's kick decay plus its own stop buffer, plus up to 0.1s for
+   an already-scheduled note to still start). The meter was visibly
+   pinned at 0% while that tail was still actually playing. Fixed with a
+   bounded ~800ms drain: `stopPeakMeter()` now schedules the reset via
+   `setTimeout` instead of applying it immediately, leaving the same
+   `requestAnimationFrame` loop running (never canceled) so the meter
+   keeps tracking the real, decaying signal during the drain window;
+   `startPeakMeter()` cancels any pending drain and, if the loop is
+   already running, returns early rather than restarting it — so a rapid
+   Stop-then-Play during the drain window resumes seamlessly instead of
+   double-running or restarting the loop.
+
+Sent for a round-2 critic pass specifically re-deriving the `fftSize`
+math against real sample rates, walking multi-cycle Play/Stop/Play/Stop
+sequences (not just the two round-1-tested scenarios), checking
+background-tab `requestAnimationFrame` throttling against the
+`setTimeout`-based drain, and re-verifying none of round 1's
+already-confirmed-correct aspects (no double `connect()`, no rAF race,
+correct buffer sizing, no stale DOM caching) were reopened by the fix.
+Confirmed both fixes genuinely correct: the 2048-sample window
+comfortably exceeds the frame gap at both 44.1kHz and 48kHz; every
+requested Play/Stop sequence (including repeated rapid cycling) leaves
+`peakMeterRaf`/`peakMeterDrainTimer` in a sane, non-leaking, non-
+duplicating state, since JS's single-threaded event loop means the tick
+loop and the drain timer's callback can never truly race; a pending
+drain timer firing against a closed/hidden modal is harmless since the
+toolbar markup is static and never removed; and the shared `AudioContext`
+being a true page-lifetime singleton closes off the one theoretical edge
+case (a continuing loop bound to a stale analyser from a different
+context) the drain-and-resume design could otherwise have opened. Two
+pre-existing, unrelated observations were noted but explicitly not
+blocking: a backgrounded tab mid-playback (not mid-drain) simply freezes
+the meter at a stale value until refocused, matching ordinary
+`requestAnimationFrame` browser behavior; and the Play/Stop button label
+flips back to "▶ Play" immediately on Stop while the meter visually
+keeps decaying for up to 800ms afterward, an intentional and reasonable
+UX tradeoff rather than a defect. Final score: **9/10** — ships.
+
+Item #301 is done: 2 critic rounds, 7/10 → 9/10, two real accuracy
+findings (an analyser window narrow enough to risk silently missing the
+actual peak it was measuring, and a meter that visually disagreed with
+audio still genuinely playing) fixed and independently re-verified
+across multi-cycle play/stop sequences and a background-tab edge case
+the first round hadn't explicitly walked through.
