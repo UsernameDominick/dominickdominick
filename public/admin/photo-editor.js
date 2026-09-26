@@ -14,6 +14,38 @@
   const MAX_DIMENSION = 2000;
   const UNDO_LIMIT = 15;
 
+  // The site's one uploaded custom font (see worker/admin-api.js's
+  // /upload-font, Site Settings' custom_font_name/custom_font_url) --
+  // loaded once, lazily, the first time the Text tool is actually
+  // selected rather than on every editor open, since most sessions never
+  // touch the Text tool at all. `null` means "not yet checked", `false`
+  // means "checked and none is configured" (or loading failed), and a
+  // string means the font's own family name, ready to use in ctx.font.
+  let customFontFamily = null;
+  async function ensureCustomFontLoaded() {
+    if (customFontFamily !== null) return customFontFamily;
+    try {
+      const settings = await window.adminApi("/settings");
+      const name = settings && settings.custom_font_name;
+      const url = settings && settings.custom_font_url;
+      if (!name || !url) {
+        customFontFamily = false;
+      } else {
+        const face = new FontFace(name, `url(${url})`);
+        await face.load();
+        document.fonts.add(face);
+        customFontFamily = name;
+      }
+    } catch {
+      // A failed fetch/parse/load leaves the custom option silently
+      // unavailable rather than surfacing an error over something as
+      // minor as an optional font choice -- placeText() below falls back
+      // to sans-serif in exactly the same way as "not configured at all".
+      customFontFamily = false;
+    }
+    return customFontFamily;
+  }
+
   let originalKey = null;
   let undoStack = [];
   let redoStack = [];
@@ -214,6 +246,20 @@
     document.querySelectorAll(".pe-tool").forEach((b) => b.classList.toggle("active", b.dataset.tool === tool));
     $("pe-apply-crop").hidden = tool !== "select" || !cropRect;
     $("pe-rect-radius-label").hidden = tool !== "rect";
+    $("pe-text-font").hidden = tool !== "text";
+    if (tool === "text") {
+      ensureCustomFontLoaded().then((family) => {
+        const fontSelect = $("pe-text-font");
+        const customOption = fontSelect.querySelector('option[value="custom"]');
+        customOption.disabled = !family;
+        customOption.textContent = family ? `Site's custom font (${family})` : "Site's custom font (none uploaded)";
+        // Don't leave the dropdown silently pointed at an option that just
+        // got disabled -- e.g. the admin picked "custom" before this
+        // async check resolved false, or a font was uploaded then later
+        // removed from Site Settings between sessions.
+        if (!family && fontSelect.value === "custom") fontSelect.value = "sans-serif";
+      });
+    }
     clearOverlay();
   }
 
@@ -836,7 +882,15 @@
     pushUndo();
     const fontSize = Math.max(16, annotateSize() * 6);
     ctx.fillStyle = annotateColor();
-    ctx.font = `bold ${fontSize}px sans-serif`;
+    // customFontFamily is only ever a real family name once
+    // ensureCustomFontLoaded() has resolved truthy (checked again here,
+    // not just trusted from the dropdown's selection, in case the async
+    // load hadn't actually finished -- or failed -- by the time this
+    // fires) -- otherwise this falls back to the same plain sans-serif
+    // as before the font picker existed.
+    const useCustom = $("pe-text-font").value === "custom" && customFontFamily;
+    const fontFamily = useCustom ? `'${customFontFamily}', sans-serif` : "sans-serif";
+    ctx.font = `bold ${fontSize}px ${fontFamily}`;
     ctx.textBaseline = "top";
     ctx.fillText(text, point.x, point.y);
     // A critic pass found this was the one remaining pixel-mutating action
@@ -1150,6 +1204,7 @@
         $("pe-apply-preset").value = "";
         $("pe-crop-ratio").value = "free";
         $("pe-rect-radius").value = 0;
+        $("pe-text-font").value = "sans-serif";
         bgPreviewSelect.value = "checkerboard";
         applyBgPreview("checkerboard");
         loadPhotoPresets();
