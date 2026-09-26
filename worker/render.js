@@ -1611,6 +1611,23 @@ const ICON = {
   moon: svgIcon("icon-moon", '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>'),
 };
 
+// Every page used to download the simulator, song engine, song embed and
+// article scripts whether or not it had any of those features. Each is
+// now included only when the rendered body actually contains markup it
+// drives, so a plain page ships none of them.
+function pageScriptsHtml(bodyHtml) {
+  const html = String(bodyHtml || "");
+  const tags = [];
+  if (html.includes("sim-power-btn") || html.includes('class="sim-')) tags.push('<script src="/sim-player.js" defer></script>');
+  if (/reading-progress|copy-link-btn|read-aloud-btn|save-for-later-btn|class="reactions|saved-items-list|<pre>/.test(html)) {
+    tags.push('<script src="/article-extras.js" defer></script>');
+  }
+  if (html.includes("song-embed")) {
+    tags.push('<script src="/song-engine.js" defer></script>', '<script src="/song-embed.js" defer></script>');
+  }
+  return tags.join("\n");
+}
+
 export function renderShell({
   title,
   description,
@@ -1760,10 +1777,7 @@ ${ogImage ? `<meta name="twitter:image" content="${esc(absoluteUrl(ogImage))}">`
 <link rel="stylesheet" href="/style.css">
 ${themeStyle}
 ${breakpointStyle}
-<script src="/sim-player.js" defer></script>
-<script src="/article-extras.js" defer></script>
-<script src="/song-engine.js" defer></script>
-<script src="/song-embed.js" defer></script>
+${pageScriptsHtml(bodyHtml)}
 <script>
   document.addEventListener("DOMContentLoaded", function () {
     if (document.querySelector("pre code")) {

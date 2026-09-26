@@ -797,6 +797,43 @@ function renderWireSvg(wire, components, poweredWires) {
   )}" d="${d}"${shineStrokeStyle}/>${labelSvg}`;
 }
 
+// The embed always used the builder's whole 1500x700 canvas as its view,
+// so a small circuit built in one corner rendered as a few specks in a
+// mostly-empty box. The view now fits the circuit's actual bounds (every
+// part's box plus every wire endpoint), with padding and a minimum size so
+// a single part isn't blown up to fill the screen.
+function fittedViewBox(components, wires, fallbackW, fallbackH) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  const grow = (x, y) => {
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  };
+  for (const c of components) {
+    const def = SIM_COMPONENTS[c.type];
+    if (!def || !Number.isFinite(c.x) || !Number.isFinite(c.y)) continue;
+    grow(c.x, c.y);
+    grow(c.x + (def.w || 0), c.y + (def.h || 0));
+  }
+  for (const w of wires) {
+    for (const end of [w.from, w.to]) {
+      const comp = end && components.find((c) => c.id === end.compId);
+      const p = comp && pinPosition(comp, end.pin);
+      if (p) grow(p.x, p.y);
+    }
+  }
+  if (!Number.isFinite(minX)) return `0 0 ${fallbackW} ${fallbackH}`;
+  const PAD = 40;
+  const MIN_W = 480;
+  const MIN_H = 200;
+  let x = minX - PAD, y = minY - PAD, w = maxX - minX + PAD * 2, h = maxY - minY + PAD * 2;
+  if (w < MIN_W) { x -= (MIN_W - w) / 2; w = MIN_W; }
+  if (h < MIN_H) { y -= (MIN_H - h) / 2; h = MIN_H; }
+  const r = (n) => Math.round(n);
+  return `${r(x)} ${r(y)} ${r(w)} ${r(h)}`;
+}
+
 export function renderSimulationSvg(data, { width = 1500, height = 700 } = {}) {
   const components = (data && data.components) || [];
   const wires = (data && data.wires) || [];
@@ -804,5 +841,5 @@ export function renderSimulationSvg(data, { width = 1500, height = 700 } = {}) {
   const analysis = computeCircuitAnalysis(data);
   const wiresSvg = wires.map((w) => renderWireSvg(w, components, poweredWires)).join("");
   const compsSvg = components.map((c) => renderComponentSvg(c, poweredComps, analysis)).join("");
-  return `<svg class="sim-svg" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">${SIM_DEFS_SVG}${wiresSvg}${compsSvg}</svg>`;
+  return `<svg class="sim-svg" viewBox="${fittedViewBox(components, wires, width, height)}" xmlns="http://www.w3.org/2000/svg">${SIM_DEFS_SVG}${wiresSvg}${compsSvg}</svg>`;
 }

@@ -1998,14 +1998,32 @@ h6 { font-size: 0.9rem; }
     stroke-dashoffset: -26;
   }
 }
+/* Same shape as every other button on the site (shared control tokens)
+   rather than its own square-cornered one-off. */
 .sim-power-btn {
+  margin-top: 10px;
   background: var(--accent);
   color: var(--on-accent);
-  border: none;
-  border-radius: 6px;
-  padding: 8px 16px;
+  border: var(--control-border-width) solid var(--accent);
+  border-radius: var(--control-radius);
+  padding: var(--control-pad-y) var(--control-pad-x);
+  font: inherit;
+  font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
+}
+
+.sim-power-btn[aria-pressed="true"] {
+  background: transparent;
+  color: var(--text);
+}
+
+/* The Divider block rendered a bare <hr> -- the browser default, a
+   bright bevelled line far louder than anything else on the page. */
+hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 8px 0;
 }
 
 /* 3D scan block — <model-viewer> has no intrinsic size, so it needs an
