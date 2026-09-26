@@ -6879,3 +6879,38 @@ entirely. The fix for that -- enforcing the invariant inside the shared
 write function itself, not just inside the code paths that are expected
 to produce valid input -- is the more durable pattern going forward for
 this kind of validation.
+
+Sent back for a round-5 critic pass on commit 917cac7, explicitly told
+this had already been through 4 rounds of genuine convergence and to
+score honestly rather than manufacture a new finding if what remained
+was minor. Scored 9/10 -- ship. Verified all five follow-up questions
+cleanly: `upsertMediaMeta` validates width/height on every code path
+(both UPDATE and INSERT, unconditionally before either branch runs); a
+partial PATCH with only one of width/height is handled correctly and
+actually better than a pair-based check would be, since the enforcement
+clamps each field independently rather than requiring both -- and the
+renderer's own `imgSizeAttrs()` already refuses to emit either attribute
+unless both columns are non-null, so a half-populated row still can't
+produce a bogus `<img width height>` pair; no other route or function
+writes the `media` table's width/height columns outside
+`upsertMediaMeta` (the one other direct `INSERT INTO media` found, in
+the full-database backup/restore routine, omits width/height from its
+column list entirely, so it can't reintroduce the bypass -- noted for
+awareness only, not a gap, since it also sits behind a much broader
+admin-restore capability than anything media-editing touches); the
+`plausibleDims` move from admin-api.js to db.js introduced no circular
+import (`db.js` doesn't import from `admin-api.js`) and left no dangling
+reference to the old removed local copy.
+
+Item #576 is done: 5 critic rounds (6/10 x4, then 9/10), nine real
+findings across the first four rounds all fixed and verified live except
+the one pre-existing backfill-pagination limitation (logged as a
+deferred Medium item, shared with `/media/backfill-hashes`, not a
+regression from this feature), with no regression to the working formats
+at any step. The arc of this item is worth remembering for future
+header-parsing/validation work: harden every format symmetrically in one
+pass rather than fixing only the branch a critic calls out, and enforce
+invariants at the single shared write chokepoint a value passes through
+rather than only at the code paths expected to produce valid input --
+both lessons this item had to learn the hard way, one critic round at a
+time, before finally converging.
