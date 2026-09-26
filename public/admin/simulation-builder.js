@@ -1630,6 +1630,63 @@
     }
   });
 
+  // ---------- Thumbnail from current view ----------
+  // Rasterizes the live builder SVG (the exact same markup the public
+  // simulation viewer renders) into a PNG and uploads it as the poster
+  // image, sparing the admin from having to screenshot the circuit
+  // manually. Serializes a CLONE with explicit width/height attributes
+  // set from the live viewBox -- an <img> loading an SVG that only has a
+  // viewBox (no width/height) gets an unreliable, browser-dependent
+  // default intrinsic size, so the clone avoids ever touching the live
+  // DOM node just to make rasterization deterministic.
+  $("sim-generate-thumbnail").addEventListener("click", async () => {
+    const btn = $("sim-generate-thumbnail");
+    const svg = $("sim-builder-svg");
+    if (!svg) return;
+    const originalText = btn.textContent;
+    btn.textContent = "Generating…";
+    btn.disabled = true;
+    try {
+      const vb = svg.viewBox.baseVal;
+      const svgClone = svg.cloneNode(true);
+      svgClone.setAttribute("width", vb.width);
+      svgClone.setAttribute("height", vb.height);
+      const svgString = new XMLSerializer().serializeToString(svgClone);
+      const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+      const svgUrl = URL.createObjectURL(svgBlob);
+      const img = new Image();
+      try {
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = () => reject(new Error("Couldn't render the circuit view as an image."));
+          img.src = svgUrl;
+        });
+      } finally {
+        URL.revokeObjectURL(svgUrl);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = vb.width;
+      canvas.height = vb.height;
+      const ctx = canvas.getContext("2d");
+      // The public/admin backgrounds are CSS (var(--bg-elevated)), not
+      // part of the SVG's own paintable content, so without this the
+      // rasterized PNG would have a transparent background instead of
+      // matching what's actually seen on screen.
+      ctx.fillStyle = getComputedStyle(svg).backgroundColor || "#1e1e20";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+      if (!blob) throw new Error("Couldn't encode the thumbnail image.");
+      const { url } = await window.adminUploadBlob(blob);
+      $("sim-poster-url").value = url;
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      btn.textContent = originalText;
+      btn.disabled = false;
+    }
+  });
+
   // ---------- Export / Import ----------
   $("sim-export").addEventListener("click", () => {
     const name = ($("simulation-name").value || "simulation").trim().replace(/[^a-z0-9-_]+/gi, "-");

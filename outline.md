@@ -4933,7 +4933,7 @@ substantial new infra + security surface).
 463. ✅ Potentiometer — done (see the dated entry below this section).
 524. ✅ Comments on components — done (see the dated entry below this section).
 531. Consistent embed controls — mostly CSS/UI consistency pass.
-533. Thumbnail from saved view — render existing SVG to canvas, export PNG.
+533. ✅ Thumbnail from saved view — render existing SVG to canvas, export PNG. (done — see the dated entry below)
 534. Public param controls — expose whitelisted fields already in `data` via player UI.
 539. Deep links to component/view — URL hash + scroll/select, trivial with existing ids.
 
@@ -9749,3 +9749,47 @@ untouched surrounding `tick()`/drain-timeout logic. Final score: **9/10
 — ships.**
 
 Item #305 is done: 2 critic rounds, 8/10 → 9/10.
+
+### Forty-fifth item: #533, Simulation builder "Generate from current view" poster thumbnail
+
+- ✅ **A "Generate from current view" button** next to the existing
+  poster-image field in the Simulation builder, which rasterizes the
+  live circuit SVG (the exact same `#sim-builder-svg` markup the public
+  simulation viewer renders) into a PNG and uploads it as the poster/
+  share image — sparing an admin from having to screenshot the circuit
+  manually. Since simulations already have a poster field (`og_image`,
+  wired to `#sim-poster-url`) unlike songs, this only needed the
+  generation step, not any schema change.
+
+Implementation note worth logging: the live SVG only carries a
+`viewBox` (no explicit `width`/`height` attributes — those are set via
+CSS on the live DOM element instead), and loading such an SVG into an
+`<img>` for rasterization is a known browser-dependent gotcha — some
+browsers fall back to an unrelated default intrinsic size (traditionally
+300×150) rather than deriving one from the `viewBox`. Avoided by cloning
+the SVG node (never touching the live DOM element, so nothing about the
+actual builder view is disturbed) and explicitly setting `width`/`height`
+on the clone from the live `viewBox` before serializing it — making the
+rasterized size deterministic rather than relying on browser-specific
+fallback behavior. Also explicitly filled the canvas with the SVG's own
+computed `background-color` before drawing, since that background comes
+from CSS (`var(--bg-elevated)`), not the SVG's own paintable content —
+without this the exported PNG would have had a transparent background
+instead of matching what's actually seen on screen.
+
+Verified via Playwright against a real simulation (battery + resistor +
+LED, not an empty canvas): confirmed the poster field starts empty,
+clicking the button uploads a genuine PNG through the real
+`/api/admin/upload` endpoint and sets the poster field to the resulting
+URL, fetched the uploaded file back and confirmed it's a real
+`image/png` of reasonable size (24.8KB, not a blank/near-empty image),
+decoded its actual pixel dimensions and confirmed they exactly match the
+SVG's `1500×700` viewBox, and confirmed the button's label/disabled
+state correctly restore after the async upload completes. Ran the full
+`test_security_seo.js` regression suite — all passed. Cleaned up both
+the test simulation row AND the uploaded test media file itself via
+their real DELETE endpoints, since this feature (unlike this session's
+earlier text/JSON-only test data) genuinely uploads a new file to R2/the
+media library, not just a D1 row.
+
+Handed to a critic agent for scoring.
