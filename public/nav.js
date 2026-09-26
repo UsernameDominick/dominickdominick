@@ -454,8 +454,7 @@ document.addEventListener("input", function (e) {
   var update = function () {
     var reduced = root.getAttribute("data-motion") === "reduce";
     btn.setAttribute("aria-pressed", reduced ? "true" : "false");
-    btn.textContent = reduced ? "▶" : "⏸";
-    btn.title = reduced ? "Turn animations back on" : "Turn off entrance/hover animations";
+    btn.title = reduced ? "Animations are off (click to turn back on)" : "Turn off entrance/hover animations";
   };
   update();
   btn.addEventListener("click", function () {

@@ -26,6 +26,15 @@
      Verified against both --accent and --accent-secondary (used together
      in --accent-gradient), 7.59:1 and 9.63:1 respectively. */
   --on-accent: #0c0a16;
+  /* Shared control shape -- every button, chip, and input on the site
+     reads these instead of hardcoding its own radius/padding, so the
+     whole site's controls change together (and Site Settings can
+     override them the same way it overrides --accent). */
+  --control-radius: 999px;
+  --control-pad-y: 0.6em;
+  --control-pad-x: 1.25em;
+  --control-border-width: 1px;
+  --card-radius: 14px;
   /* A touch brighter than before to match the new theme's higher
      saturation, while staying clearly distinct in hue from --accent
      (pure red vs. --accent's orange-coral) so the two are never
@@ -95,6 +104,19 @@
 
 * {
   box-sizing: border-box;
+}
+
+/* Images carry width/height attributes (so the browser reserves their
+   space before they load), which on their own force the intrinsic pixel
+   height -- a 1600x900 image in a 500px column rendered 900px tall and
+   visibly stretched. height:auto keeps the reserved aspect ratio while
+   letting the image scale with its column. Rules that deliberately crop
+   (gallery thumbnails, object-fit: cover) set their own height and still
+   win on specificity. */
+img,
+video {
+  max-width: 100%;
+  height: auto;
 }
 
 .sr-only {
@@ -480,11 +502,36 @@ body {
   flex-shrink: 0;
 }
 
-.icon-link-btn {
-  display: flex;
+.icon-link-btn,
+#theme-toggle,
+#motion-toggle,
+#font-size-toggle {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
   text-decoration: none;
+}
+
+.icon-text {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* One button, two icons: shows the theme you'd switch TO. */
+#theme-toggle .icon-moon,
+:root[data-theme="light"] #theme-toggle .icon-sun {
+  display: none;
+}
+
+:root[data-theme="light"] #theme-toggle .icon-moon {
+  display: block;
+}
+
+#motion-toggle[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 #theme-toggle:hover,
@@ -505,7 +552,12 @@ body {
   padding: 48px 32px;
   display: grid;
   grid-template-columns: repeat(24, 1fr);
-  grid-auto-rows: 16px;
+  /* minmax, not a fixed 16px: with fixed rows, any block whose content
+     ran taller than the rows it was assigned (an image, a list, a card
+     grid) spilled over the blocks below it and they rendered on top of
+     each other. Rows still default to 16px for the admin's placement
+     math, but now grow to fit their content. */
+  grid-auto-rows: minmax(16px, auto);
   gap: 8px;
   align-content: start;
 }
@@ -544,6 +596,92 @@ body {
   display: flex;
   flex-direction: column;
   gap: 40px;
+  /* ~70 characters per line. Body text ran the full 1,036px canvas width
+     (about 150 characters a line) -- roughly double a comfortable reading
+     measure, which makes long posts noticeably harder to follow. */
+  max-width: 760px;
+}
+
+.article-canvas #readable-content {
+  font-size: 1.0625rem;
+  line-height: 1.75;
+}
+
+.article-canvas #readable-content ul,
+.article-canvas #readable-content ol,
+.block ul,
+.block ol {
+  padding-left: 1.3em;
+  line-height: 1.7;
+}
+
+.article-canvas #readable-content li + li {
+  margin-top: 0.35em;
+}
+
+.md-quote {
+  margin: 1.5em 0;
+  padding: 0.2em 0 0.2em 1.1em;
+  border-left: 3px solid var(--accent);
+  color: var(--text);
+  font-size: 1.1em;
+  font-style: italic;
+}
+
+.md-quote p {
+  margin: 0;
+}
+
+.page-lede {
+  font-size: 1.15rem;
+  color: var(--text-dim);
+  line-height: 1.6;
+  margin: 0 0 18px;
+}
+
+.article-actions {
+  margin-top: 14px;
+}
+
+.article-cover {
+  display: block;
+  width: 100%;
+  margin-top: 28px;
+  border-radius: var(--card-radius);
+  border: 1px solid var(--border);
+}
+
+.project-link-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 4px 0 18px;
+}
+
+.tech-stack {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.tech-stack-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  margin-right: 4px;
+}
+
+.tech-chip {
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-size: 0.8rem;
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 .block-has-bg-layer {
@@ -691,17 +829,76 @@ body {
   animation: none;
 }
 
+/* The Button block used to be styled as a plain accent-colored text link
+   -- on the live homepage the two primary calls to action (GitHub, Email)
+   read as ordinary links floating in empty space. A real button: filled
+   with the accent by default, an outlined "secondary" variant, and a
+   quiet "link" variant for when a text action genuinely is what's wanted. */
 .btn {
-  display: inline-block;
-  color: var(--accent);
-  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45em;
+  padding: var(--control-pad-y) var(--control-pad-x);
+  border-radius: var(--control-radius);
+  border: var(--control-border-width) solid var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
   font-size: 0.95rem;
-  border-bottom: 1px solid transparent;
-  transition: border-color 0.2s ease;
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: transform 0.2s var(--ease-smooth), box-shadow 0.2s var(--ease-smooth), background-color 0.2s ease, color 0.2s ease;
 }
 
 .btn:hover {
-  border-color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px -8px var(--accent);
+}
+
+.btn:active {
+  transform: translateY(0);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--text);
+}
+
+.btn-secondary:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.btn-link {
+  background: none;
+  border-color: transparent;
+  color: var(--accent);
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.btn-link:hover {
+  box-shadow: none;
+  transform: none;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.btn-external-icon {
+  font-size: 0.85em;
+  opacity: 0.8;
+}
+
+:root[data-motion="reduce"] .btn,
+:root[data-motion="reduce"] .btn:hover {
+  transform: none;
+  transition: none;
 }
 
 /* "Clear history"/"Clear all" on /history and /saved — real <button>
@@ -730,6 +927,29 @@ body {
 .empty-hint {
   color: var(--text-dim);
   font-style: italic;
+}
+
+/* Unfilled blocks are hidden from visitors; a signed-in admin still sees
+   them, marked so it's obvious they're not live content. */
+.empty-hint-admin {
+  font-style: normal;
+  font-size: 0.85rem;
+  padding: 10px 14px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+}
+
+.admin-only-tag {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .block-links {
@@ -1048,15 +1268,81 @@ h6 { font-size: 0.9rem; }
 }
 
 .project-card {
+  position: relative;
+  height: 100%;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--card-radius);
   padding: 20px 24px;
+  transition: border-color 0.2s ease, transform 0.2s var(--ease-smooth);
+}
+
+/* The whole card is the click target (the link's ::after stretches over
+   it), not just the small text link at the bottom. */
+.project-card-link {
+  display: inline-block;
+  margin-top: 14px;
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.project-card-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.project-card-linked:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.project-card-link:focus-visible {
+  outline: none;
+}
+
+.project-card-linked:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+:root[data-motion="reduce"] .project-card-linked:hover {
+  transform: none;
 }
 
 .project-card h2 {
   margin: 0 0 8px;
   font-size: 1.1rem;
+}
+
+/* Index/related cards link their title; same treatment as article-list
+   titles -- text color at rest, accent on hover -- and the whole card is
+   the click target via the stretched ::after. */
+.project-card h2 a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.project-card h2 a::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.project-card:has(h2 a):hover {
+  border-color: var(--accent);
+}
+
+.project-card:has(h2 a):hover h2 a {
+  color: var(--accent);
+}
+
+.project-card .tags {
+  position: relative;
+  z-index: 1;
 }
 
 .project-card p {
@@ -1780,6 +2066,33 @@ h6 { font-size: 0.9rem; }
   line-height: 1.6;
 }
 
+/* Titles in a listing were rendered with the global link style -- big,
+   accent-colored, underlined -- so a list of five posts read as five
+   shouting links. Text color at rest, accent on hover, like a normal
+   index. */
+.thought h2 {
+  margin: 0 0 6px;
+  font-size: 1.25rem;
+  line-height: 1.3;
+}
+
+.thought h2 a {
+  color: var(--text);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.thought h2 a:hover,
+.thought h2 a:focus-visible {
+  color: var(--accent);
+}
+
+.thought .thought-excerpt {
+  color: var(--text-dim);
+  margin-bottom: 10px;
+  max-width: 68ch;
+}
+
 .site-footer {
   border-top: 1px solid var(--border);
   padding: 24px 32px;
@@ -1813,8 +2126,66 @@ h6 { font-size: 0.9rem; }
 }
 
 @media (max-width: 640px) {
+  /* Phone header used to wrap into three rows (brand / nav / tools) with
+     the nav clipped off the right edge. Now two: brand and tools share the
+     first row, and the nav gets the full width of the second, where it
+     can scroll with its edge-fade cues. */
   .topbar {
-    padding: 16px 20px;
+    padding: 12px 16px 10px;
+    row-gap: 10px;
+    column-gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .topbar .brand {
+    flex: 0 0 auto;
+  }
+
+  .brand {
+    order: 1;
+  }
+
+  .topbar-tools {
+    order: 2;
+    margin-left: auto;
+  }
+
+  .topbar .tabs {
+    order: 3;
+    flex: 1 1 100%;
+  }
+
+  .topbar .topbar-tools {
+    /* Basis = the smallest useful width (76px search + two 34px icons +
+       gaps). Fits beside the brand on common phones and grows from there;
+       on very narrow screens it wraps to its own row instead of
+       overlapping the brand. */
+    flex: 1 1 164px;
+    min-width: 0;
+    justify-content: flex-end;
+  }
+
+  .topbar .site-search {
+    flex: 1 1 auto;
+    min-width: 76px;
+    max-width: 150px;
+  }
+
+  .topbar .site-search input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* Only the essentials fit beside the brand on one row. Motion and text
+     size duplicate what the OS (reduce motion) and browser (zoom) already
+     provide on a phone; the saved preference still applies either way. */
+  #motion-toggle,
+  #font-size-toggle {
+    display: none;
+  }
+
+  .topbar-tools {
+    gap: 8px;
   }
 
   /* .search-suggest is `position: absolute` relative to .site-search,

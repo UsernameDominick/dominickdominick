@@ -15,6 +15,8 @@ export const RESERVED_SLUGS = new Set([
   "media",
   "random",
   "projects",
+  "simulation",
+  "favicon.ico",
 ]);
 
 // SQLite's LIKE treats % and _ as wildcards with no default escape, so a
@@ -67,7 +69,15 @@ export async function listNavPages(env) {
   for (const p of topLevel) {
     p.children = results.filter((c) => c.nav_parent_id === p.id);
   }
-  return [...BASELINE_NAV_ITEMS, ...topLevel];
+  // Baseline items used to be prepended unconditionally, so a site that
+  // also had its own "projects"/"random" nav pages (the live site does)
+  // showed "Articles · Projects · Topics · Home · Projects · Random" --
+  // duplicate entries, Home stuck in the middle, and two items lit up as
+  // active at once. The admin's own nav pages now come first in their
+  // chosen order, and a baseline item is only added if no nav page
+  // already links to the same place (the admin's label wins).
+  const taken = new Set(results.map((p) => p.slug));
+  return [...topLevel, ...BASELINE_NAV_ITEMS.filter((item) => !taken.has(item.slug))];
 }
 
 export async function createPage(env, { slug, title, meta_description, nav_label, nav_order, og_image, canonical_url, custom_json_ld }) {

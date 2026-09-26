@@ -1,6 +1,7 @@
 import {
   getPageBySlug,
   listPages,
+  RESERVED_SLUGS,
   listNavPages,
   listBlocks,
   listArticles,
@@ -45,6 +46,9 @@ import {
   renderBlocks,
   renderTags,
   excerpt,
+  displayDate,
+  absoluteUrl,
+  imgSizeAttrs as coverSizeAttrs,
   readingTime,
   esc,
   safeHref,
@@ -233,7 +237,7 @@ async function renderPage(env, page, url, request) {
   }
   const blocks = await listBlocks(env, page.id);
   const activeTagFilter = url.searchParams.get("tag") || null;
-  const bodyHtml = await renderBlocks(env, blocks, { activeTagFilter });
+  const bodyHtml = await renderBlocks(env, blocks, { activeTagFilter, isAdmin });
   // A page has no single body-text field to fall back to the way an
   // article/project's excerpt(body) already does — build an equivalent
   // fallback from its own text/heading blocks (reading order, same
@@ -328,15 +332,16 @@ async function renderArticle(env, article, navItems, previewReason = null, isAdm
   ${breadcrumbHtml}
   <div class="block page-header">
     <div class="article-meta">
-      <time datetime="${esc(article.published_at)}">${esc((article.published_at || "").slice(0, 10))}</time>
-      ${wasUpdated ? `<span class="article-meta-sep">·</span><span>Updated <time datetime="${esc(article.updated_at)}">${esc((article.updated_at || "").slice(0, 10))}</time></span>` : ""}
+      <time datetime="${esc(article.published_at)}">${esc(displayDate(article.published_at))}</time>
+      ${wasUpdated ? `<span class="article-meta-sep">·</span><span>Updated <time datetime="${esc(article.updated_at)}">${esc(displayDate(article.updated_at))}</time></span>` : ""}
       <span class="article-meta-sep">·</span>
       <span>${mins} min read</span>
       ${bylineHtml ? `<span class="article-meta-sep">·</span>${bylineHtml}` : ""}
-      ${renderShareLinks(article.title, `/random/${article.slug}`)}
     </div>
     <h1>${esc(article.title)}</h1>
     ${renderTags(article.tags)}
+    <div class="article-actions">${renderShareLinks(article.title, `/random/${article.slug}`)}</div>
+    ${article.og_image ? `<img class="article-cover" src="${esc(article.og_image)}" alt="" loading="eager" fetchpriority="high"${await coverSizeAttrs(env, article.og_image)}>` : ""}
   </div>
   <div class="block">${ttsBarHtml}</div>
   ${correctionNoteHtml ? `<div class="block">${correctionNoteHtml}</div>` : ""}
@@ -353,6 +358,11 @@ async function renderArticle(env, article, navItems, previewReason = null, isAdm
       "@context": "https://schema.org",
       "@type": "BlogPosting",
       headline: article.title,
+      description,
+      url: `https://dominickdominick.com/random/${article.slug}`,
+      // Google's Article rich result requires an image; relative URLs aren't
+      // valid here (or in og:image) -- see absoluteUrl().
+      ...(article.og_image || defaultOgImage ? { image: [absoluteUrl(article.og_image || defaultOgImage)] } : {}),
       datePublished: toIso8601(article.published_at),
       dateModified: toIso8601(article.updated_at || article.published_at),
       author: { "@type": "Person", name: "Dominick" },
@@ -402,10 +412,23 @@ async function renderProject(env, project, navItems, previewReason = null, isAdm
 
   const linkButtons = ["github", "demo", "docs", "download"]
     .filter((key) => project.links && project.links[key])
-    .map((key) => `<a class="btn" href="${esc(safeHref(project.links[key]))}" target="_blank" rel="noopener">${esc(key[0].toUpperCase() + key.slice(1))}</a>`)
-    .join(" ");
+    // First link is the primary call to action; the rest are outlined so a
+    // project with a repo, demo and docs doesn't show three equal-weight
+    // filled buttons competing with each other.
+    .map(
+      (key, i) =>
+        `<a class="btn${i ? " btn-secondary" : ""}" href="${esc(safeHref(project.links[key]))}" target="_blank" rel="noopener">${esc(
+          key[0].toUpperCase() + key.slice(1)
+        )}<span class="btn-external-icon" aria-hidden="true">↗</span></a>`
+    )
+    .join("");
   const techStackHtml = project.tech_stack && project.tech_stack.length
-    ? `<div class="tags">${project.tech_stack.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>`
+    ? // Built-with chips were identical to topic tags (same class, same
+      // look), so a reader couldn't tell "JavaScript" the technology from
+      // "web" the topic. Labelled, and styled as plain outlined chips.
+      `<div class="tech-stack"><span class="tech-stack-label">Built with</span>${project.tech_stack
+        .map((t) => `<span class="tech-chip">${esc(t)}</span>`)
+        .join("")}</div>`
     : "";
   const related = await getRelatedProjects(env, project);
   const relatedHtml = renderRelatedProjectsHtml(related);
@@ -449,17 +472,18 @@ async function renderProject(env, project, navItems, previewReason = null, isAdm
   <div class="block page-header">
     <div class="article-meta">
       ${project.status ? `<span>${esc(project.status)}</span><span class="article-meta-sep">·</span>` : ""}
-      <time datetime="${esc(project.published_at)}">${esc((project.published_at || "").slice(0, 10))}</time>
-      ${wasUpdated ? `<span class="article-meta-sep">·</span><span>Updated <time datetime="${esc(project.updated_at)}">${esc((project.updated_at || "").slice(0, 10))}</time></span>` : ""}
+      <time datetime="${esc(project.published_at)}">${esc(displayDate(project.published_at))}</time>
+      ${wasUpdated ? `<span class="article-meta-sep">·</span><span>Updated <time datetime="${esc(project.updated_at)}">${esc(displayDate(project.updated_at))}</time></span>` : ""}
       <span class="article-meta-sep">·</span>
       <span>${mins} min read</span>
-      ${renderShareLinks(project.title, `/projects/${project.slug}`)}
     </div>
     <h1>${esc(project.title)}</h1>
-    ${project.summary ? `<p>${esc(project.summary)}</p>` : ""}
+    ${project.summary ? `<p class="page-lede">${esc(project.summary)}</p>` : ""}
+    ${linkButtons ? `<div class="project-link-buttons">${linkButtons}</div>` : ""}
     ${techStackHtml}
     ${renderTags(project.tags)}
-    ${linkButtons ? `<p>${linkButtons}</p>` : ""}
+    <div class="article-actions">${renderShareLinks(project.title, `/projects/${project.slug}`)}</div>
+    ${project.og_image && !heroVideoHtml ? `<img class="article-cover" src="${esc(project.og_image)}" alt="" loading="eager" fetchpriority="high"${await coverSizeAttrs(env, project.og_image)}>` : ""}
   </div>
   ${heroVideoHtml ? `<div class="block">${heroVideoHtml}</div>` : ""}
   <div class="block">${ttsBarHtml}</div>
@@ -480,6 +504,8 @@ async function renderProject(env, project, navItems, previewReason = null, isAdm
       "@type": "CreativeWork",
       name: project.title,
       description,
+      url: `https://dominickdominick.com/projects/${project.slug}`,
+      ...(project.og_image || defaultOgImage ? { image: [absoluteUrl(project.og_image || defaultOgImage)] } : {}),
       dateCreated: toIso8601(project.created_at),
       dateModified: toIso8601(project.updated_at),
       author: { "@type": "Person", name: "Dominick" },
@@ -880,7 +906,9 @@ async function renderSitemap(env) {
     // the sitemap" means the way they briefly did (a password-protected
     // page was correctly excluded here but not recognized as excluded
     // there, producing a false-positive "still in sitemap.xml" finding).
-    ...pages.filter((p) => isInSitemap(p, "page")).map((p) => ({ loc: p.slug === "home" ? "/" : `/${p.slug}`, lastmod: p.updated_at })),
+    ...pages
+      .filter((p) => isInSitemap(p, "page") && !RESERVED_SLUGS.has(p.slug))
+      .map((p) => ({ loc: p.slug === "home" ? "/" : `/${p.slug}`, lastmod: p.updated_at })),
     ...articles.filter((a) => isInSitemap(a, "article")).map((a) => ({ loc: `/random/${a.slug}`, lastmod: a.updated_at || a.published_at })),
     ...projects.filter((p) => isInSitemap(p, "project")).map((p) => ({ loc: `/projects/${p.slug}`, lastmod: p.updated_at || p.published_at })),
     { loc: "/topics", lastmod: null },
@@ -889,7 +917,11 @@ async function renderSitemap(env) {
     { loc: "/projects", lastmod: null },
     ...tagCounts.map((t) => ({ loc: `/topics/${encodeURIComponent(t.tag)}`, lastmod: null })),
   ];
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries
+  // Each URL once -- /projects and /random were listed twice (as a page
+  // and as a built-in index), which search engines treat as noise.
+  const seenLocs = new Set();
+  const uniqueEntries = entries.filter((e) => !seenLocs.has(e.loc) && seenLocs.add(e.loc));
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${uniqueEntries
     .map(
       (e) =>
         `  <url><loc>https://dominickdominick.com${e.loc}</loc>${

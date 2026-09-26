@@ -303,6 +303,23 @@ export function paragraphsHtml(text) {
         const { id, level } = headings[hi++];
         return `<h${level} id="${esc(id)}">${richText(esc(h.text))}</h${level}>`;
       }
+      // Lists and blockquotes -- the two most common Markdown constructs --
+      // weren't supported at all: "- item" and "> quote" rendered as literal
+      // text with the dash/bracket showing. A paragraph whose every line is
+      // a list item (or quote line) now renders as the real element.
+      const lines = trimmed.split("\n");
+      const inline = (t) => richText(esc(t), footnoteNums);
+      if (lines.every((l) => /^\s*[-*+]\s+/.test(l))) {
+        return `<ul>${lines.map((l) => `<li>${inline(l.replace(/^\s*[-*+]\s+/, ""))}</li>`).join("")}</ul>`;
+      }
+      if (lines.every((l) => /^\s*\d+[.)]\s+/.test(l))) {
+        const start = Number(lines[0].match(/^\s*(\d+)/)[1]);
+        return `<ol${start !== 1 ? ` start="${start}"` : ""}>${lines.map((l) => `<li>${inline(l.replace(/^\s*\d+[.)]\s+/, ""))}</li>`).join("")}</ol>`;
+      }
+      if (lines.every((l) => /^\s*>/.test(l))) {
+        const quoted = lines.map((l) => l.replace(/^\s*>\s?/, "")).join("\n");
+        return `<blockquote class="md-quote"><p>${inline(quoted).replace(/\n/g, "<br>")}</p></blockquote>`;
+      }
       return `<p>${richText(esc(p), footnoteNums).replace(/\n/g, "<br>")}</p>`;
     })
     .join("\n");
@@ -315,8 +332,14 @@ function stripMarkdown(text) {
     .replace(/^:::(note|tip|warning|danger)[ \t]*\n([\s\S]*?)\n:::$/gim, "$2")
     .replace(/^\[\^([^\]]+)\]:\s*.+$/gm, "")
     .replace(/\[\^([^\]]+)\]/g, "")
-    .replace(/^#{2,3}\s+/gm, "")
+    .replace(/^#{1,6}\s+/gm, "")
     .replace(/^\s*\|.*\|\s*$/gm, "")
+    // List markers, quote markers, inline code and images leaked into
+    // excerpts and meta descriptions as raw syntax ("- CSS `:has()`...").
+    .replace(/^\s*(?:[-*+]|\d+[.)])\s+/gm, "")
+    .replace(/^\s*>\s?/gm, "")
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
     .replace(/\*\*(.+?)\*\*/g, "$1")
     .replace(/\*(.+?)\*/g, "$1")
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
@@ -328,6 +351,16 @@ export function readingTime(text) {
   const flat = stripMarkdown(text).trim();
   const words = flat ? flat.split(/\s+/).length : 0;
   return Math.max(1, Math.round(words / 200));
+}
+
+// "Sep 26, 2026" instead of a raw "2026-09-26" in listings. Formatted in
+// UTC with a fixed locale so the server-rendered text never depends on
+// the Worker's own locale settings.
+const DISPLAY_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+export function displayDate(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ""));
+  if (!m) return "";
+  return `${DISPLAY_MONTHS[Number(m[2]) - 1]} ${Number(m[3])}, ${m[1]}`;
 }
 
 export function excerpt(text, maxLen = 155) {
@@ -831,6 +864,23 @@ function blockStyleAttr(style) {
 // used for the tint overlay over a background image/video, since CSS has
 // no way to apply a translucent color on top of a <video> element other
 // than a real stacked element.
+// Near-black or white text for a given background hex, whichever has the
+// higher WCAG contrast -- so a custom accent that's dark (a deep blue)
+// doesn't end up with the default near-black label on it.
+function readableOn(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ""));
+  if (!m) return "#0c0a16";
+  const lin = (c) => {
+    const v = parseInt(c, 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  const [r, g, b] = [m[1].slice(0, 2), m[1].slice(2, 4), m[1].slice(4, 6)].map(lin);
+  const L = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  const vsDark = (L + 0.05) / (0.0045 + 0.05);
+  const vsWhite = 1.05 / (L + 0.05);
+  return vsDark >= vsWhite ? "#0c0a16" : "#ffffff";
+}
+
 function hexToRgba(hex, opacityPercent) {
   const h = String(hex || "").replace("#", "");
   if (!/^[0-9a-fA-F]{6}$/.test(h)) return null;
@@ -986,7 +1036,17 @@ export function modelViewerHtml(scan, description) {
 // an internal one with no recorded dimensions -- an upload from before
 // this existed, or a format/file the header parser couldn't read) so a
 // missing size attribute never renders as `width="null"` or similar.
-async function imgSizeAttrs(env, imgUrl) {
+// Share-card and structured-data image URLs must be absolute -- Facebook,
+// LinkedIn, X and Google all ignore a relative og:image, and uploads are
+// stored as site-relative "/media/..." paths, so every share preview on
+// the site had no image.
+export function absoluteUrl(url) {
+  const u = String(url || "");
+  if (!u || /^https?:\/\//i.test(u)) return u;
+  return `https://dominickdominick.com${u.startsWith("/") ? "" : "/"}${u}`;
+}
+
+export async function imgSizeAttrs(env, imgUrl) {
   const match = typeof imgUrl === "string" && imgUrl.match(/^\/media\/(uploads\/[A-Za-z0-9_.\-\/]+)$/);
   if (!match) return "";
   const meta = await getMediaMeta(env, [match[1]]);
@@ -1005,6 +1065,8 @@ async function renderBlockInner(env, block, ctx) {
     case "text":
       return paragraphsHtml(c.text);
     case "image": {
+      // An unset image used to emit <img src=""> -- a broken-image icon.
+      if (!c.url) return `<p class="empty-hint">No image chosen yet.</p>`;
       const rawImg = `<img src="${esc(c.url)}" alt="${esc(c.alt)}" loading="lazy"${await imgSizeAttrs(env, c.url)} style="max-width:100%;border-radius:12px;">`;
       const img = c.frame === "browser"
         ? `<div class="device-frame device-frame-browser"><div class="device-frame-bar"><span></span><span></span><span></span></div><div class="device-frame-body">${rawImg}</div></div>`
@@ -1015,10 +1077,13 @@ async function renderBlockInner(env, block, ctx) {
       const creditHtml = c.credit ? ` <cite>${esc(c.credit)}</cite>` : "";
       return `<figure class="image-figure">${img}<figcaption>${esc(c.caption || "")}${creditHtml}</figcaption></figure>`;
     }
-    case "button":
-      return `<a class="btn" href="${esc(safeHref(c.url))}"${c.external ? ' target="_blank" rel="noopener"' : ""}${
+    case "button": {
+      if (!c.label || !c.url) return `<p class="empty-hint">Button needs a label and a link.</p>`;
+      const variantClass = c.variant === "secondary" ? " btn-secondary" : c.variant === "link" ? " btn-link" : "";
+      return `<a class="btn${variantClass}" href="${esc(safeHref(c.url))}"${c.external ? ' target="_blank" rel="noopener"' : ""}${
         c.trackEvent ? ` data-track-event="${esc(c.trackEvent)}"` : ""
-      }>${esc(c.label)}</a>`;
+      }>${esc(c.label)}${c.external ? `<span class="btn-external-icon" aria-hidden="true">↗</span><span class="sr-only"> (opens in a new tab)</span>` : ""}</a>`;
+    }
     case "divider":
       return `<hr>`;
     case "spacer":
@@ -1084,7 +1149,7 @@ async function renderBlockInner(env, block, ctx) {
       return String(c.html || "");
     case "video": {
       const embed = videoEmbedUrl(c.url);
-      if (!embed) return c.url ? `<p class="empty-hint">Unsupported video link — use a YouTube or Vimeo URL.</p>` : "";
+      if (!embed) return c.url ? `<p class="empty-hint">Unsupported video link — use a YouTube or Vimeo URL.</p>` : `<p class="empty-hint">No video link yet.</p>`;
       // There's no title/caption field on this block to draw a real title
       // from — naming the platform is the best available fallback for
       // giving the iframe a non-empty accessible name.
@@ -1106,7 +1171,13 @@ async function renderBlockInner(env, block, ctx) {
         ? c.images.map((img) => (typeof img === "string" ? { url: img, alt: "" } : img)).filter((img) => img && img.url)
         : [];
       if (!images.length) return `<p class="empty-hint">No images yet.</p>`;
-      return `<div class="gallery">${images.map((img) => `<img src="${esc(img.url)}" alt="${esc(img.alt || "")}" loading="lazy">`).join("")}</div>`;
+      // Dimensions from the media table (same as the single-image block)
+      // so the gallery reserves its space before the images arrive instead
+      // of shifting everything below it as each one loads.
+      const sized = await Promise.all(images.map(async (img) => ({ img, attrs: await imgSizeAttrs(env, img.url) })));
+      return `<div class="gallery">${sized
+        .map(({ img, attrs }) => `<img src="${esc(img.url)}" alt="${esc(img.alt || "")}" loading="lazy"${attrs}>`)
+        .join("")}</div>`;
     }
     case "before-after": {
       if (!c.beforeUrl || !c.afterUrl) return `<p class="empty-hint">Add both a "before" and "after" image.</p>`;
@@ -1156,7 +1227,14 @@ async function renderBlockInner(env, block, ctx) {
       return renderSongBlockHtml(song);
     }
     case "project-card":
-      return `<div class="project-card"><h2>${esc(c.title)}</h2>${c.description ? `<p>${esc(c.description)}</p>` : ""}${c.url ? `<a href="${esc(safeHref(c.url))}"${c.external ? ' target="_blank" rel="noopener"' : ""}>${esc(c.label || c.url)}</a>` : ""}</div>`;
+      // The palette's default ("Project", no description, no link) is a
+      // placeholder, not content -- the live homepage shipped one as-is.
+      if (!c.url && !c.description) return `<p class="empty-hint">Project card not filled in yet.</p>`;
+      return `<div class="project-card${c.url ? " project-card-linked" : ""}"><h2>${esc(c.title)}</h2>${c.description ? `<p>${esc(c.description)}</p>` : ""}${
+        c.url
+          ? `<a class="project-card-link" href="${esc(safeHref(c.url))}"${c.external ? ' target="_blank" rel="noopener"' : ""}>${esc(c.label || "View project")}<span aria-hidden="true"> →</span></a>`
+          : ""
+      }</div>`;
     case "article-list": {
       const articles = await listArticles(env, {
         publishedOnly: true,
@@ -1170,9 +1248,9 @@ async function renderBlockInner(env, block, ctx) {
           (a) =>
             `<article class="thought${a.pinned ? " thought-pinned" : ""}">${
               a.featured ? `<span class="featured-badge">★ Featured</span>` : ""
-            }<time datetime="${esc(a.published_at)}">${esc(
-              (a.published_at || "").slice(0, 10)
-            )}</time><h2><a href="/random/${esc(a.slug)}">${esc(a.title)}</a></h2>${renderTags(a.tags)}</article>`
+            }<time datetime="${esc(a.published_at)}">${esc(displayDate(a.published_at))}</time><h2><a href="/random/${esc(a.slug)}">${esc(
+              a.title
+            )}</a></h2>${a.body ? `<p class="thought-excerpt">${esc(excerpt(a.body, 150))}</p>` : ""}${renderTags(a.tags)}</article>`
         )
         .join("\n")}</div>`;
     }
@@ -1335,14 +1413,54 @@ export async function renderBlocks(env, blocks, ctx = {}) {
     return { item, key: override !== null ? override : (i + 1) * 1000 };
   });
   keyed.sort((a, b) => a.key - b.key);
-  const parts = keyed
+  const visible = keyed
     .map(({ item }) => item)
+    .map((item) => {
+      // A block that hasn't been filled in yet (no image chosen, no song
+      // selected, an empty gallery…) renders a bare "empty-hint" editor
+      // placeholder. Visitors were seeing those verbatim ("No song
+      // selected.") -- the live homepage showed eight of them. They're now
+      // dropped for visitors entirely (along with their grid space, below)
+      // and kept, clearly labelled, only for a signed-in admin.
+      const trimmed = typeof item.inner === "string" ? item.inner.trim() : item.inner;
+      const isPlaceholder = typeof trimmed === "string" && /^<p class="empty-hint">[^<]*<\/p>$/.test(trimmed);
+      const isEmptyNonSpacer = trimmed === "" && item.b.type !== "spacer";
+      if (!isPlaceholder && !isEmptyNonSpacer) return item;
+      if (!ctx.isAdmin) return { ...item, inner: null };
+      const text = isPlaceholder ? trimmed.replace(/^<p class="empty-hint">|<\/p>$/g, "") : `Empty ${esc(item.b.type)} block.`;
+      return { ...item, inner: `<p class="empty-hint empty-hint-admin"><span class="admin-only-tag">Only visible to you</span> ${text}</p>` };
+    })
     // renderBlockInner returns null (distinct from a spacer block's
     // intentional "") specifically for a simulation/scan/song block whose
     // reference no longer exists — skipped here so a visitor never sees a
     // "not found" error, and so the deleted block's grid space isn't
     // reserved as blank either.
-    .filter(({ inner }) => inner !== null)
+    .filter(({ inner }) => inner !== null);
+  // Rows are absolute positions from the admin canvas, so a block dragged
+  // far down (the live homepage jumps from row 13 to row 84) left ~1,700px
+  // of dead space, and dropping unfilled blocks above can open new gaps.
+  // Any run of completely unoccupied rows longer than MAX_EMPTY_ROWS is
+  // shrunk to MAX_EMPTY_ROWS; smaller deliberate gaps (and Spacer blocks,
+  // which occupy their rows) are untouched.
+  const MAX_EMPTY_ROWS = 2;
+  const occupied = new Set();
+  visible.forEach(({ b }) => {
+    for (let r = b.row; r < b.row + b.row_span; r++) occupied.add(r);
+  });
+  const maxRow = occupied.size ? Math.max(...occupied) : 0;
+  const rowMap = new Map();
+  let nextRow = 1;
+  let emptyRun = 0;
+  for (let r = 1; r <= maxRow; r++) {
+    if (occupied.has(r)) {
+      emptyRun = 0;
+      rowMap.set(r, nextRow++);
+    } else if (++emptyRun <= MAX_EMPTY_ROWS) {
+      nextRow++;
+    }
+  }
+  const parts = visible
+    .map(({ b, inner }) => ({ b: { ...b, row: rowMap.get(b.row) ?? b.row }, inner }))
     .map(({ b, inner }) => {
       // A video block's 16:9 aspect-ratio box sizes its height purely from
       // its own width, independent of the row_span the admin actually
@@ -1481,6 +1599,18 @@ export function renderErrorPageHtml() {
 </html>`;
 }
 
+// Inline SVG icons for the header tools -- the previous Unicode glyphs
+// (⇌ ⏸ A ◐) were cryptic, and ◐ fell back to a broken half-glyph in
+// common fonts. stroke="currentColor" so they follow the theme.
+const svgIcon = (cls, paths) =>
+  `<svg class="icon ${cls}" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${paths}</svg>`;
+const ICON = {
+  shuffle: svgIcon("icon-shuffle", '<path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="m15 15 6 6"/><path d="M4 4l5 5"/>'),
+  pause: svgIcon("icon-pause", '<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>'),
+  sun: svgIcon("icon-sun", '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>'),
+  moon: svgIcon("icon-moon", '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>'),
+};
+
 export function renderShell({
   title,
   description,
@@ -1509,6 +1639,21 @@ export function renderShell({
   if (theme.bg) themeVars.push(`--bg:${esc(theme.bg)}`);
   if (theme.text) themeVars.push(`--text:${esc(theme.text)}`);
   if (theme.border) themeVars.push(`--border:${esc(theme.border)}`);
+  // Only the four base colors used to follow Site Settings -- every derived
+  // shade (card background, dim text, the gradient's second color, date
+  // labels, text-on-accent) stayed at the built-in violet palette's fixed
+  // values. With the live site's amber accent on a neutral black, that
+  // meant violet-tinted cards and an amber-to-violet nav pill. They're now
+  // derived from whatever was chosen, so a custom theme stays coherent.
+  if (theme.accent) {
+    themeVars.push("--accent-secondary:color-mix(in oklch, var(--accent), white 38%)");
+    themeVars.push("--accent-dim:color-mix(in oklch, var(--accent) 78%, var(--text))");
+    themeVars.push(`--on-accent:${readableOn(theme.accent)}`);
+  }
+  if (theme.bg || theme.text) {
+    themeVars.push("--bg-elevated:color-mix(in oklch, var(--bg), var(--text) 6%)");
+    themeVars.push("--text-dim:color-mix(in oklch, var(--text) 68%, var(--bg))");
+  }
   if (theme.font && FONT_STACKS[theme.font]) themeVars.push(`--font-family:${FONT_STACKS[theme.font]}`);
   if (theme.headingFont && FONT_STACKS[theme.headingFont]) themeVars.push(`--heading-font-family:${FONT_STACKS[theme.headingFont]}`);
   // One uploaded custom font, selectable as "Custom" alongside the fixed
@@ -1603,13 +1748,13 @@ ${noindex ? `<meta name="robots" content="noindex">` : ""}
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(description)}">
 <meta property="og:url" content="${esc(canonical)}">
-${ogImage ? `<meta property="og:image" content="${esc(ogImage)}">` : ""}
+${ogImage ? `<meta property="og:image" content="${esc(absoluteUrl(ogImage))}">` : ""}
 ${publishedTime ? `<meta property="article:published_time" content="${esc(publishedTime)}">` : ""}
 ${modifiedTime ? `<meta property="article:modified_time" content="${esc(modifiedTime)}">` : ""}
 <meta name="twitter:card" content="${ogImage ? "summary_large_image" : "summary"}">
 <meta name="twitter:title" content="${esc(title)}">
 <meta name="twitter:description" content="${esc(description)}">
-${ogImage ? `<meta name="twitter:image" content="${esc(ogImage)}">` : ""}
+${ogImage ? `<meta name="twitter:image" content="${esc(absoluteUrl(ogImage))}">` : ""}
 <link rel="alternate" type="application/rss+xml" title="Dominick — RSS feed" href="/rss.xml">
 
 <link rel="stylesheet" href="/style.css">
@@ -1701,10 +1846,10 @@ ${customHead || ""}
             ? `<a class="icon-link-btn edit-this-btn" href="${esc(editUrl)}" title="Edit this in the admin" aria-label="Edit this in the admin">✎</a>`
             : ""
         }
-        <a class="icon-link-btn" href="/shuffle" title="Random project or article" aria-label="Random project or article">⇌</a>
-        <button type="button" id="motion-toggle" aria-label="Toggle reduced motion" title="Turn off entrance/hover animations">⏸</button>
-        <button type="button" id="font-size-toggle" aria-label="Change text size" title="Change text size">A</button>
-        <button type="button" id="theme-toggle" aria-label="Toggle light/dark theme">◐</button>
+        <a class="icon-link-btn" href="/shuffle" title="Surprise me: a random post or project" aria-label="Random project or article">${ICON.shuffle}</a>
+        <button type="button" id="motion-toggle" aria-label="Reduce motion" aria-pressed="false" title="Turn off entrance/hover animations">${ICON.pause}</button>
+        <button type="button" id="font-size-toggle" aria-label="Change text size" title="Change text size"><span class="icon-text" aria-hidden="true">Aa</span></button>
+        <button type="button" id="theme-toggle" aria-label="Switch light/dark theme" title="Switch light/dark theme">${ICON.sun}${ICON.moon}</button>
       </div>
     </header>
     <script src="/nav.js"></script>
