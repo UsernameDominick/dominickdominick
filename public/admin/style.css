@@ -2868,6 +2868,31 @@ kbd {
   pointer-events: none;
 }
 
+/* Distinct color from .sim-select-box (accent) and .sim-damaged (red) so
+   a searched-for part reads as its own kind of highlight, not confusable
+   with "currently selected" or "burnt out" -- reuses the same teal
+   already used for net-highlighting elsewhere in this file, which is a
+   different kind of "these are related" cue, not "this is a problem"
+   or "this is what you clicked". */
+.sim-search-match-box {
+  fill: none;
+  stroke: #2dd4bf;
+  stroke-width: 2;
+  pointer-events: none;
+  animation: sim-search-match-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes sim-search-match-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sim-search-match-box {
+    animation: none;
+  }
+}
+
 .sim-comp.sim-snapped {
   filter: drop-shadow(0 0 4px var(--accent));
 }

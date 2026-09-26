@@ -4904,7 +4904,7 @@ substantial new infra + security surface).
 367. ✅ Save checkpoints — done (see the dated entry below this section).
 373. Rotate/mirror — add transform + flip pin coords, small render change.
 375. ✅ Configurable snapping — done (see the dated entry below this section).
-378. Search component on canvas — reuse palette search pattern, filter+highlight.
+378. ✅ Search component on canvas — done (see the dated entry below this section).
 380. Keyboard placement/connection — extend existing keydown handler.
 385. ✅ Show hidden connections — done (see the dated entry below this section).
 387. Selectable breadboard sizes — new `cols` param variant of existing breadboard def.
@@ -8325,3 +8325,44 @@ explicitly modeled on, the same "the reachability/correctness question
 this critic asked about the new code turned out to apply just as much to
 the trusted original it copied" pattern this session already hit once
 with `escapeXml()` in #394.
+
+### Twenty-seventh item: #378, search for a placed component on the simulation canvas
+
+Added a "Find on canvas" search input to the builder toolbar -- distinct
+from the existing palette search (which filters the list of NEW parts to
+add), this one highlights already-PLACED components matching what's
+typed, useful once a circuit has enough parts that finding a specific one
+by eye gets tedious. Matches against a component's own custom label
+(if set), its type's display label (e.g. "Resistor"), or its raw type
+key, case-insensitively -- so searching "status" finds an LED the admin
+renamed to "Status LED" even though "LED" itself doesn't contain that
+word, and searching "resistor" finds every resistor whether or not it
+has a custom label at all.
+
+Matches get a pulsing teal outline (`sim-search-match-box`), deliberately
+a different color from the existing "currently selected" outline (accent
+color) and "burnt/overheating" indicator (red) -- reuses the same teal
+already established elsewhere in this file for net-highlighting, since
+both are "these are related, not a problem" cues rather than "this is
+what you clicked" or "this is broken." Respects
+`prefers-reduced-motion`, matching the existing convention already used
+for the disconnected-pin pulse elsewhere in this file. Resets to empty
+every time the builder opens, matching the existing precedent for every
+other per-session UI toggle/preference in this file (snap size, show-
+disconnected, show-ghost-wires, continuity mode).
+
+Tested via Playwright: placed a resistor and an LED, renamed the LED to
+"Status LED"; confirmed no matches highlighted before typing anything;
+searched "resistor" and confirmed only the resistor highlighted; searched
+"status" and confirmed only the LED highlighted (via its custom label,
+not its type); confirmed the match is case-insensitive ("STATUS" still
+finds it); confirmed a nonsense query highlights nothing; confirmed
+clearing the search removes all highlights; confirmed a highlighted
+component can still be selected normally (search doesn't interfere with
+existing interactions); confirmed the search box resets to empty when
+reopening the builder for a new session. Full regression suite green; no
+server-side state was created (the test simulation was never saved), so
+no cleanup was needed.
+
+Sent to a critic pass next per the standing workflow before calling it
+done.

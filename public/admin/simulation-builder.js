@@ -367,6 +367,8 @@
     previewOn = false;
     showDisconnected = false;
     showGhostWires = false;
+    canvasSearchQuery = "";
+    $("sim-canvas-search").value = "";
     gridSnapSize = 5;
     $("sim-grid-snap").value = "5";
     continuityMode = false;
@@ -437,6 +439,7 @@
     const sel = isCompSelected(comp.id);
     const info = analysis[comp.id];
     const damaged = info && (info.status === "burnt" || info.status === "overheating");
+    const searchMatch = componentMatchesSearch(comp);
     // The label field is already captioned "(for your own reference)" for
     // every component except the Teensy (where it's printed directly on
     // the part) -- but "for your own reference" only actually held for a
@@ -448,11 +451,15 @@
     // same text as visible SVG <text>, so a tooltip repeating it would
     // just be redundant (a critic pass found this).
     const titleSvg = comp.label && comp.type !== "mcu_teensy" ? `<title>${escapeXml(comp.label)}</title>` : "";
-    return `<g class="sim-comp sim-comp-${comp.type}${sel ? " sim-selected" : ""}${damaged ? " sim-damaged" : ""}" data-id="${escapeXml(
+    return `<g class="sim-comp sim-comp-${comp.type}${sel ? " sim-selected" : ""}${damaged ? " sim-damaged" : ""}${
+      searchMatch ? " sim-search-match" : ""
+    }" data-id="${escapeXml(
       comp.id
     )}" data-powered="${poweredComps.has(comp.id) ? "true" : "false"}" transform="translate(${comp.x},${
       comp.y
-    })">${titleSvg}${def.render(comp)}${sel ? `<rect class="sim-select-box" x="-4" y="-4" width="${def.w + 8}" height="${def.h + 8}" />` : ""}</g>`;
+    })">${titleSvg}${def.render(comp)}${sel ? `<rect class="sim-select-box" x="-4" y="-4" width="${def.w + 8}" height="${def.h + 8}" />` : ""}${
+      searchMatch ? `<rect class="sim-search-match-box" x="-6" y="-6" width="${def.w + 12}" height="${def.h + 12}" />` : ""
+    }</g>`;
   }
 
   function renderWireSvg(wire, poweredWires, netNodeIds, ghost) {
@@ -559,6 +566,16 @@
   // wires are never actually hidden under anything, so a permanent
   // dashed duplicate over every single wire would just be visual clutter.
   let showGhostWires = false;
+  // Empty string means "no active search" -- kept lowercase-trimmed here
+  // (once, on input) rather than re-normalizing it on every component's
+  // match check during every render.
+  let canvasSearchQuery = "";
+  function componentMatchesSearch(comp) {
+    if (!canvasSearchQuery) return false;
+    const def = REG[comp.type];
+    const haystacks = [comp.label, def && def.label, comp.type];
+    return haystacks.some((s) => s && String(s).toLowerCase().includes(canvasSearchQuery));
+  }
   function isPinConnected(compId, pinId) {
     return simData.wires.some(
       (w) => (w.from.compId === compId && w.from.pin === pinId) || (w.to.compId === compId && w.to.pin === pinId)
@@ -663,6 +680,11 @@
     $("sim-show-ghost-wires").classList.toggle("is-active", showGhostWires);
     $("sim-continuity-test").classList.toggle("is-active", continuityMode);
   }
+
+  $("sim-canvas-search").addEventListener("input", (e) => {
+    canvasSearchQuery = e.target.value.trim().toLowerCase();
+    renderBuilder();
+  });
 
   $("sim-show-disconnected").addEventListener("click", () => {
     showDisconnected = !showDisconnected;
