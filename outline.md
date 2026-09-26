@@ -4928,7 +4928,7 @@ substantial new infra + security surface).
 434. ✅ Continuity tester — done (see the dated entry below this section).
 441. Basic logic gates (static icons only, no dynamic sim) — new component type.
 445. Truth-table editor — simple UI table bound to a gate's static behavior.
-463. Potentiometer — new component with a value slider, no new solver needed.
+463. ✅ Potentiometer — done (see the dated entry below this section).
 524. ✅ Comments on components — done (see the dated entry below this section).
 531. Consistent embed controls — mostly CSS/UI consistency pass.
 533. Thumbnail from saved view — render existing SVG to canvas, export PNG.
@@ -8613,3 +8613,91 @@ independently re-verified against the live source rather than the fix
 descriptions, plus one pre-existing non-regression gap (no server-side
 validation of song `data` fields) explicitly logged as intentionally
 left alone.
+
+### Thirtieth item: #463, potentiometer component for the simulation builder
+
+- ✅ **A new `potentiometer` component type**, added identically to both
+  `public/admin/sim-components.js` and its hand-duplicated mirror
+  `worker/simulation-render.js` (the Worker can't import the admin's
+  client-side JS module, so every component type and analysis rule is
+  implemented twice, byte-for-byte — a real, previously-hit source of
+  drift bugs in this codebase). Modeled as a two-terminal "rheostat"
+  (`w: 80, h: 32`, pins `p1`/`p2`, `passthrough: [["p1","p2"]]`) rather
+  than a real 3-terminal voltage divider — a proper wiper-tap needs a
+  multi-branch solver this builder doesn't have, an intentional scope
+  limit rather than an oversight. Two new data fields: `maxResistance`
+  (ohms, default 10000) and `wiper` (0-100%, default 50). Effective
+  resistance is `Math.max(1, Math.round(maxR * (wiperPct/100)))`,
+  registered in the electrical-analysis graph with `kind: "resistor"` —
+  deliberately reusing the existing resistor current/wattage/overheating
+  logic rather than duplicating it under a new kind, since a pot wired
+  this way is electrically identical to a fixed resistor at whatever
+  value the wiper currently sets. New inspector-panel fields (a "Max
+  resistance" number input and a live wiper-position slider that redraws
+  the part and its computed-ohms label continuously while dragging, one
+  history entry per drag rather than per `input` event), added to the
+  breadboard-snap set (its 80px lead spacing matches a resistor's) and
+  the palette.
+
+Handed to a critic agent for scoring: **4/10**. Finding:
+
+1. **(Fixed, ship-blocking)** `wiperPct = Math.max(0, Math.min(100,
+   Number(c.wiper) ?? 50))` was dead-fallback code: `Number(x)` never
+   returns `null`/`undefined` — only a number or `NaN` — and `NaN` is
+   not nullish, so `NaN ?? 50` stays `NaN` instead of falling back. This
+   existed identically in all four places the computation was
+   duplicated: `render()` and `buildAnalysisGraph()` in both
+   `sim-components.js` and `worker/simulation-render.js`. Concrete
+   failure: a missing or non-numeric `wiper` (reachable via a
+   hand-edited or imported simulation) rendered a literal "NaNΩ" label
+   on both the admin canvas and the public embed, and fed `NaN`
+   resistance into the electrical analysis — where any comparison
+   against `NaN` evaluates `false`, so the overheating check silently
+   reported "normal" / "well within its rating" no matter how dangerous
+   the real circuit actually was, a false-safety claim with visibly
+   broken numbers shown to a site visitor. Notably, the inspector
+   panel's own separate display code already used the correct
+   `Number.isFinite(...) ? ... : 50` pattern for the identical
+   computation, so before the fix the inspector could show "50%" while
+   the canvas simultaneously showed "NaNΩ" for the same underlying data
+   — an internal inconsistency within the admin builder itself. Fixed by
+   switching all four call sites to `Number.isFinite(rawWiper) ?
+   rawWiper : 50`, matching the pattern the inspector already had right.
+   Also fixed a minor wording nit found alongside it: the overheating
+   message called a potentiometer "a typical 1/4W resistor", which
+   doesn't fit since a pot's rating is admin-configurable per instance,
+   not a fixed real-world spec — now branches on `comp.type` to say
+   "this potentiometer can safely handle" instead.
+
+Sent for a round-2 critic pass specifically hunting for the realistic
+"3-of-4 mirrored sites fixed, one missed" failure mode, and re-tracing
+the edge cases (`undefined`, `null`, `""`, `"abc"`, explicit `NaN`,
+`-20`, `150`, explicit `0`) by hand against real JS semantics rather
+than trusting the fix's own description. Confirmed genuinely and
+completely fixed: grepped the whole repo for the old `?? 50` pattern —
+it survives only in explanatory comments, not executable code — and all
+four sites now compute identically; independently verified the
+edge-case trace matches real `Number()`/`Number.isFinite()` behavior for
+every value, including confirming explicit `0` is correctly preserved
+(the exact case a naive `|| 50` fallback would have broken instead).
+One pre-existing, non-regression quirk was noted and explicitly not
+blocked on: `null` and `""` both coerce to `Number(...) === 0`, which
+*is* finite, so they silently resolve to a literal 0% rather than the
+"unset → 50%" a human might expect — this predates the fix (the
+original broken code had the exact same behavior for these two inputs)
+and matches the same coercion convention already used everywhere else
+in this codebase for numeric fields, so it wasn't introduced by, and
+isn't in scope for, this fix. Also confirmed the wording fix lives in
+exactly one place (the admin inspector) with no second copy that could
+have been missed, since the worker's public-embed renderer only toggles
+a CSS class for the damaged/overheating state rather than rendering any
+message text itself. Final score: **9/10** — ships.
+
+Item #463 is done: 2 critic rounds, 4/10 → 9/10, one ship-blocking
+finding (a dead nullish-coalescing fallback letting `NaN` silently reach
+both the rendered label and the electrical-safety analysis, identically
+broken across all four places this codebase's mirrored-registry
+architecture required the same logic to be written twice) fixed and
+independently re-verified against real JS semantics for every edge
+case, plus one minor wording nit fixed alongside it and one pre-existing
+non-regression quirk explicitly logged as out of scope.
