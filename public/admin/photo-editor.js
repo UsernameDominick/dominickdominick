@@ -799,6 +799,14 @@
     ctx.font = `bold ${fontSize}px sans-serif`;
     ctx.textBaseline = "top";
     ctx.fillText(text, point.x, point.y);
+    // A critic pass found this was the one remaining pixel-mutating action
+    // missing baseSnapshot invalidation -- and arguably the easiest of all
+    // of them to actually trigger, since prompt() blocks the main thread
+    // while the dialog is open, letting another pointer's adjust-slider
+    // drag queue up input events that resume the instant this returns,
+    // painting the pre-text baseSnapshot back over the canvas and silently
+    // erasing the text that was just placed.
+    invalidateOpenAdjustDrag();
   }
 
   // ---------- Pointer routing ----------

@@ -7762,5 +7762,59 @@ targeted `invalidateOpenAdjustDrag()` fix doesn't over-clear crop state
 the way a blanket `cancelActiveDrag()` call there would have). Full
 regression suite green; test uploads deleted and confirmed gone.
 
-Sent back for round 6 already incorporating this proactive fix, rather
-than waiting for a critic to find the eighth instance independently.
+Sent for a round-6 critic pass on commit a8d277b, this time explicitly
+asked to build an INDEPENDENT from-scratch inventory of every canvas-
+mutating action and every cross-event `let` variable, cross-referenced
+against both guard mechanisms separately, rather than only re-checking
+this round's specific fix. Scored 6/10 -- confirmed this round's own fix
+(brush/shape commit invalidation) correct on every sub-question asked
+(right order relative to the pixel commit, correctly excluded from the
+crop-select branch, a true no-op during ordinary single-touch use, no
+remaining `startCompare()` window), and confirmed the guard inventory
+was otherwise complete for all ~13 canvas-mutating actions and ~15
+cross-event state variables identified -- except one: `placeText()` (the
+text-annotation tool) mutates canvas pixels via `ctx.fillText()` but was
+never wired to `invalidateOpenAdjustDrag()`, the identical gap just fixed
+for brush/shape commits. The critic noted this one is arguably EASIER to
+trigger than the brush/shape cases: `placeText()` calls `prompt()`, which
+blocks the main thread while its dialog is open, so another pointer's
+adjust-slider `input` events queue up rather than requiring precise
+simultaneous timing -- the instant the text dialog is confirmed and the
+main thread frees up, the queued slider tick fires against the still-set,
+now-stale `baseSnapshot` from before the text was placed, painting it
+back over the canvas and silently erasing the just-placed text.
+
+Fixed with the same one-line pattern as brush/shape: `invalidateOpenAdjustDrag()`
+called in `placeText()` immediately after `ctx.fillText(...)` bakes the
+text in. Re-verified via Playwright: opened a slider drag, placed text
+via the text tool (confirmed a non-red pixel appeared where the text was
+drawn), then continued the still-open slider -- the text stayed visible
+instead of the stale `baseSnapshot` erasing it. Every prior round's
+regression test (crop-clear-on-rotate, mid-stroke rotate, mid-adjust
+rotate, Compare-block guards for all six previously-fixed actions, the
+filter/preset/crop-apply and brush-stroke `baseSnapshot` fixes) was
+re-run unchanged and all still pass. Full regression suite green; test
+uploads deleted and confirmed gone.
+
+Done: 6 critic rounds (8/10, 8/10, 5/10, 5/10, 4/10, 6/10), eight real
+findings across all six rounds, plus one instance (brush/shape commits)
+fixed proactively between rounds 5 and 6 without waiting for a critic to
+surface it independently -- nine total instances of the same underlying
+bug class found and fixed: crop-selection state, brush/shape-tool drag
+state, adjust-slider `baseSnapshot` state on its transform-clearing side,
+six missing `isComparing()` guards, three actions (filter/preset/crop-
+apply) missing `baseSnapshot`-invalidation despite already having
+`isComparing()`, brush/shape commits missing the same, and finally the
+text-annotation tool missing it too. What began as a single deferred
+crop-selection bug from an unrelated feature's critic review became a
+six-round exhaustive audit of an entire file, closing every instance of
+"cached interaction state outlives the canvas/comparison state that
+invalidated it" that two independent, from-scratch, full-file
+cross-reference passes (rounds 4 and 6) could find -- with round 6's own
+inventory turning up only one gap, in a mutator (`placeText()`) that had
+never been the specific target of any prior round's fix, rather than
+another miss in the areas already patched. That -- a fresh full-file
+inventory finding progressively fewer and more scattered gaps rather than
+repeatedly missing the same area -- is the actual signal that this
+pattern search has converged, not merely that enough rounds have
+happened. Closing this out here.
