@@ -4926,7 +4926,7 @@ substantial new infra + security surface).
 441. Basic logic gates (static icons only, no dynamic sim) — new component type.
 445. Truth-table editor — simple UI table bound to a gate's static behavior.
 463. Potentiometer — new component with a value slider, no new solver needed.
-524. Comments on components — comment field + tooltip render, same as labels.
+524. ✅ Comments on components — done (see the dated entry below this section).
 531. Consistent embed controls — mostly CSS/UI consistency pass.
 533. Thumbnail from saved view — render existing SVG to canvas, export PNG.
 534. Public param controls — expose whitelisted fields already in `data` via player UI.
@@ -6368,3 +6368,48 @@ reach, and a hardcoded highlight color with no dark/light theme variants
 matching the file's own existing `.sim-pin` color convention.
 
 Item #398 is done: 1 critic round, 9/10, no real findings.
+
+### Fifteenth item: #524, comments on simulation components
+
+- ✅ **Every component's existing "Label" field now renders as a hover
+  tooltip, admin builder and public embed alike** — checked what "same
+  as labels" actually meant in this codebase before adding a redundant
+  second field: a `comp.label` string already exists per component
+  (editable in the inspector), but it only ever visually rendered for one
+  component type (`mcu_teensy`, printed directly on the part) — every
+  other type stored it captioned "(for your own reference)" with nothing
+  anywhere ever displaying it. Rather than bolt on a second, overlapping
+  `comment` field duplicating what `label` already is, extended the
+  existing field with a native SVG `<title>` (a real browser hover
+  tooltip, no new UI chrome) for every component type, in BOTH the admin
+  builder (`public/admin/simulation-builder.js`) and the public embed's
+  server-side render (`worker/simulation-render.js`) — these are two
+  independent, duplicated rendering paths (confirmed no shared import
+  exists between the client admin script and the server-side one), so
+  both needed the identical change.
+  The one real decision worth recording: is a component's label private
+  admin notes or public-facing content? The existing Teensy behavior
+  already answered this — its label prints directly on the part in BOTH
+  the builder AND the public embed today, meaning this codebase already
+  treats a filled-in label as intended-to-be-public, not a private note.
+  Matched that existing precedent rather than introducing a new
+  public/private distinction inconsistent with it, and updated the
+  inspector's field caption (previously "(for your own reference)",
+  misleading now) to say it's shown as a hover tooltip including on the
+  public embed, so an admin isn't surprised later.
+  Verified via Playwright: a freshly-placed resistor already carries a
+  `<title>Resistor</title>` before any customization — turned out to be
+  pre-existing default-fill behavior (new components are created with
+  `label: def.label`, i.e. the generic type name, not blank), not
+  something this diff introduced, and harmless/correctly informative
+  either way; setting a custom label live-updated the tooltip text;
+  saving the simulation and loading the separate public
+  `/simulation/:id` embed page showed the identical tooltip text,
+  confirming the server-side render path renders it correctly too, not
+  just the admin builder. Full regression suite green; test simulation
+  deleted and confirmed gone (confirmed via a fresh simulations list —
+  also surfaced a large pile of unrelated stale test simulations from
+  much earlier in this session's own testing, left untouched since
+  cleaning up that backlog is a separate, larger task from this feature).
+
+Handed to a critic agent for scoring.

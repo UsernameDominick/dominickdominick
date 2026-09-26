@@ -351,11 +351,20 @@
     const sel = isCompSelected(comp.id);
     const info = analysis[comp.id];
     const damaged = info && (info.status === "burnt" || info.status === "overheating");
+    // The label field is already captioned "(for your own reference)" for
+    // every component except the Teensy (where it's printed directly on
+    // the part) -- but "for your own reference" only actually held for a
+    // Teensy before this, since nothing else ever displayed it anywhere
+    // except the inspector's own text input. A native <title> gives every
+    // other component type the same hover-visible reference its caption
+    // already implied, with no new field duplicating what `label` already
+    // is.
+    const titleSvg = comp.label ? `<title>${escapeXml(comp.label)}</title>` : "";
     return `<g class="sim-comp sim-comp-${comp.type}${sel ? " sim-selected" : ""}${damaged ? " sim-damaged" : ""}" data-id="${
       comp.id
     }" data-powered="${poweredComps.has(comp.id) ? "true" : "false"}" transform="translate(${comp.x},${
       comp.y
-    })">${def.render(comp)}${sel ? `<rect class="sim-select-box" x="-4" y="-4" width="${def.w + 8}" height="${def.h + 8}" />` : ""}</g>`;
+    })">${titleSvg}${def.render(comp)}${sel ? `<rect class="sim-select-box" x="-4" y="-4" width="${def.w + 8}" height="${def.h + 8}" />` : ""}</g>`;
   }
 
   function renderWireSvg(wire, poweredWires, netNodeIds) {
@@ -907,7 +916,7 @@
         <p class="sim-power-status ${isPowered || def.isSource ? "is-powered" : ""}">${statusLine}</p>
         ${electricalHtml}
         ${extraFieldsHtml}
-        <label>Label${comp.type === "mcu_teensy" ? " (shown on the part)" : " (for your own reference)"}<input id="sim-comp-label" type="text" value="${escapeXml(comp.label || "")}"></label>
+        <label>Label${comp.type === "mcu_teensy" ? " (shown on the part)" : " (shown as a hover tooltip, including on the public embed)"}<input id="sim-comp-label" type="text" value="${escapeXml(comp.label || "")}"></label>
         <button type="button" id="sim-duplicate-selected">Duplicate part</button>
         <button type="button" id="sim-delete-selected" class="danger">Delete part</button>
       `;

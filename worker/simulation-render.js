@@ -622,9 +622,17 @@ function renderComponentSvg(comp, poweredComps, analysis) {
   if (!def) return "";
   const info = analysis[comp.id];
   const statusClass = info && (info.status === "burnt" || info.status === "overheating") ? " sim-damaged" : "";
+  // Matches the admin builder: every component type already gets this
+  // treatment the Teensy component alone used to get (its label prints
+  // directly on the part, in both the builder and this public render),
+  // so a label an admin chose to fill in was already precedent for
+  // public-visible content, not a private note -- a native <title> just
+  // extends that same visibility to every other component type as a
+  // hover tooltip instead of printed text.
+  const titleSvg = comp.label ? `<title>${escXml(comp.label)}</title>` : "";
   return `<g class="sim-comp sim-comp-${escXml(comp.type)}${statusClass}" data-id="${escXml(comp.id)}" data-powered="${
     poweredComps.has(comp.id) ? "true" : "false"
-  }" transform="translate(${comp.x},${comp.y})">${def.render(comp)}</g>`;
+  }" transform="translate(${comp.x},${comp.y})">${titleSvg}${def.render(comp)}</g>`;
 }
 
 function renderWireSvg(wire, components, poweredWires) {
