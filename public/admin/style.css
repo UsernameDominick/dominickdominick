@@ -530,6 +530,11 @@ code.color-field-value {
   gap: 8px;
 }
 
+.panel-section > summary .style-group-count {
+  margin-right: 8px;
+  text-transform: none;
+}
+
 .style-group-count {
   margin-left: auto;
   padding: 1px 7px;
@@ -1141,9 +1146,20 @@ code.color-field-value {
   padding: 4px 8px;
 }
 
+/* The bulk buttons are disabled exactly when nothing is selected -- hide
+   them then, instead of a permanent row of greyed-out actions. */
+.articles-bulk-bar button:disabled {
+  display: none;
+}
+
 .articles-selected-count {
-  color: var(--text-dim);
-  flex: 1 1 100%;
+  color: var(--accent);
+  font-weight: 600;
+  margin-right: auto;
+}
+
+.articles-selected-count:empty {
+  display: none;
 }
 
 .articles-list {
@@ -1153,12 +1169,24 @@ code.color-field-value {
 }
 
 .article-list-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: start;
   padding: 8px 10px;
-  border-radius: 6px;
+  border-radius: var(--field-radius);
   cursor: pointer;
   font-size: 0.85rem;
   color: var(--text-dim);
   margin-bottom: 4px;
+}
+
+.article-list-item > input[type="checkbox"] {
+  margin: 2px 0 0;
+}
+
+.article-list-title {
+  line-height: 1.35;
 }
 
 .article-list-item:hover, .article-list-item.active {

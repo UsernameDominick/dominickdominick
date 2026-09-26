@@ -3501,9 +3501,9 @@
         (a) =>
           `<div class="article-list-item${a.id === currentArticleId ? " active" : ""}" data-id="${a.id}"><input type="checkbox" class="article-select-checkbox" data-id="${a.id}"${
             selectedArticleIds.has(a.id) ? " checked" : ""
-          }> ${escapeHtml(a.title)}${articleStatusLabel(a)}${articleLockBadge(a)}${
+          }><div class="article-list-text"><span class="article-list-title">${escapeHtml(a.title)}</span>${articleStatusLabel(a)}${articleLockBadge(a)}${
             a.tags && a.tags.length ? `<div class="article-list-tags">${a.tags.map(escapeHtml).join(", ")}</div>` : ""
-          }</div>`
+          }</div></div>`
       )
       .join("");
     el("articles-list").querySelectorAll(".article-list-item").forEach((item) => {
@@ -4433,9 +4433,9 @@
         (p) =>
           `<div class="article-list-item${p.id === currentProjectId ? " active" : ""}" data-id="${p.id}"><input type="checkbox" class="project-select-checkbox" data-id="${p.id}"${
             selectedProjectIds.has(p.id) ? " checked" : ""
-          }> ${escapeHtml(p.title)}${projectStatusLabel(p)}${projectBadges(p)}${
+          }><div class="article-list-text"><span class="article-list-title">${escapeHtml(p.title)}</span>${projectStatusLabel(p)}${projectBadges(p)}${
             p.tags && p.tags.length ? `<div class="article-list-tags">${p.tags.map(escapeHtml).join(", ")}</div>` : ""
-          }</div>`
+          }</div></div>`
       )
       .join("");
     el("projects-list")
@@ -4915,6 +4915,8 @@
   }
 
   function renderJournalList() {
+    el("journal-count").hidden = !journalEntries.length;
+    el("journal-count").textContent = `${journalEntries.length} ${journalEntries.length === 1 ? "entry" : "entries"}`;
     el("journal-list").innerHTML = journalEntries
       .map(
         (j) =>
@@ -5004,6 +5006,8 @@
   }
 
   function renderBomList() {
+    el("bom-count").hidden = !bomItems.length;
+    el("bom-count").textContent = `${bomItems.length} ${bomItems.length === 1 ? "part" : "parts"}`;
     el("bom-list").innerHTML = bomItems
       .map(
         (b) =>

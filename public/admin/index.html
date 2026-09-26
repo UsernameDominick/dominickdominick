@@ -531,6 +531,50 @@
             <summary>Private notes</summary>
             <label>Private notes (never shown publicly — editorial reminders, todos, sources)<textarea id="project-private-notes" rows="2" placeholder="e.g. Waiting on the vendor datasheet before finishing the BOM."></textarea></label>
           </details>
+          <details id="journal-section" class="panel-section editor-section" hidden>
+            <summary>Build journal <span class="style-group-count" id="journal-count" hidden></span></summary>
+            <p class="redirects-hint">Dated entries telling the story of building this — logs, test results, decisions, dead ends.</p>
+            <div id="journal-list" class="redirects-list"></div>
+            <div class="journal-form-row">
+              <input type="date" id="journal-entry-date">
+              <select id="journal-entry-type">
+                <option value="log">Log</option>
+                <option value="test">Test result</option>
+                <option value="decision">Decision</option>
+                <option value="failed">Failed attempt</option>
+              </select>
+            </div>
+            <input id="journal-entry-title" placeholder="Entry title">
+            <textarea id="journal-entry-body" rows="4" placeholder="What happened. Same formatting as the project body."></textarea>
+            <div class="journal-form-actions">
+              <button type="button" id="save-journal-entry-btn">Add entry</button>
+              <button type="button" id="cancel-journal-entry-btn" hidden>Cancel edit</button>
+            </div>
+          </details>
+          <details id="bom-section" class="panel-section editor-section" hidden>
+            <summary>Bill of materials <span class="style-group-count" id="bom-count" hidden></span></summary>
+            <div class="template-row">
+              <button type="button" id="export-bom-csv-btn" title="Download this project's parts list as a CSV, for shopping/ordering">Export CSV</button>
+              <button type="button" id="import-bom-csv-btn" title="Bulk-add parts from a CSV file (needs an &quot;Item&quot; column; Quantity/Price/Link/Substitution columns are optional)">Import CSV…</button>
+              <input type="file" id="import-bom-csv-input" accept=".csv,text/csv" hidden>
+            </div>
+            <p class="redirects-hint">Parts, quantities, prices paid — the total build cost below is computed automatically.</p>
+            <div id="bom-list" class="redirects-list"></div>
+            <div id="bom-total" class="bom-total"></div>
+            <div class="bom-form-row">
+              <input id="bom-item" placeholder="Item">
+              <input id="bom-quantity" type="number" step="any" placeholder="Qty" value="1">
+              <input id="bom-price" type="number" step="0.01" placeholder="Price paid">
+            </div>
+            <div class="bom-form-row">
+              <input id="bom-link" placeholder="Where you bought it (URL, optional)">
+              <input id="bom-substitution" placeholder="Substitution notes (optional)">
+            </div>
+            <div class="journal-form-actions">
+              <button type="button" id="save-bom-item-btn">Add item</button>
+              <button type="button" id="cancel-bom-item-btn" hidden>Cancel edit</button>
+            </div>
+          </details>
           <details class="panel-section editor-section" open>
             <summary>Publishing</summary>
             <div class="field-row publish-row">
@@ -572,45 +616,6 @@
             </label>
             <button type="button" id="create-preview-link-project-btn">Create link</button>
             <div id="preview-links-list-project" class="preview-links-list"></div>
-          </div>
-          <div id="journal-section" hidden>
-            <h2>Build Journal</h2>
-            <p class="redirects-hint">Dated entries telling the story of building this — logs, test results, decisions, dead ends.</p>
-            <div id="journal-list" class="redirects-list"></div>
-            <div class="journal-form-row">
-              <input type="date" id="journal-entry-date">
-              <select id="journal-entry-type">
-                <option value="log">Log</option>
-                <option value="test">Test result</option>
-                <option value="decision">Decision</option>
-                <option value="failed">Failed attempt</option>
-              </select>
-            </div>
-            <input id="journal-entry-title" placeholder="Entry title">
-            <textarea id="journal-entry-body" rows="4" placeholder="What happened. Same formatting as the project body."></textarea>
-            <div class="journal-form-actions">
-              <button type="button" id="save-journal-entry-btn">Add entry</button>
-              <button type="button" id="cancel-journal-entry-btn" hidden>Cancel edit</button>
-            </div>
-          </div>
-          <div id="bom-section" hidden>
-            <h2>Bill of Materials <button type="button" id="export-bom-csv-btn" title="Download this project's parts list as a CSV, for shopping/ordering">Export CSV</button> <button type="button" id="import-bom-csv-btn" title="Bulk-add parts from a CSV file (needs an &quot;Item&quot; column; Quantity/Price/Link/Substitution columns are optional)">Import CSV…</button><input type="file" id="import-bom-csv-input" accept=".csv,text/csv" hidden></h2>
-            <p class="redirects-hint">Parts, quantities, prices paid — the total build cost below is computed automatically.</p>
-            <div id="bom-list" class="redirects-list"></div>
-            <div id="bom-total" class="bom-total"></div>
-            <div class="bom-form-row">
-              <input id="bom-item" placeholder="Item">
-              <input id="bom-quantity" type="number" step="any" placeholder="Qty" value="1">
-              <input id="bom-price" type="number" step="0.01" placeholder="Price paid">
-            </div>
-            <div class="bom-form-row">
-              <input id="bom-link" placeholder="Where you bought it (URL, optional)">
-              <input id="bom-substitution" placeholder="Substitution notes (optional)">
-            </div>
-            <div class="journal-form-actions">
-              <button type="button" id="save-bom-item-btn">Add item</button>
-              <button type="button" id="cancel-bom-item-btn" hidden>Cancel edit</button>
-            </div>
           </div>
         </div>
       </div>
