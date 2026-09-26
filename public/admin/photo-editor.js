@@ -331,9 +331,15 @@
     canvas.height = r.h;
     ctx.putImageData(data, 0, 0);
     syncOverlaySize();
-    cropRect = null;
-    $("pe-apply-crop").hidden = true;
-    clearOverlay();
+    // Was: manually clearing cropRect/hiding the button/clearing the
+    // overlay inline. Replaced with cancelActiveDrag() (same as rotate90()/
+    // flip() already do) after a critic pass found this handler was still
+    // missing baseSnapshot invalidation specifically -- a multi-touch drag
+    // held open on an adjust slider while Apply Crop is tapped would
+    // otherwise resume against the pre-crop canvas on the drag's next
+    // tick, painting the OLD dimensions' pixels back over the newly
+    // resized canvas at the wrong scale/offset, destroying the crop.
+    cancelActiveDrag();
     fitCanvasToViewport();
   });
 
@@ -429,6 +435,15 @@
     ctx.filter = cssFilter;
     ctx.drawImage(snap, 0, 0);
     ctx.restore();
+    // A critic pass found this (and the Apply Crop / Apply Preset handlers
+    // below) already had the isComparing() guard but not this one --
+    // baseSnapshot invalidation is a SEPARATE concern from that guard, and
+    // a multi-touch drag held open on an adjust slider while this button
+    // is tapped with another finger would otherwise resume against the
+    // now-stale pre-filter canvas on the drag's next tick, silently
+    // erasing the filter that was just applied. Same fix rotate90()/
+    // flip() already needed for the identical reason.
+    cancelActiveDrag();
   }
   $("pe-filter-grayscale").addEventListener("click", () => applyOneShotFilter("grayscale(1)"));
   $("pe-filter-sepia").addEventListener("click", () => applyOneShotFilter("sepia(1)"));
@@ -558,6 +573,12 @@
     ctx.filter = `brightness(${b}%) contrast(${c}%) saturate(${s}%)`;
     ctx.drawImage(snap, 0, 0);
     ctx.restore();
+    // Same baseSnapshot-invalidation gap as applyOneShotFilter() and Apply
+    // Crop, found by the same critic pass: this handler already had the
+    // isComparing() guard above, but not this separate one for a
+    // multi-touch drag held open on an adjust slider while a preset is
+    // applied with another finger.
+    cancelActiveDrag();
   });
 
   $("pe-save-preset").addEventListener("click", async () => {

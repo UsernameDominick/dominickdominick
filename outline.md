@@ -7658,7 +7658,68 @@ distinct instances of the same "cached interaction state outlives the
 canvas/comparison state that invalidated it" bug class, the last two of
 which were real, easily-triggered silent-data-loss bugs reachable with
 completely ordinary keyboard-and-mouse use -- not the multi-touch edge
-case the fix chain started out chasing. Closing this out after four
-rounds given the pattern search has now been run exhaustively twice (once
-per critic instance) with no further findings on the second exhaustive
-pass beyond the one already fixed in that same round.
+case the fix chain started out chasing.
+
+Sent to a round-5 (planned-final) critic pass on commit 5ba1383. Scored
+4/10 -- found a 7th real bug in the same family, live-reproduced. The
+`cancelActiveDrag()` helper this whole chain built specifically to
+invalidate a stale `baseSnapshot` was correctly wired into
+`restoreSnapshot()`, `rotate90()`, and `flip()` -- but three OTHER
+canvas-mutating actions that had separately received the `isComparing()`
+guard in earlier rounds (`applyOneShotFilter()`, the Apply Preset change
+handler, and the Apply Crop click handler) were never wired to it. Since
+`isComparing()` and `baseSnapshot`-staleness are two genuinely separate
+concerns (one about the Compare feature, one about a slider drag left
+open), fixing the first at those three sites never touched the second --
+which is presumably exactly how this stayed hidden through four rounds
+that were each focused on the compare-guard inventory specifically.
+Live-reproduced via a multi-touch-style repro (one finger holding a
+slider mid-drag via a synthetic `input` event with no `change`, a second
+"finger" clicking a filter/crop button): a grayscale filter applied while
+a brightness drag was held open got silently erased back to the original
+color the moment the still-open slider fired its next tick, painting the
+stale pre-filter `baseSnapshot` back over the correctly-filtered canvas;
+worse, the same sequence with Apply Crop instead of a filter left the
+canvas at the new, correctly cropped dimensions but with the WRONG
+pixels -- the old, differently-sized `baseSnapshot`'s top-left corner
+painted onto the new canvas at the wrong scale/offset, destroying the
+crop result while leaving its dimensions looking superficially correct.
+
+Fixed by calling `cancelActiveDrag()` at the end of all three functions,
+mirroring `rotate90()`/`flip()`. For Apply Crop specifically, replaced
+its own inline `cropRect = null; hide the button; clearOverlay()` lines
+(which only ever handled the crop-selection half of the problem) with
+the shared helper, the same refactor already applied to `restoreSnapshot()`
+in an earlier round.
+
+Re-verified via Playwright, reproducing the critic's exact two scenarios:
+opened a slider drag, applied grayscale (canvas correctly went gray), then
+continued the still-open slider -- the canvas stayed gray-toned instead of
+reverting to the original color, confirming the filter survived; opened a
+slider drag, drew and applied a crop (canvas correctly resized smaller),
+then continued the still-open slider -- the canvas dimensions stayed at
+the cropped size with no revert, confirming the crop result wasn't
+corrupted. Every prior round's regression tests (crop-clear-on-rotate,
+mid-stroke rotate, mid-adjust-slider rotate, the six-guard Compare-block
+tests including the slider-vs-Compare bidirectional case) were re-run
+unchanged and all still pass. Full regression suite green; test uploads
+deleted and confirmed gone.
+
+Done: 5 critic rounds (8/10, 8/10, 5/10, 5/10, 4/10), seven real findings
+across all five rounds -- crop-selection state, brush/shape-tool drag
+state, adjust-slider `baseSnapshot` state (its transform-clearing side),
+five-then-six missing `isComparing()` guards, and finally three actions
+missing `baseSnapshot`-invalidation despite already having the unrelated
+`isComparing()` guard -- all fixed. What began as a single deferred
+crop-selection bug from an unrelated feature's critic review became a
+five-round audit closing seven distinct instances of the same "cached
+interaction state outlives the canvas/comparison state that invalidated
+it" bug class, several of which were real, easily-triggered
+silent-data-corruption bugs with no dependency on multi-touch hardware at
+all. The clearest lesson from this chain: two orthogonal guards
+(`isComparing()` for the Compare feature, `cancelActiveDrag()`/
+`baseSnapshot` for adjust-slider staleness) can each individually look
+complete while a given call site has only one of the two -- a checklist
+covering "does this action need guard A" is not the same checklist as
+"does this action need guard B," and an exhaustive review of one doesn't
+substitute for a separate exhaustive review of the other.
