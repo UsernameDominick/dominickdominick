@@ -23,10 +23,41 @@ the date and the lines-of-code stat yourself each session)
 
 **Branches:** `production` is the working branch — commit and push here
 after every tested batch. `main` is what's actually live/deployed
-(Cloudflare Workers Builds auto-deploys from `main`). Never push to
-`main` without a fresh, explicit user confirmation each time — a past
-confirmation does not carry forward. Iterate on `production`, batch by
-batch, and only merge to `main` when told to.
+(Cloudflare Workers Builds auto-deploys from `main`). **Updated
+2026-09-26, Dominick's explicit decision:** once a batch is tested,
+critic-reviewed to 9+ (or explicitly accepted at a lower score with
+findings logged), and pushed to `production`, fast-forward `main` to
+match automatically — no separate ask needed anymore. (The single prior
+ask-every-time push earlier this same day is what surfaced this
+decision; it is not itself standing permission for anything before this
+note — this note is what makes it standing, going forward.) Still never
+force-push or rewrite history on `main`; a clean fast-forward only. If
+`production` and `main` have ever diverged (shouldn't happen under this
+workflow, but check), stop and ask rather than force anything.
+
+**Backlog scope/pace — Dominick's explicit decisions, 2026-09-26:**
+1. Once the Easy-tier creative-suite items (section 13) run low, move
+   into Medium-tier and Hard-tier items too, same one-at-a-time
+   implement→test→critic-review→ship process, no separate ask needed to
+   start a Medium/Hard item. Exception: anything requiring a genuinely
+   new paid external service/API (the ML-assisted Photo Editor items
+   #131-138, any real billing) still needs an explicit check-in before
+   actually enabling that billing, even though starting the item itself
+   doesn't need one.
+2. Beyond the existing 600-item wishlist and any audit Dominick asks
+   for, use judgment to notice and log NEW ideas for improving the site
+   in this file, and pursue them the same way (implement, test, critic
+   review, ship) without waiting to be asked first — this is an explicit
+   expansion of scope, not just reacting to direct requests anymore.
+3. The admin "custom animations / do anything I could conceive" ask
+   (section 14) has a chosen direction: build a real animation editor —
+   a keyframe/timeline UI in the admin, pick an element, define
+   entrance/scroll/hover animations visually with a live preview,
+   generating the underlying CSS/Web-Animations-API code. This is a
+   substantial new feature needing its own research/design pass before
+   implementation starts (see section 14 for the ask and section 13's
+   "Shared platform" area for related existing infrastructure) — not a
+   quick Easy-tier item.
 
 **Schema changes:** D1 has no migration tracker. Any `ALTER`/`CREATE`
 against `schema.sql` needs its SQL added to the "Pending production
@@ -11572,6 +11603,83 @@ flow, confirmed via a direct authenticated `GET /api/admin/songs`
 afterward showing zero songs.
 
 Sent for a critic pass.
+
+The critic independently crafted its own edge-case fixtures via direct
+`POST`/`GET` calls to `/api/admin/songs` (not just driving the UI) and
+confirmed: piano-roll isolation holds (zero color/note elements on any of
+its 24 rows, `--track-color` never leaks in from a drum-row edit);
+XSS/injection is genuinely neutralized (tried `"><script>alert(1)</script>`,
+an `onerror` breakout, and raw `&<>"'` both via direct API writes and the
+live note field, confirmed zero `<script>` elements ever land in the DOM
+and the round-tripped value comes back correctly escaped without double-
+encoding); a song crafted via direct API POST with no `trackMeta` key at
+all loads with zero errors and correctly gets the defaults; per-row color
+changes stay isolated to their own row; the actual outgoing PATCH body
+(not just in-memory state) carries the changed color; switching kits
+leaves `trackMeta` completely untouched; duplicating a song carries
+`trackMeta` over byte-for-byte (since `duplicateSong` already copies
+`data` wholesale, no special-casing was needed or missing); and no
+regression to step-toggle, transpose, or snapshot-mix. One non-blocking,
+genuinely real finding: at 375px mobile width, the wider row (label +
+22px swatch + 90px note + 16-step grid) pushed the sequencer's already-
+horizontally-scrolling container wider still, meaning reaching steps 9-16
+required scrolling the WHOLE modal body sideways, dragging the preview
+panel out of view along with it. A smaller, non-blocking note: `color` is
+only validated by the native `<input type="color">`'s own normalization,
+so an admin crafting `trackMeta.kick.color` directly via the API (already
+requiring authenticated admin access) could inject extra CSS declarations
+into that row's inline `style` attribute since `escapeXml` escapes quotes/
+angle-brackets but not semicolons — not a real privilege-boundary issue
+today, just worth knowing if `trackMeta` is ever exposed to a lower-trust
+write path later. Final score: **9/10.**
+
+Fixed the mobile finding: added a `max-width: 860px` rule making
+`.song-track-row` wrap and giving `.song-steps` `flex-basis: 100%`, so
+the label/color/note cluster stays on its own line and the 16-step grid
+drops to a full-width line below it, removing the EXTRA ~112px the
+color+note fields were contributing to the row's total scroll-needed
+width. This does not fully eliminate mobile horizontal scrolling for the
+step grid itself — `.song-step`'s pre-existing `min-height: 32px` (which
+predates this feature and is shared with the piano roll) already forced
+roughly 596px+ of intrinsic width for 16 columns, well past a ~358px
+phone content area, so some horizontal scroll to reach later steps is a
+pre-existing constraint this fix doesn't touch. Logged as a separate,
+deliberately out-of-scope item below rather than folded into this one,
+since shrinking the step-cell floor is a bigger, shared-with-the-piano-
+roll change with its own tap-target tradeoffs, not specific to per-track
+colors. Verified the wrap fix live: `.song-track-row` computes
+`flex-wrap: wrap` at 375px, and the steps grid's bounding box now starts
+flush at the row's own left edge (its own full-width line) rather than
+trailing after label/color/note on one unbroken line. Left the color-
+validation note as an accepted, logged risk rather than adding new
+sanitization — it needs authenticated admin access already, matching this
+site's existing single-admin trust model elsewhere (e.g. the Site
+Settings custom-CSS/JS fields already trust the one authenticated admin
+with raw code execution, a strictly bigger trust extension than one
+unvalidated inline-style value). Re-ran the full `test_song_track_colors.js`
+suite and `test_security_seo.js` — both all-pass.
+
+Item #196 is done: 1 critic round, 9/10, with a same-day mobile-wrap
+follow-up fix for its one non-blocking finding.
+
+- ☐ (new, logged, deliberately deferred) **Step-sequencer/piano-roll grid
+  doesn't fit a phone-width viewport.** `.song-step`'s `min-height: 32px`
+  plus `aspect-ratio: 1` forces roughly 596px+ of intrinsic width for the
+  shared 16-column grid (drum sequencer AND piano roll both use it),
+  which already exceeds a ~358px mobile content area before item #196's
+  color/note fields ever existed. Both grids live inside
+  `.song-builder-body`'s single `overflow: auto` scroll region alongside
+  the live preview panel, so reaching later steps means scrolling the
+  whole body sideways and dragging the preview out of view too — a real,
+  pre-existing mobile usability rough edge, not something item #196
+  introduced (it only made a narrow slice of it slightly worse, now
+  fixed by wrapping). Left open rather than fixed here since a real fix
+  (shrinking the step-cell floor, or giving the step grid its own
+  independent horizontal-scroll region separate from the preview panel)
+  is a bigger, shared-across-both-grids change with its own tradeoffs
+  (smaller tap targets on a touch device) that deserves its own
+  research + critic-review cycle rather than being folded into an
+  unrelated per-track-color feature's follow-up fix.
 
 ## 14. Design/UX audit + admin creative freeform tool (2026-09-26)
 

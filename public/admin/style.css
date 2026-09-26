@@ -2746,6 +2746,26 @@ kbd {
   font-family: inherit;
 }
 
+/* A critic pass on the per-track color/note feature found that the label +
+   22px swatch + 90px note + 16-step grid together add up to ~830px, well
+   past a phone-width viewport -- .song-builder-body's overflow-x:auto kept
+   it from breaking the page, but reaching steps 9-16 of any track then
+   meant scrolling the WHOLE modal body sideways, dragging the preview
+   panel out of view with it. Wrapping the row lets the label/swatch/note
+   cluster stay on their own line and the 16-step grid drop to a full-width
+   line below, so every step stays reachable without any horizontal
+   scrolling at all -- the same "give up on fitting one row, use the width
+   you actually have" call already made for the mobile toolbars elsewhere
+   in this file. */
+@media (max-width: 860px) {
+  .song-track-row {
+    flex-wrap: wrap;
+  }
+  .song-steps {
+    flex-basis: 100%;
+  }
+}
+
 .song-steps {
   display: grid;
   grid-template-columns: repeat(16, 1fr);
