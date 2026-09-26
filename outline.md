@@ -9792,4 +9792,50 @@ their real DELETE endpoints, since this feature (unlike this session's
 earlier text/JSON-only test data) genuinely uploads a new file to R2/the
 media library, not just a D1 row.
 
-Handed to a critic agent for scoring.
+Handed to a critic agent for scoring: **5/10**, below the ship
+threshold. Round-1 finding:
+
+1. **(Fixed)** `applyZoom()` sets an inline `style.width`/`style.height`
+   on the LIVE `#sim-builder-svg` whenever zoomed and, critically,
+   always on mobile (whose default zoom is 0.5) — `svg.cloneNode(true)`
+   copies that inline style verbatim onto the clone, and the code only
+   overrode the `width`/`height` XML *attributes* afterward, never
+   clearing the inline style itself. The critic's theory: per the CSS
+   cascade, inline `style` on an SVG root should take precedence over
+   presentation attributes when that SVG is rendered standalone (e.g.
+   via `<img>`), so the rasterized image would render at the stale
+   zoomed-out CSS size (e.g. 750×350) rather than the full 1500×700,
+   getting drawn into just the canvas's top-left corner with the rest
+   left as bare background — reproducing on the mobile admin's own
+   default zoom, not just a manual-zoom edge case. Fixed by explicitly
+   clearing `svgClone.style.width`/`height` (mirroring exactly how
+   `applyZoom()` itself already clears the live element's style at
+   zoom 1) before setting the XML attributes and serializing.
+
+   Verifying this empirically turned up a genuinely interesting nuance
+   worth recording: instrumenting the REAL click handler's own `Image`
+   object (not a hand-reimplementation of its logic) to capture
+   `naturalWidth`/`naturalHeight` showed Chromium actually already
+   resolved the correct `1500×700` intrinsic size from the explicit
+   `width`/`height` XML attributes even *before* this fix, despite the
+   stale inline style being present on the serialized clone — meaning
+   the specific failure mode the critic described didn't reproduce in
+   the browser this admin tool is actually used in. This doesn't make
+   the fix wrong or unnecessary to keep: the CSS/SVG spec's precedence
+   rules genuinely leave this browser-dependent (a UA is free to resolve
+   an `<img>`'s replaced-element intrinsic size differently than how
+   the same markup would lay out as a standalone document), so relying
+   on one browser's specific resolution behavior rather than removing
+   the ambiguity outright would be fragile. The fix was kept as
+   correct, low-cost defensive code, and this nuance is logged here
+   rather than silently claiming to have reproduced-then-fixed a crash
+   that direct instrumentation actually showed didn't fire in this
+   runtime.
+
+Re-verified via Playwright: confirmed the original battery/resistor/LED
+end-to-end test still passes unchanged, and added a second test that
+mocks `isMobileBuilder()`'s `matchMedia` check to force the exact
+zoomed-out scenario the critic described, confirming the button still
+produces a correctly-sized (1500×700) thumbnail with real circuit
+content in that scenario. Ran the full `test_security_seo.js`
+regression suite — all passed. Sent for a round-2 critic pass.

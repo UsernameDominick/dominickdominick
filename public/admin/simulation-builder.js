@@ -1649,6 +1649,18 @@
     try {
       const vb = svg.viewBox.baseVal;
       const svgClone = svg.cloneNode(true);
+      // applyZoom() sets an inline style.width/height on the LIVE svg
+      // (whenever zoomed and always on mobile, whose default zoom is
+      // 0.5) which cloneNode(true) copies verbatim. Inline style wins
+      // over the width/height attributes below when this SVG is later
+      // rendered standalone via <img>, so without clearing it the
+      // rasterized image would render at the zoomed-out CSS size and get
+      // drawn at 1:1 into the corner of the full 1500x700 canvas instead
+      // of filling it -- a critic-found bug that reproduced with the
+      // mobile admin's own default zoom level, not just a manual-zoom
+      // edge case.
+      svgClone.style.width = "";
+      svgClone.style.height = "";
       svgClone.setAttribute("width", vb.width);
       svgClone.setAttribute("height", vb.height);
       const svgString = new XMLSerializer().serializeToString(svgClone);
