@@ -4967,7 +4967,7 @@ substantial new infra + security surface).
 531. Consistent embed controls — mostly CSS/UI consistency pass.
 533. ✅ Thumbnail from saved view — render existing SVG to canvas, export PNG. (done — see the dated entry below)
 534. Public param controls — expose whitelisted fields already in `data` via player UI.
-539. Deep links to component/view — URL hash + scroll/select, trivial with existing ids.
+539. ✅ Deep links to component/view — URL hash + scroll/select, trivial with existing ids. (done — see the dated entry below)
 
 ### Simulations — Medium
 364, 365, 368, 369, 370, 372, 374, 376, 377, 379, 381-384, 386, 390, 392,
@@ -12931,3 +12931,80 @@ found.**
 
 Item #380 is done: 1 critic round (6/10, one real blocking bug found and
 fixed) + 1 round-2 confirmation round (9/10).
+
+### Sixty-ninth item: #539, Simulation deep links to a specific component
+
+- ✅ **A URL hash format (`#sim-<blockId>-comp-<componentId>`) that
+  scrolls to and briefly pulses a specific component** on the PUBLIC
+  simulation embed — exactly the wishlist's own "trivial with existing
+  ids" framing, since both halves of that id already existed and were
+  already rendered into the page: `renderSimulationBlockHtml` already
+  gives each embedded simulation's `<svg>` a unique `id="sim-<blockId>"`,
+  and `renderComponentSvg` already gives every component a `data-id`.
+  This item needed zero server-side changes — purely a new client-side
+  hash reader in `public/sim-player.js` (previously just 9 lines, the
+  power-toggle button handler) plus a CSS pulse animation.
+
+Runs on both `DOMContentLoaded` (a fresh page load with the hash already
+in the URL) and `hashchange` (clicking a deep link while already on the
+page, e.g. from an in-page index/table of contents, without a full
+reload) — the same link works both ways with one handler. The highlight
+itself is a `filter: drop-shadow` pulse rather than swapping a fill/
+stroke color, specifically because every component type draws itself
+completely differently (an LED, a breadboard, a battery all have wildly
+different internal shapes/colors) — a drop-shadow glow wraps whatever
+the rendered shape happens to be, uniformly, with no per-component-type
+CSS needed. A malformed or nonexistent hash (bad format, or a real
+format pointing at a component id that doesn't exist) is a silent no-op,
+not an error — matching this session's own repeated "fail closed on bad
+input rather than throw" convention.
+
+Explicitly followed today's own earlier lesson from this session's
+animation-editor work (a critic pass there found the site's manual
+"reduce motion" toggle doesn't automatically cover a NEW animation just
+because it's wrapped in the OS-preference media query — each animation
+needs its own explicit opt-out under the manual toggle too): added
+`:root[data-motion="reduce"] .sim-deep-link-highlight { animation: none;
+}` from the start, rather than shipping the same gap twice in one
+session. Also used a fixed `setTimeout` (matching the CSS animation's
+own total duration) to remove the highlight class, rather than an
+`animationend` listener — an `animationend` listener would simply never
+fire for a reduced-motion visitor (no animation runs for them at all),
+silently leaving the class stuck on the element forever; a timeout
+cleans it up identically regardless of whether the animation played.
+The class is also explicitly removed-then-re-added (with a forced
+reflow in between) rather than just added once, so clicking the exact
+same deep link a second time replays the pulse instead of silently doing
+nothing because the class was already present from an earlier visit.
+
+Out of scope for this pass (logged, not silently dropped): no "copy deep
+link to this part" UI affordance anywhere (admin or public) generates
+these links automatically yet — the underlying capability exists and
+works, but nothing currently produces a shareable URL for an admin to
+actually hand out. The admin builder itself can't easily generate one
+on its own, since a single saved simulation can be embedded in multiple
+different blocks/pages, and the builder edits the simulation record
+itself, not any specific placement of it — a "copy link" feature would
+need to live on the PUBLIC-facing page (e.g. a right-click/long-press
+affordance on a component) rather than in the builder, which is a
+separate, slightly bigger follow-up left for later.
+
+Verified via Playwright end-to-end on the REAL public page (not just the
+admin preview): created a real simulation and a real page with a real
+Simulation block referencing it via the actual admin API, navigated
+directly to the public URL with `#sim-<blockId>-comp-res1` in the hash,
+and confirmed: the target resistor genuinely gets the highlight class
+and is genuinely scrolled into the visible viewport (checked via a real
+`getBoundingClientRect()`, not just "the class exists somewhere");
+confirmed the OTHER component on the same board (an LED) is correctly
+NOT highlighted, proving the hash targets the specific component, not
+just "highlight everything"; confirmed the highlight class is correctly
+removed after its timeout elapses; and confirmed navigating to a hash
+naming a component id that doesn't exist, and to a completely unrelated
+hash format, both produce zero JavaScript errors. Ran the full
+`test_security_seo.js` regression suite — all passed. No test data left
+behind: the real test page and test simulation were both deleted via
+their real DELETE endpoints, confirmed via follow-up authenticated
+listings showing neither remains.
+
+Sent for a critic pass.

@@ -1373,6 +1373,34 @@ h6 { font-size: 0.9rem; }
   border-radius: 12px;
 }
 
+/* Deep-link target pulse -- a component's <g> has no fixed fill/stroke of
+   its own to swap (each part type draws itself very differently), so a
+   glow via drop-shadow (which wraps the whole rendered shape regardless
+   of what it looks like) is the one highlight technique that works
+   uniformly across every component type without per-type CSS. Scoped out
+   of prefers-reduced-motion the same way every other animation on this
+   site already is -- a reduced-motion visitor still gets the scroll (an
+   instant jump, not a smooth animated one, same as any anchor-link
+   scroll) but skips the pulsing glow itself. */
+@media (prefers-reduced-motion: no-preference) {
+  .sim-deep-link-highlight {
+    animation: sim-deep-link-pulse 1.8s ease-out 2;
+  }
+}
+@keyframes sim-deep-link-pulse {
+  0%, 100% { filter: drop-shadow(0 0 0 transparent); }
+  50% { filter: drop-shadow(0 0 10px var(--accent)); }
+}
+/* The site's own manual "reduce motion" toggle (independent of the OS
+   preference above) needs the identical override -- a critic pass on an
+   EARLIER animation feature this same session found the site's manual
+   toggle doesn't automatically inherit coverage from the OS-preference
+   media query the way one might assume; each animation needs its own
+   explicit opt-out under the manual toggle too. */
+:root[data-motion="reduce"] .sim-deep-link-highlight {
+  animation: none;
+}
+
 /* Outlet */
 .sim-comp .outlet-body {
   fill: url(#sim-grad-plastic);
