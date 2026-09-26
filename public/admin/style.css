@@ -2451,81 +2451,248 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   max-width: 900px;
 }
 
+/* Only the grid gives up space when the dialog is short; the header,
+   filters and selection bar keep their natural height. */
+.media-modal-inner > :not(.media-grid) {
+  flex-shrink: 0;
+}
+
 .media-hint {
   padding: 10px 20px 0;
   color: var(--text-dim);
   font-size: 0.85rem;
 }
 
-.media-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+/* Header carries the two things you come here to do (upload / start a
+   new image); the close button stays at the far right as in every modal. */
+.media-header {
   gap: 12px;
-  padding: 10px 20px 0;
+  flex-wrap: wrap;
 }
 
-.media-toolbar-group {
+.media-header h1 {
+  margin-right: auto;
+}
+
+.media-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.media-upload-folder-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.media-upload-folder-label select {
+  max-width: 140px;
+}
+
+.modal-inner header .media-primary-btn,
+.media-primary-btn {
+  background: var(--accent);
+  color: var(--on-accent);
+  border: var(--control-border-width) solid var(--accent);
+  border-radius: var(--control-radius);
+  padding: 7px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.modal-inner header .media-secondary-btn,
+.media-secondary-btn {
+  background: transparent;
+  color: var(--text);
+  border: var(--control-border-width) solid var(--border);
+  border-radius: var(--control-radius);
+  padding: 6px 12px;
+  font-size: 0.8rem;
+}
+
+.media-secondary-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.media-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 20px 0;
+}
+
+.media-find-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 0.8fr);
+  gap: 8px;
+}
+
+.media-find-row input,
+.media-find-row select {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+}
+
+.media-filter-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  padding-right: 12px;
-  border-right: 1px solid var(--border);
 }
 
-.media-toolbar-group:last-child {
-  border-right: none;
-  padding-right: 0;
+/* A checkbox dressed as a toggle chip: the whole pill is the target and
+   reads as on/off at a glance. */
+.filter-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: var(--control-border-width) solid var(--border);
+  border-radius: var(--control-radius);
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
 }
 
-.media-toolbar input[type="search"] {
-  flex: 1;
-  min-width: 140px;
-  background: var(--bg);
+.filter-chip input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.filter-chip::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+}
+
+.filter-chip:has(input:checked) {
   color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: var(--field-radius);
-  padding: 6px 10px;
-  font-family: inherit;
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.filter-chip:has(input:checked)::before {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.filter-chip:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.media-saved-searches {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.media-saved-searches select {
+  max-width: 180px;
+  padding: 5px 8px;
+}
+
+.media-selection-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  margin: 12px 20px 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.media-select-all-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  white-space: nowrap;
 }
 
 .media-selected-count {
-  color: var(--text-dim);
+  color: var(--accent);
   font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.media-bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.media-bulk-actions .danger {
+  margin-top: 0 !important;
+  border: none;
+  border-radius: var(--control-radius);
+  padding: 6px 12px;
+  font-size: 0.8rem;
 }
 
 .media-grid {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  padding: 16px 20px 20px;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  /* max-content rows: this grid has a definite height (it's the modal's
+     scroll area), and auto rows only grow into the space left in that
+     height, so tall tiles got squeezed to fit instead of scrolling. */
+  grid-auto-rows: max-content;
+  gap: 14px;
   align-content: start;
 }
 
 .media-item {
-  position: relative;
+  display: flex;
+  flex-direction: column;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
+  border-radius: var(--field-radius);
+  overflow: clip;
   cursor: pointer;
   background: var(--bg);
-  /* Not aspect-ratio: an auto grid row's height needs to come from its
-     tallest item, but an aspect-ratio item's own height is derived from
-     the row's cross-size in the first place — that circular dependency
-     computed a shorter row track than the item's real (width-derived)
-     height in testing (measured ~134px row for a ~160px item), so each
-     row visually overflowed into the next one. The classic padding-
-     bottom technique doesn't have this problem: percentage padding
-     resolves from the item's own (already-known) width, giving the grid
-     a real, non-circular height to lay the row out around. */
-  height: 0;
-  padding-bottom: 100%;
+  transition: border-color 0.15s var(--ease-smooth), box-shadow 0.15s var(--ease-smooth);
 }
 
-.media-item img {
+.media-item:hover {
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--border));
+}
+
+.media-item.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* aspect-ratio on the thumbnail, not the grid item: on the item itself
+   it made the row track size circular (rows overlapped), and percentage
+   padding here resolves to 0 while the grid sizes its rows, clipping
+   the tile. The thumbnail's width is already known from the column
+   track by then, so its height is too. */
+.media-thumb {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: repeating-conic-gradient(color-mix(in srgb, var(--text) 6%, transparent) 0 25%, transparent 0 50%) 0 0 / 16px 16px;
+}
+
+.media-thumb img {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -2534,132 +2701,202 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   display: block;
 }
 
-.media-item:hover {
-  border-color: var(--accent);
-}
-
-.media-delete {
+.media-file-icon {
   position: absolute;
-  top: 4px;
-  right: 4px;
-  /* Was 24x24 — a precision-pointer-only size in a dense grid of small
-     tiles. Bumped toward a real touch target without crowding the tile
-     corner too much (the item itself is only ~170px square). */
-  width: 30px !important;
-  height: 30px;
-  background: rgba(0, 0, 0, 0.7) !important;
-  color: #fff !important;
-  border: none !important;
-  border-radius: 6px;
-  font-size: 1rem;
-  line-height: 1;
-  cursor: pointer;
-  margin-top: 0 !important;
-  padding: 0 !important;
-}
-
-.media-edit {
-  position: absolute;
-  top: 4px;
-  left: 4px;
-  width: 30px !important;
-  height: 30px;
-  background: rgba(0, 0, 0, 0.7) !important;
-  color: #fff !important;
-  border: none !important;
-  border-radius: 6px;
-  font-size: 0.85rem;
-  line-height: 1;
-  cursor: pointer;
-  margin-top: 0 !important;
-  padding: 0 !important;
-}
-
-.media-item-bottom {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 3px 4px;
-  background: rgba(0, 0, 0, 0.6);
-  gap: 4px;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 2rem;
+  color: var(--text-dim);
 }
 
 .media-select-checkbox {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 20px;
+  height: 20px;
   margin: 0;
-  flex-shrink: 0;
-  /* Was the browser default (~13x13) — smallest tappable control in the
-     whole grid. */
-  width: 18px;
-  height: 18px;
   cursor: pointer;
+  z-index: 1;
 }
 
-.media-folder-badge {
-  color: #fff;
-  font-size: 0.65rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-  text-align: center;
+.media-tile-actions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  gap: 4px;
 }
 
-.media-info {
-  width: 26px !important;
-  height: 26px;
-  background: transparent !important;
-  color: #fff !important;
-  border: none !important;
-  font-size: 0.75rem;
-  line-height: 1;
-  cursor: pointer;
+.media-tile-actions button,
+.media-item .media-info {
+  width: 28px !important;
+  height: 28px;
+  display: grid;
+  place-items: center;
   padding: 0 !important;
   margin: 0 !important;
-  flex-shrink: 0;
+  border: none !important;
+  border-radius: var(--control-radius) !important;
+  background: rgba(0, 0, 0, 0.62) !important;
+  color: #fff !important;
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
 }
 
-.media-unused-filter {
+.media-tile-actions .media-delete:hover {
+  background: var(--error-bg) !important;
+}
+
+/* On a mouse, per-tile actions and the checkbox stay out of the way until
+   the tile is hovered or focused (or anything is selected, so
+   multi-select doesn't need a hover per tile). On touch they're always
+   shown, since there's no hover to reveal them. */
+@media (hover: hover) {
+  .media-tile-actions,
+  .media-select-checkbox {
+    opacity: 0;
+    transition: opacity 0.12s var(--ease-smooth);
+  }
+  .media-item:hover .media-tile-actions,
+  .media-item:focus-within .media-tile-actions,
+  .media-item:hover .media-select-checkbox,
+  .media-item:focus-within .media-select-checkbox,
+  .media-grid.has-selection .media-select-checkbox {
+    opacity: 1;
+  }
+}
+
+.media-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px 10px;
+  border-top: 1px solid var(--border);
+}
+
+.media-meta-top {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.85rem;
-  white-space: nowrap;
 }
 
-.media-unused-badge {
-  position: absolute;
-  top: 4px;
-  left: 32px;
-  background: rgba(0, 0, 0, 0.7);
-  color: var(--accent);
-  font-size: 0.6rem;
+.media-filename {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.78rem;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.media-item .media-info {
+  flex-shrink: 0;
+  width: 22px !important;
+  height: 22px;
+  background: transparent !important;
+  color: var(--text-dim) !important;
+  border: 1px solid var(--border) !important;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-family: Georgia, serif;
+  backdrop-filter: none;
+}
+
+.media-item .media-info:hover {
+  color: var(--text) !important;
+  border-color: var(--accent) !important;
+}
+
+.media-meta-sub {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.media-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.media-badge {
+  font-size: 0.62rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
-  padding: 3px 6px;
-  border-radius: 6px;
-  pointer-events: none;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: var(--control-radius);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
 }
 
-/* Sits below the unused badge (top-left) rather than beside it — the two
-   can both apply to the same file, and the grid tiles are only 140px wide,
-   too narrow for two badges side by side without wrapping/overlapping. */
-.media-duplicate-badge {
-  top: 26px;
-  left: 4px;
+.media-badge-warn {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
 }
 
-/* Stacked below unused/duplicate (all three can apply to the same file) --
-   given a distinct color since this one's a security-relevant marker, not
-   just a housekeeping note. */
-.media-private-badge {
-  top: 48px;
-  left: 4px;
-  color: #ff6b6b;
+@media (max-width: 640px) {
+  /* The whole dialog scrolls on a phone, so the filters scroll away
+     instead of leaving the grid a ~300px window. */
+  .media-modal-inner {
+    overflow-y: auto;
+  }
+  .media-modal-inner .media-grid {
+    flex: none;
+    overflow: visible;
+  }
+  .media-header-actions {
+    order: 3;
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .media-upload-folder-label {
+    grid-column: 1 / -1;
+  }
+  .media-upload-folder-label select {
+    flex: 1;
+    max-width: none;
+  }
+  .media-find-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .media-find-row input[type="search"] {
+    grid-column: 1 / -1;
+  }
+  .media-saved-searches {
+    margin-left: 0;
+    width: 100%;
+  }
+  .media-saved-searches select {
+    flex: 1;
+    max-width: none;
+  }
+  .media-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    padding: 12px;
+  }
+  .media-toolbar,
+  .media-hint {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+  .media-selection-bar {
+    margin-left: 12px;
+    margin-right: 12px;
+  }
+  .media-bulk-actions {
+    margin-left: 0;
+    width: 100%;
+  }
 }
 
 .image-url-source-badge {

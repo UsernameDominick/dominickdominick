@@ -10,6 +10,26 @@
   // simulation builder) wire their own close handler instead of using this.
   const closeModalOnClick = (btnId, modalId) => el(btnId).addEventListener("click", () => (el(modalId).hidden = true));
 
+  // Every .modal shares one z-index, so a dialog opened from inside
+  // another (Browse… from Site Settings, the Photo Editor from a media
+  // tile) used to land underneath it whenever it came earlier in
+  // index.html -- visible but unclickable. The most recently opened
+  // dialog now always stacks above the ones already open.
+  const modalStackObserver = new MutationObserver((mutations) => {
+    for (const { target } of mutations) {
+      if (target.hidden) {
+        target.style.zIndex = "";
+        continue;
+      }
+      target.style.zIndex = "";
+      const base = Number(getComputedStyle(target).zIndex) || 100;
+      const others = [...document.querySelectorAll(".modal:not([hidden])")].filter((m) => m !== target);
+      const top = Math.max(0, ...others.map((m) => Number(getComputedStyle(m).zIndex) || 0));
+      if (top >= base) target.style.zIndex = String(top + 1);
+    }
+  });
+  document.querySelectorAll(".modal").forEach((m) => modalStackObserver.observe(m, { attributes: true, attributeFilter: ["hidden"] }));
+
   // A stronger confirmation for bulk operations that are actually
   // irreversible (media bulk-delete, empty trash) — a plain confirm()'s
   // "OK" button is a single reflexive click/Enter-press away, easy to
@@ -5154,7 +5174,12 @@
     el("media-bulk-move-btn").disabled = !n;
     el("media-bulk-tag-btn").disabled = !n;
     el("media-bulk-alt-btn").disabled = !n;
+    // The bulk actions only appear once something is selected, instead of
+    // sitting there as a row of disabled buttons the rest of the time.
+    el("media-bulk-actions").hidden = !n;
+    el("media-grid").classList.toggle("has-selection", n > 0);
     const shown = lastFilteredMediaKeys;
+    el("media-shown-count").textContent = `Select all ${shown.length} shown`;
     const shownSelectedCount = shown.filter((k) => selectedMediaKeys.has(k)).length;
     const selectAll = el("media-select-all");
     selectAll.checked = shown.length > 0 && shownSelectedCount === shown.length;
@@ -5162,6 +5187,10 @@
     // checkbox unchecked — reading as "nothing selected" even when the
     // selected-count text right next to it said otherwise.
     selectAll.indeterminate = shownSelectedCount > 0 && shownSelectedCount < shown.length;
+  }
+
+  function mediaFilename(item) {
+    return item.key.split("/").pop();
   }
 
   function mediaItemType(item) {
@@ -5194,23 +5223,33 @@
       filtered
         .map(
           (item) =>
-            `<div class="media-item" data-url="${escapeHtml(item.url)}" data-key="${escapeHtml(item.key)}" title="${formatBytes(
-              item.size
-            )}"><img src="${escapeHtml(item.url)}" loading="lazy" alt="${escapeHtml(item.alt_text || "")}"><button type="button" class="media-edit" data-url="${escapeHtml(
-              item.url
-            )}" data-key="${escapeHtml(item.key)}" title="Edit image">✎</button><button type="button" class="media-delete" data-key="${escapeHtml(
+            `<div class="media-item${selectedMediaKeys.has(item.key) ? " is-selected" : ""}" data-url="${escapeHtml(item.url)}" data-key="${escapeHtml(
               item.key
-            )}" title="Delete">×</button>${
-              item.used ? "" : '<span class="media-unused-badge" title="Not referenced anywhere on the site">Unused</span>'
-            }${
-              item.isDuplicate ? '<span class="media-unused-badge media-duplicate-badge" title="Byte-for-byte identical to another upload">Duplicate</span>' : ""
-            }${
-              item.private ? '<span class="media-unused-badge media-private-badge" title="Admin-only — not publicly reachable, even by direct link">Private</span>' : ""
-            }<div class="media-item-bottom"><input type="checkbox" class="media-select-checkbox" data-key="${escapeHtml(
+            )}"><div class="media-thumb">${
+              mediaItemType(item) === "image"
+                ? `<img src="${escapeHtml(item.url)}" loading="lazy" alt="${escapeHtml(item.alt_text || "")}">`
+                : `<span class="media-file-icon">${mediaItemType(item) === "audio" ? "♪" : "📄"}</span>`
+            }<input type="checkbox" class="media-select-checkbox" aria-label="Select ${escapeHtml(mediaFilename(item))}" data-key="${escapeHtml(
               item.key
-            )}"${selectedMediaKeys.has(item.key) ? " checked" : ""}><span class="media-folder-badge">${escapeHtml(
-              item.folder || ""
-            )}</span><button type="button" class="media-info" data-key="${escapeHtml(item.key)}" title="Folder / tags / alt text / caption / credit / license">🏷</button></div></div>`
+            )}"${selectedMediaKeys.has(item.key) ? " checked" : ""}><div class="media-tile-actions">${
+              mediaItemType(item) === "image"
+                ? `<button type="button" class="media-edit" data-url="${escapeHtml(item.url)}" data-key="${escapeHtml(item.key)}" title="Edit image" aria-label="Edit image">✎</button>`
+                : ""
+            }<button type="button" class="media-delete" data-key="${escapeHtml(item.key)}" title="Delete" aria-label="Delete">×</button></div></div><div class="media-meta"><div class="media-meta-top"><span class="media-filename" title="${escapeHtml(
+              mediaFilename(item)
+            )}">${escapeHtml(item.alt_text || item.caption || mediaFilename(item))}</span><button type="button" class="media-info" data-key="${escapeHtml(
+              item.key
+            )}" title="Details: folder, tags, alt text, caption, credit, license" aria-label="Details">i</button></div><div class="media-meta-sub">${escapeHtml(
+              [item.width && item.height ? `${item.width}×${item.height}` : "", formatBytes(item.size), item.folder || ""].filter(Boolean).join(" · ")
+            )}</div>${
+              !item.used || item.isDuplicate || item.private || (!item.alt_text && mediaItemType(item) === "image")
+                ? `<div class="media-badges">${item.used ? "" : '<span class="media-badge" title="Not referenced anywhere on the site">Unused</span>'}${
+                    item.isDuplicate ? '<span class="media-badge media-badge-warn" title="Byte-for-byte identical to another upload">Duplicate</span>' : ""
+                  }${item.private ? '<span class="media-badge" title="Admin-only — not publicly reachable, even by direct link">Private</span>' : ""}${
+                    !item.alt_text && mediaItemType(item) === "image" ? '<span class="media-badge media-badge-warn" title="No alt text saved — screen readers and search engines get nothing">No alt</span>' : ""
+                  }</div>`
+                : ""
+            }</div></div>`
         )
         .join("") || "<p style='color:var(--text-dim);'>No uploads match.</p>";
 
@@ -5219,7 +5258,12 @@
       .forEach((div) => {
         div.addEventListener("click", (e) => {
           if (e.target.closest(".media-delete, .media-edit, .media-info, .media-select-checkbox")) return;
-          if (!mediaPickTarget) return;
+          // Browsing (not picking for a field): the tile itself opens its
+          // details, rather than a click that silently does nothing.
+          if (!mediaPickTarget) {
+            openMediaInfoModal(div.dataset.key);
+            return;
+          }
           const input = document.querySelector(mediaPickTarget);
           if (input) {
             // An image block's url/alt/caption/credit fields are named
@@ -5277,6 +5321,7 @@
           e.stopPropagation();
           if (e.target.checked) selectedMediaKeys.add(e.target.dataset.key);
           else selectedMediaKeys.delete(e.target.dataset.key);
+          e.target.closest(".media-item").classList.toggle("is-selected", e.target.checked);
           updateMediaBulkBar();
         });
       });
@@ -5325,6 +5370,11 @@
   // time it runs) — not the whole library, matching what "shown" means in
   // the label. Articles/Projects lists' own "select all" selects
   // everything because those lists have no filter to be "shown" by.
+  el("media-bulk-clear-btn").addEventListener("click", () => {
+    selectedMediaKeys.clear();
+    renderMediaGrid();
+  });
+
   el("media-select-all").addEventListener("change", (e) => {
     if (e.target.checked) lastFilteredMediaKeys.forEach((k) => selectedMediaKeys.add(k));
     else lastFilteredMediaKeys.forEach((k) => selectedMediaKeys.delete(k));
@@ -5502,7 +5552,7 @@
     try {
       const { hashed } = await api("/media/backfill-hashes", { method: "POST" });
       await loadMediaLibrary();
-      alert(hashed ? `Hashed ${hashed} file(s). Check "Possible duplicates only" to see matches.` : "Everything was already hashed.");
+      alert(hashed ? `Hashed ${hashed} file(s). Turn on "Possible duplicates" in the Media Library to see matches.` : "Everything was already hashed.");
     } catch (err) {
       alert(err.message);
     } finally {
@@ -5684,7 +5734,7 @@
       await loadMediaLibrary();
       if (duplicateCount) {
         alert(
-          `${duplicateCount} of ${files.length} file(s) look identical to something already in the library — check "Possible duplicates only" to compare.`
+          `${duplicateCount} of ${files.length} file(s) look identical to something already in the library — turn on "Possible duplicates" to compare.`
         );
       }
     } catch (err) {

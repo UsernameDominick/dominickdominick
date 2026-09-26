@@ -700,43 +700,48 @@
 
   <div id="media-modal" class="modal" hidden>
     <div class="modal-inner media-modal-inner">
-      <header>
+      <header class="media-header">
         <h1 id="media-modal-title">Media Library</h1>
-        <button id="close-media">×</button>
+        <div class="media-header-actions">
+          <label class="media-upload-folder-label" title="New uploads go into this folder">Upload to
+            <select id="media-upload-folder"><option value="">No folder</option></select>
+          </label>
+          <button type="button" id="media-new-blank-btn" class="media-secondary-btn" title="Start a new image from scratch in the Photo Editor, instead of editing an existing upload">New blank image</button>
+          <button type="button" id="media-upload-btn" class="media-primary-btn">Upload files</button>
+        </div>
+        <button id="close-media" aria-label="Close">×</button>
       </header>
       <p id="media-hint" class="media-hint" hidden>Click an image to use it.</p>
       <div class="media-toolbar">
-        <div class="media-toolbar-group">
-          <select id="media-folder-filter"><option value="">All folders</option></select>
-          <select id="media-type-filter">
+        <div class="media-find-row">
+          <input type="search" id="media-search" placeholder="Search filename or tag…" aria-label="Search filename or tag">
+          <input type="search" id="media-usage-filter" placeholder="Used in…" aria-label="Filter by where it's used">
+          <select id="media-folder-filter" aria-label="Folder"><option value="">All folders</option></select>
+          <select id="media-type-filter" aria-label="Type">
             <option value="">All types</option>
             <option value="image">Images</option>
             <option value="audio">Audio</option>
             <option value="other">Other</option>
           </select>
-          <input type="search" id="media-search" placeholder="Search filename or tag…">
-          <input type="search" id="media-usage-filter" placeholder="Used in… (page/article/project title)">
-          <label class="media-unused-filter"><input type="checkbox" id="media-unused-filter"> Unused only</label>
-          <label class="media-unused-filter"><input type="checkbox" id="media-duplicates-filter"> Possible duplicates only</label>
         </div>
-        <div class="media-toolbar-group">
-          <select id="media-saved-search-select"><option value="">Saved searches…</option></select>
-          <button type="button" id="media-save-search-btn" title="Save the current filters under a name">Save search</button>
-          <button type="button" id="media-delete-search-btn" title="Delete the selected saved search">Delete search</button>
-          <button type="button" id="media-scan-duplicates-btn" title="Hash any uploads from before duplicate detection existed">Scan for duplicates</button>
-          <button type="button" id="media-backfill-dimensions-btn" title="Read width/height from any uploads made before that existed, so their pages can reserve the right space while they load">Backfill image dimensions</button>
+        <div class="media-filter-row">
+          <label class="filter-chip"><input type="checkbox" id="media-unused-filter"> Unused</label>
+          <label class="filter-chip"><input type="checkbox" id="media-duplicates-filter"> Possible duplicates</label>
+          <div class="media-saved-searches">
+            <select id="media-saved-search-select" aria-label="Saved searches"><option value="">Saved searches…</option></select>
+            <button type="button" id="media-save-search-btn" class="media-secondary-btn" title="Save the current filters under a name">Save</button>
+            <button type="button" id="media-delete-search-btn" class="media-secondary-btn" title="Delete the selected saved search">Delete</button>
+          </div>
         </div>
-        <div class="media-toolbar-group">
-          <select id="media-upload-folder" title="New uploads go into this folder"><option value="">No folder</option></select>
-          <button type="button" id="media-upload-btn">Upload files…</button>
-          <button type="button" id="media-new-blank-btn" title="Start a new image from scratch in the Photo Editor, instead of editing an existing upload">New blank image…</button>
-        </div>
-        <div class="media-toolbar-group">
-          <label class="media-unused-filter" title="Selects every file currently shown by the filters above, not the whole library"><input type="checkbox" id="media-select-all"> Select all shown</label>
-          <span id="media-selected-count" class="media-selected-count"></span>
-          <button type="button" id="media-bulk-move-btn" disabled>Move to folder…</button>
-          <button type="button" id="media-bulk-tag-btn" disabled>Add tag…</button>
-          <button type="button" id="media-bulk-alt-btn" disabled title="Sets the same alt text on every selected file — for a batch of near-duplicate images, not a substitute for distinct alt text per image. Only updates the Media Library entry; images already placed on a page keep their own alt text until you re-pick or edit that block directly">Set alt text…</button>
+      </div>
+      <div class="media-selection-bar">
+        <label class="media-select-all-label" title="Selects every file currently shown by the filters above, not the whole library"><input type="checkbox" id="media-select-all"> <span id="media-shown-count">Select all</span></label>
+        <span id="media-selected-count" class="media-selected-count"></span>
+        <div class="media-bulk-actions" id="media-bulk-actions" hidden>
+          <button type="button" id="media-bulk-move-btn" class="media-secondary-btn" disabled>Move to folder…</button>
+          <button type="button" id="media-bulk-tag-btn" class="media-secondary-btn" disabled>Add tag…</button>
+          <button type="button" id="media-bulk-alt-btn" class="media-secondary-btn" disabled title="Sets the same alt text on every selected file — for a batch of near-duplicate images, not a substitute for distinct alt text per image. Only updates the Media Library entry; images already placed on a page keep their own alt text until you re-pick or edit that block directly">Set alt text…</button>
+          <button type="button" id="media-bulk-clear-btn" class="media-secondary-btn">Clear</button>
           <button type="button" id="media-bulk-delete-btn" class="danger" disabled>Delete selected</button>
         </div>
       </div>
@@ -1030,6 +1035,12 @@
             <button type="button" id="find-replace-apply-btn" class="danger" disabled>Apply to all matches</button>
           </div>
           <div id="find-replace-results" class="link-check-results"></div>
+          <h2>Media maintenance</h2>
+          <label style="margin-bottom:0;">One-time fixes for uploads made before these features existed. Safe to run again.</label>
+          <div class="find-replace-actions">
+            <button type="button" id="media-scan-duplicates-btn" title="Hash any uploads from before duplicate detection existed">Scan for duplicates</button>
+            <button type="button" id="media-backfill-dimensions-btn" title="Read width/height from any uploads made before that existed, so their pages can reserve the right space while they load">Backfill image dimensions</button>
+          </div>
         </div>
         <div class="settings-panel" data-panel="logs" hidden>
           <h2>Activity Log</h2>
