@@ -983,6 +983,10 @@ const SECURITY_HEADERS = {
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "SAMEORIGIN",
   "Referrer-Policy": "strict-origin-when-cross-origin",
+  // The session cookie is already Secure-only; this closes the remaining
+  // window where a first visit over plain http:// could be intercepted
+  // before the redirect to https:// happens.
+  "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
   "Permissions-Policy": "geolocation=(), microphone=(), camera=(), payment=()",
   "Content-Security-Policy": [
     "default-src 'self'",

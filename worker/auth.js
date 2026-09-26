@@ -45,9 +45,31 @@ export async function checkPassword(env, candidate) {
   return timingSafeEqual(a, b);
 }
 
+// Sessions are stateless signed tokens, so without this a copied cookie
+// stayed valid for its full 30 days no matter what -- logging out only
+// cleared it from the browser that clicked the button. Every token now
+// carries the epoch it was issued under; logout bumps the epoch, which
+// invalidates every outstanding token at once. A token minted before
+// epochs existed (no ":" in its payload) counts as epoch 0.
+async function currentSessionEpoch(env) {
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'session_epoch'").first();
+  return (row && row.value) || "0";
+}
+
+export async function revokeAllSessions(env) {
+  const next = String(Date.now());
+  await env.DB
+    .prepare("INSERT INTO settings (key, value) VALUES ('session_epoch', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+    .bind(next)
+    .run();
+}
+
 export async function createSessionCookie(env) {
+  // Without a secret every signature would be keyed on the string
+  // "undefined" -- trivially forgeable -- so refuse to mint a session at all.
+  if (!env.SESSION_SECRET) throw new Error("SESSION_SECRET is not configured");
   const exp = Date.now() + MAX_AGE_SECONDS * 1000;
-  const payload = String(exp);
+  const payload = `${exp}:${await currentSessionEpoch(env)}`;
   const sig = await hmac(env.SESSION_SECRET, `session:${payload}`);
   const token = `${payload}.${sig}`;
   return `${COOKIE_NAME}=${token}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${MAX_AGE_SECONDS}`;
@@ -71,14 +93,15 @@ export function parseCookies(header) {
 export async function isAuthenticated(request, env) {
   const cookies = parseCookies(request.headers.get("Cookie"));
   const token = cookies[COOKIE_NAME];
-  if (!token) return false;
+  if (!token || !env.SESSION_SECRET) return false;
   const dotIdx = token.lastIndexOf(".");
   if (dotIdx === -1) return false;
   const payload = token.slice(0, dotIdx);
   const sig = token.slice(dotIdx + 1);
   const expected = await hmac(env.SESSION_SECRET, `session:${payload}`);
   if (!timingSafeEqual(sig, expected)) return false;
-  const exp = Number(payload);
+  const [expStr, epoch = "0"] = payload.split(":");
+  const exp = Number(expStr);
   if (!Number.isFinite(exp) || Date.now() > exp) return false;
-  return true;
+  return epoch === (await currentSessionEpoch(env));
 }

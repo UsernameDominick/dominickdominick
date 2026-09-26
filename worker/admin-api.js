@@ -143,7 +143,7 @@ import {
   sha256Hex,
   plausibleDims,
 } from "./db.js";
-import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated, hmac } from "./auth.js";
+import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated, hmac, revokeAllSessions } from "./auth.js";
 
 function json(data, init = {}) {
   return new Response(JSON.stringify(data), {
@@ -611,7 +611,10 @@ async function routeAdminApi(request, env, url, ctx) {
     // would otherwise let anyone spam the activity log with fake "Admin
     // logout" entries just by hitting this endpoint repeatedly.
     if (await isAuthenticated(request, env)) {
-      log(ctx, env, "logout", "session", "Admin logout", request.headers.get("CF-Connecting-IP") || "unknown");
+      // Gated on a real session so an unauthenticated request can't force
+      // everyone else out by spamming this endpoint.
+      await revokeAllSessions(env);
+      log(ctx, env, "logout", "session", "Admin logout (all sessions revoked)", request.headers.get("CF-Connecting-IP") || "unknown");
     }
     return json({ ok: true }, { headers: { "Set-Cookie": clearSessionCookie() } });
   }
