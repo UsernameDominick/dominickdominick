@@ -9981,4 +9981,31 @@ matching the independently-computed worker result. Ran the full
 `test_security_seo.js` regression suite — all passed. No test data left
 behind (the test simulation was deleted through the real API).
 
-Handed to a critic agent for scoring.
+Handed to a critic agent for scoring: **9/10 — ships.** Confirmed the
+domain-construction and `totalResistance`-seeding lines are logically
+identical between `sim-components.js` and `worker/simulation-render.js`
+(this codebase's known highest-risk drift area, given past critic-caught
+mirror bugs) — no drift found. Independently re-ran the exact clamp
+expression (`Math.max(0, Number(x) || 0)`) in Node against `undefined`,
+`0`, `-50`, `"abc"`, `null`, `"10"`, and `NaN`, confirming every one of
+them collapses to the same `0` except the valid numeric-string case,
+and confirmed a newly-placed battery (via the palette's own
+`DEFAULT_CONTENT_BY_TYPE`) has no `internalResistance` key at all —
+the same `undefined` path as every pre-existing saved simulation, not a
+special-cased default. Confirmed the inspector's initial render and its
+change listener use the exact same clamp as the analysis engines (no
+silent-correction mismatch between what the admin sees and what's
+computed), confirmed both single- and multi-select duplicate paths
+correctly carry the field via their existing generic
+`JSON.parse(JSON.stringify(comp))` clone with no special-casing needed,
+confirmed `pushHistory()` is called consistent with every other
+inspector field so undo works normally, and confirmed each source's
+internal resistance is applied exactly once within its own independent
+per-domain shortest-path walk — no double- or under-counting risk even
+with multiple sources in a circuit. One minor, explicitly non-blocking
+note: an `Infinity` input (only reachable via a hand-crafted/malformed
+import) isn't caught by the clamp, but degrades harmlessly to the
+already-existing `currentAmps = 0` branch rather than any incorrect or
+unsafe behavior, so it wasn't treated as a real issue.
+
+Item #416 is done: 1 critic round, 9/10 on the first pass.
