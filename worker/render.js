@@ -364,7 +364,10 @@ export function displayDate(iso) {
 }
 
 export function excerpt(text, maxLen = 155) {
-  const flat = stripMarkdown(text).replace(/\s+/g, " ").trim();
+  // Headings are dropped, not flattened: "…on the page.\n## The model\nEvery
+  // part…" otherwise read as "…on the page. The model Every part…".
+  const body = String(text || "").replace(/^\s{0,3}#{1,6}\s.*$/gm, "");
+  const flat = stripMarkdown(body).replace(/\s+/g, " ").trim();
   if (flat.length <= maxLen) return flat;
   const cut = flat.slice(0, maxLen);
   const lastSpace = cut.lastIndexOf(" ");
@@ -383,15 +386,15 @@ export function renderSearchResultsHtml(query, pages, articles, projects = [], c
   // that made sense for one filter combination usually doesn't for another.
   const typeLink = (value, label) =>
     `<a href="/search?q=${encodeURIComponent(query)}${value ? `&type=${value}` : ""}${sort !== "newest" ? `&sort=${sort}` : ""}"${
-      type === value ? ' class="is-active"' : ""
+      type === value ? ' class="is-active" aria-current="true"' : ""
     }>${label}</a>`;
   const sortLink = (value, label) =>
     `<a href="/search?q=${encodeURIComponent(query)}${type ? `&type=${encodeURIComponent(type)}` : ""}${value !== "newest" ? `&sort=${value}` : ""}"${
-      sort === value ? ' class="is-active"' : ""
+      sort === value ? ' class="is-active" aria-current="true"' : ""
     }>${label}</a>`;
   const filterBarHtml = `<div class="search-filter-bar">
-    <span class="search-filter-group">${typeLink("", "All")} ${typeLink("page", "Pages")} ${typeLink("project", "Projects")} ${typeLink("article", "Articles")}</span>
-    <span class="search-filter-group">${sortLink("newest", "Newest first")} ${sortLink("oldest", "Oldest first")}</span>
+    <span class="search-filter-group" role="group" aria-label="Type">${typeLink("", "All")} ${typeLink("page", "Pages")} ${typeLink("project", "Projects")} ${typeLink("article", "Articles")}</span>
+    <span class="search-filter-group" role="group" aria-label="Sort">${sortLink("newest", "Newest first")} ${sortLink("oldest", "Oldest first")}</span>
   </div>`;
   // Only meaningful once narrowed to one type — with all three shown at
   // once there'd be three separate page counters on one screen.
@@ -445,9 +448,9 @@ export function renderSearchResultsHtml(query, pages, articles, projects = [], c
       : "";
   return `${filterBarHtml}<p class="search-result-count">${total} result${total === 1 ? "" : "s"} for "${esc(query)}"</p>
 ${truncationHint}
-${pageItems ? `<h2>Pages</h2><ul class="search-results">${pageItems}</ul>` : ""}
-${projectItems ? `<h2>Projects</h2><ul class="search-results">${projectItems}</ul>` : ""}
-${articleItems ? `<h2>Articles</h2><ul class="search-results">${articleItems}</ul>` : ""}
+${pageItems ? `<h2 class="results-heading">Pages</h2><ul class="search-results">${pageItems}</ul>` : ""}
+${projectItems ? `<h2 class="results-heading">Projects</h2><ul class="search-results">${projectItems}</ul>` : ""}
+${articleItems ? `<h2 class="results-heading">Articles</h2><ul class="search-results">${articleItems}</ul>` : ""}
 ${paginationHtml}`;
 }
 
@@ -469,8 +472,8 @@ export function renderTopicPageHtml(tag, articles, projects) {
     .map((a) => `<li><a href="/random/${esc(a.slug)}">${esc(a.title)}</a><p>${esc(excerpt(a.body, 140))}</p></li>`)
     .join("");
   return `<p class="search-result-count">${total} thing${total === 1 ? "" : "s"} tagged "${esc(tag)}"</p>
-${projectItems ? `<h2>Projects</h2><ul class="search-results">${projectItems}</ul>` : ""}
-${articleItems ? `<h2>Articles</h2><ul class="search-results">${articleItems}</ul>` : ""}`;
+${projectItems ? `<h2 class="results-heading">Projects</h2><ul class="search-results">${projectItems}</ul>` : ""}
+${articleItems ? `<h2 class="results-heading">Articles</h2><ul class="search-results">${articleItems}</ul>` : ""}`;
 }
 
 export function renderArchiveHtml(archive, customEmptyText = "") {
@@ -480,7 +483,7 @@ export function renderArchiveHtml(archive, customEmptyText = "") {
       const rows = items
         .map((item) => {
           const href = item.type === "article" ? `/random/${esc(item.slug)}` : `/projects/${esc(item.slug)}`;
-          return `<li><time datetime="${esc(item.published_at)}">${esc((item.published_at || "").slice(0, 10))}</time> <a href="${href}">${esc(
+          return `<li><time datetime="${esc(item.published_at)}">${esc(displayDate(item.published_at))}</time> <a href="${href}">${esc(
             item.title
           )}</a>${item.type === "project" ? ` <span class="topic-count">project</span>` : ""}</li>`;
         })
@@ -518,7 +521,7 @@ export function renderArticlesIndexHtml(articles, customEmptyText = "") {
     .map(
       (a) =>
         `<div class="project-card"><h2><a href="/random/${esc(a.slug)}">${esc(a.title)}</a></h2>${
-          a.published_at ? `<p class="index-card-date"><time datetime="${esc(a.published_at)}">${esc(a.published_at.slice(0, 10))}</time></p>` : ""
+          a.published_at ? `<p class="index-card-date"><time datetime="${esc(a.published_at)}">${esc(displayDate(a.published_at))}</time></p>` : ""
         }<p>${esc(excerpt(a.body, 140))}</p>${renderTags(a.tags)}</div>`
     )
     .join("\n");
@@ -564,7 +567,7 @@ export function renderRelatedArticlesHtml(articles) {
     .map(
       (a) =>
         `<article class="thought"><time datetime="${esc(a.published_at)}">${esc(
-          (a.published_at || "").slice(0, 10)
+          displayDate(a.published_at)
         )}</time><h2><a href="/random/${esc(a.slug)}">${esc(a.title)}</a></h2>${renderTags(a.tags)}</article>`
     )
     .join("\n");
@@ -624,8 +627,8 @@ export function renderRelatedMediaHtml(articles, simulations, scans) {
   const simItems = simulations.map((s) => `<li><a href="/simulation/${esc(s.id)}">${esc(s.name)}</a></li>`).join("");
   const scanItems = scans.map((s) => `<li>${esc(s.name)}</li>`).join("");
   return `<div class="related-posts"><strong>Related</strong>
-    ${articleItems ? `<h3>Articles</h3><ul class="search-results">${articleItems}</ul>` : ""}
-    ${simItems ? `<h3>Simulations</h3><ul class="search-results">${simItems}</ul>` : ""}
+    ${articleItems ? `<h3 class="results-heading">Articles</h3><ul class="search-results">${articleItems}</ul>` : ""}
+    ${simItems ? `<h3 class="results-heading">Simulations</h3><ul class="search-results">${simItems}</ul>` : ""}
     ${scanItems ? `<h3>3D scans</h3><ul class="search-results">${scanItems}</ul>` : ""}
   </div>`;
 }

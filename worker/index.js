@@ -476,7 +476,7 @@ async function renderProject(env, project, navItems, previewReason = null, isAdm
   ${breadcrumbHtml}
   <div class="block page-header">
     <div class="article-meta">
-      ${project.status ? `<span>${esc(project.status)}</span><span class="article-meta-sep">·</span>` : ""}
+      ${project.status ? `<span class="status-badge">${esc(project.status)}</span>` : ""}
       <time datetime="${esc(project.published_at)}">${esc(displayDate(project.published_at))}</time>
       ${wasUpdated ? `<span class="article-meta-sep">·</span><span>Updated <time datetime="${esc(project.updated_at)}">${esc(displayDate(project.updated_at))}</time></span>` : ""}
       <span class="article-meta-sep">·</span>
@@ -644,7 +644,7 @@ async function renderArticlesIndex(env, navItems, page) {
   const { articles, totalCount } = await listArticlesPaged(env, { page });
   const totalPages = Math.max(1, Math.ceil(totalCount / INDEX_PAGE_SIZE));
   const bodyHtml = `<div class="block">
-    <h1>Articles</h1>
+    <header class="index-header"><h1>Articles</h1>${totalCount ? `<p class="index-count">${totalCount} ${totalCount === 1 ? "post" : "posts"}</p>` : ""}</header>
     ${renderArticlesIndexHtml(articles)}
     ${renderIndexPaginationHtml("/random", page, totalPages)}
   </div>`;
@@ -664,7 +664,7 @@ async function renderArticlesIndex(env, navItems, page) {
     // already covers — same reasoning as the topic/search noindex calls
     // elsewhere, just for pagination instead of an empty filter result.
     noindex: page > 1,
-    canvasClass: "canvas article-canvas",
+    canvasClass: "canvas article-canvas index-canvas",
   });
   return new Response(html, { status: page > totalPages && totalCount > 0 ? 404 : 200, headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
@@ -675,7 +675,7 @@ async function renderProjectsIndex(env, navItems, page) {
   const { projects, totalCount } = await listProjectsPaged(env, { page });
   const totalPages = Math.max(1, Math.ceil(totalCount / INDEX_PAGE_SIZE));
   const bodyHtml = `<div class="block">
-    <h1>Projects</h1>
+    <header class="index-header"><h1>Projects</h1>${totalCount ? `<p class="index-count">${totalCount} ${totalCount === 1 ? "project" : "projects"}</p>` : ""}</header>
     ${renderProjectsIndexHtml(projects)}
     ${renderIndexPaginationHtml("/projects", page, totalPages)}
   </div>`;
@@ -691,7 +691,7 @@ async function renderProjectsIndex(env, navItems, page) {
     footerText,
     customHead,
     noindex: page > 1,
-    canvasClass: "canvas article-canvas",
+    canvasClass: "canvas article-canvas index-canvas",
   });
   return new Response(html, { status: page > totalPages && totalCount > 0 ? 404 : 200, headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
