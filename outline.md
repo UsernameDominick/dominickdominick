@@ -11123,3 +11123,31 @@ Re-ran the full prior resize test suite (aspect lock, undo, unlock
 behavior, oversized-clamp) to confirm no regression — all still pass.
 Ran the full `test_security_seo.js` regression suite — all passed. Sent
 for a round-2 critic pass.
+
+Round-2 traced the exact 500×2000 + height=100000 scenario line by
+line and confirmed the clamp-then-propagate order is genuinely correct
+in both `input` listeners (clamp the just-edited field and write the
+clamped value back into it, THEN compute the locked counterpart from
+that already-clamped value) — width correctly resolves to 500,
+preserving the true 1:4 ratio exactly as intended. Confirmed digit-by-
+digit typing of a valid large number (e.g. "2"→"20"→"200"→"2000") can't
+be corrupted by the clamp, since every intermediate value stays under
+the cap until the number genuinely exceeds it, at which point clamping
+IS the correct behavior. Confirmed `imageSmoothingQuality = "high"` is
+set before (not after) the scaling `drawImage` call, and confirmed it
+can't leak into an unwanted visual regression elsewhere: nothing else
+in the file disables smoothing on this shared context, and every OTHER
+draw call that reuses it afterward (filters, presets) scales at 1:1
+with no destination resizing, so smoothing quality has no visible
+effect on them either way. Confirmed the removed `clearRect` really was
+dead code — canvas dimension reassignment discards the entire backing
+store per spec, with no alpha-bleed edge case the old explicit clear
+could have been covering. One new, genuinely minor, explicitly
+non-blocking paper cut surfaced during this pass: clearing a resize
+field down to empty (rather than select-all-and-retype) triggers the
+clamp to rewrite it to `"1"` mid-edit before the next digit lands,
+occasionally requiring an extra backspace — a cosmetic input-UX rough
+edge that doesn't affect the correctness of what actually gets applied,
+left as-is. Final score: **9/10 — ships.**
+
+Item #6 is done: 2 critic rounds, 8/10 → 9/10.
