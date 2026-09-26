@@ -405,9 +405,9 @@
     // same text as visible SVG <text>, so a tooltip repeating it would
     // just be redundant (a critic pass found this).
     const titleSvg = comp.label && comp.type !== "mcu_teensy" ? `<title>${escapeXml(comp.label)}</title>` : "";
-    return `<g class="sim-comp sim-comp-${comp.type}${sel ? " sim-selected" : ""}${damaged ? " sim-damaged" : ""}" data-id="${
+    return `<g class="sim-comp sim-comp-${comp.type}${sel ? " sim-selected" : ""}${damaged ? " sim-damaged" : ""}" data-id="${escapeXml(
       comp.id
-    }" data-powered="${poweredComps.has(comp.id) ? "true" : "false"}" transform="translate(${comp.x},${
+    )}" data-powered="${poweredComps.has(comp.id) ? "true" : "false"}" transform="translate(${comp.x},${
       comp.y
     })">${titleSvg}${def.render(comp)}${sel ? `<rect class="sim-select-box" x="-4" y="-4" width="${def.w + 8}" height="${def.h + 8}" />` : ""}</g>`;
   }
@@ -451,11 +451,20 @@
           wire.label
         )}</text>`
       : "";
-    return `<path class="sim-wire sim-wire-${wire.kind || "wire"}${sel ? " sim-selected" : ""}${
+    // Whitelisted to the two values the wire-kind <select> can actually
+    // produce, same reasoning as renderComponentSvg()'s implicit
+    // comp.type whitelisting (the REG[comp.type] lookup there) -- a critic
+    // pass found `wire.id`/`comp.id` interpolated unescaped into attribute
+    // values elsewhere in this function and fixed those, but `wire.kind`
+    // has the identical exposure (JSON import performs no field
+    // validation) and was building a CSS class name, not just any
+    // attribute, from a value that was otherwise never constrained.
+    const kind = wire.kind === "hdmi" ? "hdmi" : "wire";
+    return `<path class="sim-wire sim-wire-${kind}${sel ? " sim-selected" : ""}${
       inNet ? " sim-net-highlight" : ""
-    }" data-id="${wire.id}" data-animated="${
+    }" data-id="${escapeXml(wire.id)}" data-animated="${
       poweredWires.has(wire.id) ? "true" : "false"
-    }" d="${d}"/><path class="sim-wire-shine sim-wire-shine-${wire.kind || "wire"}" d="${d}"/>${labelSvg}`;
+    }" d="${d}"/><path class="sim-wire-shine sim-wire-shine-${kind}" d="${d}"/>${labelSvg}`;
   }
 
   // "Net" here means the set of pins tied to the same electrical point by
@@ -535,7 +544,7 @@
         const inNet = netNodeIds && netNodeIds.has(window.simNodeId(comp, p.id));
         return `<circle class="sim-pin${active ? " sim-pin-active" : ""}${
           disconnected ? " sim-pin-disconnected" : ""
-        }${inNet ? " sim-net-highlight" : ""}" data-comp="${comp.id}" data-pin="${p.id}" cx="${comp.x + p.x}" cy="${
+        }${inNet ? " sim-net-highlight" : ""}" data-comp="${escapeXml(comp.id)}" data-pin="${p.id}" cx="${comp.x + p.x}" cy="${
           comp.y + p.y
         }" r="5"/>`;
       })
@@ -1083,10 +1092,20 @@
       }
 
       let extraFieldsHtml = "";
+      // Coerced through Number() (falling back to the same default the
+      // field already used for "unset") rather than just escaped -- these
+      // are semantically numeric fields, so a non-numeric value can only
+      // ever have gotten here via unvalidated JSON import, and a critic
+      // pass found the previous version interpolated it straight into
+      // value="..." with no escaping at all, letting a crafted string
+      // (e.g. `1" autofocus onfocus=alert(1) x="`) break out of the
+      // attribute. Number()'s output can never contain HTML-significant
+      // characters, so this closes the injection and fixes the
+      // semantically-wrong display (a stray string) in one step.
       if (comp.type === "resistor") {
-        extraFieldsHtml = `<label>Resistance (ohms)<input id="sim-comp-resistance" type="number" min="1" value="${comp.resistance ?? 220}"></label>`;
+        extraFieldsHtml = `<label>Resistance (ohms)<input id="sim-comp-resistance" type="number" min="1" value="${Number(comp.resistance) || 220}"></label>`;
       } else if (comp.type === "battery") {
-        extraFieldsHtml = `<label>Voltage (V)<input id="sim-comp-voltage" type="number" min="0.1" step="0.1" value="${comp.voltage ?? 9}"></label>`;
+        extraFieldsHtml = `<label>Voltage (V)<input id="sim-comp-voltage" type="number" min="0.1" step="0.1" value="${Number(comp.voltage) || 9}"></label>`;
       } else if (comp.type === "power_supply") {
         extraFieldsHtml = `<label>Output voltage<select id="sim-comp-output-voltage">${[3.3, 5, 9, 12]
           .map((v) => `<option value="${v}" ${Number(comp.outputVoltage) === v ? "selected" : ""}>${v}V DC</option>`)

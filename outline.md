@@ -7917,9 +7917,66 @@ input exists, renders on canvas, persists through save and shows on the
 public embed) were re-run unchanged and still pass. Full regression
 suite green; no test simulations left behind in either round.
 
-Item #394 is done: 1 critic round, 6/10, all three real findings fixed
-and verified live -- including closing a pre-existing, structurally
-identical XSS flaw on the component-label field as a side effect of
-fixing the shared helper this feature also relied on -- with one minor,
-already-existing-convention label-placement observation logged as an
-accepted, non-blocking gap.
+Sent back for a round-2 critic pass on commit 2a81580, specifically
+asked to independently verify the escaping fix's ordering (does quote-
+escaping after DOM-based `&`/`<`/`>` escaping ever double-escape) and to
+search broadly for sibling instances of the same unescaped-attribute
+pattern, given the task explicitly named JSON import's total lack of
+field validation as the reachability vector. Scored 4/10 -- the ordering
+was confirmed genuinely safe (hand-traced multiple adversarial payloads
+including a literal `&quot;` typed by a user, which correctly round-trips
+without decoding), and the worker-side `escXml()` was independently
+re-verified correct rather than taken on faith -- but the broader search
+found exactly what it was sent to look for: four more call sites in
+`simulation-builder.js` building an HTML attribute from unescaped,
+JSON-import-controlled data, the identical vulnerability class as round
+1's finding, just untouched by that fix: `comp.id`/`wire.id` interpolated
+raw into `data-id`/`data-comp` attributes, and `comp.resistance`/
+`comp.voltage` interpolated raw into `value="..."`. Same severity and
+reachability as round 1 -- a crafted JSON "circuit" import executing
+arbitrary script in the admin's authenticated session the moment the
+malicious component/wire renders or its inspector opens.
+
+Fixed all four, plus one more the critic's search didn't explicitly name
+but is the same pattern: `wire.kind` was building a CSS class name
+(`sim-wire-${wire.kind}`) from an unconstrained JSON-import value, the
+identical exposure `comp.type` already avoids via its implicit
+`REG[comp.type]` whitelist lookup earlier in the same function -- fixed
+by whitelisting `wire.kind` to the two values its own `<select>` can
+actually produce, the same "constrain to known-safe values, don't just
+escape" approach already used for the type field it sits next to.
+`comp.id`/`wire.id`/pin-dot `data-comp` are now routed through
+`escapeXml()` like the labels already are; `comp.resistance`/
+`comp.voltage` are coerced through `Number(...) || <existing default>`
+instead of just escaped, since they're semantically numeric fields and
+`Number()`'s output can never contain HTML-significant characters --
+fixing both the injection and the display of a stray string in one step.
+
+Re-verified via Playwright: imported a JSON circuit with all four
+distinct payloads simultaneously (a component id, a wire id, a wire
+kind, and a resistance/voltage value each carrying a
+`" autofocus onfocus="window.__xXss=true" x="`-style breakout attempt),
+selected the resulting components to force their inspector panels open
+(the exact trigger point for an attribute-breakout payload), and
+confirmed none of the four global flags the payloads would have set ever
+fired; confirmed the battery's voltage field correctly displayed the safe
+numeric fallback ("9") instead of the injected string; confirmed both
+components still rendered correctly with well-formed markup. The
+round-1 tests (XSS-safe wire label round-trip, zero-length-wire label
+suppression, label persists to public embed) were re-run unchanged and
+still pass. Full regression suite green; no test simulations left behind
+in any round.
+
+Item #394 is done: 2 critic rounds (6/10, 4/10), eight real findings
+across both rounds -- the original shared-helper quote-escaping gap
+(closing an identical pre-existing flaw on component labels as a side
+effect), a degenerate-wire label edge case, a contrast issue, and five
+more unescaped/unconstrained attribute-interpolation sites the first
+round's fix didn't reach -- all fixed and verified live via actual
+JSON-import attack payloads, not just re-checking the originally-reported
+vectors. The clearest lesson: fixing one flawed shared helper's call
+sites is not the same as auditing every place user-controlled data
+reaches an HTML attribute in the same file, and "the reachability vector
+is unvalidated JSON import" is worth treating as an instruction to sweep
+the whole render path for that vector's blast radius, not just patch the
+one field a bug report happened to name.
