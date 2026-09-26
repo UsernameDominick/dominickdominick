@@ -982,9 +982,12 @@ async function handleTrackEvent(request, env, ctx) {
   if (!allowed) return new Response(null, { status: 429 });
   await recordRateLimitHit(env, "track", ip);
   const body = await request.json().catch(() => ({}));
-  const name = String(body.name || "").trim();
+  // Public, unauthenticated input stored in D1 -- capped so a script can't
+  // fill the events table with arbitrarily large strings.
+  const clip = (v, max) => (v == null || v === "" ? null : String(v).slice(0, max));
+  const name = String(body.name || "").trim().slice(0, 64);
   if (!name) return new Response(null, { status: 400 });
-  ctx.waitUntil(logEvent(env, { name, path: body.path || null, detail: body.detail || null }).catch(() => {}));
+  ctx.waitUntil(logEvent(env, { name, path: clip(body.path, 300), detail: clip(body.detail, 500) }).catch(() => {}));
   return new Response(null, { status: 204 });
 }
 

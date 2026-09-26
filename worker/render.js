@@ -1801,7 +1801,7 @@ export function renderShell({
 <meta name="author" content="Dominick">
 ${keywords ? `<meta name="keywords" content="${esc(keywords)}">` : ""}
 ${noindex ? `<meta name="robots" content="noindex">` : ""}
-<link rel="canonical" href="${esc(canonical)}">
+${noindex ? "" : `<link rel="canonical" href="${esc(canonical)}">`}
 <link rel="icon" href="${FAVICON}">
 
 <meta property="og:type" content="${esc(ogType)}">
