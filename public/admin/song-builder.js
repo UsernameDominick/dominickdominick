@@ -695,11 +695,27 @@
         // hover over the right element, which defeats its own purpose as
         // a discoverability aid for someone who doesn't already know the
         // key layout exists.
-        const keyHint = onLabelClick && NOTE_TO_KEYBOARD_KEY[key] ? ` <span class="song-key-hint">${NOTE_TO_KEYBOARD_KEY[key]}</span>` : "";
+        // aria-hidden on the hint span (its content is fully repeated,
+        // spelled out, in aria-label below) and an explicit aria-label
+        // instead of relying on the button's own text content -- a
+        // critic pass found that without these, a screen reader's
+        // computed accessible name was the raw glued-together text "C4
+        // Q", ambiguous about whether "Q" is part of the note name or a
+        // shortcut hint. tabindex="-1" removes the button from Tab
+        // order entirely (still fully clickable by mouse) -- the same
+        // critic pass found that WITHOUT it, tabbing through the piano
+        // roll (the natural way to navigate a 16x24 step grid by
+        // keyboard) now hit 24 extra stops interleaved one per row,
+        // rather than being appended at the end or skipped -- a real,
+        // if non-blocking, keyboard-navigation regression this button
+        // would otherwise introduce.
+        const keyHint = onLabelClick && NOTE_TO_KEYBOARD_KEY[key] ? ` <span class="song-key-hint" aria-hidden="true">${NOTE_TO_KEYBOARD_KEY[key]}</span>` : "";
         const labelHtml = onLabelClick
-          ? `<button type="button" class="song-track-label song-track-label-playable" data-row="${key}" title="Click to preview this note (or press its keyboard shortcut, ${
+          ? `<button type="button" class="song-track-label song-track-label-playable" data-row="${key}" tabindex="-1" aria-label="${label}, press ${
+              NOTE_TO_KEYBOARD_KEY[key] || "its keyboard shortcut"
+            } to play" title="Click to preview this note (or press its keyboard shortcut, ${
               NOTE_TO_KEYBOARD_KEY[key] || "?"
-            }, anywhere in this modal)">${label}${keyHint}</button>`
+            }, when not typing in a text field)">${label}${keyHint}</button>`
           : `<span class="song-track-label">${label}</span>`;
         return `<div class="song-track-row${rowClass ? rowClass(key) : ""}"${rowStyle}>${labelHtml}${metaHtml}<div class="song-steps" data-row="${key}">${Array.from(
           { length: STEPS },

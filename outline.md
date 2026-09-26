@@ -13583,3 +13583,54 @@ endpoint afterward.
 No server-side changes were needed.
 
 Sent for a critic pass.
+
+Critic round 1 (score 8/10): independently re-derived the entire
+`NOTE_TO_KEYBOARD_KEY` inversion from the raw `KEYBOARD_NOTE_MAP`/
+`KEYBOARD_NOTE_OCTAVE` source tables (not just spot-checking the app's
+own rendered output) and confirmed all 24 piano-roll rows have a
+correct, non-colliding hint, with the `"?"` title fallback never
+actually firing for a real row (non-issue). Confirmed clicking a label
+never toggles a step (disjoint DOM subsets by construction, non-issue).
+Confirmed the drum sequencer is genuinely unaffected — still plain,
+non-clickable spans with identical styling and working color/note-meta
+inputs, no CSS bleed from the new classes (non-issue). Confirmed
+recording several different note labels in sequence while playing lands
+each on the correct step with zero cross-note bleed (non-issue). Ran
+every requested regression test plus the full `test_security_seo.js`
+suite — all passed.
+
+Two real, non-blocking findings neither the shipped commit nor its own
+test coverage caught: (1) making the label a real, tab-focusable
+`<button>` interleaved 24 extra Tab stops one-per-row through the
+16x24 grid, a genuine keyboard-navigation regression for an admin used
+to tabbing straight through step cells — directly relevant given #315's
+whole feature is built around keyboard-driven interaction with this
+same modal. (2) the button's accessible name defaulted to its raw text
+content ("C4 Q" glued together with no separator semantics), which a
+screen reader would announce ambiguously — unclear whether "Q" is part
+of the note name or a shortcut hint; the correct, spelled-out
+explanation only lived in the hover-only `title` attribute, which isn't
+what most screen readers surface as the accessible name when text
+content is present.
+
+Fixed both: added `tabindex="-1"` to the label button (removes it from
+Tab order entirely while leaving it fully clickable by mouse, verified
+below) and an explicit `aria-label="${label}, press ${key} to play"`
+with `aria-hidden="true"` on the inline hint span (so a screen reader
+reads the unambiguous spelled-out version instead of the raw glued
+text). Also tightened a related, purely cosmetic wording issue the same
+round flagged: the tooltip claimed the shortcut works "anywhere in this
+modal," which slightly overstates the existing, correct, and desirable
+typing-guard exception from #315 — reworded to "when not typing in a
+text field." Verified via a new Playwright test
+(`test_song_onscreen_keyboard_a11y.js`): the aria-label now correctly
+mentions the shortcut key; `tabindex="-1"` is present; the hint span is
+`aria-hidden`; tabbing past a row's last step now correctly lands on
+the NEXT row's first STEP (not its label button), directly reversing
+the regression the critic found; and the label remains fully clickable
+by mouse despite the tabindex change. Re-ran the original
+`test_song_onscreen_keyboard.js` and the full `test_security_seo.js`
+suite — all still passing, no regressions from either fix. Closing at
+this point without a mandatory round-2 dispatch: both fixes were small,
+well-understood, and verified against the critic's own precise repro
+conditions.
