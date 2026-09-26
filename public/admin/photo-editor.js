@@ -219,6 +219,41 @@
     };
   }
 
+  // Constrains a drag endpoint to a fixed aspect ratio, keeping x0/y0 as
+  // the anchor corner. Clamped in two passes (width against the canvas
+  // edge in the drag's x direction, then height against the edge in its y
+  // direction, each time recomputing the other dimension from the ratio)
+  // rather than one -- clamping only one dimension first can leave the
+  // other still over its own edge, since shrinking a dimension to fit its
+  // own bound never grows the other, so a second pass is guaranteed to
+  // finish inside both bounds without ever breaking the ratio.
+  function applyCropRatio(x0, y0, x1, y1) {
+    const ratioStr = $("pe-crop-ratio").value;
+    if (ratioStr === "free") return { x1, y1 };
+    const [rw, rh] = ratioStr.split(":").map(Number);
+    const ratio = rw / rh;
+    const signX = x1 < x0 ? -1 : 1;
+    const signY = y1 < y0 ? -1 : 1;
+    let w = Math.abs(x1 - x0);
+    let h = Math.abs(y1 - y0);
+    if (w / ratio >= h) {
+      h = w / ratio;
+    } else {
+      w = h * ratio;
+    }
+    const maxW = signX > 0 ? canvas.width - x0 : x0;
+    const maxH = signY > 0 ? canvas.height - y0 : y0;
+    if (w > maxW) {
+      w = maxW;
+      h = w / ratio;
+    }
+    if (h > maxH) {
+      h = maxH;
+      w = h * ratio;
+    }
+    return { x1: x0 + signX * w, y1: y0 + signY * h };
+  }
+
   function drawCropOverlay() {
     clearOverlay();
     if (!cropRect) return;
@@ -233,6 +268,19 @@
     octx.strokeRect(r.x, r.y, r.w, r.h);
     octx.restore();
   }
+
+  // Re-constrains an already-drawn selection when the ratio is changed
+  // mid-edit, rather than leaving a stale free-form rectangle on screen
+  // that doesn't match the ratio the next Apply Crop would silently jump
+  // to (applyCropRatio only runs during the drag itself, not on an
+  // already-finished selection).
+  $("pe-crop-ratio").addEventListener("change", () => {
+    if (!cropRect) return;
+    const constrained = applyCropRatio(cropRect.x0, cropRect.y0, cropRect.x1, cropRect.y1);
+    cropRect.x1 = constrained.x1;
+    cropRect.y1 = constrained.y1;
+    drawCropOverlay();
+  });
 
   $("pe-apply-crop").addEventListener("click", () => {
     if (!cropRect) return;
@@ -659,8 +707,9 @@
   overlay.addEventListener("pointermove", (e) => {
     const p = pointFromEvent(e);
     if (currentTool === "select" && dragging && cropRect) {
-      cropRect.x1 = p.x;
-      cropRect.y1 = p.y;
+      const constrained = applyCropRatio(cropRect.x0, cropRect.y0, p.x, p.y);
+      cropRect.x1 = constrained.x1;
+      cropRect.y1 = constrained.y1;
       drawCropOverlay();
     } else if (BRUSH_TOOLS.includes(currentTool)) {
       if (dragging && strokeActive) strokeTo(p);
@@ -881,6 +930,7 @@
         $("pe-contrast").value = 0;
         $("pe-saturate").value = 0;
         $("pe-apply-preset").value = "";
+        $("pe-crop-ratio").value = "free";
         loadPhotoPresets();
         $("pe-hint").textContent = originalKey
           ? "Editing a library image — overwrite updates it everywhere it's used."

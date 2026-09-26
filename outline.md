@@ -4755,7 +4755,7 @@ join, rather than building three separate systems.
 80. Accurate brush footprint preview — extend existing drawBrushCursor.
 86. Dodge/burn brushes — brightness brush, same shape as existing blur brush.
 90. Magnified retouch comparison — reuse existing originalSnapshot + zoom.
-92. Saved crop ratios — static ratio list constraining existing crop.
+92. ✅ Saved crop ratios — done (see the dated entry below this section).
 93. Horizon straightening — arbitrary-angle rotate + auto-crop.
 102. Shared access to website fonts — font already uploaded/served, just reference in canvas font.
 108. Reusable text styles — preset pattern like photo-presets.
@@ -6914,3 +6914,38 @@ invariants at the single shared write chokepoint a value passes through
 rather than only at the code paths expected to produce valid input --
 both lessons this item had to learn the hard way, one critic round at a
 time, before finally converging.
+
+### Nineteenth item: #92, Photo Editor saved crop ratios
+
+Added a fixed aspect-ratio constraint to the existing crop tool: a new
+`#pe-crop-ratio` dropdown (Free, 1:1, 4:3, 3:4, 3:2, 2:3, 16:9, 9:16)
+next to the Select/Crop button. When a ratio other than Free is chosen,
+dragging the crop selection constrains the dragged corner to keep that
+exact aspect ratio relative to the anchor corner (the drag's start
+point), rather than the previous free-form rectangle.
+
+The constraint math (`applyCropRatio()` in photo-editor.js) computes the
+raw drag delta, forces the smaller-driven dimension up to match the
+ratio, then clamps in two passes -- once against the canvas edge in the
+drag's x direction, once in its y direction, each time recomputing the
+other dimension from the ratio -- so a drag toward or past the edge of
+the canvas still produces a correctly-ratioed rectangle instead of
+either overflowing the canvas or silently breaking the ratio once
+clamped. The dropdown resets to "Free" every time a new image is opened
+in the editor (matching the existing precedent of not carrying tool
+state between separate edit sessions, e.g. checkpoints/poster-image
+fields elsewhere in the admin), and changing the ratio while a selection
+is already drawn (not mid-drag) re-constrains the existing rectangle in
+place rather than leaving a stale one that doesn't match what Apply Crop
+would actually produce.
+
+Tested via Playwright against a real 800x600 uploaded image: confirmed
+the dropdown starts on "Free" on open; a 1:1 drag from an asymmetric
+mouse movement (250px right, 100px down) produced an exactly-square
+crop (301x301); a 16:9 drag produced a crop with the correct ratio
+(421x237, ratio 1.776 vs. the exact 1.778); and a 1:1 drag started near
+the canvas's bottom-right corner and dragged well past both edges still
+produced a square crop (36x36) rather than a non-square one truncated by
+the edge clamp or a crop that silently ignored the edge and tried to
+read out-of-bounds pixel data. Full regression suite green; test upload
+deleted and confirmed gone.

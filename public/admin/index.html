@@ -945,6 +945,16 @@
         <div class="pe-toolbar">
           <div class="pe-tool-group">
             <button type="button" class="pe-tool active" data-tool="select">Select / Crop</button>
+            <select id="pe-crop-ratio" title="Constrain the crop selection to a fixed aspect ratio">
+              <option value="free">Free</option>
+              <option value="1:1">1:1</option>
+              <option value="4:3">4:3</option>
+              <option value="3:4">3:4</option>
+              <option value="3:2">3:2</option>
+              <option value="2:3">2:3</option>
+              <option value="16:9">16:9</option>
+              <option value="9:16">9:16</option>
+            </select>
             <button type="button" id="pe-apply-crop" hidden>Apply Crop</button>
           </div>
           <div class="pe-tool-group">
