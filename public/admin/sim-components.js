@@ -81,6 +81,12 @@
   const OUTLET_VOLTAGE = 120;
   const RESISTOR_WATTAGE_RATING = 0.25;
   const TEENSY_LOAD_OHMS = 300;
+  // A typical microcontroller board's own power budget (running off 3.3V/
+  // 5V, drawing well under a watt) -- feeding it from something like a
+  // 12V+ supply through its fixed load model should read as unsafe, the
+  // same way an overheating resistor does, not just a bigger harmless
+  // number.
+  const TEENSY_WATTAGE_RATING = 1;
 
   const DIGIT_COLORS = ["black", "brown", "red", "orange", "yellow", "green", "blue", "violet", "gray", "white"];
   const BAND_HEX = {
@@ -575,13 +581,20 @@
           const status = domain.dangerous ? "burnt" : watts > RESISTOR_WATTAGE_RATING ? "overheating" : "normal";
           results[info.compId] = { kind: "resistor", currentMa, watts, status, dangerous: domain.dangerous };
         } else if (info.kind === "teensy") {
-          const status = domain.dangerous ? "burnt" : "normal";
-          // Same power-dissipation math as the resistor branch above (P =
-          // I*V), extended to the microcontroller load -- previously this
-          // result had current/voltage but never the derived wattage a
-          // resistor's result already exposed.
+          // Same P=I^2*R math as the resistor branch above, using the
+          // teensy's OWN fixed load (TEENSY_LOAD_OHMS), not domain.voltage
+          // -- a critic pass found the original version multiplied
+          // current by the full source voltage, which only happens to
+          // equal the teensy's own dissipation when it's the sole
+          // resistive element in the loop. With anything else sharing the
+          // series path (a current-limiting resistor, a potentiometer, an
+          // LED ahead of it), some of that source voltage drops across
+          // the OTHER component, not the teensy, so multiplying by the
+          // full domain voltage overstated the teensy's own figure by
+          // reporting the whole loop's power under its name.
           const amps = currentMa === Infinity ? 0 : currentMa / 1000;
-          const watts = amps * domain.voltage;
+          const watts = amps * amps * TEENSY_LOAD_OHMS;
+          const status = domain.dangerous ? "burnt" : watts > TEENSY_WATTAGE_RATING ? "overheating" : "normal";
           results[info.compId] = { kind: "teensy", currentMa, voltage: domain.voltage, watts, status, dangerous: domain.dangerous };
         }
       });
