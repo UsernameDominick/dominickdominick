@@ -3220,6 +3220,7 @@ kbd {
 .pe-canvas-stack {
   position: relative;
   line-height: 0;
+  transition: transform 0.15s ease;
 }
 
 .pe-canvas-stack canvas {

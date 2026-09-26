@@ -116,6 +116,23 @@
   let dragStart = null;
   let baseSnapshot = null; // canvas clone taken when an adjust slider is first touched
 
+  // ---------- View rotation ----------
+  // A purely cosmetic on-screen rotation (CSS transform on the stack),
+  // completely separate from pe-rotate-left/right above (which actually
+  // rotate the pixel data, resize the canvas, and count as an edit). This
+  // never touches canvas.width/height or any pixel, and resets to 0 on
+  // every image open like the other per-session view preferences
+  // (background preview, crop ratio, etc.).
+  let viewRotation = 0;
+  function applyViewRotation() {
+    stack.style.transform = viewRotation === 0 ? "" : `rotate(${viewRotation}deg)`;
+    $("pe-view-rotate").textContent = `↻ View: ${viewRotation}°`;
+  }
+  $("pe-view-rotate").addEventListener("click", () => {
+    viewRotation = (viewRotation + 90) % 360;
+    applyViewRotation();
+  });
+
   function fitCanvasToViewport() {
     const maxW = stack.parentElement.clientWidth * 0.9;
     const maxH = stack.parentElement.clientHeight * 0.9;
@@ -293,10 +310,37 @@
   }
 
   // ---------- Pointer <-> canvas coordinate mapping ----------
+  // Accounts for viewRotation (see above) -- without this, every pointer-
+  // based tool (brush, shapes, crop, text placement) would place its mark
+  // at the wrong canvas location whenever the view is rotated 90/270°,
+  // since getBoundingClientRect() on a rotated element returns the
+  // post-transform axis-aligned box (width/height swapped at 90/270°),
+  // not the canvas's own unrotated pixel grid. CSS rotates around the
+  // element's center by default, so that center point is the one thing
+  // that stays fixed regardless of rotation -- computing the pointer's
+  // offset from that center, then inverse-rotating that offset back into
+  // the unrotated frame, correctly recovers canvas-space coordinates at
+  // any rotation. At viewRotation === 0 this reduces to exactly the
+  // original, unrotated formula.
   function pointFromEvent(e) {
     const rect = overlay.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * canvas.width;
-    const y = ((e.clientY - rect.top) / rect.height) * canvas.height;
+    const displayW = parseFloat(overlay.style.width) || rect.width;
+    const displayH = parseFloat(overlay.style.height) || rect.height;
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    let dx = e.clientX - cx;
+    let dy = e.clientY - cy;
+    if (viewRotation !== 0) {
+      const rad = (-viewRotation * Math.PI) / 180;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      const rx = dx * cos - dy * sin;
+      const ry = dx * sin + dy * cos;
+      dx = rx;
+      dy = ry;
+    }
+    const x = ((dx + displayW / 2) / displayW) * canvas.width;
+    const y = ((dy + displayH / 2) / displayH) * canvas.height;
     return { x, y };
   }
 
@@ -1323,6 +1367,8 @@
         $("pe-crop-ratio").value = "free";
         $("pe-rect-radius").value = 0;
         $("pe-text-font").value = "sans-serif";
+        viewRotation = 0;
+        applyViewRotation();
         bgPreviewSelect.value = "checkerboard";
         applyBgPreview("checkerboard");
         loadPhotoPresets();

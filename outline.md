@@ -4737,7 +4737,7 @@ join, rather than building three separate systems.
 3. Document presets — static size list feeding #2.
 5. Canvas resizing independent of image — extend crop logic to allow canvas-only resize.
 6. Image resizing with aspect lock — ctx.drawImage scale + lock checkbox.
-8. Canvas-view rotation — CSS transform on stack, no pixel change.
+8. ✅ Canvas-view rotation — CSS transform on stack, no pixel change. (done — see the dated entry below)
 17. Layer colors/labels — metadata fields once layers exist.
 18. Search/filter layers — simple list filter UI.
 31. Rect/ellipse selection — canvas path, same overlay pattern as crop.
@@ -9475,3 +9475,56 @@ when the fix for the first bug made it matter) — both fixed and proven
 with real measured output bytes rather than just "no error thrown,"
 each independently re-verified by a fresh critic round tracing the
 actual code paths and async-race handling involved.
+
+### Forty-first item: #8, Photo Editor canvas-view rotation
+
+- ✅ **A "↻ View: 0°" button** in the bottom toolbar that cycles the
+  on-screen view through 0°/90°/180°/270° via a pure CSS
+  `transform: rotate(Ndeg)` on `#pe-canvas-stack` — purely cosmetic,
+  never touches the image's actual pixels (unlike the existing "Rotate"
+  tool, which bakes a real 90° pixel rotation into the canvas). Resets
+  to 0° every time an image is opened, matching this editor's existing
+  per-session UI-preference-reset convention (crop ratio, background
+  preview, etc. all reset the same way on `open()`).
+
+Before sending this to a critic, working through the implementation
+surfaced a correctness issue serious enough to fix pre-emptively: with
+only the CSS transform in place, every pointer-based tool (brush,
+shapes, crop, text, erase) would place marks at the wrong canvas
+location the instant the view was rotated, since raw pointer coordinates
+are relative to the *unrotated* screen, not the rotated visual position.
+`pointFromEvent(e)` was rewritten to inverse-transform pointer
+coordinates: compute the pointer's offset from the rotated overlay's own
+center (invariant under any CSS rotation), rotate that offset by
+`-viewRotation` degrees, then map the result into canvas-pixel space
+using the overlay's true unrotated CSS display dimensions (read from
+`overlay.style.width`/`height`, since `getBoundingClientRect()` on a
+rotated element returns the post-transform axis-aligned box with
+width/height swapped at 90°/270°).
+
+Verified the fix independently before any critic review, by hand-
+deriving the expected geometry first (a screen click at the rotated
+view's right-middle edge should land in the canvas's TOP half after a
+90° clockwise rotation, since that rotation moves what was the canvas's
+top edge onto the screen's right side) and then writing a Playwright
+test to check that specific prediction. An initial attempt
+(`test_pe_view_rotation.js`) using the "circle" shape tool with a small
+drag on a tiny 50×50 test canvas and exact single-pixel sampling proved
+too fragile — it failed on both the 0° baseline and the 90° check,
+diagnosed as a test-authoring problem (imprecise tool/drag choice,
+overly precise sampling) rather than a product bug, since all the
+button's UI-lifecycle assertions (label cycling 0°→90°→180°→270°→0°,
+CSS transform applied/cleared correctly, no undo-history entry pushed by
+view rotation alone) passed cleanly in the same run. Rewrote it as
+`test_pe_view_rotation2.js` using the "erase" tool with a large 60px
+brush (producing an unambiguous, easily-detected transparent hole) and
+quadrant-level pixel counting instead of exact-pixel sampling — this
+version passed both directional checks cleanly: at 0°, an erase click at
+the overlay's right-middle edge produced 1192 transparent pixels in the
+canvas's right half vs. only 126 in the left half; after rotating 90°
+and clicking the identical screen position again, the hole correctly
+moved to the canvas's top half (1194 vs. 126 in the bottom half),
+proving the inverse-transform math is correct rather than merely
+"doesn't throw."
+
+Handed to a critic agent for scoring.
