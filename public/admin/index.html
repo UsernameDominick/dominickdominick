@@ -110,73 +110,114 @@
       <aside id="palette" class="admin-palette">
         <button id="close-palette" class="mobile-only close-drawer" aria-label="Close">×</button>
         <div class="drawer-scroll-content">
-        <h2>Add block</h2>
-        <button type="button" id="paste-block-btn" hidden>Paste block</button>
-        <h2>Text &amp; media</h2>
-        <button class="palette-btn" data-type="heading">Heading</button>
-        <button class="palette-btn" data-type="text">Text</button>
-        <button class="palette-btn" data-type="image">Image</button>
-        <button class="palette-btn" data-type="quote">Quote</button>
-        <button class="palette-btn" data-type="gallery">Gallery</button>
-        <button class="palette-btn" data-type="before-after">Before / After</button>
-        <h2>Actions &amp; links</h2>
-        <button class="palette-btn" data-type="button">Button / Link</button>
-        <button class="palette-btn" data-type="links">Links</button>
-        <h2>Dynamic content</h2>
-        <button class="palette-btn" data-type="project-card">Project Card</button>
-        <button class="palette-btn" data-type="article-list">Article List</button>
-        <button class="palette-btn" data-type="project-list">Project List</button>
-        <button class="palette-btn" data-type="changelog">Changelog / Now</button>
-        <h2>Embeds &amp; interactive</h2>
-        <button class="palette-btn" data-type="video">Video Embed</button>
-        <button class="palette-btn" data-type="embed">Generic Embed</button>
-        <button class="palette-btn" data-type="html">HTML / Embed</button>
-        <button class="palette-btn" data-type="simulation">Simulation</button>
-        <button class="palette-btn" data-type="song">Song</button>
-        <button class="palette-btn" data-type="scan">3D Scan</button>
-        <h2>Layout</h2>
-        <button class="palette-btn" data-type="accordion">Accordion</button>
-        <button class="palette-btn" data-type="tabs">Tabs</button>
-        <button class="palette-btn" data-type="divider">Divider</button>
-        <button class="palette-btn" data-type="spacer">Spacer</button>
-        <hr>
-        <h2>Page settings</h2>
-        <label>Title<input id="page-title" type="text"></label>
-        <label>Meta description<textarea id="page-meta" rows="2"></textarea></label>
-        <label>Nav label (blank = hidden from nav)<input id="page-nav-label" type="text"></label>
-        <label>Nav order<input id="page-nav-order" type="number"></label>
-        <label title="Nests this page as a dropdown item under another top-level nav page. One level of dropdown only — a page that already has a parent can't also be a parent.">Parent nav item (optional — makes this a dropdown item)<select id="page-nav-parent"><option value="">— none (top-level) —</option></select></label>
-        <label>Share image URL (og:image, blank = site default)
-          <input id="page-og-image" type="text" spellcheck="false">
-          <button type="button" class="upload-trigger" data-target="#page-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#page-og-image">Browse…</button><br><button type="button" class="edit-image-trigger" data-target="#page-og-image">Edit / crop for social…</button>
-        </label>
-        <label>Canonical URL override (optional — blank = auto)<input id="page-canonical-url" type="text" spellcheck="false" placeholder="https://..."></label>
-        <label title="Added alongside this page's auto-generated structured data, not instead of it. Must be valid JSON — one object, e.g. a FAQPage or HowTo schema.org type.">Custom structured data (JSON-LD, optional)<textarea id="page-custom-json-ld" rows="3" spellcheck="false" placeholder='{"@context":"https://schema.org","@type":"FAQPage",...}'></textarea></label>
-        <label><input type="checkbox" id="page-sitemap-exclude"> Exclude from sitemap.xml</label>
-        <div class="tts-audio-field">
-          <label id="page-password-status">Password protection: <span id="page-password-status-text">not protected</span></label>
-          <input type="password" id="page-password-input" placeholder="New password" autocomplete="off">
-          <button type="button" id="page-set-password-btn">Set password</button>
-          <button type="button" id="page-remove-password-btn" hidden>Remove protection</button>
+        <div class="panel-switch seg-control" role="tablist" aria-label="Left panel">
+          <button type="button" role="tab" id="panel-tab-blocks" aria-controls="palette-blocks" aria-selected="true">Blocks</button>
+          <button type="button" role="tab" id="panel-tab-page" aria-controls="palette-page" aria-selected="false">Page</button>
         </div>
-        <div class="og-preview-label">Share preview</div>
-        <div class="og-preview" id="og-preview-page">
-          <div class="og-preview-img" id="og-preview-page-img"></div>
-          <div class="og-preview-body">
-            <div class="og-preview-domain">dominickdominick.com</div>
-            <div class="og-preview-title" id="og-preview-page-title"></div>
-            <div class="og-preview-desc" id="og-preview-page-desc"></div>
-          </div>
+        <div id="palette-blocks" role="tabpanel" aria-labelledby="panel-tab-blocks">
+          <input type="search" id="palette-search" placeholder="Find a block…" aria-label="Find a block" autocomplete="off">
+          <button type="button" id="paste-block-btn" hidden>Paste block</button>
+          <section class="palette-group">
+            <h2>Text &amp; media</h2>
+            <div class="palette-grid">
+              <button class="palette-btn" data-type="heading"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4v16M18 4v16M6 12h12"/></svg><span>Heading</span></button>
+              <button class="palette-btn" data-type="text"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 10h16M4 14h16M4 18h10"/></svg><span>Text</span></button>
+              <button class="palette-btn" data-type="image"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m21 16-5-5-8 8"/></svg><span>Image</span></button>
+              <button class="palette-btn" data-type="quote"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h4v4c0 3-2 5-4 6M15 7h4v4c0 3-2 5-4 6"/></svg><span>Quote</span></button>
+              <button class="palette-btn" data-type="gallery"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg><span>Gallery</span></button>
+              <button class="palette-btn" data-type="before-after"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M12 3v18M9 12H6m12 0h-3"/></svg><span>Before / After</span></button>
+            </div>
+          </section>
+          <section class="palette-group">
+            <h2>Actions &amp; links</h2>
+            <div class="palette-grid">
+              <button class="palette-btn" data-type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="8" width="18" height="8" rx="4"/><path d="M9 12h6"/></svg><span>Button / Link</span></button>
+              <button class="palette-btn" data-type="links"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg><span>Links</span></button>
+            </div>
+          </section>
+          <section class="palette-group">
+            <h2>Dynamic content</h2>
+            <div class="palette-grid">
+              <button class="palette-btn" data-type="project-card"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 11h18M7 15h6"/></svg><span>Project Card</span></button>
+              <button class="palette-btn" data-type="article-list"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h12M9 12h12M9 18h12"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg><span>Article List</span></button>
+              <button class="palette-btn" data-type="project-list"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="7" height="7" rx="1"/><rect x="14" y="4" width="7" height="7" rx="1"/><rect x="3" y="13" width="7" height="7" rx="1"/><rect x="14" y="13" width="7" height="7" rx="1"/></svg><span>Project List</span></button>
+              <button class="palette-btn" data-type="changelog"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>Changelog / Now</span></button>
+            </div>
+          </section>
+          <section class="palette-group">
+            <h2>Embeds &amp; interactive</h2>
+            <div class="palette-grid">
+              <button class="palette-btn" data-type="video"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3z"/></svg><span>Video Embed</span></button>
+              <button class="palette-btn" data-type="embed"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/></svg><span>Generic Embed</span></button>
+              <button class="palette-btn" data-type="html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M13 6l-2 12"/></svg><span>HTML / Embed</span></button>
+              <button class="palette-btn" data-type="simulation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l2-5 3 10 2-5h7"/></svg><span>Simulation</span></button>
+              <button class="palette-btn" data-type="song"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg><span>Song</span></button>
+              <button class="palette-btn" data-type="scan"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></svg><span>3D Scan</span></button>
+            </div>
+          </section>
+          <section class="palette-group">
+            <h2>Layout</h2>
+            <div class="palette-grid">
+              <button class="palette-btn" data-type="accordion"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1"/><rect x="3" y="11" width="18" height="9" rx="1"/><path d="m9 6.5 1.5 1 1.5-1"/></svg><span>Accordion</span></button>
+              <button class="palette-btn" data-type="tabs"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20V8h6V5h6v3h6v12z"/><path d="M9 8h6"/></svg><span>Tabs</span></button>
+              <button class="palette-btn" data-type="divider"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h18"/><path d="M8 7h8M8 17h8" opacity=".5"/></svg><span>Divider</span></button>
+              <button class="palette-btn" data-type="spacer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v16M8 8l4-4 4 4M8 16l4 4 4-4"/></svg><span>Spacer</span></button>
+            </div>
+          </section>
+          <p id="palette-no-match" class="palette-no-match" hidden>No block matches that.</p>
         </div>
-        <button id="save-page-settings">Save page settings</button>
-        <div id="page-save-status" class="article-autosave-status"></div>
-        <button id="page-history-btn">History</button>
-        <button id="duplicate-page-btn">Duplicate this page</button>
-        <button id="save-page-template-btn">Save as template</button>
-        <button type="button" id="delete-page-template-btn" title="Delete the template currently selected in the picker above">Delete template</button>
-        <button type="button" id="lock-page-btn" title="Locking protects this page from global find-replace — it doesn't affect editing it directly">Lock</button>
-        <button type="button" id="favorite-page-btn" title="Pin to the top of the command palette">☆ Pin</button>
-        <button id="delete-page-btn" class="danger">Delete this page</button>
+        <div id="palette-page" role="tabpanel" aria-labelledby="panel-tab-page" hidden>
+          <details class="panel-section" open>
+            <summary>Basics</summary>
+            <label>Title<input id="page-title" type="text"></label>
+            <label>Meta description<textarea id="page-meta" rows="2"></textarea></label>
+            <label>Nav label (blank = hidden from nav)<input id="page-nav-label" type="text"></label>
+            <label>Nav order<input id="page-nav-order" type="number"></label>
+            <label title="Nests this page as a dropdown item under another top-level nav page. One level of dropdown only — a page that already has a parent can't also be a parent.">Parent nav item (optional — makes this a dropdown item)<select id="page-nav-parent"><option value="">— none (top-level) —</option></select></label>
+          </details>
+          <details class="panel-section">
+            <summary>Sharing &amp; SEO</summary>
+            <label>Share image URL (og:image, blank = site default)
+              <input id="page-og-image" type="text" spellcheck="false">
+              <button type="button" class="upload-trigger" data-target="#page-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#page-og-image">Browse…</button><br><button type="button" class="edit-image-trigger" data-target="#page-og-image">Edit / crop for social…</button>
+            </label>
+            <label>Canonical URL override (optional — blank = auto)<input id="page-canonical-url" type="text" spellcheck="false" placeholder="https://..."></label>
+            <label title="Added alongside this page's auto-generated structured data, not instead of it. Must be valid JSON — one object, e.g. a FAQPage or HowTo schema.org type.">Custom structured data (JSON-LD, optional)<textarea id="page-custom-json-ld" rows="3" spellcheck="false" placeholder='{"@context":"https://schema.org","@type":"FAQPage",...}'></textarea></label>
+            <label><input type="checkbox" id="page-sitemap-exclude"> Exclude from sitemap.xml</label>
+            <div class="og-preview-label">Share preview</div>
+            <div class="og-preview" id="og-preview-page">
+              <div class="og-preview-img" id="og-preview-page-img"></div>
+              <div class="og-preview-body">
+                <div class="og-preview-domain">dominickdominick.com</div>
+                <div class="og-preview-title" id="og-preview-page-title"></div>
+                <div class="og-preview-desc" id="og-preview-page-desc"></div>
+              </div>
+            </div>
+          </details>
+          <details class="panel-section">
+            <summary>Access</summary>
+            <div class="tts-audio-field">
+              <label id="page-password-status">Password protection: <span id="page-password-status-text">not protected</span></label>
+              <input type="password" id="page-password-input" placeholder="New password" autocomplete="off">
+              <button type="button" id="page-set-password-btn">Set password</button>
+              <button type="button" id="page-remove-password-btn" hidden>Remove protection</button>
+            </div>
+          </details>
+          <button id="save-page-settings">Save page settings</button>
+          <div id="page-save-status" class="article-autosave-status"></div>
+          <details class="panel-section" open>
+            <summary>Page actions</summary>
+            <div class="panel-action-grid">
+              <button id="page-history-btn">History</button>
+              <button id="duplicate-page-btn">Duplicate</button>
+              <button id="save-page-template-btn">Save as template</button>
+              <button type="button" id="delete-page-template-btn" title="Delete the template currently selected in the picker above">Delete template</button>
+              <button type="button" id="lock-page-btn" title="Locking protects this page from global find-replace — it doesn't affect editing it directly">Lock</button>
+              <button type="button" id="favorite-page-btn" title="Pin to the top of the command palette">☆ Pin</button>
+            </div>
+            <button id="delete-page-btn" class="danger">Delete this page</button>
+          </details>
+        </div>
         </div>
       </aside>
 

@@ -534,23 +534,170 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   margin-top: 0;
 }
 
+/* Blocks tab: a compact two-up grid of icon tiles, grouped by category,
+   instead of 22 full-width bars stacked one after another. */
+.seg-control.panel-switch {
+  position: sticky;
+  top: -16px;
+  z-index: 2;
+  margin: -16px -16px 14px;
+  padding: 12px 16px;
+  width: auto;
+  box-sizing: border-box;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+}
+
+.admin-palette #palette-search {
+  margin: 0 0 12px;
+}
+
+.palette-group {
+  margin-bottom: 14px;
+}
+
+.palette-group[hidden] {
+  display: none;
+}
+
+.admin-palette .palette-group h2 {
+  margin: 0 0 8px;
+}
+
+.palette-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
 .palette-btn {
-  display: block;
-  width: 100%;
-  text-align: left;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 64px;
+  padding: 10px 6px 8px;
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: var(--control-radius);
-  padding: 8px 10px;
-  margin-bottom: 6px;
+  border-radius: var(--field-radius);
   cursor: pointer;
-  transition: border-color 0.2s var(--ease-smooth);
-  font-size: 0.85rem;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  text-align: center;
+  transition: border-color 0.15s var(--ease-smooth), background-color 0.15s var(--ease-smooth), transform 0.15s var(--ease-smooth);
 }
 
-.palette-btn:hover {
+.palette-btn svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: var(--accent);
+}
+
+.palette-btn:hover,
+.palette-btn:focus-visible {
   border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg));
+}
+
+.palette-btn:active {
+  transform: scale(0.97);
+}
+
+.palette-no-match {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin: 4px 0;
+}
+
+/* Page tab: settings in collapsible groups rather than one long form. */
+.panel-section {
+  border: 1px solid var(--border);
+  border-radius: var(--field-radius);
+  margin-bottom: 10px;
+  background: color-mix(in srgb, var(--bg) 50%, transparent);
+}
+
+.panel-section > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text);
+}
+
+.panel-section > summary::-webkit-details-marker {
+  display: none;
+}
+
+.panel-section > summary::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid var(--text-dim);
+  border-bottom: 1.5px solid var(--text-dim);
+  transform: rotate(45deg) translateY(-2px);
+  transition: transform 0.15s var(--ease-smooth);
+}
+
+.panel-section[open] > summary::after {
+  transform: rotate(-135deg) translateY(-2px);
+}
+
+.panel-section[open] > summary {
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-section > :not(summary) {
+  margin-left: 12px;
+  margin-right: 12px;
+}
+
+.panel-section > :not(summary):first-of-type,
+.panel-section > summary + * {
+  margin-top: 12px;
+}
+
+.panel-section > :last-child {
+  margin-bottom: 12px;
+}
+
+.panel-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.admin-palette .panel-action-grid > button:not(.palette-btn) {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-weight: 500;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-palette .panel-action-grid > button:not(.palette-btn):hover {
+  border-color: var(--accent);
+}
+
+.admin-palette .panel-section .danger {
+  margin-top: 10px !important;
 }
 
 .admin-palette hr {
@@ -1523,8 +1670,13 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   }
 
   .palette-btn {
-    padding: 12px 10px;
-    font-size: 0.9rem;
+    min-height: 72px;
+    font-size: 0.8rem;
+  }
+
+  /* Leave room for the drawer's own close button in the top-right corner. */
+  .seg-control.panel-switch {
+    padding-right: 56px;
   }
 
   /* Articles modal stacks vertically on narrow screens */
@@ -1883,7 +2035,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   width: 100%;
 }
 
-.settings-body .seg-control > button {
+:is(.settings-body, .admin-palette) .seg-control > button {
   flex: 1 1 0;
   min-width: 0;
   margin: 0 0 0 -1px;
@@ -1898,20 +2050,21 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   text-overflow: ellipsis;
 }
 
-.settings-body .seg-control > button:first-child {
+:is(.settings-body, .admin-palette) .seg-control > button:first-child {
   margin-left: 0;
   border-radius: var(--control-radius) 0 0 var(--control-radius);
 }
 
-.settings-body .seg-control > button:last-child {
+:is(.settings-body, .admin-palette) .seg-control > button:last-child {
   border-radius: 0 var(--control-radius) var(--control-radius) 0;
 }
 
-.settings-body .seg-control > button:hover {
+:is(.settings-body, .admin-palette) .seg-control > button:hover {
   color: var(--text);
 }
 
-.settings-body .seg-control > button[aria-pressed="true"] {
+:is(.settings-body, .admin-palette) .seg-control > button[aria-pressed="true"],
+:is(.settings-body, .admin-palette) .seg-control > button[aria-selected="true"] {
   position: relative;
   z-index: 1;
   background: color-mix(in srgb, var(--accent) 18%, var(--bg));

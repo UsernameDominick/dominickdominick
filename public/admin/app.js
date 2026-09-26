@@ -1467,6 +1467,47 @@
     });
   }
 
+  // The left panel used to be one long scroll: 22 full-width block
+  // buttons, then every page setting and page action underneath. It's now
+  // two tabs -- Blocks (a searchable icon grid) and Page (settings grouped
+  // into collapsible sections) -- so neither buries the other.
+  function switchLeftPanel(name) {
+    ["blocks", "page"].forEach((n) => {
+      const active = n === name;
+      el(`panel-tab-${n}`).setAttribute("aria-selected", String(active));
+      el(`palette-${n}`).hidden = !active;
+    });
+    try {
+      localStorage.setItem("admin-left-panel", name);
+    } catch (e) {}
+  }
+  el("panel-tab-blocks").addEventListener("click", () => switchLeftPanel("blocks"));
+  el("panel-tab-page").addEventListener("click", () => switchLeftPanel("page"));
+  try {
+    if (localStorage.getItem("admin-left-panel") === "page") switchLeftPanel("page");
+  } catch (e) {}
+
+  el("palette-search").addEventListener("input", () => {
+    const q = el("palette-search").value.trim().toLowerCase();
+    let any = false;
+    document.querySelectorAll(".palette-group").forEach((group) => {
+      let groupHas = false;
+      group.querySelectorAll(".palette-btn").forEach((btn) => {
+        const match = !q || btn.textContent.toLowerCase().includes(q) || btn.dataset.type.includes(q);
+        btn.hidden = !match;
+        if (match) groupHas = true;
+      });
+      group.hidden = !groupHas;
+      if (groupHas) any = true;
+    });
+    el("palette-no-match").hidden = any;
+  });
+  el("palette-search").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    const first = document.querySelector(".palette-group:not([hidden]) .palette-btn:not([hidden])");
+    if (first) first.click();
+  });
+
   document.querySelectorAll(".palette-btn").forEach((btn) => {
     btn.addEventListener("click", async () => {
       if (!currentPage) return;
