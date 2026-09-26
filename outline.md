@@ -4760,7 +4760,7 @@ join, rather than building three separate systems.
 102. Shared access to website fonts — font already uploaded/served, just reference in canvas font.
 108. Reusable text styles — preset pattern like photo-presets.
 109. Missing-font warnings — font-load check + fallback message.
-112. Independent corner-radius — once basic rect shape object exists, simple param.
+112. ✅ Independent corner-radius — done (see the dated entry below this section).
 129. Adjustable grain — random per-pixel noise injection.
 139. ✅ Local vs external-upload indicator — the Photo Editor itself already covered this (pe-hint's "Editing a library image" vs "Editing an external image" text); extended the same idea to the page builder's own image-url fields (see the dated entry below this section).
 143. Searchable command palette — static command list + filter/keydown.
@@ -9244,3 +9244,66 @@ reached a real site visitor) fixed and independently re-verified across
 every mirrored copy of the affected logic, plus #431 (voltmeter)
 explicitly re-scoped as genuine future solver work rather than forced
 into this pass.
+
+### Thirty-eighth item: #112, independent corner-radius for the Photo Editor's rectangle tool
+
+- ✅ **A new "Corner radius" slider**, shown only while the rect
+  annotation tool is active, letting an admin draw a rounded rectangle
+  instead of only a sharp-cornered one. Uses `ctx.roundRect()` (falling
+  back to plain `ctx.rect()`) for both the live drag preview and the
+  committed annotation, via one small shared helper both call sites
+  route through instead of each calling `ctx.strokeRect()` directly.
+  Resets to 0 on every image open, matching this editor's existing
+  per-session UI-preference-reset convention.
+
+Handed to a critic agent for scoring: **8/10**. Finding:
+
+1. **(Fixed)** `ctx.roundRect()` was called unconditionally whenever the
+   radius was above 0, with no feature detection and no try/catch
+   anywhere in the calling `pointerup` handler. On a browser old enough
+   to lack `roundRect()` (added to the Canvas2D spec circa 2021-2022 —
+   plausible for "whatever laptop/phone is handy" on a personal-site
+   admin tool, unlike the main site's assumed audience), this would
+   throw a plain `TypeError` — a strictly worse failure mode than the
+   `strokeRect()` it replaced, which never throws regardless of input.
+   Since the exception would abort the pointerup handler mid-execution
+   AFTER `pushUndo()` already ran but BEFORE `clearOverlay()`/`dragStart`'s
+   reset could run, it could push a stray empty undo entry, leave a
+   stuck preview stroke on the overlay, and corrupt the next drag's
+   state. A related untested edge case was also flagged: a click without
+   dragging, or a perfectly horizontal/vertical drag (no minimum-drag-
+   distance gate exists), passes a zero-width or zero-height rectangle
+   into `roundRect()` — expected by spec to clamp safely, but not
+   explicitly verified. Fixed by changing the guard to
+   `radius > 0 && typeof c.roundRect === "function"`, falling back to
+   plain `c.rect()` — degrading to "the radius setting is silently
+   ignored on this browser" rather than throwing and wedging the tool's
+   state machine — and expanding the code comment to explicitly document
+   the zero-size case alongside the pre-existing oversized-radius one.
+
+Sent for a round-2 critic pass specifically walking the exact pointerup
+control-flow sequence line by line to confirm the fix genuinely closes
+the described failure path (not just that a guard exists in principle),
+confirming the guard is centralized in the single shared helper with no
+second unguarded call site anywhere in the file, and checking whether
+the zero-size-drag Playwright test actually reaches the `w=0`/`h=0` code
+path or short-circuits earlier against some drag-distance gate. Confirmed
+all of it: `roundRect` appears in exactly one place in the whole file;
+tracing the real pointerup statement sequence (`pushUndo()` →
+`commitAnnotation()` → `invalidateOpenAdjustDrag()` → `clearOverlay()` →
+`dragStart = null`) shows every statement now runs end-to-end since the
+helper can no longer throw; confirmed there genuinely is no minimum-
+drag-distance gate anywhere in the pointer handlers, so a stationary
+click or a horizontal-only drag really does reach the degenerate
+`w=0`/`h=0` path in the shared helper, meaning the test was exercising
+the real code, not a decoy; and confirmed `typeof c.roundRect ===
+"function"` is a safe idiom that can't itself throw. Final score:
+**9/10** — ships.
+
+Item #112 is done: 1 critic round, 8/10 → 9/10, one real gap (an
+unguarded newer Canvas2D API call that could throw on an older browser
+and corrupt the annotation tool's undo/drag state, worse than the
+behavior it replaced) fixed with feature detection and independently
+re-verified by tracing the exact control-flow path the finding
+described, plus explicit tests added for a previously-untested
+degenerate-input edge case.
