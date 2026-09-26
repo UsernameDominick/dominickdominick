@@ -10526,3 +10526,15 @@ actually executing, entries appearing/disappearing correctly with the
 editor's open state) — all still pass. Ran the full
 `test_security_seo.js` regression suite — all passed. Sent for a
 round-2 critic pass.
+
+Round-2 confirmed the removal is clean (no lingering reference anywhere,
+no syntax issue from removing one entry from the middle of the array),
+and — going further than just trusting round-1's diagnosis — re-verified
+every remaining Photo Editor entry one by one against its actual event
+wiring in `photo-editor.js`, confirming every single one is a genuine
+`click`-listener target, with `#pe-compare` confirmed as the ONLY
+control in the whole set that used the press-and-hold-only pattern (so
+no sibling defect was missed). Confirmed the z-index fix from earlier
+remains intact and unregressed. Final score: **10/10 — ships.**
+
+Item #143 is done: 2 critic rounds, 6/10 → 10/10.
