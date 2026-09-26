@@ -13699,3 +13699,82 @@ all passing. One purely stylistic, non-functional observation (not a
 bug): the empty-state distinction is keyed off the unfiltered
 `songs.length` rather than re-deriving it explicitly, but the two are
 equivalent as written. Closing at 9/10, no fix needed.
+
+### 2026-09-26 — Direct user feedback: Simulation builder mobile toolbar was a "wall of buttons"
+
+Dominick shared a real phone screenshot of the simulation builder's
+header: 15+ buttons and inputs (Undo/Redo/Reset, checkpoint controls,
+Export/Import, preview/testing toggles, snap/continuity, Save/Save as
+template) all flat and visually identical, wrapping across many cramped
+rows with no grouping, plus a separate poster/share-image row eating
+another two lines below it before the actual canvas was even reachable.
+His direction: fix the mobile spacing/alignment, and more broadly, stop
+treating builder sidebars as an ever-growing flat list of buttons —
+group related controls so an admin can navigate a coherent subset of
+what's available rather than scanning a wall of undifferentiated
+buttons.
+
+Restructured `simulation-builder-modal`'s header (`public/admin/
+index.html`) into five semantic groups wrapped in `.sim-toolbar-group`
+divs — history (Undo/Redo/Reset), checkpoints (select/restore/save/
+delete), file (Export/Import), test/view (preview power, canvas search,
+disconnected-pins/hidden-wires toggles, snap select, continuity test),
+and save (Save/Save as template) — with a divider between groups
+(`border-right` on desktop, `border-bottom` when stacked on mobile) so
+the grouping is visually legible, not just present in the markup. No
+button ids or behavior changed, only their DOM nesting and the CSS
+targeting them, so no JS wiring elsewhere needed updating.
+
+For the actual mobile fix (the reason this was raised at all): on
+narrow viewports, only the essentials now show by default — the name
+field, a single "Tools ▾" toggle, Save/Save as template, and close.
+Every other control (all four groups above) collapses behind that one
+toggle, still one tap away, not removed. The poster/share-image row got
+the identical treatment with its own independent "Poster / share image
+▾" toggle, since it's a secondary, occasionally-touched feature that
+was eating two lines of permanent vertical space in the exact
+screenshot that prompted this. Both toggles reset to collapsed every
+time the builder is freshly opened, so a state left expanded from a
+previous session doesn't carry over and surprise the next visit.
+
+One real implementation snag caught and fixed during this same pass:
+the first attempt hid the toggle buttons on desktop via the HTML
+`hidden` attribute and tried to un-hide them for mobile via a CSS media
+query — but this codebase has a deliberate, site-wide `[hidden] {
+display: none !important; }` rule (to make `hidden` reliably win over
+other CSS elsewhere), which no ordinary media-query rule can override.
+Fixed by never setting the `hidden` attribute on these two toggle
+buttons at all, controlling their visibility purely through the new
+`.sim-tools-toggle`/`.sim-poster-toggle` classes and the existing
+`@media (max-width: 860px)` block instead — consistent with how the
+`hidden` attribute is clearly meant to be used elsewhere in this
+codebase (a hard on/off switch, not something to fight with responsive
+CSS).
+
+Verified via Playwright at both a real desktop width (1440px, confirming
+every group and the poster row are always visible with the toggles
+themselves hidden, and Undo is genuinely clickable) and a real phone
+width (390px, iPhone-sized, confirming both toggles are visible, both
+sections start collapsed, Undo/the poster fields are NOT reachable
+until their toggle is clicked, clicking each toggle independently
+expands its own section without affecting the other, a real action
+(Reset, with its confirm() dialog handled) still works correctly once
+expanded, and reopening the builder resets both back to collapsed).
+Took real before/after screenshots at the phone viewport confirming the
+visual result matches the shared screenshot's problem directly: the
+initial view went from 15+ crowded buttons to five elements (name
+field, Tools toggle, Save, Save as template, close) plus the collapsed
+poster toggle. Re-ran the existing checkpoint, poster, reset,
+disconnected-pins, ghost-wires, thumbnail, palette-search, and
+keyboard-nudge test suites (several of which needed only an unrelated,
+pre-existing `executablePath` fix to even launch in this environment,
+not caused by this change) plus the full `test_security_seo.js` suite —
+all passing, confirming the restructuring didn't break any existing
+interaction. No server-side changes were needed.
+
+Out of scope for this pass, noted for later: the same flat-button-wall
+pattern exists in the Song builder's own header and, to a lesser
+degree, the Photo Editor's toolbar — this fix only covers the
+Simulation builder, the one actually screenshotted. Applying the same
+grouping/collapse treatment to those would be a natural, well-scoped
+follow-up once this pattern is confirmed to work well in practice.

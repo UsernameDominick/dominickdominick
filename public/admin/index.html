@@ -1129,41 +1129,55 @@
 
   <div id="simulation-builder-modal" class="modal" hidden>
     <div class="modal-inner simulation-builder-inner">
-      <header>
+      <header class="sim-toolbar">
         <input id="simulation-name" class="simulation-name-input" placeholder="Simulation name">
-        <button type="button" id="sim-undo" title="Undo (Ctrl+Z)">Undo</button>
-        <button type="button" id="sim-redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
-        <button type="button" id="sim-reset" title="Discard all edits and go back to the last saved state">Reset</button>
-        <select id="sim-checkpoint-select" title="Named checkpoints saved with this simulation">
-          <option value="">Checkpoints…</option>
-        </select>
-        <button type="button" id="sim-checkpoint-restore" title="Restore the selected checkpoint" disabled>Restore</button>
-        <button type="button" id="sim-checkpoint-save" title="Save the current circuit as a named checkpoint">Save checkpoint</button>
-        <button type="button" id="sim-checkpoint-delete" title="Delete the selected checkpoint" disabled>Delete checkpoint</button>
-        <button type="button" id="sim-export" title="Download this circuit as a JSON file">Export</button>
-        <button type="button" id="sim-import" title="Load a circuit from a JSON file">Import</button>
-        <input type="file" id="sim-import-file" accept="application/json" hidden>
-        <button type="button" id="sim-preview-power">Preview: power on</button>
-        <input type="search" id="sim-canvas-search" placeholder="Find on canvas…" title="Highlights any placed part whose label or type matches what you type">
-        <button type="button" id="sim-show-disconnected" title="Highlight every pin that has no wire attached">Show disconnected pins</button>
-        <button type="button" id="sim-show-ghost-wires" title="Draw every wire again on top of components, as a dashed outline -- reveals a wire routed underneath a breadboard or other opaque part">Show hidden wires</button>
-        <label class="sim-snap-label" title="How closely a dragged part snaps to an alignment grid. Doesn't affect parts that plug into a breadboard -- those always snap to the breadboard's own holes.">
-          Snap:
-          <select id="sim-grid-snap">
-            <option value="0">Off</option>
-            <option value="1">1px</option>
-            <option value="5" selected>5px</option>
-            <option value="10">10px</option>
-            <option value="20">20px</option>
-          </select>
-        </label>
-        <button type="button" id="sim-continuity-test" title="Click two pins to check whether they're electrically connected (wire-tied), like a multimeter's continuity mode">Continuity test</button>
-        <span id="sim-continuity-result" class="sim-continuity-result" aria-live="polite"></span>
-        <button type="button" id="save-simulation">Save</button>
-        <button type="button" id="save-sim-template-btn" title="Save this circuit as a reusable starting point">Save as template</button>
+        <button type="button" id="sim-tools-toggle" class="sim-tools-toggle" aria-expanded="false" aria-controls="sim-toolbar-groups">Tools ▾</button>
+        <div id="sim-toolbar-groups" class="sim-toolbar-groups">
+          <div class="sim-toolbar-group" data-group="history">
+            <button type="button" id="sim-undo" title="Undo (Ctrl+Z)">Undo</button>
+            <button type="button" id="sim-redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
+            <button type="button" id="sim-reset" title="Discard all edits and go back to the last saved state">Reset</button>
+          </div>
+          <div class="sim-toolbar-group" data-group="checkpoints">
+            <select id="sim-checkpoint-select" title="Named checkpoints saved with this simulation">
+              <option value="">Checkpoints…</option>
+            </select>
+            <button type="button" id="sim-checkpoint-restore" title="Restore the selected checkpoint" disabled>Restore</button>
+            <button type="button" id="sim-checkpoint-save" title="Save the current circuit as a named checkpoint">Save checkpoint</button>
+            <button type="button" id="sim-checkpoint-delete" title="Delete the selected checkpoint" disabled>Delete checkpoint</button>
+          </div>
+          <div class="sim-toolbar-group" data-group="file">
+            <button type="button" id="sim-export" title="Download this circuit as a JSON file">Export</button>
+            <button type="button" id="sim-import" title="Load a circuit from a JSON file">Import</button>
+            <input type="file" id="sim-import-file" accept="application/json" hidden>
+          </div>
+          <div class="sim-toolbar-group" data-group="test">
+            <button type="button" id="sim-preview-power">Preview: power on</button>
+            <input type="search" id="sim-canvas-search" placeholder="Find on canvas…" title="Highlights any placed part whose label or type matches what you type">
+            <button type="button" id="sim-show-disconnected" title="Highlight every pin that has no wire attached">Show disconnected pins</button>
+            <button type="button" id="sim-show-ghost-wires" title="Draw every wire again on top of components, as a dashed outline -- reveals a wire routed underneath a breadboard or other opaque part">Show hidden wires</button>
+            <label class="sim-snap-label" title="How closely a dragged part snaps to an alignment grid. Doesn't affect parts that plug into a breadboard -- those always snap to the breadboard's own holes.">
+              Snap:
+              <select id="sim-grid-snap">
+                <option value="0">Off</option>
+                <option value="1">1px</option>
+                <option value="5" selected>5px</option>
+                <option value="10">10px</option>
+                <option value="20">20px</option>
+              </select>
+            </label>
+            <button type="button" id="sim-continuity-test" title="Click two pins to check whether they're electrically connected (wire-tied), like a multimeter's continuity mode">Continuity test</button>
+            <span id="sim-continuity-result" class="sim-continuity-result" aria-live="polite"></span>
+          </div>
+        </div>
+        <div class="sim-toolbar-group sim-toolbar-group-save">
+          <button type="button" id="save-simulation">Save</button>
+          <button type="button" id="save-sim-template-btn" title="Save this circuit as a reusable starting point">Save as template</button>
+        </div>
         <button id="close-simulation-builder">×</button>
       </header>
-      <div class="sim-poster-row">
+      <button type="button" id="sim-poster-toggle" class="sim-poster-toggle" aria-expanded="false" aria-controls="sim-poster-row">Poster / share image ▾</button>
+      <div id="sim-poster-row" class="sim-poster-row">
         <label for="sim-poster-url">Poster / share image (shown when this simulation's link is shared, and as a fallback before the circuit loads)</label>
         <input id="sim-poster-url" type="text" placeholder="https://... (blank = site default)" spellcheck="false">
         <button type="button" class="upload-trigger" data-target="#sim-poster-url">Upload image</button>
