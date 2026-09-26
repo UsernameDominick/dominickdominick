@@ -9643,8 +9643,23 @@ passed. Confirmed no leftover test data via a direct authenticated
 `GET /api/admin/songs` check after cleanup (both test songs were deleted
 through the real `DELETE` endpoint as part of the test).
 
-This was a small, well-scoped, self-contained item (no schema changes,
-no cross-file mirror-drift risk, admin-only) so it wasn't sent through
-a full adversarial critic round; the Playwright verification above
-directly proves both the UI wiring and the exact report content rather
-than relying on "no error thrown."
+Despite being small and self-contained, it was still handed to a critic
+agent for adversarial scoring: **9/10 — ships.** The critic traced every
+field's own live `input`/`change` listener (tempo, kit, waveform,
+visualization, theme, page-sync, master-volume) to confirm the report
+genuinely reflects unsaved in-progress edits rather than only what
+`Save` last persisted — the concern the summary handed to it explicitly
+flagged as worth verifying rather than assuming. Also confirmed the
+`master_volume` fallback for a pre-existing-field-less old song matches
+the exact same guard already used elsewhere in this file (no
+"NaN%"/"undefined%" risk), that melody-note access can't throw on a
+missing key since `openBuilder()` backfills every piano-roll note key on
+load, that a brand-new blank song produces a sane all-zero report with
+no crash, and that `URL.revokeObjectURL` fires with the same safe timing
+as the pre-existing `sim-export` pattern it was modeled on. One minor,
+explicitly non-blocking note: no length cap on the exported filename for
+a pathologically long song name — left alone since the existing
+`sim-export` handler this session's own code was modeled on has the
+exact same non-issue, so it isn't a regression.
+
+Item #339 is done: 1 critic round, 9/10 on the first pass.
