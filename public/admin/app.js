@@ -177,7 +177,20 @@
     const s = await api("/notifications-summary");
     const items = [
       s.backupFailed ? { label: "Last scheduled backup failed", action: () => openSettingsTab("backups") } : null,
-      s.brokenLinks ? { label: `${s.brokenLinks} broken link(s) found`, action: () => el("seo-dashboard-btn").click() } : null,
+      s.brokenLinks
+        ? {
+            label: `${s.brokenLinks} broken link(s) found`,
+            action: () => {
+              el("seo-dashboard-btn").click();
+              // Reports are collapsible cards now -- open the one this is about.
+              const card = el("scheduled-link-check-status").closest("details");
+              if (card) {
+                card.open = true;
+                setTimeout(() => card.scrollIntoView({ block: "start" }), 150);
+              }
+            },
+          }
+        : null,
       s.recentErrors ? { label: `${s.recentErrors} error(s) in the last 24h`, action: () => openSettingsTab("logs") } : null,
       s.recentFailedWebhooks ? { label: `${s.recentFailedWebhooks} failed webhook deliverie${s.recentFailedWebhooks === 1 ? "" : "s"} in the last 24h`, action: () => openSettingsTab("integrations") } : null,
     ].filter(Boolean);

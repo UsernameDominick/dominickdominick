@@ -3430,7 +3430,9 @@ kbd {
   align-items: center;
 }
 
-#new-simulation-btn {
+#new-simulation-btn,
+#new-song-btn,
+#new-scan-btn {
   align-self: flex-start;
   background: var(--accent);
   color: var(--on-accent);
@@ -5273,10 +5275,10 @@ kbd {
 
 .empty-trash-btn,
 .restore-all-trash-btn {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   text-transform: none;
   letter-spacing: normal;
-  padding: 3px 8px;
+  padding: 5px 10px;
   width: auto;
 }
 
@@ -5370,9 +5372,20 @@ kbd {
   color: var(--accent);
 }
 
+.redirect-row .delete-redirect {
+  color: var(--error-text);
+}
+
+.redirect-row button:hover:not(.danger) {
+  border-color: var(--accent);
+}
+
+/* Neutral by default -- this row is shared by Redirects, Trash and Topic
+   Pages, and "Restore"/"Usage" were rendering in the error red that was
+   only ever meant for the redirect Delete button. */
 .redirect-row button {
   background: transparent;
-  color: var(--error-text);
+  color: var(--text);
   border: 1px solid var(--border);
   border-radius: var(--control-radius);
   padding: 4px 10px;
@@ -5578,4 +5591,65 @@ kbd {
   #export-analytics-raw-btn {
     order: 2;
   }
+}
+
+/* Site Health: the overview (run everything) on top, each individual
+   report as a collapsible card with a secondary run button. */
+.health-overview .health-run-all {
+  align-self: flex-start;
+}
+
+.health-reports-label {
+  margin: 18px 0 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.health-report {
+  margin-bottom: 8px;
+}
+
+.health-report > .settings-hint {
+  margin-bottom: 10px;
+}
+
+.settings-body .health-report button:not(.danger) {
+  background: transparent;
+  color: var(--text);
+  border: var(--control-border-width) solid var(--border);
+  font-weight: 500;
+  padding: 6px 14px;
+  margin-right: 6px;
+}
+
+.settings-body .health-report button:not(.danger):hover {
+  border-color: var(--accent);
+}
+
+.health-report .link-check-results:empty {
+  display: none;
+}
+
+#site-health-summary:empty {
+  display: none;
+}
+
+/* .danger's global margin-top (meant for a stacked Delete button at the
+   bottom of a panel) pushed row-level destructive buttons out of line. */
+.redirect-row .danger,
+.trash-section-actions .danger {
+  margin-top: 0 !important;
+}
+
+.trash-section-actions button {
+  margin: 0 !important;
+  line-height: 1.2;
+  border-radius: var(--control-radius);
+}
+
+.redirect-row {
+  align-items: center;
 }

@@ -1576,41 +1576,58 @@
         <button id="close-seo-dashboard">×</button>
       </header>
       <div class="settings-body">
-        <h2>Overview</h2>
-        <label style="margin-bottom:0;">Runs the SEO, Accessibility, Link Checker, Orphan Pages, Content Health, and Content Integrity reports below all at once, merged into one severity-sorted list with a link to each affected page.</label>
-        <button type="button" id="run-site-health-btn">Run all checks</button>
-        <div id="site-health-summary"></div>
-        <div id="site-health-results" class="link-check-results"></div>
-        <h2>Sitemap Exclusions</h2>
-        <label style="margin-bottom:0;">Pages, articles, and projects currently excluded from sitemap.xml (still fully live at their URL — just not listed for search engines).</label>
-        <div id="sitemap-exclusions-list" class="link-check-results"></div>
-        <h2>SEO Report</h2>
-        <label style="margin-bottom:0;">Pages with no meta description, and images missing alt text, across the whole site.</label>
-        <button type="button" id="check-seo-btn">Run report</button>
-        <div id="seo-report-results" class="link-check-results"></div>
-        <h2>Accessibility Report</h2>
-        <label style="margin-bottom:0;">Scans "Raw HTML" blocks for common keyboard-nav/focus issues, gallery images for missing alt text, and every block's custom text/background color pair for low contrast, site-wide. Heuristic, not exhaustive.</label>
-        <button type="button" id="check-accessibility-btn">Run report</button>
-        <div id="accessibility-report-results" class="link-check-results"></div>
-        <h2>Link Checker</h2>
-        <label style="margin-bottom:0;">This also runs automatically once a day in the background, so a link going dead doesn't wait to be noticed here.</label>
-        <button type="button" id="run-scheduled-link-check-btn" title="Manually trigger the same background check that otherwise runs once a day, and show its summary below">Update daily check now</button>
-        <div id="scheduled-link-check-status"></div>
-        <label style="margin-bottom:0;">Scans every button/project-card link and article link for broken URLs and lists each one.</label>
-        <button type="button" id="check-links-btn" title="Scan every link right now and list each one with its status">Scan all links (full list)</button>
-        <div id="link-check-results" class="link-check-results"></div>
-        <h2>Orphan Pages</h2>
-        <label style="margin-bottom:0;">Published pages/articles/projects nothing on the site links to internally, and that aren't in the header nav either — reachable only by someone who already has the URL.</label>
-        <button type="button" id="check-orphans-btn">Find orphans</button>
-        <div id="orphan-content-results" class="link-check-results"></div>
-        <h2>Content Health</h2>
-        <label style="margin-bottom:0;">Pages with no real content, and published articles/projects nobody has touched in over a year.</label>
-        <button type="button" id="check-content-health-btn">Run check</button>
-        <div id="content-health-results" class="link-check-results"></div>
-        <h2>Content Integrity</h2>
-        <label style="margin-bottom:0;">Dangling references that don't break anything visibly at save time — a block pointing at a deleted simulation/scan/song, a project's "Related X" list still naming something that's gone, or a page nested under a deleted parent.</label>
-        <button type="button" id="check-content-integrity-btn">Run check</button>
-        <div id="content-integrity-results" class="link-check-results"></div>
+        <section class="settings-group health-overview">
+          <h2>Overview</h2>
+          <p class="settings-hint">Runs the SEO, Accessibility, Link Checker, Orphan Pages, Content Health, and Content Integrity reports below all at once, merged into one severity-sorted list with a link to each affected page.</p>
+          <button type="button" id="run-site-health-btn" class="health-run-all">Run all checks</button>
+          <div id="site-health-summary"></div>
+          <div id="site-health-results" class="link-check-results"></div>
+        </section>
+        <h3 class="health-reports-label">Individual reports</h3>
+        <details class="panel-section health-report">
+          <summary>Sitemap Exclusions</summary>
+          <p class="settings-hint">Pages, articles, and projects currently excluded from sitemap.xml (still fully live at their URL — just not listed for search engines).</p>
+          <div id="sitemap-exclusions-list" class="link-check-results"></div>
+        </details>
+        <details class="panel-section health-report">
+          <summary>SEO Report</summary>
+          <p class="settings-hint">Pages with no meta description, and images missing alt text, across the whole site.</p>
+          <button type="button" id="check-seo-btn">Run report</button>
+          <div id="seo-report-results" class="link-check-results"></div>
+        </details>
+        <details class="panel-section health-report">
+          <summary>Accessibility Report</summary>
+          <p class="settings-hint">Scans "Raw HTML" blocks for common keyboard-nav/focus issues, gallery images for missing alt text, and every block's custom text/background color pair for low contrast, site-wide. Heuristic, not exhaustive.</p>
+          <button type="button" id="check-accessibility-btn">Run report</button>
+          <div id="accessibility-report-results" class="link-check-results"></div>
+        </details>
+        <details class="panel-section health-report">
+          <summary>Link Checker</summary>
+          <p class="settings-hint">This also runs automatically once a day in the background, so a link going dead doesn't wait to be noticed here.</p>
+          <button type="button" id="run-scheduled-link-check-btn" title="Manually trigger the same background check that otherwise runs once a day, and show its summary below">Update daily check now</button>
+          <div id="scheduled-link-check-status"></div>
+          <p class="settings-hint">Scans every button/project-card link and article link for broken URLs and lists each one.</p>
+          <button type="button" id="check-links-btn" title="Scan every link right now and list each one with its status">Scan all links (full list)</button>
+          <div id="link-check-results" class="link-check-results"></div>
+        </details>
+        <details class="panel-section health-report">
+          <summary>Orphan Pages</summary>
+          <p class="settings-hint">Published pages/articles/projects nothing on the site links to internally, and that aren't in the header nav either — reachable only by someone who already has the URL.</p>
+          <button type="button" id="check-orphans-btn">Find orphans</button>
+          <div id="orphan-content-results" class="link-check-results"></div>
+        </details>
+        <details class="panel-section health-report">
+          <summary>Content Health</summary>
+          <p class="settings-hint">Pages with no real content, and published articles/projects nobody has touched in over a year.</p>
+          <button type="button" id="check-content-health-btn">Run check</button>
+          <div id="content-health-results" class="link-check-results"></div>
+        </details>
+        <details class="panel-section health-report">
+          <summary>Content Integrity</summary>
+          <p class="settings-hint">Dangling references that don't break anything visibly at save time — a block pointing at a deleted simulation/scan/song, a project's "Related X" list still naming something that's gone, or a page nested under a deleted parent.</p>
+          <button type="button" id="check-content-integrity-btn">Run check</button>
+          <div id="content-integrity-results" class="link-check-results"></div>
+        </details>
       </div>
     </div>
   </div>
