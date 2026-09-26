@@ -980,6 +980,56 @@
     URL.revokeObjectURL(url);
   });
 
+  // ---------- Generate waveform cover art ----------
+  // Renders the song's own already-existing offline waveform peaks
+  // (the same Engine.renderWaveformPeaks() used for the "waveform"
+  // visualization preview above) onto a fresh, higher-resolution
+  // 1200x630 canvas (a common social/cover-image aspect ratio) and
+  // uploads the result straight into the Media Library via the same
+  // adminUploadBlob() helper the Photo Editor's own "Save as new"
+  // already uses -- no new upload plumbing needed. Reads the theme's
+  // live --accent color off the already-rendered preview embed, exactly
+  // like drawWaveformPreview() above, rather than hardcoding a second
+  // copy of the four theme colors that could drift out of sync with
+  // public/style.css's own .song-theme-* definitions.
+  $("song-generate-cover-art").addEventListener("click", async () => {
+    const btn = $("song-generate-cover-art");
+    if (btn.disabled) return;
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Generating…";
+    try {
+      const peaks = await Engine.renderWaveformPeaks(songData, 80);
+      const w = 1200;
+      const h = 630;
+      const cvs = document.createElement("canvas");
+      cvs.width = w;
+      cvs.height = h;
+      const c2d = cvs.getContext("2d");
+      c2d.fillStyle = "#0c0a16"; // matches the site's own dark-theme --bg
+      c2d.fillRect(0, 0, w, h);
+      const accent = getComputedStyle($("song-preview-embed")).getPropertyValue("--accent").trim() || "#ff7a45";
+      const mid = h / 2;
+      const barW = w / peaks.length;
+      c2d.fillStyle = accent;
+      peaks.forEach((p, i) => {
+        const yTop = mid + p[1] * mid * 0.85; // 0.85, not 1, so the tallest peaks leave a small margin rather than touching the image edges
+        const yBot = mid + p[0] * mid * 0.85;
+        c2d.fillRect(i * barW, yTop, Math.max(1, barW - 2), Math.max(1, yBot - yTop));
+      });
+      const blob = await new Promise((resolve) => cvs.toBlob(resolve, "image/png"));
+      if (!blob) throw new Error("Canvas export failed");
+      await window.adminUploadBlob(blob, "song-covers");
+      if (window.refreshMediaLibrary) window.refreshMediaLibrary();
+      alert("Cover art generated and added to the Media Library (in the \"song-covers\" folder).");
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+  });
+
   // ---------- Snapshot mix ----------
   // Creates a brand-new, separate song row from the CURRENT in-memory
   // songData -- including any unsaved edits still in the builder, not

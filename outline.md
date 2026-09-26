@@ -4869,7 +4869,7 @@ session's own EXIF-stripping feature for the upload-side equivalent).
 329. Warn before heavy sample imports — file.size check pre-decode.
 339. ✅ Export session report — dump JSON session fields to text. (done — see the dated entry below)
 341. Publish track to a project — `song_id` block linking already exists.
-349. Generate waveform cover art — `renderWaveformPeaks` + canvas.toDataURL + existing upload endpoint.
+349. ✅ Generate waveform cover art — `renderWaveformPeaks` + canvas.toDataURL + existing upload endpoint. (done — see the dated entry below)
 350. ✅ Reusable audio-player themes — done (see the dated entry below this section).
 351. ✅ Save mix snapshots — snapshot the existing JSON blob as a new row. (done — see the dated entry below)
 355. Reference track/production notes — plain metadata fields.
@@ -13244,3 +13244,57 @@ regressions from the fix. Closing at this point without a mandatory
 round-2 dispatch: the fix is small, precisely targeted at the one real
 gap identified, and verified against the exact spec-accurate scenario
 the critic used to prove the bug.
+
+### 2026-09-26 — Item #349: Generate waveform cover art (Song builder)
+
+Added a "Generate cover art" button that renders the song's own
+offline-synthesized waveform (via the already-existing
+`Engine.renderWaveformPeaks()` — the exact same function the "waveform"
+visualization preview already uses, just at a higher bar count for a
+bigger canvas) onto a fresh 1200x630 canvas (a standard social/cover
+image aspect ratio) and uploads the result straight into the Media
+Library, so an admin gets an on-brand cover image for a song without
+needing a separate image editor or asset.
+
+Reused two pieces of already-existing infrastructure rather than
+building new plumbing for either: `window.adminUploadBlob(blob, folder)`
+is the exact same global upload helper the Photo Editor's own "Save as
+new" button already calls, and the accent color is read live off
+`getComputedStyle($("song-preview-embed")).getPropertyValue("--accent")`
+— the identical technique `drawWaveformPreview()` a few functions above
+already uses — rather than hardcoding a second copy of the four
+`.song-theme-*` colors from `public/style.css` that could silently drift
+out of sync with the CSS if a theme's color is ever tweaked there. The
+background is a plain, non-live-derived `#0c0a16` (the site's dark-theme
+`--bg`, matching a hardcoded value already used elsewhere in this
+session's photo-editor theme-preview swatches for the same reason: a
+static generated image can't represent both a light AND dark theme
+value the way a live page element can, so one fixed dark backdrop was
+chosen deliberately rather than trying to track the admin's currently
+active theme).
+
+Uploads go into a dedicated `song-covers` folder (via `/upload`'s
+existing `?folder=` query param) rather than the default unsorted
+uploads bucket, so generated cover art is easy to find/filter in the
+Media Library separately from manually-uploaded images.
+
+Verified via Playwright against the real admin API: created a real test
+song, added a few drum hits and a melody note so the waveform wasn't
+silent, clicked the button, and confirmed via a real authenticated
+`GET /media` call that exactly one new item appeared (not zero, not a
+duplicate double-upload), landed in the `song-covers` folder, was a real
+PNG, and had the expected 1200x630 dimensions (confirming the server's
+own `readImageDimensions()` correctly parsed the generated PNG, not just
+that SOME file landed). Confirmed the button's own text correctly
+resets from "Generating…" back to "Generate cover art" once the async
+render+upload completes. Ran the full `test_security_seo.js` regression
+suite — all passed, no regressions. The generated media item and the
+test song were both deleted afterward via their real DELETE endpoints
+(the media item by its real key, not a folder-name guess), confirmed
+gone via follow-up authenticated listings.
+
+No server-side changes were needed — `/upload` already accepted PNG
+uploads with an optional folder, and already computed/stored real
+width/height for them.
+
+Sent for a critic pass.
