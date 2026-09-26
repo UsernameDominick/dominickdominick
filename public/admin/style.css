@@ -3321,6 +3321,15 @@ kbd {
 .command-modal {
   align-items: flex-start;
   padding-top: 12vh;
+  /* Above .modal (z-index: 100), same pattern as .writing-focus-overlay --
+     Ctrl+K is wired at the document level with no modal-scoping guard, so
+     it's meant to work from inside any already-open modal (e.g. the Photo
+     Editor's own tool/action entries, added alongside this rule). Without
+     this, the command palette and this later-in-the-DOM modal would sit
+     at the same z-index, and DOM order alone would put whichever modal
+     comes later in index.html on top -- silently making the palette's
+     results unclickable underneath it. */
+  z-index: 110;
 }
 
 .command-modal-inner {

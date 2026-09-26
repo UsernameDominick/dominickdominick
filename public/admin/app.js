@@ -7244,6 +7244,57 @@
         },
       });
     });
+    // Photo Editor's own tools/actions -- only surfaced while that modal is
+    // actually open on top of this one, so the global palette isn't
+    // cluttered with irrelevant "Erase"/"Blur" entries the rest of the
+    // time. Ctrl+K still works while the photo editor is open (this
+    // listener is document-level, unscoped to any one modal), and
+    // closeCommandPalette() only ever hides its own modal, so the photo
+    // editor stays open underneath exactly as if the admin had clicked its
+    // button directly -- these entries are just a faster way to reach a
+    // button that's already there, not a new code path for any of them.
+    if (!el("photo-editor-modal").hidden) {
+      const peClick = (id) => () => {
+        closeCommandPalette();
+        el(id).click();
+      };
+      const peToolClick = (tool) => () => {
+        closeCommandPalette();
+        document.querySelector(`.pe-tool[data-tool="${tool}"]`).click();
+      };
+      actions.push(
+        { label: "Photo Editor: Undo", sub: "Ctrl+Z", run: peClick("pe-undo") },
+        { label: "Photo Editor: Redo", sub: "Ctrl+Shift+Z", run: peClick("pe-redo") },
+        { label: "Photo Editor: Reset to original", sub: "", run: peClick("pe-reset") },
+        { label: "Photo Editor: Compare with original", sub: "Press and hold", run: peClick("pe-compare") },
+        { label: "Photo Editor: Save named snapshot", sub: "", run: peClick("pe-save-snapshot") },
+        { label: "Photo Editor: Restore named snapshot", sub: "", run: peClick("pe-restore-snapshot") },
+        { label: "Photo Editor: Select / Crop tool", sub: "", run: peToolClick("select") },
+        { label: "Photo Editor: Apply crop", sub: "", run: peClick("pe-apply-crop") },
+        { label: "Photo Editor: Rotate left 90°", sub: "", run: peClick("pe-rotate-left") },
+        { label: "Photo Editor: Rotate right 90°", sub: "", run: peClick("pe-rotate-right") },
+        { label: "Photo Editor: Flip horizontal", sub: "", run: peClick("pe-flip-h") },
+        { label: "Photo Editor: Flip vertical", sub: "", run: peClick("pe-flip-v") },
+        { label: "Photo Editor: Rotate view (cosmetic only)", sub: "", run: peClick("pe-view-rotate") },
+        { label: "Photo Editor: Grayscale filter", sub: "", run: peClick("pe-filter-grayscale") },
+        { label: "Photo Editor: Sepia filter", sub: "", run: peClick("pe-filter-sepia") },
+        { label: "Photo Editor: Invert filter", sub: "", run: peClick("pe-filter-invert") },
+        { label: "Photo Editor: Add grain", sub: "", run: peClick("pe-filter-grain") },
+        { label: "Photo Editor: Erase brush", sub: "", run: peToolClick("erase") },
+        { label: "Photo Editor: Blur brush", sub: "", run: peToolClick("blur") },
+        { label: "Photo Editor: Pixelate brush", sub: "", run: peToolClick("pixelate") },
+        { label: "Photo Editor: Dodge brush (brighten)", sub: "", run: peToolClick("dodge") },
+        { label: "Photo Editor: Burn brush (darken)", sub: "", run: peToolClick("burn") },
+        { label: "Photo Editor: Eyedropper", sub: "", run: peToolClick("eyedropper") },
+        { label: "Photo Editor: Rectangle tool", sub: "", run: peToolClick("rect") },
+        { label: "Photo Editor: Circle tool", sub: "", run: peToolClick("circle") },
+        { label: "Photo Editor: Line tool", sub: "", run: peToolClick("line") },
+        { label: "Photo Editor: Arrow tool", sub: "", run: peToolClick("arrow") },
+        { label: "Photo Editor: Text tool", sub: "", run: peToolClick("text") },
+        { label: "Photo Editor: Save as new file", sub: "", run: peClick("pe-save-new") },
+        { label: "Photo Editor: Overwrite original", sub: "", run: peClick("pe-save-overwrite") }
+      );
+    }
     return actions;
   }
 

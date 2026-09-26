@@ -4763,7 +4763,7 @@ join, rather than building three separate systems.
 112. ✅ Independent corner-radius — done (see the dated entry below this section).
 129. ✅ Adjustable grain — random per-pixel noise injection. (done — see the dated entry below)
 139. ✅ Local vs external-upload indicator — the Photo Editor itself already covered this (pe-hint's "Editing a library image" vs "Editing an external image" text); extended the same idea to the page builder's own image-url fields (see the dated entry below this section).
-143. Searchable command palette — static command list + filter/keydown.
+143. ✅ Searchable command palette — static command list + filter/keydown. (done — see the dated entry below)
 146. ✅ Before/after compare — done (see the dated entry below this section).
 150. ✅ Status bar (dimensions/zoom) — done (see the dated entry below this section).
 158. ✅ Explain resource limits — done (see the dated entry below this section).
@@ -10421,3 +10421,66 @@ feature (Compare) that could have silently frozen the entire editor's
 history system indefinitely — both are now fixed with the same
 defense-in-depth convention this file's Compare handling already
 establishes.
+
+### Fifty-third item: #143, Photo Editor commands in the site-wide command palette
+
+- ✅ **Photo Editor's own tools/actions (~29 entries — Undo, Redo,
+  Reset, Compare, named snapshots, every filter and brush tool, every
+  shape/annotation tool, crop/rotate/flip, Save as new/Overwrite) are
+  now searchable through the admin's existing site-wide Ctrl+K command
+  palette**, conditionally surfaced only while the Photo Editor modal is
+  actually open — rather than building an entirely separate, duplicate
+  palette UI from scratch, this reuses the site's ALREADY-EXISTING
+  `quickActions()`/`command-modal`/keyboard-navigation infrastructure
+  (the same one that already handles page/article/project navigation
+  and the earlier "Where is this setting?" Site Settings search),
+  extending its action list with a conditional block gated on
+  `!el("photo-editor-modal").hidden`. Since `quickActions()` is rebuilt
+  fresh every time the palette opens, this needed no new state, no new
+  reset-on-close logic, and no new keyboard wiring at all — closing the
+  editor makes these entries disappear from the very next search
+  automatically, simply because the condition is re-evaluated each
+  time.
+
+While verifying this, discovered and fixed a real, previously-invisible
+**pre-existing bug** in the palette's own CSS: `#command-modal` and
+every other `.modal` (including `#photo-editor-modal`) share the exact
+same `z-index: 100`, with stacking falling back to DOM order for
+same-z-index siblings — and `#photo-editor-modal` is defined LATER in
+`index.html` than `#command-modal`. This meant the site-wide command
+palette was silently unusable via mouse click whenever opened on top of
+the Photo Editor (or, by the same mechanism, any other modal defined
+later in the DOM) — Ctrl+K's own document-level keydown listener has no
+modal-scoping guard, so it was always *intended* to work from inside
+any already-open modal, but the underlying stacking order quietly
+broke that for click-based selection specifically (keyboard-only
+arrow+Enter selection was unaffected, since it doesn't depend on
+pointer-event hit-testing). This wasn't a bug introduced by adding
+Photo Editor's entries — it's a latent gap that simply had nothing to
+expose it before, since no earlier feature had reason to open the
+command palette while another modal sat on top. Fixed using the exact
+same pattern this codebase already established for an identical
+problem (`.writing-focus-overlay`'s own `z-index: 110` with a comment
+explaining the same "needs to cover the modal it's opened from inside
+of" reasoning): gave `.command-modal` `z-index: 110`.
+
+Verified via Playwright: confirmed NO "Photo Editor: ..." entries
+appear in a Ctrl+K search before the editor is open, opened the editor
+for real, confirmed searching "dodge" surfaces "Photo Editor: Dodge
+brush (brighten)", clicked it, and confirmed the Dodge tool actually
+became the active tool (not just a UI list item) — this is the exact
+check that caught the z-index bug initially, since the click was
+silently intercepted by the photo-editor-modal's own DOM subtree before
+the fix. Confirmed the palette correctly closes after selecting an
+action while the Photo Editor stays open underneath (not accidentally
+closed too), confirmed searching "rotate right" and selecting it
+actually executes the real rotation (canvas width/height genuinely
+swapped, not just a label match), and confirmed closing the editor
+makes every "Photo Editor: ..." entry disappear from the next search
+again. Ran the full `test_security_seo.js` regression suite — all
+passed. Also spot-checked that the new z-index doesn't conflict with
+this codebase's existing z-index hierarchy (the undo-toast notification
+at `z-index: 200` still correctly renders above everything, including
+the command palette). No test data was created (only in-memory editor
+state on an existing library image, with the test rotation undone
+before the test ends).
