@@ -1140,7 +1140,7 @@ async function renderBlockInner(env, block, ctx) {
       return `<div class="changelog-list">${entries
         .map(
           (e) =>
-            `<div class="changelog-item">${e.date ? `<time datetime="${esc(e.date)}">${esc(e.date)}</time>` : ""}${
+            `<div class="changelog-item">${e.date ? `<time datetime="${esc(e.date)}">${esc(displayDate(e.date) || e.date)}</time>` : ""}${
               e.title ? `<h3>${esc(e.title)}</h3>` : ""
             }${e.description ? `<p>${esc(e.description)}</p>` : ""}</div>`
         )

@@ -2093,6 +2093,13 @@ hr {
   padding-bottom: 16px;
 }
 
+/* In a wide page block the excerpt stops at a reading measure, so the
+   divider under it should too -- otherwise each entry is a short column
+   of text above a line running the full width of the page. */
+.canvas:not(.article-canvas) .thought {
+  max-width: 72ch;
+}
+
 .thought-pinned {
   border-left: 2px solid var(--accent);
   padding-left: 12px;
