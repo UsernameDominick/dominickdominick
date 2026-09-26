@@ -59,6 +59,30 @@
   // keystrokes happened to produce (same reasoning as the article/project
   // autosave's own "only an existing draft" guard).
   let autosaveTimer = null;
+  // Bumped by every openBuilder() call and captured locally by both
+  // openBuilder() itself and autosaveSong() -- guards two separate races
+  // a critic pass found: (1) clicking Edit on song A then song B before
+  // A's GET resolves used to let whichever response arrived LAST win,
+  // overwriting the open form/songData with the wrong song's content
+  // regardless of which one the admin actually meant to open, and (2) an
+  // autosave PATCH already in flight when a different song is opened
+  // still correctly saves to the right song (its id/body are captured
+  // synchronously before the timer's callback awaits), but writing its
+  // "Saved"/"failed" status into #song-autosave-status *after* a new song
+  // is already showing there is misleading -- that status update is now
+  // suppressed instead.
+  let openGeneration = 0;
+  // Tracks whether there's an edit not yet confirmed saved -- separate
+  // from app.js's own `unsavedDirty` (a different IIFE/closure this
+  // script has no access to) and its beforeunload guard, so this file
+  // wires an equivalent guard of its own rather than leaving song edits
+  // as the one editor in this admin with no "are you sure" on tab close.
+  let songHasUnsavedChanges = false;
+  window.addEventListener("beforeunload", (e) => {
+    if (!songHasUnsavedChanges) return;
+    e.preventDefault();
+    e.returnValue = "";
+  });
   function setAutosaveStatus(text) {
     const el2 = $("song-autosave-status");
     if (el2) el2.textContent = text;
@@ -67,16 +91,23 @@
     if (!currentSongId) return;
     const name = $("song-name").value.trim();
     if (!name) return;
+    const gen = openGeneration;
+    const id = currentSongId;
+    const data = songData;
     try {
-      await window.adminApi(`/songs/${currentSongId}`, { method: "PATCH", body: JSON.stringify({ name, data: songData }) });
+      await window.adminApi(`/songs/${id}`, { method: "PATCH", body: JSON.stringify({ name, data }) });
+      if (gen !== openGeneration) return; // a different song opened while this PATCH was in flight
+      songHasUnsavedChanges = false;
       setAutosaveStatus("Saved " + new Date().toLocaleTimeString());
       if (window.refreshSongOptions) window.refreshSongOptions();
     } catch (err) {
+      if (gen !== openGeneration) return;
       setAutosaveStatus("Autosave failed: " + err.message);
     }
   }
   function scheduleAutosave() {
     if (!currentSongId) return;
+    songHasUnsavedChanges = true;
     setAutosaveStatus("Unsaved changes…");
     clearTimeout(autosaveTimer);
     autosaveTimer = setTimeout(autosaveSong, 2000);
@@ -448,9 +479,20 @@
     // overwriting B's row with A's data.
     clearTimeout(autosaveTimer);
     setAutosaveStatus("");
+    songHasUnsavedChanges = false;
+    // A second, independent race a critic pass found: clicking Edit on
+    // song A, then song B before A's own GET resolves, used to let
+    // whichever response came back LAST win, applying it to the form
+    // regardless of which song the admin actually meant to open --
+    // `currentSongId` would correctly end up as B, but the populated
+    // songData/name/tempo/etc. could silently be A's. This generation
+    // token is bumped on every call and checked right after the await;
+    // a superseded call bails out before touching anything.
+    const myGeneration = ++openGeneration;
     currentSongId = id;
     if (id) {
       const song = await window.adminApi(`/songs/${id}`);
+      if (myGeneration !== openGeneration) return;
       $("song-name").value = song.name;
       songData = song.data && song.data.tracks ? song.data : defaultSongData();
       // A song saved before the piano roll existed won't have `melody` at
@@ -505,6 +547,9 @@
         const res = await window.adminApi("/songs", { method: "POST", body: JSON.stringify({ name, data: songData }) });
         currentSongId = res.id;
       }
+      clearTimeout(autosaveTimer);
+      songHasUnsavedChanges = false;
+      setAutosaveStatus("Saved " + new Date().toLocaleTimeString());
       alert("Saved.");
       if (window.refreshSongOptions) window.refreshSongOptions();
     } catch (err) {

@@ -4878,6 +4878,17 @@ substantial new infra + security surface).
   end up reflecting a stale intermediate state rather than the latest
   edit. Needs a generation counter or abort/cancel-in-flight guard around
   whatever produces the waveform data.
+- **(found while shipping #321's autosave)** `PATCH /songs/:id` (and by
+  extension the manual Save button, unrelated to the autosave feature)
+  runs an unconditional `UPDATE ... WHERE id=?` with no existence check
+  and always returns `{ok:true}` — deleting a song's row (e.g. from the
+  songs list) while its builder happens to still be open, then editing a
+  field, shows a confident "Saved" with the edit silently discarded
+  server-side (zero rows affected). Same shape as a real fix would need:
+  check the D1 `.run()` result's `meta.changes` (or a `SELECT` first) and
+  return 404 if nothing was actually updated, then have both the manual
+  Save handler and `autosaveSong()` surface that as a real error instead
+  of a false "Saved."
 
 ### Simulations — Already done
 361 (native editable docs — the simulations table + builder). 371
@@ -5981,4 +5992,81 @@ findings from round 1 fixed and verified; round 2 found nothing new.
   than a human realistically would after a single toggle). Full
   regression suite green; test songs deleted and confirmed gone.
 
-Handed to a critic agent for scoring.
+Handed to a critic agent for scoring: **6/10**. One significant real bug,
+one minor real bug, one pre-existing (unrelated) real bug newly exposed
+by this feature, and one confirmed design-intent gap:
+
+1. **(Fixed, the most serious finding)** The generation-counter-shaped
+   fix I'd already built only guarded against a STALE AUTOSAVE TIMER
+   firing after a switch — it did nothing about two overlapping
+   `openBuilder()` calls themselves. Clicking Edit on song A, then song B
+   before A's GET resolved, meant whichever response came back LAST won
+   — regardless of which song the admin actually meant to open —
+   silently repopulating the form/`songData` with the wrong song's
+   content while `currentSongId` correctly pointed at the one actually
+   clicked last. The critic reproduced this live (delayed A's fetch via
+   route interception, clicked A then B ~50ms apart) and confirmed a
+   subsequent edit's autosave PATCH actually overwrote song B's row with
+   song A's name/tempo/kit/waveform — real, confirmed data corruption of
+   an unrelated song's saved content, not just the accepted "discard a
+   few seconds of the most recent edit" tradeoff. Fixed with an
+   `openGeneration` counter bumped on every `openBuilder()` call and
+   checked immediately after the await; a superseded call now bails out
+   before touching the form or `songData` at all.
+2. **(Fixed)** A narrower sibling of the same class: if an autosave PATCH
+   was already in flight (its 2s timer already fired) when the admin
+   opened a different song, the save itself still correctly targeted the
+   original song (its id/body were captured synchronously before the
+   await), but the eventual "Saved HH:MM:SS"/"Autosave failed" status
+   text still got written into `#song-autosave-status` for whatever song
+   was now open — a misleading status message, not data corruption.
+   Fixed by capturing the same generation token in `autosaveSong()` and
+   suppressing the status write (and the `refreshSongOptions()` call) if
+   a newer `openBuilder()` call has started since.
+3. **(Logged, not fixed — pre-existing, unrelated to this diff, but a
+   real gap this feature exposes in a new unattended way)** `PATCH
+   /songs/:id` has no existence check and always reports success even if
+   the row is already gone (e.g. deleted from the songs list while its
+   builder was still open) — the manual Save button already had this gap
+   too, autosave just means it can now happen silently in the background
+   with no admin action to notice a problem around. Added as a new
+   backlog item under "DAW/Audio" rather than fixed here, since it needs
+   a small server-side existence check shared by both save paths, not a
+   one-line change scoped to this feature.
+4. **(Fixed)** The commit's own description claimed this "mirrors the
+   article/project autosave," but never actually wired the equivalent of
+   `unsavedDirty`/the `beforeunload` warning — app.js's `unsavedDirty`
+   variable and its listener live in a different IIFE this file has no
+   access to, so closing the tab within the 2s debounce window after an
+   edit gave no warning at all, a real divergence from the feature's own
+   stated design intent (not one of the already-accepted tradeoffs).
+   Fixed by adding a separate `songHasUnsavedChanges` flag and this
+   file's own `beforeunload` listener (multiple listeners on the same
+   event coexist fine; the browser shows one dialog regardless of how
+   many set `preventDefault()`), set true on every schedule and false on
+   a successful autosave or manual save.
+5. Confirmed correct, not a bug: `transposeMelody()`'s confirm-cancel
+   path returns before both the mutation and `scheduleAutosave()`, so
+   canceling a destructive transpose never schedules a pointless
+   autosave. Closing the builder (not switching songs) without an
+   explicit save correctly lets the pending autosave complete in the
+   background against the right song, since nothing about the open
+   song's identity/data changes on close.
+
+Re-verified via Playwright: reproduced the critic's exact overlapping-
+open scenario (delay song A's fetch, click A then B before A resolves)
+and confirmed the form now correctly shows only B's data with no A
+leakage, and a subsequent edit's autosave correctly lands on B alone —
+song A's row verified completely untouched afterward. Reproduced the
+status-bleed scenario (schedule an autosave on A, immediately switch to
+B before the timer fires) and confirmed no stray status text appears for
+B. Verified the new `beforeunload` guard: blocked with `false` before any
+edit, `true` right after an edit and before the 2s autosave completes,
+back to `false` once it completes. Full regression suite green; test
+songs deleted and confirmed gone.
+
+Item #321 is done: 1 critic round, 6/10, every real finding fixed except
+the one explicitly pre-existing/unrelated gap (the fake-"Saved"-on-a-
+deleted-row bug), which is tracked in the backlog above rather than
+fixed inline since it needs a small shared server-side change, not a
+client-only one scoped to this feature.
