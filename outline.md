@@ -12243,14 +12243,56 @@ Re-verified via Playwright targeting the exact crash scenario: called
 `renderWaveformPeaks` 40 times in a row with humanize=100 and a kick hit
 on step 0 (the exact reproduction) — zero throws across all 40, versus
 the critic's ~50% failure rate pre-fix. Confirmed two renders of an
-identical humanize=100 song now differ only by float32-level rendering
-noise (~1.2e-7, the same order of magnitude as `OfflineAudioContext`'s
-own inherent non-bit-exact rendering floor for perfectly deterministic
-input) rather than the large, real, humanize-driven differences the
-critic measured before this fix — not a byte-exact match (that's not a
-meaningful bar given the engine's own float noise), but down at the
-engine's noise floor rather than showing real pattern-shape drift.
-Re-ran the full `test_song_humanize.js` suite (still confirms real,
+identical humanize=100 KICK-ONLY song now differ only by float32-level
+rendering noise (~1.2e-7, the same order of magnitude as
+`OfflineAudioContext`'s own inherent non-bit-exact rendering floor for
+perfectly deterministic input) rather than the large, real,
+humanize-driven differences the critic measured before this fix. Re-ran
+the full `test_song_humanize.js` suite (still confirms real,
 correctly-bounded jitter during actual live playback, which is
 untouched by this fix) and the full `test_security_seo.js` regression
 suite — both all-pass.
+
+Sent for a round-2 critic pass, which scored **8/10 — ship-worthy** and
+confirmed the crash fix at much higher volume (700 trials across
+humanize 25/50/75/100 × hit steps 0-3, zero throws) and confirmed live
+playback's real jitter is completely unaffected by the clamp (0 of 83
+real note starts during actual playback ever needed clamping, since live
+scheduling always starts well clear of the 15ms max jitter — the clamp
+only ever matters for the offline-preview edge case it was written for).
+It also caught a real overstatement in the paragraph above this one: the
+"differ only by float32-level noise" reproducibility claim is true ONLY
+for a kick-only song (pure oscillator synthesis, genuinely deterministic
+once humanize is zeroed). `snare`/`hihat`/`clap` all synthesize through a
+shared `noiseBuffer()` helper that calls `Math.random()` directly —
+completely unrelated to `humanize` and present since this file's
+original extraction, long before this feature — so any song using a
+noise-based drum (3 of the 4 tracks) still shows real, visible
+run-to-run preview differences (critic measured 0.17-0.20 on a ±1 scale,
+same magnitude with humanize AT ZERO too, proving it's not this
+feature's doing). Logging this correction here rather than silently
+editing the earlier paragraph, per this file's own "log every finding"
+convention — the fix above is real and correctly scoped to what it
+actually addresses (humanize's own contribution to preview instability),
+it just doesn't make every song's preview perfectly stable, since a
+second, older, unrelated source of randomness (drum noise synthesis)
+was never in this feature's scope to fix.
+
+- ☐ (new, logged, deliberately deferred, pre-existing/unrelated to this
+  feature) **`noiseBuffer()`'s drum-noise synthesis has no seeding**,
+  so any song using snare/hihat/clap gets a genuinely different waveform
+  preview on every render regardless of humanize — present since
+  `song-engine.js`'s original extraction, not introduced or worsened by
+  the humanize feature. A real fix would need either a deterministic/
+  seeded PRNG for noise generation during preview rendering specifically
+  (leaving live playback's genuine per-play randomness untouched), or
+  documenting that the waveform preview is a rough shape indicator, not
+  a stable thumbnail, for any noise-based track. Left open as its own
+  future item rather than folded into this one.
+
+Item #236 is done: 2 critic rounds (5/10 → 8/10, the second explicitly
+called "ship-worthy" despite the numeric score, with the one remaining
+point being the documentation-accuracy correction above, not a code
+defect). All test songs (including one crashed-test leftover, id 64)
+cleaned up via the real DELETE endpoint, confirmed via a follow-up GET
+showing zero songs remaining.
