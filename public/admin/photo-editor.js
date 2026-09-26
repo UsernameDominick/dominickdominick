@@ -897,6 +897,18 @@
   const AIRBRUSH_INTERVAL_MS = 150;
   let airbrushTimer = null;
   let airbrushPoint = null;
+  let airbrushPressure = 1;
+  // A critic pass found a real double-commit bug: after a tick commits and
+  // reseeds the mask with a fresh dot (so the NEXT tick has something to
+  // build on if the pointer is still perfectly stationary), that reseeded
+  // dot was ALSO being committed a second time by pointerup's own
+  // unconditional final commit moments later -- applying one extra
+  // full-strength dose at the release point beyond what elapsed dwell time
+  // actually justified. This flag tracks whether the mask's current
+  // contents are just that tick-reseeded dot (nothing new since) so
+  // pointerup can skip its own commit in exactly that case, while still
+  // committing normally if real movement happened after the last tick.
+  let airbrushJustCommitted = false;
 
   function airbrushMode() {
     return $("pe-airbrush-mode").checked;
@@ -904,18 +916,27 @@
 
   function airbrushTick() {
     if (!strokeActive || !airbrushPoint) return;
-    commitBrushStroke();
-    // Reset the mask to just the current point after each commit -- if
-    // this DIDN'T clear, a stroke that moved across a wide area would
-    // recomposite its entire accumulated path on every single tick,
-    // wildly over-building the parts painted earliest rather than
-    // building up proportionally to how long each spot was actually
-    // under the brush. Clearing means each tick only accounts for
-    // whatever's happened (movement, or none) since the LAST tick,
-    // exactly like a real airbrush's continuous-while-held behavior.
-    maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
-    lastPoint = null;
-    strokeTo(airbrushPoint);
+    try {
+      commitBrushStroke();
+      // Reset the mask to just the current point after each commit -- if
+      // this DIDN'T clear, a stroke that moved across a wide area would
+      // recomposite its entire accumulated path on every single tick,
+      // wildly over-building the parts painted earliest rather than
+      // building up proportionally to how long each spot was actually
+      // under the brush. Clearing means each tick only accounts for
+      // whatever's happened (movement, or none) since the LAST tick,
+      // exactly like a real airbrush's continuous-while-held behavior.
+      maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+      lastPoint = null;
+      strokeTo(airbrushPoint, airbrushPressure);
+      airbrushJustCommitted = true;
+    } catch (err) {
+      // A broken tick body must not keep firing silently forever against a
+      // possibly-corrupted canvas state -- stop the interval rather than
+      // repeat whatever just failed every 150ms with no visible sign
+      // anything is wrong.
+      stopAirbrushTimer();
+    }
   }
 
   function startAirbrushTimer() {
@@ -927,6 +948,17 @@
     if (airbrushTimer) clearInterval(airbrushTimer);
     airbrushTimer = null;
   }
+
+  // A critic pass found that unchecking "Airbrush" mid-hold had no effect
+  // at all -- the running interval never re-reads the checkbox, so the
+  // effect kept building even though the UI said it was off. Checking it
+  // ON mid-drag correctly has no effect until the NEXT stroke (a timer
+  // can only ever be started at pointerdown, matching how every other
+  // brush setting is captured at stroke-start), but turning it off
+  // should stop an already-running timer immediately.
+  $("pe-airbrush-mode").addEventListener("change", () => {
+    if (!airbrushMode()) stopAirbrushTimer();
+  });
 
   function ensureMask() {
     if (maskCanvas && maskCanvas.width === canvas.width && maskCanvas.height === canvas.height) return;
@@ -1311,6 +1343,8 @@
       lastPoint = null;
       strokeTo(p, pressureMultiplier(e));
       airbrushPoint = p;
+      airbrushPressure = pressureMultiplier(e);
+      airbrushJustCommitted = false;
       if (airbrushMode()) startAirbrushTimer();
     } else if (currentTool === "text") {
       placeText(p);
@@ -1332,12 +1366,50 @@
       if (dragging && strokeActive) {
         strokeTo(p, pressureMultiplier(e));
         airbrushPoint = p;
+        airbrushPressure = pressureMultiplier(e);
+        // Real movement invalidates the "nothing's changed since the last
+        // tick" assumption pointerup relies on to skip a redundant final
+        // commit -- this genuinely new content needs its own commit.
+        airbrushJustCommitted = false;
       }
       drawBrushCursor(p);
     } else if (SHAPE_TOOLS.includes(currentTool) && dragging && dragStart) {
       drawAnnotatePreview(dragStart.x, dragStart.y, p.x, p.y);
     }
   });
+
+  // Shared by pointerup and pointercancel -- a critic pass found the
+  // latter had NO handler at all, which for most tools only left
+  // dragging/strokeActive stuck (annoying but inert). For airbrush
+  // specifically, a missed release (an interrupted touch, an OS gesture)
+  // would leave its setInterval running forever, silently repainting the
+  // saved canvas every 150ms with zero visual indication -- a real,
+  // continuous-mutation risk this feature didn't have before. Finalizing
+  // identically on both events closes that gap.
+  function finalizeBrushStroke() {
+    stopAirbrushTimer();
+    if (strokeActive) {
+      // Skip the redundant final commit when the mask's only content is
+      // the dot an airbrush tick JUST committed and reseeded moments ago
+      // (see airbrushJustCommitted's own comment) -- committing again here
+      // would apply one extra full-strength dose beyond what the actual
+      // elapsed dwell time earned. Any real movement since that last tick
+      // clears the flag, so this only skips the true no-op case.
+      if (!airbrushJustCommitted) commitBrushStroke();
+      // A critic pass found the same baseSnapshot-staleness gap here as
+      // rotate/flip/filters/presets/crop-apply already had fixed: a
+      // multi-touch adjust-slider drag held open while a brush stroke on
+      // another finger commits would otherwise resume against the
+      // pre-stroke pixels on its next tick, erasing the stroke. Only
+      // invalidates the adjust-drag specifically (not the full
+      // cancelActiveDrag()), since this branch must not also clear an
+      // unrelated in-progress crop selection on a different tool.
+      invalidateOpenAdjustDrag();
+    }
+    strokeActive = false;
+    lastPoint = null;
+    clearOverlay();
+  }
 
   overlay.addEventListener("pointerup", (e) => {
     if (!dragging) return;
@@ -1347,28 +1419,27 @@
     if (currentTool === "select") {
       $("pe-apply-crop").hidden = !cropRect;
     } else if (BRUSH_TOOLS.includes(currentTool)) {
-      stopAirbrushTimer();
-      if (strokeActive) {
-        commitBrushStroke();
-        // A critic pass found the same baseSnapshot-staleness gap here as
-        // rotate/flip/filters/presets/crop-apply already had fixed: a
-        // multi-touch adjust-slider drag held open while a brush stroke on
-        // another finger commits would otherwise resume against the
-        // pre-stroke pixels on its next tick, erasing the stroke. Only
-        // invalidates the adjust-drag specifically (not the full
-        // cancelActiveDrag()), since this branch must not also clear an
-        // unrelated in-progress crop selection on a different tool.
-        invalidateOpenAdjustDrag();
-      }
-      strokeActive = false;
-      lastPoint = null;
-      clearOverlay();
+      finalizeBrushStroke();
     } else if (SHAPE_TOOLS.includes(currentTool) && dragStart) {
       pushUndo();
       commitAnnotation(dragStart.x, dragStart.y, p.x, p.y);
       invalidateOpenAdjustDrag();
       clearOverlay();
     }
+    dragStart = null;
+  });
+
+  // No pointercancel handling existed anywhere for the main canvas's own
+  // tools before this (only the unrelated Compare button had one) -- an
+  // interrupted brush stroke already left dragging/strokeActive stuck
+  // true, a pre-existing gap this doesn't attempt to fully solve for
+  // every tool. What airbrush specifically needs, and gets here: its
+  // timer stopped so it can't keep silently repainting forever after a
+  // stroke that never received a real pointerup.
+  overlay.addEventListener("pointercancel", () => {
+    if (!dragging) return;
+    dragging = false;
+    if (BRUSH_TOOLS.includes(currentTool)) finalizeBrushStroke();
     dragStart = null;
   });
 
@@ -1386,10 +1457,19 @@
   $("pe-compare").addEventListener("pointercancel", endCompare);
   // Backstop for a lost pointerup (e.g. alt-tabbing away, or switching tabs,
   // with the pointer left stationary over the button) -- neither of those
-  // reliably fires pointerleave/pointercancel on their own.
-  window.addEventListener("blur", endCompare);
+  // reliably fires pointerleave/pointercancel on their own. Also stops a
+  // running airbrush timer for the same reason: alt-tabbing away mid-hold
+  // would otherwise leave it silently repainting the canvas in the
+  // background with no way to notice until switching back.
+  window.addEventListener("blur", () => {
+    endCompare();
+    stopAirbrushTimer();
+  });
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden) endCompare();
+    if (document.hidden) {
+      endCompare();
+      stopAirbrushTimer();
+    }
   });
   // Keyboard equivalent (Tab to the button, hold Space or Enter) -- the
   // pointer-only listeners above left this button, uniquely among the

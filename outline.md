@@ -10906,3 +10906,83 @@ pointerdown/pointermove/pointerup handlers — both still pass identically.
 Ran the full `test_security_seo.js` regression suite — all passed. No
 test data was created (only in-memory canvas pixels of an existing
 library image, undone before the test ends).
+
+Handed to a critic agent for scoring: **5/10**, below the ship
+threshold. Round-1 findings:
+
+1. **(Fixed, major, real bug)** A deterministic double-commit of the
+   final dot on release, not a rare race: `airbrushTick()` committed
+   the current mask, then cleared and immediately re-seeded it with a
+   fresh copy of the same dot for the next tick — but `pointerup`'s own
+   unconditional final `commitBrushStroke()` then applied that SAME
+   re-seeded dot a second time, on every single airbrush stroke longer
+   than one tick interval that ended without further movement. This
+   directly contradicted the feature's own stated goal of building up
+   proportionally to dwell time — every stroke got one extra
+   full-strength dose at the release point beyond what elapsed time
+   actually justified, most visible on Dodge/Burn. Fixed with a new
+   `airbrushJustCommitted` flag: set `true` right after a tick's own
+   commit+reseed, cleared by any REAL pointer movement (which
+   genuinely adds new, not-yet-committed content), and checked by a new
+   shared `finalizeBrushStroke()` helper to skip the redundant final
+   commit only in the true no-op case.
+2. **(Fixed, real UX inconsistency)** Unchecking the "Airbrush"
+   checkbox mid-hold had no effect at all — `airbrushTick()` never
+   re-read the checkbox, so the effect kept silently building even
+   though the UI said it was off, until release. Fixed with a `change`
+   listener on the checkbox that calls `stopAirbrushTimer()` immediately
+   when unchecked. Checking it ON mid-drag correctly continues to have
+   no effect until the *next* stroke (a timer can only start at
+   `pointerdown`, matching how every other brush setting is captured at
+   stroke-start) — the critic explicitly confirmed that half is
+   reasonable/expected, not a gap, so it was left unchanged.
+3. **(Fixed, real robustness gap, new blast radius from this feature
+   specifically)** No `pointercancel` handling existed anywhere for the
+   main canvas's tools (only the unrelated Compare button had one).
+   Before this feature, a missed release (an interrupted touch, an OS
+   gesture) only left `dragging`/`strokeActive` stuck true — annoying
+   but inert. With airbrush, the exact same missed release would leave
+   its `setInterval` running *forever*, silently repainting the saved
+   canvas every 150ms with zero visual indication until the tab
+   reloads — a genuinely new, unbounded continuous-mutation risk this
+   file hadn't had before, in a codebase that has already paid down
+   exactly this class of bug once for Compare's own stuck-active state.
+   Fixed by extracting the shared brush-finalization logic into
+   `finalizeBrushStroke()` and adding a `pointercancel` listener on the
+   overlay that calls it (stopping the timer and finalizing state) —
+   scoped specifically to closing the NEW risk airbrush introduced,
+   without attempting a full unscoped fix of the pre-existing (and
+   comparatively inert) `dragging`/`strokeActive` gap for every other
+   tool. Also extended the existing `window.blur`/`visibilitychange`
+   backstops (which already call `endCompare()` for the same reason) to
+   additionally call `stopAirbrushTimer()`, so alt-tabbing away mid-hold
+   can't leave it silently repainting in the background either.
+
+Two minor/optional findings were also fixed alongside the three
+must-fix items, since they were cheap and directly adjacent: pressure
+was previously ignored on airbrush ticks (each tick's redraw always
+used full brush size regardless of the pen pressure the stroke started
+with) — now tracks the most recent real `pressureMultiplier()` in an
+`airbrushPressure` variable, updated on every genuine `pointerdown`/
+`pointermove`, and reused by `airbrushTick()`'s own redraw. And
+`airbrushTick()`'s body is now wrapped in a `try`/`catch` that stops the
+timer on any error, so a future bug in the committed code path can't
+keep firing silently forever against a possibly-corrupted canvas state.
+
+Re-verified via Playwright with tests targeting each fix precisely:
+confirmed holding for exactly one tick interval (180ms) then releasing
+produces a delta matching a SINGLE ordinary click almost exactly (ratio
+1.0, not ~2x), directly disproving the double-commit; confirmed holding
+for one tick and then genuinely MOVING before release still correctly
+commits that new movement (proving the fix only skips the true no-op
+case, not real content); confirmed unchecking Airbrush mid-hold and
+waiting 500ms produces zero further pixel change while still held,
+where it previously would have kept building; confirmed dispatching a
+real `pointercancel` event mid-hold stops the timer immediately, with
+zero further pixel drift over the following 600ms where a leaked
+interval would previously have kept silently repainting. Re-ran the
+full pre-existing brush test suite (opacity, cursor-opacity, pen
+pressure, dodge/burn) to confirm none of this touching the shared
+pointer handlers introduced any regression — all still pass identically.
+Ran the full `test_security_seo.js` regression suite — all passed. Sent
+for a round-2 critic pass.
