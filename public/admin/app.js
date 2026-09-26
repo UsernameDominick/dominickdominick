@@ -5616,6 +5616,36 @@
     }
   });
 
+  // ---------- New blank image ----------
+  // Starts an image editing session from scratch instead of editing an
+  // existing upload -- a distinct entry point from "Upload files…" since
+  // there's no file to select, just a size to pick first.
+  const PE_NEW_DOC_PRESETS = {
+    "1920x1080": [1920, 1080],
+    "1080x1080": [1080, 1080],
+    "1200x630": [1200, 630],
+    "1600x900": [1600, 900],
+    "800x600": [800, 600],
+  };
+  el("media-new-blank-btn").addEventListener("click", () => {
+    el("media-modal").hidden = true;
+    el("pe-new-doc-modal").hidden = false;
+  });
+  closeModalOnClick("close-pe-new-doc", "pe-new-doc-modal");
+  el("pe-new-doc-preset").addEventListener("change", () => {
+    const preset = PE_NEW_DOC_PRESETS[el("pe-new-doc-preset").value];
+    if (!preset) return; // "Custom…" -- leave whatever the admin already typed alone
+    el("pe-new-doc-width").value = preset[0];
+    el("pe-new-doc-height").value = preset[1];
+  });
+  el("pe-new-doc-create").addEventListener("click", () => {
+    const w = Number(el("pe-new-doc-width").value);
+    const h = Number(el("pe-new-doc-height").value);
+    if (!w || !h) return alert("Enter a valid width and height first.");
+    el("pe-new-doc-modal").hidden = true;
+    if (window.PhotoEditor) window.PhotoEditor.openBlank(w, h);
+  });
+
   el("media-bulk-delete-btn").addEventListener("click", async () => {
     if (!selectedMediaKeys.size) return;
     const ok = await confirmTyped(`Permanently delete ${selectedMediaKeys.size} file(s)? This can't be undone.`, { title: "Delete files" });

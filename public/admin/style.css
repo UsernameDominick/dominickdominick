@@ -2265,6 +2265,36 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   font-size: 0.85rem;
 }
 
+.pe-new-doc-modal-inner {
+  max-width: 420px;
+}
+
+.pe-new-doc-modal-inner label {
+  display: block;
+  margin-top: 10px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.pe-new-doc-modal-inner select,
+.pe-new-doc-modal-inner input {
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-top: 6px;
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+
+.pe-new-doc-hint {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin: 12px 0;
+}
+
 .media-info-preview {
   display: block;
   max-width: 100%;

@@ -640,6 +640,7 @@
         <div class="media-toolbar-group">
           <select id="media-upload-folder" title="New uploads go into this folder"><option value="">No folder</option></select>
           <button type="button" id="media-upload-btn">Upload files…</button>
+          <button type="button" id="media-new-blank-btn" title="Start a new image from scratch in the Photo Editor, instead of editing an existing upload">New blank image…</button>
         </div>
         <div class="media-toolbar-group">
           <label class="media-unused-filter" title="Selects every file currently shown by the filters above, not the whole library"><input type="checkbox" id="media-select-all"> Select all shown</label>
@@ -651,6 +652,29 @@
         </div>
       </div>
       <div id="media-grid" class="media-grid"></div>
+    </div>
+  </div>
+
+  <div id="pe-new-doc-modal" class="modal" hidden>
+    <div class="modal-inner pe-new-doc-modal-inner">
+      <header>
+        <h1>New blank image</h1>
+        <button id="close-pe-new-doc">×</button>
+      </header>
+      <label>Size
+        <select id="pe-new-doc-preset">
+          <option value="custom">Custom…</option>
+          <option value="1920x1080">1920 × 1080 (widescreen / video frame)</option>
+          <option value="1080x1080">1080 × 1080 (square / social post)</option>
+          <option value="1200x630">1200 × 630 (social share image)</option>
+          <option value="1600x900">1600 × 900 (16:9)</option>
+          <option value="800x600">800 × 600</option>
+        </select>
+      </label>
+      <label>Width (px) <input type="number" id="pe-new-doc-width" min="1" max="2000" value="1200"></label>
+      <label>Height (px) <input type="number" id="pe-new-doc-height" min="1" max="2000" value="630"></label>
+      <p class="pe-new-doc-hint">Starts fully transparent -- there's nothing to "overwrite" yet, so this always saves as a new file.</p>
+      <button type="button" id="pe-new-doc-create">Create</button>
     </div>
   </div>
 

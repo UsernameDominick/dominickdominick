@@ -1766,6 +1766,50 @@
     if (!modal.hidden) fitCanvasToViewport();
   });
 
+  // Shared by both entry points below: everything that has to reset for
+  // ANY brand-new editing session, regardless of whether the starting
+  // pixels came from a loaded image or a blank transparent canvas.
+  // Factored out rather than duplicated so a future reset-on-open fix
+  // (there have been several this session -- named snapshots, brush
+  // presets, view rotation) only ever needs to happen in one place.
+  function initEditorSession(w, h, drawContent, hint) {
+    canvas.width = w;
+    canvas.height = h;
+    ctx.clearRect(0, 0, w, h);
+    drawContent();
+    syncOverlaySize();
+    undoStack = [];
+    redoStack = [];
+    updateHistoryButtons();
+    namedSnapshots = [];
+    renderSnapshotSelect();
+    originalSnapshot = snapshotCanvas();
+    cropRect = null;
+    baseSnapshot = null;
+    lastAdjust = { brightness: 0, contrast: 0, saturate: 0 };
+    $("pe-brightness").value = 0;
+    $("pe-contrast").value = 0;
+    $("pe-saturate").value = 0;
+    $("pe-apply-preset").value = "";
+    $("pe-apply-brush-preset").value = "";
+    $("pe-crop-ratio").value = "free";
+    $("pe-rect-radius").value = 0;
+    $("pe-text-font").value = "sans-serif";
+    viewRotation = 0;
+    applyViewRotation();
+    bgPreviewSelect.value = "checkerboard";
+    applyBgPreview("checkerboard");
+    loadPhotoPresets();
+    loadBrushPresets();
+    $("pe-hint").textContent = hint;
+    setTool("select");
+    $("pe-export-format").value = "image/png";
+    $("pe-export-quality").value = 85;
+    updateQualityVisibility();
+    modal.hidden = false;
+    requestAnimationFrame(fitCanvasToViewport);
+  }
+
   window.PhotoEditor = {
     open(url, key) {
       originalKey = key || null;
@@ -1780,46 +1824,32 @@
           w = Math.round(w * scale);
           h = Math.round(h * scale);
         }
-        canvas.width = w;
-        canvas.height = h;
-        ctx.clearRect(0, 0, w, h);
-        ctx.drawImage(img, 0, 0, w, h);
-        syncOverlaySize();
-        undoStack = [];
-        redoStack = [];
-        updateHistoryButtons();
-        namedSnapshots = [];
-        renderSnapshotSelect();
-        originalSnapshot = snapshotCanvas();
-        cropRect = null;
-        baseSnapshot = null;
-        lastAdjust = { brightness: 0, contrast: 0, saturate: 0 };
-        $("pe-brightness").value = 0;
-        $("pe-contrast").value = 0;
-        $("pe-saturate").value = 0;
-        $("pe-apply-preset").value = "";
-        $("pe-apply-brush-preset").value = "";
-        $("pe-crop-ratio").value = "free";
-        $("pe-rect-radius").value = 0;
-        $("pe-text-font").value = "sans-serif";
-        viewRotation = 0;
-        applyViewRotation();
-        bgPreviewSelect.value = "checkerboard";
-        applyBgPreview("checkerboard");
-        loadPhotoPresets();
-        loadBrushPresets();
-        $("pe-hint").textContent = originalKey
-          ? "Editing a library image — overwrite updates it everywhere it's used."
-          : "Editing an external image — only \"Save as new\" is available.";
-        setTool("select");
-        $("pe-export-format").value = "image/png";
-        $("pe-export-quality").value = 85;
-        updateQualityVisibility();
-        modal.hidden = false;
-        requestAnimationFrame(fitCanvasToViewport);
+        initEditorSession(
+          w,
+          h,
+          () => ctx.drawImage(img, 0, 0, w, h),
+          originalKey
+            ? "Editing a library image — overwrite updates it everywhere it's used."
+            : "Editing an external image — only \"Save as new\" is available."
+        );
       };
       img.onerror = () => alert("Couldn't load that image for editing (it may be from another site that blocks this).");
       img.src = url;
+    },
+    // A brand-new, fully transparent canvas -- no source image at all, so
+    // there's no "original" to compare against or overwrite. originalKey
+    // stays null (same as the external-image case), which already
+    // correctly hides the Overwrite option and shows only "Save as new".
+    openBlank(width, height) {
+      originalKey = null;
+      const w = Math.max(1, Math.min(MAX_DIMENSION, Math.round(width) || 1200));
+      const h = Math.max(1, Math.min(MAX_DIMENSION, Math.round(height) || 630));
+      initEditorSession(
+        w,
+        h,
+        () => {}, // clearRect above already leaves it transparent -- nothing to draw
+        "New blank image — nothing to overwrite yet, so only \"Save as new\" is available."
+      );
     },
   };
 })();

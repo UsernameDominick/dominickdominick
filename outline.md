@@ -4733,8 +4733,8 @@ join, rather than building three separate systems.
   no automation-trigger engine.
 
 ### Photo Editor — Easy
-2. Blank document creation — new modal + canvas init, same pattern as open().
-3. Document presets — static size list feeding #2.
+2. ✅ Blank document creation — new modal + canvas init, same pattern as open(). (done — see the dated entry below, shipped together with #3)
+3. ✅ Document presets — static size list feeding #2. (done — see the dated entry below, shipped together with #2)
 5. Canvas resizing independent of image — extend crop logic to allow canvas-only resize.
 6. ✅ Image resizing with aspect lock — ctx.drawImage scale + lock checkbox. (done — see the dated entry below)
 8. ✅ Canvas-view rotation — CSS transform on stack, no pixel change. (done — see the dated entry below)
@@ -11151,3 +11151,71 @@ edge that doesn't affect the correctness of what actually gets applied,
 left as-is. Final score: **9/10 — ships.**
 
 Item #6 is done: 2 critic rounds, 8/10 → 9/10.
+
+### Sixtieth item: #2/#3, Photo Editor blank document creation with presets
+
+- ✅ **Blank document creation** — new modal + canvas init, same pattern
+  as `open()`. Shipped as a new "New blank image…" button in the Media
+  Library modal's upload toolbar, which opens a small picker modal
+  (`#pe-new-doc-modal`) and hands off to a new
+  `window.PhotoEditor.openBlank(width, height)` entry point.
+- ✅ **Document presets** — static size list feeding #2. A `<select>` in
+  the picker modal offers five common sizes (1920×1080 widescreen,
+  1080×1080 square, 1200×630 social share, 1600×900, 800×600) plus
+  "Custom…", which fills the width/height number fields on change and
+  otherwise leaves whatever the admin already typed alone.
+
+Implemented both together since #3 has no purpose without #2 to feed.
+The main design decision was how `openBlank()` should relate to the
+existing `open()` method, which already had ~30 lines of session-reset
+logic (undo/redo stacks, named snapshots, brush/crop/text control
+defaults, view rotation, background preview, hint text, tool selection,
+export settings) that a from-scratch blank canvas needs exactly as much
+as an opened image does. Rather than duplicate that block or leave
+`openBlank()` with a subtly incomplete reset, extracted it into a shared
+`initEditorSession(w, h, drawContent, hint)` helper taking a
+content-drawing callback (so `open()` can draw the loaded `<img>` while
+`openBlank()` draws nothing — the `canvas.width`/`height` reassignment
+already leaves it transparent) and the hint text to show, and rewrote
+both `open()` and the new `openBlank()` as thin wrappers around it. This
+also means every one of this session's several past reset-on-open fixes
+(named snapshots, brush presets, view rotation) automatically covers
+`openBlank()` too, since there's only one place that logic lives now.
+
+The other notable decision was `originalKey`: `openBlank()` sets it to
+`null`, deliberately reusing the exact same value the "editing an
+external image" case already uses. Read the pre-existing
+`pe-save-overwrite` click handler directly to confirm this produces
+correct behavior with zero new code — it already does
+`if (!originalKey) { alert("This image wasn't opened from the Media
+Library..."); return; }`, so a blank document correctly refuses
+"Overwrite" (there's nothing to overwrite) and only "Save as new" works,
+matching the feature's actual semantics without a single new
+conditional. `openBlank()`'s own width/height parameters are clamped to
+`[1, MAX_DIMENSION]` (2000) client-side, the same convention every other
+user-facing dimension input in this editor (resize, and the on-open
+downscale) already follows.
+
+Verified via a from-scratch Playwright test
+(`test_pe_new_blank.js`) against the real admin UI and real upload API:
+confirmed clicking "New blank image…" closes the Media Library modal and
+opens the picker; confirmed selecting the "1080×1080" preset fills both
+number fields correctly; confirmed clicking "Create" closes the picker
+and opens the Photo Editor with a canvas at exactly the chosen
+dimensions; confirmed the canvas starts genuinely transparent (sampled
+pixel alpha = 0, not just visually blank); confirmed the hint text
+correctly describes the new-blank-document case ("New blank image —
+nothing to overwrite yet, so only \"Save as new\" is available.");
+confirmed clicking "Overwrite" shows the exact same pre-existing
+"nothing to overwrite" alert used by the external-image case, proving
+the `originalKey` guard-reuse claim rather than assuming it; drew a real
+200×200 red rectangle onto the blank canvas and clicked "Save as new",
+then made a genuine authenticated `GET /api/admin/media?type=image`
+request afterward to confirm a real file was actually uploaded (not just
+that no error was thrown); and confirmed zero page errors throughout.
+Cleaned up the uploaded test image via a real `DELETE
+/api/admin/media/:key` call, then double-checked via a direct curl
+against the same endpoint that no leftover test file remained. Re-ran
+the item #6 resize test suite to confirm touching `photo-editor.js`
+introduced no regression, and ran the full `test_security_seo.js`
+regression suite — all passed.
