@@ -25,6 +25,7 @@
       kit: "acoustic",
       visualization: "bars",
       page_sync: false,
+      master_volume: 1,
       tracks: TRACKS.reduce((acc, t) => {
         acc[t] = new Array(STEPS).fill(false);
         return acc;
@@ -245,6 +246,11 @@
   });
   $("song-waveform").addEventListener("change", () => {
     songData.melody.waveform = $("song-waveform").value;
+    refreshWaveformPreview();
+    scheduleAutosave();
+  });
+  $("song-master-volume").addEventListener("input", () => {
+    songData.master_volume = Number($("song-master-volume").value) / 100;
     refreshWaveformPreview();
     scheduleAutosave();
   });
@@ -521,6 +527,7 @@
     $("song-waveform").value = songData.melody.waveform || "sine";
     $("song-visualization").value = songData.visualization || "bars";
     $("song-page-sync").checked = !!songData.page_sync;
+    $("song-master-volume").value = Math.round((typeof songData.master_volume === "number" ? songData.master_volume : 1) * 100);
     $("song-preview-name").textContent = $("song-name").value || "Song name";
     // songData was just reassigned to a new object — the player has to be
     // rebuilt against it, since createPlayer captured the old reference.
@@ -548,6 +555,7 @@
     songData.melody.waveform = $("song-waveform").value;
     songData.visualization = $("song-visualization").value;
     songData.page_sync = $("song-page-sync").checked;
+    songData.master_volume = Number($("song-master-volume").value) / 100;
     try {
       if (currentSongId) {
         await window.adminApi(`/songs/${currentSongId}`, { method: "PATCH", body: JSON.stringify({ name, data: songData }) });

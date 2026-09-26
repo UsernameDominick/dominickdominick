@@ -31,6 +31,24 @@ window.SongEngine = (function () {
     return buf;
   }
 
+  // ---------- Master bus ----------
+  // One shared GainNode per AudioContext that every voice routes through
+  // instead of ctx.destination directly, so a single master-volume control
+  // affects drums + melody together. Keyed by ctx (not a module-level
+  // singleton) since the admin builder and public embed each own their own
+  // AudioContext, and an OfflineAudioContext used for waveform rendering
+  // needs its own gain node too.
+  const masterGains = new WeakMap();
+  function getMasterGain(ctx) {
+    let gain = masterGains.get(ctx);
+    if (!gain) {
+      gain = ctx.createGain();
+      gain.connect(ctx.destination);
+      masterGains.set(ctx, gain);
+    }
+    return gain;
+  }
+
   const KIT_PARAMS = {
     acoustic: { kickFreq: 150, kickDecay: 0.35, snareTone: 200, snareDecay: 0.18, hihatDecay: 0.06, clapDecay: 0.12 },
     electronic: { kickFreq: 90, kickDecay: 0.25, snareTone: 320, snareDecay: 0.12, hihatDecay: 0.04, clapDecay: 0.08 },
@@ -46,7 +64,7 @@ window.SongEngine = (function () {
     osc.frequency.exponentialRampToValueAtTime(p.kickFreq * 0.5, time + p.kickDecay);
     gain.gain.setValueAtTime(1, time);
     gain.gain.exponentialRampToValueAtTime(0.001, time + p.kickDecay);
-    osc.connect(gain).connect(ctx.destination);
+    osc.connect(gain).connect(getMasterGain(ctx));
     osc.start(time);
     osc.stop(time + p.kickDecay + 0.05);
   }
@@ -61,7 +79,7 @@ window.SongEngine = (function () {
     const noiseGain = ctx.createGain();
     noiseGain.gain.setValueAtTime(0.7, time);
     noiseGain.gain.exponentialRampToValueAtTime(0.001, time + p.snareDecay);
-    noise.connect(noiseFilter).connect(noiseGain).connect(ctx.destination);
+    noise.connect(noiseFilter).connect(noiseGain).connect(getMasterGain(ctx));
     noise.start(time);
 
     const osc = ctx.createOscillator();
@@ -70,7 +88,7 @@ window.SongEngine = (function () {
     osc.frequency.value = p.snareTone;
     oscGain.gain.setValueAtTime(0.5, time);
     oscGain.gain.exponentialRampToValueAtTime(0.001, time + p.snareDecay * 0.8);
-    osc.connect(oscGain).connect(ctx.destination);
+    osc.connect(oscGain).connect(getMasterGain(ctx));
     osc.start(time);
     osc.stop(time + p.snareDecay + 0.05);
   }
@@ -85,7 +103,7 @@ window.SongEngine = (function () {
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(0.4, time);
     gain.gain.exponentialRampToValueAtTime(0.001, time + p.hihatDecay);
-    noise.connect(filter).connect(gain).connect(ctx.destination);
+    noise.connect(filter).connect(gain).connect(getMasterGain(ctx));
     noise.start(time);
   }
 
@@ -102,7 +120,7 @@ window.SongEngine = (function () {
       const gain = ctx.createGain();
       gain.gain.setValueAtTime(0.5, time + offset);
       gain.gain.exponentialRampToValueAtTime(0.001, time + offset + p.clapDecay);
-      noise.connect(filter).connect(gain).connect(ctx.destination);
+      noise.connect(filter).connect(gain).connect(getMasterGain(ctx));
       noise.start(time + offset);
     });
   }
@@ -116,7 +134,7 @@ window.SongEngine = (function () {
     osc.frequency.value = freq;
     gain.gain.setValueAtTime(0.25, time);
     gain.gain.exponentialRampToValueAtTime(0.001, time + duration * 0.9);
-    osc.connect(gain).connect(ctx.destination);
+    osc.connect(gain).connect(getMasterGain(ctx));
     osc.start(time);
     osc.stop(time + duration);
   }
@@ -126,6 +144,11 @@ window.SongEngine = (function () {
   }
 
   function scheduleStep(ctx, songData, step, time) {
+    // Read fresh every step, same as tempo/kit below, so a live volume-
+    // slider drag while a song is already playing takes effect on the next
+    // scheduled step without needing a separate "set master volume" call.
+    const vol = songData.master_volume;
+    getMasterGain(ctx).gain.value = typeof vol === "number" ? Math.max(0, Math.min(1, vol)) : 1;
     const kit = songData.kit || "acoustic";
     if (songData.tracks) {
       Object.keys(songData.tracks).forEach((track) => {
