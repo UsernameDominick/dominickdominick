@@ -259,7 +259,13 @@
     refreshWaveformPreview();
     scheduleAutosave();
   });
+  // Bumped on every manual edit of the volume slider -- lets the async
+  // normalize scan below detect "the admin changed the volume by hand
+  // while my offline render was still in flight" and back off rather than
+  // clobbering a deliberate manual adjustment with a stale computed one.
+  let volumeInputGeneration = 0;
   $("song-master-volume").addEventListener("input", () => {
+    volumeInputGeneration++;
     songData.master_volume = Number($("song-master-volume").value) / 100;
     // Apply immediately rather than waiting for scheduleStep's next pass —
     // otherwise dragging the slider while playback is stopped (or before
@@ -287,20 +293,43 @@
     const originalText = btn.textContent;
     btn.disabled = true;
     btn.textContent = "Scanning…";
+    // Captured *before* the async render -- a critic pass found that
+    // without these, finishing the scan after the admin had already
+    // switched to a different song (openGeneration, the same guard
+    // openBuilder itself uses) or manually dragged the volume slider
+    // (volumeInputGeneration, above) would silently overwrite the wrong
+    // song's master_volume, or clobber a deliberate manual adjustment,
+    // with this scan's now-stale result.
+    const myOpenGeneration = openGeneration;
+    const myVolumeGeneration = volumeInputGeneration;
     try {
       const peaks = await Engine.renderWaveformPeaks(songData, 400);
+      if (myOpenGeneration !== openGeneration || myVolumeGeneration !== volumeInputGeneration) return;
       const peakAmp = Math.max(0.0001, ...peaks.flatMap((p) => [Math.abs(p[0]), Math.abs(p[1])]));
       const TARGET_PEAK = 0.98; // a hair under full scale, not 1.0 exactly, for a small safety margin
-      const newVolume = Math.min(1, TARGET_PEAK / peakAmp);
+      // Round down (not to nearest) to a whole percent, and use that SAME
+      // rounded value everywhere -- for the slider display, the applied
+      // live gain, and the persisted songData.master_volume -- rather than
+      // storing full float precision while only the display was rounded.
+      // A critic pass found that mismatch meant a later explicit Save
+      // (which recomputes master_volume from the now-rounded slider) could
+      // silently disagree with what autosave had already persisted, and
+      // rounding to *nearest* instead of down could push the stored volume
+      // above the level this scan actually proved safe against clipping.
+      const newVolumePercent = Math.floor(Math.min(1, TARGET_PEAK / peakAmp) * 100);
+      const newVolume = newVolumePercent / 100;
       // No pushHistory() here -- the Song builder has no undo/redo stack at
       // all (a pre-existing gap logged separately in outline.md, unlike
       // the Photo Editor and simulation builder), so nothing else in this
-      // file pushes one either; this stays consistent with that.
+      // file pushes one either.
       songData.master_volume = newVolume;
-      $("song-master-volume").value = Math.round(newVolume * 100);
+      $("song-master-volume").value = newVolumePercent;
       Engine.setMasterVolume(getAudioCtx(), newVolume);
       scheduleAutosave();
-      alert(`Peak was ${Math.round(peakAmp * 100)}% of full scale. Master volume set to ${Math.round(newVolume * 100)}% to avoid clipping.`);
+      const unsavedNote = currentSongId ? "" : " (Save the song to keep this.)";
+      alert(`Peak was ${Math.round(peakAmp * 100)}% of full scale. Master volume set to ${newVolumePercent}% to avoid clipping.${unsavedNote}`);
+    } catch (err) {
+      alert("Couldn't scan the song's peak level: " + err.message);
     } finally {
       btn.disabled = false;
       btn.textContent = originalText;
