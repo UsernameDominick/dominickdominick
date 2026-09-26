@@ -13298,3 +13298,42 @@ uploads with an optional folder, and already computed/stored real
 width/height for them.
 
 Sent for a critic pass.
+
+Critic round 1 (score 9/10, no fix needed): stress-tested the two
+likeliest race conditions directly rather than taking the code at face
+value. Double-click: `btn.disabled = true` runs synchronously as the
+very first statement before the first `await`, and dispatching two
+back-to-back click events (forcing the worst case where both are
+already queued before either handler runs) produced exactly one dialog
+and exactly one media upload — confirmed non-issue. Song-switch mid
+render: since `songData` is captured by reference at the synchronous
+call site of `Engine.renderWaveformPeaks(songData, 80)` before the
+`await` yields, and songs are switched by wholesale reassigning the
+module-level `songData` variable rather than mutating it in place,
+clicking "Generate cover art" on a busy song and immediately switching
+to a silent song before the render resolved was verified (by fetching
+the resulting PNG back and sampling real pixel data across its width)
+to still produce the ORIGINAL busy song's waveform shape, not a flat
+line — confirmed non-issue, no stale-closure bug. Silent/empty-song
+edge case verified correct by code inspection: the peaks math's
+`Math.max(1, yBot - yTop)` guarantees at least a 1px bar even when a
+bucket's peak is exactly zero, so a brand-new silent song still produces
+a valid non-corrupt image rather than throwing. Confirmed the
+`--accent` CSS variable is populated identically across all four
+visualization modes (bars/waveform/pulse/none), meaning the hardcoded
+`"#ff7a45"` fallback is realistically dead code in normal operation but
+is itself written correctly (a valid hex value) if it ever did engage.
+Verified the uploaded PNG round-trips with correct magic bytes and
+correct 1200x630 dimensions when fetched back from `/media/<key>` and
+decoded into a real `<img>`/canvas. Confirmed the `song-covers` folder
+tag is a first-class value in the same `folder` column and filter UI
+every other Media Library folder uses, not a special case. Ran the
+shipped `test_song_cover_art.js` and the full `test_security_seo.js`
+suite — all passed. Two purely informational, non-blocking notes (not
+fixed, not worth fixing): `stripImageMetadata()` needlessly re-decodes
+and re-encodes an already-clean canvas-generated PNG before upload
+(harmless, a few wasted CPU cycles, not a defect); and closing the song
+builder mid-render still lets the completion `alert()` fire against the
+admin page afterward, matching the same alert-based pattern already
+used by the sibling `song-export-report` button. Closing at 9/10, no
+fix needed.
