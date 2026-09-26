@@ -1153,118 +1153,130 @@
         <button id="close-photo-editor">×</button>
       </header>
       <div class="pe-body">
-        <div class="pe-toolbar">
-          <div class="pe-tool-group">
-            <button type="button" class="pe-tool active" data-tool="select">Select / Crop</button>
-            <select id="pe-crop-ratio" title="Constrain the crop selection to a fixed aspect ratio">
-              <option value="free">Free</option>
-              <option value="1:1">1:1</option>
-              <option value="4:3">4:3</option>
-              <option value="3:4">3:4</option>
-              <option value="3:2">3:2</option>
-              <option value="2:3">2:3</option>
-              <option value="16:9">16:9</option>
-              <option value="9:16">9:16</option>
-            </select>
-            <button type="button" id="pe-apply-crop" hidden>Apply Crop</button>
+        <div class="pe-workspace">
+          <div class="pe-toolbar">
+            <div class="pe-tool-group">
+              <span class="pe-group-label">Crop</span>
+              <button type="button" class="pe-tool active" data-tool="select">Select / Crop</button>
+              <select id="pe-crop-ratio" title="Constrain the crop selection to a fixed aspect ratio">
+                <option value="free">Free</option>
+                <option value="1:1">1:1</option>
+                <option value="4:3">4:3</option>
+                <option value="3:4">3:4</option>
+                <option value="3:2">3:2</option>
+                <option value="2:3">2:3</option>
+                <option value="16:9">16:9</option>
+                <option value="9:16">9:16</option>
+              </select>
+              <button type="button" id="pe-apply-crop" hidden>Apply Crop</button>
+            </div>
+            <div class="pe-tool-group">
+              <span class="pe-group-label">Rotate &amp; flip</span>
+              <button type="button" id="pe-rotate-left" title="Rotate left">⟲ 90°</button>
+              <button type="button" id="pe-rotate-right" title="Rotate right">⟳ 90°</button>
+              <button type="button" id="pe-flip-h" title="Flip horizontal">⇋</button>
+              <button type="button" id="pe-flip-v" title="Flip vertical">⇵</button>
+            </div>
+            <div class="pe-tool-group">
+              <span class="pe-group-label">Resize image</span>
+              <label>W <input type="number" id="pe-resize-width" min="1" max="2000" title="New image width in pixels"></label>
+              <label>H <input type="number" id="pe-resize-height" min="1" max="2000" title="New image height in pixels"></label>
+              <label title="Keep width and height proportional as you change one of them">Lock ratio <input type="checkbox" id="pe-resize-lock" checked></label>
+              <button type="button" id="pe-apply-resize" title="Scale the actual image pixels to the size above -- unlike Crop, this doesn't cut anything off, it stretches/shrinks the whole image">Resize image</button>
+            </div>
+            <div class="pe-tool-group">
+              <span class="pe-group-label">Canvas size</span>
+              <label>Canvas W <input type="number" id="pe-canvas-width" min="1" max="2000" title="New canvas width in pixels -- doesn't scale the image content, just the canvas around it"></label>
+              <label>Canvas H <input type="number" id="pe-canvas-height" min="1" max="2000" title="New canvas height in pixels -- doesn't scale the image content, just the canvas around it"></label>
+              <select id="pe-canvas-anchor" title="Which side the existing image content stays anchored to as the canvas grows or shrinks">
+                <option value="top-left">↖ Top-left</option>
+                <option value="top-center">↑ Top-center</option>
+                <option value="top-right">↗ Top-right</option>
+                <option value="middle-left">← Middle-left</option>
+                <option value="center" selected>• Center</option>
+                <option value="middle-right">→ Middle-right</option>
+                <option value="bottom-left">↙ Bottom-left</option>
+                <option value="bottom-center">↓ Bottom-center</option>
+                <option value="bottom-right">↘ Bottom-right</option>
+              </select>
+              <button type="button" id="pe-apply-canvas-resize" title="Resize the canvas itself without scaling the image -- growing adds transparent space, shrinking crops away edges, both anchored to the side picked above">Resize canvas</button>
+            </div>
+            <div class="pe-tool-group pe-adjust-group">
+              <span class="pe-group-label">Adjust</span>
+              <label>Brightness <input type="range" id="pe-brightness" min="-100" max="100" value="0"></label>
+              <label>Contrast <input type="range" id="pe-contrast" min="-100" max="100" value="0"></label>
+              <label>Saturation <input type="range" id="pe-saturate" min="-100" max="100" value="0"></label>
+            </div>
+            <div class="pe-tool-group">
+              <span class="pe-group-label">Adjust presets</span>
+              <select id="pe-apply-preset" title="Apply a saved brightness/contrast/saturation preset">
+                <option value="">Apply preset…</option>
+              </select>
+              <button type="button" id="pe-save-preset" title="Save the current brightness/contrast/saturation as a named preset">Save preset</button>
+              <button type="button" id="pe-delete-preset" title="Delete the selected preset">Delete preset</button>
+            </div>
+            <div class="pe-tool-group">
+              <span class="pe-group-label">Filters</span>
+              <button type="button" id="pe-filter-grayscale">Grayscale</button>
+              <button type="button" id="pe-filter-sepia">Sepia</button>
+              <button type="button" id="pe-filter-invert">Invert</button>
+              <label title="How strong the applied grain looks -- higher is grainier">Grain <input type="range" id="pe-grain-amount" min="1" max="50" value="15"></label>
+              <button type="button" id="pe-filter-grain" title="Add film-style random noise across the whole image, using the amount set above">Add grain</button>
+            </div>
+            <div class="pe-tool-group">
+              <span class="pe-group-label">Brush</span>
+              <button type="button" class="pe-tool" data-tool="erase">Erase</button>
+              <button type="button" class="pe-tool" data-tool="blur">Blur</button>
+              <button type="button" class="pe-tool" data-tool="pixelate">Pixelate</button>
+              <button type="button" class="pe-tool" data-tool="dodge" title="Brighten where you paint">Dodge</button>
+              <button type="button" class="pe-tool" data-tool="burn" title="Darken where you paint">Burn</button>
+              <label>Brush <input type="range" id="pe-brush-size" min="5" max="150" value="30"></label>
+              <label title="How strongly each stroke applies -- lower it to build an effect up gradually over several passes instead of all at once">Opacity <input type="range" id="pe-brush-opacity" min="1" max="100" value="100"></label>
+              <label title="While ON, holding the pointer still keeps building the effect up over time -- like a real airbrush -- instead of only applying where you move">Airbrush <input type="checkbox" id="pe-airbrush-mode"></label>
+              <select id="pe-apply-brush-preset" title="Apply a saved brush tool/size/opacity combo">
+                <option value="">Apply brush preset…</option>
+              </select>
+              <button type="button" id="pe-save-brush-preset" title="Save the current brush tool, size, and opacity as a named preset">Save brush preset</button>
+              <button type="button" id="pe-delete-brush-preset" title="Delete the selected brush preset">Delete brush preset</button>
+            </div>
+            <div class="pe-tool-group">
+              <span class="pe-group-label">Draw &amp; annotate</span>
+              <button type="button" class="pe-tool" data-tool="rect" title="Rectangle">▭</button>
+              <button type="button" class="pe-tool" data-tool="circle" title="Circle">◯</button>
+              <button type="button" class="pe-tool" data-tool="line" title="Line">╱</button>
+              <button type="button" class="pe-tool" data-tool="arrow" title="Arrow">↗</button>
+              <button type="button" class="pe-tool" data-tool="text" title="Text">Text</button>
+              <button type="button" class="pe-tool" data-tool="eyedropper" title="Pick a color from the image">💧</button>
+              <input type="color" id="pe-annotate-color" value="#ff7a45" title="Annotation color">
+              <label>Size <input type="range" id="pe-annotate-size" min="1" max="20" value="4"></label>
+              <label id="pe-rect-radius-label" hidden>Corner radius <input type="range" id="pe-rect-radius" min="0" max="100" value="0"></label>
+              <select id="pe-text-font" title="Font for the Text tool" hidden>
+                <option value="sans-serif">Sans-serif</option>
+                <option value="custom">Site's custom font</option>
+              </select>
+              <select id="pe-apply-text-style" title="Apply a saved font/color/size combo for the Text tool" hidden>
+                <option value="">Apply text style…</option>
+              </select>
+              <button type="button" id="pe-save-text-style" title="Save the current font/color/size as a reusable text style" hidden>Save text style</button>
+              <button type="button" id="pe-delete-text-style" title="Delete the text style currently selected above" hidden>Delete text style</button>
+            </div>
+            <div class="pe-tool-group">
+              <span class="pe-group-label">History</span>
+              <button type="button" id="pe-undo" title="Undo (Ctrl+Z)">Undo</button>
+              <button type="button" id="pe-redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
+              <button type="button" id="pe-reset">Reset</button>
+              <button type="button" id="pe-compare" title="Press and hold to see the original">Compare</button>
+              <button type="button" id="pe-save-snapshot" title="Save the current state as a named snapshot you can jump straight back to later, unlike the linear Undo/Redo history">📌 Save snapshot</button>
+              <select id="pe-snapshot-select" title="Named snapshots saved this editing session" disabled><option value="">No snapshots yet</option></select>
+              <button type="button" id="pe-restore-snapshot" title="Jump back to the selected named snapshot (your current state stays undoable afterward)">Restore</button>
+              <button type="button" id="pe-delete-snapshot" title="Delete the selected named snapshot">Delete</button>
+            </div>
           </div>
-          <div class="pe-tool-group">
-            <button type="button" id="pe-rotate-left" title="Rotate left">⟲ 90°</button>
-            <button type="button" id="pe-rotate-right" title="Rotate right">⟳ 90°</button>
-            <button type="button" id="pe-flip-h" title="Flip horizontal">⇋</button>
-            <button type="button" id="pe-flip-v" title="Flip vertical">⇵</button>
-          </div>
-          <div class="pe-tool-group">
-            <label>W <input type="number" id="pe-resize-width" min="1" max="2000" title="New image width in pixels"></label>
-            <label>H <input type="number" id="pe-resize-height" min="1" max="2000" title="New image height in pixels"></label>
-            <label title="Keep width and height proportional as you change one of them">Lock ratio <input type="checkbox" id="pe-resize-lock" checked></label>
-            <button type="button" id="pe-apply-resize" title="Scale the actual image pixels to the size above -- unlike Crop, this doesn't cut anything off, it stretches/shrinks the whole image">Resize image</button>
-          </div>
-          <div class="pe-tool-group">
-            <label>Canvas W <input type="number" id="pe-canvas-width" min="1" max="2000" title="New canvas width in pixels -- doesn't scale the image content, just the canvas around it"></label>
-            <label>Canvas H <input type="number" id="pe-canvas-height" min="1" max="2000" title="New canvas height in pixels -- doesn't scale the image content, just the canvas around it"></label>
-            <select id="pe-canvas-anchor" title="Which side the existing image content stays anchored to as the canvas grows or shrinks">
-              <option value="top-left">↖ Top-left</option>
-              <option value="top-center">↑ Top-center</option>
-              <option value="top-right">↗ Top-right</option>
-              <option value="middle-left">← Middle-left</option>
-              <option value="center" selected>• Center</option>
-              <option value="middle-right">→ Middle-right</option>
-              <option value="bottom-left">↙ Bottom-left</option>
-              <option value="bottom-center">↓ Bottom-center</option>
-              <option value="bottom-right">↘ Bottom-right</option>
-            </select>
-            <button type="button" id="pe-apply-canvas-resize" title="Resize the canvas itself without scaling the image -- growing adds transparent space, shrinking crops away edges, both anchored to the side picked above">Resize canvas</button>
-          </div>
-          <div class="pe-tool-group pe-adjust-group">
-            <label>Brightness <input type="range" id="pe-brightness" min="-100" max="100" value="0"></label>
-            <label>Contrast <input type="range" id="pe-contrast" min="-100" max="100" value="0"></label>
-            <label>Saturation <input type="range" id="pe-saturate" min="-100" max="100" value="0"></label>
-          </div>
-          <div class="pe-tool-group">
-            <select id="pe-apply-preset" title="Apply a saved brightness/contrast/saturation preset">
-              <option value="">Apply preset…</option>
-            </select>
-            <button type="button" id="pe-save-preset" title="Save the current brightness/contrast/saturation as a named preset">Save preset</button>
-            <button type="button" id="pe-delete-preset" title="Delete the selected preset">Delete preset</button>
-          </div>
-          <div class="pe-tool-group">
-            <button type="button" id="pe-filter-grayscale">Grayscale</button>
-            <button type="button" id="pe-filter-sepia">Sepia</button>
-            <button type="button" id="pe-filter-invert">Invert</button>
-            <label title="How strong the applied grain looks -- higher is grainier">Grain <input type="range" id="pe-grain-amount" min="1" max="50" value="15"></label>
-            <button type="button" id="pe-filter-grain" title="Add film-style random noise across the whole image, using the amount set above">Add grain</button>
-          </div>
-          <div class="pe-tool-group">
-            <button type="button" class="pe-tool" data-tool="erase">Erase</button>
-            <button type="button" class="pe-tool" data-tool="blur">Blur</button>
-            <button type="button" class="pe-tool" data-tool="pixelate">Pixelate</button>
-            <button type="button" class="pe-tool" data-tool="dodge" title="Brighten where you paint">Dodge</button>
-            <button type="button" class="pe-tool" data-tool="burn" title="Darken where you paint">Burn</button>
-            <label>Brush <input type="range" id="pe-brush-size" min="5" max="150" value="30"></label>
-            <label title="How strongly each stroke applies -- lower it to build an effect up gradually over several passes instead of all at once">Opacity <input type="range" id="pe-brush-opacity" min="1" max="100" value="100"></label>
-            <label title="While ON, holding the pointer still keeps building the effect up over time -- like a real airbrush -- instead of only applying where you move">Airbrush <input type="checkbox" id="pe-airbrush-mode"></label>
-            <select id="pe-apply-brush-preset" title="Apply a saved brush tool/size/opacity combo">
-              <option value="">Apply brush preset…</option>
-            </select>
-            <button type="button" id="pe-save-brush-preset" title="Save the current brush tool, size, and opacity as a named preset">Save brush preset</button>
-            <button type="button" id="pe-delete-brush-preset" title="Delete the selected brush preset">Delete brush preset</button>
-          </div>
-          <div class="pe-tool-group">
-            <button type="button" class="pe-tool" data-tool="rect" title="Rectangle">▭</button>
-            <button type="button" class="pe-tool" data-tool="circle" title="Circle">◯</button>
-            <button type="button" class="pe-tool" data-tool="line" title="Line">╱</button>
-            <button type="button" class="pe-tool" data-tool="arrow" title="Arrow">↗</button>
-            <button type="button" class="pe-tool" data-tool="text" title="Text">Text</button>
-            <button type="button" class="pe-tool" data-tool="eyedropper" title="Pick a color from the image">💧</button>
-            <input type="color" id="pe-annotate-color" value="#ff7a45" title="Annotation color">
-            <label>Size <input type="range" id="pe-annotate-size" min="1" max="20" value="4"></label>
-            <label id="pe-rect-radius-label" hidden>Corner radius <input type="range" id="pe-rect-radius" min="0" max="100" value="0"></label>
-            <select id="pe-text-font" title="Font for the Text tool" hidden>
-              <option value="sans-serif">Sans-serif</option>
-              <option value="custom">Site's custom font</option>
-            </select>
-            <select id="pe-apply-text-style" title="Apply a saved font/color/size combo for the Text tool" hidden>
-              <option value="">Apply text style…</option>
-            </select>
-            <button type="button" id="pe-save-text-style" title="Save the current font/color/size as a reusable text style" hidden>Save text style</button>
-            <button type="button" id="pe-delete-text-style" title="Delete the text style currently selected above" hidden>Delete text style</button>
-          </div>
-          <div class="pe-tool-group">
-            <button type="button" id="pe-undo" title="Undo (Ctrl+Z)">Undo</button>
-            <button type="button" id="pe-redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
-            <button type="button" id="pe-reset">Reset</button>
-            <button type="button" id="pe-compare" title="Press and hold to see the original">Compare</button>
-            <button type="button" id="pe-save-snapshot" title="Save the current state as a named snapshot you can jump straight back to later, unlike the linear Undo/Redo history">📌 Save snapshot</button>
-            <select id="pe-snapshot-select" title="Named snapshots saved this editing session" disabled><option value="">No snapshots yet</option></select>
-            <button type="button" id="pe-restore-snapshot" title="Jump back to the selected named snapshot (your current state stays undoable afterward)">Restore</button>
-            <button type="button" id="pe-delete-snapshot" title="Delete the selected named snapshot">Delete</button>
-          </div>
-        </div>
-        <div id="pe-canvas-wrap" class="pe-canvas-wrap pe-bg-checkerboard">
-          <div id="pe-canvas-stack" class="pe-canvas-stack">
-            <canvas id="pe-canvas"></canvas>
-            <canvas id="pe-overlay"></canvas>
+          <div id="pe-canvas-wrap" class="pe-canvas-wrap pe-bg-checkerboard">
+            <div id="pe-canvas-stack" class="pe-canvas-stack">
+              <canvas id="pe-canvas"></canvas>
+              <canvas id="pe-overlay"></canvas>
+            </div>
           </div>
         </div>
         <div class="pe-actions">

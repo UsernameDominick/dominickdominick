@@ -5785,3 +5785,105 @@ kbd {
     flex: 1 1 auto;
   }
 }
+
+/* Photo editor: tools in a labeled side rail beside the canvas (the usual
+   image-editor layout, and the same labeled-panel look as the simulation
+   and song builders) instead of ten unlabeled groups wrapping across
+   five rows above it. */
+.pe-workspace {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pe-group-label {
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.pe-actions label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.pe-actions #pe-view-rotate {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-weight: 500;
+}
+
+@media (min-width: 861px) {
+  .pe-workspace {
+    display: grid;
+    grid-template-columns: 300px minmax(0, 1fr);
+  }
+  .pe-toolbar {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 18px;
+    padding: 20px 14px;
+    overflow-y: auto;
+    border-bottom: none;
+    border-right: 1px solid var(--border);
+  }
+  .pe-tool-group {
+    position: relative;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 14px 10px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.02);
+  }
+  .pe-tool-group:last-child {
+    border-right: 1px solid rgba(255, 255, 255, 0.28);
+  }
+  .pe-group-label {
+    position: absolute;
+    top: -8px;
+    left: 10px;
+    padding: 0 5px;
+    background: var(--bg-elevated);
+    color: rgba(255, 255, 255, 0.75);
+  }
+  /* Sliders get a full row each: label on the left, track filling the rest. */
+  .pe-tool-group label:has(input[type="range"]) {
+    flex: 1 1 100%;
+    justify-content: space-between;
+  }
+  .pe-tool-group label:has(input[type="range"]) input[type="range"] {
+    flex: 1;
+    max-width: 170px;
+  }
+  .pe-tool-group select {
+    flex: 1 1 100%;
+  }
+  .pe-tool-group label:has(input[type="number"]) input {
+    width: 70px;
+  }
+  .pe-canvas-stack canvas {
+    max-width: calc(96vw - 380px);
+  }
+  /* Undo / Redo / Compare are used constantly -- first in the rail, not
+     at the bottom of a scrolling column. */
+  .pe-tool-group:has(#pe-undo) {
+    order: -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .pe-actions .pe-hint {
+    flex: 1 1 100%;
+    order: -1;
+  }
+}
