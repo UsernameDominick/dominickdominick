@@ -13909,3 +13909,67 @@ labeled sections with seamlessly connected button strips on desktop,
 and the same outlined-panel language (individually-boxed buttons in a
 tidy grid) on mobile, with the phantom empty space gone. No server-side
 changes were needed.
+
+## 15. Full-site quality audit with ratings (2026-09-26)
+
+Dominick asked for a pass over every feature of both the public site and
+the admin: find unnecessary code, bugs and security flaws and fix them,
+but mainly improve the design, navigability and theme character, with
+SEO as a close second. Each area was rated 0-10 (0-5 fail, 5-8 pass but
+redo, 9-10 acceptable) before and after. Scores are my own judgment from
+Playwright screenshots at 1440px and 390px plus the regression suites.
+
+### Public site
+
+| Area | Before | After | What changed / what's left |
+|---|---|---|---|
+| Homepage composition | 2 | 6 | Empty placeholder blocks no longer leak to visitors, runs of empty grid rows are compacted (5,099px of voids gone), link-looking "buttons" are real buttons. **Left:** the page is still just a name and two buttons. Needs a real intro/hero (content decision). |
+| Header + nav | 3 | 8 | Duplicate nav entries removed, one active item, CMS pages no longer shadowed by built-ins, SVG icon tools instead of glyphs, phone header down to two rows. **Left:** motion and font-size toggles are hidden on phones. |
+| Block grid / layout | 2 | 8 | Overlapping blocks fixed, row compaction, `img/video{height:auto}`. |
+| Button block | 3 | 9 | Filled, secondary and link variants; external links marked for screen readers. |
+| Article template | 6 | 8 | 760px reading measure, cover image, lists and blockquotes, actions moved under the title, readable dates. |
+| Project template | 5 | 8 | Lede, link buttons, "Built with" chips, cover. |
+| Article / project lists | 5 | 8 | Excerpts, calmer titles, dates. |
+| Theme coherence | 4 | 8 | All derived shades now follow the chosen accent/bg/text instead of staying violet. **Left:** the saved Border color (#2a2438) is still a violet from the old palette. |
+| Buttons / fields / cards consistency | 4 | 9 | One token system (`--control-radius`, `--control-pad-*`, `--control-border-width`, `--field-radius`, `--card-radius`) used by every button, tab, chip, field and card, and editable in Site Settings. |
+| Simulation embeds | 5 | 8 | The viewBox is fitted to the circuit, so embeds no longer sit in a mostly empty canvas. |
+
+### SEO
+
+| Area | Before | After | Notes |
+|---|---|---|---|
+| Meta / Open Graph | 5 | 8 | og:image and twitter:image are absolute URLs now. **Left:** no default share image is set, and the home title is just "Dominick". Both are content decisions. |
+| Structured data | 6 | 8 | BlogPosting / CreativeWork now include description, url and image. |
+| Sitemap | 5 | 9 | Reserved slugs are excluded and duplicate URLs removed. |
+| Canonical / noindex | 6 | 9 | A noindex page (404, search) no longer also declares a canonical. |
+| Page weight | 5 | 8 | Page scripts load only where they're used, and images carry width/height (no layout shift). |
+
+### Security
+
+| Area | Before | After | Notes |
+|---|---|---|---|
+| Sessions | 5 | 9 | Logging out now revokes every session (server-side epoch), and the site refuses to sign a session without SESSION_SECRET. |
+| Headers | 7 | 9 | HSTS added. |
+| Public input | 7 | 9 | Probed search, tag, RSS, topic and article routes with XSS payloads and found nothing reflected. `/api/track` payloads are now length-capped. **Minor, left:** `/api/react` doesn't check that the content id exists (it is rate-limited and the emoji is whitelisted). |
+| Dead code | – | – | Scanned worker + admin JS for functions or exports with no callers and found none. |
+
+### Admin console
+
+| Area | Before | After | What changed / what's left |
+|---|---|---|---|
+| Add-block palette | 4 | 9 | A Blocks/Page tab switch. Blocks is a searchable two-up icon tile grid (Enter adds the first match) instead of 22 full-width bars. |
+| Page settings | 4 | 8 | Collapsible Basics / Sharing & SEO / Access sections plus a compact actions grid, no longer buried under the palette. |
+| Article / project editor | 4 | 8 | Title and body come first. Everything else is in collapsible sections, with a pinned Save/New/template/Preview bar. Also fixed the series placeholder bug. **Left:** the build journal and BOM are still long flat blocks at the bottom of the project editor. |
+| Site Settings > Appearance | 6 | 9 | Grouped into labeled panels (Colors / Buttons & controls / Typography / Layout / Footer). New shape, size, outline, field and card presets with a live preview. Preset chips show their own colors. |
+| Native form controls | 3 | 8 | `color-scheme` follows the theme and unstyled fields get a themed baseline, so there are no more white system selects. |
+| Admin matches the site | 2 | 9 | The admin loads the saved theme colors (dark mode only) and the control presets, so both halves share one character. |
+| Simulation builder toolbar | 4 | 8 | Synth-style outlined groups with seamless strips (earlier in this session). |
+| Media library toolbar | 4 | 4 | **Not redone yet:** about 12 controls come before any content. Next candidate. |
+| Block inspector | 5 | 5 | **Not redone yet:** same long flat-form problem the editors had. It should get the same collapsible-section treatment. |
+
+### Decisions only Dominick can make
+- Homepage intro/hero copy and a better home `<title>` than "Dominick".
+- A default share image (Site Settings > Sharing & SEO).
+- Whether to replace the old violet Border color (Site Settings > Colors).
+- Production has CMS pages with the slugs `projects` and `random`, which
+  now take priority over the built-in indexes. Keep them or delete them.
