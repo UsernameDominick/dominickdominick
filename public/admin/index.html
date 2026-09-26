@@ -234,21 +234,22 @@
           <div id="inspector-fields"></div>
           <h2>Style</h2>
           <div class="style-preset-row">
-            <select id="apply-style-preset-select" title="Apply a saved style preset to this block">
+            <select id="apply-style-preset-select" title="Apply a saved style preset to this block" aria-label="Apply a saved style preset">
               <option value="">Apply preset…</option>
             </select>
-          </div>
-          <div class="style-preset-row">
-            <button type="button" id="save-style-preset-btn">Save preset</button>
+            <button type="button" id="save-style-preset-btn" title="Save this block's style as a preset">Save</button>
             <button type="button" id="delete-style-preset-btn" title="Delete the selected preset">Delete</button>
           </div>
           <div id="inspector-style-fields"></div>
           <div id="block-save-status" class="article-autosave-status"></div>
-          <button type="button" id="save-as-shared-block-btn">Save as reusable block…</button>
-          <button type="button" id="copy-block-btn">Copy</button>
-          <button type="button" id="isolate-block-btn" title="Dim every other block on the canvas so this one stands out for focused editing">Isolate</button>
-          <button type="button" id="lock-block-btn" title="Locking protects this block from accidental drag/resize/delete — it doesn't affect editing its content or style">Lock</button>
-          <button id="duplicate-block-btn">Duplicate block</button>
+          <h2>Block actions</h2>
+          <div class="panel-action-grid inspector-action-grid">
+            <button type="button" id="copy-block-btn">Copy</button>
+            <button id="duplicate-block-btn">Duplicate</button>
+            <button type="button" id="isolate-block-btn" title="Dim every other block on the canvas so this one stands out for focused editing">Isolate</button>
+            <button type="button" id="lock-block-btn" title="Locking protects this block from accidental drag/resize/delete — it doesn't affect editing its content or style">Lock</button>
+            <button type="button" id="save-as-shared-block-btn" class="span-2">Save as reusable block…</button>
+          </div>
           <button id="delete-block-btn" class="danger">Delete block</button>
         </div>
         <div id="bulk-inspector" hidden>
@@ -261,7 +262,9 @@
           </div>
           <button type="button" id="bulk-distribute-vertical">Distribute evenly (top to bottom)</button>
           <div id="bulk-style-fields"></div>
-          <button type="button" id="bulk-duplicate-btn">Duplicate all</button>
+          <div class="panel-action-grid inspector-action-grid">
+            <button type="button" id="bulk-duplicate-btn" class="span-2">Duplicate all</button>
+          </div>
           <button type="button" id="bulk-delete-btn" class="danger">Delete all</button>
         </div>
         </div>

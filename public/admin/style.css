@@ -443,19 +443,109 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
 }
 
 .style-preset-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 6px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .style-preset-row select {
-  width: 100%;
+  grid-column: 1 / -1;
   min-width: 0;
+  margin-top: 0 !important;
 }
 
-.style-preset-row button {
-  flex: 1;
-  min-width: 0;
+/* Color fields: label on the left, swatch + value (or "Not set") on the
+   right, on one row. */
+.admin-inspector .color-field,
+.admin-palette .color-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.color-field-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.admin-inspector .color-field input[type="color"] {
+  width: 30px;
+  height: 26px;
+  margin: 0;
+  padding: 2px;
+  border-radius: var(--field-radius);
+}
+
+.color-field.is-unset input[type="color"] {
+  opacity: 0.35;
+  background: repeating-linear-gradient(135deg, transparent 0 4px, color-mix(in srgb, var(--text) 25%, transparent) 4px 5px);
+}
+
+.color-field-value {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  font-family: inherit;
+}
+
+code.color-field-value {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  color: var(--text);
+}
+
+.admin-inspector .style-preset-row > button,
+.admin-inspector .inspector-action-grid > button {
+  width: auto;
+  margin: 0;
+  background: transparent;
+  color: var(--text);
+  border: var(--control-border-width) solid var(--border);
+  font-weight: 500;
+  font-size: 0.8rem;
+  padding: 7px 10px;
+}
+
+.admin-inspector .style-preset-row > button:hover,
+.admin-inspector .inspector-action-grid > button:hover {
+  border-color: var(--accent);
+}
+
+.admin-inspector .inspector-action-grid > button.is-active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.inspector-action-grid .span-2 {
+  grid-column: 1 / -1;
+}
+
+/* Style groups (see STYLE_GROUPS in app.js). */
+.style-group {
+  margin-bottom: 8px;
+}
+
+.style-group > summary {
+  gap: 8px;
+}
+
+.style-group-count {
+  margin-left: auto;
+  padding: 1px 7px;
+  border-radius: var(--control-radius);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+  font-size: 0.65rem;
+  letter-spacing: 0.02em;
+}
+
+.style-group > .style-group-body {
+  margin: 12px;
+}
+
+.style-group-body > label:last-child {
+  margin-bottom: 0;
 }
 
 .recent-item-btn {

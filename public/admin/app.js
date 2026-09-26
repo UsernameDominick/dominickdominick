@@ -1902,6 +1902,47 @@
       `<option value="">Apply preset…</option>` + stylePresets.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("");
   }
 
+  // The Style panel used to be one ~3,500px column of ~35 fields. Grouped
+  // into collapsible sections instead; each summary shows how many of its
+  // fields are set, so a styled block's settings are findable without
+  // opening every group. Open/closed state lives here (not in the DOM)
+  // because the inspector re-renders after every style change.
+  const STYLE_GROUPS = [
+    ["text", "Text", ["color", "fontFamily", "fontSize", "textAlign"]],
+    ["box", "Box", ["bg", "padding", "opacity", "borderWidth", "borderColor", "borderRadius"]],
+    ["background", "Background", ["backgroundImage", "gradientFrom", "gradientTo", "gradientAngle", "backgroundSize", "backgroundVideoUrl", "parallax", "blendMode", "overlayColor", "overlayOpacity"]],
+    ["layout", "Layout & position", ["position", "stickyOffset", "readingOrder", "mobileColSpan", "shapeMask"]],
+    ["motion", "Motion", ["animation", "animationDelay", "customKeyframes", "hoverEffect"]],
+    ["visibility", "Visibility", ["visibility", "visibleFrom", "visibleUntil", "hidden"]],
+    ["advanced", "Advanced", ["customCss"]],
+  ];
+  const openStyleGroups = new Set(["text"]);
+  function styleValueIsSet(v) {
+    if (v === null || v === undefined || v === "" || v === false) return false;
+    if (typeof v === "object") return Object.keys(v).length > 0;
+    return true;
+  }
+  function styleGroupsHtml(style, idPrefix) {
+    const grouped = new Set(STYLE_GROUPS.flatMap(([, , keys]) => keys));
+    const leftovers = STYLE_FIELDS.filter((f) => !grouped.has(f.key)).map((f) => f.key);
+    return STYLE_GROUPS.map(([id, title, keys]) => {
+      const fields = (id === "advanced" ? [...keys, ...leftovers] : keys).map((k) => STYLE_FIELDS.find((f) => f.key === k)).filter(Boolean);
+      if (!fields.length) return "";
+      const setCount = style ? fields.filter((f) => styleValueIsSet(style[f.key])).length : 0;
+      return `<details class="panel-section style-group" data-group="${id}"${openStyleGroups.has(id) ? " open" : ""}><summary>${escapeHtml(title)}${
+        setCount ? `<span class="style-group-count">${setCount} set</span>` : ""
+      }</summary><div class="style-group-body">${fields.map((f) => fieldHtml(f, style ? style[f.key] : undefined, idPrefix)).join("")}</div></details>`;
+    }).join("");
+  }
+  function wireStyleGroupToggles(container) {
+    container.querySelectorAll(".style-group").forEach((d) => {
+      d.addEventListener("toggle", () => {
+        if (d.open) openStyleGroups.add(d.dataset.group);
+        else openStyleGroups.delete(d.dataset.group);
+      });
+    });
+  }
+
   function fieldHtml(f, val, idPrefix) {
     if (f.type === "checkbox") {
       return `<label><input type="checkbox" data-key="${f.key}" ${val ? "checked" : ""}> ${f.label}</label>`;
@@ -1927,9 +1968,14 @@
       // show yet" apart from "there's truly nothing to clear" — bulk mode
       // always wants the button, since applyStyleToAll(key, null) already
       // works fine, it just had no button wired to reach it.
-      return `<label>${f.label}<input data-key="${f.key}" type="color" value="${escapeHtml(val || "#000000")}">${
+      // A color input can't be empty, so an unset field used to show a
+      // black swatch that read as "this is black". is-unset styles it as
+      // an empty swatch with a "Not set" note instead.
+      return `<label class="color-field${val ? "" : " is-unset"}"><span class="color-field-label">${f.label}</span><span class="color-field-control"><input data-key="${f.key}" type="color" value="${escapeHtml(
+        val || "#000000"
+      )}">${val ? `<code class="color-field-value">${escapeHtml(val)}</code>` : idPrefix === "bulk" ? "" : '<span class="color-field-value">Not set</span>'}${
         val || idPrefix === "bulk" ? `<button type="button" class="clear-color" data-key="${f.key}">Clear</button>` : ""
-      }</label>`;
+      }</span></label>`;
     }
     if (f.type === "image-url") {
       const fieldId = `${idPrefix}-${f.key}`;
@@ -2140,7 +2186,8 @@
     lastInspectedBlockId = block.id;
 
     const styleContainer = el("inspector-style-fields");
-    styleContainer.innerHTML = STYLE_FIELDS.map((f) => fieldHtml(f, block.style[f.key], `style-${block.id}`)).join("");
+    styleContainer.innerHTML = styleGroupsHtml(block.style, `style-${block.id}`);
+    wireStyleGroupToggles(styleContainer);
 
     container.querySelectorAll(".upload-trigger").forEach(wireUploadButton);
     container.querySelectorAll(".browse-trigger").forEach(wireBrowseButton);
@@ -2311,7 +2358,8 @@
     // No prefilled values — different selected blocks likely have
     // different existing styles, so this is purely "set this on all of
     // them", not "here's what they currently share".
-    container.innerHTML = STYLE_FIELDS.map((f) => fieldHtml(f, undefined, "bulk")).join("");
+    container.innerHTML = styleGroupsHtml(null, "bulk");
+    wireStyleGroupToggles(container);
     container.querySelectorAll(".upload-trigger").forEach(wireUploadButton);
     container.querySelectorAll(".browse-trigger").forEach(wireBrowseButton);
     container.querySelectorAll(".image-url-source-badge").forEach(wireImageUrlSourceBadge);
