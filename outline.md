@@ -7140,5 +7140,58 @@ back off and clicking two pins resumed normal wire-drawing (wire count
 went from 1 to 2). No server-side state was touched (the test simulation
 was never saved), so no cleanup was needed. Full regression suite green.
 
-Sent to a critic pass next per the standing workflow before calling it
-done.
+Sent to a critic pass on commit 1ad0888. Scored 5/10 -- the feature's
+defining hard question (whether continuity correctly accounts for two
+components sharing a breadboard row with zero explicit wires between
+them, not just literal wire objects) passed cleanly: plugging a leg into
+a breadboard hole already creates a real `auto:true` wire object, and
+`window.simNodeId`'s `railGroups` collapses shared-rail pins to one node
+string regardless of wiring, so `wireOnlyNetNodes`'s plain wire-only BFS
+correctly reports "Connected" with no separate breadboard-aware solver
+needed -- live-verified by dragging two resistors onto the same
+terminal-strip hole and probing across them with no wire drawn between
+the resistors themselves. But a real, live-reproduced bug shipped
+anyway: the "Connected"/"Not connected" text and net highlight were
+computed and cached once at the moment of the second probe click, then
+never invalidated again. Undo, redo, reset-to-saved, checkpoint restore,
+deleting the very component or wire involved, and import all mutate
+`simData` and correctly reset `selected`/`wireStart`, but none of them
+touched the cached continuity state -- so undoing the wire that made two
+pins "Connected" left the stale "Connected" text and net highlight on
+screen for a connection that no longer existed. Confirmed live: wired
+two components, probed them (Connected, 3 highlighted elements), hit
+Undo (wire count dropped to 0), and the result still read "Connected"
+with 2 elements still highlighted.
+
+Fixed by changing what gets cached: instead of storing the computed net
+Set and result text at click time, `continuityLastProbe` now stores only
+the two raw probed node identifiers, and `renderBuilder()` recomputes
+`wireOnlyNetNodes()` and the resulting text/highlight completely fresh
+on every single render -- self-healing after any mutation, present or
+future, rather than requiring every one of the (now six-plus) simData-
+mutating call sites to remember to also invalidate a cached continuity
+result. If either probed component no longer exists at render time (the
+delete-the-probed-component case), the state clears itself entirely
+instead of trying to derive a node id from a component that's gone.
+Also added `aria-live="polite"` to the result span, a genuinely dynamic
+status text that's arguably the strongest case for it anywhere in this
+admin, even though the critic correctly noted the rest of the admin has
+no `aria-live` usage at all and this alone wasn't blocking.
+
+Re-verified via Playwright, reproducing the critic's exact repro: wired
+two components, probed them (Connected, 3 highlighted), hit Undo (wire
+count to 0) -- now correctly self-heals to "Not connected" with 0
+highlighted elements; hit Redo (wire restored) -- correctly re-reports
+"Connected" with the highlight back; selected and deleted one of the two
+probed components entirely -- correctly clears to an empty result with
+no highlight and no thrown error. The original round-1 tests (connected/
+unconnected pairs, same-pin-twice cancellation, mode toggle resuming
+normal wire-drawing) were re-run unchanged and still pass. Full
+regression suite green; no server-side state was touched in either
+round (test simulations were never saved), so no cleanup was needed.
+
+Item #434 is done: 1 critic round, 5/10, the one real finding (stale
+cached continuity result surviving simData mutations) fixed by making
+the result reactively self-healing rather than patching each of the
+several mutation call sites individually, plus a small accessibility
+addition (aria-live on the result span) folded in alongside it.

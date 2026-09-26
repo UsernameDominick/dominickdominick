@@ -17,7 +17,18 @@
   // onto the same click.
   let continuityMode = false;
   let continuityProbe = null; // { compId, pin, node }
-  let continuityNetNodes = null; // net highlighted after a "connected" result, cleared on the next probe
+  // Deliberately stores the raw probed endpoints, not a cached net/result --
+  // a critic pass found that caching the computed net Set (and the
+  // "Connected" text) at click time went stale the moment simData changed
+  // out from under it (undo, redo, reset-to-saved, checkpoint restore,
+  // deleting the very component/wire involved, import -- eight separate
+  // mutation sites, all of which already call renderBuilder() but none of
+  // which knew to also invalidate a continuity result). Storing only the
+  // two endpoint identifiers and recomputing connectivity fresh in
+  // renderBuilder() on every render makes the result self-healing after
+  // ANY mutation, present or future, instead of requiring every current
+  // and future simData-mutating call site to remember to also clear this.
+  let continuityLastProbe = null; // { compIdA, pinA, nodeA, compIdB, pinB, nodeB }
   let previewOn = false;
   let localIdCounter = 1;
   let placeX = 20;
@@ -310,7 +321,7 @@
     $("sim-grid-snap").value = "5";
     continuityMode = false;
     continuityProbe = null;
-    continuityNetNodes = null;
+    continuityLastProbe = null;
     $("sim-continuity-result").textContent = "";
     $("sim-continuity-result").classList.remove("sim-continuity-yes", "sim-continuity-no");
     zoomLevel = defaultZoomLevel();
@@ -514,8 +525,27 @@
       const w = simData.wires.find((x) => x.id === selected.id);
       const fromComp = w && simData.components.find((c) => c.id === w.from.compId);
       if (fromComp) netNodeIds = wireOnlyNetNodes(window.simNodeId(fromComp, w.from.pin));
-    } else if (continuityNetNodes) {
-      netNodeIds = continuityNetNodes;
+    } else if (continuityLastProbe) {
+      // Re-derived from the raw probed endpoints on every render (see the
+      // comment on continuityLastProbe's declaration) rather than a
+      // cached result, so undo/redo/delete/import/checkpoint-restore --
+      // any of which can change whether these two pins are still
+      // connected, or make one of them not exist at all -- can't leave a
+      // stale "Connected" verdict on screen.
+      const compA = simData.components.find((c) => c.id === continuityLastProbe.compIdA);
+      const compB = simData.components.find((c) => c.id === continuityLastProbe.compIdB);
+      if (!compA || !compB) {
+        continuityLastProbe = null;
+        $("sim-continuity-result").textContent = "";
+        $("sim-continuity-result").classList.remove("sim-continuity-yes", "sim-continuity-no");
+      } else {
+        const netNodes = wireOnlyNetNodes(continuityLastProbe.nodeA);
+        const isConnected = netNodes.has(continuityLastProbe.nodeB);
+        $("sim-continuity-result").textContent = isConnected ? "Connected" : "Not connected";
+        $("sim-continuity-result").classList.toggle("sim-continuity-yes", isConnected);
+        $("sim-continuity-result").classList.toggle("sim-continuity-no", !isConnected);
+        if (isConnected) netNodeIds = netNodes;
+      }
     }
     const wiresSvg = simData.wires.map((w) => renderWireSvg(w, poweredWires, netNodeIds)).join("");
     const compsSvg = simData.components.map((c) => renderComponentSvg(c, poweredComps, analysis)).join("");
@@ -579,7 +609,7 @@
     // longer draws wires at all.
     wireStart = null;
     continuityProbe = null;
-    continuityNetNodes = null;
+    continuityLastProbe = null;
     $("sim-continuity-result").textContent = "";
     $("sim-continuity-result").classList.remove("sim-continuity-yes", "sim-continuity-no");
     renderBuilder();
@@ -873,7 +903,7 @@
     const node = window.simNodeId(comp, pin);
     if (!continuityProbe) {
       continuityProbe = { compId, pin, node };
-      continuityNetNodes = null;
+      continuityLastProbe = null;
       $("sim-continuity-result").textContent = "Probe set on one pin -- click a second pin to test continuity.";
       $("sim-continuity-result").classList.remove("sim-continuity-yes", "sim-continuity-no");
       renderBuilder();
@@ -889,12 +919,11 @@
       renderBuilder();
       return;
     }
-    const netNodes = wireOnlyNetNodes(continuityProbe.node);
-    const isConnected = netNodes.has(node);
-    $("sim-continuity-result").textContent = isConnected ? "Connected" : "Not connected";
-    $("sim-continuity-result").classList.toggle("sim-continuity-yes", isConnected);
-    $("sim-continuity-result").classList.toggle("sim-continuity-no", !isConnected);
-    continuityNetNodes = isConnected ? netNodes : null;
+    // The actual Connected/Not-connected text and net highlight are
+    // derived fresh in renderBuilder() from this pair of endpoints on
+    // every render -- not computed here -- so the result can never go
+    // stale relative to whatever simData looks like at render time.
+    continuityLastProbe = { compIdA: continuityProbe.compId, pinA: continuityProbe.pin, nodeA: continuityProbe.node, compIdB: compId, pinB: pin, nodeB: node };
     continuityProbe = null;
     renderBuilder();
   }
