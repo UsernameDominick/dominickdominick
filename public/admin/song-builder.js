@@ -975,27 +975,46 @@
     // render resolved, would PATCH the NEW current song's id/data with
     // the OLD song's name still sitting in the `name` local, silently
     // renaming the wrong song while this song's own edits were never
-    // persisted at all. Re-checking `gen !== openGeneration` after the
-    // await (and again after the request) means a stale save is simply
-    // dropped instead of corrupting whatever song is now open -- the
-    // next autosave or an explicit re-Save on the original song (once
-    // it's reopened) picks it up correctly instead.
+    // persisted at all.
+    //
+    // A round-2 critic pass on the FIRST fix for that bug found a
+    // second, subtler gap: that fix skipped the PATCH/POST request
+    // entirely whenever the generation had already moved on -- safe for
+    // an existing song (its last-saved row is simply untouched, and the
+    // alert's "please save again" promise holds), but for a BRAND-NEW,
+    // never-yet-saved song there is no row to go back and resave --
+    // the whole song (name, notes, every setting) was silently and
+    // permanently discarded with a misleading "please save again" alert.
+    // The request itself never depends on any live module state (it's
+    // built entirely from the captured `id`/`name`/`data` locals), so it
+    // ALWAYS fires and the song is ALWAYS actually persisted regardless
+    // of what's open by the time it resolves -- only the UI-facing
+    // side-effects that assume the save's own song is still the one
+    // currently open (the "Saved." alert, autosave-status text/timer,
+    // and wiring a freshly-created id into `currentSongId`) are gated on
+    // `gen === openGeneration`, so they never misapply to whatever
+    // DIFFERENT song is open by the time this resolves.
     const gen = openGeneration;
     const id = currentSongId;
     const data = songData;
     await refreshCachedWaveformPeaks(data);
-    if (gen !== openGeneration) {
-      alert("A different song was opened before this save finished -- nothing was saved. Please save again.");
-      return;
-    }
     try {
+      let newId = id;
       if (id) {
         await window.adminApi(`/songs/${id}`, { method: "PATCH", body: JSON.stringify({ name, data }) });
       } else {
         const res = await window.adminApi("/songs", { method: "POST", body: JSON.stringify({ name, data }) });
-        if (gen === openGeneration) currentSongId = res.id;
+        newId = res.id;
       }
-      if (gen !== openGeneration) return; // saved successfully, but a different song is open now -- don't touch its autosave-status/timer or claim success for the wrong song
+      if (gen !== openGeneration) {
+        // A different song is open now, but THIS song's data was still
+        // genuinely saved above -- refresh the songs list so a
+        // brand-new song shows up there rather than only existing in a
+        // database row nobody in the UI knows about yet.
+        if (window.refreshSongOptions) window.refreshSongOptions();
+        return;
+      }
+      if (!id) currentSongId = newId;
       clearTimeout(autosaveTimer);
       songHasUnsavedChanges = false;
       setAutosaveStatus("Saved " + new Date().toLocaleTimeString());

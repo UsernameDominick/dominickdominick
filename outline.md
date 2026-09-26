@@ -13463,6 +13463,66 @@ reduction live: ~2.7KB down to ~1.6KB for the same test song. Re-ran
 every affected test plus the full `test_security_seo.js` suite — all
 passing, no regressions from either fix.
 
-Closing at this point without a mandatory round-2 dispatch: both fixes
-were verified against the critic's own precise repro conditions, not
-just re-run in the abstract.
+Given the severity of a data-corruption-class finding, a fresh round-2
+critic pass was dispatched specifically to re-verify this fix rather
+than closing on a single pass, unlike this session's usual practice for
+small/cheap findings.
+
+Critic round 2 (score 7/10 — the blocking bug confirmed fixed, one new
+non-blocking gap found in the fix itself): read the rewritten `#save-
+song` handler line by line and confirmed the capture pattern correctly
+matches `autosaveSong()` with no fresh reads of `songData`/
+`currentSongId`/`name` sneaking in anywhere after the await. Re-ran the
+round-1 repro (`test_song_save_race.js`) — now fully passing. Tested two
+NEW race variants beyond the original: racing during the PATCH/POST
+network request itself (not just the peaks-render await) — safe, since
+the request is built entirely from the captured locals; and an explicit
+Save racing a concurrent autosave on the SAME song — safe, consistent
+final state, no torn writes. Confirmed the "reopen and resave after a
+dropped save" path was clean for an existing song: no partial/stale
+state, a normal resave afterward succeeds correctly.
+
+One real, non-blocking gap found in the FIRST fix specifically (not a
+regression of the original blocking bug, which stayed fixed): that
+fix's `gen !== openGeneration` check sat BEFORE the PATCH/POST request
+itself, so on a stale generation the request was never sent at all. For
+an EXISTING song (PATCH) this was harmless — the last-saved row is
+simply untouched, matching the alert's "please save again" promise. But
+for a BRAND-NEW, never-yet-saved song (POST branch, no existing row to
+go back to), the exact same race meant the entire new song — name,
+notes, every setting — was silently and permanently discarded with a
+misleading alert claiming it could just be saved again, when by that
+point there was nothing in the UI to reopen and resave. Live-reproduced
+by the critic: clicking Save on a brand-new waveform-viz song, then
+switching away before the render resolved, resulted in the new song
+never appearing anywhere in `GET /songs` at all.
+
+Fixed by restructuring so the actual PATCH/POST request ALWAYS fires
+(built entirely from the captured `id`/`name`/`data` locals, so it can
+never misapply to the wrong song regardless of what's open by the time
+it resolves) and moving the `gen` check to gate ONLY the UI-facing
+side-effects that assume the save's own song is still the one open (the
+"Saved." alert, autosave-status text/timer, and wiring a freshly-created
+id into `currentSongId`) — so a save started before a song-switch always
+actually lands in the database, and the user never loses work, while a
+DIFFERENT song's UI state is never touched by a save that isn't its own.
+Verified against the critic's own left-behind variant test
+(`test_song_save_race_variants.js`'s V3, the exact new-song scenario):
+the new song is now correctly created in the database despite the race,
+with correct data and no duplicate POST, and the other (now-open) song
+remains completely untouched. Re-ran the round-1 repro
+(`test_song_save_race.js`, extended with a new assertion confirming
+song A's edit is no longer silently discarded) and all of the round-2
+critic's other variants (mid-request race, concurrent-autosave race) —
+all still pass. The critic's separate "reopen and resave" sanity script
+now correctly shows the edit landing immediately rather than being
+dropped — a strictly better outcome than the intermediate fix's
+"silently drop the edit" behavior that script was originally written
+against, not a regression. Re-ran every sibling song-builder test
+(cached peaks, autosave, cover art, MIDI discovery, computer-keyboard
+notes) plus the full `test_security_seo.js` suite — all still passing.
+
+Closing at this point: the original blocking cross-song corruption is
+confirmed fixed across every race shape tried across two independent
+critic rounds, and the follow-up data-loss gap the second round found
+is now also fixed and verified against that exact scenario.
