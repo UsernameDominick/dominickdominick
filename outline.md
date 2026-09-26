@@ -12035,6 +12035,40 @@ same one-line `:not(button)` pattern, applied to the one remaining
 untreated site) is identical in kind to the already-verified single-block
 fix and doesn't introduce new surface area to re-review from scratch.
 
+Sent for a round-3 (final) check given how much this feature touches
+(accessibility, the live rendering pipeline). It independently re-grepped
+every `data-key` occurrence in `app.js` from scratch (not trusting the
+round-2 fix's own count) and confirmed exactly 3 live generic
+change-wiring sites exist, all three now excluding buttons, with no other
+delegated/dynamic pattern that could bypass the fix; re-reproduced the
+exact synthetic-`change` exploit against BOTH the single-block and bulk
+inspectors and confirmed `customKeyframes` is now untouched in both;
+confirmed real usage (a real click opening the modal, a real `<select>`
+interaction bulk-applying `hoverEffect` to both selected blocks) still
+works correctly in both, with `customKeyframes` staying intact
+afterward; and re-verified a broader slice of the earlier rounds' fixes
+for regression (the reduced-motion toggle, the 20-stop cap, malformed-
+data fail-closed behavior, and the reduced-motion CSS scoping) — all
+held. Final score: **9/10 — ship it.** Its one noted reservation is a
+process observation, not a code defect: the third round of "same
+exclusion, sibling call site" pattern suggests this session should
+search for every occurrence of a footgun pattern the FIRST time one is
+found, rather than fixing instances one report at a time — a lesson for
+how future findings like this get investigated, not a gap in the
+shipped code itself, which it explicitly confirmed has no known holes
+as of commit 908f18c.
+
+**Custom-animation editor feature: done.** 3 critic rounds across its
+full lifecycle (6/10 → 7/10 → 9/10), every finding from every round
+logged above whether or not it was the one that ultimately got fixed,
+matching this file's own "log everything" convention. Ships as: a
+`"custom"` entrance-animation option backed by validated, capped
+keyframe data, a full admin authoring UI with a live Web Animations API
+preview, server-side codegen that reuses 100% of the pre-existing 5-preset
+reveal/reduced-motion infrastructure with zero changes needed to that
+infrastructure itself, and no known security, accessibility, or
+data-integrity gaps as of this writing.
+
 ### Design/UX audit — dispatched to an agent
 
 Dispatched a design-and-fix agent (not yet reported back as of this
