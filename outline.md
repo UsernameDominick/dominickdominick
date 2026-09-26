@@ -10596,3 +10596,31 @@ regression suite — all passed. Confirmed no leftover test data via a
 direct authenticated `GET /api/admin/brush-presets` check after
 cleanup (the test's own delete step already removed it as part of the
 test flow).
+
+Handed to a critic agent for scoring: **9/10 — ships.** Given this
+file's own recent history of TWO separate critic-caught
+`isComparing()`-guard gaps (Save Snapshot, and the deeper Compare-
+stuck-active bug), the critic specifically re-traced rather than
+trusted the claim that applying/saving a brush preset needs no such
+guard — and confirmed it holds: `setTool()`'s full body only touches UI
+state and the separate overlay canvas (`clearOverlay()`, never the main
+image canvas), the preset-apply handler does no `pushUndo()`/pixel
+mutation at all (unlike the adjust-preset handler, which does and
+therefore genuinely needs its guard), and the one place tool state
+feeds into rendering during a Compare (`drawBrushCursor()` on
+`pointermove`) only draws to the overlay canvas, which stays dimension-
+synced with the main canvas via `syncOverlaySize()` inside both
+`startCompare()`/`endCompare()`. Also independently re-verified the
+server-side clamping against the full adversarial input set
+(`size: 99999`, `-50`, `"not a number"`, missing; `opacity: null`) and
+confirmed every path lands in-range, never NaN, and confirmed
+byte-for-byte consistency with the pre-existing `/photo-presets`
+pattern's id-generation, name-capping, and activity-log conventions.
+One minor, explicitly deferred, inherited (not new) nit: `Number(x) ||
+default` treats an explicit `0` as falsy, so a hand-crafted API request
+with `opacity: 0`/`size: 0` would silently become the default instead
+of clamping to the minimum — unreachable through the real UI (the
+sliders' own `min` never allows 0) and already present identically in
+the pre-existing adjust-preset handler this session didn't touch.
+
+Item #76 is done: 1 critic round, 9/10 on the first pass.
