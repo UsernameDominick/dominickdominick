@@ -9735,4 +9735,17 @@ threshold. Round-1 findings:
 Re-verified via the same Playwright spectrum test (blank before
 playback, real drawn content during playback, cleared after Stop plus
 the drain window) and the full regression suite — both still pass after
-the fix. Sent for a round-2 critic pass.
+the fix. Sent for a round-2 critic pass specifically re-deriving the
+exact bin ranges by hand: confirmed the last bar's `start = 23 * 42 =
+966` now correctly extends to `freqData.length` (1024), covering bins
+966-1023 (58 bins) with the averaging divisor correctly reflecting that
+wider range rather than staying hardcoded to `binsPerBar` — so bars 0-22
+cover bins 0-965 (966 bins) and bar 23 covers the remaining 58, for
+1024/1024 total coverage with zero gaps and zero double-counting. Also
+confirmed the corrected comment's factual claim (the peak meter's own
+`.song-peak-meter-fill` CSS rule really is hardcoded to `#4dff6a`, not
+`var(--accent)`) against the actual CSS. Confirmed no new bugs in the
+untouched surrounding `tick()`/drain-timeout logic. Final score: **9/10
+— ships.**
+
+Item #305 is done: 2 critic rounds, 8/10 → 9/10.
