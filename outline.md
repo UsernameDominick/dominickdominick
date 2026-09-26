@@ -6490,4 +6490,31 @@ finding (redundant Teensy tooltip) fixed and verified.
   fixed, re-verified live). Full regression suite green; this test never
   saved the simulation, so no test data needed cleanup.
 
-Handed to a critic agent for scoring.
+Handed to a critic agent for scoring: **9/10**, no real bugs. Confirmed
+the two things this diff explicitly anticipated actually hold: ghost
+wires are never selectable (no `.sim-wire` class for
+`attachBuilderEvents()`'s exact-class click binding to match, and
+`onCanvasBackgroundPointerDown()`'s rubber-band multi-select only
+hit-tests component bounding boxes, never wire/ghost geometry at all —
+confirmed live with a full-canvas rubber-band drag leaving the ghost
+count and selection unaffected), and clicking pixel-precisely on a ghost
+path (via `pointer-events: none`) correctly falls through to whatever's
+actually underneath rather than creating a dead zone over a real wire or
+pin. Deleting a wire while ghost mode is on correctly removes both the
+real path and its ghost copy together in the same `renderBuilder()` call,
+with no stale outline surviving. Tested combining this toggle with the
+disconnected-pins and net-highlight toggles simultaneously: the real
+wire correctly carries both `sim-selected`/`sim-net-highlight` state
+classes while its ghost copy stays a plain, stateless dashed outline —
+two independently-built, z-order-separated elements that can't strip or
+override each other's classes. Confirmed `showGhostWires` is correctly
+untouched by undo/redo/reset/checkpoint-restore (a viewing preference,
+not part of `simData`, exactly like the disconnected-pins toggle), with
+`openBuilder()` remaining the one path that resets it — and the fix this
+diff already made (syncing the button's active class inside
+`renderBuilder()` rather than only its click handler) correctly keeps
+the button's visual state matching that reset. Rapid 10x toggling left
+the button's active state exactly matching the boolean's parity every
+time, no desync.
+
+Item #385 is done: 1 critic round, 9/10, no real findings.
