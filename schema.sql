@@ -300,6 +300,15 @@ CREATE TABLE media (
   -- admin auth instead, mirroring how private_notes on articles/projects
   -- is an admin-only field never exposed publicly.
   private INTEGER NOT NULL DEFAULT 0,
+  -- Read straight from the file's own header at upload time (no image
+  -- decoding needed/available in a Worker) so an <img> can carry
+  -- width/height attributes -- the standard fix for a late-loading image
+  -- shifting the surrounding page layout as it finally renders. Null for
+  -- anything uploaded before this existed, or any format/file this
+  -- couldn't confidently parse; those files just render without the
+  -- attributes, same as always.
+  width INTEGER,
+  height INTEGER,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX idx_media_hash ON media(hash);

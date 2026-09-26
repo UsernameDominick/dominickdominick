@@ -259,6 +259,121 @@ function sanitizeSvg(text) {
     .replace(/((?:xlink:)?href|src)\s*=\s*'\s*javascript:[^']*'/gi, "$1='#'");
 }
 
+// Reads an image's pixel width/height straight from its file header --
+// no decoding needed, and no image-decode API exists in Workers anyway.
+// Used so an <img> can carry width/height attributes, letting the
+// browser reserve the right amount of space before the file even starts
+// loading (the standard fix for layout shift from a late-loading image).
+// Returns null (never throws) for anything it can't confidently parse --
+// a missing width/height attribute on one image is a much smaller
+// problem than corrupting an upload over a header-parsing edge case.
+function readImageDimensions(buf, contentType) {
+  try {
+    const view = new DataView(buf);
+    if (contentType === "image/png" && buf.byteLength >= 24) {
+      // 8-byte signature, then the IHDR chunk: 4-byte length, 4-byte
+      // type (always "IHDR" -- guaranteed to be the first chunk), then
+      // width/height as big-endian uint32s.
+      if (view.getUint32(12) === 0x49484452 /* "IHDR" */) {
+        return { width: view.getUint32(16), height: view.getUint32(20) };
+      }
+      return null;
+    }
+    if (contentType === "image/gif" && buf.byteLength >= 10) {
+      // 6-byte "GIF87a"/"GIF89a" signature, then width/height as
+      // little-endian uint16s.
+      return { width: view.getUint16(6, true), height: view.getUint16(8, true) };
+    }
+    if (contentType === "image/jpeg") {
+      // Walk marker segments looking for a Start-Of-Frame marker (any of
+      // the SOFn variants actually used for baseline/progressive JPEGs --
+      // explicitly excluding 0xC4/0xC8/0xCC, which share that numeric
+      // range but are DHT/JPG-extension/DAC markers, not SOF).
+      let offset = 2; // skip the initial 0xFFD8 SOI marker
+      while (offset + 9 < buf.byteLength) {
+        if (view.getUint8(offset) !== 0xff) {
+          offset++;
+          continue;
+        }
+        const marker = view.getUint8(offset + 1);
+        if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd9)) {
+          offset += 2; // standalone marker, no length field
+          continue;
+        }
+        const segmentLength = view.getUint16(offset + 2);
+        const isSof =
+          (marker >= 0xc0 && marker <= 0xc3) ||
+          (marker >= 0xc5 && marker <= 0xc7) ||
+          (marker >= 0xc9 && marker <= 0xcb) ||
+          (marker >= 0xcd && marker <= 0xcf);
+        if (isSof) {
+          return { height: view.getUint16(offset + 5), width: view.getUint16(offset + 7) };
+        }
+        offset += 2 + segmentLength;
+      }
+      return null;
+    }
+    if (contentType === "image/webp" && buf.byteLength >= 30) {
+      const fourCC = String.fromCharCode(view.getUint8(12), view.getUint8(13), view.getUint8(14), view.getUint8(15));
+      if (fourCC === "VP8X") {
+        // Extended format: 1-byte flags, 3-byte reserved, then
+        // (width-1)/(height-1) as 24-bit little-endian integers.
+        const width = 1 + (view.getUint8(24) | (view.getUint8(25) << 8) | (view.getUint8(26) << 16));
+        const height = 1 + (view.getUint8(27) | (view.getUint8(28) << 8) | (view.getUint8(29) << 16));
+        return { width, height };
+      }
+      if (fourCC === "VP8 ") {
+        // Lossy: 3-byte frame tag, then a 3-byte start code that's always
+        // 0x9d 0x01 0x2a, then 14-bit width/height (the top 2 bits of
+        // each field are an unrelated scale factor, masked off).
+        if (view.getUint8(23) === 0x9d && view.getUint8(24) === 0x01 && view.getUint8(25) === 0x2a) {
+          return { width: view.getUint16(26, true) & 0x3fff, height: view.getUint16(28, true) & 0x3fff };
+        }
+        return null;
+      }
+      if (fourCC === "VP8L") {
+        // Lossless: 1-byte 0x2F signature, then a packed little-endian
+        // 32-bit value: 14 bits (width-1), 14 bits (height-1), 1 bit
+        // alpha flag, 3-bit version.
+        if (view.getUint8(20) === 0x2f) {
+          const bits = view.getUint32(21, true);
+          return { width: (bits & 0x3fff) + 1, height: ((bits >> 14) & 0x3fff) + 1 };
+        }
+        return null;
+      }
+      return null;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// SVG has no fixed binary header to read a size from -- its dimensions
+// are just XML attributes (or absent entirely, since a valid SVG doesn't
+// have to declare one). Prefers an explicit width/height pair over
+// viewBox, matching how a browser itself resolves an SVG's intrinsic
+// size. Returns null rather than a fabricated guess when neither is
+// present or parseable.
+function readSvgDimensions(svgText) {
+  const openTagMatch = svgText.match(/<svg\b[^>]*>/i);
+  const openTag = openTagMatch ? openTagMatch[0] : "";
+  const widthMatch = openTag.match(/\bwidth\s*=\s*["']?([\d.]+)/i);
+  const heightMatch = openTag.match(/\bheight\s*=\s*["']?([\d.]+)/i);
+  if (widthMatch && heightMatch) {
+    const width = Math.round(Number(widthMatch[1]));
+    const height = Math.round(Number(heightMatch[1]));
+    if (width > 0 && height > 0) return { width, height };
+  }
+  const viewBoxMatch = svgText.match(/<svg\b[^>]*\bviewBox\s*=\s*["']?\s*[\d.-]+\s+[\d.-]+\s+([\d.]+)\s+([\d.]+)/i);
+  if (viewBoxMatch) {
+    const width = Math.round(Number(viewBoxMatch[1]));
+    const height = Math.round(Number(viewBoxMatch[2]));
+    if (width > 0 && height > 0) return { width, height };
+  }
+  return null;
+}
+
 // A malformed custom_json_ld would otherwise fail silently until someone
 // actually inspects the rendered <script type="application/ld+json"> tag —
 // or worse, get swallowed by JSON.stringify re-serializing whatever
@@ -1044,7 +1159,9 @@ async function routeAdminApi(request, env, url, ctx) {
     const key = `uploads/${crypto.randomUUID()}.${ext}`;
     await env.MEDIA.put(key, buf, { httpMetadata: { contentType } });
     const folder = url.searchParams.get("folder");
-    await upsertMediaMeta(env, key, { folder: folder || undefined, hash });
+    const dims =
+      contentType === "image/svg+xml" ? readSvgDimensions(new TextDecoder().decode(buf)) : readImageDimensions(buf, contentType);
+    await upsertMediaMeta(env, key, { folder: folder || undefined, hash, width: dims?.width, height: dims?.height });
     log(ctx, env, "upload", "media", key.split("/").pop());
     return json({ url: `/media/${key}`, duplicateOf: duplicate ? `/media/${duplicate.key}` : null });
   }
@@ -1138,6 +1255,8 @@ async function routeAdminApi(request, env, url, ctx) {
         license: meta[o.key]?.license || null,
         hash: meta[o.key]?.hash || null,
         private: !!meta[o.key]?.private,
+        width: meta[o.key]?.width || null,
+        height: meta[o.key]?.height || null,
         isDuplicate: duplicateKeys.has(o.key),
         used: usage.length > 0,
         // Flattened "type: title" strings — the library's usage filter
@@ -1169,6 +1288,31 @@ async function routeAdminApi(request, env, url, ctx) {
       hashed++;
     }
     return json({ hashed, alreadyHashed: listed.objects.length - missing.length });
+  }
+  // /media/backfill-dimensions — same shape as backfill-hashes above, for
+  // uploads from before width/height existed. SVGs get re-parsed from
+  // their own text; every raster format goes through the same header-only
+  // reader the /upload route itself uses (no full image decode needed).
+  if (path === "/media/backfill-dimensions" && method === "POST") {
+    const listed = await env.MEDIA.list({ prefix: "uploads/", limit: 500 });
+    const meta = await getMediaMeta(env, listed.objects.map((o) => o.key));
+    const missing = listed.objects.filter((o) => !meta[o.key]?.width || !meta[o.key]?.height);
+    let updated = 0;
+    let unreadable = 0;
+    for (const o of missing) {
+      const obj = await env.MEDIA.get(o.key);
+      if (!obj) continue;
+      const contentType = obj.httpMetadata?.contentType || "";
+      const buf = await obj.arrayBuffer();
+      const dims = contentType === "image/svg+xml" ? readSvgDimensions(new TextDecoder().decode(buf)) : readImageDimensions(buf, contentType);
+      if (dims) {
+        await upsertMediaMeta(env, o.key, { width: dims.width, height: dims.height });
+        updated++;
+      } else {
+        unreadable++;
+      }
+    }
+    return json({ updated, unreadable, alreadyHad: listed.objects.length - missing.length });
   }
   if (path === "/media/usage" && method === "GET") {
     const mediaUrl = url.searchParams.get("url");

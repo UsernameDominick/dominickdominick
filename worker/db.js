@@ -1588,7 +1588,11 @@ export async function getMediaMeta(env, keys) {
   return map;
 }
 
-export async function upsertMediaMeta(env, key, { folder, tags, alt_text, caption, credit, license, hash, private: isPrivate } = {}) {
+export async function upsertMediaMeta(
+  env,
+  key,
+  { folder, tags, alt_text, caption, credit, license, hash, private: isPrivate, width, height } = {}
+) {
   // "__uncategorized__" is the sentinel the admin's "Uncategorized (no
   // folder)" filter option uses (public/admin/app.js). A real folder named
   // exactly that would collide with it in the filter dropdown and become
@@ -1650,12 +1654,22 @@ export async function upsertMediaMeta(env, key, { folder, tags, alt_text, captio
       cols.push("private = ?");
       vals.push(isPrivate ? 1 : 0);
     }
+    if (width !== undefined) {
+      cols.push("width = ?");
+      vals.push(width || null);
+    }
+    if (height !== undefined) {
+      cols.push("height = ?");
+      vals.push(height || null);
+    }
     if (!cols.length) return;
     vals.push(key);
     await env.DB.prepare(`UPDATE media SET ${cols.join(", ")} WHERE key = ?`).bind(...vals).run();
   } else {
     await env.DB
-      .prepare("INSERT INTO media (key, folder, tags, alt_text, caption, credit, license, hash, private) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+      .prepare(
+        "INSERT INTO media (key, folder, tags, alt_text, caption, credit, license, hash, private, width, height) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      )
       .bind(
         key,
         folder || null,
@@ -1665,7 +1679,9 @@ export async function upsertMediaMeta(env, key, { folder, tags, alt_text, captio
         credit || null,
         license || null,
         hash || null,
-        isPrivate ? 1 : 0
+        isPrivate ? 1 : 0,
+        width || null,
+        height || null
       )
       .run();
   }

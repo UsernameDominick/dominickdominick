@@ -1,4 +1,4 @@
-import { listArticles, listProjects, getSimulation, getScan, getSong } from "./db.js";
+import { listArticles, listProjects, getSimulation, getScan, getSong, getMediaMeta } from "./db.js";
 import { renderSimulationSvg } from "./simulation-render.js";
 
 export function esc(str) {
@@ -943,6 +943,23 @@ export function modelViewerHtml(scan, description) {
   return `<div class="scan-block-wrap"><model-viewer ${attrs} camera-controls auto-rotate shadow-intensity="1" ar ar-modes="webxr scene-viewer quick-look" loading="lazy"><button slot="ar-button" class="scan-ar-btn">View in your space</button></model-viewer></div>`;
 }
 
+// Emits width/height attributes for an internal media upload, when its
+// dimensions were captured at upload time -- the standard fix for a
+// late-loading image shifting the surrounding page layout, since the
+// browser can reserve the right amount of space before the file even
+// starts loading. Returns "" (not just for external URLs, but also for
+// an internal one with no recorded dimensions -- an upload from before
+// this existed, or a format/file the header parser couldn't read) so a
+// missing size attribute never renders as `width="null"` or similar.
+async function imgSizeAttrs(env, imgUrl) {
+  const match = typeof imgUrl === "string" && imgUrl.match(/^\/media\/(uploads\/[A-Za-z0-9_.\-\/]+)$/);
+  if (!match) return "";
+  const meta = await getMediaMeta(env, [match[1]]);
+  const row = meta[match[1]];
+  if (!row || !row.width || !row.height) return "";
+  return ` width="${row.width}" height="${row.height}"`;
+}
+
 async function renderBlockInner(env, block, ctx) {
   const c = block.content || {};
   switch (block.type) {
@@ -953,7 +970,7 @@ async function renderBlockInner(env, block, ctx) {
     case "text":
       return paragraphsHtml(c.text);
     case "image": {
-      const rawImg = `<img src="${esc(c.url)}" alt="${esc(c.alt)}" loading="lazy" style="max-width:100%;border-radius:12px;">`;
+      const rawImg = `<img src="${esc(c.url)}" alt="${esc(c.alt)}" loading="lazy"${await imgSizeAttrs(env, c.url)} style="max-width:100%;border-radius:12px;">`;
       const img = c.frame === "browser"
         ? `<div class="device-frame device-frame-browser"><div class="device-frame-bar"><span></span><span></span><span></span></div><div class="device-frame-body">${rawImg}</div></div>`
         : c.frame === "phone"

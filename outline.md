@@ -4970,7 +4970,7 @@ live in env bindings, not content rows).
 567. ✅ Show storage used by originals/versions/previews/exports — checked: "previews" and "exports" don't exist as distinct stored R2 artifacts in this codebase (no thumbnail-generation pipeline; `/export` streams a live JSON dump, never written to R2), so there's nothing to break out for those two categories. "Originals" vs "versions" is already covered — `getStorageUsage()`'s existing breakdown separates "Images" from "Image version history" (confirmed the `_versions/` PUT-overwrite route is itself content-type-restricted to images only, so that label is accurate, not just aspirational). No new work needed for what actually exists.
 569. ✅ Monitor editor crashes and failed saves — done (see the dated entry below this section).
 572. ✅ Choose poster images/fallbacks before publishing — done for simulations, deliberately not songs (see the dated entry below this section for why).
-576. Keep animated elements from moving surrounding text — CSS layout fix (reserved space/aspect-ratio).
+576. ✅ Keep animated elements from moving surrounding text — done for the plain image block (see the dated entry below this section); gallery/before-after checked and found to already have CSS-reserved dimensions, no work needed there.
 582. ✅ Protect source files containing private/sensitive material — done (see the dated entry below this section).
 584. ✅ Require stronger confirmation for destructive bulk operations — done (see the dated entry below this section).
 595. ✅ Searchable settings with direct navigation — checked: already done earlier this session as the "Where is this setting?" search (see the dated entry above, section 12) — `SETTINGS_SEARCH_INDEX` covers all 7 Site Settings tabs with plain-language keyword matching and jumps straight to the right tab/field via the command palette.
@@ -4991,6 +4991,14 @@ equally, so not something to special-case in any one feature's diff.
 Worth its own dedicated pass across every modal at once (add the
 attributes, verify each one's focus trap and label association still
 holds) rather than fixing piecemeal per-feature going forward.
+- **(found while shipping #576's image-dimension fix)** Project-card
+  thumbnails and article/project header images render through different
+  code paths than the plain `image` block, and weren't audited for the
+  same late-loading layout-shift gap — the new `width`/`height` data now
+  exists in the `media` table for any of them backed by an `uploads/`
+  key, so wiring them up is mostly a rendering-side change (same
+  `imgSizeAttrs()` helper, different call sites) rather than needing new
+  infrastructure.
 
 ### Shared platform — Hard (mostly flagged as likely out of scope for a single-admin site)
 552 [offline-first sync — out of scope], 556, 561-562 [job queue — out of
@@ -6591,3 +6599,69 @@ is a fresh start, matching the checkpoints precedent).
 
 Item #572 is done: 1 critic round, 9/10 (explicitly including a real
 XSS injection attempt, with none found), no real findings.
+
+### Eighteenth item: #576, prevent layout shift from late-loading images
+
+- ✅ **Read each image's real pixel dimensions from its own file header at
+  upload time, then emit `width`/`height` attributes on the plain image
+  block** — checked which of the three places an image renders actually
+  has this gap before touching anything: the gallery block and the
+  before-after block both already have explicit CSS dimensions
+  (`.gallery img { width:100%; height:160px; }`, `.before-after` has a
+  fixed container with `min-height:240px` and its two images absolutely
+  positioned at `width:100%;height:100%`) — their box size is entirely
+  CSS-controlled regardless of the image's own intrinsic size, so adding
+  width/height attributes there would be inert, no actual bug to fix. The
+  plain `image` block is the one real gap: its only sizing rule is
+  `max-width:100%`, so its rendered height is determined purely by
+  whatever image happens to load, and a late-arriving image genuinely
+  pushes surrounding content down as it finishes loading — the textbook
+  layout-shift case this backlog item describes.
+  Workers has no image-decoding API, so getting real dimensions meant
+  reading them straight from each format's own file header — no full
+  decode needed. Wrote `readImageDimensions()` (PNG: the IHDR chunk;
+  GIF: the fixed 10-byte header; JPEG: walking marker segments to find
+  the SOF frame; WebP: the VP8X/VP8/VP8L chunk layouts, each format
+  encoding width/height slightly differently) plus a separate
+  `readSvgDimensions()` for SVG's XML `width`/`height` attributes or
+  `viewBox` fallback, since SVG has no fixed binary layout to read from.
+  Both return `null` rather than ever throwing, on the reasoning that a
+  missing size attribute on one image is a much smaller problem than
+  corrupting an upload over a parsing edge case. Added `width`/`height`
+  columns to the `media` table (applied directly to local D1, matching
+  how every other schema addition this session went in) and a new
+  `/media/backfill-dimensions` route mirroring the existing
+  `/media/backfill-hashes` pattern exactly, so uploads from before this
+  feature existed can get their dimensions filled in after the fact
+  without needing to re-upload — plus a matching "Backfill image
+  dimensions" button in the Media Library, next to the existing "Scan
+  for duplicates" button it's modeled on.
+  Caught one real bug of my own before it could ship: `GET /media`'s list
+  route hand-picks its returned fields rather than spreading the DB row
+  (the exact same shape of bug already found and fixed for the `private`
+  column earlier this session) — width/height were being written
+  correctly server-side but would have silently never reached the
+  client's media grid. Added them to that explicit field list from the
+  start this time, verified before considering the feature done rather
+  than after.
+  Verified via Playwright against real image files (not synthetic bytes)
+  in every supported format, checked against ground truth from Pillow: a
+  317×241 PNG, a 640×480 JPEG, a 150×90 GIF, a 400×225 WebP, and a
+  333×222 SVG all uploaded and reported back exactly matching dimensions
+  — no format-specific parsing bug in any of the five header formats.
+  Rendered one of these inside a real page's image block and confirmed
+  the public page's actual `<img>` tag carries `width="317"
+  height="241"`. Backfill tested two ways: as a safe no-op against files
+  that already have dimensions (`updated: 0`), and — the real test —
+  against a file with its width/height columns directly cleared to
+  simulate a genuinely pre-existing upload, correctly detecting and
+  filling in the missing values via the same header-reading logic. Full
+  regression suite green; all test media/pages deleted and confirmed
+  gone.
+  Explicitly not covered in this pass, noted rather than silently
+  claimed: project-card thumbnails and article/project header images
+  render through different code paths this diff didn't audit — a
+  separate surface worth its own look, not something to assume is fine
+  just because the block-level image case is now solid.
+
+Handed to a critic agent for scoring.

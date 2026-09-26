@@ -5333,6 +5333,27 @@
   el("media-unused-filter").addEventListener("change", renderMediaGrid);
   el("media-duplicates-filter").addEventListener("change", renderMediaGrid);
 
+  el("media-backfill-dimensions-btn").addEventListener("click", async () => {
+    const btn = el("media-backfill-dimensions-btn");
+    const originalText = btn.textContent;
+    btn.textContent = "Reading…";
+    btn.disabled = true;
+    try {
+      const { updated, unreadable } = await api("/media/backfill-dimensions", { method: "POST" });
+      await loadMediaLibrary();
+      alert(
+        updated
+          ? `Read dimensions for ${updated} file(s).${unreadable ? ` ${unreadable} couldn't be read (unusual/corrupt file).` : ""}`
+          : "Everything already had its dimensions recorded."
+      );
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      btn.textContent = originalText;
+      btn.disabled = false;
+    }
+  });
+
   el("media-scan-duplicates-btn").addEventListener("click", async () => {
     const btn = el("media-scan-duplicates-btn");
     const originalText = btn.textContent;
