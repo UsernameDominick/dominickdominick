@@ -5900,6 +5900,26 @@ slider back at 85; overwriting a file after one prior overwrite (one
 correctly shows 0 remaining version rows instead of leaking. Full
 regression suite green.
 
-Item #161 is done: 1 critic round, 7/10, both real findings (the slider
-reset bug, and the pre-existing bulk-delete version-cleanup gap) fixed
-and verified live.
+Resubmitted for a fresh critic round (new code changed since the 7/10
+round). Round 2: **9/10, no real bugs**. Verified byte-for-byte: bulk-
+deleted a mixed batch of 5 files (2 versioned at 2 and 1 overwrites
+respectively, 3 with zero versions) in one call and confirmed via
+`/storage-usage`'s `_versions/`-prefix count that exactly 3 version
+blobs were removed (matching the 2+1 from the two versioned files, zero
+cross-contamination between keys inside the `Promise.all`), the D1
+`media` row count and `uploads/` R2 count both dropped by exactly 5, and
+the two deleted version rows' image endpoints now 404 instead of still
+serving orphaned bytes; a zero-version file in the same batch correctly
+no-ops through an empty `listMediaVersions()` array rather than
+erroring the whole batch. Confirmed the slider-reset fix holds for a
+rapid re-open of the SAME image too (not just a different one), since
+`open()` unconditionally resets format/quality on every call. One
+minor/out-of-scope observation logged: a very large bulk selection of
+heavily-versioned files fans out into a lot of parallel R2/D1 calls with
+no per-key error isolation (one key's call throwing rejects the whole
+batch) — an existing pattern already shared by other bulk actions in
+this codebase (e.g. bulk-tag), just proportionally amplified here, and
+not a functional problem at this site's actual single-admin scale.
+
+Item #161 is fully closed: 2 critic rounds, 7/10 → 9/10, both real
+findings from round 1 fixed and verified; round 2 found nothing new.
