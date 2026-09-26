@@ -12788,4 +12788,15 @@ passed. No test data was created (only in-memory canvas state on a
 throwaway blank document, discarded when the browser closed — nothing
 was ever saved/uploaded).
 
-Sent for a critic pass.
+Sent for a critic pass, which independently confirmed the hex values
+against a full grep of `--bg:`/`prefers-color-scheme`/`data-theme`
+across `public/style.css` (only the two live theme variants exist; the
+one other `--bg:` hit is inside `@media print`, unrelated to on-screen
+theming); confirmed exact RGB matches live for both new options;
+confirmed exactly one `pe-bg-*` class survives a 7-step sequence
+switching between every option repeatedly; confirmed reset-on-open
+still resets to checkerboard including for the 2 new options; and
+confirmed all 4 pre-existing options still work. Final score:
+**9/10 — clean, correct, small additive feature.**
+
+Item #174 is done: 1 critic round, 9/10 on the first pass.
