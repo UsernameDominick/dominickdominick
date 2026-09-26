@@ -2769,7 +2769,7 @@ kbd {
   margin-bottom: 10px;
 }
 
-.sim-inspector-panel input[type="text"], .sim-inspector-panel select {
+.sim-inspector-panel input[type="text"], .sim-inspector-panel input[type="url"], .sim-inspector-panel select {
   width: 100%;
   background: var(--bg);
   color: var(--text);
@@ -2777,6 +2777,13 @@ kbd {
   border-radius: 6px;
   padding: 6px 8px;
   margin-top: 4px;
+}
+
+.sim-datasheet-link {
+  display: inline-block;
+  margin: -4px 0 10px;
+  font-size: 0.82rem;
+  color: var(--accent);
 }
 
 .sim-inspector-panel button {

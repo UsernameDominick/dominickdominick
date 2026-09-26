@@ -207,6 +207,22 @@
     return d.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
 
+  // escapeXml() alone stops HTML injection but a href value is still live
+  // even after escaping -- "javascript:alert(1)" has nothing to escape, so
+  // it would run as-is on click. Mirrors the exact same helper/reasoning
+  // already used server-side for public page links (worker/render.js's
+  // safeHref()) -- a component's datasheet-link field is exactly the same
+  // "user-supplied URL that becomes a real clickable href" shape, reachable
+  // here via the JSON import feature the same way this file's other
+  // recent critic findings were. Blocks only the dangerous schemes;
+  // relative paths, mailto:, tel:, and bare domains all pass through
+  // unchanged since those are legitimate.
+  function safeHref(url) {
+    const trimmed = String(url == null ? "" : url).trim();
+    if (/^(javascript|data|vbscript):/i.test(trimmed)) return "#";
+    return trimmed;
+  }
+
   function newLocalId(prefix) {
     return `${prefix}_${Date.now().toString(36)}_${localIdCounter++}`;
   }
@@ -1186,6 +1202,12 @@
         ${electricalHtml}
         ${extraFieldsHtml}
         <label>Label${comp.type === "mcu_teensy" ? " (shown on the part)" : " (shown as a hover tooltip, including on the public embed)"}<input id="sim-comp-label" type="text" value="${escapeXml(comp.label || "")}"></label>
+        <label>Datasheet link (for your own reference -- admin only, not shown on the public embed)<input id="sim-comp-datasheet" type="url" placeholder="https://…" value="${escapeXml(comp.datasheetUrl || "")}"></label>
+        ${
+          comp.datasheetUrl
+            ? `<a class="sim-datasheet-link" href="${escapeXml(safeHref(comp.datasheetUrl))}" target="_blank" rel="noopener noreferrer">Open datasheet ↗</a>`
+            : ""
+        }
         <button type="button" id="sim-duplicate-selected">Duplicate part</button>
         <button type="button" id="sim-delete-selected" class="danger">Delete part</button>
       `;
@@ -1247,6 +1269,26 @@
       });
       labelInput.addEventListener("blur", () => {
         labelHistorySaved = false;
+      });
+      const datasheetInput = $("sim-comp-datasheet");
+      let datasheetHistorySaved = false;
+      datasheetInput.addEventListener("input", () => {
+        if (!datasheetHistorySaved) {
+          pushHistory();
+          datasheetHistorySaved = true;
+        }
+        comp.datasheetUrl = datasheetInput.value;
+      });
+      datasheetInput.addEventListener("blur", () => {
+        datasheetHistorySaved = false;
+        // Re-renders just the inspector (not renderBuilder(), since the
+        // datasheet link is inspector-only and never drawn on the canvas)
+        // so the "Open datasheet" link's visibility and href refresh to
+        // match what was just typed -- it only needs to happen once, on
+        // blur/commit, not on every keystroke, the same reasoning the
+        // label input's own `input`-vs-something-coarser split already
+        // uses elsewhere in this function.
+        renderInspector();
       });
       $("sim-duplicate-selected").addEventListener("click", () => {
         pushHistory();

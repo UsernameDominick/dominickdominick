@@ -4920,7 +4920,7 @@ substantial new infra + security surface).
 402. ✅ Favorites/recent — done, scoped to recent (see the dated entry below this section for why favorites wasn't also built).
 403-405. Resistor/capacitor/inductor basic params — extra content fields, same pattern as resistance.
 409. Relays/switches — variant of existing switch component.
-410. Datasheet links — a URL field on component content.
+410. ✅ Datasheet links — done (see the dated entry below this section).
 411. Adjustable DC supply — variant of existing battery/power_supply with voltage field.
 415-416. Current source / battery internal resistance — extra numeric fields feeding existing Ohm's-law path.
 427. Power dissipation — already computed for resistor/LED; extend to more types.
@@ -8167,3 +8167,48 @@ against the classic `__proto__` edge case specifically, plus one
 proactive defense-in-depth hardening applied even though not required
 for today's exploitability, and a minor markup-duplication cleanup
 folded in alongside it.
+
+### Twenty-sixth item: #410, datasheet links on simulation components
+
+Added a "Datasheet link" URL field to every component's inspector panel
+(common to all types, not gated by component type the way resistance/
+voltage are), stored as `comp.datasheetUrl`, with an "Open datasheet ↗"
+link appearing beneath the input whenever a URL is set -- opens in a new
+tab via the target/rel combination (`_blank`/`noopener noreferrer`)
+already used everywhere else this codebase opens an external link safely.
+Scoped as admin-only reference metadata, explicitly not rendered on the
+public embed: unlike a component's `label` (shown as a public hover
+tooltip), a datasheet link is a build-reference aid for whoever's
+assembling the circuit in the admin, not something an end viewer of a
+published simulation page needs -- the field's own inspector caption
+says so explicitly ("admin only, not shown on the public embed").
+
+Given this session's own recent history of finding real attribute-
+breakout XSS in this exact file via the JSON-import path, and given a
+URL field is specifically the shape that needs more than plain
+`escapeXml()` -- a `javascript:`/`data:`/`vbscript:` URI has nothing for
+attribute-escaping to catch, since it's just as "valid" a string as a
+real URL until the moment it's clicked -- added a client-side
+`safeHref()` helper that mirrors the exact same reasoning, and literal
+scheme blocklist, already used server-side for public-page links
+(`worker/render.js`'s `safeHref()`): blocks `javascript:`/`data:`/
+`vbscript:` specifically, passes everything else (relative paths,
+`mailto:`, `tel:`, bare domains) through unchanged. The rendered link's
+`href` goes through `escapeXml(safeHref(url))` -- the exact same
+compose-both-helpers pattern the worker side already uses (`esc(safeHref(url))`)
+-- rather than either one alone, since `safeHref` doesn't escape
+attribute-breaking quote characters and `escapeXml` doesn't know a
+`javascript:` scheme is dangerous.
+
+Tested via Playwright: confirmed the datasheet input exists in every
+component's inspector and no "Open datasheet" link appears before a URL
+is typed; typed a normal `https://` URL and confirmed the link appears
+with the exact href, opening via `target="_blank"` and
+`rel="noopener noreferrer"`; typed `javascript:alert(document.cookie)`
+and confirmed the rendered href was neutralized to `"#"` rather than the
+payload, then clicked the neutralized link and confirmed no `alert()`
+fired. Full regression suite green; no server-side test state was
+created (the test simulation was never saved), so no cleanup was needed.
+
+Sent to a critic pass next per the standing workflow before calling it
+done.
