@@ -2651,52 +2651,97 @@ kbd {
    with no grouping at all just wrap onto a stack of cramped, visually
    identical rows -- there's no way to tell "these three go together"
    from "these are unrelated." Every control stays visible (nothing is
-   hidden behind a menu) -- the fix is purely visual structure: related
-   controls are grouped under a small caption, each group's own buttons
-   line up in a neat grid instead of wrapping wherever they happen to
-   fit, and a divider separates one group from the next. */
+   hidden behind a menu) -- the fix is visual structure, styled after a
+   hardware synth's own front panel: each group is its own outlined
+   section (a bright hairline border, not the site's usual muted one) with
+   a small caption cut into the top edge like a panel legend, and the
+   controls inside read as one seamless connected strip -- shared
+   borders, square-jointed corners, no gaps between adjacent buttons --
+   the way a synth's own mode/transport buttons sit flush against each
+   other inside their labeled section. */
 .sim-toolbar-groups {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
-  gap: 16px;
+  gap: 14px;
   flex: 1;
   min-width: 0;
 }
 
 .sim-toolbar-group {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding-right: 16px;
-  border-right: 1px solid var(--border);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 12px 10px 10px;
 }
 
-.sim-toolbar-group:last-child {
-  border-right: none;
-  padding-right: 0;
-}
-
+/* The legend "cuts into" the border like a synth panel's own section
+   label -- an opaque background matching the panel behind it (not the
+   group's own slightly-tinted background) breaks the border line
+   exactly where the text sits, rather than the text just floating
+   in front of an unbroken line. */
 .sim-toolbar-group-label {
-  font-size: 0.7rem;
-  font-weight: 600;
+  position: absolute;
+  top: -8px;
+  left: 10px;
+  background: var(--bg-elevated);
+  padding: 0 5px;
+  font-size: 0.68rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-dim);
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.75);
 }
 
 .sim-toolbar-group-buttons {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: max-content;
-  align-items: center;
-  gap: 6px;
+  display: inline-flex;
+  align-items: stretch;
+}
+
+/* Every direct control shares a border with its neighbor instead of each
+   having its own separate, gapped box -- square corners throughout,
+   with only the strip's own two outer ends rounded, so the whole row
+   reads as one connected control the way a synth's own button row does. */
+.sim-toolbar-group-buttons > button,
+.sim-toolbar-group-buttons > select {
+  border-radius: 0;
+  margin-left: -1px;
+}
+
+.sim-toolbar-group-buttons > button:first-child,
+.sim-toolbar-group-buttons > select:first-child {
+  margin-left: 0;
+  border-top-left-radius: 5px;
+  border-bottom-left-radius: 5px;
+}
+
+.sim-toolbar-group-buttons > button:last-child,
+.sim-toolbar-group-buttons > select:last-child {
+  border-top-right-radius: 5px;
+  border-bottom-right-radius: 5px;
+}
+
+/* A control that isn't part of the seamless strip (the canvas-search
+   input, the Snap dropdown's own label, the continuity result readout)
+   keeps its own spacing rather than being forced to merge with
+   neighbors it doesn't actually belong with. */
+.sim-toolbar-group-buttons > input[type="search"],
+.sim-toolbar-group-buttons > .sim-snap-label,
+.sim-toolbar-group-buttons > #sim-continuity-result {
+  margin-left: 10px;
 }
 
 .sim-toolbar-group-save {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 12px 10px 10px;
 }
 
 .simulation-name-input {
@@ -3424,39 +3469,38 @@ kbd {
 
   /* The direct fix for the "wall of buttons" phone screenshot: every
      control stays visible -- nothing is hidden or collapsed behind a
-     menu -- but each group now stacks as its own labeled section with
-     its buttons laid out in a neat, evenly-spaced grid instead of
-     wrapping wherever they happen to fit on whatever row. */
+     menu -- but each group now stacks as its own outlined panel with
+     its buttons laid out in a neat, evenly-spaced grid. The seamless
+     connected-strip treatment (desktop, a single row) doesn't hold up
+     once a row has to wrap across several lines -- a border-radius
+     glued to "first/last child" would land in the middle of a wrapped
+     line, not at the strip's real visual ends -- so mobile keeps each
+     button individually boxed inside the same outlined panel instead. */
   .sim-toolbar-groups {
     flex: 1 1 100%;
     flex-direction: column;
+    /* The desktop rule's flex-wrap: wrap was never overridden here --
+       combined with flex-direction: column it silently split the groups
+       across multiple flex "lines" (invisible at this exact width, but
+       still affecting each item's own cross-line sizing) and inflated
+       every group's height by ~46px of dead space for no visible reason.
+       A single column never needs to wrap in the first place. */
+    flex-wrap: nowrap;
     align-items: stretch;
     gap: 12px;
     order: 1;
   }
 
-  /* Stacked vertically at this width, so a right-hand divider no longer
-     reads as "these are grouped" -- a bottom divider (with the last
-     group's removed, same as desktop) keeps that same grouping legible
-     in a single column instead. */
-  .sim-toolbar-group {
-    padding-right: 0;
-    padding-bottom: 12px;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .sim-toolbar-group:last-child {
-    padding-bottom: 0;
-    border-bottom: none;
-  }
-
-  /* A real grid (not just a wrapped flex row) is what actually reads as
-     "neatly aligned" on a phone -- equal-width columns, buttons snapped
-     to a shared baseline, no ragged leftover gaps at the end of a row. */
   .sim-toolbar-group-buttons {
-    grid-auto-flow: row;
+    display: grid;
     grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 6px;
+  }
+
+  .sim-toolbar-group-buttons > button,
+  .sim-toolbar-group-buttons > select {
+    margin-left: 0;
+    border-radius: 6px;
   }
 
   .sim-toolbar-group-save {
@@ -3486,11 +3530,18 @@ kbd {
 
   .sim-snap-label {
     grid-column: span 2;
+    margin-left: 0;
+  }
+
+  #sim-continuity-result {
+    margin-left: 0;
+    grid-column: 1 / -1;
   }
 
   .sim-toolbar-group input[type="search"] {
     grid-column: 1 / -1;
     min-height: 40px;
+    margin-left: 0;
   }
 
   /* Same neat-grid treatment for the poster/share-image row's own three

@@ -13842,3 +13842,70 @@ under clearly labeled sections (HISTORY, CHECKPOINTS, FILE, TEST & VIEW,
 SAVE), consistent button sizing, no ragged wrapping — with everything
 still reachable by scrolling, nothing hidden. No server-side changes
 were needed.
+
+### 2026-09-26 — Second follow-up: synth-panel visual treatment
+
+Dominick asked for the same toolbar to look more "seamless" and "synth
+oriented" — the way a hardware synthesizer's own front panel groups a
+handful of related knobs/buttons inside a labeled outlined box, with
+the controls inside sitting flush against each other rather than as
+separate gapped buttons.
+
+Restyled the same five groups (no HTML structure changes) as bordered
+panels: each `.sim-toolbar-group` gets a bright hairline border
+(`rgba(255,255,255,0.28)`, distinctly lighter than the site's usual
+muted `--border`) and a faint tinted background, with its caption
+(`.sim-toolbar-group-label`) absolutely positioned to sit ON the top
+border line with an opaque background behind just the text — the
+classic `<fieldset><legend>` "cut into the border" look, done with a
+plain span so the existing markup didn't need to change to a real
+fieldset. On desktop, the buttons/select inside each group's
+`.sim-toolbar-group-buttons` row are visually merged into one seamless
+connected strip: square corners throughout, each control's left border
+overlapping its neighbor's right border by 1px (`margin-left: -1px`),
+with rounding only at the strip's own two true ends (`:first-child`/
+`:last-child`) — exactly how a synth's own mode/transport button row
+sits flush together inside its labeled section. A control that doesn't
+semantically belong in that merged strip (the canvas-search input, the
+Snap dropdown, the continuity-test readout) keeps its own normal
+spacing instead of being forced to merge with neighbors it isn't
+actually part of.
+
+The seamless single-row merge doesn't hold up once a row has to wrap
+across multiple lines on a narrow phone screen (a border-radius glued
+to "first/last child" would land in the middle of a wrapped line, not
+at the row's real visual ends) — so mobile keeps the same outlined
+panel-with-legend treatment per group, but with individually-rounded
+buttons in a plain grid inside it, rather than force-merging a
+multi-line wrap into something that would look broken.
+
+A second, unrelated real bug was found and fixed while verifying this
+round, entirely by empirical isolation testing (temporarily forcing
+`display:block`/`flex-wrap:nowrap` on ancestors and re-measuring, since
+static analysis of the CSS alone didn't explain it): `.sim-toolbar-
+groups`'s desktop rule set `flex-wrap: wrap`, and the mobile media
+query overrode `flex-direction` to `column` without ever also
+overriding `flex-wrap` back to `nowrap` — the combination silently
+split the single visible column into invisible flex "lines" that
+inflated every group's rendered height by ~46px of dead empty space
+inside its own border (confirmed by screenshotting with a temporary
+debug background color showing the exact empty region), even though
+visually there was only ever one column of stacked boxes on screen.
+Fixed with an explicit `flex-wrap: nowrap` in the mobile block — a
+single column never needs to wrap in the first place. This is what let
+the whole mobile toolbar shrink back down to fit tightly on one screen
+without dead space between sections, on top of the actual visual ask.
+
+Verified via Playwright: re-ran the exact same functional assertions
+from the previous round (every control present and visible with zero
+clicks on desktop, every control still in the DOM with no toggle-gating
+on mobile, canvas reachable by scrolling, Reset still wired correctly)
+— all still passing after the pure-CSS restyle. Re-ran the full existing
+simulation-builder regression set (checkpoints, poster, reset,
+disconnected-pins, ghost-wires) plus the full `test_security_seo.js`
+suite — all passing. Took fresh screenshots at both a real desktop width
+and a real phone width confirming the visual result: bordered,
+labeled sections with seamlessly connected button strips on desktop,
+and the same outlined-panel language (individually-boxed buttons in a
+tidy grid) on mobile, with the phantom empty space gone. No server-side
+changes were needed.
