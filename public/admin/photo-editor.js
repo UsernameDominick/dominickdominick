@@ -168,6 +168,12 @@
     // this only affects how current the *preview number* looks, never
     // what actually gets uploaded.
     scheduleSizeEstimate();
+    // Same free ride for the Resize width/height fields -- without this
+    // they'd keep showing whatever dimensions were true when the modal
+    // opened even after a rotate/crop/undo genuinely changed them,
+    // silently misleading an admin about what "no change" (leaving the
+    // fields alone) would actually do on their next Resize click.
+    refreshResizeFields();
   }
 
   // Real pixel dimensions and the scale actually being displayed at right
@@ -667,6 +673,45 @@
   }
   $("pe-flip-h").addEventListener("click", () => flip(true));
   $("pe-flip-v").addEventListener("click", () => flip(false));
+
+  // ---------- Resize (scales the actual pixels, unlike Crop which only
+  // ever cuts down to a sub-region without stretching anything) ----------
+  function refreshResizeFields() {
+    $("pe-resize-width").value = canvas.width;
+    $("pe-resize-height").value = canvas.height;
+  }
+  $("pe-resize-width").addEventListener("input", () => {
+    if (!$("pe-resize-lock").checked) return;
+    const w = Number($("pe-resize-width").value);
+    if (!w || !canvas.width) return;
+    $("pe-resize-height").value = Math.max(1, Math.round((w * canvas.height) / canvas.width));
+  });
+  $("pe-resize-height").addEventListener("input", () => {
+    if (!$("pe-resize-lock").checked) return;
+    const h = Number($("pe-resize-height").value);
+    if (!h || !canvas.height) return;
+    $("pe-resize-width").value = Math.max(1, Math.round((h * canvas.width) / canvas.height));
+  });
+  $("pe-apply-resize").addEventListener("click", () => {
+    if (isComparing()) return;
+    // Aspect ratio for the live-lock inputs above is always derived from
+    // the canvas's CURRENT dimensions at the moment of each keystroke, not
+    // a value frozen from when the modal opened -- so it stays correct
+    // even after an intervening rotate/crop/undo changes what "current"
+    // means, with no separate tracked-aspect variable to keep in sync.
+    const w = Math.max(1, Math.min(MAX_DIMENSION, Math.round(Number($("pe-resize-width").value) || canvas.width)));
+    const h = Math.max(1, Math.min(MAX_DIMENSION, Math.round(Number($("pe-resize-height").value) || canvas.height)));
+    if (w === canvas.width && h === canvas.height) return;
+    pushUndo();
+    const snap = snapshotCanvas();
+    canvas.width = w;
+    canvas.height = h;
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(snap, 0, 0, snap.width, snap.height, 0, 0, w, h);
+    syncOverlaySize();
+    cancelActiveDrag();
+    fitCanvasToViewport();
+  });
 
   // ---------- One-click filters ----------
   function applyOneShotFilter(cssFilter) {

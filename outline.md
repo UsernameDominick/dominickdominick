@@ -4736,7 +4736,7 @@ join, rather than building three separate systems.
 2. Blank document creation — new modal + canvas init, same pattern as open().
 3. Document presets — static size list feeding #2.
 5. Canvas resizing independent of image — extend crop logic to allow canvas-only resize.
-6. Image resizing with aspect lock — ctx.drawImage scale + lock checkbox.
+6. ✅ Image resizing with aspect lock — ctx.drawImage scale + lock checkbox. (done — see the dated entry below)
 8. ✅ Canvas-view rotation — CSS transform on stack, no pixel change. (done — see the dated entry below)
 17. Layer colors/labels — metadata fields once layers exist.
 18. Search/filter layers — simple list filter UI.
@@ -11017,3 +11017,57 @@ Item #78 is done: 2 critic rounds, 5/10 → 9/10. The round-1 double-commit
 bug, checkbox-toggle gap, and leaked-timer risk were all real,
 independently confirmed, and fixed together with two additional
 minor hardening improvements found along the way.
+
+### Fifty-ninth item: #6, Photo Editor image resizing with aspect lock
+
+- ✅ **A "Resize image" control** (width/height number inputs, a
+  "Lock ratio" checkbox checked by default, and an "Resize image"
+  button) that actually scales the image's real pixel content —
+  distinct from Crop, which only ever cuts down to a sub-region without
+  stretching anything. Reuses the exact same dimension-change pattern
+  `rotate90()` already established: `pushUndo()`, snapshot the current
+  canvas into a temp copy, resize the live `<canvas>` element, redraw
+  the snapshot scaled into the new dimensions via `drawImage`'s 9-arg
+  form, then `syncOverlaySize()`/`cancelActiveDrag()`/
+  `fitCanvasToViewport()` — no new dimension-change plumbing needed
+  since every piece of that sequence was already established and
+  correct.
+
+The aspect-lock design deliberately has no separately-tracked "locked
+ratio" variable to keep in sync: each keystroke on the width or height
+field recomputes the other field from the canvas's CURRENT real
+dimensions at that exact moment, so the lock stays correct automatically
+even if an intervening rotate/crop/undo changed what "current" means
+since the fields were last touched — there's no stale cached ratio that
+could ever drift out of sync with reality. Also hooked
+`refreshResizeFields()` into the existing `fitCanvasToViewport()`
+function, which already runs after every dimension-changing operation
+in this editor (crop, rotate, undo/redo/reset, initial load) — so the
+Resize fields always reflect the genuine current size for free, the
+same "free ride on an already-universal hook" pattern this function
+already provides for the status bar and size estimate. Server-side-
+equivalent client clamping to `MAX_DIMENSION` (2000) applies to
+resize requests exactly like the existing on-open downscale, so a
+resize can't be used to exceed the same size ceiling every other path
+in this editor already enforces.
+
+Verified via Playwright on a real 1500×700 test image: confirmed the
+width/height fields are correctly pre-populated with the real canvas
+size on open, confirmed changing the width field with lock ratio ON
+(checked by default) automatically computes the exact correct
+proportional height, confirmed clicking "Resize image" actually changes
+the canvas's real pixel dimensions (not just the displayed CSS size) to
+the requested values, confirmed the resized image still has genuine,
+non-blank pixel content at the new dimensions (not a corrupted/empty
+canvas), confirmed the width/height fields correctly refresh to the new
+size afterward via the `fitCanvasToViewport()` hook, confirmed Undo
+fully restores the original dimensions, confirmed unchecking "Lock
+ratio" correctly leaves the height field untouched when width changes,
+and confirmed an intentionally oversized request (99999px) is correctly
+clamped to `MAX_DIMENSION` (2000) rather than silently exceeding it or
+producing a huge unintended canvas. Ran the full `test_security_seo.js`
+regression suite — all passed — plus re-ran the prior named-snapshots
+test suite to confirm the `fitCanvasToViewport()` change introduced no
+regression to that unrelated feature. No test data was created (only
+in-memory canvas dimensions/pixels of an existing library image, undone
+via Undo before the test ends).

@@ -963,6 +963,12 @@
             <button type="button" id="pe-flip-h" title="Flip horizontal">⇋</button>
             <button type="button" id="pe-flip-v" title="Flip vertical">⇵</button>
           </div>
+          <div class="pe-tool-group">
+            <label>W <input type="number" id="pe-resize-width" min="1" max="2000" title="New image width in pixels"></label>
+            <label>H <input type="number" id="pe-resize-height" min="1" max="2000" title="New image height in pixels"></label>
+            <label title="Keep width and height proportional as you change one of them">Lock ratio <input type="checkbox" id="pe-resize-lock" checked></label>
+            <button type="button" id="pe-apply-resize" title="Scale the actual image pixels to the size above -- unlike Crop, this doesn't cut anything off, it stretches/shrinks the whole image">Resize image</button>
+          </div>
           <div class="pe-tool-group pe-adjust-group">
             <label>Brightness <input type="range" id="pe-brightness" min="-100" max="100" value="0"></label>
             <label>Contrast <input type="range" id="pe-contrast" min="-100" max="100" value="0"></label>
