@@ -7521,10 +7521,69 @@ tests (crop-clear-on-rotate, undo reverting correctly, mid-brush-stroke
 rotate not crashing) were re-run unchanged and still pass. Full
 regression suite green; test uploads deleted and confirmed gone.
 
-Done: 2 critic rounds (8/10, 8/10), two real findings across both rounds
--- brush/shape-tool drag state, then adjust-slider `baseSnapshot` state --
-both fixed by extending the same shared `cancelActiveDrag()` helper
-rather than treating each as a separate one-off patch, closing what
-turned out to be four distinct species of the identical underlying bug
-class (crop, brush, shape, and adjustment-slider state all pinned to a
-canvas that transforms out from under them) in one place.
+Sent to a round-3 critic pass on commit db326be, explicitly asked to
+hunt for a fifth species of the same bug class with fresh eyes given how
+many times this recurring pattern had already been found. Scored 5/10 --
+this round's own `baseSnapshot` fix was re-confirmed correct with no
+regression risk, but the audit surfaced a genuine, more severe, and more
+easily reachable fifth species: the Compare press-and-hold feature
+(`compareSavedState`) has the exact same "cached state tied to
+pre-transform canvas, resumed/read on a later event" shape as
+crop/brush/shape/baseSnapshot -- but unlike those three, `undo()`,
+`redo()`, and `resetToOriginal()` already had an `isComparing()` guard
+against it, while five OTHER canvas-mutating actions did not:
+`rotate90()`, `flip()`, `applyOneShotFilter()` (the one-click grayscale/
+sepia/invert filters), the Apply Crop click handler, and the Apply Preset
+change handler. Each of these calls `pushUndo()` and mutates the canvas
+directly with zero check of whether Compare is currently held.
+
+Critically, this one doesn't need multi-touch at all: Compare has both a
+pointer binding (press-and-hold) AND a keyboard binding (hold Space/
+Enter), so an ordinary desktop user holding Compare with the keyboard in
+one hand and clicking Rotate/a filter/Apply Crop/a preset with the mouse
+in the other hits this with completely standard hardware. The critic
+live-reproduced it: applied grayscale, held Compare (canvas correctly
+showed the original), clicked Rotate while still held (canvas silently
+rotated the temporary ORIGINAL-image preview, not the real grayscale
+edit), released Compare (the canvas snapped back to the real grayscale
+state at its original dimensions -- the rotate vanished completely, with
+zero error), and confirmed Undo landed directly on the pristine original,
+meaning `rotate90()`'s `pushUndo()` mid-compare had pushed a bogus entry
+that corrupted the undo stack on top of losing the edit outright.
+
+Fixed by adding the same `if (isComparing()) return;` guard the three
+already-protected functions use, to all five gaps: `rotate90()`,
+`flip()`, `applyOneShotFilter()`, the Apply Crop click handler, and the
+Apply Preset change handler -- placed as the very first line of each, so
+`pushUndo()` never runs and no bogus entry can be pushed by construction
+when the guard fires.
+
+Re-verified via Playwright, reproducing the critic's exact scenario using
+synthetic `PointerEvent`s dispatched directly on the Compare button
+(rather than real OS mouse movement, which would trigger the button's own
+`pointerleave`-ends-compare handler on the way to clicking elsewhere,
+masking the very interaction being tested): held Compare, attempted a
+rotate while held -- canvas dimensions stayed completely unchanged,
+confirming the action was blocked rather than silently discarded;
+released Compare -- dimensions still correctly unchanged, no rotate ever
+took effect; then performed a real (non-comparing) rotate afterward to
+confirm the guard doesn't break normal use -- dimensions correctly
+swapped as expected. The round-1/round-2 regression tests (crop-clear-
+on-rotate, mid-stroke rotate, mid-adjust-slider rotate) were re-run
+unchanged and still pass. Full regression suite green; test uploads
+deleted and confirmed gone.
+
+Done: 3 critic rounds (8/10, 8/10, 5/10), three real findings across all
+three rounds -- brush/shape-tool drag state, adjust-slider `baseSnapshot`
+state, and (the most severe, and reachable via completely standard
+keyboard+mouse use rather than requiring multi-touch) five actions
+missing the pre-existing `isComparing()` guard that other actions already
+had -- all fixed. What started as a single deferred crop-selection bug
+from an earlier feature's critic review turned into finding and closing
+five distinct instances of the same "cached interaction state outlives
+the canvas transform that invalidated it" bug class across this file, the
+last and worst of which was a real, easily-triggered silent-data-loss bug
+with no connection to the original crop finding at all -- a reminder that
+"send it back to a fresh critic with instructions to look for more of the
+same pattern" can surface real bugs a narrower re-review of just the
+latest diff would never have found.

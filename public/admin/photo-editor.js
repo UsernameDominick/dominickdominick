@@ -302,6 +302,18 @@
   });
 
   $("pe-apply-crop").addEventListener("click", () => {
+    // A critic pass found this (and four sibling actions below) missing
+    // the same isComparing() guard undo()/redo()/resetToOriginal() already
+    // have -- without it, applying while Compare is held operates on the
+    // temporary original-image preview currently on the canvas rather than
+    // the real edited state, pushes a bogus undo entry snapshotting that
+    // preview, and the whole action is then silently discarded the instant
+    // Compare is released and endCompare() overwrites the canvas back to
+    // the real state -- no error, just a vanished edit and corrupted undo
+    // history. Reachable without multi-touch too, since Compare also has a
+    // held-key binding (Space/Enter), so a mouse click can trigger any of
+    // these while a keyboard hold has Compare active.
+    if (isComparing()) return;
     if (!cropRect) return;
     const r = normalizedCrop(cropRect);
     if (r.w < 2 || r.h < 2) return;
@@ -357,6 +369,7 @@
   }
 
   function rotate90(clockwise) {
+    if (isComparing()) return;
     pushUndo();
     const w = canvas.width;
     const h = canvas.height;
@@ -379,6 +392,7 @@
 
   // ---------- Flip ----------
   function flip(horizontal) {
+    if (isComparing()) return;
     pushUndo();
     const snap = snapshotCanvas();
     ctx.save();
@@ -399,6 +413,7 @@
 
   // ---------- One-click filters ----------
   function applyOneShotFilter(cssFilter) {
+    if (isComparing()) return;
     pushUndo();
     const snap = snapshotCanvas();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -492,6 +507,7 @@
   }
 
   $("pe-apply-preset").addEventListener("change", () => {
+    if (isComparing()) return;
     const id = Number($("pe-apply-preset").value);
     const preset = photoPresets.find((p) => p.id === id);
     if (!preset) return;
