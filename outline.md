@@ -4827,7 +4827,7 @@ session's own EXIF-stripping feature for the upload-side equivalent).
 276. Polarity inversion — GainNode(-1).
 277. Mono compatibility button — ChannelMerger sum, toggle.
 301. ✅ Peak meters — done (see the dated entry below this section).
-302. RMS meters — compute from time-domain array.
+302. ✅ RMS meters — done (see the dated entry below this section).
 305. Spectrum analyzer — AnalyserNode FFT + canvas draw (mirrors existing waveform canvas).
 309. Track/master clipping history — log exceedances like existing `log()` action table.
 311. MIDI-device discovery — extend existing `requestMIDIAccess` call already present.
@@ -8943,3 +8943,57 @@ actual peak it was measuring, and a meter that visually disagreed with
 audio still genuinely playing) fixed and independently re-verified
 across multi-cycle play/stop sequences and a background-tab edge case
 the first round hadn't explicitly walked through.
+
+### Thirty-fourth item: #302, live RMS meter for the Song/DAW builder
+
+- ✅ **A second meter bar (RMS / average loudness)** added right next to
+  the #301 peak meter, computed from the exact same buffer that meter's
+  existing `tick()` loop already reads once per animation frame from the
+  shared metering `AnalyserNode` — no new `AnalyserNode`, no separate
+  polling loop, just one extra `sumSquares += v * v` accumulation added
+  to the same single pass that was already computing the peak. Shares
+  the peak meter's entire lifecycle exactly (same start/stop calls, same
+  ~800ms post-Stop drain window before resetting to 0%, so it keeps
+  tracking a genuinely decaying signal rather than snapping to 0 early).
+  Distinct blue fill color; deliberately doesn't get the peak meter's red
+  "clip" treatment, since RMS conventionally isn't a clip indicator the
+  way instantaneous peak is.
+
+Handed to a critic agent for scoring: **9/10**. Findings:
+
+1. **(Fixed)** This exact item's own outline.md checklist line hadn't
+   been marked done yet and had no dated write-up section — the one gap
+   keeping this from a 10, caught by the critic checking this session's
+   own "log every finding" convention against itself. This entry is that
+   fix.
+2. **(Confirmed already correct, not a bug)** The RMS formula
+   (`Math.sqrt(sumSquares / buffer.length)` over the full 2048-sample
+   window) is textbook root-mean-square with no off-by-one or scale
+   error; RMS ≤ peak was independently confirmed to be a real,
+   unconditional mathematical property for any finite sample set (mean
+   of a set of nonnegative values is always ≤ its max), not something
+   that merely happened to hold in one test run. Also confirmed: the
+   shared-loop refactor genuinely computes both readings in one pass
+   over one buffer read (not two separate loops or a second `AnalyserNode`);
+   `rmsFill` is looked up fresh every `startPeakMeter()` call exactly
+   like `peakFill`, with no staleness risk; the "clip" CSS class is never
+   applied to the RMS element; the added per-frame work (one multiply-add
+   per sample, 2048 samples) is trivial and not a realistic risk of
+   missing `requestAnimationFrame`'s ~16.7ms budget; and the linear
+   (non-dB) scale is a reasonable simplification consistent with how the
+   already-shipped peak meter itself already scales, not a new
+   inconsistency this feature introduced.
+3. **(Noted, not blocking)** For this specific instrument's sparse,
+   percussive drum-pattern content, a ~46ms RMS window will spend most of
+   its time straddling near-silence between hits even during a
+   maximally dense pattern, so the RMS bar will typically read much
+   lower and flicker much less than the peak bar — mathematically
+   expected given finding #2, and arguably even useful information (the
+   gap between the two readings itself says something about a song's
+   dynamics), not a defect to fix.
+
+Item #302 is done: 1 critic round, 9/10 immediately, zero real
+correctness findings in the actual math/lifecycle/rendering (independently
+re-verified rather than taken on faith) — the single point held back was
+this project's own "every shipped item gets logged" convention not yet
+having been applied to itself, closed by this entry.
