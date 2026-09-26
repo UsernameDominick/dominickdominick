@@ -628,8 +628,10 @@ function renderComponentSvg(comp, poweredComps, analysis) {
   // so a label an admin chose to fill in was already precedent for
   // public-visible content, not a private note -- a native <title> just
   // extends that same visibility to every other component type as a
-  // hover tooltip instead of printed text.
-  const titleSvg = comp.label ? `<title>${escXml(comp.label)}</title>` : "";
+  // hover tooltip instead of printed text. Skipped for mcu_teensy itself,
+  // which already prints the same text visibly -- a tooltip repeating it
+  // would just be redundant (a critic pass found this).
+  const titleSvg = comp.label && comp.type !== "mcu_teensy" ? `<title>${escXml(comp.label)}</title>` : "";
   return `<g class="sim-comp sim-comp-${escXml(comp.type)}${statusClass}" data-id="${escXml(comp.id)}" data-powered="${
     poweredComps.has(comp.id) ? "true" : "false"
   }" transform="translate(${comp.x},${comp.y})">${titleSvg}${def.render(comp)}</g>`;

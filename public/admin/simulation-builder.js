@@ -358,8 +358,10 @@
     // except the inspector's own text input. A native <title> gives every
     // other component type the same hover-visible reference its caption
     // already implied, with no new field duplicating what `label` already
-    // is.
-    const titleSvg = comp.label ? `<title>${escapeXml(comp.label)}</title>` : "";
+    // is. Skipped for mcu_teensy specifically -- it already prints the
+    // same text as visible SVG <text>, so a tooltip repeating it would
+    // just be redundant (a critic pass found this).
+    const titleSvg = comp.label && comp.type !== "mcu_teensy" ? `<title>${escapeXml(comp.label)}</title>` : "";
     return `<g class="sim-comp sim-comp-${comp.type}${sel ? " sim-selected" : ""}${damaged ? " sim-damaged" : ""}" data-id="${
       comp.id
     }" data-powered="${poweredComps.has(comp.id) ? "true" : "false"}" transform="translate(${comp.x},${

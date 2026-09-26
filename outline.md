@@ -6412,4 +6412,38 @@ Item #398 is done: 1 critic round, 9/10, no real findings.
   much earlier in this session's own testing, left untouched since
   cleaning up that backlog is a separate, larger task from this feature).
 
-Handed to a critic agent for scoring.
+Handed to a critic agent for scoring, with an explicit ask to attempt XSS
+injection since this renders admin-controlled text into a public page:
+**9/10, no security bug**. Live-injected `</title><script>window.__xssFired
+=true;document.title="XSS-PWNED"</script><title>x` as a component label
+and confirmed the rendered SVG shows the payload fully HTML-entity-
+encoded, `<title>`'s textContent comes back as the literal inert string,
+`window.__xssFired` stayed false, and `document.title` was untouched —
+verified in both the admin canvas and the public embed page. Confirmed
+both escaping functions (`escapeXml` client-side, `escXml` server-side)
+correctly handle `&`/`<`/`>` for this text-node context (server-side also
+escapes `"`, unneeded here since no quoted-attribute context is
+involved). Tested newlines, tabs, emoji, CJK text, embedded quotes, and
+a 5000-character label — all round-tripped exactly with no parse errors.
+Confirmed a label edit on an already-saved, already-viewed simulation
+correctly reaches the public embed with no simulation-specific stale-
+cache path (the one generic page-level cache header found applies
+site-wide and predates this change, not something newly introduced
+here). One real minor finding:
+
+1. **(Fixed)** `mcu_teensy` already prints its label as visible SVG
+   `<text>` on the part itself — the new `<title>` wrapper applied to
+   every component type uniformly meant a Teensy got a redundant hover
+   tooltip repeating text already readable on the part. Fixed by
+   skipping the `<title>` specifically for `mcu_teensy` in both render
+   paths, leaving its existing visible-text behavior as the only display
+   (matching how it worked before this feature).
+
+Re-verified via Playwright: a Teensy component now renders zero `<title>`
+elements (its printed label is still visible as before), while every
+other component type still gets the tooltip correctly. Full regression
+suite green.
+
+Item #524 is done: 1 critic round, 9/10 (explicitly including a real XSS
+injection attempt in both render paths, with none found), the one real
+finding (redundant Teensy tooltip) fixed and verified.
