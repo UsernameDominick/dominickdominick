@@ -1020,7 +1020,18 @@
       // in the current component registry (e.g. after a component type is
       // ever removed) -- a stale localStorage entry would otherwise
       // silently show a recent-part button that does nothing when clicked.
-      return Array.isArray(raw) ? raw.filter((t) => REG[t]) : [];
+      // A critic pass found a plain truthy `REG[t]` check doesn't
+      // distinguish an own property from one inherited via the prototype
+      // chain -- REG is a plain object literal, so a tampered (devtools,
+      // or a hypothetical future XSS on this origin) localStorage value
+      // like "constructor" or "toString" would resolve to a real,
+      // truthy Object.prototype method and pass this filter as if it
+      // were a real component type, then crash the whole builder canvas
+      // the moment it's placed (every render path assumes REG[comp.type]
+      // is a real component definition with .pins/.render, which a bare
+      // function has neither of). hasOwnProperty + a string-type check
+      // closes that off entirely.
+      return Array.isArray(raw) ? raw.filter((t) => typeof t === "string" && Object.prototype.hasOwnProperty.call(REG, t)) : [];
     } catch {
       return [];
     }

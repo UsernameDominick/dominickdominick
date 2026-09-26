@@ -8073,5 +8073,61 @@ admin's actual usage history. Full regression suite green; no
 simulations were saved during this test, so no server-side cleanup was
 needed.
 
-Sent to a critic pass next per the standing workflow before calling it
-done.
+Sent to a critic pass on commit cb970ba. Scored 6/10 -- explicitly told
+to take the localStorage-tampering vector seriously given this same
+file's earlier XSS history, and it found a real bug of a related but
+distinct class: `getRecentTypes()`'s stale-entry filter, `raw.filter((t)
+=> REG[t])`, is a plain truthy lookup, not an own-property check --
+since `REG` is a plain object literal (inherits from `Object.prototype`),
+a localStorage value like `"constructor"` or `"toString"` (writable via
+devtools, or in principle a hypothetical future XSS elsewhere on the
+origin) resolves through the prototype chain to a real, truthy method
+and passes the filter as if it were a genuine component type. Traced the
+full crash chain: `addComponentFromPalette("constructor")` sets `def` to
+the actual `Object` constructor function (truthy, so the existing
+`if (!def) return ""` guard elsewhere doesn't catch it), `nextPlacement()`
+reads `def.w` (undefined on a bare function), corrupting the palette's
+placement-position tracking with `NaN` for the rest of the session, and
+`renderComponentSvg()`/pin-iteration code call `def.render(comp)`/
+`def.pins.find(...)` on something with neither method, throwing and
+stopping the entire canvas from rendering. Worse, since the filter never
+strips the poisoned entry back out, it re-crashes on every future load
+until the browser's site data is manually cleared. The critic explicitly
+confirmed this is NOT attribute-breakout XSS (the only strings that can
+survive the broken filter are literal, quote-free `Object.prototype`
+method names), but flagged it as the same underlying mistake --
+validating a user/attacker-influenced string by truthy-testing it as an
+object key instead of checking own-property-ness -- just landing on
+availability (a crash/DoS) instead of confidentiality/integrity this
+time, worth taking seriously precisely because this file already has a
+history of the injection variant of this exact error class.
+
+Fixed by replacing the truthy lookup with `typeof t === "string" &&
+Object.prototype.hasOwnProperty.call(REG, t)`, which correctly rejects
+every `Object.prototype` method name while still accepting every real
+component-registry key. A minor cosmetic nit was fixed alongside it: the
+static HTML markup had its own hardcoded `<h3>Recently used</h3>`, but
+`renderRecentPalette()` unconditionally rebuilds the container's
+`innerHTML` with its own copy of the same string on every call (including
+the very first one, fired immediately on builder open) -- the static
+version was dead markup, destroyed before anyone could see it, just two
+copies of the same string that could silently drift apart later. Removed
+the static copy, leaving the JS as the single source of truth.
+
+Re-verified via Playwright, reproducing the critic's exact repro: set
+localStorage to `["constructor", "toString", "resistor", 123, {"foo":
+"bar"}, null]` directly, opened the builder, and confirmed only the one
+genuine entry (`"resistor"`) rendered -- every prototype-method name,
+non-string, and null value was correctly filtered out; confirmed zero
+page errors were thrown at any point (the crash the bug would have
+caused); confirmed clicking the one legitimate recent-part button still
+correctly added a component; confirmed exactly one "Recently used"
+heading renders, not zero or two. The original round-1 tests (hidden
+when empty, correct order, adds a component, persists across sessions)
+were re-run unchanged and still pass. Full regression suite green.
+
+Item #402 is done: 1 critic round, 6/10, the one real finding (a
+prototype-chain filter bypass that could permanently break the builder
+canvas from tampered localStorage) fixed and verified live via the
+critic's own exact repro, plus a minor markup-duplication cleanup folded
+in alongside it.
