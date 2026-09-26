@@ -4770,17 +4770,9 @@ join, rather than building three separate systems.
 161. ✅ Export quality/size preview — done (see the dated entry below this section).
 169. Transparency preview vs backgrounds — checkerboard/color toggle behind canvas.
 174. Light/dark theme preview — wrap canvas container in themed class.
-- **(found by critic review of #92's crop-ratio feature)** `rotate90()`
-  and `flip()` in photo-editor.js never clear `cropRect` or hide the
-  Apply Crop button. A crop selection drawn before a rotate/flip survives
-  with stale coordinates against the new (possibly dimension-swapped, for
-  a 90° rotate) canvas, and applying it afterward can read past the new
-  bounds -- `getImageData` doesn't throw for that, it silently returns a
-  transparent-padded crop instead of the intended region. Predates the
-  crop-ratio feature (plain free-form crop already had this gap) and
-  isn't made worse by it, so not fixed as part of that diff. Small,
-  targeted fix: clear `cropRect` and hide `pe-apply-crop` at the top of
-  both functions, same as the reset-to-original path already does.
+- ✅ (found by critic review of #92's crop-ratio feature) `rotate90()`/
+  `flip()` leaving a stale crop selection after a transform -- fixed (see
+  the dated entry below this section).
 
 ### Photo Editor — Medium
 4, 7, 9, 10, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 29, 30, 35, 36, 37,
@@ -7407,3 +7399,34 @@ just UI-state inspection, with the detection-rule edge case (absolute
 URLs to this site's own domain) and two narrow latent-coupling
 observations logged as accepted, pre-existing, non-blocking gaps rather
 than fixed.
+
+### Twenty-third item: photo editor stale crop selection surviving rotate/flip
+
+Fixed the pre-existing gap #92's critic review found and deliberately
+deferred rather than folding into that diff: `rotate90()` and `flip()`
+in `photo-editor.js` never cleared `cropRect` or hid the Apply Crop
+button, so a crop selection drawn before either transform survived with
+coordinates from before the transform. For a 90-degree rotate this is
+especially broken since width/height swap -- the old coordinates land
+somewhere completely different on the new canvas -- and for a flip the
+canvas stays the same size but the pixels underneath the selection have
+mirrored, so applying it afterward would silently crop the wrong,
+mirrored region instead of throwing or visibly failing (`getImageData`
+pads out-of-range reads with transparent-black rather than erroring).
+
+Fixed by clearing `cropRect`, hiding `pe-apply-crop`, and clearing the
+overlay at the end of both functions -- matching the exact pattern
+`restoreSnapshot()` (used by Reset-to-original) already establishes for
+"the canvas just changed underneath any in-progress selection."
+
+Tested via Playwright: drew a crop selection, confirmed Apply Crop was
+visible; rotated right and confirmed the canvas dimensions correctly
+swapped (800x600 -> 600x800) AND Apply Crop was hidden again with no
+selection surviving; drew a second selection and flipped horizontally,
+confirming it was cleared the same way; sampled a canvas pixel afterward
+to confirm the rotate+flip themselves still produced real image data (no
+regression to the transforms' own correctness). Full regression suite
+green; test upload deleted and confirmed gone.
+
+Implemented and self-verified; sent to a critic pass next per the
+standing workflow before calling it fully closed.

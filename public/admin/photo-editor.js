@@ -330,6 +330,18 @@
     canvas.height = w;
     ctx.drawImage(tmp, 0, 0);
     syncOverlaySize();
+    // A critic pass reviewing a later crop feature found a selection drawn
+    // before a rotate survives with coordinates from the OLD canvas size --
+    // a 90-degree rotate swaps width/height, so those coordinates land
+    // somewhere completely different on the new canvas -- and applying it
+    // afterward silently reads past the new bounds (getImageData pads with
+    // transparent-black rather than throwing) instead of the region the
+    // user actually selected. Clearing it here matches restoreSnapshot()'s
+    // existing precedent for "the canvas just changed underneath any
+    // in-progress selection."
+    cropRect = null;
+    $("pe-apply-crop").hidden = true;
+    clearOverlay();
     fitCanvasToViewport();
   }
   $("pe-rotate-left").addEventListener("click", () => rotate90(false));
@@ -350,6 +362,16 @@
     }
     ctx.drawImage(snap, 0, 0);
     ctx.restore();
+    // Canvas dimensions don't change on a flip (unlike rotate90), so a
+    // selection's coordinates stay numerically in-bounds -- but the pixels
+    // underneath it have moved, so it would silently crop the wrong,
+    // mirrored region of the now-flipped image instead of what was
+    // actually selected before the flip. Same clear as rotate90() for the
+    // same underlying reason: an in-progress selection doesn't survive an
+    // image transform that happened out from under it.
+    cropRect = null;
+    $("pe-apply-crop").hidden = true;
+    clearOverlay();
   }
   $("pe-flip-h").addEventListener("click", () => flip(true));
   $("pe-flip-v").addEventListener("click", () => flip(false));
