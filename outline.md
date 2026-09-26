@@ -10665,3 +10665,30 @@ option. Ran the full `test_security_seo.js` regression suite — all
 passed. Cleaned up the uploaded test font media file via the real
 DELETE endpoint and confirmed the site's Settings were restored to
 their exact pre-test values (both were empty strings before and after).
+
+Handed to a critic agent for scoring: **9/10 — ships.** Given this exact
+file's documented history of a prior critic-caught concurrent-call race
+in `ensureCustomFontLoaded()` itself, the critic specifically traced
+(rather than assumed) whether the new `lastFontLoadFailed` flag could
+suffer a similar stale-read race against the existing `fontCheckPromise`
+de-duplication mechanism — and confirmed it can't, by construction: a
+second call while a check is in flight returns the exact same Promise
+object (not a new one), `fontCheckPromise` is only reset to `null`
+inside the `finally` block that runs before that promise ever resolves,
+so no second underlying check can start until the first has fully
+finished writing its final flag value — meaning at most one check is
+ever in flight at a time, and every `.then()` callback attached to it
+necessarily fires only after that single check's flag value is already
+final. Also confirmed the "nothing configured" early-return path, the
+freshly-successful-load path, AND the cached/no-reload-needed success
+path all correctly reset the flag to `false`, and confirmed the
+disabled-state and sans-serif-fallback logic key off `family` alone, so
+both apply identically regardless of which of the two reasons produced
+a falsy `family`. One minor, explicitly non-blocking, pre-existing
+(not new) note: the single shared `catch` block still conflates "the
+`/settings` fetch itself failed" with "the font file itself failed to
+load" under the same message — both collapsed together before this
+change too, so not a regression, just a known scope boundary for a
+possible future finer-grained pass.
+
+Item #109 is done: 1 critic round, 9/10 on the first pass.
