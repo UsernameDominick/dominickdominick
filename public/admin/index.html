@@ -294,39 +294,6 @@
             <input id="article-title" placeholder="Title" aria-label="Title">
             <input id="article-slug" placeholder="URL slug (auto from title)" spellcheck="false" aria-label="URL slug">
           </div>
-          <div class="field-row">
-            <input id="article-tags" placeholder="Tags, comma separated (e.g. life, code)" aria-label="Tags">
-            <input id="article-co-authors" placeholder="Co-authors, comma separated (optional byline credits)" aria-label="Co-authors">
-          </div>
-          <div class="article-series-row">
-            <input id="article-series" placeholder="Series name (optional, e.g. \"Rebuilding my deck\")" list="article-series-datalist" aria-label="Series name">
-            <datalist id="article-series-datalist"></datalist>
-            <input id="article-series-order" type="number" placeholder="Part #" aria-label="Series part number">
-          </div>
-          <p id="article-series-hint" class="article-series-hint" hidden></p>
-          <div class="article-flags-row">
-            <label><input type="checkbox" id="article-featured"> Featured</label>
-            <label><input type="checkbox" id="article-pinned"> Pinned to top</label>
-            <label><input type="checkbox" id="article-sitemap-exclude"> Exclude from sitemap.xml</label>
-            <label title="Stays published and reachable at its URL, but drops out of every listing, tag page, related-content pick, and RSS feed"><input type="checkbox" id="article-archived"> Archived</label>
-          </div>
-          <div class="input-with-upload">
-            <input id="article-og-image" placeholder="Share image URL (og:image, blank = site default)" spellcheck="false" aria-label="Share image URL">
-            <button type="button" class="upload-trigger" data-target="#article-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#article-og-image">Browse…</button><br><button type="button" class="edit-image-trigger" data-target="#article-og-image">Edit / crop for social…</button>
-          </div>
-          <input id="article-canonical-url" placeholder="Canonical URL override (optional — blank = auto)" spellcheck="false" aria-label="Canonical URL override">
-          <label title="Added alongside this article's auto-generated structured data, not instead of it. Must be valid JSON — one object, e.g. a FAQPage or HowTo schema.org type.">Custom structured data (JSON-LD, optional)<textarea id="article-custom-json-ld" rows="3" spellcheck="false" placeholder='{"@context":"https://schema.org","@type":"FAQPage",...}'></textarea></label>
-          <label>Correction/update note (optional — shown to readers in a callout at the top)<textarea id="article-correction-note" rows="2" placeholder="e.g. Updated Sept 2026 to reflect the new API."></textarea></label>
-          <label>Private notes (never shown publicly — editorial reminders, todos, sources)<textarea id="article-private-notes" rows="2" placeholder="e.g. Still need to add the benchmark screenshots before publishing."></textarea></label>
-          <div class="tts-audio-field">
-            <label>Audio narration (optional — plays for readers instead of/alongside the browser read-aloud button)</label>
-            <input type="file" id="article-tts-audio-file" accept="audio/mpeg,audio/wav,audio/mp4,audio/ogg" hidden>
-            <button type="button" id="article-tts-audio-upload-btn">Upload audio…</button>
-            <button type="button" id="article-tts-audio-remove-btn" hidden>Remove audio</button>
-            <audio id="article-tts-audio-preview" controls hidden></audio>
-          </div>
-          <label>Related projects (edits the project's own "Related articles" field)<select id="article-related-projects" multiple size="4"></select></label>
-          <label>Pin "Related articles" shown on this page (optional — leave empty to use automatic tag-based matches)<select id="article-related-override" multiple size="4"></select></label>
           <div class="md-toolbar">
             <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="bold" title="Bold"><strong>B</strong></button>
             <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="italic" title="Italic"><em>I</em></button>
@@ -345,38 +312,95 @@
             <label class="article-word-goal">Goal <input type="number" id="article-word-goal" min="0" step="50" placeholder="none"></label>
           </div>
           <div id="article-autosave-status" class="article-autosave-status"></div>
-          <div class="og-preview-label">Share preview</div>
-          <div class="og-preview" id="og-preview-article">
-            <div class="og-preview-img" id="og-preview-article-img"></div>
-            <div class="og-preview-body">
-              <div class="og-preview-domain">dominickdominick.com</div>
-              <div class="og-preview-title" id="og-preview-article-title"></div>
-              <div class="og-preview-desc" id="og-preview-article-desc"></div>
-            </div>
-          </div>
           <div id="publish-checklist-article" class="publish-checklist"></div>
           <div id="article-link-warnings" class="link-warnings"></div>
           <div id="article-link-suggestions" class="link-suggestions"></div>
-          <div class="article-actions">
-            <label><input type="checkbox" id="article-published"> Published</label>
-            <label>Publish at (blank = immediately)<input type="datetime-local" id="article-publish-at"></label>
-            <label>Expires at (blank = never)<input type="datetime-local" id="article-expires-at" title="Automatically unpublishes at this time — the article isn't deleted, just drops out of listings and the direct URL"></label>
+          <details class="panel-section editor-section" open>
+            <summary>Details</summary>
+            <div class="field-row">
+              <input id="article-tags" placeholder="Tags, comma separated (e.g. life, code)" aria-label="Tags">
+              <input id="article-co-authors" placeholder="Co-authors, comma separated (optional byline credits)" aria-label="Co-authors">
+            </div>
+            <div class="article-series-row">
+              <input id="article-series" placeholder="Series name (optional, e.g. &quot;Rebuilding my deck&quot;)" list="article-series-datalist" aria-label="Series name">
+              <datalist id="article-series-datalist"></datalist>
+              <input id="article-series-order" type="number" placeholder="Part #" aria-label="Series part number">
+            </div>
+            <p id="article-series-hint" class="article-series-hint" hidden></p>
+            <div class="article-flags-row">
+              <label><input type="checkbox" id="article-featured"> Featured</label>
+              <label><input type="checkbox" id="article-pinned"> Pinned to top</label>
+              <label><input type="checkbox" id="article-sitemap-exclude"> Exclude from sitemap.xml</label>
+              <label title="Stays published and reachable at its URL, but drops out of every listing, tag page, related-content pick, and RSS feed"><input type="checkbox" id="article-archived"> Archived</label>
+            </div>
+          </details>
+          <details class="panel-section editor-section">
+            <summary>Sharing &amp; SEO</summary>
+            <div class="input-with-upload">
+              <input id="article-og-image" placeholder="Share image URL (og:image, blank = site default)" spellcheck="false" aria-label="Share image URL">
+              <button type="button" class="upload-trigger" data-target="#article-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#article-og-image">Browse…</button><br><button type="button" class="edit-image-trigger" data-target="#article-og-image">Edit / crop for social…</button>
+            </div>
+            <input id="article-canonical-url" placeholder="Canonical URL override (optional — blank = auto)" spellcheck="false" aria-label="Canonical URL override">
+            <label title="Added alongside this article's auto-generated structured data, not instead of it. Must be valid JSON — one object, e.g. a FAQPage or HowTo schema.org type.">Custom structured data (JSON-LD, optional)<textarea id="article-custom-json-ld" rows="3" spellcheck="false" placeholder='{"@context":"https://schema.org","@type":"FAQPage",...}'></textarea></label>
+            <div class="og-preview-label">Share preview</div>
+            <div class="og-preview" id="og-preview-article">
+              <div class="og-preview-img" id="og-preview-article-img"></div>
+              <div class="og-preview-body">
+                <div class="og-preview-domain">dominickdominick.com</div>
+                <div class="og-preview-title" id="og-preview-article-title"></div>
+                <div class="og-preview-desc" id="og-preview-article-desc"></div>
+              </div>
+            </div>
+          </details>
+          <details class="panel-section editor-section">
+            <summary>Reader extras</summary>
+            <label>Correction/update note (optional — shown to readers in a callout at the top)<textarea id="article-correction-note" rows="2" placeholder="e.g. Updated Sept 2026 to reflect the new API."></textarea></label>
+            <div class="tts-audio-field">
+              <label>Audio narration (optional — plays for readers instead of/alongside the browser read-aloud button)</label>
+              <input type="file" id="article-tts-audio-file" accept="audio/mpeg,audio/wav,audio/mp4,audio/ogg" hidden>
+              <button type="button" id="article-tts-audio-upload-btn">Upload audio…</button>
+              <button type="button" id="article-tts-audio-remove-btn" hidden>Remove audio</button>
+              <audio id="article-tts-audio-preview" controls hidden></audio>
+            </div>
+            <label>Related projects (edits the project's own "Related articles" field)<select id="article-related-projects" multiple size="4"></select></label>
+            <label>Pin "Related articles" shown on this page (optional — leave empty to use automatic tag-based matches)<select id="article-related-override" multiple size="4"></select></label>
+          </details>
+          <details class="panel-section editor-section">
+            <summary>Private notes</summary>
+            <label>Private notes (never shown publicly — editorial reminders, todos, sources)<textarea id="article-private-notes" rows="2" placeholder="e.g. Still need to add the benchmark screenshots before publishing."></textarea></label>
+          </details>
+          <details class="panel-section editor-section" open>
+            <summary>Publishing</summary>
+            <div class="field-row publish-row">
+              <label><input type="checkbox" id="article-published"> Published</label>
+              <label>Publish at (blank = immediately)<input type="datetime-local" id="article-publish-at"></label>
+              <label>Expires at (blank = never)<input type="datetime-local" id="article-expires-at" title="Automatically unpublishes at this time — the article isn't deleted, just drops out of listings and the direct URL"></label>
+            </div>
+          </details>
+          <details class="panel-section editor-section">
+            <summary>More actions</summary>
+            <div class="panel-action-grid">
+              <button type="button" id="share-preview-article-btn" hidden>Share preview link…</button>
+              <button id="article-history-btn" type="button" hidden>History</button>
+              <button type="button" id="duplicate-article-btn" hidden>Duplicate</button>
+              <button type="button" id="convert-article-to-project-btn" hidden title="Creates a project draft from this article's content — the article itself is kept as-is">Convert to Project…</button>
+              <button type="button" id="export-article-md-btn" title="Download the title and body as a .md file">Export .md</button>
+              <button type="button" id="lock-article-btn" title="Locking protects this article from bulk publish/unpublish/trash and global find-replace — it doesn't affect editing it directly">Lock</button>
+              <button type="button" id="favorite-article-btn" title="Pin to the top of the command palette">☆ Pin</button>
+            </div>
+            <div class="template-row">
+                <button type="button" id="save-article-template-btn">Save body as template</button>
+                <button type="button" id="delete-article-template-btn" title="Delete a template by typing its exact name">Delete template</button>
+            </div>
+            <button id="delete-article" class="danger">Delete</button>
+          </details>
+          <div class="article-actions editor-primary-actions">
             <a id="preview-article-link" href="#" target="_blank" class="preview-link" hidden>Preview ↗</a>
-            <button type="button" id="share-preview-article-btn" hidden>Share preview link…</button>
-            <button id="article-history-btn" type="button" hidden>History</button>
-            <button type="button" id="duplicate-article-btn" hidden>Duplicate</button>
-            <button type="button" id="convert-article-to-project-btn" hidden title="Creates a project draft from this article's content — the article itself is kept as-is">Convert to Project…</button>
-            <button type="button" id="export-article-md-btn" title="Download the title and body as a .md file">Export .md</button>
-            <button id="save-article">Save</button>
-            <button id="new-article">New</button>
             <select id="article-template-picker" title="Fill a new article's body from a saved template">
               <option value="">Start blank</option>
             </select>
-            <button type="button" id="save-article-template-btn">Save body as template</button>
-            <button type="button" id="delete-article-template-btn" title="Delete a template by typing its exact name">Delete template</button>
-            <button type="button" id="lock-article-btn" title="Locking protects this article from bulk publish/unpublish/trash and global find-replace — it doesn't affect editing it directly">Lock</button>
-            <button type="button" id="favorite-article-btn" title="Pin to the top of the command palette">☆ Pin</button>
-            <button id="delete-article" class="danger">Delete</button>
+            <button id="new-article">New</button>
+            <button id="save-article">Save</button>
           </div>
           <div id="preview-links-panel-article" class="preview-links-panel" hidden>
             <label>Link valid for
@@ -419,53 +443,6 @@
             <input id="project-slug" placeholder="URL slug (auto from title)" spellcheck="false" aria-label="URL slug">
           </div>
           <textarea id="project-summary" rows="2" placeholder="One or two sentence summary — shown on project lists and as the share description" aria-label="Summary"></textarea>
-          <div class="field-row">
-            <input id="project-tags" placeholder="Tags, comma separated (e.g. electronics, woodworking)" aria-label="Tags">
-            <input id="project-tech-stack" placeholder="Tech stack, comma separated (e.g. Arduino, KiCad, React)" aria-label="Tech stack">
-          </div>
-          <div class="article-series-row">
-            <input id="project-status" placeholder="Status (e.g. In progress, Completed, Archived)" aria-label="Status">
-            <label class="project-featured-label"><input type="checkbox" id="project-featured"> Featured</label>
-            <label class="project-featured-label" title="Lower numbers lead the featured-projects list; blank falls back to newest-first">Featured order<input type="number" id="project-featured-order" style="width:70px;"></label>
-            <label class="project-featured-label" title="Used by a Project List block set to 'Manual order' — lower numbers come first; blank falls back to newest-first">Sort order<input type="number" id="project-sort-order" style="width:70px;"></label>
-            <label class="project-featured-label"><input type="checkbox" id="project-sitemap-exclude"> Exclude from sitemap.xml</label>
-            <label class="project-featured-label" title="Stays published and reachable at its URL, but drops out of every listing, tag page, related-content pick, and RSS feed — separate from the free-text Status field above"><input type="checkbox" id="project-archived"> Archived (hide from listings)</label>
-          </div>
-          <div class="project-links-row">
-            <input id="project-link-github" placeholder="GitHub URL" aria-label="GitHub URL">
-            <input id="project-link-demo" placeholder="Live demo URL" aria-label="Live demo URL">
-            <input id="project-link-docs" placeholder="Docs URL" aria-label="Docs URL">
-            <input id="project-link-download" placeholder="Download URL (quick single link)" aria-label="Download URL">
-          </div>
-          <label>Download manifest (optional — one file per line: Label | URL | Description)<textarea id="project-downloads" rows="4" placeholder="Firmware v1.2 | /media/uploads/firmware.bin | Latest build, flash with esptool"></textarea></label>
-          <div class="input-with-upload">
-            <input id="project-og-image" placeholder="Share/hero image URL (blank = site default)" spellcheck="false" aria-label="Share/hero image URL">
-            <button type="button" class="upload-trigger" data-target="#project-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#project-og-image">Browse…</button><br><button type="button" class="edit-image-trigger" data-target="#project-og-image">Edit / crop for social…</button>
-          </div>
-          <input id="project-canonical-url" placeholder="Canonical URL override (optional — blank = auto)" spellcheck="false" aria-label="Canonical URL override">
-          <label title="Added alongside this project's auto-generated structured data, not instead of it. Must be valid JSON — one object, e.g. a Product or HowTo schema.org type.">Custom structured data (JSON-LD, optional)<textarea id="project-custom-json-ld" rows="3" spellcheck="false" placeholder='{"@context":"https://schema.org","@type":"Product",...}'></textarea></label>
-          <label>Correction/update note (optional — shown to readers in a callout at the top)<textarea id="project-correction-note" rows="2" placeholder="e.g. Updated Sept 2026 with the v2 hardware revision."></textarea></label>
-          <label>Private notes (never shown publicly — editorial reminders, todos, sources)<textarea id="project-private-notes" rows="2" placeholder="e.g. Waiting on the vendor datasheet before finishing the BOM."></textarea></label>
-          <div class="tts-audio-field">
-            <label>Audio narration (optional — plays for readers instead of/alongside the browser read-aloud button)</label>
-            <input type="file" id="project-tts-audio-file" accept="audio/mpeg,audio/wav,audio/mp4,audio/ogg" hidden>
-            <button type="button" id="project-tts-audio-upload-btn">Upload audio…</button>
-            <button type="button" id="project-tts-audio-remove-btn" hidden>Remove audio</button>
-            <audio id="project-tts-audio-preview" controls hidden></audio>
-          </div>
-          <div class="tts-audio-field">
-            <label>Hero video (optional — muted, looping background clip shown near the top of the project page; respects visitors' reduced-motion preference)</label>
-            <input type="file" id="project-hero-video-file" accept="video/mp4,video/webm,video/quicktime" hidden>
-            <button type="button" id="project-hero-video-upload-btn">Upload video…</button>
-            <button type="button" id="project-hero-video-remove-btn" hidden>Remove video</button>
-            <video id="project-hero-video-preview" controls muted hidden style="max-width:320px;"></video>
-          </div>
-          <div class="project-related-row">
-            <label>Related articles<select id="project-related-articles" multiple size="4"></select></label>
-            <label>Related simulations<select id="project-related-simulations" multiple size="4"></select></label>
-            <label>Related scans<select id="project-related-scans" multiple size="4"></select></label>
-            <label>Pin "Related projects" shown on this page (optional — leave empty to use automatic tag-based matches)<select id="project-related-override" multiple size="4"></select></label>
-          </div>
           <div class="md-toolbar">
             <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="bold" title="Bold"><strong>B</strong></button>
             <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="italic" title="Italic"><em>I</em></button>
@@ -480,36 +457,107 @@
           </div>
           <textarea id="project-body" placeholder="Write here. Same formatting as articles: **bold**, *italic*, [link](url), ## / ### headings, ```code``` blocks, pipe tables, [^1] footnotes, :::note ::: callouts." rows="14"></textarea>
           <div id="project-autosave-status" class="article-autosave-status"></div>
-          <div class="og-preview-label">Share preview</div>
-          <div class="og-preview" id="og-preview-project">
-            <div class="og-preview-img" id="og-preview-project-img"></div>
-            <div class="og-preview-body">
-              <div class="og-preview-domain">dominickdominick.com</div>
-              <div class="og-preview-title" id="og-preview-project-title"></div>
-              <div class="og-preview-desc" id="og-preview-project-desc"></div>
-            </div>
-          </div>
           <div id="publish-checklist-project" class="publish-checklist"></div>
           <div id="project-link-warnings" class="link-warnings"></div>
           <div id="project-link-suggestions" class="link-suggestions"></div>
-          <div class="article-actions">
-            <label><input type="checkbox" id="project-published"> Published</label>
-            <label>Publish at (blank = immediately)<input type="datetime-local" id="project-publish-at"></label>
-            <label>Expires at (blank = never)<input type="datetime-local" id="project-expires-at" title="Automatically unpublishes at this time — the project isn't deleted, just drops out of listings and the direct URL"></label>
+          <details class="panel-section editor-section" open>
+            <summary>Details &amp; links</summary>
+            <div class="field-row">
+              <input id="project-tags" placeholder="Tags, comma separated (e.g. electronics, woodworking)" aria-label="Tags">
+              <input id="project-tech-stack" placeholder="Tech stack, comma separated (e.g. Arduino, KiCad, React)" aria-label="Tech stack">
+            </div>
+            <div class="article-series-row">
+              <input id="project-status" placeholder="Status (e.g. In progress, Completed, Archived)" aria-label="Status">
+              <label class="project-featured-label"><input type="checkbox" id="project-featured"> Featured</label>
+              <label class="project-featured-label" title="Lower numbers lead the featured-projects list; blank falls back to newest-first">Featured order<input type="number" id="project-featured-order" style="width:70px;"></label>
+              <label class="project-featured-label" title="Used by a Project List block set to 'Manual order' — lower numbers come first; blank falls back to newest-first">Sort order<input type="number" id="project-sort-order" style="width:70px;"></label>
+              <label class="project-featured-label"><input type="checkbox" id="project-sitemap-exclude"> Exclude from sitemap.xml</label>
+              <label class="project-featured-label" title="Stays published and reachable at its URL, but drops out of every listing, tag page, related-content pick, and RSS feed — separate from the free-text Status field above"><input type="checkbox" id="project-archived"> Archived (hide from listings)</label>
+            </div>
+            <div class="project-links-row">
+              <input id="project-link-github" placeholder="GitHub URL" aria-label="GitHub URL">
+              <input id="project-link-demo" placeholder="Live demo URL" aria-label="Live demo URL">
+              <input id="project-link-docs" placeholder="Docs URL" aria-label="Docs URL">
+              <input id="project-link-download" placeholder="Download URL (quick single link)" aria-label="Download URL">
+            </div>
+            <label>Download manifest (optional — one file per line: Label | URL | Description)<textarea id="project-downloads" rows="4" placeholder="Firmware v1.2 | /media/uploads/firmware.bin | Latest build, flash with esptool"></textarea></label>
+          </details>
+          <details class="panel-section editor-section">
+            <summary>Sharing &amp; SEO</summary>
+            <div class="input-with-upload">
+              <input id="project-og-image" placeholder="Share/hero image URL (blank = site default)" spellcheck="false" aria-label="Share/hero image URL">
+              <button type="button" class="upload-trigger" data-target="#project-og-image">Upload image</button> <button type="button" class="browse-trigger" data-target="#project-og-image">Browse…</button><br><button type="button" class="edit-image-trigger" data-target="#project-og-image">Edit / crop for social…</button>
+            </div>
+            <input id="project-canonical-url" placeholder="Canonical URL override (optional — blank = auto)" spellcheck="false" aria-label="Canonical URL override">
+            <label title="Added alongside this project's auto-generated structured data, not instead of it. Must be valid JSON — one object, e.g. a Product or HowTo schema.org type.">Custom structured data (JSON-LD, optional)<textarea id="project-custom-json-ld" rows="3" spellcheck="false" placeholder='{"@context":"https://schema.org","@type":"Product",...}'></textarea></label>
+            <div class="og-preview-label">Share preview</div>
+            <div class="og-preview" id="og-preview-project">
+              <div class="og-preview-img" id="og-preview-project-img"></div>
+              <div class="og-preview-body">
+                <div class="og-preview-domain">dominickdominick.com</div>
+                <div class="og-preview-title" id="og-preview-project-title"></div>
+                <div class="og-preview-desc" id="og-preview-project-desc"></div>
+              </div>
+            </div>
+          </details>
+          <details class="panel-section editor-section">
+            <summary>Media &amp; reader extras</summary>
+            <label>Correction/update note (optional — shown to readers in a callout at the top)<textarea id="project-correction-note" rows="2" placeholder="e.g. Updated Sept 2026 with the v2 hardware revision."></textarea></label>
+            <div class="tts-audio-field">
+              <label>Audio narration (optional — plays for readers instead of/alongside the browser read-aloud button)</label>
+              <input type="file" id="project-tts-audio-file" accept="audio/mpeg,audio/wav,audio/mp4,audio/ogg" hidden>
+              <button type="button" id="project-tts-audio-upload-btn">Upload audio…</button>
+              <button type="button" id="project-tts-audio-remove-btn" hidden>Remove audio</button>
+              <audio id="project-tts-audio-preview" controls hidden></audio>
+            </div>
+            <div class="tts-audio-field">
+              <label>Hero video (optional — muted, looping background clip shown near the top of the project page; respects visitors' reduced-motion preference)</label>
+              <input type="file" id="project-hero-video-file" accept="video/mp4,video/webm,video/quicktime" hidden>
+              <button type="button" id="project-hero-video-upload-btn">Upload video…</button>
+              <button type="button" id="project-hero-video-remove-btn" hidden>Remove video</button>
+              <video id="project-hero-video-preview" controls muted hidden style="max-width:320px;"></video>
+            </div>
+            <div class="project-related-row">
+              <label>Related articles<select id="project-related-articles" multiple size="4"></select></label>
+              <label>Related simulations<select id="project-related-simulations" multiple size="4"></select></label>
+              <label>Related scans<select id="project-related-scans" multiple size="4"></select></label>
+              <label>Pin "Related projects" shown on this page (optional — leave empty to use automatic tag-based matches)<select id="project-related-override" multiple size="4"></select></label>
+            </div>
+          </details>
+          <details class="panel-section editor-section">
+            <summary>Private notes</summary>
+            <label>Private notes (never shown publicly — editorial reminders, todos, sources)<textarea id="project-private-notes" rows="2" placeholder="e.g. Waiting on the vendor datasheet before finishing the BOM."></textarea></label>
+          </details>
+          <details class="panel-section editor-section" open>
+            <summary>Publishing</summary>
+            <div class="field-row publish-row">
+              <label><input type="checkbox" id="project-published"> Published</label>
+              <label>Publish at (blank = immediately)<input type="datetime-local" id="project-publish-at"></label>
+              <label>Expires at (blank = never)<input type="datetime-local" id="project-expires-at" title="Automatically unpublishes at this time — the project isn't deleted, just drops out of listings and the direct URL"></label>
+            </div>
+          </details>
+          <details class="panel-section editor-section">
+            <summary>More actions</summary>
+            <div class="panel-action-grid">
+              <button type="button" id="share-preview-project-btn" hidden>Share preview link…</button>
+              <button type="button" id="duplicate-project-btn" hidden>Duplicate</button>
+              <button type="button" id="export-project-md-btn" title="Download the title and body as a .md file">Export .md</button>
+              <button type="button" id="lock-project-btn" title="Locking protects this project from accidental deletion — it doesn't affect editing it directly">Lock</button>
+              <button type="button" id="favorite-project-btn" title="Pin to the top of the command palette">☆ Pin</button>
+            </div>
+            <div class="template-row">
+                <button type="button" id="save-project-template-btn">Save as template</button>
+                <button type="button" id="delete-project-template-btn" title="Delete a template by typing its exact name">Delete template</button>
+            </div>
+            <button id="delete-project" class="danger">Delete</button>
+          </details>
+          <div class="article-actions editor-primary-actions">
             <a id="preview-project-link" href="#" target="_blank" class="preview-link" hidden>Preview ↗</a>
-            <button type="button" id="share-preview-project-btn" hidden>Share preview link…</button>
-            <button type="button" id="duplicate-project-btn" hidden>Duplicate</button>
-            <button type="button" id="export-project-md-btn" title="Download the title and body as a .md file">Export .md</button>
-            <button id="save-project">Save</button>
-            <button id="new-project">New</button>
             <select id="project-template-picker" title="Fill a new project's body/summary/tech-stack/status from a saved template">
               <option value="">Start blank</option>
             </select>
-            <button type="button" id="save-project-template-btn">Save as template</button>
-            <button type="button" id="delete-project-template-btn" title="Delete a template by typing its exact name">Delete template</button>
-            <button type="button" id="lock-project-btn" title="Locking protects this project from accidental deletion — it doesn't affect editing it directly">Lock</button>
-            <button type="button" id="favorite-project-btn" title="Pin to the top of the command palette">☆ Pin</button>
-            <button id="delete-project" class="danger">Delete</button>
+            <button id="new-project">New</button>
+            <button id="save-project">Save</button>
           </div>
           <div id="preview-links-panel-project" class="preview-links-panel" hidden>
             <label>Link valid for

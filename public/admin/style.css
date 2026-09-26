@@ -1096,7 +1096,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--field-radius);
   padding: 8px 10px;
   font-family: inherit;
 }
@@ -1367,6 +1367,114 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* Article/project editor: title and body first, then the rest of the
+   fields in collapsible groups, so writing doesn't start ~12 fields down. */
+.article-editor .editor-section {
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.article-editor .editor-section > :not(summary) {
+  margin-left: 12px;
+  margin-right: 12px;
+}
+
+.article-editor .editor-section > summary + * {
+  margin-top: 12px;
+}
+
+.article-editor .editor-section > :not(summary) + :not(summary) {
+  margin-top: 10px;
+}
+
+.article-editor .editor-section > :last-child {
+  margin-bottom: 12px;
+}
+
+.article-editor .editor-section label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.article-editor .editor-section label > textarea,
+.article-editor .editor-section label > select,
+.article-editor .editor-section label > input:not([type="checkbox"]) {
+  margin-top: 4px;
+}
+
+#article-body, #project-body {
+  min-height: 40vh;
+}
+
+.publish-row {
+  align-items: end;
+}
+
+.publish-row > label:first-child {
+  flex: 0 0 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 9px;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.article-editor .panel-action-grid {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+
+.article-editor .panel-action-grid > button {
+  margin: 0;
+  padding: 8px 10px;
+  color: var(--text);
+  font-size: 0.8rem;
+}
+
+.article-editor .panel-action-grid > button:hover {
+  border-color: var(--accent);
+}
+
+.template-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.template-row > button {
+  color: var(--text);
+}
+
+/* Save stays reachable however far down the editor is scrolled. */
+.editor-primary-actions {
+  position: sticky;
+  bottom: -20px;
+  z-index: 2;
+  justify-content: flex-end;
+  margin: 0 -20px -20px;
+  padding: 12px 20px;
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border);
+}
+
+.editor-primary-actions > select {
+  width: auto !important;
+  min-width: 140px;
+  margin-right: auto;
+}
+
+.article-actions.editor-primary-actions > button[id^="new-"] {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.editor-primary-actions > button[id^="save-"] {
+  min-width: 96px;
 }
 
 .article-actions {
@@ -4450,8 +4558,11 @@ kbd {
   gap: 10px;
 }
 
-.journal-form-row #journal-entry-date {
-  flex-shrink: 0;
+/* The editor's generic input/select width:100% made both of these claim
+   the full row, pushing the type picker past the panel's right edge. */
+.article-editor .journal-form-row > * {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .journal-form-actions {
