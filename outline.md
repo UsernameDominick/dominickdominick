@@ -4789,7 +4789,7 @@ join, rather than building three separate systems.
 92. ✅ Saved crop ratios — done (see the dated entry below this section).
 93. Horizon straightening — arbitrary-angle rotate + auto-crop.
 102. ✅ Shared access to website fonts — done (see the dated entry below this section).
-108. Reusable text styles — preset pattern like photo-presets.
+108. ✅ Reusable text styles — preset pattern like photo-presets. (done — see the dated entry below)
 109. ✅ Missing-font warnings — font-load check + fallback message. (done — see the dated entry below)
 112. ✅ Independent corner-radius — done (see the dated entry below this section).
 129. ✅ Adjustable grain — random per-pixel noise injection. (done — see the dated entry below)
@@ -12623,3 +12623,70 @@ the pattern being deliberately copied, not a regression this item
 introduced. Final score: **9/10 — production-ready.**
 
 Item #189 is done: 1 critic round, 9/10 on the first pass.
+
+### Sixty-sixth item: #108, Photo Editor reusable text styles
+
+- ✅ **Save/apply/delete named text styles** for the Text annotation
+  tool — bundling the three things that already independently vary for
+  text (font, color, size) into one named, reusable combo, exactly
+  mirroring the wishlist's own "preset pattern like photo-presets"
+  framing. New controls (`Apply text style…` select, "Save text style"/
+  "Delete text style" buttons) only appear when the Text tool is
+  active, next to the existing font picker — matching where the
+  font-only control already lived, rather than cluttering the always-
+  visible toolbar with text-specific options.
+
+Backend: a new `/text-styles` resource, deliberately a straight copy of
+the existing `/brush-presets` endpoint's exact storage pattern (a JSON
+array in one `settings` key, `photo_editor_text_styles`) — no schema
+migration needed, since this whole preset family already lives outside
+the D1 schema entirely. Kept as its own resource rather than folded into
+`/brush-presets` or `/photo-presets`, matching the reasoning already
+established for why brush presets aren't folded into photo-presets
+either: each resource's server-side validation is shaped around its own
+specific fields (text has a `font`, brushes have a `tool`, neither
+concept applies to the other). Validates `name` (required, truncated to
+60 chars like every sibling preset type), `font` (must be one of the
+Text tool's own two real options, `sans-serif`/`custom` — not an
+arbitrary string), and `color` (`#rrggbb` regex) — fails closed with a
+400 on anything else, same convention as every other preset validation
+in this file.
+
+Frontend: `loadTextStyles()`/apply/save/delete handlers are a line-for-
+line copy of the brush-presets pattern already in `photo-editor.js`.
+Applying a style writes directly into the SAME shared fields
+(`pe-text-font`, `pe-annotate-color`, `pe-annotate-size`) that
+`placeText()` already reads from — since those fields are shared across
+every annotation tool (rect/circle/line/arrow/text all use the same
+color/size controls), zero new plumbing was needed inside `placeText()`
+itself to actually apply a saved style; "apply the style" and "set the
+fields a real user would set by hand" are the exact same code path.
+Hooked `loadTextStyles()` into the same `initEditorSession()` reset
+sequence photo-presets/brush-presets already use, so the picker is
+always freshly populated on every editor open, matching that established
+convention rather than introducing a new one.
+
+Verified via Playwright end-to-end: confirmed the new controls are
+hidden by default (select tool) and only appear when the Text tool is
+active; confirmed server-side validation rejects an invalid font, an
+invalid color, and a missing name (three separate 400s, tested directly
+against the API); saved a real style (green, size 12) through the real
+UI, confirmed via a direct authenticated `GET /text-styles` it was
+captured correctly; reset the fields to different values, applied the
+saved style back, and confirmed the fields snapped to the exact saved
+values; then — going beyond just checking the fields — actually clicked
+on the canvas to place real text and sampled the rendered pixels,
+confirming genuine green pixels appear (the applied style's color
+actually reaches the final rendered output, not just the UI fields);
+deleted the style and confirmed it's gone via a follow-up `GET`. Re-ran
+the item #6 resize suite and the items #2/#3 new-blank-document suite
+(both touch `photo-editor.js`/`index.html`, which this change also
+modified) to confirm no regression, plus the full `test_security_seo.js`
+regression suite — all pass. No test data left behind (a stray leftover
+duplicate style from an earlier failed test run, caused by a click
+mis-targeting a canvas position the toolbar happened to overlap — a
+test-harness issue, not a product bug — was found and cleaned up before
+the final passing run; the passing run's own data was cleaned up via the
+real DELETE endpoint as always).
+
+Sent for a critic pass.

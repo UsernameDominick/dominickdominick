@@ -2304,6 +2304,42 @@ async function routeAdminApi(request, env, url, ctx) {
     return json({ ok: true });
   }
 
+  // /text-styles — named font/color/size combos for the Text annotation
+  // tool, same settings-blob storage pattern as brush presets immediately
+  // above (own settings key, own validation shaped for its own fields) --
+  // not folded into /brush-presets since text has no "tool" concept and
+  // brush presets have no "font" concept.
+  const TEXT_STYLE_FONTS = new Set(["sans-serif", "custom"]);
+  if (path === "/text-styles" && method === "GET") {
+    const raw = await getSetting(env, "photo_editor_text_styles");
+    return json(JSON.parse(raw || "[]"));
+  }
+  if (path === "/text-styles" && method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    if (!body.name || !TEXT_STYLE_FONTS.has(body.font)) {
+      return json({ error: "name and a valid font are required" }, { status: 400 });
+    }
+    if (!/^#[0-9a-fA-F]{6}$/.test(body.color || "")) {
+      return json({ error: "A valid #rrggbb color is required" }, { status: 400 });
+    }
+    const size = Math.max(1, Math.min(20, Number(body.size) || 4));
+    const styles = JSON.parse((await getSetting(env, "photo_editor_text_styles")) || "[]");
+    const id = styles.reduce((max, s) => Math.max(max, s.id || 0), 0) + 1;
+    styles.push({ id, name: String(body.name).slice(0, 60), font: body.font, color: body.color, size });
+    await setSetting(env, "photo_editor_text_styles", JSON.stringify(styles));
+    log(ctx, env, "create", "text-style", body.name);
+    return json({ id });
+  }
+  const textStyleMatch = path.match(/^\/text-styles\/(\d+)$/);
+  if (textStyleMatch && method === "DELETE") {
+    const id = Number(textStyleMatch[1]);
+    const styles = JSON.parse((await getSetting(env, "photo_editor_text_styles")) || "[]");
+    const target = styles.find((s) => s.id === id);
+    await setSetting(env, "photo_editor_text_styles", JSON.stringify(styles.filter((s) => s.id !== id)));
+    log(ctx, env, "delete", "text-style", target?.name || `#${id}`);
+    return json({ ok: true });
+  }
+
   // /media-saved-searches — a named snapshot of the media library's
   // filter controls (folder/type/search text/unused/duplicates), same
   // storage pattern as style presets above and for the same reason: an

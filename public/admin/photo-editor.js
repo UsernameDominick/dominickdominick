@@ -441,6 +441,9 @@
     $("pe-apply-crop").hidden = tool !== "select" || !cropRect;
     $("pe-rect-radius-label").hidden = tool !== "rect";
     $("pe-text-font").hidden = tool !== "text";
+    $("pe-apply-text-style").hidden = tool !== "text";
+    $("pe-save-text-style").hidden = tool !== "text";
+    $("pe-delete-text-style").hidden = tool !== "text";
     if (tool === "text") {
       ensureCustomFontLoaded().then((family) => {
         const fontSelect = $("pe-text-font");
@@ -1147,6 +1150,62 @@
     }
   });
 
+  // ---------- Saved text styles ----------
+  // Named font/color/size combos for the Text annotation tool, same
+  // server-persisted settings-blob pattern as the brush presets
+  // immediately above -- a separate /text-styles resource since text has
+  // no "tool" concept and brush presets have no "font" concept, matching
+  // the same reasoning that already kept brush presets out of
+  // /photo-presets.
+  let textStyles = [];
+
+  async function loadTextStyles() {
+    try {
+      textStyles = (await window.adminApi("/text-styles")) || [];
+    } catch (e) {
+      textStyles = [];
+    }
+    const select = $("pe-apply-text-style");
+    select.innerHTML =
+      `<option value="">Apply text style…</option>` + textStyles.map((s) => `<option value="${s.id}">${s.name.replace(/</g, "&lt;")}</option>`).join("");
+  }
+
+  $("pe-apply-text-style").addEventListener("change", () => {
+    const id = Number($("pe-apply-text-style").value);
+    const style = textStyles.find((s) => s.id === id);
+    if (!style) return;
+    $("pe-text-font").value = style.font;
+    $("pe-annotate-color").value = style.color;
+    $("pe-annotate-size").value = style.size;
+  });
+
+  $("pe-save-text-style").addEventListener("click", async () => {
+    const name = prompt("Text style name:");
+    if (!name || !name.trim()) return;
+    try {
+      await window.adminApi("/text-styles", {
+        method: "POST",
+        body: JSON.stringify({ name: name.trim(), font: $("pe-text-font").value, color: annotateColor(), size: annotateSize() }),
+      });
+      await loadTextStyles();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  $("pe-delete-text-style").addEventListener("click", async () => {
+    const id = Number($("pe-apply-text-style").value);
+    const style = textStyles.find((s) => s.id === id);
+    if (!style) return;
+    if (!confirm(`Delete text style "${style.name}"?`)) return;
+    try {
+      await window.adminApi(`/text-styles/${id}`, { method: "DELETE" });
+      await loadTextStyles();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
   // Pen pressure scales the brush's effective diameter for this one point
   // -- deliberately ignored for anything but a real pressure-sensitive
   // stylus. PointerEvent.pressure defaults to 0.5 for a plain mouse click
@@ -1835,6 +1894,7 @@
     $("pe-saturate").value = 0;
     $("pe-apply-preset").value = "";
     $("pe-apply-brush-preset").value = "";
+    $("pe-apply-text-style").value = "";
     $("pe-crop-ratio").value = "free";
     $("pe-rect-radius").value = 0;
     $("pe-text-font").value = "sans-serif";
@@ -1844,6 +1904,7 @@
     applyBgPreview("checkerboard");
     loadPhotoPresets();
     loadBrushPresets();
+    loadTextStyles();
     $("pe-hint").textContent = hint;
     setTool("select");
     $("pe-export-format").value = "image/png";
