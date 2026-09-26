@@ -5141,6 +5141,14 @@
             const block = item && input.id.endsWith("-url") ? blocks.find((b) => b.id === selectedBlockId) : null;
             if (block) {
               input.value = div.dataset.url;
+              // Unlike setFieldUrl() below, this branch never went through
+              // a dispatched "change" -- harmless before the image-url
+              // source badge existed (nothing else was listening), but a
+              // critic pass found it left that badge stale after Browse,
+              // since renderCanvas() below only rebuilds the block's
+              // on-canvas preview, never the inspector panel this input
+              // and its badge actually live in.
+              input.dispatchEvent(new Event("change", { bubbles: true }));
               block.content.url = div.dataset.url;
               [
                 ["alt", "alt_text"],

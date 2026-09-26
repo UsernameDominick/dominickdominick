@@ -7272,5 +7272,53 @@ empty removes the badge text again. Full regression suite green; the
 test page was deleted (both soft- and hard-delete) and confirmed gone
 from the pages list afterward.
 
-Item #139 is done: implemented and self-verified; sent to a critic pass
-next per the standing workflow before calling it fully closed.
+Sent to a critic pass on commit 30f0d7a. Scored 4/10 -- one real bug
+that broke the feature's own core claim for the single most common path
+it targets. The media-picker modal has a special "autofill" branch used
+specifically when Browse is clicked on an image block's main URL field
+(distinct from the generic `setFieldUrl()` path every other image-url
+field, including before/after and background-image, correctly goes
+through): it writes `input.value` and `block.content.url` directly and
+calls `renderCanvas()`, but never dispatches a `change` event -- harmless
+before this feature existed (nothing was listening), but the new badge
+only re-evaluates on `input`/`change`, and `renderCanvas()` only rebuilds
+the on-canvas block preview, never the inspector panel the badge and its
+input actually live in. Net effect: picking a library image via Browse
+on the plain image block's field visibly updated the URL and canvas
+preview but left the badge showing its previous (often wrong) state
+until the block was deselected and reselected for an unrelated reason.
+Confirmed by exact id-matching that only this one field (id ending in
+`-url`, the special branch's own trigger condition) was affected --
+before/after's `beforeUrl`/`afterUrl` and the bulk panel's
+`backgroundImage` field ids don't match that suffix and correctly fall
+through to `setFieldUrl()`'s dispatched `change`.
+
+Fixed with a one-line `input.dispatchEvent(new Event("change", { bubbles:
+true }))` added right after the direct `input.value` assignment in that
+branch -- the minimal change satisfying the badge's own live-update
+contract, no broader architecture change needed. The critic separately
+confirmed as non-issues (not fixed, not blocking): the `startsWith("/media/")`
+detection would mislabel a full absolute URL to this site's own domain
+as "External," but that's the exact same convention `worker/db.js`
+already uses everywhere else for this question, and every actual write
+path (Upload, Browse) only ever produces the relative form -- an admin
+would have to manually paste an absolute URL to hit it, an accepted
+pre-existing limitation this feature didn't introduce; whitespace
+handling, multi-field id uniqueness (before/after's two fields), re-
+render listener cleanup, and the bulk-panel's empty-starting-value
+behavior were all traced and found correct.
+
+Re-verified via Playwright, reproducing the critic's exact repro:
+uploaded a real image to the library, opened an image block's inspector,
+clicked Browse, picked that image -- without reselecting the block
+afterward, the badge immediately read "Local upload" with the correct
+`is-local` class, matching the input's now-updated value. The original
+round-1 tests (empty/local/external/cleared states) were re-run unchanged
+and still pass. Full regression suite green; the test page was deleted
+and the test upload removed, both confirmed gone.
+
+Item #139 is done: 1 critic round, 4/10, the one real finding (badge
+going stale after Browse on the image block's main field, the most
+common path) fixed and verified live, with one detection-rule edge case
+(absolute URLs to this site's own domain) logged as an accepted,
+pre-existing, codebase-consistent limitation rather than fixed.
