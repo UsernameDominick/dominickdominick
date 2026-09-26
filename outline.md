@@ -4923,7 +4923,7 @@ substantial new infra + security surface).
 410. ✅ Datasheet links — done (see the dated entry below this section).
 411. Adjustable DC supply — variant of existing battery/power_supply with voltage field.
 415-416. Current source / battery internal resistance — extra numeric fields feeding existing Ohm's-law path.
-427. Power dissipation — already computed for resistor/LED; extend to more types.
+427. ✅ Power dissipation — done (see the dated entry below this section).
 431-432. Voltage/current meter — read existing `analysis` results into a display component.
 434. ✅ Continuity tester — done (see the dated entry below this section).
 441. Basic logic gates (static icons only, no dynamic sim) — new component type.
@@ -8997,3 +8997,79 @@ correctness findings in the actual math/lifecycle/rendering (independently
 re-verified rather than taken on faith) — the single point held back was
 this project's own "every shipped item gets logged" convention not yet
 having been applied to itself, closed by this entry.
+
+### Thirty-fifth item: #427, power dissipation for the microcontroller in the simulation builder
+
+- ✅ **Extended wattage reporting to the "teensy" microcontroller
+  component**, which already had current/voltage in its electrical-
+  analysis result but no derived power figure, unlike the resistor
+  (and, via the same `kind: "resistor"` reuse, the potentiometer) which
+  already computed and displayed dissipation. Added identically to both
+  `public/admin/sim-components.js` and its hand-duplicated mirror
+  `worker/simulation-render.js`.
+
+Handed to a critic agent for scoring: **4/10**. Findings:
+
+1. **(Fixed, high severity)** The original formula computed
+   `watts = amps * domain.voltage` — the FULL source voltage across the
+   whole loop, not the teensy's own voltage drop — rather than the
+   resistor branch's correct `P = I² × R` pattern (which is
+   automatically just that component's own drop, independent of
+   anything else on the path). This only happened to be correct when
+   the teensy was the sole resistive element in the loop; with anything
+   else sharing the series path (a current-limiting resistor, a
+   potentiometer, an LED ahead of it), some of that source voltage drops
+   across the OTHER component, not the teensy. Concrete repro: 9V
+   battery → 100Ω resistor → teensy → back — true teensy dissipation via
+   P=I²R ≈ 0.152W, the buggy formula reported 0.2025W (the entire loop's
+   power, mislabeled as the teensy's own figure), off by ~33% via a
+   completely ordinary circuit. Fixed to `amps * amps * TEENSY_LOAD_OHMS`
+   in both files, matching the resistor branch exactly.
+2. **(Fixed, design gap)** The computed wattage was never used for
+   anything — `status` was purely `domain.dangerous ? "burnt" : "normal"`,
+   unaffected by how much power was actually being dissipated. A teensy
+   fed by something like a 24V supply (1.92W through its fixed 300-ohm
+   model, wildly unsafe for a real 3.3V/5V board) still showed a calm
+   "normal" status with non-danger styling, just printing the number as
+   if unremarkable — an incomplete port of the exact safety-gating
+   pattern this feature was explicitly mirroring from the resistor
+   branch. Fixed by adding `TEENSY_WATTAGE_RATING = 1` (a typical
+   microcontroller board's own power budget) and the same
+   `watts > rating ? "overheating" : "normal"` gate, plus a matching
+   danger-styled inspector message.
+
+Sent for a round-2 critic pass specifically re-verifying byte-for-byte
+parity between the two mirrored files (this codebase's single biggest
+recurring drift risk), independently re-deriving the math for all three
+test cases by hand, and specifically checking whether the new 1W
+threshold could misfire as a false positive against any voltage option
+the builder's own UI actually offers. Confirmed both fixes genuinely
+identical in both files (formula, constant, gate, and even the
+explanatory comments duplicated consistently); independently re-derived
+all three cases (9V alone → 0.27W/normal, the series-resistor repro →
+0.1519W not the old buggy 0.2025W, 24V alone → 1.92W/overheating) by
+hand and confirmed they match; solved for the exact voltage where the
+threshold trips (≈17.3V) and checked it against every voltage source
+this builder's UI actually exposes (battery defaults to 9V with a free
+numeric field, power supply is a fixed 3.3/5/9/12V dropdown) — the
+highest built-in option (12V) only reaches 0.48W, so no ordinary,
+non-dangerous configuration can false-positive; and confirmed
+`computeSimPoweredSet` (a separate, simpler topology-only function) is
+genuinely independent of this wattage/status logic, with no interaction
+risk. One pre-existing, out-of-scope cosmetic finding was noted: the
+teensy's non-overheating status message still displays `info.voltage`
+(the full loop/source voltage) rather than the teensy's own voltage drop
+(current × 300Ω) in its "Drawing ~Xma at YV" text — the underlying watts
+figure itself is correct, only the voltage shown alongside it can read
+as the wrong number in a series circuit; left as a follow-up rather than
+expanding this fix's scope, since it predates this feature and affects
+display text only, not the analysis math. Final score: **9/10** — ships.
+
+Item #427 is done: 2 critic rounds, 4/10 → 9/10, one high-severity
+formula bug (mislabeling an entire series loop's power as one
+component's own figure, reachable via a completely ordinary circuit)
+and one design gap (a computed safety-relevant number that was never
+actually used to flag danger) both fixed and independently re-verified
+byte-for-byte across this codebase's two hand-duplicated analysis
+engines, plus one pre-existing display-only inaccuracy logged as an
+explicitly out-of-scope follow-up.
