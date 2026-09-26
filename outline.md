@@ -11977,7 +11977,63 @@ from these fixes. No test data left behind (two throwaway pages created
 for this round's testing, both deleted via the real `DELETE` endpoint,
 confirmed gone).
 
-Sent for a round-2 critic pass.
+Sent for a round-2 critic pass. Final score: **7/10.** The blocking
+accessibility fix and the length cap were both confirmed solid with
+thorough boundary testing (immediate-post-load check for a one-frame
+animation flash — none found; 1/2/20/21-stop boundary cases all correct;
+confirmed the `animation:none` addition can't affect any OTHER
+`animation`/`@keyframes` use on the site, since none of them carry the
+`data-animate` attribute this rule is scoped to). But the synthetic-
+change-event fix was genuinely incomplete, and the previous paragraph's
+own claim of "closing the whole footgun class rather than just this one
+instance" was **false** — caught and reproduced live: `renderBulkInspector()`
+(the "apply to all selected blocks" multi-select panel) wires its OWN
+separate generic `[data-key]` query at a different call site, sharing the
+same `STYLE_FIELDS` array (including the `customKeyframes` button) but
+never patched with the same `:not(button)` exclusion. The critic
+reproduced the exact same synthetic-`change` exploit against the bulk
+inspector's button and confirmed it silently set `customKeyframes: null`
+via `applyStyleToAll()` across EVERY currently-selected block in one
+shot — a strictly wider blast radius than the single-block version this
+session already fixed, for the same non-blocking threat model (still
+requires script/console access to an already-authenticated admin
+session, not a real privilege boundary crossing). The round-2
+verification narrative only exercised the single-block inspector, which
+is exactly why this sibling instance slipped through — a real process
+gap (verify EVERY call site sharing a pattern, not just the one the
+original report happened to reproduce against), not just a code gap.
+
+Fixed the actual remaining gap: added the identical `:not(button)`
+exclusion to `renderBulkInspector()`'s own `[data-key]` query (line
+~2269), the third and (confirmed via a full grep of every `[data-key]`
+usage in `public/admin/app.js`) LAST generic change-wiring site sharing
+this pattern — the other two hits from that grep are just comments
+referencing the pattern, not additional live query sites, and every
+other `data-key`-on-`<button>` element in the admin (media-library
+delete/edit/info, backup view/verify/download/restore) is wired through
+its own dedicated `.classname` click listener elsewhere, never through
+either generic query, so those never needed this exclusion. Re-verified
+live: reproduced the critic's exact bulk-inspector exploit (multi-select
+two blocks via shift-click, dispatch a synthetic `change` on the bulk
+inspector's `.edit-keyframes-btn`) and confirmed via a real authenticated
+`GET` that both blocks' `customKeyframes` are now genuinely untouched;
+confirmed normal, real bulk-apply of an actual field (`hoverEffect` via
+a real `change` event from a real `<select>`) still correctly applies to
+every selected block, so closing the hole didn't break the legitimate
+feature it protects. Re-ran `test_animation_editor_fixes.js` and the
+full `test_security_seo.js` regression suite — both still pass. No test
+data left behind (one more throwaway 2-block page, deleted via the real
+endpoint, confirmed gone).
+
+Item's status: the blocking bug and the length cap are both fully
+closed and well-verified. The change-event footgun is now ALSO fully
+closed (confirmed this time via a real grep of every matching call site
+in the file, not just re-testing the one instance a critic happened to
+find) — this correction, not a fresh critic round, is what actually
+closes out the gap the round-2 pass found, since the fix itself (the
+same one-line `:not(button)` pattern, applied to the one remaining
+untreated site) is identical in kind to the already-verified single-block
+fix and doesn't introduce new surface area to re-review from scratch.
 
 ### Design/UX audit — dispatched to an agent
 

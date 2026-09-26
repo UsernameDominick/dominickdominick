@@ -2266,7 +2266,15 @@
       schedulePreviewRefresh();
     }
 
-    container.querySelectorAll("[data-key]").forEach((input) => {
+    // :not(button) -- same footgun as the single-block inspector's query
+    // (see the comment there): a synthetic "change" event at
+    // .edit-keyframes-btn would otherwise hit fieldValue()'s generic
+    // fallback and silently wipe customKeyframes via applyStyleToAll,
+    // across EVERY selected block at once here. A round-2 critic pass
+    // caught this as an unpatched sibling of the single-block fix -- both
+    // generic [data-key] queries share the same STYLE_FIELDS array and
+    // needed the same exclusion, not just one of the two call sites.
+    container.querySelectorAll("[data-key]:not(button)").forEach((input) => {
       input.addEventListener("change", () => applyStyleToAll(input.dataset.key, fieldValue(input) || null));
     });
     container.querySelectorAll(".clear-color").forEach((btn) => {
