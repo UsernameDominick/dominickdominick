@@ -7364,10 +7364,46 @@ tests (empty/local/external/cleared states) were re-run unchanged and
 still pass. Full regression suite green; test page and test upload both
 deleted and confirmed gone.
 
-Item #139 is done: 2 critic rounds (4/10, 5/10), two real findings across
-both rounds -- the original stale-badge bug, and the double-save race the
-first fix attempt introduced on the same path -- both fixed and verified
-live via network-level request capture, not just UI-state inspection,
-with one detection-rule edge case (absolute URLs to this site's own
-domain) logged as an accepted, pre-existing, codebase-consistent
-limitation rather than fixed.
+Sent back for a round-3 critic pass on commit 5f532fd. Scored 9/10 --
+ship. The round-2 fix was re-verified as genuinely and completely
+correct: grepped every `dispatchEvent` call in the file (7 total) and
+confirmed the only one on this input is `setFieldUrl()`'s, used solely
+by the non-block image-field path where dispatching is actually correct
+and intended (no competing merged save exists there to race against);
+the direct `input._imageUrlBadgeUpdate()` call touches nothing but the
+badge's own text/class. Re-ran the double-save scenario live with a
+twist -- pre-filling alt/caption/credit with non-empty values first, so
+the autofill loop's own `!sibling.value` guards would skip them -- and
+confirmed exactly one PATCH still fires, correctly preserving the
+existing values while merging in the new url. Traced the timing concern
+explicitly: `wireImageUrlSourceBadge()` runs synchronously in the same
+render pass that inserts the input/badge markup, with no `await`/
+microtask gap before Browse could possibly be clicked, so the `if
+(input._imageUrlBadgeUpdate)` guard is defensive rather than masking a
+reachable bug today. Confirmed no stale-closure/expando-leak risk either,
+since `mediaPickTarget` is re-resolved via a fresh `querySelector` at
+click time (never a captured stale element), and every re-render
+discards old input/badge nodes together via `innerHTML =` before
+re-wiring fresh ones.
+
+Two narrow, non-blocking observations were logged rather than treated as
+bugs: the `input.id.endsWith("-url")` check that gates the block-autofill
+branch would also match a `text`-type field whose key happens to be
+literally `"url"` (e.g. the button or project-card blocks) if such a
+field ever gained a Browse affordance in the future -- unreachable via
+today's UI (those field types never render `browse-trigger`/the badge in
+the first place) but worth a comment if this code is touched again; and
+the pre-existing (not a regression from this feature) fact that
+before/after's `beforeUrl`/`afterUrl` field ids don't end in `-url`, so
+Browse-picking into those always takes the plain non-merged save path,
+skipping the alt/caption/credit autofill entirely -- a feature-
+completeness gap outside this item's scope, not something #139 broke.
+
+Item #139 is done: 3 critic rounds (4/10, 5/10, 9/10), two real findings
+across the first two rounds -- the original stale-badge bug, and the
+double-save race the first fix attempt introduced on the very same path
+-- both fixed and verified live via network-level request capture, not
+just UI-state inspection, with the detection-rule edge case (absolute
+URLs to this site's own domain) and two narrow latent-coupling
+observations logged as accepted, pre-existing, non-blocking gaps rather
+than fixed.
