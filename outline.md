@@ -4911,7 +4911,7 @@ substantial new infra + security surface).
 366. ✅ Reset to initial state — done (see the dated entry below this section).
 367. ✅ Save checkpoints — done (see the dated entry below this section).
 373. Rotate/mirror — add transform + flip pin coords, small render change.
-375. Configurable snapping — GRID_SNAP is already a constant; expose as UI control.
+375. ✅ Configurable snapping — done (see the dated entry below this section).
 378. Search component on canvas — reuse palette search pattern, filter+highlight.
 380. Keyboard placement/connection — extend existing keydown handler.
 385. ✅ Show hidden connections — done (see the dated entry below this section).
@@ -7042,3 +7042,37 @@ findings fixed and verified live (including hardening the pre-existing
 free-form crop path against the same rounding bug), with the third
 finding (stale cropRect surviving rotate/flip) logged as a separate
 pre-existing Photo Editor item rather than expanding this diff.
+
+### Twentieth item: #375, configurable grid snapping in the simulation builder
+
+Exposed the simulation builder's existing free-drag alignment grid as a
+UI control instead of a hardcoded constant. A new "Snap" dropdown in the
+builder toolbar (Off / 1px / 5px / 10px / 20px, defaulting to the
+long-standing 5px) sets `gridSnapSize`, which the existing drag-move
+math in the pointer handler already rounds a component's position to.
+`GRID_SNAP` (a `const`) became `gridSnapSize` (a `let`), and the rounding
+step is skipped entirely (rather than dividing by zero) when the value
+is 0 ("Off"). Deliberately scoped to only the general free-alignment
+grid: parts that plug directly into a breadboard (LED/resistor/switch,
+via `SNAP_TO_BREADBOARD_TYPES`) already snap to the breadboard's own
+physical hole grid through separate logic, and that's correctly
+unaffected by this control -- the label's tooltip says so explicitly, so
+it isn't a surprise when dragging one of those parts ignores the
+dropdown. Matches the existing precedent (showDisconnected,
+showGhostWires, zoomLevel) of resetting per-builder-session UI
+preferences rather than persisting them with the simulation's own data:
+the dropdown resets to 5px every time a simulation is opened.
+
+Tested via Playwright: placed a Power Supply (not a breadboard-snap
+type) in a new, unsaved simulation and dragged it with the default 5px
+snap active -- landed at (115, 90), both coordinates exact multiples of
+5 as expected. Switched the dropdown to "Off" and dragged again by a
+non-grid-aligned amount -- landed at a genuinely fractional position
+(141.93, 104.50), confirming the rounding step is actually skipped
+rather than just relabeled. Confirmed the dropdown itself defaults to
+"5px" on a fresh builder open. No server-side state was touched (the
+test simulation was never saved), so no cleanup was needed. Full
+regression suite green.
+
+Implemented and self-verified; sent to a critic pass next per the
+standing workflow before calling it done.

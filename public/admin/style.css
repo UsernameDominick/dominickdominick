@@ -2449,6 +2449,24 @@ kbd {
   min-width: 200px;
 }
 
+.sim-snap-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.sim-snap-label select {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 0.8rem;
+}
+
 .sim-builder-body {
   flex: 1;
   display: flex;

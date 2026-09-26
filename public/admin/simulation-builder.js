@@ -297,6 +297,8 @@
     previewOn = false;
     showDisconnected = false;
     showGhostWires = false;
+    gridSnapSize = 5;
+    $("sim-grid-snap").value = "5";
     zoomLevel = defaultZoomLevel();
     placeX = 20;
     placeY = 20;
@@ -542,6 +544,12 @@
     renderBuilder();
   });
 
+  // No renderBuilder() needed -- this only affects the snap math read
+  // during the next drag, not anything currently on screen.
+  $("sim-grid-snap").addEventListener("change", (e) => {
+    gridSnapSize = Number(e.target.value) || 0;
+  });
+
   function svgPoint(evt) {
     const svg = $("sim-builder-svg");
     const pt = svg.createSVGPoint();
@@ -669,7 +677,11 @@
   const SNAP_THRESHOLD = 18; // magnetic pull radius while dragging
   const SNAP_EXACT_TOLERANCE = 4; // how close a non-anchor leg must land to also count as plugged in
   // Everything else just snaps to a light alignment grid while dragging.
-  const GRID_SNAP = 5;
+  // Configurable via the "Snap" dropdown -- 5px is the long-standing
+  // default, 0 means no snapping at all (handled as a no-op guard below
+  // rather than a divide-by-zero, since rounding to the nearest multiple
+  // of 0 is undefined).
+  let gridSnapSize = 5;
 
   function findNearestHole(x, y, excludeCompId, threshold) {
     let best = null;
@@ -742,9 +754,9 @@
       const p = svgPoint(ev);
       let dx = p.x - start.x;
       let dy = p.y - start.y;
-      if (!canSnap) {
-        dx = Math.round((startPositions.get(compId).x + dx) / GRID_SNAP) * GRID_SNAP - startPositions.get(compId).x;
-        dy = Math.round((startPositions.get(compId).y + dy) / GRID_SNAP) * GRID_SNAP - startPositions.get(compId).y;
+      if (!canSnap && gridSnapSize > 0) {
+        dx = Math.round((startPositions.get(compId).x + dx) / gridSnapSize) * gridSnapSize - startPositions.get(compId).x;
+        dy = Math.round((startPositions.get(compId).y + dy) / gridSnapSize) * gridSnapSize - startPositions.get(compId).y;
       }
       groupIds.forEach((id) => {
         const c = simData.components.find((x) => x.id === id);
