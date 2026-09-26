@@ -863,7 +863,7 @@
   // multiple of the hole grid (see SIM_COMPONENTS), so once the first leg
   // snaps to a hole, every other leg lands exactly on a real neighboring
   // hole too — not just one anchor pin dragging the rest along for show.
-  const SNAP_TO_BREADBOARD_TYPES = new Set(["led", "resistor", "switch"]);
+  const SNAP_TO_BREADBOARD_TYPES = new Set(["led", "resistor", "switch", "potentiometer"]);
   const SNAP_THRESHOLD = 18; // magnetic pull radius while dragging
   const SNAP_EXACT_TOLERANCE = 4; // how close a non-anchor leg must land to also count as plugged in
   // Everything else just snaps to a light alignment grid while dragging.
@@ -1089,6 +1089,7 @@
     power_supply: { outputVoltage: 5 },
     led: { color: "red" },
     switch: { closed: true },
+    potentiometer: { maxResistance: 10000, wiper: 50 },
   };
 
   // ---------- Recently-used parts ----------
@@ -1221,10 +1222,15 @@
           };
           electricalHtml = `<p class="sim-power-status ${info.status === "normal" ? "is-powered" : "is-danger"}">${messages[info.status] || ""}</p>`;
         } else if (info.kind === "resistor") {
+          // A potentiometer's analysis result also comes back as kind
+          // "resistor" (it's wired as a plain two-terminal rheostat, see
+          // sim-components.js) -- same current/wattage math, just with
+          // part-appropriate wording instead of hardcoding "resistor".
+          const partWord = comp.type === "potentiometer" ? "potentiometer" : "1/4W resistor";
           if (info.dangerous) {
             electricalHtml = `<p class="sim-power-status is-danger">🔥 Charred instantly — this loop is running straight off 120V mains.</p>`;
           } else if (info.status === "overheating") {
-            electricalHtml = `<p class="sim-power-status is-danger">🔥 Overheating — dissipating ${info.watts.toFixed(2)}W, more than a typical 1/4W resistor can handle.</p>`;
+            electricalHtml = `<p class="sim-power-status is-danger">🔥 Overheating — dissipating ${info.watts.toFixed(2)}W, more than a typical ${partWord} can handle.</p>`;
           } else {
             electricalHtml = `<p class="sim-power-status is-powered">✓ ${ma}mA flowing, dissipating ${info.watts.toFixed(2)}W — well within its rating.</p>`;
           }
@@ -1248,6 +1254,11 @@
       // semantically-wrong display (a stray string) in one step.
       if (comp.type === "resistor") {
         extraFieldsHtml = `<label>Resistance (ohms)<input id="sim-comp-resistance" type="number" min="1" value="${Number(comp.resistance) || 220}"></label>`;
+      } else if (comp.type === "potentiometer") {
+        const maxR = Number(comp.maxResistance) || 10000;
+        const wiperPct = Number.isFinite(Number(comp.wiper)) ? Math.max(0, Math.min(100, Number(comp.wiper))) : 50;
+        extraFieldsHtml = `<label>Max resistance (ohms)<input id="sim-comp-max-resistance" type="number" min="1" value="${maxR}"></label>
+        <label>Wiper position: <span id="sim-comp-wiper-value">${wiperPct}</span>%<input id="sim-comp-wiper" type="range" min="0" max="100" value="${wiperPct}"></label>`;
       } else if (comp.type === "battery") {
         extraFieldsHtml = `<label>Voltage (V)<input id="sim-comp-voltage" type="number" min="0.1" step="0.1" value="${Number(comp.voltage) || 9}"></label>`;
       } else if (comp.type === "power_supply") {
@@ -1286,6 +1297,38 @@
           comp.resistance = Math.max(1, Number(resistanceInput.value) || 220);
           renderInspector();
           renderBuilder();
+        });
+      }
+      const maxResistanceInput = $("sim-comp-max-resistance");
+      if (maxResistanceInput) {
+        maxResistanceInput.addEventListener("change", () => {
+          pushHistory();
+          comp.maxResistance = Math.max(1, Number(maxResistanceInput.value) || 10000);
+          renderInspector();
+          renderBuilder();
+        });
+      }
+      const wiperInput = $("sim-comp-wiper");
+      if (wiperInput) {
+        // Same live-update pattern as the wire-thickness/label fields --
+        // dragging the slider should redraw the part (and its computed
+        // ohms label/electrical status) continuously, not just on release,
+        // but only push one history entry for the whole drag rather than
+        // one per 'input' event.
+        let wiperHistorySaved = false;
+        wiperInput.addEventListener("input", () => {
+          if (!wiperHistorySaved) {
+            pushHistory();
+            wiperHistorySaved = true;
+          }
+          comp.wiper = Math.max(0, Math.min(100, Number(wiperInput.value)));
+          const wiperValueLabel = $("sim-comp-wiper-value");
+          if (wiperValueLabel) wiperValueLabel.textContent = String(comp.wiper);
+          renderBuilder();
+        });
+        wiperInput.addEventListener("change", () => {
+          wiperHistorySaved = false;
+          renderInspector();
         });
       }
       const voltageInput = $("sim-comp-voltage");

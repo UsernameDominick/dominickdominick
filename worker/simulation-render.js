@@ -269,6 +269,30 @@ export const SIM_COMPONENTS = {
       }" y2="${closed ? 10 : 1}"/><circle class="switch-pivot" cx="32" cy="10" r="2.5"/><line class="switch-lead" x1="32" y1="10" x2="40" y2="10"/>`;
     },
   },
+  // A two-terminal variable resistor -- no separate wiper-tap pin, so no
+  // voltage-divider behavior (that needs a real multi-branch solver, out
+  // of scope here). The wiper % just scales the resistance between p1/p2
+  // the same way turning the knob would change the resistive path length
+  // on a real pot used in this two-terminal "rheostat" configuration.
+  potentiometer: {
+    label: "Potentiometer",
+    w: 80,
+    h: 32,
+    passthrough: [["p1", "p2"]],
+    pins: [
+      { id: "p1", x: 0, y: 16 },
+      { id: "p2", x: 80, y: 16 },
+    ],
+    render: (c) => {
+      const maxR = Math.max(1, Number(c.maxResistance) || 10000);
+      const wiperPct = Math.max(0, Math.min(100, Number(c.wiper) ?? 50));
+      const ohms = Math.max(1, Math.round(maxR * (wiperPct / 100)));
+      const wiperX = 10 + 60 * (wiperPct / 100);
+      return `<line class="resistor-lead" x1="0" y1="16" x2="10" y2="16"/><rect class="resistor-body" x="10" y="10" width="60" height="12" rx="3"/><line class="resistor-lead" x1="70" y1="16" x2="80" y2="16"/><line class="pot-wiper" x1="${wiperX}" y1="0" x2="${wiperX}" y2="10"/><polygon class="pot-wiper-arrow" points="${
+        wiperX - 3
+      },0 ${wiperX + 3},0 ${wiperX},6"/><text class="pot-label" x="40" y="30" text-anchor="middle" font-size="8">${escXml(ohms)}Ω</text>`;
+    },
+  },
   battery: {
     label: "Battery",
     w: 50,
@@ -483,6 +507,15 @@ function buildAnalysisGraph(data) {
     if (c.type === "power_supply") return; // isolation boundary — no edge across it
     if (c.type === "resistor") {
       link(nodeId(c, "p1"), nodeId(c, "p2"), { compId: c.id, kind: "resistor", resistance: Math.max(1, Number(c.resistance) || 220) });
+    } else if (c.type === "potentiometer") {
+      // Reuses "resistor" as the edge kind -- a potentiometer wired as a
+      // two-terminal rheostat behaves electrically identically to a fixed
+      // resistor at whatever value the wiper currently sets, so it gets
+      // the exact same current/wattage/overheating analysis for free
+      // rather than duplicating that logic under a new kind.
+      const maxR = Math.max(1, Number(c.maxResistance) || 10000);
+      const wiperPct = Math.max(0, Math.min(100, Number(c.wiper) ?? 50));
+      link(nodeId(c, "p1"), nodeId(c, "p2"), { compId: c.id, kind: "resistor", resistance: Math.max(1, Math.round(maxR * (wiperPct / 100))) });
     } else if (c.type === "switch") {
       if (isSwitchClosed(c)) link(nodeId(c, "p1"), nodeId(c, "p2"), { compId: c.id, kind: "wire", resistance: 0 });
     } else if (c.type === "mcu_teensy") {

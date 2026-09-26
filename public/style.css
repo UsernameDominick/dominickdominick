@@ -1435,6 +1435,22 @@ h6 { font-size: 0.9rem; }
   fill: #2a1810 !important;
 }
 
+/* Potentiometer — reuses the resistor-body/resistor-lead gradient classes
+   (see sim-components.js), just adds the wiper arrow + computed-ohms label. */
+.sim-comp .pot-wiper {
+  stroke: #444;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.sim-comp .pot-wiper-arrow {
+  fill: #444;
+}
+.sim-comp .pot-label {
+  fill: var(--text-dim);
+  text-anchor: middle;
+  pointer-events: none;
+}
+
 /* Switch */
 .sim-comp .switch-body {
   fill: url(#sim-grad-plastic);
