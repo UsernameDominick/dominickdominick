@@ -1534,6 +1534,24 @@ h6 { font-size: 0.9rem; }
   cursor: pointer;
 }
 
+/* Ammeter -- idealized zero-resistance current meter, in-series like a
+   switch/resistor. */
+.sim-comp .ammeter-lead {
+  stroke: url(#sim-grad-metal);
+  stroke-width: 2;
+}
+.sim-comp .ammeter-body {
+  fill: url(#sim-grad-plastic);
+  stroke: #555;
+  stroke-width: 1;
+}
+.sim-comp .ammeter-label {
+  fill: #333;
+  text-anchor: middle;
+  font-weight: 700;
+  pointer-events: none;
+}
+
 /* Battery */
 .sim-comp .battery-body {
   fill: url(#sim-grad-battery);

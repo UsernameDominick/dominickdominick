@@ -863,7 +863,7 @@
   // multiple of the hole grid (see SIM_COMPONENTS), so once the first leg
   // snaps to a hole, every other leg lands exactly on a real neighboring
   // hole too — not just one anchor pin dragging the rest along for show.
-  const SNAP_TO_BREADBOARD_TYPES = new Set(["led", "resistor", "switch", "potentiometer"]);
+  const SNAP_TO_BREADBOARD_TYPES = new Set(["led", "resistor", "switch", "potentiometer", "ammeter"]);
   const SNAP_THRESHOLD = 18; // magnetic pull radius while dragging
   const SNAP_EXACT_TOLERANCE = 4; // how close a non-anchor leg must land to also count as plugged in
   // Everything else just snaps to a light alignment grid while dragging.
@@ -1248,6 +1248,10 @@
           } else {
             electricalHtml = `<p class="sim-power-status is-powered">Drawing ~${ma}mA at ${info.voltage}V — dissipating ${info.watts.toFixed(2)}W.</p>`;
           }
+        } else if (info.kind === "ammeter") {
+          electricalHtml = info.dangerous
+            ? `<p class="sim-power-status is-danger">🔥 Destroyed instantly — 120V mains directly across this ammeter.</p>`
+            : `<p class="sim-power-status is-powered">⚡ ${ma}mA flowing through this ammeter.</p>`;
         }
       }
 

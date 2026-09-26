@@ -275,6 +275,27 @@ export const SIM_COMPONENTS = {
       }" y2="${closed ? 10 : 1}"/><circle class="switch-pivot" cx="32" cy="10" r="2.5"/><line class="switch-lead" x1="32" y1="10" x2="40" y2="10"/>`;
     },
   },
+  // An idealized ammeter: zero resistance (doesn't disturb the circuit
+  // it's measuring), placed IN SERIES like a switch/wire, reporting
+  // whatever current already flows on the analyzed path through it. A
+  // real voltmeter (measured in PARALLEL, showing the potential
+  // difference between two arbitrary points) needs actual per-node
+  // voltage computation this simulator's single-shortest-path model
+  // doesn't have -- that's real solver work, out of scope here; this
+  // covers the current-measurement half of "voltage/current meter" that
+  // fits the existing analysis for free.
+  ammeter: {
+    label: "Ammeter",
+    w: 40,
+    h: 20,
+    passthrough: [["p1", "p2"]],
+    pins: [
+      { id: "p1", x: 0, y: 10 },
+      { id: "p2", x: 40, y: 10 },
+    ],
+    render: () =>
+      `<line class="ammeter-lead" x1="0" y1="10" x2="6" y2="10"/><circle class="ammeter-body" cx="20" cy="10" r="9"/><text class="ammeter-label" x="20" y="13" text-anchor="middle" font-size="9">A</text><line class="ammeter-lead" x1="34" y1="10" x2="40" y2="10"/>`,
+  },
   // A two-terminal variable resistor -- no separate wiper-tap pin, so no
   // voltage-divider behavior (that needs a real multi-branch solver, out
   // of scope here). The wiper % just scales the resistance between p1/p2
@@ -534,6 +555,8 @@ function buildAnalysisGraph(data) {
       link(nodeId(c, "p1"), nodeId(c, "p2"), { compId: c.id, kind: "resistor", resistance: Math.max(1, Math.round(maxR * (wiperPct / 100))) });
     } else if (c.type === "switch") {
       if (isSwitchClosed(c)) link(nodeId(c, "p1"), nodeId(c, "p2"), { compId: c.id, kind: "wire", resistance: 0 });
+    } else if (c.type === "ammeter") {
+      link(nodeId(c, "p1"), nodeId(c, "p2"), { compId: c.id, kind: "ammeter", resistance: 0 });
     } else if (c.type === "mcu_teensy") {
       link(nodeId(c, "vin"), nodeId(c, "gnd"), { compId: c.id, kind: "teensy", resistance: TEENSY_LOAD_OHMS });
     } else if (c.type === "led" && def.polarity) {
@@ -664,6 +687,12 @@ export function computeCircuitAnalysis(data) {
         const watts = amps * amps * TEENSY_LOAD_OHMS;
         const status = domain.dangerous ? "burnt" : watts > TEENSY_WATTAGE_RATING ? "overheating" : "normal";
         results[info.compId] = { kind: "teensy", currentMa, voltage: domain.voltage, watts, status, dangerous: domain.dangerous };
+      } else if (info.kind === "ammeter") {
+        // Zero resistance, so it never changes what current flows -- it
+        // just reports whatever the loop's own analysis already computed
+        // at this point on the path, same as a real idealized ammeter
+        // should.
+        results[info.compId] = { kind: "ammeter", currentMa, status: domain.dangerous ? "burnt" : "normal", dangerous: domain.dangerous };
       }
     });
   });
