@@ -1049,13 +1049,32 @@
     ctx.restore();
   }
 
+  // The outline itself was always exact -- point.x/y and brushSize() are
+  // both in the same canvas-pixel space strokeTo() actually draws in, so
+  // the circle's SIZE and POSITION already matched a real stroke exactly
+  // before this change. What it never reflected was the brush OPACITY
+  // slider (item #71): a preview that always looked identically solid
+  // regardless of that setting was misleading about how STRONG a click
+  // would actually apply, not just where/how big. Now a light, filled
+  // interior scaled by the real brushOpacity() gives an honest preview of
+  // strength too, and the outline stroke itself is also alpha-scaled so a
+  // very-low-opacity setting reads as a correspondingly faint preview
+  // rather than a jarring full-strength outline around a barely-visible
+  // fill.
   function drawBrushCursor(point) {
     clearOverlay();
+    const opacity = brushOpacity();
+    octx.save();
     octx.beginPath();
     octx.arc(point.x, point.y, brushSize() / 2, 0, Math.PI * 2);
+    octx.fillStyle = "#ff7a45";
+    octx.globalAlpha = opacity * 0.35; // fill is always subtler than the outline, never the dominant visual
+    octx.fill();
+    octx.globalAlpha = Math.max(0.25, opacity); // never fades the outline to the point it's hard to see even at low opacity
     octx.strokeStyle = "#ff7a45";
     octx.lineWidth = Math.max(1, canvas.width * 0.0015);
     octx.stroke();
+    octx.restore();
   }
 
   // ---------- Annotate: rect / circle / arrow / text ----------

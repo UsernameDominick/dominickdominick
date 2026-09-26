@@ -4752,7 +4752,7 @@ join, rather than building three separate systems.
 76. ✅ Saved brush presets — same pattern as photo-presets. (done — see the dated entry below)
 77. Hard-edged pencil — brush variant with no smoothing.
 78. Airbrush buildup — brush variant with cumulative alpha.
-80. Accurate brush footprint preview — extend existing drawBrushCursor.
+80. ✅ Accurate brush footprint preview — extend existing drawBrushCursor. (done — see the dated entry below)
 86. ✅ Dodge/burn brushes — brightness brush, same shape as existing blur brush. (done — see the dated entry below)
 90. Magnified retouch comparison — reuse existing originalSnapshot + zoom.
 92. ✅ Saved crop ratios — done (see the dated entry below this section).
@@ -10769,3 +10769,50 @@ crashing or drawing nothing — a benign worst case not worth guarding
 against given how narrow the trigger condition is.
 
 Item #72 is done: 1 critic round, 9/10 on the first pass.
+
+### Fifty-seventh item: #80, Photo Editor accurate brush footprint preview
+
+- ✅ **`drawBrushCursor()` now reflects the real brush opacity setting**,
+  not just size and position. Investigating this item first confirmed
+  that the circle's SIZE and POSITION were already exactly accurate
+  before any change — `point.x/y` (from `pointFromEvent`) and
+  `brushSize()` are the exact same canvas-pixel-space values `strokeTo()`
+  itself draws with, so the outline always matched a real stroke's
+  footprint precisely. What it never reflected was the recently-added
+  brush opacity slider (item #71): the cursor preview always looked
+  identically solid regardless of that setting, silently misleading an
+  admin about how STRONGLY a click would apply, not just where or how
+  big. Added a light, filled interior scaled by the real `brushOpacity()`
+  (at 35% of that value, so the fill is always a subtler visual than the
+  outline, never the dominant element) and alpha-scaled the outline
+  stroke itself too — with a `0.25` floor so a very-low-opacity setting
+  reads as a genuinely faint preview rather than either a jarring
+  full-strength outline around a barely-visible fill, or fading out to
+  the point of being unusable to see at all.
+
+Deliberately did NOT extend the cursor to also reflect live PEN PRESSURE
+(item #72, shipped immediately before this one) — a prior critic pass
+on that exact item explicitly confirmed leaving the cursor always
+showing the full selected size regardless of pressure is correct by
+design, not a gap: a hovering stylus not yet in contact has no pressure
+signal to predict from in the first place, matching how real drawing
+apps generally preview the selected size rather than an unknowable live
+prediction. Revisited that design decision here rather than silently
+overriding it, and kept it unchanged.
+
+Verified via Playwright on a real brush tool (Dodge, brush size 80):
+confirmed the cursor preview's fill is genuinely visible at 100%
+opacity, confirmed it becomes MEANINGFULLY fainter (alpha 89→9, roughly
+a 10x drop matching the 100%→10% opacity change) rather than either
+unchanged or fully invisible, confirmed the outline itself stays
+visible even at 10% opacity (never fades to nothing, thanks to the
+0.25 floor), and confirmed the circle's actual SIZE is completely
+unaffected by the opacity change — sampled the outline's edge at the
+expected ~40px radius (half of the 80px brush size) and confirmed it's
+still present and unchanged at low opacity, proving only the strength
+of the preview changed, not its footprint. Re-ran the prior pen-pressure
+and brush-opacity test suites to confirm no regression from touching
+this shared hot-path function — both still pass identically. Ran the
+full `test_security_seo.js` regression suite — all passed. No test data
+was created (only in-memory canvas/overlay pixels of an existing
+library image).
