@@ -8281,10 +8281,47 @@ regression suite green; no server-side test state was created in either
 round (a scratch page created for the end-to-end worker test was
 deleted, both soft- and hard-delete, and confirmed gone).
 
-Item #410 is done: 1 critic round, 6/10, both real findings fixed and
-verified live -- including closing an identical, live, production-
-affecting bypass in the pre-existing server-side `safeHref()` this
-feature's own client-side version was explicitly modeled on, the same
-"the reachability/correctness question this critic asked about the new
-code turned out to apply just as much to the trusted original it copied"
-pattern this session already hit once with `escapeXml()` in #394.
+Sent back for a round-2 critic pass on commit 15c7c6a, given the fix
+touched widely-used production code (`worker/render.js`'s `safeHref()`
+backs project links, changelog entries, link-list items, buttons, and
+cards across the whole public site). Scored 9/10 -- ship. The critic ran
+the original bypass payloads plus new variants (embedded backspace,
+embedded NUL, zero-width space) through the real WHATWG `URL` parser and
+confirmed each one either correctly gets rejected or -- for characters
+that break scheme-state parsing entirely -- correctly falls through to
+being treated as a relative reference, which is provably safe rather
+than coincidentally safe: the check runs the exact same parsing algorithm
+a browser will run on the same string at click time, so there is no gap
+between what's inspected and what actually navigates. A battery of
+legitimate-URL edge cases (fragments, query strings, ports, IPv6 hosts,
+IDN/unicode domains, a 100k-character URL, scheme-only forms) all parsed
+without throwing and passed through unchanged -- no false rejections.
+Confirmed protocol-relative URLs (`//evil.com/x`) still pass, matching
+the OLD regex's behavior exactly (never a regression, since the old
+check never blocked those either). Confirmed the function never returns
+a normalized/resolved URL, only ever the original trimmed input or the
+literal `"#"` -- verified against every call site's own independent
+raw-string checks (e.g. a separate `/^https?:\/\//` test elsewhere for
+deciding `target="_blank"`) to confirm none of them assume normalization
+the new implementation doesn't provide. Grepped the whole repo and
+confirmed the old denylist pattern survives only in this outline's own
+historical narrative, not in any shipped code anymore.
+
+One cosmetic, non-blocking note: the client and server now carry two
+independent (matching, but separately maintained) copies of the same
+tiny function, with only a one-line comment in the server copy pointing
+to the client-side port and not the reverse -- a future edit to one
+without the other could quietly drift. Logged as a minor
+maintainability nit rather than fixed, since a shared module between a
+browser-context IIFE and a Workers-runtime ES module is a larger
+restructuring than this bug fix's scope justifies.
+
+Item #410 is done: 2 critic rounds (6/10, 9/10), both real round-1
+findings fixed and independently re-verified against a much broader
+battery of edge cases than the original repro -- including closing an
+identical, live, production-affecting bypass in the pre-existing
+server-side `safeHref()` this feature's own client-side version was
+explicitly modeled on, the same "the reachability/correctness question
+this critic asked about the new code turned out to apply just as much to
+the trusted original it copied" pattern this session already hit once
+with `escapeXml()` in #394.
