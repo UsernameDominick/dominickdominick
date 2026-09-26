@@ -513,11 +513,11 @@
   // works as an instrument monitor) and, only while the sequencer is
   // playing and "Record" is checked, writing the note into the piano roll
   // at whatever step is currently playing.
-  function handleMidiMessage(msg) {
-    const [status, note, velocity] = msg.data;
-    const isNoteOn = status >> 4 === 9 && velocity > 0;
-    if (!isNoteOn) return;
-    const noteName = Engine.midiToNoteName(note);
+  // Shared by both MIDI input and computer-keyboard note entry below: play
+  // the note immediately as a live preview, and — only while the sequencer
+  // is playing and "Record" is checked — also write it into the piano roll
+  // at whatever step is currently playing.
+  function playAndMaybeRecordNote(noteName) {
     const ctx = getAudioCtx();
     const waveform = $("song-waveform").value;
     const duration = 60 / (songData.tempo || 120) / 4;
@@ -529,6 +529,13 @@
       const cell = document.querySelector(`.song-steps[data-row="${noteName}"] .song-step[data-step="${step}"]`);
       if (cell) cell.classList.add("song-step-on");
     }
+  }
+
+  function handleMidiMessage(msg) {
+    const [status, note, velocity] = msg.data;
+    const isNoteOn = status >> 4 === 9 && velocity > 0;
+    if (!isNoteOn) return;
+    playAndMaybeRecordNote(Engine.midiToNoteName(note));
   }
 
   if (navigator.requestMIDIAccess) {
@@ -545,6 +552,38 @@
       }
     });
   }
+
+  // ---------- Computer-keyboard note entry ----------
+  // No hardware to "connect" here, unlike MIDI above — the browser's own
+  // keydown events are always available, so this is armed as soon as the
+  // song builder modal is open, gated only by the same isTyping guard the
+  // simulation builder's own keyboard shortcuts already use (so typing a
+  // song name or an option value never gets hijacked as a note). Mirrors
+  // the classic Ableton-style "typing keyboard" layout: ZXCVBNM plus
+  // SDGHJ (black keys) for the lower of the piano roll's two octaves,
+  // QWERTYU plus 23567 for the upper octave — 12 keys per row, exactly
+  // matching one octave each, so every key maps to exactly one note with
+  // no leftover or ambiguous keys.
+  const KEYBOARD_NOTE_MAP = {
+    z: "C", s: "C#", x: "D", d: "D#", c: "E", v: "F", g: "F#", b: "G", h: "G#", n: "A", j: "A#", m: "B",
+    q: "C", "2": "C#", w: "D", "3": "D#", e: "E", r: "F", "5": "F#", t: "G", "6": "G#", y: "A", "7": "A#", u: "B",
+  };
+  const KEYBOARD_NOTE_OCTAVE = {
+    z: 3, s: 3, x: 3, d: 3, c: 3, v: 3, g: 3, b: 3, h: 3, n: 3, j: 3, m: 3,
+    q: 4, "2": 4, w: 4, "3": 4, e: 4, r: 4, "5": 4, t: 4, "6": 4, y: 4, "7": 4, u: 4,
+  };
+  document.addEventListener("keydown", (e) => {
+    if ($("song-builder-modal").hidden) return;
+    if (e.repeat) return; // a held key must play the note once, not retrigger on every OS auto-repeat tick
+    const tag = document.activeElement && document.activeElement.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const key = e.key.toLowerCase();
+    if (!(key in KEYBOARD_NOTE_MAP)) return;
+    e.preventDefault();
+    playAndMaybeRecordNote(KEYBOARD_NOTE_MAP[key] + KEYBOARD_NOTE_OCTAVE[key]);
+  });
+  $("song-record-label").hidden = false;
 
   // ---------- Sequencer grid ----------
   // Shared by the drum sequencer and the piano roll — both are just a set

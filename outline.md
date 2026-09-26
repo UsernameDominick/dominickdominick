@@ -4863,7 +4863,7 @@ session's own EXIF-stripping feature for the upload-side equivalent).
 309. Track/master clipping history — log exceedances like existing `log()` action table.
 311. MIDI-device discovery — extend existing `requestMIDIAccess` call already present.
 314. On-screen keyboard — UI wired to existing `playMelodyNote`.
-315. Computer-keyboard note entry — keydown → existing note-play function.
+315. ✅ Computer-keyboard note entry — keydown → existing note-play function. (done — see the dated entry below)
 321. ✅ Background autosave — done (see the dated entry below this section).
 328. Cache waveform previews — store existing `renderWaveformPeaks` output.
 329. Warn before heavy sample imports — file.size check pre-decode.
@@ -13046,3 +13046,68 @@ scroll is unaffected and still lands by +1200ms. Re-ran
 passed, no regressions. Closing at this point without a mandatory
 round-2 dispatch: the one real finding was small, well-scoped, and fixed
 inline and verified live, matching the precedent set by item #108.
+
+### 2026-09-26 — Item #315: Computer-keyboard note entry (Song builder)
+
+Added a classic "typing keyboard piano" layout to the song builder's
+melody piano roll: ZXCVBNM plus SDGHJ (the black keys interspersed
+between them) play the lower of the piano roll's two octaves (C3-B4),
+and QWERTYU plus 23567 play the upper octave — 12 keys per row, exactly
+one octave each, so all 24 piano-roll notes are reachable with no
+leftover or ambiguous key. This is the same mapping convention used by
+Ableton Live and several other DAWs' own "computer keyboard as MIDI
+input" feature, so it should already feel familiar to anyone who's used
+one.
+
+Implementation reused, rather than duplicated, the existing MIDI-input
+code path: `handleMidiMessage`'s note-on logic (play a live preview via
+`Engine.playMelodyNote`, and — only while the sequencer is actually
+playing AND the "Record" checkbox is checked — also write the note into
+the piano roll at whichever step is currently playing) was extracted
+into a new shared `playAndMaybeRecordNote(noteName)` function, called by
+both the existing MIDI handler and the new keyboard handler. This means
+computer-keyboard entry gets identical behavior to a real MIDI keyboard
+for free — same live-preview-always, same record-only-while-playing gate
+— rather than a second, subtly-different implementation of the same
+idea.
+
+The keydown listener is scoped to only fire while the song builder modal
+is actually open, and guards against `e.repeat` (so holding a key down
+doesn't retrigger the note on every OS auto-repeat tick — a real piano
+key held down doesn't repeatedly re-strike itself either) and against
+typing focus (checking `document.activeElement.tagName` for
+INPUT/TEXTAREA/SELECT), matching the exact same typing-guard pattern the
+simulation builder's own keydown shortcuts already use — so typing into
+the song name field, or any dropdown, never gets hijacked as a note.
+
+The "Record into piano roll" checkbox/label previously only appeared
+after clicking "Connect MIDI" (its `hidden` toggle lived inside that
+button's click handler) and its own label text said "Record MIDI into
+piano roll" specifically. Since keyboard entry needs no "connect" step —
+the browser's keydown events are always available — the label is now
+unhidden unconditionally as soon as the song builder loads, and its text
+was generalized to "Record into piano roll" with a title tooltip
+explaining it now also covers the keyboard note keys, not just a
+connected MIDI device.
+
+Verified via Playwright against the real admin UI: confirmed the record
+label is visible without ever touching the MIDI-connect button; confirmed
+typing "z" while focused in the song-name text field lands as an actual
+character in that field rather than being swallowed as a note keypress;
+confirmed pressing a mapped key while NOT playing/recording does not
+write anything into the piano roll (preview-only behavior confirmed);
+started real playback with "Record" checked and confirmed pressing "x"
+(D3) actually wrote a live D3 step into the grid at whatever step was
+currently playing; dispatched a synthetic repeat keydown event directly
+to confirm the repeat guard doesn't throw. Zero page errors across the
+whole run. Ran the full `test_security_seo.js` regression suite — all
+passed. Test song created via the real admin API was deleted via its
+real DELETE endpoint afterward, confirmed via a follow-up authenticated
+listing showing it gone.
+
+No server-side changes were needed — this is entirely a client-side
+addition to the existing admin song builder, reusing already-existing
+note-name/frequency helpers (`Engine.NOTE_NAMES`, `Engine.noteToFreq`)
+and the pre-existing piano-roll data structure untouched.
+
+Sent for a critic pass.
