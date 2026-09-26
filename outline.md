@@ -10986,3 +10986,34 @@ pressure, dodge/burn) to confirm none of this touching the shared
 pointer handlers introduced any regression — all still pass identically.
 Ran the full `test_security_seo.js` regression suite — all passed. Sent
 for a round-2 critic pass.
+
+Round-2 traced all three fixes through every edge case rather than
+spot-checking: confirmed `airbrushJustCommitted` is set `true` at the
+correct point (after the tick's own reseed, not before), correctly
+reset to `false` at the start of every new stroke so a stale value from
+a PRIOR stroke could never wrongly suppress the next stroke's own
+finalize commit, and correctly cleared only on the genuine brush-tool
+movement path. Walked through all four finalize scenarios by hand — a
+non-airbrush stroke, an airbrush stroke where no tick ever fired, one
+where a tick fired with no further movement, and one where a tick fired
+followed by real movement — and confirmed each produces the correct
+commit behavior. Confirmed the checkbox's `change` listener reads the
+exact same element `airbrushMode()` itself reads (no id mismatch), and
+confirmed leaving `airbrushJustCommitted` untouched by that listener is
+itself correct reasoning, not an oversight (the flag tracks mask
+contents, not toggle state, and unrelated to whether the timer is
+running). Confirmed the `pointercancel` listener guards identically to
+`pointerup` (so the two can't double-fire finalize logic if both
+somehow arrived for one interaction), correctly scopes to brush tools
+only, and confirmed the `window.blur`/`visibilitychange` extensions are
+genuinely additive alongside the pre-existing `endCompare()` calls, not
+replacing them. Confirmed both minor fixes (pressure tracking, tick-body
+try/catch) are wired correctly. Found no new regression introduced by
+this round of fixes — mask lifecycle, timer-duplication guards, and the
+airbrush-off-mid-stroke fallback path were all independently re-checked
+and came back clean. Final score: **9/10 — ships.**
+
+Item #78 is done: 2 critic rounds, 5/10 → 9/10. The round-1 double-commit
+bug, checkbox-toggle gap, and leaked-timer risk were all real,
+independently confirmed, and fixed together with two additional
+minor hardening improvements found along the way.
