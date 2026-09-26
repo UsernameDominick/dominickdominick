@@ -357,6 +357,25 @@
   // `startCompare()`'s own `dragging` guard elsewhere in this file already
   // has to account for -- but a critic pass reviewing the crop-specific
   // fix found it generalizes to every pointer-tracked tool, not just crop.
+  // Discards an in-progress adjust-slider (brightness/contrast/saturate)
+  // drag rather than letting its next tick resume against a canvas that's
+  // since been mutated out from under it -- `baseSnapshot` is a clone
+  // taken at the OLD pixels/dimensions when the drag started, and painting
+  // it back over the canvas after some OTHER action (rotate, flip, a
+  // filter, a preset, a crop, a brush stroke, a shape commit) has already
+  // changed what's actually on the canvas would silently erase that
+  // action's result. Factored out from `cancelActiveDrag()` (which also
+  // clears crop/drag-tool state that isn't relevant to every one of these
+  // call sites -- a brush/shape commit inside `pointerup`, for instance,
+  // must NOT also clear `cropRect`, since that would wipe out an
+  // unrelated in-progress crop selection on an entirely different tool).
+  function invalidateOpenAdjustDrag() {
+    baseSnapshot = null;
+    $("pe-brightness").value = 0;
+    $("pe-contrast").value = 0;
+    $("pe-saturate").value = 0;
+  }
+
   function cancelActiveDrag() {
     cropRect = null;
     $("pe-apply-crop").hidden = true;
@@ -365,21 +384,7 @@
     strokeActive = false;
     lastPoint = null;
     clearOverlay();
-    // A fourth species of the same problem, found by a second critic pass
-    // on this exact function: an adjust-slider drag (brightness/contrast/
-    // saturate) in progress holds `baseSnapshot`, a canvas clone taken at
-    // the OLD dimensions/orientation when the drag started. The already-
-    // filtered pixels up to this point stay correctly baked into the
-    // canvas (onAdjustInput already drew them before this transform ran),
-    // but the NEXT slider tick would otherwise clearRect the NEW
-    // dimensions and paint the OLD-sized `baseSnapshot` back over it --
-    // discarding it and resetting the sliders abandons the interrupted
-    // drag cleanly instead of corrupting it, the same "cancel, don't
-    // resume against stale state" choice already made for crop/brush/shape.
-    baseSnapshot = null;
-    $("pe-brightness").value = 0;
-    $("pe-contrast").value = 0;
-    $("pe-saturate").value = 0;
+    invalidateOpenAdjustDrag();
   }
 
   function rotate90(clockwise) {
@@ -860,13 +865,25 @@
     if (currentTool === "select") {
       $("pe-apply-crop").hidden = !cropRect;
     } else if (BRUSH_TOOLS.includes(currentTool)) {
-      if (strokeActive) commitBrushStroke();
+      if (strokeActive) {
+        commitBrushStroke();
+        // A critic pass found the same baseSnapshot-staleness gap here as
+        // rotate/flip/filters/presets/crop-apply already had fixed: a
+        // multi-touch adjust-slider drag held open while a brush stroke on
+        // another finger commits would otherwise resume against the
+        // pre-stroke pixels on its next tick, erasing the stroke. Only
+        // invalidates the adjust-drag specifically (not the full
+        // cancelActiveDrag()), since this branch must not also clear an
+        // unrelated in-progress crop selection on a different tool.
+        invalidateOpenAdjustDrag();
+      }
       strokeActive = false;
       lastPoint = null;
       clearOverlay();
     } else if (SHAPE_TOOLS.includes(currentTool) && dragStart) {
       pushUndo();
       commitAnnotation(dragStart.x, dragStart.y, p.x, p.y);
+      invalidateOpenAdjustDrag();
       clearOverlay();
     }
     dragStart = null;

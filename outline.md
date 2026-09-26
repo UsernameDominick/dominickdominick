@@ -7723,3 +7723,44 @@ complete while a given call site has only one of the two -- a checklist
 covering "does this action need guard A" is not the same checklist as
 "does this action need guard B," and an exhaustive review of one doesn't
 substitute for a separate exhaustive review of the other.
+
+Before sending back for a sixth critic round, applied that exact lesson
+proactively: the round-5 critic's own report noted brush-stroke and
+shape-tool commits were "correctly guarded, or transitively safe" against
+`isComparing()`, but never separately checked whether they had the
+OTHER guard (`baseSnapshot`-staleness) -- the same blind spot that let
+the filter/preset/crop-apply gap slip through five rounds. Checked
+directly: `commitBrushStroke()`/`commitAnnotation()` (the pointerup
+handler's brush and shape commit paths) mutate canvas pixels with zero
+`baseSnapshot` invalidation, so the identical multi-touch scenario
+(a slider drag held open on one input while a brush stroke or shape
+commits on another) would silently erase the stroke/shape the moment the
+still-open slider fired its next tick.
+
+Fixed by factoring the `baseSnapshot`-clearing lines out of
+`cancelActiveDrag()` into their own `invalidateOpenAdjustDrag()` helper,
+called from the brush and shape commit branches of the pointerup handler
+directly -- NOT via a full `cancelActiveDrag()` call there, since that
+also clears `cropRect`, which would incorrectly wipe out an unrelated,
+still-in-progress crop selection drawn on a completely different tool
+(the "select" branch of that same handler only finalizes selection UI
+state on release, it doesn't mutate canvas pixels the way brush/shape
+commits do, so it correctly does NOT get this treatment).
+`cancelActiveDrag()` itself now just calls the new helper alongside its
+other resets, unchanged in behavior for its three existing call sites.
+
+Verified via Playwright: opened a slider drag, committed an erase-brush
+stroke on the canvas (confirmed alpha dropped to 0 at the erased spot),
+then continued the still-open slider -- the erased spot's alpha stayed
+at 0 instead of the stale `baseSnapshot` painting the pre-erase pixels
+back over it, confirming the stroke survived. Re-ran every prior test
+from all five rounds (crop-clear-on-rotate, mid-stroke rotate, mid-
+adjust-slider rotate, Compare-block guards, filter/crop-apply baseSnapshot
+fixes) unchanged, including specifically confirming drawing a fresh crop
+selection still shows the Apply Crop button correctly (proving the
+targeted `invalidateOpenAdjustDrag()` fix doesn't over-clear crop state
+the way a blanket `cancelActiveDrag()` call there would have). Full
+regression suite green; test uploads deleted and confirmed gone.
+
+Sent back for round 6 already incorporating this proactive fix, rather
+than waiting for a critic to find the eighth instance independently.
