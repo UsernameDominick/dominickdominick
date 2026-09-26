@@ -13,6 +13,18 @@
   // .song-step/.song-steps toggle-grid cells and click handling as the
   // drum sequencer below, just with a note name (not a drum sound) as the
   // per-row key, so the same rendering/toggle code covers both.
+  // Mirrors the whitelist in worker/render.js's renderSongBlockHtml -- both
+  // sides need to agree on which theme values actually have a matching
+  // CSS rule (public/style.css's .song-theme-* classes), since "default"
+  // (or any unrecognized value from stale/imported data) means no
+  // song-theme-* class at all, falling through to the site's own global
+  // --accent unchanged.
+  const SONG_THEME_CLASSES = new Set(["sunset", "ocean", "mono", "neon"]);
+  function applySongTheme(embedEl, theme) {
+    SONG_THEME_CLASSES.forEach((t) => embedEl.classList.remove(`song-theme-${t}`));
+    if (SONG_THEME_CLASSES.has(theme)) embedEl.classList.add(`song-theme-${theme}`);
+  }
+
   const NOTE_NAMES = Engine.NOTE_NAMES;
   const PIANO_NOTES = [];
   [4, 3].forEach((octave) => {
@@ -24,6 +36,7 @@
       tempo: 120,
       kit: "acoustic",
       visualization: "bars",
+      theme: "default",
       page_sync: false,
       master_volume: 1,
       tracks: TRACKS.reduce((acc, t) => {
@@ -175,15 +188,29 @@
     const mid = h / 2;
     c2d.clearRect(0, 0, w, h);
     const barW = w / previewPeaks.length;
+    // Reads --accent off the preview embed itself (not hardcoded) so a
+    // chosen theme is reflected here too, matching the public embed's own
+    // theme-aware waveform color (see public/song-embed.js).
+    const accent = getComputedStyle($("song-preview-embed")).getPropertyValue("--accent").trim() || "#ff7a45";
     previewPeaks.forEach((p, i) => {
       const played = i / previewPeaks.length <= progress;
-      c2d.fillStyle = played ? "#ff7a45" : "rgba(255,255,255,0.25)";
+      c2d.fillStyle = played ? accent : "rgba(255,255,255,0.25)";
       const yTop = mid + p[1] * mid;
       const yBot = mid + p[0] * mid;
       c2d.fillRect(i * barW, yTop, Math.max(1, barW - 1), Math.max(1, yBot - yTop));
     });
   }
 
+  $("song-theme").addEventListener("change", () => {
+    songData.theme = $("song-theme").value;
+    applySongTheme($("song-preview-embed"), songData.theme);
+    // A theme change only re-colors --accent -- it doesn't change the
+    // underlying waveform samples at all, so re-rendering the offline
+    // peaks themselves would be pointless work; just redraw with the
+    // already-cached peaks at the new color.
+    if ((songData.visualization || "bars") === "waveform") drawWaveformPreview(0);
+    scheduleAutosave();
+  });
   $("song-visualization").addEventListener("change", () => {
     songData.visualization = $("song-visualization").value;
     updatePreviewVisibility();
@@ -672,6 +699,8 @@
     $("song-kit").value = songData.kit || "acoustic";
     $("song-waveform").value = songData.melody.waveform || "sine";
     $("song-visualization").value = songData.visualization || "bars";
+    $("song-theme").value = SONG_THEME_CLASSES.has(songData.theme) ? songData.theme : "default";
+    applySongTheme($("song-preview-embed"), songData.theme);
     $("song-page-sync").checked = !!songData.page_sync;
     $("song-master-volume").value = Math.round((typeof songData.master_volume === "number" ? songData.master_volume : 1) * 100);
     // The shared AudioContext (and its master GainNode) persists across
@@ -705,6 +734,7 @@
     songData.kit = $("song-kit").value;
     songData.melody.waveform = $("song-waveform").value;
     songData.visualization = $("song-visualization").value;
+    songData.theme = $("song-theme").value;
     songData.page_sync = $("song-page-sync").checked;
     songData.master_volume = Number($("song-master-volume").value) / 100;
     try {

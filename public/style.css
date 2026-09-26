@@ -1264,6 +1264,27 @@ h6 { font-size: 0.9rem; }
   100% { box-shadow: 0 0 0 24px rgba(232, 161, 58, 0); }
 }
 
+/* Reusable player themes -- each just re-declares --accent scoped to this
+   one .song-embed instance, so every existing rule above that already
+   reads var(--accent) (play-button hover, active bar, pulse core) and the
+   canvas-drawn waveform (which now also reads --accent off this specific
+   element, see song-embed.js) all pick it up automatically, with zero
+   changes needed to those rules. No theme selected (the "default" value)
+   means no song-theme-* class is rendered at all, so the embed falls
+   through to the site's own global --accent unchanged. */
+.song-embed.song-theme-sunset {
+  --accent: #ff7a45;
+}
+.song-embed.song-theme-ocean {
+  --accent: #2f8fd1;
+}
+.song-embed.song-theme-mono {
+  --accent: #d8d8d8;
+}
+.song-embed.song-theme-neon {
+  --accent: #39ff8f;
+}
+
 /* Page-wide beat-sync overlay — a single shared fixed layer any playing
    song can flash, opt-in per song via "Sync page background". Kept as an
    overlay rather than touching body's own background so it never fights

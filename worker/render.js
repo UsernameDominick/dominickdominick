@@ -935,6 +935,11 @@ function genericEmbedHtml(rawUrl) {
 // attribute rather than being fetched separately, so playback works even
 // if the song is later deleted from the library (same "embed the data,
 // not just a reference" reasoning as a simulation block's rendered SVG).
+// Whitelisted rather than interpolated directly -- song.data rides through
+// this render path from arbitrary stored/imported JSON, and a class name
+// built from an unvalidated string is exactly the kind of thing this
+// codebase has been bitten by before for other free-text component fields.
+const SONG_THEME_CLASSES = new Set(["sunset", "ocean", "mono", "neon"]);
 export function renderSongBlockHtml(song) {
   const viz = song.data && song.data.visualization;
   let vizHtml;
@@ -946,7 +951,9 @@ export function renderSongBlockHtml(song) {
     const bars = Array.from({ length: 16 }, () => `<span class="song-embed-bar"></span>`).join("");
     vizHtml = `<div class="song-embed-bars">${bars}</div>`;
   }
-  return `<div class="song-embed" data-song="${esc(JSON.stringify(song.data))}">
+  const theme = song.data && song.data.theme;
+  const themeClass = SONG_THEME_CLASSES.has(theme) ? ` song-theme-${theme}` : "";
+  return `<div class="song-embed${themeClass}" data-song="${esc(JSON.stringify(song.data))}">
     <div class="song-embed-header"><strong>${esc(song.name)}</strong><button type="button" class="song-embed-play-btn">▶ Play</button></div>
     ${vizHtml}
   </div>`;

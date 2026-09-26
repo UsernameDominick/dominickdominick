@@ -53,7 +53,14 @@
       const mid = h / 2;
       c2d.clearRect(0, 0, w, h);
       const barW = w / peaks.length;
-      const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#ff7a45";
+      // Reads --accent off this specific embed's own element, not the page
+      // root -- a per-song theme class (song-theme-*) overrides --accent
+      // scoped to just this .song-embed, so the canvas-drawn waveform has
+      // to resolve the cascade from the same element the CSS-only bars/
+      // pulse visualizations already inherit it from, not the document
+      // root, or a themed song's waveform would silently ignore its own
+      // theme while the other two visualization modes honored it.
+      const accent = getComputedStyle(wrap).getPropertyValue("--accent").trim() || "#ff7a45";
       peaks.forEach((p, i) => {
         const x = i * barW;
         const played = i / peaks.length <= progress;
