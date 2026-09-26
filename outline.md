@@ -4913,7 +4913,7 @@ substantial new infra + security surface).
 391. Named nets (ground/supply) — add a `label` field to node groups.
 393. Manual wire bend points — extend wire path from 2-point to polyline.
 394. ✅ Wire labels — done (see the dated entry below this section).
-396. Wire thickness/appearance — CSS/attr option per wire.
+396. ✅ Wire thickness/appearance — done (see the dated entry below this section).
 397. ✅ Detect disconnected ends — done (see the dated entry below this section).
 398. ✅ Highlight net from point — done (see the dated entry below this section).
 401. Searchable specs — reuse palette search; add spec text field.
@@ -8399,3 +8399,46 @@ field.
 Item #378 is done: 1 critic round, 9/10, no real findings -- one minor,
 already-existing-convention accessibility gap logged as an accepted,
 non-blocking observation.
+
+### Twenty-eighth item: #396, wire thickness in the simulation builder
+
+Added a "Thickness" dropdown (Thin/Normal/Thick) to the wire inspector,
+alongside the existing Style (wire/HDMI-cable) and Label fields. Stored
+as `wire.thickness` -- "normal" is represented by the field simply being
+absent/undefined rather than the literal string "normal", so every
+pre-existing wire from before this feature (which never set the field at
+all) is correctly treated as normal-thickness with no migration needed,
+and there's only one way to mean "default" instead of two equivalent
+ones a future reader would have to remember are the same.
+
+Implemented as an inline `style="stroke-width:...px"` override on both
+the wire's main stroke and its shine highlight, computed from a fixed
+multiplier (0.6x thin, 1.7x thick, keyed off the validated `thickness`
+string -- never a raw number from JSON-import-controlled data, so there's
+no numeric field here that could need a plausibility bound the way image
+dimensions elsewhere in this codebase did) times each kind's existing
+CSS base width (4px/1.2px for a plain wire, 5px/1.5px for the HDMI-style
+cable). The inline style is only emitted at all when the multiplier isn't
+1 -- the overwhelming common "Normal" case keeps relying on the plain CSS
+class with no per-wire override cluttering the markup, exactly mirroring
+the pattern the wire-label feature's own "only emit if non-empty"
+approach already established. Mirrored in both render paths (the admin
+builder's own `renderWireSvg()` and the public embed's `worker/
+simulation-render.js` copy) with byte-identical multipliers and base
+widths, so a wire's thickness set in the builder looks the same on the
+public page.
+
+Tested via Playwright: confirmed a freshly-drawn wire has no inline
+stroke-width style at all (relying purely on the CSS default); selected
+"Thick" and confirmed the exact expected inline width (4 * 1.7 = 6.8px);
+selected "Thin" and confirmed 4 * 0.6 = 2.4px; selected "Normal" again
+and confirmed the inline style was removed entirely, not just reset to a
+value that happens to match the CSS default; saved a simulation with a
+thick wire and loaded its public embed page in a fresh browser context,
+confirming the same 6.8px inline width rendered there via the worker-side
+render path. Full regression suite green; the test simulation was
+deleted (both soft- and hard-delete) and confirmed gone from the
+simulations list afterward.
+
+Sent to a critic pass next per the standing workflow before calling it
+done.

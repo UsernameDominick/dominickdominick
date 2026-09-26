@@ -657,13 +657,22 @@ function renderWireSvg(wire, components, poweredWires) {
         wire.label
       )}</text>`
     : "";
+  // Mirrors the admin builder's own thickness override exactly (same
+  // multipliers, same base widths per kind, same "only emit an inline
+  // style when it's not the plain 1x default" rule) so a wire's
+  // thickness set in the builder shows identically on this public embed.
+  const kind = wire.kind === "hdmi" ? "hdmi" : "wire";
+  const thicknessMultiplier = { thin: 0.6, thick: 1.7 }[wire.thickness] || 1;
+  const strokeStyle = thicknessMultiplier === 1 ? "" : ` style="stroke-width:${(kind === "hdmi" ? 5 : 4) * thicknessMultiplier}px"`;
+  const shineStrokeStyle =
+    thicknessMultiplier === 1 ? "" : ` style="stroke-width:${(kind === "hdmi" ? 1.5 : 1.2) * thicknessMultiplier}px"`;
   // Two overlapping strokes — a wide dull base plus a thin bright offset
   // highlight — read as a rounded, insulated cable instead of a flat line.
   return `<path class="sim-wire sim-wire-${escXml(wire.kind || "wire")}" data-id="${escXml(
     wire.id
-  )}" data-animated="${poweredWires.has(wire.id) ? "true" : "false"}" d="${d}"/><path class="sim-wire-shine sim-wire-shine-${escXml(
+  )}" data-animated="${poweredWires.has(wire.id) ? "true" : "false"}" d="${d}"${strokeStyle}/><path class="sim-wire-shine sim-wire-shine-${escXml(
     wire.kind || "wire"
-  )}" d="${d}"/>${labelSvg}`;
+  )}" d="${d}"${shineStrokeStyle}/>${labelSvg}`;
 }
 
 export function renderSimulationSvg(data, { width = 1500, height = 700 } = {}) {

@@ -510,11 +510,30 @@
     // validation) and was building a CSS class name, not just any
     // attribute, from a value that was otherwise never constrained.
     const kind = wire.kind === "hdmi" ? "hdmi" : "wire";
+    // Same whitelist-not-denylist reasoning as `kind` just above: a
+    // multiplier keyed off a validated string, never a number read
+    // straight from JSON-import-controlled data, so there's no numeric
+    // field here that could ever need a plausibility bound the way image
+    // dimensions elsewhere in this codebase did.
+    const thicknessMultiplier = { thin: 0.6, thick: 1.7 }[wire.thickness] || 1;
+    // Base widths mirror the plain CSS defaults for each kind (public/
+    // style.css's .sim-wire/.sim-wire-shine/.sim-wire-hdmi/.sim-wire-shine-
+    // hdmi) -- only emitted as an inline style at all when the multiplier
+    // isn't 1, so the overwhelming common "Normal" case keeps relying on
+    // the plain CSS class with no per-wire override cluttering the markup.
+    const strokeStyle =
+      thicknessMultiplier === 1
+        ? ""
+        : ` style="stroke-width:${(kind === "hdmi" ? 5 : 4) * thicknessMultiplier}px"`;
+    const shineStrokeStyle =
+      thicknessMultiplier === 1
+        ? ""
+        : ` style="stroke-width:${(kind === "hdmi" ? 1.5 : 1.2) * thicknessMultiplier}px"`;
     return `<path class="sim-wire sim-wire-${kind}${sel ? " sim-selected" : ""}${
       inNet ? " sim-net-highlight" : ""
     }" data-id="${escapeXml(wire.id)}" data-animated="${
       poweredWires.has(wire.id) ? "true" : "false"
-    }" d="${d}"/><path class="sim-wire-shine sim-wire-shine-${kind}" d="${d}"/>${labelSvg}`;
+    }" d="${d}"${strokeStyle}/><path class="sim-wire-shine sim-wire-shine-${kind}" d="${d}"${shineStrokeStyle}/>${labelSvg}`;
   }
 
   // "Net" here means the set of pins tied to the same electrical point by
@@ -1420,6 +1439,13 @@
             <option value="hdmi" ${wire.kind === "hdmi" ? "selected" : ""}>Cable (HDMI-style)</option>
           </select>
         </label>
+        <label>Thickness
+          <select id="sim-wire-thickness">
+            <option value="thin" ${wire.thickness === "thin" ? "selected" : ""}>Thin</option>
+            <option value="normal" ${wire.thickness === "thick" || wire.thickness === "thin" ? "" : "selected"}>Normal</option>
+            <option value="thick" ${wire.thickness === "thick" ? "selected" : ""}>Thick</option>
+          </select>
+        </label>
         <label>Label (shown on the canvas, e.g. "GND" or "5V")<input id="sim-wire-label" type="text" value="${escapeXml(
           wire.label || ""
         )}"></label>
@@ -1428,6 +1454,16 @@
       $("sim-wire-kind").addEventListener("change", (e) => {
         pushHistory();
         wire.kind = e.target.value;
+        renderBuilder();
+      });
+      $("sim-wire-thickness").addEventListener("change", (e) => {
+        pushHistory();
+        // "normal" is stored as the field simply being absent/undefined
+        // (matching every other wire that predates this feature and never
+        // set a thickness at all) rather than the literal string "normal"
+        // -- one less state a future reader has to remember is equivalent
+        // to "unset".
+        wire.thickness = e.target.value === "normal" ? undefined : e.target.value;
         renderBuilder();
       });
       const wireLabelInput = $("sim-wire-label");
