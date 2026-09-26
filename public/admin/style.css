@@ -1098,7 +1098,8 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
 
 .md-toolbar {
   display: flex;
-  gap: 4px;
+  flex-wrap: wrap;
+  gap: 4px 4px;
   margin-bottom: -8px;
 }
 
@@ -2242,6 +2243,29 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   color: #ffa500;
 }
 
+/* These three small dialog variants (.media-info-modal-inner,
+   .pe-new-doc-modal-inner, .topic-meta-edit-modal-inner) have no wrapping
+   "body" div the way the bigger modals do (.articles-layout,
+   .redirects-body, .settings-body), so their own fields sat flush against
+   the modal's border with zero horizontal gutter -- text and inputs
+   touching the rounded corner, while the header just above them kept its
+   own 20px padding. Giving the modal-inner itself the padding and pulling
+   the header back out to full width (so its border-bottom still spans
+   edge-to-edge, matching every other modal) fixes that without needing a
+   new wrapper element in the markup. */
+.media-info-modal-inner,
+.pe-new-doc-modal-inner,
+.topic-meta-edit-modal-inner {
+  padding: 0 20px 20px;
+  overflow-y: auto;
+}
+
+.media-info-modal-inner header,
+.pe-new-doc-modal-inner header,
+.topic-meta-edit-modal-inner header {
+  margin: 0 -20px;
+}
+
 .media-info-modal-inner {
   max-width: 420px;
 }
@@ -2263,6 +2287,17 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   margin-top: 6px;
   font-family: inherit;
   font-size: 0.85rem;
+}
+
+/* The Save/Metadata history/File versions row directly followed the last
+   checkbox with no breathing room -- give it the same "footer, set apart
+   from the fields above" treatment the reference .typed-confirm-actions
+   pattern uses, instead of it reading like it just trailed off the form. */
+.media-info-modal-inner .article-actions,
+.topic-meta-edit-modal-inner .article-actions {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
 }
 
 .pe-new-doc-modal-inner {
@@ -2293,6 +2328,71 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   font-size: 0.8rem;
   color: var(--text-dim);
   margin: 12px 0;
+}
+
+/* Generic reusable action-row footer for a modal's buttons -- same
+   right-aligned, evenly-gapped pattern as .typed-confirm-actions (the
+   established reference), under a shared name for any modal that isn't
+   specifically a typed-confirm dialog. */
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.pe-new-doc-modal-inner .modal-actions {
+  margin-top: 20px;
+}
+
+#pe-new-doc-create {
+  background: var(--accent);
+  color: var(--on-accent);
+  border: none;
+  font-weight: 600;
+}
+
+.topic-meta-edit-modal-inner {
+  max-width: 560px;
+}
+
+.topic-meta-edit-modal-inner label {
+  display: block;
+  margin-top: 10px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.topic-meta-edit-modal-inner textarea,
+.topic-meta-edit-modal-inner input:not([type="checkbox"]) {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-top: 6px;
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+
+.topic-meta-edit-modal-inner textarea {
+  resize: vertical;
+}
+
+.topic-meta-edit-modal-inner .input-with-upload {
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.topic-meta-edit-modal-inner .input-with-upload input {
+  min-width: 200px;
+}
+
+.topic-meta-edit-modal-inner .input-with-upload input {
+  margin-top: 0;
 }
 
 .media-info-preview {
@@ -2491,7 +2591,11 @@ kbd {
 .sim-poster-row label {
   color: var(--text-dim);
   font-size: 0.8rem;
-  white-space: nowrap;
+  /* Long descriptive text, unlike the short labels elsewhere this rule's
+     nowrap pattern is copied from -- forcing it onto one line pushed it
+     past the row's edge and got clipped by .modal-inner's overflow:hidden
+     at narrow widths instead of wrapping. */
+  white-space: normal;
 }
 
 .sim-poster-row input {
@@ -3358,11 +3462,21 @@ kbd {
 }
 
 @media (max-width: 860px) {
+  /* At phone widths, several groups (canvas resize, adjust sliders, the
+     annotate/brush group) are individually wider than the viewport even
+     on their own wrapped row -- .pe-body's overflow:hidden then clipped
+     them entirely, making some tools unreachable rather than just
+     cramped. Same fix as the simulation builder's part tray: give up on
+     wrapping and make the whole bar one horizontally-scrollable row
+     instead, so everything stays reachable by swiping. */
   .pe-toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
     gap: 8px;
     padding: 8px;
   }
   .pe-tool-group {
+    flex-shrink: 0;
     padding-right: 8px;
   }
   .pe-tool-group input[type="range"] {

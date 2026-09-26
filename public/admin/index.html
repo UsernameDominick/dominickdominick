@@ -674,7 +674,10 @@
       <label>Width (px) <input type="number" id="pe-new-doc-width" min="1" max="2000" value="1200"></label>
       <label>Height (px) <input type="number" id="pe-new-doc-height" min="1" max="2000" value="630"></label>
       <p class="pe-new-doc-hint">Starts fully transparent -- there's nothing to "overwrite" yet, so this always saves as a new file.</p>
-      <button type="button" id="pe-new-doc-create">Create</button>
+      <div class="modal-actions">
+        <button type="button" id="cancel-pe-new-doc">Cancel</button>
+        <button type="button" id="pe-new-doc-create">Create</button>
+      </div>
     </div>
   </div>
 
@@ -1403,7 +1406,7 @@
   </div>
 
   <div id="topic-meta-edit-modal" class="modal" hidden>
-    <div class="modal-inner">
+    <div class="modal-inner topic-meta-edit-modal-inner">
       <header>
         <h1 id="topic-meta-edit-title">Edit topic page</h1>
         <button id="close-topic-meta-edit">×</button>

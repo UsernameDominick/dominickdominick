@@ -5643,6 +5643,10 @@
     el("pe-new-doc-modal").hidden = true;
     el("media-modal").hidden = false;
   });
+  el("cancel-pe-new-doc").addEventListener("click", () => {
+    el("pe-new-doc-modal").hidden = true;
+    el("media-modal").hidden = false;
+  });
   el("pe-new-doc-preset").addEventListener("change", () => {
     const preset = PE_NEW_DOC_PRESETS[el("pe-new-doc-preset").value];
     if (!preset) return; // "Custom…" -- leave whatever the admin already typed alone
