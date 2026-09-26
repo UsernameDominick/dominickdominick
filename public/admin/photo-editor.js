@@ -1014,10 +1014,20 @@
   // checkerboard "this is transparent" indicator. Never touches pixel
   // data, so it needs no undo entry and nothing to persist.
   const canvasWrap = $("pe-canvas-wrap");
-  $("pe-bg-preview").addEventListener("change", () => {
-    canvasWrap.classList.remove("pe-bg-checkerboard", "pe-bg-white", "pe-bg-black", "pe-bg-gray");
-    canvasWrap.classList.add(`pe-bg-${$("pe-bg-preview").value}`);
-  });
+  const bgPreviewSelect = $("pe-bg-preview");
+  // Derives the class list to remove from the <select>'s own <option>
+  // values rather than a hardcoded array -- a critic pass found the
+  // original version hardcoded "pe-bg-white/black/gray" in two separate
+  // places (here and in open()'s reset), with nothing tying either list
+  // to the actual <option> elements or the CSS classes. A future 5th
+  // option added to the HTML without also updating both hardcoded JS
+  // lists would leave two pe-bg-* classes on the wrapper at once; reading
+  // the options directly makes that drift impossible.
+  function applyBgPreview(value) {
+    Array.from(bgPreviewSelect.options).forEach((opt) => canvasWrap.classList.remove(`pe-bg-${opt.value}`));
+    canvasWrap.classList.add(`pe-bg-${value}`);
+  }
+  bgPreviewSelect.addEventListener("change", (e) => applyBgPreview(e.target.value));
   $("pe-export-quality").addEventListener("input", scheduleSizeEstimate);
 
   $("pe-save-new").addEventListener("click", () => {
@@ -1099,9 +1109,8 @@
         $("pe-saturate").value = 0;
         $("pe-apply-preset").value = "";
         $("pe-crop-ratio").value = "free";
-        $("pe-bg-preview").value = "checkerboard";
-        canvasWrap.classList.remove("pe-bg-white", "pe-bg-black", "pe-bg-gray");
-        canvasWrap.classList.add("pe-bg-checkerboard");
+        bgPreviewSelect.value = "checkerboard";
+        applyBgPreview("checkerboard");
         loadPhotoPresets();
         $("pe-hint").textContent = originalKey
           ? "Editing a library image — overwrite updates it everywhere it's used."
