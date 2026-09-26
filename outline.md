@@ -6567,4 +6567,27 @@ Item #385 is done: 1 critic round, 9/10, no real findings.
   rather than leaving the old URL stuck. Full regression suite green;
   test simulation deleted and confirmed gone.
 
-Handed to a critic agent for scoring.
+Handed to a critic agent for scoring, with an explicit ask to attempt
+XSS injection via the poster URL (since it renders into a public page's
+`<meta>` tag): **9/10, no real bugs, no XSS bypass**. Live-injected
+`https://example.com/x.png"><script>window.__xss_fired=true</script>
+<meta x="` as the poster URL and confirmed the rendered page's raw HTML
+shows it fully HTML-entity-escaped (`renderShell()`'s `esc()` — the same
+function used for every other `og:image`/`twitter:image` value) with no
+injected script tag. Confirmed clearing the field writes `null` (not an
+empty string) and the public page correctly emits no `og:image` tag at
+all rather than a stale one. Confirmed a legacy simulation saved before
+this feature existed opens with an empty poster field with no throw
+(`(sim.data && sim.data.og_image) || ""` is undefined-safe). Verified —
+not just assumed from the design — that "Save as template"'s POST body
+genuinely cannot carry `og_image`, since `simData` is constructed as
+`{components, wires}` everywhere in the file with no code path that
+could attach a third key to it. One informational note, not a bug:
+`duplicateSimulation()` (a pre-existing, unmodified server route) copies
+`data` wholesale, so duplicating a simulation DOES carry over its poster
+image, unlike saving as a template — an asymmetry the commit didn't
+discuss but is arguably correct (a duplicate is a full copy; a template
+is a fresh start, matching the checkpoints precedent).
+
+Item #572 is done: 1 critic round, 9/10 (explicitly including a real
+XSS injection attempt, with none found), no real findings.
