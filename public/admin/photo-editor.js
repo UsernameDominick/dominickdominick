@@ -1008,6 +1008,16 @@
     $("pe-export-quality-label").hidden = $("pe-export-format").value === "image/png";
     scheduleSizeEstimate();
   });
+  // Display-only -- changes what's behind the canvas so a transparent
+  // PNG's actual transparent areas can be checked against a real-world
+  // background (white/black/gray page), not just the conventional
+  // checkerboard "this is transparent" indicator. Never touches pixel
+  // data, so it needs no undo entry and nothing to persist.
+  const canvasWrap = $("pe-canvas-wrap");
+  $("pe-bg-preview").addEventListener("change", () => {
+    canvasWrap.classList.remove("pe-bg-checkerboard", "pe-bg-white", "pe-bg-black", "pe-bg-gray");
+    canvasWrap.classList.add(`pe-bg-${$("pe-bg-preview").value}`);
+  });
   $("pe-export-quality").addEventListener("input", scheduleSizeEstimate);
 
   $("pe-save-new").addEventListener("click", () => {
@@ -1089,6 +1099,9 @@
         $("pe-saturate").value = 0;
         $("pe-apply-preset").value = "";
         $("pe-crop-ratio").value = "free";
+        $("pe-bg-preview").value = "checkerboard";
+        canvasWrap.classList.remove("pe-bg-white", "pe-bg-black", "pe-bg-gray");
+        canvasWrap.classList.add("pe-bg-checkerboard");
         loadPhotoPresets();
         $("pe-hint").textContent = originalKey
           ? "Editing a library image — overwrite updates it everywhere it's used."

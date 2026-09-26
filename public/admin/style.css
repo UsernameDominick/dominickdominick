@@ -3170,7 +3170,23 @@ kbd {
   align-items: center;
   justify-content: center;
   padding: 16px;
+}
+
+/* Lets a transparent PNG's actual transparent areas be checked against
+   different real-world backgrounds -- the checkerboard is the
+   conventional "this is transparent" indicator, but it doesn't tell you
+   whether the image will read well on an actual white or dark page. */
+.pe-canvas-wrap.pe-bg-checkerboard {
   background: repeating-conic-gradient(#2a2a2c 0% 25%, #1c1c1e 0% 50%) 50% / 20px 20px;
+}
+.pe-canvas-wrap.pe-bg-white {
+  background: #fff;
+}
+.pe-canvas-wrap.pe-bg-black {
+  background: #000;
+}
+.pe-canvas-wrap.pe-bg-gray {
+  background: #808080;
 }
 
 .pe-canvas-stack {

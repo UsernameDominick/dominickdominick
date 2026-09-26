@@ -1003,7 +1003,7 @@
             <button type="button" id="pe-compare" title="Press and hold to see the original">Compare</button>
           </div>
         </div>
-        <div class="pe-canvas-wrap">
+        <div id="pe-canvas-wrap" class="pe-canvas-wrap pe-bg-checkerboard">
           <div id="pe-canvas-stack" class="pe-canvas-stack">
             <canvas id="pe-canvas"></canvas>
             <canvas id="pe-overlay"></canvas>
@@ -1012,6 +1012,12 @@
         <div class="pe-actions">
           <span id="pe-status-bar" class="pe-status-bar" title="Actual image size · displayed scale"></span>
           <span id="pe-hint" class="pe-hint"></span>
+          <label>Preview against<select id="pe-bg-preview" title="Change the background behind the canvas to check how transparent areas will look against different page backgrounds">
+            <option value="checkerboard">Checkerboard</option>
+            <option value="white">White</option>
+            <option value="black">Black</option>
+            <option value="gray">Gray</option>
+          </select></label>
           <select id="pe-export-format" title="Format for &quot;Save as new&quot; -- &quot;Overwrite original&quot; always keeps the original file's own format">
             <option value="image/png">PNG</option>
             <option value="image/jpeg">JPEG</option>
