@@ -7074,5 +7074,28 @@ rather than just relabeled. Confirmed the dropdown itself defaults to
 test simulation was never saved), so no cleanup was needed. Full
 regression suite green.
 
-Implemented and self-verified; sent to a critic pass next per the
-standing workflow before calling it done.
+Sent to a critic pass on commit 9fdd4f7. Scored 9/10 -- ship, first try.
+Full-repo grep confirmed no leftover reference to the old `GRID_SNAP`
+name anywhere; the `Number(value) || 0` parsing in the change listener
+was checked against the `<select>`'s fixed option set and can't produce
+NaN or a negative value; a mid-drag change to the dropdown can't corrupt
+history the way the crop-ratio feature's mid-drag ratio bug did earlier
+this session, since `gridSnapSize` is read fresh on every pointermove
+tick with no accumulated state, `pushHistory()` still fires exactly once
+per drag via the existing `historySaved` flag, and the dropdown isn't
+even reachable mid-drag since the pointer has capture; a multi-component
+group drag was traced and confirmed to apply the snap-adjusted delta
+identically to every member, preserving their relative offsets; and
+`openBuilder()`'s reset covers all three ways into the builder (new,
+new-from-template, edit-existing) since it's the single entry point that
+unhides the modal. One pre-existing, correctly-scoped observation was
+logged rather than treated as a bug: a breadboard-snap-type part
+(LED/resistor/switch) dragged far from any breadboard gets no positional
+assistance at all -- not grid snap (type-gated out), not hole snap
+(nothing nearby to snap to) -- which is exactly the scoping this item's
+description called for, not a gap this diff should fix.
+
+Item #375 is done: implemented and verified with a single 9/10 critic
+round and no real findings -- confirms the earlier note that "small"
+doesn't guarantee a critic pass is unnecessary, but this one held up
+clean on the first submission.
