@@ -6282,4 +6282,26 @@ hunting for a bypass of the core privacy gate found none.
   regression suite green; this test never saved the simulation, so no
   test data needed cleanup.
 
-Handed to a critic agent for scoring.
+Handed to a critic agent for scoring: **9/10**, no real bugs. Traced
+every mutation path that touches `simData.wires`/`components` (delete,
+multi-delete, delete-wire, duplicate/duplicate-multi, undo/redo, Reset,
+checkpoint restore) and confirmed each one calls `renderBuilder()`,
+which reads `simData`/`showDisconnected` fresh every time rather than
+caching anything — no stale-highlight or stale-count path exists by
+construction. Confirmed component deletion filters wires by both
+endpoints so no dangling reference could ever confuse
+`isPinConnected()`. Tested the one unusual-shape component directly:
+placed a Breadboard (180 pins, confirmed via `SIM_COMPONENTS.breadboard.
+pins.length`) and toggled on — correctly showed "Disconnected pins: 180"
+with exactly 180 highlighted, no throw, no miscount; deleting it dropped
+the label to "No disconnected pins" instantly. Rapid triple-toggle
+(on→off→on, net off) left the label and highlighting in perfect sync,
+consistent with the synchronous (no `await` gap) click handler. One
+cosmetic, out-of-scope note: `.sim-pin-active` and `.sim-pin-disconnected`
+have equal CSS specificity with the disconnected rule declared later, so
+a wire-in-progress started from a currently-unwired pin renders in the
+"disconnected" red rather than the active accent color while the toggle
+is on — arguably correct (the pin genuinely has no wire yet), not scored
+against.
+
+Item #397 is done: 1 critic round, 9/10, no real findings.
