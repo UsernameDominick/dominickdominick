@@ -6341,4 +6341,30 @@ Item #397 is done: 1 critic round, 9/10, no real findings.
   Full regression suite green; this test never saved the simulation, so
   no test data needed cleanup.
 
-Handed to a critic agent for scoring.
+Handed to a critic agent for scoring: **9/10**, no real bugs. Confirmed
+deleting the selected wire itself clears the highlight cleanly (the
+delete handler nulls `selected` before the next render, no crash);
+deleting a *different* wire in the same net while a wire stays selected
+turned out unreachable through the actual UI (the single-selection model
+requires selecting whatever you delete, which already reassigns
+`selected` away from the old wire first) rather than a real gap; adding a
+new wire that extends an already-highlighted net correctly grows the
+highlight immediately, since `wireOnlyNetNodes()` rebuilds fresh from
+`simData.wires` on every render rather than caching anything. Confirmed
+undo/redo/checkpoint-restore/import all explicitly null `selected` as
+part of the same operation, so a stale wire id pointing at
+already-restored-away data can't happen — and even if it somehow could,
+`renderBuilder()`'s own lookup is null-guarded and would just silently
+skip highlighting rather than throw. Tested the breadboard rail case
+directly: wiring two resistors into different holes on the same top rail
+and selecting the connecting wire correctly highlighted both wires, both
+resistor pins, AND all 30 rail-hole dots as one net, matching
+`window.simNodeId()`'s rail-group collapsing. Confirmed selecting a
+component (not a wire) correctly shows zero net highlighting with no
+leaked state from a previous wire selection. Two minor/out-of-scope
+notes, both pre-existing and not introduced by this diff: a stale-
+inspector-HTML edge case that no code path in this file can actually
+reach, and a hardcoded highlight color with no dark/light theme variants
+matching the file's own existing `.sim-pin` color convention.
+
+Item #398 is done: 1 critic round, 9/10, no real findings.
