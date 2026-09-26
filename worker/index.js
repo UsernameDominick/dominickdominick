@@ -82,6 +82,7 @@ import {
   withCustomJsonLd,
   FAVICON_SVG,
   renderErrorPageHtml,
+  CONTROL_PRESETS,
 } from "./render.js";
 import { handleAdminApi } from "./admin-api.js";
 import { renderSimulationSvg } from "./simulation-render.js";
@@ -140,8 +141,10 @@ function renderMaintenanceHtml(message) {
 </html>`;
 }
 
+const CONTROL_SETTING_KEYS = Object.keys(CONTROL_PRESETS);
+
 async function getTheme(env) {
-  const [accent, bg, font, text, border, headingFont, mobileBreakpoint, customFontName, customFontUrl] = await Promise.all([
+  const [accent, bg, font, text, border, headingFont, mobileBreakpoint, customFontName, customFontUrl, ...controls] = await Promise.all([
     getSetting(env, "theme_accent"),
     getSetting(env, "theme_bg"),
     getSetting(env, "theme_font"),
@@ -151,8 +154,10 @@ async function getTheme(env) {
     getSetting(env, "mobile_breakpoint"),
     getSetting(env, "custom_font_name"),
     getSetting(env, "custom_font_url"),
+    ...CONTROL_SETTING_KEYS.map((key) => getSetting(env, key)),
   ]);
   return {
+    ...Object.fromEntries(CONTROL_SETTING_KEYS.map((key, i) => [key, controls[i] || null])),
     accent: accent || null,
     bg: bg || null,
     font: font || null,

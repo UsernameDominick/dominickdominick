@@ -860,10 +860,49 @@ function blockStyleAttr(style) {
   return parts.length ? parts.join(";") + ";" : "";
 }
 
-// #rrggbb + 0-100 -> "rgba(r,g,b,a)", or null if the hex isn't valid —
-// used for the tint overlay over a background image/video, since CSS has
-// no way to apply a translucent color on top of a <video> element other
-// than a real stacked element.
+// Site Settings > Appearance > "Buttons & controls". Each setting is a
+// named preset rather than a free-form number so every combination stays
+// coherent; a missing/unknown value leaves style.css's own default alone.
+// Mirrored in public/admin/app.js (ADMIN_CONTROL_PRESETS) so the admin's
+// own buttons and the live preview follow the same choice.
+export const CONTROL_PRESETS = {
+  control_shape: {
+    pill: { "--control-radius": "999px" },
+    rounded: { "--control-radius": "12px" },
+    soft: { "--control-radius": "6px" },
+    square: { "--control-radius": "0px" },
+  },
+  control_size: {
+    compact: { "--control-pad-y": "0.45em", "--control-pad-x": "0.95em" },
+    regular: { "--control-pad-y": "0.6em", "--control-pad-x": "1.25em" },
+    roomy: { "--control-pad-y": "0.8em", "--control-pad-x": "1.6em" },
+  },
+  control_outline: {
+    thin: { "--control-border-width": "1px" },
+    bold: { "--control-border-width": "2px" },
+  },
+  field_shape: {
+    rounded: { "--field-radius": "12px" },
+    soft: { "--field-radius": "8px" },
+    square: { "--field-radius": "2px" },
+  },
+  card_shape: {
+    round: { "--card-radius": "22px" },
+    rounded: { "--card-radius": "14px" },
+    soft: { "--card-radius": "8px" },
+    square: { "--card-radius": "2px" },
+  },
+};
+
+export function controlVars(theme) {
+  const out = [];
+  for (const [key, options] of Object.entries(CONTROL_PRESETS)) {
+    const vars = options[theme[key]];
+    if (vars) for (const [name, value] of Object.entries(vars)) out.push(`${name}:${value}`);
+  }
+  return out;
+}
+
 // Near-black or white text for a given background hex, whichever has the
 // higher WCAG contrast -- so a custom accent that's dark (a deep blue)
 // doesn't end up with the default near-black label on it.
@@ -881,6 +920,10 @@ function readableOn(hex) {
   return vsDark >= vsWhite ? "#0c0a16" : "#ffffff";
 }
 
+// #rrggbb + 0-100 -> "rgba(r,g,b,a)", or null if the hex isn't valid —
+// used for the tint overlay over a background image/video, since CSS has
+// no way to apply a translucent color on top of a <video> element other
+// than a real stacked element.
 function hexToRgba(hex, opacityPercent) {
   const h = String(hex || "").replace("#", "");
   if (!/^[0-9a-fA-F]{6}$/.test(h)) return null;
@@ -1671,6 +1714,7 @@ export function renderShell({
     themeVars.push("--bg-elevated:color-mix(in oklch, var(--bg), var(--text) 6%)");
     themeVars.push("--text-dim:color-mix(in oklch, var(--text) 68%, var(--bg))");
   }
+  themeVars.push(...controlVars(theme));
   if (theme.font && FONT_STACKS[theme.font]) themeVars.push(`--font-family:${FONT_STACKS[theme.font]}`);
   if (theme.headingFont && FONT_STACKS[theme.headingFont]) themeVars.push(`--heading-font-family:${FONT_STACKS[theme.headingFont]}`);
   // One uploaded custom font, selectable as "Custom" alongside the fixed

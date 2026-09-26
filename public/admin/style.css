@@ -88,12 +88,31 @@ input[type="checkbox"]:disabled {
    by one of those — the actual native, unstyled browser button look
    ("Windows 95") only happens where no context-specific rule exists, and
    this makes that impossible instead of relying on none ever being missed. */
+/* Baseline for any form control no more specific rule styles -- several
+   panels' selects and inputs fell through to the browser's default white
+   boxes. :where() keeps this at zero specificity so every existing
+   panel-specific rule still wins. */
+:where(select, textarea, input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]):not([type="file"])) {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--field-radius);
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+:where(select, textarea, input):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 button {
   font-family: inherit;
   background: transparent;
   color: var(--text-dim);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  border: var(--control-border-width) solid var(--border);
+  border-radius: var(--control-radius);
   padding: 6px 10px;
   font-size: 0.85rem;
   cursor: pointer;
@@ -148,7 +167,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   border: 1px solid var(--border);
   color: var(--text);
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: var(--field-radius);
   font-size: 0.95rem;
 }
 
@@ -157,7 +176,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   color: var(--on-accent);
   border: none;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: var(--control-radius);
   font-weight: 600;
   cursor: pointer;
 }
@@ -218,7 +237,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--field-radius);
   padding: 6px 8px;
   width: 100%;
 }
@@ -325,7 +344,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--field-radius);
   padding: 6px 8px;
 }
 
@@ -333,7 +352,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   background: transparent;
   color: var(--text-dim);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--control-radius);
   padding: 6px 10px;
   font-size: 0.85rem;
   cursor: pointer;
@@ -522,7 +541,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--control-radius);
   padding: 8px 10px;
   margin-bottom: 6px;
   cursor: pointer;
@@ -590,7 +609,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   background: var(--accent);
   color: var(--on-accent);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--control-radius);
   padding: 8px;
   font-weight: 600;
   cursor: pointer;
@@ -1091,7 +1110,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   background: var(--bg);
   border: 1px solid var(--border);
   color: var(--text);
-  border-radius: 4px;
+  border-radius: var(--field-radius);
   padding: 2px 6px;
   font-size: 0.75rem;
 }
@@ -1214,7 +1233,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   background: var(--accent);
   color: var(--on-accent);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--control-radius);
   padding: 8px 14px;
   cursor: pointer;
   font-weight: 600;
@@ -1628,7 +1647,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   background: var(--accent);
   color: var(--on-accent);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--control-radius);
   padding: 6px 12px;
   font-weight: 600;
   cursor: pointer;
@@ -1661,6 +1680,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
 .settings-tab {
   background: transparent;
   border: none;
+  border-radius: 0;
   border-bottom: 2px solid transparent;
   color: var(--text-dim);
   padding: 8px 10px;
@@ -1725,7 +1745,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--field-radius);
   padding: 8px 10px;
   margin-top: 6px;
   font-family: inherit;
@@ -1757,7 +1777,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   background: var(--accent);
   color: var(--on-accent);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--control-radius);
   padding: 10px 20px;
   font-weight: 600;
   font-size: 0.9rem;
@@ -1793,7 +1813,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   margin: -6px 0 8px;
   padding: 8px 10px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--field-radius);
   font-size: 1rem;
   color: var(--text);
 }
@@ -1806,6 +1826,162 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
    change with no matching CSS to also update. Clicking one fills in the
    four inputs below (still editable afterward) rather than being a
    separate locked-in "mode" — this is a starting point, not a constraint. */
+/* Appearance is split into outlined groups (Colors / Buttons & controls /
+   Typography / Layout / Footer) instead of one long run of fields, with
+   each group's heading sitting on its border like a labeled panel. */
+.settings-group {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 16px 16px;
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--card-radius);
+  background: color-mix(in srgb, var(--bg-elevated) 60%, transparent);
+}
+
+.settings-body .settings-group > h2 {
+  position: absolute;
+  top: -0.65em;
+  left: 12px;
+  margin: 0;
+  padding: 0 6px;
+  background: var(--bg-elevated);
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.control-preset-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 220px);
+  gap: 16px;
+  align-items: start;
+}
+
+.control-preset-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.control-preset {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.control-preset-label {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+/* One connected strip of options -- the same seamless look as the
+   simulation builder's toolbar groups -- instead of a <select>. */
+.seg-control {
+  display: flex;
+  width: 100%;
+}
+
+.settings-body .seg-control > button {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0 0 0 -1px;
+  padding: 7px 6px;
+  border: 1px solid var(--border);
+  border-radius: 0;
+  background: var(--bg);
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.settings-body .seg-control > button:first-child {
+  margin-left: 0;
+  border-radius: var(--control-radius) 0 0 var(--control-radius);
+}
+
+.settings-body .seg-control > button:last-child {
+  border-radius: 0 var(--control-radius) var(--control-radius) 0;
+}
+
+.settings-body .seg-control > button:hover {
+  color: var(--text);
+}
+
+.settings-body .seg-control > button[aria-pressed="true"] {
+  position: relative;
+  z-index: 1;
+  background: color-mix(in srgb, var(--accent) 18%, var(--bg));
+  border-color: var(--accent);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.control-preview {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.control-preview-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.control-preview-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--card-radius);
+  background: var(--bg);
+}
+
+.control-preview-card p {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.settings-body .control-preview-card input {
+  margin: 0;
+  pointer-events: none;
+}
+
+.control-preview-buttons,
+.control-preview-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.control-preview .btn {
+  font-size: 0.8rem;
+  cursor: default;
+}
+
+.control-preview .btn:hover {
+  transform: none;
+}
+
+@media (max-width: 640px) {
+  .control-preset-layout {
+    grid-template-columns: 1fr;
+  }
+  .control-preview {
+    position: static;
+    order: -1;
+  }
+}
+
 .theme-preset-row {
   display: flex;
   flex-wrap: wrap;
@@ -1813,14 +1989,16 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   margin: 2px 0 16px;
 }
 
-.theme-preset-btn {
+.theme-preset-btn,
+.settings-body .theme-preset-btn {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 7px 14px 7px 10px;
-  border-radius: 999px;
+  border-radius: var(--control-radius);
   border: 1px solid var(--border);
   background: var(--preset-bg);
+  font-weight: 500;
   color: rgba(255, 255, 255, 0.92);
   font-size: 0.8rem;
   font-family: inherit;
@@ -1965,7 +2143,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   background: var(--accent);
   color: var(--on-accent);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--control-radius);
   padding: 8px 16px;
   font-weight: 600;
   cursor: pointer;
@@ -2046,7 +2224,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--field-radius);
   padding: 6px 10px;
   font-family: inherit;
 }
@@ -2284,7 +2462,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--field-radius);
   padding: 8px 10px;
   margin-top: 6px;
   font-family: inherit;
@@ -2319,7 +2497,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--field-radius);
   padding: 8px 10px;
   margin-top: 6px;
   font-family: inherit;
@@ -2416,7 +2594,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--field-radius);
   padding: 8px 10px;
   margin-top: 6px;
   font-family: inherit;
@@ -2597,7 +2775,7 @@ kbd {
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text);
-  border-radius: 6px;
+  border-radius: var(--control-radius);
   padding: 4px 10px;
   cursor: pointer;
   flex-shrink: 0;
@@ -2629,7 +2807,7 @@ kbd {
   background: var(--accent);
   color: var(--on-accent);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--control-radius);
   padding: 8px 14px;
   font-weight: 600;
   cursor: pointer;
@@ -2714,14 +2892,14 @@ kbd {
 .sim-toolbar-group-buttons > button:first-child,
 .sim-toolbar-group-buttons > select:first-child {
   margin-left: 0;
-  border-top-left-radius: 5px;
-  border-bottom-left-radius: 5px;
+  border-top-left-radius: var(--control-radius);
+  border-bottom-left-radius: var(--control-radius);
 }
 
 .sim-toolbar-group-buttons > button:last-child,
 .sim-toolbar-group-buttons > select:last-child {
-  border-top-right-radius: 5px;
-  border-bottom-right-radius: 5px;
+  border-top-right-radius: var(--control-radius);
+  border-bottom-right-radius: var(--control-radius);
 }
 
 /* A control that isn't part of the seamless strip (the canvas-search
@@ -2749,7 +2927,7 @@ kbd {
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--field-radius);
   padding: 8px 10px;
   font-size: 0.95rem;
 }
@@ -2758,7 +2936,7 @@ kbd {
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--control-radius);
   padding: 8px 12px;
   font-size: 0.85rem;
   cursor: pointer;
@@ -2814,7 +2992,7 @@ kbd {
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--field-radius);
   padding: 4px 6px;
   font-size: 0.8rem;
 }
@@ -3090,7 +3268,7 @@ kbd {
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--field-radius);
   padding: 8px 10px;
   font-family: inherit;
   font-size: 0.85rem;
@@ -3158,7 +3336,7 @@ kbd {
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--control-radius);
   padding: 8px 10px;
   margin-bottom: 6px;
   cursor: pointer;
@@ -3215,7 +3393,7 @@ kbd {
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--field-radius);
   padding: 6px 8px;
   margin-top: 4px;
 }
@@ -3229,7 +3407,7 @@ kbd {
 
 .sim-inspector-panel button {
   width: 100%;
-  border-radius: 6px;
+  border-radius: var(--control-radius);
   padding: 8px;
   cursor: pointer;
   margin-top: 8px;
@@ -3262,7 +3440,7 @@ kbd {
   background: var(--bg-elevated);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--control-radius);
   padding: 6px 10px;
   font-size: 0.85rem;
   cursor: pointer;
@@ -3500,7 +3678,7 @@ kbd {
   .sim-toolbar-group-buttons > button,
   .sim-toolbar-group-buttons > select {
     margin-left: 0;
-    border-radius: 6px;
+    border-radius: var(--control-radius);
   }
 
   .sim-toolbar-group-save {
@@ -3675,7 +3853,7 @@ kbd {
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--control-radius);
   padding: 6px 10px;
   font-size: 0.8rem;
   cursor: pointer;
@@ -3685,7 +3863,7 @@ kbd {
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--field-radius);
   padding: 5px 8px;
   font-size: 0.8rem;
 }
@@ -3828,7 +4006,7 @@ kbd {
   background: var(--accent);
   color: var(--on-accent);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--control-radius);
   padding: 8px 14px;
   font-weight: 600;
   cursor: pointer;
@@ -4001,7 +4179,7 @@ kbd {
   background: var(--accent);
   color: var(--on-accent);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--control-radius);
   padding: 6px 12px;
   font-weight: 600;
   cursor: pointer;
@@ -4361,7 +4539,7 @@ kbd {
   border: 1px solid var(--border);
   color: var(--text-dim);
   font-size: 0.8rem;
-  border-radius: 6px;
+  border-radius: var(--control-radius);
   padding: 6px 12px;
   width: auto;
 }
@@ -4407,7 +4585,7 @@ kbd {
   border: 1px solid var(--border);
   color: var(--text-dim);
   font-size: 0.8rem;
-  border-radius: 6px;
+  border-radius: var(--control-radius);
   padding: 6px 12px;
   width: auto;
   white-space: nowrap;
@@ -4494,7 +4672,7 @@ kbd {
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--field-radius);
   padding: 8px 10px;
   font-family: inherit;
 }
@@ -4503,7 +4681,7 @@ kbd {
   background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--field-radius);
   padding: 8px 6px;
 }
 
@@ -4516,7 +4694,7 @@ kbd {
   background: var(--accent);
   color: var(--on-accent);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--control-radius);
   padding: 8px 14px;
   font-weight: 600;
   cursor: pointer;
@@ -4565,7 +4743,7 @@ kbd {
   background: transparent;
   color: var(--error-text);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--control-radius);
   padding: 4px 10px;
   cursor: pointer;
   flex-shrink: 0;
@@ -4599,7 +4777,7 @@ kbd {
   background: var(--bg);
   color: var(--text-dim);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--control-radius);
   padding: 5px 10px;
   font-size: 0.8rem;
   cursor: pointer;
@@ -4615,7 +4793,7 @@ kbd {
   background: var(--bg) !important;
   color: var(--text-dim) !important;
   border: 1px solid var(--border) !important;
-  border-radius: 6px !important;
+  border-radius: var(--control-radius) !important;
   padding: 5px 10px !important;
   font-size: 0.8rem !important;
   cursor: pointer;

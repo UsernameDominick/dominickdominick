@@ -764,8 +764,9 @@
       </div>
       <div class="settings-body">
         <div class="settings-panel" data-panel="appearance">
-          <h2>Theme</h2>
-          <p class="settings-hint">These override the dark theme's built-in colors (the light theme visitors can switch to keeps its own fixed palette, so it stays readable regardless of what's set here).</p>
+          <section class="settings-group">
+            <h2>Colors</h2>
+            <p class="settings-hint">These override the dark theme's built-in colors (the light theme visitors can switch to keeps its own fixed palette, so it stays readable regardless of what's set here).</p>
           <div class="theme-preset-row" id="theme-preset-row" role="tablist" aria-label="Theme presets">
             <button type="button" class="theme-preset-btn" data-preset="coral" style="--preset-bg:#0c0a16;--preset-accent:#ff7a45;" role="tab">Coral Violet</button>
             <button type="button" class="theme-preset-btn" data-preset="ocean" style="--preset-bg:#0a1420;--preset-accent:#3fb8e8;" role="tab">Ocean</button>
@@ -780,6 +781,71 @@
             <label class="theme-color-field">Border<input id="settings-border" type="color" value="#2a2438"></label>
           </div>
           <div id="theme-contrast-check" class="theme-contrast-check"></div>
+          </section>
+          <section class="settings-group">
+            <h2>Buttons &amp; controls</h2>
+            <p class="settings-hint">One shape for every button, tab, chip and field on the public site and in this admin.</p>
+            <div class="control-preset-layout">
+              <div class="control-preset-list">
+          <div class="control-preset" data-setting="control_shape">
+            <span class="control-preset-label" id="control_shape-label">Button shape</span>
+            <div class="seg-control" role="group" aria-labelledby="control_shape-label">
+              <button type="button" data-value="pill" aria-pressed="false">Pill</button>
+              <button type="button" data-value="rounded" aria-pressed="false">Rounded</button>
+              <button type="button" data-value="soft" aria-pressed="false">Soft</button>
+              <button type="button" data-value="square" aria-pressed="false">Square</button>
+            </div>
+          </div>
+          <div class="control-preset" data-setting="control_size">
+            <span class="control-preset-label" id="control_size-label">Button size</span>
+            <div class="seg-control" role="group" aria-labelledby="control_size-label">
+              <button type="button" data-value="compact" aria-pressed="false">Compact</button>
+              <button type="button" data-value="regular" aria-pressed="false">Regular</button>
+              <button type="button" data-value="roomy" aria-pressed="false">Roomy</button>
+            </div>
+          </div>
+          <div class="control-preset" data-setting="control_outline">
+            <span class="control-preset-label" id="control_outline-label">Outline weight</span>
+            <div class="seg-control" role="group" aria-labelledby="control_outline-label">
+              <button type="button" data-value="thin" aria-pressed="false">Thin</button>
+              <button type="button" data-value="bold" aria-pressed="false">Bold</button>
+            </div>
+          </div>
+          <div class="control-preset" data-setting="field_shape">
+            <span class="control-preset-label" id="field_shape-label">Text field corners</span>
+            <div class="seg-control" role="group" aria-labelledby="field_shape-label">
+              <button type="button" data-value="rounded" aria-pressed="false">Rounded</button>
+              <button type="button" data-value="soft" aria-pressed="false">Soft</button>
+              <button type="button" data-value="square" aria-pressed="false">Square</button>
+            </div>
+          </div>
+          <div class="control-preset" data-setting="card_shape">
+            <span class="control-preset-label" id="card_shape-label">Card &amp; embed corners</span>
+            <div class="seg-control" role="group" aria-labelledby="card_shape-label">
+              <button type="button" data-value="round" aria-pressed="false">Round</button>
+              <button type="button" data-value="rounded" aria-pressed="false">Rounded</button>
+              <button type="button" data-value="soft" aria-pressed="false">Soft</button>
+              <button type="button" data-value="square" aria-pressed="false">Square</button>
+            </div>
+          </div>
+              </div>
+              <div class="control-preview" id="control-preview" aria-label="Preview">
+                <span class="control-preview-label">Preview</span>
+                <div class="control-preview-card">
+                  <strong>Card title</strong>
+                  <p>Cards, embeds and callouts use these corners.</p>
+                  <input type="text" placeholder="Text field" tabindex="-1" aria-hidden="true">
+                  <div class="control-preview-buttons">
+                    <span class="btn">Primary</span>
+                    <span class="btn btn-secondary">Secondary</span>
+                  </div>
+                  <div class="control-preview-chips"><span class="tag">#tag</span><span class="tag">#another</span></div>
+                </div>
+              </div>
+            </div>
+          </section>
+          <section class="settings-group">
+            <h2>Typography</h2>
           <label>Body font
             <select id="settings-font">
               <option value="">Default (system sans)</option>
@@ -810,13 +876,19 @@
             <button type="button" id="settings-custom-font-remove-btn" hidden>Remove custom font</button>
             <span id="settings-custom-font-status"></span>
           </div>
+          </section>
+          <section class="settings-group">
+            <h2>Layout</h2>
           <label>Mobile/desktop breakpoint (px)<br>Where a block's "Desktop only"/"Mobile only" visibility switches over. Default 640.
             <input id="settings-mobile-breakpoint" type="number" min="320" max="1200" placeholder="640">
           </label>
-          <h2>Footer</h2>
+          </section>
+          <section class="settings-group">
+            <h2>Footer</h2>
           <label>Shown at the bottom of every page. Blank = no footer. Supports **bold**, *italic*, [link](url).
             <textarea id="settings-footer" rows="3" placeholder="© 2026 Dominick"></textarea>
           </label>
+          </section>
         </div>
         <div class="settings-panel" data-panel="sharing" hidden>
           <h2>Share image</h2>

@@ -35,6 +35,7 @@
   --control-pad-x: 1.25em;
   --control-border-width: 1px;
   --card-radius: 14px;
+  --field-radius: 8px;
   /* A touch brighter than before to match the new theme's higher
      saturation, while staying clearly distinct in hue from --accent
      (pure red vs. --accent's orange-coral) so the two are never
@@ -69,6 +70,12 @@
      reveals, the parallax/scroll-reveal effects below. */
   --ease-smooth: cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+/* Native widgets (select dropdowns, date pickers, scrollbars, autofill)
+   follow the active theme instead of rendering as bright-white system
+   controls on the dark palette. */
+:root { color-scheme: dark; }
+:root[data-theme="light"] { color-scheme: light; }
 
 :root[data-theme="light"] {
   /* A warm off-white rather than clinical pure white, mirroring the dark
@@ -246,7 +253,7 @@ body {
   gap: 4px;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--control-radius);
   padding: 4px;
   /* Backstop for many nav items, or several long custom nav_labels, whose
      combined width still doesn't fit even after each .tab's own max-width/
@@ -289,7 +296,7 @@ body {
   font-family: inherit;
   text-decoration: none;
   padding: 8px 18px;
-  border-radius: 999px;
+  border-radius: var(--control-radius);
   transition: color 0.3s var(--ease-smooth);
   /* A custom nav_label has no length cap at the data layer. Without this,
      a long one with spaces wraps inside the pill (inflating its height --
@@ -325,7 +332,7 @@ body {
   width: var(--indicator-width, 0px);
   transform: translateX(var(--indicator-x, 0px));
   background: var(--accent-gradient);
-  border-radius: 999px;
+  border-radius: var(--control-radius);
   z-index: 0;
 }
 
@@ -371,7 +378,7 @@ body {
   min-width: 160px;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--card-radius);
   padding: 6px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
   z-index: 20;
@@ -421,7 +428,7 @@ body {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   color: var(--text);
-  border-radius: 999px;
+  border-radius: var(--control-radius);
   padding: 8px 14px;
   font-size: 0.85rem;
   font-family: inherit;
@@ -485,7 +492,7 @@ body {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   color: var(--text);
-  border-radius: 999px;
+  border-radius: var(--control-radius);
   width: 34px;
   height: 34px;
   font-size: 1rem;
@@ -1044,7 +1051,7 @@ body {
 
 .series-nav {
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--card-radius);
   padding: 14px 16px;
   background: var(--bg-elevated);
 }
@@ -1092,7 +1099,7 @@ body {
   background: transparent;
   color: var(--text-dim);
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--control-radius);
   padding: 4px 12px;
   font-size: 0.8rem;
   font-family: inherit;
@@ -1138,7 +1145,7 @@ body {
   gap: 6px;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--control-radius);
   padding: 6px 14px;
   font-size: 0.95rem;
   cursor: pointer;
@@ -1162,7 +1169,7 @@ body {
 .table-of-contents {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--card-radius);
   padding: 16px 20px;
 }
 
@@ -1207,7 +1214,7 @@ body {
   text-decoration: none;
   font-size: 0.78rem;
   padding: 3px 10px;
-  border-radius: 999px;
+  border-radius: var(--control-radius);
   transition: border-color 0.2s ease;
 }
 
@@ -1373,7 +1380,7 @@ h6 { font-size: 0.9rem; }
   width: 100%;
   height: 0;
   padding-bottom: 56.25%;
-  border-radius: 12px;
+  border-radius: var(--card-radius);
   overflow: hidden;
   background: var(--bg-elevated);
 }
@@ -1480,7 +1487,7 @@ h6 { font-size: 0.9rem; }
    simulation, inline in the SVG itself. */
 .song-embed {
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--card-radius);
   padding: 16px;
   background: var(--bg-elevated);
 }
@@ -1496,7 +1503,7 @@ h6 { font-size: 0.9rem; }
   background: transparent;
   color: var(--text-dim);
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--control-radius);
   padding: 4px 14px;
   font-size: 0.8rem;
   font-family: inherit;
@@ -1656,7 +1663,7 @@ h6 { font-size: 0.9rem; }
   height: auto;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--card-radius);
 }
 
 /* Deep-link target pulse -- a component's <g> has no fixed fill/stroke of
@@ -2033,7 +2040,7 @@ hr {
   width: 100%;
   height: 420px;
   background: var(--bg-elevated);
-  border-radius: 12px;
+  border-radius: var(--card-radius);
   --poster-color: transparent;
 }
 
@@ -2041,7 +2048,7 @@ hr {
   background: var(--accent);
   color: var(--on-accent);
   border: none;
-  border-radius: 999px;
+  border-radius: var(--control-radius);
   padding: 10px 18px;
   font-weight: 600;
   cursor: pointer;
@@ -2360,7 +2367,7 @@ hr {
   background: var(--bg-elevated);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--field-radius);
   padding: 8px 12px;
   font-family: inherit;
   font-size: 0.95rem;
@@ -2370,7 +2377,7 @@ hr {
   background: var(--accent);
   color: var(--on-accent);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--control-radius);
   padding: 8px 16px;
   font-family: inherit;
   font-size: 0.95rem;
@@ -2484,7 +2491,7 @@ hr {
   width: 100%;
   height: 100%;
   min-height: 240px;
-  border-radius: 8px;
+  border-radius: var(--card-radius);
   user-select: none;
 }
 
@@ -2590,7 +2597,7 @@ hr {
   background: transparent;
   color: var(--text-dim);
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--control-radius);
   padding: 4px 12px;
   font-size: 0.8rem;
   font-family: inherit;
@@ -2647,7 +2654,7 @@ hr {
 .password-gate-form input {
   flex: 1;
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: var(--field-radius);
   border: 1px solid var(--border);
   background: var(--bg-elevated);
   color: var(--text);
@@ -2658,7 +2665,7 @@ hr {
   background: var(--accent);
   color: var(--on-accent);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--control-radius);
   padding: 8px 16px;
   font-family: inherit;
   font-weight: 600;
@@ -2713,7 +2720,7 @@ hr {
 .preview-banner #preview-mode-off-btn {
   background: transparent;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--control-radius);
   padding: 4px 12px;
   font-size: 0.8rem;
   font-family: inherit;
@@ -2731,7 +2738,7 @@ hr {
   width: 100%;
   max-height: 480px;
   object-fit: cover;
-  border-radius: 8px;
+  border-radius: var(--card-radius);
   background: #1a1a1c;
 }
 
@@ -2891,7 +2898,7 @@ hr {
 
 .accordion-item {
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--card-radius);
   padding: 4px 16px;
 }
 
@@ -3082,7 +3089,7 @@ pre.has-line-numbers {
 .callout {
   margin: 20px 0;
   padding: 14px 16px;
-  border-radius: 8px;
+  border-radius: var(--card-radius);
   border: 1px solid var(--border);
   border-left-width: 4px;
   background: var(--bg-elevated);

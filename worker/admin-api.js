@@ -232,6 +232,12 @@ const SETTINGS_KEYS = [
   "maintenance_message",
   "custom_font_name",
   "custom_font_url",
+  // Buttons & controls presets -- see CONTROL_PRESETS in render.js.
+  "control_shape",
+  "control_size",
+  "control_outline",
+  "field_shape",
+  "card_shape",
 ];
 
 // Paths a redirect could otherwise break by intercepting a system route.

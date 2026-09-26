@@ -5946,6 +5946,7 @@
     el("settings-maintenance-message").value = settings.maintenance_message || "";
     el("settings-custom-font-name").value = settings.custom_font_name || "";
     currentCustomFontUrl = settings.custom_font_url || null;
+    loadControlPresets(settings);
     refreshCustomFontStatus();
     el("find-replace-results").innerHTML = "";
     el("find-replace-apply-btn").disabled = true;
@@ -6000,9 +6001,11 @@
           maintenance_message: el("settings-maintenance-message").value,
           custom_font_name: el("settings-custom-font-name").value,
           custom_font_url: currentCustomFontUrl || "",
+          ...Object.fromEntries(Object.keys(ADMIN_CONTROL_PRESETS).map((key) => [key, controlPresetValues[key] || ""])),
         }),
       });
       el("settings-modal").hidden = true;
+      api("/settings").then(applySiteThemeToAdmin).catch(() => {});
     } catch (err) {
       alert(err.message);
     }
@@ -6139,6 +6142,111 @@
   ["settings-bg", "settings-text", "settings-border", "settings-accent"].forEach((id) =>
     el(id).addEventListener("input", highlightActiveThemePreset)
   );
+
+  // ---------- Buttons & controls ----------
+  // Mirrors CONTROL_PRESETS in worker/render.js (the public site's copy) --
+  // duplicated for the same reason as ADMIN_FONT_STACKS above. The first
+  // option in each group is what style.css uses when nothing is saved.
+  const ADMIN_CONTROL_PRESETS = {
+    control_shape: {
+      pill: { "--control-radius": "999px" },
+      rounded: { "--control-radius": "12px" },
+      soft: { "--control-radius": "6px" },
+      square: { "--control-radius": "0px" },
+    },
+    control_size: {
+      regular: { "--control-pad-y": "0.6em", "--control-pad-x": "1.25em" },
+      compact: { "--control-pad-y": "0.45em", "--control-pad-x": "0.95em" },
+      roomy: { "--control-pad-y": "0.8em", "--control-pad-x": "1.6em" },
+    },
+    control_outline: {
+      thin: { "--control-border-width": "1px" },
+      bold: { "--control-border-width": "2px" },
+    },
+    field_shape: {
+      soft: { "--field-radius": "8px" },
+      rounded: { "--field-radius": "12px" },
+      square: { "--field-radius": "2px" },
+    },
+    card_shape: {
+      rounded: { "--card-radius": "14px" },
+      round: { "--card-radius": "22px" },
+      soft: { "--card-radius": "8px" },
+      square: { "--card-radius": "2px" },
+    },
+  };
+  const controlPresetValues = {};
+  function applyControlPresets(target, values) {
+    for (const [key, options] of Object.entries(ADMIN_CONTROL_PRESETS)) {
+      const vars = options[values[key]] || Object.values(options)[0];
+      for (const [name, value] of Object.entries(vars)) target.style.setProperty(name, value);
+    }
+  }
+  function syncControlPresetButtons() {
+    document.querySelectorAll(".control-preset").forEach((group) => {
+      const key = group.dataset.setting;
+      const current = controlPresetValues[key] || Object.keys(ADMIN_CONTROL_PRESETS[key])[0];
+      group.querySelectorAll("button[data-value]").forEach((btn) => {
+        btn.setAttribute("aria-pressed", String(btn.dataset.value === current));
+      });
+    });
+    applyControlPresets(el("control-preview"), controlPresetValues);
+  }
+  document.querySelectorAll(".control-preset").forEach((group) => {
+    group.addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-value]");
+      if (!btn) return;
+      controlPresetValues[group.dataset.setting] = btn.dataset.value;
+      syncControlPresetButtons();
+    });
+  });
+  function loadControlPresets(settings) {
+    for (const key of Object.keys(ADMIN_CONTROL_PRESETS)) controlPresetValues[key] = settings[key] || "";
+    syncControlPresetButtons();
+  }
+
+  // The admin is a static page, so it never received the site's saved
+  // theme -- it always showed the built-in violet palette and pill buttons
+  // even when the public site was amber with square ones. Applying the same
+  // colors (plus the shades the public shell derives from them) and the
+  // control presets here keeps both halves of the site one character.
+  function applySiteThemeToAdmin(settings) {
+    const hex = (v) => (/^#[0-9a-f]{6}$/i.test(v || "") ? v : "");
+    const accent = hex(settings.theme_accent);
+    const bg = hex(settings.theme_bg);
+    const text = hex(settings.theme_text);
+    const border = hex(settings.theme_border);
+    const colors = [];
+    if (accent) {
+      colors.push(`--accent:${accent}`, "--accent-secondary:color-mix(in oklch, var(--accent), white 38%)");
+      colors.push("--accent-dim:color-mix(in oklch, var(--accent) 78%, var(--text))");
+      colors.push(`--on-accent:${relLuminance(accent) > 0.189 ? "#0c0a16" : "#ffffff"}`);
+    }
+    if (bg) colors.push(`--bg:${bg}`);
+    if (text) colors.push(`--text:${text}`);
+    if (border) colors.push(`--border:${border}`);
+    if (bg || text) {
+      colors.push("--bg-elevated:color-mix(in oklch, var(--bg), var(--text) 6%)");
+      colors.push("--text-dim:color-mix(in oklch, var(--text) 68%, var(--bg))");
+    }
+    const controls = [];
+    for (const [key, options] of Object.entries(ADMIN_CONTROL_PRESETS)) {
+      const vars = options[settings[key]];
+      if (vars) for (const [name, value] of Object.entries(vars)) controls.push(`${name}:${value}`);
+    }
+    let styleEl = document.getElementById("admin-site-theme");
+    if (!styleEl) {
+      styleEl = document.createElement("style");
+      styleEl.id = "admin-site-theme";
+      document.head.appendChild(styleEl);
+    }
+    // Colors only for the dark theme, same as the public site: the light
+    // theme keeps its own fixed palette so it always stays readable.
+    styleEl.textContent =
+      (colors.length ? `:root:not([data-theme="light"]){${colors.join(";")}}` : "") +
+      (controls.length ? `:root{${controls.join(";")}}` : "");
+  }
+  window.applySiteThemeToAdmin = applySiteThemeToAdmin;
 
   el("check-links-btn").addEventListener("click", async () => {
     const btn = el("check-links-btn");
@@ -8182,6 +8290,7 @@
       return;
     }
     showApp();
+    api("/settings").then((settings) => window.applySiteThemeToAdmin && window.applySiteThemeToAdmin(settings)).catch(() => {});
     // Loaded before loadPages() specifically so the very first canvas render
     // already has real simulation/scan/song data to check "Broken reference"
     // badges against, instead of the empty arrays these start as.
