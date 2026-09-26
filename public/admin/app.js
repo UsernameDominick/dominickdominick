@@ -5627,11 +5627,22 @@
     "1600x900": [1600, 900],
     "800x600": [800, 600],
   };
+  const PE_NEW_DOC_DEFAULT_PRESET = "1200x630";
+  function resetNewDocModal() {
+    el("pe-new-doc-preset").value = PE_NEW_DOC_DEFAULT_PRESET;
+    const preset = PE_NEW_DOC_PRESETS[PE_NEW_DOC_DEFAULT_PRESET];
+    el("pe-new-doc-width").value = preset[0];
+    el("pe-new-doc-height").value = preset[1];
+  }
   el("media-new-blank-btn").addEventListener("click", () => {
+    resetNewDocModal();
     el("media-modal").hidden = true;
     el("pe-new-doc-modal").hidden = false;
   });
-  closeModalOnClick("close-pe-new-doc", "pe-new-doc-modal");
+  el("close-pe-new-doc").addEventListener("click", () => {
+    el("pe-new-doc-modal").hidden = true;
+    el("media-modal").hidden = false;
+  });
   el("pe-new-doc-preset").addEventListener("change", () => {
     const preset = PE_NEW_DOC_PRESETS[el("pe-new-doc-preset").value];
     if (!preset) return; // "Custom…" -- leave whatever the admin already typed alone
@@ -5641,7 +5652,7 @@
   el("pe-new-doc-create").addEventListener("click", () => {
     const w = Number(el("pe-new-doc-width").value);
     const h = Number(el("pe-new-doc-height").value);
-    if (!w || !h) return alert("Enter a valid width and height first.");
+    if (!(w > 0) || !(h > 0)) return alert("Enter a valid width and height first.");
     el("pe-new-doc-modal").hidden = true;
     if (window.PhotoEditor) window.PhotoEditor.openBlank(w, h);
   });

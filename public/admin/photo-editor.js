@@ -1842,8 +1842,8 @@
     // correctly hides the Overwrite option and shows only "Save as new".
     openBlank(width, height) {
       originalKey = null;
-      const w = Math.max(1, Math.min(MAX_DIMENSION, Math.round(width) || 1200));
-      const h = Math.max(1, Math.min(MAX_DIMENSION, Math.round(height) || 630));
+      const w = Math.max(1, Math.min(MAX_DIMENSION, Number.isFinite(width) ? Math.round(width) : 1200));
+      const h = Math.max(1, Math.min(MAX_DIMENSION, Number.isFinite(height) ? Math.round(height) : 630));
       initEditorSession(
         w,
         h,

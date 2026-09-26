@@ -11219,3 +11219,119 @@ against the same endpoint that no leftover test file remained. Re-ran
 the item #6 resize test suite to confirm touching `photo-editor.js`
 introduced no regression, and ran the full `test_security_seo.js`
 regression suite — all passed.
+
+Handed to a critic agent for scoring: **8/10**, below the ship
+threshold. The critic read `initEditorSession()`/`open()`/`openBlank()`
+in full, diffed the actual commit, and ran its own live Playwright tests
+against a running `wrangler dev` instance rather than trusting the
+summary above. Findings:
+
+1. **(Confirmed correct, no fix needed)** The `initEditorSession()`
+   extraction is a clean, line-for-line move of the old inline `open()`
+   body — every reset step (undo/redo stacks, named snapshots, crop
+   rect, brush/adjust defaults, view rotation, background preview, tool,
+   export format/quality, hint text) is present, in the same order, for
+   both entry points.
+2. **(Confirmed correct, no fix needed)** `originalKey = null` in
+   `openBlank()` correctly reuses the existing `pe-save-overwrite` guard
+   — verified live, no risk of a corrupt/empty overwrite request for a
+   blank canvas.
+3. **(Confirmed correct, no fix needed)** MAX_DIMENSION clamping is
+   enforced inside `openBlank()` itself, independent of the picker
+   modal's own UI — verified by calling
+   `window.PhotoEditor.openBlank(99999, 99999)` directly via
+   `page.evaluate`, bypassing the picker UI entirely, and confirming the
+   canvas still came out 2000×2000.
+4. **(Fixed, minor edge case)** `openBlank()`'s clamp used
+   `Math.round(width) || 1200`, which treats an explicit `0` (or a value
+   that rounds to `0`) as falsy and silently substitutes the hardcoded
+   default instead of clamping to the minimum of 1 — e.g.
+   `openBlank(-5, 0)` produced `1×630` instead of `1×1`. No real-world
+   trigger through the UI (the picker's own validation, see #5 below,
+   rejects non-positive input first), but the internal helper itself
+   provided no defense-in-depth. Fixed by switching to an explicit
+   `Number.isFinite(...) ? Math.round(...) : default` check so only a
+   genuinely non-finite input falls back to the default, and a real `0`
+   or negative number clamps to `1` like every other out-of-range value.
+5. **(Fixed, real validation gap)** The Create button's guard
+   (`if (!w || !h) return alert(...)`) only rejected `0`/`NaN`, not
+   negative numbers. The critic simulated a client that doesn't honor
+   the `min="1"` attribute by force-setting the width field's `.value`
+   to `"-500"` via `page.evaluate` and clicking Create — validation
+   passed, `openBlank(-500, 300)` was called, and a degenerate `1×300`
+   canvas was silently produced with no alert or error at all. Fixed by
+   changing the guard to `!(w > 0) || !(h > 0)`, which rejects zero,
+   negative, and `NaN` alike with the existing alert message. Verified
+   live with the exact same forced-negative-value scenario: Create now
+   shows "Enter a valid width and height first." and leaves the picker
+   open instead of silently opening a broken canvas.
+6. **(Fixed, real UX regression)** Closing the picker modal via its ×
+   button only hid `#pe-new-doc-modal` — it never reopened
+   `#media-modal`, which had been hidden when the picker opened. The
+   critic verified live that after Media Library → "New blank image…" →
+   × (without clicking Create), all three of the media modal, the
+   picker modal, and the photo editor modal were simultaneously hidden,
+   dropping the admin onto a bare page with nothing open. Fixed by
+   replacing the generic `closeModalOnClick` wiring for this one button
+   with a dedicated handler that hides the picker AND unhides the media
+   library, restoring it to where the admin actually was. Verified live:
+   canceling now leaves the media library visible again, not a blank
+   page.
+7. **(Fixed, real state-leak bug)** The picker modal had no reset-on-
+   open logic, so field values leaked across sessions. The critic
+   verified live: select "1920×1080" → manually edit width to `555` →
+   switch to "Custom…" (555 correctly survives) → cancel via × → reopen
+   "New blank image…" again → the picker showed `preset=custom,
+   width=555, height=1080` instead of the HTML's own defaults
+   (1200×630), with no visual cue the values were stale from a prior,
+   abandoned session. Fixed by adding a `resetNewDocModal()` call (reset
+   to the 1200×630 preset and its dimensions) every time the "New blank
+   image…" button opens the picker, so each session always starts from
+   the same known-good defaults regardless of what was left over from a
+   canceled previous attempt. This also incidentally resolves a related
+   cosmetic critic note (the preset `<select>`'s HTML-default selection
+   was "Custom…" while the width/height fields defaulted to values that
+   happen to equal the SEPARATE "1200×630" preset, a mismatch that no
+   longer matters once every open explicitly sets both the preset and
+   the fields together).
+8. **(Confirmed correct, no fix needed)** Custom-preset preservation
+   itself works exactly as intended: selecting a preset then switching
+   to "Custom…" leaves manually-typed values alone (verified as part of
+   the #7 reproduction, before the reset-on-open fix removed the stale
+   *cross-session* leak — within a single session before closing, custom
+   values still correctly survive a preset-then-custom switch).
+9. **(Confirmed correct, no fix needed)** No XSS/injection surface —
+   every value from the picker flows through `Number()` or comes from a
+   `<select>`'s fixed option list; nothing is concatenated into
+   `innerHTML`, a URL, or an upload payload as a raw string.
+10. **(Confirmed correct, no fix needed)** Full save-as-new path
+    verified live end-to-end by the critic independently of the
+    original test: opened a real blank 1080×1080 canvas, confirmed
+    genuine transparency (pixel alpha 0), drew a red rectangle, saved,
+    and confirmed via a real authenticated `GET /api/admin/media` that
+    an actual ~27KB 1080×1080 PNG had landed with a real R2 key —
+    cleaned up via a real `DELETE` call afterward.
+11. **(Confirmed correct, no fix needed)** Regression-tested the
+    pre-existing `open()` (edit-an-existing-library-image) flow directly
+    against a real library image post-refactor: correct dimensions,
+    correct "editing a library image — overwrite updates it everywhere"
+    hint, export format/quality correctly reset, and the overwrite
+    confirm dialog still fires with its original wording — confirming
+    the `initEditorSession()` extraction introduced zero behavioral
+    regression to the flow it was extracted from.
+
+Re-verified all three fixes (#4, #5, #6/#7) via a new Playwright test
+(`test_pe_new_blank_fixes.js`) targeting the exact reported scenarios:
+confirmed canceling the picker via × now correctly reopens the media
+library rather than leaving nothing visible; confirmed reopening the
+picker after a cancel-with-edited-fields now correctly shows the
+1200×630 defaults rather than the stale custom values from the
+abandoned session; and confirmed force-setting a negative width via
+`page.evaluate` (bypassing the `min="1"` HTML attribute) and clicking
+Create now shows the "Enter a valid width and height first." alert and
+leaves the picker open, instead of silently producing a broken
+degenerate canvas. Re-ran the original `test_pe_new_blank.js` suite to
+confirm the fixes introduced no regression to the already-passing
+flows — still all pass, including the real upload/cleanup round-trip.
+Ran the full `test_security_seo.js` regression suite — all passed. Sent
+for a round-2 critic pass.
