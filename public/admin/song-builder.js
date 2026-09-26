@@ -272,6 +272,41 @@
     Engine.setMasterVolume(getAudioCtx(), songData.master_volume);
     scheduleAutosave();
   });
+  // Renders the song's actual synthesized mix at full volume (via the same
+  // OfflineAudioContext renderWaveformPeaks already uses, which forces
+  // master_volume=1 internally regardless of the song's saved value -- see
+  // song-engine.js) and reads its real peak amplitude, rather than
+  // guessing from track/note counts -- several drums and melody notes
+  // landing on the same 16th note can sum well past a single voice's own
+  // level, so this is the only way to know the actual mixed peak.
+  let normalizingPeak = false;
+  $("song-normalize-peak").addEventListener("click", async () => {
+    if (normalizingPeak) return;
+    normalizingPeak = true;
+    const btn = $("song-normalize-peak");
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Scanning…";
+    try {
+      const peaks = await Engine.renderWaveformPeaks(songData, 400);
+      const peakAmp = Math.max(0.0001, ...peaks.flatMap((p) => [Math.abs(p[0]), Math.abs(p[1])]));
+      const TARGET_PEAK = 0.98; // a hair under full scale, not 1.0 exactly, for a small safety margin
+      const newVolume = Math.min(1, TARGET_PEAK / peakAmp);
+      // No pushHistory() here -- the Song builder has no undo/redo stack at
+      // all (a pre-existing gap logged separately in outline.md, unlike
+      // the Photo Editor and simulation builder), so nothing else in this
+      // file pushes one either; this stays consistent with that.
+      songData.master_volume = newVolume;
+      $("song-master-volume").value = Math.round(newVolume * 100);
+      Engine.setMasterVolume(getAudioCtx(), newVolume);
+      scheduleAutosave();
+      alert(`Peak was ${Math.round(peakAmp * 100)}% of full scale. Master volume set to ${Math.round(newVolume * 100)}% to avoid clipping.`);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalText;
+      normalizingPeak = false;
+    }
+  });
   $("song-name").addEventListener("input", () => {
     $("song-preview-name").textContent = $("song-name").value || "Song name";
     scheduleAutosave();
