@@ -7019,8 +7019,26 @@ clamping) were re-run unchanged and still pass, confirming no regression
 from the fix. Full regression suite green; test uploads deleted and
 confirmed gone.
 
-Item #92 is done: 1 critic round, 5/10, both real findings fixed and
-verified live (including hardening the pre-existing free-form crop path
-against the same rounding bug), with the third finding (stale cropRect
-surviving rotate/flip) logged as a separate pre-existing Photo Editor
-item rather than expanding this diff.
+Sent back for a round-2 critic pass on commit f98b417. Scored 9/10 --
+ship. Both fixes were re-verified as genuinely and completely correct,
+not just patches for the one scenario round 1 happened to find: the
+edge-clamping proof in `normalizedCrop()` holds algebraically for every
+constructible input (fractional anchors, corner drags past two edges,
+already-out-of-bounds coordinates, zero-size drags), and `drawCropOverlay()`
+was confirmed to have exactly two call sites in the whole file, both now
+correctly guarded, so there's no third path that could repaint the mask
+over an unrelated tool. A dedicated fresh adversarial pass (changing the
+ratio dropdown mid-drag, tiny/large canvas dimensions, the dual-pass
+clamp math's own internal consistency) found nothing new -- mid-drag
+ratio changes can't corrupt state since the very next pointermove
+overwrites whatever the change handler wrote, and the two-pass clamp was
+proven (not just tested) to never have its passes fight each other. The
+one point held back was for the already-deferred rotate/flip staleness
+issue and the inherent sub-pixel ratio drift from independent x/y vs.
+w/h rounding, neither a defect introduced by or in scope for this item.
+
+Item #92 is done: 2 critic rounds (5/10, 9/10), both real round-1
+findings fixed and verified live (including hardening the pre-existing
+free-form crop path against the same rounding bug), with the third
+finding (stale cropRect surviving rotate/flip) logged as a separate
+pre-existing Photo Editor item rather than expanding this diff.
