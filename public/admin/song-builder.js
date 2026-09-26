@@ -392,6 +392,32 @@
     const buffer = new Float32Array(analyser.fftSize);
     const peakFill = $("song-peak-meter-fill");
     const rmsFill = $("song-rms-meter-fill");
+    // Spectrum reads frequency-domain data off the exact same shared
+    // AnalyserNode the peak/RMS meters already tap -- both representations
+    // (time-domain and frequency-domain) are always available from one
+    // analyser every frame, so no second node or extra audio-graph
+    // connection is needed.
+    const spectrumCanvas = $("song-spectrum");
+    const spectrumCtx = spectrumCanvas.getContext("2d");
+    const freqData = new Uint8Array(analyser.frequencyBinCount);
+    const SPECTRUM_BARS = 24;
+    function drawSpectrum() {
+      analyser.getByteFrequencyData(freqData);
+      const w = spectrumCanvas.width;
+      const h = spectrumCanvas.height;
+      spectrumCtx.clearRect(0, 0, w, h);
+      const binsPerBar = Math.floor(freqData.length / SPECTRUM_BARS);
+      const barWidth = w / SPECTRUM_BARS;
+      spectrumCtx.fillStyle = "#4dff6a"; // matches the peak meter's own color -- this is an admin monitoring tool, not the themeable public embed
+      for (let bar = 0; bar < SPECTRUM_BARS; bar++) {
+        let sum = 0;
+        const start = bar * binsPerBar;
+        for (let i = start; i < start + binsPerBar; i++) sum += freqData[i];
+        const avg = sum / binsPerBar; // 0-255
+        const barHeight = (avg / 255) * h;
+        spectrumCtx.fillRect(bar * barWidth, h - barHeight, Math.max(1, barWidth - 1), barHeight);
+      }
+    }
     function tick() {
       analyser.getFloatTimeDomainData(buffer);
       let peak = 0;
@@ -406,6 +432,7 @@
       peakFill.style.width = Math.min(100, Math.round(peak * 100)) + "%";
       peakFill.classList.toggle("song-peak-meter-clip", peak >= 0.98);
       rmsFill.style.width = Math.min(100, Math.round(rms * 100)) + "%";
+      drawSpectrum();
       peakMeterRaf = requestAnimationFrame(tick);
     }
     tick();
@@ -427,6 +454,8 @@
       peakFill.style.width = "0%";
       peakFill.classList.remove("song-peak-meter-clip");
       $("song-rms-meter-fill").style.width = "0%";
+      const spectrumCanvas = $("song-spectrum");
+      spectrumCanvas.getContext("2d").clearRect(0, 0, spectrumCanvas.width, spectrumCanvas.height);
     }, PEAK_METER_DRAIN_MS);
   }
 

@@ -4828,7 +4828,7 @@ session's own EXIF-stripping feature for the upload-side equivalent).
 277. Mono compatibility button — ChannelMerger sum, toggle.
 301. ✅ Peak meters — done (see the dated entry below this section).
 302. ✅ RMS meters — done (see the dated entry below this section).
-305. Spectrum analyzer — AnalyserNode FFT + canvas draw (mirrors existing waveform canvas).
+305. ✅ Spectrum analyzer — AnalyserNode FFT + canvas draw (mirrors existing waveform canvas). (done — see the dated entry below)
 309. Track/master clipping history — log exceedances like existing `log()` action table.
 311. MIDI-device discovery — extend existing `requestMIDIAccess` call already present.
 314. On-screen keyboard — UI wired to existing `playMelodyNote`.
@@ -9663,3 +9663,43 @@ a pathologically long song name — left alone since the existing
 exact same non-issue, so it isn't a regression.
 
 Item #339 is done: 1 critic round, 9/10 on the first pass.
+
+### Forty-fourth item: #305, Song builder live spectrum analyzer
+
+- ✅ **A small `#song-spectrum` canvas** in the Song builder's header,
+  next to the peak/RMS meters, showing a real-time 24-bar frequency
+  spectrum of the master bus while the song is playing. Reuses the exact
+  same shared `AnalyserNode` the peak/RMS meters already tap
+  (`Engine.getPeakMeterAnalyser`) — a real audio-signal readout, not a
+  decorative animation — since a single `AnalyserNode` provides both
+  time-domain data (what the peak/RMS meters already read via
+  `getFloatTimeDomainData`) and frequency-domain data
+  (`getByteFrequencyData`) from the same underlying FFT every frame, so
+  no second analyser node or extra audio-graph connection was needed.
+  Drawn inside the exact same `requestAnimationFrame` loop the peak/RMS
+  meters already run (`tick()` in `startPeakMeter()`), bucketing the
+  analyser's 1024 frequency bins (`fftSize: 2048`) into 24 visual bars by
+  averaging each bucket's magnitude. Cleared to blank on the same
+  drain-timeout schedule the peak/RMS meters already use
+  (`PEAK_METER_DRAIN_MS`), so it keeps tracking real decaying audio for a
+  moment after Stop is clicked rather than snapping to empty while sound
+  is still audible, matching the reasoning a critic pass on the peak
+  meter itself already established this session.
+
+Verified via Playwright against real synthesized audio (a song with kick
++ hi-hat drum hits on every step and a sawtooth melody note held
+throughout, all through the actual song engine, not mocked): confirmed
+the canvas is genuinely blank (zero non-transparent pixels) before
+playback starts, confirmed it has real drawn content (820 non-transparent
+pixels) after ~600ms of playback, and confirmed it returns to fully
+blank again after Stop plus the full `PEAK_METER_DRAIN_MS` drain window.
+Ran the full `test_security_seo.js` regression suite — all passed. No
+leftover test data (the test song was deleted through the real API as
+part of the test).
+
+This is an admin-only monitoring tool (not a new public-embed
+visualization mode, which would be considerably more scope — a new
+`song-visualization` option needing public-embed rendering support,
+theming, and cross-file mirroring), so it was implemented at the same
+scope as the existing peak/RMS meters it sits beside. Handed to a critic
+agent for scoring.
