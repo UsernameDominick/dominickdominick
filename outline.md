@@ -11633,3 +11633,207 @@ visual-identity direction Dominick wants, since that's a subjective
 creative-direction call that needs his sign-off before real
 implementation work starts. Findings and outcome to be logged here once
 it reports back.
+
+### Design/UX audit findings (2026-09-26)
+
+The dispatched agent reported back. It screenshotted all 27 admin
+modals (`grep 'class="modal"' public/admin/index.html`) at 1440px and
+390px, cross-checked anything that looked wrong with direct
+`getBoundingClientRect`/computed-style measurements rather than trusting
+screenshots alone (per the standing instruction above), and separately
+loaded the homepage to ground the visual-identity ideas below. Fixed
+what was safely fixable at the CSS/markup level; everything else is
+logged here per the "log every finding, not just the fixed ones"
+convention.
+
+**Fixed (verified live, `test_security_seo.js` still green, pushed to
+`production` at `80d6f19`):**
+- ✅ `topic-meta-edit-modal` was the one small dialog with no dedicated
+  `-modal-inner` class (every sibling like `media-info-modal-inner`,
+  `pe-new-doc-modal-inner` has one). With nothing targeting its
+  `label`/`textarea`, the intro-blurb textarea rendered broken — floating
+  up into the top-right corner overlapping the header instead of sitting
+  under its label (confirmed visually and reproduced with a direct
+  screenshot crop before touching anything). Gave it a proper
+  `.topic-meta-edit-modal-inner` class with the same label/input pattern
+  the other small dialogs already use. This also fixed a second,
+  cascading bug: the image-upload button row below it was overflowing
+  the modal at mobile width, which turned out to be a symptom of the
+  same missing-CSS-context problem, not a separate bug — confirmed via
+  `getBoundingClientRect` before and after (buttons went from clipped at
+  the modal edge to properly wrapped).
+- ✅ `media-info-modal`, `pe-new-doc-modal`, and (now)
+  `topic-meta-edit-modal` had **zero horizontal padding** on their
+  content — form fields sat flush against the modal's rounded border
+  (confirmed by measuring: content's left edge was 1px from the border,
+  i.e. touching it, vs. the header's own 20px inset) while the header
+  directly above kept its normal padding. Visually this read exactly
+  like the "slapped together" look Dominick flagged — text touching the
+  edge of a otherwise-polished dialog. Added `padding: 0 20px 20px` to
+  all three `-modal-inner` classes plus a compensating
+  `margin: 0 -20px` on their `header` so the header's border-bottom
+  still spans the full width edge-to-edge like every other modal's does.
+- ✅ `pe-new-doc-modal` (the "New blank image" dialog, the newest modal
+  in the app) had a single unstyled, unwrapped `<button>Create</button>`
+  — no Cancel, no accent color, no action-row grouping — exactly the
+  "buttons on popups need recentered/cleaner" complaint in Dominick's own
+  words. Added a new generic `.modal-actions` class (same right-aligned,
+  10px-gap pattern as the existing reference, `.typed-confirm-actions`),
+  wrapped a new Cancel button + the Create button in it, and gave Create
+  the accent/`on-accent` color every other primary action in the admin
+  uses. Cancel needed one new one-line JS handler (`cancel-pe-new-doc`,
+  mirroring the existing `close-pe-new-doc` handler) since no generic
+  close-by-class wiring existed to hook into. Verified live: opened
+  Media → "New blank image…", clicked Cancel (closes back to Media
+  Library, no JS errors), reopened it, clicked Create (opens the Photo
+  Editor with a blank canvas, no JS errors).
+- ✅ `media-info-modal` and `topic-meta-edit-modal`'s Save/etc. button
+  row butted directly against the last form field with no visual
+  separation, reading like it trailed off the form rather than being a
+  deliberate footer. Added `border-top` + `margin-top`/`padding-top` to
+  `.article-actions` scoped to just these two modal contexts (left the
+  shared `.article-actions` class itself untouched everywhere else it's
+  used, see "considered but not changed" below for why).
+- ✅ `.md-toolbar` (the Bold/Italic/Link/H2/.../Diagram row above the
+  article and project body textareas) had no `flex-wrap`, so at 390px
+  width several of its buttons ran past the modal's right edge and were
+  **invisibly clipped** by `.modal-inner`'s `overflow: hidden` — not
+  just visually cramped, actually unreachable/unclickable on a phone.
+  Added `flex-wrap: wrap`. Confirmed via the same overflow-detection
+  script (walks every descendant of `.modal-inner`, flags anything whose
+  box exceeds the container's bounds) that this dropped from 3 flagged
+  elements to 0 in both the Articles and Projects modals (they share the
+  same toolbar markup).
+- ✅ `.sim-poster-row label` (the long descriptive text next to the
+  simulation builder's poster-image field) had a leftover
+  `white-space: nowrap` — looks like it was copied from a short-label
+  pattern used elsewhere in the same stylesheet — forcing its full
+  sentence onto one line, which overflowed and got clipped at mobile
+  width. Changed to `white-space: normal` so it wraps like the rest of
+  the row already does (the row itself already had `flex-wrap: wrap`,
+  it was only this one label ignoring that).
+- ✅ Found one MORE instance of the same *family* of issue as the
+  already-tracked Photo Editor z-index bug (not the same bug, a
+  different one, logged here per "note if you find more like it"): the
+  Photo Editor's toolbar wraps to multiple rows at mobile width via
+  `flex-wrap: wrap`, but several individual groups (canvas resize,
+  brightness/contrast/saturation sliders, the annotate/brush group) are
+  each *individually* wider than a 390px viewport even on their own
+  wrapped row. Since `.pe-body` has `overflow: hidden`, those groups
+  weren't just cramped — they were **completely clipped and
+  unreachable** on a phone (confirmed: one flagged group measured 868px
+  wide against a 372px available width). Fixed the same way the
+  simulation builder's part tray already solves this exact problem on
+  mobile: switched the toolbar to `flex-wrap: nowrap` +
+  `overflow-x: auto` at ≤860px, so it's one horizontally-scrollable row
+  instead of wrapping-then-clipping. Verified with
+  `scrollWidth` (4591px) vs. `clientWidth` (372px) confirming real
+  overflow, then confirmed via screenshot after scrolling that
+  previously-invisible controls (Grayscale/Sepia/Invert/Grain, Save as
+  new/Overwrite original) are now reachable.
+
+**Found and deliberately left alone (logged, not fixed):**
+- The already-known Photo Editor toolbar/z-index issue from the previous
+  session's item #13 entry — confirmed still present, not re-fixed here
+  since it's already tracked separately and out of this audit's scope
+  per the task brief.
+- `simulation-builder-modal`, `song-builder-modal`, and
+  `scan-editor-modal` embed their `×` close button inline inside a dense
+  single-row toolbar header (name field + a dozen tool buttons + ×)
+  rather than the clearly-separated "title on the left, × alone on the
+  right" pattern every other modal uses. It's technically still the
+  last item in the row and still works fine, but it doesn't visually
+  stand apart the way a close control normally would. Left as-is: these
+  three are full workspace/builder screens (the same category as the
+  big article editor's own toolbar), not simple popups, and restructuring
+  a dense, actively-used toolbar's layout is a meaningfully bigger and
+  riskier change than this audit's brief called for, for a cosmetic gain
+  that's debatable rather than a clear bug. Worth a look if Dominick
+  wants it, not done unilaterally.
+- `media-info-modal` and `topic-meta-edit-modal`'s action row is
+  left-aligned (via the shared `.article-actions` class) rather than
+  right-aligned like the reference `.typed-confirm-actions` pattern.
+  Considered changing it for uniformity, but `.article-actions` is an
+  established, working, widely-reused pattern across the admin (the big
+  article editor's own toolbar uses the same class), and reversing its
+  alignment would need touching that shared class globally — a much
+  bigger and less certain visual change than this audit's brief asked
+  for, for a case that's more "different pattern" than "actually
+  broken." Only added the breathing-room fix above (border-top
+  separator) scoped to these two smaller usages, left the alignment
+  itself alone. Flagging for Dominick's call if he'd rather it match
+  exactly.
+- Added `overflow-y: auto` to `media-info-modal-inner`,
+  `pe-new-doc-modal-inner`, and `topic-meta-edit-modal-inner` as a
+  precaution while fixing their padding (their fixed `80vh` height +
+  inherited `overflow: hidden` would otherwise silently clip a long
+  Metadata History / File Versions list), but didn't specifically
+  stress-test with a long list to confirm it was ever actually a live
+  problem — noting as verified-for-current-content-only, not as a
+  confirmed bug that was fixed.
+- Two console-error lines showed up in every screenshot pass: a blocked
+  `cdn.jsdelivr.net` fetch for `@google/model-viewer` and a 404 for a
+  leftover test-upload image. Both confirmed to be sandbox-only noise
+  (the sandbox's own egress proxy blocks that CDN domain; the 404'd
+  image is a stale test asset from an earlier session, not code) —
+  not a real site bug, nothing to fix.
+- Did not touch the Media Library toolbar, Site Settings' tabbed panels,
+  or any of the builder/workspace headers (Simulation/Song/Scan editors)
+  beyond the specific fixes above — their button grouping already reads
+  as intentional and consistent with the rest of the polished admin
+  (clear `.media-toolbar-group` clusters, tab bar, etc.), not part of
+  the "slapped together" complaint.
+
+**Visual identity ideas (not implemented — awaiting Dominick's
+direction).** Looked at the current homepage shell (warm off-white light
+theme, coral-orange `--accent` / soft-violet secondary via
+`--accent-gradient`, pill-shaped nav and search field, plain-text
+logotype "dominick.dominick", no illustration or custom graphics
+anywhere yet) and the favicon (a plain accent-colored dot/shape, no
+character to it). These are concrete enough to say yes/no/pick-one to,
+not mood-board language:
+1. **Thin hand-drawn line-art accents, single-weight, using the accent
+   gradient as their stroke color** — small doodle-style marks (an
+   arrow, a scribble underline, a little star or asterisk burst) placed
+   next to section headings or pull-quotes, in the specific style of an
+   imperfect, slightly-wobbly single continuous line (like a marker
+   sketch, not a vector-perfect icon). Distinct from the current fully
+   geometric/flat look. Would need 4-8 small custom SVGs, reused
+   site-wide.
+2. **A subtle grain/noise texture overlay on the page background** (a
+   fixed, very-low-opacity film-grain PNG or CSS noise filter over the
+   `--bg` color, both themes), the same technique a lot of indie
+   portfolio/zine sites use to take the edge off a flat solid color
+   without adding a pattern — cheap to add, reversible, and would pair
+   well with the existing `--accent-gradient`.
+3. **A specific hero-section treatment for the homepage**: the site's
+   name/tagline set in a larger display weight (heavier than the current
+   plain logotype), with one oversized, softly-blurred abstract gradient
+   shape (a blob or torus using `--accent`/the secondary violet) sitting
+   behind/behind-and-to-one-side of the text, similar to the "gradient
+   mesh blob behind hero text" pattern common on indie SaaS/portfolio
+   landing pages — reuses the palette that already exists instead of
+   introducing new colors.
+4. **A small fixed-position mascot/character** (a simple geometric
+   creature or shape with a face, 2-3 states: idle, "reading"/scrolling,
+   "found something" on search) that peeks in from a corner on the
+   homepage and/or the 404 page — a concrete, scoped place a custom
+   illustration could live without redesigning the whole site around it.
+5. **Section-divider squiggles instead of plain `<hr>`/border lines** —
+   replace the flat `1px solid var(--border)` dividers between homepage
+   sections (or between article sections) with a thin hand-drawn
+   wavy/zigzag line SVG in the accent color at low opacity — a small,
+   contained way to introduce "hand-made" character without touching
+   layout or typography.
+6. **A page-load/route-transition micro-interaction**: a brief (150-250
+   ms) accent-colored progress-bar-style sweep across the top of the
+   viewport on navigation (in the spirit of the classic "YouTube/GitHub
+   top-bar loader" but styled in the site's own gradient), or
+   alternatively a very short fade+8px-rise entrance for the main
+   content block on each page load — both cheap, `prefers-reduced-motion`-
+   respecting additions that would make navigating the site feel more
+   "crafted" without any new art assets at all.
+
+None of these were implemented — per the task brief, real visual-
+identity/illustration work needs Dominick's sign-off before it's built,
+since it's a subjective creative-direction call, not a bug fix.
