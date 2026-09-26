@@ -1141,13 +1141,43 @@
     clearTimeout(sizeEstimateTimer);
     sizeEstimateTimer = setTimeout(updateSizeEstimate, 150);
   }
+  // A critic pass on updateQualityVisibility() (below) found the estimate
+  // this function shows was ALWAYS computed against "Save as new"'s own
+  // format, even when the quality slider was only visible because of the
+  // OVERWRITE path (a JPEG/WebP original with "Save as new"'s format
+  // dropdown still at its PNG default). In that state, dragging the
+  // slider changed the real overwrite output dramatically (confirmed:
+  // 8.7KB at quality 10 vs 206KB at quality 100) while this label stayed
+  // completely frozen at PNG's fixed size regardless of the slider --
+  // exactly the "the control looks broken" impression this feature exists
+  // to prevent. Now computes and shows BOTH paths' real estimates
+  // whenever an original file exists to overwrite, each against its own
+  // actual format/quality, instead of only ever labeling one blob
+  // "Save as new" no matter which path the slider is actually affecting.
+  let sizeEstimateGeneration = 0;
   function updateSizeEstimate() {
+    const myGeneration = ++sizeEstimateGeneration;
     const format = $("pe-export-format").value;
     const quality = Number($("pe-export-quality").value) / 100;
     canvas.toBlob(
       (blob) => {
-        if (!blob) return;
-        $("pe-export-size-estimate").textContent = `~${formatBytesLite(blob.size)} ("Save as new")`;
+        if (myGeneration !== sizeEstimateGeneration || !blob) return;
+        const saveAsNewText = `~${formatBytesLite(blob.size)} ("Save as new")`;
+        if (!originalKey) {
+          $("pe-export-size-estimate").textContent = saveAsNewText;
+          return;
+        }
+        const overwriteMime = originalMimeType();
+        const overwriteQuality = overwriteMime === "image/png" ? undefined : quality;
+        canvas.toBlob(
+          (overwriteBlob) => {
+            if (myGeneration !== sizeEstimateGeneration) return;
+            const overwriteText = overwriteBlob ? `~${formatBytesLite(overwriteBlob.size)} ("Overwrite")` : "";
+            $("pe-export-size-estimate").textContent = overwriteText ? `${saveAsNewText} · ${overwriteText}` : saveAsNewText;
+          },
+          overwriteMime,
+          overwriteQuality
+        );
       },
       format,
       format === "image/png" ? undefined : quality
