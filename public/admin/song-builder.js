@@ -44,6 +44,13 @@
       page_sync: false,
       master_volume: 1,
       humanize: 0,
+      // Free-text production notes -- mix references, arrangement ideas,
+      // "redo the kick" reminders. Rides in the same JSON blob as every
+      // other song setting, but renderSongBlockHtml() (worker/render.js)
+      // explicitly strips this one key before it reaches the public
+      // embed's data-song attribute, the same "never shown publicly"
+      // guarantee articles/projects give their own private_notes column.
+      private_notes: "",
       tracks: TRACKS.reduce((acc, t) => {
         acc[t] = new Array(STEPS).fill(false);
         return acc;
@@ -358,6 +365,10 @@
   });
   $("song-humanize").addEventListener("input", () => {
     songData.humanize = Number($("song-humanize").value) || 0;
+    scheduleAutosave();
+  });
+  $("song-notes").addEventListener("input", () => {
+    songData.private_notes = $("song-notes").value;
     scheduleAutosave();
   });
   // Renders the song's actual synthesized mix at full volume (via the same
@@ -926,7 +937,13 @@
     const name = prompt("Template name:");
     if (!name) return;
     try {
-      await window.adminApi("/templates", { method: "POST", body: JSON.stringify({ kind: "song", name, data: songData }) });
+      // Everything else in songData is a reusable starting point (tempo,
+      // kit, tracks, theme) -- private_notes is commentary about this ONE
+      // production ("redo the kick", "old preset, don't ship this"), not
+      // something that should silently reappear inside every future song
+      // made from this template. Same reasoning openBuilder() already
+      // applies to a template's own name not carrying over.
+      await window.adminApi("/templates", { method: "POST", body: JSON.stringify({ kind: "song", name, data: { ...songData, private_notes: "" } }) });
       await loadSongTemplates();
     } catch (err) {
       alert(err.message);
@@ -947,6 +964,7 @@
     TRACKS.forEach((t) => {
       if (!data.trackMeta[t]) data.trackMeta[t] = { color: DEFAULT_TRACK_COLORS[t], note: "" };
     });
+    if (data.private_notes == null) data.private_notes = "";
     return data;
   }
 
@@ -1010,6 +1028,7 @@
     $("song-page-sync").checked = !!songData.page_sync;
     $("song-master-volume").value = Math.round((typeof songData.master_volume === "number" ? songData.master_volume : 1) * 100);
     $("song-humanize").value = typeof songData.humanize === "number" ? songData.humanize : 0;
+    $("song-notes").value = songData.private_notes || "";
     // The shared AudioContext (and its master GainNode) persists across
     // songs -- without this, opening song B right after playing song A
     // would leave the gain at A's last value until B's own playback
@@ -1045,6 +1064,7 @@
     songData.page_sync = $("song-page-sync").checked;
     songData.master_volume = Number($("song-master-volume").value) / 100;
     songData.humanize = Number($("song-humanize").value) || 0;
+    songData.private_notes = $("song-notes").value;
     // Captured *before* the await below, exactly like autosaveSong() does
     // -- a critic pass found that adding this feature's peaks-render
     // await here (with nothing captured beforehand) opened a real race:
@@ -1130,6 +1150,9 @@
       usedNotes.forEach((n) => lines.push(`  ${n}: ${songData.melody.notes[n].filter(Boolean).length} / ${STEPS}`));
     } else {
       lines.push("  (none)");
+    }
+    if (songData.private_notes && songData.private_notes.trim()) {
+      lines.push("", "Notes:", songData.private_notes.trim());
     }
     const blob = new Blob([lines.join("\n") + "\n"], { type: "text/plain" });
     const url = URL.createObjectURL(blob);

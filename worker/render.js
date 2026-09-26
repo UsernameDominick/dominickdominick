@@ -1078,7 +1078,15 @@ export function renderSongBlockHtml(song) {
   }
   const theme = song.data && song.data.theme;
   const themeClass = SONG_THEME_CLASSES.has(theme) ? ` song-theme-${theme}` : "";
-  return `<div class="song-embed${themeClass}" data-song="${esc(JSON.stringify(song.data))}">
+  // private_notes (see defaultSongData() in song-builder.js) is admin-only
+  // production commentary, not playback data -- every other key in `data`
+  // drives the public player and belongs in this attribute, but that one
+  // never should. Stripped here, not just left out of the admin UI,
+  // because this is the one path song data actually reaches a visitor's
+  // browser (as a raw JSON blob in a data attribute, readable via "View
+  // Source" by anyone, not just through the rendered page).
+  const { private_notes, ...publicSongData } = song.data || {};
+  return `<div class="song-embed${themeClass}" data-song="${esc(JSON.stringify(publicSongData))}">
     <div class="song-embed-header"><strong>${esc(song.name)}</strong><button type="button" class="song-embed-play-btn">▶ Play</button></div>
     ${vizHtml}
   </div>`;

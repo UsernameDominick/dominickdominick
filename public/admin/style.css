@@ -3697,6 +3697,23 @@ kbd {
   padding: 24px;
 }
 
+.song-notes-section {
+  margin-top: 20px;
+}
+
+.song-notes-section label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.song-notes-section textarea {
+  width: 100%;
+  margin-top: 6px;
+  resize: vertical;
+  font-family: inherit;
+}
+
 .song-preview-note {
   font-size: 0.75rem;
   color: var(--text-dim);
