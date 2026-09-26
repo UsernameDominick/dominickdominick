@@ -114,36 +114,6 @@
   $("sim-undo").addEventListener("click", undoHistory);
   $("sim-redo").addEventListener("click", redoHistory);
 
-  // ---------- Mobile toolbar collapse ----------
-  // At phone widths this toolbar used to be a flat wall of 15+ buttons
-  // wrapped onto many cramped rows with no visual grouping at all --
-  // real feedback from actually using it on a phone. The buttons are
-  // now grouped into semantic sections in the HTML (history,
-  // checkpoints, file, test/view); on a narrow viewport all but the
-  // essentials (the name field, Save, Save as template, close) collapse
-  // behind a single "Tools" toggle instead of all being visible and
-  // wrapping at once. The toggle button itself is only ever shown by
-  // the >860px-hiding CSS rule (`.sim-tools-toggle` has `hidden` in the
-  // markup and only the mobile media query un-hides it), so this
-  // listener is harmless to leave wired unconditionally on desktop too.
-  $("sim-tools-toggle").addEventListener("click", () => {
-    const groups = $("sim-toolbar-groups");
-    const expanded = groups.classList.toggle("is-expanded");
-    $("sim-tools-toggle").setAttribute("aria-expanded", String(expanded));
-    $("sim-tools-toggle").textContent = expanded ? "Tools ▴" : "Tools ▾";
-  });
-
-  // Same collapse pattern for the poster/share-image row -- a second,
-  // independent toggle rather than folding it into the Tools menu above,
-  // since it's a property of the SIMULATION itself (like the name field),
-  // not a builder tool/action.
-  $("sim-poster-toggle").addEventListener("click", () => {
-    const row = $("sim-poster-row");
-    const expanded = row.classList.toggle("is-expanded");
-    $("sim-poster-toggle").setAttribute("aria-expanded", String(expanded));
-    $("sim-poster-toggle").textContent = expanded ? "Poster / share image ▴" : "Poster / share image ▾";
-  });
-
   // ---------- Named checkpoints ----------
   function renderCheckpointSelect() {
     const select = $("sim-checkpoint-select");
@@ -406,12 +376,6 @@
     continuityLastProbe = null;
     $("sim-continuity-result").textContent = "";
     $("sim-continuity-result").classList.remove("sim-continuity-yes", "sim-continuity-no");
-    $("sim-toolbar-groups").classList.remove("is-expanded"); // collapse the mobile "Tools" menu back down on every fresh open
-    $("sim-tools-toggle").setAttribute("aria-expanded", "false");
-    $("sim-tools-toggle").textContent = "Tools ▾";
-    $("sim-poster-row").classList.remove("is-expanded");
-    $("sim-poster-toggle").setAttribute("aria-expanded", "false");
-    $("sim-poster-toggle").textContent = "Poster / share image ▾";
     zoomLevel = defaultZoomLevel();
     placeX = 20;
     placeY = 20;

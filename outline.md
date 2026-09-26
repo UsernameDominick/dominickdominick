@@ -13778,3 +13778,67 @@ degree, the Photo Editor's toolbar — this fix only covers the
 Simulation builder, the one actually screenshotted. Applying the same
 grouping/collapse treatment to those would be a natural, well-scoped
 follow-up once this pattern is confirmed to work well in practice.
+
+### 2026-09-26 — Follow-up correction: replaced the mobile "Tools" collapse with an always-visible grid
+
+Immediate direct follow-up from Dominick on the change just above: he
+did NOT want any buttons hidden behind a toggle at all — the actual ask
+was purely visual (grid/alignment/spacing), not a reduction in what's
+reachable without an extra tap. Reworked the same header on that basis.
+
+Removed both toggles (`#sim-tools-toggle`, `#sim-poster-toggle`)
+entirely, along with their `is-expanded`/collapse JS and CSS. Every
+control is now unconditionally visible on both desktop and mobile,
+exactly as before this whole change started — the fix is now purely
+about layout, not visibility. Each of the five groups (History,
+Checkpoints, File, Test & view, Save) got a small uppercase caption
+(`.sim-toolbar-group-label`) so the grouping reads as intentional
+sections even without color-coding, and each group's own buttons sit in
+a real CSS grid (`.sim-toolbar-group-buttons`, `display: grid`) rather
+than a wrapped flex row — on mobile specifically, `grid-template-
+columns: repeat(auto-fill, minmax(120px, 1fr))` gives clean, evenly
+sized columns with buttons snapped to a shared baseline instead of a
+ragged wrap where each row breaks wherever it happens to run out of
+width. The poster/share-image row got the identical grid treatment for
+its own three buttons, for the same reason.
+
+One real, non-cosmetic bug this surfaced and had to be fixed: `.modal-
+inner` is a fixed-height (94vh), `overflow: hidden` box everywhere on
+this site. The ORIGINAL flat, ungrouped mobile header was already tall
+enough that the canvas was being squeezed to a barely-visible sliver
+(visible as a thin strip of checkerboard background at the very bottom
+of Dominick's own screenshot) — the underlying issue this whole
+conversation started from wasn't just "ugly," it was already borderline
+unusable. Organizing the same controls into labeled sections with grid
+spacing (more breathing room per control, which is the actual fix
+requested) made the un-collapsed header taller still, which would have
+made the pre-existing clipping WORSE — with `overflow: hidden`, content
+past 94vh isn't scrollable, it's simply gone, an unreachable canvas, not
+just a cramped one. Fixed by letting the whole modal (`.simulation-
+builder-inner`) scroll as one column on mobile (`overflow-y: auto`) and
+removing `.sim-builder-body`'s own separate internal scroll/flex-shrink
+behavior (`flex: none; overflow: visible`) so it no longer fights the
+outer scroll for space — every control, including the canvas and
+inspector below the header, is now reachable by scrolling one
+consistent column, never silently clipped.
+
+Verified via Playwright at both viewports: at desktop width (1440px),
+confirmed all five group labels render, and every single toolbar
+control (Undo through Save as template) is visible with zero clicks —
+matching how it always worked, now just with clearer grouping. At a
+real phone width (390px), confirmed every control still exists in the
+DOM with no toggle-gating at all (the previous test's exact opposite
+assertion); confirmed Undo renders with real, non-zero size as soon as
+it's scrolled to (no click needed first); and — the specific regression
+risk this round introduced — confirmed the canvas is genuinely
+reachable and renders with real height when the modal is scrolled to
+its bottom, not clipped off past the fixed-height boundary. Re-ran the
+full existing simulation-builder regression set (checkpoints, poster,
+reset, disconnected-pins, ghost-wires, thumbnail, palette-search,
+keyboard-nudge, all at desktop width and unaffected) plus the full
+`test_security_seo.js` suite — all passing. Took fresh screenshots at
+the phone viewport confirming the visual result: clean two-column grids
+under clearly labeled sections (HISTORY, CHECKPOINTS, FILE, TEST & VIEW,
+SAVE), consistent button sizing, no ragged wrapping — with everything
+still reachable by scrolling, nothing hidden. No server-side changes
+were needed.

@@ -2650,26 +2650,25 @@ kbd {
 /* Real feedback from actually using this toolbar on a phone: 15+ buttons
    with no grouping at all just wrap onto a stack of cramped, visually
    identical rows -- there's no way to tell "these three go together"
-   from "these are unrelated." Grouping related controls (history,
-   checkpoints, file, view/test) with a divider between groups gives the
-   same set of controls actual visual structure, on desktop as well as
-   mobile, rather than a flat list of buttons sitting shoulder to
-   shoulder. */
+   from "these are unrelated." Every control stays visible (nothing is
+   hidden behind a menu) -- the fix is purely visual structure: related
+   controls are grouped under a small caption, each group's own buttons
+   line up in a neat grid instead of wrapping wherever they happen to
+   fit, and a divider separates one group from the next. */
 .sim-toolbar-groups {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 14px;
+  align-items: flex-start;
+  gap: 16px;
   flex: 1;
   min-width: 0;
 }
 
 .sim-toolbar-group {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding-right: 14px;
+  flex-direction: column;
+  gap: 6px;
+  padding-right: 16px;
   border-right: 1px solid var(--border);
 }
 
@@ -2678,16 +2677,26 @@ kbd {
   padding-right: 0;
 }
 
-.sim-toolbar-group-save {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.sim-toolbar-group-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
 }
 
-/* Only ever revealed by the mobile media query below -- on desktop this
-   stays hidden and every group is always visible side by side. */
-.sim-tools-toggle {
-  display: none;
+.sim-toolbar-group-buttons {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
+  align-items: center;
+  gap: 6px;
+}
+
+.sim-toolbar-group-save {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .simulation-name-input {
@@ -3386,6 +3395,23 @@ kbd {
 }
 
 @media (max-width: 860px) {
+  /* .modal-inner is a fixed-height (94vh), overflow:hidden box -- with a
+     taller, properly-organized multi-section header, its content (header
+     + poster row + body) can genuinely exceed that height. Without this,
+     the excess would be silently clipped and unreachable (not just
+     visually cramped, but the canvas/inspector actually unscrollable-to)
+     rather than scrolled to. Letting the WHOLE modal scroll as one column
+     means every control stays reachable no matter how tall the organized
+     header ends up, instead of fighting to cram it into a fixed height. */
+  .simulation-builder-inner {
+    overflow-y: auto;
+  }
+
+  .sim-builder-body {
+    flex: none;
+    overflow: visible;
+  }
+
   .simulation-builder-inner header {
     flex-wrap: wrap;
     row-gap: 8px;
@@ -3396,32 +3422,17 @@ kbd {
     order: -1;
   }
 
-  /* The direct fix for the "wall of buttons" phone screenshot: instead
-     of 15+ buttons all visible and wrapping across many cramped rows,
-     only the essentials (name field, Tools toggle, Save, Save as
-     template, close) show by default. Everything else -- history,
-     checkpoints, file, and view/test controls -- lives behind the
-     "Tools" toggle, collapsed until tapped. This is a strict reduction
-     in what's visible at once, not a removal of any capability: every
-     control that existed before is still one tap away, just not all
-     crammed onto the screen simultaneously the moment the builder opens. */
-  .sim-tools-toggle {
-    display: inline-block;
-    order: 0;
-    flex: 1 1 100%;
-  }
-
+  /* The direct fix for the "wall of buttons" phone screenshot: every
+     control stays visible -- nothing is hidden or collapsed behind a
+     menu -- but each group now stacks as its own labeled section with
+     its buttons laid out in a neat, evenly-spaced grid instead of
+     wrapping wherever they happen to fit on whatever row. */
   .sim-toolbar-groups {
-    display: none;
     flex: 1 1 100%;
     flex-direction: column;
     align-items: stretch;
-    gap: 10px;
+    gap: 12px;
     order: 1;
-  }
-
-  .sim-toolbar-groups.is-expanded {
-    display: flex;
   }
 
   /* Stacked vertically at this width, so a right-hand divider no longer
@@ -3429,9 +3440,8 @@ kbd {
      group's removed, same as desktop) keeps that same grouping legible
      in a single column instead. */
   .sim-toolbar-group {
-    flex-wrap: wrap;
     padding-right: 0;
-    padding-bottom: 10px;
+    padding-bottom: 12px;
     border-right: none;
     border-bottom: 1px solid var(--border);
   }
@@ -3441,9 +3451,21 @@ kbd {
     border-bottom: none;
   }
 
+  /* A real grid (not just a wrapped flex row) is what actually reads as
+     "neatly aligned" on a phone -- equal-width columns, buttons snapped
+     to a shared baseline, no ragged leftover gaps at the end of a row. */
+  .sim-toolbar-group-buttons {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  }
+
   .sim-toolbar-group-save {
     order: 2;
     flex: 1 1 100%;
+  }
+
+  .sim-toolbar-group-save .sim-toolbar-group-buttons {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   }
 
   #close-simulation-builder {
@@ -3453,39 +3475,46 @@ kbd {
   /* Consistent, touch-friendly sizing for every control inside a group --
      the same min-height regardless of label length ("Undo" vs. "Save
      checkpoint") is what actually reads as "neatly aligned" on a phone,
-     not forcing every button to the same width (which would either
-     clip longer labels or waste space around short ones). */
+     and every button in a group filling its grid cell edge-to-edge
+     (rather than sizing to its own text) is what makes the grid itself
+     look intentional rather than accidental. */
   .sim-toolbar-group button,
-  .sim-toolbar-group select,
-  .sim-toolbar-group input[type="search"] {
+  .sim-toolbar-group select {
     min-height: 40px;
-  }
-
-  /* The poster/share-image row is a secondary, occasionally-used feature
-     (most sessions never touch it), but it took a full two-line label
-     plus three more buttons of permanent vertical space in the same
-     screenshot that prompted this whole cleanup. Collapsed behind its
-     own toggle on mobile for the same reason the toolbar groups are --
-     still one tap away, not gone. */
-  .sim-poster-toggle {
-    display: block;
     width: 100%;
-    text-align: left;
-    background: var(--bg);
-    color: var(--text-dim);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 10px 12px;
-    font-size: 0.85rem;
+  }
+
+  .sim-snap-label {
+    grid-column: span 2;
+  }
+
+  .sim-toolbar-group input[type="search"] {
+    grid-column: 1 / -1;
     min-height: 40px;
   }
 
+  /* Same neat-grid treatment for the poster/share-image row's own three
+     buttons, so it doesn't stick out as the one remaining ragged-wrap
+     section once everything else in the header has been cleaned up. */
   .sim-poster-row {
-    display: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 8px;
   }
 
-  .sim-poster-row.is-expanded {
-    display: flex;
+  .sim-poster-row label {
+    grid-column: 1 / -1;
+  }
+
+  .sim-poster-row input {
+    grid-column: 1 / -1;
+    min-width: 0;
+    min-height: 40px;
+  }
+
+  .sim-poster-row button {
+    min-height: 40px;
+    width: 100%;
   }
 
   /* Side panels squeeze the canvas to nothing at phone widths — stack
