@@ -4922,8 +4922,9 @@ substantial new infra + security surface).
 403-405. Resistor/capacitor/inductor basic params — extra content fields, same pattern as resistance.
 409. Relays/switches — variant of existing switch component.
 410. ✅ Datasheet links — done (see the dated entry below this section).
-411. Adjustable DC supply — variant of existing battery/power_supply with voltage field.
-415-416. Current source / battery internal resistance — extra numeric fields feeding existing Ohm's-law path.
+411. ✅ Adjustable DC supply — checked while implementing #416: already exists. Battery has a fully free-form voltage number input (`sim-comp-voltage`, any value ≥0.1V); Power Supply has a 4-preset voltage select (3.3/5/9/12V DC, `sim-comp-output-voltage`), both wired to the real electrical analysis (`c.voltage`/`c.outputVoltage`). No new work needed.
+415. Current source — checked while implementing #416: doesn't fit this simulator's model as worded. This solver assumes constant-VOLTAGE sources and derives current via I=V/R; a true current source is the inverse (constant current, derived voltage), which would need the solver itself restructured, not just a new field — out of scope here, same shape as #431's voltmeter finding. Left open as genuine solver work for a future Medium-tier pass.
+416. ✅ Battery internal resistance — done (see the dated entry below).
 427. ✅ Power dissipation — done (see the dated entry below this section).
 431. Voltage meter — checked: needs real per-node voltage computation this simulator's single-shortest-path model doesn't have (a true voltmeter is measured in parallel, at two arbitrary points, not something the existing single-series-path analysis can derive) — left open as genuine solver work for a future Medium-tier pass rather than force-fit. See #432's dated entry below for the reasoning and for the current-meter half of this pair, which does fit the existing analysis.
 432. ✅ Current meter (ammeter) — done (see the dated entry below this section).
@@ -9928,3 +9929,56 @@ single-character label-only search was already weakly discriminating
 to begin with.
 
 Item #401 is done: 1 critic round, 9/10 on the first pass.
+
+### Forty-seventh item: #416, Battery internal resistance
+
+- ✅ **A new "Internal resistance (ohms)" field** on the Battery
+  inspector, modeling a real (non-ideal) battery's own resistance in
+  series with the rest of the circuit — the same Ohm's-law series-
+  resistance path this simulator's existing single-shortest-path model
+  already uses for every other resistive element, just seeded from the
+  source's own domain instead of coming from an edge on the path.
+  Defaults to 0 (an ideal, lossless source), so every simulation saved
+  before this field existed is completely unaffected — this is an
+  opt-in modeling choice an admin makes, not a new baked-in assumption
+  that would silently change already-published circuits' behavior.
+  While researching this item, also checked #411 (already fully
+  implemented — Battery already has a free-form voltage field, Power
+  Supply already has a 4-preset voltage select) and #415 (a true
+  current source doesn't fit this solver's constant-voltage,
+  derived-current model — would need the solver itself restructured,
+  the same "genuine solver work, out of scope" shape as #431's
+  voltmeter finding from earlier this session — left open rather than
+  force-fit).
+
+Implementation: `sim-components.js`'s battery domain now carries
+`internalResistance: Math.max(0, Number(c.internalResistance) || 0)`,
+and the analysis loop seeds `totalResistance` from that value instead of
+starting at a bare `0`. Mirrored byte-identically in
+`worker/simulation-render.js` (this session's established convention
+for every physics-relevant simulation change), since this is a real
+computation affecting current/wattage output, not UI-only metadata like
+the previous item's search keywords.
+
+Verified two ways. First, a direct Node ESM import of
+`worker/simulation-render.js`'s own `computeCircuitAnalysis` against a
+battery(9V, internalResistance=10Ω) → resistor(220Ω) → LED circuit,
+independently confirming: adding 10Ω of internal resistance correctly
+*reduces* current (30.43mA vs. 31.82mA with no internal resistance, a
+real physical effect — a non-ideal source delivers less current into
+the same load), an old simulation with no `internalResistance` field at
+all (`undefined`, not `0`) produces byte-identical output to one with it
+explicitly set to `0` (the backward-compatibility guarantee that
+mattered most here), and a negative value (bad/hand-edited import data)
+is correctly clamped to 0 rather than used raw to *increase* current
+above the ideal-source case. Second, end-to-end via Playwright against
+the real admin UI: opened a real saved simulation with the same circuit,
+confirmed the inspector field shows the saved `10` value, confirmed the
+resistor's live displayed current reads ~30.4mA, then changed the field
+to `0` through the actual UI control (not a direct data mutation) and
+confirmed the displayed current live-updates to the higher ~31.8mA,
+matching the independently-computed worker result. Ran the full
+`test_security_seo.js` regression suite — all passed. No test data left
+behind (the test simulation was deleted through the real API).
+
+Handed to a critic agent for scoring.

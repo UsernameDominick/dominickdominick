@@ -569,7 +569,17 @@
       const def = window.SIM_COMPONENTS[c.type];
       if (!def) return;
       if (c.type === "battery") {
-        domains.push({ posNode: nodeId(c, "pos"), negNode: nodeId(c, "neg"), voltage: Number(c.voltage) || 9, dangerous: false });
+        // Defaults to 0 (an ideal, lossless source) so every existing
+        // saved simulation's behavior is completely unchanged -- this is
+        // an opt-in field an admin sets to model a real, non-ideal
+        // battery's own resistance, not a new baked-in assumption.
+        domains.push({
+          posNode: nodeId(c, "pos"),
+          negNode: nodeId(c, "neg"),
+          voltage: Number(c.voltage) || 9,
+          internalResistance: Math.max(0, Number(c.internalResistance) || 0),
+          dangerous: false,
+        });
       } else if (c.type === "outlet") {
         domains.push({ posNode: nodeId(c, "hot"), negNode: nodeId(c, "neutral"), voltage: 120, dangerous: true });
       } else if (c.type === "power_supply") {
@@ -585,7 +595,11 @@
     domains.forEach((domain) => {
       const path = shortestPathNodes(adjacency, domain.posNode, domain.negNode);
       if (!path || path.length < 2) return;
-      let totalResistance = 0;
+      // The battery's own internal resistance (if set) is in series with
+      // whatever's on the path, exactly like any other resistive element
+      // -- it's not tied to a specific edge, so it seeds the running total
+      // instead of coming from the edge-walking loop below.
+      let totalResistance = domain.internalResistance || 0;
       let totalForwardVoltage = 0;
       const edges = [];
       for (let i = 0; i < path.length - 1; i++) {

@@ -626,7 +626,13 @@ export function computeCircuitAnalysis(data) {
     const def = SIM_COMPONENTS[c.type];
     if (!def) return;
     if (c.type === "battery") {
-      domains.push({ posNode: nodeId(c, "pos"), negNode: nodeId(c, "neg"), voltage: Number(c.voltage) || 9, dangerous: false });
+      domains.push({
+        posNode: nodeId(c, "pos"),
+        negNode: nodeId(c, "neg"),
+        voltage: Number(c.voltage) || 9,
+        internalResistance: Math.max(0, Number(c.internalResistance) || 0),
+        dangerous: false,
+      });
     } else if (c.type === "outlet") {
       domains.push({ posNode: nodeId(c, "hot"), negNode: nodeId(c, "neutral"), voltage: OUTLET_VOLTAGE, dangerous: true });
     } else if (c.type === "power_supply") {
@@ -642,7 +648,7 @@ export function computeCircuitAnalysis(data) {
   domains.forEach((domain) => {
     const path = shortestPathNodes(adjacency, domain.posNode, domain.negNode);
     if (!path || path.length < 2) return;
-    let totalResistance = 0;
+    let totalResistance = domain.internalResistance || 0;
     let totalForwardVoltage = 0;
     const edges = [];
     for (let i = 0; i < path.length - 1; i++) {

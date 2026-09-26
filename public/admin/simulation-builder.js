@@ -1292,7 +1292,8 @@
         extraFieldsHtml = `<label>Max resistance (ohms)<input id="sim-comp-max-resistance" type="number" min="1" value="${maxR}"></label>
         <label>Wiper position: <span id="sim-comp-wiper-value">${wiperPct}</span>%<input id="sim-comp-wiper" type="range" min="0" max="100" value="${wiperPct}"></label>`;
       } else if (comp.type === "battery") {
-        extraFieldsHtml = `<label>Voltage (V)<input id="sim-comp-voltage" type="number" min="0.1" step="0.1" value="${Number(comp.voltage) || 9}"></label>`;
+        extraFieldsHtml = `<label>Voltage (V)<input id="sim-comp-voltage" type="number" min="0.1" step="0.1" value="${Number(comp.voltage) || 9}"></label>
+        <label title="Real batteries aren't perfect voltage sources -- this models a non-ideal battery's own resistance, in series with the rest of the circuit. Leave at 0 for an ideal source (the default, matching every simulation saved before this field existed).">Internal resistance (ohms)<input id="sim-comp-internal-resistance" type="number" min="0" step="0.1" value="${Math.max(0, Number(comp.internalResistance) || 0)}"></label>`;
       } else if (comp.type === "power_supply") {
         extraFieldsHtml = `<label>Output voltage<select id="sim-comp-output-voltage">${[3.3, 5, 9, 12]
           .map((v) => `<option value="${v}" ${Number(comp.outputVoltage) === v ? "selected" : ""}>${v}V DC</option>`)
@@ -1368,6 +1369,15 @@
         voltageInput.addEventListener("change", () => {
           pushHistory();
           comp.voltage = Math.max(0.1, Number(voltageInput.value) || 9);
+          renderInspector();
+          renderBuilder();
+        });
+      }
+      const internalResistanceInput = $("sim-comp-internal-resistance");
+      if (internalResistanceInput) {
+        internalResistanceInput.addEventListener("change", () => {
+          pushHistory();
+          comp.internalResistance = Math.max(0, Number(internalResistanceInput.value) || 0);
           renderInspector();
           renderBuilder();
         });
