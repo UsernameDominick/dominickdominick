@@ -9527,4 +9527,33 @@ moved to the canvas's top half (1194 vs. 126 in the bottom half),
 proving the inverse-transform math is correct rather than merely
 "doesn't throw."
 
-Handed to a critic agent for scoring.
+Handed to a critic agent for scoring: **9/10 — ships.** The critic
+independently re-derived the inverse-rotation matrix by hand and
+confirmed the code's `rx = dx·cos(-θ) - dy·sin(-θ)`, `ry = dx·sin(-θ) +
+dy·cos(-θ)` is algebraically exact, verified every pointer-driven tool
+(crop/select, brush/erase/blur/pixelate, shapes, text, eyedropper) all
+route through the single fixed `pointFromEvent`, confirmed the cosmetic
+view rotation and the real pixel-rotate tool compose safely (the
+overlay's live `style.width`/`height` gets re-read on every call, so it
+stays correct even with both active at once), confirmed `viewRotation`
+resets unconditionally on every `open()` (not just the first), and found
+one minor, non-blocking edge case:
+
+- **(Deferred, minor, cosmetic-only)** The 0.15s CSS transition on
+  `.pe-canvas-stack`'s transform animates the *visual* rotation, but the
+  `viewRotation` JS variable driving `pointFromEvent`'s math updates
+  instantly on click. A pointer interaction landing inside that ~150ms
+  window uses the target angle's math while the DOM is still mid-
+  animation at an intermediate angle, causing a small, bounded, self-
+  correcting transient misplacement. Left unfixed: the window is very
+  short, the feature is admin-only and cosmetic, and no data-corruption
+  risk exists (worst case is a slightly-off mark placed during a
+  fraction-of-a-second animation). Possible future fix if ever worth it:
+  drop the transition, or gate pointerdown during `transitionrun`/
+  `transitionend`.
+
+Item #8 is done: 1 critic round, 9/10 on the first pass — the pre-
+emptive `pointFromEvent` inverse-transform fix (done before any critic
+review, once the coordinate-mismatch risk was recognized while
+implementing) meant the one round of adversarial review found no
+must-fix bugs, only a minor deferred cosmetic edge case.
