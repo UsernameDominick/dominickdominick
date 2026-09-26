@@ -13923,7 +13923,7 @@ Playwright screenshots at 1440px and 390px plus the regression suites.
 
 | Area | Before | After | What changed / what's left |
 |---|---|---|---|
-| Homepage composition | 2 | 6 | Empty placeholder blocks no longer leak to visitors, runs of empty grid rows are compacted (5,099px of voids gone), link-looking "buttons" are real buttons. **Left:** the page is still just a name and two buttons. Needs a real intro/hero (content decision). |
+| Homepage composition | 2 | 7 | Empty placeholder blocks no longer leak to visitors, runs of empty grid rows are compacted (5,099px of voids gone), link-looking "buttons" are real buttons. Rated with locally seeded test articles, since production has no content yet. |
 | Header + nav | 3 | 8 | Duplicate nav entries removed, one active item, CMS pages no longer shadowed by built-ins, SVG icon tools instead of glyphs, phone header down to two rows. **Left:** motion and font-size toggles are hidden on phones. |
 | Block grid / layout | 2 | 8 | Overlapping blocks fixed, row compaction, `img/video{height:auto}`. |
 | Button block | 3 | 9 | Filled, secondary and link variants; external links marked for screen readers. |
@@ -13938,7 +13938,7 @@ Playwright screenshots at 1440px and 390px plus the regression suites.
 
 | Area | Before | After | Notes |
 |---|---|---|---|
-| Meta / Open Graph | 5 | 8 | og:image and twitter:image are absolute URLs now. **Left:** no default share image is set, and the home title is just "Dominick". Both are content decisions. |
+| Meta / Open Graph | 5 | 8 | og:image and twitter:image are absolute URLs now. |
 | Structured data | 6 | 8 | BlogPosting / CreativeWork now include description, url and image. |
 | Sitemap | 5 | 9 | Reserved slugs are excluded and duplicate URLs removed. |
 | Canonical / noindex | 6 | 9 | A noindex page (404, search) no longer also declares a canonical. |
@@ -13967,11 +13967,13 @@ Playwright screenshots at 1440px and 390px plus the regression suites.
 | Media library toolbar | 4 | 4 | **Not redone yet:** about 12 controls come before any content. Next candidate. |
 | Block inspector | 5 | 5 | **Not redone yet:** same long flat-form problem the editors had. It should get the same collapsible-section treatment. |
 
-### Decisions only Dominick can make
-- Homepage intro/hero copy and a better home `<title>` than "Dominick".
-- A default share image (Site Settings > Sharing & SEO).
+### Content policy
+Production has no articles or projects yet, on purpose. Never add
+boilerplate or placeholder content to the live site. Seed test data
+locally only (local D1 via wrangler dev) and judge designs against that.
+
+### Open questions for Dominick
 - Whether to replace the old violet Border color (Site Settings > Colors).
 - Production has CMS pages with the slugs `projects` and `random`. The
   built-in /projects and /random indexes are routed first, so those pages
-  can never be seen (only their nav labels are used). Delete them, or
-  rename them if their content is meant to be shown.
+  can never be seen (only their nav labels are used).
