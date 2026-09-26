@@ -726,15 +726,64 @@
       );
   }
 
+  // ---------- Templates ----------
+  // Same generic /templates?kind=... API the simulation builder already
+  // uses for its own "Save as template"/picker pair -- songs just weren't
+  // in TEMPLATE_KINDS yet. Adding "song" there plus this wiring is the
+  // whole feature; the storage/listing/deletion endpoints needed zero
+  // changes since they were already kind-agnostic.
+  let songTemplates = [];
+  async function loadSongTemplates() {
+    try {
+      songTemplates = await window.adminApi("/templates?kind=song");
+    } catch {
+      songTemplates = [];
+    }
+    $("song-template-picker").innerHTML =
+      `<option value="">Blank</option>` + songTemplates.map((t) => `<option value="${t.id}">${escapeXml(t.name)}</option>`).join("");
+  }
+
+  $("save-song-template-btn").addEventListener("click", async () => {
+    const name = prompt("Template name:");
+    if (!name) return;
+    try {
+      await window.adminApi("/templates", { method: "POST", body: JSON.stringify({ kind: "song", name, data: songData }) });
+      await loadSongTemplates();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  // Backfills fields a song saved before they existed (or a template saved
+  // before they existed) won't have -- shared by both the "open an existing
+  // song" and "start from a template" paths so a stale template can't throw
+  // on a missing key any more than a stale saved song already couldn't.
+  function backfillSongData(data) {
+    if (!data.melody) data.melody = defaultSongData().melody;
+    if (!data.melody.notes) data.melody.notes = defaultSongData().melody.notes;
+    PIANO_NOTES.forEach((n) => {
+      if (!data.melody.notes[n]) data.melody.notes[n] = new Array(STEPS).fill(false);
+    });
+    if (!data.trackMeta) data.trackMeta = defaultSongData().trackMeta;
+    TRACKS.forEach((t) => {
+      if (!data.trackMeta[t]) data.trackMeta[t] = { color: DEFAULT_TRACK_COLORS[t], note: "" };
+    });
+    return data;
+  }
+
   $("songs-btn").addEventListener("click", async () => {
     $("songs-modal").hidden = false;
     await loadSongsList();
+    await loadSongTemplates();
   });
   $("close-songs").addEventListener("click", () => ($("songs-modal").hidden = true));
-  $("new-song-btn").addEventListener("click", () => openBuilder(null));
+  $("new-song-btn").addEventListener("click", () => {
+    const templateId = Number($("song-template-picker").value) || null;
+    openBuilder(null, templateId);
+  });
 
   // ---------- Open / close builder ----------
-  async function openBuilder(id) {
+  async function openBuilder(id, templateId) {
     stopPlayback();
     // Switching songs must drop any pending autosave for the PREVIOUS one
     // first — openBuilder awaits a fetch before songData is reassigned,
@@ -759,23 +808,14 @@
       const song = await window.adminApi(`/songs/${id}`);
       if (myGeneration !== openGeneration) return;
       $("song-name").value = song.name;
-      songData = song.data && song.data.tracks ? song.data : defaultSongData();
-      // A song saved before the piano roll existed won't have `melody` at
-      // all, and a drum-only song can have `melody.notes` present but
-      // missing individual note keys (e.g. `{}`) — backfill both cases
-      // rather than letting the grid render/toggle throw on a missing key.
-      if (!songData.melody) songData.melody = defaultSongData().melody;
-      if (!songData.melody.notes) songData.melody.notes = defaultSongData().melody.notes;
-      PIANO_NOTES.forEach((n) => {
-        if (!songData.melody.notes[n]) songData.melody.notes[n] = new Array(STEPS).fill(false);
-      });
-      // A song saved before per-track colors/notes existed won't have
-      // `trackMeta` at all -- backfill per-track rather than letting the
-      // grid render throw on a missing key.
-      if (!songData.trackMeta) songData.trackMeta = defaultSongData().trackMeta;
-      TRACKS.forEach((t) => {
-        if (!songData.trackMeta[t]) songData.trackMeta[t] = { color: DEFAULT_TRACK_COLORS[t], note: "" };
-      });
+      songData = backfillSongData(song.data && song.data.tracks ? song.data : defaultSongData());
+    } else if (templateId) {
+      const t = songTemplates.find((x) => x.id === templateId);
+      // A template is a fresh starting point, same as a blank song -- its
+      // own name is just a label for picking it in the dropdown, not
+      // something that should carry over onto every song created from it.
+      $("song-name").value = "New song";
+      songData = backfillSongData(t && t.data && t.data.tracks ? JSON.parse(JSON.stringify(t.data)) : defaultSongData());
     } else {
       $("song-name").value = "New song";
       songData = defaultSongData();

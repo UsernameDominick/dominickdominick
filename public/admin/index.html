@@ -1206,6 +1206,7 @@
         <p class="redirects-hint">Build a short loop — a drum pattern, a melody, or both — with a step sequencer, a piano roll, and built-in drum kits. Reuse it in any article or project via the Song block.</p>
         <div class="sim-new-row">
           <button type="button" id="new-song-btn">New song</button>
+          <select id="song-template-picker"><option value="">Blank</option></select>
         </div>
         <div id="songs-list" class="redirects-list"></div>
       </div>
@@ -1256,6 +1257,7 @@
         <button type="button" id="song-export-report" title="Download a plain-text summary of this song's settings and note counts">Export report</button>
         <button type="button" id="song-snapshot-mix" title="Save the current in-progress mix as a new, separate song -- lets you try a different direction without losing this exact version, even if it hasn't been saved yet">Snapshot mix</button>
         <button type="button" id="save-song">Save</button>
+        <button type="button" id="save-song-template-btn" title="Save this song as a reusable starting point">Save as template</button>
         <button id="close-song-builder">×</button>
       </header>
       <div class="song-builder-body">

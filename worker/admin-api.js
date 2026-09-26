@@ -1883,7 +1883,7 @@ async function routeAdminApi(request, env, url, ctx) {
 
   // /simulations
   // /templates?kind=page|article|simulation|project — saved starting points for new pages/articles/simulations/projects
-  const TEMPLATE_KINDS = ["page", "article", "simulation", "project"];
+  const TEMPLATE_KINDS = ["page", "article", "simulation", "project", "song"];
   if (path === "/templates" && method === "GET") {
     const kind = url.searchParams.get("kind");
     if (!TEMPLATE_KINDS.includes(kind)) return json({ error: "Invalid kind" }, { status: 400 });

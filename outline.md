@@ -4843,7 +4843,7 @@ session's own EXIF-stripping feature for the upload-side equivalent).
 
 ### DAW/Audio — Easy
 184. Tempo/time-signature settings — tempo field exists; add a sibling field.
-189. Session templates — default-data presets, pattern already used.
+189. ✅ Session templates — default-data presets, pattern already used. (done — see the dated entry below)
 190. Multiple sessions via tabs — songs already separate D1 rows/list UI.
 195. ✅ Dedicated master bus — done (see the dated entry below this section).
 196. ✅ Track colors/notes (icons scoped out, see the dated entry below) — metadata fields + UI, same as song name. (done — see the dated entry below)
@@ -12545,3 +12545,59 @@ worth its own edit cycle for a wording nuance on an already-accurate,
 already-verified claim.
 
 Item #596 is done: 1 critic round, 9/10 on the first pass.
+
+### Sixty-fifth item: #189, Song builder session templates
+
+- ✅ **Save-as-template + template-picker pair** for songs, reusing the
+  SAME generic `/templates?kind=...` API the simulation builder already
+  established for its own identical feature — `worker/admin-api.js`'s
+  `TEMPLATE_KINDS` whitelist just needed `"song"` added; the storage,
+  listing, and deletion endpoints (`listTemplates`/`createTemplate`/
+  `deleteTemplate` in `db.js`) were already fully kind-agnostic (a plain
+  `kind`/`name`/`data` JSON blob row) and needed zero changes. This is
+  the wishlist's own "pattern already used" framing taken literally: the
+  actual new work was entirely admin-UI wiring, not new backend
+  infrastructure.
+
+Implementation mirrors `simulation-builder.js`'s existing template
+feature line for line: a `#song-template-picker` `<select>` next to
+"New song" (blank by default), a "Save as template" button in the
+builder's header prompting for a name and POSTing the current in-memory
+`songData` verbatim, and `openBuilder(id, templateId)` gaining a third
+branch — creating from a template loads that template's stored `data` as
+the starting `songData`, deep-cloned (`JSON.parse(JSON.stringify(...))`)
+so editing the new song can never mutate the template's own stored copy
+by reference. Extracted the existing per-song backfill logic (melody/
+`trackMeta` defaults for data saved before those fields existed) into a
+shared `backfillSongData()` helper, called from BOTH the "open an
+existing song" and "start from a template" paths — a template saved
+before per-track colors existed, for instance, needs exactly the same
+defensive backfill an old real song already gets, and duplicating that
+logic a third time risked the two copies drifting out of sync over time.
+Deliberately did NOT add a delete-template button, matching (not
+falling short of) the simulation builder's own template feature, which
+also has none — pages/articles/projects have one, simulations and now
+songs don't; picked consistency with the sibling feature being directly
+copied over introducing a new asymmetry between them.
+
+Verified via Playwright end-to-end through the real admin UI and real
+API: built a genuinely distinctive song (140 BPM, kick on steps 0/4/8/12)
+and saved it as a template via the real "Save as template" button;
+confirmed via a direct authenticated `GET /templates?kind=song` that the
+tempo and exact kick pattern were captured correctly; confirmed the
+picker lists the new template after saving; selected it and clicked "New
+song," confirming the resulting song genuinely starts with the
+template's tempo and kick pattern — AND confirming the song's NAME
+correctly stays the generic "New song" rather than inheriting the
+template's own label (a template is a starting POINT, not something
+whose own identity should leak into every song made from it); actually
+saved that new song as a real, independent song row and confirmed via
+`GET /songs` it exists as its own entity, unlinked to the template.
+Re-ran the full `test_song_track_colors.js` and `test_song_humanize.js`
+suites (both touch `song-builder.js`, which this change also modified)
+to confirm no regression, plus the full `test_security_seo.js`
+regression suite — all pass. No test data left behind: the real test
+song and the test template were both deleted via their real DELETE
+endpoints, confirmed via follow-up `GET`s showing zero of each remaining.
+
+Sent for a critic pass.
