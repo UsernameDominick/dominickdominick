@@ -13677,3 +13677,25 @@ authenticated listing.
 No server-side changes were needed.
 
 Sent for a critic pass.
+
+Critic round 1 (score 9/10, no fix needed): stress-tested the two
+likeliest gaps — stacked listeners from `renderSongsList()` rebuilding
+the whole list's innerHTML on every keystroke (confirmed non-issue,
+since old DOM nodes and their listeners are destroyed wholesale on each
+render, verified via typing character-by-character then confirming
+Delete fires exactly once) and filtered actions targeting the wrong
+song (confirmed non-issue, since every action keys off the song's real
+`data-id`, never a list index). Confirmed the search value survives
+Duplicate's own internal `loadSongsList()` re-render (not reset
+mid-filter); confirmed Delete under an active filter genuinely removes
+the song server-side, not just visually; confirmed no XSS surface
+(the query is only ever used in a `.includes()` comparison, never
+interpolated into HTML, and rendered names still go through the
+pre-existing `escapeXml()`); confirmed whitespace-only queries fall
+through to "show everything" as intended; confirmed the reset-on-open
+behavior holds across repeated open/close cycles, not just the first.
+Ran the full regression suite plus every sibling song-builder test —
+all passing. One purely stylistic, non-functional observation (not a
+bug): the empty-state distinction is keyed off the unfiltered
+`songs.length` rather than re-deriving it explicitly, but the two are
+equivalent as written. Closing at 9/10, no fix needed.
