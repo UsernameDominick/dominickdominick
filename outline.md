@@ -8440,5 +8440,45 @@ render path. Full regression suite green; the test simulation was
 deleted (both soft- and hard-delete) and confirmed gone from the
 simulations list afterward.
 
-Sent to a critic pass next per the standing workflow before calling it
-done.
+Sent to a critic pass on commit 1ceb856. Scored 8/10 -- one real, shipped
+bug, everything else confirmed clean. The critic checked all 8 kind
+(wire/HDMI) × base-width (main/shine) × multiplier (thin/thick)
+combinations and found one produces floating-point precision noise:
+`1.5 * 0.6` (the HDMI-style cable's shine stroke at Thin) is
+`0.8999999999999999` in IEEE 754, which would render as that exact ugly
+literal in the SVG markup -- purely cosmetic (identical to the eye either
+way), but the one combination the original testing notes hadn't happened
+to check (only plain-wire Thick/Thin were verified at ship time). Every
+other angle came back clean on direct verification: `wire.thickness` is
+never interpolated into any template string, only ever used as an object-
+lookup key (safe by construction, any non-matching value falls through to
+the 1x default); the `<select>`'s three "selected" conditions are
+mutually exclusive and exhaustive, so exactly one option is ever marked
+selected for any input including garbage JSON-import values; the
+dropdown's displayed "Normal" state and the wire's actual rendered 1x
+multiplier can't diverge for a garbage value, since both key off the
+identical two string comparisons; switching a wire's Style (kind)
+dropdown correctly recomputes the stroke-width against the new kind's
+base width, since nothing is cached -- `renderWireSvg()` recomputes
+everything fresh on every call; a wire with no `thickness` property at
+all behaves identically to one explicitly set to `undefined` (both hit
+the same `|| 1` fallback); and the thickness change handler calls
+`pushHistory()` first, exactly matching the adjacent kind-select handler's
+existing convention.
+
+Fixed by rounding all four computed stroke-width values (in both the
+admin builder and the public embed's mirrored copy) to 2 decimal places
+via a small `roundPx()` helper. Re-verified via Playwright: the original
+round-1 tests (plain-wire Thick=6.8px, Thin=2.4px, Normal removes the
+inline style, persists to the public embed) re-run unchanged and still
+pass; specifically tested the exact combination the critic found broken
+(HDMI-style + Thin) and confirmed the shine stroke now renders exactly
+`0.9px`, not the float-noise literal, with the main stroke correctly at
+`3px`. Full regression suite green.
+
+Item #396 is done: 1 critic round, 8/10, the one real finding (floating-
+point precision noise in one of eight thickness/kind/stroke
+combinations) fixed and verified against the exact broken combination,
+with every other adversarial angle the critic checked confirmed already
+correct on direct verification rather than just re-reading the outline's
+own claims.

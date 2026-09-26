@@ -521,14 +521,16 @@
     // hdmi) -- only emitted as an inline style at all when the multiplier
     // isn't 1, so the overwhelming common "Normal" case keeps relying on
     // the plain CSS class with no per-wire override cluttering the markup.
+    // Rounded to 2 decimal places -- a critic pass found 1.5 * 0.6 (the
+    // HDMI-style shine stroke at Thin) is 0.8999999999999999 in floating
+    // point, which would otherwise render as that exact ugly literal in
+    // the SVG markup. Purely cosmetic (identical to the eye either way),
+    // but cheap to avoid.
+    const roundPx = (n) => Math.round(n * 100) / 100;
     const strokeStyle =
-      thicknessMultiplier === 1
-        ? ""
-        : ` style="stroke-width:${(kind === "hdmi" ? 5 : 4) * thicknessMultiplier}px"`;
+      thicknessMultiplier === 1 ? "" : ` style="stroke-width:${roundPx((kind === "hdmi" ? 5 : 4) * thicknessMultiplier)}px"`;
     const shineStrokeStyle =
-      thicknessMultiplier === 1
-        ? ""
-        : ` style="stroke-width:${(kind === "hdmi" ? 1.5 : 1.2) * thicknessMultiplier}px"`;
+      thicknessMultiplier === 1 ? "" : ` style="stroke-width:${roundPx((kind === "hdmi" ? 1.5 : 1.2) * thicknessMultiplier)}px"`;
     return `<path class="sim-wire sim-wire-${kind}${sel ? " sim-selected" : ""}${
       inNet ? " sim-net-highlight" : ""
     }" data-id="${escapeXml(wire.id)}" data-animated="${

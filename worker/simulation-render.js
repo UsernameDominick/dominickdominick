@@ -663,9 +663,16 @@ function renderWireSvg(wire, components, poweredWires) {
   // thickness set in the builder shows identically on this public embed.
   const kind = wire.kind === "hdmi" ? "hdmi" : "wire";
   const thicknessMultiplier = { thin: 0.6, thick: 1.7 }[wire.thickness] || 1;
-  const strokeStyle = thicknessMultiplier === 1 ? "" : ` style="stroke-width:${(kind === "hdmi" ? 5 : 4) * thicknessMultiplier}px"`;
+  // Rounded to 2 decimal places -- a critic pass found 1.5 * 0.6 (the
+  // HDMI-style shine stroke at Thin) is 0.8999999999999999 in floating
+  // point, which would otherwise render as that exact ugly literal in
+  // the SVG markup. Purely cosmetic, but cheap to avoid, and mirrors the
+  // identical fix in the admin builder's own copy of this function.
+  const roundPx = (n) => Math.round(n * 100) / 100;
+  const strokeStyle =
+    thicknessMultiplier === 1 ? "" : ` style="stroke-width:${roundPx((kind === "hdmi" ? 5 : 4) * thicknessMultiplier)}px"`;
   const shineStrokeStyle =
-    thicknessMultiplier === 1 ? "" : ` style="stroke-width:${(kind === "hdmi" ? 1.5 : 1.2) * thicknessMultiplier}px"`;
+    thicknessMultiplier === 1 ? "" : ` style="stroke-width:${roundPx((kind === "hdmi" ? 1.5 : 1.2) * thicknessMultiplier)}px"`;
   // Two overlapping strokes — a wide dull base plus a thin bright offset
   // highlight — read as a rounded, insulated cable instead of a flat line.
   return `<path class="sim-wire sim-wire-${escXml(wire.kind || "wire")}" data-id="${escXml(
