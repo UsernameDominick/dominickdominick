@@ -962,8 +962,24 @@
     }
   });
 
-  function strokeTo(point) {
-    const size = brushSize();
+  // Pen pressure scales the brush's effective diameter for this one point
+  // -- deliberately ignored for anything but a real pressure-sensitive
+  // stylus. PointerEvent.pressure defaults to 0.5 for a plain mouse click
+  // (per spec, not "half pressure" in any meaningful sense) and 0/1 for
+  // touch depending on the browser, so scaling by raw `pressure` for
+  // those pointer types would make every ordinary mouse/trackpad stroke
+  // draw at half the selected brush size by default -- a regression for
+  // the overwhelming majority of admins who don't have a tablet. Clamped
+  // to a 0.15 floor so the very lightest real pen touch still leaves a
+  // visible mark instead of an invisible zero-width line.
+  function pressureMultiplier(e) {
+    if (!e || e.pointerType !== "pen") return 1;
+    const p = typeof e.pressure === "number" ? e.pressure : 0.5;
+    return Math.max(0.15, Math.min(1, p));
+  }
+
+  function strokeTo(point, sizeMultiplier = 1) {
+    const size = brushSize() * sizeMultiplier;
     maskCtx.lineCap = "round";
     maskCtx.lineJoin = "round";
     maskCtx.strokeStyle = "#000";
@@ -1228,7 +1244,7 @@
       maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
       strokeActive = true;
       lastPoint = null;
-      strokeTo(p);
+      strokeTo(p, pressureMultiplier(e));
     } else if (currentTool === "text") {
       placeText(p);
       dragging = false;
@@ -1246,7 +1262,7 @@
       cropRect.y1 = constrained.y1;
       drawCropOverlay();
     } else if (BRUSH_TOOLS.includes(currentTool)) {
-      if (dragging && strokeActive) strokeTo(p);
+      if (dragging && strokeActive) strokeTo(p, pressureMultiplier(e));
       drawBrushCursor(p);
     } else if (SHAPE_TOOLS.includes(currentTool) && dragging && dragStart) {
       drawAnnotatePreview(dragStart.x, dragStart.y, p.x, p.y);

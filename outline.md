@@ -4748,7 +4748,7 @@ join, rather than building three separate systems.
 44. Colored mask overlays — tint mask canvas, trivial compositing.
 59. ✅ Named editing snapshots — extend undo snapshots with a name/label. (done — see the dated entry below)
 71. ✅ Brush opacity/flow (of size/hardness/opacity/flow) — done (see the dated entry below). Hardness scoped out: this editor's brushes have always been hard-edged, solid-stroke shapes with no feathering/soft-edge concept anywhere in the rendering pipeline, so a "hardness" control would need a genuinely new feathered-brush rendering path (a real gradient/soft-mask brush tip), not a parameter on the existing one — left open as future work rather than force-fit onto an architecture that doesn't have the underlying concept yet. Size already existed.
-72. Pen-pressure support — PointerEvent.pressure already available.
+72. ✅ Pen-pressure support — PointerEvent.pressure already available. (done — see the dated entry below)
 76. ✅ Saved brush presets — same pattern as photo-presets. (done — see the dated entry below)
 77. Hard-edged pencil — brush variant with no smoothing.
 78. Airbrush buildup — brush variant with cumulative alpha.
@@ -10692,3 +10692,50 @@ change too, so not a regression, just a known scope boundary for a
 possible future finer-grained pass.
 
 Item #109 is done: 1 critic round, 9/10 on the first pass.
+
+### Fifty-sixth item: #72, Photo Editor pen-pressure brush support
+
+- ✅ **Every brush tool (Erase, Blur, Pixelate, Dodge, Burn) now scales
+  its effective diameter per-point by real pen pressure** when drawn
+  with a genuine pressure-sensitive stylus, via a new
+  `pressureMultiplier(e)` helper feeding a new `sizeMultiplier` parameter
+  on the existing `strokeTo(point, sizeMultiplier)` function. The
+  critical design decision, made deliberately rather than by naive
+  pass-through: `PointerEvent.pressure` is NOT a pen-only signal — per
+  spec, an ordinary mouse click reports `pressure: 0.5` (not "half
+  pressure" in any meaningful sense, just the spec's fixed default for a
+  non-pressure-sensitive device), and touch input reports 0 or 1
+  depending on the browser. Scaling brush size by raw `pressure` for
+  those pointer types would have made every ordinary mouse/trackpad
+  stroke — the overwhelming majority of real usage on a single-admin
+  site — draw at only half the selected brush size by default, a silent
+  regression nobody would expect from a feature framed as "pen
+  pressure." `pressureMultiplier()` therefore only ever scales when
+  `e.pointerType === "pen"` specifically, returning a flat `1` (full,
+  unscaled size) for mouse and touch input, with the real pen pressure
+  value itself clamped to a `0.15` floor so the very lightest genuine
+  stylus touch still leaves a visible mark rather than an invisible
+  zero-width line.
+
+Verified via Playwright on a flat, fully-opaque mid-gray test fill
+(chosen so erased-area pixel counts are unambiguous): dispatched real
+synthetic `PointerEvent`s with `pointerType: "pen"` at full pressure
+(1.0) and confirmed a meaningful erase area (7683 transparent pixels),
+then at light pressure (0.2) on a fresh identical baseline and confirmed
+a genuinely SMALLER erase area (270 pixels) — proving pressure has a
+real, scaling effect, not a cosmetic one. Critically also confirmed the
+regression case the design decision above exists to prevent: an
+ORDINARY mouse click at the same brush size produced an erase area
+(7689 pixels) matching the FULL-pressure pen stroke almost exactly, not
+the spec's 0.5 mouse-pressure default that a naive implementation would
+have applied. One test-methodology note worth logging: `PointerEvent`'s
+own `setPointerCapture()` requires a genuinely active OS-level pointer
+session, which a scripted `dispatchEvent(new PointerEvent(...))` can
+never provide — this threw a real (test-only) `NotFoundError` that
+would have silently prevented the actual brush-stroke code from ever
+running in the test, diagnosed as a test-dispatch limitation (never
+reachable with real pen hardware) rather than a product bug, and worked
+around by stubbing `setPointerCapture` for the duration of the synthetic
+dispatch only. Ran the full `test_security_seo.js` regression suite —
+all passed. No test data was created (only in-memory canvas pixels of
+an existing library image, undone before the test ends).
