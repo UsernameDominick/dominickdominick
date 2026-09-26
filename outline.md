@@ -10389,3 +10389,35 @@ unaffected by the new listener. Re-ran every prior test in this item's
 own suite (the red/blue snapshot save-restore-delete flow, the XSS/
 whitespace/cap edge cases) plus the full `test_security_seo.js`
 regression suite — all still pass. Sent for a round-2 critic pass.
+
+Round-2 confirmed both fixes correct, complete, and non-regressive.
+Traced the exact focus-shift scenario by hand against the real DOM/
+browser event-ordering spec (mousedown triggers focus change —
+`blur` on the old element, `focus` on the new one — synchronously
+before `mouseup`/`click` are dispatched) and confirmed the new
+element-level `blur` listener genuinely fires and restores the real
+edited canvas before Save Snapshot's own click handler runs, making
+Bug 1's guard and Bug 2's blur backstop two independently-correct,
+non-racing defenses rather than one papering over the other. Confirmed
+`endCompare()`'s own `if (!compareSavedState) return;` guard makes it
+safely idempotent, so no double-restore risk if both the new blur
+listener and an eventual stray `keyup` somehow both fired. Confirmed
+zero regression to ordinary mouse or keyboard press-and-release-in-place
+Compare usage (neither path triggers a premature blur under normal use)
+and confirmed the same fix closes the analogous multi-touch race a much
+earlier critic pass on this codebase originally found for a related
+bug, since every real toolbar button involved is a genuinely focusable
+`<button>` element. One very minor, explicitly non-blocking note: the
+fix is only a 100% guarantee for focus moving to another FOCUSABLE
+control (the actual reachable bug scenario), not for every conceivable
+click target — not a real gap since all real action buttons here are
+focusable. Final score: **9/10 — ships.**
+
+Item #59 is done: 2 critic rounds, 7/10 → 9/10. What began as a single
+missing guard on one new button surfaced, through the process of
+actually reproducing rather than trusting a one-line fix, a separate
+and more severe pre-existing latent bug in a completely unrelated
+feature (Compare) that could have silently frozen the entire editor's
+history system indefinitely — both are now fixed with the same
+defense-in-depth convention this file's Compare handling already
+establishes.
