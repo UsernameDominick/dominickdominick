@@ -93,9 +93,12 @@
     canvas.height = snap.height;
     ctx.drawImage(snap, 0, 0);
     syncOverlaySize();
-    cropRect = null;
-    $("pe-apply-crop").hidden = true;
-    clearOverlay();
+    // Undo/redo/reset have the identical "canvas changed underneath any
+    // in-progress interaction" problem rotate90()/flip() do -- a critic
+    // pass reviewing THIS function's own precedent (which those two mirror)
+    // found it only ever cleared the crop selection, never a brush stroke's
+    // mask or a shape tool's drag anchor, both invalidated the same way.
+    cancelActiveDrag();
     fitCanvasToViewport();
   }
 
@@ -315,6 +318,29 @@
   });
 
   // ---------- Rotate ----------
+  // Any transform that changes canvas content/dimensions out from under an
+  // in-progress pointer interaction invalidates whatever that interaction
+  // was tracking -- not just a crop selection (the original bug this was
+  // written for), but a brush stroke's mask (still sized/oriented for the
+  // OLD canvas, so `ensureMask()` will replace it before the next stroke,
+  // but the CURRENT one, if still active, would otherwise get composited
+  // against post-transform coordinates onto a pre-transform mask) and a
+  // shape tool's drag-start anchor (still in OLD coordinate space). Only
+  // reachable via multi-touch -- holding a drag with one finger while
+  // tapping a toolbar button with another, the same class of scenario
+  // `startCompare()`'s own `dragging` guard elsewhere in this file already
+  // has to account for -- but a critic pass reviewing the crop-specific
+  // fix found it generalizes to every pointer-tracked tool, not just crop.
+  function cancelActiveDrag() {
+    cropRect = null;
+    $("pe-apply-crop").hidden = true;
+    dragging = false;
+    dragStart = null;
+    strokeActive = false;
+    lastPoint = null;
+    clearOverlay();
+  }
+
   function rotate90(clockwise) {
     pushUndo();
     const w = canvas.width;
@@ -330,18 +356,7 @@
     canvas.height = w;
     ctx.drawImage(tmp, 0, 0);
     syncOverlaySize();
-    // A critic pass reviewing a later crop feature found a selection drawn
-    // before a rotate survives with coordinates from the OLD canvas size --
-    // a 90-degree rotate swaps width/height, so those coordinates land
-    // somewhere completely different on the new canvas -- and applying it
-    // afterward silently reads past the new bounds (getImageData pads with
-    // transparent-black rather than throwing) instead of the region the
-    // user actually selected. Clearing it here matches restoreSnapshot()'s
-    // existing precedent for "the canvas just changed underneath any
-    // in-progress selection."
-    cropRect = null;
-    $("pe-apply-crop").hidden = true;
-    clearOverlay();
+    cancelActiveDrag();
     fitCanvasToViewport();
   }
   $("pe-rotate-left").addEventListener("click", () => rotate90(false));
@@ -362,16 +377,7 @@
     }
     ctx.drawImage(snap, 0, 0);
     ctx.restore();
-    // Canvas dimensions don't change on a flip (unlike rotate90), so a
-    // selection's coordinates stay numerically in-bounds -- but the pixels
-    // underneath it have moved, so it would silently crop the wrong,
-    // mirrored region of the now-flipped image instead of what was
-    // actually selected before the flip. Same clear as rotate90() for the
-    // same underlying reason: an in-progress selection doesn't survive an
-    // image transform that happened out from under it.
-    cropRect = null;
-    $("pe-apply-crop").hidden = true;
-    clearOverlay();
+    cancelActiveDrag();
   }
   $("pe-flip-h").addEventListener("click", () => flip(true));
   $("pe-flip-v").addEventListener("click", () => flip(false));

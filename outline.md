@@ -7428,5 +7428,56 @@ to confirm the rotate+flip themselves still produced real image data (no
 regression to the transforms' own correctness). Full regression suite
 green; test upload deleted and confirmed gone.
 
-Implemented and self-verified; sent to a critic pass next per the
-standing workflow before calling it fully closed.
+Sent to a critic pass on commit fe438e0. Scored 8/10 -- the fix itself
+was confirmed correct, minimal, idempotent, consistent with undo/redo
+(which already independently clears `cropRect` via `restoreSnapshot()`,
+making this fix's own clearing redundant but not conflicting on that
+specific path), and correctly scoped (grepped every other canvas-
+transforming operation -- one-shot filters, brightness/contrast/preset
+adjustments, brush commits, annotations -- and confirmed none of them
+resize or reposition canvas content the way rotate/flip do, so none of
+them needed the same fix). But the critic found this fix stopped one
+reasoning-step short of a sibling bug in the exact same two functions,
+of the same underlying class: rotating or flipping while a BRUSH stroke
+or SHAPE-tool drag is actively in progress (reachable only via multi-
+touch -- holding a drag with one finger while tapping a toolbar button
+with another, the same narrow scenario the file's own `startCompare()`
+guard already has to account for elsewhere) leaves `strokeActive`/
+`dragStart`/`lastPoint` untouched, so a brush stroke's mask (sized for
+the OLD canvas) or a shape's drag anchor (in OLD coordinate space) gets
+composited/committed against the NEW, post-transform canvas on release
+-- the identical "reads/writes the wrong region" failure mode as the
+original crop bug, just for two different tools. Not a regression this
+commit introduced (the pre-existing `restoreSnapshot()` precedent this
+fix mirrored had the identical gap for undo/redo/reset all along), but
+the critic was right that a 9+/10 version of this fix would either have
+extended the guard to cover it or explicitly logged it as deferred --
+it did neither.
+
+Fixed by factoring a shared `cancelActiveDrag()` helper that clears
+`cropRect`/`pe-apply-crop`/the overlay (the original fix) AND `dragging`/
+`dragStart`/`strokeActive`/`lastPoint` (the sibling gap) together, called
+from `rotate90()` and `flip()`. Since the identical root cause exists in
+`restoreSnapshot()` (used by undo/redo/reset) at essentially zero extra
+cost once the shared helper existed, applied it there too rather than
+leaving that specific instance as a separately-tracked deferred item --
+the fix generalizes to every place the file already changes canvas
+content/dimensions out from under an in-progress interaction, not just
+the two functions the critic happened to review.
+
+Re-verified via Playwright: the original round-1 regression checks still
+pass (Apply Crop hides after rotate, canvas dims correctly swap, undo
+correctly reverts a rotate back to the original 800x600); additionally
+simulated the multi-touch mid-stroke scenario by starting an erase-brush
+stroke (pointer held down, `strokeActive`/`dragging` true), firing a
+rotate mid-stroke, then releasing the pointer -- no exception was thrown,
+canvas dimensions stayed sane, and a sampled pixel confirmed the canvas
+still held real, non-corrupted image data rather than a botched
+composite from the mismatched pre/post-transform stroke. Full regression
+suite green; test upload deleted and confirmed gone.
+
+Done: 1 critic round, 8/10, the one real finding (the same class of bug
+generalizing from crop selections to brush/shape-tool drag state, and
+present identically in the pre-existing `restoreSnapshot()` precedent)
+fixed with a shared helper covering all three call sites at once, rather
+than patching only the two functions the critic happened to name.
