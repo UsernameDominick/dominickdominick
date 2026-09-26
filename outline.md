@@ -12600,4 +12600,26 @@ regression suite — all pass. No test data left behind: the real test
 song and the test template were both deleted via their real DELETE
 endpoints, confirmed via follow-up `GET`s showing zero of each remaining.
 
-Sent for a critic pass.
+Sent for a critic pass, which independently re-verified every claim with
+its own fresh tests rather than re-running the ones above: confirmed the
+deep-clone via a genuinely destructive edit-and-diverge test (heavily
+edited a song made from a template, then confirmed the stored template
+was completely untouched AND that a second, independent song made from
+the same template started fresh from the ORIGINAL data, not the first
+song's edits); confirmed a template with `melody`/`trackMeta` entirely
+missing (simulating pre-those-features data, crafted via direct API)
+opens with correct visual defaults, not just "doesn't throw"; confirmed
+non-default humanize plus per-track colors AND notes (not just
+tempo/pattern) all round-trip through a template correctly; confirmed
+the `TEMPLATE_KINDS` whitelist edit is purely additive (page/simulation/
+project templates all still work, an invalid kind still 400s); and
+confirmed a deliberately malicious template name
+(`<script>alert(1)</script>`) renders correctly escaped in the picker,
+genuinely via the same `escapeXml` reuse claimed, not just assumed.
+One non-blocking observation: songs have no "Delete template" UI button
+(API-only) — but this exactly mirrors the simulation builder's own
+template feature, which also has none, so it's a pre-existing gap in
+the pattern being deliberately copied, not a regression this item
+introduced. Final score: **9/10 — production-ready.**
+
+Item #189 is done: 1 critic round, 9/10 on the first pass.
