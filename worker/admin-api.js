@@ -317,7 +317,13 @@ function readImageDimensions(buf, contentType) {
       if (sig !== "GIF87a" && sig !== "GIF89a") return null;
       return plausibleDims({ width: view.getUint16(6, true), height: view.getUint16(8, true) });
     }
-    if (contentType === "image/jpeg") {
+    if (contentType === "image/jpeg" && buf.byteLength >= 4) {
+      // 2-byte 0xFFD8 SOI signature (checked -- without it, any garbage
+      // buffer that happens to contain a byte pair matching an SOF marker
+      // pattern anywhere in its first few bytes parses to fabricated
+      // dimensions, the same failure mode a critic pass already found and
+      // fixed for GIF's missing signature check).
+      if (view.getUint16(0) !== 0xffd8) return null;
       // Walk marker segments looking for a Start-Of-Frame marker (any of
       // the SOFn variants actually used for baseline/progressive JPEGs --
       // explicitly excluding 0xC4/0xC8/0xCC, which share that numeric
@@ -347,6 +353,12 @@ function readImageDimensions(buf, contentType) {
       return null;
     }
     if (contentType === "image/webp" && buf.byteLength >= 30) {
+      // Outer RIFF/WEBP envelope (checked -- without it, any buffer that
+      // happens to have "VP8X"/"VP8 "/"VP8L" at byte offset 12, an easy
+      // 4-byte coincidence, parses as if it were real WebP data).
+      const riff = String.fromCharCode(view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3));
+      const webp = String.fromCharCode(view.getUint8(8), view.getUint8(9), view.getUint8(10), view.getUint8(11));
+      if (riff !== "RIFF" || webp !== "WEBP") return null;
       const fourCC = String.fromCharCode(view.getUint8(12), view.getUint8(13), view.getUint8(14), view.getUint8(15));
       if (fourCC === "VP8X") {
         // Extended format: 1-byte flags, 3-byte reserved, then
@@ -397,8 +409,13 @@ function readImageDimensions(buf, contentType) {
 // pattern, relying on viewBox for its actual proportions) can silently
 // produce a wrong aspect ratio whenever the two percentages don't happen
 // to match the viewBox's own ratio.
+// The leading `(?:^|\s)` (rather than `\b`) is required so `attrName`
+// only matches a real attribute name, not the tail of a hyphenated one --
+// a critic pass found `\b` alone lets `width` match inside `stroke-width`
+// (a common root-<svg> attribute in icon sets), silently reading the
+// wrong attribute's value as the file's dimensions.
 function readSvgPixelAttr(openTag, attrName) {
-  const match = openTag.match(new RegExp(`\\b${attrName}\\s*=\\s*["']?([\\d.]+)\\s*(%|px|em|ex|pt|pc|cm|mm|in)?`, "i"));
+  const match = openTag.match(new RegExp(`(?:^|[\\s<])${attrName}\\s*=\\s*["']?([\\d.]+)\\s*(%|px|em|ex|pt|pc|cm|mm|in)?`, "i"));
   if (!match) return null;
   const unit = match[2];
   if (unit && unit.toLowerCase() !== "px") return null;

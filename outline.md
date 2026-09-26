@@ -4999,6 +4999,16 @@ holds) rather than fixing piecemeal per-feature going forward.
   key, so wiring them up is mostly a rendering-side change (same
   `imgSizeAttrs()` helper, different call sites) rather than needing new
   infrastructure.
+- **(found by round-2 critic review of #576's image-dimension fix)**
+  `/media/backfill-dimensions` (and its sibling `/media/backfill-hashes`,
+  which has had the identical shape since before this feature existed)
+  lists only the first 500 R2 objects with no cursor loop, so a media
+  library that ever grows past 500 uploaded files would silently stop
+  getting backfilled beyond that point. Not fixed as part of #576 since
+  it's a pre-existing pattern shared by another route, not a regression
+  introduced by this feature, and today's library is nowhere near that
+  size — but worth fixing both routes together (loop on `listed.cursor`)
+  if the library ever approaches it.
 
 ### Shared platform — Hard (mostly flagged as likely out of scope for a single-admin site)
 552 [offline-first sync — out of scope], 556, 561-562 [job queue — out of
@@ -6719,5 +6729,55 @@ of `0 0 400 100` now correctly reports `400x100` from the viewBox rather
 than a wrong `50x100` from the percentages. Full regression suite green;
 all test uploads deleted and confirmed gone.
 
-Item #576 is done: 1 critic round, 6/10, all three real findings fixed
-and verified live with no regression to the already-working formats.
+Sent back for a round-2 critic pass on the fixed code (commit c808f37).
+Scored 6/10 again — the round-1 fixes were verified as genuinely correct
+and complete (the GIF signature check, the `plausibleDims()` bound check
+applied consistently at every single raster/SVG return point, and the
+SVG percentage-unit rejection all held up), but the fix pass had been
+scoped too narrowly to the exact three complaints instead of re-auditing
+every sibling code path for the same bug classes. Three new real bugs,
+same shape as round 1:
+
+1. JPEG had no signature check at all (the same class of bug round 1
+   fixed for GIF) — the marker-walk loop trusted `0xFFD8` was present
+   without ever checking it, so a 40-byte garbage buffer with a spliced
+   fake SOF0 marker at offset 5, labeled `image/jpeg`, parsed to a
+   fabricated `200x100`. Fixed by checking `view.getUint16(0) === 0xffd8`
+   before entering the marker walk.
+2. WebP never validated the outer RIFF/WEBP envelope, only the inner
+   `VP8X`/`VP8 `/`VP8L` fourCC at byte 12 — an even easier coincidence to
+   hit than JPEG's marker pattern, since it's an exact 4-byte match with
+   no surrounding structure required. Fixed by checking bytes 0-3 are
+   `RIFF` and bytes 8-11 are `WEBP` before trusting the fourCC.
+3. `readSvgPixelAttr`'s regex used `\b${attrName}` as the left boundary,
+   and `\b` fires between a hyphen and a letter — so `width` matched
+   inside `stroke-width`, a common attribute on root `<svg>` elements in
+   icon sets. An SVG with `stroke-width="1" width="600" height="400"`
+   read `width` as `1` instead of `600`, and since `plausibleDims` only
+   rejects out-of-range values (1 is in-range), it silently shipped the
+   wrong dimensions with no error. Fixed by requiring the character
+   before `attrName` be whitespace or `<` (`(?:^|[\s<])${attrName}`)
+   instead of a bare word-boundary.
+
+A fourth finding (the `/media/backfill-dimensions` route lists only the
+first 500 R2 objects with no cursor loop, so a library over 500 files
+would silently stop getting backfilled past that point) was logged but
+not fixed — it's not a regression from this feature, the sibling
+`/media/backfill-hashes` route has had the identical limitation since it
+shipped, and today's library is nowhere near 500 files. Deferred as an
+existing-pattern limitation rather than fixed just for this route in
+isolation; noted below as a Medium-priority cleanup if the library ever
+grows into it.
+
+Re-verified via Playwright against real Pillow-generated ground truth for
+all five valid formats (no regression from either fix round) plus three
+new adversarial fixtures: the fake-SOI JPEG and the fake-envelope WebP
+both now correctly report `null`/`null` instead of fabricated dimensions,
+and the `stroke-width`-colliding SVG now correctly reads `600x400` from
+its real `width`/`height` attributes instead of `1x400`. Full regression
+suite green; all test uploads deleted and confirmed gone.
+
+Item #576 is done: 2 critic rounds (6/10, 6/10), six real findings across
+both rounds all fixed and verified live except the pre-existing
+backfill-pagination limitation (logged as a deferred Medium item, shared
+with `/media/backfill-hashes`), with no regression to the working formats.
