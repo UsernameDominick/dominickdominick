@@ -441,7 +441,7 @@ permissions — out of scope], 597 [package/dependency system — out of scope],
 ## 9. Current audit status
 
 - Candidate `04dbb655d49d9fb4d3424fc41ef599a24911ec43` received the three remaining sequential critic scores of 9/10, 8/10, and 9/10; findings were fixed between passes. A targeted source-only recheck after the final fix scored 9/10 with no actionable findings. Focused syntax and simulation regression checks passed, and Cloudflare Preview build `b94b496a-60b0-43e0-a50e-ede2f5c854cf` succeeded for this candidate. These are source/build results; no current-candidate browser or visual testing was performed.
-- `production` is at `04dbb655d49d9fb4d3424fc41ef599a24911ec43`; `main` remains at `5765b16801e6753f4dfd8a76a9361abae3beb99f`. Production is a clean fast-forward, 32 commits ahead. Keep this candidate on `production` until the authenticated browser/manual gates in section 6 are complete; effective branch rules remain unverified.
+- At the code-review check, candidate `04dbb655d49d9fb4d3424fc41ef599a24911ec43` was a clean fast-forward 32 commits ahead of `main` at `5765b16801e6753f4dfd8a76a9361abae3beb99f`. The audit-status refreshes on `production` are documentation-only; no code has been promoted to `main`. Keep the reviewed code candidate on `production` until the authenticated browser/manual gates in section 6 are complete; effective branch rules remain unverified.
 
 ## 10. Open decisions
 
