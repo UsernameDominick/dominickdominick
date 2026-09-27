@@ -6,7 +6,7 @@ implementation narratives remain in Git history.
 **Stack:** Cloudflare Workers (JavaScript), D1 (SQLite), R2, vanilla HTML/CSS/JS admin; CDN-loaded highlight.js
 and `@google/model-viewer`; ad hoc local Playwright with no CI test suite.
 
-**Last reviewed:** 2026-09-26
+**Last reviewed:** 2026-09-27
 
 ## 0. Project and release rules
 
@@ -264,13 +264,14 @@ Verify the target database/config before any remote migration or production D1/R
 
 ## 6. Manual verification still owed
 
-- Confirm the current `production` candidate has a successful Worker Preview build, then use that URL for
-  authenticated and visual checks before release. The prior Preview smoke only opened the admin sign-in page;
-  the updated backfill controls and authenticated media flows remain untested.
+- Verify the current Worker Preview build before release. The public smoke found the admin sign-in page at
+  `/admin/` and a branded `/` 404 because Preview D1 is empty. Authenticated media flows and a relevant
+  screenshot/visual score remain required.
 - Verify Worker Previews Base uses distinct test-only `ADMIN_PASSWORD` and `SESSION_SECRET` values before testing
   protected admin flows; never reuse production secrets.
-- Recheck Preview URL access before adding test data. The dashboard showed “Anyone with this URL can visit”; keep
-  content non-sensitive and clean namespaced fixtures unless Cloudflare Access is enabled. See [Preview access control](https://developers.cloudflare.com/workers/previews/#access-control).
+- The Preview URL is public (“Anyone with this URL can visit”). Before adding test data, verify separate test-only
+  bindings and a cleanup path; use only non-sensitive namespaced fixtures unless Cloudflare Access is enabled. See
+  [Preview access control](https://developers.cloudflare.com/workers/previews/#access-control).
 - Confirm highlight.js loads for a real published article with a code block.
 - Confirm `@google/model-viewer` loads a `.glb`; test `.usdz` AR on an iPhone.
 - Confirm the live Worker's `0 8 * * *` D1→R2 backup schedule in Cloudflare. Worker Previews do not run Cron
@@ -450,9 +451,9 @@ permissions — out of scope], 597 [package/dependency system — out of scope],
 
 ## 9. Current audit status
 
-- Media hash and dimension backfills now resume through opaque R2 cursors in 20-object chunks, keeping D1
-  parameter and Worker subrequest use bounded. Metadata writes are batched; dimensions retain the shared
-  plausibility check.
+- Media hash and dimension backfills resume through opaque R2 cursors in 20-object chunks. Metadata writes are
+  batched, dimensions retain the shared plausibility check, and the shared metadata lookup caps each D1 query
+  at 100 keys.
 - A scratch regression covers 1,005 synthetic objects, continuation, idempotent reruns, editorial-field
   preservation, invalid request bodies, oversized dimensions, and the per-request subrequest ceiling. No live
   Preview or production D1/R2 data was changed.

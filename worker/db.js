@@ -1587,13 +1587,17 @@ export async function listActivityLog(env, limit = 100) {
 // (folder, tags, a default alt text) keyed by the R2 object key. A file can
 // exist in R2 with no row here (never tagged/foldered) — treated as
 // folder=null, tags=[], alt_text=null.
+const MEDIA_META_QUERY_KEY_LIMIT = 100;
 export async function getMediaMeta(env, keys) {
-  if (!keys.length) return {};
-  const placeholders = keys.map(() => "?").join(",");
-  const { results } = await env.DB.prepare(`SELECT * FROM media WHERE key IN (${placeholders})`).bind(...keys).all();
   const map = {};
-  for (const row of results) {
-    map[row.key] = { ...row, tags: JSON.parse(row.tags || "[]") };
+  for (let offset = 0; offset < keys.length; offset += MEDIA_META_QUERY_KEY_LIMIT) {
+    const batch = keys.slice(offset, offset + MEDIA_META_QUERY_KEY_LIMIT);
+    const placeholders = batch.map(() => "?").join(",");
+    const sql = "SELECT * FROM media WHERE key IN (" + placeholders + ")";
+    const { results } = await env.DB.prepare(sql).bind(...batch).all();
+    for (const row of results) {
+      map[row.key] = { ...row, tags: JSON.parse(row.tags || "[]") };
+    }
   }
   return map;
 }
