@@ -79,6 +79,7 @@
 
   function undoHistory() {
     if (!undoStack.length) return;
+    setSnapHoleWarning(0);
     redoStack.push(JSON.stringify(simData));
     simData = JSON.parse(undoStack.pop());
     selected = null;
@@ -90,6 +91,7 @@
 
   function redoHistory() {
     if (!redoStack.length) return;
+    setSnapHoleWarning(0);
     undoStack.push(JSON.stringify(simData));
     simData = JSON.parse(redoStack.pop());
     selected = null;
@@ -102,6 +104,7 @@
   function resetSimToInitial() {
     if (!initialSimSnapshot) return;
     if (!confirm("Discard all edits and go back to the last saved state?")) return;
+    setSnapHoleWarning(0);
     pushHistory();
     simData = JSON.parse(initialSimSnapshot);
     selected = null;
@@ -361,6 +364,7 @@
 
   // ---------- Open / close builder ----------
   async function openBuilder(id, templateId) {
+    setSnapHoleWarning(0);
     currentSimId = id;
     selected = null;
     wireStart = null;
@@ -899,12 +903,65 @@
     return best;
   }
 
+  // Count occupied targets before replacing this part's own auto-wires, then
+  // rebuild the snap links without disturbing other parts already in the hole.
+  function rebuildBreadboardSnapWires(data, movingCompId, pinIds, snapTargets, nextWireId) {
+    const targetKeys = new Set(
+      Object.values(snapTargets).map((target) => JSON.stringify([target.breadboardId, target.holeId]))
+    );
+    const componentsById = new Map(data.components.map((component) => [component.id, component]));
+    const occupiedTargets = new Set();
+
+    data.wires.forEach((wire) => {
+      if (wire.auto !== true || !wire.from || !wire.to) return;
+      [[wire.from, wire.to], [wire.to, wire.from]].forEach(([boardEnd, leadEnd]) => {
+        const key = JSON.stringify([boardEnd.compId, boardEnd.pin]);
+        if (!targetKeys.has(key) || leadEnd.compId === movingCompId) return;
+        const lead = componentsById.get(leadEnd.compId);
+        if (!lead || lead.type === "breadboard") return;
+        occupiedTargets.add(key);
+      });
+    });
+
+    const movingPins = pinIds instanceof Set ? pinIds : new Set(pinIds);
+    data.wires = data.wires.filter(
+      (wire) => !(wire.auto && ((wire.from.compId === movingCompId && movingPins.has(wire.from.pin)) || (wire.to.compId === movingCompId && movingPins.has(wire.to.pin))))
+    );
+    Object.entries(snapTargets).forEach(([pinId, target]) => {
+      data.wires.push({
+        id: nextWireId(),
+        from: { compId: movingCompId, pin: pinId },
+        to: { compId: target.breadboardId, pin: target.holeId },
+        kind: "wire",
+        auto: true,
+      });
+    });
+    return occupiedTargets.size;
+  }
+
+  // This status is nonblocking: the dropped part stays connected to the same
+  // breadboard node as any lead that was already using the target hole.
+  function setSnapHoleWarning(occupiedHoleCount) {
+    const status = $("sim-hole-warning");
+    if (!status) return;
+    if (!occupiedHoleCount) {
+      status.textContent = "";
+      status.hidden = true;
+      return;
+    }
+    status.textContent = occupiedHoleCount === 1
+      ? "Another lead already uses 1 target breadboard hole. Both parts remain electrically connected."
+      : `Other leads already use ${occupiedHoleCount} target breadboard holes. All parts remain electrically connected.`;
+    status.hidden = false;
+  }
+
   function onComponentPointerDown(e) {
     e.stopPropagation();
     const g = e.currentTarget;
     const compId = g.dataset.id;
     const comp = simData.components.find((c) => c.id === compId);
     if (!comp) return;
+    setSnapHoleWarning(0);
 
     // Shift+click only toggles this part's membership in the selection —
     // it doesn't also start a drag, so building up a multi-selection with
@@ -1020,22 +1077,19 @@
       // once onMove has actually run at least once) means a real drag
       // still correctly rebuilds the wires from wherever it ended up,
       // while a plain click leaves whatever wiring already existed alone.
+      let occupiedHoleCount = 0;
       if (canSnap && historySaved) {
         const pinIds = new Set(REG[comp.type].pins.map((p) => p.id));
-        simData.wires = simData.wires.filter(
-          (w) => !(w.auto && ((w.from.compId === compId && pinIds.has(w.from.pin)) || (w.to.compId === compId && pinIds.has(w.to.pin))))
+        occupiedHoleCount = rebuildBreadboardSnapWires(
+          simData,
+          compId,
+          pinIds,
+          snapTargets,
+          () => newLocalId("wire")
         );
-        Object.entries(snapTargets).forEach(([pinId, target]) => {
-          simData.wires.push({
-            id: newLocalId("wire"),
-            from: { compId, pin: pinId },
-            to: { compId: target.breadboardId, pin: target.holeId },
-            kind: "wire",
-            auto: true,
-          });
-        });
       }
       renderBuilder();
+      if (canSnap && historySaved) setSnapHoleWarning(occupiedHoleCount);
     }
     g.addEventListener("pointermove", onMove);
     g.addEventListener("pointerup", onUp);
@@ -1782,6 +1836,7 @@
       if (!parsed || !Array.isArray(parsed.components) || !Array.isArray(parsed.wires)) {
         throw new Error("That file doesn't look like a circuit export (expected components/wires arrays).");
       }
+      setSnapHoleWarning(0);
       pushHistory();
       simData = parsed;
       selected = null;
