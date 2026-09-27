@@ -449,7 +449,7 @@ permissions — out of scope], 597 [package/dependency system — out of scope],
 
 ## 9. Current audit status
 
-- Admin dialog and writing-focus semantics, including Page Preview iframe focus sentinels, are implemented; targeted regressions pass. Authenticated browser and
+- Admin dialog and writing-focus semantics, including a named accessible Page Preview iframe focus sentinel, are implemented; targeted regressions pass. Authenticated browser and
   visual checks remain open in section 6.
 - Image sizing audit: known media-upload dimensions are emitted for article/project header covers, including same-site absolute URLs. Project cards are text-only; remote cover sizing remains an open backlog decision.
 - `production` is the review candidate. Promote to `main` only after section 0's critic and manual gates
