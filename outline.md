@@ -440,8 +440,8 @@ permissions — out of scope], 597 [package/dependency system — out of scope],
 
 ## 9. Current audit status
 
-- Simulation #393 source candidate `57cc4415eb81e9236c6b1db82abcffe8c294ac14`; critics scored 8/10 (2 findings fixed), 5/10 (4 fixed), and 7/10 (2 fixed); pass 4 is in progress. Cloudflare Preview and its Workers Builds check succeeded (`efde8c18-d606-435a-bbed-0536810a6823`); Supabase Preview was skipped because no Supabase branch exists.
-- Twenty-three focused route/runtime/API assertions, JavaScript syntax checks, and whitespace checks passed. No browser or visual check was performed. `main` remains at `5765b16801e6753f4dfd8a76a9361abae3beb99f`; `production` is on the candidate. Release gates are listed in sections 0 and 6; older audit-session details remain in Git history.
+- Simulation #393 source candidate `319944733662dbb718bb1a0accb2b17c8c9f789c`; seven critic passes scored 8, 5, 7, 6, 7, 7, and 9/10. All reported source findings are fixed; pass 7 found no actionable issue. Eleven focused loader/validation checks and a builder syntax check passed. Cloudflare Preview build `80f8c250-5e28-40a0-8dde-c1ff1b95201c` succeeded.
+- `main` remains at `5765b16801e6753f4dfd8a76a9361abae3beb99f`; the reviewed source candidate is 23 commits ahead. No authenticated simulation feature or visual check was performed. Keep the candidate on `production` until the section 6 manual gates are complete; effective branch rules remain unverified.
 
 ## 10. Open decisions
 
