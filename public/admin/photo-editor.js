@@ -351,9 +351,12 @@
     // the exact bug class already hunted down and fixed for Undo/Redo/
     // Reset/Restore, just missed for this one.
     if (isComparing()) return;
+    // Capture pixels before the dialog yields, while a second pointer may still
+    // be delivering changes from an in-progress gesture.
+    const snapshot = snapshotCanvas();
     const name = await promptForText("Save snapshot", "Snapshot name", `Snapshot ${namedSnapshots.length + 1}`);
     if (name === null) return;
-    namedSnapshots.push({ name: name.trim(), canvas: snapshotCanvas() });
+    namedSnapshots.push({ name: name.trim(), canvas: snapshot });
     // Full-size canvas copies held in memory -- capped like the undo stack
     // so a long editing session on a large (MAX_DIMENSION-sized) image
     // can't quietly accumulate an unbounded number of them.
@@ -1170,12 +1173,17 @@
       alert("Select a brush tool (Erase, Blur, Pixelate, Dodge, or Burn) first, then save it as a preset.");
       return;
     }
+    const preset = {
+      tool: currentTool,
+      size: brushSize(),
+      opacity: Number($("pe-brush-opacity").value),
+    };
     const name = await promptForText("Save brush preset", "Preset name");
     if (name === null) return;
     try {
       await window.adminApi("/brush-presets", {
         method: "POST",
-        body: JSON.stringify({ name: name.trim(), tool: currentTool, size: brushSize(), opacity: Number($("pe-brush-opacity").value) }),
+        body: JSON.stringify({ name: name.trim(), ...preset }),
       });
       await loadBrushPresets();
     } catch (err) {
@@ -1226,12 +1234,13 @@
   });
 
   $("pe-save-text-style").addEventListener("click", async () => {
+    const style = { font: $("pe-text-font").value, color: annotateColor(), size: annotateSize() };
     const name = await promptForText("Save text style", "Style name");
     if (name === null) return;
     try {
       await window.adminApi("/text-styles", {
         method: "POST",
-        body: JSON.stringify({ name: name.trim(), font: $("pe-text-font").value, color: annotateColor(), size: annotateSize() }),
+        body: JSON.stringify({ name: name.trim(), ...style }),
       });
       await loadTextStyles();
     } catch (err) {
@@ -1496,19 +1505,21 @@
   }
 
   async function placeText(point) {
+    const style = {
+      fontSize: Math.max(16, annotateSize() * 6),
+      color: annotateColor(),
+      font: $("pe-text-font").value,
+      loadedFontFamily,
+    };
     const text = await promptForText("Add text", "Text to add");
     if (text === null) return;
     pushUndo();
-    const fontSize = Math.max(16, annotateSize() * 6);
-    ctx.fillStyle = annotateColor();
-    // loadedFontFamily is only ever a real family name once a load has
-    // actually succeeded (checked again here, not just trusted from the
-    // dropdown's selection, in case the async check hadn't actually
-    // finished -- or failed -- by the time this fires) -- otherwise this
-    // falls back to the same plain sans-serif as before the font picker
-    // existed.
-    const useCustom = $("pe-text-font").value === "custom" && loadedFontFamily;
-    const fontFamily = useCustom ? `'${loadedFontFamily}', sans-serif` : "sans-serif";
+    const fontSize = style.fontSize;
+    ctx.fillStyle = style.color;
+    // Use a custom face only when that exact, pre-dialog selection has
+    // already finished loading; otherwise retain the plain sans-serif fallback.
+    const useCustom = style.font === "custom" && style.loadedFontFamily;
+    const fontFamily = useCustom ? "'" + style.loadedFontFamily + "', sans-serif" : "sans-serif";
     ctx.font = `bold ${fontSize}px ${fontFamily}`;
     ctx.textBaseline = "top";
     ctx.fillText(text, point.x, point.y);
