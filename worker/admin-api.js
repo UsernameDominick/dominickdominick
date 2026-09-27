@@ -293,6 +293,42 @@ function simulationDataError(data, requireCircuitArrays = false, allowCheckpoint
   return null;
 }
 
+// Older saved simulations can have missing or colliding wire IDs. Opening
+// them in the builder repairs these IDs before saving; duplication should
+// apply the same repair to the new copy instead of making the legacy record
+// impossible to duplicate.
+function normalizeLegacySimulationWireIds(data) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return data;
+  const normalized = JSON.parse(JSON.stringify(data));
+  const normalizeCircuitWires = (circuit) => {
+    if (!circuit || typeof circuit !== "object" || Array.isArray(circuit) || !Array.isArray(circuit.wires)) return;
+    const reservedIds = new Set();
+    for (const wire of circuit.wires) {
+      if (wire && typeof wire === "object" && !Array.isArray(wire) && isSimulationRecordId(wire.id)) {
+        reservedIds.add(String(wire.id));
+      }
+    }
+    const seenIds = new Set();
+    circuit.wires.forEach((wire, index) => {
+      if (!wire || typeof wire !== "object" || Array.isArray(wire)) return;
+      if (!isSimulationRecordId(wire.id) || seenIds.has(String(wire.id))) {
+        const stem = `duplicate_wire_${index + 1}`;
+        let id = stem;
+        let suffix = 1;
+        while (reservedIds.has(id) || seenIds.has(id)) id = `${stem}_${suffix++}`;
+        wire.id = id;
+        reservedIds.add(id);
+      }
+      seenIds.add(String(wire.id));
+    });
+  };
+  normalizeCircuitWires(normalized);
+  if (Array.isArray(normalized.checkpoints)) {
+    normalized.checkpoints.forEach((checkpoint) => normalizeCircuitWires(checkpoint && checkpoint.data));
+  }
+  return normalized;
+}
+
 // Redirects can chain (A -> B, B -> C, ...), and the request-serving code
 // does a single-hop lookup per request with no server-side chain
 // resolution — so a cycle anywhere in the chain becomes an actual
@@ -2103,9 +2139,10 @@ async function routeAdminApi(request, env, url, ctx) {
   if (simDuplicateMatch && method === "POST") {
     const source = await getSimulation(env, Number(simDuplicateMatch[1]));
     if (!source) return json({ error: "Simulation not found" }, { status: 404 });
-    const dataError = simulationDataError(source.data || {});
+    const data = normalizeLegacySimulationWireIds(source.data || {});
+    const dataError = simulationDataError(data);
     if (dataError) return json({ error: dataError }, { status: 400 });
-    const newId = await duplicateSimulation(env, Number(simDuplicateMatch[1]));
+    const newId = await duplicateSimulation(env, Number(simDuplicateMatch[1]), data);
     if (!newId) return json({ error: "Simulation not found" }, { status: 404 });
     log(ctx, env, "duplicate", "simulation", `#${simDuplicateMatch[1]} → #${newId}`);
     return json({ id: newId });
