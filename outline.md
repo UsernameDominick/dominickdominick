@@ -268,6 +268,7 @@ The R2-only homepage image `uploads/300679fa-5339-49cc-a839-9a3253031cb6.png` se
 
 - In authenticated Preview, test all five Photo Editor text-entry flows (snapshot name, adjustment preset, brush preset, text style, canvas text): submit/cancel, Escape/backdrop, focus containment/return, and confirm cancel neither edits nor saves.
 - In authenticated Preview, verify Song Builder Undo/Redo across settings, drum and piano grids, notes/name, grouped text/slider input, keyboard shortcuts, redo clearing, song switching, first Save, autosave, edits during Save, existing-save retry, first-save retry by hand, and dirty close/switch confirmation. No authenticated browser or visual check has been run for this candidate.
+- In authenticated Preview, confirm the article counter shows 0 minutes for blank and cleared text, 1 minute for one word, and the existing estimate for longer drafts. The focused function-level regression passes; no authenticated browser check has been run.
 - Test New Blank Image geometry and backdrop hit-testing. Recheck homepage/gallery image paths in Diagnostics after the media migration; distinguish missing R2 objects from D1/query failures before cleanup.
 - Resolve the homepage video missing its URL and homepage image missing alt text before publishing affected content. The production site has no articles, projects, simulations, or scans, so header-dimension, published-article/highlight.js, `.glb`, and iPhone `.usdz` checks cannot run without content; do not add filler.
 - Verify uploaded article/project header images reserve stored dimensions. External cover URLs have no stored dimensions; decide how to handle them before use.
@@ -440,8 +441,9 @@ permissions — out of scope], 597 [package/dependency system — out of scope],
 
 ## 9. Current audit status
 
-- Remote `production` remains at `e8251b7`; `main` remains at `5765b16`. Four critic passes scored 8/10, 7/10, 5/10, and 7/10; their Song Builder findings are fixed and regression-covered. The post-fix follow-up scored 9/10. Main promotion still requires the outstanding authenticated/browser/manual gates.
+- This batch started from `production` at `618398d`; `main` remains at `5765b16`. Four Song Builder critic passes scored 8/10, 7/10, 5/10, and 7/10; their findings are fixed and regression-covered, with a 9/10 post-fix follow-up. The article-counter fix scored 10/10 in independent review. Main promotion remains held for outstanding authenticated/browser/manual gates.
 - Song Builder snapshots Save data, prevents duplicate first-save requests, blocks close/switch during active writes, and confirms before discarding dirty drafts or saved edits. Failed existing-song saves stay dirty and queue one autosave retry; a failed first-save POST stays dirty for manual retry. Local regressions and syntax checks pass; browser/visual review remains open.
+- Article read-time now shows 0 minutes for blank text while preserving the existing 1-minute minimum and 200-words/minute rounding for nonempty drafts. A function-level regression exercises 0, 1, 199, 200, 299, 300, and 600 words and clearing back to empty; the entire `app.js` passes syntax compilation. Cloudflare Preview build `dbde4868` for commit `e6d4fa6` succeeded. No authenticated browser or visual check was performed.
 - Production D1 has the `private`, `width`, and `height` columns. The R2-only homepage image still lacks a D1 metadata row and alt text; the old route error was not retested after migration.
 
 ## 10. Open decisions
