@@ -28,6 +28,8 @@ Before release, also confirm `main` is an ancestor of the reviewed `production` 
 ahead during review is expected. If either ref moved or the histories otherwise diverged, stop and reconcile them.
 Never force-push or rewrite either branch. Cloudflare confirms `main` deploys live with `npx wrangler deploy`.
 
+GitHub marks both branch objects `protected: false`; the repository-rulesets endpoint returned 403 for this private repo, so additional rules could not be verified. Treat branch protection as unconfirmed until an authorized owner view checks it.
+
 **Review evidence:** report each critic score and unresolved finding; never claim browser or visual checks that were not run.
 
 **Visible changes:** use a real-browser viewport screenshot and score 0–10 (0–4 fail, 5–7 needs polish, 8–10 ship-ready). If below 8, fix and rescore, stopping after five loops; after five, stop iteration, keep the best candidate on `production`, and record remaining issues. This is not release approval: `main` still needs the critic and manual gates above. For fixed modals capture viewport only; confirm suspected layout defects with DOM geometry. Always report the visual score, or say clearly when no screenshot was available.
@@ -450,7 +452,7 @@ permissions — out of scope], 597 [package/dependency system — out of scope],
 
 ## 9. Current audit status
 
-- The Preview build for audit commit 5765b16 succeeded; Preview D1 has no pages and public / shows the not-found fallback. The live main build and 100% Worker deployment for 5765b16 succeeded. Public route checks passed; authenticated admin and modal visual checks remain open. A read-only Cloudflare API check on 2026-09-27 confirmed the live Worker's `0 8 * * *` backup Cron Trigger; no backup was manually triggered.
+- The latest documentation-only `production` commit dd5fbb1 built successfully in the Worker Preview; the code candidate is unchanged from `main` at 5765b16. Preview D1 has no pages and public `/` shows the not-found fallback. The live main build and 100% Worker deployment for 5765b16 succeeded. Public route checks passed; authenticated admin and modal visual checks remain open. A read-only Cloudflare API check on 2026-09-27 confirmed the live Worker's `0 8 * * *` backup Cron Trigger; no backup was manually triggered.
 - Critic reviews: pass 1 scored 8/10 (two findings fixed); pass 2 scored 9/10 (clear); pass 3 scored 8/10 (sentinel finding fixed); pass 4 scores 9/10 after the crop-Escape fix, with focused resolution clear. No critic findings remain open.
 - Production D1 now has media columns private, width, and height after the approved additive migration. The homepage image served after the fix, although its media metadata row is absent; authenticated admin handling is unverified. Log rows 63–67 are pre-migration column errors; rows 68–71 are generic client:admin script errors with empty stacks and unknown cause. None were changed, and the post-deploy browser checks added no rows.
 - Image sizing uses stored dimensions for known uploads, including same-site absolute cover URLs; remote cover dimensions remain an open decision.
