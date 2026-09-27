@@ -2201,11 +2201,23 @@
         throw new Error("That file doesn't look like a circuit export (expected components/wires arrays).");
       }
       validateSimulationStructure(parsed, true);
-      validateImportedWireWaypoints(parsed.wires);
-      (parsed.checkpoints || []).forEach((checkpoint) => validateImportedWireWaypoints(checkpoint.data.wires));
+      const importedCheckpoints = Object.prototype.hasOwnProperty.call(parsed, "checkpoints")
+        ? parsed.checkpoints.map((checkpoint) => ({
+            ...checkpoint,
+            data: { components: checkpoint.data.components, wires: checkpoint.data.wires },
+          }))
+        : simCheckpoints;
+      const importedData = { ...parsed };
+      delete importedData.checkpoints;
+      delete importedData.og_image;
+      if (Object.prototype.hasOwnProperty.call(parsed, "og_image")) {
+        $("sim-poster-url").value = typeof parsed.og_image === "string" ? parsed.og_image : "";
+      }
       setSnapHoleWarning(0);
       pushHistory();
-      simData = parsed;
+      simData = importedData;
+      simCheckpoints = importedCheckpoints;
+      renderCheckpointSelect();
       selected = null;
       wireStart = null;
       renderInspector();
