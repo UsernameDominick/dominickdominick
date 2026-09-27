@@ -589,23 +589,20 @@ async function maybeCreateSlugRedirect(env, ctx, { oldSlug, newSlug, pathPrefix,
   }
 }
 
-// Keep each metadata lookup within its existing 500-key D1 batch while
-// following R2's opaque cursor until every upload page has been visited.
-async function* listUploadedMediaPages(bucket) {
-  let cursor;
-  while (true) {
-    const page = await bucket.list({
-      prefix: "uploads/",
-      limit: 500,
-      ...(cursor ? { cursor } : {}),
-    });
-    if (page.truncated && !page.cursor) {
-      throw new Error("R2 returned a truncated media listing without a cursor");
-    }
-    yield page.objects;
-    if (!page.truncated) return;
-    cursor = page.cursor;
+// Keep one backfill request below the Workers Free subrequest budget even
+// when every file needs one R2 read and a metadata update. The UI resumes
+// with the opaque R2 cursor until the listing is complete.
+const MEDIA_BACKFILL_PAGE_SIZE = 20;
+async function listUploadedMediaPage(bucket, cursor) {
+  const page = await bucket.list({
+    prefix: "uploads/",
+    limit: MEDIA_BACKFILL_PAGE_SIZE,
+    ...(cursor ? { cursor } : {}),
+  });
+  if (page.truncated && !page.cursor) {
+    throw new Error("R2 returned a truncated media listing without a cursor");
   }
+  return page;
 }
 
 async function routeAdminApi(request, env, url, ctx) {
@@ -1341,54 +1338,80 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(await listMediaFolders(env));
   }
   // /media/backfill-hashes — re-runnable pass over uploads from before
-  // hashing existed. Existing hashes are skipped, and every R2 page is
-  // visited so older uploads beyond the first 500 are included.
+  // hashing existed. Existing hashes are skipped; the caller follows the
+  // returned cursor across bounded requests.
   if (path === "/media/backfill-hashes" && method === "POST") {
-    let hashed = 0;
-    let alreadyHashed = 0;
-    for await (const objects of listUploadedMediaPages(env.MEDIA)) {
-      const meta = await getMediaMeta(env, objects.map((o) => o.key));
-      const missing = objects.filter((o) => !meta[o.key]?.hash);
-      alreadyHashed += objects.length - missing.length;
-      for (const o of missing) {
-        const obj = await env.MEDIA.get(o.key);
-        if (!obj) continue;
-        const hash = await sha256Hex(await obj.arrayBuffer());
-        await upsertMediaMeta(env, o.key, { hash });
-        hashed++;
-      }
+    const body = await request.json().catch(() => ({}));
+    if (!body || typeof body !== "object" || Array.isArray(body) || (body.cursor != null && typeof body.cursor !== "string")) {
+      return json({ error: "Invalid media backfill cursor" }, { status: 400 });
     }
-    return json({ hashed, alreadyHashed });
+    const listed = await listUploadedMediaPage(env.MEDIA, body.cursor || undefined);
+    const meta = await getMediaMeta(env, listed.objects.map((o) => o.key));
+    const missing = listed.objects.filter((o) => !meta[o.key]?.hash);
+    let hashed = 0;
+    const statements = [];
+    for (const o of missing) {
+      const obj = await env.MEDIA.get(o.key);
+      if (!obj) continue;
+      const hash = await sha256Hex(await obj.arrayBuffer());
+      statements.push(
+        env.DB.prepare(
+          "INSERT INTO media (key, hash) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET hash = excluded.hash"
+        ).bind(o.key, hash)
+      );
+      hashed++;
+    }
+    if (statements.length) await env.DB.batch(statements);
+    return json({
+      hashed,
+      alreadyHashed: listed.objects.length - missing.length,
+      complete: !listed.truncated,
+      cursor: listed.truncated ? listed.cursor : null,
+    });
   }
   // /media/backfill-dimensions — same shape as backfill-hashes above, for
   // uploads from before width/height existed. SVGs get re-parsed from
   // their own text; every raster format goes through the same header-only
   // reader the /upload route itself uses (no full image decode needed).
-  // Like the hash backfill, this follows every R2 page and skips dimensions
-  // already present in metadata.
+  // Like the hash backfill, the caller resumes bounded pages and skips
+  // dimensions already present in metadata.
   if (path === "/media/backfill-dimensions" && method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    if (!body || typeof body !== "object" || Array.isArray(body) || (body.cursor != null && typeof body.cursor !== "string")) {
+      return json({ error: "Invalid media backfill cursor" }, { status: 400 });
+    }
+    const listed = await listUploadedMediaPage(env.MEDIA, body.cursor || undefined);
+    const meta = await getMediaMeta(env, listed.objects.map((o) => o.key));
+    const missing = listed.objects.filter((o) => !meta[o.key]?.width || !meta[o.key]?.height);
     let updated = 0;
     let unreadable = 0;
-    let alreadyHad = 0;
-    for await (const objects of listUploadedMediaPages(env.MEDIA)) {
-      const meta = await getMediaMeta(env, objects.map((o) => o.key));
-      const missing = objects.filter((o) => !meta[o.key]?.width || !meta[o.key]?.height);
-      alreadyHad += objects.length - missing.length;
-      for (const o of missing) {
-        const obj = await env.MEDIA.get(o.key);
-        if (!obj) continue;
-        const contentType = obj.httpMetadata?.contentType || "";
-        const buf = await obj.arrayBuffer();
-        const dims = contentType === "image/svg+xml" ? readSvgDimensions(new TextDecoder().decode(buf)) : readImageDimensions(buf, contentType);
-        if (dims) {
-          await upsertMediaMeta(env, o.key, { width: dims.width, height: dims.height });
-          updated++;
-        } else {
-          unreadable++;
-        }
+    const statements = [];
+    for (const o of missing) {
+      const obj = await env.MEDIA.get(o.key);
+      if (!obj) continue;
+      const contentType = obj.httpMetadata?.contentType || "";
+      const buf = await obj.arrayBuffer();
+      const dims = contentType === "image/svg+xml" ? readSvgDimensions(new TextDecoder().decode(buf)) : readImageDimensions(buf, contentType);
+      const safeDims = plausibleDims(dims);
+      if (safeDims) {
+        statements.push(
+          env.DB.prepare(
+            "INSERT INTO media (key, width, height) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET width = excluded.width, height = excluded.height"
+          ).bind(o.key, safeDims.width, safeDims.height)
+        );
+        updated++;
+      } else {
+        unreadable++;
       }
     }
-    return json({ updated, unreadable, alreadyHad });
+    if (statements.length) await env.DB.batch(statements);
+    return json({
+      updated,
+      unreadable,
+      alreadyHad: listed.objects.length - missing.length,
+      complete: !listed.truncated,
+      cursor: listed.truncated ? listed.cursor : null,
+    });
   }
   if (path === "/media/usage" && method === "GET") {
     const mediaUrl = url.searchParams.get("url");

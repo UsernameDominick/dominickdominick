@@ -450,6 +450,24 @@
     return res.status === 204 ? null : res.json();
   }
 
+  async function runMediaBackfill(path, countKeys, onProgress) {
+    const totals = Object.fromEntries(countKeys.map((key) => [key, 0]));
+    let cursor = null;
+    while (true) {
+      const page = await api(path, {
+        method: "POST",
+        body: JSON.stringify(cursor ? { cursor } : {}),
+      });
+      for (const key of countKeys) totals[key] += page[key] || 0;
+      onProgress?.(totals);
+      if (page.complete) return totals;
+      if (typeof page.cursor !== "string" || !page.cursor || page.cursor === cursor) {
+        throw new Error("The media backfill stopped before completion. Retry it; completed files are safe to skip.");
+      }
+      cursor = page.cursor;
+    }
+  }
+
   // ---------- Unsaved-change protection ----------
   // Any in-flight or failed save sets this; a successful one clears it. The
   // realistic gap this covers is small (autosave debounces ~2s, block edits
@@ -5594,7 +5612,13 @@
     btn.textContent = "Reading…";
     btn.disabled = true;
     try {
-      const { updated, unreadable } = await api("/media/backfill-dimensions", { method: "POST" });
+      const { updated, unreadable } = await runMediaBackfill(
+        "/media/backfill-dimensions",
+        ["updated", "unreadable", "alreadyHad"],
+        ({ updated, unreadable, alreadyHad }) => {
+          btn.textContent = `Reading… (${updated + unreadable + alreadyHad} checked)`;
+        }
+      );
       await loadMediaLibrary();
       alert(
         updated
@@ -5615,7 +5639,13 @@
     btn.textContent = "Scanning…";
     btn.disabled = true;
     try {
-      const { hashed } = await api("/media/backfill-hashes", { method: "POST" });
+      const { hashed } = await runMediaBackfill(
+        "/media/backfill-hashes",
+        ["hashed", "alreadyHashed"],
+        ({ hashed, alreadyHashed }) => {
+          btn.textContent = `Scanning… (${hashed + alreadyHashed} checked)`;
+        }
+      );
       await loadMediaLibrary();
       alert(hashed ? `Hashed ${hashed} file(s). Turn on "Possible duplicates" in the Media Library to see matches.` : "Everything was already hashed.");
     } catch (err) {

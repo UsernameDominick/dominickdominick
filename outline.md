@@ -264,8 +264,9 @@ Verify the target database/config before any remote migration or production D1/R
 
 ## 6. Manual verification still owed
 
-- Verify the next `production` push creates a successful Worker Preview with the separate-from-production,
-  shared test bindings; then open its preview URL and run the required real-browser/manual checks before release.
+- Confirm the current `production` candidate has a successful Worker Preview build, then use that URL for
+  authenticated and visual checks before release. The prior Preview smoke only opened the admin sign-in page;
+  the updated backfill controls and authenticated media flows remain untested.
 - Verify Worker Previews Base uses distinct test-only `ADMIN_PASSWORD` and `SESSION_SECRET` values before testing
   protected admin flows; never reuse production secrets.
 - Recheck Preview URL access before adding test data. The dashboard showed “Anyone with this URL can visit”; keep
@@ -276,9 +277,10 @@ Verify the target database/config before any remote migration or production D1/R
   Triggers, so this is not covered by Preview QA; do not manually trigger a production backup as a Preview test.
 - Confirm Web Speech API read-aloud with actual browser voices.
 
-**Audit environment limitation:** browser testing was not performed. The cloud browser could not reach
-localhost, and Chromium installation failed because outbound package access was restricted. Do not report
-browser or visual testing as passed.
+**Audit environment limitation:** the remote Worker Preview was reachable for a basic public smoke check,
+but authenticated flows and the media backfill interaction were not tested, and no relevant visual screenshot
+or score is available. The cloud browser cannot reach localhost, and Chromium installation failed because
+outbound package access was restricted.
 
 ## 7. Recurring security, SEO, and accessibility checks
 
@@ -446,16 +448,17 @@ permissions — out of scope], 597 [package/dependency system — out of scope],
 - The prior sweep found broken image URLs in homepage/gallery content; verify those paths in admin diagnostics
   before cleanup.
 
-## 9. Current Codex audit
+## 9. Current audit status
 
-- Offline waveform peaks are content-seeded; live playback keeps fresh noise.
-- Media hash and dimension backfills follow R2 cursors in 500-object pages; a synthetic 1,005-object regression
-  verifies later-page writes and rerun idempotency. No real R2 objects were touched.
-- Four sequential critiques scored 8, 8, 9, and 8/10; findings were fixed between passes, followed by a 9/10 confirmation with no material findings. The Preview/config review scored 8/10; its documentation findings were fixed, then confirmed at 9/10 with no remaining technical findings.
-- Earlier local checks passed: 66 server/security/SEO checks, 9 song save/race/waveform checks, modal/accessibility checks, simulation save/open checks, JavaScript syntax, and `git diff --check`. Scratch scripts remain outside the repo.
-- The audited batch was fast-forwarded from `production` to `main` at `2ce8ffe`; Cloudflare's live build `ebb0caf1` succeeded with `npx wrangler deploy`. Preview builds for code candidate `86d4ef6` (`03b3099f`), documentation snapshot `639ac07` (`f9f41cbb`), and audit-note snapshot `2ce8ffe` (`d223daba`) succeeded with `npx wrangler preview`.
-- Public Preview smoke checks: `/admin/` loads the sign-in form; `/random` and `/projects` render their empty states; `/` shows the branded 404 because Preview D1 has zero pages, articles, and projects. No production content was copied. The mobile-sized `/admin/` viewport screenshot scored 8/10 as an entry-screen check; no password was entered. This does not verify authenticated flows or populated public layouts.
-- Dominick explicitly requested promotion before populated public-page/song and protected-admin flows were tested; these remain outstanding, not passed. Localhost testing was blocked because the cloud browser could not reach localhost and Chromium installation failed under restricted egress. Use namespaced synthetic Preview data and verify test-only runtime secrets before those checks. Preview URLs are public unless Access is enabled. Cron checks remain limited to live config; never trigger a production backup as a Preview test.
+- Media hash and dimension backfills now resume through opaque R2 cursors in 20-object chunks, keeping D1
+  parameter and Worker subrequest use bounded. Metadata writes are batched; dimensions retain the shared
+  plausibility check.
+- A scratch regression covers 1,005 synthetic objects, continuation, idempotent reruns, editorial-field
+  preservation, invalid request bodies, oversized dimensions, and the per-request subrequest ceiling. No live
+  Preview or production D1/R2 data was changed.
+- The current candidate stays on `production` until critic and browser/manual release gates pass. Browser
+  evidence and outstanding checks are listed in section 6. Scratch tests stay outside the repository.
+
 ## 10. Open decisions
 
 - Whether to replace the legacy violet border.
