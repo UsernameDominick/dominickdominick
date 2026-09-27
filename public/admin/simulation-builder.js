@@ -476,6 +476,84 @@
     }</g>`;
   }
 
+  // Optional presentation-only route bends; electrical connectivity still uses wire.from/to.
+  const MAX_MANUAL_WIRE_WAYPOINTS = 20;
+
+  function getWireWaypoints(wire) {
+    if (!wire || wire.auto === true || !Array.isArray(wire.waypoints)) return [];
+    return wire.waypoints
+      .filter((point) => point && Number.isFinite(point.x) && Number.isFinite(point.y))
+      .slice(0, MAX_MANUAL_WIRE_WAYPOINTS)
+      .map((point) => ({ x: point.x, y: point.y }));
+  }
+
+  function getWireRoutePoints(wire, p1, p2) {
+    return [p1, ...getWireWaypoints(wire), p2];
+  }
+
+  function getWireRoutePath(points) {
+    return points.map((point, index) => (index === 0 ? "M" : "L") + point.x + "," + point.y).join(" ");
+  }
+
+  // Places labels halfway along the visible route rather than halfway
+  // between component pins, which can be far away from a bent wire.
+  function getWireLabelPosition(points) {
+    if (!points.length) return { x: 0, y: 0 };
+    let longestIndex = -1;
+    let longestLength = 0;
+    for (let i = 0; i < points.length - 1; i++) {
+      const length = Math.hypot(points[i + 1].x - points[i].x, points[i + 1].y - points[i].y);
+      if (length > longestLength) {
+        longestLength = length;
+        longestIndex = i;
+      }
+    }
+    if (longestIndex < 0) return { x: points[0].x, y: points[0].y };
+    // Center labels on a straight segment, not on a waypoint where two
+    // segments meet; this keeps multi-bend labels from sitting on a corner.
+    return {
+      x: (points[longestIndex].x + points[longestIndex + 1].x) / 2,
+      y: (points[longestIndex].y + points[longestIndex + 1].y) / 2,
+    };
+  }
+
+  function setWireWaypoints(wire, points) {
+    if (points.length) wire.waypoints = points;
+    else delete wire.waypoints;
+  }
+
+  function clampWireWaypointValue(value, axis) {
+    if (!Number.isFinite(value)) return null;
+    const max = axis === "y" ? 700 : 1500;
+    return Math.round(Math.max(0, Math.min(max, value)) * 10) / 10;
+  }
+
+  function findWireBendInsertion(points) {
+    if (!Array.isArray(points) || points.length < 2) return null;
+    let longestIndex = 0;
+    let longestLength = -1;
+    for (let i = 0; i < points.length - 1; i++) {
+      const length = Math.hypot(points[i + 1].x - points[i].x, points[i + 1].y - points[i].y);
+      if (length > longestLength) {
+        longestLength = length;
+        longestIndex = i;
+      }
+    }
+    if (longestLength < 1) return null;
+    const start = points[longestIndex];
+    const end = points[longestIndex + 1];
+    const midpoint = { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+    const normal = { x: -(end.y - start.y) / longestLength, y: (end.x - start.x) / longestLength };
+    const candidates = [1, -1].map((direction) => ({
+      x: clampWireWaypointValue(midpoint.x + normal.x * 24 * direction, "x"),
+      y: clampWireWaypointValue(midpoint.y + normal.y * 24 * direction, "y"),
+    }));
+    candidates.sort((left, right) =>
+      Math.hypot(right.x - midpoint.x, right.y - midpoint.y) - Math.hypot(left.x - midpoint.x, left.y - midpoint.y)
+    );
+    return { index: longestIndex + 1, point: candidates[0] };
+  }
+
   function renderWireSvg(wire, poweredWires, netNodeIds, ghost) {
     const fromComp = simData.components.find((c) => c.id === wire.from.compId);
     const toComp = simData.components.find((c) => c.id === wire.to.compId);
@@ -483,63 +561,26 @@
     const p1 = pinPosition(fromComp, wire.from.pin);
     const p2 = pinPosition(toComp, wire.to.pin);
     if (!p1 || !p2) return "";
-    // A part snapped directly onto a breadboard hole has a zero-length
-    // "wire" (its pin and the hole are the same point) -- it's plugged in
-    // physically, not cabled, so there's nothing to draw. The public-
-    // facing render (worker/simulation-render.js) already has this guard;
-    // a critic pass found the admin builder's own copy of this function
-    // never did, which was harmless before labels existed (an invisible
-    // zero-length path is a no-op either way) but would render an
-    // orphaned floating label with no visible wire under it once a
-    // degenerate wire like this (reachable via JSON import, or in
-    // principle the breadboard auto-snap path) is given a label.
-    if (Math.hypot(p2.x - p1.x, p2.y - p1.y) < 0.5) return "";
-    const d = `M${p1.x},${p1.y} L${p2.x},${p2.y}`;
-    // The ghost pass is a purely visual second copy drawn on top of
-    // components -- deliberately NOT given the .sim-wire class (so
-    // attachBuilderEvents()'s click-to-select wiring never binds to it,
-    // avoiding a confusing "clicking near a component actually selected
-    // a wire" surprise) and explicitly non-interactive either way.
+    const routePoints = getWireRoutePoints(wire, p1, p2);
+    const routeLength = routePoints.slice(1).reduce((sum, point, index) => sum + Math.hypot(point.x - routePoints[index].x, point.y - routePoints[index].y), 0);
+    if (routeLength < 0.5) return "";
+    const d = getWireRoutePath(routePoints);
+    const wireIdAttr = escapeXml(wire.id);
+    // The ghost pass is purely visual and remains non-interactive, but it
+    // follows the same editable route and endpoint updates as the base wire.
     if (ghost) {
-      return `<path class="sim-wire-ghost" d="${d}"/>`;
+      return `<path class="sim-wire-ghost" data-wire-id="${wireIdAttr}" d="${d}"/>`;
     }
     const sel = selected && selected.kind === "wire" && selected.id === wire.id;
     const inNet = netNodeIds && netNodeIds.has(window.simNodeId(fromComp, wire.from.pin));
-    // Positioned at the wire's midpoint with a small upward offset, the
-    // same "text sits just above the thing it labels" convention the
-    // breadboard's own rail labels and each part's own body label already
-    // use elsewhere in this file, rather than inventing a new placement
-    // rule just for wires.
+    const labelPoint = getWireLabelPosition(routePoints);
     const labelSvg = wire.label
-      ? `<text class="sim-wire-label" x="${(p1.x + p2.x) / 2}" y="${(p1.y + p2.y) / 2 - 6}" text-anchor="middle">${escapeXml(
+      ? `<text class="sim-wire-label" data-wire-id="${wireIdAttr}" x="${labelPoint.x}" y="${labelPoint.y - 6}" text-anchor="middle">${escapeXml(
           wire.label
         )}</text>`
       : "";
-    // Whitelisted to the two values the wire-kind <select> can actually
-    // produce, same reasoning as renderComponentSvg()'s implicit
-    // comp.type whitelisting (the REG[comp.type] lookup there) -- a critic
-    // pass found `wire.id`/`comp.id` interpolated unescaped into attribute
-    // values elsewhere in this function and fixed those, but `wire.kind`
-    // has the identical exposure (JSON import performs no field
-    // validation) and was building a CSS class name, not just any
-    // attribute, from a value that was otherwise never constrained.
     const kind = wire.kind === "hdmi" ? "hdmi" : "wire";
-    // Same whitelist-not-denylist reasoning as `kind` just above: a
-    // multiplier keyed off a validated string, never a number read
-    // straight from JSON-import-controlled data, so there's no numeric
-    // field here that could ever need a plausibility bound the way image
-    // dimensions elsewhere in this codebase did.
     const thicknessMultiplier = { thin: 0.6, thick: 1.7 }[wire.thickness] || 1;
-    // Base widths mirror the plain CSS defaults for each kind (public/
-    // style.css's .sim-wire/.sim-wire-shine/.sim-wire-hdmi/.sim-wire-shine-
-    // hdmi) -- only emitted as an inline style at all when the multiplier
-    // isn't 1, so the overwhelming common "Normal" case keeps relying on
-    // the plain CSS class with no per-wire override cluttering the markup.
-    // Rounded to 2 decimal places -- a critic pass found 1.5 * 0.6 (the
-    // HDMI-style shine stroke at Thin) is 0.8999999999999999 in floating
-    // point, which would otherwise render as that exact ugly literal in
-    // the SVG markup. Purely cosmetic (identical to the eye either way),
-    // but cheap to avoid.
     const roundPx = (n) => Math.round(n * 100) / 100;
     const strokeStyle =
       thicknessMultiplier === 1 ? "" : ` style="stroke-width:${roundPx((kind === "hdmi" ? 5 : 4) * thicknessMultiplier)}px"`;
@@ -547,9 +588,9 @@
       thicknessMultiplier === 1 ? "" : ` style="stroke-width:${roundPx((kind === "hdmi" ? 1.5 : 1.2) * thicknessMultiplier)}px"`;
     return `<path class="sim-wire sim-wire-${kind}${sel ? " sim-selected" : ""}${
       inNet ? " sim-net-highlight" : ""
-    }" data-id="${escapeXml(wire.id)}" data-animated="${
+    }" data-id="${wireIdAttr}" data-wire-id="${wireIdAttr}" data-animated="${
       poweredWires.has(wire.id) ? "true" : "false"
-    }" d="${d}"${strokeStyle}/><path class="sim-wire-shine sim-wire-shine-${kind}" d="${d}"${shineStrokeStyle}/>${labelSvg}`;
+    }" d="${d}"${strokeStyle}/><path class="sim-wire-shine sim-wire-shine-${kind}" data-wire-id="${wireIdAttr}" d="${d}"${shineStrokeStyle}/>${labelSvg}`;
   }
 
   // "Net" here means the set of pins tied to the same electrical point by
@@ -850,13 +891,24 @@
     const svg = $("sim-builder-svg");
     simData.wires.forEach((wire) => {
       if (wire.from.compId !== compId && wire.to.compId !== compId) return;
-      const path = svg.querySelector(`path[data-id="${wire.id}"]`);
-      if (!path) return;
       const fromComp = simData.components.find((c) => c.id === wire.from.compId);
       const toComp = simData.components.find((c) => c.id === wire.to.compId);
-      const p1 = pinPosition(fromComp, wire.from.pin);
-      const p2 = pinPosition(toComp, wire.to.pin);
-      if (p1 && p2) path.setAttribute("d", `M${p1.x},${p1.y} L${p2.x},${p2.y}`);
+      const p1 = fromComp && pinPosition(fromComp, wire.from.pin);
+      const p2 = toComp && pinPosition(toComp, wire.to.pin);
+      if (p1 && p2) {
+        const routePoints = getWireRoutePoints(wire, p1, p2);
+        const d = getWireRoutePath(routePoints);
+        const labelPoint = getWireLabelPosition(routePoints);
+        svg.querySelectorAll("[data-wire-id]").forEach((node) => {
+          if (node.dataset.wireId !== String(wire.id)) return;
+          if (node.classList.contains("sim-wire-label")) {
+            node.setAttribute("x", labelPoint.x);
+            node.setAttribute("y", labelPoint.y - 6);
+          } else {
+            node.setAttribute("d", d);
+          }
+        });
+      }
     });
     const dots = svg.querySelectorAll(`circle[data-comp="${compId}"]`);
     const comp = simData.components.find((c) => c.id === compId);
@@ -1609,6 +1661,20 @@
       if (!wire) return;
       const { poweredWires } = window.computeSimPoweredSet(simData);
       const isPowered = poweredWires.has(wire.id);
+      const waypoints = getWireWaypoints(wire);
+      const routeControls = wire.auto === true
+        ? '<p class="sim-wire-route-help">This breadboard lead is generated automatically and cannot be rerouted.</p>'
+        : `<fieldset class="sim-wire-route">
+            <legend>Route bends</legend>
+            <p class="sim-wire-route-help">Set coordinates in the builder canvas. Component-pin endpoints move with their parts.</p>
+            ${waypoints.map((point, index) => `<div class="sim-wire-waypoint">
+              <span class="sim-wire-waypoint-title">Bend ${index + 1}</span>
+              <label>X<input type="number" min="0" max="1500" step="0.1" value="${point.x}" data-wire-waypoint-index="${index}" data-wire-waypoint-axis="x" aria-label="Bend ${index + 1} X coordinate"></label>
+              <label>Y<input type="number" min="0" max="700" step="0.1" value="${point.y}" data-wire-waypoint-index="${index}" data-wire-waypoint-axis="y" aria-label="Bend ${index + 1} Y coordinate"></label>
+              <button type="button" class="sim-wire-waypoint-remove" data-wire-waypoint-remove="${index}">Remove bend ${index + 1}</button>
+            </div>`).join("")}
+            <button type="button" id="sim-wire-add-bend" ${waypoints.length >= MAX_MANUAL_WIRE_WAYPOINTS ? "disabled" : ""}>Add bend point</button>
+          </fieldset>`;
       box.innerHTML = `
         <p><strong>Wire</strong></p>
         <p class="sim-power-status ${isPowered ? "is-powered" : ""}">${isPowered ? "⚡ Carries power" : "Not carrying power"}</p>
@@ -1628,6 +1694,7 @@
         <label>Label (shown on the canvas, e.g. "GND" or "5V")<input id="sim-wire-label" type="text" value="${escapeXml(
           wire.label || ""
         )}"></label>
+        ${routeControls}
         <button type="button" id="sim-delete-selected" class="danger">Delete wire</button>
       `;
       $("sim-wire-kind").addEventListener("change", (e) => {
@@ -1637,11 +1704,6 @@
       });
       $("sim-wire-thickness").addEventListener("change", (e) => {
         pushHistory();
-        // "normal" is stored as the field simply being absent/undefined
-        // (matching every other wire that predates this feature and never
-        // set a thickness at all) rather than the literal string "normal"
-        // -- one less state a future reader has to remember is equivalent
-        // to "unset".
         wire.thickness = e.target.value === "normal" ? undefined : e.target.value;
         renderBuilder();
       });
@@ -1657,6 +1719,55 @@
       });
       wireLabelInput.addEventListener("blur", () => {
         wireLabelHistorySaved = false;
+      });
+      const addBendButton = $("sim-wire-add-bend");
+      if (addBendButton) {
+        addBendButton.addEventListener("click", () => {
+          const fromComp = simData.components.find((c) => c.id === wire.from.compId);
+          const toComp = simData.components.find((c) => c.id === wire.to.compId);
+          const p1 = fromComp && pinPosition(fromComp, wire.from.pin);
+          const p2 = toComp && pinPosition(toComp, wire.to.pin);
+          if (!p1 || !p2) return;
+          const next = getWireWaypoints(wire);
+          if (next.length >= MAX_MANUAL_WIRE_WAYPOINTS) return;
+          const insertion = findWireBendInsertion(getWireRoutePoints(wire, p1, p2));
+          if (!insertion) return;
+          pushHistory();
+          next.splice(insertion.index, 0, insertion.point);
+          setWireWaypoints(wire, next);
+          renderInspector();
+          renderBuilder();
+        });
+      }
+      box.querySelectorAll("[data-wire-waypoint-index]").forEach((input) => {
+        input.addEventListener("change", () => {
+          const index = Number(input.dataset.wireWaypointIndex);
+          const axis = input.dataset.wireWaypointAxis;
+          const value = input.value === "" ? NaN : clampWireWaypointValue(input.valueAsNumber, axis);
+          const next = getWireWaypoints(wire);
+          if (!Number.isInteger(index) || !next[index] || !["x", "y"].includes(axis) || value === null || !Number.isFinite(value)) {
+            renderInspector();
+            return;
+          }
+          if (next[index][axis] === value) return;
+          pushHistory();
+          next[index][axis] = value;
+          setWireWaypoints(wire, next);
+          renderInspector();
+          renderBuilder();
+        });
+      });
+      box.querySelectorAll("[data-wire-waypoint-remove]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const index = Number(button.dataset.wireWaypointRemove);
+          const next = getWireWaypoints(wire);
+          if (!Number.isInteger(index) || index < 0 || index >= next.length) return;
+          pushHistory();
+          next.splice(index, 1);
+          setWireWaypoints(wire, next);
+          renderInspector();
+          renderBuilder();
+        });
       });
       $("sim-delete-selected").addEventListener("click", () => {
         pushHistory();
