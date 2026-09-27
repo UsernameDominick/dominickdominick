@@ -24,10 +24,10 @@ window.SongEngine = (function () {
   // ---------- Drum synthesis (Web Audio, no samples — no licensing to
   // manage, and it keeps a song fully portable as plain JSON). Kit
   // variants tweak pitch/decay/tone per drum, not the synthesis method.
-  function noiseBuffer(ctx, duration) {
+  function noiseBuffer(ctx, duration, random = Math.random) {
     const buf = ctx.createBuffer(1, ctx.sampleRate * duration, ctx.sampleRate);
     const data = buf.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    for (let i = 0; i < data.length; i++) data[i] = random() * 2 - 1;
     return buf;
   }
 
@@ -116,10 +116,10 @@ window.SongEngine = (function () {
     osc.stop(time + p.kickDecay + 0.05);
   }
 
-  function playSnare(ctx, time, kit) {
+  function playSnare(ctx, time, kit, random = Math.random) {
     const p = KIT_PARAMS[kit] || KIT_PARAMS.acoustic;
     const noise = ctx.createBufferSource();
-    noise.buffer = noiseBuffer(ctx, p.snareDecay);
+    noise.buffer = noiseBuffer(ctx, p.snareDecay, random);
     const noiseFilter = ctx.createBiquadFilter();
     noiseFilter.type = "highpass";
     noiseFilter.frequency.value = 900;
@@ -140,10 +140,10 @@ window.SongEngine = (function () {
     osc.stop(time + p.snareDecay + 0.05);
   }
 
-  function playHihat(ctx, time, kit) {
+  function playHihat(ctx, time, kit, random = Math.random) {
     const p = KIT_PARAMS[kit] || KIT_PARAMS.acoustic;
     const noise = ctx.createBufferSource();
-    noise.buffer = noiseBuffer(ctx, p.hihatDecay);
+    noise.buffer = noiseBuffer(ctx, p.hihatDecay, random);
     const filter = ctx.createBiquadFilter();
     filter.type = "highpass";
     filter.frequency.value = 7000;
@@ -154,13 +154,13 @@ window.SongEngine = (function () {
     noise.start(time);
   }
 
-  function playClap(ctx, time, kit) {
+  function playClap(ctx, time, kit, random = Math.random) {
     const p = KIT_PARAMS[kit] || KIT_PARAMS.acoustic;
     // Three quick, tightly-spaced bursts read as a "clap" rather than a
     // single noise hit — a cheap, standard trick for synthesizing claps.
     [0, 0.012, 0.024].forEach((offset) => {
       const noise = ctx.createBufferSource();
-      noise.buffer = noiseBuffer(ctx, p.clapDecay);
+      noise.buffer = noiseBuffer(ctx, p.clapDecay, random);
       const filter = ctx.createBiquadFilter();
       filter.type = "bandpass";
       filter.frequency.value = 1200;
@@ -197,13 +197,13 @@ window.SongEngine = (function () {
   // of the whole step just sliding together, which is what actually reads
   // as more human than a mechanically identical grid.
   const HUMANIZE_MAX_JITTER_S = 0.015;
-  function humanizeJitter(songData) {
+  function humanizeJitter(songData, random = Math.random) {
     const amount = songData.humanize || 0;
     if (!amount) return 0; // skip Math.random() entirely for the (default, common) off case
-    return (Math.random() * 2 - 1) * HUMANIZE_MAX_JITTER_S * (amount / 100);
+    return (random() * 2 - 1) * HUMANIZE_MAX_JITTER_S * (amount / 100);
   }
 
-  function scheduleStep(ctx, songData, step, time) {
+  function scheduleStep(ctx, songData, step, time, random = Math.random) {
     // Read fresh every step, same as tempo/kit below, so a live volume-
     // slider drag while a song is already playing takes effect on the next
     // scheduled step too (on top of the immediate application a caller
@@ -212,7 +212,7 @@ window.SongEngine = (function () {
     setMasterVolume(ctx, songData.master_volume);
     const kit = songData.kit || "acoustic";
     if (songData.tracks) {
-      Object.keys(songData.tracks).forEach((track) => {
+      Object.keys(songData.tracks).sort().forEach((track) => {
         // Clamped to 0 rather than passed through raw -- a negative jitter
         // draw on step 0 of an OfflineAudioContext render (renderWaveformPeaks
         // schedules step 0 at real time 0, unlike live playback which always
@@ -221,14 +221,14 @@ window.SongEngine = (function () {
         // throws a RangeError and kills the whole render -- a critic pass
         // caught this live (silently broken waveform preview, admin builder
         // AND public embed both, since they share this exact code path).
-        if (songData.tracks[track][step] && PLAYERS[track]) PLAYERS[track](ctx, Math.max(0, time + humanizeJitter(songData)), kit);
+        if (songData.tracks[track][step] && PLAYERS[track]) PLAYERS[track](ctx, Math.max(0, time + humanizeJitter(songData, random)), kit, random);
       });
     }
     if (songData.melody) {
       const waveform = songData.melody.waveform || "sine";
       const duration = stepDurationFor(songData.tempo);
-      Object.keys(songData.melody.notes).forEach((note) => {
-        if (songData.melody.notes[note][step]) playMelodyNote(ctx, Math.max(0, time + humanizeJitter(songData)), noteToFreq(note), waveform, duration);
+      Object.keys(songData.melody.notes).sort().forEach((note) => {
+        if (songData.melody.notes[note][step]) playMelodyNote(ctx, Math.max(0, time + humanizeJitter(songData, random)), noteToFreq(note), waveform, duration);
       });
     }
   }
@@ -242,6 +242,29 @@ window.SongEngine = (function () {
   // periodic checks themselves jitter a little.
   const LOOKAHEAD_MS = 25;
   const SCHEDULE_AHEAD_S = 0.1;
+
+  // A tiny seeded PRNG gives the waveform preview repeatable noise without
+  // changing the live drums' per-hit randomness. Seed from musical content
+  // only; cache metadata and preview-only controls must not change the sound.
+  function previewRandom(songData) {
+    const tracks = Object.fromEntries(
+      Object.keys(songData.tracks || {}).sort().map((key) => [key, songData.tracks[key]])
+    );
+    const notes = songData.melody && songData.melody.notes || {};
+    const melody = songData.melody
+      ? { waveform: songData.melody.waveform || "sine", notes: Object.fromEntries(Object.keys(notes).sort().map((key) => [key, notes[key]])) }
+      : null;
+    const input = JSON.stringify({ tempo: songData.tempo || 120, kit: songData.kit || "acoustic", tracks, melody });
+    let seed = 2166136261;
+    for (let i = 0; i < input.length; i++) seed = Math.imul(seed ^ input.charCodeAt(i), 16777619);
+    let state = seed >>> 0 || 0x6d2b79f5;
+    return () => {
+      state ^= state << 13;
+      state ^= state >>> 17;
+      state ^= state << 5;
+      return (state >>> 0) / 4294967296;
+    };
+  }
 
   // getAudioCtx: () => AudioContext. songData: the song's data object
   // (read fresh each step, so a caller can mutate it live — e.g. MIDI
@@ -300,18 +323,15 @@ window.SongEngine = (function () {
     // hide the pattern entirely at 0), which is a readability regression
     // with no corresponding benefit. Render at full volume regardless of
     // the song's actual master_volume so the preview's scale stays fixed.
-    // Same reasoning for humanize as master_volume just above: the preview
-    // should show a stable, reproducible shape of the actual pattern, not
-    // a slightly different random result every single render. A critic
-    // pass found two consecutive renders of an identical humanize>0 song
-    // produced visibly different peak data in every bucket -- confusing
-    // ("did I change something?") for no benefit, since the preview is
-    // about the pattern's shape, not proving the humanize feature works.
+    // The preview ignores humanize and uses a content-seeded noise stream:
+    // repeated renders of the same song therefore show the same pattern,
+    // while normal playback keeps fresh noise on each hit.
     const previewData =
       songData.master_volume === 1 && !songData.humanize
         ? songData
         : Object.assign({}, songData, { master_volume: 1, humanize: 0 });
-    for (let step = 0; step < STEPS; step++) scheduleStep(ctx, previewData, step, step * stepDur);
+    const random = previewRandom(previewData);
+    for (let step = 0; step < STEPS; step++) scheduleStep(ctx, previewData, step, step * stepDur, random);
     const buffer = await ctx.startRendering();
     const data = buffer.getChannelData(0);
     const count = peakCount || 200;

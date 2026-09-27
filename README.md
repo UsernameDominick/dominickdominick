@@ -122,10 +122,26 @@ wrangler dev --local
 
 ## Deploying
 
-Push to `main` — Cloudflare Workers Builds auto-deploys via
-`npx wrangler deploy`. The D1 binding is already declared in
-`wrangler.jsonc`. Two secrets must be set once in the Cloudflare dashboard
-(Worker → Settings → Variables and Secrets, as **Secret**, not plain text):
+`production` is the pre-release integration branch for active work and
+test candidates. Implement one scoped batch, run focused local checks,
+then commit and push it to `production` for independent critic review.
+Fix findings and rerun the relevant checks there. Promote the reviewed
+candidate to `main` only after it scores at least 9/10, has no unresolved
+critical or high-severity findings, and meets its required browser/manual
+gates. A lower score needs Dominick's explicit acceptance with findings
+logged. If browser testing is unavailable, keep the candidate on
+`production` and record the manual check that remains.
+
+`main` is the release branch and deploys through Cloudflare Workers
+Builds with `npx wrangler deploy`. Before promotion, verify that `main`
+is an ancestor of the reviewed `production` candidate and fast-forward
+`main` to that exact commit. `production` being ahead during review is
+expected; if `main` has unreleased commits or the histories otherwise
+diverge, stop and reconcile them. Never force-push or rewrite `main`.
+
+The D1 binding is already declared in `wrangler.jsonc`. Two secrets must
+be set once in the Cloudflare dashboard (Worker → Settings → Variables
+and Secrets, as **Secret**, not plain text):
 
 - `ADMIN_PASSWORD`
 - `SESSION_SECRET`
