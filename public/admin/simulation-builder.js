@@ -419,8 +419,20 @@
       let templateData = { components: [], wires: [] };
       if (t) {
         try {
-          validateSimulationStructure(t.data, true);
-          templateData = t.data;
+          if (!t.data || typeof t.data !== "object" || Array.isArray(t.data)) {
+            throw new Error("Simulation data must be an object.");
+          }
+          // Older templates omitted circuit arrays; preserve their previous
+          // empty-circuit defaults while still rejecting malformed values.
+          const normalizedTemplateData = { ...t.data };
+          if (!Object.prototype.hasOwnProperty.call(normalizedTemplateData, "components")) {
+            normalizedTemplateData.components = [];
+          }
+          if (!Object.prototype.hasOwnProperty.call(normalizedTemplateData, "wires")) {
+            normalizedTemplateData.wires = [];
+          }
+          validateSimulationStructure(normalizedTemplateData, true);
+          templateData = normalizedTemplateData;
         } catch (err) {
           currentSimId = null;
           alert(`Couldn't open that template: ${err.message}`);
@@ -654,6 +666,10 @@
         throw new Error(`Wire ${index + 1} must have valid endpoints that reference existing components.`);
       }
     });
+    // Validate stored bends too, including checkpoint data through the
+    // recursive validator below. This prevents legacy records from loading
+    // into a state that cannot be saved again.
+    validateImportedWireWaypoints(wires);
     if (Object.prototype.hasOwnProperty.call(data, "checkpoints")) {
       if (!Array.isArray(data.checkpoints) || data.checkpoints.length > CHECKPOINT_LIMIT) {
         throw new Error(`Simulation checkpoints must be an array of at most ${CHECKPOINT_LIMIT} items.`);
