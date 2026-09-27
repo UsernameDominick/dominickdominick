@@ -49,9 +49,10 @@
     promptInput.value = initialValue;
     promptInput.setCustomValidity("");
     promptModal.hidden = false;
-    // The modal is already in the DOM, so its autofocus attribute does not
-    // reliably run when an SVG canvas click opens the prompt. Focus it here.
-    promptInput.focus();
+    // Let the shared modal observer capture the trigger before moving focus.
+    queueMicrotask(() => {
+      if (!promptModal.hidden) promptInput.focus();
+    });
     return new Promise((resolve) => {
       resolvePrompt = resolve;
     });
