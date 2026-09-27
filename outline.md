@@ -11,24 +11,31 @@ and `@google/model-viewer`; ad hoc local Playwright with no CI test suite.
 ## 0. Project and release rules
 
 **Release pipeline:** `production` is the pre-release integration branch for active work and test candidates;
-`main` is the release branch. Work one scoped batch at a time, run focused local checks, then commit and push the
-candidate to `production` for independent critic review. Fix findings and rerun relevant checks there. Promote the
-reviewed candidate to `main` only after it scores 9/10 or higher, has no unresolved critical/high findings, and
-passes its required browser/manual gates. A lower score needs Dominick's explicit acceptance with findings logged.
-If browser testing is unavailable, leave the candidate on `production` and list the manual check still owed. The
-standing user decision authorizes clean fast-forward promotion after gates pass; no separate ask is needed.
-Cloudflare Workers Builds is documented to deploy from `main` using `npx wrangler deploy`. Before promotion,
-recheck both refs and confirm `main` is an ancestor of the reviewed candidate. `production` being ahead during
-review is expected; if `main` has unreleased commits or the histories otherwise diverge, stop and reconcile them.
-Never force-push or rewrite `main`.
+`main` is the intended release branch. Work one scoped batch at a time, run focused local checks, then commit and
+push the candidate to `production` for independent critic review. Fix findings and rerun relevant checks there.
+Promote the reviewed candidate to `main` only after it scores 9/10 or higher, has no unresolved critical/high
+findings, and passes its required browser/manual gates. A lower score needs Dominick's explicit acceptance with
+findings logged. If browser testing is unavailable, leave the candidate on `production` and list the manual check
+still owed. The standing user decision authorizes clean fast-forward promotion after gates pass; no separate ask
+is needed.
+
+Cloudflare Workers Builds was verified on 2026-09-27: `main` is the selected production branch and Preview
+builds are enabled. The `production` branch creates Worker Previews; it does not deploy to the live Worker. See
+[Cloudflare's branch configuration](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/) and
+[Preview configuration](https://developers.cloudflare.com/workers/previews/configuration/).
+Before changing either ref, recheck both refs and require the candidate commit to fast-forward the target branch.
+Before release, also confirm `main` is an ancestor of the reviewed `production` candidate. `production` being
+ahead during review is expected. If either ref moved or the histories otherwise diverged, stop and reconcile them.
+Never force-push or rewrite either branch. Cloudflare confirms `main` deploys live with `npx wrangler deploy`.
 
 **Review gate:** target 9/10 or higher. A lower score requires Dominick's explicit acceptance and logged findings. Fix findings between passes; report every score and unresolved finding. Never claim browser or visual checks that were not run.
 
 **Visible changes:** use a real-browser viewport screenshot and score 0–10 (0–4 fail, 5–7 needs polish, 8–10 ship-ready). If below 8, fix and rescore, stopping after five loops; after five, stop iteration, keep the best candidate on `production`, and record remaining issues. This is not release approval: `main` still needs the critic and manual gates above. For fixed modals capture viewport only; confirm suspected layout defects with DOM geometry. Always report the visual score, or say clearly when no screenshot was available.
 
-**Test each batch:** use a throwaway Playwright script outside the repo to exercise the real flow; use local
-test data only and clean it up, including changed settings. Run the scratchpad security/SEO regression and
-focused checks before pushing the candidate to `production`. The independent critic reviews changed code and
+**Test each batch:** use a throwaway Playwright script outside the repo to exercise the real flow; use only
+synthetic test data and clean it up, including changed settings. Preview branches share D1/R2 when they use the
+same resource IDs/names, so namespace fixtures and avoid conflicting parallel tests. Run the scratchpad
+security/SEO regression and focused checks before pushing the candidate to `production`. The independent critic reviews changed code and
 relevant call paths for bugs, security, SEO, accessibility, design, documentation, and maintainability; each
 finding includes severity and evidence. Fix findings between passes and rerun affected checks. Target 9/10+ with
 no critical/high findings; log accepted low-severity follow-ups. Update this outline and use the repository's
@@ -51,10 +58,15 @@ worthwhile new ideas and pursue them without waiting. Any genuinely new paid ext
 needs a check-in before activation. The admin custom-animation editor is implemented; do not treat it as a
 planned feature.
 
-**D1/R2 cautions:** D1 has no migration tracker. Put schema SQL in “Pending production migrations” until
-applied. Before planning a migration, inspect production's actual schema; these notes can be stale. Never write
-to production D1 or R2 without explicit per-instance confirmation. Production D1 id:
-`f49fb038-9dfb-419e-acfb-7d8babc9d509`; R2 bucket: `dominickdominick-media`.
+**D1/R2 cautions:** this repo has not adopted Wrangler D1 migrations; `schema.sql` is bootstrap only. The
+`previews` block sets runtime bindings, while Wrangler migrations use the selected config's top-level D1. Use
+a dedicated Preview migration config and verify its database name/ID before `--remote`; inspect production
+before any forward-only live migration. Preview D1/R2 are separate from production but shared by Previews
+using the same IDs/names; use namespaced synthetic fixtures and clean them up. Production writes need
+per-instance confirmation. See [Preview D1 migration guidance](https://developers.cloudflare.com/workers/previews/resources/#d1-migrations).
+Preview resources: `dominickdominick-preview` D1 and
+`dominickdominick-media-preview` R2; production resources: `f49fb038-9dfb-419e-acfb-7d8babc9d509` and
+`dominickdominick-media`.
 
 **Secrets:** `ADMIN_PASSWORD` and `SESSION_SECRET` stay in Cloudflare Worker secrets, never in source or public
 content.
@@ -197,10 +209,10 @@ Open and partial items only; completed implementation histories remain in Git hi
 
 ### Testing, staging, and deployment
 - ☐ Automated tests wired into CI (Playwright scripts are ad hoc, local only)
-- ☐ Staging environment (additional Cloudflare resources require approval)
-- ☐ Preview deployments tied to changes
+- 🔶 Worker Preview environment (D1/R2 separate from production and shared across Preview branches; build, secrets, and browser/manual validation remain)
+- 🔶 Preview deployments tied to the `production` branch (mapping configured; successful build verification remains)
 - 🔶 Migration history (this doc is a manual log; no automated tracker)
-- 🔶 Staging-environment state (draft and live states exist)
+- 🔶 Staging content workflow (draft and live states exist; no content-promotion workflow)
 
 ### Backups, health, and operating costs
 - 🔶 Separate R2 asset backups (R2 currently stores the primary media copies)
@@ -214,17 +226,17 @@ The standing scope rule in section 0 applies. Keep shared builders consistent.
 - Improve backdrop contrast for near-fullscreen builder modals across Songs, Simulations, and Scans.
 - Distinguish security-sensitive admin actions in the activity log.
 - Build orphan-page detection carefully to avoid false positives.
-- Consider a low-cost local staging database before schema migrations; separate Cloudflare staging resources
-  need approval.
+- Add a D1 migration runner only after inventorying production schema and historical manual changes; keep
+  `schema.sql` as bootstrap, not a repeatable migration.
 - If the general media library expands beyond images, consider adding waveforms for its audio files.
 - Extend TTS read-aloud to build journals if there is a clear use case.
 
 ## 4. Pending production migrations
 
 Production D1 was last reported column-by-column synced to `schema.sql` on 2026-09-24. Nothing was pending at
-that check; this is historical and must be reverified against production before relying on it. D1 has no
-migration runner. The media hash backfill had been run for then-existing uploads. Confirm before any production
-database or R2 operation.
+that check; this is historical and must be reverified against production before relying on it. This repository
+has not adopted Wrangler's D1 migration system. The media hash backfill had been run for then-existing uploads.
+Verify the target database/config before any remote migration or production D1/R2 operation.
 
 ## 5. Deferred or scoped out
 
@@ -237,8 +249,6 @@ database or R2 operation.
 - **Orphan-page detection** — real design complexity (every internal-
   link-holding block type, plus list-block `limit` truncation logic);
   worth doing right, not rushed.
-- **A staging environment** — second D1 + R2 is a real account-cost
-  decision, needs confirmation first, not autonomous.
 - **Automated tests in CI** — Playwright scripts stay ad hoc/local for
   now.
 - **Image CDN transforms** (Cloudflare Image Resizing) — needs a
@@ -246,19 +256,23 @@ database or R2 operation.
 - **A standalone public `/scan/:id` page** (mirroring `/simulation/:id`)
   — trivial to add via the existing `modelViewerHtml()` helper, just
   hasn't been asked for.
-- **Local dev-only cosmetic clutter** (leftover test blocks on the local
-  "home" page, old test articles) — harmless, sandbox-only, a bulk
-  delete was blocked by the environment's own destructive-action
-  safety classifier when attempted unsupervised; needs a human or an
-  explicitly-approved deletion, not urgent.
+- **Local dev-only test content cleanup** — low priority; inspect and
+  confirm before any bulk deletion.
 
 ---
 
 ## 6. Manual verification still owed
 
+- Verify the next `production` push creates a successful Worker Preview with the separate-from-production,
+  shared test bindings; then open its preview URL and run the required real-browser/manual checks before release.
+- Verify Worker Previews Base uses distinct test-only `ADMIN_PASSWORD` and `SESSION_SECRET` values before testing
+  protected admin flows; never reuse production secrets.
+- Recheck Preview URL access before adding test data. The dashboard showed “Anyone with this URL can visit”; keep
+  content non-sensitive and clean namespaced fixtures unless Cloudflare Access is enabled. See [Preview access control](https://developers.cloudflare.com/workers/previews/#access-control).
 - Confirm highlight.js loads for a real published article with a code block.
 - Confirm `@google/model-viewer` loads a `.glb`; test `.usdz` AR on an iPhone.
-- Confirm the Worker's `0 8 * * *` D1→R2 backup cron exists and writes under `backups/`.
+- Confirm the live Worker's `0 8 * * *` D1→R2 backup schedule in Cloudflare. Worker Previews do not run Cron
+  Triggers, so this is not covered by Preview QA; do not manually trigger a production backup as a Preview test.
 - Confirm Web Speech API read-aloud with actual browser voices.
 
 **Audit environment limitation:** browser testing was not performed. The cloud browser could not reach
@@ -381,7 +395,8 @@ sandboxed plugin architecture — substantial new infra + security surface).
 - 403-405. Resistor/capacitor/inductor basic params — extra content fields, same pattern as resistance.
 - 409. Relays/switches — variant of existing switch component.
 - 415. Current source — checked while implementing #416: doesn't fit this simulator's model as worded. This
-  solver assumes constant-VOLTAGE sources and derives current via I=V/R; a true current source is…
+  solver assumes constant-voltage sources and derives current via I=V/R; a true current source needs a different
+  source model, which is outside the current simulator's scope.
 - 431. Voltage meter (requires arbitrary-node voltage computation)
 - 441. Basic logic gates (static icons only, no dynamic sim) — new component type.
 - 445. Truth-table editor — simple UI table bound to a gate's static behavior.
@@ -433,40 +448,12 @@ permissions — out of scope], 597 [package/dependency system — out of scope],
 
 ## 9. Current Codex audit
 
-- Seeded noise in offline waveform previews, so identical musical content produces repeatable peaks while live
-  playback retains fresh noise.
-- Updated README deployment instructions to match the production-to-main workflow.
-- Critic pass 1/4 scored 8/10; its two source findings were fixed. Pass 2/4 scored 8/10 and found release-flow,
-  pass-count, and visual-gate documentation conflicts; all were fixed before pass 3. Pass 3/4 scored 9/10 and
-  found a dangling creative-backlog sentence; it was fixed before pass 4.
-- Local checks in this audit: `node --check` on 17 JavaScript files and the external waveform regression passed.
-  No browser or visual tests were run; see section 6.
-- Main release is blocked: the required Playwright real-flow/browser gate could not run in this environment.
-  Keep this candidate on `production` until section 6's browser/manual checks pass; do not fast-forward `main`.
+- Offline waveform peaks are content-seeded; live playback keeps fresh noise.
+- Four sequential critiques scored 8, 8, 9, and 8/10; findings were fixed between passes, followed by a 9/10 confirmation with no material findings. The Preview/config review scored 8/10; its documentation findings were fixed, then confirmed at 9/10 with no remaining technical findings.
+- Earlier local checks passed: 66 server/security/SEO checks, 9 song save/race/waveform checks, modal/accessibility checks, simulation save/open checks, JavaScript syntax, and `git diff --check`. Scratch scripts remain outside the repo.
+- Live `main` build `f81e66f` succeeded. Candidate `2f919db` remains on `production`; its first Preview failed because Preview D1/R2 bindings were missing. Preview resources separate from production but shared by matching Preview bindings now exist; the next build is pending.
+- Browser/visual tests were not run: the cloud browser could not reach localhost, and Chromium installation failed under restricted package egress. Keep `main` gated on the Preview and required browser/manual checks.
+## 10. Open decisions
 
-### Critic pass 1 of 4 — 8/10
-
-- Found two source issues in the waveform-preview changes. Both were fixed before the next pass.
-
-### Critic pass 2 of 4 — 8/10
-
-- Found that review was documented before pushing to `production`, that pass numbering contradicted the
-  requested four-pass audit, and that the five-loop visual fallback could be read as permission to release.
-  Updated the workflow: `production` holds candidates under review, `main` remains gated, and visual-loop limits
-  do not grant release approval.
-
-Pass 4/4 remains. Submit the corrected outline, code, and test evidence for the final pass.
-
-## 10. Audit baseline and open decisions
-
-Earlier notes record 9/10 ratings for the public site, SEO, security, and main admin builders; these ratings
-were not repeated in this Codex session.
-
-Open decisions: whether to replace the legacy violet border; built-in routes take precedence over CMS slugs
-`projects` and `random`.
-
-## 11. Latest shipped batch
-
-Song-builder private production notes (#355) shipped in commit `23f11a5`; the 10/10 critic log is commit
-`f81e66f`. This is the prior release baseline; the current audit candidate remains subject to section 6's
-browser/manual checks before promotion.
+- Whether to replace the legacy violet border.
+- Built-in routes take precedence over CMS slugs `projects` and `random`.

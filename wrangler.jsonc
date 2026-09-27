@@ -19,6 +19,23 @@
 			"bucket_name": "dominickdominick-media"
 		}
 	],
+	// Preview storage is separate from production but shared across Previews using these IDs/names.
+	// Use synthetic namespaced fixtures and clean them up; never point Preview bindings at production.
+	"previews": {
+		"d1_databases": [
+			{
+				"binding": "DB",
+				"database_name": "dominickdominick-preview",
+				"database_id": "6b4b23d0-d680-4320-83c0-bc144f1cf3d9"
+			}
+		],
+		"r2_buckets": [
+			{
+				"binding": "MEDIA",
+				"bucket_name": "dominickdominick-media-preview"
+			}
+		]
+	},
 	// Daily full JSON backup of D1 content to R2 (see the `scheduled` handler
 	// in worker/index.js) — 08:00 UTC, an arbitrary quiet hour.
 	"triggers": {

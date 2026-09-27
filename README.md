@@ -132,16 +132,50 @@ gates. A lower score needs Dominick's explicit acceptance with findings
 logged. If browser testing is unavailable, keep the candidate on
 `production` and record the manual check that remains.
 
-`main` is the release branch and deploys through Cloudflare Workers
-Builds with `npx wrangler deploy`. Before promotion, verify that `main`
-is an ancestor of the reviewed `production` candidate and fast-forward
-`main` to that exact commit. `production` being ahead during review is
-expected; if `main` has unreleased commits or the histories otherwise
-diverge, stop and reconcile them. Never force-push or rewrite `main`.
+Cloudflare Workers Builds was verified on 2026-09-27: `main` is the
+production branch and preview builds are enabled. Candidate pushes to
+`production` create Worker Previews using `npx wrangler preview`; only
+pushes to `main` deploy live with `npx wrangler deploy`. See
+[Cloudflare's branch configuration](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/)
+and [Worker Previews configuration](https://developers.cloudflare.com/workers/previews/configuration/).
 
-The D1 binding is already declared in `wrangler.jsonc`. Two secrets must
-be set once in the Cloudflare dashboard (Worker → Settings → Variables
-and Secrets, as **Secret**, not plain text):
+Previews use the `dominickdominick-preview` D1 database and
+`dominickdominick-media-preview` R2 bucket configured in `wrangler.jsonc`.
+Both are separate from production. The preview D1 was initialized from
+`schema.sql` with no production content copied; its R2 bucket is empty.
+Every Preview using the same database ID or bucket name shares that test
+storage, so use synthetic, namespaced fixtures, avoid conflicting parallel
+tests, and clean them up. Never point Preview bindings at production storage.
+
+The dashboard showed “Anyone with this URL can visit” for Preview URLs, so
+keep their content non-sensitive unless Cloudflare Access is enabled. See
+[Preview access control](https://developers.cloudflare.com/workers/previews/#access-control)
+and [Preview resource sharing](https://developers.cloudflare.com/workers/previews/resources/).
+
+This repository has not adopted Wrangler's D1 migration system; treat
+`schema.sql` as the bootstrap baseline, not a repeatable migration. The
+`previews` block selects runtime bindings only; Wrangler migration commands
+target the top-level D1 binding in the selected config. Before remote schema
+work, use a dedicated migration config pointed at the Preview database and
+verify its name/ID before applying with `--remote`; plan production migrations
+separately after inspecting the live schema. See [Cloudflare's Preview D1
+migration guidance](https://developers.cloudflare.com/workers/previews/resources/#d1-migrations).
+
+Preview secrets are separate from production. Verify Worker Previews Base
+uses distinct test values for `ADMIN_PASSWORD` and `SESSION_SECRET` before
+testing protected admin flows.
+
+Before changing either ref, recheck both and ensure the new commit is a
+fast-forward from that branch's current head. Before promotion, also
+verify that `main` is an ancestor of the reviewed `production` candidate.
+`production` being ahead during review is expected. If either ref moved
+or the histories otherwise diverged, stop and reconcile them. Never
+force-push or rewrite either branch.
+
+The Worker requires two Cloudflare Worker Secrets. Configure live values
+and separate test-only values in Worker Previews Base; verify Preview
+secrets before protected-flow testing. Store these as **Secrets**, not
+plain text:
 
 - `ADMIN_PASSWORD`
 - `SESSION_SECRET`
