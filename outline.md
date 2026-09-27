@@ -131,6 +131,7 @@ Open and partial items only; completed implementation histories remain in Git hi
 
 ### Writing and article editor
 - 🔶 Import UI and paste cleanup from documents/websites
+- 🔶 Verify/fix the blank-draft read-time counter after writing-focus toggle (0 words showed both 0 min and 1 min).
 
 ### Saving, recovery, and versioning
 - ☐ Side-by-side compare of conflicting versions (currently just "reload to see latest")
@@ -240,7 +241,7 @@ Before migration, the production media route failed with HTTP 500 because D1 lac
     ALTER TABLE media ADD COLUMN width INTEGER;
     ALTER TABLE media ADD COLUMN height INTEGER;
 
-A read-only `PRAGMA table_info(media)` recheck confirms all three expected columns. The homepage key `uploads/300679fa-5339-49cc-a839-9a3253031cb6.png` has no `media` metadata row, but the public route served the image in a browser at 1200×630. The authenticated admin Media Library remains unverified. Log rows 63–67 contain pre-migration `private`-column failures; rows 68–71 are generic `client:admin` script errors with empty stacks and unknown cause. All rows remain untouched; post-deploy browser checks added none.
+A read-only `PRAGMA table_info(media)` recheck confirms all three expected columns. The homepage key `uploads/300679fa-5339-49cc-a839-9a3253031cb6.png` has no `media` metadata row, but the public route served it in a browser at 1200×630. On 2026-09-27, the authenticated production Media Library listed the R2 object and loaded its 1200×630 thumbnail while a read-only D1 check still found no matching metadata row; the card showed `NO ALT`. Opening the library did not backfill metadata. Log rows 63–67 contain pre-migration `private`-column failures. Rows 68–73 are generic `client:admin` script errors with empty stacks and unknown causes. Row 74 was generated during this browser check when Photo Editor “Save snapshot” called native `prompt()`; the Codex in-app browser reports that API unsupported (`public/admin/photo-editor.js:308`). No snapshot or image was saved. All rows remain untouched; a later read-only check found no rows after ID 74.
 
 No migration runner is configured; `schema.sql` is bootstrap only. Never replay the full schema. Production D1/R2 writes require per-instance confirmation.
 
@@ -269,19 +270,17 @@ No migration runner is configured; `schema.sql` is bootstrap only. Never replay 
 
 ## 6. Manual verification still owed
 
-- In an authenticated Preview browser, verify dialog names, top-only stacked-modal semantics, opening focus, Tab/Shift+Tab through the Page Preview iframe, Escape/backdrop close, and focus return. Confirm crop Escape cancels only when Photo Editor is topmost; with a child dialog open, Escape closes the child and preserves the crop. Exercise Media Library → New blank image and writing focus from an editor; confirm the full-screen backdrop blocks the desktop sidebar and cards remain centered in the workspace.
-- The homepage image now loads after the schema fix. Verify how the authenticated admin Media Library handles its missing metadata row before any backfill.
-- Authenticated admin flows and a representative visual review remain required before release.
-- Verify an uploaded article/project header image reserves its stored dimensions before load. External cover URLs have no persisted dimensions; decide how to handle those before relying on them in published content.
-- Verify Worker Previews Base uses distinct test-only `ADMIN_PASSWORD` and `SESSION_SECRET` values before testing
-  protected admin flows; never reuse production secrets.
-- Preview is public; production and Preview D1/R2 bindings are distinct. The Preview database has no page records. Before adding test data, define a cleanup path and use non-sensitive namespaced fixtures unless Cloudflare Access is enabled. See [Preview access control](https://developers.cloudflare.com/workers/previews/#access-control).
-- Confirm highlight.js loads for a real published article with a code block.
-- Confirm `@google/model-viewer` loads a `.glb`; test `.usdz` AR on an iPhone.
+**Production-admin smoke check (2026-09-27, Codex in-app browser):** Screen Preview dialog name, opening focus, iframe Tab/Shift+Tab, Escape/backdrop close, and focus return passed. Media Library listed the R2-only homepage image and loaded its 1200×630 thumbnail; read-only D1 recheck still found no metadata row and the card showed `NO ALT`. New blank image opened at 1200×630 and Escape returned to Media Library. Article writing focus opened a full-screen overlay, focused the body, and Escape returned to the editor; page-builder Focus hid and restored the block palette. Targeted screenshot scores: writing focus 8/10; New blank image 7/10 (large unused lower panel area; DOM geometry and backdrop hit-testing were not checked).
 
-- Confirm Web Speech API read-aloud with actual browser voices.
+**Still open:** Select / Crop followed by Escape closed Photo Editor, but the accessibility tree did not expose whether a crop selection was active, so crop cancellation is unconfirmed. The child-dialog check invoked native `prompt()` through Save snapshot; the Codex in-app browser reported it unsupported (error row 74 at `public/admin/photo-editor.js:308`; no snapshot or image was saved). Repeat in a browser that supports prompts or replace the native prompt with app UI. After entering and exiting article writing focus, a blank article showed `0 words · 1 min read` (it initially showed `0 words · 0 min read`); reproduce and fix the counter inconsistency.
 
-**Current QA limitation:** Live `/`, `/projects`, `/random`, and `/topics` loaded; the homepage image rendered at 1200×630, the browser console was clear, and 390px/768px viewports had no horizontal overflow. The sitemap URL was blocked by the browser client; the earlier 66 server/security/SEO checks passed. Authenticated admin/modal checks and visual sign-off remain open. Localhost browser testing remains unavailable because the cloud browser cannot reach localhost and Chromium installation failed under restricted egress.
+- Production has no articles, projects, simulations, or scans, so header-dimension, published-article/highlight.js, `.glb`, and iPhone `.usdz` checks cannot run without creating content; no filler was added.
+- Verify uploaded article/project header images reserve their stored dimensions. External cover URLs have no stored dimensions; decide how to handle them before use.
+- Worker Preview still needs distinct test-only `ADMIN_PASSWORD` and `SESSION_SECRET` values verified before protected flows; never reuse production credentials. Preview is public, has distinct D1/R2 resources, and has no page records. Define cleanup and use namespaced non-sensitive fixtures before adding test data unless Access is enabled. See [Preview access control](https://developers.cloudflare.com/workers/previews/#access-control).
+- Confirm Web Speech read-aloud with a browser that has voices.
+- Full authenticated-admin flow coverage and representative site-wide visual review remain open.
+- Live `/`, `/projects`, `/random`, and `/topics` loaded; the homepage image displayed at 1200×630, the browser console was clear, and 390px/768px viewports had no horizontal overflow. Sitemap navigation was blocked by the browser client; the earlier 66 server/security/SEO checks passed.
+- Localhost browser testing remains unavailable because the cloud browser cannot reach localhost and Chromium installation failed under restricted egress.
 
 ## 7. Recurring security, SEO, and accessibility checks
 
