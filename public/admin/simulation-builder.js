@@ -2190,6 +2190,25 @@
     URL.revokeObjectURL(url);
   });
 
+  function splitImportedSimulation(parsed, existingCheckpoints) {
+    const hasImportedCheckpoints = Object.prototype.hasOwnProperty.call(parsed, "checkpoints");
+    const checkpoints = hasImportedCheckpoints
+      ? parsed.checkpoints.map((checkpoint) => ({
+          ...checkpoint,
+          data: { components: checkpoint.data.components, wires: checkpoint.data.wires },
+        }))
+      : existingCheckpoints;
+    const data = { ...parsed };
+    delete data.checkpoints;
+    delete data.og_image;
+    return {
+      data,
+      checkpoints,
+      hasPoster: Object.prototype.hasOwnProperty.call(parsed, "og_image"),
+      posterUrl: typeof parsed.og_image === "string" ? parsed.og_image : "",
+    };
+  }
+
   $("sim-import").addEventListener("click", () => $("sim-import-file").click());
   $("sim-import-file").addEventListener("change", async (e) => {
     const file = e.target.files[0];
@@ -2201,22 +2220,12 @@
         throw new Error("That file doesn't look like a circuit export (expected components/wires arrays).");
       }
       validateSimulationStructure(parsed, true);
-      const importedCheckpoints = Object.prototype.hasOwnProperty.call(parsed, "checkpoints")
-        ? parsed.checkpoints.map((checkpoint) => ({
-            ...checkpoint,
-            data: { components: checkpoint.data.components, wires: checkpoint.data.wires },
-          }))
-        : simCheckpoints;
-      const importedData = { ...parsed };
-      delete importedData.checkpoints;
-      delete importedData.og_image;
-      if (Object.prototype.hasOwnProperty.call(parsed, "og_image")) {
-        $("sim-poster-url").value = typeof parsed.og_image === "string" ? parsed.og_image : "";
-      }
+      const imported = splitImportedSimulation(parsed, simCheckpoints);
+      if (imported.hasPoster) $("sim-poster-url").value = imported.posterUrl;
       setSnapHoleWarning(0);
       pushHistory();
-      simData = importedData;
-      simCheckpoints = importedCheckpoints;
+      simData = imported.data;
+      simCheckpoints = imported.checkpoints;
       renderCheckpointSelect();
       selected = null;
       wireStart = null;
