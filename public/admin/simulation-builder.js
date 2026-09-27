@@ -416,7 +416,18 @@
     } else if (templateId) {
       const t = simTemplates.find((x) => x.id === templateId);
       $("simulation-name").value = "New simulation";
-      simData = t && Array.isArray(t.data.components) ? JSON.parse(JSON.stringify({ components: t.data.components, wires: t.data.wires || [] })) : { components: [], wires: [] };
+      let templateData = { components: [], wires: [] };
+      if (t) {
+        try {
+          validateSimulationStructure(t.data, true);
+          templateData = t.data;
+        } catch (err) {
+          currentSimId = null;
+          alert(`Couldn't open that template: ${err.message}`);
+          return;
+        }
+      }
+      simData = JSON.parse(JSON.stringify({ components: templateData.components, wires: templateData.wires }));
       simCheckpoints = [];
       // A template is a fresh starting point -- its own poster/share image
       // (if the simulation it was saved from had one) shouldn't carry over

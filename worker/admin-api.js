@@ -2065,6 +2065,10 @@ async function routeAdminApi(request, env, url, ctx) {
     if (!TEMPLATE_KINDS.includes(body.kind) || !body.name) {
       return json({ error: "kind and name are required" }, { status: 400 });
     }
+    if (body.kind === "simulation") {
+      const dataError = simulationDataError(body.data || {}, true);
+      if (dataError) return json({ error: dataError }, { status: 400 });
+    }
     const id = await createTemplate(env, body);
     log(ctx, env, "create", "template", body.name);
     return json({ id });
