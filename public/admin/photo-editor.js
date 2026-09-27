@@ -49,8 +49,9 @@
     promptInput.value = initialValue;
     promptInput.setCustomValidity("");
     promptModal.hidden = false;
-    // Let the shared modal observer capture the trigger before moving focus.
-    queueMicrotask(() => {
+    // Let the shared modal observers finish stacking the nested dialog and
+    // capturing the trigger before moving focus into its input.
+    requestAnimationFrame(() => {
       if (!promptModal.hidden) promptInput.focus();
     });
     return new Promise((resolve) => {
