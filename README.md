@@ -161,10 +161,6 @@ verify its name/ID before applying with `--remote`; plan production migrations
 separately after inspecting the live schema. See [Cloudflare's Preview D1
 migration guidance](https://developers.cloudflare.com/workers/previews/resources/#d1-migrations).
 
-Preview secrets are separate from production. Verify Worker Previews Base
-uses distinct test values for `ADMIN_PASSWORD` and `SESSION_SECRET` before
-testing protected admin flows.
-
 Before changing either ref, recheck both and ensure the new commit is a
 fast-forward from that branch's current head. Before promotion, also
 verify that `main` is an ancestor of the reviewed `production` candidate.
@@ -173,9 +169,8 @@ or the histories otherwise diverged, stop and reconcile them. Never
 force-push or rewrite either branch.
 
 The Worker requires two Cloudflare Worker Secrets. Configure live values
-and separate test-only values in Worker Previews Base; verify Preview
-secrets before protected-flow testing. Store these as **Secrets**, not
-plain text:
+and separate test-only values in Worker Previews Base; verify them before
+protected-flow testing. Store these as **Secrets**, not plain text:
 
 - `ADMIN_PASSWORD`
 - `SESSION_SECRET`

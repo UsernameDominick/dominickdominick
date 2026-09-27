@@ -68,8 +68,9 @@ Preview resources: `dominickdominick-preview` D1 and
 `dominickdominick-media-preview` R2; production resources: `f49fb038-9dfb-419e-acfb-7d8babc9d509` and
 `dominickdominick-media`.
 
-**Secrets:** `ADMIN_PASSWORD` and `SESSION_SECRET` stay in Cloudflare Worker secrets, never in source or public
-content.
+**Secrets:** `ADMIN_PASSWORD` and `SESSION_SECRET` stay in Worker runtime Secrets, never in source or public
+content. The empty **Builds → Variables and secrets** panel only shows that no build-time values are configured;
+it does not verify runtime Worker secrets. Verify distinct test-only Preview values before protected-flow checks.
 
 ## 1. Module status and architecture
 
@@ -451,8 +452,9 @@ permissions — out of scope], 597 [package/dependency system — out of scope],
 - Offline waveform peaks are content-seeded; live playback keeps fresh noise.
 - Four sequential critiques scored 8, 8, 9, and 8/10; findings were fixed between passes, followed by a 9/10 confirmation with no material findings. The Preview/config review scored 8/10; its documentation findings were fixed, then confirmed at 9/10 with no remaining technical findings.
 - Earlier local checks passed: 66 server/security/SEO checks, 9 song save/race/waveform checks, modal/accessibility checks, simulation save/open checks, JavaScript syntax, and `git diff --check`. Scratch scripts remain outside the repo.
-- Live `main` build `f81e66f` succeeded. Candidate `2f919db` remains on `production`; its first Preview failed because Preview D1/R2 bindings were missing. Preview resources separate from production but shared by matching Preview bindings now exist; the next build is pending.
-- Browser/visual tests were not run: the cloud browser could not reach localhost, and Chromium installation failed under restricted package egress. Keep `main` gated on the Preview and required browser/manual checks.
+- `main` remains at `f81e66f`; `production` is at `86d4ef6`. Cloudflare Preview build `03b3099f` for that candidate succeeded with `npx wrangler preview`.
+- Public Preview smoke checks: `/admin/` loads the sign-in form; `/random` and `/projects` render their empty states; `/` shows the branded 404 because Preview D1 has zero pages, articles, and projects. No production content was copied. The mobile-sized `/admin/` viewport screenshot scored 8/10 as an entry-screen check; no password was entered. This does not verify authenticated flows or populated public layouts.
+- Earlier local browser testing could not reach localhost, and Chromium installation failed under restricted package egress. Keep `main` gated until populated public-page/song flows and protected admin checks pass using synthetic Preview data and verified test-only secrets. Preview URLs are public unless Access is enabled. Cron checks remain limited to the live configuration; never trigger a production backup as a Preview test.
 ## 10. Open decisions
 
 - Whether to replace the legacy violet border.
