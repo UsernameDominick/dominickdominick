@@ -270,6 +270,7 @@ The R2-only homepage image `uploads/300679fa-5339-49cc-a839-9a3253031cb6.png` se
 - In authenticated Preview, verify Song Builder Undo/Redo across settings, drum and piano grids, notes/name, grouped text/slider input, keyboard shortcuts, redo clearing, song switching, first Save, autosave, edits during Save, existing-save retry, first-save retry by hand, and dirty close/switch confirmation. No authenticated browser or visual check has been run for this candidate.
 - In authenticated Preview, confirm the article counter shows 0 minutes for blank and cleared text, 1 minute for one word, and the existing estimate for longer drafts. The focused function-level regression passes; no authenticated browser check has been run.
 - In authenticated Worker Preview, snap two different part leads into the same breadboard hole. Confirm the nonblocking status announces the shared hole, both leads stay connected, and Undo/Redo plus save/reopen preserve the connection. This browser/visual check is still unrun.
+- In authenticated Worker Preview, toggle a switch from both the checkbox and canvas and confirm the open/closed electrical explanation follows. Move a potentiometer to 0%, 50%, and 100%; verify the live resistance readout, then Undo/Redo and save/reopen. This browser/visual check is still unrun.
 - Test New Blank Image geometry and backdrop hit-testing. Recheck homepage/gallery image paths in Diagnostics after the media migration; distinguish missing R2 objects from D1/query failures before cleanup.
 - Resolve the homepage video missing its URL and homepage image missing alt text before publishing affected content. The production site has no articles, projects, simulations, or scans, so header-dimension, published-article/highlight.js, `.glb`, and iPhone `.usdz` checks cannot run without content; do not add filler.
 - Verify uploaded article/project header images reserve stored dimensions. External cover URLs have no stored dimensions; decide how to handle them before use.
@@ -387,7 +388,6 @@ sandboxed plugin architecture — substantial new infra + security surface).
 - 363. Deterministic runs/seeds — sim is deterministic already; add a seed field for future randomness.
 - 373. Rotate/mirror — add transform + flip pin coords, small render change.
 - 387. Selectable breadboard sizes — new `cols` param variant of existing breadboard def.
-- 389. Mechanical vs electrical distinction — already implicit; just surface it in UI.
 - 393. Manual wire bend points — extend wire path from 2-point to polyline.
 - 403-405. Resistor/capacitor/inductor basic params — extra content fields, same pattern as resistance.
 - 409. Relays/switches — variant of existing switch component.
@@ -441,9 +441,10 @@ permissions — out of scope], 597 [package/dependency system — out of scope],
 
 ## 9. Current audit status
 
-- Reviewed code candidate: `82135da`; `main` remains at `5765b16`. Song Builder critic scores were 8/10, 7/10, 5/10, and 7/10; findings are fixed with a 9/10 follow-up. The article-counter fix scored 10/10, and Simulation #388 scored 9/10. Main promotion still awaits authenticated browser/manual checks and owner verification of branch protections.
+- Reviewed code candidate: `bbe9c8b`; `main` remains at `5765b16`. Song Builder critic scores were 8/10, 7/10, 5/10, and 7/10; findings are fixed with a 9/10 follow-up. The article-counter fix scored 10/10; Simulation #388 and #389 each scored 9/10. Main promotion still awaits authenticated browser/manual checks and owner verification of branch protections.
 - Song Builder save-race fixes are regression-covered and pass syntax checks; authenticated browser/visual review remains open.
 - Simulation #388 preserves shared-hole leads and wire connectivity. Focused synthetic checks and whole-file JavaScript syntax compilation pass; critic review scored 9/10 and Preview build `4dcd242c` succeeded. No authenticated browser or visual check was performed.
+- Simulation #389 explains switch state versus electrical effect and shows the potentiometer's live wiper-to-resistance mapping. Focused inspector checks, whole-file JavaScript syntax, and whitespace checks pass; critic review scored 9/10 and Preview build `9dc8d8f5` succeeded. No authenticated browser or visual check was performed.
 - Article read-time returns 0 for blank text and preserves the existing nonempty rounding. Boundary regressions and `app.js` syntax pass; Preview build `dbde4868` succeeded. No authenticated browser check was performed.
 - Production D1 has the `private`, `width`, and `height` columns. The R2-only homepage image still lacks a D1 metadata row and alt text; the old route error was not retested after migration.
 
