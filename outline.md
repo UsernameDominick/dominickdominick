@@ -211,7 +211,7 @@ Open and partial items only; completed implementation histories remain in Git hi
 ### Testing, staging, and deployment
 - ☐ Automated tests wired into CI (Playwright scripts are ad hoc, local only)
 - 🔶 Worker Preview environment (D1/R2 separate from production and shared across Preview branches; build, secrets, and browser/manual validation remain)
-- 🔶 Preview deployments tied to the `production` branch (mapping configured; successful build verification remains)
+- 🔶 Preview deployments tied to the `production` branch (mapping and successful code build verified on 2026-09-27; authenticated/visual checks remain)
 - 🔶 Migration history (this doc is a manual log; no automated tracker)
 - 🔶 Staging content workflow (draft and live states exist; no content-promotion workflow)
 
