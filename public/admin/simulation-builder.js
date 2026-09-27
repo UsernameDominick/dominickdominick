@@ -479,11 +479,32 @@
   // Optional presentation-only route bends; electrical connectivity still uses wire.from/to.
   const MAX_MANUAL_WIRE_WAYPOINTS = 20;
 
+  function hasValidWireWaypoints(wire) {
+    if (!wire || !Object.prototype.hasOwnProperty.call(wire, "waypoints")) return true;
+    const points = wire.waypoints;
+    return Array.isArray(points) &&
+      points.length <= MAX_MANUAL_WIRE_WAYPOINTS &&
+      !(wire.auto === true && points.length > 0) &&
+      points.every((point) =>
+        point &&
+        typeof point === "object" &&
+        !Array.isArray(point) &&
+        Number.isFinite(point.x) &&
+        Number.isFinite(point.y) &&
+        point.x >= 0 &&
+        point.x <= 1500 &&
+        point.y >= 0 &&
+        point.y <= 700
+      );
+  }
+
+  function hasInvalidWireWaypoints(wire) {
+    return !hasValidWireWaypoints(wire);
+  }
+
   function getWireWaypoints(wire) {
-    if (!wire || wire.auto === true || !Array.isArray(wire.waypoints)) return [];
-    return wire.waypoints
-      .filter((point) => point && Number.isFinite(point.x) && Number.isFinite(point.y))
-      .map((point) => ({ x: point.x, y: point.y }));
+    if (!wire || wire.auto === true || !Array.isArray(wire.waypoints) || !hasValidWireWaypoints(wire)) return [];
+    return wire.waypoints.map((point) => ({ x: point.x, y: point.y }));
   }
 
   function getWireRoutePoints(wire, p1, p2) {
@@ -1695,9 +1716,15 @@
       const { poweredWires } = window.computeSimPoweredSet(simData);
       const isPowered = poweredWires.has(wire.id);
       const waypoints = getWireWaypoints(wire);
-      const routeControls = wire.auto === true
-        ? '<p class="sim-wire-route-help">This breadboard lead is generated automatically and cannot be rerouted.</p>'
-        : `<fieldset class="sim-wire-route">
+      const hasInvalidRoute = hasInvalidWireWaypoints(wire);
+      const invalidRouteNotice = hasInvalidRoute
+        ? '<p class="sim-wire-route-help" role="status">Saved bend data is invalid. This wire is displayed straight. Clear its invalid bend data before editing the route.</p><button type="button" id="sim-wire-clear-invalid-bends">Clear invalid bends</button>'
+        : "";
+      const routeControls = hasInvalidRoute
+        ? invalidRouteNotice
+        : wire.auto === true
+          ? '<p class="sim-wire-route-help">This breadboard lead is generated automatically and cannot be rerouted.</p>'
+          : `<fieldset class="sim-wire-route">
             <legend>Route bends</legend>
             <p class="sim-wire-route-help">Set coordinates in the builder canvas. Component-pin endpoints move with their parts.</p>
             ${waypoints.map((point, index) => `<div class="sim-wire-waypoint">
@@ -1753,6 +1780,17 @@
       wireLabelInput.addEventListener("blur", () => {
         wireLabelHistorySaved = false;
       });
+      const clearInvalidBendsButton = $("sim-wire-clear-invalid-bends");
+      if (clearInvalidBendsButton) {
+        clearInvalidBendsButton.addEventListener("click", () => {
+          if (!hasInvalidWireWaypoints(wire)) return;
+          pushHistory();
+          delete wire.waypoints;
+          renderInspector();
+          renderBuilder();
+          ($("sim-wire-add-bend") || $("sim-delete-selected"))?.focus();
+        });
+      }
       const addBendButton = $("sim-wire-add-bend");
       if (addBendButton) {
         addBendButton.addEventListener("click", () => {
@@ -1770,6 +1808,7 @@
           setWireWaypoints(wire, next);
           renderInspector();
           renderBuilder();
+          box.querySelector(`[data-wire-waypoint-index="${insertion.index}"][data-wire-waypoint-axis="x"]`)?.focus();
         });
       }
       box.querySelectorAll("[data-wire-waypoint-index]").forEach((input) => {
@@ -1803,6 +1842,12 @@
           setWireWaypoints(wire, next);
           renderInspector();
           renderBuilder();
+          const focusIndex = Math.min(index, next.length - 1);
+          if (focusIndex >= 0) {
+            box.querySelector(`[data-wire-waypoint-index="${focusIndex}"][data-wire-waypoint-axis="x"]`)?.focus();
+          } else {
+            $("sim-wire-add-bend")?.focus();
+          }
         });
       });
       $("sim-delete-selected").addEventListener("click", () => {

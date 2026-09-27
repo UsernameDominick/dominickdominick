@@ -755,11 +755,28 @@ function renderComponentSvg(comp, poweredComps, analysis) {
 // Optional presentation-only route bends; electrical connectivity still uses wire.from/to.
 const MAX_MANUAL_WIRE_WAYPOINTS = 20;
 
+function hasValidWireWaypoints(wire) {
+  if (!wire || !Object.prototype.hasOwnProperty.call(wire, "waypoints")) return true;
+  const points = wire.waypoints;
+  return Array.isArray(points) &&
+    points.length <= MAX_MANUAL_WIRE_WAYPOINTS &&
+    !(wire.auto === true && points.length > 0) &&
+    points.every((point) =>
+      point &&
+      typeof point === "object" &&
+      !Array.isArray(point) &&
+      Number.isFinite(point.x) &&
+      Number.isFinite(point.y) &&
+      point.x >= 0 &&
+      point.x <= 1500 &&
+      point.y >= 0 &&
+      point.y <= 700
+    );
+}
+
 function getWireWaypoints(wire) {
-  if (!wire || wire.auto === true || !Array.isArray(wire.waypoints)) return [];
-  return wire.waypoints
-    .filter((point) => point && Number.isFinite(point.x) && Number.isFinite(point.y))
-    .map((point) => ({ x: point.x, y: point.y }));
+  if (!wire || wire.auto === true || !Array.isArray(wire.waypoints) || !hasValidWireWaypoints(wire)) return [];
+  return wire.waypoints.map((point) => ({ x: point.x, y: point.y }));
 }
 
 function getWireRoutePoints(wire, p1, p2) {

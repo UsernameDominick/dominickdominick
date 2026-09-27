@@ -172,6 +172,37 @@ function normalizeRedirectTarget(p) {
   return /^https?:\/\//i.test(p) ? p : normalizePath(p);
 }
 
+const MAX_MANUAL_WIRE_WAYPOINTS = 20;
+
+function simulationWaypointError(data) {
+  if (!data || typeof data !== "object" || Array.isArray(data) || !Array.isArray(data.wires)) return null;
+  for (let wireIndex = 0; wireIndex < data.wires.length; wireIndex++) {
+    const wire = data.wires[wireIndex];
+    if (!wire || typeof wire !== "object" || Array.isArray(wire) || !Object.prototype.hasOwnProperty.call(wire, "waypoints")) continue;
+    const points = wire.waypoints;
+    if (!Array.isArray(points)) return `Wire ${wireIndex + 1} has an invalid bend list.`;
+    if (points.length > MAX_MANUAL_WIRE_WAYPOINTS) return `Wire ${wireIndex + 1} has too many bends (maximum ${MAX_MANUAL_WIRE_WAYPOINTS}).`;
+    if (wire.auto === true && points.length) return `Wire ${wireIndex + 1} is automatic and cannot include manual bends.`;
+    for (let pointIndex = 0; pointIndex < points.length; pointIndex++) {
+      const point = points[pointIndex];
+      if (
+        !point ||
+        typeof point !== "object" ||
+        Array.isArray(point) ||
+        !Number.isFinite(point.x) ||
+        !Number.isFinite(point.y) ||
+        point.x < 0 ||
+        point.x > 1500 ||
+        point.y < 0 ||
+        point.y > 700
+      ) {
+        return `Wire ${wireIndex + 1} bend ${pointIndex + 1} must have numeric coordinates inside the builder canvas.`;
+      }
+    }
+  }
+  return null;
+}
+
 // Redirects can chain (A -> B, B -> C, ...), and the request-serving code
 // does a single-hop lookup per request with no server-side chain
 // resolution — so a cycle anywhere in the chain becomes an actual
@@ -1968,12 +1999,18 @@ async function routeAdminApi(request, env, url, ctx) {
   if (path === "/simulations" && method === "POST") {
     const body = await request.json().catch(() => ({}));
     if (!body.name || !String(body.name).trim()) return json({ error: "Name is required" }, { status: 400 });
+    const waypointError = simulationWaypointError(body.data || {});
+    if (waypointError) return json({ error: waypointError }, { status: 400 });
     const id = await createSimulation(env, { name: body.name.trim(), data: body.data || {} });
     log(ctx, env, "create", "simulation", body.name.trim());
     return json({ id });
   }
   const simDuplicateMatch = path.match(/^\/simulations\/(\d+)\/duplicate$/);
   if (simDuplicateMatch && method === "POST") {
+    const source = await getSimulation(env, Number(simDuplicateMatch[1]));
+    if (!source) return json({ error: "Simulation not found" }, { status: 404 });
+    const waypointError = simulationWaypointError(source.data || {});
+    if (waypointError) return json({ error: waypointError }, { status: 400 });
     const newId = await duplicateSimulation(env, Number(simDuplicateMatch[1]));
     if (!newId) return json({ error: "Simulation not found" }, { status: 404 });
     log(ctx, env, "duplicate", "simulation", `#${simDuplicateMatch[1]} → #${newId}`);
@@ -1988,6 +2025,8 @@ async function routeAdminApi(request, env, url, ctx) {
   if (simMatch && method === "PATCH") {
     const body = await request.json().catch(() => ({}));
     if (!body.name || !String(body.name).trim()) return json({ error: "Name is required" }, { status: 400 });
+    const waypointError = simulationWaypointError(body.data || {});
+    if (waypointError) return json({ error: waypointError }, { status: 400 });
     const updated = await updateSimulation(env, Number(simMatch[1]), { name: body.name.trim(), data: body.data || {} });
     if (!updated) return json({ error: "Not found" }, { status: 404 });
     return json({ ok: true });
