@@ -2142,7 +2142,7 @@ async function routeAdminApi(request, env, url, ctx) {
     const data = normalizeLegacySimulationWireIds(source.data || {});
     const dataError = simulationDataError(data);
     if (dataError) return json({ error: dataError }, { status: 400 });
-    const newId = await duplicateSimulation(env, Number(simDuplicateMatch[1]), data);
+    const newId = await duplicateSimulation(env, Number(simDuplicateMatch[1]), data, source.name);
     if (!newId) return json({ error: "Simulation not found" }, { status: 404 });
     log(ctx, env, "duplicate", "simulation", `#${simDuplicateMatch[1]} → #${newId}`);
     return json({ id: newId });

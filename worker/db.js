@@ -2027,11 +2027,11 @@ export async function deleteSimulation(env, id) {
   await env.DB.prepare("DELETE FROM simulations WHERE id = ?").bind(id).run();
 }
 
-export async function duplicateSimulation(env, id, dataOverride) {
+export async function duplicateSimulation(env, id, dataOverride, sourceName) {
   const source = await getSimulation(env, id);
   if (!source) return null;
   return createSimulation(env, {
-    name: `${source.name} (copy)`,
+    name: `${sourceName === undefined ? source.name : sourceName} (copy)`,
     data: dataOverride === undefined ? source.data : dataOverride,
   });
 }
