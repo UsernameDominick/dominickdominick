@@ -275,17 +275,14 @@ No migration runner is configured; schema.sql is bootstrap only. Verify the colu
 - Verify an uploaded article/project header image reserves its stored dimensions before load. External cover URLs have no persisted dimensions; decide how to handle those before relying on them in published content.
 - Verify Worker Previews Base uses distinct test-only `ADMIN_PASSWORD` and `SESSION_SECRET` values before testing
   protected admin flows; never reuse production secrets.
-- The Preview URL is public (“Anyone with this URL can visit”). Before adding test data, verify separate test-only
-  bindings and a cleanup path; use only non-sensitive namespaced fixtures unless Cloudflare Access is enabled. See
-  [Preview access control](https://developers.cloudflare.com/workers/previews/#access-control).
+- Preview is public; production and Preview D1/R2 bindings are distinct. The Preview database has no page records. Before adding test data, define a cleanup path and use non-sensitive namespaced fixtures unless Cloudflare Access is enabled. See [Preview access control](https://developers.cloudflare.com/workers/previews/#access-control).
 - Confirm highlight.js loads for a real published article with a code block.
 - Confirm `@google/model-viewer` loads a `.glb`; test `.usdz` AR on an iPhone.
 - Confirm the live Worker's `0 8 * * *` D1→R2 backup schedule in Cloudflare. Worker Previews do not run Cron
   Triggers, so this is not covered by Preview QA; do not manually trigger a production backup as a Preview test.
 - Confirm Web Speech API read-aloud with actual browser voices.
 
-**Current QA limitation:** authenticated admin flows and visual review are unverified. The cloud browser cannot
-reach localhost, and Chromium installation failed because outbound package access was restricted.
+**Current QA limitation:** The public Preview opens, but its empty D1 shows the Page not found fallback. Authenticated admin/modal checks and visual sign-off remain open. Localhost browser testing remains unavailable: the cloud browser cannot reach localhost, and Chromium installation failed because outbound package access was restricted.
 
 ## 7. Recurring security, SEO, and accessibility checks
 
@@ -453,7 +450,7 @@ permissions — out of scope], 597 [package/dependency system — out of scope],
 
 ## 9. Current audit status
 
-- Top-only stacked-dialog semantics, the named Page Preview focus sentinel, and Photo Editor crop Escape priority have targeted regressions; authenticated browser and visual checks remain open in section 6.
+- Worker Preview commit 7a64717 deployed with distinct Preview D1/R2 bindings; Preview D1 has no pages and public / shows the not-found fallback. The targeted modal regression passes; authenticated admin and modal visual checks remain open.
 - Critic reviews: pass 1 scored 8/10 (two findings fixed); pass 2 scored 9/10 (clear); pass 3 scored 8/10 (sentinel finding fixed); pass 4 scores 9/10 after the crop-Escape fix, with focused resolution clear. No critic findings remain open.
 - Production D1 lacks media columns private, width, and height; a homepage image request returned HTTP 500. The two audit GET probes added error_log rows 63-64, left untouched. Migration remains pending per-instance approval.
 - Image sizing uses stored dimensions for known uploads, including same-site absolute cover URLs; remote cover dimensions remain an open decision.
