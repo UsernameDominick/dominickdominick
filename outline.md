@@ -264,9 +264,9 @@ Verify the target database/config before any remote migration or production D1/R
 
 ## 6. Manual verification still owed
 
-- Verify the current Worker Preview build before release. The public smoke found the admin sign-in page at
+- Preview build `1ace7b62` succeeded for code candidate `be23ed3`. Public smoke found the admin sign-in page at
   `/admin/` and a branded `/` 404 because Preview D1 is empty. Authenticated media flows and a relevant
-  screenshot/visual score remain required.
+  screenshot/visual score remain required before release.
 - Verify Worker Previews Base uses distinct test-only `ADMIN_PASSWORD` and `SESSION_SECRET` values before testing
   protected admin flows; never reuse production secrets.
 - The Preview URL is public (“Anyone with this URL can visit”). Before adding test data, verify separate test-only
