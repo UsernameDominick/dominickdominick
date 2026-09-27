@@ -196,6 +196,7 @@ function simulationDataError(data, requireCircuitArrays = false, allowCheckpoint
   const components = Array.isArray(data.components) ? data.components : [];
   const wires = Array.isArray(data.wires) ? data.wires : [];
   const componentsById = new Map();
+  const renderedComponentIds = new Set();
   for (let index = 0; index < components.length; index++) {
     const component = components[index];
     if (
@@ -204,6 +205,7 @@ function simulationDataError(data, requireCircuitArrays = false, allowCheckpoint
       Array.isArray(component) ||
       !isSimulationRecordId(component.id) ||
       componentsById.has(component.id) ||
+      renderedComponentIds.has(String(component.id)) ||
       typeof component.type !== "string" ||
       !Object.prototype.hasOwnProperty.call(SIM_COMPONENTS, component.type) ||
       !Number.isFinite(component.x) ||
@@ -216,8 +218,10 @@ function simulationDataError(data, requireCircuitArrays = false, allowCheckpoint
       return `Component ${index + 1} must have a unique id, supported type, and numeric coordinates inside the builder canvas.`;
     }
     componentsById.set(component.id, component);
+    renderedComponentIds.add(String(component.id));
   }
 
+  const wireIds = new Set();
   for (let wireIndex = 0; wireIndex < wires.length; wireIndex++) {
     const wire = wires[wireIndex];
     const validEndpoint = (end) => {
@@ -237,6 +241,10 @@ function simulationDataError(data, requireCircuitArrays = false, allowCheckpoint
     if (!wire || typeof wire !== "object" || Array.isArray(wire) || !validEndpoint(wire.from) || !validEndpoint(wire.to)) {
       return `Wire ${wireIndex + 1} must have valid endpoints that reference existing component pins.`;
     }
+    if (!isSimulationRecordId(wire.id) || wireIds.has(String(wire.id))) {
+      return `Wire ${wireIndex + 1} must have a unique id.`;
+    }
+    wireIds.add(String(wire.id));
     if (Object.prototype.hasOwnProperty.call(wire, "waypoints")) {
       const points = wire.waypoints;
       if (!Array.isArray(points)) return `Wire ${wireIndex + 1} has an invalid bend list.`;

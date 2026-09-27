@@ -918,6 +918,7 @@ function sanitizeSimulationRenderData(data) {
       !Object.prototype.hasOwnProperty.call(Object.prototype, value)) ||
     Number.isSafeInteger(value);
   const componentsById = new Map();
+  const renderedComponentIds = new Set();
   const components = (Array.isArray(source.components) ? source.components : []).filter((component) => {
     if (
       !component ||
@@ -925,6 +926,7 @@ function sanitizeSimulationRenderData(data) {
       Array.isArray(component) ||
       !validId(component.id) ||
       componentsById.has(component.id) ||
+      renderedComponentIds.has(String(component.id)) ||
       typeof component.type !== "string" ||
       !Object.prototype.hasOwnProperty.call(SIM_COMPONENTS, component.type) ||
       !Number.isFinite(component.x) ||
@@ -935,9 +937,14 @@ function sanitizeSimulationRenderData(data) {
       component.y > 700
     ) return false;
     componentsById.set(component.id, component);
+    renderedComponentIds.add(String(component.id));
     return true;
   });
-  const wires = (Array.isArray(source.wires) ? source.wires : []).filter((wire) => {
+  const wireIds = new Set();
+  const wires = [];
+  const sourceWires = Array.isArray(source.wires) ? source.wires : [];
+  for (let index = 0; index < sourceWires.length; index++) {
+    const wire = sourceWires[index];
     const validEndpoint = (end) => {
       if (
         !end ||
@@ -952,14 +959,23 @@ function sanitizeSimulationRenderData(data) {
       const definition = component && SIM_COMPONENTS[component.type];
       return Boolean(definition && definition.pins.some((pin) => pin.id === end.pin));
     };
-    return Boolean(
-      wire &&
-        typeof wire === "object" &&
-        !Array.isArray(wire) &&
-        validEndpoint(wire.from) &&
-        validEndpoint(wire.to)
-    );
-  });
+    if (
+      !wire ||
+      typeof wire !== "object" ||
+      Array.isArray(wire) ||
+      !validEndpoint(wire.from) ||
+      !validEndpoint(wire.to)
+    ) continue;
+    let id = wire.id;
+    if (!validId(id) || wireIds.has(String(id))) {
+      let candidate = `render_wire_${index + 1}`;
+      let suffix = 1;
+      while (wireIds.has(candidate)) candidate = `render_wire_${index + 1}_${suffix++}`;
+      id = candidate;
+    }
+    wireIds.add(String(id));
+    wires.push({ ...wire, id });
+  }
   return { components, wires };
 }
 

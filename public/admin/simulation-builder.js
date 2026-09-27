@@ -106,8 +106,8 @@
     return JSON.stringify({
       simData,
       simCheckpoints,
-      name: $("simulation-name").value,
-      posterUrl: $("sim-poster-url").value,
+      name: $("simulation-name").value.trim(),
+      posterUrl: $("sim-poster-url").value.trim(),
     });
   }
 
@@ -1433,7 +1433,9 @@
   function onPinClick(e) {
     e.stopPropagation();
     const dot = e.currentTarget;
-    const compId = dot.dataset.comp;
+    const comp = simData.components.find((component) => String(component.id) === dot.dataset.comp);
+    if (!comp) return;
+    const compId = comp.id;
     const pin = dot.dataset.pin;
     if (continuityMode) {
       handleContinuityClick(compId, pin);
