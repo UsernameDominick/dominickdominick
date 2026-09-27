@@ -440,8 +440,8 @@ permissions — out of scope], 597 [package/dependency system — out of scope],
 
 ## 9. Current audit status
 
-- Simulation #393 source candidate `319944733662dbb718bb1a0accb2b17c8c9f789c`; seven critic passes scored 8, 5, 7, 6, 7, 7, and 9/10. All reported source findings are fixed; pass 7 found no actionable issue. Eleven focused loader/validation checks and a builder syntax check passed. Cloudflare Preview build `80f8c250-5e28-40a0-8dde-c1ff1b95201c` succeeded.
-- `main` remains at `5765b16801e6753f4dfd8a76a9361abae3beb99f`; the reviewed source candidate is 23 commits ahead. No authenticated simulation feature or visual check was performed. Keep the candidate on `production` until the section 6 manual gates are complete; effective branch rules remain unverified.
+- Simulation #393 source candidate `319944733662dbb718bb1a0accb2b17c8c9f789c` cleared critic review at 9/10; no source findings remain. Eleven focused loader/validation checks and a builder syntax check passed. Cloudflare Preview build `80f8c250-5e28-40a0-8dde-c1ff1b95201c` succeeded.
+- `main` remains at `5765b16801e6753f4dfd8a76a9361abae3beb99f`; the source candidate is 23 commits ahead. No authenticated simulation feature or visual test was performed. Keep the candidate on `production` until section 6 gates are complete; effective branch rules remain unverified. Prior review-round details are in Git history.
 
 ## 10. Open decisions
 
