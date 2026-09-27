@@ -1662,7 +1662,8 @@
   $("pe-compare").addEventListener("blur", endCompare);
 
   document.addEventListener("keydown", (e) => {
-    if (modal.hidden) return;
+    // Only the top dialog handles editor shortcuts and crop Escape.
+    if (modal.hidden || modal.getAttribute("aria-modal") !== "true") return;
     const tag = document.activeElement && document.activeElement.tagName;
     if (tag === "INPUT" || tag === "TEXTAREA") return;
     const mod = e.metaKey || e.ctrlKey;

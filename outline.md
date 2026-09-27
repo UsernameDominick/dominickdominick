@@ -80,8 +80,7 @@ it does not verify runtime Worker secrets. Verify distinct test-only Preview val
   visualizations, public embeds, and private production notes. Waveform previews now render deterministically;
   live drum playback retains fresh noise.
 - **Admin mobile UX:** topbar overflow, page-builder reflow, and QA bugs were fixed. The broader
-  visual/navigation pass remains open. Prior QA also found broken homepage/gallery image paths; verify these in
-  admin diagnostics before cleanup.
+  visual/navigation pass remains open.
 - **Public design:** flow-layout and baseline code-block/link styling shipped. Typographic hierarchy and spacing
   remain open, best judged with real published content.
 - **Custom animations:** timeline/keyframe editor with server-side CSS generation is implemented.
@@ -235,10 +234,15 @@ The standing scope rule in section 0 applies. Keep shared builders consistent.
 
 ## 4. Pending production migrations
 
-Production D1 was last reported column-by-column synced to `schema.sql` on 2026-09-24. Nothing was pending at
-that check; this is historical and must be reverified against production before relying on it. This repository
-has not adopted Wrangler's D1 migration system. The media hash backfill had been run for then-existing uploads.
-Verify the target database/config before any remote migration or production D1/R2 operation.
+A 2026-09-27 read-only check found production D1's media table lacks private, width, and height; Preview has all three. The production home image request fails with HTTP 500 because private is missing.
+
+After explicit approval for this database, recheck the target and current columns, then apply only missing statements:
+
+    ALTER TABLE media ADD COLUMN private INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE media ADD COLUMN width INTEGER;
+    ALTER TABLE media ADD COLUMN height INTEGER;
+
+No migration runner is configured; schema.sql is bootstrap only. Verify the columns, homepage image, and admin media metadata after migration. Never replay the full schema. Production D1/R2 writes require per-instance confirmation.
 
 ## 5. Deferred or scoped out
 
@@ -265,7 +269,8 @@ Verify the target database/config before any remote migration or production D1/R
 
 ## 6. Manual verification still owed
 
-- In an authenticated Preview browser, verify dialog names, top-only stacked-modal semantics, opening focus, Tab/Shift+Tab through the Page Preview iframe, Escape/backdrop close, and focus return. Confirm Photo Editor crop Escape cancels the crop while leaving the editor open. Exercise Media Library → New blank image and writing focus from an editor; confirm the full-screen backdrop blocks the desktop sidebar and cards remain centered in the workspace.
+- In an authenticated Preview browser, verify dialog names, top-only stacked-modal semantics, opening focus, Tab/Shift+Tab through the Page Preview iframe, Escape/backdrop close, and focus return. Confirm crop Escape cancels only when Photo Editor is topmost; with a child dialog open, Escape closes the child and preserves the crop. Exercise Media Library → New blank image and writing focus from an editor; confirm the full-screen backdrop blocks the desktop sidebar and cards remain centered in the workspace.
+- After the approved migration, verify the homepage image and admin media metadata read successfully.
 - Authenticated admin flows and a representative visual review remain required before release.
 - Verify an uploaded article/project header image reserves its stored dimensions before load. External cover URLs have no persisted dimensions; decide how to handle those before relying on them in published content.
 - Verify Worker Previews Base uses distinct test-only `ADMIN_PASSWORD` and `SESSION_SECRET` values before testing
@@ -299,7 +304,7 @@ reach localhost, and Chromium installation failed because outbound package acces
 - [ ] New tables/columns don't accidentally expose more than intended through a `SELECT *` in a public-facing
   query
 - [ ] File uploads validated by type for each supported surface (images and TTS audio); add validation whenever
-  anewformat is introduced, such as DAW exports
+  a new format is introduced, such as DAW exports
 
 ### SEO and accessibility
 - [ ] Every new public route has a `<title>`, meta description, and correct canonical tag
@@ -444,16 +449,15 @@ permissions — out of scope], 597 [package/dependency system — out of scope],
 
 - Song builder still has no undo/redo.
 - External article/project header images have no persisted dimensions; decide between author-supplied dimensions and a fixed-ratio presentation before relying on remote covers. Current project-card blocks and article/project index cards are text-only and have no image layout shift.
-- The prior sweep found broken image URLs in homepage/gallery content; verify those paths in admin diagnostics
-  before cleanup.
+- Recheck homepage/gallery image paths in admin diagnostics after fixing the production media-schema failure; distinguish missing objects from query errors before cleanup.
 
 ## 9. Current audit status
 
-- Admin dialog and writing-focus semantics, including a named accessible Page Preview iframe focus sentinel, are implemented; targeted regressions pass. Authenticated browser and
-  visual checks remain open in section 6.
-- Image sizing audit: known media-upload dimensions are emitted for article/project header covers, including same-site absolute URLs. Project cards are text-only; remote cover sizing remains an open backlog decision.
-- `production` is the review candidate. Promote to `main` only after section 0's critic and manual gates
-  pass; recheck both refs and preserve the clean fast-forward rule.
+- Top-only stacked-dialog semantics, the named Page Preview focus sentinel, and Photo Editor crop Escape priority have targeted regressions; authenticated browser and visual checks remain open in section 6.
+- Critic reviews: pass 1 scored 8/10 (two findings fixed); pass 2 scored 9/10 (clear); pass 3 scored 8/10 (sentinel finding fixed); pass 4 scores 9/10 after the crop-Escape fix, with focused resolution clear. No critic findings remain open.
+- Production D1 lacks media columns private, width, and height; a homepage image request returned HTTP 500. The two audit GET probes added error_log rows 63-64, left untouched. Migration remains pending per-instance approval.
+- Image sizing uses stored dimensions for known uploads, including same-site absolute cover URLs; remote cover dimensions remain an open decision.
+- production is the review candidate. Promote to main only after critic, migration, and manual gates pass; recheck both refs and preserve the clean fast-forward rule.
 
 ## 10. Open decisions
 
