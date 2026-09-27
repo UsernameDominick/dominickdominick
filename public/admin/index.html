@@ -1475,6 +1475,13 @@
         </div>
         <button id="close-song-builder" aria-label="Close Song builder dialog">×</button>
         <div class="sim-toolbar-groups">
+          <div class="sim-toolbar-group" data-group="history">
+            <span class="sim-toolbar-group-label">Edit</span>
+            <div class="sim-toolbar-group-buttons">
+              <button type="button" id="song-undo" disabled title="Undo the last song change (Ctrl+Z)">Undo</button>
+              <button type="button" id="song-redo" disabled title="Redo the last undone song change (Ctrl+Shift+Z or Ctrl+Y)">Redo</button>
+            </div>
+          </div>
           <div class="sim-toolbar-group" data-group="transport">
             <span class="sim-toolbar-group-label">Transport</span>
             <div class="song-group-controls">

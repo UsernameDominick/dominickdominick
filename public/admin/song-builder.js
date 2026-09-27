@@ -89,6 +89,12 @@
   // keystrokes happened to produce (same reasoning as the article/project
   // autosave's own "only an existing draft" guard).
   let autosaveTimer = null;
+  let autosavePromise = null;
+  let autosaveOpenGeneration = null;
+  let autosaveQueued = false;
+  let songSavePending = false;
+  let songSaveOpenGeneration = null;
+  let songDirtyGeneration = 0;
   // Bumped by every openBuilder() call and captured locally by both
   // openBuilder() itself and autosaveSong() -- guards two separate races
   // a critic pass found: (1) clicking Edit on song A then song B before
@@ -108,8 +114,190 @@
   // wires an equivalent guard of its own rather than leaving song edits
   // as the one editor in this admin with no "are you sure" on tab close.
   let songHasUnsavedChanges = false;
+
+  // Undo history belongs to the open song only. Group text and slider input
+  // into one step, keep the stack bounded, and include the separate name field.
+  const SONG_HISTORY_LIMIT = 100;
+  const songUndoStack = [];
+  const songRedoStack = [];
+  const songHistoryEvents = new WeakMap();
+  let songHistoryInputGroup = null;
+  let songHistoryInputTimer = null;
+  let songHistoryKnownName = $("song-name").value;
+
+  function captureSongHistoryState(name = $("song-name").value) {
+    return { name, data: JSON.parse(JSON.stringify(songData)) };
+  }
+  function sameSongHistoryState(a, b) {
+    return a.name === b.name && JSON.stringify(a.data) === JSON.stringify(b.data);
+  }
+  function updateSongHistoryButtons() {
+    const undo = $("song-undo");
+    const redo = $("song-redo");
+    if (undo) undo.disabled = songUndoStack.length === 0;
+    if (redo) redo.disabled = songRedoStack.length === 0;
+  }
+  function pushSongUndoState(before) {
+    if (sameSongHistoryState(before, captureSongHistoryState())) return false;
+    const last = songUndoStack[songUndoStack.length - 1];
+    if (last && sameSongHistoryState(last, before)) return false;
+    songUndoStack.push(before);
+    if (songUndoStack.length > SONG_HISTORY_LIMIT) songUndoStack.shift();
+    songRedoStack.length = 0;
+    updateSongHistoryButtons();
+    return true;
+  }
+  function flushSongHistoryInputGroup() {
+    if (!songHistoryInputGroup) return;
+    const group = songHistoryInputGroup;
+    songHistoryInputGroup = null;
+    clearTimeout(songHistoryInputTimer);
+    songHistoryInputTimer = null;
+    pushSongUndoState(group.before);
+  }
+  function resetSongHistory() {
+    clearTimeout(songHistoryInputTimer);
+    songHistoryInputTimer = null;
+    songHistoryInputGroup = null;
+    songUndoStack.length = 0;
+    songRedoStack.length = 0;
+    songHistoryKnownName = $("song-name").value;
+    updateSongHistoryButtons();
+  }
+  function isSongHistoryTextInput(target) {
+    if (!target) return false;
+    if (target.tagName === "TEXTAREA") return true;
+    if (target.tagName !== "INPUT") return false;
+    return !["button", "submit", "reset", "checkbox", "radio", "file", "hidden"].includes(target.type);
+  }
+  function songHistoryShortcut(event) {
+    if ((!event.ctrlKey && !event.metaKey) || event.altKey || event.isComposing) return null;
+    const key = String(event.key || "").toLowerCase();
+    if (key === "z") return event.shiftKey ? "redo" : "undo";
+    if (key === "y") return "redo";
+    return null;
+  }
+  function songHistoryCommand(target) {
+    return target && target.closest ? target.closest("#song-undo, #song-redo") : null;
+  }
+  function captureSongHistoryEvent(event) {
+    if ($("song-builder-modal").hidden) return;
+    if (event.type === "click" && songHistoryCommand(event.target)) {
+      flushSongHistoryInputGroup();
+      songHistoryEvents.set(event, { skip: true });
+      return;
+    }
+    if (event.type === "keydown") {
+      const shortcut = songHistoryShortcut(event);
+      if (shortcut) {
+        flushSongHistoryInputGroup();
+        songHistoryEvents.set(event, { shortcut, generation: openGeneration });
+        return;
+      }
+      if (isSongHistoryTextInput(event.target) || (event.target && event.target.isContentEditable)) return;
+    }
+    const continuesInput = songHistoryInputGroup && songHistoryInputGroup.target === event.target &&
+      (event.type === "input" || event.type === "change");
+    if (!continuesInput) flushSongHistoryInputGroup();
+    songHistoryEvents.set(event, {
+      before: captureSongHistoryState(event.target && event.target.id === "song-name" ? songHistoryKnownName : $("song-name").value),
+      generation: openGeneration,
+      target: event.target,
+      type: event.type,
+    });
+  }
+  function finishSongHistoryEvent(event) {
+    const pending = songHistoryEvents.get(event);
+    if (!pending) return;
+    songHistoryEvents.delete(event);
+    if (pending.skip) return;
+    if (pending.shortcut) {
+      if (pending.generation !== openGeneration || $("song-builder-modal").hidden) return;
+      event.preventDefault();
+      if (pending.shortcut === "undo") undoSongEdit();
+      else redoSongEdit();
+      return;
+    }
+    if (pending.generation !== openGeneration || $("song-builder-modal").hidden) return;
+    const after = captureSongHistoryState();
+    if (event.target && event.target.id === "song-name") songHistoryKnownName = after.name;
+    if (sameSongHistoryState(pending.before, after)) {
+      if (event.type === "change" && songHistoryInputGroup && songHistoryInputGroup.target === pending.target) {
+        flushSongHistoryInputGroup();
+      }
+      return;
+    }
+    songEditGeneration++;
+    if (event.type === "change" && songHistoryInputGroup && songHistoryInputGroup.target === pending.target) {
+      flushSongHistoryInputGroup();
+      return;
+    }
+    if (event.type === "input" && isSongHistoryTextInput(pending.target)) {
+      if (!songHistoryInputGroup) songHistoryInputGroup = { target: pending.target, before: pending.before };
+      clearTimeout(songHistoryInputTimer);
+      songHistoryInputTimer = setTimeout(flushSongHistoryInputGroup, 700);
+      return;
+    }
+    flushSongHistoryInputGroup();
+    pushSongUndoState(pending.before);
+  }
+  function applySongHistoryState(state) {
+    const restored = JSON.parse(JSON.stringify(state.data));
+    Object.keys(songData).forEach((key) => delete songData[key]);
+    Object.assign(songData, restored);
+    $("song-name").value = state.name;
+    songHistoryKnownName = state.name;
+    $("song-tempo").value = songData.tempo || 120;
+    $("song-kit").value = songData.kit || "acoustic";
+    $("song-waveform").value = songData.melody.waveform || "sine";
+    $("song-visualization").value = songData.visualization || "bars";
+    $("song-theme").value = SONG_THEME_CLASSES.has(songData.theme) ? songData.theme : "default";
+    $("song-page-sync").checked = !!songData.page_sync;
+    $("song-master-volume").value = Math.round((typeof songData.master_volume === "number" ? songData.master_volume : 1) * 100);
+    $("song-humanize").value = typeof songData.humanize === "number" ? songData.humanize : 0;
+    $("song-notes").value = songData.private_notes || "";
+    applySongTheme($("song-preview-embed"), songData.theme);
+    Engine.setMasterVolume(getAudioCtx(), songData.master_volume);
+    $("song-preview-name").textContent = state.name || "Song name";
+    renderSequencer();
+    renderPianoRoll();
+    updatePreviewVisibility();
+    refreshWaveformPreview();
+    songEditGeneration++;
+    scheduleAutosave();
+  }
+  function undoSongEdit() {
+    flushSongHistoryInputGroup();
+    if (!songUndoStack.length) return;
+    const current = captureSongHistoryState();
+    const previous = songUndoStack.pop();
+    songRedoStack.push(current);
+    if (songRedoStack.length > SONG_HISTORY_LIMIT) songRedoStack.shift();
+    applySongHistoryState(previous);
+    updateSongHistoryButtons();
+  }
+  function redoSongEdit() {
+    flushSongHistoryInputGroup();
+    if (!songRedoStack.length) return;
+    const current = captureSongHistoryState();
+    const next = songRedoStack.pop();
+    songUndoStack.push(current);
+    if (songUndoStack.length > SONG_HISTORY_LIMIT) songUndoStack.shift();
+    applySongHistoryState(next);
+    updateSongHistoryButtons();
+  }
+  const songBuilderModal = $("song-builder-modal");
+  ["click", "input", "change"].forEach((type) => {
+    songBuilderModal.addEventListener(type, captureSongHistoryEvent, true);
+    songBuilderModal.addEventListener(type, finishSongHistoryEvent);
+  });
+  songBuilderModal.addEventListener("focusout", flushSongHistoryInputGroup);
+  document.addEventListener("keydown", captureSongHistoryEvent, true);
+  $("song-undo").addEventListener("click", undoSongEdit);
+  $("song-redo").addEventListener("click", redoSongEdit);
+
   window.addEventListener("beforeunload", (e) => {
-    if (!songHasUnsavedChanges) return;
+    if (!songHasUnsavedChanges && !songSavePending) return;
     e.preventDefault();
     e.returnValue = "";
   });
@@ -117,7 +305,12 @@
     const el2 = $("song-autosave-status");
     if (el2) el2.textContent = text;
   }
-  async function autosaveSong() {
+  function queueSongAutosave() {
+    if (!currentSongId || songSavePending) return;
+    clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(autosaveSong, 2000);
+  }
+  async function performAutosave() {
     if (!currentSongId) return;
     const name = $("song-name").value.trim();
     if (!name) return;
@@ -131,26 +324,89 @@
     // scheduleAutosave() instead to stay correct.
     const gen = openGeneration;
     const id = currentSongId;
-    const data = songData;
-    await refreshCachedWaveformPeaks(data);
-    if (gen !== openGeneration) return; // a different song opened while the peaks render was in flight -- this autosave is stale, let the next one (against the now-current song) handle it
+    const dirtyGen = songDirtyGeneration;
+    const data = JSON.parse(JSON.stringify(songData));
     try {
+      await refreshCachedWaveformPeaks(data);
+      if (gen !== openGeneration || id !== currentSongId) return; // a different song opened while the peaks render was in flight -- this autosave is stale, let the next one (against the now-current song) handle it
       await window.adminApi(`/songs/${id}`, { method: "PATCH", body: JSON.stringify({ name, data }) });
-      if (gen !== openGeneration) return; // a different song opened while this PATCH was in flight
-      songHasUnsavedChanges = false;
-      setAutosaveStatus("Saved " + new Date().toLocaleTimeString());
+      if (gen !== openGeneration || id !== currentSongId) return; // a different song opened while this PATCH was in flight
+      if (dirtyGen === songDirtyGeneration) {
+        songHasUnsavedChanges = false;
+        setAutosaveStatus("Saved " + new Date().toLocaleTimeString());
+      } else {
+        songHasUnsavedChanges = true;
+        setAutosaveStatus("Unsaved changes…");
+        autosaveQueued = true;
+      }
       if (window.refreshSongOptions) window.refreshSongOptions();
     } catch (err) {
-      if (gen !== openGeneration) return;
+      if (gen !== openGeneration || id !== currentSongId) return;
       setAutosaveStatus("Autosave failed: " + err.message);
     }
   }
+  function autosaveSong() {
+    autosaveTimer = null;
+    if (!currentSongId) return Promise.resolve();
+    if (songSavePending || autosavePromise) {
+      autosaveQueued = true;
+      return autosavePromise || Promise.resolve();
+    }
+    const gen = openGeneration;
+    setAutosaveStatus("Autosaving…");
+    const request = performAutosave();
+    let tracked;
+    tracked = request.finally(() => {
+      if (autosavePromise === tracked) {
+        autosavePromise = null;
+        autosaveOpenGeneration = null;
+      }
+      if (!autosaveQueued) return;
+      autosaveQueued = false;
+      if (songSavePending) {
+        autosaveQueued = true;
+        return;
+      }
+      if (songHasUnsavedChanges && currentSongId) queueSongAutosave();
+    });
+    autosavePromise = tracked;
+    autosaveOpenGeneration = gen;
+    return tracked;
+  }
   function scheduleAutosave() {
-    if (!currentSongId) return;
+    songDirtyGeneration++;
     songHasUnsavedChanges = true;
-    setAutosaveStatus("Unsaved changes…");
+    setAutosaveStatus(currentSongId ? "Unsaved changes…" : "Unsaved draft — save to keep");
     clearTimeout(autosaveTimer);
-    autosaveTimer = setTimeout(autosaveSong, 2000);
+    // A new draft has no row to PATCH yet. Keep it marked dirty so the
+    // status and beforeunload guard protect it until the first manual Save.
+    if (!currentSongId) return;
+    if (songSavePending || autosavePromise) {
+      autosaveQueued = true;
+      return;
+    }
+    queueSongAutosave();
+  }
+  function canLeaveSongBuilder() {
+    if (songSavePending && songSaveOpenGeneration === openGeneration) {
+      setAutosaveStatus("Save in progress. Wait before closing or switching songs.");
+      return false;
+    }
+    if (autosavePromise && autosaveOpenGeneration === openGeneration) {
+      setAutosaveStatus("Autosave in progress. Wait before closing or switching songs.");
+      return false;
+    }
+    if (songHasUnsavedChanges) {
+      const message = currentSongId
+        ? "Discard unsaved changes to this song?"
+        : "Discard this unsaved song draft?";
+      if (!confirm(message)) return false;
+      clearTimeout(autosaveTimer);
+      songHasUnsavedChanges = false;
+      autosaveQueued = false;
+      setAutosaveStatus("");
+    }
+    return true;
   }
 
   // Playback and drum/melody synthesis both live in the shared engine
@@ -344,13 +600,10 @@
     refreshWaveformPreview();
     scheduleAutosave();
   });
-  // Bumped on every manual edit of the volume slider -- lets the async
-  // normalize scan below detect "the admin changed the volume by hand
-  // while my offline render was still in flight" and back off rather than
-  // clobbering a deliberate manual adjustment with a stale computed one.
-  let volumeInputGeneration = 0;
+  // Invalidates an async normalize scan if any song edit happens while it
+  // renders, so a stale scan cannot overwrite newer work.
+  let songEditGeneration = 0;
   $("song-master-volume").addEventListener("input", () => {
-    volumeInputGeneration++;
     songData.master_volume = Number($("song-master-volume").value) / 100;
     // Apply immediately rather than waiting for scheduleStep's next pass —
     // otherwise dragging the slider while playback is stopped (or before
@@ -386,18 +639,13 @@
     const originalText = btn.textContent;
     btn.disabled = true;
     btn.textContent = "Scanning…";
-    // Captured *before* the async render -- a critic pass found that
-    // without these, finishing the scan after the admin had already
-    // switched to a different song (openGeneration, the same guard
-    // openBuilder itself uses) or manually dragged the volume slider
-    // (volumeInputGeneration, above) would silently overwrite the wrong
-    // song's master_volume, or clobber a deliberate manual adjustment,
-    // with this scan's now-stale result.
+    // Captured before the async render so switching songs or editing any
+    // part of the current song makes this result stale.
     const myOpenGeneration = openGeneration;
-    const myVolumeGeneration = volumeInputGeneration;
+    const myEditGeneration = songEditGeneration;
     try {
       const peaks = await Engine.renderWaveformPeaks(songData, 400);
-      if (myOpenGeneration !== openGeneration || myVolumeGeneration !== volumeInputGeneration) return;
+      if (myOpenGeneration !== openGeneration || myEditGeneration !== songEditGeneration) return;
       const peakAmp = Math.max(0.0001, ...peaks.flatMap((p) => [Math.abs(p[0]), Math.abs(p[1])]));
       const TARGET_PEAK = 0.98; // a hair under full scale, not 1.0 exactly, for a small safety margin
       // Round down (not to nearest) to a whole percent, and use that SAME
@@ -411,13 +659,11 @@
       // above the level this scan actually proved safe against clipping.
       const newVolumePercent = Math.floor(Math.min(1, TARGET_PEAK / peakAmp) * 100);
       const newVolume = newVolumePercent / 100;
-      // No pushHistory() here -- the Song builder has no undo/redo stack at
-      // all (a pre-existing gap logged separately in outline.md, unlike
-      // the Photo Editor and simulation builder), so nothing else in this
-      // file pushes one either.
+      const historyBefore = captureSongHistoryState();
       songData.master_volume = newVolume;
       $("song-master-volume").value = newVolumePercent;
       Engine.setMasterVolume(getAudioCtx(), newVolume);
+      if (pushSongUndoState(historyBefore)) songEditGeneration++;
       scheduleAutosave();
       const unsavedNote = currentSongId ? "" : " (Save the song to keep this.)";
       alert(`Peak was ${Math.round(peakAmp * 100)}% of full scale. Master volume set to ${newVolumePercent}% to avoid clipping.${unsavedNote}`);
@@ -578,9 +824,11 @@
     if (!songData.melody.notes[noteName]) return; // outside the 2-octave piano roll range — preview only
     if (player.isPlaying() && $("song-record").checked) {
       const step = player.currentStep();
+      const wasRecorded = songData.melody.notes[noteName][step] === true;
       songData.melody.notes[noteName][step] = true;
       const cell = document.querySelector(`.song-steps[data-row="${noteName}"] .song-step[data-step="${step}"]`);
       if (cell) cell.classList.add("song-step-on");
+      if (!wasRecorded) scheduleAutosave();
     }
   }
 
@@ -588,7 +836,11 @@
     const [status, note, velocity] = msg.data;
     const isNoteOn = status >> 4 === 9 && velocity > 0;
     if (!isNoteOn) return;
-    playAndMaybeRecordNote(Engine.midiToNoteName(note));
+    const noteName = Engine.midiToNoteName(note);
+    const shouldRecord = player.isPlaying() && $("song-record").checked && !!songData.melody.notes[noteName];
+    const historyBefore = shouldRecord ? captureSongHistoryState() : null;
+    playAndMaybeRecordNote(noteName);
+    if (historyBefore && pushSongUndoState(historyBefore)) songEditGeneration++;
   }
 
   if (navigator.requestMIDIAccess) {
@@ -659,6 +911,7 @@
     e.preventDefault();
     playAndMaybeRecordNote(KEYBOARD_NOTE_MAP[key] + KEYBOARD_NOTE_OCTAVE[key]);
   });
+  document.addEventListener("keydown", finishSongHistoryEvent);
   $("song-record-label").hidden = false;
 
   // Inverted from KEYBOARD_NOTE_MAP/KEYBOARD_NOTE_OCTAVE (note+octave ->
@@ -983,6 +1236,7 @@
 
   // ---------- Open / close builder ----------
   async function openBuilder(id, templateId) {
+    if (!canLeaveSongBuilder()) return;
     stopPlayback();
     // Switching songs must drop any pending autosave for the PREVIOUS one
     // first — openBuilder awaits a fetch before songData is reassigned,
@@ -993,6 +1247,8 @@
     clearTimeout(autosaveTimer);
     setAutosaveStatus("");
     songHasUnsavedChanges = false;
+    songDirtyGeneration = 0;
+    autosaveQueued = false;
     // A second, independent race a critic pass found: clicking Edit on
     // song A, then song B before A's own GET resolves, used to let
     // whichever response came back LAST win, applying it to the form
@@ -1040,6 +1296,7 @@
     player = Engine.createPlayer(getAudioCtx, songData, highlightStep);
     $("songs-modal").hidden = true;
     $("song-builder-modal").hidden = false;
+    resetSongHistory();
     renderSequencer();
     renderPianoRoll();
     updatePreviewVisibility();
@@ -1047,6 +1304,7 @@
   }
 
   $("close-song-builder").addEventListener("click", () => {
+    if (!canLeaveSongBuilder()) return;
     stopPlayback();
     $("song-builder-modal").hidden = true;
     $("songs-modal").hidden = false;
@@ -1054,6 +1312,7 @@
   });
 
   $("save-song").addEventListener("click", async () => {
+    if (songSavePending) return;
     const name = $("song-name").value.trim();
     if (!name) return alert("Name is required.");
     songData.tempo = Number($("song-tempo").value) || 120;
@@ -1065,43 +1324,33 @@
     songData.master_volume = Number($("song-master-volume").value) / 100;
     songData.humanize = Number($("song-humanize").value) || 0;
     songData.private_notes = $("song-notes").value;
-    // Captured *before* the await below, exactly like autosaveSong() does
-    // -- a critic pass found that adding this feature's peaks-render
-    // await here (with nothing captured beforehand) opened a real race:
-    // clicking Save, then switching to a different song before the
-    // render resolved, would PATCH the NEW current song's id/data with
-    // the OLD song's name still sitting in the `name` local, silently
-    // renaming the wrong song while this song's own edits were never
-    // persisted at all.
-    //
-    // A round-2 critic pass on the FIRST fix for that bug found a
-    // second, subtler gap: that fix skipped the PATCH/POST request
-    // entirely whenever the generation had already moved on -- safe for
-    // an existing song (its last-saved row is simply untouched, and the
-    // alert's "please save again" promise holds), but for a BRAND-NEW,
-    // never-yet-saved song there is no row to go back and resave --
-    // the whole song (name, notes, every setting) was silently and
-    // permanently discarded with a misleading "please save again" alert.
-    // The request itself never depends on any live module state (it's
-    // built entirely from the captured `id`/`name`/`data` locals), so it
-    // ALWAYS fires and the song is ALWAYS actually persisted regardless
-    // of what's open by the time it resolves -- only the UI-facing
-    // side-effects that assume the save's own song is still the one
-    // currently open (the "Saved." alert, autosave-status text/timer,
-    // and wiring a freshly-created id into `currentSongId`) are gated on
-    // `gen === openGeneration`, so they never misapply to whatever
-    // DIFFERENT song is open by the time this resolves.
     const gen = openGeneration;
     const id = currentSongId;
-    const data = songData;
-    await refreshCachedWaveformPeaks(data);
+    const dirtyGen = songDirtyGeneration;
+    const data = JSON.parse(JSON.stringify(songData));
+    const saveButton = $("save-song");
+    const wasDisabled = saveButton.disabled;
+    const pendingAutosave = autosavePromise;
+    songSavePending = true;
+    songSaveOpenGeneration = gen;
+    autosaveQueued = false;
+    clearTimeout(autosaveTimer);
+    saveButton.disabled = true;
+    setAutosaveStatus("Saving…");
+    let saveFailed = false;
     try {
+      await refreshCachedWaveformPeaks(data);
+      // An older autosave may already be writing this same row. Let it
+      // finish before the explicit Save so an earlier snapshot cannot
+      // arrive last and overwrite the newer manual save.
+      if (pendingAutosave) await pendingAutosave;
       let newId = id;
       if (id) {
         await window.adminApi(`/songs/${id}`, { method: "PATCH", body: JSON.stringify({ name, data }) });
       } else {
         const res = await window.adminApi("/songs", { method: "POST", body: JSON.stringify({ name, data }) });
         newId = res.id;
+        if (!newId) throw new Error("Save did not return a song id.");
       }
       if (gen !== openGeneration) {
         // A different song is open now, but THIS song's data was still
@@ -1112,14 +1361,41 @@
         return;
       }
       if (!id) currentSongId = newId;
-      clearTimeout(autosaveTimer);
-      songHasUnsavedChanges = false;
-      setAutosaveStatus("Saved " + new Date().toLocaleTimeString());
-      alert("Saved.");
+      if (dirtyGen === songDirtyGeneration) {
+        clearTimeout(autosaveTimer);
+        songHasUnsavedChanges = false;
+        autosaveQueued = false;
+        setAutosaveStatus("Saved " + new Date().toLocaleTimeString());
+        alert("Saved.");
+      } else {
+        songHasUnsavedChanges = true;
+        setAutosaveStatus("Unsaved changes…");
+        alert("Saved. Newer edits still need to be saved.");
+      }
       if (window.refreshSongOptions) window.refreshSongOptions();
     } catch (err) {
       if (gen !== openGeneration) return;
+      saveFailed = true;
+      songHasUnsavedChanges = true;
+      setAutosaveStatus("Save failed: " + err.message);
       alert(err.message);
+    } finally {
+      songSavePending = false;
+      songSaveOpenGeneration = null;
+      saveButton.disabled = wasDisabled;
+      if (gen !== openGeneration) {
+        // A different song may have been opened while the captured Save
+        // was pending. If that song was edited, its queued autosave still
+        // needs a timer after this page-wide Save lock is released.
+        if (autosaveQueued && songHasUnsavedChanges && currentSongId) {
+          autosaveQueued = false;
+          queueSongAutosave();
+        }
+      } else if (songHasUnsavedChanges && currentSongId &&
+          (dirtyGen !== songDirtyGeneration || autosaveQueued || saveFailed)) {
+        autosaveQueued = false;
+        queueSongAutosave();
+      }
     }
   });
 

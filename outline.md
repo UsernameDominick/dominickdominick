@@ -28,7 +28,7 @@ Before release, also confirm `main` is an ancestor of the reviewed `production` 
 ahead during review is expected. If either ref moved or the histories otherwise diverged, stop and reconcile them.
 Never force-push or rewrite either branch. Cloudflare confirms `main` deploys live with `npx wrangler deploy`.
 
-GitHub marks both branch objects `protected: false`; the repository-rulesets endpoint returned 403 for this private repo, so additional rules could not be verified. Treat branch protection as unconfirmed until an authorized owner view checks it.
+GitHub's branch API reports `protected: false` and `protection.enabled: false` for both `main` and `production`. The rulesets API returns 403 on this repository plan, so any rulesets remain unverified. Treat both branches as unprotected until the owner verifies effective controls.
 
 **Review evidence:** report each critic score and unresolved finding; never claim browser or visual checks that were not run.
 
@@ -78,9 +78,9 @@ it does not verify runtime Worker secrets. Verify distinct test-only Preview val
 
 - **TTS:** shipped with uploaded audio and Web Speech API fallback. Actual speech still needs a browser with
   installed voices.
-- **Song builder:** shipped with drum sequencer, piano roll, MIDI input, autosave, waveform/player
-  visualizations, public embeds, and private production notes. Waveform previews now render deterministically;
-  live drum playback retains fresh noise.
+- **Song builder:** drum sequencer, piano roll, MIDI input, bounded grouped Undo/Redo, autosave, waveform/player
+  visualizations, public embeds, and private production notes. Waveform previews render deterministically;
+  live drum playback retains fresh noise. New drafts warn before close and become autosaved after first Save.
 - **Admin mobile UX:** topbar overflow, page-builder reflow, and QA bugs were fixed. The broader
   visual/navigation pass remains open.
 - **Public design:** flow-layout and baseline code-block/link styling shipped. Typographic hierarchy and spacing
@@ -235,17 +235,11 @@ The standing scope rule in section 0 applies. Keep shared builders consistent.
 - If the general media library expands beyond images, consider adding waveforms for its audio files.
 - Extend TTS read-aloud to build journals if there is a clear use case.
 
-## 4. Production migration log
+## 4. Production migration state
 
-Production D1 `dominickdominick` lacked `private`, `width`, and `height`. After checking its schema, the approved additive migration added only:
+Production D1 `dominickdominick` has `media.private`, `width`, and `height`, confirmed with `PRAGMA table_info` on 2026-09-27. The migration details are in Git history.
 
-    ALTER TABLE media ADD COLUMN private INTEGER NOT NULL DEFAULT 0;
-    ALTER TABLE media ADD COLUMN width INTEGER;
-    ALTER TABLE media ADD COLUMN height INTEGER;
-
-`PRAGMA table_info(media)` confirms all three columns. The homepage image `uploads/300679fa-5339-49cc-a839-9a3253031cb6.png` serves at 1200×630, but its D1 metadata row is absent and the Media Library shows `NO ALT`; opening the library did not backfill it. Error-log rows 63–67 are pre-migration column failures, 68–73 are generic client errors, and row 74 records the unsupported native prompt from the Photo Editor snapshot check. No snapshot or image was saved, and no later rows appeared in read-only checks. The native prompt is replaced in the current candidate; authenticated Preview verification remains open.
-
-No migration runner is configured; `schema.sql` is bootstrap only. Never replay the full schema. Production D1/R2 writes require per-instance confirmation.
+The R2-only homepage image `uploads/300679fa-5339-49cc-a839-9a3253031cb6.png` serves at 1200×630 but still has no D1 metadata row or alt text. The old media-route HTTP 500 has not been retested after the migration.
 
 ## 5. Deferred or scoped out
 
@@ -272,19 +266,14 @@ No migration runner is configured; `schema.sql` is bootstrap only. Never replay 
 
 ## 6. Manual verification still owed
 
-**Completed smoke checks (2026-09-27, Codex in-app browser):** Page Preview focus, iframe Tab/Shift+Tab, Escape/backdrop, and focus return passed. Media Library loaded the R2-only homepage image thumbnail, but its metadata row was absent and the card showed `NO ALT`. New blank image, writing focus, page-builder Focus, and crop Escape checks passed. Diagnostics found a homepage video without a URL and an image without alt text; Gallery had no images. No content was changed or saved. Targeted visual scores were 8/10 for writing focus and 7/10 for New blank image (unused lower panel; geometry and backdrop hit-testing were not checked).
-
-
-
-**Still open:** Verify all five Photo Editor text-entry flows on an authenticated Preview: snapshot name, adjustment preset, brush preset, text style, and canvas text. Check submit/cancel, Escape/backdrop, focus containment/return, and confirm cancel performs no edit or save. Row 74 records the earlier unsupported native prompt; no image was saved. The candidate UI has not received a browser or visual check. A blank-article check showed `0 words · 1 min read` before and after writing focus; the earlier change did not reproduce, so keep the counter open without changing its calculation.
-
-- Production has no articles, projects, simulations, or scans, so header-dimension, published-article/highlight.js, `.glb`, and iPhone `.usdz` checks cannot run without creating content; no filler was added.
-- Verify uploaded article/project header images reserve their stored dimensions. External cover URLs have no stored dimensions; decide how to handle them before use.
-- Worker Preview still needs distinct test-only `ADMIN_PASSWORD` and `SESSION_SECRET` values verified before protected flows; never reuse production credentials. Preview is public, has distinct D1/R2 resources, and has no page records. Define cleanup and use namespaced non-sensitive fixtures before adding test data unless Access is enabled. See [Preview access control](https://developers.cloudflare.com/workers/previews/#access-control).
-- Confirm Web Speech read-aloud with a browser that has voices.
-- Full authenticated-admin flow coverage and representative site-wide visual review remain open.
-- Live `/`, `/projects`, `/random`, and `/topics` loaded; the homepage image displayed at 1200×630, the browser console was clear, and 390px/768px viewports had no horizontal overflow. Sitemap navigation was blocked by the browser client; the earlier 66 server/security/SEO checks passed.
-- Localhost browser testing remains unavailable because the cloud browser cannot reach localhost and Chromium installation failed under restricted egress.
+- In authenticated Preview, test all five Photo Editor text-entry flows (snapshot name, adjustment preset, brush preset, text style, canvas text): submit/cancel, Escape/backdrop, focus containment/return, and confirm cancel neither edits nor saves.
+- In authenticated Preview, verify Song Builder Undo/Redo across settings, drum and piano grids, notes/name, grouped text/slider input, keyboard shortcuts, redo clearing, song switching, first Save, autosave, edits during Save, existing-save retry, first-save retry by hand, and dirty close/switch confirmation. No authenticated browser or visual check has been run for this candidate.
+- Test New Blank Image geometry and backdrop hit-testing. Recheck homepage/gallery image paths in Diagnostics after the media migration; distinguish missing R2 objects from D1/query failures before cleanup.
+- Resolve the homepage video missing its URL and homepage image missing alt text before publishing affected content. The production site has no articles, projects, simulations, or scans, so header-dimension, published-article/highlight.js, `.glb`, and iPhone `.usdz` checks cannot run without content; do not add filler.
+- Verify uploaded article/project header images reserve stored dimensions. External cover URLs have no stored dimensions; decide how to handle them before use.
+- Preview uses separate D1/R2 resources, is public, and has no page records. Set distinct test-only `ADMIN_PASSWORD` and `SESSION_SECRET` Worker runtime secrets before protected-flow tests; never reuse production secrets. Use namespaced non-sensitive fixtures and define cleanup unless Access is enabled. See [Preview access control](https://developers.cloudflare.com/workers/previews/#access-control).
+- Confirm Web Speech read-aloud in a browser with installed voices. Full authenticated-admin coverage, representative site-wide visual review, and direct in-browser sitemap confirmation remain open.
+- Localhost browser testing is unavailable: the cloud browser cannot reach localhost, and Chromium installation failed under restricted egress.
 
 ## 7. Recurring security, SEO, and accessibility checks
 
@@ -446,17 +435,14 @@ permissions — out of scope], 597 [package/dependency system — out of scope],
 
 ### Current unnumbered follow-ups
 
-- Song builder still has no undo/redo.
 - External article/project header images have no persisted dimensions; decide between author-supplied dimensions and a fixed-ratio presentation before relying on remote covers. Current project-card blocks and article/project index cards are text-only and have no image layout shift.
 
 
 ## 9. Current audit status
 
-- The 5765b16 baseline passed public route checks; its Worker Preview and live deployment succeeded. Preview has no page records, so its public root shows the not-found page. The live Worker's `0 8 * * *` backup Cron Trigger was confirmed read-only; no backup was triggered.
-- Critic reviews: pass 1 scored 8/10 (two findings fixed); pass 2 scored 9/10 (clear); pass 3 scored 8/10 (sentinel finding fixed); pass 4 scores 9/10 after the crop-Escape fix, with focused resolution clear. No critic findings remain open.
-- The Production D1 migration is complete; the R2-only homepage image still lacks a metadata row. Error-log history is recorded in section 4.
-- Image sizing uses stored dimensions for known uploads, including same-site absolute cover URLs; remote cover dimensions remain an open decision.
-- `main` remains at 5765b16 after the direct-request promotion. Hold further promotion until the current candidate passes critic, build, and required manual gates; recheck both refs and require a clean fast-forward.
+- Remote `production` remains at `e8251b7`; `main` remains at `5765b16`. Four critic passes scored 8/10, 7/10, 5/10, and 7/10; their Song Builder findings are fixed and regression-covered. The post-fix follow-up scored 9/10. Main promotion still requires the outstanding authenticated/browser/manual gates.
+- Song Builder snapshots Save data, prevents duplicate first-save requests, blocks close/switch during active writes, and confirms before discarding dirty drafts or saved edits. Failed existing-song saves stay dirty and queue one autosave retry; a failed first-save POST stays dirty for manual retry. Local regressions and syntax checks pass; browser/visual review remains open.
+- Production D1 has the `private`, `width`, and `height` columns. The R2-only homepage image still lacks a D1 metadata row and alt text; the old route error was not retested after migration.
 
 ## 10. Open decisions
 
