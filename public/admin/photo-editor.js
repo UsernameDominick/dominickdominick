@@ -23,6 +23,52 @@
   // number duplicated inline in the tooltip text below).
   const MAX_EXPORT_MB = 8;
 
+  // The app modal replaces the native dialog API, which is unsupported in
+  // some embedded browsers. The shared stack supplies
+  // Escape/backdrop closing, focus trapping, and focus return; every close
+  // path resolves null so callers can treat cancellation consistently.
+  const promptModal = $("photo-editor-prompt-modal");
+  const promptForm = $("photo-editor-prompt-form");
+  const promptTitle = $("photo-editor-prompt-title");
+  const promptLabel = $("photo-editor-prompt-label");
+  const promptInput = $("photo-editor-prompt-input");
+  let resolvePrompt = null;
+
+  function settlePrompt(value) {
+    if (!resolvePrompt) return;
+    const resolve = resolvePrompt;
+    resolvePrompt = null;
+    promptModal.hidden = true;
+    resolve(value);
+  }
+
+  function promptForText(title, label, initialValue = "") {
+    if (resolvePrompt) return Promise.resolve(null);
+    promptTitle.textContent = title;
+    promptLabel.textContent = label;
+    promptInput.value = initialValue;
+    promptInput.setCustomValidity("");
+    promptModal.hidden = false;
+    return new Promise((resolve) => {
+      resolvePrompt = resolve;
+    });
+  }
+
+  promptForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const value = promptInput.value;
+    if (!value.trim()) {
+      promptInput.setCustomValidity("Enter a value, or cancel.");
+      promptInput.reportValidity();
+      return;
+    }
+    promptInput.setCustomValidity("");
+    settlePrompt(value);
+  });
+  promptInput.addEventListener("input", () => promptInput.setCustomValidity(""));
+  $("pe-prompt-cancel").addEventListener("click", () => settlePrompt(null));
+  $("close-photo-editor-prompt").addEventListener("click", () => settlePrompt(null));
+
   // Interpolates the real constants above into the tooltip text rather
   // than a separate hardcoded string, so a future change to any of them
   // can't silently drift out of sync with what the UI tells an admin (a
@@ -295,7 +341,7 @@
     }
   }
 
-  $("pe-save-snapshot").addEventListener("click", () => {
+  $("pe-save-snapshot").addEventListener("click", async () => {
     // While Compare is held, the live canvas is temporarily swapped to
     // show originalSnapshot's pixels (a plain drawImage swap, not routed
     // through restoreSnapshot() -- see startCompare()'s own comment).
@@ -305,8 +351,8 @@
     // the exact bug class already hunted down and fixed for Undo/Redo/
     // Reset/Restore, just missed for this one.
     if (isComparing()) return;
-    const name = prompt("Name this snapshot:", `Snapshot ${namedSnapshots.length + 1}`);
-    if (!name || !name.trim()) return;
+    const name = await promptForText("Save snapshot", "Snapshot name", `Snapshot ${namedSnapshots.length + 1}`);
+    if (name === null) return;
     namedSnapshots.push({ name: name.trim(), canvas: snapshotCanvas() });
     // Full-size canvas copies held in memory -- capped like the undo stack
     // so a long editing session on a large (MAX_DIMENSION-sized) image
@@ -963,10 +1009,10 @@
       alert("Adjust brightness, contrast, or saturation first, then save it as a preset.");
       return;
     }
-    const name = prompt("Preset name:");
-    if (!name) return;
+    const name = await promptForText("Save adjustment preset", "Preset name");
+    if (name === null) return;
     try {
-      await window.adminApi("/photo-presets", { method: "POST", body: JSON.stringify({ name, adjust }) });
+      await window.adminApi("/photo-presets", { method: "POST", body: JSON.stringify({ name: name.trim(), adjust }) });
       await loadPhotoPresets();
     } catch (err) {
       alert(err.message);
@@ -1124,8 +1170,8 @@
       alert("Select a brush tool (Erase, Blur, Pixelate, Dodge, or Burn) first, then save it as a preset.");
       return;
     }
-    const name = prompt("Brush preset name:");
-    if (!name || !name.trim()) return;
+    const name = await promptForText("Save brush preset", "Preset name");
+    if (name === null) return;
     try {
       await window.adminApi("/brush-presets", {
         method: "POST",
@@ -1180,8 +1226,8 @@
   });
 
   $("pe-save-text-style").addEventListener("click", async () => {
-    const name = prompt("Text style name:");
-    if (!name || !name.trim()) return;
+    const name = await promptForText("Save text style", "Style name");
+    if (name === null) return;
     try {
       await window.adminApi("/text-styles", {
         method: "POST",
@@ -1449,9 +1495,9 @@
     $("pe-annotate-color").value = hex;
   }
 
-  function placeText(point) {
-    const text = prompt("Text to add:");
-    if (!text) return;
+  async function placeText(point) {
+    const text = await promptForText("Add text", "Text to add");
+    if (text === null) return;
     pushUndo();
     const fontSize = Math.max(16, annotateSize() * 6);
     ctx.fillStyle = annotateColor();
@@ -1468,11 +1514,10 @@
     ctx.fillText(text, point.x, point.y);
     // A critic pass found this was the one remaining pixel-mutating action
     // missing baseSnapshot invalidation -- and arguably the easiest of all
-    // of them to actually trigger, since prompt() blocks the main thread
-    // while the dialog is open, letting another pointer's adjust-slider
-    // drag queue up input events that resume the instant this returns,
-    // painting the pre-text baseSnapshot back over the canvas and silently
-    // erasing the text that was just placed.
+    // of them to trigger. The app modal leaves the event loop running, so
+    // a second touch already captured by an adjust slider can still deliver
+    // input while the prompt is open; clearing its old snapshot here keeps
+    // the next adjustment from painting over and erasing the placed text.
     invalidateOpenAdjustDrag();
   }
 
@@ -1513,8 +1558,9 @@
       airbrushJustCommitted = false;
       if (airbrushMode()) startAirbrushTimer();
     } else if (currentTool === "text") {
-      placeText(p);
       dragging = false;
+      dragStart = null;
+      void placeText(p);
     } else if (currentTool === "eyedropper") {
       pickColor(p);
       dragging = false;

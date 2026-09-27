@@ -3350,6 +3350,48 @@ code.color-field-value {
   gap: 10px;
 }
 
+.pe-prompt-modal-inner {
+  max-width: 420px;
+  height: auto;
+  max-height: 90vh;
+  padding: 0 20px 20px;
+  overflow-y: auto;
+}
+
+.pe-prompt-modal-inner header {
+  margin: 0 -20px;
+}
+
+.pe-prompt-form {
+  padding-top: 16px;
+}
+
+.pe-prompt-form label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-dim);
+  font-size: 0.9em;
+}
+
+.pe-prompt-form input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pe-prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.pe-prompt-actions button[type="submit"] {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
 .shortcuts-list {
   display: flex;
   flex-direction: column;

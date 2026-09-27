@@ -237,13 +237,13 @@ The standing scope rule in section 0 applies. Keep shared builders consistent.
 
 ## 4. Production migration log
 
-Before migration, the production media route failed with HTTP 500 because D1 lacked `private`. On 2026-09-27, after confirming database `dominickdominick` (`f49fb038-9dfb-419e-acfb-7d8babc9d509`) and its current schema, the approved additive migration added only:
+Production D1 `dominickdominick` lacked `private`, `width`, and `height`. After checking its schema, the approved additive migration added only:
 
     ALTER TABLE media ADD COLUMN private INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE media ADD COLUMN width INTEGER;
     ALTER TABLE media ADD COLUMN height INTEGER;
 
-A read-only `PRAGMA table_info(media)` recheck confirms all three expected columns. The homepage key `uploads/300679fa-5339-49cc-a839-9a3253031cb6.png` has no `media` metadata row, but the public route served it in a browser at 1200×630. On 2026-09-27, the authenticated production Media Library listed the R2 object and loaded its 1200×630 thumbnail while a read-only D1 check still found no matching metadata row; the card showed `NO ALT`. Opening the library did not backfill metadata. Log rows 63–67 contain pre-migration `private`-column failures. Rows 68–73 are generic `client:admin` script errors with empty stacks and unknown causes. Row 74 was generated during this browser check when Photo Editor “Save snapshot” called native `prompt()`; the Codex in-app browser reports that API unsupported (`public/admin/photo-editor.js:308`). No snapshot or image was saved. All rows remain untouched; read-only checks before and after the Diagnostics/article-focus/crop-keyboard checks found no rows after ID 74.
+`PRAGMA table_info(media)` confirms all three columns. The homepage image `uploads/300679fa-5339-49cc-a839-9a3253031cb6.png` serves at 1200×630, but its D1 metadata row is absent and the Media Library shows `NO ALT`; opening the library did not backfill it. Error-log rows 63–67 are pre-migration column failures, 68–73 are generic client errors, and row 74 records the unsupported native prompt from the Photo Editor snapshot check. No snapshot or image was saved, and no later rows appeared in read-only checks. The native prompt is replaced in the current candidate; authenticated Preview verification remains open.
 
 No migration runner is configured; `schema.sql` is bootstrap only. Never replay the full schema. Production D1/R2 writes require per-instance confirmation.
 
@@ -272,11 +272,11 @@ No migration runner is configured; `schema.sql` is bootstrap only. Never replay 
 
 ## 6. Manual verification still owed
 
-**Production-admin smoke check (2026-09-27, Codex in-app browser):** Screen Preview dialog name, opening focus, iframe Tab/Shift+Tab, Escape/backdrop close, and focus return passed. Media Library listed the R2-only homepage image and loaded its 1200×630 thumbnail; read-only D1 recheck still found no metadata row and the card showed `NO ALT`. New blank image opened at 1200×630 and Escape returned to Media Library. Article writing focus opened a full-screen overlay, focused the body, and Escape returned to the editor; page-builder Focus hid and restored the block palette. Targeted screenshot scores: writing focus 8/10; New blank image 7/10 (large unused lower panel area; DOM geometry and backdrop hit-testing were not checked). Crop-keyboard recheck passed: a temporary selection exposed Apply Crop; Escape removed the selection and kept Photo Editor open, and a second Escape closed the editor. No save action was used.
+**Completed smoke checks (2026-09-27, Codex in-app browser):** Page Preview focus, iframe Tab/Shift+Tab, Escape/backdrop, and focus return passed. Media Library loaded the R2-only homepage image thumbnail, but its metadata row was absent and the card showed `NO ALT`. New blank image, writing focus, page-builder Focus, and crop Escape checks passed. Diagnostics found a homepage video without a URL and an image without alt text; Gallery had no images. No content was changed or saved. Targeted visual scores were 8/10 for writing focus and 7/10 for New blank image (unused lower panel; geometry and backdrop hit-testing were not checked).
 
-A read-only homepage Diagnostics run listed a video block with no URL and the homepage image with missing alt text. The image block references `/media/uploads/300679fa-5339-49cc-a839-9a3253031cb6.png`; its R2 thumbnail loaded, but no D1 metadata row exists. The Gallery block reported 0 images, so no gallery paths were available to check. No content fields were changed.
 
-**Still open:** The child-dialog check invoked native `prompt()` through Save snapshot; the Codex in-app browser reported it unsupported (error row 74 at `public/admin/photo-editor.js:308`; no snapshot or image was saved). Repeat in a browser that supports prompts or replace the native prompt with app UI. A fresh blank-article check showed `0 words · 1 min read` both before and after writing focus; the earlier 0-to-1-minute change did not reproduce. Keep this as an open reproducibility check before changing the calculation.
+
+**Still open:** Verify all five Photo Editor text-entry flows on an authenticated Preview: snapshot name, adjustment preset, brush preset, text style, and canvas text. Check submit/cancel, Escape/backdrop, focus containment/return, and confirm cancel performs no edit or save. Row 74 records the earlier unsupported native prompt; no image was saved. The candidate UI has not received a browser or visual check. A blank-article check showed `0 words · 1 min read` before and after writing focus; the earlier change did not reproduce, so keep the counter open without changing its calculation.
 
 - Production has no articles, projects, simulations, or scans, so header-dimension, published-article/highlight.js, `.glb`, and iPhone `.usdz` checks cannot run without creating content; no filler was added.
 - Verify uploaded article/project header images reserve their stored dimensions. External cover URLs have no stored dimensions; decide how to handle them before use.
@@ -452,11 +452,11 @@ permissions — out of scope], 597 [package/dependency system — out of scope],
 
 ## 9. Current audit status
 
-- The unchanged code candidate at 5765b16 has a successful Worker Preview build; the live main build and 100% Worker deployment for 5765b16 also succeeded. Preview D1 has no pages and public `/` shows the not-found fallback. Public route checks passed; authenticated admin and modal visual checks remain open. A read-only Cloudflare API check on 2026-09-27 confirmed the live Worker's `0 8 * * *` backup Cron Trigger; no backup was manually triggered.
+- The 5765b16 baseline passed public route checks; its Worker Preview and live deployment succeeded. Preview has no page records, so its public root shows the not-found page. The live Worker's `0 8 * * *` backup Cron Trigger was confirmed read-only; no backup was triggered.
 - Critic reviews: pass 1 scored 8/10 (two findings fixed); pass 2 scored 9/10 (clear); pass 3 scored 8/10 (sentinel finding fixed); pass 4 scores 9/10 after the crop-Escape fix, with focused resolution clear. No critic findings remain open.
-- Production D1 now has media columns private, width, and height after the approved additive migration. The homepage image served after the fix, although its media metadata row is absent; authenticated admin handling is unverified. Log rows 63–67 are pre-migration column errors; rows 68–71 are generic client:admin script errors with empty stacks and unknown cause. None were changed, and the post-deploy browser checks added no rows.
+- The Production D1 migration is complete; the R2-only homepage image still lacks a metadata row. Error-log history is recorded in section 4.
 - Image sizing uses stored dimensions for known uploads, including same-site absolute cover URLs; remote cover dimensions remain an open decision.
-- At Dominick's direct request, main was clean-fast-forwarded to 5765b16 and its Cloudflare deployment succeeded while authenticated/browser and visual gates were still open. Hold further main updates until those checks pass; recheck both refs and preserve the clean fast-forward rule.
+- `main` remains at 5765b16 after the direct-request promotion. Hold further promotion until the current candidate passes critic, build, and required manual gates; recheck both refs and require a clean fast-forward.
 
 ## 10. Open decisions
 

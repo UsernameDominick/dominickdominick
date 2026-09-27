@@ -1306,6 +1306,23 @@
     </div>
   </div>
 
+  <div id="photo-editor-prompt-modal" class="modal" hidden role="dialog" aria-labelledby="photo-editor-prompt-title">
+    <div class="modal-inner pe-prompt-modal-inner">
+      <header>
+        <h1 id="photo-editor-prompt-title">Enter a value</h1>
+        <button type="button" id="close-photo-editor-prompt" aria-label="Close Photo Editor prompt dialog">×</button>
+      </header>
+      <form id="photo-editor-prompt-form" class="pe-prompt-form">
+        <label for="photo-editor-prompt-input" id="photo-editor-prompt-label">Value</label>
+        <input type="text" id="photo-editor-prompt-input" autocomplete="off" autofocus>
+        <div class="pe-prompt-actions">
+          <button type="button" id="pe-prompt-cancel">Cancel</button>
+          <button type="submit">Continue</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div id="simulations-modal" class="modal" hidden role="dialog" aria-labelledby="simulations-modal-title">
     <div class="modal-inner redirects-modal-inner">
       <header>
