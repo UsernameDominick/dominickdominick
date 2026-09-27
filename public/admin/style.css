@@ -4212,6 +4212,22 @@ kbd {
   min-width: 52px;
 }
 
+.sim-electrical-effect {
+  display: block;
+  border-left: 2px solid var(--accent);
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin: -4px 0 10px;
+  background: var(--bg);
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.sim-electrical-effect strong {
+  color: var(--text);
+}
+
 .sim-power-status {
   font-size: 0.8rem;
   color: var(--text-dim);
