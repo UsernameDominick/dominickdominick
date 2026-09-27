@@ -102,15 +102,29 @@
     renderBuilder();
   }
 
+  function captureInitialSimulationSnapshot() {
+    return JSON.stringify({
+      simData,
+      simCheckpoints,
+      name: $("simulation-name").value,
+      posterUrl: $("sim-poster-url").value,
+    });
+  }
+
   function resetSimToInitial() {
     if (!initialSimSnapshot) return;
     if (!confirm("Discard all edits and go back to the last saved state?")) return;
+    const initialState = JSON.parse(initialSimSnapshot);
     setSnapHoleWarning(0);
     pushHistory();
-    simData = JSON.parse(initialSimSnapshot);
+    simData = initialState.simData;
+    simCheckpoints = initialState.simCheckpoints;
+    $("simulation-name").value = initialState.name;
+    $("sim-poster-url").value = initialState.posterUrl;
     selected = null;
     wireStart = null;
     updateHistoryButtons();
+    renderCheckpointSelect();
     renderInspector();
     renderBuilder();
   }
@@ -257,6 +271,37 @@
     return `${prefix}_${Date.now().toString(36)}_${localIdCounter++}`;
   }
 
+  function isValidSimulationBuilderId(value) {
+    return (
+      typeof value === "string" &&
+      value.length > 0 &&
+      value.length <= 160 &&
+      !Object.prototype.hasOwnProperty.call(Object.prototype, value)
+    ) || Number.isSafeInteger(value);
+  }
+
+  function normalizeSimulationBuilderIds(data) {
+    if (!data || typeof data !== "object" || Array.isArray(data)) return data;
+    if (Array.isArray(data.wires)) {
+      const usedIds = new Set();
+      data.wires.forEach((wire) => {
+        if (!wire || typeof wire !== "object" || Array.isArray(wire)) return;
+        let key = isValidSimulationBuilderId(wire.id) ? String(wire.id) : "";
+        if (!key || usedIds.has(key)) {
+          do {
+            wire.id = newLocalId("wire");
+            key = String(wire.id);
+          } while (usedIds.has(key));
+        }
+        usedIds.add(key);
+      });
+    }
+    if (Array.isArray(data.checkpoints)) {
+      data.checkpoints.forEach((checkpoint) => normalizeSimulationBuilderIds(checkpoint && checkpoint.data));
+    }
+    return data;
+  }
+
   // ---------- Multi-select helpers ----------
   function selectedIds() {
     if (!selected) return [];
@@ -401,6 +446,7 @@
       if (requestId !== openBuilderRequestId) return;
       const savedData = sim && sim.data ? sim.data : { components: [], wires: [] };
       try {
+        normalizeSimulationBuilderIds(savedData);
         validateSimulationStructure(savedData);
       } catch (err) {
         currentSimId = null;
@@ -431,6 +477,7 @@
           if (!Object.prototype.hasOwnProperty.call(normalizedTemplateData, "wires")) {
             normalizedTemplateData.wires = [];
           }
+          normalizeSimulationBuilderIds(normalizedTemplateData);
           validateSimulationStructure(normalizedTemplateData, true);
           templateData = normalizedTemplateData;
         } catch (err) {
@@ -452,7 +499,7 @@
       simCheckpoints = [];
       $("sim-poster-url").value = "";
     }
-    initialSimSnapshot = JSON.stringify(simData);
+    initialSimSnapshot = captureInitialSimulationSnapshot();
     $("simulations-modal").hidden = true;
     $("simulation-builder-modal").hidden = false;
     $("sim-palette-search").value = "";
@@ -607,7 +654,7 @@
     if (points.length) wire.waypoints = points;
     else delete wire.waypoints;
   }
-  function validateSimulationStructure(data, requireCircuitArrays = false) {
+  function validateSimulationStructure(data, requireCircuitArrays = false, allowCheckpoints = true) {
     if (!data || typeof data !== "object" || Array.isArray(data)) {
       throw new Error("Simulation data must be an object.");
     }
@@ -621,13 +668,9 @@
     }
     const components = Array.isArray(data.components) ? data.components : [];
     const wires = Array.isArray(data.wires) ? data.wires : [];
-    const validId = (value) =>
-      (typeof value === "string" &&
-        value.length > 0 &&
-        value.length <= 160 &&
-        !Object.prototype.hasOwnProperty.call(Object.prototype, value)) ||
-      Number.isSafeInteger(value);
+    const validId = isValidSimulationBuilderId;
     const componentsById = new Map();
+    const renderedComponentIds = new Set();
     components.forEach((component, index) => {
       if (
         !component ||
@@ -646,8 +689,14 @@
       ) {
         throw new Error(`Component ${index + 1} must have a unique id, supported type, and numeric coordinates inside the builder canvas.`);
       }
+      const renderedId = String(component.id);
+      if (renderedComponentIds.has(renderedId)) {
+        throw new Error(`Component ${index + 1} has an id that collides in the builder canvas.`);
+      }
+      renderedComponentIds.add(renderedId);
       componentsById.set(component.id, component);
     });
+    const wireIds = new Set();
     wires.forEach((wire, index) => {
       const validEnd = (end) => {
         if (
@@ -662,15 +711,17 @@
         const component = componentsById.get(end.compId);
         return Boolean(component && REG[component.type].pins.some((pin) => pin.id === end.pin));
       };
-      if (!wire || typeof wire !== "object" || Array.isArray(wire) || !validEnd(wire.from) || !validEnd(wire.to)) {
-        throw new Error(`Wire ${index + 1} must have valid endpoints that reference existing components.`);
+      if (!wire || typeof wire !== "object" || Array.isArray(wire) || !validId(wire.id) || wireIds.has(String(wire.id)) || !validEnd(wire.from) || !validEnd(wire.to)) {
+        throw new Error(`Wire ${index + 1} must have a unique id and valid endpoints that reference existing component pins.`);
       }
+      wireIds.add(String(wire.id));
     });
     // Validate stored bends too, including checkpoint data through the
     // recursive validator below. This prevents legacy records from loading
     // into a state that cannot be saved again.
     validateImportedWireWaypoints(wires);
     if (Object.prototype.hasOwnProperty.call(data, "checkpoints")) {
+      if (!allowCheckpoints) throw new Error("Nested simulation checkpoints are not supported.");
       if (!Array.isArray(data.checkpoints) || data.checkpoints.length > CHECKPOINT_LIMIT) {
         throw new Error(`Simulation checkpoints must be an array of at most ${CHECKPOINT_LIMIT} items.`);
       }
@@ -680,11 +731,12 @@
           typeof checkpoint !== "object" ||
           Array.isArray(checkpoint) ||
           typeof checkpoint.name !== "string" ||
+          !checkpoint.name.trim() ||
           !checkpoint.data
         ) {
           throw new Error(`Checkpoint ${index + 1} has an invalid structure.`);
         }
-        validateSimulationStructure(checkpoint.data, true);
+        validateSimulationStructure(checkpoint.data, true, false);
       });
     }
   }
@@ -1073,7 +1125,9 @@
     svg.querySelectorAll(".sim-wire").forEach((path) =>
       path.addEventListener("click", (e) => {
         e.stopPropagation();
-        selected = { kind: "wire", id: path.dataset.id };
+        const wire = simData.wires.find((item) => String(item.id) === path.dataset.id);
+        if (!wire) return;
+        selected = { kind: "wire", id: wire.id };
         renderInspector();
         renderBuilder();
       })
@@ -1104,7 +1158,7 @@
         });
       }
     });
-    const dots = svg.querySelectorAll(`circle[data-comp="${compId}"]`);
+    const dots = Array.from(svg.querySelectorAll("circle[data-comp]")).filter((dot) => dot.dataset.comp === String(compId));
     const comp = simData.components.find((c) => c.id === compId);
     const def = comp && REG[comp.type];
     if (def) {
@@ -1204,9 +1258,9 @@
   function onComponentPointerDown(e) {
     e.stopPropagation();
     const g = e.currentTarget;
-    const compId = g.dataset.id;
-    const comp = simData.components.find((c) => c.id === compId);
+    const comp = simData.components.find((c) => String(c.id) === g.dataset.id);
     if (!comp) return;
+    const compId = comp.id;
     setSnapHoleWarning(0);
 
     // Shift+click only toggles this part's membership in the selection —
@@ -1294,7 +1348,7 @@
         if (!c) return;
         if (id === compId) g.setAttribute("transform", `translate(${c.x},${c.y})`);
         else {
-          const otherG = $("sim-builder-svg").querySelector(`.sim-comp[data-id="${id}"]`);
+          const otherG = Array.from($("sim-builder-svg").querySelectorAll(".sim-comp")).find((node) => node.dataset.id === String(id));
           if (otherG) otherG.setAttribute("transform", `translate(${c.x},${c.y})`);
         }
         updateWiresForComponent(id);
@@ -2219,6 +2273,7 @@
       if (!parsed || !Array.isArray(parsed.components) || !Array.isArray(parsed.wires)) {
         throw new Error("That file doesn't look like a circuit export (expected components/wires arrays).");
       }
+      normalizeSimulationBuilderIds(parsed);
       validateSimulationStructure(parsed, true);
       const imported = splitImportedSimulation(parsed, simCheckpoints);
       if (imported.hasPoster) $("sim-poster-url").value = imported.posterUrl;
@@ -2268,7 +2323,7 @@
       // save, so without this a Reset later in the same session would
       // silently discard already-saved work, not just this session's
       // in-progress edits.
-      initialSimSnapshot = JSON.stringify(simData);
+      initialSimSnapshot = captureInitialSimulationSnapshot();
       alert("Saved.");
       if (window.refreshSimulationOptions) window.refreshSimulationOptions();
     } catch (err) {
