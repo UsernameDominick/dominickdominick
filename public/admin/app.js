@@ -3989,7 +3989,7 @@
   function updateWordCount() {
     const text = el("article-body").value.trim();
     const words = text ? text.split(/\s+/).length : 0;
-    const mins = Math.max(1, Math.round(words / 200));
+    const mins = words ? Math.max(1, Math.round(words / 200)) : 0;
     const score = text ? fleschReadingEase(text) : null;
     const readability = score !== null ? ` · ${readabilityLabel(score)} (${score})` : "";
     el("article-word-count").textContent = `${words} word${words === 1 ? "" : "s"} · ${mins} min read${readability}`;
