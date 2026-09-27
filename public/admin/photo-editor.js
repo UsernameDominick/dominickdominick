@@ -1674,11 +1674,12 @@
       e.preventDefault();
       redo();
     } else if (e.key === "Escape" && currentTool === "select" && cropRect) {
+      e.preventDefault();
       cropRect = null;
       $("pe-apply-crop").hidden = true;
       clearOverlay();
     }
-  });
+  }, true);
 
   // ---------- Save ----------
   // Hard backstop against the data-loss path a critic pass found: if a

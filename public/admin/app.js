@@ -5,30 +5,35 @@
   const ROW_H = 16;
 
   const el = (id) => document.getElementById(id);
+  const DIALOG_SELECTOR = ".modal, .writing-focus-overlay";
+  const OPEN_DIALOG_SELECTOR = ".modal:not([hidden]), .writing-focus-overlay:not([hidden])";
   // Wires a "×" button that just needs to hide its modal — most of them.
   // Ones that also need to reset state (media picker, command palette,
   // simulation builder) wire their own close handler instead of using this.
   const closeModalOnClick = (btnId, modalId) => el(btnId).addEventListener("click", () => (el(modalId).hidden = true));
+  const modalFocusReturn = new WeakMap();
 
   // Every .modal shares one z-index, so a dialog opened from inside
   // another (Browse… from Site Settings, the Photo Editor from a media
   // tile) used to land underneath it whenever it came earlier in
   // index.html -- visible but unclickable. The most recently opened
   // dialog now always stacks above the ones already open.
+  function raiseDialogAboveOthers(target) {
+    target.style.zIndex = "";
+    const base = Number(getComputedStyle(target).zIndex) || 100;
+    const others = [...document.querySelectorAll(OPEN_DIALOG_SELECTOR)].filter((dialog) => dialog !== target);
+    const top = Math.max(0, ...others.map((dialog) => Number(getComputedStyle(dialog).zIndex) || 0));
+    if (top >= base) target.style.zIndex = String(top + 1);
+  }
   const modalStackObserver = new MutationObserver((mutations) => {
     for (const { target } of mutations) {
-      if (target.hidden) {
-        target.style.zIndex = "";
-        continue;
-      }
-      target.style.zIndex = "";
-      const base = Number(getComputedStyle(target).zIndex) || 100;
-      const others = [...document.querySelectorAll(".modal:not([hidden])")].filter((m) => m !== target);
-      const top = Math.max(0, ...others.map((m) => Number(getComputedStyle(m).zIndex) || 0));
-      if (top >= base) target.style.zIndex = String(top + 1);
+      if (target.hidden) target.style.zIndex = "";
+      else raiseDialogAboveOthers(target);
     }
+    syncModalSemantics();
   });
-  document.querySelectorAll(".modal").forEach((m) => modalStackObserver.observe(m, { attributes: true, attributeFilter: ["hidden"] }));
+  document.querySelectorAll(DIALOG_SELECTOR).forEach((m) => modalStackObserver.observe(m, { attributes: true, attributeFilter: ["hidden"] }));
+  syncModalSemantics();
 
   // A stronger confirmation for bulk operations that are actually
   // irreversible (media bulk-delete, empty trash) — a plain confirm()'s
@@ -57,7 +62,9 @@
       input.value = "";
       okBtn.disabled = true;
       input.dataset.requiredWord = requiredWord;
-      el("typed-confirm-modal").hidden = false;
+      const modal = el("typed-confirm-modal");
+      modalFocusReturn.set(modal, document.activeElement);
+      modal.hidden = false;
       input.focus();
     });
   }
@@ -219,14 +226,6 @@
   document.addEventListener("click", (e) => {
     if (notifPanel.classList.contains("open") && !notifPanel.contains(e.target) && e.target !== notifBtn) closeNotifMenu();
   });
-  // Escape closes the notifications dropdown if it's open — the same
-  // behavior every modal already has via closeTopModal() below, just for
-  // this one, which isn't a modal.
-  document.addEventListener("keydown", (e) => {
-    if (e.key !== "Escape") return;
-    if (notifPanel.classList.contains("open")) closeNotifMenu();
-  });
-
   let pages = [];
   let currentPage = null;
   let blocks = [];
@@ -4061,6 +4060,7 @@
     const { textarea, parent, nextSibling } = writingFocusState;
     if (nextSibling) parent.insertBefore(textarea, nextSibling);
     else parent.appendChild(textarea);
+    textarea.focus();
     el("writing-focus-overlay").hidden = true;
     writingFocusState = null;
   }
@@ -8017,6 +8017,7 @@
   el("command-input").addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
       e.preventDefault();
+      e.stopPropagation();
       closeCommandPalette();
     } else if (e.key === "ArrowDown") {
       e.preventDefault();
@@ -8577,14 +8578,31 @@
     }
   };
 
-  // Shared "which modal is actually on top" resolution — when a picker
-  // modal (e.g. Media Library) is opened from inside another modal (e.g.
-  // the Articles editor), both are simultaneously `.modal:not([hidden])`;
-  // the later one in DOM order is the one that visually renders on top.
-  // Escape-handling and the focus trap below both need this same answer.
+  // A modal opened from inside another is promoted by modalStackObserver.
+  // Use computed z-index to identify the same top surface for Escape, focus,
+  // and aria-modal semantics; later DOM order breaks ties.
   function getTopModal() {
-    const open = document.querySelectorAll(".modal:not([hidden])");
-    return open.length ? open[open.length - 1] : null;
+    let top = null;
+    let highestZIndex = Number.NEGATIVE_INFINITY;
+    for (const modal of document.querySelectorAll(OPEN_DIALOG_SELECTOR)) {
+      const parsedZIndex = Number(getComputedStyle(modal).zIndex);
+      const zIndex = Number.isFinite(parsedZIndex) ? parsedZIndex : 0;
+      if (!top || zIndex >= highestZIndex) {
+        top = modal;
+        highestZIndex = zIndex;
+      }
+    }
+    return top;
+  }
+  function syncModalSemantics() {
+    const top = getTopModal();
+    document.querySelectorAll(DIALOG_SELECTOR).forEach((modal) => {
+      modal.removeAttribute("aria-modal");
+      modal.removeAttribute("aria-hidden");
+      if (modal.hidden) return;
+      if (modal === top) modal.setAttribute("aria-modal", "true");
+      else modal.setAttribute("aria-hidden", "true");
+    });
   }
 
   // Escape and backdrop-click close whichever modal is open, via its own
@@ -8600,15 +8618,24 @@
     return true;
   }
   document.addEventListener("keydown", (e) => {
-    if (e.key !== "Escape") return;
-    if (writingFocusState) closeWritingFocus();
-    else if (el("recent-items-panel").classList.contains("open")) closeRecentItemsMenu();
-    else if (!closeTopModal() && (selectedBlockId !== null || multiSelectedIds.size > 0)) {
-      // Nothing else consumed Escape (no modal/dropdown open) — fall back
-      // to deselecting whatever's selected on the canvas, closing the
-      // Inspector along with it. Previously a dead end: every other
-      // Escape-dismissible surface in the app already handled it, but
-      // canvas selection was the one place it did nothing at all.
+    if (e.key !== "Escape" || e.defaultPrevented) return;
+    if (closeTopModal()) {
+      e.preventDefault();
+      return;
+    }
+    if (writingFocusState) {
+      e.preventDefault();
+      closeWritingFocus();
+    } else if (el("recent-items-panel").classList.contains("open")) {
+      e.preventDefault();
+      closeRecentItemsMenu();
+    } else if (notifPanel.classList.contains("open")) {
+      e.preventDefault();
+      closeNotifMenu();
+    } else if (selectedBlockId !== null || multiSelectedIds.size > 0) {
+      // With no dialog or dropdown open, Escape clears the canvas selection
+      // and closes the Inspector.
+      e.preventDefault();
       selectedBlockId = null;
       multiSelectedIds.clear();
       renderCanvas();
@@ -8631,9 +8658,22 @@
   function focusableIn(container) {
     return Array.from(
       container.querySelectorAll(
-        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        'a[href], area[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, object, embed, audio[controls], video[controls], summary, [contenteditable]:not([contenteditable="false"]), [tabindex]:not([tabindex="-1"])'
       )
-    ).filter((node) => node.offsetParent !== null);
+    ).filter((node) => !node.hasAttribute("data-modal-focus-sentinel") && node.offsetParent !== null && node.tabIndex >= 0);
+  }
+  function initialFocusInModal(modal) {
+    const explicit = modal.querySelector("[autofocus]");
+    if (explicit && explicit.offsetParent !== null) return explicit;
+    const title = modal.querySelector(".modal-inner > header h1");
+    if (title) {
+      if (!title.hasAttribute("tabindex")) title.setAttribute("tabindex", "-1");
+      return title;
+    }
+    const first = focusableIn(modal)[0];
+    if (first) return first;
+    if (!modal.hasAttribute("tabindex")) modal.setAttribute("tabindex", "-1");
+    return modal;
   }
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Tab") return;
@@ -8643,19 +8683,39 @@
     if (!focusable.length) return;
     const first = focusable[0];
     const last = focusable[focusable.length - 1];
-    if (e.shiftKey && document.activeElement === first) {
+    const activeIndex = focusable.indexOf(document.activeElement);
+    if (activeIndex === -1) {
+      e.preventDefault();
+      (e.shiftKey ? last : first).focus();
+    } else if (e.shiftKey && activeIndex === 0) {
       e.preventDefault();
       last.focus();
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault();
-      first.focus();
-    } else if (!modal.contains(document.activeElement)) {
-      // Focus already isn't inside the modal at all (e.g. it landed on
-      // <body> because whatever previously held it got hidden/removed) —
-      // pull it back in rather than letting the next Tab continue drifting.
+    } else if (!e.shiftKey && activeIndex === focusable.length - 1) {
       e.preventDefault();
       first.focus();
     }
+  });
+  // A frame's keyboard events stay inside its own document, so the parent
+  // page cannot trap Tab at the frame boundary. A focusable sentinel after
+  // the preview iframe redirects forward traversal to the next modal control
+  // or wraps to the first. The dialog has ordinary controls before the frame,
+  // so reverse traversal returns to those directly. The outside-focus guard
+  // is a fallback for other programmatic focus changes.
+  document.addEventListener("focusin", (e) => {
+    const modal = getTopModal();
+    if (!modal) return;
+    if (e.target.hasAttribute("data-modal-focus-sentinel") && modal.contains(e.target)) {
+      const frame = e.target.previousElementSibling;
+      const focusable = focusableIn(modal);
+      const frameIndex = focusable.indexOf(frame);
+      const nextFocus = frameIndex >= 0
+        ? focusable[frameIndex + 1] || focusable.find((node) => node !== frame)
+        : focusable[0];
+      (nextFocus || initialFocusInModal(modal)).focus();
+      return;
+    }
+    if (!modal || modal.contains(e.target)) return;
+    initialFocusInModal(modal).focus();
   });
 
   // The other half of the same pattern: once a modal closes, return focus
@@ -8666,30 +8726,18 @@
   // around every individual open/close call site — since several modals
   // (Songs, Simulations builders) already run their own cleanup in a
   // dedicated close handler that a second wrapper risks double-firing.
-  const modalFocusReturn = new WeakMap();
   new MutationObserver((mutations) => {
     for (const m of mutations) {
       const modal = m.target;
-      if (!(modal instanceof HTMLElement) || !modal.classList.contains("modal")) continue;
+      if (!(modal instanceof HTMLElement) || !modal.matches(DIALOG_SELECTOR)) continue;
       if (modal.hidden) {
         const restore = modalFocusReturn.get(modal);
         modalFocusReturn.delete(modal);
         if (restore && document.body.contains(restore)) restore.focus();
       } else if (!modalFocusReturn.has(modal)) {
-        // Only auto-capture if nothing already claimed this slot. A
-        // MutationObserver callback is a microtask — it doesn't run until
-        // the synchronous code that flipped `hidden` has finished, so for
-        // a modal that moves focus into itself on open (the command
-        // palette focusing its own search input), `document.activeElement`
-        // by the time this fires is already that input, not the real
-        // trigger. openCommandPalette() pre-records the correct element
-        // itself before moving focus; every other modal doesn't touch
-        // focus on open, so this fallback still gets the right answer for
-        // all of them unchanged. The map is guaranteed clear of stale
-        // entries here since the `hidden` branch above always deletes on
-        // close, so "already has a value" only ever means "claimed during
-        // this open," never leftover from a previous one.
-        modalFocusReturn.set(modal, document.activeElement);
+        const active = document.activeElement;
+        modalFocusReturn.set(modal, active);
+        if (!modal.contains(active)) initialFocusInModal(modal).focus();
       }
     }
   }).observe(document.body, { attributes: true, attributeFilter: ["hidden"], subtree: true });

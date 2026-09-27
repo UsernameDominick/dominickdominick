@@ -1130,7 +1130,24 @@ export function absoluteUrl(url) {
 }
 
 export async function imgSizeAttrs(env, imgUrl) {
-  const match = typeof imgUrl === "string" && imgUrl.match(/^\/media\/(uploads\/[A-Za-z0-9_.\-\/]+)$/);
+  if (typeof imgUrl !== "string") return "";
+  let url;
+  try {
+    url = new URL(imgUrl, "https://dominickdominick.com");
+  } catch {
+    return "";
+  }
+  // Relative media-library URLs and absolute URLs for this site can both
+  // refer to a known upload. Ignore foreign origins rather than guessing at
+  // metadata for a different image with the same path.
+  if (
+    !["http:", "https:"].includes(url.protocol) ||
+    !["dominickdominick.com", "www.dominickdominick.com"].includes(url.hostname) ||
+    url.port ||
+    url.username ||
+    url.password
+  ) return "";
+  const match = url.pathname.match(/^\/media\/(uploads\/[A-Za-z0-9_.\-\/]+)$/);
   if (!match) return "";
   const meta = await getMediaMeta(env, [match[1]]);
   const row = meta[match[1]];

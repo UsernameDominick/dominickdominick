@@ -28,7 +28,7 @@ Before release, also confirm `main` is an ancestor of the reviewed `production` 
 ahead during review is expected. If either ref moved or the histories otherwise diverged, stop and reconcile them.
 Never force-push or rewrite either branch. Cloudflare confirms `main` deploys live with `npx wrangler deploy`.
 
-**Review gate:** target 9/10 or higher. A lower score requires Dominick's explicit acceptance and logged findings. Fix findings between passes; report every score and unresolved finding. Never claim browser or visual checks that were not run.
+**Review evidence:** report each critic score and unresolved finding; never claim browser or visual checks that were not run.
 
 **Visible changes:** use a real-browser viewport screenshot and score 0–10 (0–4 fail, 5–7 needs polish, 8–10 ship-ready). If below 8, fix and rescore, stopping after five loops; after five, stop iteration, keep the best candidate on `production`, and record remaining issues. This is not release approval: `main` still needs the critic and manual gates above. For fixed modals capture viewport only; confirm suspected layout defects with DOM geometry. Always report the visual score, or say clearly when no screenshot was available.
 
@@ -191,6 +191,7 @@ Open and partial items only; completed implementation histories remain in Git hi
 - 🔶 Additional metadata reports beyond the existing SEO report
 
 ### Accessibility
+- 🔶 Admin dialogs and writing-focus semantics (implemented; real-browser verification remains)
 - 🔶 Sitewide arbitrary-content contrast checker (theme-color contrast is supported)
 
 ### Admin interface
@@ -264,9 +265,9 @@ Verify the target database/config before any remote migration or production D1/R
 
 ## 6. Manual verification still owed
 
-- Preview build `1ace7b62` succeeded for code candidate `be23ed3`. Public smoke found the admin sign-in page at
-  `/admin/` and a branded `/` 404 because Preview D1 is empty. Authenticated media flows and a relevant
-  screenshot/visual score remain required before release.
+- In an authenticated Preview browser, verify dialog names, top-only stacked-modal semantics, opening focus, Tab/Shift+Tab through the Page Preview iframe, Escape/backdrop close, and focus return. Confirm Photo Editor crop Escape cancels the crop while leaving the editor open. Exercise Media Library → New blank image and writing focus from an editor; confirm the full-screen backdrop blocks the desktop sidebar and cards remain centered in the workspace.
+- Authenticated admin flows and a representative visual review remain required before release.
+- Verify an uploaded article/project header image reserves its stored dimensions before load. External cover URLs have no persisted dimensions; decide how to handle those before relying on them in published content.
 - Verify Worker Previews Base uses distinct test-only `ADMIN_PASSWORD` and `SESSION_SECRET` values before testing
   protected admin flows; never reuse production secrets.
 - The Preview URL is public (“Anyone with this URL can visit”). Before adding test data, verify separate test-only
@@ -278,10 +279,8 @@ Verify the target database/config before any remote migration or production D1/R
   Triggers, so this is not covered by Preview QA; do not manually trigger a production backup as a Preview test.
 - Confirm Web Speech API read-aloud with actual browser voices.
 
-**Audit environment limitation:** the remote Worker Preview was reachable for a basic public smoke check,
-but authenticated flows and the media backfill interaction were not tested, and no relevant visual screenshot
-or score is available. The cloud browser cannot reach localhost, and Chromium installation failed because
-outbound package access was restricted.
+**Current QA limitation:** authenticated admin flows and visual review are unverified. The cloud browser cannot
+reach localhost, and Chromium installation failed because outbound package access was restricted.
 
 ## 7. Recurring security, SEO, and accessibility checks
 
@@ -312,7 +311,7 @@ outbound package access was restricted.
   alternative, not just a generic label
 - [ ] Reduced-motion respected for any new animation (including the page-animation sync)
 - [ ] Tap targets ≥ 24×24px on any new mobile UI
-- [ ] Color contrast checked for any new UI color, not just theme tokens ---
+- [ ] Color contrast checked for any new UI color, not just theme tokens
 
 ## 8. Creative-suite backlog
 
@@ -444,21 +443,17 @@ permissions — out of scope], 597 [package/dependency system — out of scope],
 ### Current unnumbered follow-ups
 
 - Song builder still has no undo/redo.
-- Admin dialogs lack `role="dialog"` and `aria-modal="true"` semantics.
-- Project-card and content-header images still need the image-dimension layout-shift audit.
+- External article/project header images have no persisted dimensions; decide between author-supplied dimensions and a fixed-ratio presentation before relying on remote covers. Current project-card blocks and article/project index cards are text-only and have no image layout shift.
 - The prior sweep found broken image URLs in homepage/gallery content; verify those paths in admin diagnostics
   before cleanup.
 
 ## 9. Current audit status
 
-- Media hash and dimension backfills resume through opaque R2 cursors in 20-object chunks. Metadata writes are
-  batched, dimensions retain the shared plausibility check, and the shared metadata lookup caps each D1 query
-  at 100 keys.
-- A scratch regression covers 1,005 synthetic objects, continuation, idempotent reruns, editorial-field
-  preservation, invalid request bodies, oversized dimensions, and the per-request subrequest ceiling. No live
-  Preview or production D1/R2 data was changed.
-- The current candidate stays on `production` until critic and browser/manual release gates pass. Browser
-  evidence and outstanding checks are listed in section 6. Scratch tests stay outside the repository.
+- Admin dialog and writing-focus semantics, including Page Preview iframe focus sentinels, are implemented; targeted regressions pass. Authenticated browser and
+  visual checks remain open in section 6.
+- Image sizing audit: known media-upload dimensions are emitted for article/project header covers, including same-site absolute URLs. Project cards are text-only; remote cover sizing remains an open backlog decision.
+- `production` is the review candidate. Promote to `main` only after section 0's critic and manual gates
+  pass; recheck both refs and preserve the clean fast-forward rule.
 
 ## 10. Open decisions
 

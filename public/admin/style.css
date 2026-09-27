@@ -1069,14 +1069,15 @@ code.color-field-value {
   }
 }
 
-/* The sidebar is a persistent, always-visible column on desktop (not an
-   off-canvas drawer the way it is on mobile) — centering a dialog on the
-   full window leaves it looking pulled left of where the actual workspace
-   starts. Excluding that width from the centering box instead means the
-   dialog centers in the same visible area the canvas/palette/inspector do. */
+/* Keep the backdrop over the full viewport so a modal also blocks the
+   visible desktop sidebar. Padding moves the dialog content area, keeping
+   its card centered in the workspace beside that sidebar. */
 @media (min-width: 861px) {
   .modal {
-    left: var(--admin-sidebar-width);
+    padding-left: var(--admin-sidebar-width);
+  }
+  .modal-inner {
+    width: min(90vw, calc(100vw - var(--admin-sidebar-width) - 48px));
   }
 }
 
@@ -5324,8 +5325,21 @@ kbd {
   overflow: auto;
   display: flex;
   justify-content: center;
+  position: relative;
   background: var(--bg);
   padding: 16px;
+}
+
+.modal-focus-sentinel {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 #preview-frame {

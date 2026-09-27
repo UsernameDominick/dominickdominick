@@ -100,9 +100,9 @@
 
     <div id="drawer-backdrop" class="drawer-backdrop" hidden></div>
 
-    <div id="writing-focus-overlay" class="writing-focus-overlay" hidden>
+    <div id="writing-focus-overlay" class="writing-focus-overlay" hidden role="dialog" aria-label="Distraction-free writing mode">
       <div class="writing-focus-inner">
-        <button type="button" id="close-writing-focus" class="writing-focus-close">× Exit focus mode</button>
+        <button type="button" id="close-writing-focus" class="writing-focus-close" aria-label="Exit writing focus mode">× Exit focus mode</button>
       </div>
     </div>
 
@@ -273,11 +273,11 @@
     </div>
   </div>
 
-  <div id="articles-modal" class="modal" hidden>
+  <div id="articles-modal" class="modal" hidden role="dialog" aria-labelledby="articles-modal-title">
     <div class="modal-inner">
       <header>
-        <h1>Articles</h1>
-        <button id="close-articles">×</button>
+        <h1 id="articles-modal-title">Articles</h1>
+        <button id="close-articles" aria-label="Close Articles dialog">×</button>
       </header>
       <div class="articles-layout">
         <div class="articles-list-wrap">
@@ -421,11 +421,11 @@
     </div>
   </div>
 
-  <div id="projects-modal" class="modal" hidden>
+  <div id="projects-modal" class="modal" hidden role="dialog" aria-labelledby="projects-modal-title">
     <div class="modal-inner">
       <header>
-        <h1>Projects</h1>
-        <button id="close-projects">×</button>
+        <h1 id="projects-modal-title">Projects</h1>
+        <button id="close-projects" aria-label="Close Projects dialog">×</button>
       </header>
       <div class="articles-layout">
         <div class="articles-list-wrap">
@@ -622,10 +622,10 @@
     </div>
   </div>
 
-  <div id="analytics-modal" class="modal" hidden>
+  <div id="analytics-modal" class="modal" hidden role="dialog" aria-labelledby="analytics-modal-title">
     <div class="modal-inner analytics-modal-inner">
       <header>
-        <h1>Analytics</h1>
+        <h1 id="analytics-modal-title">Analytics</h1>
         <div class="analytics-range">
           <button class="range-btn" data-days="7">7d</button>
           <button class="range-btn" data-days="30">30d</button>
@@ -633,7 +633,7 @@
         </div>
         <button id="export-analytics-btn" title="Download this range as a CSV file">Export CSV</button>
         <button id="export-analytics-raw-btn" title="Download every individual pageview/event row in this range (not just the top-N breakdowns above)">Export raw events</button>
-        <button id="close-analytics">×</button>
+        <button id="close-analytics" aria-label="Close Analytics dialog">×</button>
       </header>
       <div class="analytics-filters">
         <select id="analytics-filter-content-type">
@@ -706,7 +706,7 @@
     </div>
   </div>
 
-  <div id="media-modal" class="modal" hidden>
+  <div id="media-modal" class="modal" hidden role="dialog" aria-labelledby="media-modal-title">
     <div class="modal-inner media-modal-inner">
       <header class="media-header">
         <h1 id="media-modal-title">Media Library</h1>
@@ -717,7 +717,7 @@
           <button type="button" id="media-new-blank-btn" class="media-secondary-btn" title="Start a new image from scratch in the Photo Editor, instead of editing an existing upload">New blank image</button>
           <button type="button" id="media-upload-btn" class="media-primary-btn">Upload files</button>
         </div>
-        <button id="close-media" aria-label="Close">×</button>
+        <button id="close-media" aria-label="Close Media Library dialog">×</button>
       </header>
       <p id="media-hint" class="media-hint" hidden>Click an image to use it.</p>
       <div class="media-toolbar">
@@ -757,11 +757,11 @@
     </div>
   </div>
 
-  <div id="pe-new-doc-modal" class="modal" hidden>
+  <div id="pe-new-doc-modal" class="modal" hidden role="dialog" aria-labelledby="pe-new-doc-modal-title">
     <div class="modal-inner pe-new-doc-modal-inner">
       <header>
-        <h1>New blank image</h1>
-        <button id="close-pe-new-doc">×</button>
+        <h1 id="pe-new-doc-modal-title">New blank image</h1>
+        <button id="close-pe-new-doc" aria-label="Close New blank image dialog">×</button>
       </header>
       <label>Size
         <select id="pe-new-doc-preset">
@@ -783,11 +783,11 @@
     </div>
   </div>
 
-  <div id="media-info-modal" class="modal" hidden>
+  <div id="media-info-modal" class="modal" hidden role="dialog" aria-labelledby="media-info-modal-title">
     <div class="modal-inner media-info-modal-inner">
       <header>
-        <h1>File details</h1>
-        <button id="close-media-info">×</button>
+        <h1 id="media-info-modal-title">File details</h1>
+        <button id="close-media-info" aria-label="Close File details dialog">×</button>
       </header>
       <img id="media-info-preview" class="media-info-preview" alt="">
       <div id="media-info-meta" class="media-info-meta"></div>
@@ -808,11 +808,11 @@
     </div>
   </div>
 
-  <div id="redirects-modal" class="modal" hidden>
+  <div id="redirects-modal" class="modal" hidden role="dialog" aria-labelledby="redirects-modal-title">
     <div class="modal-inner redirects-modal-inner">
       <header>
-        <h1>Redirects</h1>
-        <button id="close-redirects">×</button>
+        <h1 id="redirects-modal-title">Redirects</h1>
+        <button id="close-redirects" aria-label="Close Redirects dialog">×</button>
       </header>
       <div class="redirects-body">
         <p class="redirects-hint">Send an old URL to a new one. Useful after renaming or deleting a page or post.</p>
@@ -831,11 +831,11 @@
     </div>
   </div>
 
-  <div id="trash-modal" class="modal" hidden>
+  <div id="trash-modal" class="modal" hidden role="dialog" aria-labelledby="trash-modal-title">
     <div class="modal-inner redirects-modal-inner">
       <header>
-        <h1>Trash</h1>
-        <button id="close-trash">×</button>
+        <h1 id="trash-modal-title">Trash</h1>
+        <button id="close-trash" aria-label="Close Trash dialog">×</button>
       </header>
       <div class="redirects-body">
         <p class="redirects-hint">Deleted pages and articles land here first — restore them or delete forever. Nothing here is reachable on the live site.</p>
@@ -849,11 +849,11 @@
     </div>
   </div>
 
-  <div id="settings-modal" class="modal" hidden>
+  <div id="settings-modal" class="modal" hidden role="dialog" aria-labelledby="settings-modal-title">
     <div class="modal-inner settings-modal-inner">
       <header>
-        <h1>Site Settings</h1>
-        <button id="close-settings">×</button>
+        <h1 id="settings-modal-title">Site Settings</h1>
+        <button id="close-settings" aria-label="Close Site Settings dialog">×</button>
       </header>
       <div class="settings-tabs" role="tablist">
         <button type="button" class="settings-tab is-active" data-panel="appearance" role="tab" aria-selected="true">Appearance</button>
@@ -1088,21 +1088,21 @@
     </div>
   </div>
 
-  <div id="command-modal" class="modal command-modal" hidden>
+  <div id="command-modal" class="modal command-modal" hidden role="dialog" aria-label="Command palette">
     <div class="modal-inner command-modal-inner">
       <div class="command-input-row">
         <input id="command-input" class="command-input" placeholder="Search pages, articles, blocks… or jump to an action">
-        <button type="button" id="close-command" aria-label="Close">×</button>
+        <button type="button" id="close-command" aria-label="Close Command palette dialog">×</button>
       </div>
       <div id="command-results" class="command-results"></div>
     </div>
   </div>
 
-  <div id="shortcuts-modal" class="modal" hidden>
+  <div id="shortcuts-modal" class="modal" hidden role="dialog" aria-labelledby="shortcuts-modal-title">
     <div class="modal-inner shortcuts-modal-inner">
       <header>
-        <h1>Keyboard Shortcuts</h1>
-        <button id="close-shortcuts">×</button>
+        <h1 id="shortcuts-modal-title">Keyboard Shortcuts</h1>
+        <button id="close-shortcuts" aria-label="Close Keyboard shortcuts dialog">×</button>
       </header>
       <div class="shortcuts-list">
         <div><kbd>Ctrl/⌘</kbd> + <kbd>K</kbd><span>Open command palette (search or jump to anything)</span></div>
@@ -1115,11 +1115,11 @@
     </div>
   </div>
 
-  <div id="typed-confirm-modal" class="modal" hidden>
+  <div id="typed-confirm-modal" class="modal" hidden role="dialog" aria-labelledby="typed-confirm-title">
     <div class="modal-inner typed-confirm-modal-inner">
       <header>
         <h1 id="typed-confirm-title">Confirm</h1>
-        <button id="close-typed-confirm" aria-label="Close">×</button>
+        <button id="close-typed-confirm" aria-label="Close confirmation dialog">×</button>
       </header>
       <p id="typed-confirm-message"></p>
       <label for="typed-confirm-input" id="typed-confirm-label"></label>
@@ -1131,11 +1131,11 @@
     </div>
   </div>
 
-  <div id="revisions-modal" class="modal" hidden>
+  <div id="revisions-modal" class="modal" hidden role="dialog" aria-labelledby="revisions-modal-title">
     <div class="modal-inner revisions-modal-inner">
       <header>
-        <h1>History</h1>
-        <button id="close-revisions">×</button>
+        <h1 id="revisions-modal-title">History</h1>
+        <button id="close-revisions" aria-label="Close History dialog">×</button>
       </header>
       <p class="redirects-hint">Restoring saves the current state first, so restoring is itself undoable.</p>
       <div id="revisions-list" class="revisions-list"></div>
@@ -1146,11 +1146,11 @@
     </div>
   </div>
 
-  <div id="photo-editor-modal" class="modal photo-editor-modal" hidden>
+  <div id="photo-editor-modal" class="modal photo-editor-modal" hidden role="dialog" aria-labelledby="photo-editor-modal-title">
     <div class="modal-inner photo-editor-inner">
       <header>
-        <h1>Photo Editor</h1>
-        <button id="close-photo-editor">×</button>
+        <h1 id="photo-editor-modal-title">Photo Editor</h1>
+        <button id="close-photo-editor" aria-label="Close Photo editor dialog">×</button>
       </header>
       <div class="pe-body">
         <div class="pe-workspace">
@@ -1306,11 +1306,11 @@
     </div>
   </div>
 
-  <div id="simulations-modal" class="modal" hidden>
+  <div id="simulations-modal" class="modal" hidden role="dialog" aria-labelledby="simulations-modal-title">
     <div class="modal-inner redirects-modal-inner">
       <header>
-        <h1>Simulations</h1>
-        <button id="close-simulations">×</button>
+        <h1 id="simulations-modal-title">Simulations</h1>
+        <button id="close-simulations" aria-label="Close Simulations dialog">×</button>
       </header>
       <div class="redirects-body">
         <p class="redirects-hint">Wire real chains — outlet → power supply → breadboard → Teensy, Teensy → breadboard — and only what's actually connected to a power source lights up. Build once, reuse in any article or page via the Simulation block.</p>
@@ -1323,7 +1323,7 @@
     </div>
   </div>
 
-  <div id="simulation-builder-modal" class="modal" hidden>
+  <div id="simulation-builder-modal" class="modal" hidden role="dialog" aria-label="Simulation builder">
     <div class="modal-inner simulation-builder-inner">
       <header class="sim-toolbar">
         <input id="simulation-name" class="simulation-name-input" placeholder="Simulation name">
@@ -1384,7 +1384,7 @@
             <button type="button" id="save-sim-template-btn" title="Save this circuit as a reusable starting point">Save as template</button>
           </div>
         </div>
-        <button id="close-simulation-builder">×</button>
+        <button id="close-simulation-builder" aria-label="Close Simulation builder dialog">×</button>
       </header>
       <div id="sim-poster-row" class="sim-poster-row">
         <label for="sim-poster-url" title="Shown when this simulation's link is shared, and as a fallback before the circuit loads">Share image</label>
@@ -1426,11 +1426,11 @@
     </div>
   </div>
 
-  <div id="songs-modal" class="modal" hidden>
+  <div id="songs-modal" class="modal" hidden role="dialog" aria-labelledby="songs-modal-title">
     <div class="modal-inner redirects-modal-inner">
       <header>
-        <h1>Songs</h1>
-        <button id="close-songs">×</button>
+        <h1 id="songs-modal-title">Songs</h1>
+        <button id="close-songs" aria-label="Close Songs dialog">×</button>
       </header>
       <div class="redirects-body">
         <p class="redirects-hint">Build a short loop — a drum pattern, a melody, or both — with a step sequencer, a piano roll, and built-in drum kits. Reuse it in any article or project via the Song block.</p>
@@ -1444,7 +1444,7 @@
     </div>
   </div>
 
-  <div id="song-builder-modal" class="modal" hidden>
+  <div id="song-builder-modal" class="modal" hidden role="dialog" aria-label="Song builder">
     <div class="modal-inner simulation-builder-inner">
       <header class="sim-toolbar song-toolbar">
         <input id="song-name" class="simulation-name-input" placeholder="Song name">
@@ -1456,7 +1456,7 @@
             <span id="song-autosave-status" class="song-autosave-status"></span>
           </div>
         </div>
-        <button id="close-song-builder">×</button>
+        <button id="close-song-builder" aria-label="Close Song builder dialog">×</button>
         <div class="sim-toolbar-groups">
           <div class="sim-toolbar-group" data-group="transport">
             <span class="sim-toolbar-group-label">Transport</span>
@@ -1546,11 +1546,11 @@
     </div>
   </div>
 
-  <div id="scans-modal" class="modal" hidden>
+  <div id="scans-modal" class="modal" hidden role="dialog" aria-labelledby="scans-modal-title">
     <div class="modal-inner redirects-modal-inner">
       <header>
-        <h1>3D Scans</h1>
-        <button id="close-scans">×</button>
+        <h1 id="scans-modal-title">3D Scans</h1>
+        <button id="close-scans" aria-label="Close 3D scans dialog">×</button>
       </header>
       <div class="redirects-body">
         <p class="redirects-hint">Upload a LiDAR/photogrammetry scan (.glb or .gltf, optionally a .usdz for iOS AR Quick Look) — from Polycam, Reality Composer, or similar. Reuse it in any page or article via the 3D Scan block.</p>
@@ -1560,11 +1560,11 @@
     </div>
   </div>
 
-  <div id="shared-blocks-modal" class="modal" hidden>
+  <div id="shared-blocks-modal" class="modal" hidden role="dialog" aria-labelledby="shared-blocks-modal-title">
     <div class="modal-inner redirects-modal-inner">
       <header>
-        <h1>Reusable Blocks</h1>
-        <button id="close-shared-blocks">×</button>
+        <h1 id="shared-blocks-modal-title">Reusable Blocks</h1>
+        <button id="close-shared-blocks" aria-label="Close Reusable blocks dialog">×</button>
       </header>
       <div class="redirects-body">
         <p class="redirects-hint">Select a block on a page and use "Save as reusable block…" in its settings to add one here. Editing a reusable block's content updates every page that uses it. Insert one onto the currently open page below.</p>
@@ -1573,16 +1573,16 @@
     </div>
   </div>
 
-  <div id="preview-modal" class="modal" hidden>
+  <div id="preview-modal" class="modal" hidden role="dialog" aria-labelledby="preview-modal-title">
     <div class="modal-inner preview-modal-inner">
       <header>
-        <h1>Preview <span class="preview-live-badge" title="Editing a block's fields while this is open automatically refreshes the preview">● live</span></h1>
+        <h1 id="preview-modal-title">Preview <span class="preview-live-badge" title="Editing a block's fields while this is open automatically refreshes the preview">● live</span></h1>
         <div class="preview-device-buttons">
           <button type="button" class="preview-device-btn is-active" data-width="100%">Desktop</button>
           <button type="button" class="preview-device-btn" data-width="768px">Tablet</button>
           <button type="button" class="preview-device-btn" data-width="390px">Mobile</button>
         </div>
-        <button id="close-preview">×</button>
+        <button id="close-preview" aria-label="Close Preview dialog">×</button>
       </header>
       <div class="preview-stress-row">
         <button type="button" id="stress-long-text-btn" class="stress-toggle-btn" title="Temporarily lengthens headings/paragraphs in the preview to check how the layout holds up">Stress: long text</button>
@@ -1595,15 +1595,16 @@
       </div>
       <div class="preview-body">
         <iframe id="preview-frame" title="Page preview"></iframe>
+        <span class="modal-focus-sentinel" data-modal-focus-sentinel="after" tabindex="0" aria-hidden="true"></span>
       </div>
     </div>
   </div>
 
-  <div id="diagnostics-modal" class="modal" hidden>
+  <div id="diagnostics-modal" class="modal" hidden role="dialog" aria-labelledby="diagnostics-modal-title">
     <div class="modal-inner redirects-modal-inner">
       <header>
-        <h1>Diagnostics</h1>
-        <button id="close-diagnostics">×</button>
+        <h1 id="diagnostics-modal-title">Diagnostics</h1>
+        <button id="close-diagnostics" aria-label="Close Diagnostics dialog">×</button>
       </header>
       <div class="redirects-body">
         <p class="redirects-hint">Common layout/content issues on the current page — empty blocks, missing links, missing alt text, heading hierarchy, content overflow, and small tap targets, checked against the real rendered page. (Overlap can't happen — every drag/resize is already blocked from creating one.)</p>
@@ -1612,11 +1613,11 @@
     </div>
   </div>
 
-  <div id="seo-dashboard-modal" class="modal" hidden>
+  <div id="seo-dashboard-modal" class="modal" hidden role="dialog" aria-labelledby="seo-dashboard-modal-title">
     <div class="modal-inner settings-modal-inner">
       <header>
-        <h1>Site Health</h1>
-        <button id="close-seo-dashboard">×</button>
+        <h1 id="seo-dashboard-modal-title">Site Health</h1>
+        <button id="close-seo-dashboard" aria-label="Close Site health dialog">×</button>
       </header>
       <div class="settings-body">
         <section class="settings-group health-overview">
@@ -1675,11 +1676,11 @@
     </div>
   </div>
 
-  <div id="topic-pages-modal" class="modal" hidden>
+  <div id="topic-pages-modal" class="modal" hidden role="dialog" aria-labelledby="topic-pages-modal-title">
     <div class="modal-inner redirects-modal-inner">
       <header>
-        <h1>Topic Pages</h1>
-        <button id="close-topic-pages">×</button>
+        <h1 id="topic-pages-modal-title">Topic Pages</h1>
+        <button id="close-topic-pages" aria-label="Close Topic pages dialog">×</button>
       </header>
       <div class="redirects-body">
         <p class="redirects-hint">Every tag currently in use, with an optional custom intro blurb and share image for its <code>/topics/:tag</code> page. Leave both blank to fall back to the automatic title/description.</p>
@@ -1688,11 +1689,11 @@
     </div>
   </div>
 
-  <div id="topic-meta-edit-modal" class="modal" hidden>
+  <div id="topic-meta-edit-modal" class="modal" hidden role="dialog" aria-labelledby="topic-meta-edit-title">
     <div class="modal-inner topic-meta-edit-modal-inner">
       <header>
         <h1 id="topic-meta-edit-title">Edit topic page</h1>
-        <button id="close-topic-meta-edit">×</button>
+        <button id="close-topic-meta-edit" aria-label="Close Topic page editor dialog">×</button>
       </header>
       <label>Intro blurb (shown under the "Tagged: X" heading, and used as the meta description)<textarea id="topic-meta-description" rows="3"></textarea></label>
       <div class="input-with-upload">
@@ -1705,11 +1706,11 @@
     </div>
   </div>
 
-  <div id="keyframe-editor-modal" class="modal" hidden>
+  <div id="keyframe-editor-modal" class="modal" hidden role="dialog" aria-labelledby="keyframe-editor-modal-title">
     <div class="modal-inner keyframe-editor-modal-inner">
       <header>
-        <h1>Custom animation</h1>
-        <button id="close-keyframe-editor">×</button>
+        <h1 id="keyframe-editor-modal-title">Custom animation</h1>
+        <button id="close-keyframe-editor" aria-label="Close Custom animation dialog">×</button>
       </header>
       <p class="pe-new-doc-hint">Define how this block moves in as it scrolls into view. Each keyframe is a moment in the animation (0% = start, 100% = end) with the values it should have at that moment — anything left blank keeps its current/default value at that keyframe.</p>
       <div id="keyframe-rows"></div>
@@ -1736,11 +1737,11 @@
     </div>
   </div>
 
-  <div id="layers-modal" class="modal" hidden>
+  <div id="layers-modal" class="modal" hidden role="dialog" aria-labelledby="layers-modal-title">
     <div class="modal-inner redirects-modal-inner">
       <header>
-        <h1>Layers</h1>
-        <button id="close-layers">×</button>
+        <h1 id="layers-modal-title">Layers</h1>
+        <button id="close-layers" aria-label="Close Layers dialog">×</button>
       </header>
       <div class="redirects-body">
         <p class="redirects-hint">Every block on the current page, top to bottom. Jump to one, or toggle its visibility/lock without opening the canvas.</p>
@@ -1749,12 +1750,12 @@
     </div>
   </div>
 
-  <div id="scan-editor-modal" class="modal" hidden>
+  <div id="scan-editor-modal" class="modal" hidden role="dialog" aria-label="3D scan editor">
     <div class="modal-inner simulation-builder-inner scan-editor-inner">
       <header>
         <input id="scan-name" class="simulation-name-input" placeholder="Scan name">
         <button type="button" id="save-scan-btn">Save</button>
-        <button id="close-scan-editor">×</button>
+        <button id="close-scan-editor" aria-label="Close 3D scan editor dialog">×</button>
       </header>
       <div class="scan-editor-body">
         <aside class="scan-editor-fields">
