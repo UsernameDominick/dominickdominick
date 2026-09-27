@@ -232,17 +232,17 @@ The standing scope rule in section 0 applies. Keep shared builders consistent.
 - If the general media library expands beyond images, consider adding waveforms for its audio files.
 - Extend TTS read-aloud to build journals if there is a clear use case.
 
-## 4. Pending production migrations
+## 4. Production migration log
 
-A 2026-09-27 read-only check found production D1's media table lacks private, width, and height; Preview has all three. The production home image request fails with HTTP 500 because private is missing.
-
-After explicit approval for this database, recheck the target and current columns, then apply only missing statements:
+Before migration, the production media route failed with HTTP 500 because D1 lacked `private`. On 2026-09-27, after confirming database `dominickdominick` (`f49fb038-9dfb-419e-acfb-7d8babc9d509`) and its current schema, the approved additive migration added only:
 
     ALTER TABLE media ADD COLUMN private INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE media ADD COLUMN width INTEGER;
     ALTER TABLE media ADD COLUMN height INTEGER;
 
-No migration runner is configured; schema.sql is bootstrap only. Verify the columns, homepage image, and admin media metadata after migration. Never replay the full schema. Production D1/R2 writes require per-instance confirmation.
+A read-only `PRAGMA table_info(media)` recheck confirms all three columns and their expected declarations. A read-only lookup for the known homepage key `uploads/300679fa-5339-49cc-a839-9a3253031cb6.png` found no `media` metadata row. The route treats a missing row as public and reads R2, but homepage image delivery and the authenticated admin media listing remain unverified. Two earlier audit GET probes added `error_log` rows 63-64; they were left untouched.
+
+No migration runner is configured; `schema.sql` is bootstrap only. Never replay the full schema. Production D1/R2 writes require per-instance confirmation.
 
 ## 5. Deferred or scoped out
 
@@ -270,7 +270,7 @@ No migration runner is configured; schema.sql is bootstrap only. Verify the colu
 ## 6. Manual verification still owed
 
 - In an authenticated Preview browser, verify dialog names, top-only stacked-modal semantics, opening focus, Tab/Shift+Tab through the Page Preview iframe, Escape/backdrop close, and focus return. Confirm crop Escape cancels only when Photo Editor is topmost; with a child dialog open, Escape closes the child and preserves the crop. Exercise Media Library → New blank image and writing focus from an editor; confirm the full-screen backdrop blocks the desktop sidebar and cards remain centered in the workspace.
-- After the approved migration, verify the homepage image and admin media metadata read successfully.
+- Verify the homepage image delivers successfully and the authenticated admin Media Library reads its metadata; neither check has been confirmed after the production schema fix.
 - Authenticated admin flows and a representative visual review remain required before release.
 - Verify an uploaded article/project header image reserves its stored dimensions before load. External cover URLs have no persisted dimensions; decide how to handle those before relying on them in published content.
 - Verify Worker Previews Base uses distinct test-only `ADMIN_PASSWORD` and `SESSION_SECRET` values before testing
@@ -446,15 +446,15 @@ permissions — out of scope], 597 [package/dependency system — out of scope],
 
 - Song builder still has no undo/redo.
 - External article/project header images have no persisted dimensions; decide between author-supplied dimensions and a fixed-ratio presentation before relying on remote covers. Current project-card blocks and article/project index cards are text-only and have no image layout shift.
-- Recheck homepage/gallery image paths in admin diagnostics after fixing the production media-schema failure; distinguish missing objects from query errors before cleanup.
+- Recheck homepage/gallery image paths in admin diagnostics after the production schema fix; distinguish missing metadata rows, missing R2 objects, and query errors before cleanup.
 
 ## 9. Current audit status
 
-- Worker Preview commit 7a64717 deployed with distinct Preview D1/R2 bindings; Preview D1 has no pages and public / shows the not-found fallback. The targeted modal regression passes; authenticated admin and modal visual checks remain open.
+- Worker Preview commit f17d2e6 is deployed with distinct Preview D1/R2 bindings; Preview D1 has no pages and public / shows the not-found fallback. The targeted modal regression passes; authenticated admin and modal visual checks remain open.
 - Critic reviews: pass 1 scored 8/10 (two findings fixed); pass 2 scored 9/10 (clear); pass 3 scored 8/10 (sentinel finding fixed); pass 4 scores 9/10 after the crop-Escape fix, with focused resolution clear. No critic findings remain open.
-- Production D1 lacks media columns private, width, and height; a homepage image request returned HTTP 500. The two audit GET probes added error_log rows 63-64, left untouched. Migration remains pending per-instance approval.
+- Production D1 now has media columns private, width, and height after the approved additive migration; the prior homepage image request failed with HTTP 500 before that fix. A read-only lookup found no metadata row for the known homepage image key. Two audit GET probes added error_log rows 63-64; they remain untouched. Homepage delivery and authenticated admin metadata checks are unverified.
 - Image sizing uses stored dimensions for known uploads, including same-site absolute cover URLs; remote cover dimensions remain an open decision.
-- production is the review candidate. Promote to main only after critic, migration, and manual gates pass; recheck both refs and preserve the clean fast-forward rule.
+- production is the review candidate. The schema migration is complete, but authenticated/browser and visual gates remain open, so do not promote to main yet. Recheck both refs before any later promotion and preserve the clean fast-forward rule.
 
 ## 10. Open decisions
 
