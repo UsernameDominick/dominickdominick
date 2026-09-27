@@ -90,8 +90,8 @@ it does not verify runtime Worker secrets. Verify distinct test-only Preview val
   Existing undo is a 15-snapshot canvas stack.
 - **Song/DAW:** fixed 16-step sequencer with synthesized Web Audio; no sample playback, multitrack timeline,
   mixing, or effects.
-- **Simulation builder:** SVG circuits and simplified connectivity/Ohm's-law analysis, not a SPICE solver; named
-  checkpoints exist, while undo is in-memory.
+- **Simulation builder:** SVG circuits and simplified connectivity/Ohm's-law analysis, not a SPICE solver; manual
+  wire bends are supported, named checkpoints persist, and undo is in-memory.
 - **Shared lifecycle:** pages/articles/projects have autosave, conflict detection, revisions, and trash; media
   has versions and usage tracking. Songs/simulations still lack full parity.
 ## 2. Active feature backlog
@@ -133,7 +133,6 @@ Open and partial items only; completed implementation histories remain in Git hi
 
 ### Writing and article editor
 - 🔶 Import UI and paste cleanup from documents/websites
-- 🔶 Verify/fix the blank-draft read-time counter after writing-focus toggle (0 words showed both 0 min and 1 min).
 
 ### Saving, recovery, and versioning
 - ☐ Side-by-side compare of conflicting versions (currently just "reload to see latest")
@@ -269,6 +268,7 @@ The R2-only homepage image `uploads/300679fa-5339-49cc-a839-9a3253031cb6.png` se
 - In authenticated Preview, test all five Photo Editor text-entry flows (snapshot name, adjustment preset, brush preset, text style, canvas text): submit/cancel, Escape/backdrop, focus containment/return, and confirm cancel neither edits nor saves.
 - In authenticated Preview, verify Song Builder Undo/Redo across settings, drum and piano grids, notes/name, grouped text/slider input, keyboard shortcuts, redo clearing, song switching, first Save, autosave, edits during Save, existing-save retry, first-save retry by hand, and dirty close/switch confirmation. No authenticated browser or visual check has been run for this candidate.
 - In authenticated Preview, confirm the article counter shows 0 minutes for blank and cleared text, 1 minute for one word, and the existing estimate for longer drafts. The focused function-level regression passes; no authenticated browser check has been run.
+- In authenticated Worker Preview, test #393 with a disposable simulation: add/move/remove bends, move and duplicate connected parts, check labels/framing and unchanged auto leads, then Undo/Redo/save/reopen. Confirm invalid imports are rejected and legacy bad routes stay straight until explicitly cleared; clean up. Browser/visual verification remains open.
 - In authenticated Worker Preview, snap two different part leads into the same breadboard hole. Confirm the nonblocking status announces the shared hole, both leads stay connected, and Undo/Redo plus save/reopen preserve the connection. This browser/visual check is still unrun.
 - In authenticated Worker Preview, toggle a switch from both the checkbox and canvas and confirm the open/closed electrical explanation follows. Move a potentiometer to 0%, 50%, and 100%; verify the live resistance readout, then Undo/Redo and save/reopen. This browser/visual check is still unrun.
 - Test New Blank Image geometry and backdrop hit-testing. Recheck homepage/gallery image paths in Diagnostics after the media migration; distinguish missing R2 objects from D1/query failures before cleanup.
@@ -388,7 +388,6 @@ sandboxed plugin architecture — substantial new infra + security surface).
 - 363. Deterministic runs/seeds — sim is deterministic already; add a seed field for future randomness.
 - 373. Rotate/mirror — add transform + flip pin coords, small render change.
 - 387. Selectable breadboard sizes — new `cols` param variant of existing breadboard def.
-- 393. Manual wire bend points — extend wire path from 2-point to polyline.
 - 403-405. Resistor/capacitor/inductor basic params — extra content fields, same pattern as resistance.
 - 409. Relays/switches — variant of existing switch component.
 - 415. Current source — checked while implementing #416: doesn't fit this simulator's model as worded. This
@@ -441,12 +440,8 @@ permissions — out of scope], 597 [package/dependency system — out of scope],
 
 ## 9. Current audit status
 
-- Reviewed code candidate: `bbe9c8b`; `main` remains at `5765b16`. Song Builder critic scores were 8/10, 7/10, 5/10, and 7/10; findings are fixed with a 9/10 follow-up. The article-counter fix scored 10/10; Simulation #388 and #389 each scored 9/10. Main promotion still awaits authenticated browser/manual checks and owner verification of branch protections.
-- Song Builder save-race fixes are regression-covered and pass syntax checks; authenticated browser/visual review remains open.
-- Simulation #388 preserves shared-hole leads and wire connectivity. Focused synthetic checks and whole-file JavaScript syntax compilation pass; critic review scored 9/10 and Preview build `4dcd242c` succeeded. No authenticated browser or visual check was performed.
-- Simulation #389 explains switch state versus electrical effect and shows the potentiometer's live wiper-to-resistance mapping. Focused inspector checks, whole-file JavaScript syntax, and whitespace checks pass; critic review scored 9/10 and Preview build `9dc8d8f5` succeeded. No authenticated browser or visual check was performed.
-- Article read-time returns 0 for blank text and preserves the existing nonempty rounding. Boundary regressions and `app.js` syntax pass; Preview build `dbde4868` succeeded. No authenticated browser check was performed.
-- Production D1 has the `private`, `width`, and `height` columns. The R2-only homepage image still lacks a D1 metadata row and alt text; the old route error was not retested after migration.
+- Simulation #393 source candidate `57cc4415eb81e9236c6b1db82abcffe8c294ac14`; critics scored 8/10 (2 findings fixed), 5/10 (4 fixed), and 7/10 (2 fixed); pass 4 is in progress. Cloudflare Preview and its Workers Builds check succeeded (`efde8c18-d606-435a-bbed-0536810a6823`); Supabase Preview was skipped because no Supabase branch exists.
+- Twenty-three focused route/runtime/API assertions, JavaScript syntax checks, and whitespace checks passed. No browser or visual check was performed. `main` remains at `5765b16801e6753f4dfd8a76a9361abae3beb99f`; `production` is on the candidate. Release gates are listed in sections 0 and 6; older audit-session details remain in Git history.
 
 ## 10. Open decisions
 
