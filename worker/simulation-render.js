@@ -429,6 +429,15 @@ function buildGraph(data, excludeLedId) {
     }
   });
   wires.forEach((w) => {
+    if (
+      !w ||
+      typeof w !== "object" ||
+      Array.isArray(w) ||
+      !w.from ||
+      typeof w.from !== "object" ||
+      !w.to ||
+      typeof w.to !== "object"
+    ) return;
     const fromComp = components.find((c) => c.id === w.from.compId);
     const toComp = components.find((c) => c.id === w.to.compId);
     if (!fromComp || !toComp) return;
@@ -508,6 +517,15 @@ export function computePoweredSet(data) {
 
   const poweredWires = new Set();
   wires.forEach((w) => {
+    if (
+      !w ||
+      typeof w !== "object" ||
+      Array.isArray(w) ||
+      !w.from ||
+      typeof w.from !== "object" ||
+      !w.to ||
+      typeof w.to !== "object"
+    ) return;
     const fromComp = components.find((c) => c.id === w.from.compId);
     const toComp = components.find((c) => c.id === w.to.compId);
     if (!fromComp || !toComp) return;
@@ -713,8 +731,20 @@ export function computeCircuitAnalysis(data) {
 }
 
 function pinPosition(comp, pinId) {
+  if (
+    !comp ||
+    typeof comp !== "object" ||
+    Array.isArray(comp) ||
+    typeof comp.type !== "string" ||
+    !Object.prototype.hasOwnProperty.call(SIM_COMPONENTS, comp.type) ||
+    !Number.isFinite(comp.x) ||
+    !Number.isFinite(comp.y) ||
+    comp.x < 0 ||
+    comp.x > 1500 ||
+    comp.y < 0 ||
+    comp.y > 700
+  ) return null;
   const def = SIM_COMPONENTS[comp.type];
-  if (!def) return null;
   const pin = def.pins.find((p) => p.id === pinId);
   if (!pin) return null;
   return { x: comp.x + pin.x, y: comp.y + pin.y };
@@ -879,11 +909,66 @@ function fittedViewBox(components, wires, fallbackW, fallbackH) {
   return `${r(x)} ${r(y)} ${r(w)} ${r(h)}`;
 }
 
+function sanitizeSimulationRenderData(data) {
+  const source = data && typeof data === "object" && !Array.isArray(data) ? data : {};
+  const validId = (value) =>
+    (typeof value === "string" &&
+      value.length > 0 &&
+      value.length <= 160 &&
+      !Object.prototype.hasOwnProperty.call(Object.prototype, value)) ||
+    Number.isSafeInteger(value);
+  const componentsById = new Map();
+  const components = (Array.isArray(source.components) ? source.components : []).filter((component) => {
+    if (
+      !component ||
+      typeof component !== "object" ||
+      Array.isArray(component) ||
+      !validId(component.id) ||
+      componentsById.has(component.id) ||
+      typeof component.type !== "string" ||
+      !Object.prototype.hasOwnProperty.call(SIM_COMPONENTS, component.type) ||
+      !Number.isFinite(component.x) ||
+      !Number.isFinite(component.y) ||
+      component.x < 0 ||
+      component.x > 1500 ||
+      component.y < 0 ||
+      component.y > 700
+    ) return false;
+    componentsById.set(component.id, component);
+    return true;
+  });
+  const wires = (Array.isArray(source.wires) ? source.wires : []).filter((wire) => {
+    const validEndpoint = (end) => {
+      if (
+        !end ||
+        typeof end !== "object" ||
+        Array.isArray(end) ||
+        !validId(end.compId) ||
+        typeof end.pin !== "string" ||
+        !end.pin ||
+        end.pin.length > 100
+      ) return false;
+      const component = componentsById.get(end.compId);
+      const definition = component && SIM_COMPONENTS[component.type];
+      return Boolean(definition && definition.pins.some((pin) => pin.id === end.pin));
+    };
+    return Boolean(
+      wire &&
+        typeof wire === "object" &&
+        !Array.isArray(wire) &&
+        validEndpoint(wire.from) &&
+        validEndpoint(wire.to)
+    );
+  });
+  return { components, wires };
+}
+
 export function renderSimulationSvg(data, { width = 1500, height = 700 } = {}) {
-  const components = (data && data.components) || [];
-  const wires = (data && data.wires) || [];
-  const { poweredComps, poweredWires } = computePoweredSet(data);
-  const analysis = computeCircuitAnalysis(data);
+  const safeData = sanitizeSimulationRenderData(data);
+  const components = safeData.components;
+  const wires = safeData.wires;
+  const { poweredComps, poweredWires } = computePoweredSet(safeData);
+  const analysis = computeCircuitAnalysis(safeData);
   const wiresSvg = wires.map((w) => renderWireSvg(w, components, poweredWires)).join("");
   const compsSvg = components.map((c) => renderComponentSvg(c, poweredComps, analysis)).join("");
   return `<svg class="sim-svg" viewBox="${fittedViewBox(components, wires, width, height)}" xmlns="http://www.w3.org/2000/svg">${SIM_DEFS_SVG}${wiresSvg}${compsSvg}</svg>`;

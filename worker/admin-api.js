@@ -144,6 +144,7 @@ import {
   plausibleDims,
 } from "./db.js";
 import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated, hmac, revokeAllSessions } from "./auth.js";
+import { SIM_COMPONENTS } from "./simulation-render.js";
 
 function json(data, init = {}) {
   return new Response(JSON.stringify(data), {
@@ -173,31 +174,112 @@ function normalizeRedirectTarget(p) {
 }
 
 const MAX_MANUAL_WIRE_WAYPOINTS = 20;
+const MAX_SIMULATION_CHECKPOINTS = 20;
 
-function simulationWaypointError(data) {
-  if (!data || typeof data !== "object" || Array.isArray(data) || !Array.isArray(data.wires)) return null;
-  for (let wireIndex = 0; wireIndex < data.wires.length; wireIndex++) {
-    const wire = data.wires[wireIndex];
-    if (!wire || typeof wire !== "object" || Array.isArray(wire) || !Object.prototype.hasOwnProperty.call(wire, "waypoints")) continue;
-    const points = wire.waypoints;
-    if (!Array.isArray(points)) return `Wire ${wireIndex + 1} has an invalid bend list.`;
-    if (points.length > MAX_MANUAL_WIRE_WAYPOINTS) return `Wire ${wireIndex + 1} has too many bends (maximum ${MAX_MANUAL_WIRE_WAYPOINTS}).`;
-    if (wire.auto === true && points.length) return `Wire ${wireIndex + 1} is automatic and cannot include manual bends.`;
-    for (let pointIndex = 0; pointIndex < points.length; pointIndex++) {
-      const point = points[pointIndex];
+function isSimulationRecordId(value) {
+  return (
+    (typeof value === "string" &&
+      value.length > 0 &&
+      value.length <= 160 &&
+      !Object.prototype.hasOwnProperty.call(Object.prototype, value)) ||
+    Number.isSafeInteger(value)
+  );
+}
+
+function simulationDataError(data, requireCircuitArrays = false, allowCheckpoints = true) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return "Simulation data must be an object.";
+  const hasComponents = Object.prototype.hasOwnProperty.call(data, "components");
+  const hasWires = Object.prototype.hasOwnProperty.call(data, "wires");
+  if ((requireCircuitArrays || hasComponents) && !Array.isArray(data.components)) return "Simulation components must be an array.";
+  if ((requireCircuitArrays || hasWires) && !Array.isArray(data.wires)) return "Simulation wires must be an array.";
+
+  const components = Array.isArray(data.components) ? data.components : [];
+  const wires = Array.isArray(data.wires) ? data.wires : [];
+  const componentsById = new Map();
+  for (let index = 0; index < components.length; index++) {
+    const component = components[index];
+    if (
+      !component ||
+      typeof component !== "object" ||
+      Array.isArray(component) ||
+      !isSimulationRecordId(component.id) ||
+      componentsById.has(component.id) ||
+      typeof component.type !== "string" ||
+      !Object.prototype.hasOwnProperty.call(SIM_COMPONENTS, component.type) ||
+      !Number.isFinite(component.x) ||
+      !Number.isFinite(component.y) ||
+      component.x < 0 ||
+      component.x > 1500 ||
+      component.y < 0 ||
+      component.y > 700
+    ) {
+      return `Component ${index + 1} must have a unique id, supported type, and numeric coordinates inside the builder canvas.`;
+    }
+    componentsById.set(component.id, component);
+  }
+
+  for (let wireIndex = 0; wireIndex < wires.length; wireIndex++) {
+    const wire = wires[wireIndex];
+    const validEndpoint = (end) => {
       if (
-        !point ||
-        typeof point !== "object" ||
-        Array.isArray(point) ||
-        !Number.isFinite(point.x) ||
-        !Number.isFinite(point.y) ||
-        point.x < 0 ||
-        point.x > 1500 ||
-        point.y < 0 ||
-        point.y > 700
-      ) {
-        return `Wire ${wireIndex + 1} bend ${pointIndex + 1} must have numeric coordinates inside the builder canvas.`;
+        !end ||
+        typeof end !== "object" ||
+        Array.isArray(end) ||
+        !isSimulationRecordId(end.compId) ||
+        typeof end.pin !== "string" ||
+        !end.pin ||
+        end.pin.length > 100
+      ) return false;
+      const component = componentsById.get(end.compId);
+      const definition = component && SIM_COMPONENTS[component.type];
+      return Boolean(definition && definition.pins.some((pin) => pin.id === end.pin));
+    };
+    if (!wire || typeof wire !== "object" || Array.isArray(wire) || !validEndpoint(wire.from) || !validEndpoint(wire.to)) {
+      return `Wire ${wireIndex + 1} must have valid endpoints that reference existing component pins.`;
+    }
+    if (Object.prototype.hasOwnProperty.call(wire, "waypoints")) {
+      const points = wire.waypoints;
+      if (!Array.isArray(points)) return `Wire ${wireIndex + 1} has an invalid bend list.`;
+      if (points.length > MAX_MANUAL_WIRE_WAYPOINTS) return `Wire ${wireIndex + 1} has too many bends (maximum ${MAX_MANUAL_WIRE_WAYPOINTS}).`;
+      if (wire.auto === true && points.length) return `Wire ${wireIndex + 1} is automatic and cannot include manual bends.`;
+      for (let pointIndex = 0; pointIndex < points.length; pointIndex++) {
+        const point = points[pointIndex];
+        if (
+          !point ||
+          typeof point !== "object" ||
+          Array.isArray(point) ||
+          !Number.isFinite(point.x) ||
+          !Number.isFinite(point.y) ||
+          point.x < 0 ||
+          point.x > 1500 ||
+          point.y < 0 ||
+          point.y > 700
+        ) {
+          return `Wire ${wireIndex + 1} bend ${pointIndex + 1} must have numeric coordinates inside the builder canvas.`;
+        }
       }
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(data, "checkpoints")) {
+    if (!allowCheckpoints) return "Nested simulation checkpoints are not supported.";
+    if (!Array.isArray(data.checkpoints) || data.checkpoints.length > MAX_SIMULATION_CHECKPOINTS) {
+      return `Simulation checkpoints must be an array of at most ${MAX_SIMULATION_CHECKPOINTS} items.`;
+    }
+    for (let index = 0; index < data.checkpoints.length; index++) {
+      const checkpoint = data.checkpoints[index];
+      if (
+        !checkpoint ||
+        typeof checkpoint !== "object" ||
+        Array.isArray(checkpoint) ||
+        typeof checkpoint.name !== "string" ||
+        !checkpoint.name.trim() ||
+        !checkpoint.data
+      ) {
+        return `Checkpoint ${index + 1} has an invalid structure.`;
+      }
+      const checkpointError = simulationDataError(checkpoint.data, true, false);
+      if (checkpointError) return `Checkpoint ${index + 1}: ${checkpointError}`;
     }
   }
   return null;
@@ -1999,8 +2081,8 @@ async function routeAdminApi(request, env, url, ctx) {
   if (path === "/simulations" && method === "POST") {
     const body = await request.json().catch(() => ({}));
     if (!body.name || !String(body.name).trim()) return json({ error: "Name is required" }, { status: 400 });
-    const waypointError = simulationWaypointError(body.data || {});
-    if (waypointError) return json({ error: waypointError }, { status: 400 });
+    const dataError = simulationDataError(body.data || {});
+    if (dataError) return json({ error: dataError }, { status: 400 });
     const id = await createSimulation(env, { name: body.name.trim(), data: body.data || {} });
     log(ctx, env, "create", "simulation", body.name.trim());
     return json({ id });
@@ -2009,8 +2091,8 @@ async function routeAdminApi(request, env, url, ctx) {
   if (simDuplicateMatch && method === "POST") {
     const source = await getSimulation(env, Number(simDuplicateMatch[1]));
     if (!source) return json({ error: "Simulation not found" }, { status: 404 });
-    const waypointError = simulationWaypointError(source.data || {});
-    if (waypointError) return json({ error: waypointError }, { status: 400 });
+    const dataError = simulationDataError(source.data || {});
+    if (dataError) return json({ error: dataError }, { status: 400 });
     const newId = await duplicateSimulation(env, Number(simDuplicateMatch[1]));
     if (!newId) return json({ error: "Simulation not found" }, { status: 404 });
     log(ctx, env, "duplicate", "simulation", `#${simDuplicateMatch[1]} → #${newId}`);
@@ -2025,8 +2107,8 @@ async function routeAdminApi(request, env, url, ctx) {
   if (simMatch && method === "PATCH") {
     const body = await request.json().catch(() => ({}));
     if (!body.name || !String(body.name).trim()) return json({ error: "Name is required" }, { status: 400 });
-    const waypointError = simulationWaypointError(body.data || {});
-    if (waypointError) return json({ error: waypointError }, { status: 400 });
+    const dataError = simulationDataError(body.data || {});
+    if (dataError) return json({ error: dataError }, { status: 400 });
     const updated = await updateSimulation(env, Number(simMatch[1]), { name: body.name.trim(), data: body.data || {} });
     if (!updated) return json({ error: "Not found" }, { status: 404 });
     return json({ ok: true });

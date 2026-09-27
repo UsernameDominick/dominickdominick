@@ -354,6 +354,16 @@
     },
   };
 
+  function validWireEndpoints(w) {
+    const validEnd = (end) =>
+      end &&
+      typeof end === "object" &&
+      !Array.isArray(end) &&
+      (typeof end.compId === "string" || Number.isSafeInteger(end.compId)) &&
+      typeof end.pin === "string";
+    return Boolean(w && typeof w === "object" && !Array.isArray(w) && validEnd(w.from) && validEnd(w.to));
+  }
+
   function nodeId(comp, pinId) {
     const def = window.SIM_COMPONENTS[comp.type];
     if (def && def.railGroups) {
@@ -395,6 +405,7 @@
       }
     });
     wires.forEach((w) => {
+      if (!validWireEndpoints(w)) return;
       const fromComp = components.find((c) => c.id === w.from.compId);
       const toComp = components.find((c) => c.id === w.to.compId);
       if (!fromComp || !toComp) return;
@@ -464,6 +475,7 @@
 
     const poweredWires = new Set();
     wires.forEach((w) => {
+      if (!validWireEndpoints(w)) return;
       const fromComp = components.find((c) => c.id === w.from.compId);
       const toComp = components.find((c) => c.id === w.to.compId);
       if (!fromComp || !toComp) return;
@@ -526,6 +538,7 @@
       }
     });
     wires.forEach((w) => {
+      if (!validWireEndpoints(w)) return;
       const fromComp = components.find((c) => c.id === w.from.compId);
       const toComp = components.find((c) => c.id === w.to.compId);
       if (!fromComp || !toComp) return;

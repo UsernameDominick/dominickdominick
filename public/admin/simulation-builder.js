@@ -6,6 +6,7 @@
 
   let simulations = [];
   let currentSimId = null;
+  let openBuilderRequestId = 0;
   let simData = { components: [], wires: [] };
   let selected = null; // { kind: "component" | "wire", id }
   let wireStart = null; // { compId, pin }
@@ -356,7 +357,7 @@
     await loadSimulationsList();
     await loadSimTemplates();
   });
-  $("close-simulations").addEventListener("click", () => ($("simulations-modal").hidden = true));
+  $("close-simulations").addEventListener("click", () => { openBuilderRequestId++; $("simulations-modal").hidden = true; });
   $("new-simulation-btn").addEventListener("click", () => {
     const templateId = Number($("sim-template-picker").value) || null;
     openBuilder(null, templateId);
@@ -364,6 +365,7 @@
 
   // ---------- Open / close builder ----------
   async function openBuilder(id, templateId) {
+    const requestId = ++openBuilderRequestId;
     setSnapHoleWarning(0);
     currentSimId = id;
     selected = null;
@@ -387,13 +389,30 @@
     redoStack = [];
     renderRecentPalette();
     if (id) {
-      const sim = await window.adminApi(`/simulations/${id}`);
-      $("simulation-name").value = sim.name;
-      const components = sim.data && Array.isArray(sim.data.components) ? sim.data.components : [];
-      const wires = sim.data && Array.isArray(sim.data.wires) ? sim.data.wires : [];
+      let sim;
+      try {
+        sim = await window.adminApi(`/simulations/${id}`);
+      } catch (err) {
+        if (requestId !== openBuilderRequestId) return;
+        currentSimId = null;
+        alert(`Couldn't load that simulation: ${err.message || "Request failed"}`);
+        return;
+      }
+      if (requestId !== openBuilderRequestId) return;
+      const savedData = sim && sim.data ? sim.data : { components: [], wires: [] };
+      try {
+        validateSimulationStructure(savedData);
+      } catch (err) {
+        currentSimId = null;
+        alert(`Couldn't open that simulation: ${err.message}`);
+        return;
+      }
+      $("simulation-name").value = sim && sim.name ? sim.name : "Simulation";
+      const components = Array.isArray(savedData.components) ? savedData.components : [];
+      const wires = Array.isArray(savedData.wires) ? savedData.wires : [];
       simData = { components, wires };
-      simCheckpoints = sim.data && Array.isArray(sim.data.checkpoints) ? sim.data.checkpoints : [];
-      $("sim-poster-url").value = (sim.data && sim.data.og_image) || "";
+      simCheckpoints = Array.isArray(savedData.checkpoints) ? savedData.checkpoints : [];
+      $("sim-poster-url").value = savedData.og_image || "";
     } else if (templateId) {
       const t = simTemplates.find((x) => x.id === templateId);
       $("simulation-name").value = "New simulation";
@@ -422,6 +441,7 @@
   }
 
   $("close-simulation-builder").addEventListener("click", () => {
+    openBuilderRequestId++;
     $("simulation-builder-modal").hidden = true;
     $("simulations-modal").hidden = false;
     // The list behind the builder was last loaded before this edit/create —
@@ -432,14 +452,37 @@
 
   // ---------- Rendering the live builder SVG ----------
   function pinPosition(comp, pinId) {
+    if (
+      !comp ||
+      typeof comp !== "object" ||
+      Array.isArray(comp) ||
+      !Object.prototype.hasOwnProperty.call(REG, comp.type) ||
+      !Number.isFinite(comp.x) ||
+      !Number.isFinite(comp.y) ||
+      comp.x < 0 ||
+      comp.x > 1500 ||
+      comp.y < 0 ||
+      comp.y > 700
+    ) return null;
     const def = REG[comp.type];
     const pin = def.pins.find((p) => p.id === pinId);
     return pin ? { x: comp.x + pin.x, y: comp.y + pin.y } : null;
   }
 
   function renderComponentSvg(comp, poweredComps, analysis) {
+    if (
+      !comp ||
+      typeof comp !== "object" ||
+      Array.isArray(comp) ||
+      !Object.prototype.hasOwnProperty.call(REG, comp.type) ||
+      !Number.isFinite(comp.x) ||
+      !Number.isFinite(comp.y) ||
+      comp.x < 0 ||
+      comp.x > 1500 ||
+      comp.y < 0 ||
+      comp.y > 700
+    ) return "";
     const def = REG[comp.type];
-    if (!def) return "";
     const sel = isCompSelected(comp.id);
     const info = analysis[comp.id];
     const damaged = info && (info.status === "burnt" || info.status === "overheating");
@@ -541,6 +584,84 @@
     if (points.length) wire.waypoints = points;
     else delete wire.waypoints;
   }
+  function validateSimulationStructure(data, requireCircuitArrays = false) {
+    if (!data || typeof data !== "object" || Array.isArray(data)) {
+      throw new Error("Simulation data must be an object.");
+    }
+    const hasComponents = Object.prototype.hasOwnProperty.call(data, "components");
+    const hasWires = Object.prototype.hasOwnProperty.call(data, "wires");
+    if ((requireCircuitArrays || hasComponents) && !Array.isArray(data.components)) {
+      throw new Error("Simulation components must be an array.");
+    }
+    if ((requireCircuitArrays || hasWires) && !Array.isArray(data.wires)) {
+      throw new Error("Simulation wires must be an array.");
+    }
+    const components = Array.isArray(data.components) ? data.components : [];
+    const wires = Array.isArray(data.wires) ? data.wires : [];
+    const validId = (value) =>
+      (typeof value === "string" &&
+        value.length > 0 &&
+        value.length <= 160 &&
+        !Object.prototype.hasOwnProperty.call(Object.prototype, value)) ||
+      Number.isSafeInteger(value);
+    const componentsById = new Map();
+    components.forEach((component, index) => {
+      if (
+        !component ||
+        typeof component !== "object" ||
+        Array.isArray(component) ||
+        !validId(component.id) ||
+        componentsById.has(component.id) ||
+        typeof component.type !== "string" ||
+        !Object.prototype.hasOwnProperty.call(REG, component.type) ||
+        !Number.isFinite(component.x) ||
+        !Number.isFinite(component.y) ||
+        component.x < 0 ||
+        component.x > 1500 ||
+        component.y < 0 ||
+        component.y > 700
+      ) {
+        throw new Error(`Component ${index + 1} must have a unique id, supported type, and numeric coordinates inside the builder canvas.`);
+      }
+      componentsById.set(component.id, component);
+    });
+    wires.forEach((wire, index) => {
+      const validEnd = (end) => {
+        if (
+          !end ||
+          typeof end !== "object" ||
+          Array.isArray(end) ||
+          !validId(end.compId) ||
+          typeof end.pin !== "string" ||
+          !end.pin ||
+          end.pin.length > 100
+        ) return false;
+        const component = componentsById.get(end.compId);
+        return Boolean(component && REG[component.type].pins.some((pin) => pin.id === end.pin));
+      };
+      if (!wire || typeof wire !== "object" || Array.isArray(wire) || !validEnd(wire.from) || !validEnd(wire.to)) {
+        throw new Error(`Wire ${index + 1} must have valid endpoints that reference existing components.`);
+      }
+    });
+    if (Object.prototype.hasOwnProperty.call(data, "checkpoints")) {
+      if (!Array.isArray(data.checkpoints) || data.checkpoints.length > CHECKPOINT_LIMIT) {
+        throw new Error(`Simulation checkpoints must be an array of at most ${CHECKPOINT_LIMIT} items.`);
+      }
+      data.checkpoints.forEach((checkpoint, index) => {
+        if (
+          !checkpoint ||
+          typeof checkpoint !== "object" ||
+          Array.isArray(checkpoint) ||
+          typeof checkpoint.name !== "string" ||
+          !checkpoint.data
+        ) {
+          throw new Error(`Checkpoint ${index + 1} has an invalid structure.`);
+        }
+        validateSimulationStructure(checkpoint.data, true);
+      });
+    }
+  }
+
   function validateImportedWireWaypoints(wires) {
     wires.forEach((wire, index) => {
       if (!wire || typeof wire !== "object" || Array.isArray(wire) || !Object.prototype.hasOwnProperty.call(wire, "waypoints")) return;
@@ -2052,7 +2173,9 @@
       if (!parsed || !Array.isArray(parsed.components) || !Array.isArray(parsed.wires)) {
         throw new Error("That file doesn't look like a circuit export (expected components/wires arrays).");
       }
+      validateSimulationStructure(parsed, true);
       validateImportedWireWaypoints(parsed.wires);
+      (parsed.checkpoints || []).forEach((checkpoint) => validateImportedWireWaypoints(checkpoint.data.wires));
       setSnapHoleWarning(0);
       pushHistory();
       simData = parsed;
