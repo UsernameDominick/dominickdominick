@@ -483,7 +483,6 @@
     if (!wire || wire.auto === true || !Array.isArray(wire.waypoints)) return [];
     return wire.waypoints
       .filter((point) => point && Number.isFinite(point.x) && Number.isFinite(point.y))
-      .slice(0, MAX_MANUAL_WIRE_WAYPOINTS)
       .map((point) => ({ x: point.x, y: point.y }));
   }
 
@@ -520,6 +519,32 @@
   function setWireWaypoints(wire, points) {
     if (points.length) wire.waypoints = points;
     else delete wire.waypoints;
+  }
+  function validateImportedWireWaypoints(wires) {
+    wires.forEach((wire, index) => {
+      if (!wire || typeof wire !== "object" || Array.isArray(wire) || !Object.prototype.hasOwnProperty.call(wire, "waypoints")) return;
+      const points = wire.waypoints;
+      if (!Array.isArray(points)) throw new Error(`Wire ${index + 1} has an invalid bend list.`);
+      if (wire.auto === true && points.length) throw new Error(`Wire ${index + 1} is an automatic breadboard lead and cannot include manual bends.`);
+      if (points.length > MAX_MANUAL_WIRE_WAYPOINTS) {
+        throw new Error(`Wire ${index + 1} has too many bends (maximum ${MAX_MANUAL_WIRE_WAYPOINTS}).`);
+      }
+      points.forEach((point, pointIndex) => {
+        if (
+          !point ||
+          typeof point !== "object" ||
+          Array.isArray(point) ||
+          !Number.isFinite(point.x) ||
+          !Number.isFinite(point.y) ||
+          point.x < 0 ||
+          point.x > 1500 ||
+          point.y < 0 ||
+          point.y > 700
+        ) {
+          throw new Error(`Wire ${index + 1} bend ${pointIndex + 1} must have numeric coordinates inside the builder canvas.`);
+        }
+      });
+    });
   }
 
   function clampWireWaypointValue(value, axis) {
@@ -1636,12 +1661,20 @@
         // itself instead of landing as disconnected loose parts.
         simData.wires.forEach((w) => {
           if (idMap.has(w.from.compId) && idMap.has(w.to.compId)) {
-            simData.wires.push({
-              id: newLocalId("wire"),
-              from: { compId: idMap.get(w.from.compId), pin: w.from.pin },
-              to: { compId: idMap.get(w.to.compId), pin: w.to.pin },
-              kind: w.kind,
-            });
+            const clonedWire = JSON.parse(JSON.stringify(w));
+            clonedWire.id = newLocalId("wire");
+            clonedWire.from = { ...w.from, compId: idMap.get(w.from.compId) };
+            clonedWire.to = { ...w.to, compId: idMap.get(w.to.compId) };
+            if (w.auto === true) {
+              delete clonedWire.waypoints;
+            } else {
+              const shiftedWaypoints = getWireWaypoints(w).map((point) => ({
+                x: clampWireWaypointValue(point.x + 20, "x"),
+                y: clampWireWaypointValue(point.y + 20, "y"),
+              }));
+              setWireWaypoints(clonedWire, shiftedWaypoints);
+            }
+            simData.wires.push(clonedWire);
           }
         });
         setMultiSelection(clones.map((c) => c.id));
@@ -1743,17 +1776,20 @@
         input.addEventListener("change", () => {
           const index = Number(input.dataset.wireWaypointIndex);
           const axis = input.dataset.wireWaypointAxis;
-          const value = input.value === "" ? NaN : clampWireWaypointValue(input.valueAsNumber, axis);
           const next = getWireWaypoints(wire);
-          if (!Number.isInteger(index) || !next[index] || !["x", "y"].includes(axis) || value === null || !Number.isFinite(value)) {
-            renderInspector();
+          if (!Number.isInteger(index) || !next[index] || !["x", "y"].includes(axis)) return;
+          const value = input.value === "" ? null : clampWireWaypointValue(input.valueAsNumber, axis);
+          if (value === null) {
+            input.value = String(next[index][axis]);
             return;
           }
           if (next[index][axis] === value) return;
           pushHistory();
           next[index][axis] = value;
           setWireWaypoints(wire, next);
-          renderInspector();
+          input.value = String(value);
+          // Keep the inspector DOM alive so keyboard and screen-reader
+          // focus stays on the coordinate field while the canvas redraws.
           renderBuilder();
         });
       });
@@ -1971,6 +2007,7 @@
       if (!parsed || !Array.isArray(parsed.components) || !Array.isArray(parsed.wires)) {
         throw new Error("That file doesn't look like a circuit export (expected components/wires arrays).");
       }
+      validateImportedWireWaypoints(parsed.wires);
       setSnapHoleWarning(0);
       pushHistory();
       simData = parsed;

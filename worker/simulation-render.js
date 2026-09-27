@@ -752,6 +752,51 @@ function renderComponentSvg(comp, poweredComps, analysis) {
   }" transform="translate(${comp.x},${comp.y})">${titleSvg}${def.render(comp)}${readingSvg}</g>`;
 }
 
+// Optional presentation-only route bends; electrical connectivity still uses wire.from/to.
+const MAX_MANUAL_WIRE_WAYPOINTS = 20;
+
+function getWireWaypoints(wire) {
+  if (!wire || wire.auto === true || !Array.isArray(wire.waypoints)) return [];
+  return wire.waypoints
+    .filter((point) => point && Number.isFinite(point.x) && Number.isFinite(point.y))
+    .map((point) => ({ x: point.x, y: point.y }));
+}
+
+function getWireRoutePoints(wire, p1, p2) {
+  return [p1, ...getWireWaypoints(wire), p2];
+}
+
+function getWireRoutePath(points) {
+  return points.map((point, index) => (index === 0 ? "M" : "L") + point.x + "," + point.y).join(" ");
+}
+
+// Places labels halfway along the visible route rather than halfway
+// between component pins, which can be far away from a bent wire.
+function getWireLabelPosition(points) {
+  if (!points.length) return { x: 0, y: 0 };
+  let longestIndex = -1;
+  let longestLength = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    const length = Math.hypot(points[i + 1].x - points[i].x, points[i + 1].y - points[i].y);
+    if (length > longestLength) {
+      longestLength = length;
+      longestIndex = i;
+    }
+  }
+  if (longestIndex < 0) return { x: points[0].x, y: points[0].y };
+  // Center labels on a straight segment, not on a waypoint where two
+  // segments meet; this keeps multi-bend labels from sitting on a corner.
+  return {
+    x: (points[longestIndex].x + points[longestIndex + 1].x) / 2,
+    y: (points[longestIndex].y + points[longestIndex + 1].y) / 2,
+  };
+}
+
+function setWireWaypoints(wire, points) {
+  if (points.length) wire.waypoints = points;
+  else delete wire.waypoints;
+}
+
 function renderWireSvg(wire, components, poweredWires) {
   const fromComp = components.find((c) => c.id === wire.from.compId);
   const toComp = components.find((c) => c.id === wire.to.compId);
@@ -759,48 +804,30 @@ function renderWireSvg(wire, components, poweredWires) {
   const p1 = pinPosition(fromComp, wire.from.pin);
   const p2 = pinPosition(toComp, wire.to.pin);
   if (!p1 || !p2) return "";
-  // A part snapped directly onto a breadboard hole has a zero-length
-  // "wire" (its pin and the hole are the same point) — it's plugged in
-  // physically, not cabled, so there's nothing to draw.
-  if (Math.hypot(p2.x - p1.x, p2.y - p1.y) < 0.5) return "";
-  const d = `M${p1.x},${p1.y} L${p2.x},${p2.y}`;
-  // Same admin-builder convention: a label sits just above the wire's
-  // midpoint, mirrored here so a wire labeled in the builder (e.g. "GND"/
-  // "5V") shows the same way on the public embed, not just in the admin.
+  const routePoints = getWireRoutePoints(wire, p1, p2);
+  const routeLength = routePoints.slice(1).reduce((sum, point, index) => sum + Math.hypot(point.x - routePoints[index].x, point.y - routePoints[index].y), 0);
+  if (routeLength < 0.5) return "";
+  const d = getWireRoutePath(routePoints);
+  const labelPoint = getWireLabelPosition(routePoints);
   const labelSvg = wire.label
-    ? `<text class="sim-wire-label" x="${(p1.x + p2.x) / 2}" y="${(p1.y + p2.y) / 2 - 6}" text-anchor="middle">${escXml(
+    ? `<text class="sim-wire-label" x="${labelPoint.x}" y="${labelPoint.y - 6}" text-anchor="middle">${escXml(
         wire.label
       )}</text>`
     : "";
-  // Mirrors the admin builder's own thickness override exactly (same
-  // multipliers, same base widths per kind, same "only emit an inline
-  // style when it's not the plain 1x default" rule) so a wire's
-  // thickness set in the builder shows identically on this public embed.
   const kind = wire.kind === "hdmi" ? "hdmi" : "wire";
   const thicknessMultiplier = { thin: 0.6, thick: 1.7 }[wire.thickness] || 1;
-  // Rounded to 2 decimal places -- a critic pass found 1.5 * 0.6 (the
-  // HDMI-style shine stroke at Thin) is 0.8999999999999999 in floating
-  // point, which would otherwise render as that exact ugly literal in
-  // the SVG markup. Purely cosmetic, but cheap to avoid, and mirrors the
-  // identical fix in the admin builder's own copy of this function.
   const roundPx = (n) => Math.round(n * 100) / 100;
   const strokeStyle =
     thicknessMultiplier === 1 ? "" : ` style="stroke-width:${roundPx((kind === "hdmi" ? 5 : 4) * thicknessMultiplier)}px"`;
   const shineStrokeStyle =
     thicknessMultiplier === 1 ? "" : ` style="stroke-width:${roundPx((kind === "hdmi" ? 1.5 : 1.2) * thicknessMultiplier)}px"`;
-  // Two overlapping strokes — a wide dull base plus a thin bright offset
-  // highlight — read as a rounded, insulated cable instead of a flat line.
-  return `<path class="sim-wire sim-wire-${escXml(wire.kind || "wire")}" data-id="${escXml(
-    wire.id
-  )}" data-animated="${poweredWires.has(wire.id) ? "true" : "false"}" d="${d}"${strokeStyle}/><path class="sim-wire-shine sim-wire-shine-${escXml(
-    wire.kind || "wire"
-  )}" d="${d}"${shineStrokeStyle}/>${labelSvg}`;
+  return `<path class="sim-wire sim-wire-${kind}" data-id="${escXml(wire.id)}" data-animated="${poweredWires.has(wire.id) ? "true" : "false"}" d="${d}"${strokeStyle}/><path class="sim-wire-shine sim-wire-shine-${kind}" d="${d}"${shineStrokeStyle}/>${labelSvg}`;
 }
 
 // The embed always used the builder's whole 1500x700 canvas as its view,
 // so a small circuit built in one corner rendered as a few specks in a
 // mostly-empty box. The view now fits the circuit's actual bounds (every
-// part's box plus every wire endpoint), with padding and a minimum size so
+// part's box, wire endpoints, and manual bend points), with padding and a minimum size so
 // a single part isn't blown up to fill the screen.
 function fittedViewBox(components, wires, fallbackW, fallbackH) {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -822,6 +849,7 @@ function fittedViewBox(components, wires, fallbackW, fallbackH) {
       const p = comp && pinPosition(comp, end.pin);
       if (p) grow(p.x, p.y);
     }
+    for (const point of getWireWaypoints(w)) grow(point.x, point.y);
   }
   if (!Number.isFinite(minX)) return `0 0 ${fallbackW} ${fallbackH}`;
   const PAD = 40;
