@@ -278,8 +278,7 @@ No migration runner is configured; `schema.sql` is bootstrap only. Never replay 
 - Preview is public; production and Preview D1/R2 bindings are distinct. The Preview database has no page records. Before adding test data, define a cleanup path and use non-sensitive namespaced fixtures unless Cloudflare Access is enabled. See [Preview access control](https://developers.cloudflare.com/workers/previews/#access-control).
 - Confirm highlight.js loads for a real published article with a code block.
 - Confirm `@google/model-viewer` loads a `.glb`; test `.usdz` AR on an iPhone.
-- Confirm the live Worker's `0 8 * * *` D1→R2 backup schedule in Cloudflare. Worker Previews do not run Cron
-  Triggers, so this is not covered by Preview QA; do not manually trigger a production backup as a Preview test.
+
 - Confirm Web Speech API read-aloud with actual browser voices.
 
 **Current QA limitation:** Live `/`, `/projects`, `/random`, and `/topics` loaded; the homepage image rendered at 1200×630, the browser console was clear, and 390px/768px viewports had no horizontal overflow. The sitemap URL was blocked by the browser client; the earlier 66 server/security/SEO checks passed. Authenticated admin/modal checks and visual sign-off remain open. Localhost browser testing remains unavailable because the cloud browser cannot reach localhost and Chromium installation failed under restricted egress.
@@ -450,7 +449,7 @@ permissions — out of scope], 597 [package/dependency system — out of scope],
 
 ## 9. Current audit status
 
-- The Preview build for audit commit 5765b16 succeeded; Preview D1 has no pages and public / shows the not-found fallback. The live main build and 100% Worker deployment for 5765b16 succeeded. Public route checks passed; authenticated admin and modal visual checks remain open.
+- The Preview build for audit commit 5765b16 succeeded; Preview D1 has no pages and public / shows the not-found fallback. The live main build and 100% Worker deployment for 5765b16 succeeded. Public route checks passed; authenticated admin and modal visual checks remain open. A read-only Cloudflare API check on 2026-09-27 confirmed the live Worker's `0 8 * * *` backup Cron Trigger; no backup was manually triggered.
 - Critic reviews: pass 1 scored 8/10 (two findings fixed); pass 2 scored 9/10 (clear); pass 3 scored 8/10 (sentinel finding fixed); pass 4 scores 9/10 after the crop-Escape fix, with focused resolution clear. No critic findings remain open.
 - Production D1 now has media columns private, width, and height after the approved additive migration. The homepage image served after the fix, although its media metadata row is absent; authenticated admin handling is unverified. Log rows 63–67 are pre-migration column errors; rows 68–71 are generic client:admin script errors with empty stacks and unknown cause. None were changed, and the post-deploy browser checks added no rows.
 - Image sizing uses stored dimensions for known uploads, including same-site absolute cover URLs; remote cover dimensions remain an open decision.
