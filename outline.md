@@ -438,7 +438,7 @@ permissions — out of scope], 597 [package/dependency system — out of scope],
 ## 9. Current audit status
 
 - Source candidate `04dbb655d49d9fb4d3424fc41ef599a24911ec43` scored 8/10 on critic pass 1 (two findings fixed), then 9/10, 8/10, and 9/10 across the three remaining sequential passes; findings were fixed between passes. A targeted source-only recheck scored 9/10 with no actionable findings. Local checks passed: 66 server/security/SEO, 9 song save/race/waveform, modal/accessibility, simulation save/open, syntax, and diff checks. Preview build `b94b496a-60b0-43e0-a50e-ede2f5c854cf` succeeded. Authenticated Preview covered simulation save/open, switch explanations, potentiometer range with Undo/Redo, and article read-time counts (blank/cleared 0; one word 1 minute); temporary Preview credentials and the disposable fixture were removed. No full-site visual review or visual score was performed; remaining manual gates are in section 6.
-- GitHub refs rechecked 2026-09-27: `production` at `2ca072ffadfa006ece595d21f717cfa9423b4787` is 35 commits ahead of `main` at `5765b16801e6753f4dfd8a76a9361abae3beb99f`, a clean fast-forward. The current ref difference is documentation-only; do not promote the code candidate until section 6 gates pass. Branch rules remain unverified. Recheck both refs before promotion; never force-push.
+- GitHub refs rechecked 2026-09-27: `main` remains at `5765b16801e6753f4dfd8a76a9361abae3beb99f`, and `production` is a clean fast-forward ahead of it. Commits after the reviewed source candidate are documentation-only. Keep the code candidate on `production` until section 6 gates pass. Branch rules remain unverified. Recheck both refs before promotion; never force-push.
 
 ## 10. Open decisions
 
