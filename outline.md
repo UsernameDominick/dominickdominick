@@ -442,7 +442,6 @@ permissions — out of scope], 597 [package/dependency system — out of scope],
 
 - Song builder still has no undo/redo.
 - Admin dialogs lack `role="dialog"` and `aria-modal="true"` semantics.
-- Media hash/dimension backfills stop after 500 R2 objects instead of following the cursor.
 - Project-card and content-header images still need the image-dimension layout-shift audit.
 - The prior sweep found broken image URLs in homepage/gallery content; verify those paths in admin diagnostics
   before cleanup.
@@ -450,6 +449,8 @@ permissions — out of scope], 597 [package/dependency system — out of scope],
 ## 9. Current Codex audit
 
 - Offline waveform peaks are content-seeded; live playback keeps fresh noise.
+- Media hash and dimension backfills follow R2 cursors in 500-object pages; a synthetic 1,005-object regression
+  verifies later-page writes and rerun idempotency. No real R2 objects were touched.
 - Four sequential critiques scored 8, 8, 9, and 8/10; findings were fixed between passes, followed by a 9/10 confirmation with no material findings. The Preview/config review scored 8/10; its documentation findings were fixed, then confirmed at 9/10 with no remaining technical findings.
 - Earlier local checks passed: 66 server/security/SEO checks, 9 song save/race/waveform checks, modal/accessibility checks, simulation save/open checks, JavaScript syntax, and `git diff --check`. Scratch scripts remain outside the repo.
 - The audited batch was fast-forwarded from `production` to `main` at `2ce8ffe`; Cloudflare's live build `ebb0caf1` succeeded with `npx wrangler deploy`. Preview builds for code candidate `86d4ef6` (`03b3099f`), documentation snapshot `639ac07` (`f9f41cbb`), and audit-note snapshot `2ce8ffe` (`d223daba`) succeeded with `npx wrangler preview`.

@@ -589,6 +589,25 @@ async function maybeCreateSlugRedirect(env, ctx, { oldSlug, newSlug, pathPrefix,
   }
 }
 
+// Keep each metadata lookup within its existing 500-key D1 batch while
+// following R2's opaque cursor until every upload page has been visited.
+async function* listUploadedMediaPages(bucket) {
+  let cursor;
+  while (true) {
+    const page = await bucket.list({
+      prefix: "uploads/",
+      limit: 500,
+      ...(cursor ? { cursor } : {}),
+    });
+    if (page.truncated && !page.cursor) {
+      throw new Error("R2 returned a truncated media listing without a cursor");
+    }
+    yield page.objects;
+    if (!page.truncated) return;
+    cursor = page.cursor;
+  }
+}
+
 async function routeAdminApi(request, env, url, ctx) {
   const path = url.pathname.replace(/^\/api\/admin/, "");
   const method = request.method;
@@ -1321,48 +1340,55 @@ async function routeAdminApi(request, env, url, ctx) {
   if (path === "/media/folders" && method === "GET") {
     return json(await listMediaFolders(env));
   }
-  // /media/backfill-hashes — one-time (well, re-runnable, but only does
-  // anything the first time) pass over uploads from before hashing
-  // existed. Skips anything that already has a hash, so re-running after
-  // new plain uploads is cheap and safe.
+  // /media/backfill-hashes — re-runnable pass over uploads from before
+  // hashing existed. Existing hashes are skipped, and every R2 page is
+  // visited so older uploads beyond the first 500 are included.
   if (path === "/media/backfill-hashes" && method === "POST") {
-    const listed = await env.MEDIA.list({ prefix: "uploads/", limit: 500 });
-    const meta = await getMediaMeta(env, listed.objects.map((o) => o.key));
-    const missing = listed.objects.filter((o) => !meta[o.key]?.hash);
     let hashed = 0;
-    for (const o of missing) {
-      const obj = await env.MEDIA.get(o.key);
-      if (!obj) continue;
-      const hash = await sha256Hex(await obj.arrayBuffer());
-      await upsertMediaMeta(env, o.key, { hash });
-      hashed++;
+    let alreadyHashed = 0;
+    for await (const objects of listUploadedMediaPages(env.MEDIA)) {
+      const meta = await getMediaMeta(env, objects.map((o) => o.key));
+      const missing = objects.filter((o) => !meta[o.key]?.hash);
+      alreadyHashed += objects.length - missing.length;
+      for (const o of missing) {
+        const obj = await env.MEDIA.get(o.key);
+        if (!obj) continue;
+        const hash = await sha256Hex(await obj.arrayBuffer());
+        await upsertMediaMeta(env, o.key, { hash });
+        hashed++;
+      }
     }
-    return json({ hashed, alreadyHashed: listed.objects.length - missing.length });
+    return json({ hashed, alreadyHashed });
   }
   // /media/backfill-dimensions — same shape as backfill-hashes above, for
   // uploads from before width/height existed. SVGs get re-parsed from
   // their own text; every raster format goes through the same header-only
   // reader the /upload route itself uses (no full image decode needed).
+  // Like the hash backfill, this follows every R2 page and skips dimensions
+  // already present in metadata.
   if (path === "/media/backfill-dimensions" && method === "POST") {
-    const listed = await env.MEDIA.list({ prefix: "uploads/", limit: 500 });
-    const meta = await getMediaMeta(env, listed.objects.map((o) => o.key));
-    const missing = listed.objects.filter((o) => !meta[o.key]?.width || !meta[o.key]?.height);
     let updated = 0;
     let unreadable = 0;
-    for (const o of missing) {
-      const obj = await env.MEDIA.get(o.key);
-      if (!obj) continue;
-      const contentType = obj.httpMetadata?.contentType || "";
-      const buf = await obj.arrayBuffer();
-      const dims = contentType === "image/svg+xml" ? readSvgDimensions(new TextDecoder().decode(buf)) : readImageDimensions(buf, contentType);
-      if (dims) {
-        await upsertMediaMeta(env, o.key, { width: dims.width, height: dims.height });
-        updated++;
-      } else {
-        unreadable++;
+    let alreadyHad = 0;
+    for await (const objects of listUploadedMediaPages(env.MEDIA)) {
+      const meta = await getMediaMeta(env, objects.map((o) => o.key));
+      const missing = objects.filter((o) => !meta[o.key]?.width || !meta[o.key]?.height);
+      alreadyHad += objects.length - missing.length;
+      for (const o of missing) {
+        const obj = await env.MEDIA.get(o.key);
+        if (!obj) continue;
+        const contentType = obj.httpMetadata?.contentType || "";
+        const buf = await obj.arrayBuffer();
+        const dims = contentType === "image/svg+xml" ? readSvgDimensions(new TextDecoder().decode(buf)) : readImageDimensions(buf, contentType);
+        if (dims) {
+          await upsertMediaMeta(env, o.key, { width: dims.width, height: dims.height });
+          updated++;
+        } else {
+          unreadable++;
+        }
       }
     }
-    return json({ updated, unreadable, alreadyHad: listed.objects.length - missing.length });
+    return json({ updated, unreadable, alreadyHad });
   }
   if (path === "/media/usage" && method === "GET") {
     const mediaUrl = url.searchParams.get("url");
