@@ -273,7 +273,7 @@ The R2-only homepage image `uploads/300679fa-5339-49cc-a839-9a3253031cb6.png` ha
 - Confirm Web Speech read-aloud with installed browser voices, the live Worker's `0 8 * * *` backup schedule, and the sitemap in a browser. Preview Workers do not run Cron Triggers; never trigger a production backup as Preview QA.
 - Preview is public. Prior short-lived Preview credentials and synthetic song/simulation fixtures were removed; a read-only check on 2026-09-28 found zero Preview pages, simulations, and songs. Use distinct temporary Preview-only credentials and namespaced synthetic data for future protected-flow checks; never use Production secrets or data. See [Preview access control](https://developers.cloudflare.com/workers/previews/#access-control).
 
-**Current QA limitation:** the cloud browser cannot reach localhost, and Chromium installation failed because outbound package access was restricted. Previous authenticated Preview checks covered the earlier candidate; no browser test or visual score exists for this size selector yet.
+**Current QA limitation:** the browser environment cannot reach localhost and Chromium remains unavailable. The in-app browser can reach the `production` Preview login page, but Wrangler is not authenticated here, so no Preview-only test secrets were set. Authenticated resize/save/reopen checks and a real-browser screenshot/visual score remain outstanding for this selector.
 
 ## 7. Recurring security, SEO, and accessibility checks
 
@@ -440,7 +440,7 @@ permissions — out of scope], 597 [package/dependency system — out of scope],
 ## 9. Current audit status
 
 - Breadboard-size work supports 15/30/45 presets; a missing `cols` keeps the legacy 30-column default, while an explicit invalid value is rejected. The first three critic scores were 9/10, 8/10, and 9/10; their findings are fixed. One final critic pass remains.
-- Focused regressions and JavaScript checks pass. Authenticated Preview resize/save/reopen checks and a real-browser screenshot/visual score remain open; no browser or visual testing has been performed for this batch.
+- Focused regressions and JavaScript checks pass. The Preview build succeeds and its login route loads; authenticated resize/save/reopen checks and a real-browser screenshot/visual score remain open.
 - Promotion requires the stated critic and manual gates, a fast-forward from `production` to `main`, and a fresh check that both refs have not moved. Never force-push; if browser checks remain unavailable, keep the candidate on `production`.
 
 ## 10. Open decisions
