@@ -144,7 +144,7 @@ import {
   plausibleDims,
 } from "./db.js";
 import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated, hmac, revokeAllSessions } from "./auth.js";
-import { SIM_COMPONENTS } from "./simulation-render.js";
+import { SIM_COMPONENTS, getSimulationComponentDefinition, getSimulationCanvasBounds, validateBreadboardColumnSizes } from "./simulation-render.js";
 
 function json(data, init = {}) {
   return new Response(JSON.stringify(data), {
@@ -193,6 +193,9 @@ function simulationDataError(data, requireCircuitArrays = false, allowCheckpoint
   if ((requireCircuitArrays || hasComponents) && !Array.isArray(data.components)) return "Simulation components must be an array.";
   if ((requireCircuitArrays || hasWires) && !Array.isArray(data.wires)) return "Simulation wires must be an array.";
 
+  const sizeError = validateBreadboardColumnSizes(data);
+  if (sizeError) return sizeError;
+
   const components = Array.isArray(data.components) ? data.components : [];
   const wires = Array.isArray(data.wires) ? data.wires : [];
   const componentsById = new Map();
@@ -220,6 +223,7 @@ function simulationDataError(data, requireCircuitArrays = false, allowCheckpoint
     componentsById.set(component.id, component);
     renderedComponentIds.add(String(component.id));
   }
+  const canvasBounds = getSimulationCanvasBounds(components);
 
   const wireIds = new Set();
   for (let wireIndex = 0; wireIndex < wires.length; wireIndex++) {
@@ -235,7 +239,7 @@ function simulationDataError(data, requireCircuitArrays = false, allowCheckpoint
         end.pin.length > 100
       ) return false;
       const component = componentsById.get(end.compId);
-      const definition = component && SIM_COMPONENTS[component.type];
+      const definition = component && getSimulationComponentDefinition(component);
       return Boolean(definition && definition.pins.some((pin) => pin.id === end.pin));
     };
     if (!wire || typeof wire !== "object" || Array.isArray(wire) || !validEndpoint(wire.from) || !validEndpoint(wire.to)) {
@@ -259,9 +263,9 @@ function simulationDataError(data, requireCircuitArrays = false, allowCheckpoint
           !Number.isFinite(point.x) ||
           !Number.isFinite(point.y) ||
           point.x < 0 ||
-          point.x > 1500 ||
+          point.x > canvasBounds.width ||
           point.y < 0 ||
-          point.y > 700
+          point.y > canvasBounds.height
         ) {
           return `Wire ${wireIndex + 1} bend ${pointIndex + 1} must have numeric coordinates inside the builder canvas.`;
         }
@@ -2129,10 +2133,10 @@ async function routeAdminApi(request, env, url, ctx) {
   if (path === "/simulations" && method === "POST") {
     const body = await request.json().catch(() => ({}));
     if (!body.name || !String(body.name).trim()) return json({ error: "Name is required" }, { status: 400 });
-    const dataError = simulationDataError(body.data || {});
+    const data = body.data || {};
+    const dataError = simulationDataError(data);
     if (dataError) return json({ error: dataError }, { status: 400 });
-    const id = await createSimulation(env, { name: body.name.trim(), data: body.data || {} });
-    log(ctx, env, "create", "simulation", body.name.trim());
+    const id = await createSimulation(env, { name: body.name.trim(), data });    log(ctx, env, "create", "simulation", body.name.trim());
     return json({ id });
   }
   const simDuplicateMatch = path.match(/^\/simulations\/(\d+)\/duplicate$/);
@@ -2156,9 +2160,10 @@ async function routeAdminApi(request, env, url, ctx) {
   if (simMatch && method === "PATCH") {
     const body = await request.json().catch(() => ({}));
     if (!body.name || !String(body.name).trim()) return json({ error: "Name is required" }, { status: 400 });
-    const dataError = simulationDataError(body.data || {});
+    const data = body.data || {};
+    const dataError = simulationDataError(data);
     if (dataError) return json({ error: dataError }, { status: 400 });
-    const updated = await updateSimulation(env, Number(simMatch[1]), { name: body.name.trim(), data: body.data || {} });
+    const updated = await updateSimulation(env, Number(simMatch[1]), { name: body.name.trim(), data });
     if (!updated) return json({ error: "Not found" }, { status: 404 });
     return json({ ok: true });
   }

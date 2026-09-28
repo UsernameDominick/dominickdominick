@@ -117,6 +117,50 @@
   }
   window.simResistorBandHexes = resistorBandHexes;
 
+  const BREADBOARD_COLUMN_OPTIONS = Object.freeze([15, 30, 45]);
+
+  function resolveBreadboardColumns(value) {
+    const columns = Number(value);
+    return BREADBOARD_COLUMN_OPTIONS.includes(columns) ? columns : 30;
+  }
+
+  function createBreadboardPins(cols) {
+    return Array.from({ length: cols }, (_, i) => i).flatMap((i) => [
+      { id: `rpt${i + 1}`, x: 20 + i * 40, y: 14 },
+      { id: `rnt${i + 1}`, x: 20 + i * 40, y: 26 },
+      { id: `t${i + 1}`, x: 20 + i * 40, y: 60 },
+      { id: `b${i + 1}`, x: 20 + i * 40, y: 90 },
+      { id: `rnb${i + 1}`, x: 20 + i * 40, y: 124 },
+      { id: `rpb${i + 1}`, x: 20 + i * 40, y: 136 },
+    ]);
+  }
+
+  function createBreadboardRailGroups(cols) {
+    return {
+      pos_top: Array.from({ length: cols }, (_, i) => `rpt${i + 1}`),
+      neg_top: Array.from({ length: cols }, (_, i) => `rnt${i + 1}`),
+      neg_bottom: Array.from({ length: cols }, (_, i) => `rnb${i + 1}`),
+      pos_bottom: Array.from({ length: cols }, (_, i) => `rpb${i + 1}`),
+    };
+  }
+
+  function renderBreadboardSvg(cols) {
+    const width = cols * 40;
+    let holes = "";
+    for (let i = 0; i < cols; i++) {
+      const x = 20 + i * 40;
+      holes += `<circle class="bb-hole bb-hole-rail" cx="${x}" cy="14" r="2.5"/>`;
+      holes += `<circle class="bb-hole bb-hole-rail" cx="${x}" cy="26" r="2.5"/>`;
+      holes += `<circle class="bb-hole" cx="${x}" cy="60" r="3"/>`;
+      holes += `<circle class="bb-hole" cx="${x}" cy="90" r="3"/>`;
+      holes += `<circle class="bb-hole bb-hole-rail" cx="${x}" cy="124" r="2.5"/>`;
+      holes += `<circle class="bb-hole bb-hole-rail" cx="${x}" cy="136" r="2.5"/>`;
+    }
+    return `<rect class="bb-body" x="0" y="0" width="${width}" height="150" rx="6"/><rect class="bb-sheen" x="3" y="3" width="${width - 6}" height="16" rx="4"/><rect class="bb-rail-line bb-rail-pos" x="10" y="12.5" width="${width - 20}" height="3" rx="1.5"/><rect class="bb-rail-line bb-rail-neg" x="10" y="24.5" width="${width - 20}" height="3" rx="1.5"/><text class="bb-rail-label bb-rail-label-pos" x="4" y="17">+</text><text class="bb-rail-label bb-rail-label-neg" x="4" y="29">-</text><rect class="bb-channel" x="4" y="68" width="${width - 8}" height="14" rx="3"/><rect class="bb-rail-line bb-rail-neg" x="10" y="122.5" width="${width - 20}" height="3" rx="1.5"/><rect class="bb-rail-line bb-rail-pos" x="10" y="134.5" width="${width - 20}" height="3" rx="1.5"/><text class="bb-rail-label bb-rail-label-neg" x="4" y="127">-</text><text class="bb-rail-label bb-rail-label-pos" x="4" y="139">+</text>${holes}`;
+  }
+
+  window.SIM_BREADBOARD_COLUMN_OPTIONS = BREADBOARD_COLUMN_OPTIONS;
+
   window.SIM_COMPONENTS = {
     outlet: {
       label: "Wall Outlet",
@@ -153,45 +197,18 @@
           c.outputVoltage || 5
         )}V DC</text>`,
     },
-    // A real half+ breadboard: 30 columns (matching a real 400+
-    // tie-point board), with independent power rails on BOTH the top
-    // and bottom edges. Each column's 5 physical holes are electrically
-    // one point in real life; one hole stands in for the whole column
-    // here, but different columns are NOT connected to each other, and
-    // the top rails are NOT connected to the bottom rails.
+    // A real half+ breadboard with four independent rails and a terminal
+    // strip split into separate columns. The default remains 30 columns
+    // for simulations saved before size was selectable.
     breadboard: {
       label: "Breadboard",
       keywords: "prototyping board, protoboard, tie points, rails",
       w: 1200,
       h: 150,
       cols: 30,
-      railGroups: {
-        pos_top: Array.from({ length: 30 }, (_, i) => `rpt${i + 1}`),
-        neg_top: Array.from({ length: 30 }, (_, i) => `rnt${i + 1}`),
-        neg_bottom: Array.from({ length: 30 }, (_, i) => `rnb${i + 1}`),
-        pos_bottom: Array.from({ length: 30 }, (_, i) => `rpb${i + 1}`),
-      },
-      pins: Array.from({ length: 30 }, (_, i) => i).flatMap((i) => [
-        { id: `rpt${i + 1}`, x: 20 + i * 40, y: 14 },
-        { id: `rnt${i + 1}`, x: 20 + i * 40, y: 26 },
-        { id: `t${i + 1}`, x: 20 + i * 40, y: 60 },
-        { id: `b${i + 1}`, x: 20 + i * 40, y: 90 },
-        { id: `rnb${i + 1}`, x: 20 + i * 40, y: 124 },
-        { id: `rpb${i + 1}`, x: 20 + i * 40, y: 136 },
-      ]),
-      render: () => {
-        let holes = "";
-        for (let i = 0; i < 30; i++) {
-          const x = 20 + i * 40;
-          holes += `<circle class="bb-hole bb-hole-rail" cx="${x}" cy="14" r="2.5"/>`;
-          holes += `<circle class="bb-hole bb-hole-rail" cx="${x}" cy="26" r="2.5"/>`;
-          holes += `<circle class="bb-hole" cx="${x}" cy="60" r="3"/>`;
-          holes += `<circle class="bb-hole" cx="${x}" cy="90" r="3"/>`;
-          holes += `<circle class="bb-hole bb-hole-rail" cx="${x}" cy="124" r="2.5"/>`;
-          holes += `<circle class="bb-hole bb-hole-rail" cx="${x}" cy="136" r="2.5"/>`;
-        }
-        return `<rect class="bb-body" x="0" y="0" width="1200" height="150" rx="6"/><rect class="bb-sheen" x="3" y="3" width="1194" height="16" rx="4"/><rect class="bb-rail-line bb-rail-pos" x="10" y="12.5" width="1180" height="3" rx="1.5"/><rect class="bb-rail-line bb-rail-neg" x="10" y="24.5" width="1180" height="3" rx="1.5"/><text class="bb-rail-label bb-rail-label-pos" x="4" y="17">+</text><text class="bb-rail-label bb-rail-label-neg" x="4" y="29">−</text><rect class="bb-channel" x="4" y="68" width="1192" height="14" rx="3"/><rect class="bb-rail-line bb-rail-neg" x="10" y="122.5" width="1180" height="3" rx="1.5"/><rect class="bb-rail-line bb-rail-pos" x="10" y="134.5" width="1180" height="3" rx="1.5"/><text class="bb-rail-label bb-rail-label-neg" x="4" y="127">−</text><text class="bb-rail-label bb-rail-label-pos" x="4" y="139">+</text>${holes}`;
-      },
+      railGroups: createBreadboardRailGroups(30),
+      pins: createBreadboardPins(30),
+      render: (c) => renderBreadboardSvg(resolveBreadboardColumns(c && c.cols)),
     },
     led: {
       label: "LED",
@@ -354,6 +371,28 @@
     },
   };
 
+  function getSimComponentDefinition(comp) {
+    if (
+      !comp ||
+      typeof comp !== "object" ||
+      Array.isArray(comp) ||
+      typeof comp.type !== "string" ||
+      !Object.prototype.hasOwnProperty.call(window.SIM_COMPONENTS, comp.type)
+    ) return null;
+    const def = window.SIM_COMPONENTS[comp.type];
+    if (comp.type !== "breadboard") return def;
+    const cols = resolveBreadboardColumns(comp.cols);
+    return {
+      ...def,
+      cols,
+      w: cols * 40,
+      pins: createBreadboardPins(cols),
+      railGroups: createBreadboardRailGroups(cols),
+      render: () => renderBreadboardSvg(cols),
+    };
+  }
+  window.getSimComponentDefinition = getSimComponentDefinition;
+
   function validWireEndpoints(w) {
     const validEnd = (end) =>
       end &&
@@ -365,7 +404,7 @@
   }
 
   function nodeId(comp, pinId) {
-    const def = window.SIM_COMPONENTS[comp.type];
+    const def = getSimComponentDefinition(comp);
     if (def && def.railGroups) {
       for (const rail of Object.keys(def.railGroups)) {
         if (def.railGroups[rail].includes(pinId)) return `${comp.id}:rail:${rail}`;
@@ -391,7 +430,7 @@
       adjacency.get(b).add(a);
     };
     components.forEach((c) => {
-      const def = window.SIM_COMPONENTS[c.type];
+      const def = getSimComponentDefinition(c);
       if (!def) return;
       def.pins.forEach((p) => {
         const n = nodeId(c, p.id);
@@ -442,7 +481,7 @@
     const activeSources = [];
     const poweredNodes = new Set();
     components.forEach((c) => {
-      const def = window.SIM_COMPONENTS[c.type];
+      const def = getSimComponentDefinition(c);
       if (!def || !def.isSource || !def.polarity) return;
       const posNode = nodeId(c, def.polarity.pos);
       const negNode = nodeId(c, def.polarity.neg);
@@ -454,7 +493,7 @@
 
     const poweredComps = new Set();
     components.forEach((c) => {
-      const def = window.SIM_COMPONENTS[c.type];
+      const def = getSimComponentDefinition(c);
       if (!def) return;
       if (c.type === "led" && def.polarity) {
         const posNode = nodeId(c, def.polarity.pos);
@@ -502,7 +541,7 @@
       edgeInfo.set(key, info);
     };
     components.forEach((c) => {
-      const def = window.SIM_COMPONENTS[c.type];
+      const def = getSimComponentDefinition(c);
       if (!def) return;
       def.pins.forEach((p) => {
         const n = nodeId(c, p.id);
@@ -579,7 +618,7 @@
 
     const domains = [];
     components.forEach((c) => {
-      const def = window.SIM_COMPONENTS[c.type];
+      const def = getSimComponentDefinition(c);
       if (!def) return;
       if (c.type === "battery") {
         // Defaults to 0 (an ideal, lossless source) so every existing

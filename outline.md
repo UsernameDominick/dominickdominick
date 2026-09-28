@@ -71,8 +71,8 @@ Preview resources: `dominickdominick-preview` D1 and
 `dominickdominick-media`.
 
 **Secrets:** `ADMIN_PASSWORD` and `SESSION_SECRET` stay in Worker runtime Secrets, never in source or public
-content. The empty **Builds → Variables and secrets** panel only shows that no build-time values are configured;
-it does not verify runtime Worker secrets. Verify distinct test-only Preview values before protected-flow checks.
+content. Builds variables and secrets are build-time settings; that panel does not verify runtime Worker secrets.
+Verify distinct test-only Preview values before protected-flow checks.
 
 ## 1. Module status and architecture
 
@@ -90,8 +90,7 @@ it does not verify runtime Worker secrets. Verify distinct test-only Preview val
   Existing undo is a 15-snapshot canvas stack.
 - **Song/DAW:** fixed 16-step sequencer with synthesized Web Audio; no sample playback, multitrack timeline,
   mixing, or effects.
-- **Simulation builder:** SVG circuits and simplified connectivity/Ohm's-law analysis, not a SPICE solver; manual
-  wire bends are supported, named checkpoints persist, and undo is in-memory.
+- **Simulation builder:** SVG circuits and simplified connectivity/Ohm's-law analysis, not a SPICE solver; manual wire bends, named checkpoints, and in-memory undo are supported. Breadboards support 15, 30, or 45 columns; older simulations default to 30, and save validation checks board-size pins.
 - **Shared lifecycle:** pages/articles/projects have autosave, conflict detection, revisions, and trash; media
   has versions and usage tracking. Songs/simulations still lack full parity.
 ## 2. Active feature backlog
@@ -236,9 +235,11 @@ The standing scope rule in section 0 applies. Keep shared builders consistent.
 
 ## 4. Production migration state
 
-Production D1 `dominickdominick` has `media.private`, `width`, and `height`, confirmed with `PRAGMA table_info` on 2026-09-27. The migration details are in Git history.
+Production D1 `dominickdominick` has `media.private`, `width`, and `height`, confirmed with a read-only `PRAGMA table_info(media)` on 2026-09-28. Migration details remain in Git history.
 
-The R2-only homepage image `uploads/300679fa-5339-49cc-a839-9a3253031cb6.png` serves at 1200×630 but still has no D1 metadata row or alt text. The old media-route HTTP 500 has not been retested after the migration.
+`schema.sql` is bootstrap only; no migration runner is configured. Never replay the full schema. Before any forward-only production migration, verify the exact database and current columns. Production D1/R2 writes need per-instance confirmation.
+
+The R2-only homepage image `uploads/300679fa-5339-49cc-a839-9a3253031cb6.png` has no D1 metadata row or alt text. Retest homepage delivery and the admin media listing after the migration; the earlier media-route HTTP 500 has not been rechecked.
 
 ## 5. Deferred or scoped out
 
@@ -265,15 +266,14 @@ The R2-only homepage image `uploads/300679fa-5339-49cc-a839-9a3253031cb6.png` se
 
 ## 6. Manual verification still owed
 
-- On candidate `8d4823534dcb756a59e1032a85c48c363b077237` in authenticated Preview, verified canvas text starts focused, accepts typing, and Cancel returns focus to Text; snapshot naming starts focused and Escape returns focus to Save snapshot; adjustment, brush, and text-style prompts accept saved names; Shift+Tab wraps within the preset prompt. Those synthetic settings were removed. Full submit/cancel, Escape/backdrop, and focus-return coverage across all five flows remains incomplete.
-- In authenticated Preview build `c5d2507` (same audited code as `8d482`), a namespaced song test covered title, kick cell/note, tempo, volume, humanize, grouped text Undo, button and keyboard Undo/Redo, redo clearing, first save, and reopen with settings and the kick step persisted. Follow-up browser checks passed for piano-roll C4 editing with Undo/Redo, continuous master-volume drag grouping, two-second autosave, dirty-close confirmation cancellation, and switching/reopening two songs without state mixing. All song test rows were removed. Still owed: edits during Save and save retries.
-- In authenticated Preview, a resistor lead and LED lead snapped into the same breadboard hole. The UI announced the nonblocking shared-hole status and kept both connected; Undo/Redo plus save/reopen preserved the connection. The synthetic simulation fixture was removed from Preview D1.
-- Authenticated Preview check: New Blank Image accepted custom `800×600` and the editor reported `800 × 600px`; only “Save as new” was available and no image was saved. Clicking the dimmed desktop sidebar closed the editor without opening Media Library, confirming the click was intercepted. Preview had no image cards, so card centering remains unverified. Recheck homepage/gallery image paths in Diagnostics after the media migration; distinguish missing R2 objects from D1/query failures before cleanup.
-- Resolve the homepage video missing its URL and homepage image missing alt text before publishing affected content. The production site has no articles, projects, simulations, or scans, so header-dimension, published-article/highlight.js, `.glb`, and iPhone `.usdz` checks cannot run without content; do not add filler.
-- Verify uploaded article/project header images reserve stored dimensions. External cover URLs have no stored dimensions; decide how to handle them before use.
-- Preview is public. This round used short-lived Preview-only credentials and namespaced synthetic settings. All test song/simulation rows were removed; temporary authenticated deployment #73 was deleted after clean Preview deployment #74 was created. The latest Preview deployment was verified to contain only ASSETS, DB, and MEDIA runtime bindings. For future protected-flow QA, use distinct temporary credentials and clean fixtures after testing. Never use Production secrets or data. See [Preview access control](https://developers.cloudflare.com/workers/previews/#access-control).
-- Confirm Web Speech read-aloud in a browser with installed voices. Full authenticated-admin coverage, representative site-wide visual review, and direct in-browser sitemap confirmation remain open.
-- No full-site visual review or numeric visual score has been completed; the screenshot check covered only the Photo Editor and New Blank Image state. Localhost browser testing remains unavailable: the cloud browser cannot reach localhost, and Chromium installation failed under restricted egress.
+- For the breadboard-size change, use an authenticated Worker Preview to exercise 15, 30, and 45 columns; edge-hole snapping and wires; resize cleanup; undo/redo; save/reopen; and public rendering. Capture a real-browser viewport screenshot and score the visible change. This batch has not had browser interaction or visual review.
+- Finish Photo Editor submit/cancel, Escape/backdrop, and focus-return checks across its prompt flows. Verify blank-image editor card centering and uploaded header-image dimensions before load.
+- Retest homepage image delivery and authenticated media metadata after the confirmed media migration. Identify missing R2 objects separately from missing metadata/query failures; resolve the homepage image's missing alt text before publishing affected content.
+- The production site has no articles, projects, simulations, or scans. Do not add filler content just to check highlight.js, model-viewer, header dimensions, or iPhone `.usdz` AR.
+- Confirm Web Speech read-aloud with installed browser voices, the live Worker's `0 8 * * *` backup schedule, and the sitemap in a browser. Preview Workers do not run Cron Triggers; never trigger a production backup as Preview QA.
+- Preview is public. Prior short-lived Preview credentials and synthetic song/simulation fixtures were removed; a read-only check on 2026-09-28 found zero Preview pages, simulations, and songs. Use distinct temporary Preview-only credentials and namespaced synthetic data for future protected-flow checks; never use Production secrets or data. See [Preview access control](https://developers.cloudflare.com/workers/previews/#access-control).
+
+**Current QA limitation:** the cloud browser cannot reach localhost, and Chromium installation failed because outbound package access was restricted. Previous authenticated Preview checks covered the earlier candidate; no browser test or visual score exists for this size selector yet.
 
 ## 7. Recurring security, SEO, and accessibility checks
 
@@ -384,7 +384,9 @@ sandboxed plugin architecture — substantial new infra + security surface).
 - 362. Separate draft/published — new `published_data` column + toggle, like other content types.
 - 363. Deterministic runs/seeds — sim is deterministic already; add a seed field for future randomness.
 - 373. Rotate/mirror — add transform + flip pin coords, small render change.
-- 387. Selectable breadboard sizes — new `cols` param variant of existing breadboard def.
+- 388. Warn same-hole leads — check during snap-drop, data already tracks hole ids.
+- 389. Mechanical vs electrical distinction — already implicit; just surface it in UI.
+- 393. Manual wire bend points — extend wire path from 2-point to polyline.
 - 403-405. Resistor/capacitor/inductor basic params — extra content fields, same pattern as resistance.
 - 409. Relays/switches — variant of existing switch component.
 - 415. Current source — checked while implementing #416: doesn't fit this simulator's model as worded. This
@@ -433,12 +435,13 @@ permissions — out of scope], 597 [package/dependency system — out of scope],
 ### Current unnumbered follow-ups
 
 - External article/project header images have no persisted dimensions; decide between author-supplied dimensions and a fixed-ratio presentation before relying on remote covers. Current project-card blocks and article/project index cards are text-only and have no image layout shift.
-
+- Recheck homepage/gallery image paths in admin diagnostics after the media-schema migration; distinguish missing R2 objects from metadata or query errors before cleanup.
 
 ## 9. Current audit status
 
-- Candidate code `8d4823534dcb756a59e1032a85c48c363b077237` adds the final Photo Editor prompt-focus timing fix; an independent focused source critic scored it 10/10 with no actionable findings. The earlier four sequential critic scores were 8/10, 9/10, 8/10, and 9/10; their findings were fixed between passes. Regression suites passed on broader candidate `04dbb655d49d9fb4d3424fc41ef599a24911ec43`: 66 server/security/SEO, 9 song save/race/waveform, modal/accessibility, simulation save/open, JavaScript syntax, and `git diff --check`. These suites were not rerun after the final one-line timing fix. Authenticated browser-flow QA on Preview build `c5d2507` (source unchanged from `8d482`) added the shared breadboard-hole and Song Builder checks listed in section 6. All synthetic database rows, temporary Preview credentials, and deployment #73 were removed; clean deployment #74 was verified. No full-site visual review or numeric visual score has been completed.
-- GitHub rechecked both refs before the Preview QA note was added: `main` was `5765b16801e6753f4dfd8a76a9361abae3beb99f` and `production` was `c5d2507ab42ae7aeb5e9dce3bf5a4758217afb1e`, with production 43 commits ahead and 0 behind. Subsequent QA and backlog updates changed only `outline.md` on production; no source files or `main` changed. Branch rules remain unverified. Recheck both refs before promotion; never force-push.
+- Breadboard-size work supports 15/30/45 presets; a missing `cols` keeps the legacy 30-column default, while an explicit invalid value is rejected. The first three critic scores were 9/10, 8/10, and 9/10; their findings are fixed. One final critic pass remains.
+- Focused regressions and JavaScript checks pass. Authenticated Preview resize/save/reopen checks and a real-browser screenshot/visual score remain open; no browser or visual testing has been performed for this batch.
+- Promotion requires the stated critic and manual gates, a fast-forward from `production` to `main`, and a fresh check that both refs have not moved. Never force-push; if browser checks remain unavailable, keep the candidate on `production`.
 
 ## 10. Open decisions
 

@@ -9,6 +9,7 @@
   let openBuilderRequestId = 0;
   let simData = { components: [], wires: [] };
   let selected = null; // { kind: "component" | "wire", id }
+  let breadboardResizeNotice = "";
   let wireStart = null; // { compId, pin }
   // ---------- Continuity tester ----------
   // A toggle mode rather than a modifier key or separate always-on tool,
@@ -534,7 +535,8 @@
       comp.y < 0 ||
       comp.y > 700
     ) return null;
-    const def = REG[comp.type];
+    const def = window.getSimComponentDefinition(comp);
+    if (!def) return null;
     const pin = def.pins.find((p) => p.id === pinId);
     return pin ? { x: comp.x + pin.x, y: comp.y + pin.y } : null;
   }
@@ -552,7 +554,8 @@
       comp.y < 0 ||
       comp.y > 700
     ) return "";
-    const def = REG[comp.type];
+    const def = window.getSimComponentDefinition(comp);
+    if (!def) return "";
     const sel = isCompSelected(comp.id);
     const info = analysis[comp.id];
     const damaged = info && (info.status === "burnt" || info.status === "overheating");
@@ -592,7 +595,19 @@
   // Optional presentation-only route bends; electrical connectivity still uses wire.from/to.
   const MAX_MANUAL_WIRE_WAYPOINTS = 20;
 
-  function hasValidWireWaypoints(wire) {
+  function getSimulationCanvasBounds(components = simData.components) {
+    let width = 1500;
+    let height = 700;
+    for (const component of Array.isArray(components) ? components : []) {
+      const definition = window.getSimComponentDefinition(component);
+      if (!definition || !Number.isFinite(component.x) || !Number.isFinite(component.y)) continue;
+      width = Math.max(width, component.x + definition.w + 20);
+      height = Math.max(height, component.y + definition.h + 20);
+    }
+    return { width, height };
+  }
+
+  function hasValidWireWaypoints(wire, bounds = getSimulationCanvasBounds()) {
     if (!wire || !Object.prototype.hasOwnProperty.call(wire, "waypoints")) return true;
     const points = wire.waypoints;
     return Array.isArray(points) &&
@@ -605,9 +620,9 @@
         Number.isFinite(point.x) &&
         Number.isFinite(point.y) &&
         point.x >= 0 &&
-        point.x <= 1500 &&
+        point.x <= bounds.width &&
         point.y >= 0 &&
-        point.y <= 700
+        point.y <= bounds.height
       );
   }
 
@@ -689,6 +704,13 @@
       ) {
         throw new Error(`Component ${index + 1} must have a unique id, supported type, and numeric coordinates inside the builder canvas.`);
       }
+      if (
+        component.type === "breadboard" &&
+        Object.prototype.hasOwnProperty.call(component, "cols") &&
+        !window.SIM_BREADBOARD_COLUMN_OPTIONS.includes(Number(component.cols))
+      ) {
+        throw new Error(`Component ${index + 1} has an unsupported breadboard size. Choose 15, 30, or 45 columns.`);
+      }
       const renderedId = String(component.id);
       if (renderedComponentIds.has(renderedId)) {
         throw new Error(`Component ${index + 1} has an id that collides in the builder canvas.`);
@@ -709,7 +731,7 @@
           end.pin.length > 100
         ) return false;
         const component = componentsById.get(end.compId);
-        return Boolean(component && REG[component.type].pins.some((pin) => pin.id === end.pin));
+        return Boolean(component && window.getSimComponentDefinition(component).pins.some((pin) => pin.id === end.pin));
       };
       if (!wire || typeof wire !== "object" || Array.isArray(wire) || !validId(wire.id) || wireIds.has(String(wire.id)) || !validEnd(wire.from) || !validEnd(wire.to)) {
         throw new Error(`Wire ${index + 1} must have a unique id and valid endpoints that reference existing component pins.`);
@@ -719,7 +741,7 @@
     // Validate stored bends too, including checkpoint data through the
     // recursive validator below. This prevents legacy records from loading
     // into a state that cannot be saved again.
-    validateImportedWireWaypoints(wires);
+    validateImportedWireWaypoints(wires, components);
     if (Object.prototype.hasOwnProperty.call(data, "checkpoints")) {
       if (!allowCheckpoints) throw new Error("Nested simulation checkpoints are not supported.");
       if (!Array.isArray(data.checkpoints) || data.checkpoints.length > CHECKPOINT_LIMIT) {
@@ -741,7 +763,8 @@
     }
   }
 
-  function validateImportedWireWaypoints(wires) {
+  function validateImportedWireWaypoints(wires, components) {
+    const bounds = getSimulationCanvasBounds(components);
     wires.forEach((wire, index) => {
       if (!wire || typeof wire !== "object" || Array.isArray(wire) || !Object.prototype.hasOwnProperty.call(wire, "waypoints")) return;
       const points = wire.waypoints;
@@ -758,9 +781,9 @@
           !Number.isFinite(point.x) ||
           !Number.isFinite(point.y) ||
           point.x < 0 ||
-          point.x > 1500 ||
+          point.x > bounds.width ||
           point.y < 0 ||
-          point.y > 700
+          point.y > bounds.height
         ) {
           throw new Error(`Wire ${index + 1} bend ${pointIndex + 1} must have numeric coordinates inside the builder canvas.`);
         }
@@ -770,7 +793,8 @@
 
   function clampWireWaypointValue(value, axis) {
     if (!Number.isFinite(value)) return null;
-    const max = axis === "y" ? 700 : 1500;
+    const bounds = getSimulationCanvasBounds();
+    const max = axis === "y" ? bounds.height : bounds.width;
     return Math.round(Math.max(0, Math.min(max, value)) * 10) / 10;
   }
 
@@ -894,7 +918,7 @@
   let canvasSearchQuery = "";
   function componentMatchesSearch(comp) {
     if (!canvasSearchQuery) return false;
-    const def = REG[comp.type];
+    const def = window.getSimComponentDefinition(comp);
     const haystacks = [comp.label, def && def.label, comp.type];
     return haystacks.some((s) => s && String(s).toLowerCase().includes(canvasSearchQuery));
   }
@@ -906,7 +930,7 @@
   function countDisconnectedPins() {
     let n = 0;
     simData.components.forEach((c) => {
-      const def = REG[c.type];
+      const def = window.getSimComponentDefinition(c);
       if (!def) return;
       def.pins.forEach((p) => {
         if (!isPinConnected(c.id, p.id)) n++;
@@ -916,7 +940,7 @@
   }
 
   function renderPinDots(comp, netNodeIds) {
-    const def = REG[comp.type];
+    const def = window.getSimComponentDefinition(comp);
     return def.pins
       .map((p) => {
         const active =
@@ -983,7 +1007,8 @@
     const ghostWiresSvg = showGhostWires
       ? simData.wires.map((w) => renderWireSvg(w, poweredWires, netNodeIds, true)).join("")
       : "";
-    $("sim-builder-canvas").innerHTML = `<svg id="sim-builder-svg" viewBox="0 0 1500 700" xmlns="http://www.w3.org/2000/svg" class="sim-svg${
+    const { width: canvasWidth, height: canvasHeight } = getSimulationCanvasBounds(simData.components);
+    $("sim-builder-canvas").innerHTML = `<svg id="sim-builder-svg" viewBox="0 0 ${canvasWidth} ${canvasHeight}" xmlns="http://www.w3.org/2000/svg" class="sim-svg${
       previewOn ? " is-on" : ""
     }">${window.SIM_DEFS_SVG}${wiresSvg}${compsSvg}${ghostWiresSvg}${pinsSvg}</svg>`;
     attachBuilderEvents();
@@ -1105,7 +1130,7 @@
       }
       const hitIds = simData.components
         .filter((c) => {
-          const def = REG[c.type];
+          const def = window.getSimComponentDefinition(c);
           if (!def) return false;
           return c.x < x + w && c.x + def.w > x && c.y < y + h && c.y + def.h > y;
         })
@@ -1160,7 +1185,7 @@
     });
     const dots = Array.from(svg.querySelectorAll("circle[data-comp]")).filter((dot) => dot.dataset.comp === String(compId));
     const comp = simData.components.find((c) => c.id === compId);
-    const def = comp && REG[comp.type];
+    const def = comp && window.getSimComponentDefinition(comp);
     if (def) {
       dots.forEach((dot) => {
         const pinDef = def.pins.find((p) => p.id === dot.dataset.pin);
@@ -1191,7 +1216,8 @@
     let best = null;
     simData.components.forEach((c) => {
       if (c.type !== "breadboard" || c.id === excludeCompId) return;
-      REG.breadboard.pins.forEach((pin) => {
+      const board = window.getSimComponentDefinition(c);
+      board.pins.forEach((pin) => {
         const hx = c.x + pin.x;
         const hy = c.y + pin.y;
         const dist = Math.hypot(hx - x, hy - y);
@@ -1300,7 +1326,8 @@
     // grid-snapped move instead.
     const isGroup = groupIds.length > 1;
     const canSnap = !isGroup && SNAP_TO_BREADBOARD_TYPES.has(comp.type);
-    const anchorPin = canSnap ? REG[comp.type].pins[0] : null;
+    const compDef = canSnap ? window.getSimComponentDefinition(comp) : null;
+    const anchorPin = compDef ? compDef.pins[0] : null;
     let snapTargets = {}; // pinId -> { breadboardId, holeId }
 
     function onMove(ev) {
@@ -1336,7 +1363,7 @@
         // grid, a correctly-oriented part's other leg(s) plug in for
         // real too, not just the one being dragged.
         snapTargets = {};
-        REG[comp.type].pins.forEach((pin) => {
+        compDef.pins.forEach((pin) => {
           const abs = { x: comp.x + pin.x, y: comp.y + pin.y };
           const h = findNearestHole(abs.x, abs.y, compId, hole ? SNAP_EXACT_TOLERANCE : SNAP_THRESHOLD);
           if (h) snapTargets[pin.id] = h;
@@ -1379,7 +1406,7 @@
       // while a plain click leaves whatever wiring already existed alone.
       let occupiedHoleCount = 0;
       if (canSnap && historySaved) {
-        const pinIds = new Set(REG[comp.type].pins.map((p) => p.id));
+        const pinIds = new Set(window.getSimComponentDefinition(comp).pins.map((p) => p.id));
         occupiedHoleCount = rebuildBreadboardSnapWires(
           simData,
           compId,
@@ -1464,6 +1491,7 @@
 
   // ---------- Palette ----------
   const DEFAULT_CONTENT_BY_TYPE = {
+    breadboard: { cols: 30 },
     resistor: { resistance: 220 },
     battery: { voltage: 9 },
     power_supply: { outputVoltage: 5 },
@@ -1585,17 +1613,24 @@
   // ---------- Inspector ----------
   function renderInspector() {
     const box = $("sim-inspector");
+    if (
+      !selected ||
+      selected.kind !== "component" ||
+      simData.components.find((c) => c.id === selected.id)?.type !== "breadboard"
+    ) {
+      breadboardResizeNotice = "";
+    }
     if (!selected) {
       box.innerHTML =
         "<p style='color:var(--text-dim);font-size:0.85rem;'>Click a part or a wire to edit it. Click a pin, then another pin, to wire them. Shift+click parts, or drag a box over empty canvas, to select several at once.</p>" +
-        "<p style='color:var(--text-dim);font-size:0.85rem;'>The breadboard is a real 30-column layout with independent power rails on both the top AND bottom edges (each rail line is one long connection), plus a terminal strip split by the center gutter — each of its 30 columns is its own independent connection, so plugging into the same column connects things, different columns don't. The top rails and bottom rails aren't connected to each other either. Wire outlet → power supply → a rail → a column → resistor bridging to another column → LED → back to the other rail.</p>" +
+        "<p style='color:var(--text-dim);font-size:0.85rem;'>Breadboards are available in 15, 30, or 45 columns; older simulations default to 30. Each terminal column connects only its own five-hole group. The top rails and bottom rails aren't connected to each other either. Wire outlet → power supply → a rail → a column → resistor bridging to another column → LED → back to the other rail.</p>" +
         "<p style='color:var(--text-dim);font-size:0.85rem;'>Power needs a complete loop, and the numbers matter now: too little resistance burns out an LED, no resistor at all is a dead short, and wiring straight to the Wall Outlet (120V) destroys anything downstream — it must go through a Power Supply first. A backwards LED won't light even on an otherwise-complete loop, same as a real one.</p>";
       return;
     }
     if (selected.kind === "component") {
       const comp = simData.components.find((c) => c.id === selected.id);
       if (!comp) return;
-      const def = REG[comp.type];
+    const def = window.getSimComponentDefinition(comp);
       const { poweredComps, poweredNodes } = window.computeSimPoweredSet(simData);
       const analysis = window.computeSimElectricalAnalysis(simData);
       const info = analysis[comp.id];
@@ -1673,7 +1708,13 @@
       // attribute. Number()'s output can never contain HTML-significant
       // characters, so this closes the injection and fixes the
       // semantically-wrong display (a stray string) in one step.
-      if (comp.type === "resistor") {
+      if (comp.type === "breadboard") {
+        extraFieldsHtml = `<label title="Choose the number of terminal columns and matching positions in each power rail. Reducing board size removes wires connected to columns that no longer exist.">Board size
+          <select id="sim-comp-breadboard-cols">${window.SIM_BREADBOARD_COLUMN_OPTIONS
+            .map((cols) => `<option value="${cols}" ${def.cols === cols ? "selected" : ""}>${cols} columns</option>`)
+            .join("")}</select>
+        </label>${breadboardResizeNotice ? `<p role="status" style="color:var(--text-dim);font-size:0.8rem;">${breadboardResizeNotice}</p>` : ""}`;
+      } else if (comp.type === "resistor") {
         extraFieldsHtml = `<label title="How much the resistor limits current flow through it -- higher values let less current through. A common LED current-limiting resistor is 220-330 ohms.">Resistance (ohms)<input id="sim-comp-resistance" type="number" min="1" value="${Number(comp.resistance) || 220}"></label>`;
       } else if (comp.type === "potentiometer") {
         const potState = getPotentiometerElectricalState(comp);
@@ -1714,6 +1755,28 @@
         <button type="button" id="sim-delete-selected" class="danger">Delete part</button>
       `;
 
+      const breadboardColsInput = $("sim-comp-breadboard-cols");
+      if (breadboardColsInput) {
+        breadboardColsInput.addEventListener("change", () => {
+          const cols = Number(breadboardColsInput.value);
+          if (!window.SIM_BREADBOARD_COLUMN_OPTIONS.includes(cols) || cols === def.cols) return;
+          pushHistory();
+          comp.cols = cols;
+          const validPins = new Set(window.getSimComponentDefinition(comp).pins.map((pin) => pin.id));
+          const previousWireCount = simData.wires.length;
+          simData.wires = simData.wires.filter((wire) => {
+            const fromValid = !wire.from || wire.from.compId !== comp.id || validPins.has(wire.from.pin);
+            const toValid = !wire.to || wire.to.compId !== comp.id || validPins.has(wire.to.pin);
+            return fromValid && toValid;
+          });
+          const removedWireCount = previousWireCount - simData.wires.length;
+          breadboardResizeNotice = removedWireCount
+            ? `Removed ${removedWireCount} wire${removedWireCount === 1 ? "" : "s"} attached to columns outside the ${cols}-column board.`
+            : "";
+          renderInspector();
+          renderBuilder();
+        });
+      }
       const resistanceInput = $("sim-comp-resistance");
       if (resistanceInput) {
         resistanceInput.addEventListener("change", () => {
@@ -1920,6 +1983,7 @@
       const { poweredWires } = window.computeSimPoweredSet(simData);
       const isPowered = poweredWires.has(wire.id);
       const waypoints = getWireWaypoints(wire);
+      const waypointBounds = getSimulationCanvasBounds();
       const hasInvalidRoute = hasInvalidWireWaypoints(wire);
       const invalidRouteNotice = hasInvalidRoute
         ? '<p class="sim-wire-route-help" role="status">Saved bend data is invalid. This wire is displayed straight. Clear its invalid bend data before editing the route.</p><button type="button" id="sim-wire-clear-invalid-bends">Clear invalid bends</button>'
@@ -1933,8 +1997,8 @@
             <p class="sim-wire-route-help">Set coordinates in the builder canvas. Component-pin endpoints move with their parts.</p>
             ${waypoints.map((point, index) => `<div class="sim-wire-waypoint">
               <span class="sim-wire-waypoint-title">Bend ${index + 1}</span>
-              <label>X<input type="number" min="0" max="1500" step="0.1" value="${point.x}" data-wire-waypoint-index="${index}" data-wire-waypoint-axis="x" aria-label="Bend ${index + 1} X coordinate"></label>
-              <label>Y<input type="number" min="0" max="700" step="0.1" value="${point.y}" data-wire-waypoint-index="${index}" data-wire-waypoint-axis="y" aria-label="Bend ${index + 1} Y coordinate"></label>
+              <label>X<input type="number" min="0" max="${waypointBounds.width}" step="0.1" value="${point.x}" data-wire-waypoint-index="${index}" data-wire-waypoint-axis="x" aria-label="Bend ${index + 1} X coordinate"></label>
+              <label>Y<input type="number" min="0" max="${waypointBounds.height}" step="0.1" value="${point.y}" data-wire-waypoint-index="${index}" data-wire-waypoint-axis="y" aria-label="Bend ${index + 1} Y coordinate"></label>
               <button type="button" class="sim-wire-waypoint-remove" data-wire-waypoint-remove="${index}">Remove bend ${index + 1}</button>
             </div>`).join("")}
             <button type="button" id="sim-wire-add-bend" ${waypoints.length >= MAX_MANUAL_WIRE_WAYPOINTS ? "disabled" : ""}>Add bend point</button>
@@ -2065,12 +2129,12 @@
   }
 
   // ---------- Zoom ----------
-  // On a wide screen, 100% fits the container (CSS width:100%) — the
-  // board is comfortably readable shrunk to fit. On a phone, fitting a
-  // 1500-unit-wide board into a ~390px screen shrinks pins/holes past the
-  // point of being tappable, which is the opposite of what "100%" should
-  // mean there — so on mobile, every zoom level (100% included) renders
-  // at a real, explicit pixel size instead, and the wrapping
+  // On a wide screen, 100% fits the container (CSS width:100%) - the
+  // board is comfortably readable shrunk to fit. On a phone, fitting the
+  // full canvas into a ~390px screen shrinks pins/holes past the point of
+  // being tappable, which is the opposite of what "100%" should mean
+  // there - so on mobile, every zoom level (100% included) renders at a
+  // real, explicit pixel size based on the live canvas dimensions, and the wrapping
   // .sim-builder-canvas (overflow: auto) becomes a pannable scroll area,
   // the way Tinkercad's own mobile view works: you scroll/pinch around a
   // true-size board rather than seeing a tiny whole board at once.
@@ -2089,8 +2153,8 @@
         svg.style.width = "";
         svg.style.height = "";
       } else {
-        svg.style.width = `${1500 * zoomLevel}px`;
-        svg.style.height = `${700 * zoomLevel}px`;
+        svg.style.width = `${svg.viewBox.baseVal.width * zoomLevel}px`;
+        svg.style.height = `${svg.viewBox.baseVal.height * zoomLevel}px`;
       }
     }
     $("sim-zoom-reset").textContent = `${Math.round(zoomLevel * 100)}%`;
