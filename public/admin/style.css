@@ -4857,7 +4857,9 @@ kbd {
 }
 
 .pe-hint {
-  flex: 1;
+  flex: 1 1 100%;
+  min-width: 0;
+  order: -1;
   color: var(--text-dim);
   font-size: 0.8rem;
 }
@@ -6059,9 +6061,3 @@ kbd {
   }
 }
 
-@media (max-width: 640px) {
-  .pe-actions .pe-hint {
-    flex: 1 1 100%;
-    order: -1;
-  }
-}

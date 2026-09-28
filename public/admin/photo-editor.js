@@ -1970,6 +1970,7 @@
     loadBrushPresets();
     loadTextStyles();
     $("pe-hint").textContent = hint;
+    $("pe-save-overwrite").hidden = !originalKey;
     setTool("select");
     $("pe-export-format").value = "image/png";
     $("pe-export-quality").value = 85;
@@ -2004,10 +2005,9 @@
       img.onerror = () => alert("Couldn't load that image for editing (it may be from another site that blocks this).");
       img.src = url;
     },
-    // A brand-new, fully transparent canvas -- no source image at all, so
-    // there's no "original" to compare against or overwrite. originalKey
-    // stays null (same as the external-image case), which already
-    // correctly hides the Overwrite option and shows only "Save as new".
+    // A brand-new, fully transparent canvas has no source image to
+    // compare against or overwrite. initEditorSession hides Overwrite while
+    // originalKey is null, leaving only "Save as new".
     openBlank(width, height) {
       originalKey = null;
       const w = Math.max(1, Math.min(MAX_DIMENSION, Number.isFinite(width) ? Math.round(width) : 1200));
