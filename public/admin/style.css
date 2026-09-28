@@ -3442,6 +3442,19 @@ kbd {
   white-space: nowrap;
 }
 
+.simulation-publication-status {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 .simulation-row button {
   background: transparent;
   border: 1px solid var(--border);

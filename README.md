@@ -80,15 +80,14 @@ Worker secret, not stored in this repo). From there:
   direction-sensitive, so they conduct either way in this simplified
   model. Wire outlet → power supply → breadboard → Teensy, then Teensy →
   breadboard, and the whole chain lights together once the loop closes.
-  There's still no real electrical modeling underneath (no voltage,
-  current, or resistance) — just closed-loop topology, which is enough
-  to catch the classic wiring mistakes without becoming a circuit
-  simulator. Every part is drawn with gradient shading and highlights
+  A simplified Ohm's-law calculation models voltage, current, and
+  resistance over one shortest path per power domain; it is not a general
+  SPICE circuit solver. Every part is drawn with gradient shading and highlights
   rather than flat colors. The canvas has zoom controls and larger pins
   on touchscreens so it's usable on a phone, though precise wiring is
-  still easier on a bigger screen. Add a saved simulation to any
-  page/article via the Simulation block; readers get a "Power on"
-  button.
+  still easier on a bigger screen. Add a simulation to a page/article via
+  the Simulation block; readers get a "Power on" button after it is
+  published. Draft saves stay hidden from public blocks and project relations.
 - Press **Ctrl/Cmd+K** anywhere in the admin for a search/command palette —
   jump to a page, article, or block by text match, or open any panel.
   Ctrl/Cmd+S saves the current form; with a block selected, Delete removes
@@ -109,7 +108,9 @@ Worker secret, not stored in this repo). From there:
   link — internal paths are checked against real pages/articles/redirects,
   external ones get a live request — and flags anything broken
 
-Changes save immediately — no separate publish step.
+In the page and article editors, changes save immediately. Simulations are
+separate: publish a saved simulation before its page blocks or project
+relations show it publicly; draft saves remain hidden.
 
 ## Local development
 
@@ -117,6 +118,7 @@ Changes save immediately — no separate publish step.
 npm install -g wrangler   # if you don't have it
 cp .dev.vars.example .dev.vars   # fill in a password + session secret
 wrangler d1 execute dominickdominick --local --file=./schema.sql
+wrangler d1 migrations apply dominickdominick --local
 wrangler dev --local
 ```
 
@@ -152,14 +154,17 @@ keep their content non-sensitive unless Cloudflare Access is enabled. See
 [Preview access control](https://developers.cloudflare.com/workers/previews/#access-control)
 and [Preview resource sharing](https://developers.cloudflare.com/workers/previews/resources/).
 
-This repository has not adopted Wrangler's D1 migration system; treat
-`schema.sql` as the bootstrap baseline, not a repeatable migration. The
-`previews` block selects runtime bindings only; Wrangler migration commands
-target the top-level D1 binding in the selected config. Before remote schema
-work, use a dedicated migration config pointed at the Preview database and
-verify its name/ID before applying with `--remote`; plan production migrations
-separately after inspecting the live schema. See [Cloudflare's Preview D1
-migration guidance](https://developers.cloudflare.com/workers/previews/resources/#d1-migrations).
+For an empty local database, apply `schema.sql` and then the Wrangler
+migrations; `schema.sql` intentionally omits columns tracked by migrations so
+the bootstrap and migration do not define the same column twice. The migration
+ledger tracks simulation publication in
+`migrations/0001_simulation_publication.sql`, but it does not reconstruct older
+manual schema changes. Wrangler migrations target the selected config's
+top-level D1 binding, so use `wrangler.preview-migrations.jsonc` for Preview
+work and verify its name/ID against `wrangler.jsonc`'s Preview binding before
+applying with `--remote`. Production migration work needs a separate live-schema
+inspection and per-instance approval. See [Cloudflare's Preview
+D1 migration guidance](https://developers.cloudflare.com/workers/previews/resources/#d1-migrations).
 
 Before changing either ref, recheck both and ensure the new commit is a
 fast-forward from that branch's current head. Before promotion, also

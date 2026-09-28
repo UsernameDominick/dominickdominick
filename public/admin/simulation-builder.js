@@ -334,9 +334,11 @@
       simulations
         .map(
           (s) =>
-            `<div class="simulation-row"><span>${escapeXml(s.name)}</span><a href="/simulation/${
+            `<div class="simulation-row"><span>${escapeXml(s.name)}</span><small class="simulation-publication-status">${
+              s.is_published ? "Published" : "Draft"
+            }</small>${s.is_published ? `<a href="/simulation/${s.id}" target="_blank" rel="noopener" class="view-simulation-link">View ↗</a>` : ""}<button type="button" class="publish-simulation" data-id="${
               s.id
-            }" target="_blank" class="view-simulation-link">View ↗</a><button type="button" class="usage-simulation" data-id="${
+            }" aria-label="${s.is_published ? "Publish updates for" : "Publish"} ${escapeXml(s.name)}">${s.is_published ? "Publish updates" : "Publish"}</button>${s.is_published ? `<button type="button" class="unpublish-simulation" data-id="${s.id}" aria-label="Unpublish ${escapeXml(s.name)}">Unpublish</button>` : ""}<button type="button" class="usage-simulation" data-id="${
               s.id
             }" data-name="${escapeXml(s.name)}" title="See which pages/projects use this simulation">Usage</button><button type="button" class="duplicate-simulation" data-id="${
               s.id
@@ -346,6 +348,39 @@
         )
         .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No simulations yet.</p>";
 
+    $("simulations-list")
+      .querySelectorAll(".publish-simulation")
+      .forEach((btn) =>
+        btn.addEventListener("click", async () => {
+          const simulation = simulations.find((item) => item.id === Number(btn.dataset.id));
+          const action = simulation && simulation.is_published ? "Publish the saved draft changes" : "Publish this simulation";
+          if (!confirm(`${action}? Visitors will see this version publicly.`)) return;
+          try {
+            await window.adminApi(`/simulations/${btn.dataset.id}/publish`, { method: "POST" });
+            await loadSimulationsList();
+            $("simulations-list").querySelector(`.publish-simulation[data-id="${Number(btn.dataset.id)}"]`)?.focus();
+            if (window.refreshSimulationOptions) window.refreshSimulationOptions();
+          } catch (err) {
+            alert(err.message);
+          }
+        })
+      );
+    $("simulations-list")
+      .querySelectorAll(".unpublish-simulation")
+      .forEach((btn) =>
+        btn.addEventListener("click", async () => {
+          const simulation = simulations.find((item) => item.id === Number(btn.dataset.id));
+          if (!confirm(`Unpublish ${simulation ? `“${simulation.name}”` : "this simulation"}? Visitors will no longer see it.`)) return;
+          try {
+            await window.adminApi(`/simulations/${btn.dataset.id}/unpublish`, { method: "POST" });
+            await loadSimulationsList();
+            $("simulations-list").querySelector(`.publish-simulation[data-id="${Number(btn.dataset.id)}"]`)?.focus();
+            if (window.refreshSimulationOptions) window.refreshSimulationOptions();
+          } catch (err) {
+            alert(err.message);
+          }
+        })
+      );
     $("simulations-list")
       .querySelectorAll(".edit-simulation")
       .forEach((btn) => btn.addEventListener("click", () => openBuilder(Number(btn.dataset.id))));
@@ -366,7 +401,7 @@
         btn.addEventListener("click", async () => {
           const usage = await window.adminApi(`/content-usage?type=simulation&id=${btn.dataset.id}`).catch(() => []);
           const msg = usage.length
-            ? `This simulation is used in: ${usage.map((u) => u.title).join(", ")}. Delete anyway? Those blocks will show "not found".`
+            ? `This simulation is used in: ${usage.map((u) => u.title).join(", ")}. Delete anyway? Those blocks will be omitted from public pages until replaced.`
             : "Delete this simulation? This can't be undone.";
           if (!confirm(msg)) return;
           await window.adminApi(`/simulations/${btn.dataset.id}`, { method: "DELETE" });

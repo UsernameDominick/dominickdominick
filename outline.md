@@ -60,12 +60,13 @@ worthwhile new ideas and pursue them without waiting. Any genuinely new paid ext
 needs a check-in before activation. The admin custom-animation editor is implemented; do not treat it as a
 planned feature.
 
-**D1/R2 cautions:** this repo has not adopted Wrangler D1 migrations; `schema.sql` is bootstrap only. The
-`previews` block sets runtime bindings, while Wrangler migrations use the selected config's top-level D1. Use
-a dedicated Preview migration config and verify its database name/ID before `--remote`; inspect production
-before any forward-only live migration. Preview D1/R2 are separate from production but shared by Previews
-using the same IDs/names; use namespaced synthetic fixtures and clean them up. Production writes need
-per-instance confirmation. See [Preview D1 migration guidance](https://developers.cloudflare.com/workers/previews/resources/#d1-migrations).
+**D1/R2 cautions:** `schema.sql` is the base fresh-install bootstrap; apply the Wrangler migrations after it. Wrangler D1 migration `0001` tracks simulation
+publication only; older manual schema changes are not reconstructed. The `previews` block sets runtime bindings,
+while Wrangler migrations use the selected config's top-level D1. Use `wrangler.preview-migrations.jsonc` and
+verify its database name/ID against the Preview binding before `--remote`; inspect production before any
+forward-only live migration. Preview D1/R2 are separate from production but shared by Previews using the same
+IDs/names; use namespaced synthetic fixtures and clean them up. Production writes need per-instance confirmation.
+See [Preview D1 migration guidance](https://developers.cloudflare.com/workers/previews/resources/#d1-migrations).
 Preview resources: `dominickdominick-preview` D1 and
 `dominickdominick-media-preview` R2; production resources: `f49fb038-9dfb-419e-acfb-7d8babc9d509` and
 `dominickdominick-media`.
@@ -90,7 +91,7 @@ Verify distinct test-only Preview values before protected-flow checks.
   Existing undo is a 15-snapshot canvas stack.
 - **Song/DAW:** fixed 16-step sequencer with synthesized Web Audio; no sample playback, multitrack timeline,
   mixing, or effects.
-- **Simulation builder:** SVG circuits and simplified connectivity/Ohm's-law analysis, not a SPICE solver; manual wire bends, named checkpoints, and in-memory undo are supported. Breadboards support 15, 30, or 45 columns; older simulations default to 30, and save validation checks board-size pins.
+- **Simulation builder:** SVG circuits and simplified connectivity/Ohm's-law analysis, not a SPICE solver; breadboards support 15, 30, or 45 columns, manual wire bends, same-hole snap warnings, named checkpoints, and in-memory undo. Draft edits stay private until the saved name and circuit data are explicitly published; unpublish hides the live snapshot. Older simulations default to 30 columns, and save validation checks board-size pins.
 - **Shared lifecycle:** pages/articles/projects have autosave, conflict detection, revisions, and trash; media
   has versions and usage tracking. Songs/simulations still lack full parity.
 ## 2. Active feature backlog
@@ -213,8 +214,8 @@ Open and partial items only; completed implementation histories remain in Git hi
 - ☐ Automated tests wired into CI (Playwright scripts are ad hoc, local only)
 - 🔶 Worker Preview environment (D1/R2 separate from production and shared across Preview branches; branch Preview and runtime binding cleanup verified; authenticated/manual checks remain)
 - 🔶 Preview deployments tied to the `production` branch (mapping and successful code build verified on 2026-09-27; authenticated flow checks are partial; full sitewide visual review remains)
-- 🔶 Migration history (this doc is a manual log; no automated tracker)
-- 🔶 Staging content workflow (draft and live states exist; no content-promotion workflow)
+- 🔶 Migration history (Wrangler tracks simulation publication; older manual schema changes are not reconstructed, and no broader migration inventory exists)
+- 🔶 Staging content workflow (simulation drafts and publication are explicit; no general content-promotion workflow exists)
 
 ### Backups, health, and operating costs
 - 🔶 Separate R2 asset backups (R2 currently stores the primary media copies)
@@ -228,16 +229,18 @@ The standing scope rule in section 0 applies. Keep shared builders consistent.
 - Improve backdrop contrast for near-fullscreen builder modals across Songs, Simulations, and Scans.
 - Distinguish security-sensitive admin actions in the activity log.
 - Build orphan-page detection carefully to avoid false positives.
-- Add a D1 migration runner only after inventorying production schema and historical manual changes; keep
-  `schema.sql` as bootstrap, not a repeatable migration.
+- Inventory historical manual schema changes before extending Wrangler migration coverage; keep `schema.sql`
+  as bootstrap, not a repeatable migration.
 - If the general media library expands beyond images, consider adding waveforms for its audio files.
 - Extend TTS read-aloud to build journals if there is a clear use case.
 
 ## 4. Production migration state
 
-Production D1 `dominickdominick` has `media.private`, `width`, and `height`, confirmed with a read-only `PRAGMA table_info(media)` on 2026-09-28. Migration details remain in Git history.
+Production D1 `dominickdominick` has `media.private`, `width`, and `height`, confirmed with a read-only `PRAGMA table_info(media)` on 2026-09-28. Simulation publication has not been applied to Production; inspect the live schema and get per-instance confirmation before applying its forward-only migration.
 
-`schema.sql` is bootstrap only; no migration runner is configured. Never replay the full schema. Before any forward-only production migration, verify the exact database and current columns. Production D1/R2 writes need per-instance confirmation.
+Preview D1 `dominickdominick-preview` (`6b4b23d0-d680-4320-83c0-bc144f1cf3d9`) received `0001_simulation_publication.sql` on 2026-09-28. The two columns and `d1_migrations` entry were verified afterward; there were zero simulation rows before and after. Wrangler is unavailable in this workspace, so the SQL ran as a Cloudflare D1 API transaction with the migration ledger entry recorded in the same batch. Production was untouched.
+
+`schema.sql` is the base bootstrap and intentionally omits columns added by tracked migrations; apply migrations immediately after bootstrapping an empty DB. The migration directory currently tracks simulation publication and does not reconstruct historical changes. Never replay the full schema into an existing DB. Before any forward-only production migration, verify the exact database and current columns. Production D1/R2 writes need per-instance confirmation.
 
 The R2-only homepage image `uploads/300679fa-5339-49cc-a839-9a3253031cb6.png` has no D1 metadata row or alt text. Retest homepage delivery and the admin media listing after the migration; the earlier media-route HTTP 500 has not been rechecked.
 
@@ -267,13 +270,14 @@ The R2-only homepage image `uploads/300679fa-5339-49cc-a839-9a3253031cb6.png` ha
 ## 6. Manual verification still owed
 
 - For the breadboard-size change, use an authenticated Worker Preview to exercise 15, 30, and 45 columns; edge-hole snapping and wires; resize cleanup; undo/redo; save/reopen; and public rendering. Capture a real-browser viewport screenshot and score the visible change. This batch has not had browser interaction or visual review.
+- For simulation publication, use authenticated Preview data to verify draft create/save and rename remain hidden; publishing exposes the saved name/data through the direct route, page block, and project relation; later draft edits stay on the old public snapshot until republished; unpublish hides all three surfaces; and admin selectors still find drafts. Test a legacy backup restore and a new backup round trip with both a published row and an explicit-NULL draft. These checks have not had authenticated browser interaction.
 - Finish Photo Editor submit/cancel, Escape/backdrop, and focus-return checks across its prompt flows. Verify blank-image editor card centering and uploaded header-image dimensions before load.
 - Retest homepage image delivery and authenticated media metadata after the confirmed media migration. Identify missing R2 objects separately from missing metadata/query failures; resolve the homepage image's missing alt text before publishing affected content.
 - The production site has no articles, projects, simulations, or scans. Do not add filler content just to check highlight.js, model-viewer, header dimensions, or iPhone `.usdz` AR.
 - Confirm Web Speech read-aloud with installed browser voices, the live Worker's `0 8 * * *` backup schedule, and the sitemap in a browser. Preview Workers do not run Cron Triggers; never trigger a production backup as Preview QA.
-- Preview is public. Prior short-lived Preview credentials and synthetic song/simulation fixtures were removed; a read-only check on 2026-09-28 found zero Preview pages, simulations, and songs. Use distinct temporary Preview-only credentials and namespaced synthetic data for future protected-flow checks; never use Production secrets or data. See [Preview access control](https://developers.cloudflare.com/workers/previews/#access-control).
+- Preview is public. Prior short-lived Preview credentials and synthetic song/simulation fixtures were already absent; a read-only check on 2026-09-28 found zero Preview pages, simulations, and songs, so the authorized fixture deletion required no operation. Use distinct temporary Preview-only credentials and namespaced synthetic data for future protected-flow checks; never use Production secrets or data. See [Preview access control](https://developers.cloudflare.com/workers/previews/#access-control).
 
-**Current QA limitation:** the browser environment cannot reach localhost and Chromium remains unavailable. The in-app browser can reach the `production` Preview login page, but Wrangler is not authenticated here, so no Preview-only test secrets were set. Authenticated resize/save/reopen checks and a real-browser screenshot/visual score remain outstanding for this selector.
+**Current QA limitation:** the browser environment cannot reach localhost and Chromium remains unavailable. The in-app browser can reach the `production` Preview login page, but Wrangler is not authenticated here, so no Preview-only test secrets were set. Authenticated resize/save/reopen and simulation publish/unpublish checks and real-browser screenshots/visual scores remain outstanding.
 
 ## 7. Recurring security, SEO, and accessibility checks
 
@@ -381,12 +385,9 @@ enterprise-flagged: "restricted mixer" implies per-viewer access control beyond 
 sandboxed plugin architecture — substantial new infra + security surface).
 
 ### Simulations — Easy
-- 362. Separate draft/published — new `published_data` column + toggle, like other content types.
 - 363. Deterministic runs/seeds — sim is deterministic already; add a seed field for future randomness.
 - 373. Rotate/mirror — add transform + flip pin coords, small render change.
-- 388. Warn same-hole leads — check during snap-drop, data already tracks hole ids.
 - 389. Mechanical vs electrical distinction — already implicit; just surface it in UI.
-- 393. Manual wire bend points — extend wire path from 2-point to polyline.
 - 403-405. Resistor/capacitor/inductor basic params — extra content fields, same pattern as resistance.
 - 409. Relays/switches — variant of existing switch component.
 - 415. Current source — checked while implementing #416: doesn't fit this simulator's model as worded. This
@@ -440,8 +441,10 @@ permissions — out of scope], 597 [package/dependency system — out of scope],
 ## 9. Current audit status
 
 - Breadboard-size work supports 15/30/45 presets; a missing `cols` keeps the legacy 30-column default, while an explicit invalid value is rejected.
-  Critic scores: pass 1, 9/10; pass 2, 8/10; pass 3, 9/10; pass 4, 9/10. Pass-2 findings are fixed; pass 4 found no actionable code issues.
-- Focused regressions and JavaScript checks pass. The Preview build succeeds and its login route loads; authenticated resize/save/reopen checks and a real-browser screenshot/visual score remain open.
+  Critic scores: pass 1, 9/10; pass 2, 8/10; pass 3, 9/10; pass 4, 9/10. Pass-2 findings were fixed; pass 4 found no actionable code issues.
+- Simulation #362 stores separate published name/data snapshots, keeps new rows as drafts, and exposes explicit publish/update/unpublish actions. Legacy backups restore as published; explicit NULL snapshots remain drafts. Local publication, backup-compatibility, and fresh-bootstrap migration regressions pass. The Preview database migration is applied and verified, but this code candidate has not been deployed to Preview; authenticated lifecycle checks and real-browser visual review remain outstanding. Production still needs its own schema inspection and migration before promotion.
+- Critic gate: the three sequential reviews scored 9/10, 8/10, and 8/10; their findings were fixed between passes. A final re-review scored 9/10 with no actionable findings. The earlier review's two findings were also fixed.
+- The earlier breadboard candidate's Preview build succeeded and its login route loaded. This publication candidate has not yet been deployed to Preview; authenticated feature checks and real-browser screenshots/visual scores remain open.
 - Promotion requires the stated critic and manual gates, a fast-forward from `production` to `main`, and a fresh check that both refs have not moved. Never force-push; if browser checks remain unavailable, keep the candidate on `production`.
 
 ## 10. Open decisions

@@ -1,4 +1,5 @@
 import { toHex } from "./auth.js";
+import { normalizeLegacySimulationWireIds, simulationDataError } from "./simulation-validation.js";
 
 export const RESERVED_SLUGS = new Set([
   "admin",
@@ -1997,12 +1998,42 @@ export async function deleteTemplate(env, id) {
 
 // ---------- Simulations ----------
 export async function listSimulations(env) {
-  const { results } = await env.DB.prepare("SELECT id, name, updated_at FROM simulations ORDER BY name").all();
-  return results;
+  const { results } = await env.DB
+    .prepare("SELECT id, name, updated_at, (published_data IS NOT NULL AND published_name IS NOT NULL) AS is_published FROM simulations ORDER BY name")
+    .all();
+  return results.map((row) => ({ ...row, is_published: !!row.is_published }));
 }
 
-export async function getSimulation(env, id) {
-  const row = await env.DB.prepare("SELECT * FROM simulations WHERE id = ?").bind(id).first();
+export async function listPublishedSimulationIds(env) {
+  const { results } = await env.DB
+    .prepare("SELECT id FROM simulations WHERE published_data IS NOT NULL AND published_name IS NOT NULL ORDER BY id")
+    .all();
+  return results.map(({ id }) => id);
+}
+
+export async function getSimulation(env, id, { includeData = true, includeRawData = false } = {}) {
+  const row = await env.DB
+    .prepare("SELECT id, name, data, published_name, published_data, created_at, updated_at FROM simulations WHERE id = ?")
+    .bind(id)
+    .first();
+  if (!row) return null;
+  const simulation = {
+    id: row.id,
+    name: row.name,
+    is_published: row.published_data !== null && row.published_name !== null,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+  if (includeData) simulation.data = JSON.parse(row.data || "{}");
+  if (includeRawData) simulation.raw_data = row.data;
+  return simulation;
+}
+
+export async function getPublishedSimulation(env, id) {
+  const row = await env.DB
+    .prepare("SELECT id, published_name AS name, published_data AS data FROM simulations WHERE id = ? AND published_data IS NOT NULL AND published_name IS NOT NULL")
+    .bind(id)
+    .first();
   if (!row) return null;
   return { ...row, data: JSON.parse(row.data || "{}") };
 }
@@ -2023,17 +2054,31 @@ export async function updateSimulation(env, id, { name, data }) {
   return res.meta.changes > 0;
 }
 
+export async function publishSimulation(env, id, { data, expectedRawData, expectedName }) {
+  const serializedData = JSON.stringify(data || {});
+  const res = await env.DB
+    .prepare("UPDATE simulations SET data = ?, published_name = name, published_data = ?, updated_at = CASE WHEN data != ? THEN datetime('now') ELSE updated_at END WHERE id = ? AND data = ? AND name = ?")
+    .bind(serializedData, serializedData, serializedData, id, expectedRawData, expectedName)
+    .run();
+  return res.meta.changes > 0;
+}
+
+export async function unpublishSimulation(env, id) {
+  const res = await env.DB
+    .prepare("UPDATE simulations SET published_name = NULL, published_data = NULL WHERE id = ?")
+    .bind(id)
+    .run();
+  return res.meta.changes > 0;
+}
+
 export async function deleteSimulation(env, id) {
   await env.DB.prepare("DELETE FROM simulations WHERE id = ?").bind(id).run();
 }
 
-export async function duplicateSimulation(env, id, dataOverride, sourceName) {
+export async function duplicateSimulation(env, id, data) {
   const source = await getSimulation(env, id);
   if (!source) return null;
-  return createSimulation(env, {
-    name: `${sourceName === undefined ? source.name : sourceName} (copy)`,
-    data: dataOverride === undefined ? source.data : dataOverride,
-  });
+  return createSimulation(env, { name: `${source.name} (copy)`, data: data ?? source.data });
 }
 
 // ---------- Songs (DAW module) ----------
@@ -2830,6 +2875,20 @@ export async function setSetting(env, key, value) {
 
 const BACKUP_VERSION = 1;
 
+function normalizeSimulationBackupData(value, label) {
+  if (typeof value !== "string") throw new Error(`Invalid ${label} in backup`);
+  let parsed;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw new Error(`Invalid ${label} in backup`);
+  }
+  const normalized = normalizeLegacySimulationWireIds(parsed);
+  const dataError = simulationDataError(normalized);
+  if (dataError) throw new Error(`Invalid ${label} in backup: ${dataError}`);
+  return JSON.stringify(normalized);
+}
+
 export async function exportAll(env) {
   const [
     pages,
@@ -3101,6 +3160,24 @@ export async function importAll(env, data) {
     throw new Error("This doesn't look like a dominickdominick backup file (missing pages/blocks/articles/settings)");
   }
 
+  const restoredSimulations = simulations.map((s) => {
+    if (!s || typeof s !== "object" || Array.isArray(s)) throw new Error("Invalid simulation in backup");
+    const restoredData = normalizeSimulationBackupData(s.data ?? "{}", "simulation data");
+    const hasPublishedName = Object.prototype.hasOwnProperty.call(s, "published_name");
+    const hasPublishedData = Object.prototype.hasOwnProperty.call(s, "published_data");
+    if (hasPublishedName !== hasPublishedData) throw new Error("Incomplete simulation publication snapshot in backup");
+    const publishedData = hasPublishedData ? s.published_data : (s.data ?? "{}");
+    const publishedName = hasPublishedName ? s.published_name : (publishedData === null ? null : s.name);
+    if (publishedData !== null && typeof publishedData !== "string") throw new Error("Invalid published simulation data in backup");
+    if (publishedName !== null && typeof publishedName !== "string") throw new Error("Invalid published simulation name in backup");
+    if ((publishedData === null) !== (publishedName === null)) throw new Error("Incomplete simulation publication snapshot in backup");
+    let normalizedPublishedData = publishedData;
+    if (publishedData !== null) {
+      normalizedPublishedData = normalizeSimulationBackupData(publishedData, "published simulation data");
+    }
+    return { ...s, data: restoredData, published_name: publishedName, published_data: normalizedPublishedData };
+  });
+
   const stmts = [
     env.DB.prepare("DELETE FROM blocks"),
     env.DB.prepare("DELETE FROM shared_blocks"),
@@ -3352,11 +3429,11 @@ export async function importAll(env, data) {
     );
   }
 
-  for (const s of simulations) {
+  for (const s of restoredSimulations) {
     stmts.push(
       env.DB
-        .prepare("INSERT INTO simulations (id, name, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?)")
-        .bind(s.id, s.name, s.data ?? "{}", s.created_at, s.updated_at)
+        .prepare("INSERT INTO simulations (id, name, data, published_name, published_data, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+        .bind(s.id, s.name, s.data, s.published_name, s.published_data, s.created_at, s.updated_at)
     );
   }
 

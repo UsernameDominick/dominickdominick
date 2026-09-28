@@ -19,7 +19,8 @@ import {
   getRelatedArticles,
   getProjectsLinkingToArticle,
   getSeriesArticles,
-  getSimulation,
+  getPublishedSimulation,
+  listPublishedSimulationIds,
   getScan,
   logError,
   logEvent,
@@ -85,7 +86,7 @@ import {
   CONTROL_PRESETS,
 } from "./render.js";
 import { handleAdminApi } from "./admin-api.js";
-import { renderSimulationSvg } from "./simulation-render.js";
+import { getSimulationComponentDefinition, LED_COLORS, OUTLET_VOLTAGE, renderSimulationSvg } from "./simulation-render.js";
 
 // Whole-site draft-inclusive preview mode — a plain, non-secret cookie an
 // admin toggles from the admin header's "Preview mode" button. Unlike
@@ -488,7 +489,7 @@ async function renderProject(env, project, navItems, previewReason = null, isAdm
 
   const [allPublishedArticles, relatedSims, relatedScanRows] = await Promise.all([
     project.related_articles.length ? listArticles(env, { publishedOnly: true }) : [],
-    Promise.all(project.related_simulations.map((id) => getSimulation(env, id))),
+    Promise.all(project.related_simulations.map((id) => getPublishedSimulation(env, id))),
     Promise.all(project.related_scans.map((id) => getScan(env, id))),
   ]);
   const relatedArticleRows = allPublishedArticles.filter((a) => project.related_articles.includes(a.id));
@@ -844,15 +845,86 @@ async function renderNotFound(env, navItems) {
 // A standalone, read-only view of a saved circuit — the same rendering and
 // power-toggle interactivity as the "Simulation" block, just on its own
 // page so a circuit can be linked to directly instead of only embedded.
+function simulationTopologyDescription(data) {
+  const components = Array.isArray(data?.components) ? data.components : [];
+  const wires = Array.isArray(data?.wires) ? data.wires : [];
+  const componentsById = new Map(
+    components
+      .filter((component) => component && component.id != null)
+      .map((component) => [String(component.id), component])
+  );
+  const shortValue = (value, limit = 60) => {
+    if (typeof value !== "string" && typeof value !== "number") return "";
+    return String(value).slice(0, limit);
+  };
+  const componentDetails = (component) => {
+    const value = (raw, fallback) => {
+      const number = Number(raw);
+      return Number.isFinite(number) && number !== 0 ? number : fallback;
+    };
+    switch (component?.type) {
+      case "outlet":
+        return `${OUTLET_VOLTAGE}-volt AC source`;
+      case "power_supply":
+        return `${value(component.outputVoltage, 5)}-volt DC output`;
+      case "battery":
+        return `${value(component.voltage, 9)}-volt battery`;
+      case "resistor":
+        return `${Math.max(1, Math.round(Number(component.resistance) || 220))} ohms`;
+      case "potentiometer": {
+        const maxResistance = Math.max(1, Number(component.maxResistance) || 10000);
+        const rawWiper = Number(component.wiper);
+        const wiper = Math.max(0, Math.min(100, Number.isFinite(rawWiper) ? rawWiper : 50));
+        return `${Math.max(1, Math.round(maxResistance * (wiper / 100)))} ohms at ${wiper}%`;
+      }
+      case "breadboard":
+        return `${getSimulationComponentDefinition(component)?.cols || 30} columns`;
+      case "led": {
+        const color = LED_COLORS[component.color]?.onColor ? component.color : "red";
+        return `${color} LED`;
+      }
+      case "switch":
+        return component.closed === false ? "open switch" : "closed switch";
+      default:
+        return "";
+    }
+  };
+  const describeComponent = (component) => {
+    const label = getSimulationComponentDefinition(component)?.label || "Circuit component";
+    const customLabel = shortValue(component?.label);
+    const id = shortValue(component?.id);
+    const identity = customLabel ? ` labeled ${customLabel}` : id ? ` (ID ${id})` : "";
+    const details = componentDetails(component);
+    return `${label}${identity}${details ? `, ${details}` : ""}`;
+  };
+  const describeEndpoint = (endpoint) => {
+    const component = componentsById.get(String(endpoint?.compId));
+    if (!component) return "an unidentified component pin";
+    return `${describeComponent(component)} pin ${shortValue(endpoint?.pin) || "unknown"}`;
+  };
+  const componentSummary = components.slice(0, 20).map(describeComponent);
+  const wireSummary = wires.slice(0, 30).map((wire) => `${describeEndpoint(wire?.from)} connects to ${describeEndpoint(wire?.to)}`);
+  const omittedComponents = components.length - componentSummary.length;
+  const omittedWires = wires.length - wireSummary.length;
+  const componentsText = componentSummary.length ? componentSummary.join(", ") : "none";
+  const wiresText = wireSummary.length ? wireSummary.join("; ") : "none";
+  return `Circuit topology. ${components.length} components: ${componentsText}${omittedComponents > 0 ? `; and ${omittedComponents} more` : ""}. ${wires.length} wire connections: ${wiresText}${omittedWires > 0 ? `; and ${omittedWires} more` : ""}.`;
+}
+
 async function renderSimulationPage(env, sim, navItems) {
   const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
   const uid = "sim-standalone";
-  const svg = renderSimulationSvg(sim.data).replace('class="sim-svg"', `class="sim-svg" id="${esc(uid)}"`);
+  const descId = `${uid}-desc`;
+  const svg = renderSimulationSvg(sim.data).replace(
+    'class="sim-svg"',
+    `class="sim-svg" id="${esc(uid)}" role="img" aria-label="${esc(sim.name || "Circuit simulation")}" aria-describedby="${esc(descId)}"`
+  );
+  const topologyDescription = simulationTopologyDescription(sim.data);
   const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 2;">
     <h1>${esc(sim.name)}</h1>
   </div>
   <div class="block" style="grid-column:1 / span 24;grid-row:3 / span 25;">
-    <div class="sim-block-wrap">${svg}<button type="button" class="sim-power-btn" data-target="${esc(uid)}">Power on</button></div>
+    <div class="sim-block-wrap"><p id="${esc(descId)}" class="sr-only">${esc(topologyDescription)}</p>${svg}<button type="button" class="sim-power-btn" data-target="${esc(uid)}">Power on</button></div>
   </div>`;
   const html = renderShell({
     title: `${sim.name} · Dominick`,
@@ -942,6 +1014,7 @@ async function renderSitemap(env) {
   const pages = await listPages(env);
   const articles = await listArticles(env, { publishedOnly: true });
   const projects = await listProjects(env, { publishedOnly: true });
+  const publishedSimulationIds = await listPublishedSimulationIds(env);
   const tagCounts = await getTagCounts(env);
   const entries = [
     // isInSitemap() is shared with getSeoReport()'s sitemapCanonicalMismatch
@@ -954,6 +1027,7 @@ async function renderSitemap(env) {
       .map((p) => ({ loc: p.slug === "home" ? "/" : `/${p.slug}`, lastmod: p.updated_at })),
     ...articles.filter((a) => isInSitemap(a, "article")).map((a) => ({ loc: `/random/${a.slug}`, lastmod: a.updated_at || a.published_at })),
     ...projects.filter((p) => isInSitemap(p, "project")).map((p) => ({ loc: `/projects/${p.slug}`, lastmod: p.updated_at || p.published_at })),
+    ...publishedSimulationIds.map((id) => ({ loc: `/simulation/${id}`, lastmod: null })),
     { loc: "/topics", lastmod: null },
     { loc: "/archive", lastmod: null },
     { loc: "/random", lastmod: null },
@@ -1300,7 +1374,7 @@ async function route(request, env, ctx) {
 
     const simulationMatch = path.match(/^\/simulation\/(\d+)$/);
     if (simulationMatch) {
-      const sim = await getSimulation(env, Number(simulationMatch[1]));
+      const sim = await getPublishedSimulation(env, Number(simulationMatch[1]));
       if (!sim) {
         const assetResponse = await env.ASSETS.fetch(request);
         if (assetResponse.status !== 404) return assetResponse;

@@ -102,6 +102,8 @@ import {
   findContentUsage,
   listSimulations,
   getSimulation,
+  publishSimulation,
+  unpublishSimulation,
   createSimulation,
   updateSimulation,
   deleteSimulation,
@@ -144,7 +146,7 @@ import {
   plausibleDims,
 } from "./db.js";
 import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated, hmac, revokeAllSessions } from "./auth.js";
-import { SIM_COMPONENTS, getSimulationComponentDefinition, getSimulationCanvasBounds, validateBreadboardColumnSizes } from "./simulation-render.js";
+import { normalizeLegacySimulationWireIds, simulationDataError } from "./simulation-validation.js";
 
 function json(data, init = {}) {
   return new Response(JSON.stringify(data), {
@@ -171,166 +173,6 @@ function normalizePath(p) {
 // would corrupt it (prepending a stray "/").
 function normalizeRedirectTarget(p) {
   return /^https?:\/\//i.test(p) ? p : normalizePath(p);
-}
-
-const MAX_MANUAL_WIRE_WAYPOINTS = 20;
-const MAX_SIMULATION_CHECKPOINTS = 20;
-
-function isSimulationRecordId(value) {
-  return (
-    (typeof value === "string" &&
-      value.length > 0 &&
-      value.length <= 160 &&
-      !Object.prototype.hasOwnProperty.call(Object.prototype, value)) ||
-    Number.isSafeInteger(value)
-  );
-}
-
-function simulationDataError(data, requireCircuitArrays = false, allowCheckpoints = true) {
-  if (!data || typeof data !== "object" || Array.isArray(data)) return "Simulation data must be an object.";
-  const hasComponents = Object.prototype.hasOwnProperty.call(data, "components");
-  const hasWires = Object.prototype.hasOwnProperty.call(data, "wires");
-  if ((requireCircuitArrays || hasComponents) && !Array.isArray(data.components)) return "Simulation components must be an array.";
-  if ((requireCircuitArrays || hasWires) && !Array.isArray(data.wires)) return "Simulation wires must be an array.";
-
-  const sizeError = validateBreadboardColumnSizes(data);
-  if (sizeError) return sizeError;
-
-  const components = Array.isArray(data.components) ? data.components : [];
-  const wires = Array.isArray(data.wires) ? data.wires : [];
-  const componentsById = new Map();
-  const renderedComponentIds = new Set();
-  for (let index = 0; index < components.length; index++) {
-    const component = components[index];
-    if (
-      !component ||
-      typeof component !== "object" ||
-      Array.isArray(component) ||
-      !isSimulationRecordId(component.id) ||
-      componentsById.has(component.id) ||
-      renderedComponentIds.has(String(component.id)) ||
-      typeof component.type !== "string" ||
-      !Object.prototype.hasOwnProperty.call(SIM_COMPONENTS, component.type) ||
-      !Number.isFinite(component.x) ||
-      !Number.isFinite(component.y) ||
-      component.x < 0 ||
-      component.x > 1500 ||
-      component.y < 0 ||
-      component.y > 700
-    ) {
-      return `Component ${index + 1} must have a unique id, supported type, and numeric coordinates inside the builder canvas.`;
-    }
-    componentsById.set(component.id, component);
-    renderedComponentIds.add(String(component.id));
-  }
-  const canvasBounds = getSimulationCanvasBounds(components);
-
-  const wireIds = new Set();
-  for (let wireIndex = 0; wireIndex < wires.length; wireIndex++) {
-    const wire = wires[wireIndex];
-    const validEndpoint = (end) => {
-      if (
-        !end ||
-        typeof end !== "object" ||
-        Array.isArray(end) ||
-        !isSimulationRecordId(end.compId) ||
-        typeof end.pin !== "string" ||
-        !end.pin ||
-        end.pin.length > 100
-      ) return false;
-      const component = componentsById.get(end.compId);
-      const definition = component && getSimulationComponentDefinition(component);
-      return Boolean(definition && definition.pins.some((pin) => pin.id === end.pin));
-    };
-    if (!wire || typeof wire !== "object" || Array.isArray(wire) || !validEndpoint(wire.from) || !validEndpoint(wire.to)) {
-      return `Wire ${wireIndex + 1} must have valid endpoints that reference existing component pins.`;
-    }
-    if (!isSimulationRecordId(wire.id) || wireIds.has(String(wire.id))) {
-      return `Wire ${wireIndex + 1} must have a unique id.`;
-    }
-    wireIds.add(String(wire.id));
-    if (Object.prototype.hasOwnProperty.call(wire, "waypoints")) {
-      const points = wire.waypoints;
-      if (!Array.isArray(points)) return `Wire ${wireIndex + 1} has an invalid bend list.`;
-      if (points.length > MAX_MANUAL_WIRE_WAYPOINTS) return `Wire ${wireIndex + 1} has too many bends (maximum ${MAX_MANUAL_WIRE_WAYPOINTS}).`;
-      if (wire.auto === true && points.length) return `Wire ${wireIndex + 1} is automatic and cannot include manual bends.`;
-      for (let pointIndex = 0; pointIndex < points.length; pointIndex++) {
-        const point = points[pointIndex];
-        if (
-          !point ||
-          typeof point !== "object" ||
-          Array.isArray(point) ||
-          !Number.isFinite(point.x) ||
-          !Number.isFinite(point.y) ||
-          point.x < 0 ||
-          point.x > canvasBounds.width ||
-          point.y < 0 ||
-          point.y > canvasBounds.height
-        ) {
-          return `Wire ${wireIndex + 1} bend ${pointIndex + 1} must have numeric coordinates inside the builder canvas.`;
-        }
-      }
-    }
-  }
-
-  if (Object.prototype.hasOwnProperty.call(data, "checkpoints")) {
-    if (!allowCheckpoints) return "Nested simulation checkpoints are not supported.";
-    if (!Array.isArray(data.checkpoints) || data.checkpoints.length > MAX_SIMULATION_CHECKPOINTS) {
-      return `Simulation checkpoints must be an array of at most ${MAX_SIMULATION_CHECKPOINTS} items.`;
-    }
-    for (let index = 0; index < data.checkpoints.length; index++) {
-      const checkpoint = data.checkpoints[index];
-      if (
-        !checkpoint ||
-        typeof checkpoint !== "object" ||
-        Array.isArray(checkpoint) ||
-        typeof checkpoint.name !== "string" ||
-        !checkpoint.name.trim() ||
-        !checkpoint.data
-      ) {
-        return `Checkpoint ${index + 1} has an invalid structure.`;
-      }
-      const checkpointError = simulationDataError(checkpoint.data, true, false);
-      if (checkpointError) return `Checkpoint ${index + 1}: ${checkpointError}`;
-    }
-  }
-  return null;
-}
-
-// Older saved simulations can have missing or colliding wire IDs. Opening
-// them in the builder repairs these IDs before saving; duplication should
-// apply the same repair to the new copy instead of making the legacy record
-// impossible to duplicate.
-function normalizeLegacySimulationWireIds(data) {
-  if (!data || typeof data !== "object" || Array.isArray(data)) return data;
-  const normalized = JSON.parse(JSON.stringify(data));
-  const normalizeCircuitWires = (circuit) => {
-    if (!circuit || typeof circuit !== "object" || Array.isArray(circuit) || !Array.isArray(circuit.wires)) return;
-    const reservedIds = new Set();
-    for (const wire of circuit.wires) {
-      if (wire && typeof wire === "object" && !Array.isArray(wire) && isSimulationRecordId(wire.id)) {
-        reservedIds.add(String(wire.id));
-      }
-    }
-    const seenIds = new Set();
-    circuit.wires.forEach((wire, index) => {
-      if (!wire || typeof wire !== "object" || Array.isArray(wire)) return;
-      if (!isSimulationRecordId(wire.id) || seenIds.has(String(wire.id))) {
-        const stem = `duplicate_wire_${index + 1}`;
-        let id = stem;
-        let suffix = 1;
-        while (reservedIds.has(id) || seenIds.has(id)) id = `${stem}_${suffix++}`;
-        wire.id = id;
-        reservedIds.add(id);
-      }
-      seenIds.add(String(wire.id));
-    });
-  };
-  normalizeCircuitWires(normalized);
-  if (Array.isArray(normalized.checkpoints)) {
-    normalized.checkpoints.forEach((checkpoint) => normalizeCircuitWires(checkpoint && checkpoint.data));
-  }
-  return normalized;
 }
 
 // Redirects can chain (A -> B, B -> C, ...), and the request-serving code
@@ -2136,8 +1978,36 @@ async function routeAdminApi(request, env, url, ctx) {
     const data = body.data || {};
     const dataError = simulationDataError(data);
     if (dataError) return json({ error: dataError }, { status: 400 });
-    const id = await createSimulation(env, { name: body.name.trim(), data });    log(ctx, env, "create", "simulation", body.name.trim());
+    const id = await createSimulation(env, { name: body.name.trim(), data });
+    log(ctx, env, "create", "simulation", body.name.trim());
     return json({ id });
+  }
+  const simPublicationMatch = path.match(/^\/simulations\/(\d+)\/(publish|unpublish)$/);
+  if (simPublicationMatch && method === "POST") {
+    const id = Number(simPublicationMatch[1]);
+    const action = simPublicationMatch[2];
+    const simulation = await getSimulation(env, id, {
+      includeData: action === "publish",
+      includeRawData: action === "publish",
+    });
+    if (!simulation) return json({ error: "Simulation not found" }, { status: 404 });
+    if (action === "publish") {
+      const data = normalizeLegacySimulationWireIds(simulation.data);
+      const dataError = simulationDataError(data);
+      if (dataError) return json({ error: dataError }, { status: 400 });
+      const updated = await publishSimulation(env, id, {
+        data,
+        expectedRawData: simulation.raw_data,
+        expectedName: simulation.name,
+      });
+      if (!updated) return json({ error: "Simulation changed while publishing. Reload and try again." }, { status: 409 });
+      log(ctx, env, action, "simulation", simulation.name);
+      return json({ ok: true });
+    }
+    const updated = await unpublishSimulation(env, id);
+    if (!updated) return json({ error: "Simulation not found" }, { status: 404 });
+    log(ctx, env, action, "simulation", simulation.name);
+    return json({ ok: true });
   }
   const simDuplicateMatch = path.match(/^\/simulations\/(\d+)\/duplicate$/);
   if (simDuplicateMatch && method === "POST") {
@@ -2146,7 +2016,7 @@ async function routeAdminApi(request, env, url, ctx) {
     const data = normalizeLegacySimulationWireIds(source.data || {});
     const dataError = simulationDataError(data);
     if (dataError) return json({ error: dataError }, { status: 400 });
-    const newId = await duplicateSimulation(env, Number(simDuplicateMatch[1]), data, source.name);
+    const newId = await duplicateSimulation(env, Number(simDuplicateMatch[1]), data);
     if (!newId) return json({ error: "Simulation not found" }, { status: 404 });
     log(ctx, env, "duplicate", "simulation", `#${simDuplicateMatch[1]} → #${newId}`);
     return json({ id: newId });

@@ -1160,7 +1160,7 @@
         btn.addEventListener("click", async () => {
           const usage = await window.adminApi(`/content-usage?type=song&id=${btn.dataset.id}`).catch(() => []);
           const msg = usage.length
-            ? `This song is used in: ${usage.map((u) => u.title).join(", ")}. Delete anyway? Those blocks will show "not found".`
+            ? `This song is used in: ${usage.map((u) => u.title).join(", ")}. Delete anyway? Those blocks will be omitted from public pages until replaced.`
             : "Delete this song? This can't be undone.";
           if (!confirm(msg)) return;
           await window.adminApi(`/songs/${btn.dataset.id}`, { method: "DELETE" });

@@ -1059,6 +1059,10 @@
     const s = simulationOptions.find((x) => x.id === id);
     return s ? s.name : null;
   }
+  function simulationOptionLabel(simulation) {
+    const status = simulation.is_published ? "Published" : "Draft — hidden publicly";
+    return `${simulation.name} (${status})`;
+  }
 
   let scanOptions = [];
   function scanNameById(id) {
@@ -1116,15 +1120,10 @@
     return d.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
 
-  // A simulation/scan/song block whose reference has since been deleted
-  // renders as nothing at all on the public site (see renderBlockInner()'s
-  // null-skip handling in worker/render.js) while still reserving its full
-  // grid row-span there — a large dead gap with no visible cause. The admin
-  // canvas gave no warning either: the block just showed a bare "#123" in
-  // its preview text, easy to miss among everything else on a page. This
-  // reuses the same *NameById() lookups blockPreview() already does (they
-  // return null when the id isn't in the loaded options list) rather than
-  // adding a second way to detect the same condition.
+  // A simulation/scan/song block whose reference is unavailable is omitted
+  // from public pages before row occupancy is calculated. The admin canvas
+  // keeps it editable but marks the missing reference; these checks reuse
+  // the same *NameById() lookups blockPreview() already uses.
   function brokenReferenceLookup(b) {
     const c = b.content || {};
     if (b.type === "simulation" && c.simulation_id) return !simulationNameById(c.simulation_id);
@@ -1182,7 +1181,7 @@
         : ""
     }${
       brokenReferenceLookup(b)
-        ? ` <span class="lock-badge broken-ref-badge" title="This reference no longer exists — the block renders as nothing on the live site but still reserves its space">Broken reference</span>`
+        ? ` <span class="lock-badge broken-ref-badge" title="This reference is missing — the block is omitted from public pages">Broken reference</span>`
         : ""
     }`;
   }
@@ -2046,7 +2045,7 @@
     }
     if (f.type === "simulation-select") {
       const options = simulationOptions
-        .map((s) => `<option value="${s.id}"${String(val ?? "") === String(s.id) ? " selected" : ""}>${escapeHtml(s.name)}</option>`)
+        .map((s) => `<option value="${s.id}"${String(val ?? "") === String(s.id) ? " selected" : ""}>${escapeHtml(simulationOptionLabel(s))}</option>`)
         .join("");
       return `<label>${f.label}<select data-key="${f.key}" data-numeric="1"><option value="">— choose —</option>${
         options || "<option disabled>No simulations yet</option>"
@@ -2804,7 +2803,7 @@
       if (brokenReferenceLookup(b)) {
         issues.push({
           severity: "error",
-          message: `${blockLabel(b.type)} block references a deleted item — renders as nothing on the live site but still reserves its space`,
+          message: `${blockLabel(b.type)} block references an unavailable item — it is omitted from public pages until fixed`,
           blockId: b.id,
         });
       }
@@ -3989,7 +3988,7 @@
   function updateWordCount() {
     const text = el("article-body").value.trim();
     const words = text ? text.split(/\s+/).length : 0;
-    const mins = words ? Math.max(1, Math.round(words / 200)) : 0;
+    const mins = Math.max(1, Math.round(words / 200));
     const score = text ? fleschReadingEase(text) : null;
     const readability = score !== null ? ` · ${readabilityLabel(score)} (${score})` : "";
     el("article-word-count").textContent = `${words} word${words === 1 ? "" : "s"} · ${mins} min read${readability}`;
@@ -4524,7 +4523,7 @@
 
   function populateProjectRelatedSelects() {
     el("project-related-articles").innerHTML = articles.map((a) => `<option value="${a.id}">${escapeHtml(a.title)}</option>`).join("");
-    el("project-related-simulations").innerHTML = simulationOptions.map((s) => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join("");
+    el("project-related-simulations").innerHTML = simulationOptions.map((s) => `<option value="${s.id}">${escapeHtml(simulationOptionLabel(s))}</option>`).join("");
     el("project-related-scans").innerHTML = scanOptions.map((s) => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join("");
   }
 
