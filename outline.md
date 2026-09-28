@@ -439,7 +439,8 @@ permissions — out of scope], 597 [package/dependency system — out of scope],
 
 ## 9. Current audit status
 
-- Breadboard-size work supports 15/30/45 presets; a missing `cols` keeps the legacy 30-column default, while an explicit invalid value is rejected. The first three critic scores were 9/10, 8/10, and 9/10; their findings are fixed. One final critic pass remains.
+- Breadboard-size work supports 15/30/45 presets; a missing `cols` keeps the legacy 30-column default, while an explicit invalid value is rejected.
+  Critic scores: pass 1, 9/10; pass 2, 8/10; pass 3, 9/10; pass 4, 9/10. Pass-2 findings are fixed; pass 4 found no actionable code issues.
 - Focused regressions and JavaScript checks pass. The Preview build succeeds and its login route loads; authenticated resize/save/reopen checks and a real-browser screenshot/visual score remain open.
 - Promotion requires the stated critic and manual gates, a fast-forward from `production` to `main`, and a fresh check that both refs have not moved. Never force-push; if browser checks remain unavailable, keep the candidate on `production`.
 
