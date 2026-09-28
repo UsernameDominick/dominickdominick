@@ -236,13 +236,10 @@ The standing scope rule in section 0 applies. Keep shared builders consistent.
 
 ## 4. Production migration state
 
-Production D1 `dominickdominick` has `media.private`, `width`, and `height`, confirmed with a read-only `PRAGMA table_info(media)` on 2026-09-28. Simulation publication has not been applied to Production; inspect the live schema and get per-instance confirmation before applying its forward-only migration.
-
-Preview D1 `dominickdominick-preview` (`6b4b23d0-d680-4320-83c0-bc144f1cf3d9`) received `0001_simulation_publication.sql` on 2026-09-28. The two columns and `d1_migrations` entry were verified afterward; there were zero simulation rows before and after. Wrangler is unavailable in this workspace, so the SQL ran as a Cloudflare D1 API transaction with the migration ledger entry recorded in the same batch. Production was untouched.
-
-`schema.sql` is the base bootstrap and intentionally omits columns added by tracked migrations; apply migrations immediately after bootstrapping an empty DB. The migration directory currently tracks simulation publication and does not reconstruct historical changes. Never replay the full schema into an existing DB. Before any forward-only production migration, verify the exact database and current columns. Production D1/R2 writes need per-instance confirmation.
-
-The R2-only homepage image `uploads/300679fa-5339-49cc-a839-9a3253031cb6.png` has no D1 metadata row or alt text. Retest homepage delivery and the admin media listing after the migration; the earlier media-route HTTP 500 has not been rechecked.
+- Production D1 `dominickdominick` has `media.private`, `width`, and `height` (verified read-only on 2026-09-28). Simulation publication migration `0001_simulation_publication.sql` has not been applied to Production. Inspect the exact live schema and get per-instance confirmation before any forward-only migration.
+- Preview D1 `dominickdominick-preview` (`6b4b23d0-d680-4320-83c0-bc144f1cf3d9`) has migration `0001` applied and verified; Production was not changed.
+- `schema.sql` is the base bootstrap and intentionally omits columns added by tracked migrations. Apply tracked migrations after an empty bootstrap. The migration directory does not reconstruct older manual schema changes. Never replay the full schema into an existing database; verify the exact database and schema before any forward-only change. Preview and Production D1/R2 remain separate. Production writes require per-instance confirmation.
+- The homepage hero image `uploads/300679fa-5339-49cc-a839-9a3253031cb6.png` has an R2 object but no D1 media row or alt text. Recheck homepage delivery and the admin media listing; distinguish missing objects from missing metadata or query errors before cleanup. The earlier media-route HTTP 500 remains unverified.
 
 ## 5. Deferred or scoped out
 
@@ -269,15 +266,12 @@ The R2-only homepage image `uploads/300679fa-5339-49cc-a839-9a3253031cb6.png` ha
 
 ## 6. Manual verification still owed
 
-- For the breadboard-size change, use an authenticated Worker Preview to exercise 15, 30, and 45 columns; edge-hole snapping and wires; resize cleanup; undo/redo; save/reopen; and public rendering. Capture a real-browser viewport screenshot and score the visible change. This batch has not had browser interaction or visual review.
-- For simulation publication, use authenticated Preview data to verify draft create/save and rename remain hidden; publishing exposes the saved name/data through the direct route, page block, and project relation; later draft edits stay on the old public snapshot until republished; unpublish hides all three surfaces; and admin selectors still find drafts. Test a legacy backup restore and a new backup round trip with both a published row and an explicit-NULL draft. These checks have not had authenticated browser interaction.
-- Finish Photo Editor submit/cancel, Escape/backdrop, and focus-return checks across its prompt flows. Verify blank-image editor card centering and uploaded header-image dimensions before load.
-- Retest homepage image delivery and authenticated media metadata after the confirmed media migration. Identify missing R2 objects separately from missing metadata/query failures; resolve the homepage image's missing alt text before publishing affected content.
-- The production site has no articles, projects, simulations, or scans. Do not add filler content just to check highlight.js, model-viewer, header dimensions, or iPhone `.usdz` AR.
-- Confirm Web Speech read-aloud with installed browser voices, the live Worker's `0 8 * * *` backup schedule, and the sitemap in a browser. Preview Workers do not run Cron Triggers; never trigger a production backup as Preview QA.
-- Preview is public. Prior short-lived Preview credentials and synthetic song/simulation fixtures were already absent; a read-only check on 2026-09-28 found zero Preview pages, simulations, and songs, so the authorized fixture deletion required no operation. Use distinct temporary Preview-only credentials and namespaced synthetic data for future protected-flow checks; never use Production secrets or data. See [Preview access control](https://developers.cloudflare.com/workers/previews/#access-control).
-
-**Current QA limitation:** the browser environment cannot reach localhost and Chromium remains unavailable. The in-app browser can reach the `production` Preview login page, but Wrangler is not authenticated here, so no Preview-only test secrets were set. Authenticated resize/save/reopen and simulation publish/unpublish checks and real-browser screenshots/visual scores remain outstanding.
+- **Simulation Preview:** Authenticated browser checks exercised 15/30/45 breadboard sizes and rendered a 45-column board; the tested builder surface scored 8/10. Draft privacy, publish/direct-route behavior, the power control, draft-update isolation until republishing, unpublish hiding the route, and the Project → Related simulations picker (including its “Draft — hidden publicly” label and saved relation) were verified. The disposable Preview records were removed. Still open: edge-hole snapping/wires, resize cleanup, undo/redo, save/reopen, the page Simulation block selector, and a published project's public simulation embed.
+- **Backups:** Verify a legacy backup restore and a new backup round trip containing both a published simulation and an explicit-NULL draft. Local compatibility regressions passed; this Preview browser round trip remains open.
+- **Photo Editor:** Finish prompt submit/cancel, Escape/backdrop, and focus-return checks. Verify blank-image editor card centering and uploaded header-image dimensions before load.
+- **Content/media:** Retest homepage image delivery and authenticated media metadata after the confirmed media migration. Resolve the homepage image's missing alt text before publishing affected content. The Production site has no articles, projects, simulations, or scans; do not add filler to check highlight.js, model-viewer, header sizing, or iPhone `.usdz` AR.
+- **Other browser checks:** Confirm Web Speech read-aloud with installed voices, the live Worker's `0 8 * * *` backup schedule, and `sitemap.xml` in a browser. Preview Workers do not run Cron Triggers; never trigger a Production backup as Preview QA.
+- **Environment and access:** The cloud browser cannot reach localhost, and Chromium installation failed under restricted egress. Hosted Cloudflare Preview browser testing did work. Temporary Preview-only QA secrets and the secret-bearing test deployments were removed after checks. Preview is otherwise public; never use Production secrets/data for Preview tests. See [Preview access control](https://developers.cloudflare.com/workers/previews/#access-control).
 
 ## 7. Recurring security, SEO, and accessibility checks
 
@@ -440,12 +434,9 @@ permissions — out of scope], 597 [package/dependency system — out of scope],
 
 ## 9. Current audit status
 
-- Breadboard-size work supports 15/30/45 presets; a missing `cols` keeps the legacy 30-column default, while an explicit invalid value is rejected.
-  Critic scores: pass 1, 9/10; pass 2, 8/10; pass 3, 9/10; pass 4, 9/10. Pass-2 findings were fixed; pass 4 found no actionable code issues.
-- Simulation #362 stores separate published name/data snapshots, keeps new rows as drafts, and exposes explicit publish/update/unpublish actions. Legacy backups restore as published; explicit NULL snapshots remain drafts. Local publication, backup-compatibility, and fresh-bootstrap migration regressions pass. The Preview database migration is applied and verified, but this code candidate has not been deployed to Preview; authenticated lifecycle checks and real-browser visual review remain outstanding. Production still needs its own schema inspection and migration before promotion.
-- Critic gate: the three sequential reviews scored 9/10, 8/10, and 8/10; their findings were fixed between passes. A final re-review scored 9/10 with no actionable findings. The earlier review's two findings were also fixed.
-- The earlier breadboard candidate's Preview build succeeded and its login route loaded. This publication candidate has not yet been deployed to Preview; authenticated feature checks and real-browser screenshots/visual scores remain open.
-- Promotion requires the stated critic and manual gates, a fast-forward from `production` to `main`, and a fresh check that both refs have not moved. Never force-push; if browser checks remain unavailable, keep the candidate on `production`.
+- The initial simulation source review scored 8/10; both findings were fixed. The three requested sequential critic passes scored 9/10, 8/10, and 8/10, with findings fixed between passes. Final re-review scored 9/10 with no actionable findings. Breadboard-size critic passes scored 9/10, 8/10, 9/10, and 9/10; the second-pass findings were fixed.
+- Candidate-source checks passed: 66 server/security/SEO checks; 9 song save/race/waveform checks; modal-stack/accessibility checks; simulation save/open, publication, backup-compatibility, and bootstrap-migration regressions; JavaScript syntax; and `git diff --check`. Scratch regression scripts remain outside the repository. No CI run is claimed.
+- Authenticated Preview QA is recorded in section 6. The candidate is on `production`; `main` remains unchanged. Remaining manual gates and Production D1 schema/migration inspection block promotion. Recheck both refs before any move; promote only as a clean fast-forward and never force-push.
 
 ## 10. Open decisions
 
