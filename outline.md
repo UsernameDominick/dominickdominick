@@ -159,7 +159,7 @@ Open and partial items only; completed implementation histories remain in Git hi
 - ☐ Rules engine, workflow builder for publishing/archiving
 
 ### Writing and article editor
-- 🔶 Import UI and paste cleanup from documents/websites
+- 🔶 Import UI and paste cleanup from documents/websites (paste cleanup ✅ in the article and project body fields: rich clipboard HTML becomes headings, bold, italic, safe links, lists, quotes, code and tables; a file-import UI for documents ☐)
 
 ### Saving, recovery, and versioning
 - ☐ Side-by-side compare of conflicting versions (currently just "reload to see latest")

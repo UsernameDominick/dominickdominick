@@ -310,6 +310,7 @@
             <button type="button" class="writing-focus-btn" data-focus-target="article-body" title="Distraction-free full-screen writing">Focus</button>
           </div>
           <textarea id="article-body" placeholder="Write here. Blank line = new paragraph. **bold**, *italic*, [link](url). ## Heading, ### Subheading (two or more headings add a table of contents). ```lang / code / ``` for a code block. Pipe tables. [^1] + [^1]: note for footnotes. Use the Before/After button for an image comparison slider. Use the Callout button (or :::note ... ::: / :::tip / :::warning / :::danger) for a highlighted note box." rows="16"></textarea>
+          <small id="article-body-paste-note" class="paste-note" role="status"></small>
           <div class="article-word-count-row">
             <div id="article-word-count" class="article-word-count">0 words · 0 min read</div>
             <label class="article-word-goal">Goal <input type="number" id="article-word-goal" min="0" step="50" placeholder="none"></label>
@@ -459,6 +460,7 @@
             <button type="button" class="writing-focus-btn" data-focus-target="project-body" title="Distraction-free full-screen writing">Focus</button>
           </div>
           <textarea id="project-body" placeholder="Write here. Same formatting as articles: **bold**, *italic*, [link](url), ## / ### headings, ```code``` blocks, pipe tables, [^1] footnotes, :::note ::: callouts." rows="14"></textarea>
+          <small id="project-body-paste-note" class="paste-note" role="status"></small>
           <div id="project-autosave-status" class="article-autosave-status"></div>
           <div id="publish-checklist-project" class="publish-checklist"></div>
           <div id="project-link-warnings" class="link-warnings"></div>

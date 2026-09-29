@@ -6730,3 +6730,10 @@ kbd {
   -webkit-mask-image: none !important;
   mask-image: none !important;
 }
+
+.paste-note {
+  display: block;
+  min-height: 1em;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
