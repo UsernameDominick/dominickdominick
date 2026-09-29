@@ -1321,6 +1321,10 @@
   // ---------- List modal ----------
   async function loadSongsList() {
     songs = await window.adminApi("/songs");
+    // A deleted song can't stay open as a tab.
+    const before = songTabs.length;
+    songTabs = songTabs.filter((t) => t.draft || songs.some((x) => x.id === t.id));
+    if (songTabs.length !== before) renderSongTabs();
     renderSongsList();
   }
 
@@ -1466,9 +1470,144 @@
     openBuilder(null, templateId);
   });
 
+  // ---------- Tabs (songs open in this session) ----------
+  // Each tab is a song row, or the one unsaved draft (id null). Switching
+  // reuses openBuilder(), so every guard it already has (pending saves, the
+  // generation token against racing opens) applies unchanged; the only
+  // addition is flushing a pending autosave first so a quick switch doesn't
+  // ask "discard unsaved changes?" over an edit that autosave was seconds from
+  // saving.
+  let songTabs = [];
+  function renderSongTabs() {
+    const bar = $("song-tabs");
+    if (!bar) return;
+    bar.innerHTML = "";
+    songTabs.forEach((t) => {
+      const active = t.draft ? currentSongId == null : t.id === currentSongId;
+      const wrap = document.createElement("div");
+      wrap.className = "song-tab" + (active ? " is-active" : "");
+      const label = document.createElement("button");
+      label.type = "button";
+      label.className = "song-tab-label";
+      label.setAttribute("role", "tab");
+      label.setAttribute("aria-selected", String(active));
+      label.tabIndex = active ? 0 : -1;
+      label.textContent = (t.name || "Untitled song") + (t.draft ? " (unsaved)" : "");
+      label.title = label.textContent;
+      label.addEventListener("click", () => switchToTab(t));
+      const close = document.createElement("button");
+      close.type = "button";
+      close.className = "song-tab-close";
+      close.setAttribute("aria-label", "Close tab " + (t.name || "Untitled song"));
+      close.textContent = "×";
+      close.addEventListener("click", () => closeTab(t));
+      wrap.append(label, close);
+      bar.append(wrap);
+    });
+    const add = document.createElement("button");
+    add.type = "button";
+    add.className = "song-tab-add";
+    add.textContent = "+ Open another song";
+    add.title = "Go to the song list (your open tabs stay)";
+    add.addEventListener("click", leaveToSongList);
+    bar.append(add);
+    // Keep the active tab in view in the scrolling strip (only the strip scrolls).
+    // Deferred a frame so the strip has its layout when the builder has just opened.
+    requestAnimationFrame(() => {
+      const current = bar.querySelector(".song-tab.is-active");
+      if (!current) return;
+      if (current.offsetLeft < bar.scrollLeft) bar.scrollLeft = current.offsetLeft - 8;
+      else if (current.offsetLeft + current.offsetWidth > bar.scrollLeft + bar.clientWidth) bar.scrollLeft = current.offsetLeft + current.offsetWidth - bar.clientWidth + 8;
+    });
+  }
+  // Left/Right/Home/End move between tabs (roving tabindex).
+  $("song-tabs").addEventListener("keydown", (e) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+    const tabs = [...$("song-tabs").querySelectorAll(".song-tab-label")];
+    const i = tabs.indexOf(document.activeElement);
+    if (i < 0) return;
+    e.preventDefault();
+    const next = e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : (i + (e.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+    tabs[next].focus();
+  });
+  function syncActiveTab() {
+    const name = $("song-name").value.trim() || "Untitled song";
+    let tab = songTabs.find((t) => (currentSongId ? t.id === currentSongId : t.draft));
+    if (!tab) {
+      // A draft that just got its first save turns into that song's tab.
+      const draft = currentSongId ? songTabs.find((t) => t.draft) : null;
+      if (draft) {
+        draft.draft = false;
+        draft.id = currentSongId;
+        tab = draft;
+      } else {
+        tab = currentSongId ? { id: currentSongId, name } : { id: null, draft: true, name };
+        songTabs.push(tab);
+      }
+    }
+    tab.name = name;
+    renderSongTabs();
+  }
+  async function flushAutosaveBeforeSwitch() {
+    if (currentSongId && songHasUnsavedChanges) {
+      clearTimeout(autosaveTimer);
+      await autosaveSong();
+    }
+  }
+  async function switchToTab(t) {
+    const active = t.draft ? currentSongId == null : t.id === currentSongId;
+    if (active) return;
+    await flushAutosaveBeforeSwitch();
+    await openBuilder(t.id);
+  }
+  async function closeTab(t) {
+    const active = t.draft ? currentSongId == null : t.id === currentSongId;
+    if (!active) {
+      songTabs = songTabs.filter((x) => x !== t);
+      renderSongTabs();
+      return;
+    }
+    await flushAutosaveBeforeSwitch();
+    const i = songTabs.indexOf(t);
+    const neighbour = songTabs[i + 1] || songTabs[i - 1];
+    if (neighbour) {
+      // The tab goes only once the switch really happened (a declined discard
+      // prompt or a save in progress keeps everything as it was).
+      const before = openGeneration;
+      await openBuilder(neighbour.id);
+      if (openGeneration !== before) {
+        songTabs = songTabs.filter((x) => x !== t);
+        renderSongTabs();
+      }
+    } else if (canLeaveSongBuilder()) {
+      songTabs = [];
+      stopPlayback();
+      $("song-builder-modal").hidden = true;
+      $("songs-modal").hidden = false;
+      loadSongsList().catch(() => {});
+    }
+  }
+  async function leaveToSongList() {
+    await flushAutosaveBeforeSwitch();
+    if (!canLeaveSongBuilder()) return;
+    stopPlayback();
+    $("song-builder-modal").hidden = true;
+    $("songs-modal").hidden = false;
+    loadSongsList().catch(() => {});
+  }
+  $("song-name").addEventListener("input", () => {
+    const tab = songTabs.find((t) => (currentSongId ? t.id === currentSongId : t.draft));
+    if (tab) {
+      tab.name = $("song-name").value.trim() || "Untitled song";
+      renderSongTabs();
+    }
+  });
+
   // ---------- Open / close builder ----------
   async function openBuilder(id, templateId) {
     if (!canLeaveSongBuilder()) return;
+    // Leaving an unsaved draft discards it, so its tab goes too.
+    if (currentSongId == null) songTabs = songTabs.filter((t) => !t.draft);
     stopPlayback();
     // Switching songs must drop any pending autosave for the PREVIOUS one
     // first — openBuilder awaits a fetch before songData is reassigned,
@@ -1534,10 +1673,12 @@
     renderPianoRoll();
     updatePreviewVisibility();
     refreshWaveformPreview();
+    syncActiveTab();
   }
 
   $("close-song-builder").addEventListener("click", () => {
     if (!canLeaveSongBuilder()) return;
+    songTabs = []; // the top × ends the editing session; "+ Open another song" keeps the tabs
     stopPlayback();
     $("song-builder-modal").hidden = true;
     $("songs-modal").hidden = false;
@@ -1593,7 +1734,10 @@
         if (window.refreshSongOptions) window.refreshSongOptions();
         return;
       }
-      if (!id) currentSongId = newId;
+      if (!id) {
+        currentSongId = newId;
+        syncActiveTab();
+      }
       if (dirtyGen === songDirtyGeneration) {
         clearTimeout(autosaveTimer);
         songHasUnsavedChanges = false;

@@ -6424,3 +6424,77 @@ kbd {
   }
 }
 
+
+/* Song builder: tabs for the songs open in this session */
+.song-tabs {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 6px 12px 0;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.song-tab {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  max-width: 220px;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  background: transparent;
+}
+
+.song-tab.is-active {
+  background: var(--bg-elevated);
+  border-color: var(--accent);
+}
+
+.song-tab button {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 6px 10px;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.song-tab.is-active button {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.song-tab .song-tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.song-tab .song-tab-close {
+  padding: 6px 8px 6px 0;
+  line-height: 1;
+}
+
+.song-tab-add {
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px dashed var(--border);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 6px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.song-tabs button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
