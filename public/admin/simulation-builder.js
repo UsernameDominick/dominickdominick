@@ -762,6 +762,9 @@
           throw new Error(`Component ${index + 1} has an invalid logic gate. Gate must be one of ${Object.keys(window.SIM_LOGIC_GATES).join(", ")}, and a custom truth table must list 4 outputs (2-input gates) or 2 (NOT and buffer), each 0 or 1.`);
         }
       }
+      if (component.type === "switch_spdt" && Object.prototype.hasOwnProperty.call(component, "position") && component.position !== "a" && component.position !== "b") {
+        throw new Error(`Component ${index + 1} has an invalid switch position. Position must be "a" or "b".`);
+      }
       const renderedId = String(component.id);
       if (renderedComponentIds.has(renderedId)) {
         throw new Error(`Component ${index + 1} has an id that collides in the builder canvas.`);
@@ -1007,7 +1010,7 @@
           disconnected ? " sim-pin-disconnected" : ""
         }${inNet ? " sim-net-highlight" : ""}" data-comp="${escapeXml(comp.id)}" data-pin="${p.id}" cx="${comp.x + p.x}" cy="${
           comp.y + p.y
-        }" r="5"/>`;
+        }" r="5">${p.label ? `<title>${escapeXml(p.label)}</title>` : ""}</circle>`;
       })
       .join("");
   }
@@ -1674,7 +1677,17 @@
 
   function describeSpdtElectricalEffect(position) {
     const [on, off] = position === "b" ? ["B", "A"] : ["A", "B"];
-    return `Throw ${on} — the common terminal is connected to throw ${on}; throw ${off} is disconnected, so current only flows between common and throw ${on}, and only if the rest of the circuit is complete.`;
+    return `The common terminal is connected to throw ${on}. Throw ${off} is disconnected, so current can only flow between common and throw ${on}, and only if the rest of the circuit is complete.`;
+  }
+
+  // Where throw A and throw B sit on screen right now (rotation and flip move
+  // them), so the Position options can say "upper"/"lower" or "left"/"right".
+  function spdtThrowSides(comp) {
+    const pins = window.getSimComponentDefinition(comp).pins;
+    const a = pins.find((p) => p.id === "a");
+    const b = pins.find((p) => p.id === "b");
+    if (Math.abs(a.y - b.y) >= Math.abs(a.x - b.x)) return a.y <= b.y ? ["upper", "lower"] : ["lower", "upper"];
+    return a.x <= b.x ? ["left", "right"] : ["right", "left"];
   }
 
   function describeSwitchElectricalEffect(closed) {
@@ -1929,9 +1942,10 @@
         <label><input type="checkbox" id="sim-comp-switch-closed" ${closed ? "checked" : ""}> Closed — click the part on the canvas to toggle it too</label>`;
       } else if (comp.type === "switch_spdt") {
         const position = window.simSpdtThrow(comp);
-        extraFieldsHtml = `<p class="sim-electrical-effect"><strong>Electrical effect:</strong> ${describeSpdtElectricalEffect(position)}</p>
-        <label>Position<select id="sim-comp-spdt-position"><option value="a" ${position === "a" ? "selected" : ""}>Throw A (upper terminal)</option><option value="b" ${position === "b" ? "selected" : ""}>Throw B (lower terminal)</option></select></label>
-        <p style="color:var(--text-dim);font-size:0.8rem;">Click the part on the canvas to change position too. "Upper" and "lower" describe the default orientation, before any rotation or flip.</p>`;
+        const [sideA, sideB] = spdtThrowSides(comp);
+        extraFieldsHtml = `<p id="sim-spdt-effect" class="sim-electrical-effect"><strong>Electrical effect:</strong> ${describeSpdtElectricalEffect(position)}</p>
+        <label title="Which throw the common terminal is connected to. Click the part on the canvas to change it too.">Position<select id="sim-comp-spdt-position" aria-describedby="sim-spdt-effect"><option value="a" ${position === "a" ? "selected" : ""}>A — ${sideA} terminal</option><option value="b" ${position === "b" ? "selected" : ""}>B — ${sideB} terminal</option></select></label>
+        <p style="color:var(--text-dim);font-size:0.8rem;">Hover a terminal to see whether it is Common, Throw A or Throw B. It doesn't plug into breadboard holes, so wire its terminals instead.</p>`;
       } else if (comp.type === "outlet") {
         extraFieldsHtml = `<p style="color:var(--text-dim);font-size:0.8rem;">Fixed 120V AC, like a real wall outlet. Never wire it directly to a breadboard part — it must go through a Power Supply, or everything downstream is destroyed instantly.</p>`;
       }

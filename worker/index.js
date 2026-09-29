@@ -917,7 +917,7 @@ function simulationTopologyDescription(data) {
       case "switch":
         return component.closed === false ? "open switch" : "closed switch";
       case "switch_spdt":
-        return `changeover switch connected to throw ${component.position === "b" ? "B" : "A"}`;
+        return `common terminal connected to throw ${component.position === "b" ? "B" : "A"}`;
       default:
         return "";
     }
@@ -933,7 +933,8 @@ function simulationTopologyDescription(data) {
   const describeEndpoint = (endpoint) => {
     const component = componentsById.get(String(endpoint?.compId));
     if (!component) return "an unidentified component pin";
-    return `${describeComponent(component)} pin ${shortValue(endpoint?.pin) || "unknown"}`;
+    const pinLabel = getSimulationComponentDefinition(component)?.pins?.find((pin) => pin.id === endpoint?.pin)?.label;
+    return pinLabel ? `${describeComponent(component)}, ${pinLabel.charAt(0).toLowerCase()}${pinLabel.slice(1)} pin` : `${describeComponent(component)} pin ${shortValue(endpoint?.pin) || "unknown"}`;
   };
   const componentSummary = components.slice(0, 20).map(describeComponent);
   const wireSummary = wires.slice(0, 30).map((wire) => `${describeEndpoint(wire?.from)} connects to ${describeEndpoint(wire?.to)}`);

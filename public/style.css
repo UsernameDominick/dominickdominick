@@ -2081,8 +2081,9 @@ h6 { font-size: 0.9rem; }
   stroke: var(--text-dim);
   stroke-width: 2;
 }
-.sim-comp-switch,
-.sim-comp-switch_spdt {
+/* Only the builder's switches toggle on click; the public embed is view-only. */
+#sim-builder-svg .sim-comp-switch,
+#sim-builder-svg .sim-comp-switch_spdt {
   cursor: pointer;
 }
 

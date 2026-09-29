@@ -78,7 +78,8 @@ Worker secret, not stored in this repo). From there:
   inductor passes it like a wire with only its winding resistance; the
   capacitance and inductance values are kept for reference. An SPDT
   (changeover) switch connects its common terminal to one of two throws;
-  click it on the canvas or use the inspector to change position.
+  click it on the canvas or use the inspector to change position. It
+  doesn't snap into breadboard holes; wire its three terminals instead.
   Dragging an LED or resistor near a breadboard hole snaps it into place
   and plugs it in automatically, like a real breadboard.
   Select a part and press **R** (Shift+R the other way) to rotate it 90°, or **F** to flip it left to right

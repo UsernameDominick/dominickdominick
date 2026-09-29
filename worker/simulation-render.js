@@ -328,6 +328,20 @@ export function validateLogicGates(data) {
   return null;
 }
 
+// An SPDT switch's stored position must be exactly "a" or "b" (the renderers
+// are lenient and treat anything else as "a", but stored data stays clean).
+export function validateSwitchPositions(data) {
+  if (!data || typeof data !== "object" || Array.isArray(data) || !Array.isArray(data.components)) return null;
+  for (let index = 0; index < data.components.length; index++) {
+    const comp = data.components[index];
+    if (!comp || typeof comp !== "object" || Array.isArray(comp) || comp.type !== "switch_spdt") continue;
+    if (Object.prototype.hasOwnProperty.call(comp, "position") && comp.position !== "a" && comp.position !== "b") {
+      return `Component ${index + 1} has an invalid switch position. Position must be "a" or "b".`;
+    }
+  }
+  return null;
+}
+
 export const SIM_COMPONENTS = {
   outlet: {
     label: "Wall Outlet",
@@ -445,13 +459,13 @@ export const SIM_COMPONENTS = {
     w: 40,
     h: 40,
     pins: [
-      { id: "com", x: 0, y: 20 },
-      { id: "a", x: 40, y: 8 },
-      { id: "b", x: 40, y: 32 },
+      { id: "com", x: 0, y: 20, label: "Common" },
+      { id: "a", x: 40, y: 10, label: "Throw A" },
+      { id: "b", x: 40, y: 30, label: "Throw B" },
     ],
     render: (c) => {
-      const ty = c.position === "b" ? 32 : 8;
-      return `<rect class="switch-body" x="4" y="1" width="32" height="38" rx="3"/><line class="spdt-lead" x1="0" y1="20" x2="8" y2="20"/><line class="spdt-lead" x1="32" y1="8" x2="40" y2="8"/><line class="spdt-lead" x1="32" y1="32" x2="40" y2="32"/><circle class="switch-pivot" cx="8" cy="20" r="2.5"/><circle class="switch-pivot" cx="32" cy="8" r="2.5"/><circle class="switch-pivot" cx="32" cy="32" r="2.5"/><line class="switch-lever" x1="8" y1="20" x2="32" y2="${ty}"/>`;
+      const ty = c.position === "b" ? 30 : 10;
+      return `<rect class="switch-body" x="4" y="1" width="32" height="38" rx="3"/><line class="spdt-lead" x1="0" y1="20" x2="8" y2="20"/><line class="spdt-lead" x1="32" y1="10" x2="40" y2="10"/><line class="spdt-lead" x1="32" y1="30" x2="40" y2="30"/><circle class="switch-pivot" cx="8" cy="20" r="2.5"/><circle class="switch-pivot" cx="32" cy="10" r="2.5"/><circle class="switch-pivot" cx="32" cy="30" r="2.5"/><line class="switch-lever" x1="8" y1="20" x2="32" y2="${ty}"/>`;
     },
   },
   // A static logic-gate symbol (see the logic-gate block above): its pins
