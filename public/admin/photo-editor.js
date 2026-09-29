@@ -219,8 +219,9 @@
   $("pe-view-rotate").addEventListener("click", () => {
     viewRotation = (viewRotation + 90) % 360;
     applyViewRotation();
-    // The footprint changed (swapped at 90/270), so the fit changes with it.
-    if (!modal.hidden) fitCanvasToViewport(true);
+    // The footprint changed (swapped at 90/270), so the fit changes with it; going
+    // through setZoom keeps the point at the middle of the view in place.
+    if (!modal.hidden) setZoom(zoomMode);
   });
 
   let lastFitDims = "";
@@ -297,7 +298,10 @@
     const scale = zoomMode === "fit" ? Math.min(1, maxW / fitW, maxH / fitH) : zoomMode;
     // The legacy CSS size caps only suit an unrotated Fit: with the view rotated the
     // footprint is swapped, so the (inline) size must be the size the element gets.
-    stack.classList.toggle("is-zoomed", zoomMode !== "fit" || rotated);
+    // The inline size is already exact (fitted or zoomed), so the legacy CSS caps
+    // are never wanted: they could only shrink the element below the size the
+    // pointer mapping assumes (a phone-width squash of wide images).
+    stack.classList.add("is-zoomed");
     // Enlarged pixels stay square instead of blurring, which is what retouching needs.
     stack.classList.toggle("is-pixelated", scale >= 2);
     const w = Math.round(canvas.width * scale);
