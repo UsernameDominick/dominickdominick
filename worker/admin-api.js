@@ -505,13 +505,23 @@ function slugify(str) {
 // Thrown for a request the client got wrong; handleAdminApi answers it with a 400.
 class BadRequestError extends Error {}
 
+// UTF-8 bytes to text; invalid sequences are a 400 rather than silently turning
+// into U+FFFD inside a stored name.
+function decodeUtf8(bytes) {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    throw new BadRequestError("The request body must be valid UTF-8.");
+  }
+}
+
 // A JSON request body as a plain object. No body at all reads as {}; anything
 // else that isn't a JSON object (invalid JSON, null, a string, a number, an
 // array) is a 400 rather than a silent {} -- an empty object would otherwise
 // reach handlers that treat missing fields as "clear this" (a settings save)
 // and blank data the caller never meant to touch.
 async function readJsonBody(request) {
-  const text = await request.text();
+  const text = decodeUtf8(await request.arrayBuffer());
   if (!text.trim()) return {};
   let body;
   try {
@@ -557,7 +567,7 @@ async function readBodyTextCapped(request, maxBytes) {
     all.set(chunk, offset);
     offset += chunk.byteLength;
   }
-  return new TextDecoder().decode(all);
+  return decodeUtf8(all);
 }
 
 export async function handleAdminApi(request, env, url, ctx) {

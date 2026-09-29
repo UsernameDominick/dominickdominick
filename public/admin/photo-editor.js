@@ -878,7 +878,7 @@
     let base = on
       ? `Selection: ${selBounds.w} × ${selBounds.h} px bounding box, ${Math.max(1, Math.round(selBounds.coverage * 100))}% of the image. Edits apply inside it only.`
       : "No selection.";
-    if (on && $("pe-sel-view").value === "mask") base += " The mask view hides the image; switch Show back to see your edits.";
+    if (on && $("pe-sel-view").value === "mask") base += " Mask view hides the image.";
     const text = selectionNoteText ? `${selectionNoteText} ${base}` : base;
     const statusEl = $("pe-sel-status");
     statusEl.textContent = text;
@@ -911,6 +911,11 @@
     }
     rasterizeSelection();
     selBounds = analyseSelection();
+    finishSelectionRebuild();
+  }
+
+  // Everything after the mask is rasterised and its bounds are known.
+  function finishSelectionRebuild() {
     if (!selBounds) {
       dropSelection("The selection ended up empty, so it was cleared.");
       return;
@@ -1244,9 +1249,43 @@
       redrawOverlay();
       return;
     }
+    if (!hasSelection()) {
+      pushSelectionUndo();
+      selOps = next;
+      rebuildSelection();
+      return;
+    }
+    // Rasterise the result first: a shape that changes nothing you can see (a
+    // rectangle wholly inside the selection, a subtraction wholly outside it)
+    // isn't a history step.
+    const before = { ops: selOps, mask: selMask, ctx: selMaskCtx, data: selMaskData };
+    selOps = next;
+    rasterizeSelection();
+    const nextBounds = analyseSelection();
+    if (nextBounds && sameSelectionAlpha(before.data, selMaskData)) {
+      selOps = before.ops;
+      selMask = before.mask;
+      selMaskCtx = before.ctx;
+      selMaskData = before.data;
+      selectionNote("That shape doesn't change the selection.");
+      redrawOverlay();
+      return;
+    }
+    selOps = before.ops;
     pushSelectionUndo();
     selOps = next;
-    rebuildSelection();
+    selBounds = nextBounds;
+    finishSelectionRebuild();
+  }
+
+  // Two rasterised masks that select the same pixels (alpha within one unit).
+  function sameSelectionAlpha(a, b) {
+    if (!a || !b || a.length !== b.length) return false;
+    for (let i = 3; i < a.length; i += 4) {
+      const d = a[i] - b[i];
+      if (d > 1 || d < -1) return false;
+    }
+    return true;
   }
 
   // True when the points lie (almost) on one straight line, which encloses
@@ -3053,6 +3092,19 @@
   window.addEventListener("resize", () => {
     if (!modal.hidden) fitCanvasToViewport();
   });
+  // The canvas area settles a frame after the editor opens and changes size when
+  // the bars around it wrap, so refit whenever the area itself changes size, not
+  // only on window resizes (otherwise it can open scrolled at short heights).
+  if (typeof ResizeObserver === "function") {
+    let fitFrame = 0;
+    new ResizeObserver(() => {
+      if (fitFrame) return;
+      fitFrame = requestAnimationFrame(() => {
+        fitFrame = 0;
+        if (!modal.hidden) fitCanvasToViewport();
+      });
+    }).observe(stack.parentElement);
+  }
 
   // Shared by both entry points below: everything that has to reset for
   // ANY brand-new editing session, regardless of whether the starting

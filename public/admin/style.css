@@ -6251,6 +6251,11 @@ kbd {
   #pe-selection-group label {
     white-space: nowrap;
   }
+  /* The desktop full-row basis would make the closed "Type a box" section as wide
+     as the whole group and push everything after it over the groups that follow. */
+  .pe-sel-box {
+    flex: 0 0 auto;
+  }
   .pe-sel-box label {
     flex: 0 0 auto;
   }
@@ -6307,6 +6312,14 @@ kbd {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
+}
+
+/* Short windows: one line, so the pill covers as little of the image as possible
+   (the screen-reader text is always complete). */
+@media (max-height: 560px) {
+  .pe-sel-status {
+    -webkit-line-clamp: 1;
+  }
 }
 
 /* With nothing to report it is visually hidden (still there for screen readers). */
