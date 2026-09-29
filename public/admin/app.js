@@ -4029,140 +4029,218 @@
   // wrapper markup along. In the writing fields the clipboard's HTML is turned into
   // the site's own Markdown-style text (headings, bold, italic, links, lists,
   // quotes, code blocks, tables) and everything else is dropped. Plain-text paste
-  // (Ctrl+Shift+V, or a clipboard with no formatting) is left alone.
+  // (Ctrl+Shift+V, or a clipboard with no formatting) is left alone. The site's
+  // renderer has no backslash escapes, so characters it would read as formatting
+  // (asterisks, "](" and line-leading markers) are swapped for look-alikes.
   const PASTE_SEMANTIC = /<(h[1-6]|strong|b|em|i|a|ul|ol|li|blockquote|table|pre)\b/i;
-  const SAFE_LINK = /^(https?:\/\/|mailto:|\/|#)/i;
+  const PASTE_MAX_HTML = 1500000; // beyond this, leave the browser's own paste alone
+  const PASTE_UNDO_MAX = 20000; // longer results are inserted in one step (no native Undo)
+  const PASTE_SKIP = new Set(["script", "style", "meta", "link", "head", "title", "img", "svg", "iframe", "object", "noscript", "template", "form", "input", "textarea", "button", "select", "audio", "video", "canvas", "hr"]);
+  const PASTE_INLINE = new Set(["span", "b", "strong", "em", "i", "a", "font", "u", "s", "strike", "del", "ins", "mark", "small", "big", "sup", "sub", "code", "kbd", "samp", "var", "abbr", "cite", "q", "dfn", "time", "label", "bdi", "bdo", "wbr", "tt", "br"]);
+  const PASTE_BLOCK_SEL = "p,div,h1,h2,h3,h4,h5,h6,ul,ol,li,blockquote,pre,table,section,article,figure,dl,dt,dd";
+
+  function pasteSafeHref(raw) {
+    let href = String(raw || "").trim();
+    if (!href) return null;
+    if (/^\/\//.test(href)) href = "https:" + href; // protocol-relative -> explicit
+    if (/^\/\\/.test(href)) return null;
+    const scheme = href.replace(/[\u0000- ]/g, "");
+    if (!/^(https?:|mailto:|tel:)/i.test(scheme) && /^[a-z][a-z0-9+.-]*:/i.test(scheme)) return null; // javascript:, data:, vbscript:...
+    // The renderer's link syntax can't hold these, so they are percent-encoded.
+    return href.replace(/[()\[\]|\s]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0"));
+  }
+  const pasteEscape = (t) => t.replace(/\*/g, "∗").replace(/\]\(/g, "]​(");
+  const pasteCollapse = (t) => t.replace(/[ \t\r\n ]+/g, " ");
+  const pasteWrapLines = (text, mark) => text.split("\n").map((l) => (l.trim() ? mark + l.trim() + mark : l)).join("\n");
+
   function htmlToMarkdownLite(html) {
     const doc = new DOMParser().parseFromString(html, "text/html"); // inert: scripts never run
-    const isBold = (n) => {
-      const w = (n.style && n.style.fontWeight) || "";
-      return /^(bold|[6-9]00)$/.test(w);
-    };
-    const isItalic = (n) => (n.style && n.style.fontStyle) === "italic";
-    const collapse = (t) => t.replace(/[ \t\r\n ]+/g, " ");
-    function inline(node) {
-      let out = "";
-      node.childNodes.forEach((c) => {
-        if (c.nodeType === 3) {
-          out += collapse(c.nodeValue);
-        } else if (c.nodeType === 1) {
-          const tag = c.tagName.toLowerCase();
-          if (["script", "style", "meta", "link", "head", "title", "img", "svg", "iframe", "object"].includes(tag)) return;
-          if (tag === "br") {
-            out += "\n";
+    const weightOf = (n) => (n.style && n.style.fontWeight) || "";
+    const isBoldEl = (n, tag) => tag === "strong" || (tag === "b" && !/^(normal|400)$/.test(weightOf(n))) || /^(bold|[6-9]00)$/.test(weightOf(n));
+    const isItalicEl = (n, tag) => tag === "em" || tag === "i" || (n.style && n.style.fontStyle) === "italic";
+
+    // One inline node as text, including its own bold/italic/link. Only the outermost
+    // of nested emphasis is kept (the renderer can't nest ** and *).
+    function inlineOf(node, st) {
+      if (node.nodeType === 3) return pasteEscape(pasteCollapse(node.nodeValue));
+      if (node.nodeType !== 1) return "";
+      const tag = node.tagName.toLowerCase();
+      if (PASTE_SKIP.has(tag)) return "";
+      if (tag === "br") return "\n";
+      if (tag === "sup" && /^\s*\[?\d+\]?\s*$/.test(node.textContent)) return ""; // footnote markers like [1]
+      const free = !st.bold && !st.italic;
+      const bold = free && isBoldEl(node, tag);
+      const italic = free && !bold && isItalicEl(node, tag);
+      const child = { bold: st.bold || bold, italic: st.italic || italic, noLink: st.noLink };
+      let inner = "";
+      node.childNodes.forEach((k) => (inner += inlineOf(k, child)));
+      if (!inner.trim()) return inner;
+      let text = inner;
+      if (tag === "a" && !st.noLink) {
+        const href = pasteSafeHref(node.getAttribute("href"));
+        if (href) text = text.replace(/^(\s*)([\s\S]*?)(\s*)$/, (_, a, core, z) => `${a}[${core.replace(/\s*\n\s*/g, " ").replace(/\[/g, "(").replace(/\]/g, ")")}](${href})${z}`);
+      }
+      const lead = text.match(/^\s*/)[0];
+      const trail = text.match(/\s*$/)[0];
+      let core = text.trim();
+      if (bold) core = pasteWrapLines(core, "**");
+      else if (italic) core = pasteWrapLines(core, "*");
+      return lead + core + trail;
+    }
+
+    const plain = (node) => pasteCollapse(inlineOf(node, { bold: true, italic: true, noLink: true })).trim();
+    const tidy = (t) => t.replace(/[ \t]*\n[ \t]*/g, "\n").replace(/^\s+|\s+$/g, "");
+    const STRUCT = /^(#{1,6}\s|[-+]\s|>|\d+[.)]\s|:::|\[\^|\[before)/;
+
+    // Word writes each typed-in bullet as its own paragraph: consecutive ones form one list.
+    function pushBlock(out, b) {
+      const last = out[out.length - 1];
+      if (b.wordList && last && last.wordList) last.text += "\n" + b.text;
+      else out.push(b);
+    }
+
+    function paragraphs(text, out) {
+      tidy(text)
+        .split(/\n{2,}/)
+        .forEach((p) => {
+          p = p.trim();
+          if (!p) return;
+          const bullet = p.match(/^[•·▪◦‣∙]\s*([\s\S]+)$/); // Word's typed-in bullets
+          if (bullet) {
+            pushBlock(out, { text: `- ${bullet[1].replace(/\s*\n\s*/g, " ")}`, wordList: true });
             return;
           }
-          const inner = inline(c);
-          if (!inner.trim()) {
-            out += inner;
-            return;
-          }
-          const bold = tag === "strong" || (tag === "b" && !/^(normal|400)$/.test((c.style && c.style.fontWeight) || "")) || isBold(c);
-          const italic = tag === "em" || tag === "i" || isItalic(c);
-          let text = inner;
-          if (tag === "a") {
-            const href = (c.getAttribute("href") || "").trim();
-            text = SAFE_LINK.test(href) ? `[${inner.trim()}](${href})` : inner;
-          }
-          const lead = text.match(/^\s*/)[0];
-          const trail = text.match(/\s*$/)[0];
-          let core = text.trim();
-          if (bold) core = `**${core}**`;
-          if (italic && !/^\*[^*]/.test(core)) core = `*${core}*`;
-          out += lead + core + trail;
-        }
-      });
-      return out;
+          // Lines the renderer would read as structure get an invisible lead character.
+          out.push({ text: p.split("\n").map((l) => (STRUCT.test(l) ? "​" + l : l)).join("\n") });
+        });
     }
-    const blocks = [];
-    function list(node, ordered, depth) {
-      let n = 1;
-      node.childNodes.forEach((li) => {
-        if (li.nodeType !== 1 || li.tagName.toLowerCase() !== "li") return;
-        const clone = li.cloneNode(true);
-        const nested = [...clone.querySelectorAll(":scope > ul, :scope > ol")];
-        nested.forEach((x) => x.remove());
-        const text = inline(clone).replace(/\s*\n\s*/g, " ").trim();
-        if (text) blocks.push({ list: true, ordered, text: `${"  ".repeat(depth)}${ordered ? `${n++}.` : "-"} ${text}` });
-        nested.forEach((x) => list(x, x.tagName.toLowerCase() === "ol", depth + 1));
-      });
+
+    function listBlock(listEl) {
+      const ordered = listEl.tagName.toLowerCase() === "ol";
+      let n = Number(listEl.getAttribute("start")) || 1;
+      const lines = [];
+      const items = (el, depth) => {
+        el.childNodes.forEach((k) => {
+          if (k.nodeType !== 1) return;
+          const tag = k.tagName.toLowerCase();
+          if (tag === "ul" || tag === "ol") return items(k, depth + 1); // Google Docs nests a list straight inside a list
+          if (tag !== "li") return;
+          const clone = k.cloneNode(true);
+          const nested = [...clone.querySelectorAll(":scope > ul, :scope > ol")];
+          nested.forEach((x) => x.remove());
+          const text = walk(clone).map((b) => b.text.replace(/\s*\n\s*/g, " ")).join(" ").trim();
+          // The renderer flattens lists and needs one marker type per list, so nested
+          // items reuse the top list's marker (and keep counting when it is numbered).
+          if (text) lines.push(`${"  ".repeat(depth)}${ordered ? `${n++}.` : "-"} ${text}`);
+          nested.forEach((x) => items(x, depth + 1));
+        });
+      };
+      items(listEl, 0);
+      return lines.join("\n");
     }
-    function walk(node) {
-      node.childNodes.forEach((c) => {
-        if (c.nodeType === 3) {
-          const t = collapse(c.nodeValue).trim();
-          if (t) blocks.push({ text: t });
-          return;
-        }
+
+    function tableBlocks(table, out) {
+      const rowsEl = [...table.children].flatMap((c) => (/^(thead|tbody|tfoot)$/i.test(c.tagName) ? [...c.children] : [c])).filter((r) => r.tagName === "TR");
+      const rows = rowsEl.map((tr) => {
+        const cells = [];
+        [...tr.children].forEach((cell) => {
+          if (!/^(td|th)$/i.test(cell.tagName)) return;
+          cells.push(plain(cell).replace(/\|/g, "¦"));
+          for (let i = 1; i < Math.min(20, Number(cell.getAttribute("colspan")) || 1); i++) cells.push("");
+        });
+        return cells;
+      });
+      const caption = table.querySelector(":scope > caption");
+      if (caption) paragraphs(plain(caption), out);
+      const w = Math.max(0, ...rows.map((r) => r.length));
+      if (w < 2) {
+        rows.forEach((r) => paragraphs(r.join(" "), out)); // the renderer needs two or more columns
+        return;
+      }
+      const line = (r) => `| ${Array.from({ length: w }, (_, i) => r[i] || "").join(" | ")} |`;
+      out.push({ text: [line(rows[0]), `|${" --- |".repeat(w)}`, ...rows.slice(1).map(line)].join("\n") });
+    }
+
+    function walk(container) {
+      const out = [];
+      let run = [];
+      const flush = () => {
+        if (!run.length) return;
+        const text = run.map((n) => inlineOf(n, {})).join("");
+        run = [];
+        paragraphs(text, out);
+      };
+      container.childNodes.forEach((c) => {
+        if (c.nodeType === 3) return run.push(c);
         if (c.nodeType !== 1) return;
         const tag = c.tagName.toLowerCase();
-        if (["script", "style", "meta", "link", "head", "title", "img", "svg", "iframe", "object"].includes(tag)) return;
+        if (PASTE_SKIP.has(tag)) return;
+        if (PASTE_INLINE.has(tag) && !c.querySelector(PASTE_BLOCK_SEL)) return run.push(c);
+        flush();
         if (/^h[1-6]$/.test(tag)) {
-          const t = inline(c).replace(/\s+/g, " ").replace(/\*+/g, "").trim();
-          if (t) blocks.push({ text: `${tag <= "h2" ? "##" : "###"} ${t}` });
+          const t = plain(c);
+          if (t) out.push({ text: `${tag <= "h2" ? "##" : "###"} ${t}` });
         } else if (tag === "ul" || tag === "ol") {
-          list(c, tag === "ol", 0);
-          blocks.push({ text: "" });
+          const t = listBlock(c);
+          if (t) out.push({ text: t });
         } else if (tag === "blockquote") {
-          const t = inline(c).trim().replace(/\n{2,}/g, "\n");
-          if (t) blocks.push({ text: t.split("\n").map((l) => `> ${l.trim()}`).join("\n") });
+          const lines = walk(c).flatMap((b) => b.text.split("\n")).map((l) => l.trim()).filter(Boolean);
+          if (lines.length) out.push({ text: lines.map((l) => `> ${l}`).join("\n") });
         } else if (tag === "pre") {
-          blocks.push({ text: "```\n" + c.textContent.replace(/\n+$/, "") + "\n```" });
+          const code = c.textContent.replace(/\r/g, "").replace(/\n+$/, "").replace(/```/g, "``​`");
+          out.push({ text: "```\n" + code + "\n```" });
         } else if (tag === "table") {
-          const rows = [...c.querySelectorAll("tr")].map((tr) => [...tr.children].map((cell) => inline(cell).replace(/\s+/g, " ").replace(/\|/g, "/").trim()));
-          if (rows.length && rows[0].length) {
-            const w = rows[0].length;
-            const line = (r) => `| ${Array.from({ length: w }, (_, i) => r[i] || "").join(" | ")} |`;
-            blocks.push({ text: [line(rows[0]), `|${" --- |".repeat(w)}`, ...rows.slice(1).map(line)].join("\n") });
-          }
-        } else if (["p", "li"].includes(tag)) {
-          const t = inline(c).trim();
-          if (t) blocks.push({ text: t });
-        } else if (["div", "section", "article", "main", "body", "html", "figure", "tbody", "thead", "span", "font", "b", "strong", "em", "i", "a"].includes(tag)) {
-          // A wrapper: its own inline run is one paragraph if it holds no block children.
-          const hasBlock = [...c.children].some((k) => /^(p|div|h[1-6]|ul|ol|blockquote|pre|table|section|article|figure)$/i.test(k.tagName));
-          if (hasBlock) walk(c);
-          else {
-            const t = inline(c).trim();
-            if (t) blocks.push({ text: t });
-          }
+          tableBlocks(c, out);
         } else {
-          const t = inline(c).trim();
-          if (t) blocks.push({ text: t });
+          walk(c).forEach((b) => pushBlock(out, b)); // p, div, section, dt/dd, wrappers: their content
         }
       });
+      flush();
+      return out;
     }
-    walk(doc.body);
-    // Blank line between blocks, but list items stay together.
-    let out = "";
-    blocks.forEach((b, i) => {
-      if (!b.text && !b.list) return;
-      const prev = blocks.slice(0, i).reverse().find((x) => x.text || x.list);
-      // Items of the same list stay together; a bullet list next to a numbered one is two lists.
-      out += (prev ? (prev.list && b.list && prev.ordered === b.ordered ? "\n" : "\n\n") : "") + b.text;
-    });
-    return out.replace(/\n{3,}/g, "\n\n").trim();
+
+    const md = walk(doc.body).map((b) => b.text).join("\n\n");
+    // A fragment pasted mid-sentence keeps its edge spaces ("bold " + next word).
+    const edge = doc.body.textContent;
+    const single = !md.includes("\n\n");
+    return single ? (/^\s/.test(edge) ? " " : "") + md + (/\s$/.test(edge) ? " " : "") : md;
   }
 
   function attachPasteCleanup(id) {
     const ta = el(id);
     if (!ta) return;
+    const note = () => el(`${id}-paste-note`);
+    let pasting = false;
+    ta.addEventListener("input", () => {
+      if (!pasting && note()) note().textContent = "";
+    });
     ta.addEventListener("paste", (e) => {
       const data = e.clipboardData;
       const html = data && data.getData("text/html");
-      if (!html || !PASTE_SEMANTIC.test(html)) return; // plain text: normal paste
-      const md = htmlToMarkdownLite(html);
-      if (!md) return;
+      if (!html || html.length > PASTE_MAX_HTML || !PASTE_SEMANTIC.test(html)) return; // plain text: normal paste
+      let md;
+      try {
+        md = htmlToMarkdownLite(html);
+      } catch {
+        return; // never block a paste over a converter bug
+      }
+      if (!md.trim()) return;
       e.preventDefault();
+      pasting = true;
       ta.focus();
-      // insertText keeps the browser's own Undo working in a textarea.
-      if (!document.execCommand || !document.execCommand("insertText", false, md)) {
+      const big = md.length > PASTE_UNDO_MAX;
+      // insertText keeps the browser's own Undo working, but it is very slow for long
+      // multi-line text; those go in as one edit.
+      if (big || !document.execCommand || !document.execCommand("insertText", false, md)) {
         ta.setRangeText(md, ta.selectionStart, ta.selectionEnd, "end");
         ta.dispatchEvent(new Event("input", { bubbles: true }));
       }
-      ta.title = "";
-      const hint = el(`${id}-paste-note`);
-      if (hint) hint.textContent = "Pasted with the formatting cleaned up. Ctrl+Z undoes it; Ctrl+Shift+V pastes plain text.";
+      setTimeout(() => (pasting = false), 0);
+      if (note()) {
+        note().textContent = big
+          ? "Pasted with the formatting cleaned up. This paste is large, so Ctrl+Z can't undo it as one step. Ctrl+Shift+V pastes plain text."
+          : "Pasted with the formatting cleaned up. Ctrl+Z undoes it; Ctrl+Shift+V pastes plain text.";
+      }
     });
   }
   window.__htmlToMarkdownLite = htmlToMarkdownLite; // exercised by the admin tests
