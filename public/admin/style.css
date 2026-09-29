@@ -1388,7 +1388,7 @@ code.color-field-value {
   margin-bottom: -8px;
 }
 
-.md-toolbar-btn, .writing-focus-btn {
+.md-toolbar-btn, .writing-focus-btn, .md-import-btn {
   width: auto;
   background: var(--bg);
   border: 1px solid var(--border);

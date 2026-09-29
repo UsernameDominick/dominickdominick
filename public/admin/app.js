@@ -4480,6 +4480,86 @@
     });
   }
   window.__htmlToMarkdownLite = htmlToMarkdownLite; // exercised by the admin tests
+
+  // ---------- Import a text file into a writing field ----------
+  // Reads a Markdown, plain-text or HTML file in the browser (nothing is uploaded)
+  // and inserts it where the cursor is, undoable like a paste. HTML goes through the
+  // same cleanup as pasted content. A title found in the file fills the title field
+  // when that is still empty. Word and PDF files aren't readable this way.
+  const IMPORT_MAX_BYTES = 2 * 1024 * 1024;
+  let importTarget = null;
+  function importedTextToMarkdown(name, text) {
+    const lower = name.toLowerCase();
+    const result = { body: "", title: "" };
+    if (/\.html?$/.test(lower)) {
+      const doc = new DOMParser().parseFromString(text, "text/html");
+      result.title = (doc.querySelector("title") || {}).textContent || "";
+      const h1 = doc.body && doc.body.querySelector("h1");
+      if (!result.title.trim() && h1) result.title = h1.textContent;
+      if (h1 && h1.textContent.trim() === result.title.trim()) h1.remove(); // the title has its own field
+      result.body = htmlToMarkdownLite(doc.body ? doc.body.innerHTML : text);
+    } else {
+      let md = text.replace(/\r\n?/g, "\n");
+      const fm = md.match(/^---\n([\s\S]*?)\n---\n?/);
+      if (fm) {
+        const t = fm[1].match(/^title:\s*["']?(.+?)["']?\s*$/m);
+        if (t) result.title = t[1];
+        md = md.slice(fm[0].length);
+      }
+      const first = md.match(/^\s*#\s+(.+)\n?/);
+      if (first) {
+        if (!result.title) result.title = first[1].trim();
+        if (first[1].trim() === result.title.trim()) md = md.slice(first[0].length);
+      }
+      result.body = md.replace(/^\n+/, "").replace(/\s+$/, "");
+    }
+    result.title = result.title.replace(/\s+/g, " ").trim().slice(0, 200);
+    return result;
+  }
+  document.querySelectorAll(".md-import-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      importTarget = btn.dataset.importTarget;
+      el("import-file-input").value = "";
+      el("import-file-input").click();
+    });
+  });
+  el("import-file-input").addEventListener("change", async () => {
+    const file = el("import-file-input").files && el("import-file-input").files[0];
+    const targetId = importTarget;
+    if (!file || !targetId) return;
+    const note = el(`${targetId}-paste-note`);
+    if (/\.(docx?|pdf|odt|rtf|pages)$/i.test(file.name)) {
+      return alert("That kind of file can't be read here. Save it as HTML or Markdown from your word processor, or copy and paste its text into the field.");
+    }
+    if (file.size > IMPORT_MAX_BYTES) return alert("That file is over 2 MB. Import it in smaller parts.");
+    let text;
+    try {
+      text = await file.text();
+    } catch {
+      return alert("Couldn't read that file.");
+    }
+    if (text.includes("\u0000")) return alert("That doesn't look like a text file.");
+    const { body, title } = importedTextToMarkdown(file.name, text);
+    if (!body.trim()) return alert("Nothing to import: the file has no text.");
+    const ta = el(targetId);
+    ta.focus();
+    const big = body.length > PASTE_UNDO_MAX || body.split("\n").length > PASTE_UNDO_LINES;
+    if (big || !document.execCommand || !document.execCommand("insertText", false, body)) {
+      ta.setRangeText(body, ta.selectionStart, ta.selectionEnd, "end");
+      ta.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    const titleInput = el(targetId === "article-body" ? "article-title" : "project-title");
+    let usedTitle = false;
+    if (titleInput && title && !titleInput.value.trim()) {
+      titleInput.value = title;
+      titleInput.dispatchEvent(new Event("input", { bubbles: true }));
+      usedTitle = true;
+    }
+    if (note) {
+      note.textContent = `Imported ${file.name} (${body.length.toLocaleString()} characters${usedTitle ? ", title filled in" : ""}). ${big ? "This import is large, so Ctrl+Z can't undo it as one step." : "Ctrl+Z undoes it."}`;
+    }
+  });
+
   ["article-body", "project-body"].forEach(attachPasteCleanup);
 
   function prefixCurrentLine(textarea, prefix) {
