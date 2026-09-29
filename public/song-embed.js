@@ -141,7 +141,12 @@
       if (pulse) pulse.classList.remove("song-embed-pulse-beat", "song-embed-pulse-hit");
       if (canvas) drawWaveform(0);
       setPlayLabel(false);
-      if (stopOther === stopPlayback) stopOther = null;
+      if (stopOther === stopByOther) stopOther = null;
+    }
+    // Stopped because another embed started: still counts as a stop for analytics.
+    function stopByOther() {
+      stopPlayback();
+      if (window.trackEvent) window.trackEvent("song_stop");
     }
 
     btn.addEventListener("click", () => {
@@ -150,9 +155,11 @@
         stopPlayback();
         if (window.trackEvent) window.trackEvent("song_stop");
       } else {
-        if (stopOther) stopOther();
-        stopOther = stopPlayback;
+        // Start first: a song that fails to start must not silence the one playing.
+        const previous = stopOther;
         player.start();
+        if (previous && previous !== stopByOther) previous();
+        stopOther = stopByOther;
         setPlayLabel(true);
         if (window.trackEvent) window.trackEvent("song_play");
       }
