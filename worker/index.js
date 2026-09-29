@@ -889,8 +889,10 @@ function simulationTopologyDescription(data) {
       }
       case "capacitor":
         return `${formatCapacitance(capacitanceMicrofarads(component))} (blocks DC)`;
-      case "inductor":
-        return `${formatInductance(inductanceMillihenries(component))}, ${Number(inductorWindingOhms(component).toPrecision(3))} ohm winding resistance`;
+      case "inductor": {
+        const windingOhms = Number(inductorWindingOhms(component).toFixed(2));
+        return `${formatInductance(inductanceMillihenries(component))}, ${windingOhms} ${windingOhms === 1 ? "ohm" : "ohms"} winding resistance`;
+      }
       case "breadboard":
         return `${getSimulationComponentDefinition(component)?.cols || 30} columns`;
       case "led": {

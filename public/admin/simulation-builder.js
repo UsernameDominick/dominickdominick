@@ -1787,7 +1787,8 @@
         } else if (info.kind === "resistor") {
           // A potentiometer's analysis result also comes back as kind
           // "resistor" (it's wired as a plain two-terminal rheostat, see
-          // sim-components.js) -- same current/wattage math, just with
+          // sim-components.js), and so does an inductor's (its winding
+          // resistance) -- same current/wattage math, just with
           // part-appropriate wording. A fixed resistor's rating comes from
           // its real-world 1/4W spec (RESISTOR_WATTAGE_RATING); a
           // potentiometer's is admin-configurable per instance, so calling
@@ -1845,12 +1846,12 @@
         <label title="How far the sliding contact sits along the resistive track, from 0% (minimum resistance) to 100% (maximum) -- same idea as turning a real knob from one end to the other.">Wiper position: <span id="sim-comp-wiper-value">${potState.wiperPct}</span>%<input id="sim-comp-wiper" type="range" min="0" max="100" value="${potState.wiperPct}" aria-describedby="sim-comp-pot-effective"></label>
         <output id="sim-comp-pot-effective" class="sim-electrical-effect" for="sim-comp-wiper">${describePotentiometerElectricalState(potState)}</output>`;
       } else if (comp.type === "capacitor") {
-        extraFieldsHtml = `<label title="How much charge the capacitor can hold per volt. Common values run from picofarads to thousands of microfarads. Recorded for reference -- charging over time isn't simulated.">Capacitance (µF)<input id="sim-comp-capacitance" type="number" min="0.001" step="any" value="${window.simCapacitanceUf(comp)}"></label>
-        <p class="sim-electrical-effect"><strong>Electrical effect:</strong> In a DC circuit a capacitor charges up and then stops current, so it acts like an open circuit here: anything wired through it gets no power. The value is for reference; charging over time isn't simulated.</p>`;
+        extraFieldsHtml = `<label title="How much charge the capacitor can hold per volt. Common values run from picofarads to thousands of microfarads. Recorded for reference -- charging over time isn't simulated.">Capacitance (µF)<input id="sim-comp-capacitance" type="number" min="0.000001" step="any" value="${window.simCapacitanceUf(comp)}"></label>
+        <p class="sim-electrical-effect"><strong>Electrical effect:</strong> In a steady-state circuit a capacitor charges up and then stops current, so it acts like an open circuit here: anything wired through it gets no power. The value is for reference; charging over time isn't simulated.</p>`;
       } else if (comp.type === "inductor") {
-        extraFieldsHtml = `<label title="How strongly the coil resists changes in current. Recorded for reference -- sudden-change behaviour isn't simulated.">Inductance (mH)<input id="sim-comp-inductance" type="number" min="0.001" step="any" value="${window.simInductanceMh(comp)}"></label>
-        <label title="The resistance of the coil's own wire. This is all that limits DC current through an inductor, so it does the actual work in the simulation.">Winding resistance (ohms)<input id="sim-comp-dc-resistance" type="number" min="0.01" step="any" value="${window.simInductorWindingOhms(comp)}"></label>
-        <p class="sim-electrical-effect"><strong>Electrical effect:</strong> Once current settles, an inductor passes DC like a wire with only its winding resistance. Inductance is for reference; sudden-change behaviour isn't simulated.</p>`;
+        extraFieldsHtml = `<label title="How strongly the coil resists changes in current. Recorded for reference -- sudden-change behaviour isn't simulated.">Inductance (mH)<input id="sim-comp-inductance" type="number" min="0.000001" step="any" value="${window.simInductanceMh(comp)}"></label>
+        <label title="The resistance of the coil's own wire. This is all that limits steady current through an inductor, so it does the actual work in the simulation.">Winding resistance (ohms)<input id="sim-comp-dc-resistance" type="number" min="0.01" step="any" value="${window.simInductorWindingOhms(comp)}"></label>
+        <p class="sim-electrical-effect"><strong>Electrical effect:</strong> Once current settles, an inductor passes it like a wire with only its winding resistance. As with every part here, only the series path between a power source and its return is analysed, so an inductor wired in parallel with another part doesn't short it. Inductance is for reference; sudden-change behaviour isn't simulated.</p>`;
       } else if (comp.type === "battery") {
         extraFieldsHtml = `<label title="The battery's nominal voltage -- how much electrical 'push' it supplies to the circuit, matching the voltage printed on a real battery (1.5V AA, 9V, etc.).">Voltage (V)<input id="sim-comp-voltage" type="number" min="0.1" step="0.1" value="${Number(comp.voltage) || 9}"></label>
         <label title="Real batteries aren't perfect voltage sources -- this models a non-ideal battery's own resistance, in series with the rest of the circuit. Leave at 0 for an ideal source (the default, matching every simulation saved before this field existed).">Internal resistance (ohms)<input id="sim-comp-internal-resistance" type="number" min="0" step="0.1" value="${Math.max(0, Number(comp.internalResistance) || 0)}"></label>`;
@@ -1932,19 +1933,30 @@
           renderBuilder();
         });
       }
+      // Positive values are clamped to the field's minimum; a blank, zero or
+      // negative entry is ignored and the stored value is shown again. The
+      // refresh waits a tick so it can put focus back on whatever the user
+      // just tabbed to (re-rendering the inspector would otherwise drop it).
       [
-        ["sim-comp-capacitance", "capacitance", 100, 0.001],
-        ["sim-comp-inductance", "inductance", 10, 0.001],
-        ["sim-comp-dc-resistance", "dcResistance", 1, 0.01],
-      ].forEach(([id, field, fallback, minimum]) => {
+        ["sim-comp-capacitance", "capacitance", 1e-6],
+        ["sim-comp-inductance", "inductance", 1e-6],
+        ["sim-comp-dc-resistance", "dcResistance", 0.01],
+      ].forEach(([id, field, minimum]) => {
         const input = $(id);
         if (!input) return;
         input.addEventListener("change", () => {
-          pushHistory();
           const value = Number(input.value);
-          comp[field] = Number.isFinite(value) && value > 0 ? Math.max(minimum, Math.min(value, 1e9)) : fallback;
-          renderInspector();
-          renderBuilder();
+          if (Number.isFinite(value) && value > 0) {
+            pushHistory();
+            comp[field] = Math.max(minimum, Math.min(value, 1e9));
+          }
+          setTimeout(() => {
+            const activeId = document.activeElement && document.activeElement.id;
+            renderInspector();
+            renderBuilder();
+            const next = activeId && $(activeId);
+            if (next) next.focus();
+          }, 0);
         });
       });
       const maxResistanceInput = $("sim-comp-max-resistance");

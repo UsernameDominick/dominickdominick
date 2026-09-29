@@ -179,32 +179,46 @@ function renderBreadboardSvg(cols) {
 
 // Basic parameters for the two passive parts that don't change the DC
 // analysis on their own: a capacitor is an open circuit once charged, and
-// an inductor is a wire with only its winding resistance. Hand-mirrored in
-// public/admin/sim-components.js.
+// an inductor is a wire with only its winding resistance. Hand-mirrored
+// between public/admin/sim-components.js and worker/simulation-render.js.
 const trimNumber = (n) => String(Math.round(n * 100) / 100);
 export function capacitanceMicrofarads(c) {
   const value = Number(c && c.capacitance);
-  return Number.isFinite(value) && value > 0 ? Math.min(value, 1e9) : 100;
+  return Number.isFinite(value) && value > 0 ? Math.max(1e-6, Math.min(value, 1e9)) : 100;
 }
 export function inductanceMillihenries(c) {
   const value = Number(c && c.inductance);
-  return Number.isFinite(value) && value > 0 ? Math.min(value, 1e9) : 10;
+  return Number.isFinite(value) && value > 0 ? Math.max(1e-6, Math.min(value, 1e9)) : 10;
 }
 export function inductorWindingOhms(c) {
   const value = Number(c && c.dcResistance);
   return Number.isFinite(value) && value > 0 ? Math.max(0.01, Math.min(value, 1e9)) : 1;
 }
+// Picks the largest unit whose value still rounds to at least 1, so 999.999µF
+// reads 1mF rather than 1000µF.
+function formatScaled(base, units) {
+  for (let i = units.length - 1; i > 0; i--) {
+    const value = base / units[i][1];
+    if (Math.round(value * 100) / 100 >= 1) return `${trimNumber(value)}${units[i][0]}`;
+  }
+  return `${trimNumber(base / units[0][1])}${units[0][0]}`;
+}
+const CAPACITANCE_UNITS = [["pF", 1], ["nF", 1e3], ["µF", 1e6], ["mF", 1e9], ["F", 1e12]];
+const INDUCTANCE_UNITS = [["nH", 1], ["µH", 1e3], ["mH", 1e6], ["H", 1e9]];
 export function formatCapacitance(uF) {
-  if (uF < 1) return `${trimNumber(uF * 1000)}nF`;
-  if (uF >= 1000) return `${trimNumber(uF / 1000)}mF`;
-  return `${trimNumber(uF)}µF`;
+  return formatScaled(uF * 1e6, CAPACITANCE_UNITS);
 }
 export function formatInductance(mH) {
-  if (mH < 1) return `${trimNumber(mH * 1000)}µH`;
-  if (mH >= 1000) return `${trimNumber(mH / 1000)}H`;
-  return `${trimNumber(mH)}mH`;
+  return formatScaled(mH * 1e6, INDUCTANCE_UNITS);
 }
-
+// Beside the body at quarter turns, where the upright text would otherwise
+// sit on it. Inline style because the stylesheet's own text-anchor rule
+// outranks the presentation attribute.
+function partLabelSvg(className, text, c, x, upturnedY, turnedY) {
+  const anchor = c && c.rotation === 90 ? "end" : c && c.rotation === 270 ? "start" : "middle";
+  const y = anchor === "middle" ? upturnedY : turnedY;
+  return `<text class="${className}" x="${x}" y="${y}" text-anchor="${anchor}" style="text-anchor:${anchor}" font-size="8">${escXml(text)}</text>`;
+}
 
 export const SIM_COMPONENTS = {
   outlet: {
@@ -316,19 +330,11 @@ export const SIM_COMPONENTS = {
       }" y2="${closed ? 10 : 1}"/><circle class="switch-pivot" cx="32" cy="10" r="2.5"/><line class="switch-lead" x1="32" y1="10" x2="40" y2="10"/>`;
     },
   },
-  // An idealized ammeter: zero resistance (doesn't disturb the circuit
-  // it's measuring), placed IN SERIES like a switch/wire, reporting
-  // whatever current already flows on the analyzed path through it. A
-  // real voltmeter (measured in PARALLEL, showing the potential
-  // difference between two arbitrary points) needs actual per-node
-  // voltage computation this simulator's single-shortest-path model
-  // doesn't have -- that's real solver work, out of scope here; this
-  // covers the current-measurement half of "voltage/current meter" that
-  // fits the existing analysis for free.
   // Two-terminal capacitor. In this DC model it charges up and then blocks
   // current, so it is deliberately not a passthrough and adds no edge to the
   // analysis: anything wired through it gets no power. Leads are one hole
-  // spacing (40px) apart so it plugs into adjacent breadboard columns.
+  // spacing (40px) apart so it plugs into adjacent breadboard columns. The
+  // transparent rect gives the thin part a full-size click target.
   capacitor: {
     label: "Capacitor",
     w: 40,
@@ -338,7 +344,7 @@ export const SIM_COMPONENTS = {
       { id: "p2", x: 40, y: 12 },
     ],
     render: (c) =>
-      `<line class="capacitor-lead" x1="0" y1="12" x2="12" y2="12"/><rect class="capacitor-body" x="12" y="1" width="16" height="22" rx="3"/><line class="capacitor-plate" x1="17" y1="5" x2="17" y2="19"/><line class="capacitor-plate" x1="23" y1="5" x2="23" y2="19"/><line class="capacitor-lead" x1="28" y1="12" x2="40" y2="12"/><text class="capacitor-label" x="20" y="33" text-anchor="middle" font-size="8">${escXml(formatCapacitance(capacitanceMicrofarads(c)))}</text>`,
+      `<rect class="capacitor-hit" x="0" y="0" width="40" height="24" fill="transparent"/><line class="capacitor-lead" x1="0" y1="12" x2="12" y2="12"/><rect class="capacitor-body" x="12" y="1" width="16" height="22" rx="3"/><line class="capacitor-plate" x1="17" y1="5" x2="17" y2="19"/><line class="capacitor-plate" x1="23" y1="5" x2="23" y2="19"/><line class="capacitor-lead" x1="28" y1="12" x2="40" y2="12"/>${partLabelSvg("capacitor-label", formatCapacitance(capacitanceMicrofarads(c)), c, 20, 33, 27.8)}`,
   },
   // Two-terminal inductor: at DC it passes current like a wire with only
   // its winding resistance (see inductorWindingOhms), so it is a passthrough
@@ -354,8 +360,17 @@ export const SIM_COMPONENTS = {
       { id: "p2", x: 80, y: 12 },
     ],
     render: (c) =>
-      `<line class="inductor-lead" x1="0" y1="12" x2="16" y2="12"/><rect class="inductor-body" x="16" y="2" width="48" height="20" rx="6"/><path class="inductor-coil" d="M16,12 a8,8 0 0 1 16,0 a8,8 0 0 1 16,0 a8,8 0 0 1 16,0"/><line class="inductor-lead" x1="64" y1="12" x2="80" y2="12"/><text class="inductor-label" x="40" y="33" text-anchor="middle" font-size="8">${escXml(formatInductance(inductanceMillihenries(c)))}</text>`,
+      `<rect class="inductor-hit" x="0" y="0" width="80" height="24" fill="transparent"/><line class="inductor-lead" x1="0" y1="12" x2="16" y2="12"/><rect class="inductor-body" x="16" y="2" width="48" height="20" rx="6"/><path class="inductor-coil" d="M16,12 a8,8 0 0 1 16,0 a8,8 0 0 1 16,0 a8,8 0 0 1 16,0"/><line class="inductor-lead" x1="64" y1="12" x2="80" y2="12"/>${partLabelSvg("inductor-label", formatInductance(inductanceMillihenries(c)), c, 40, 33, 26.8)}`,
   },
+  // An idealized ammeter: zero resistance (doesn't disturb the circuit
+  // it's measuring), placed IN SERIES like a switch/wire, reporting
+  // whatever current already flows on the analyzed path through it. A
+  // real voltmeter (measured in PARALLEL, showing the potential
+  // difference between two arbitrary points) needs actual per-node
+  // voltage computation this simulator's single-shortest-path model
+  // doesn't have -- that's real solver work, out of scope here; this
+  // covers the current-measurement half of "voltage/current meter" that
+  // fits the existing analysis for free.
   ammeter: {
     label: "Ammeter",
     w: 40,

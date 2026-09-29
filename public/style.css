@@ -1888,7 +1888,8 @@ h6 { font-size: 0.9rem; }
 /* Capacitor and inductor -- two-terminal passives; the label prints the value. */
 .sim-comp .capacitor-lead,
 .sim-comp .inductor-lead {
-  stroke: url(#sim-grad-metal);
+  /* Solid: a bounding-box gradient paints nothing on a zero-height line. */
+  stroke: #9aa0a6;
   stroke-width: 2;
 }
 .sim-comp .capacitor-body {
