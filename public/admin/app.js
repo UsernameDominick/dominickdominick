@@ -4524,6 +4524,7 @@
       }
       if (/^".*"$/.test(value)) value = value.slice(1, -1).replace(/\\(["\\])/g, "$1");
       else if (/^'.*'$/.test(value)) value = value.slice(1, -1).replace(/''/g, "'");
+      else value = value.replace(/^["']/, ""); // an unterminated quote
       title = value;
     }
     return { title, rest: md.slice(m[0].length), found: true };
@@ -4600,11 +4601,11 @@
       titleInput.dispatchEvent(new Event("input", { bubbles: true }));
     }
     if (note) {
-      const bits = [`${body.length.toLocaleString()} characters`];
+      const bits = body.trim() ? [`${body.length.toLocaleString()} character${body.length === 1 ? "" : "s"}`] : [];
       if (titleUsed) bits.push("title filled in");
       if (frontMatter) bits.push("front matter removed");
       const warn = text.includes("\uFFFD") ? " Some characters couldn't be read, so the file may not be UTF-8 text." : "";
-      note.textContent = `Imported ${file.name} (${bits.join(", ")}). ${!body.trim() ? "" : big ? "This import is large, so Ctrl+Z can't undo it as one step." : `Ctrl+Z undoes the text${titleUsed ? " (not the title)" : ""}.`}${warn}`;
+      note.textContent = `Imported ${file.name} (${bits.join(", ")}).${!body.trim() ? "" : " "}${!body.trim() ? "" : big ? "This import is large, so Ctrl+Z can't undo it as one step." : `Ctrl+Z undoes the text${titleUsed ? " (not the title)" : ""}.`}${warn}`;
     }
   });
 
