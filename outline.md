@@ -354,9 +354,9 @@ background-replacement) all need either a browser ML model or an external API wi
 infra exists today.
 
 ### DAW/Audio — Easy
-- 184. Tempo/time-signature settings — tempo field exists; add a sibling field.
+- 184. Tempo/time-signature settings — tempo field exists; add a sibling field. (Checked: every module assumes 16 steps per pattern, so a signature other than 4/4 needs a variable pattern length in the engine, the step grids, the embed, cached peaks and saved data; needs a decision on which signatures/step counts to support before building.)
 - 190. Multiple sessions via tabs — songs already separate D1 rows/list UI.
-- 199. Reorder/duplicate tracks — array ops, duplicate-song pattern exists.
+- 199. Reorder/duplicate tracks — array ops, duplicate-song pattern exists. (Checked: the four drum tracks are fixed named voices and playback sorts them by name, so reorder would be display-only and duplicating a track has no meaning until tracks are user-defined; revisit with the multitrack model.)
 - 217. Reverse selected audio (requires imported/recorded audio buffers)
 - 220. Remove DC offset (requires imported/recorded audio buffers)
 - 276. Polarity inversion (requires stereo signal support)
@@ -382,13 +382,13 @@ enterprise-flagged: "restricted mixer" implies per-viewer access control beyond 
 sandboxed plugin architecture — substantial new infra + security surface).
 
 ### Simulations — Easy
-- 363. Deterministic runs/seeds — sim is deterministic already; add a seed field for future randomness.
+- 363. Deterministic runs/seeds — sim is deterministic already; add a seed field for future randomness. (Skipped on purpose: there is no randomness to seed, so the field would be a dead control; add it together with the first feature that needs one.)
 - 409. Relays (SPDT changeover switch shipped; a relay still needs a coil model — the single-path DC solver can't express "coil current closes a contact" without feedback).
 - 415. Current source — checked while implementing #416: doesn't fit this simulator's model as worded. This
   solver assumes constant-voltage sources and derives current via I=V/R; a true current source needs a different
   source model, which is outside the current simulator's scope.
 - 431. Voltage meter (requires arbitrary-node voltage computation)
-- 534. Public param controls — expose whitelisted fields already in `data` via player UI.
+- 534. Public param controls — expose whitelisted fields already in `data` via player UI. (Checked: the public player only toggles the power animation; the analysis runs on the server at render time, so live parameter controls need the solver shipped to the browser or a re-render endpoint first.)
 
 ### Simulations — Medium
 364, 365, 368, 369, 370, 372, 374, 376, 377, 379, 381-384, 386, 390, 392, 395, 399, 400, 406-408, 412-414,
