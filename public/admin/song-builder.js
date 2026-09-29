@@ -1482,28 +1482,42 @@
     const bar = $("song-tabs");
     if (!bar) return;
     bar.innerHTML = "";
+    const list = document.createElement("div");
+    list.className = "song-tablist";
+    list.setAttribute("role", "tablist");
+    list.setAttribute("aria-label", "Open songs");
     songTabs.forEach((t) => {
       const active = t.draft ? currentSongId == null : t.id === currentSongId;
+      const title = (t.draft ? "(unsaved) " : "") + (t.name || "Untitled song");
       const wrap = document.createElement("div");
       wrap.className = "song-tab" + (active ? " is-active" : "");
+      wrap.setAttribute("role", "presentation");
       const label = document.createElement("button");
       label.type = "button";
       label.className = "song-tab-label";
       label.setAttribute("role", "tab");
       label.setAttribute("aria-selected", String(active));
       label.tabIndex = active ? 0 : -1;
-      label.textContent = (t.name || "Untitled song") + (t.draft ? " (unsaved)" : "");
-      label.title = label.textContent;
+      label.textContent = title;
+      label.title = title + " (Delete closes this tab)";
       label.addEventListener("click", () => switchToTab(t));
+      label.addEventListener("keydown", (e) => {
+        if (e.key === "Delete") {
+          e.preventDefault();
+          closeTab(t);
+        }
+      });
       const close = document.createElement("button");
       close.type = "button";
       close.className = "song-tab-close";
-      close.setAttribute("aria-label", "Close tab " + (t.name || "Untitled song"));
+      close.tabIndex = -1; // Delete on the tab closes it; one Tab stop per tab, not two
+      close.setAttribute("aria-label", "Close tab " + title);
       close.textContent = "×";
       close.addEventListener("click", () => closeTab(t));
       wrap.append(label, close);
-      bar.append(wrap);
+      list.append(wrap);
     });
+    bar.append(list);
     const add = document.createElement("button");
     add.type = "button";
     add.className = "song-tab-add";
@@ -1511,6 +1525,13 @@
     add.title = "Go to the song list (your open tabs stay)";
     add.addEventListener("click", leaveToSongList);
     bar.append(add);
+    // Announce the song now open (the strip itself is rebuilt on every change).
+    const status = document.createElement("span");
+    status.className = "song-tab-status";
+    status.setAttribute("role", "status");
+    const cur = songTabs.find((t) => (t.draft ? currentSongId == null : t.id === currentSongId));
+    status.textContent = cur ? `Editing ${cur.name || "Untitled song"}, tab ${songTabs.indexOf(cur) + 1} of ${songTabs.length}` : "";
+    bar.append(status);
     // Keep the active tab in view in the scrolling strip (only the strip scrolls).
     // Deferred a frame so the strip has its layout when the builder has just opened.
     requestAnimationFrame(() => {
@@ -1557,35 +1578,52 @@
   async function switchToTab(t) {
     const active = t.draft ? currentSongId == null : t.id === currentSongId;
     if (active) return;
-    await flushAutosaveBeforeSwitch();
-    await openBuilder(t.id);
+    try {
+      await flushAutosaveBeforeSwitch();
+      if (await openBuilder(t.id)) focusActiveTab();
+    } catch (err) {
+      alert(`Couldn't switch songs: ${(err && err.message) || "something went wrong"}`);
+    }
   }
   async function closeTab(t) {
+    if (!songTabs.includes(t)) return; // a second click on a tab already closed
     const active = t.draft ? currentSongId == null : t.id === currentSongId;
     if (!active) {
       songTabs = songTabs.filter((x) => x !== t);
       renderSongTabs();
       return;
     }
-    await flushAutosaveBeforeSwitch();
-    const i = songTabs.indexOf(t);
-    const neighbour = songTabs[i + 1] || songTabs[i - 1];
-    if (neighbour) {
-      // The tab goes only once the switch really happened (a declined discard
-      // prompt or a save in progress keeps everything as it was).
-      const before = openGeneration;
-      await openBuilder(neighbour.id);
-      if (openGeneration !== before) {
-        songTabs = songTabs.filter((x) => x !== t);
+    try {
+      await flushAutosaveBeforeSwitch();
+      const i = songTabs.indexOf(t);
+      const neighbour = songTabs[i + 1] || songTabs[i - 1];
+      if (neighbour) {
+        // The tab goes only once the switch really happened (a declined discard
+        // prompt, a save in progress or a failed load keeps everything as it was).
+        if (await openBuilder(neighbour.id)) {
+          songTabs = songTabs.filter((x) => x !== t);
+          renderSongTabs();
+          focusActiveTab();
+        }
+      } else if (canLeaveSongBuilder()) {
+        songTabs = [];
         renderSongTabs();
+        stopPlayback();
+        $("song-builder-modal").hidden = true;
+        $("songs-modal").hidden = false;
+        loadSongsList().catch(() => {});
       }
-    } else if (canLeaveSongBuilder()) {
-      songTabs = [];
-      stopPlayback();
-      $("song-builder-modal").hidden = true;
-      $("songs-modal").hidden = false;
-      loadSongsList().catch(() => {});
+    } catch (err) {
+      alert(`Couldn't close that tab: ${(err && err.message) || "something went wrong"}`);
     }
+  }
+  // Focus survives a re-render: the strip is rebuilt, so put it back on the
+  // active tab after a switch or close.
+  function focusActiveTab() {
+    requestAnimationFrame(() => {
+      const el = $("song-tabs").querySelector(".song-tab.is-active .song-tab-label");
+      if (el) el.focus();
+    });
   }
   async function leaveToSongList() {
     await flushAutosaveBeforeSwitch();
@@ -1604,35 +1642,45 @@
   });
 
   // ---------- Open / close builder ----------
+  // Fetch first, commit second: the song that is open stays fully intact (id,
+  // form, data, autosave state) until the requested one has actually loaded, so a
+  // failed or superseded open can never leave the builder pointing at one song
+  // while showing another's content. Resolves true once the new song is open.
+  let openRequestSeq = 0;
   async function openBuilder(id, templateId) {
-    if (!canLeaveSongBuilder()) return;
+    if (!canLeaveSongBuilder()) return false;
+    // Clicking Edit on song A and then song B before A's GET resolves: only the
+    // latest request may apply its response.
+    const mySeq = ++openRequestSeq;
+    let song = null;
+    if (id) {
+      try {
+        song = await window.adminApi(`/songs/${id}`);
+      } catch (err) {
+        if (mySeq !== openRequestSeq) return false;
+        if (/not found/i.test((err && err.message) || "")) {
+          songTabs = songTabs.filter((t) => t.id !== id);
+          renderSongTabs();
+        }
+        alert(`Couldn't open that song: ${(err && err.message) || "the request failed"}`);
+        return false;
+      }
+      if (mySeq !== openRequestSeq) return false;
+    }
     // Leaving an unsaved draft discards it, so its tab goes too.
     if (currentSongId == null) songTabs = songTabs.filter((t) => !t.draft);
     stopPlayback();
-    // Switching songs must drop any pending autosave for the PREVIOUS one
-    // first — openBuilder awaits a fetch before songData is reassigned,
-    // so without this, a timer scheduled while editing song A could fire
-    // during that await window, after currentSongId has already moved on
-    // to song B but songData is still A's stale content, silently
-    // overwriting B's row with A's data.
+    // Drop any pending autosave for the PREVIOUS song now that it is really being
+    // left (openGeneration below also makes any in-flight one stale).
     clearTimeout(autosaveTimer);
     setAutosaveStatus("");
     songHasUnsavedChanges = false;
     songDirtyGeneration = 0;
     autosaveQueued = false;
-    // A second, independent race a critic pass found: clicking Edit on
-    // song A, then song B before A's own GET resolves, used to let
-    // whichever response came back LAST win, applying it to the form
-    // regardless of which song the admin actually meant to open --
-    // `currentSongId` would correctly end up as B, but the populated
-    // songData/name/tempo/etc. could silently be A's. This generation
-    // token is bumped on every call and checked right after the await;
-    // a superseded call bails out before touching anything.
     const myGeneration = ++openGeneration;
+    void myGeneration;
     currentSongId = id;
     if (id) {
-      const song = await window.adminApi(`/songs/${id}`);
-      if (myGeneration !== openGeneration) return;
       $("song-name").value = song.name;
       songData = backfillSongData(song.data && song.data.tracks ? song.data : defaultSongData());
     } else if (templateId) {
@@ -1674,11 +1722,13 @@
     updatePreviewVisibility();
     refreshWaveformPreview();
     syncActiveTab();
+    return true;
   }
 
   $("close-song-builder").addEventListener("click", () => {
     if (!canLeaveSongBuilder()) return;
     songTabs = []; // the top × ends the editing session; "+ Open another song" keeps the tabs
+    renderSongTabs();
     stopPlayback();
     $("song-builder-modal").hidden = true;
     $("songs-modal").hidden = false;

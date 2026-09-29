@@ -6427,7 +6427,10 @@ kbd {
 
 /* Song builder: tabs for the songs open in this session */
 .song-tabs {
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg-elevated);
   display: flex;
   align-items: stretch;
   gap: 4px;
@@ -6497,4 +6500,19 @@ kbd {
 .song-tabs button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
+}
+
+.song-tablist {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.song-tab-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
