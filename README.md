@@ -43,7 +43,7 @@ Worker secret, not stored in this repo). From there:
 - Use the "Media" button, or "Browse…" next to any image field, to reuse
   a previously uploaded image instead of uploading it again.
 - The pencil icon on a Media Library image opens the **Photo Editor**:
-  crop/select, rotate, brightness/contrast/saturation, an erase/blur/
+  crop/select, zoom and pan (25% to 800%), rotate, brightness/contrast/saturation, an erase/blur/
   pixelate brush, and rectangle/circle/arrow/text annotations, with
   Undo. Selection tools (rectangle, ellipse, freehand lasso, click-by-click
   polygon; Shift adds, Alt subtracts, Invert, Ctrl+D to deselect) limit the

@@ -1155,6 +1155,14 @@
       <div class="pe-body">
         <div class="pe-workspace">
           <div class="pe-toolbar">
+            <div class="pe-tool-group" id="pe-zoom-group" role="group" aria-label="Zoom and pan">
+              <span class="pe-group-label">Zoom</span>
+              <button type="button" id="pe-zoom-out" aria-label="Zoom out" title="Zoom out (-, or Ctrl+wheel)">−</button>
+              <button type="button" id="pe-zoom-reset" aria-pressed="true" title="Fit the whole image in the window (0)">Fit</button>
+              <button type="button" id="pe-zoom-100" aria-pressed="false" title="Actual pixels (1)">100%</button>
+              <button type="button" id="pe-zoom-in" aria-label="Zoom in" title="Zoom in (+, or Ctrl+wheel)">+</button>
+              <button type="button" class="pe-tool" data-tool="pan" aria-label="Pan tool" title="Drag to move around a zoomed image. Also: hold Space, or drag with the middle mouse button.">✋ Pan</button>
+            </div>
             <div class="pe-tool-group">
               <span class="pe-group-label">Crop</span>
               <button type="button" class="pe-tool active" data-tool="select">Select / Crop</button>

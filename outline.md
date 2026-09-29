@@ -101,7 +101,7 @@ Verify distinct test-only Preview values before protected-flow checks.
   touch users the same control as a drag. Undo is a 15-snapshot canvas stack plus a separate 40-entry allowance for
   selection-only changes (Undo and Redo step through selection edits, and a selection-heavy session can never push a
   pixel edit out of the history). The selection's status line is a small pill over the canvas area, out of the
-  layout, so it never resizes the canvas or the bars around it. Straighten rotates by -45 to +45 degrees with a live overlay
+  layout, so it never resizes the canvas or the bars around it. Zoom (25% to 800%: buttons, + - 0 1 keys, Ctrl+wheel about the cursor) and pan (Pan tool, held Space or the middle mouse button; the canvas area scrolls) work with every tool, enlarged pixels stay crisp from 200%, and holding Compare at a zoom shows the original at the same magnification. Straighten rotates by -45 to +45 degrees with a live overlay
   preview and auto-crops to the largest same-aspect rectangle that fits inside the tilted image.
 - **Song/DAW:** fixed 16-step sequencer with synthesized Web Audio; no sample playback, multitrack timeline,
   mixing, or effects. The builder has a tab strip for the songs opened in one session (in memory only, cleared
@@ -337,7 +337,6 @@ simulations need parity.
 - 17. Layer colors/labels — metadata fields once layers exist.
 - 18. Search/filter layers — simple list filter UI.
 - 77. Hard-edged pencil (requires a real freehand paintbrush first)
-- 90. Magnified retouch comparison (requires zoom/pan)
 
 ### Photo Editor — Medium
 4, 7, 9, 10, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 29, 30, 35, 36, 37, 38, 39, 42, 45, 46, 48, 49, 53, 55, 58,

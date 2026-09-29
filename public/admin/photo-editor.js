@@ -209,6 +209,45 @@
   });
 
   let lastFitDims = "";
+  // ---------- Zoom and pan ----------
+  // "fit" or a magnification (1 = actual pixels). The canvas area already scrolls,
+  // so panning is scrolling; pointer mapping reads the displayed size, so every
+  // tool keeps working at any zoom.
+  let zoomMode = "fit";
+  const ZOOM_STEPS = [0.25, 0.33, 0.5, 0.67, 1, 1.5, 2, 3, 4, 6, 8];
+  function currentScale() {
+    return (parseFloat(overlay.style.width) || canvas.width) / canvas.width || 1;
+  }
+  // Set the zoom, keeping the image point under (clientX, clientY) fixed (the
+  // centre of the area by default).
+  function setZoom(mode, clientX, clientY) {
+    const wrapEl = stack.parentElement;
+    const wr = wrapEl.getBoundingClientRect();
+    const ax = clientX == null ? wr.left + wr.width / 2 : clientX;
+    const ay = clientY == null ? wr.top + wr.height / 2 : clientY;
+    const before = stack.getBoundingClientRect();
+    const fx = before.width ? (ax - before.left) / before.width : 0.5;
+    const fy = before.height ? (ay - before.top) / before.height : 0.5;
+    zoomMode = mode === "fit" ? "fit" : Math.max(ZOOM_STEPS[0], Math.min(ZOOM_STEPS[ZOOM_STEPS.length - 1], mode));
+    fitCanvasToViewport();
+    const after = stack.getBoundingClientRect();
+    wrapEl.scrollLeft += after.left + fx * after.width - ax;
+    wrapEl.scrollTop += after.top + fy * after.height - ay;
+    redrawOverlay();
+    updateZoomUi();
+  }
+  function stepZoom(dir, clientX, clientY) {
+    const cur = currentScale();
+    const next = dir > 0 ? ZOOM_STEPS.find((z) => z > cur + 0.005) : [...ZOOM_STEPS].reverse().find((z) => z < cur - 0.005);
+    if (next !== undefined) setZoom(next, clientX, clientY);
+  }
+  function updateZoomUi() {
+    const cur = currentScale();
+    $("pe-zoom-out").disabled = cur <= ZOOM_STEPS[0] + 0.005;
+    $("pe-zoom-in").disabled = cur >= ZOOM_STEPS[ZOOM_STEPS.length - 1] - 0.005;
+    $("pe-zoom-reset").setAttribute("aria-pressed", String(zoomMode === "fit"));
+    $("pe-zoom-100").setAttribute("aria-pressed", String(zoomMode === 1));
+  }
   // fromLayout: the refit was caused by the area or window changing size, not by an
   // edit, so with unchanged pixel dimensions there is nothing to re-estimate.
   function fitCanvasToViewport(fromLayout = false) {
@@ -220,7 +259,12 @@
     const innerH = wrapEl.clientHeight - parseFloat(wrapStyle.paddingTop) - parseFloat(wrapStyle.paddingBottom);
     const maxW = Math.max(1, Math.min(wrapEl.clientWidth * 0.9, innerW));
     const maxH = Math.max(1, Math.min(wrapEl.clientHeight * 0.9, innerH));
-    const scale = Math.min(1, maxW / canvas.width, maxH / canvas.height);
+    // "fit" shows the whole image (never enlarged past 100%); a number is a fixed
+    // magnification relative to real pixels.
+    const scale = zoomMode === "fit" ? Math.min(1, maxW / canvas.width, maxH / canvas.height) : zoomMode;
+    stack.classList.toggle("is-zoomed", zoomMode !== "fit");
+    // Enlarged pixels stay square instead of blurring, which is what retouching needs.
+    stack.classList.toggle("is-pixelated", scale >= 2);
     const w = Math.round(canvas.width * scale);
     const h = Math.round(canvas.height * scale);
     canvas.style.width = w + "px";
@@ -284,6 +328,7 @@
     pct.className = "pe-scale";
     pct.textContent = String(Math.round(scale * 100));
     el2.append(pct, "% displayed");
+    updateZoomUi();
   }
 
   function clearOverlay() {
@@ -624,6 +669,7 @@
         if (!family && fontSelect.value === "custom") fontSelect.value = "sans-serif";
       });
     }
+    overlay.style.cursor = tool === "pan" ? "grab" : "";
     redrawOverlay();
   }
 
@@ -2638,6 +2684,69 @@
     invalidateOpenAdjustDrag();
   }
 
+  // ---------- Zoom / pan input ----------
+  $("pe-zoom-in").addEventListener("click", () => stepZoom(1));
+  $("pe-zoom-out").addEventListener("click", () => stepZoom(-1));
+  $("pe-zoom-reset").addEventListener("click", () => setZoom("fit"));
+  $("pe-zoom-100").addEventListener("click", () => setZoom(1));
+  // Ctrl (or pinch-as-Ctrl) + wheel zooms about the cursor; a plain wheel scrolls.
+  stack.parentElement.addEventListener(
+    "wheel",
+    (e) => {
+      if (!(e.ctrlKey || e.metaKey) || modal.hidden) return;
+      e.preventDefault();
+      stepZoom(e.deltaY < 0 ? 1 : -1, e.clientX, e.clientY);
+    },
+    { passive: false }
+  );
+  let spaceHeld = false;
+  let panning = null;
+  function typingInField(t) {
+    return !!t && (t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable || (t.tagName === "INPUT" && !["range", "color", "checkbox", "radio", "button"].includes(t.type)));
+  }
+  document.addEventListener("keydown", (e) => {
+    if (modal.hidden || modal.getAttribute("aria-modal") !== "true" || e.ctrlKey || e.metaKey || e.altKey || typingInField(document.activeElement)) return;
+    if (e.key === "+" || e.key === "=") {
+      e.preventDefault();
+      stepZoom(1);
+    } else if (e.key === "-" || e.key === "_") {
+      e.preventDefault();
+      stepZoom(-1);
+    } else if (e.key === "0") {
+      e.preventDefault();
+      setZoom("fit");
+    } else if (e.key === "1") {
+      e.preventDefault();
+      setZoom(1);
+    } else if (e.key === " " && document.activeElement && !["BUTTON", "SELECT", "SUMMARY"].includes(document.activeElement.tagName)) {
+      // Hold Space to pan with any tool.
+      e.preventDefault();
+      spaceHeld = true;
+      overlay.style.cursor = "grab";
+    }
+  });
+  document.addEventListener("keyup", (e) => {
+    if (e.key === " " && spaceHeld) {
+      spaceHeld = false;
+      overlay.style.cursor = currentTool === "pan" ? "grab" : "";
+    }
+  });
+  function startPan(e) {
+    const wrapEl = stack.parentElement;
+    panning = { x: e.clientX, y: e.clientY, sl: wrapEl.scrollLeft, st: wrapEl.scrollTop, id: e.pointerId };
+    overlay.setPointerCapture(e.pointerId);
+    overlay.style.cursor = "grabbing";
+  }
+  function movePan(e) {
+    const wrapEl = stack.parentElement;
+    wrapEl.scrollLeft = panning.sl - (e.clientX - panning.x);
+    wrapEl.scrollTop = panning.st - (e.clientY - panning.y);
+  }
+  function endPan() {
+    panning = null;
+    overlay.style.cursor = spaceHeld || currentTool === "pan" ? "grab" : "";
+  }
+
   // ---------- Pointer routing ----------
   const BRUSH_TOOLS = ["erase", "blur", "pixelate", "dodge", "burn"];
   const SHAPE_TOOLS = ["rect", "circle", "line", "arrow"];
@@ -2650,6 +2759,13 @@
   const isSecondaryPointer = (e) => dragging && activePointerId !== null && e.pointerId !== activePointerId;
 
   overlay.addEventListener("pointerdown", (e) => {
+    // Panning (Pan tool, held Space or the middle button) never reaches a tool.
+    if (currentTool === "pan" || spaceHeld || e.button === 1) {
+      if (isComparing() || panning) return;
+      e.preventDefault();
+      startPan(e);
+      return;
+    }
     if (activePointerId !== null && e.pointerId !== activePointerId && overlay.hasPointerCapture(activePointerId)) return;
     activePointerId = e.pointerId;
     // The reverse order of the guard already in startCompare() -- that one
@@ -2697,6 +2813,10 @@
   });
 
   overlay.addEventListener("pointermove", (e) => {
+    if (panning) {
+      if (e.pointerId === panning.id) movePan(e);
+      return;
+    }
     if (isSecondaryPointer(e)) return;
     if (straightenPreviewing) return; // the tilt preview owns the overlay; no crop/brush cursor over it
     const p = pointFromEvent(e);
@@ -2757,6 +2877,10 @@
   }
 
   overlay.addEventListener("pointerup", (e) => {
+    if (panning) {
+      if (e.pointerId === panning.id) endPan();
+      return;
+    }
     if (isSecondaryPointer(e)) return;
     activePointerId = null;
     if (!dragging) return;
@@ -2787,6 +2911,10 @@
   // timer stopped so it can't keep silently repainting forever after a
   // stroke that never received a real pointerup.
   overlay.addEventListener("pointercancel", (e) => {
+    if (panning) {
+      endPan();
+      return;
+    }
     if (isSecondaryPointer(e)) return;
     activePointerId = null;
     if (!dragging) return;
@@ -3149,6 +3277,7 @@
   // (there have been several this session -- named snapshots, brush
   // presets, view rotation) only ever needs to happen in one place.
   function initEditorSession(w, h, drawContent, hint) {
+    zoomMode = "fit";
     lastFitDims = ""; // a new image: the size fields and the estimate start fresh even at the same size
     canvas.width = w;
     canvas.height = h;

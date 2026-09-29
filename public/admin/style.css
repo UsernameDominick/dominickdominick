@@ -4986,9 +4986,14 @@ kbd {
   flex: 1;
   overflow: auto;
   display: flex;
-  align-items: center;
-  justify-content: center;
   padding: 16px;
+}
+
+/* margin:auto centres the image when it is smaller than the area and, unlike
+   align/justify centring, still lets a larger (zoomed) image scroll to its edges. */
+.pe-canvas-wrap > .pe-canvas-stack {
+  margin: auto;
+  flex-shrink: 0;
 }
 
 /* Lets a transparent PNG's actual transparent areas be checked against
@@ -6532,3 +6537,19 @@ kbd {
     display: inline;
   }
 }
+
+/* Zoomed: the size caps that fit the image to the window must not apply. */
+.pe-canvas-stack.is-zoomed canvas {
+  max-width: none;
+  max-height: none;
+}
+
+.pe-canvas-stack.is-pixelated canvas {
+  image-rendering: pixelated;
+}
+
+#pe-zoom-group button[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
