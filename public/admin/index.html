@@ -1208,7 +1208,6 @@
               <button type="button" id="pe-load-selection" disabled title="Apply the saved selection chosen above to this image">Load chosen selection</button>
               <button type="button" id="pe-save-selection" disabled title="Save this selection under a name so you can load it on any image">Save selection</button>
               <button type="button" id="pe-delete-selection" disabled title="Delete the saved selection chosen above">Delete chosen selection</button>
-              <span id="pe-sel-status" class="pe-sel-status" role="status">No selection. Adjustments, filters, brushes, shapes and text apply to the whole image.</span>
             </div>
             <div class="pe-tool-group">
               <span class="pe-group-label">Rotate &amp; flip</span>
@@ -1328,6 +1327,7 @@
         </div>
         <div class="pe-actions">
           <span id="pe-status-bar" class="pe-status-bar" title="Actual image size · displayed scale"></span>
+          <span id="pe-sel-status" class="pe-sel-status is-idle" role="status">No selection.</span>
           <span id="pe-hint" class="pe-hint"></span>
           <span id="pe-limits-info" class="pe-limits-info" tabindex="0">ℹ️ Limits</span>
           <button type="button" id="pe-view-rotate" title="Rotate the on-screen VIEW only -- doesn't touch the image's actual pixels, unlike the Rotate tool above">↻ View: 0°</button>

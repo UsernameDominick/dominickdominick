@@ -48,8 +48,10 @@ Worker secret, not stored in this repo). From there:
   Undo. Selection tools (rectangle, ellipse, freehand lasso, click-by-click
   polygon; Shift adds, Alt subtracts, Invert, Ctrl+D to deselect) limit the
   adjust sliders, filters, grain, brushes, shapes, text and Delete to the
-  selected area; "Crop to selection" boxes it, mask views tint or show it,
-  and named selections are saved (as shapes, so they fit any image size). "Save as new" uploads a fresh file; "Overwrite original" replaces
+  selected area; a Mode menu (new, add, subtract, intersect) and a "Type a
+  box" X/Y/W/H entry cover touch and keyboard use, Undo steps through
+  selection changes, "Crop to selection" boxes it, mask views tint or show
+  it, and named selections are saved (as shapes, so they fit any image size). "Save as new" uploads a fresh file; "Overwrite original" replaces
   the file in place at the same URL, updating it everywhere it's used
   (this is why `/media/:key` now serves a short, revalidating cache
   instead of a year-long immutable one).

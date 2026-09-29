@@ -287,10 +287,25 @@
     return JSON.parse(JSON.stringify(ops));
   }
 
+  // Pixel snapshots are the heavy part, so they keep the original depth (15);
+  // selection-only entries are tiny and are limited separately, so a run of
+  // selection changes can never push a pixel edit out of the history.
+  const SELECTION_UNDO_LIMIT = 40;
   function trimUndo() {
-    // Pixel snapshots are the heavy part, so they keep the original depth;
-    // selection-only entries are tiny and get a larger allowance.
-    while (undoStack.length > UNDO_LIMIT * 4 || undoStack.filter((entry) => entry.canvas).length > UNDO_LIMIT) undoStack.shift();
+    const dropOldest = (wantPixel) => {
+      const i = undoStack.findIndex((entry) => Boolean(entry.canvas) === wantPixel);
+      if (i >= 0) undoStack.splice(i, 1);
+    };
+    let pixel = undoStack.filter((entry) => entry.canvas).length;
+    while (pixel > UNDO_LIMIT) {
+      dropOldest(true);
+      pixel--;
+    }
+    let selectionOnly = undoStack.length - pixel;
+    while (selectionOnly > SELECTION_UNDO_LIMIT) {
+      dropOldest(false);
+      selectionOnly--;
+    }
   }
 
   function pushUndo() {
@@ -348,6 +363,8 @@
     redoStack.push({ canvas: prev.canvas ? snapshotCanvas() : null, sel: cloneOps(selOps) });
     if (prev.canvas) restoreSnapshot(prev.canvas);
     restoreSelection(prev.sel);
+    selectionNoteText = "";
+    updateSelectionUi();
     updateHistoryButtons();
   }
 
@@ -358,6 +375,8 @@
     undoStack.push({ canvas: next.canvas ? snapshotCanvas() : null, sel: cloneOps(selOps) });
     if (next.canvas) restoreSnapshot(next.canvas);
     restoreSelection(next.sel);
+    selectionNoteText = "";
+    updateSelectionUi();
     updateHistoryButtons();
   }
 
@@ -852,9 +871,14 @@
     if (focusedGated && !on) $("pe-sel-all").focus();
     let base = on
       ? `Selection: ${selBounds.w} × ${selBounds.h} px bounding box, ${Math.max(1, Math.round(selBounds.coverage * 100))}% of the image. Edits apply inside it only.`
-      : "No selection. Adjustments, filters, brushes, shapes and text apply to the whole image.";
+      : "No selection.";
     if (on && $("pe-sel-view").value === "mask") base += " The mask view hides the image; switch Show back to see your edits.";
-    $("pe-sel-status").textContent = selectionNoteText ? `${selectionNoteText} ${base}` : base;
+    const text = selectionNoteText ? `${selectionNoteText} ${base}` : base;
+    const statusEl = $("pe-sel-status");
+    statusEl.textContent = text;
+    statusEl.title = text;
+    // Nothing to report: keep the line for screen readers but out of the layout.
+    statusEl.classList.toggle("is-idle", !on && !selectionNoteText);
   }
 
   function dropSelection(note) {
@@ -1206,10 +1230,38 @@
       redrawOverlay();
       return;
     }
+    const added = { ...op, mode: mode === "sub" ? "sub" : mode === "int" ? "int" : "add" };
+    const next = mode === "replace" || !hasSelection() ? [added] : [...selOps, added];
+    // Redoing exactly what is already there (Select all twice) changes nothing,
+    // so it isn't a history step either.
+    if (JSON.stringify(next) === JSON.stringify(selOps)) {
+      redrawOverlay();
+      return;
+    }
     pushSelectionUndo();
-    if (mode === "replace" || !hasSelection()) selOps = [];
-    selOps.push({ ...op, mode: mode === "sub" ? "sub" : mode === "int" ? "int" : "add" });
+    selOps = next;
     rebuildSelection();
+  }
+
+  // True when the points lie (almost) on one straight line, which encloses
+  // nothing (a lasso dragged in a straight line, or collinear polygon corners).
+  function pointsAreCollinear(pts) {
+    const [ax, ay] = pts[0];
+    let far = pts[0];
+    let farDist = 0;
+    for (const [x, y] of pts) {
+      const dist = Math.hypot(x - ax, y - ay);
+      if (dist > farDist) {
+        farDist = dist;
+        far = [x, y];
+      }
+    }
+    if (farDist === 0) return true;
+    const dx = (far[0] - ax) / farDist;
+    const dy = (far[1] - ay) / farDist;
+    let maxOff = 0;
+    for (const [x, y] of pts) maxOff = Math.max(maxOff, Math.abs((x - ax) * dy - (y - ay) * dx));
+    return maxOff * displayScale() < 2;
   }
 
   function commitSelectionDraft() {
@@ -1229,7 +1281,7 @@
       if (w * scale >= 3 && h * scale >= 3) op = { kind: d.kind, box: [roundPt(x), roundPt(y), roundPt(w), roundPt(h)] };
     } else if (d.pts.length >= 3) {
       const pts = decimatePoints(d.pts, SELECTION_MAX_POINTS).map(([x, y]) => [roundPt(x), roundPt(y)]);
-      if (pointsBoxArea(pts) * scale * scale >= 9) op = { kind: "poly", pts };
+      if (pointsBoxArea(pts) * scale * scale >= 9 && !pointsAreCollinear(pts)) op = { kind: "poly", pts };
     }
     if (!op) {
       // A plain click with a selection tool clears the selection, like most editors.
@@ -1250,8 +1302,8 @@
       return;
     }
     const pts = d.pts.map(([x, y]) => [roundPt(x), roundPt(y)]);
-    if (pointsBoxArea(pts) * displayScale() * displayScale() < 9) {
-      selectionNote("That polygon was too small to select anything.");
+    if (pointsBoxArea(pts) * displayScale() * displayScale() < 9 || pointsAreCollinear(pts)) {
+      selectionNote("That polygon was too small, or too flat, to select anything.");
       redrawOverlay();
       return;
     }
@@ -1325,18 +1377,35 @@
       selectionNote("Enter a width and height of at least 1 pixel.");
       return;
     }
-    x = Math.max(0, Math.min(canvas.width - 1, x));
-    y = Math.max(0, Math.min(canvas.height - 1, y));
-    w = Math.min(w, canvas.width - x);
-    h = Math.min(h, canvas.height - y);
-    applySelectionOp({ kind: "rect", box: [x, y, w, h] }, $("pe-sel-mode").value || "replace");
+    // Clip each edge to the image, so a box hanging off one side keeps its inside part.
+    const x0 = Math.max(0, x);
+    const y0 = Math.max(0, y);
+    const x1 = Math.min(canvas.width, x + w);
+    const y1 = Math.min(canvas.height, y + h);
+    if (x1 - x0 < 1 || y1 - y0 < 1) {
+      selectionNote("That box is outside the image.");
+      return;
+    }
+    applySelectionOp({ kind: "rect", box: [x0, y0, x1 - x0, y1 - y0] }, $("pe-sel-mode").value || "replace");
   });
+  ["pe-sel-box-x", "pe-sel-box-y", "pe-sel-box-w", "pe-sel-box-h"].forEach((id) =>
+    $(id).addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        $("pe-sel-box-apply").click();
+      }
+    })
+  );
 
   // ---- saved selections ----
   function updateSavedSelectionButtons() {
     const chosen = selectionPresets.some((p) => p.id === Number($("pe-apply-selection").value));
+    // A button that disables itself (after deleting the chosen selection) must
+    // not strand keyboard focus on the page body.
+    const focusedGated = document.activeElement === $("pe-load-selection") || document.activeElement === $("pe-delete-selection");
     $("pe-load-selection").disabled = !chosen;
     $("pe-delete-selection").disabled = !chosen;
+    if (focusedGated && !chosen) $("pe-apply-selection").focus();
   }
   $("pe-apply-selection").addEventListener("change", updateSavedSelectionButtons);
 
@@ -1411,6 +1480,8 @@
       await window.adminApi(`/selection-presets/${id}`, { method: "DELETE" });
       await loadSelectionPresets();
     } catch (err) {
+      // Already gone (say, deleted in another tab): refresh so the list is honest.
+      await loadSelectionPresets();
       alert(err.message);
     }
   });
@@ -2970,6 +3041,7 @@
     baseSnapshot = null;
     dropSelection();
     $("pe-sel-view").value = "ants";
+    $("pe-sel-mode").value = "replace";
     lastAdjust = { brightness: 0, contrast: 0, saturate: 0 };
     $("pe-brightness").value = 0;
     $("pe-contrast").value = 0;

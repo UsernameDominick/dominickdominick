@@ -5040,8 +5040,9 @@ kbd {
   top: 0;
   left: 0;
   cursor: crosshair;
-  /* Drags on the canvas are the editor's tools, not page scrolling (touch and pen). */
-  touch-action: none;
+  /* Drags on the canvas are the editor's tools, not page scrolling (touch and
+     pen); pinch-zoom stays available. */
+  touch-action: pinch-zoom;
 }
 
 .pe-actions {
@@ -5123,12 +5124,6 @@ kbd {
   }
   .pe-tool-group input[type="range"] {
     width: 60px;
-  }
-  /* The Selection group is far wider than a screen in one row; let it wrap
-     into a card, so its status text and Save/Load buttons stay in view. */
-  #pe-selection-group {
-    flex: 0 0 min(92vw, 520px);
-    flex-wrap: wrap;
   }
 }
 
@@ -6221,15 +6216,70 @@ kbd {
   flex: 1 1 100%;
 }
 
+.pe-sel-box label {
+  flex: 0 0 calc(50% - 3px);
+}
+
+/* Engines that wrap a <details> body in ::details-content (Chrome 131+,
+   Safari 18.4+, Firefox 143+) don't make the labels flex children of the
+   <details> itself, so the row layout has to go on that wrapper instead. */
+@supports selector(::details-content) {
+  .pe-sel-box[open] {
+    display: block;
+  }
+  .pe-sel-box[open]::details-content {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+}
+
 .pe-sel-box label input[type="number"] {
   width: 5.2em;
 }
 
+/* Phone widths: "Type a box" opens inline in the scrolling strip, not as extra
+   rows. This sits after the base rules above so it wins the cascade. */
+@media (max-width: 860px) {
+  .pe-sel-box label {
+    flex: 0 0 auto;
+  }
+  .pe-sel-box[open] {
+    flex-wrap: nowrap;
+  }
+  .pe-sel-box[open] summary {
+    flex: 0 0 auto;
+  }
+  @supports selector(::details-content) {
+    .pe-sel-box[open] {
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: center;
+      gap: 6px;
+    }
+    .pe-sel-box[open]::details-content {
+      flex-wrap: nowrap;
+    }
+  }
+}
+
+/* The selection's status line lives in the bottom status bar. With nothing to
+   report it is visually hidden (still there for screen readers). */
 .pe-sel-status {
   flex: 1 1 100%;
   font-size: 0.78rem;
   line-height: 1.35;
   color: var(--text-dim);
+}
+
+.pe-sel-status.is-idle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .pe-group-label {

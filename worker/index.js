@@ -1136,6 +1136,12 @@ function trackView(ctx, env, request, path) {
   );
 }
 
+// A public JSON body as a plain object (anything else reads as {}).
+async function readPublicJsonBody(request) {
+  const body = await request.json().catch(() => null);
+  return body && typeof body === "object" && !Array.isArray(body) ? body : {};
+}
+
 // A named event from the public site (copy-link click, theme toggle, a
 // simulation's power button, etc.) — not tied to a visitor/session id, so
 // it can only answer "how often", not "how many people".
@@ -1144,7 +1150,7 @@ async function handleTrackEvent(request, env, ctx) {
   const allowed = await checkRateLimit(env, "track", ip, { windowMinutes: 1, maxAttempts: 30 });
   if (!allowed) return new Response(null, { status: 429 });
   await recordRateLimitHit(env, "track", ip);
-  const body = await request.json().catch(() => ({}));
+  const body = await readPublicJsonBody(request);
   // Public, unauthenticated input stored in D1 -- capped so a script can't
   // fill the events table with arbitrarily large strings.
   const clip = (v, max) => (v == null || v === "" ? null : String(v).slice(0, max));
@@ -1163,7 +1169,7 @@ async function handleReact(request, env, ctx) {
   const allowed = await checkRateLimit(env, "react", ip, { windowMinutes: 1, maxAttempts: 20 });
   if (!allowed) return new Response(null, { status: 429 });
   await recordRateLimitHit(env, "react", ip);
-  const body = await request.json().catch(() => ({}));
+  const body = await readPublicJsonBody(request);
   const contentType = body.contentType === "project" ? "project" : body.contentType === "article" ? "article" : null;
   const contentId = Number(body.contentId);
   if (!contentType || !Number.isFinite(contentId)) return new Response(null, { status: 400 });

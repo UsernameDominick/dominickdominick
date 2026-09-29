@@ -502,6 +502,14 @@ function slugify(str) {
     .slice(0, 80);
 }
 
+// A JSON request body as a plain object: anything else (invalid JSON, null, a
+// string, a number, an array) reads as {}, so a handler's own field checks
+// answer with a 400 instead of a property access on null throwing a 500.
+async function readJsonBody(request) {
+  const body = await request.json().catch(() => null);
+  return body && typeof body === "object" && !Array.isArray(body) ? body : {};
+}
+
 export async function handleAdminApi(request, env, url, ctx) {
   try {
     return await routeAdminApi(request, env, url, ctx);
@@ -618,7 +626,7 @@ async function routeAdminApi(request, env, url, ctx) {
     if (!allowed) {
       return json({ error: "Too many attempts. Try again in a few minutes." }, { status: 429 });
     }
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     await recordLoginAttempt(env, ip);
     const ok = await checkPassword(env, body.password);
     if (!ok) {
@@ -658,7 +666,7 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(await listPages(env));
   }
   if (path === "/pages" && method === "POST") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     const jsonLdError = validateCustomJsonLd(body);
     if (jsonLdError) return json({ error: jsonLdError }, { status: 400 });
     const canonicalError = validateCanonicalUrl(body);
@@ -685,7 +693,7 @@ async function routeAdminApi(request, env, url, ctx) {
   }
   const pageMatch = path.match(/^\/pages\/(\d+)$/);
   if (pageMatch && method === "PATCH") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     const jsonLdError = validateCustomJsonLd(body);
     if (jsonLdError) return json({ error: jsonLdError }, { status: 400 });
     const canonicalError = validateCanonicalUrl(body);
@@ -765,7 +773,7 @@ async function routeAdminApi(request, env, url, ctx) {
   // current password back to round-trip (only its hash is ever stored).
   const pagePasswordMatch = path.match(/^\/pages\/(\d+)\/password$/);
   if (pagePasswordMatch && method === "PUT") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     if (typeof body.password !== "string" || body.password.trim().length < 4) {
       return json({ error: "Password must be at least 4 characters" }, { status: 400 });
     }
@@ -794,7 +802,7 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(await listBlocks(env, Number(blocksMatch[1])));
   }
   if (blocksMatch && method === "POST") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     const pageId = Number(blocksMatch[1]);
     await maybeSnapshotPage(env, pageId);
     const id = await createBlock(env, pageId, body);
@@ -804,7 +812,7 @@ async function routeAdminApi(request, env, url, ctx) {
   // /blocks/:id
   const blockMatch = path.match(/^\/blocks\/(\d+)$/);
   if (blockMatch && method === "PATCH") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     const id = Number(blockMatch[1]);
     const pageId = await getBlockPageId(env, id);
     if (pageId) await maybeSnapshotPage(env, pageId);
@@ -849,7 +857,7 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(await listSharedBlocks(env));
   }
   if (path === "/shared-blocks" && method === "POST") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     if (!body.name || !String(body.name).trim() || !body.type) {
       return json({ error: "Name and a source block are required" }, { status: 400 });
     }
@@ -869,7 +877,7 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(sb);
   }
   if (sharedBlockMatch && method === "PATCH") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     if ("name" in body && !String(body.name).trim()) return json({ error: "Name is required" }, { status: 400 });
     await updateSharedBlock(env, Number(sharedBlockMatch[1]), body);
     return json({ ok: true });
@@ -887,7 +895,7 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(await listArticles(env));
   }
   if (path === "/articles" && method === "POST") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     const jsonLdError = validateCustomJsonLd(body);
     if (jsonLdError) return json({ error: jsonLdError }, { status: 400 });
     const canonicalError = validateCanonicalUrl(body);
@@ -917,7 +925,7 @@ async function routeAdminApi(request, env, url, ctx) {
   }
   const articleMatch = path.match(/^\/articles\/(\d+)$/);
   if (articleMatch && method === "PATCH") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     const jsonLdError = validateCustomJsonLd(body);
     if (jsonLdError) return json({ error: jsonLdError }, { status: 400 });
     const canonicalError = validateCanonicalUrl(body);
@@ -975,7 +983,7 @@ async function routeAdminApi(request, env, url, ctx) {
     return json({ ok: true });
   }
   if (path === "/articles/bulk" && method === "POST") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     const ids = Array.isArray(body.ids) ? body.ids : [];
     if (!ids.length) return json({ error: "No articles selected" }, { status: 400 });
     if (!["publish", "unpublish", "trash", "add-tag"].includes(body.action)) {
@@ -1032,7 +1040,7 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(await listProjects(env));
   }
   if (path === "/projects" && method === "POST") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     const jsonLdError = validateCustomJsonLd(body);
     if (jsonLdError) return json({ error: jsonLdError }, { status: 400 });
     const canonicalError = validateCanonicalUrl(body);
@@ -1061,7 +1069,7 @@ async function routeAdminApi(request, env, url, ctx) {
   }
   const projectMatch = path.match(/^\/projects\/(\d+)$/);
   if (projectMatch && method === "PATCH") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     const jsonLdError = validateCustomJsonLd(body);
     if (jsonLdError) return json({ error: jsonLdError }, { status: 400 });
     const canonicalError = validateCanonicalUrl(body);
@@ -1114,7 +1122,7 @@ async function routeAdminApi(request, env, url, ctx) {
     return json({ ok: true });
   }
   if (path === "/projects/bulk" && method === "POST") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     const ids = Array.isArray(body.ids) ? body.ids : [];
     if (!ids.length) return json({ error: "No projects selected" }, { status: 400 });
     if (!["publish", "unpublish", "trash", "add-tag"].includes(body.action)) {
@@ -1165,7 +1173,7 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(await listJournalEntries(env, Number(journalListMatch[1])));
   }
   if (journalListMatch && method === "POST") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     const projectId = Number(journalListMatch[1]);
     const id = await createJournalEntry(env, projectId, body);
     log(ctx, env, "create", "journal entry", body.title || `on project #${projectId}`);
@@ -1173,7 +1181,7 @@ async function routeAdminApi(request, env, url, ctx) {
   }
   const journalMatch = path.match(/^\/journal\/(\d+)$/);
   if (journalMatch && method === "PATCH") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     await updateJournalEntry(env, Number(journalMatch[1]), body);
     return json({ ok: true });
   }
@@ -1189,13 +1197,13 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(await listBomItems(env, Number(bomListMatch[1])));
   }
   if (bomListMatch && method === "POST") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     const id = await createBomItem(env, Number(bomListMatch[1]), body);
     return json({ id });
   }
   const bomMatch = path.match(/^\/bom\/(\d+)$/);
   if (bomMatch && method === "PATCH") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     await updateBomItem(env, Number(bomMatch[1]), body);
     return json({ ok: true });
   }
@@ -1344,7 +1352,7 @@ async function routeAdminApi(request, env, url, ctx) {
   // hashing existed. Existing hashes are skipped; the caller follows the
   // returned cursor across bounded requests.
   if (path === "/media/backfill-hashes" && method === "POST") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     if (!body || typeof body !== "object" || Array.isArray(body) || (body.cursor != null && typeof body.cursor !== "string")) {
       return json({ error: "Invalid media backfill cursor" }, { status: 400 });
     }
@@ -1379,7 +1387,7 @@ async function routeAdminApi(request, env, url, ctx) {
   // Like the hash backfill, the caller resumes bounded pages and skips
   // dimensions already present in metadata.
   if (path === "/media/backfill-dimensions" && method === "POST") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     if (!body || typeof body !== "object" || Array.isArray(body) || (body.cursor != null && typeof body.cursor !== "string")) {
       return json({ error: "Invalid media backfill cursor" }, { status: 400 });
     }
@@ -1422,7 +1430,7 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(await findMediaUsage(env, mediaUrl));
   }
   if (path === "/media/bulk-delete" && method === "POST") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     const keys = Array.isArray(body.keys) ? body.keys : [];
     if (!keys.length) return json({ error: "No files selected" }, { status: 400 });
     // Mirrors the single-item DELETE route above: without this, a file's
@@ -1453,7 +1461,7 @@ async function routeAdminApi(request, env, url, ctx) {
   // shape as bulk-delete, since all of these come from the same selection
   // checkboxes in the library grid.
   if (path === "/media/bulk-update" && method === "POST") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     const keys = Array.isArray(body.keys) ? body.keys : [];
     if (!keys.length) return json({ error: "No files selected" }, { status: 400 });
     if (body.folder === undefined && !body.addTag && body.altText === undefined) {
@@ -1490,7 +1498,7 @@ async function routeAdminApi(request, env, url, ctx) {
     return json({ ok: true });
   }
   if (mediaKeyMatch && method === "PATCH") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     await upsertMediaMeta(env, mediaKeyMatch[1], body);
     return json({ ok: true });
   }
@@ -1617,7 +1625,7 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(await listScans(env));
   }
   if (path === "/scans" && method === "POST") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     if (!body.name || !String(body.name).trim() || !body.glb_key) {
       return json({ error: "Name and a GLB/GLTF file are required" }, { status: 400 });
     }
@@ -1647,7 +1655,7 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(scan);
   }
   if (scanMatch && method === "PATCH") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     if ("name" in body && !String(body.name).trim()) return json({ error: "Name is required" }, { status: 400 });
     const id = Number(scanMatch[1]);
     const before = await getScan(env, id);
@@ -1685,7 +1693,7 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(await listRedirects(env));
   }
   if (path === "/redirects" && method === "POST") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     const from_path = normalizePath(body.from_path);
     const to_path = String(body.to_path || "").trim();
     if (!from_path || !to_path) return json({ error: "Both a from and to path are required" }, { status: 400 });
@@ -1708,7 +1716,7 @@ async function routeAdminApi(request, env, url, ctx) {
   }
   const redirectMatch = path.match(/^\/redirects\/(\d+)$/);
   if (redirectMatch && method === "PATCH") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     const fields = {};
     if (body.from_path !== undefined) fields.from_path = normalizePath(body.from_path);
     if (body.to_path !== undefined) fields.to_path = String(body.to_path).trim();
@@ -1826,7 +1834,7 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(rows);
   }
   if (path === "/topic-meta" && method === "PUT") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     if (!body.tag) return json({ error: "tag is required" }, { status: 400 });
     if (!body.description && !body.og_image) {
       await deleteTopicMeta(env, body.tag);
@@ -1848,7 +1856,7 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(await listPreviewLinks(env, contentType, contentId));
   }
   if (path === "/preview-links" && method === "POST") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     if (!["article", "project"].includes(body.contentType) || !Number.isFinite(Number(body.contentId))) {
       return json({ error: "Invalid content" }, { status: 400 });
     }
@@ -1883,7 +1891,7 @@ async function routeAdminApi(request, env, url, ctx) {
   // apply=true rewrites them (each touched page/article is snapshotted
   // first, so it's undoable via History).
   if (path === "/find-replace" && method === "POST") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     const find = String(body.find || "");
     if (!find) return json({ error: "Find text is required" }, { status: 400 });
     const replace = String(body.replace ?? "");
@@ -1913,7 +1921,7 @@ async function routeAdminApi(request, env, url, ctx) {
   }
   const restoreMatch = path.match(/^\/revisions\/(\d+)\/restore$/);
   if (restoreMatch && method === "POST") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     const revisionId = Number(restoreMatch[1]);
     const entityId = Number(body.entity_id);
     try {
@@ -1929,7 +1937,7 @@ async function routeAdminApi(request, env, url, ctx) {
   }
   const restoreBlockMatch = path.match(/^\/revisions\/(\d+)\/restore-block$/);
   if (restoreBlockMatch && method === "POST") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     const revisionId = Number(restoreBlockMatch[1]);
     const pageId = Number(body.entity_id);
     const blockId = Number(body.block_id);
@@ -1951,7 +1959,7 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(await listTemplates(env, kind));
   }
   if (path === "/templates" && method === "POST") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     if (!TEMPLATE_KINDS.includes(body.kind) || !body.name) {
       return json({ error: "kind and name are required" }, { status: 400 });
     }
@@ -1973,7 +1981,7 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(await listSimulations(env));
   }
   if (path === "/simulations" && method === "POST") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     if (!body.name || !String(body.name).trim()) return json({ error: "Name is required" }, { status: 400 });
     const data = body.data || {};
     const dataError = simulationDataError(data);
@@ -2028,7 +2036,7 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(sim);
   }
   if (simMatch && method === "PATCH") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     if (!body.name || !String(body.name).trim()) return json({ error: "Name is required" }, { status: 400 });
     const data = body.data || {};
     const dataError = simulationDataError(data);
@@ -2049,7 +2057,7 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(await listSongs(env));
   }
   if (path === "/songs" && method === "POST") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     if (!body.name || !String(body.name).trim()) return json({ error: "Name is required" }, { status: 400 });
     const id = await createSong(env, { name: body.name.trim(), data: body.data || {} });
     log(ctx, env, "create", "song", body.name.trim());
@@ -2069,7 +2077,7 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(song);
   }
   if (songMatch && method === "PATCH") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     if (!body.name || !String(body.name).trim()) return json({ error: "Name is required" }, { status: 400 });
     const updated = await updateSong(env, Number(songMatch[1]), { name: body.name.trim(), data: body.data || {} });
     if (!updated) return json({ error: "Not found" }, { status: 404 });
@@ -2172,7 +2180,7 @@ async function routeAdminApi(request, env, url, ctx) {
   // /import (which this reuses under the hood), just sourced from a chosen
   // historical snapshot instead of an uploaded file.
   if (path === "/scheduled-backups-restore" && method === "POST") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     if (!body.key) return json({ error: "key is required" }, { status: 400 });
     try {
       const { exported_at } = await restoreScheduledBackup(env, body.key);
@@ -2203,7 +2211,7 @@ async function routeAdminApi(request, env, url, ctx) {
   // for this table can tell client crashes apart from worker ones at a
   // glance, without a schema change.
   if (path === "/client-error" && method === "POST") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     if (!body.message) return json({ error: "message is required" }, { status: 400 });
     await logError(env, {
       message: body.message,
@@ -2274,7 +2282,7 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(result);
   }
   if (path === "/settings" && method === "PUT") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     // A settings save used to log as a bare "Updated settings" with no
     // detail — the Activity Log told you *when* something changed, never
     // *what*, so finding/reversing a specific change meant remembering
@@ -2318,7 +2326,7 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(JSON.parse(raw || "[]"));
   }
   if (path === "/style-presets" && method === "POST") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     if (!body.name || !body.style || typeof body.style !== "object") {
       return json({ error: "name and style are required" }, { status: 400 });
     }
@@ -2347,7 +2355,7 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(JSON.parse(raw || "[]"));
   }
   if (path === "/photo-presets" && method === "POST") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     if (!body.name || typeof body.adjust !== "object" || !body.adjust) {
       return json({ error: "name and adjust are required" }, { status: 400 });
     }
@@ -2384,7 +2392,7 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(JSON.parse(raw || "[]"));
   }
   if (path === "/brush-presets" && method === "POST") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     if (!body.name || !BRUSH_PRESET_TOOLS.has(body.tool)) {
       return json({ error: "name and a valid tool are required" }, { status: 400 });
     }
@@ -2426,7 +2434,7 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(JSON.parse(raw || "[]"));
   }
   if (path === "/text-styles" && method === "POST") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     if (!body.name || !TEXT_STYLE_FONTS.has(body.font)) {
       return json({ error: "name and a valid font are required" }, { status: 400 });
     }
@@ -2509,10 +2517,19 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(JSON.parse(raw || "[]"));
   }
   if (path === "/selection-presets" && method === "POST") {
-    if (Number(request.headers.get("content-length") || 0) > 300000) {
+    // Read as text so the size cap also holds for chunked uploads without a
+    // Content-Length.
+    const rawBody = await request.text();
+    if (rawBody.length > 300000) {
       return json({ error: "That selection is too large to save." }, { status: 413 });
     }
-    const body = (await request.json().catch(() => ({}))) || {};
+    let body = {};
+    try {
+      const parsed = JSON.parse(rawBody);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) body = parsed;
+    } catch {
+      // not JSON: fall through with {}, which fails validation below
+    }
     // Printable characters only (no control or bidi-override characters), cut on
     // whole characters rather than through a surrogate pair.
     const name = Array.from(typeof body.name === "string" ? body.name.replace(/[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, " ") : "")
@@ -2557,7 +2574,7 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(JSON.parse(raw || "[]"));
   }
   if (path === "/media-saved-searches" && method === "POST") {
-    const body = (await request.json().catch(() => ({}))) || {};
+    const body = await readJsonBody(request);
     if (!body.name || typeof body.filters !== "object") {
       return json({ error: "name and filters are required" }, { status: 400 });
     }
