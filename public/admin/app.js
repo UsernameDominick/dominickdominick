@@ -4603,8 +4603,8 @@
     refreshProjectHeroVideo();
     el("project-body").value = project.body || "";
     setMultiSelectValues(el("project-related-articles"), project.related_articles);
-    setMultiSelectValues(el("project-related-simulations"), project.related_simulations);
-    setMultiSelectValues(el("project-related-scans"), project.related_scans);
+    setMultiSelectValues(el("project-related-simulations"), project.related_simulations, { keepMissing: true });
+    setMultiSelectValues(el("project-related-scans"), project.related_scans, { keepMissing: true });
     setMultiSelectValues(el("project-related-songs"), project.related_songs || [], { keepMissing: true });
     populateProjectRelatedOverrideSelect(project.id);
     setMultiSelectValues(el("project-related-override"), project.related_override || []);
@@ -4656,8 +4656,8 @@
     refreshProjectHeroVideo();
     el("project-body").value = "";
     setMultiSelectValues(el("project-related-articles"), []);
-    setMultiSelectValues(el("project-related-simulations"), []);
-    setMultiSelectValues(el("project-related-scans"), []);
+    setMultiSelectValues(el("project-related-simulations"), [], { keepMissing: true });
+    setMultiSelectValues(el("project-related-scans"), [], { keepMissing: true });
     setMultiSelectValues(el("project-related-songs"), [], { keepMissing: true });
     populateProjectRelatedOverrideSelect(null);
     setMultiSelectValues(el("project-related-override"), []);

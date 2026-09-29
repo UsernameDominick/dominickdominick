@@ -35,6 +35,9 @@
     overlay.classList.add("song-page-sync-hit");
   }
 
+  // Only one embed plays at a time: starting one stops whichever was playing.
+  let stopOther = null;
+
   document.querySelectorAll(".song-embed").forEach((wrap) => {
     let songData;
     try {
@@ -132,16 +135,23 @@
       btn.innerHTML = playing ? '<span aria-hidden="true">\u23F9\uFE0E</span> Stop' : '<span aria-hidden="true">\u25B6\uFE0E</span> Play';
     }
 
+    function stopPlayback() {
+      player.stop();
+      bars.forEach((bar) => bar.classList.remove("song-embed-bar-active"));
+      if (pulse) pulse.classList.remove("song-embed-pulse-beat", "song-embed-pulse-hit");
+      if (canvas) drawWaveform(0);
+      setPlayLabel(false);
+      if (stopOther === stopPlayback) stopOther = null;
+    }
+
     btn.addEventListener("click", () => {
       if (!player) player = window.SongEngine.createPlayer(getCtx, songData, onStep);
       if (player.isPlaying()) {
-        player.stop();
-        bars.forEach((bar) => bar.classList.remove("song-embed-bar-active"));
-        if (pulse) pulse.classList.remove("song-embed-pulse-beat", "song-embed-pulse-hit");
-        if (canvas) drawWaveform(0);
-        setPlayLabel(false);
+        stopPlayback();
         if (window.trackEvent) window.trackEvent("song_stop");
       } else {
+        if (stopOther) stopOther();
+        stopOther = stopPlayback;
         player.start();
         setPlayLabel(true);
         if (window.trackEvent) window.trackEvent("song_play");
