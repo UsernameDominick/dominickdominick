@@ -3757,6 +3757,29 @@ kbd {
   margin-top: 20px;
 }
 
+.song-clip-section {
+  margin-top: 16px;
+}
+
+.song-clip-section.song-clip-alert > summary {
+  color: var(--danger, #ff6b6b);
+}
+
+.song-clip-note,
+.song-clip-empty {
+  margin: 8px 0;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.song-clip-list {
+  margin: 8px 0;
+  padding-left: 22px;
+  font-size: 0.85rem;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
 .song-notes-section label {
   display: block;
   font-size: 0.8rem;

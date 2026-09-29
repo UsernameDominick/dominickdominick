@@ -556,6 +556,7 @@
   }
 
   function highlightStep(step) {
+    lastPlayedStep = step;
     document.querySelectorAll(".song-step").forEach((el) => {
       el.classList.toggle("song-step-playing", Number(el.dataset.step) === step);
     });
@@ -696,6 +697,49 @@
   // up to ~0.6s for the slowest kit's kick decay (the "808" kit's
   // kickDecay 0.55s + its own 0.05s stop buffer) to finish ringing out.
   const PEAK_METER_DRAIN_MS = 800;
+
+  // ---------- Master clipping history ----------
+  // The meter loop below already reads the real mixed output, so it also
+  // notices when a frame reaches full scale. Consecutive clipping frames
+  // (closer together than CLIP_EVENT_GAP_MS) are one event whose peak is the
+  // loudest frame in it. Kept in memory for the open song only, and only for
+  // the master bus -- there are no per-track meters to attribute a clip to.
+  const CLIP_HISTORY_LIMIT = 50;
+  const CLIP_EVENT_GAP_MS = 300;
+  let clipHistory = [];
+  let lastClipAt = Number.NEGATIVE_INFINITY;
+  let lastPlayedStep = 0;
+
+  function renderClipHistory() {
+    const count = clipHistory.length;
+    $("song-clip-summary").textContent = `Clipping history (${count})`;
+    $("song-clip-section").classList.toggle("song-clip-alert", count > 0);
+    $("song-clip-empty").hidden = count > 0;
+    $("song-clip-clear").disabled = count === 0;
+    $("song-clip-list").innerHTML = clipHistory
+      .map((event) => `<li>Clip ${event.number}: near step ${event.step + 1} of ${STEPS}, peak ${Math.round(event.peak * 100)}%</li>`)
+      .join("");
+  }
+
+  function recordClipFrame(peak, now) {
+    if (now - lastClipAt > CLIP_EVENT_GAP_MS || !clipHistory.length) {
+      const number = (clipHistory.length ? clipHistory[clipHistory.length - 1].number : 0) + 1;
+      clipHistory.push({ number, step: lastPlayedStep, peak });
+      if (clipHistory.length > CLIP_HISTORY_LIMIT) clipHistory.shift();
+    } else if (peak > clipHistory[clipHistory.length - 1].peak) {
+      clipHistory[clipHistory.length - 1].peak = peak;
+    }
+    lastClipAt = now;
+    renderClipHistory();
+  }
+
+  function resetClipHistory() {
+    clipHistory = [];
+    lastClipAt = Number.NEGATIVE_INFINITY;
+    renderClipHistory();
+  }
+  $("song-clip-clear").addEventListener("click", resetClipHistory);
+
   let peakMeterRaf = null;
   let peakMeterDrainTimer = null;
   function startPeakMeter() {
@@ -749,6 +793,7 @@
       const rms = Math.sqrt(sumSquares / buffer.length);
       peakFill.style.width = Math.min(100, Math.round(peak * 100)) + "%";
       peakFill.classList.toggle("song-peak-meter-clip", peak >= 0.98);
+      if (peak >= 1) recordClipFrame(peak, performance.now());
       rmsFill.style.width = Math.min(100, Math.round(rms * 100)) + "%";
       drawSpectrum();
       peakMeterRaf = requestAnimationFrame(tick);
@@ -1408,6 +1453,7 @@
     $("songs-modal").hidden = true;
     $("song-builder-modal").hidden = false;
     resetSongHistory();
+    resetClipHistory();
     renderSequencer();
     renderPianoRoll();
     updatePreviewVisibility();
