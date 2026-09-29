@@ -4501,7 +4501,7 @@ kbd {
 .sim-part-model {
   font-size: 0.8rem;
   color: var(--text-dim);
-  margin: -4px 0 8px;
+  margin: -6px 0 12px;
 }
 
 .sim-part-model strong {

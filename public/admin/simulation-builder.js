@@ -1571,32 +1571,43 @@
     inductor: { inductance: 10, dcResistance: 1 },
   };
 
-  // How the simulator treats each part: a source, an analysed electrical part,
-  // a steady-state approximation, or something mechanical/diagram-only that has
-  // no electrical value. Shown under the part's name in the inspector and as the
-  // palette tooltip, so what is (and isn't) simulated is never a guess.
+  // How the simulator treats each part, in one sentence: "Electrical" parts are
+  // analysed, "(DC only)" ones are reduced to a steady-state equivalent,
+  // "Mechanical" parts only join holes, a "Display" responds to power without
+  // being analysed, and a "Diagram part" is drawn but not simulated. Shown as the
+  // palette tooltip and, under the part's name, in the inspector. `brief` parts
+  // already explain themselves in an "Electrical effect" paragraph there, so the
+  // inspector shows just the category for them; gates have their own status line.
+  // Keep in step with SIM_COMPONENTS (a new part type without an entry simply
+  // shows nothing).
   const SIM_PART_MODEL = {
-    outlet: "Source: a fixed 120 V AC outlet, treated as a steady source.",
-    power_supply: "Source: a steady DC output at the chosen voltage.",
-    battery: "Source: a steady DC voltage, with an optional internal resistance.",
-    breadboard: "Mechanical: it only joins the holes in each column and rail, and has no electrical value of its own.",
-    led: "Electrical: analysed for forward voltage, current and burn-out.",
-    resistor: "Electrical: analysed for current and heat with Ohm's law.",
-    potentiometer: "Electrical: analysed as the resistance its wiper sets.",
-    capacitor: "Electrical (steady state): acts as an open circuit; charging over time isn't simulated.",
-    inductor: "Electrical (steady state): only its winding resistance counts.",
-    switch: "Electrical: opens or closes the path.",
-    switch_spdt: "Electrical: connects the common terminal to one of two throws.",
-    ammeter: "Electrical: a zero-resistance meter that reads the current through it.",
-    mcu_teensy: "Electrical: analysed as a fixed load; firmware isn't simulated.",
-    tv: "Visual only: it lights up when its connection is powered and isn't analysed for current.",
-    logic_gate: "Diagram only: drawn with a truth table for documentation, and not simulated.",
+    outlet: { kind: "Electrical", text: "a constant 120 V source; parts wired straight to it are destroyed.", brief: true },
+    power_supply: { kind: "Electrical", text: "gives a fixed DC voltage, but only once its input is powered." },
+    battery: { kind: "Electrical", text: "a constant DC voltage with an optional internal resistance." },
+    breadboard: { kind: "Mechanical", text: "only joins holes in column strips and power rails; nothing electrical of its own." },
+    led: { kind: "Electrical", text: "conducts one way; checked for current and burn-out." },
+    resistor: { kind: "Electrical", text: "limits current by Ohm's law; checked for overheating." },
+    potentiometer: { kind: "Electrical", text: "used as a two-terminal variable resistor set by its wiper.", brief: true },
+    capacitor: { kind: "Electrical (DC only)", text: "counted as an open circuit.", brief: true },
+    inductor: { kind: "Electrical (DC only)", text: "counted as its winding resistance alone.", brief: true },
+    switch: { kind: "Electrical", text: "opens or closes the path.", brief: true },
+    switch_spdt: { kind: "Electrical", text: "joins the common terminal to one of two throws.", brief: true },
+    ammeter: { kind: "Electrical", text: "a zero-resistance meter that shows the current through it." },
+    mcu_teensy: { kind: "Electrical", text: "a fixed load; its digital pins and firmware aren't simulated." },
+    tv: { kind: "Display", text: "lights up when powered (preview or Power on); it isn't analysed for current." },
+    logic_gate: { kind: "Diagram part", text: "drawn with a truth table for documentation; not simulated.", hideInInspector: true },
   };
+  function partModel(type) {
+    return Object.prototype.hasOwnProperty.call(SIM_PART_MODEL, type) ? SIM_PART_MODEL[type] : null;
+  }
+  function partModelTip(type) {
+    const m = partModel(type);
+    return m ? `${m.kind}: ${m.text}` : "";
+  }
   function partModelHtml(type) {
-    const text = SIM_PART_MODEL[type];
-    if (!text) return "";
-    const [kind, ...rest] = text.split(": ");
-    return `<p class="sim-part-model"><strong>${escapeXml(kind)}:</strong> ${escapeXml(rest.join(": "))}</p>`;
+    const m = partModel(type);
+    if (!m || m.hideInInspector) return "";
+    return `<p class="sim-part-model"><strong>${escapeXml(m.kind)}${m.brief ? "" : ":"}</strong>${m.brief ? "" : ` ${escapeXml(m.text)}`}</p>`;
   }
 
   // ---------- Recently-used parts ----------
@@ -1647,7 +1658,7 @@
     container.innerHTML =
       `<h3>Recently used</h3>` +
       recent
-        .map((type) => `<button type="button" class="sim-palette-recent-btn" data-sim-type="${escapeXml(type)}"${SIM_PART_MODEL[type] ? ` title="${escapeXml(SIM_PART_MODEL[type])}"` : ""}>${escapeXml(REG[type].label)}</button>`)
+        .map((type) => `<button type="button" class="sim-palette-recent-btn" data-sim-type="${escapeXml(type)}"${partModelTip(type) ? ` title="${escapeXml(partModelTip(type))}"` : ""}>${escapeXml(REG[type].label)}</button>`)
         .join("");
     container.querySelectorAll(".sim-palette-recent-btn").forEach((btn) => {
       btn.addEventListener("click", () => addComponentFromPalette(btn.dataset.simType));
@@ -1673,7 +1684,7 @@
 
   document.querySelectorAll(".sim-palette-btn").forEach((btn) => {
     btn.addEventListener("click", () => addComponentFromPalette(btn.dataset.simType));
-    if (SIM_PART_MODEL[btn.dataset.simType] && !btn.title) btn.title = SIM_PART_MODEL[btn.dataset.simType];
+    if (partModelTip(btn.dataset.simType) && !btn.title) btn.title = partModelTip(btn.dataset.simType);
   });
 
   $("sim-palette-search").addEventListener("input", (e) => {
@@ -1686,7 +1697,7 @@
       // Potentiometer/Resistor even though neither word appears on the
       // button itself.
       const def = window.SIM_COMPONENTS[btn.dataset.simType];
-      const haystack = `${btn.textContent} ${(def && def.keywords) || ""}`.toLowerCase();
+      const haystack = `${btn.textContent} ${(def && def.keywords) || ""} ${(partModel(btn.dataset.simType) || {}).kind || ""}`.toLowerCase();
       btn.classList.toggle("is-hidden-by-search", q.length > 0 && !haystack.includes(q));
     });
   });
@@ -1981,7 +1992,7 @@
 
       box.innerHTML = `
         <p><strong>${escapeXml(def.label)}</strong></p>
-        ${comp.type === "logic_gate" ? "" : partModelHtml(comp.type)}
+        ${partModelHtml(comp.type)}
         <p class="sim-power-status ${isPowered || def.isSource ? "is-powered" : ""}">${statusLine}</p>
         ${electricalHtml}
         ${extraFieldsHtml}
