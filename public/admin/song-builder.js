@@ -708,11 +708,12 @@
   const CLIP_HISTORY_LIMIT = 50;
   const CLIP_EVENT_GAP_MS = 120;
   const CLIP_EVENT_MAX_MS = 2000;
-  const CLIP_ANNOUNCE_DELAY_MS = 1500;
+  const CLIP_ANNOUNCE_INTERVAL_MS = 2000;
   let clipHistory = [];
   let clipTotal = 0;
   let lastClipAt = Number.NEGATIVE_INFINITY;
   let clipAnnounceTimer = null;
+  let lastAnnounceAt = Number.NEGATIVE_INFINITY;
   // Steps are scheduled up to ~100ms before they sound, so the step heard at a
   // clip frame is the latest scheduled step whose time has already passed.
   let scheduledSteps = [];
@@ -733,7 +734,11 @@
   function clipEventText(event) {
     const length = event.end - event.start;
     const span = length >= 250 ? `, lasting ${(length / 1000).toFixed(1)}s` : "";
-    return `Clip ${event.number}: near step ${event.step + 1} of ${STEPS}, peak ${Math.round(event.peak * 100)}%${span}`;
+    const where =
+      event.stepStart === event.stepEnd
+        ? `near step ${event.stepStart + 1} of ${STEPS}`
+        : `from step ${event.stepStart + 1} to ${event.stepEnd + 1} of ${STEPS}`;
+    return `Clip ${event.number}: ${where}, peak ${Math.round(event.peak * 100)}%${span}`;
   }
 
   function renderClipHistory() {
@@ -753,19 +758,27 @@
     $("song-clip-dropped").textContent = dropped > 0 ? `Showing the latest ${clipHistory.length}; ${dropped} older ${dropped === 1 ? "entry was" : "entries were"} dropped.` : "";
   }
 
+  // The first clip of a run is announced at once; after that at most one
+  // announcement per interval, always ending on the latest count.
   function announceClips() {
     clearTimeout(clipAnnounceTimer);
+    const wait = Math.max(0, CLIP_ANNOUNCE_INTERVAL_MS - (performance.now() - lastAnnounceAt));
     clipAnnounceTimer = setTimeout(() => {
+      lastAnnounceAt = performance.now();
       $("song-clip-status").textContent = clipTotal ? `Clipped ${clipTotal} ${clipTotal === 1 ? "time" : "times"} so far` : "";
-    }, CLIP_ANNOUNCE_DELAY_MS);
+    }, wait);
   }
 
-  function recordClipFrame(peak, now, audioTime) {
+  function recordClipFrame(peak, now, audioTime, frameMs) {
     const last = clipHistory[clipHistory.length - 1];
+    const heardStep = audibleStepAt(audioTime);
+    // The gap is measured between animation frames, so it stretches with slow
+    // frames (a busy or backgrounded tab) instead of splitting one clip in two.
+    const gap = Math.max(CLIP_EVENT_GAP_MS, 3 * frameMs);
     let changed = false;
-    if (!last || now - lastClipAt > CLIP_EVENT_GAP_MS || now - last.start > CLIP_EVENT_MAX_MS) {
+    if (!last || now - lastClipAt > gap || now - last.start > CLIP_EVENT_MAX_MS) {
       clipTotal++;
-      clipHistory.push({ number: clipTotal, step: audibleStepAt(audioTime), peak, start: now, end: now });
+      clipHistory.push({ number: clipTotal, stepStart: heardStep, stepEnd: heardStep, peak, start: now, end: now });
       if (clipHistory.length > CLIP_HISTORY_LIMIT) clipHistory.shift();
       changed = true;
       announceClips();
@@ -775,23 +788,27 @@
       const before = clipEventText(last);
       if (peak > last.peak) last.peak = peak;
       last.end = now;
+      last.stepEnd = heardStep;
       changed = clipEventText(last) !== before;
     }
     lastClipAt = now;
     if (changed) renderClipHistory();
   }
 
-  function resetClipHistory() {
+  // Clear keeps the scheduled-step queue: a clip already inside the ~100ms
+  // lookahead should still be attributed to the step that is sounding.
+  function resetClipHistory({ keepSteps = false } = {}) {
     clipHistory = [];
     clipTotal = 0;
     lastClipAt = Number.NEGATIVE_INFINITY;
-    scheduledSteps = [];
+    if (!keepSteps) scheduledSteps = [];
+    lastAnnounceAt = Number.NEGATIVE_INFINITY;
     clearTimeout(clipAnnounceTimer);
     $("song-clip-status").textContent = "";
     renderClipHistory();
   }
   $("song-clip-clear").addEventListener("click", () => {
-    resetClipHistory();
+    resetClipHistory({ keepSteps: true });
     $("song-clip-summary").focus(); // the button just disabled itself
   });
 
@@ -835,7 +852,11 @@
         spectrumCtx.fillRect(bar * barWidth, h - barHeight, Math.max(1, barWidth - 1), barHeight);
       }
     }
+    let lastTickAt = performance.now();
     function tick() {
+      const tickAt = performance.now();
+      const frameMs = tickAt - lastTickAt;
+      lastTickAt = tickAt;
       analyser.getFloatTimeDomainData(buffer);
       let peak = 0;
       let sumSquares = 0;
@@ -848,7 +869,7 @@
       const rms = Math.sqrt(sumSquares / buffer.length);
       peakFill.style.width = Math.min(100, Math.round(peak * 100)) + "%";
       peakFill.classList.toggle("song-peak-meter-clip", peak >= 0.98);
-      if (peak >= 1) recordClipFrame(peak, performance.now(), getAudioCtx().currentTime);
+      if (peak >= 1) recordClipFrame(peak, tickAt, getAudioCtx().currentTime, frameMs);
       rmsFill.style.width = Math.min(100, Math.round(rms * 100)) + "%";
       drawSpectrum();
       peakMeterRaf = requestAnimationFrame(tick);
