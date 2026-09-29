@@ -1357,6 +1357,10 @@
       visibility === "desktop-only" ? ` <span class="lock-badge" title="Hidden on mobile — desktop only">Desktop only</span>` : ""
     }${
       visibility === "mobile-only" ? ` <span class="lock-badge" title="Hidden on desktop — mobile only">Mobile only</span>` : ""
+    }${
+      b.style && b.style.urlRule && b.style.urlParam
+        ? ` <span class="lock-badge" title="${b.style.urlRule === "show" ? "Only shown when the page address has" : "Hidden when the page address has"} ?${escapeHtml(String(b.style.urlParam))}">${b.style.urlRule === "show" ? "Only with" : "Hidden with"} ?${escapeHtml(String(b.style.urlParam))}</span>`
+        : ""
     }${b.style && b.style.hidden ? ` <span class="lock-badge" title="Hidden from the live site entirely">Hidden</span>` : ""}${scheduledVisibilityBadge(
       b.style
     )}${
@@ -2069,6 +2073,17 @@
         ["mobile-only", "Mobile only (hidden on desktop)"],
       ],
     },
+    {
+      key: "urlRule",
+      label: "Address rule",
+      type: "select",
+      options: [
+        ["", "None (always)"],
+        ["show", "Show only when the address has…"],
+        ["hide", "Hide when the address has…"],
+      ],
+    },
+    { key: "urlParam", label: "…this query parameter (name or name=value, e.g. ref=newsletter). Test it by adding ?ref=newsletter to the page address.", type: "text" },
     { key: "visibleFrom", label: "Visible from (blank = always)", type: "datetime-local" },
     { key: "visibleUntil", label: "Visible until (blank = never expires)", type: "datetime-local" },
     {
@@ -2126,7 +2141,7 @@
     ["background", "Background", ["backgroundImage", "gradientFrom", "gradientTo", "gradientAngle", "backgroundSize", "backgroundVideoUrl", "parallax", "blendMode", "overlayColor", "overlayOpacity"]],
     ["layout", "Layout & position", ["position", "stickyOffset", "readingOrder", "mobileColSpan", "shapeMask"]],
     ["motion", "Motion", ["animation", "animationDelay", "customKeyframes", "hoverEffect"]],
-    ["visibility", "Visibility", ["visibility", "visibleFrom", "visibleUntil", "hidden"]],
+    ["visibility", "Visibility", ["visibility", "urlRule", "urlParam", "visibleFrom", "visibleUntil", "hidden"]],
     ["advanced", "Advanced", ["customCss"]],
   ];
   const openStyleGroups = new Set(["text"]);

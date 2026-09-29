@@ -1397,6 +1397,31 @@ function isBlockInDateWindow(style) {
   return true;
 }
 
+// URL-conditional visibility: "show only when the address has ?name=value" (or
+// "hide when it does"), for campaign links and the like. Like the date window it
+// is a real server-side filter, so a hidden block never ships in the HTML. The
+// rule text is `name` (the parameter just has to be present) or `name=value`; a
+// malformed rule never hides anything, and a render without a query (previews)
+// shows every block.
+function isBlockUrlAllowed(style, query) {
+  if (!style || !style.urlRule || !style.urlParam || !query) return true;
+  const m = String(style.urlParam).trim().match(/^([A-Za-z0-9_.-]{1,40})(?:=([^&#\s]{0,80}))?$/);
+  if (!m) return true;
+  const [, name, value] = m;
+  const has = value === undefined ? query.has(name) : query.getAll(name).includes(value);
+  if (style.urlRule === "show") return has;
+  if (style.urlRule === "hide") return !has;
+  return true;
+}
+
+// Whether a block is part of the page a visitor gets: not switched off, inside its
+// date window, and allowed by its address rule. Everything built from a page's
+// blocks (the rendered body, the meta description) must use this, so hidden text
+// never ships in any form.
+export function isBlockShown(b, query) {
+  return !(b.style && b.style.hidden) && isBlockInDateWindow(b.style) && isBlockUrlAllowed(b.style, query);
+}
+
 // A fixed easing name/keyword set, not a raw admin-typed cubic-bezier
 // string — same "constrained, GUI-safe" reasoning as customKeyframes'
 // property set below: keeps codegen trivially safe to emit with no
@@ -1492,7 +1517,7 @@ export async function renderBlocks(env, blocks, ctx = {}) {
   const customAnimationCssBlocks = [];
   const withInner = await Promise.all(
     blocks
-      .filter((b) => !(b.style && b.style.hidden) && isBlockInDateWindow(b.style))
+      .filter((b) => isBlockShown(b, ctx.query))
       .map(async (b) => ({ b, inner: await renderBlockInner(env, b, ctx) }))
   );
   // The order these render in becomes DOM order, which is what a screen

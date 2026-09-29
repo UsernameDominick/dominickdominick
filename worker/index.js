@@ -46,6 +46,7 @@ import { isAuthenticated, parseCookies, hmac, timingSafeEqual } from "./auth.js"
 import {
   renderShell,
   renderBlocks,
+  isBlockShown,
   renderTags,
   excerpt,
   displayDate,
@@ -289,7 +290,7 @@ async function renderPage(env, page, url, request) {
   }
   const blocks = await listBlocks(env, page.id);
   const activeTagFilter = url.searchParams.get("tag") || null;
-  const bodyHtml = await renderBlocks(env, blocks, { activeTagFilter, isAdmin });
+  const bodyHtml = await renderBlocks(env, blocks, { activeTagFilter, isAdmin, query: url.searchParams });
   // A page has no single body-text field to fall back to the way an
   // article/project's excerpt(body) already does — build an equivalent
   // fallback from its own text/heading blocks (reading order, same
@@ -300,7 +301,7 @@ async function renderPage(env, page, url, request) {
     page.meta_description ||
     excerpt(
       blocks
-        .filter((b) => (b.type === "text" || b.type === "heading") && b.content && b.content.text)
+        .filter((b) => isBlockShown(b, url.searchParams) && (b.type === "text" || b.type === "heading") && b.content && b.content.text)
         .sort((a, b) => a.row - b.row || a.col - b.col)
         .map((b) => b.content.text)
         .join(" ")
