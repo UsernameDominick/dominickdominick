@@ -2591,11 +2591,13 @@
       x1 = Math.max(x1, q.x);
       y1 = Math.max(y1, q.y);
     }
-    const ox = Math.floor(x0) - pad;
-    const oy = Math.floor(y0) - pad;
-    const w = Math.ceil(x1) + pad - ox + 1;
-    const h = Math.ceil(y1) + pad - oy + 1;
-    if (w < 1 || h < 1 || w > 8000 || h > 8000) return null;
+    // Only what can reach the image matters, so a stroke wandering far outside it
+    // (or across a huge span at low zoom) is still bounded by the image plus padding.
+    const ox = Math.max(Math.floor(x0) - pad, -pad);
+    const oy = Math.max(Math.floor(y0) - pad, -pad);
+    const w = Math.min(Math.ceil(x1) + pad, canvas.width + pad) - ox + 1;
+    const h = Math.min(Math.ceil(y1) + pad, canvas.height + pad) - oy + 1;
+    if (w < 1 || h < 1) return null;
     const layer = document.createElement("canvas");
     layer.width = w;
     layer.height = h;
@@ -2644,7 +2646,9 @@
             }
           }
         } else {
-          pencilStamp(ps.g, q.x, q.y, q.w, 0, 0);
+          // The same snapping as every Bresenham step (through the pixel's centre),
+          // or an even width's first dot would sit a pixel off its own line.
+          pencilStamp(ps.g, ix + 0.5, iy + 0.5, q.w, 0, 0);
         }
         ps.prev = { ix, iy };
       }

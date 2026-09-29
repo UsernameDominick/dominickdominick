@@ -2482,9 +2482,10 @@ async function routeAdminApi(request, env, url, ctx) {
     const id = presets.reduce((max, p) => Math.max(max, p.id || 0), 0) + 1;
     // Colour and hardness matter to Paint and Pencil; stored only when valid.
     const preset = { id, name: String(body.name).slice(0, 60), tool: body.tool, size, opacity };
-    if (typeof body.color === "string" && /^#[0-9a-fA-F]{6}$/.test(body.color)) preset.color = body.color.toLowerCase();
+    if ((body.tool === "paint" || body.tool === "pencil") && typeof body.color === "string" && /^#[0-9a-fA-F]{6}$/.test(body.color)) preset.color = body.color.toLowerCase();
+    // Hardness only shapes Paint (null or missing is "not given", not 0).
     const rawHardness = Number(body.hardness);
-    if (body.hardness !== undefined && Number.isFinite(rawHardness)) preset.hardness = Math.max(0, Math.min(100, Math.round(rawHardness)));
+    if (body.tool === "paint" && body.hardness != null && Number.isFinite(rawHardness)) preset.hardness = Math.max(0, Math.min(100, Math.round(rawHardness)));
     presets.push(preset);
     await setSetting(env, "photo_editor_brush_presets", JSON.stringify(presets));
     log(ctx, env, "create", "brush-preset", body.name);
