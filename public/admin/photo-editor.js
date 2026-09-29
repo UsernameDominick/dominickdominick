@@ -434,6 +434,7 @@
     // from starting mid-slider-drag in the first place rather than only
     // stopping the slider from acting while Compare is already active.
     if (!originalSnapshot || compareSavedState || dragging || baseSnapshot) return;
+    resetStraightenUi();
     compareSavedState = snapshotCanvas();
     canvas.width = originalSnapshot.width;
     canvas.height = originalSnapshot.height;
@@ -739,14 +740,25 @@
   // the image's own aspect ratio that fits inside the tilted picture, so no
   // transparent corners are left behind. That rectangle turns by `angle`
   // inside the source, so it fits when its rotated bounding box fits:
-  // a*|cos| + b*|sin| <= W and a*|sin| + b*|cos| <= H. One pixel per side is
-  // trimmed so anti-aliased edge pixels never survive into the result.
+  // a*|cos| + b*|sin| <= W and a*|sin| + b*|cos| <= H. The box is kept a
+  // little inside the source (2*(|cos|+|sin|) px, about one pixel per side
+  // measured across the tilted edge) so anti-aliased edge pixels never survive
+  // into the result. Very thin images can't keep a usable crop at some
+  // angles; those are reported as tooSmall and Straighten is disabled.
   function straightenSize(w, h, radians) {
     const c = Math.abs(Math.cos(radians));
     const s = Math.abs(Math.sin(radians));
-    const scale = Math.min(w / (w * c + h * s), h / (w * s + h * c));
-    return { w: Math.max(1, Math.floor(w * scale - 2)), h: Math.max(1, Math.floor(h * scale - 2)) };
+    const margin = 2 * (c + s);
+    const scale = Math.max(0, Math.min((w - margin) / (w * c + h * s), (h - margin) / (w * s + h * c)));
+    const cw = Math.floor(w * scale);
+    const ch = Math.floor((cw * h) / w);
+    return { w: Math.max(1, cw), h: Math.max(1, ch), tooSmall: cw < 3 || ch < 3 };
   }
+
+  // The preview owns the overlay and dims the whole picture, so it is an
+  // exclusive mode: anything else that draws on the overlay or edits pixels
+  // (crop drag, brush, shapes, text, adjust sliders, Compare) cancels it first.
+  let straightenPreviewing = false;
 
   function straightenAngle() {
     const angle = Number($("pe-straighten-angle").value);
@@ -754,23 +766,37 @@
   }
 
   function resetStraightenUi() {
+    straightenPreviewing = false;
     $("pe-straighten-angle").value = 0;
-    $("pe-straighten-value").textContent = "0.0°";
+    $("pe-straighten-angle").setAttribute("aria-valuetext", "0.0 degrees");
+    $("pe-straighten-number").value = 0;
     $("pe-apply-straighten").disabled = true;
+    $("pe-straighten-note").hidden = true;
+  }
+
+  function cancelStraightenPreview() {
+    if (!straightenPreviewing) return;
+    resetStraightenUi();
+    clearOverlay();
   }
 
   // Live preview on the overlay: the tilted picture, dimmed outside the crop
   // that would be kept, with a thirds grid to line a horizon up against.
   function drawStraightenPreview() {
     const angle = straightenAngle();
-    $("pe-straighten-value").textContent = `${angle.toFixed(1)}°`;
-    $("pe-apply-straighten").disabled = angle === 0;
-    clearOverlay();
-    if (!angle) return;
     const w = canvas.width;
     const h = canvas.height;
     const radians = (angle * Math.PI) / 180;
     const crop = straightenSize(w, h, radians);
+    $("pe-straighten-angle").setAttribute("aria-valuetext", `${angle.toFixed(1)} degrees`);
+    $("pe-apply-straighten").disabled = angle === 0 || crop.tooSmall;
+    $("pe-straighten-note").hidden = !(angle !== 0 && crop.tooSmall);
+    straightenPreviewing = angle !== 0;
+    clearOverlay();
+    if (!angle) return;
+    // A crop selection would silently survive underneath the preview.
+    cropRect = null;
+    $("pe-apply-crop").hidden = true;
     const x = (w - crop.w) / 2;
     const y = (h - crop.h) / 2;
     octx.save();
@@ -801,10 +827,40 @@
     octx.strokeRect(x, y, crop.w, crop.h);
     octx.restore();
   }
-  $("pe-straighten-angle").addEventListener("input", drawStraightenPreview);
-  $("pe-straighten-angle").addEventListener("dblclick", () => {
+
+  $("pe-straighten-angle").addEventListener("input", () => {
+    $("pe-straighten-number").value = straightenAngle();
+    drawStraightenPreview();
+  });
+  // Typing: follow every valid number without rewriting the field under the
+  // cursor; on commit, snap the field to the clamped, one-decimal value.
+  $("pe-straighten-number").addEventListener("input", () => {
+    const raw = $("pe-straighten-number").value;
+    const typed = Number(raw);
+    if (raw.trim() === "" || !Number.isFinite(typed)) return;
+    $("pe-straighten-angle").value = Math.max(-45, Math.min(45, typed));
+    drawStraightenPreview();
+  });
+  $("pe-straighten-number").addEventListener("change", () => {
+    const typed = Number($("pe-straighten-number").value);
+    $("pe-straighten-angle").value = Number.isFinite(typed) ? Math.max(-45, Math.min(45, typed)) : 0;
+    $("pe-straighten-number").value = straightenAngle();
+    drawStraightenPreview();
+  });
+  const resetStraightenFromInput = () => {
     resetStraightenUi();
     clearOverlay();
+  };
+  $("pe-straighten-angle").addEventListener("dblclick", resetStraightenFromInput);
+  // Escape resets a tilt in progress instead of closing the whole editor;
+  // with nothing to reset it falls through to the normal close behaviour.
+  [$("pe-straighten-angle"), $("pe-straighten-number")].forEach((el) => {
+    el.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape" || !straightenPreviewing) return;
+      e.preventDefault();
+      e.stopPropagation();
+      resetStraightenFromInput();
+    });
   });
 
   $("pe-apply-straighten").addEventListener("click", () => {
@@ -815,21 +871,24 @@
     const w = canvas.width;
     const h = canvas.height;
     const crop = straightenSize(w, h, radians);
+    if (crop.tooSmall) return;
     pushUndo();
     const out = document.createElement("canvas");
     out.width = crop.w;
     out.height = crop.h;
-    const octx2 = out.getContext("2d");
-    octx2.imageSmoothingQuality = "high";
-    octx2.translate(crop.w / 2, crop.h / 2);
-    octx2.rotate(radians);
-    octx2.drawImage(canvas, -w / 2, -h / 2);
+    const outCtx = out.getContext("2d");
+    outCtx.imageSmoothingQuality = "high";
+    outCtx.translate(crop.w / 2, crop.h / 2);
+    outCtx.rotate(radians);
+    outCtx.drawImage(canvas, -w / 2, -h / 2);
     canvas.width = crop.w;
     canvas.height = crop.h;
     ctx.drawImage(out, 0, 0);
     syncOverlaySize();
     cancelActiveDrag();
     fitCanvasToViewport();
+    // The button just disabled itself; keep keyboard users in the control.
+    $("pe-straighten-angle").focus();
   });
 
   // ---------- Resize (scales the actual pixels, unlike Crop which only
@@ -999,6 +1058,7 @@
     // that same temporary canvas, corrupting whatever the slider paints
     // next even after Compare is released.
     if (isComparing()) return;
+    cancelStraightenPreview();
     if (!baseSnapshot) {
       pushUndo();
       baseSnapshot = document.createElement("canvas");
@@ -1654,6 +1714,7 @@
     // critic pass found this gap in the fix's symmetry after the first
     // round only guarded one direction.
     if (isComparing()) return;
+    cancelStraightenPreview();
     const p = pointFromEvent(e);
     dragging = true;
     dragStart = p;
@@ -1684,6 +1745,7 @@
   });
 
   overlay.addEventListener("pointermove", (e) => {
+    if (straightenPreviewing) return; // the tilt preview owns the overlay; no crop/brush cursor over it
     const p = pointFromEvent(e);
     if (currentTool === "select" && dragging && cropRect) {
       const constrained = applyCropRatio(cropRect.x0, cropRect.y0, p.x, p.y);

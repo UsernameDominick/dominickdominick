@@ -4845,11 +4845,12 @@ kbd {
   width: 80px;
 }
 
-.pe-straighten-value {
-  min-width: 3.6em;
-  font-size: 0.75rem;
-  font-variant-numeric: tabular-nums;
-  text-align: center;
+.pe-straighten-number-label input {
+  width: 4.6em;
+}
+
+.pe-straighten-note {
+  font-size: 0.72rem;
   color: var(--text-dim);
 }
 
