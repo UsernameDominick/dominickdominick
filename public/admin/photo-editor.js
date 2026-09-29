@@ -219,6 +219,8 @@
   $("pe-view-rotate").addEventListener("click", () => {
     viewRotation = (viewRotation + 90) % 360;
     applyViewRotation();
+    // The footprint changed (swapped at 90/270), so the fit changes with it.
+    if (!modal.hidden) fitCanvasToViewport(true);
   });
 
   let lastFitDims = "";
@@ -228,6 +230,16 @@
   // tool keeps working at any zoom.
   let zoomMode = "fit";
   const ZOOM_STEPS = [0.25, 0.33, 0.5, 0.67, 1, 1.5, 2, 3, 4, 6, 8];
+  // What Fit would show right now (never enlarged past 100%).
+  function fitScaleNow() {
+    const cs = getComputedStyle(canvasWrap);
+    const innerW = canvasWrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const innerH = canvasWrap.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    const maxW = Math.max(1, Math.min(canvasWrap.clientWidth * 0.9, innerW));
+    const maxH = Math.max(1, Math.min(canvasWrap.clientHeight * 0.9, innerH));
+    const rotated = viewRotation % 180 !== 0;
+    return Math.min(1, maxW / (rotated ? canvas.height : canvas.width), maxH / (rotated ? canvas.width : canvas.height));
+  }
   function currentScale() {
     return (parseFloat(overlay.style.width) || canvas.width) / canvas.width || 1;
   }
@@ -241,7 +253,7 @@
     const before = stack.getBoundingClientRect();
     const fx = before.width ? (ax - before.left) / before.width : 0.5;
     const fy = before.height ? (ay - before.top) / before.height : 0.5;
-    zoomMode = mode === "fit" ? "fit" : Math.max(ZOOM_STEPS[0], Math.min(ZOOM_STEPS[ZOOM_STEPS.length - 1], mode));
+    zoomMode = mode === "fit" ? "fit" : Math.max(Math.min(ZOOM_STEPS[0], fitScaleNow()), Math.min(ZOOM_STEPS[ZOOM_STEPS.length - 1], mode));
     fitCanvasToViewport();
     const after = stack.getBoundingClientRect();
     wrapEl.scrollLeft += after.left + fx * after.width - ax;
@@ -283,7 +295,9 @@
     const fitW = rotated ? canvas.height : canvas.width;
     const fitH = rotated ? canvas.width : canvas.height;
     const scale = zoomMode === "fit" ? Math.min(1, maxW / fitW, maxH / fitH) : zoomMode;
-    stack.classList.toggle("is-zoomed", zoomMode !== "fit");
+    // The legacy CSS size caps only suit an unrotated Fit: with the view rotated the
+    // footprint is swapped, so the (inline) size must be the size the element gets.
+    stack.classList.toggle("is-zoomed", zoomMode !== "fit" || rotated);
     // Enlarged pixels stay square instead of blurring, which is what retouching needs.
     stack.classList.toggle("is-pixelated", scale >= 2);
     const w = Math.round(canvas.width * scale);
@@ -774,8 +788,10 @@
     octx.strokeStyle = "#ff7a45";
     // Screen-sized when zoomed in (an image pixel is several screen pixels there).
     const zoomDiv = Math.max(1, currentScale());
-    octx.lineWidth = Math.max(2, canvas.width * 0.002) / zoomDiv;
-    octx.setLineDash([8 / zoomDiv, 6 / zoomDiv]);
+    // The overlay is at image resolution, so the thinnest stroke that reads is one
+    // image pixel (several screen pixels when zoomed in).
+    octx.lineWidth = zoomDiv > 1 ? 1 : Math.max(2, canvas.width * 0.002);
+    octx.setLineDash(zoomDiv > 1 ? [4, 3] : [8, 6]);
     octx.strokeRect(r.x, r.y, r.w, r.h);
     octx.restore();
   }
@@ -2732,7 +2748,9 @@
       // events) zooms smoothly and a mouse-wheel notch is a modest step.
       const dy = e.deltaY * (e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 400 : 1);
       const next = Math.round(currentScale() * Math.exp(-dy * 0.0025) * 1000) / 1000;
-      setZoom(Math.max(ZOOM_STEPS[0], Math.min(ZOOM_STEPS[ZOOM_STEPS.length - 1], next)), e.clientX, e.clientY);
+      // Never zoom IN when asked to zoom out: a large image's Fit can be below 25%.
+      const lower = Math.min(ZOOM_STEPS[0], fitScaleNow());
+      setZoom(Math.max(lower, Math.min(ZOOM_STEPS[ZOOM_STEPS.length - 1], next)), e.clientX, e.clientY);
     },
     { passive: false }
   );
@@ -2747,6 +2765,7 @@
   // Panning state must never outlive its gesture: a missed keyup (alt-tab), closing
   // the editor or opening another image would otherwise leave every drag panning.
   function resetPanState() {
+    pointerOverArea = false; // a closing editor never sends pointerleave
     spaceHeld = false;
     panning = null;
     overlay.style.cursor = currentTool === "pan" ? "grab" : "";
@@ -2764,7 +2783,12 @@
     (e) => {
       if (e.key !== " " || modal.hidden || modal.getAttribute("aria-modal") !== "true" || e.ctrlKey || e.metaKey || e.altKey) return;
       if (typingInField(document.activeElement)) return;
-      if (pointerOverArea) {
+      // Suppress Space's own action only when focus is somewhere it would do
+      // something unwanted (the page, the canvas, a tool button); a focused
+      // checkbox, summary or other control keeps working under the pointer.
+      const ae = document.activeElement;
+      const inert = !ae || ae === document.body || ae === overlay || (ae.tagName === "BUTTON" && ae.classList.contains("pe-tool"));
+      if (pointerOverArea && inert) {
         e.preventDefault();
         e.stopPropagation();
       }
@@ -2779,7 +2803,8 @@
     "keyup",
     (e) => {
       if (e.key !== " " || !spaceHeld) return;
-      if (pointerOverArea) {
+      const ae = document.activeElement;
+      if (pointerOverArea && (!ae || ae === document.body || ae === overlay || (ae.tagName === "BUTTON" && ae.classList.contains("pe-tool")))) {
         e.preventDefault();
         e.stopPropagation();
       }
@@ -2891,7 +2916,7 @@
       return;
     }
     if (isSecondaryPointer(e)) return;
-    if (spaceHeld) return; // Space is held: this is a pan, not a hover over a tool
+    if (spaceHeld && !dragging) return; // Space is held: this is a pan, not a hover over a tool
     if (straightenPreviewing) return; // the tilt preview owns the overlay; no crop/brush cursor over it
     const p = pointFromEvent(e);
     if (currentTool === "select" && dragging && cropRect) {
