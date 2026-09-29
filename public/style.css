@@ -171,8 +171,14 @@ html, body {
 }
 
 html {
-  scroll-behavior: smooth;
   font-size: calc(16px * var(--font-scale, 1));
+}
+
+/* Smooth scrolling is motion: off under the OS setting and the site's manual switch. */
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-motion="reduce"]) {
+    scroll-behavior: smooth;
+  }
 }
 
 h2, h3 {
