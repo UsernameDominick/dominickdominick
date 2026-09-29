@@ -813,7 +813,7 @@ export const FONT_STACKS = {
 // HTML attribute.
 // A cleared setting is stored as null (or ""), and Number(null) is 0, which would
 // read as a real 0 (opacity 0 makes the block vanish). Blank counts as "not set".
-const styleNum = (v) => (v === null || v === undefined || v === "" ? NaN : Number(v));
+const styleNum = (v) => (v === null || v === undefined || (typeof v === "string" && !v.trim()) ? NaN : Number(v));
 
 function blockStyleAttr(style) {
   if (!style) return "";

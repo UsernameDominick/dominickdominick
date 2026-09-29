@@ -2485,7 +2485,9 @@
       btn.addEventListener("click", () => {
         const groupId = btn.dataset.group;
         const keys = btn.dataset.keys.split(",").filter((k) => styleValueIsSet(block.style[k]));
-        // The timing fields behind custom animations aren't shown as fields, so they go with Motion.
+        // The count matches the button; the timing fields behind custom animations
+        // aren't shown as fields, so they go with Motion without being counted.
+        const shownCount = keys.length;
         if (groupId === "motion") ["animationDuration", "animationEasing"].forEach((k) => styleValueIsSet(block.style[k]) && keys.push(k));
         if (!keys.length) return;
         const title = (STYLE_GROUPS.find(([id]) => id === groupId) || [, groupId])[1];
@@ -2494,7 +2496,7 @@
           warnings.push("This can make a hidden, scheduled or address-limited block visible on the live site.");
         }
         if (block.shared_block_id) warnings.push("This is a reusable block, so the change applies on every page that uses it, and page history can't restore it.");
-        if (!confirm(`Reset ${keys.length} ${title.toLowerCase()} setting${keys.length === 1 ? "" : "s"} to ${keys.length === 1 ? "its default" : "their defaults"}?${warnings.length ? "\n\n" + warnings.join("\n") : ""}`)) return;
+        if (!confirm(`Reset ${shownCount} ${title.toLowerCase()} setting${shownCount === 1 ? "" : "s"} to ${shownCount === 1 ? "its default" : "their defaults"}?${warnings.length ? "\n\n" + warnings.join("\n") : ""}`)) return;
         keys.forEach((k) => (block.style[k] = null));
         save({ forceSnapshot: true }); // the page's history keeps the version before the reset
         renderInspector();
