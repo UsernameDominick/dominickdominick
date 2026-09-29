@@ -4034,7 +4034,7 @@
   // (asterisks, "](" and line-leading markers) are swapped for look-alikes.
   const PASTE_SEMANTIC = /<(h[1-6]|strong|b|em|i|a|ul|ol|li|blockquote|table|pre)\b/i;
   const PASTE_MAX_HTML = 1500000; // beyond this, leave the browser's own paste alone
-  const PASTE_UNDO_MAX = 20000; // longer results are inserted in one step (no native Undo)
+  const PASTE_UNDO_MAX = 5000; // longer results are inserted in one step (no native Undo): insertText is slow for long multi-line text
   const PASTE_SKIP = new Set(["script", "style", "meta", "link", "head", "title", "img", "svg", "iframe", "object", "noscript", "template", "form", "input", "textarea", "button", "select", "audio", "video", "canvas", "hr"]);
   const PASTE_INLINE = new Set(["span", "b", "strong", "em", "i", "a", "font", "u", "s", "strike", "del", "ins", "mark", "small", "big", "sup", "sub", "code", "kbd", "samp", "var", "abbr", "cite", "q", "dfn", "time", "label", "bdi", "bdo", "wbr", "tt", "br"]);
   const PASTE_BLOCK_SEL = "p,div,h1,h2,h3,h4,h5,h6,ul,ol,li,blockquote,pre,table,section,article,figure,dl,dt,dd";
@@ -4043,18 +4043,22 @@
     let href = String(raw || "").trim();
     if (!href) return null;
     if (/^\/\//.test(href)) href = "https:" + href; // protocol-relative -> explicit
-    if (/^\/\\/.test(href)) return null;
+    if (/^\/\\/.test(href) || /^\\/.test(href)) return null; // slash-backslash and UNC paths
     const scheme = href.replace(/[\u0000- ]/g, "");
     if (!/^(https?:|mailto:|tel:)/i.test(scheme) && /^[a-z][a-z0-9+.-]*:/i.test(scheme)) return null; // javascript:, data:, vbscript:...
     // The renderer's link syntax can't hold these, so they are percent-encoded.
-    return href.replace(/[()\[\]|\s]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0"));
+    return href.replace(/[()\[\]|*\s]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0"));
   }
+  // Emphasis marks that touch ("*a*" then "**b**") would read as one span: keep them apart.
+  const joinInline = (a, b) => (a.endsWith("*") && b.startsWith("*") ? a + "\u200b" + b : a + b);
   const pasteEscape = (t) => t.replace(/\*/g, "∗").replace(/\]\(/g, "]​(");
   const pasteCollapse = (t) => t.replace(/[ \t\r\n ]+/g, " ");
   const pasteWrapLines = (text, mark) => text.split("\n").map((l) => (l.trim() ? mark + l.trim() + mark : l)).join("\n");
 
   function htmlToMarkdownLite(html) {
-    const doc = new DOMParser().parseFromString(html, "text/html"); // inert: scripts never run
+    // Word and Outlook wrap the copied part in fragment comments; only that part counts.
+    const frag = html.match(/<!--StartFragment-->([\s\S]*?)<!--EndFragment-->/i);
+    const doc = new DOMParser().parseFromString(frag ? frag[1] : html, "text/html"); // inert: scripts never run
     const weightOf = (n) => (n.style && n.style.fontWeight) || "";
     const isBoldEl = (n, tag) => tag === "strong" || (tag === "b" && !/^(normal|400)$/.test(weightOf(n))) || /^(bold|[6-9]00)$/.test(weightOf(n));
     const isItalicEl = (n, tag) => tag === "em" || tag === "i" || (n.style && n.style.fontStyle) === "italic";
@@ -4062,18 +4066,19 @@
     // One inline node as text, including its own bold/italic/link. Only the outermost
     // of nested emphasis is kept (the renderer can't nest ** and *).
     function inlineOf(node, st) {
-      if (node.nodeType === 3) return pasteEscape(pasteCollapse(node.nodeValue));
+      if (node.nodeType === 3) return st.code ? pasteCollapse(node.nodeValue) : pasteEscape(pasteCollapse(node.nodeValue));
       if (node.nodeType !== 1) return "";
       const tag = node.tagName.toLowerCase();
       if (PASTE_SKIP.has(tag)) return "";
       if (tag === "br") return "\n";
-      if (tag === "sup" && /^\s*\[?\d+\]?\s*$/.test(node.textContent)) return ""; // footnote markers like [1]
+      // Citation markers (a "[1]" or a link to an anchor) are dropped; a bare 2 in m² stays.
+      if (tag === "sup" && (/^\s*\[\d+\]\s*$/.test(node.textContent) || node.querySelector('a[href^="#"]'))) return "";
       const free = !st.bold && !st.italic;
       const bold = free && isBoldEl(node, tag);
       const italic = free && !bold && isItalicEl(node, tag);
-      const child = { bold: st.bold || bold, italic: st.italic || italic, noLink: st.noLink };
+      const child = { bold: st.bold || bold, italic: st.italic || italic, noLink: st.noLink, code: st.code || tag === "code" || tag === "kbd" || tag === "samp" };
       let inner = "";
-      node.childNodes.forEach((k) => (inner += inlineOf(k, child)));
+      node.childNodes.forEach((k) => (inner = joinInline(inner, inlineOf(k, child))));
       if (!inner.trim()) return inner;
       let text = inner;
       if (tag === "a" && !st.noLink) {
@@ -4088,9 +4093,18 @@
       return lead + core + trail;
     }
 
-    const plain = (node) => pasteCollapse(inlineOf(node, { bold: true, italic: true, noLink: true })).trim();
+    // Text only (no emphasis or links), with a space where block children meet so
+    // "<td><p>a</p><p>b</p></td>" reads "a b" and not "ab".
+    const plain = (node) => {
+      const spaced = node.cloneNode(true);
+      spaced.querySelectorAll(PASTE_BLOCK_SEL + ",br").forEach((b) => {
+        b.before(" ");
+        b.after(" ");
+      });
+      return pasteCollapse(inlineOf(spaced, { bold: true, italic: true, noLink: true })).trim();
+    };
     const tidy = (t) => t.replace(/[ \t]*\n[ \t]*/g, "\n").replace(/^\s+|\s+$/g, "");
-    const STRUCT = /^(#{1,6}\s|[-+]\s|>|\d+[.)]\s|:::|\[\^|\[before)/;
+    const STRUCT = /^(#{1,6}\s|[-+]\s|>|\d+[.)]\s|:::|```|\[\^|\[before)/;
 
     // Word writes each typed-in bullet as its own paragraph: consecutive ones form one list.
     function pushBlock(out, b) {
@@ -4166,7 +4180,7 @@
       let run = [];
       const flush = () => {
         if (!run.length) return;
-        const text = run.map((n) => inlineOf(n, {})).join("");
+        const text = run.reduce((acc, n) => joinInline(acc, inlineOf(n, {})), "");
         run = [];
         paragraphs(text, out);
       };

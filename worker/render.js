@@ -328,6 +328,7 @@ export function paragraphsHtml(text) {
 
 function stripMarkdown(text) {
   return String(text ?? "")
+    .replace(/\u200b/g, "") // invisible guard characters pasted content may carry
     .replace(/```(\w*)\n([\s\S]*?)```/g, "$2")
     .replace(/^:::(note|tip|warning|danger)[ \t]*\n([\s\S]*?)\n:::$/gim, "$2")
     .replace(/^\[\^([^\]]+)\]:\s*.+$/gm, "")
