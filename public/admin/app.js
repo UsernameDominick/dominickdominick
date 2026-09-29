@@ -496,7 +496,10 @@
     btn.type = "button";
     btn.className = "save-conflict-reload";
     btn.textContent = "Reload latest version";
-    btn.addEventListener("click", onReload);
+    btn.addEventListener("click", async () => {
+      await onReload();
+      e.innerHTML = ""; // the message described the version that was just replaced
+    });
     span.appendChild(btn);
     if (onCompare) {
       const cmp = document.createElement("button");
@@ -510,23 +513,44 @@
   }
 
   // ---------- Compare and merge a save conflict ----------
-  // Shows, field by field, what this editor holds against what was saved elsewhere;
-  // each differing field is picked from one side (yours by default), and the merged
-  // result is saved on top of the latest version.
-  const CONFLICT_FIELDS = {
-    article: [["title", "Title"], ["slug", "Slug"], ["body", "Body"], ["tags", "Tags"], ["series", "Series"], ["co_authors", "Co-authors"], ["og_image", "Social image"], ["canonical_url", "Canonical URL"], ["custom_json_ld", "Custom JSON-LD"], ["correction_note", "Correction note"], ["private_notes", "Private notes"]],
-    project: [["title", "Title"], ["slug", "Slug"], ["summary", "Summary"], ["body", "Body"], ["tags", "Tags"], ["tech_stack", "Tech stack"], ["status", "Status"], ["links", "Links"], ["og_image", "Social image"], ["canonical_url", "Canonical URL"], ["custom_json_ld", "Custom JSON-LD"], ["correction_note", "Correction note"], ["private_notes", "Private notes"]],
+  // A three-way merge at field level. Three versions are known: the one this tab
+  // loaded (its baseline), what is in the editor now, and what was saved since. A
+  // field only this editor changed is kept; a field only the other side changed is
+  // taken from the saved version; a field both changed is offered side by side.
+  // Only this editor's own changes are sent, on top of the latest version, so
+  // nothing else that changed elsewhere (publish state, flags, relations) is touched.
+  let articleBase = null; // the article as this tab last loaded or saved it
+  let projectBase = null;
+  const CONFLICT_NOT_FIELDS = new Set(["expected_version"]);
+  const conflictLabel = (key) => key.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+  function conflictNorm(value, ref) {
+    if (typeof ref === "boolean") return String(Boolean(value));
+    if (value === null || value === undefined || value === "") return "";
+    if (Array.isArray(value)) {
+      const list = value.every((x) => typeof x === "number") ? [...value].sort((a, b) => a - b) : value;
+      return list.map((x) => (typeof x === "object" ? JSON.stringify(x) : String(x))).join(", ");
+    }
+    if (typeof value === "object") return Object.keys(value).length ? JSON.stringify(value, null, 2) : "";
+    return String(value);
+  }
+  const conflictShow = (value) => {
+    const t = conflictNorm(value, undefined);
+    return t.trim() ? t : "(empty)";
   };
-  const conflictText = (v) => {
-    if (v === null || v === undefined || v === "") return "";
-    if (Array.isArray(v)) return v.map((x) => (typeof x === "object" ? JSON.stringify(x) : String(x))).join(", ");
-    if (typeof v === "object") return Object.keys(v).length ? JSON.stringify(v, null, 2) : "";
-    return String(v);
-  };
+  // Publish and expiry times are rebuilt from the form on every save, so they only
+  // count as changed when the date itself differs at minute precision (or the
+  // published state flipped).
+  function conflictTimeChanged(mineIso, baseIso, inputValue, isPublishedField) {
+    if (isPublishedField && Boolean(mineIso) !== Boolean(baseIso)) return true;
+    if (!mineIso || !baseIso) return Boolean(mineIso) !== Boolean(baseIso);
+    if (isPublishedField && !inputValue) return false; // "now" was only a default
+    return mineIso.slice(0, 16) !== baseIso.slice(0, 16);
+  }
   let conflictCtx = null;
   async function compareConflict(kind) {
     const isArticle = kind === "article";
     const id = isArticle ? currentArticleId : currentProjectId;
+    const base = isArticle ? articleBase : projectBase;
     let latest;
     try {
       const list = await api(isArticle ? "/articles" : "/projects");
@@ -535,15 +559,39 @@
       return alert("Couldn't load the latest version: " + err.message);
     }
     if (!latest) return alert("This item no longer exists, so there is nothing to compare with.");
+    if (!base) return alert("The version this editor started from isn't known any more. Use Reload latest version.");
     const mine = isArticle ? buildArticleBody() : buildProjectBody();
-    const diffs = CONFLICT_FIELDS[kind].filter(([key]) => conflictText(mine[key]) !== conflictText(latest[key]));
-    conflictCtx = { kind, id, mine, latest, diffs };
-    el("conflict-intro").textContent = diffs.length
-      ? "This was changed elsewhere after you opened it. Only the fields that differ are listed: pick which version of each to keep, then save."
-      : "The saved version differs only in settings that aren't listed here (such as publish dates). Saving keeps everything in this editor on top of the latest version.";
+    const publishInput = el(isArticle ? "article-publish-at" : "project-publish-at").value;
+    const expiresInput = el(isArticle ? "article-expires-at" : "project-expires-at").value;
+    const mineChanges = []; // {key, label}: only this editor changed it
+    const theirChanges = []; // only the saved version changed it: taken as is
+    const both = []; // both changed it: the user chooses
+    Object.keys(mine).forEach((key) => {
+      if (CONFLICT_NOT_FIELDS.has(key)) return;
+      let mineChanged;
+      let theirChanged;
+      if (key === "published_at" || key === "expires_at") {
+        mineChanged = conflictTimeChanged(mine[key], base[key], key === "published_at" ? publishInput : expiresInput, key === "published_at");
+        theirChanged = conflictTimeChanged(latest[key], base[key], "x", key === "published_at");
+      } else {
+        mineChanged = conflictNorm(mine[key], mine[key]) !== conflictNorm(base[key], mine[key]);
+        theirChanged = conflictNorm(latest[key], mine[key]) !== conflictNorm(base[key], mine[key]);
+      }
+      const entry = { key, label: conflictLabel(key) };
+      if (mineChanged && theirChanged && conflictNorm(mine[key], mine[key]) !== conflictNorm(latest[key], mine[key])) both.push(entry);
+      else if (mineChanged && !theirChanged) mineChanges.push(entry);
+      else if (theirChanged && !mineChanged) theirChanges.push(entry);
+    });
+    conflictCtx = { kind, id, mine, latest, both, mineChanges };
+    const names = (list) => list.map((f) => f.label).join(", ");
+    el("conflict-intro").textContent = [
+      both.length ? "Both this editor and the saved version changed the fields below: pick which version of each to keep." : "No field was changed on both sides, so the two sets of changes fit together.",
+      mineChanges.length ? `Your changes that will be saved: ${names(mineChanges)}.` : "You have no other unsaved changes.",
+      theirChanges.length ? `Kept from the saved version (changed elsewhere): ${names(theirChanges)}.` : "",
+    ].filter(Boolean).join(" ");
     const rows = el("conflict-rows");
     rows.innerHTML = "";
-    diffs.forEach(([key, label], i) => {
+    both.forEach(({ key, label }, i) => {
       const fs = document.createElement("fieldset");
       fs.className = "conflict-field";
       const lg = document.createElement("legend");
@@ -559,37 +607,42 @@
         r.name = `conflict-${i}`;
         r.value = which;
         r.checked = which === "mine";
+        r.setAttribute("aria-label", `${label}: ${which === "mine" ? "yours" : "latest saved"}`);
         const strong = document.createElement("strong");
         strong.textContent = " " + title;
         const pre = document.createElement("pre");
-        pre.textContent = conflictText(value) || "(empty)";
+        pre.textContent = conflictShow(value);
         lab.append(r, strong, pre);
         sides.appendChild(lab);
       });
       fs.appendChild(sides);
       rows.appendChild(fs);
     });
-    el("conflict-status").textContent = "";
-    el("conflict-apply").disabled = false;
+    el("conflict-status").textContent = latest.locked ? "This item was locked elsewhere. Unlock it before saving." : "";
+    el("conflict-apply").disabled = Boolean(latest.locked);
+    el("conflict-apply").textContent = mineChanges.length || both.length ? "Save merged version" : "Nothing to save";
+    if (!mineChanges.length && !both.length) el("conflict-apply").disabled = true;
+    modalFocusReturn.set(el("conflict-modal"), document.activeElement);
     el("conflict-modal").hidden = false;
-    el("conflict-apply").focus();
+    el("conflict-modal-title").focus();
   }
   closeModalOnClick("close-conflict", "conflict-modal");
   closeModalOnClick("conflict-cancel", "conflict-modal");
   el("conflict-apply").addEventListener("click", async () => {
     if (!conflictCtx) return;
-    const { kind, id, mine, latest, diffs } = conflictCtx;
-    const merged = { ...mine };
-    diffs.forEach(([key], i) => {
+    const { kind, id, mine, latest, both, mineChanges } = conflictCtx;
+    // Only this editor's own changes go up; the rest stays as saved.
+    const patch = { expected_version: latest.version };
+    mineChanges.forEach(({ key }) => (patch[key] = mine[key]));
+    both.forEach(({ key }, i) => {
       const picked = document.querySelector(`input[name="conflict-${i}"]:checked`);
-      if (picked && picked.value === "latest") merged[key] = latest[key];
+      if (!picked || picked.value === "mine") patch[key] = mine[key];
     });
-    merged.expected_version = latest.version;
     el("conflict-apply").disabled = true;
     el("conflict-status").textContent = "Saving…";
     const isArticle = kind === "article";
     try {
-      await api(`/${isArticle ? "articles" : "projects"}/${id}`, { method: "PATCH", body: JSON.stringify(merged) });
+      await api(`/${isArticle ? "articles" : "projects"}/${id}`, { method: "PATCH", body: JSON.stringify(patch) });
       const list = await api(isArticle ? "/articles" : "/projects");
       const saved = list.find((x) => x.id === id);
       el("conflict-modal").hidden = true;
@@ -607,10 +660,14 @@
       unsavedDirty = false;
       clearDraft(kind, id);
     } catch (err) {
+      if (err.conflict) {
+        // Changed yet again: show the newest comparison instead of a dead end.
+        await compareConflict(kind);
+        el("conflict-status").textContent = "It changed again while you were choosing, so the comparison was refreshed.";
+        return;
+      }
       el("conflict-apply").disabled = false;
-      el("conflict-status").textContent = err.conflict
-        ? "It changed again while you were choosing. Close this and press Compare again to see the newest version."
-        : "Couldn't save: " + err.message;
+      el("conflict-status").textContent = "Couldn't save: " + err.message;
     }
   });
 
@@ -3710,6 +3767,7 @@
     recordRecentlyEdited("article", article.id, article.title);
     currentArticleId = article.id;
     currentArticleVersion = article.version || null;
+    articleBase = article;
     currentArticleLocked = !!article.locked;
     updateLockButton("lock-article-btn", currentArticleLocked);
     updateFavoriteButton("favorite-article-btn", "article", article.id);
@@ -4508,6 +4566,7 @@
     setAutosaveStatus("");
     currentArticleId = null;
     currentArticleVersion = null;
+    articleBase = null;
     currentArticleLocked = false;
     updateLockButton("lock-article-btn", false);
     el("favorite-article-btn").textContent = "☆ Pin";
@@ -4602,7 +4661,10 @@
   // otherwise "conflict" against its own prior write.
   function rebaseArticleVersion() {
     const a = articles.find((x) => x.id === currentArticleId);
-    if (a) currentArticleVersion = a.version || null;
+    if (a) {
+      currentArticleVersion = a.version || null;
+      articleBase = a;
+    }
   }
 
   el("save-article").addEventListener("click", async () => {
@@ -4931,6 +4993,7 @@
     recordRecentlyEdited("project", project.id, project.title);
     currentProjectId = project.id;
     currentProjectVersion = project.version || null;
+    projectBase = project;
     currentProjectLocked = !!project.locked;
     updateLockButton("lock-project-btn", currentProjectLocked);
     updateFavoriteButton("favorite-project-btn", "project", project.id);
@@ -4987,6 +5050,7 @@
   function clearProjectForm() {
     currentProjectId = null;
     currentProjectVersion = null;
+    projectBase = null;
     currentProjectLocked = false;
     updateLockButton("lock-project-btn", false);
     el("favorite-project-btn").textContent = "☆ Pin";
@@ -5166,7 +5230,10 @@
       clearDraft("project", currentProjectId);
       projects = await api("/projects");
       const p = projects.find((x) => x.id === currentProjectId);
-      if (p) currentProjectVersion = p.version || null;
+      if (p) {
+        currentProjectVersion = p.version || null;
+        projectBase = p;
+      }
       renderProjectsList();
       el("project-autosave-status").textContent = "Saved " + new Date().toLocaleTimeString();
     } catch (err) {
@@ -5238,7 +5305,10 @@
       clearDraft("project", isNewProject ? null : currentProjectId);
       projects = await api("/projects");
       const p = projects.find((x) => x.id === currentProjectId);
-      if (p) currentProjectVersion = p.version || null;
+      if (p) {
+        currentProjectVersion = p.version || null;
+        projectBase = p;
+      }
       updateProjectExtras();
       renderProjectsList();
       el("project-autosave-status").textContent = "Saved " + new Date().toLocaleTimeString();
@@ -5286,7 +5356,10 @@
       updateLockButton("lock-project-btn", currentProjectLocked);
       projects = await api("/projects");
       const p = projects.find((x) => x.id === currentProjectId);
-      if (p) currentProjectVersion = p.version || null;
+      if (p) {
+        currentProjectVersion = p.version || null;
+        projectBase = p;
+      }
       renderProjectsList();
     } catch (err) {
       alert(err.message);

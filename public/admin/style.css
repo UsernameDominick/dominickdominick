@@ -6810,7 +6810,7 @@ kbd {
 }
 #conflict-apply {
   background: var(--accent);
-  color: #1a1305;
+  color: var(--on-accent);
   border-color: transparent;
   font-weight: 600;
 }
