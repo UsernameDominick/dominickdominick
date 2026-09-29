@@ -1664,7 +1664,9 @@
   // screen at every rotation: the stored mirror flag toggles and the rotation
   // is reversed (a mirror applied outside a 90-degree turn is a mirror
   // top-to-bottom inside it). A 90/270 turn keeps the part's visual centre
-  // (snapped to the grid) instead of pivoting on its corner. A part plugged
+  // (every shipped part's width/height differ by an even number, so the shift
+  // is whole and four turns land back exactly where they started) instead of
+  // pivoting on its corner. A part plugged
   // into a breadboard is re-seated afterwards: legs that still land exactly on
   // a hole stay plugged, the rest are unplugged rather than leaving a wire
   // stretched to where the pin used to be, and the admin is told.
@@ -1690,10 +1692,7 @@
     else delete comp.mirror;
     const sizeAfter = window.getSimComponentDefinition(comp);
     if (sizeAfter.w !== sizeBefore.w) {
-      const place = (value, max) => {
-        const snapped = gridSnapSize > 0 ? Math.round(value / gridSnapSize) * gridSnapSize : Math.round(value);
-        return Math.max(0, Math.min(max, snapped));
-      };
+      const place = (value, max) => Math.max(0, Math.min(max, Math.round(value)));
       comp.x = place(comp.x + (sizeBefore.w - sizeAfter.w) / 2, 1500);
       comp.y = place(comp.y + (sizeBefore.h - sizeAfter.h) / 2, 700);
     }

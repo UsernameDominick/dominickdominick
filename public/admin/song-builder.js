@@ -666,7 +666,9 @@
       if (pushSongUndoState(historyBefore)) songEditGeneration++;
       scheduleAutosave();
       const unsavedNote = currentSongId ? "" : " (Save the song to keep this.)";
-      alert(`Peak was ${Math.round(peakAmp * 100)}% of full scale. Master volume set to ${newVolumePercent}% to avoid clipping.${unsavedNote}`);
+      const mutedParts = [...TRACKS.filter((t) => Engine.isTrackMuted(songData, t)).map((t) => TRACK_LABELS[t]), ...(Engine.isMelodyMuted(songData) ? ["Melody"] : [])];
+      const mutedNote = mutedParts.length ? ` Muted parts (${mutedParts.join(", ")}) weren't counted, so unmuting them later can clip.` : "";
+      alert(`Peak was ${Math.round(peakAmp * 100)}% of full scale. Master volume set to ${newVolumePercent}% to avoid clipping.${mutedNote}${unsavedNote}`);
     } catch (err) {
       alert("Couldn't scan the song's peak level: " + err.message);
     } finally {
@@ -826,6 +828,11 @@
       const step = player.currentStep();
       const wasRecorded = songData.melody.notes[noteName][step] === true;
       songData.melody.notes[noteName][step] = true;
+      // Recording into a collapsed piano roll would write notes nobody can see.
+      if (songData.melody.hidden === true) {
+        setFlag(songData.melody, "hidden", false);
+        renderPianoRoll();
+      }
       const cell = document.querySelector(`.song-steps[data-row="${noteName}"] .song-step[data-step="${step}"]`);
       if (cell) cell.classList.add("song-step-on");
       if (!wasRecorded) scheduleAutosave();
@@ -926,6 +933,10 @@
     NOTE_TO_KEYBOARD_KEY[KEYBOARD_NOTE_MAP[key] + KEYBOARD_NOTE_OCTAVE[key]] = key.toUpperCase();
   });
 
+  const SONG_ICON_ATTRS = 'viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
+  const SONG_EYE_ICON = `<svg ${SONG_ICON_ATTRS}><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>`;
+  const SONG_EYE_OFF_ICON = `<svg ${SONG_ICON_ATTRS}><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/><line x1="3" y1="21" x2="21" y2="3"/></svg>`;
+
   // ---------- Sequencer grid ----------
   // Shared by the drum sequencer and the piano roll — both are just a set
   // of named rows, each STEPS long, toggled the same way. Parameterized by
@@ -942,9 +953,6 @@
   // use, rather than a third parallel implementation of "play this note."
   // Not passed for the drum sequencer, since its rows are sounds, not a
   // pitched instrument with keys to click.
-  const SONG_EYE_ICON =
-    '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>';
-
   function renderStepGrid(containerId, rowKeys, rowLabel, getOn, setOn, rowClass, getMeta, onMetaChange, onLabelClick) {
     $(containerId).innerHTML = rowKeys
       .map((key) => {
@@ -955,7 +963,7 @@
         const hidden = Boolean(meta) && meta.hidden === true;
         const toggleHtml = meta
           ? `<button type="button" class="song-track-toggle song-track-mute" data-row="${key}" aria-pressed="${muted}" aria-label="Mute ${label}" title="Mute ${label}: silent in the preview and on the public page">M</button>` +
-            `<button type="button" class="song-track-toggle song-track-hide" data-row="${key}" aria-pressed="${hidden}" aria-label="Hide ${label} row" title="Hide ${label} row: collapses it here in the editor, but it still plays unless muted">${SONG_EYE_ICON}</button>`
+            `<button type="button" class="song-track-toggle song-track-hide" data-row="${key}" aria-pressed="${hidden}" aria-label="Hide ${label} row" title="Hide ${label} row: collapses it here in the editor, but it still plays unless muted">${hidden ? SONG_EYE_OFF_ICON : SONG_EYE_ICON}</button>`
           : "";
         if (hidden) {
           return `<div class="song-track-row song-track-row-hidden${muted ? " song-track-row-muted" : ""}"${rowStyle}><span class="song-track-label">${label}</span>${toggleHtml}<span class="song-track-hidden-note">Hidden, ${
@@ -1083,17 +1091,23 @@
       (t, field, value) => {
         if (field === "muted" || field === "hidden") setFlag(songData.trackMeta[t], field, value);
         else songData.trackMeta[t][field] = value;
-        if (field !== "hidden") return;
+        // A collapsed row's "Hidden, muted / still plays" text is only
+        // rendered with the row, so re-render whenever it could go stale.
+        if (field !== "hidden" && !(field === "muted" && songData.trackMeta[t].hidden === true)) return;
         renderSequencer();
-        const toggle = $("song-sequencer").querySelector(`.song-track-hide[data-row="${t}"]`);
+        const toggle = $("song-sequencer").querySelector(`.song-track-${field === "hidden" ? "hide" : "mute"}[data-row="${t}"]`);
         if (toggle) toggle.focus();
       }
     );
   }
 
   function updateMelodyToggles() {
-    $("song-melody-mute").setAttribute("aria-pressed", String(songData.melody.muted === true));
-    $("song-melody-hide").setAttribute("aria-pressed", String(songData.melody.hidden === true));
+    const muted = songData.melody.muted === true;
+    const hidden = songData.melody.hidden === true;
+    $("song-melody-mute").setAttribute("aria-pressed", String(muted));
+    $("song-melody-hide").setAttribute("aria-pressed", String(hidden));
+    $("song-melody-mute").textContent = muted ? "Muted" : "Mute";
+    $("song-melody-hide").textContent = hidden ? "Hidden" : "Hide";
   }
 
   function setMelodyFlag(field) {
@@ -1104,6 +1118,7 @@
       const toggle = $("song-piano-roll").querySelector(".song-melody-show") || $("song-melody-hide");
       toggle.focus();
     } else {
+      if (songData.melody.hidden === true) renderPianoRoll();
       refreshWaveformPreview();
     }
     scheduleAutosave();
@@ -1263,6 +1278,21 @@
       `<option value="">Blank</option>` + songTemplates.map((t) => `<option value="${t.id}">${escapeXml(t.name)}</option>`).join("");
   }
 
+  // Mute/hide describe one song's working state, like private_notes; a new
+  // song made from a template should start audible and fully expanded.
+  function stripSongMixFlags(data) {
+    const clean = JSON.parse(JSON.stringify(data));
+    Object.values(clean.trackMeta || {}).forEach((meta) => {
+      delete meta.muted;
+      delete meta.hidden;
+    });
+    if (clean.melody) {
+      delete clean.melody.muted;
+      delete clean.melody.hidden;
+    }
+    return clean;
+  }
+
   $("save-song-template-btn").addEventListener("click", async () => {
     const name = prompt("Template name:");
     if (!name) return;
@@ -1273,7 +1303,7 @@
       // something that should silently reappear inside every future song
       // made from this template. Same reasoning openBuilder() already
       // applies to a template's own name not carrying over.
-      await window.adminApi("/templates", { method: "POST", body: JSON.stringify({ kind: "song", name, data: { ...songData, private_notes: "" } }) });
+      await window.adminApi("/templates", { method: "POST", body: JSON.stringify({ kind: "song", name, data: stripSongMixFlags({ ...songData, private_notes: "" }) }) });
       await loadSongTemplates();
     } catch (err) {
       alert(err.message);

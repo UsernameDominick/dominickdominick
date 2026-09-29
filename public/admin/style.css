@@ -3843,7 +3843,7 @@ kbd {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-width: 800px;
+  max-width: 900px;
 }
 
 .song-track-row {
@@ -3900,9 +3900,9 @@ kbd {
 }
 
 .song-transpose-controls button.song-track-toggle {
-  height: auto;
+  height: 28px;
   min-width: 0;
-  padding: 2px 8px;
+  padding: 0 12px;
   font-size: 0.8rem;
   font-weight: inherit;
 }
@@ -3911,6 +3911,13 @@ kbd {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 18%, var(--bg));
   color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+/* Shape cues beside the colour: a struck-through M, and an eye-off icon /
+   "Muted" / "Hidden" wording in the markup. */
+.song-track-mute[aria-pressed="true"] {
+  text-decoration: line-through;
 }
 
 .song-track-row-muted .song-steps,
@@ -3968,15 +3975,21 @@ kbd {
    scrolling at all -- the same "give up on fitting one row, use the width
    you actually have" call already made for the mobile toolbars elsewhere
    in this file. */
-@media (max-width: 860px) {
+@media (max-width: 1200px) {
   .song-track-row {
     flex-wrap: wrap;
   }
   .song-steps {
     flex-basis: 100%;
   }
+}
+
+@media (max-width: 860px) {
   .song-track-row .song-track-toggle {
     min-width: 36px;
+    height: 36px;
+  }
+  .song-transpose-controls button.song-track-toggle {
     height: 36px;
   }
 }
@@ -3986,6 +3999,15 @@ kbd {
   grid-template-columns: repeat(16, 1fr);
   gap: 4px;
   flex: 1;
+}
+
+/* Between phone and desktop the wrapped step grid is as wide as its panel,
+   but the three 8px beat gaps (.song-step-beat) are added on top of the
+   equal-width tracks, pushing step 16 into the panel's padding. Reserve them. */
+@media (min-width: 641px) and (max-width: 1200px) {
+  .song-steps {
+    flex: 0 1 calc(100% - 24px);
+  }
 }
 
 .song-step {
@@ -4011,6 +4033,8 @@ kbd {
 @media (max-width: 640px) {
   .song-steps {
     grid-template-columns: repeat(8, 1fr);
+    /* the one 8px beat gap per row sits on top of the equal tracks */
+    flex: 0 1 calc(100% - 8px);
   }
   .song-steps > .song-step:nth-child(9) {
     margin-left: 0;
