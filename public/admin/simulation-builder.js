@@ -1571,6 +1571,34 @@
     inductor: { inductance: 10, dcResistance: 1 },
   };
 
+  // How the simulator treats each part: a source, an analysed electrical part,
+  // a steady-state approximation, or something mechanical/diagram-only that has
+  // no electrical value. Shown under the part's name in the inspector and as the
+  // palette tooltip, so what is (and isn't) simulated is never a guess.
+  const SIM_PART_MODEL = {
+    outlet: "Source: a fixed 120 V AC outlet, treated as a steady source.",
+    power_supply: "Source: a steady DC output at the chosen voltage.",
+    battery: "Source: a steady DC voltage, with an optional internal resistance.",
+    breadboard: "Mechanical: it only joins the holes in each column and rail, and has no electrical value of its own.",
+    led: "Electrical: analysed for forward voltage, current and burn-out.",
+    resistor: "Electrical: analysed for current and heat with Ohm's law.",
+    potentiometer: "Electrical: analysed as the resistance its wiper sets.",
+    capacitor: "Electrical (steady state): acts as an open circuit; charging over time isn't simulated.",
+    inductor: "Electrical (steady state): only its winding resistance counts.",
+    switch: "Electrical: opens or closes the path.",
+    switch_spdt: "Electrical: connects the common terminal to one of two throws.",
+    ammeter: "Electrical: a zero-resistance meter that reads the current through it.",
+    mcu_teensy: "Electrical: analysed as a fixed load; firmware isn't simulated.",
+    tv: "Visual only: it lights up when its connection is powered and isn't analysed for current.",
+    logic_gate: "Diagram only: drawn with a truth table for documentation, and not simulated.",
+  };
+  function partModelHtml(type) {
+    const text = SIM_PART_MODEL[type];
+    if (!text) return "";
+    const [kind, ...rest] = text.split(": ");
+    return `<p class="sim-part-model"><strong>${escapeXml(kind)}:</strong> ${escapeXml(rest.join(": "))}</p>`;
+  }
+
   // ---------- Recently-used parts ----------
   // A localStorage list rather than per-simulation state -- "what did I
   // just reach for" is a builder-wide habit, not something tied to one
@@ -1619,7 +1647,7 @@
     container.innerHTML =
       `<h3>Recently used</h3>` +
       recent
-        .map((type) => `<button type="button" class="sim-palette-recent-btn" data-sim-type="${escapeXml(type)}">${escapeXml(REG[type].label)}</button>`)
+        .map((type) => `<button type="button" class="sim-palette-recent-btn" data-sim-type="${escapeXml(type)}"${SIM_PART_MODEL[type] ? ` title="${escapeXml(SIM_PART_MODEL[type])}"` : ""}>${escapeXml(REG[type].label)}</button>`)
         .join("");
     container.querySelectorAll(".sim-palette-recent-btn").forEach((btn) => {
       btn.addEventListener("click", () => addComponentFromPalette(btn.dataset.simType));
@@ -1645,6 +1673,7 @@
 
   document.querySelectorAll(".sim-palette-btn").forEach((btn) => {
     btn.addEventListener("click", () => addComponentFromPalette(btn.dataset.simType));
+    if (SIM_PART_MODEL[btn.dataset.simType] && !btn.title) btn.title = SIM_PART_MODEL[btn.dataset.simType];
   });
 
   $("sim-palette-search").addEventListener("input", (e) => {
@@ -1952,6 +1981,7 @@
 
       box.innerHTML = `
         <p><strong>${escapeXml(def.label)}</strong></p>
+        ${comp.type === "logic_gate" ? "" : partModelHtml(comp.type)}
         <p class="sim-power-status ${isPowered || def.isSource ? "is-powered" : ""}">${statusLine}</p>
         ${electricalHtml}
         ${extraFieldsHtml}
