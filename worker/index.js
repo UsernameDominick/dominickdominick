@@ -94,6 +94,10 @@ import {
   inductanceMillihenries,
   inductorWindingOhms,
   LED_COLORS,
+  LOGIC_GATES,
+  logicGateIsCustom,
+  logicGateTruth,
+  resolveLogicGate,
   OUTLET_VOLTAGE,
   renderSimulationSvg,
 } from "./simulation-render.js";
@@ -886,6 +890,14 @@ function simulationTopologyDescription(data) {
         const rawWiper = Number(component.wiper);
         const wiper = Math.max(0, Math.min(100, Number.isFinite(rawWiper) ? rawWiper : 50));
         return `${Math.max(1, Math.round(maxResistance * (wiper / 100)))} ohms at ${wiper}%`;
+      }
+      case "logic_gate": {
+        const gate = resolveLogicGate(component);
+        const info = LOGIC_GATES[gate];
+        const custom = logicGateIsCustom(component);
+        return custom
+          ? `custom ${info.inputs}-input gate based on ${info.label}, outputs ${logicGateTruth(component).join(", ")}`
+          : `${info.label} gate`;
       }
       case "capacitor":
         return `${formatCapacitance(capacitanceMicrofarads(component))} (blocks DC)`;

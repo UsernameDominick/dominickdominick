@@ -1,4 +1,4 @@
-import { SIM_COMPONENTS, getSimulationComponentDefinition, getSimulationCanvasBounds, validateBreadboardColumnSizes, validateComponentOrientations } from "./simulation-render.js";
+import { SIM_COMPONENTS, getSimulationComponentDefinition, getSimulationCanvasBounds, validateBreadboardColumnSizes, validateComponentOrientations, validateLogicGates } from "./simulation-render.js";
 
 const MAX_MANUAL_WIRE_WAYPOINTS = 20;
 const MAX_SIMULATION_CHECKPOINTS = 20;
@@ -24,6 +24,8 @@ export function simulationDataError(data, requireCircuitArrays = false, allowChe
   if (sizeError) return sizeError;
   const orientationError = validateComponentOrientations(data);
   if (orientationError) return orientationError;
+  const logicGateError = validateLogicGates(data);
+  if (logicGateError) return logicGateError;
 
   const components = Array.isArray(data.components) ? data.components : [];
   const wires = Array.isArray(data.wires) ? data.wires : [];

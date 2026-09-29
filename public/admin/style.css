@@ -4405,6 +4405,35 @@ kbd {
   color: var(--text);
 }
 
+.sim-truth-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 0.85rem;
+  text-align: center;
+}
+.sim-truth-table caption {
+  text-align: left;
+  padding-bottom: 4px;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+.sim-truth-table th,
+.sim-truth-table td {
+  border: 1px solid var(--border);
+  padding: 4px;
+}
+.sim-truth-table .sim-truth-out {
+  width: 100%;
+  min-width: 32px;
+  padding: 4px 0;
+  font-weight: 700;
+}
+.sim-truth-table .sim-truth-out[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, var(--bg));
+}
+
 .sim-orient-status {
   margin: 4px 0 8px;
   font-size: 0.78rem;

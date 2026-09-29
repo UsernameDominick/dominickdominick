@@ -1923,6 +1923,30 @@ h6 { font-size: 0.9rem; }
   fill: #2a1810 !important;
 }
 
+/* Logic gates -- static diagram symbols. */
+.sim-comp .gate-body,
+.sim-comp .gate-bubble {
+  fill: url(#sim-grad-plastic);
+  stroke: #555;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+.sim-comp .gate-extra {
+  fill: none;
+  stroke: #555;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+.sim-comp .gate-lead {
+  stroke: #9aa0a6;
+  stroke-width: 2;
+}
+.sim-comp .gate-custom {
+  fill: var(--text-dim);
+  text-anchor: middle;
+  pointer-events: none;
+}
+
 /* Switch */
 .sim-comp .switch-body {
   fill: url(#sim-grad-plastic);

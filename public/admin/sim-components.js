@@ -163,6 +163,84 @@
   window.simInductanceMh = inductanceMillihenries;
   window.simInductorWindingOhms = inductorWindingOhms;
 
+  // ----- Logic gates: static diagram parts (no signal simulation) -----
+  // A gate is drawn with its standard symbol and carries a truth table for the
+  // diagram. `gate` picks the symbol and its standard table; an optional `truth`
+  // array (0/1 outputs in input order 00, 01, 10, 11, or 0, 1 for one-input
+  // gates) overrides the standard table. Hand-mirrored between
+  // public/admin/sim-components.js and worker/simulation-render.js.
+  const LOGIC_GATES = {
+    and: { label: "AND", inputs: 2, out: (a, b) => a & b },
+    or: { label: "OR", inputs: 2, out: (a, b) => a | b },
+    nand: { label: "NAND", inputs: 2, out: (a, b) => 1 - (a & b) },
+    nor: { label: "NOR", inputs: 2, out: (a, b) => 1 - (a | b) },
+    xor: { label: "XOR", inputs: 2, out: (a, b) => a ^ b },
+    xnor: { label: "XNOR", inputs: 2, out: (a, b) => 1 - (a ^ b) },
+    not: { label: "NOT", inputs: 1, out: (a) => 1 - a },
+    buffer: { label: "Buffer", inputs: 1, out: (a) => a },
+  };
+  function isLogicGateName(value) {
+    return typeof value === "string" && Object.prototype.hasOwnProperty.call(LOGIC_GATES, value);
+  }
+  function resolveLogicGate(comp) {
+    return comp && isLogicGateName(comp.gate) ? comp.gate : "and";
+  }
+  function standardLogicTruth(gate) {
+    const { inputs, out } = LOGIC_GATES[gate];
+    const rows = inputs === 2 ? [[0, 0], [0, 1], [1, 0], [1, 1]] : [[0], [1]];
+    return rows.map((bits) => out(...bits));
+  }
+  function isValidLogicTruth(gate, truth) {
+    return Array.isArray(truth) && truth.length === (LOGIC_GATES[gate].inputs === 2 ? 4 : 2) && truth.every((v) => v === 0 || v === 1);
+  }
+  function logicGateTruth(comp) {
+    const gate = resolveLogicGate(comp);
+    return comp && isValidLogicTruth(gate, comp.truth) ? comp.truth.slice() : standardLogicTruth(gate);
+  }
+  function logicGateIsCustom(comp) {
+    return JSON.stringify(logicGateTruth(comp)) !== JSON.stringify(standardLogicTruth(resolveLogicGate(comp)));
+  }
+  function logicGatePins(gate) {
+    const out = { id: "out", x: 70, y: 25 };
+    return LOGIC_GATES[gate].inputs === 2
+      ? [{ id: "a", x: 0, y: 15 }, { id: "b", x: 0, y: 35 }, out]
+      : [{ id: "a", x: 0, y: 25 }, out];
+  }
+  // Symbol geometry: `tip` is where the body ends; an inverting gate hangs a
+  // bubble there and the output lead starts after it.
+  const LOGIC_GATE_SHAPES = {
+    and: { body: "M14,8 H32 A17,17 0 0 1 32,42 H14 Z", tip: 49, inverted: false, inX: 14 },
+    nand: { body: "M14,8 H32 A17,17 0 0 1 32,42 H14 Z", tip: 49, inverted: true, inX: 14 },
+    or: { body: "M14,8 C24,8 40,10 52,25 C40,40 24,42 14,42 C20,34 20,16 14,8 Z", tip: 52, inverted: false, inX: 16 },
+    nor: { body: "M14,8 C24,8 40,10 52,25 C40,40 24,42 14,42 C20,34 20,16 14,8 Z", tip: 52, inverted: true, inX: 16 },
+    xor: { body: "M14,8 C24,8 40,10 52,25 C40,40 24,42 14,42 C20,34 20,16 14,8 Z", tip: 52, inverted: false, inX: 12, extra: "M8,8 C14,16 14,34 8,42" },
+    xnor: { body: "M14,8 C24,8 40,10 52,25 C40,40 24,42 14,42 C20,34 20,16 14,8 Z", tip: 52, inverted: true, inX: 12, extra: "M8,8 C14,16 14,34 8,42" },
+    not: { body: "M16,9 L16,41 L46,25 Z", tip: 46, inverted: true, inX: 16 },
+    buffer: { body: "M16,9 L16,41 L46,25 Z", tip: 46, inverted: false, inX: 16 },
+  };
+  function renderLogicGateSvg(gate, comp) {
+    const shape = LOGIC_GATE_SHAPES[gate];
+    const pins = logicGatePins(gate);
+    const outX = shape.inverted ? shape.tip + 7 : shape.tip;
+    const leads = pins
+      .filter((pin) => pin.id !== "out")
+      .map((pin) => `<line class="gate-lead" x1="0" y1="${pin.y}" x2="${shape.inX}" y2="${pin.y}"/>`)
+      .join("");
+    const bubble = shape.inverted ? `<circle class="gate-bubble" cx="${shape.tip + 3.5}" cy="25" r="3.5"/>` : "";
+    const extra = shape.extra ? `<path class="gate-extra" d="${shape.extra}"/>` : "";
+    const custom = logicGateIsCustom(comp) ? `<text class="gate-custom" x="35" y="48" text-anchor="middle" font-size="7">custom</text>` : "";
+    return `<rect class="gate-hit" x="0" y="4" width="70" height="42" fill="transparent"/>${leads}<line class="gate-lead" x1="${outX}" y1="25" x2="70" y2="25"/>${extra}<path class="gate-body" d="${shape.body}"/>${bubble}${custom}`;
+  }
+  function logicGateDefinition(base, comp) {
+    const gate = resolveLogicGate(comp);
+    return { ...base, gate, pins: logicGatePins(gate), render: (c) => renderLogicGateSvg(gate, c) };
+  }
+  window.SIM_LOGIC_GATES = LOGIC_GATES;
+  window.simLogicGate = resolveLogicGate;
+  window.simLogicTruth = logicGateTruth;
+  window.simLogicIsCustom = logicGateIsCustom;
+  window.simStandardLogicTruth = standardLogicTruth;
+
   const BREADBOARD_COLUMN_OPTIONS = Object.freeze([15, 30, 45]);
 
   function resolveBreadboardColumns(value) {
@@ -397,6 +475,16 @@
         }" y2="${closed ? 10 : 1}"/><circle class="switch-pivot" cx="32" cy="10" r="2.5"/><line class="switch-lead" x1="32" y1="10" x2="40" y2="10"/>`;
       },
     },
+    // A static logic-gate symbol (see the logic-gate block above): its pins
+    // depend on the chosen gate, so getSimComponentDefinition swaps them in.
+    logic_gate: {
+      label: "Logic Gate",
+      keywords: "AND, OR, NOT, NAND, NOR, XOR, XNOR, buffer, boolean, digital logic, truth table",
+      w: 70,
+      h: 50,
+      pins: logicGatePins("and"),
+      render: (c) => renderLogicGateSvg("and", c),
+    },
     // Two-terminal capacitor. In this DC model it charges up and then blocks
     // current, so it is deliberately not a passthrough and adds no edge to the
     // analysis: anything wired through it gets no power. Leads are one hole
@@ -550,6 +638,7 @@
     const def = window.SIM_COMPONENTS[comp.type];
     // Breadboards keep their fixed layout: their rails, holes and the snap
     // logic all assume the horizontal board, so orientation is ignored.
+    if (comp.type === "logic_gate") return orientDefinition(logicGateDefinition(def, comp), comp);
     if (comp.type !== "breadboard") return orientDefinition(def, comp);
     const cols = resolveBreadboardColumns(comp.cols);
     return {

@@ -753,6 +753,16 @@
       ) {
         throw new Error(`Component ${index + 1} has an invalid orientation. Rotation must be 0, 90, 180, or 270, mirror must be true or false, and breadboards cannot be rotated or mirrored.`);
       }
+      if (component.type === "logic_gate") {
+        const hasGate = Object.prototype.hasOwnProperty.call(component, "gate");
+        const hasTruth = Object.prototype.hasOwnProperty.call(component, "truth");
+        const gateOk = !hasGate || (typeof component.gate === "string" && Object.prototype.hasOwnProperty.call(window.SIM_LOGIC_GATES, component.gate));
+        const truthGate = gateOk ? window.simLogicGate(component) : "and";
+        const rows = window.SIM_LOGIC_GATES[truthGate].inputs === 2 ? 4 : 2;
+        if (!gateOk || (hasTruth && !(Array.isArray(component.truth) && component.truth.length === rows && component.truth.every((v) => v === 0 || v === 1)))) {
+          throw new Error(`Component ${index + 1} has an invalid logic gate. Gate must be one of ${Object.keys(window.SIM_LOGIC_GATES).join(", ")}, and a custom truth table must list 4 outputs (2-input gates) or 2 (NOT and buffer), each 0 or 1.`);
+        }
+      }
       const renderedId = String(component.id);
       if (renderedComponentIds.has(renderedId)) {
         throw new Error(`Component ${index + 1} has an id that collides in the builder canvas.`);
@@ -1546,6 +1556,7 @@
     switch: { closed: true },
     potentiometer: { maxResistance: 10000, wiper: 50 },
     capacitor: { capacitance: 100 },
+    logic_gate: { gate: "and" },
     inductor: { inductance: 10, dcResistance: 1 },
   };
 
@@ -1726,6 +1737,19 @@
     );
   }
 
+  // Changing a gate between one- and two-input types removes its second
+  // input pin; any wire still pointing at it would fail validation.
+  function pruneWiresToMissingPins(comp) {
+    const validPins = new Set(window.getSimComponentDefinition(comp).pins.map((pin) => pin.id));
+    const before = simData.wires.length;
+    simData.wires = simData.wires.filter((wire) => {
+      const fromValid = !wire.from || wire.from.compId !== comp.id || validPins.has(wire.from.pin);
+      const toValid = !wire.to || wire.to.compId !== comp.id || validPins.has(wire.to.pin);
+      return fromValid && toValid;
+    });
+    return before - simData.wires.length;
+  }
+
   function describeOrientation(comp) {
     const rotation = typeof comp.rotation === "number" && window.SIM_ORIENTATION_ROTATIONS.includes(comp.rotation) ? comp.rotation : 0;
     if (!rotation && comp.mirror !== true) return "Orientation: default";
@@ -1757,7 +1781,9 @@
       const info = analysis[comp.id];
       const isPowered = poweredComps.has(comp.id);
       let statusLine;
-      if (def.isSource) {
+      if (comp.type === "logic_gate") {
+        statusLine = "Diagram part: drawn for documentation, not simulated";
+      } else if (def.isSource) {
         statusLine = "⚡ Power source";
       } else if (isPowered) {
         statusLine = "⚡ Part of a complete circuit";
@@ -1845,6 +1871,26 @@
         extraFieldsHtml = `<label title="The potentiometer's full end-to-end resistance -- the Wiper position below sets what fraction of that range is actually in the circuit right now, the same way turning a real knob does.">Max resistance (ohms)<input id="sim-comp-max-resistance" type="number" min="1" value="${potState.maxResistance}"></label>
         <label title="How far the sliding contact sits along the resistive track, from 0% (minimum resistance) to 100% (maximum) -- same idea as turning a real knob from one end to the other.">Wiper position: <span id="sim-comp-wiper-value">${potState.wiperPct}</span>%<input id="sim-comp-wiper" type="range" min="0" max="100" value="${potState.wiperPct}" aria-describedby="sim-comp-pot-effective"></label>
         <output id="sim-comp-pot-effective" class="sim-electrical-effect" for="sim-comp-wiper">${describePotentiometerElectricalState(potState)}</output>`;
+      } else if (comp.type === "logic_gate") {
+        const gateKey = window.simLogicGate(comp);
+        const gateInfo = window.SIM_LOGIC_GATES[gateKey];
+        const truth = window.simLogicTruth(comp);
+        const custom = window.simLogicIsCustom(comp);
+        const rowBits = gateInfo.inputs === 2 ? [[0, 0], [0, 1], [1, 0], [1, 1]] : [[0], [1]];
+        const inputNames = gateInfo.inputs === 2 ? ["A", "B"] : ["A"];
+        extraFieldsHtml = `<label title="Which standard symbol to draw. Changing it also resets the truth table to that gate's standard one.">Gate<select id="sim-comp-gate">${Object.entries(window.SIM_LOGIC_GATES)
+          .map(([key, g]) => `<option value="${key}" ${key === gateKey ? "selected" : ""}>${g.label}</option>`)
+          .join("")}</select></label>
+        <table class="sim-truth-table"><caption>Truth table${custom ? " (custom)" : ""}</caption><thead><tr>${inputNames.map((n) => `<th scope="col">${n}</th>`).join("")}<th scope="col">Out</th></tr></thead><tbody>${rowBits
+          .map(
+            (bits, i) =>
+              `<tr>${bits.map((b) => `<td>${b}</td>`).join("")}<td><button type="button" class="sim-truth-out" data-row="${i}" aria-pressed="${truth[i] === 1}" aria-label="Output when ${bits
+                .map((b, k) => `${inputNames[k]} is ${b}`)
+                .join(" and ")}: ${truth[i]}">${truth[i]}</button></td></tr>`
+          )
+          .join("")}</tbody></table>
+        <button type="button" id="sim-truth-reset" ${custom ? "" : "disabled"}>Reset to standard ${gateInfo.label}</button>
+        <p class="sim-electrical-effect"><strong>Diagram part:</strong> Logic gates are drawn with their standard symbol and carry this truth table as documentation. Signals aren't simulated, so wiring one into a circuit doesn't change any analysis. Click an output to flip it and make a custom gate.</p>`;
       } else if (comp.type === "capacitor") {
         extraFieldsHtml = `<label title="How much charge the capacitor can hold per volt. Common values run from picofarads to thousands of microfarads. Recorded for reference -- charging over time isn't simulated.">Capacitance (µF)<input id="sim-comp-capacitance" type="number" min="0.000001" step="any" value="${window.simCapacitanceUf(comp)}"></label>
         <p class="sim-electrical-effect"><strong>Electrical effect:</strong> In a steady-state circuit a capacitor charges up and then stops current, so it acts like an open circuit here: anything wired through it gets no power. The value is for reference; charging over time isn't simulated.</p>`;
@@ -1977,6 +2023,46 @@
           }, 0);
         });
       });
+      const gateSelect = $("sim-comp-gate");
+      if (gateSelect) {
+        gateSelect.addEventListener("change", () => {
+          pushHistory();
+          comp.gate = gateSelect.value;
+          delete comp.truth;
+          const removed = pruneWiresToMissingPins(comp);
+          renderInspector();
+          renderBuilder();
+          setSnapHoleWarning(
+            0,
+            removed ? `Removed ${removed} wire${removed === 1 ? "" : "s"} attached to an input this gate no longer has.` : ""
+          );
+        });
+      }
+      box.querySelectorAll(".sim-truth-out").forEach((button) => {
+        button.addEventListener("click", () => {
+          const row = Number(button.dataset.row);
+          const next = window.simLogicTruth(comp);
+          next[row] = next[row] === 1 ? 0 : 1;
+          pushHistory();
+          if (JSON.stringify(next) === JSON.stringify(window.simStandardLogicTruth(window.simLogicGate(comp)))) delete comp.truth;
+          else comp.truth = next;
+          renderInspector();
+          renderBuilder();
+          const again = box.querySelector(`.sim-truth-out[data-row="${row}"]`);
+          if (again) again.focus();
+        });
+      });
+      const truthReset = $("sim-truth-reset");
+      if (truthReset) {
+        truthReset.addEventListener("click", () => {
+          pushHistory();
+          delete comp.truth;
+          renderInspector();
+          renderBuilder();
+          const first = box.querySelector(".sim-truth-out");
+          if (first) first.focus();
+        });
+      }
       const maxResistanceInput = $("sim-comp-max-resistance");
       if (maxResistanceInput) {
         maxResistanceInput.addEventListener("change", () => {
