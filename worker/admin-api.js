@@ -2620,7 +2620,17 @@ async function routeAdminApi(request, env, url, ctx) {
       typeof Intl !== "undefined" && typeof Intl.Segmenter === "function"
         ? Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(cleanedName), (x) => x.segment)
         : Array.from(cleanedName);
-    const name = nameChars.slice(0, 60).join("").trim();
+    // At most 60 characters and 120 code points (one grapheme can carry any number
+    // of combining marks), always cut on a grapheme boundary.
+    let nameCodePoints = 0;
+    const keptChars = [];
+    for (const g of nameChars) {
+      const n = Array.from(g).length;
+      if (keptChars.length >= 60 || nameCodePoints + n > 120) break;
+      keptChars.push(g);
+      nameCodePoints += n;
+    }
+    const name = keptChars.join("").trim();
     const ops = cleanSelectionOps(body.ops);
     // A name needs something visible: a letter, number, punctuation or symbol.
     if (!name || !/[\p{L}\p{N}\p{P}\p{S}]/u.test(name) || !ops) {
