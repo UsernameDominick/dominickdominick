@@ -91,7 +91,12 @@ Verify distinct test-only Preview values before protected-flow checks.
 - **Public design:** flow-layout and baseline code-block/link styling shipped. Typographic hierarchy and spacing
   remain open, best judged with real published content.
 - **Custom animations:** timeline/keyframe editor with server-side CSS generation is implemented.
-- **Photo Editor:** single Canvas2D raster canvas; no layer stack, masks, or nondestructive adjustments.
+- **Photo Editor:** single Canvas2D raster canvas; no layer stack or nondestructive adjustments. It has a
+  selection engine: rectangle, ellipse, freehand-lasso and polygon selections (Shift adds, Alt subtracts, Invert,
+  Select all, Ctrl+D) held as a list of shapes and rasterised to an alpha mask; the adjust sliders and presets,
+  one-shot filters, grain, brushes, annotation shapes, text and Delete selected act only inside it; crop, rotate,
+  flip, resize and straighten drop it; Crop to selection, outline/tint/mask-only views, and named selections
+  (stored as fractions of the image in the `photo_editor_selections` setting, no migration) round it out.
   Existing undo is a 15-snapshot canvas stack. Straighten rotates by -45 to +45 degrees with a live overlay
   preview and auto-crops to the largest same-aspect rectangle that fits inside the tilted image.
 - **Song/DAW:** fixed 16-step sequencer with synthesized Web Audio; no sample playback, multitrack timeline,
@@ -324,12 +329,6 @@ simulations need parity.
 ### Photo Editor — Easy
 - 17. Layer colors/labels — metadata fields once layers exist.
 - 18. Search/filter layers — simple list filter UI.
-- 31. Rect/ellipse selection — canvas path, same overlay pattern as crop.
-- 32. Freehand lasso — pointer path capture, like brush stroke.
-- 33. Polygonal lasso — click-to-add-vertex overlay.
-- 40. Save/name selections — JSON blob like existing photo-presets.
-- 43. Mask-only inspection view — toggle rendering mask canvas alone.
-- 44. Colored mask overlays — tint mask canvas, trivial compositing.
 - 77. Hard-edged pencil (requires a real freehand paintbrush first)
 - 90. Magnified retouch comparison (requires zoom/pan)
 

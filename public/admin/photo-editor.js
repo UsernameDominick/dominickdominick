@@ -179,6 +179,14 @@
   let dragging = false;
   let dragStart = null;
   let baseSnapshot = null; // canvas clone taken when an adjust slider is first touched
+  // Selection state (the Selection section below explains the model).
+  let selOps = []; // {kind: "rect"|"ellipse"|"poly"|"invert", mode: "add"|"sub", box | pts} in canvas pixels
+  let selMask = null; // canvas-sized alpha mask rasterised from selOps
+  let selMaskCtx = null;
+  let selBounds = null; // {x, y, w, h, coverage} of what the mask selects
+  let selOverlay = null; // cached tint/outline layer that clearOverlay() lays down
+  let selOverlayScale = 0; // display scale selOverlay was drawn for
+  let selDraft = null; // the shape being drawn right now
 
   // ---------- View rotation ----------
   // A purely cosmetic on-screen rotation (CSS transform on the stack),
@@ -210,6 +218,15 @@
     stack.style.width = w + "px";
     stack.style.height = h + "px";
     updateStatusBar(scale);
+    // A selection's coordinates belong to one canvas size: drop it when the
+    // size changed (crop, rotate, resize, straighten, undo across a resize),
+    // and redraw its outline when only the display scale did.
+    if (selMask && (selMask.width !== canvas.width || selMask.height !== canvas.height)) {
+      dropSelection();
+    } else if (selOverlay && Math.abs(selOverlayScale - displayScale()) > 0.01) {
+      rebuildSelectionOverlay();
+      clearOverlay();
+    }
     // Covers every dimension-changing edit (crop, rotate, undo/redo/reset,
     // load) for free since they all already call this function. Content-
     // only edits that don't change dimensions (a brush stroke, a filter)
@@ -241,6 +258,8 @@
 
   function clearOverlay() {
     octx.clearRect(0, 0, overlay.width, overlay.height);
+    // The selection's outline/tint stays under every tool's own overlay drawing.
+    if (selOverlay && selOverlay.width === overlay.width && selOverlay.height === overlay.height) octx.drawImage(selOverlay, 0, 0);
   }
 
   function syncOverlaySize() {
@@ -495,6 +514,9 @@
     resetStraightenUi();
     document.querySelectorAll(".pe-tool").forEach((b) => b.classList.toggle("active", b.dataset.tool === tool));
     $("pe-apply-crop").hidden = tool !== "select" || !cropRect;
+    // Leaving the selection tools abandons a shape still being drawn (the
+    // finished selection itself stays).
+    if (!SELECTION_TOOLS.includes(tool)) selDraft = null;
     $("pe-rect-radius-label").hidden = tool !== "rect";
     $("pe-text-font").hidden = tool !== "text";
     $("pe-apply-text-style").hidden = tool !== "text";
@@ -647,6 +669,602 @@
     fitCanvasToViewport();
   });
 
+  // ---------- Selection ----------
+  // A selection is the list of shapes that made it (rectangles, ellipses,
+  // lasso/polygon outlines, each added or subtracted, plus inversions), drawn
+  // into an alpha mask the size of the canvas. While one exists, the pixel
+  // edits below are limited to the masked area: the Adjust sliders and presets,
+  // the one-shot filters and grain, the brushes, the Draw & annotate shapes and
+  // Text, and Delete selected. Anything that changes the canvas geometry (crop,
+  // rotate, flip, resize, straighten) drops it, since its coordinates no longer
+  // describe the image; the shapes are also what "Save selection" stores, as
+  // fractions of the image size, so a saved one fits any image.
+  const SELECTION_TOOLS = ["sel-rect", "sel-ellipse", "sel-lasso", "sel-poly"];
+  const SELECTION_KIND = { "sel-rect": "rect", "sel-ellipse": "ellipse", "sel-lasso": "poly", "sel-poly": "poly" };
+  const SELECTION_MAX_POINTS = 1500;
+  let selectionPresets = [];
+  let selectionNoteText = "";
+  let selScratch = [null, null];
+
+  function hasSelection() {
+    return selBounds !== null && selMask !== null && selMask.width === canvas.width && selMask.height === canvas.height;
+  }
+
+  function displayScale() {
+    return (parseFloat(overlay.style.width) || canvas.width) / canvas.width || 1;
+  }
+
+  function scratchCanvas(i) {
+    let c = selScratch[i];
+    if (!c || c.width !== canvas.width || c.height !== canvas.height) {
+      c = document.createElement("canvas");
+      c.width = canvas.width;
+      c.height = canvas.height;
+      selScratch[i] = c;
+    }
+    const cx = c.getContext("2d");
+    cx.setTransform(1, 0, 0, 1, 0, 0);
+    cx.globalCompositeOperation = "source-over";
+    cx.globalAlpha = 1;
+    cx.filter = "none";
+    cx.clearRect(0, 0, c.width, c.height);
+    return c;
+  }
+
+  function tracePath(c, op) {
+    c.beginPath();
+    if (op.kind === "rect") c.rect(op.box[0], op.box[1], op.box[2], op.box[3]);
+    else if (op.kind === "ellipse") c.ellipse(op.box[0] + op.box[2] / 2, op.box[1] + op.box[3] / 2, op.box[2] / 2, op.box[3] / 2, 0, 0, Math.PI * 2);
+    else {
+      op.pts.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y)));
+      c.closePath();
+    }
+  }
+
+  function rasterizeSelection() {
+    const w = canvas.width;
+    const h = canvas.height;
+    selMask = document.createElement("canvas");
+    selMask.width = w;
+    selMask.height = h;
+    selMaskCtx = selMask.getContext("2d", { willReadFrequently: true });
+    for (const op of selOps) {
+      if (op.kind === "invert") {
+        const flipped = scratchCanvas(0);
+        const fc = flipped.getContext("2d");
+        fc.fillStyle = "#000";
+        fc.fillRect(0, 0, w, h);
+        fc.globalCompositeOperation = "destination-out";
+        fc.drawImage(selMask, 0, 0);
+        selMaskCtx.clearRect(0, 0, w, h);
+        selMaskCtx.drawImage(flipped, 0, 0);
+        continue;
+      }
+      selMaskCtx.save();
+      selMaskCtx.globalCompositeOperation = op.mode === "sub" ? "destination-out" : "source-over";
+      selMaskCtx.fillStyle = "#000";
+      tracePath(selMaskCtx, op);
+      selMaskCtx.fill();
+      selMaskCtx.restore();
+    }
+  }
+
+  // Bounding box and coverage of what the mask actually selects (null when
+  // nothing is selected, e.g. after subtracting everything).
+  function analyseSelection() {
+    const w = canvas.width;
+    const h = canvas.height;
+    const data = selMaskCtx.getImageData(0, 0, w, h).data;
+    let minX = w;
+    let minY = h;
+    let maxX = -1;
+    let maxY = -1;
+    let count = 0;
+    for (let y = 0; y < h; y++) {
+      const row = y * w * 4;
+      for (let x = 0; x < w; x++) {
+        if (data[row + x * 4 + 3] > 127) {
+          count++;
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    return count ? { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1, coverage: count / (w * h) } : null;
+  }
+
+  function selectionNote(text) {
+    selectionNoteText = text;
+    updateSelectionUi();
+  }
+
+  function updateSelectionUi() {
+    const on = hasSelection();
+    $("pe-sel-invert").disabled = !on;
+    $("pe-sel-clear").disabled = !on;
+    $("pe-sel-delete").disabled = !on;
+    $("pe-sel-crop").disabled = !on;
+    $("pe-save-selection").disabled = !on;
+    const base = on
+      ? `Selection: ${selBounds.w} × ${selBounds.h} px box, ${Math.max(1, Math.round(selBounds.coverage * 100))}% of the image. Edits apply inside it only.`
+      : "No selection. Adjustments, filters, brushes, shapes and text apply to the whole image.";
+    $("pe-sel-status").textContent = selectionNoteText ? `${selectionNoteText} ${base}` : base;
+  }
+
+  function dropSelection() {
+    selOps = [];
+    selMask = null;
+    selMaskCtx = null;
+    selOverlay = null;
+    selOverlayScale = 0;
+    selBounds = null;
+    selDraft = null;
+    selScratch = [null, null];
+    selectionNoteText = "";
+    updateSelectionUi();
+    clearOverlay();
+  }
+
+  function rebuildSelection() {
+    if (!selOps.length) {
+      dropSelection();
+      return;
+    }
+    rasterizeSelection();
+    selBounds = analyseSelection();
+    if (!selBounds) {
+      dropSelection();
+      selectionNote("The selection ended up empty, so it was cleared.");
+      return;
+    }
+    selectionNoteText = "";
+    // The next slider tick must repaint from pixels that respect the new mask.
+    invalidateOpenAdjustDrag();
+    rebuildSelectionOverlay();
+    updateSelectionUi();
+    clearOverlay();
+  }
+
+  // The tint / mask view and the outline are painted once into a cached layer
+  // that clearOverlay() lays down, so the (frequent) overlay clears made by the
+  // brush cursor and other tools stay cheap. The outline is the mask minus its
+  // one-screen-pixel erosion, drawn twice (dark, then light, nudged apart) so it
+  // reads on any image.
+  function rebuildSelectionOverlay() {
+    selOverlay = null;
+    if (!hasSelection()) return;
+    const w = canvas.width;
+    const h = canvas.height;
+    const layer = document.createElement("canvas");
+    layer.width = w;
+    layer.height = h;
+    const lc = layer.getContext("2d");
+    const view = $("pe-sel-view").value;
+    const colorLayer = (color) => {
+      const c = document.createElement("canvas");
+      c.width = w;
+      c.height = h;
+      const cc = c.getContext("2d");
+      cc.fillStyle = color;
+      cc.fillRect(0, 0, w, h);
+      cc.globalCompositeOperation = "destination-in";
+      cc.drawImage(selMask, 0, 0);
+      return c;
+    };
+    if (view === "mask") {
+      lc.fillStyle = "#000";
+      lc.fillRect(0, 0, w, h);
+      lc.drawImage(colorLayer("#fff"), 0, 0);
+      selOverlay = layer;
+      selOverlayScale = displayScale();
+      return;
+    }
+    if (view === "inside" || view === "outside") {
+      const tint = document.createElement("canvas");
+      tint.width = w;
+      tint.height = h;
+      const tc = tint.getContext("2d");
+      tc.fillStyle = $("pe-sel-tint").value;
+      tc.fillRect(0, 0, w, h);
+      tc.globalCompositeOperation = view === "inside" ? "destination-in" : "destination-out";
+      tc.drawImage(selMask, 0, 0);
+      lc.globalAlpha = 0.45;
+      lc.drawImage(tint, 0, 0);
+      lc.globalAlpha = 1;
+    }
+    const t = Math.max(1, Math.round(1 / displayScale()));
+    const eroded = document.createElement("canvas");
+    eroded.width = w;
+    eroded.height = h;
+    const ec = eroded.getContext("2d");
+    ec.drawImage(selMask, 0, 0);
+    ec.globalCompositeOperation = "destination-in";
+    for (const [dx, dy] of [[t, 0], [-t, 0], [0, t], [0, -t], [t, t], [-t, -t], [t, -t], [-t, t]]) ec.drawImage(selMask, dx, dy);
+    const edge = document.createElement("canvas");
+    edge.width = w;
+    edge.height = h;
+    const gc = edge.getContext("2d");
+    gc.drawImage(selMask, 0, 0);
+    gc.globalCompositeOperation = "destination-out";
+    gc.drawImage(eroded, 0, 0);
+    const paintEdge = (color) => {
+      const c = document.createElement("canvas");
+      c.width = w;
+      c.height = h;
+      const cc = c.getContext("2d");
+      cc.drawImage(edge, 0, 0);
+      cc.globalCompositeOperation = "source-in";
+      cc.fillStyle = color;
+      cc.fillRect(0, 0, w, h);
+      return c;
+    };
+    lc.drawImage(paintEdge("#000"), t, t);
+    lc.drawImage(paintEdge("#fff"), 0, 0);
+    selOverlay = layer;
+    selOverlayScale = displayScale();
+  }
+
+  $("pe-sel-view").addEventListener("change", () => {
+    rebuildSelectionOverlay();
+    clearOverlay();
+  });
+  $("pe-sel-tint").addEventListener("input", () => {
+    if ($("pe-sel-view").value === "ants" || $("pe-sel-view").value === "mask") return;
+    rebuildSelectionOverlay();
+    clearOverlay();
+  });
+
+  // Replace the canvas content inside the selection with `after`, keeping
+  // `before` outside it (soft edges blend, since the mask is antialiased).
+  function blendThroughSelection(before, after) {
+    const inside = scratchCanvas(0);
+    const ic = inside.getContext("2d");
+    ic.drawImage(after, 0, 0);
+    ic.globalCompositeOperation = "destination-in";
+    ic.drawImage(selMask, 0, 0);
+    const outside = scratchCanvas(1);
+    const oc = outside.getContext("2d");
+    oc.drawImage(before, 0, 0);
+    oc.globalCompositeOperation = "destination-out";
+    oc.drawImage(selMask, 0, 0);
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.filter = "none";
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.globalCompositeOperation = "source-over";
+    ctx.drawImage(outside, 0, 0);
+    ctx.globalCompositeOperation = "lighter";
+    ctx.drawImage(inside, 0, 0);
+    ctx.restore();
+  }
+
+  // Runs a drawing action on the canvas and, if there is a selection, keeps its
+  // result inside the selection only.
+  function withSelectionClip(draw) {
+    if (!hasSelection()) {
+      draw();
+      return;
+    }
+    const before = snapshotCanvas();
+    draw();
+    blendThroughSelection(before, snapshotCanvas());
+  }
+
+  // Repaint the canvas from `base` with a CSS filter, limited to the selection
+  // when there is one. Used by the Adjust sliders, presets and filter buttons.
+  function paintFiltered(base, filter) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!hasSelection()) {
+      ctx.save();
+      ctx.filter = filter;
+      ctx.drawImage(base, 0, 0);
+      ctx.restore();
+      return;
+    }
+    const inside = scratchCanvas(0);
+    const ic = inside.getContext("2d");
+    ic.filter = filter;
+    ic.drawImage(base, 0, 0);
+    ic.filter = "none";
+    ic.globalCompositeOperation = "destination-in";
+    ic.drawImage(selMask, 0, 0);
+    const outside = scratchCanvas(1);
+    const oc = outside.getContext("2d");
+    oc.drawImage(base, 0, 0);
+    oc.globalCompositeOperation = "destination-out";
+    oc.drawImage(selMask, 0, 0);
+    ctx.save();
+    ctx.globalCompositeOperation = "source-over";
+    ctx.drawImage(outside, 0, 0);
+    ctx.globalCompositeOperation = "lighter";
+    ctx.drawImage(inside, 0, 0);
+    ctx.restore();
+  }
+
+  // ---- drawing a selection ----
+  function selectionModeFor(e) {
+    return e.shiftKey ? "add" : e.altKey ? "sub" : "replace";
+  }
+
+  function clampToCanvas(x, y) {
+    return [Math.max(0, Math.min(canvas.width, x)), Math.max(0, Math.min(canvas.height, y))];
+  }
+
+  function beginSelectionDraft(e, p) {
+    const kind = SELECTION_KIND[currentTool];
+    if (currentTool === "sel-poly") {
+      dragging = false;
+      dragStart = null;
+      if (!selDraft || !selDraft.polyClick) {
+        selDraft = { kind: "poly", polyClick: true, mode: selectionModeFor(e), pts: [clampToCanvas(p.x, p.y)], cursor: p };
+      } else {
+        const first = selDraft.pts[0];
+        const [cx, cy] = clampToCanvas(p.x, p.y);
+        if (selDraft.pts.length >= 3 && Math.hypot(cx - first[0], cy - first[1]) * displayScale() < 10) {
+          finishPolygon();
+          return;
+        }
+        const last = selDraft.pts[selDraft.pts.length - 1];
+        if (Math.hypot(cx - last[0], cy - last[1]) * displayScale() >= 2) selDraft.pts.push([cx, cy]);
+        selDraft.cursor = p;
+      }
+      drawSelectionDraft();
+      return;
+    }
+    const [cx, cy] = clampToCanvas(p.x, p.y);
+    selDraft = { kind, mode: selectionModeFor(e), x0: cx, y0: cy, x1: cx, y1: cy, pts: [[cx, cy]] };
+  }
+
+  function updateSelectionDraft(p) {
+    if (!selDraft) return;
+    const [cx, cy] = clampToCanvas(p.x, p.y);
+    if (selDraft.polyClick) {
+      selDraft.cursor = { x: cx, y: cy };
+    } else {
+      if (!dragging) return;
+      selDraft.x1 = cx;
+      selDraft.y1 = cy;
+      if (currentTool === "sel-lasso") {
+        const last = selDraft.pts[selDraft.pts.length - 1];
+        if (Math.hypot(cx - last[0], cy - last[1]) * displayScale() >= 2) selDraft.pts.push([cx, cy]);
+      }
+    }
+    drawSelectionDraft();
+  }
+
+  // The in-progress shape: a dark line with a light dashed one over it.
+  function drawSelectionDraft() {
+    clearOverlay();
+    const d = selDraft;
+    if (!d) return;
+    const px = 1 / displayScale();
+    const path = () => {
+      octx.beginPath();
+      if (d.kind === "rect" || d.kind === "ellipse") {
+        const x = Math.min(d.x0, d.x1);
+        const y = Math.min(d.y0, d.y1);
+        const w = Math.abs(d.x1 - d.x0);
+        const h = Math.abs(d.y1 - d.y0);
+        if (d.kind === "rect") octx.rect(x, y, w, h);
+        else octx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+      } else {
+        d.pts.forEach(([x, y], i) => (i ? octx.lineTo(x, y) : octx.moveTo(x, y)));
+        if (d.polyClick && d.cursor) octx.lineTo(d.cursor.x, d.cursor.y);
+        else octx.closePath();
+      }
+    };
+    octx.save();
+    octx.lineJoin = "round";
+    octx.lineWidth = 2.5 * px;
+    octx.strokeStyle = "#000";
+    path();
+    octx.stroke();
+    octx.lineWidth = 1.2 * px;
+    octx.strokeStyle = d.mode === "sub" ? "#ff9a9a" : "#fff";
+    octx.setLineDash([6 * px, 4 * px]);
+    path();
+    octx.stroke();
+    if (d.polyClick) {
+      octx.setLineDash([]);
+      octx.fillStyle = "#fff";
+      octx.strokeStyle = "#000";
+      octx.lineWidth = 1.5 * px;
+      d.pts.forEach(([x, y], i) => {
+        octx.beginPath();
+        octx.arc(x, y, (i === 0 ? 5 : 3.5) * px, 0, Math.PI * 2);
+        octx.fill();
+        octx.stroke();
+      });
+    }
+    octx.restore();
+  }
+
+  function decimatePoints(pts, maxPoints) {
+    if (pts.length <= maxPoints) return pts;
+    const out = [];
+    for (let i = 0; i < maxPoints; i++) out.push(pts[Math.floor((i * pts.length) / maxPoints)]);
+    return out;
+  }
+
+  function polygonArea(pts) {
+    let a = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const [x1, y1] = pts[i];
+      const [x2, y2] = pts[(i + 1) % pts.length];
+      a += x1 * y2 - x2 * y1;
+    }
+    return Math.abs(a) / 2;
+  }
+
+  function roundPt(v) {
+    return Math.round(v * 10) / 10;
+  }
+
+  function applySelectionOp(op, mode) {
+    if (mode === "sub" && !hasSelection()) {
+      clearOverlay();
+      return;
+    }
+    if (mode === "replace" || !hasSelection()) selOps = [];
+    selOps.push({ ...op, mode: mode === "sub" ? "sub" : "add" });
+    rebuildSelection();
+  }
+
+  function commitSelectionDraft() {
+    const d = selDraft;
+    selDraft = null;
+    if (!d) {
+      clearOverlay();
+      return;
+    }
+    const scale = displayScale();
+    let op = null;
+    if (d.kind === "rect" || d.kind === "ellipse") {
+      const x = Math.min(d.x0, d.x1);
+      const y = Math.min(d.y0, d.y1);
+      const w = Math.abs(d.x1 - d.x0);
+      const h = Math.abs(d.y1 - d.y0);
+      if (w * scale >= 3 && h * scale >= 3) op = { kind: d.kind, box: [roundPt(x), roundPt(y), roundPt(w), roundPt(h)] };
+    } else if (d.pts.length >= 3) {
+      const pts = decimatePoints(d.pts, SELECTION_MAX_POINTS).map(([x, y]) => [roundPt(x), roundPt(y)]);
+      if (polygonArea(pts) * scale * scale >= 9) op = { kind: "poly", pts };
+    }
+    if (!op) {
+      // A plain click with a selection tool clears the selection, like most editors.
+      if (d.mode === "replace" && hasSelection()) dropSelection();
+      else clearOverlay();
+      return;
+    }
+    applySelectionOp(op, d.mode);
+  }
+
+  function finishPolygon() {
+    const d = selDraft;
+    if (!d || !d.polyClick) return;
+    selDraft = null;
+    if (d.pts.length < 3) {
+      clearOverlay();
+      return;
+    }
+    const pts = d.pts.map(([x, y]) => [roundPt(x), roundPt(y)]);
+    if (polygonArea(pts) * displayScale() * displayScale() < 9) {
+      clearOverlay();
+      return;
+    }
+    applySelectionOp({ kind: "poly", pts }, d.mode);
+  }
+
+  overlay.addEventListener("dblclick", () => {
+    if (currentTool === "sel-poly" && selDraft && selDraft.polyClick) finishPolygon();
+  });
+
+  // ---- actions ----
+  $("pe-sel-all").addEventListener("click", () => {
+    if (isComparing()) return;
+    applySelectionOp({ kind: "rect", box: [0, 0, canvas.width, canvas.height] }, "replace");
+  });
+
+  $("pe-sel-invert").addEventListener("click", () => {
+    if (isComparing() || !hasSelection()) return;
+    if (selOps.length && selOps[selOps.length - 1].kind === "invert") selOps.pop();
+    else selOps.push({ kind: "invert" });
+    rebuildSelection();
+  });
+
+  $("pe-sel-clear").addEventListener("click", () => dropSelection());
+
+  $("pe-sel-delete").addEventListener("click", () => {
+    if (isComparing() || !hasSelection()) return;
+    pushUndo();
+    ctx.save();
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.drawImage(selMask, 0, 0);
+    ctx.restore();
+    invalidateOpenAdjustDrag();
+  });
+
+  $("pe-sel-crop").addEventListener("click", () => {
+    if (isComparing() || !hasSelection()) return;
+    const b = selBounds;
+    cropRect = { x0: b.x, y0: b.y, x1: b.x + b.w, y1: b.y + b.h };
+    setTool("select");
+    drawCropOverlay();
+    $("pe-apply-crop").hidden = false;
+  });
+
+  // ---- saved selections ----
+  async function loadSelectionPresets() {
+    try {
+      selectionPresets = (await window.adminApi("/selection-presets")) || [];
+    } catch (e) {
+      selectionPresets = [];
+    }
+    const select = $("pe-apply-selection");
+    select.innerHTML =
+      `<option value="">Load saved selection…</option>` +
+      selectionPresets.map((p) => `<option value="${p.id}">${escapeHtmlAttr(p.name)}</option>`).join("");
+  }
+
+  // Shapes as fractions of the image size, at most 2000 points in all.
+  function selectionForSave() {
+    const w = canvas.width;
+    const h = canvas.height;
+    const total = selOps.reduce((n, op) => n + (op.kind === "poly" ? op.pts.length : 0), 0);
+    const keep = total > 2000 ? 2000 / total : 1;
+    return selOps.map((op) => {
+      if (op.kind === "invert") return { kind: "invert" };
+      if (op.kind === "poly") {
+        const pts = decimatePoints(op.pts, Math.max(3, Math.floor(op.pts.length * keep)));
+        return { kind: "poly", mode: op.mode, pts: pts.map(([x, y]) => [x / w, y / h]) };
+      }
+      return { kind: op.kind, mode: op.mode, box: [op.box[0] / w, op.box[1] / h, op.box[2] / w, op.box[3] / h] };
+    });
+  }
+
+  $("pe-save-selection").addEventListener("click", async () => {
+    if (!hasSelection()) return;
+    const name = await promptForText("Save selection", "Selection name");
+    if (name === null) return;
+    try {
+      await window.adminApi("/selection-presets", { method: "POST", body: JSON.stringify({ name: name.trim(), ops: selectionForSave() }) });
+      await loadSelectionPresets();
+      selectionNote(`Saved "${name.trim()}".`);
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
+  $("pe-load-selection").addEventListener("click", () => {
+    const id = Number($("pe-apply-selection").value);
+    const preset = selectionPresets.find((p) => p.id === id);
+    if (!preset || isComparing()) return;
+    const w = canvas.width;
+    const h = canvas.height;
+    selOps = preset.ops.map((op) => {
+      if (op.kind === "invert") return { kind: "invert" };
+      if (op.kind === "poly") return { kind: "poly", mode: op.mode, pts: op.pts.map(([x, y]) => [x * w, y * h]) };
+      return { kind: op.kind, mode: op.mode, box: [op.box[0] * w, op.box[1] * h, op.box[2] * w, op.box[3] * h] };
+    });
+    rebuildSelection();
+    if (hasSelection()) selectionNote(`Loaded "${preset.name}".`);
+  });
+
+  $("pe-delete-selection").addEventListener("click", async () => {
+    const id = Number($("pe-apply-selection").value);
+    const preset = selectionPresets.find((p) => p.id === id);
+    if (!preset) return;
+    if (!confirm(`Delete saved selection "${preset.name}"?`)) return;
+    try {
+      await window.adminApi(`/selection-presets/${id}`, { method: "DELETE" });
+      await loadSelectionPresets();
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
   // ---------- Rotate ----------
   // Any transform that changes canvas content/dimensions out from under an
   // in-progress pointer interaction invalidates whatever that interaction
@@ -708,6 +1326,7 @@
     canvas.height = w;
     ctx.drawImage(tmp, 0, 0);
     syncOverlaySize();
+    dropSelection();
     cancelActiveDrag();
     fitCanvasToViewport();
   }
@@ -730,6 +1349,7 @@
     }
     ctx.drawImage(snap, 0, 0);
     ctx.restore();
+    dropSelection();
     cancelActiveDrag();
   }
   $("pe-flip-h").addEventListener("click", () => flip(true));
@@ -1018,11 +1638,7 @@
     if (isComparing()) return;
     pushUndo();
     const snap = snapshotCanvas();
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.save();
-    ctx.filter = cssFilter;
-    ctx.drawImage(snap, 0, 0);
-    ctx.restore();
+    paintFiltered(snap, cssFilter);
     // A critic pass found this (and the Apply Crop / Apply Preset handlers
     // below) already had the isComparing() guard but not this one --
     // baseSnapshot invalidation is a SEPARATE concern from that guard, and
@@ -1041,6 +1657,7 @@
   function applyGrain(amount) {
     if (isComparing()) return;
     pushUndo();
+    const beforeGrain = hasSelection() ? snapshotCanvas() : null;
     const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const data = imgData.data;
     for (let i = 0; i < data.length; i += 4) {
@@ -1052,6 +1669,7 @@
       // which pixels are transparent.
     }
     ctx.putImageData(imgData, 0, 0);
+    if (beforeGrain) blendThroughSelection(beforeGrain, snapshotCanvas());
     cancelActiveDrag();
   }
   $("pe-filter-grain").addEventListener("click", () => applyGrain(Number($("pe-grain-amount").value) || 15));
@@ -1088,11 +1706,7 @@
       baseSnapshot.height = canvas.height;
       baseSnapshot.getContext("2d").drawImage(canvas, 0, 0);
     }
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.save();
-    ctx.filter = filterString();
-    ctx.drawImage(baseSnapshot, 0, 0);
-    ctx.restore();
+    paintFiltered(baseSnapshot, filterString());
   }
 
   let lastAdjust = { brightness: 0, contrast: 0, saturate: 0 };
@@ -1180,11 +1794,7 @@
     const b = 100 + Number(preset.adjust.brightness);
     const c = 100 + Number(preset.adjust.contrast);
     const s = 100 + Number(preset.adjust.saturate);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.save();
-    ctx.filter = `brightness(${b}%) contrast(${c}%) saturate(${s}%)`;
-    ctx.drawImage(snap, 0, 0);
-    ctx.restore();
+    paintFiltered(snap, `brightness(${b}%) contrast(${c}%) saturate(${s}%)`);
     // Same baseSnapshot-invalidation gap as applyOneShotFilter() and Apply
     // Crop, found by the same critic pass: this handler already had the
     // isComparing() guard above, but not this separate one for a
@@ -1513,6 +2123,13 @@
   }
 
   function commitBrushStroke() {
+    // With a selection, the stroke only counts inside it.
+    if (hasSelection() && selMask.width === maskCanvas.width && selMask.height === maskCanvas.height) {
+      maskCtx.save();
+      maskCtx.globalCompositeOperation = "destination-in";
+      maskCtx.drawImage(selMask, 0, 0);
+      maskCtx.restore();
+    }
     if (currentTool === "erase") {
       ctx.save();
       ctx.globalCompositeOperation = "destination-out";
@@ -1702,6 +2319,7 @@
     if (text === null) return;
     pushUndo();
     const fontSize = style.fontSize;
+    const textBefore = hasSelection() ? snapshotCanvas() : null;
     ctx.fillStyle = style.color;
     // Use a custom face only when that exact, pre-dialog selection has
     // already finished loading; otherwise retain the plain sans-serif fallback.
@@ -1710,6 +2328,7 @@
     ctx.font = `bold ${fontSize}px ${fontFamily}`;
     ctx.textBaseline = "top";
     ctx.fillText(text, point.x, point.y);
+    if (textBefore) blendThroughSelection(textBefore, snapshotCanvas());
     // A critic pass found this was the one remaining pixel-mutating action
     // missing baseSnapshot invalidation -- and arguably the easiest of all
     // of them to trigger. The app modal leaves the event loop running, so
@@ -1763,6 +2382,8 @@
     } else if (currentTool === "eyedropper") {
       pickColor(p);
       dragging = false;
+    } else if (SELECTION_TOOLS.includes(currentTool)) {
+      beginSelectionDraft(e, p);
     }
   });
 
@@ -1787,6 +2408,8 @@
       drawBrushCursor(p);
     } else if (SHAPE_TOOLS.includes(currentTool) && dragging && dragStart) {
       drawAnnotatePreview(dragStart.x, dragStart.y, p.x, p.y);
+    } else if (SELECTION_TOOLS.includes(currentTool)) {
+      updateSelectionDraft(p);
     }
   });
 
@@ -1832,9 +2455,12 @@
       $("pe-apply-crop").hidden = !cropRect;
     } else if (BRUSH_TOOLS.includes(currentTool)) {
       finalizeBrushStroke();
+    } else if (SELECTION_TOOLS.includes(currentTool)) {
+      if (currentTool !== "sel-poly") commitSelectionDraft();
     } else if (SHAPE_TOOLS.includes(currentTool) && dragStart) {
       pushUndo();
-      commitAnnotation(dragStart.x, dragStart.y, p.x, p.y);
+      const anchor = dragStart;
+      withSelectionClip(() => commitAnnotation(anchor.x, anchor.y, p.x, p.y));
       invalidateOpenAdjustDrag();
       clearOverlay();
     }
@@ -1852,6 +2478,10 @@
     if (!dragging) return;
     dragging = false;
     if (BRUSH_TOOLS.includes(currentTool)) finalizeBrushStroke();
+    if (SELECTION_TOOLS.includes(currentTool) && currentTool !== "sel-poly") {
+      selDraft = null;
+      clearOverlay();
+    }
     dragStart = null;
   });
 
@@ -1923,7 +2553,36 @@
     // lands after Straighten, so Ctrl+Z/Y must still reach the editor there.
     if ((tag === "INPUT" && active.id !== "pe-straighten-angle") || tag === "TEXTAREA") return;
     const mod = e.metaKey || e.ctrlKey;
-    if (mod && e.key.toLowerCase() === "z") {
+    // A polygon being clicked out: Enter closes it, Backspace drops the last
+    // corner, Escape abandons it.
+    if (currentTool === "sel-poly" && selDraft && selDraft.polyClick && !mod) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        finishPolygon();
+        return;
+      }
+      if (e.key === "Backspace") {
+        e.preventDefault();
+        selDraft.pts.pop();
+        if (!selDraft.pts.length) {
+          selDraft = null;
+          clearOverlay();
+        } else {
+          drawSelectionDraft();
+        }
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        selDraft = null;
+        clearOverlay();
+        return;
+      }
+    }
+    if (mod && e.key.toLowerCase() === "d") {
+      e.preventDefault();
+      dropSelection();
+    } else if (mod && e.key.toLowerCase() === "z") {
       e.preventDefault();
       if (e.shiftKey) redo();
       else undo();
@@ -2146,6 +2805,8 @@
     originalSnapshot = snapshotCanvas();
     cropRect = null;
     baseSnapshot = null;
+    dropSelection();
+    $("pe-sel-view").value = "ants";
     lastAdjust = { brightness: 0, contrast: 0, saturate: 0 };
     $("pe-brightness").value = 0;
     $("pe-contrast").value = 0;
@@ -2163,6 +2824,7 @@
     loadPhotoPresets();
     loadBrushPresets();
     loadTextStyles();
+    loadSelectionPresets();
     $("pe-hint").textContent = hint;
     $("pe-save-overwrite").hidden = !originalKey;
     setTool("select");

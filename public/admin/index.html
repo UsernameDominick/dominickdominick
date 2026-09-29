@@ -1170,6 +1170,32 @@
               </select>
               <button type="button" id="pe-apply-crop" hidden>Apply Crop</button>
             </div>
+            <div class="pe-tool-group" id="pe-selection-group">
+              <span class="pe-group-label">Selection</span>
+              <button type="button" class="pe-tool" data-tool="sel-rect" title="Drag a rectangular selection. Hold Shift to add to the current selection, Alt to subtract from it.">▭ Rect</button>
+              <button type="button" class="pe-tool" data-tool="sel-ellipse" title="Drag an elliptical selection. Hold Shift to add to the current selection, Alt to subtract from it.">◯ Ellipse</button>
+              <button type="button" class="pe-tool" data-tool="sel-lasso" title="Draw a freehand selection. Hold Shift to add, Alt to subtract.">Lasso</button>
+              <button type="button" class="pe-tool" data-tool="sel-poly" title="Click to place corners; double-click, press Enter, or click the first corner to close it. Backspace removes the last corner, Escape cancels. Hold Shift when you start to add, Alt to subtract.">Polygon</button>
+              <button type="button" id="pe-sel-all" title="Select the whole image">Select all</button>
+              <button type="button" id="pe-sel-invert" disabled title="Swap the selected and unselected areas">Invert</button>
+              <button type="button" id="pe-sel-clear" disabled title="Remove the selection (Ctrl+D)">Deselect</button>
+              <button type="button" id="pe-sel-delete" disabled title="Make the selected pixels transparent">Delete selected</button>
+              <button type="button" id="pe-sel-crop" disabled title="Crop to the box around the selection">Crop to selection</button>
+              <label title="How the selection is shown on the image">Show <select id="pe-sel-view" aria-label="Selection view">
+                <option value="ants">Outline</option>
+                <option value="inside">Tint selected</option>
+                <option value="outside">Tint the rest</option>
+                <option value="mask">Mask only</option>
+              </select></label>
+              <input type="color" id="pe-sel-tint" value="#ff3b30" aria-label="Selection tint colour" title="Tint colour used by the tint views">
+              <select id="pe-apply-selection" title="Load a saved selection (it scales to this image)">
+                <option value="">Load saved selection…</option>
+              </select>
+              <button type="button" id="pe-load-selection" title="Apply the saved selection chosen above to this image">Load</button>
+              <button type="button" id="pe-save-selection" disabled title="Save this selection under a name so you can load it on any image">Save selection</button>
+              <button type="button" id="pe-delete-selection" title="Delete the saved selection chosen above">Delete saved selection</button>
+              <span id="pe-sel-status" class="pe-sel-status" role="status">No selection. Adjustments, filters, brushes, shapes and text apply to the whole image.</span>
+            </div>
             <div class="pe-tool-group">
               <span class="pe-group-label">Rotate &amp; flip</span>
               <button type="button" id="pe-rotate-left" title="Rotate left">⟲ 90°</button>

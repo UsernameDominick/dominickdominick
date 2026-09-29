@@ -6191,6 +6191,13 @@ kbd {
   flex-direction: column;
 }
 
+.pe-sel-status {
+  flex: 1 1 100%;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--text-dim);
+}
+
 .pe-group-label {
   font-size: 0.66rem;
   font-weight: 700;

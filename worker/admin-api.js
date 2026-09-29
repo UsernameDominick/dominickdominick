@@ -2458,6 +2458,78 @@ async function routeAdminApi(request, env, url, ctx) {
     return json({ ok: true });
   }
 
+  // /selection-presets — named photo-editor selections, same settings-blob
+  // storage pattern as the presets above (own key, own validation). A
+  // selection is stored as the shapes that made it (rect/ellipse boxes and
+  // polygon/lasso points, all as fractions of the image size 0..1), not as
+  // pixels, so it applies to any image size and stays small.
+  const SELECTION_KINDS = new Set(["rect", "ellipse", "poly"]);
+  const SELECTION_PRESET_LIMIT = 20;
+  const SELECTION_MAX_OPS = 40;
+  const SELECTION_MAX_POINTS = 2000;
+  const unitFraction = (n) => Math.max(0, Math.min(1, Math.round(n * 10000) / 10000));
+  function cleanSelectionOps(ops) {
+    if (!Array.isArray(ops) || ops.length < 1 || ops.length > SELECTION_MAX_OPS) return null;
+    const out = [];
+    let points = 0;
+    for (const op of ops) {
+      if (op && typeof op === "object" && op.kind === "invert") {
+        out.push({ kind: "invert" });
+        continue;
+      }
+      if (!op || typeof op !== "object" || !SELECTION_KINDS.has(op.kind) || (op.mode !== "add" && op.mode !== "sub")) return null;
+      if (op.kind === "poly") {
+        if (!Array.isArray(op.pts) || op.pts.length < 3) return null;
+        points += op.pts.length;
+        if (points > SELECTION_MAX_POINTS) return null;
+        const pts = [];
+        for (const pt of op.pts) {
+          if (!Array.isArray(pt) || pt.length !== 2 || typeof pt[0] !== "number" || typeof pt[1] !== "number" || !Number.isFinite(pt[0]) || !Number.isFinite(pt[1])) return null;
+          pts.push([unitFraction(pt[0]), unitFraction(pt[1])]);
+        }
+        out.push({ kind: "poly", mode: op.mode, pts });
+      } else {
+        if (!Array.isArray(op.box) || op.box.length !== 4 || op.box.some((n) => typeof n !== "number" || !Number.isFinite(n))) return null;
+        const [x, y, w, h] = op.box.map(unitFraction);
+        const width = Math.min(w, 1 - x);
+        const height = Math.min(h, 1 - y);
+        if (width <= 0 || height <= 0) return null;
+        out.push({ kind: op.kind, mode: op.mode, box: [x, y, width, height] });
+      }
+    }
+    return out;
+  }
+  if (path === "/selection-presets" && method === "GET") {
+    const raw = await getSetting(env, "photo_editor_selections");
+    return json(JSON.parse(raw || "[]"));
+  }
+  if (path === "/selection-presets" && method === "POST") {
+    const body = await request.json().catch(() => ({}));
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    const ops = cleanSelectionOps(body.ops);
+    if (!name || !ops) {
+      return json({ error: "A name and a valid list of selection shapes are required" }, { status: 400 });
+    }
+    const presets = JSON.parse((await getSetting(env, "photo_editor_selections")) || "[]");
+    if (presets.length >= SELECTION_PRESET_LIMIT) {
+      return json({ error: `You can save up to ${SELECTION_PRESET_LIMIT} selections; delete one first.` }, { status: 400 });
+    }
+    const id = presets.reduce((max, p) => Math.max(max, p.id || 0), 0) + 1;
+    presets.push({ id, name: name.slice(0, 60), ops, invert: body.invert === true });
+    await setSetting(env, "photo_editor_selections", JSON.stringify(presets));
+    log(ctx, env, "create", "selection-preset", name);
+    return json({ id });
+  }
+  const selectionPresetMatch = path.match(/^\/selection-presets\/(\d+)$/);
+  if (selectionPresetMatch && method === "DELETE") {
+    const id = Number(selectionPresetMatch[1]);
+    const presets = JSON.parse((await getSetting(env, "photo_editor_selections")) || "[]");
+    const target = presets.find((p) => p.id === id);
+    await setSetting(env, "photo_editor_selections", JSON.stringify(presets.filter((p) => p.id !== id)));
+    log(ctx, env, "delete", "selection-preset", target?.name || `#${id}`);
+    return json({ ok: true });
+  }
+
   // /media-saved-searches — a named snapshot of the media library's
   // filter controls (folder/type/search text/unused/duplicates), same
   // storage pattern as style presets above and for the same reason: an

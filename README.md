@@ -45,7 +45,11 @@ Worker secret, not stored in this repo). From there:
 - The pencil icon on a Media Library image opens the **Photo Editor**:
   crop/select, rotate, brightness/contrast/saturation, an erase/blur/
   pixelate brush, and rectangle/circle/arrow/text annotations, with
-  Undo. "Save as new" uploads a fresh file; "Overwrite original" replaces
+  Undo. Selection tools (rectangle, ellipse, freehand lasso, click-by-click
+  polygon; Shift adds, Alt subtracts, Invert, Ctrl+D to deselect) limit the
+  adjust sliders, filters, grain, brushes, shapes, text and Delete to the
+  selected area; "Crop to selection" boxes it, mask views tint or show it,
+  and named selections are saved (as shapes, so they fit any image size). "Save as new" uploads a fresh file; "Overwrite original" replaces
   the file in place at the same URL, updating it everywhere it's used
   (this is why `/media/:key` now serves a short, revalidating cache
   instead of a year-long immutable one).
