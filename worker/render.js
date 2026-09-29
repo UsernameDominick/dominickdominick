@@ -1087,7 +1087,7 @@ export function renderSongBlockHtml(song) {
   // Source" by anyone, not just through the rendered page).
   const { private_notes, ...publicSongData } = song.data || {};
   return `<div class="song-embed${themeClass}" data-song="${esc(JSON.stringify(publicSongData))}">
-    <div class="song-embed-header"><strong>${esc(song.name)}</strong><button type="button" class="song-embed-play-btn">▶ Play</button></div>
+    <div class="song-embed-header"><strong>${esc(song.name)}</strong><button type="button" class="song-embed-play-btn" aria-pressed="false">▶ Play</button></div>
     ${vizHtml}
   </div>`;
 }

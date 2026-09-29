@@ -97,6 +97,7 @@ Verify distinct test-only Preview values before protected-flow checks.
 - **Song/DAW:** fixed 16-step sequencer with synthesized Web Audio; no sample playback, multitrack timeline,
   mixing, or effects.
 - **Simulation builder:** SVG circuits and simplified connectivity/Ohm's-law analysis, not a SPICE solver; breadboards support 15, 30, or 45 columns, manual wire bends, same-hole snap warnings, named checkpoints, and in-memory undo. Draft edits stay private until the saved name and circuit data are explicitly published; unpublish hides the live snapshot. Older simulations default to 30 columns, and save validation checks board-size pins. Parts (not breadboards) can be rotated in 90° steps and mirrored (R / Shift+R / F or the inspector buttons); orientation is applied at the component-definition level so pins, wires, snapping, and rendering all follow it, and save validation rejects invalid orientation values. Capacitor and inductor parts carry basic parameters (capacitance in µF, inductance in mH, winding resistance in ohms) in the DC steady-state model: a capacitor is an open circuit and an inductor is a small resistor, so only the winding resistance affects the analysis. Logic gates (AND, OR, NAND, NOR, XOR, XNOR, NOT, buffer) are static diagram symbols with an editable truth table (`gate`, optional `truth` of 0/1 outputs); they add no analysis edges and save validation checks the gate name and table shape.
+- **Embed controls:** the public song Play/Stop, simulation Power, and 3D-scan AR buttons share one primary-button treatment (accent fill, hover lift, focus ring, outlined while pressed); the song button now exposes `aria-pressed`.
 - **Shared lifecycle:** pages/articles/projects have autosave, conflict detection, revisions, and trash; media
   has versions and usage tracking. Songs/simulations still lack full parity.
 ## 2. Active feature backlog
@@ -388,7 +389,6 @@ sandboxed plugin architecture — substantial new infra + security surface).
   solver assumes constant-voltage sources and derives current via I=V/R; a true current source needs a different
   source model, which is outside the current simulator's scope.
 - 431. Voltage meter (requires arbitrary-node voltage computation)
-- 531. Consistent embed controls — mostly CSS/UI consistency pass.
 - 534. Public param controls — expose whitelisted fields already in `data` via player UI.
 
 ### Simulations — Medium

@@ -125,6 +125,7 @@
       if (!player) player = window.SongEngine.createPlayer(getCtx, songData, onStep);
       if (player.isPlaying()) {
         player.stop();
+        btn.setAttribute("aria-pressed", "false");
         bars.forEach((bar) => bar.classList.remove("song-embed-bar-active"));
         if (pulse) pulse.classList.remove("song-embed-pulse-beat", "song-embed-pulse-hit");
         if (canvas) drawWaveform(0);
@@ -132,6 +133,7 @@
         if (window.trackEvent) window.trackEvent("song_stop");
       } else {
         player.start();
+        btn.setAttribute("aria-pressed", "true");
         btn.textContent = "⏹ Stop";
         if (window.trackEvent) window.trackEvent("song_play");
       }
