@@ -4034,6 +4034,7 @@
   // (asterisks, "](" and line-leading markers) are swapped for look-alikes.
   const PASTE_SEMANTIC = /<(h[1-6]|strong|b|em|i|a|ul|ol|li|blockquote|table|pre)\b/i;
   const PASTE_MAX_HTML = 1500000; // beyond this, leave the browser's own paste alone
+  const PASTE_UNDO_LINES = 120; // insertText costs about 3 ms per line, so long lists go in as one edit too
   const PASTE_UNDO_MAX = 5000; // longer results are inserted in one step (no native Undo): insertText is slow for long multi-line text
   const PASTE_SKIP = new Set(["script", "style", "meta", "link", "head", "title", "img", "svg", "iframe", "object", "noscript", "template", "form", "input", "textarea", "button", "select", "audio", "video", "canvas", "hr"]);
   const PASTE_INLINE = new Set(["span", "b", "strong", "em", "i", "a", "font", "u", "s", "strike", "del", "ins", "mark", "small", "big", "sup", "sub", "code", "kbd", "samp", "var", "abbr", "cite", "q", "dfn", "time", "label", "bdi", "bdo", "wbr", "tt", "br"]);
@@ -4050,15 +4051,23 @@
     return href.replace(/[()\[\]|*\s]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0"));
   }
   // Emphasis marks that touch ("*a*" then "**b**") would read as one span: keep them apart.
-  const joinInline = (a, b) => (a.endsWith("*") && b.startsWith("*") ? a + "\u200b" + b : a + b);
+  const joinInline = (a, b) => {
+    if (!(a.endsWith("*") && b.startsWith("*"))) return a + b;
+    // Two runs of the same emphasis are one run ("Hel" + "lo" stays searchable);
+    // different emphasis is kept apart.
+    if (a.endsWith("**") && b.startsWith("**")) return a.slice(0, -2) + b.slice(2);
+    if (!a.endsWith("**") && !b.startsWith("**")) return a.slice(0, -1) + b.slice(1);
+    return a + "\u200b" + b;
+  };
   const pasteEscape = (t) => t.replace(/\*/g, "∗").replace(/\]\(/g, "]​(");
   const pasteCollapse = (t) => t.replace(/[ \t\r\n ]+/g, " ");
   const pasteWrapLines = (text, mark) => text.split("\n").map((l) => (l.trim() ? mark + l.trim() + mark : l)).join("\n");
 
   function htmlToMarkdownLite(html) {
-    // Word and Outlook wrap the copied part in fragment comments; only that part counts.
+    // The whole clipboard document is parsed (its fragment markers can sit inside a
+    // table, list or code block); whitespace outside the copied part adds nothing.
     const frag = html.match(/<!--StartFragment-->([\s\S]*?)<!--EndFragment-->/i);
-    const doc = new DOMParser().parseFromString(frag ? frag[1] : html, "text/html"); // inert: scripts never run
+    const doc = new DOMParser().parseFromString(html, "text/html"); // inert: scripts never run
     const weightOf = (n) => (n.style && n.style.fontWeight) || "";
     const isBoldEl = (n, tag) => tag === "strong" || (tag === "b" && !/^(normal|400)$/.test(weightOf(n))) || /^(bold|[6-9]00)$/.test(weightOf(n));
     const isItalicEl = (n, tag) => tag === "em" || tag === "i" || (n.style && n.style.fontStyle) === "italic";
@@ -4066,17 +4075,17 @@
     // One inline node as text, including its own bold/italic/link. Only the outermost
     // of nested emphasis is kept (the renderer can't nest ** and *).
     function inlineOf(node, st) {
-      if (node.nodeType === 3) return st.code ? pasteCollapse(node.nodeValue) : pasteEscape(pasteCollapse(node.nodeValue));
+      if (node.nodeType === 3) return pasteEscape(pasteCollapse(node.nodeValue));
       if (node.nodeType !== 1) return "";
       const tag = node.tagName.toLowerCase();
       if (PASTE_SKIP.has(tag)) return "";
       if (tag === "br") return "\n";
       // Citation markers (a "[1]" or a link to an anchor) are dropped; a bare 2 in m² stays.
-      if (tag === "sup" && (/^\s*\[\d+\]\s*$/.test(node.textContent) || node.querySelector('a[href^="#"]'))) return "";
+      if (tag === "sup" && (/^\s*\[\d+\]\s*$/.test(node.textContent) || node.querySelector('a[href^="#"]') || /reference|noprint|cite/i.test(node.className || ""))) return "";
       const free = !st.bold && !st.italic;
       const bold = free && isBoldEl(node, tag);
       const italic = free && !bold && isItalicEl(node, tag);
-      const child = { bold: st.bold || bold, italic: st.italic || italic, noLink: st.noLink, code: st.code || tag === "code" || tag === "kbd" || tag === "samp" };
+      const child = { bold: st.bold || bold, italic: st.italic || italic, noLink: st.noLink };
       let inner = "";
       node.childNodes.forEach((k) => (inner = joinInline(inner, inlineOf(k, child))));
       if (!inner.trim()) return inner;
@@ -4117,7 +4126,7 @@
       tidy(text)
         .split(/\n{2,}/)
         .forEach((p) => {
-          p = p.trim();
+          p = p.trim().replace(/```/g, "``\u200b`"); // the renderer's fence match isn't line-anchored
           if (!p) return;
           const bullet = p.match(/^[•·▪◦‣∙]\s*([\s\S]+)$/); // Word's typed-in bullets
           if (bullet) {
@@ -4215,7 +4224,7 @@
 
     const md = walk(doc.body).map((b) => b.text).join("\n\n");
     // A fragment pasted mid-sentence keeps its edge spaces ("bold " + next word).
-    const edge = doc.body.textContent;
+    const edge = (frag ? frag[1].replace(/<[^>]*>/g, "") : doc.body.textContent).replace(/&nbsp;/g, " ");
     const single = !md.includes("\n\n");
     return single ? (/^\s/.test(edge) ? " " : "") + md + (/\s$/.test(edge) ? " " : "") : md;
   }
@@ -4242,7 +4251,7 @@
       e.preventDefault();
       pasting = true;
       ta.focus();
-      const big = md.length > PASTE_UNDO_MAX;
+      const big = md.length > PASTE_UNDO_MAX || md.split("\n").length > PASTE_UNDO_LINES;
       // insertText keeps the browser's own Undo working, but it is very slow for long
       // multi-line text; those go in as one edit.
       if (big || !document.execCommand || !document.execCommand("insertText", false, md)) {
