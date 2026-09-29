@@ -543,7 +543,7 @@ export const SIM_COMPONENTS = {
       { id: "neg", x: 40, y: 10, label: "Negative probe" },
     ],
     render: () =>
-      `<line class="voltmeter-lead" x1="0" y1="10" x2="11" y2="10"/><circle class="voltmeter-body" cx="20" cy="10" r="9"/><text class="voltmeter-label" x="20" y="13" text-anchor="middle" font-size="9">V</text><text class="voltmeter-sign" x="6" y="7" text-anchor="middle" font-size="6">+</text><line class="voltmeter-lead" x1="29" y1="10" x2="40" y2="10"/>`,
+      `<rect class="voltmeter-hit" x="0" y="0" width="40" height="24" fill="transparent"/><line class="voltmeter-lead" x1="0" y1="10" x2="11" y2="10"/><circle class="voltmeter-body" cx="20" cy="10" r="9"/><text class="voltmeter-label" x="20" y="13" text-anchor="middle" font-size="9">V</text><text class="voltmeter-sign" x="5" y="8" text-anchor="middle" font-size="7">+</text><text class="voltmeter-sign voltmeter-sign-neg" x="35" y="8" text-anchor="middle" font-size="7">\u2212</text><line class="voltmeter-lead" x1="29" y1="10" x2="40" y2="10"/>`,
   },
   // A two-terminal variable resistor -- no separate wiper-tap pin, so no
   // voltage-divider behavior (that needs a real multi-branch solver, out
@@ -716,7 +716,7 @@ function voltmeterReadingSvg(text, rotation) {
 export function formatVolts(volts) {
   if (typeof volts !== "number" || !Number.isFinite(volts)) return "\u2014";
   const rounded = Math.abs(volts) < 0.005 ? 0 : volts;
-  return `${rounded.toFixed(2)}V`;
+  return Math.abs(rounded) >= 10000 ? `${rounded.toExponential(1).replace("e+", "e")}V` : `${rounded.toFixed(2)}V`;
 }
 
 // Breadboards keep their fixed layout (rails, holes and snapping all assume
@@ -1003,6 +1003,8 @@ function buildAnalysisGraph(data) {
         kind: "led",
         resistance: 0,
         forwardVoltage: LED_COLORS[color].forwardVoltage,
+        posNode: nodeId(c, def.polarity.pos),
+        negNode: nodeId(c, def.polarity.neg),
       });
     }
   });
@@ -1040,6 +1042,146 @@ function shortestPathNodes(adjacency, start, end) {
   return path.reverse();
 }
 
+// Potential (volts above the source's negative terminal) of the nodes the
+// single-path model can honestly vouch for, for the voltmeter. The solver
+// follows ONE path per source, so a voltage is only defined when that path is
+// the only route for current:
+//   - no other source's terminal is in the same connected circuit ("sources");
+//   - every resistive part on the path is a bridge once zero-resistance links
+//     (wires, closed switches, the ammeter) are contracted, i.e. nothing runs
+//     in parallel with it and no switch or wire bypasses it ("parallel");
+//   - the loop can conduct: a dead short has no voltage ("short"), and LEDs
+//     that block (forward voltage above the source, or wired backwards) may
+//     only be a single LED, which then takes the whole source voltage; two or
+//     more can't be split ("ambiguous").
+// Then the path drops I*R per resistive part and the forward voltage per LED
+// (plus the battery's internal drop), and every other node in the circuit --
+// dead-end spurs carry no current -- shares the potential of the path node it
+// hangs from. With no complete path (an open circuit) no current flows, so the
+// whole circuit reachable from the positive terminal sits at the source voltage
+// and the part reachable from the negative terminal at 0. Returns the map, the
+// reason it is empty (null when usable) and the nodes the circuit covers.
+function collectNodePotentials(adjacency, edgeInfo, domain, path, otherTerminals, currentAmps, netVoltage) {
+  const edgeKey = (a, b) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+  const reach = (starts) => {
+    const seen = new Set(starts);
+    const queue = [...starts];
+    while (queue.length) {
+      const cur = queue.shift();
+      for (const n of adjacency.get(cur) || []) {
+        if (!seen.has(n)) {
+          seen.add(n);
+          queue.push(n);
+        }
+      }
+    }
+    return seen;
+  };
+  const hasPath = Boolean(path) && path.length >= 2;
+  const claims = reach(hasPath ? [domain.posNode] : [domain.posNode, domain.negNode]);
+  const fail = (reason) => ({ map: new Map(), reason, claims });
+  if ([...claims].some((n) => otherTerminals.has(n))) return fail("sources");
+  if (!Number.isFinite(domain.voltage) || domain.voltage <= 0) return fail("invalid");
+  const potentials = new Map();
+  if (!hasPath) {
+    reach([domain.posNode]).forEach((n) => potentials.set(n, domain.voltage));
+    reach([domain.negNode]).forEach((n) => {
+      if (!potentials.has(n)) potentials.set(n, 0);
+    });
+    return { map: potentials, reason: null, claims };
+  }
+
+  const isZero = (info) => !info || info.kind === "wire" || info.kind === "ammeter";
+  const parent = new Map();
+  const find = (x) => {
+    if (!parent.has(x)) parent.set(x, x);
+    let root = x;
+    while (parent.get(root) !== root) root = parent.get(root);
+    let cur = x;
+    while (parent.get(cur) !== root) {
+      const next = parent.get(cur);
+      parent.set(cur, root);
+      cur = next;
+    }
+    return root;
+  };
+  const resistive = [];
+  const seenKeys = new Set();
+  claims.forEach((a) => {
+    for (const b of adjacency.get(a) || []) {
+      const key = edgeKey(a, b);
+      if (seenKeys.has(key)) continue;
+      seenKeys.add(key);
+      if (isZero(edgeInfo.get(key))) {
+        const ra = find(a);
+        const rb = find(b);
+        if (ra !== rb) parent.set(ra, rb);
+      } else {
+        resistive.push({ a, b, key });
+      }
+    }
+  });
+  const superAdj = new Map();
+  resistive.forEach(({ a, b, key }) => {
+    const ra = find(a);
+    const rb = find(b);
+    if (ra === rb) return;
+    if (!superAdj.has(ra)) superAdj.set(ra, []);
+    if (!superAdj.has(rb)) superAdj.set(rb, []);
+    superAdj.get(ra).push({ to: rb, key });
+    superAdj.get(rb).push({ to: ra, key });
+  });
+  const pathEdges = [];
+  const ledSteps = [];
+  for (let i = 0; i < path.length - 1; i++) {
+    const key = edgeKey(path[i], path[i + 1]);
+    const info = edgeInfo.get(key);
+    if (!isZero(info)) pathEdges.push({ a: path[i], b: path[i + 1], key });
+    if (info && info.kind === "led") ledSteps.push(info.posNode === undefined || (path[i] === info.posNode && path[i + 1] === info.negNode));
+  }
+  for (const { a, b, key } of pathEdges) {
+    const from = find(a);
+    const to = find(b);
+    if (from === to) return fail("parallel");
+    const seen = new Set([from]);
+    const queue = [from];
+    while (queue.length) {
+      const cur = queue.shift();
+      for (const step of superAdj.get(cur) || []) {
+        if (step.key === key || seen.has(step.to)) continue;
+        seen.add(step.to);
+        queue.push(step.to);
+      }
+    }
+    if (seen.has(to)) return fail("parallel");
+  }
+
+  const blocked = netVoltage <= 0 || ledSteps.some((forward) => !forward);
+  if (blocked && ledSteps.length >= 2) return fail("ambiguous");
+  if (!blocked && currentAmps === Infinity) return fail("short");
+  const amps = blocked ? 0 : currentAmps;
+  let volts = domain.voltage - amps * (domain.internalResistance || 0);
+  potentials.set(path[0], volts);
+  for (let i = 0; i < path.length - 1; i++) {
+    const info = edgeInfo.get(edgeKey(path[i], path[i + 1]));
+    let drop = 0;
+    if (info) drop = info.kind === "led" ? (blocked ? volts : info.forwardVoltage || 0) : amps * (info.resistance || 0);
+    volts -= drop;
+    potentials.set(path[i + 1], volts);
+  }
+  const queue = [...path];
+  while (queue.length) {
+    const cur = queue.shift();
+    const curVolts = potentials.get(cur);
+    for (const n of adjacency.get(cur) || []) {
+      if (potentials.has(n)) continue;
+      potentials.set(n, curVolts);
+      queue.push(n);
+    }
+  }
+  return { map: potentials, reason: null, claims };
+}
+
 // Runs real Ohm's-law math over each independently-sourced power domain
 // (the wall outlet, a battery, and any power supply whose input is
 // actually fed) and returns per-component results: current, status, and
@@ -1047,69 +1189,6 @@ function shortestPathNodes(adjacency, start, end) {
 // destroyed. This is a simplified single-series-path model per domain —
 // good enough for the loop-based circuits this builder makes, not a
 // general multi-branch solver.
-// Potential (volts above the source's negative terminal) of every node the
-// single-path model can vouch for, for the voltmeter. Along the analysed path
-// each resistive part drops I*R and each LED its forward voltage; anything
-// tied to a path node by zero-resistance links (wires, closed switches, the
-// ammeter's zero-ohm body) shares that node's potential. Off-path branches
-// carry no current in this model, so they are not vouched for. When the loop
-// can't conduct (LED forward voltage above the source) nothing flows and the
-// first LED on the path takes the whole source voltage. A short circuit
-// (unbounded current) has no meaningful potentials, and with no complete path
-// (an open circuit) no current flows, so everything reachable from the
-// positive terminal sits at the source voltage and everything reachable from
-// the negative terminal at 0. Mirrors public/admin/sim-components.js.
-function collectNodePotentials(adjacency, edgeInfo, domain, path, currentAmps, netVoltage) {
-  const potentials = new Map();
-  const edgeKey = (a, b) => (a < b ? `${a}|${b}` : `${b}|${a}`);
-  const flood = (start, volts, canStep) => {
-    const queue = [start];
-    while (queue.length) {
-      const cur = queue.shift();
-      for (const n of adjacency.get(cur) || []) {
-        if (potentials.has(n)) continue;
-        if (!canStep(cur, n)) continue;
-        potentials.set(n, volts);
-        queue.push(n);
-      }
-    }
-  };
-  if (!path || path.length < 2) {
-    potentials.set(domain.posNode, domain.voltage);
-    flood(domain.posNode, domain.voltage, () => true);
-    if (!potentials.has(domain.negNode)) {
-      potentials.set(domain.negNode, 0);
-      flood(domain.negNode, 0, () => true);
-    }
-    return potentials;
-  }
-  if (currentAmps === Infinity) return potentials;
-  let volts = domain.voltage - currentAmps * (domain.internalResistance || 0);
-  potentials.set(path[0], volts);
-  for (let i = 0; i < path.length - 1; i++) {
-    const info = edgeInfo.get(edgeKey(path[i], path[i + 1]));
-    let drop = 0;
-    if (info) drop = info.kind === "led" ? (netVoltage > 0 ? info.forwardVoltage || 0 : volts) : currentAmps * (info.resistance || 0);
-    volts -= drop;
-    potentials.set(path[i + 1], volts);
-  }
-  path.forEach((node) => {
-    const pathVolts = potentials.get(node);
-    const queue = [node];
-    while (queue.length) {
-      const cur = queue.shift();
-      for (const n of adjacency.get(cur) || []) {
-        if (potentials.has(n)) continue;
-        const info = edgeInfo.get(edgeKey(cur, n));
-        if (!info || (info.kind !== "wire" && info.kind !== "ammeter")) continue;
-        potentials.set(n, pathVolts);
-        queue.push(n);
-      }
-    }
-  });
-  return potentials;
-}
-
 export function computeCircuitAnalysis(data) {
   const components = (data && data.components) || [];
   const { poweredNodes } = computePoweredSet(data);
@@ -1139,11 +1218,25 @@ export function computeCircuitAnalysis(data) {
   });
 
   const results = {};
+  // Only voltmeters need node potentials, so nothing else pays for them.
+  const wantPotentials = components.some((c) => c.type === "voltmeter");
   const potentialMaps = [];
+  const otherTerminals = (domain) => {
+    const others = new Set();
+    domains.forEach((d) => {
+      if (d !== domain) {
+        others.add(d.posNode);
+        others.add(d.negNode);
+      }
+    });
+    others.delete(domain.posNode);
+    others.delete(domain.negNode);
+    return others;
+  };
   domains.forEach((domain) => {
     const path = shortestPathNodes(adjacency, domain.posNode, domain.negNode);
     if (!path || path.length < 2) {
-      potentialMaps.push({ domain, map: collectNodePotentials(adjacency, edgeInfo, domain, null, 0, 0) });
+      if (wantPotentials) potentialMaps.push({ domain, ...collectNodePotentials(adjacency, edgeInfo, domain, null, otherTerminals(domain), 0, 0) });
       return;
     }
     let totalResistance = domain.internalResistance || 0;
@@ -1165,7 +1258,7 @@ export function computeCircuitAnalysis(data) {
     else if (totalResistance <= 0) currentAmps = Infinity;
     else currentAmps = netVoltage / totalResistance;
     const currentMa = currentAmps === Infinity ? Infinity : currentAmps * 1000;
-    potentialMaps.push({ domain, map: collectNodePotentials(adjacency, edgeInfo, domain, path, currentAmps, netVoltage) });
+    if (wantPotentials) potentialMaps.push({ domain, ...collectNodePotentials(adjacency, edgeInfo, domain, path, otherTerminals(domain), currentAmps, netVoltage) });
 
     edges.forEach((info) => {
       if (!info.compId) return;
@@ -1209,16 +1302,28 @@ export function computeCircuitAnalysis(data) {
   });
 
   // Voltmeters read the difference between their probes' potentials, from the
-  // first source whose analysis vouches for both.
-  components.forEach((c) => {
-    if (c.type !== "voltmeter") return;
-    const pos = nodeId(c, "pos");
-    const neg = nodeId(c, "neg");
-    const hit = potentialMaps.find(({ map }) => map.has(pos) && map.has(neg));
-    results[c.id] = hit
-      ? { kind: "voltmeter", volts: hit.map.get(pos) - hit.map.get(neg), status: "normal", dangerous: hit.domain.dangerous }
-      : { kind: "voltmeter", volts: null, status: "no-reading", dangerous: false };
-  });
+  // source whose circuit covers both. Otherwise they say why not.
+  if (wantPotentials) {
+    components.forEach((c) => {
+      if (c.type !== "voltmeter") return;
+      const pos = nodeId(c, "pos");
+      const neg = nodeId(c, "neg");
+      const hit = potentialMaps.find(({ reason, map }) => !reason && map.has(pos) && map.has(neg));
+      let volts = hit ? hit.map.get(pos) - hit.map.get(neg) : null;
+      let reason = null;
+      if (hit && !Number.isFinite(volts)) {
+        volts = null;
+        reason = "invalid";
+      } else if (!hit) {
+        const claimer = potentialMaps.find((m) => m.reason && (m.claims.has(pos) || m.claims.has(neg)));
+        reason = claimer ? claimer.reason : potentialMaps.some((m) => !m.reason && (m.map.has(pos) || m.map.has(neg))) ? "probes" : "unwired";
+      }
+      results[c.id] =
+        volts === null
+          ? { kind: "voltmeter", volts: null, status: "no-reading", reason, dangerous: false }
+          : { kind: "voltmeter", volts, status: "normal", reason: null, dangerous: hit.domain.dangerous };
+    });
+  }
 
   return results;
 }

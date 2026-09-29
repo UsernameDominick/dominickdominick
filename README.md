@@ -80,10 +80,14 @@ Worker secret, not stored in this repo). From there:
   (changeover) switch connects its common terminal to one of two throws;
   click it on the canvas or use the inspector to change position. It
   doesn't snap into breadboard holes; wire its three terminals instead.
-  A voltmeter reads the voltage between its two probes (it draws no
-  current); because the solver follows one path per source, it reads points
-  on that path, points wired straight onto it, or the two sides of an open
-  circuit, and shows a dash anywhere else.
+  A voltmeter reads the voltage between its two probes and draws no
+  current. Because the solver follows one path per source, it only prints
+  a number when that path is the only route for current (a series
+  circuit, or an open circuit); anything hanging off the path without
+  carrying current reads the potential where it attaches. It shows a dash,
+  with the reason in the inspector, for parallel branches, a switch or wire
+  across a part, several sources in one circuit, a dead short, or LEDs that
+  can't conduct.
   Dragging an LED or resistor near a breadboard hole snaps it into place
   and plugs it in automatically, like a real breadboard.
   Select a part and press **R** (Shift+R the other way) to rotate it 90°, or **F** to flip it left to right

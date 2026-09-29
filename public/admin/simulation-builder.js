@@ -1596,10 +1596,20 @@
     switch: { kind: "Electrical", text: "opens or closes the path." },
     switch_spdt: { kind: "Electrical", text: "joins the common terminal to one of two throws." },
     ammeter: { kind: "Electrical", text: "shows the current through it, with zero resistance." },
-    voltmeter: { kind: "Electrical", text: "reads the voltage between its probes when both sit on the circuit's main path; it draws no current." },
+    voltmeter: { kind: "Electrical", text: "reads the voltage between its probes in a series circuit and draws no current; a dash means the simulator can't vouch for that point (parallel branches, several sources)." },
     mcu_teensy: { kind: "Electrical", text: "acts as a fixed load; its digital pins and firmware aren't simulated." },
     tv: { kind: "Display", text: "lights up when powered (preview or Power on); it isn't analysed for current." },
     logic_gate: { kind: "Diagram part", text: "drawn for documentation, not simulated.", hideInInspector: true },
+  };
+  // Why a voltmeter shows a dash (the analysis says which; see collectNodePotentials).
+  const VOLTMETER_NO_READING = {
+    unwired: "connect both probes into a circuit.",
+    probes: "the two probes need to be in the same circuit.",
+    sources: "more than one source is wired into this circuit, and the simulator solves each source on its own.",
+    parallel: "this circuit has parallel branches or a bypass (a switch or wire across a part), and the simulator solves one series path per source, so it can't vouch for the voltage.",
+    short: "this source is short-circuited, so no voltage is defined.",
+    ambiguous: "LEDs that aren't conducting (too little voltage, or backwards) share the voltage in a way the simulator can't work out.",
+    invalid: "the source's voltage isn't a usable number.",
   };
   function partModel(type) {
     return Object.prototype.hasOwnProperty.call(SIM_PART_MODEL, type) ? SIM_PART_MODEL[type] : null;
@@ -1853,6 +1863,8 @@
       let statusLine;
       if (comp.type === "logic_gate") {
         statusLine = "Diagram part: drawn for documentation, not simulated";
+      } else if (comp.type === "voltmeter") {
+        statusLine = "Meter: reads without carrying any current";
       } else if (def.isSource) {
         statusLine = "⚡ Power source";
       } else if (isPowered) {
@@ -1914,7 +1926,7 @@
         } else if (info.kind === "voltmeter") {
           electricalHtml =
             info.volts === null
-              ? `<p class="sim-power-status">No reading — both probes need to sit on the circuit's main path (a complete loop or straight off a source), and the source must be able to drive current.</p>`
+              ? `<p class="sim-power-status">No reading — ${VOLTMETER_NO_READING[info.reason] || VOLTMETER_NO_READING.unwired}</p>`
               : `<p class="sim-power-status is-powered">⚡ Reads ${window.simFormatVolts(info.volts)} from the + probe to the − probe.</p>`;
         } else if (info.kind === "ammeter") {
           electricalHtml = info.dangerous

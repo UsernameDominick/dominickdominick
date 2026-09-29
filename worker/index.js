@@ -88,7 +88,9 @@ import {
 import { handleAdminApi } from "./admin-api.js";
 import {
   capacitanceMicrofarads,
+  computeCircuitAnalysis,
   formatCapacitance,
+  formatVolts,
   formatInductance,
   getSimulationComponentDefinition,
   inductanceMillihenries,
@@ -861,6 +863,12 @@ async function renderNotFound(env, navItems) {
 // power-toggle interactivity as the "Simulation" block, just on its own
 // page so a circuit can be linked to directly instead of only embedded.
 function simulationTopologyDescription(data) {
+  let analysis = {};
+  try {
+    analysis = computeCircuitAnalysis(data);
+  } catch {
+    // The summary is best-effort; a malformed circuit just loses its meter readings.
+  }
   const components = Array.isArray(data?.components) ? data.components : [];
   const wires = Array.isArray(data?.wires) ? data.wires : [];
   const componentsById = new Map(
@@ -916,8 +924,10 @@ function simulationTopologyDescription(data) {
       }
       case "switch":
         return component.closed === false ? "open switch" : "closed switch";
-      case "voltmeter":
-        return "voltage meter";
+      case "voltmeter": {
+        const reading = analysis[component.id];
+        return reading && typeof reading.volts === "number" ? `voltage meter reading ${formatVolts(reading.volts).replace("V", " volts")}` : "voltage meter with no reading";
+      }
       case "switch_spdt":
         return `common terminal connected to throw ${component.position === "b" ? "B" : "A"}`;
       default:

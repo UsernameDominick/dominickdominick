@@ -2128,15 +2128,27 @@ h6 { font-size: 0.9rem; }
   pointer-events: none;
 }
 .sim-comp .voltmeter-sign {
-  fill: #a02020;
+  fill: var(--error-text);
   text-anchor: middle;
   font-weight: 700;
   pointer-events: none;
+}
+.sim-comp .voltmeter-sign-neg {
+  fill: var(--text-dim);
 }
 .sim-comp .voltmeter-reading {
   fill: var(--text-dim);
   text-anchor: middle;
   pointer-events: none;
+}
+/* A halo in the page background keeps a meter reading legible over wires and
+   the cream breadboard, in either theme. */
+.sim-comp .ammeter-reading,
+.sim-comp .voltmeter-reading {
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 2.5px;
+  stroke-linejoin: round;
 }
 
 /* Battery */
