@@ -512,12 +512,7 @@ export const SIM_COMPONENTS = {
   // An idealized ammeter: zero resistance (doesn't disturb the circuit
   // it's measuring), placed IN SERIES like a switch/wire, reporting
   // whatever current already flows on the analyzed path through it. A
-  // real voltmeter (measured in PARALLEL, showing the potential
-  // difference between two arbitrary points) needs actual per-node
-  // voltage computation this simulator's single-shortest-path model
-  // doesn't have -- that's real solver work, out of scope here; this
-  // covers the current-measurement half of "voltage/current meter" that
-  // fits the existing analysis for free.
+  // voltage meter (measured in PARALLEL) is the separate voltmeter part below.
   ammeter: {
     label: "Ammeter",
     w: 40,
@@ -535,6 +530,20 @@ export const SIM_COMPONENTS = {
     ],
     render: () =>
       `<line class="ammeter-lead" x1="0" y1="10" x2="11" y2="10"/><circle class="ammeter-body" cx="20" cy="10" r="9"/><text class="ammeter-label" x="20" y="13" text-anchor="middle" font-size="9">A</text><line class="ammeter-lead" x1="29" y1="10" x2="40" y2="10"/>`,
+  },
+  // An idealized voltmeter: infinite resistance (no analysis edge, so it never
+  // disturbs the circuit), reading the potential difference between its two
+  // probes; see collectNodePotentials for which points it can read.
+  voltmeter: {
+    label: "Voltmeter",
+    w: 40,
+    h: 34,
+    pins: [
+      { id: "pos", x: 0, y: 10, label: "Positive probe" },
+      { id: "neg", x: 40, y: 10, label: "Negative probe" },
+    ],
+    render: () =>
+      `<line class="voltmeter-lead" x1="0" y1="10" x2="11" y2="10"/><circle class="voltmeter-body" cx="20" cy="10" r="9"/><text class="voltmeter-label" x="20" y="13" text-anchor="middle" font-size="9">V</text><text class="voltmeter-sign" x="6" y="7" text-anchor="middle" font-size="6">+</text><line class="voltmeter-lead" x1="29" y1="10" x2="40" y2="10"/>`,
   },
   // A two-terminal variable resistor -- no separate wiper-tap pin, so no
   // voltage-divider behavior (that needs a real multi-branch solver, out
@@ -690,12 +699,24 @@ export function orientSimulationDefinition(def, comp) {
 // the reading is anchored beside the body instead, on the side away from it.
 // Inline style because the stylesheet's own text-anchor rule outranks the
 // presentation attribute. Mirrors public/admin/sim-components.js.
-function ammeterReadingSvg(text, rotation) {
+function meterReadingSvg(className, text, rotation) {
   const placement =
     rotation === 90 ? { y: 22.8, anchor: "end" } :
     rotation === 270 ? { y: 23.8, anchor: "start" } :
     { y: 32, anchor: "middle" };
-  return `<text class="ammeter-reading" x="20" y="${placement.y}" text-anchor="${placement.anchor}" style="text-anchor:${placement.anchor}" font-size="8">${text}</text>`;
+  return `<text class="${className}" x="20" y="${placement.y}" text-anchor="${placement.anchor}" style="text-anchor:${placement.anchor}" font-size="8">${text}</text>`;
+}
+function ammeterReadingSvg(text, rotation) {
+  return meterReadingSvg("ammeter-reading", text, rotation);
+}
+function voltmeterReadingSvg(text, rotation) {
+  return meterReadingSvg("voltmeter-reading", text, rotation);
+}
+// "4.60V", "-3.10V", or a dash when the probes can't be read.
+export function formatVolts(volts) {
+  if (typeof volts !== "number" || !Number.isFinite(volts)) return "\u2014";
+  const rounded = Math.abs(volts) < 0.005 ? 0 : volts;
+  return `${rounded.toFixed(2)}V`;
 }
 
 // Breadboards keep their fixed layout (rails, holes and snapping all assume
@@ -1026,6 +1047,69 @@ function shortestPathNodes(adjacency, start, end) {
 // destroyed. This is a simplified single-series-path model per domain —
 // good enough for the loop-based circuits this builder makes, not a
 // general multi-branch solver.
+// Potential (volts above the source's negative terminal) of every node the
+// single-path model can vouch for, for the voltmeter. Along the analysed path
+// each resistive part drops I*R and each LED its forward voltage; anything
+// tied to a path node by zero-resistance links (wires, closed switches, the
+// ammeter's zero-ohm body) shares that node's potential. Off-path branches
+// carry no current in this model, so they are not vouched for. When the loop
+// can't conduct (LED forward voltage above the source) nothing flows and the
+// first LED on the path takes the whole source voltage. A short circuit
+// (unbounded current) has no meaningful potentials, and with no complete path
+// (an open circuit) no current flows, so everything reachable from the
+// positive terminal sits at the source voltage and everything reachable from
+// the negative terminal at 0. Mirrors public/admin/sim-components.js.
+function collectNodePotentials(adjacency, edgeInfo, domain, path, currentAmps, netVoltage) {
+  const potentials = new Map();
+  const edgeKey = (a, b) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+  const flood = (start, volts, canStep) => {
+    const queue = [start];
+    while (queue.length) {
+      const cur = queue.shift();
+      for (const n of adjacency.get(cur) || []) {
+        if (potentials.has(n)) continue;
+        if (!canStep(cur, n)) continue;
+        potentials.set(n, volts);
+        queue.push(n);
+      }
+    }
+  };
+  if (!path || path.length < 2) {
+    potentials.set(domain.posNode, domain.voltage);
+    flood(domain.posNode, domain.voltage, () => true);
+    if (!potentials.has(domain.negNode)) {
+      potentials.set(domain.negNode, 0);
+      flood(domain.negNode, 0, () => true);
+    }
+    return potentials;
+  }
+  if (currentAmps === Infinity) return potentials;
+  let volts = domain.voltage - currentAmps * (domain.internalResistance || 0);
+  potentials.set(path[0], volts);
+  for (let i = 0; i < path.length - 1; i++) {
+    const info = edgeInfo.get(edgeKey(path[i], path[i + 1]));
+    let drop = 0;
+    if (info) drop = info.kind === "led" ? (netVoltage > 0 ? info.forwardVoltage || 0 : volts) : currentAmps * (info.resistance || 0);
+    volts -= drop;
+    potentials.set(path[i + 1], volts);
+  }
+  path.forEach((node) => {
+    const pathVolts = potentials.get(node);
+    const queue = [node];
+    while (queue.length) {
+      const cur = queue.shift();
+      for (const n of adjacency.get(cur) || []) {
+        if (potentials.has(n)) continue;
+        const info = edgeInfo.get(edgeKey(cur, n));
+        if (!info || (info.kind !== "wire" && info.kind !== "ammeter")) continue;
+        potentials.set(n, pathVolts);
+        queue.push(n);
+      }
+    }
+  });
+  return potentials;
+}
+
 export function computeCircuitAnalysis(data) {
   const components = (data && data.components) || [];
   const { poweredNodes } = computePoweredSet(data);
@@ -1055,9 +1139,13 @@ export function computeCircuitAnalysis(data) {
   });
 
   const results = {};
+  const potentialMaps = [];
   domains.forEach((domain) => {
     const path = shortestPathNodes(adjacency, domain.posNode, domain.negNode);
-    if (!path || path.length < 2) return;
+    if (!path || path.length < 2) {
+      potentialMaps.push({ domain, map: collectNodePotentials(adjacency, edgeInfo, domain, null, 0, 0) });
+      return;
+    }
     let totalResistance = domain.internalResistance || 0;
     let totalForwardVoltage = 0;
     const edges = [];
@@ -1077,6 +1165,7 @@ export function computeCircuitAnalysis(data) {
     else if (totalResistance <= 0) currentAmps = Infinity;
     else currentAmps = netVoltage / totalResistance;
     const currentMa = currentAmps === Infinity ? Infinity : currentAmps * 1000;
+    potentialMaps.push({ domain, map: collectNodePotentials(adjacency, edgeInfo, domain, path, currentAmps, netVoltage) });
 
     edges.forEach((info) => {
       if (!info.compId) return;
@@ -1117,6 +1206,18 @@ export function computeCircuitAnalysis(data) {
         results[info.compId] = { kind: "ammeter", currentMa, status: domain.dangerous ? "burnt" : "normal", dangerous: domain.dangerous };
       }
     });
+  });
+
+  // Voltmeters read the difference between their probes' potentials, from the
+  // first source whose analysis vouches for both.
+  components.forEach((c) => {
+    if (c.type !== "voltmeter") return;
+    const pos = nodeId(c, "pos");
+    const neg = nodeId(c, "neg");
+    const hit = potentialMaps.find(({ map }) => map.has(pos) && map.has(neg));
+    results[c.id] = hit
+      ? { kind: "voltmeter", volts: hit.map.get(pos) - hit.map.get(neg), status: "normal", dangerous: hit.domain.dangerous }
+      : { kind: "voltmeter", volts: null, status: "no-reading", dangerous: false };
   });
 
   return results;
@@ -1168,6 +1269,8 @@ function renderComponentSvg(comp, poweredComps, analysis) {
   const readingSvg =
     comp.type === "ammeter" && info
       ? ammeterReadingSvg(`${info.currentMa === Infinity ? "∞" : info.currentMa.toFixed(1)}mA`, def.rotation || 0)
+      : comp.type === "voltmeter" && info
+      ? voltmeterReadingSvg(formatVolts(info.volts), def.rotation || 0)
       : "";
   return `<g class="sim-comp sim-comp-${escXml(comp.type)}${statusClass}" data-id="${escXml(comp.id)}" data-powered="${
     poweredComps.has(comp.id) ? "true" : "false"

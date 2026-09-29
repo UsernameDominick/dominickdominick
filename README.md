@@ -68,7 +68,7 @@ Worker secret, not stored in this repo). From there:
   renaming or deleting a page or post so old links don't just 404
 - "Simulations" is a small builder for wiring-accurate circuit/AV
   diagrams — drag parts (wall outlet, power supply, breadboard, LED,
-  resistor, capacitor, inductor, switch, SPDT switch, logic gate, battery, a Teensy-style
+  resistor, capacitor, inductor, switch, SPDT switch, logic gate, ammeter, voltmeter, battery, a Teensy-style
   microcontroller, a TV/display) onto a canvas and click one pin then
   another to wire them. Logic gates are static diagram symbols (AND, OR,
   NAND, NOR, XOR, XNOR, NOT, buffer) with an editable truth table for
@@ -80,6 +80,10 @@ Worker secret, not stored in this repo). From there:
   (changeover) switch connects its common terminal to one of two throws;
   click it on the canvas or use the inspector to change position. It
   doesn't snap into breadboard holes; wire its three terminals instead.
+  A voltmeter reads the voltage between its two probes (it draws no
+  current); because the solver follows one path per source, it reads points
+  on that path, points wired straight onto it, or the two sides of an open
+  circuit, and shows a dash anywhere else.
   Dragging an LED or resistor near a breadboard hole snaps it into place
   and plugs it in automatically, like a real breadboard.
   Select a part and press **R** (Shift+R the other way) to rotate it 90°, or **F** to flip it left to right

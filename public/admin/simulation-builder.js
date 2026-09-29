@@ -614,6 +614,8 @@
     const readingSvg =
       comp.type === "ammeter" && info
         ? window.simAmmeterReadingSvg(`${info.currentMa === Infinity ? "∞" : info.currentMa.toFixed(1)}mA`, def.rotation || 0)
+        : comp.type === "voltmeter" && info
+        ? window.simVoltmeterReadingSvg(window.simFormatVolts(info.volts), def.rotation || 0)
         : "";
     return `<g class="sim-comp sim-comp-${comp.type}${sel ? " sim-selected" : ""}${damaged ? " sim-damaged" : ""}${
       searchMatch ? " sim-search-match" : ""
@@ -1260,7 +1262,7 @@
   // multiple of the hole grid (see SIM_COMPONENTS), so once the first leg
   // snaps to a hole, every other leg lands exactly on a real neighboring
   // hole too — not just one anchor pin dragging the rest along for show.
-  const SNAP_TO_BREADBOARD_TYPES = new Set(["led", "resistor", "switch", "potentiometer", "ammeter", "capacitor", "inductor"]);
+  const SNAP_TO_BREADBOARD_TYPES = new Set(["led", "resistor", "switch", "potentiometer", "ammeter", "voltmeter", "capacitor", "inductor"]);
   const SNAP_THRESHOLD = 18; // magnetic pull radius while dragging
   const SNAP_EXACT_TOLERANCE = 4; // how close a non-anchor leg must land to also count as plugged in
   // Everything else just snaps to a light alignment grid while dragging.
@@ -1594,6 +1596,7 @@
     switch: { kind: "Electrical", text: "opens or closes the path." },
     switch_spdt: { kind: "Electrical", text: "joins the common terminal to one of two throws." },
     ammeter: { kind: "Electrical", text: "shows the current through it, with zero resistance." },
+    voltmeter: { kind: "Electrical", text: "reads the voltage between its probes when both sit on the circuit's main path; it draws no current." },
     mcu_teensy: { kind: "Electrical", text: "acts as a fixed load; its digital pins and firmware aren't simulated." },
     tv: { kind: "Display", text: "lights up when powered (preview or Power on); it isn't analysed for current." },
     logic_gate: { kind: "Diagram part", text: "drawn for documentation, not simulated.", hideInInspector: true },
@@ -1865,7 +1868,8 @@
 
       let electricalHtml = "";
       if (info) {
-        const ma = info.currentMa === Infinity ? "∞" : info.currentMa.toFixed(1);
+        // Voltmeter results carry volts, not a current.
+        const ma = typeof info.currentMa !== "number" ? "" : info.currentMa === Infinity ? "∞" : info.currentMa.toFixed(1);
         if (info.kind === "led") {
           const messages = {
             burnt: info.dangerous
@@ -1907,6 +1911,11 @@
           } else {
             electricalHtml = `<p class="sim-power-status is-powered">Drawing ~${ma}mA at ${info.voltage}V — dissipating ${info.watts.toFixed(2)}W.</p>`;
           }
+        } else if (info.kind === "voltmeter") {
+          electricalHtml =
+            info.volts === null
+              ? `<p class="sim-power-status">No reading — both probes need to sit on the circuit's main path (a complete loop or straight off a source), and the source must be able to drive current.</p>`
+              : `<p class="sim-power-status is-powered">⚡ Reads ${window.simFormatVolts(info.volts)} from the + probe to the − probe.</p>`;
         } else if (info.kind === "ammeter") {
           electricalHtml = info.dangerous
             ? `<p class="sim-power-status is-danger">🔥 Destroyed instantly — 120V mains directly across this ammeter.</p>`

@@ -2110,6 +2110,35 @@ h6 { font-size: 0.9rem; }
   pointer-events: none;
 }
 
+/* Voltmeter -- idealized infinite-resistance voltage meter, in parallel. Solid
+   leads: a bounding-box gradient paints nothing on a horizontal line. */
+.sim-comp .voltmeter-lead {
+  stroke: var(--text-dim);
+  stroke-width: 2;
+}
+.sim-comp .voltmeter-body {
+  fill: url(#sim-grad-plastic);
+  stroke: #555;
+  stroke-width: 1;
+}
+.sim-comp .voltmeter-label {
+  fill: #333;
+  text-anchor: middle;
+  font-weight: 700;
+  pointer-events: none;
+}
+.sim-comp .voltmeter-sign {
+  fill: #a02020;
+  text-anchor: middle;
+  font-weight: 700;
+  pointer-events: none;
+}
+.sim-comp .voltmeter-reading {
+  fill: var(--text-dim);
+  text-anchor: middle;
+  pointer-events: none;
+}
+
 /* Battery */
 .sim-comp .battery-body {
   fill: url(#sim-grad-battery);

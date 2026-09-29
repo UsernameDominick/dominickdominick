@@ -916,6 +916,8 @@ function simulationTopologyDescription(data) {
       }
       case "switch":
         return component.closed === false ? "open switch" : "closed switch";
+      case "voltmeter":
+        return "voltage meter";
       case "switch_spdt":
         return `common terminal connected to throw ${component.position === "b" ? "B" : "A"}`;
       default:
