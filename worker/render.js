@@ -973,7 +973,7 @@ function hexToRgba(hex, opacityPercent) {
   const r = parseInt(h.slice(0, 2), 16);
   const g = parseInt(h.slice(2, 4), 16);
   const b = parseInt(h.slice(4, 6), 16);
-  const pct = Number(opacityPercent);
+  const pct = styleNum(opacityPercent); // a cleared value means the 50% default, not 0
   const a = Number.isFinite(pct) ? Math.max(0, Math.min(100, pct)) / 100 : 0.5;
   return `rgba(${r},${g},${b},${a})`;
 }
