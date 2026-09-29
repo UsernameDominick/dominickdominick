@@ -387,7 +387,10 @@
     }
     queueSongAutosave();
   }
-  function canLeaveSongBuilder() {
+  // applyDiscard=false: only ask (and refuse while a save is running). The caller
+  // resets the dirty state itself once the switch really happens, so a leave
+  // that then fails or is abandoned never marks unsaved edits as clean.
+  function canLeaveSongBuilder(applyDiscard = true) {
     if (songSavePending && songSaveOpenGeneration === openGeneration) {
       setAutosaveStatus("Save in progress. Wait before closing or switching songs.");
       return false;
@@ -401,10 +404,12 @@
         ? "Discard unsaved changes to this song?"
         : "Discard this unsaved song draft?";
       if (!confirm(message)) return false;
-      clearTimeout(autosaveTimer);
-      songHasUnsavedChanges = false;
-      autosaveQueued = false;
-      setAutosaveStatus("");
+      if (applyDiscard) {
+        clearTimeout(autosaveTimer);
+        songHasUnsavedChanges = false;
+        autosaveQueued = false;
+        setAutosaveStatus("");
+      }
     }
     return true;
   }
@@ -1525,20 +1530,13 @@
     add.title = "Go to the song list (your open tabs stay)";
     add.addEventListener("click", leaveToSongList);
     bar.append(add);
-    // Announce the song now open (the strip itself is rebuilt on every change).
-    const status = document.createElement("span");
-    status.className = "song-tab-status";
-    status.setAttribute("role", "status");
-    const cur = songTabs.find((t) => (t.draft ? currentSongId == null : t.id === currentSongId));
-    status.textContent = cur ? `Editing ${cur.name || "Untitled song"}, tab ${songTabs.indexOf(cur) + 1} of ${songTabs.length}` : "";
-    bar.append(status);
     // Keep the active tab in view in the scrolling strip (only the strip scrolls).
     // Deferred a frame so the strip has its layout when the builder has just opened.
     requestAnimationFrame(() => {
-      const current = bar.querySelector(".song-tab.is-active");
+      const current = list.querySelector(".song-tab.is-active");
       if (!current) return;
-      if (current.offsetLeft < bar.scrollLeft) bar.scrollLeft = current.offsetLeft - 8;
-      else if (current.offsetLeft + current.offsetWidth > bar.scrollLeft + bar.clientWidth) bar.scrollLeft = current.offsetLeft + current.offsetWidth - bar.clientWidth + 8;
+      if (current.offsetLeft < list.scrollLeft) list.scrollLeft = current.offsetLeft - 8;
+      else if (current.offsetLeft + current.offsetWidth > list.scrollLeft + list.clientWidth) list.scrollLeft = current.offsetLeft + current.offsetWidth - list.clientWidth + 8;
     });
   }
   // Left/Right/Home/End move between tabs (roving tabindex).
@@ -1568,7 +1566,15 @@
     }
     tab.name = name;
     renderSongTabs();
+    // One persistent live region, updated only when the open song really changes.
+    const key = tab.draft ? "draft" : String(tab.id);
+    if (key !== lastAnnouncedTab) {
+      lastAnnouncedTab = key;
+      const status = $("song-tab-status");
+      if (status) status.textContent = `Editing ${name}, tab ${songTabs.indexOf(tab) + 1} of ${songTabs.length}`;
+    }
   }
+  let lastAnnouncedTab = null;
   async function flushAutosaveBeforeSwitch() {
     if (currentSongId && songHasUnsavedChanges) {
       clearTimeout(autosaveTimer);
@@ -1577,7 +1583,12 @@
   }
   async function switchToTab(t) {
     const active = t.draft ? currentSongId == null : t.id === currentSongId;
-    if (active) return;
+    if (active) {
+      // Clicking the tab you are already on after asking for another one: the
+      // latest click wins, so cancel the pending open.
+      if (openRequestSeq !== committedOpenSeq) openRequestSeq++;
+      return;
+    }
     try {
       await flushAutosaveBeforeSwitch();
       if (await openBuilder(t.id)) focusActiveTab();
@@ -1591,6 +1602,7 @@
     if (!active) {
       songTabs = songTabs.filter((x) => x !== t);
       renderSongTabs();
+      focusActiveTab();
       return;
     }
     try {
@@ -1647,8 +1659,10 @@
   // failed or superseded open can never leave the builder pointing at one song
   // while showing another's content. Resolves true once the new song is open.
   let openRequestSeq = 0;
+  let committedOpenSeq = 0;
   async function openBuilder(id, templateId) {
-    if (!canLeaveSongBuilder()) return false;
+    if (!canLeaveSongBuilder(false)) return false;
+    const dirtyGenAtAsk = songDirtyGeneration;
     // Clicking Edit on song A and then song B before A's GET resolves: only the
     // latest request may apply its response.
     const mySeq = ++openRequestSeq;
@@ -1667,6 +1681,12 @@
       }
       if (mySeq !== openRequestSeq) return false;
     }
+    // Edits made to the open song while the GET was in flight were never part of
+    // the answer given above: ask again rather than dropping them.
+    if (songHasUnsavedChanges && songDirtyGeneration !== dirtyGenAtAsk) {
+      if (!canLeaveSongBuilder(false)) return false;
+    }
+    committedOpenSeq = mySeq;
     // Leaving an unsaved draft discards it, so its tab goes too.
     if (currentSongId == null) songTabs = songTabs.filter((t) => !t.draft);
     stopPlayback();
@@ -1728,6 +1748,7 @@
   $("close-song-builder").addEventListener("click", () => {
     if (!canLeaveSongBuilder()) return;
     songTabs = []; // the top × ends the editing session; "+ Open another song" keeps the tabs
+    lastAnnouncedTab = null;
     renderSongTabs();
     stopPlayback();
     $("song-builder-modal").hidden = true;
