@@ -2609,7 +2609,7 @@ async function routeAdminApi(request, env, url, ctx) {
     const name = Array.from(
       (typeof body.name === "string" ? body.name : "")
         .replace(/[\u0000-\u001f\u007f-\u009f]/g, " ")
-        .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, "")
+        .replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u2069\u00ad\u061c\ufe0f\ufeff\u3164\u2800]|[\u{e0000}-\u{e007f}]/gu, "")
         .replace(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g, "")
         .normalize("NFC")
         .replace(/\s+/g, " ")
@@ -2618,7 +2618,8 @@ async function routeAdminApi(request, env, url, ctx) {
       .join("")
       .trim();
     const ops = cleanSelectionOps(body.ops);
-    if (!name || !ops) {
+    // A name needs something visible: a letter, number, punctuation or symbol.
+    if (!name || !/[\p{L}\p{N}\p{P}\p{S}]/u.test(name) || !ops) {
       return json({ error: "A name and a valid list of selection shapes are required" }, { status: 400 });
     }
     const presets = JSON.parse((await getSetting(env, "photo_editor_selections")) || "[]");

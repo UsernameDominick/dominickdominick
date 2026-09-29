@@ -209,7 +209,9 @@
   });
 
   let lastFitDims = "";
-  function fitCanvasToViewport() {
+  // fromLayout: the refit was caused by the area or window changing size, not by an
+  // edit, so with unchanged pixel dimensions there is nothing to re-estimate.
+  function fitCanvasToViewport(fromLayout = false) {
     // 90% of the area, but never more than what is left inside its padding
     // (clientWidth/Height include it), or a short window gets scrollbars.
     const wrapEl = stack.parentElement;
@@ -251,9 +253,11 @@
     // (a window resize, the bars around the canvas re-wrapping) must not wipe a
     // width or height someone has typed and not applied yet.
     const dims = canvas.width + "x" + canvas.height;
+    // An edit or history move (undo, redo, reset, snapshot) can change the encoded
+    // size without changing the pixel size, so it always re-estimates.
+    if (!fromLayout || dims !== lastFitDims) scheduleSizeEstimate();
     if (dims === lastFitDims) return;
     lastFitDims = dims;
-    scheduleSizeEstimate();
     // Same free ride for the Resize width/height fields -- without this
     // they'd keep showing whatever dimensions were true when the modal
     // opened even after a rotate/crop/undo genuinely changed them,
@@ -3105,7 +3109,7 @@
   }
   $("close-photo-editor").addEventListener("click", close);
   window.addEventListener("resize", () => {
-    if (!modal.hidden) fitCanvasToViewport();
+    if (!modal.hidden) fitCanvasToViewport(true);
   });
   // The canvas area settles a frame after the editor opens and changes size when
   // the bars around it wrap, so refit whenever the area itself changes size, not
@@ -3113,6 +3117,7 @@
   if (typeof ResizeObserver === "function") {
     let fitFrame = 0;
     let recentFits = [];
+    let trailingFit = 0;
     new ResizeObserver(() => {
       if (fitFrame) return;
       fitFrame = requestAnimationFrame(() => {
@@ -3123,9 +3128,16 @@
         // and let the next real window resize or edit refit as usual.
         const now = performance.now();
         recentFits = recentFits.filter((t) => now - t < 500);
-        if (recentFits.length >= 8) return;
+        if (recentFits.length >= 8) {
+          // One trailing fit, so a tripped breaker never leaves a stale fit behind.
+          clearTimeout(trailingFit);
+          trailingFit = setTimeout(() => {
+            if (!modal.hidden) fitCanvasToViewport(true);
+          }, 300);
+          return;
+        }
         recentFits.push(now);
-        fitCanvasToViewport();
+        fitCanvasToViewport(true);
       });
     }).observe(stack.parentElement);
   }

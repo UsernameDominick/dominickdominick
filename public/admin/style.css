@@ -5065,7 +5065,7 @@ kbd {
 /* Fixed width, so "99" and "100" take the same room (see updateStatusBar). */
 .pe-scale {
   display: inline-block;
-  min-width: 3ch;
+  min-width: 3.4ch;
   text-align: right;
 }
 
