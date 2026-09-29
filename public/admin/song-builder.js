@@ -555,8 +555,8 @@
     overlay.classList.add("song-page-sync-hit");
   }
 
-  function highlightStep(step) {
-    lastPlayedStep = step;
+  function highlightStep(step, time) {
+    if (typeof time === "number") noteScheduledStep(step, time);
     document.querySelectorAll(".song-step").forEach((el) => {
       el.classList.toggle("song-step-playing", Number(el.dataset.step) === step);
     });
@@ -700,45 +700,100 @@
 
   // ---------- Master clipping history ----------
   // The meter loop below already reads the real mixed output, so it also
-  // notices when a frame reaches full scale. Consecutive clipping frames
-  // (closer together than CLIP_EVENT_GAP_MS) are one event whose peak is the
-  // loudest frame in it. Kept in memory for the open song only, and only for
-  // the master bus -- there are no per-track meters to attribute a clip to.
+  // notices when a frame reaches full scale (1.0; the red meter warns from
+  // 0.98). Clipping frames that follow each other closely are one event whose
+  // peak is the loudest frame in it; a long unbroken stretch is split so each
+  // entry stays informative. Kept in memory for the open song only, and only
+  // for the master bus -- there are no per-track meters to attribute a clip to.
   const CLIP_HISTORY_LIMIT = 50;
-  const CLIP_EVENT_GAP_MS = 300;
+  const CLIP_EVENT_GAP_MS = 120;
+  const CLIP_EVENT_MAX_MS = 2000;
+  const CLIP_ANNOUNCE_DELAY_MS = 1500;
   let clipHistory = [];
+  let clipTotal = 0;
   let lastClipAt = Number.NEGATIVE_INFINITY;
-  let lastPlayedStep = 0;
+  let clipAnnounceTimer = null;
+  // Steps are scheduled up to ~100ms before they sound, so the step heard at a
+  // clip frame is the latest scheduled step whose time has already passed.
+  let scheduledSteps = [];
 
-  function renderClipHistory() {
-    const count = clipHistory.length;
-    $("song-clip-summary").textContent = `Clipping history (${count})`;
-    $("song-clip-section").classList.toggle("song-clip-alert", count > 0);
-    $("song-clip-empty").hidden = count > 0;
-    $("song-clip-clear").disabled = count === 0;
-    $("song-clip-list").innerHTML = clipHistory
-      .map((event) => `<li>Clip ${event.number}: near step ${event.step + 1} of ${STEPS}, peak ${Math.round(event.peak * 100)}%</li>`)
-      .join("");
+  function noteScheduledStep(step, time) {
+    scheduledSteps.push({ step, time });
+    if (scheduledSteps.length > 32) scheduledSteps.shift();
   }
 
-  function recordClipFrame(peak, now) {
-    if (now - lastClipAt > CLIP_EVENT_GAP_MS || !clipHistory.length) {
-      const number = (clipHistory.length ? clipHistory[clipHistory.length - 1].number : 0) + 1;
-      clipHistory.push({ number, step: lastPlayedStep, peak });
+  function audibleStepAt(audioTime) {
+    let heard = scheduledSteps.length ? scheduledSteps[0].step : 0;
+    for (const entry of scheduledSteps) {
+      if (entry.time <= audioTime) heard = entry.step;
+    }
+    return heard;
+  }
+
+  function clipEventText(event) {
+    const length = event.end - event.start;
+    const span = length >= 250 ? `, lasting ${(length / 1000).toFixed(1)}s` : "";
+    return `Clip ${event.number}: near step ${event.step + 1} of ${STEPS}, peak ${Math.round(event.peak * 100)}%${span}`;
+  }
+
+  function renderClipHistory() {
+    $("song-clip-summary").textContent = `Clipping history (${clipTotal})`;
+    $("song-clip-section").classList.toggle("song-clip-alert", clipTotal > 0);
+    $("song-clip-empty").hidden = clipTotal > 0;
+    $("song-clip-clear").disabled = clipTotal === 0;
+    $("song-clip-list").hidden = clipTotal === 0;
+    // Newest first, so a fresh clip is never hidden below the scroll fold.
+    $("song-clip-list").innerHTML = clipHistory
+      .slice()
+      .reverse()
+      .map((event) => `<li>${clipEventText(event)}</li>`)
+      .join("");
+    const dropped = clipTotal - clipHistory.length;
+    $("song-clip-dropped").hidden = dropped <= 0;
+    $("song-clip-dropped").textContent = dropped > 0 ? `Showing the latest ${clipHistory.length}; ${dropped} older ${dropped === 1 ? "entry was" : "entries were"} dropped.` : "";
+  }
+
+  function announceClips() {
+    clearTimeout(clipAnnounceTimer);
+    clipAnnounceTimer = setTimeout(() => {
+      $("song-clip-status").textContent = clipTotal ? `Clipped ${clipTotal} ${clipTotal === 1 ? "time" : "times"} so far` : "";
+    }, CLIP_ANNOUNCE_DELAY_MS);
+  }
+
+  function recordClipFrame(peak, now, audioTime) {
+    const last = clipHistory[clipHistory.length - 1];
+    let changed = false;
+    if (!last || now - lastClipAt > CLIP_EVENT_GAP_MS || now - last.start > CLIP_EVENT_MAX_MS) {
+      clipTotal++;
+      clipHistory.push({ number: clipTotal, step: audibleStepAt(audioTime), peak, start: now, end: now });
       if (clipHistory.length > CLIP_HISTORY_LIMIT) clipHistory.shift();
-    } else if (peak > clipHistory[clipHistory.length - 1].peak) {
-      clipHistory[clipHistory.length - 1].peak = peak;
+      changed = true;
+      announceClips();
+    } else {
+      // Sustained clipping repeats identical frames; only touch the DOM when
+      // what the entry displays actually changes.
+      const before = clipEventText(last);
+      if (peak > last.peak) last.peak = peak;
+      last.end = now;
+      changed = clipEventText(last) !== before;
     }
     lastClipAt = now;
-    renderClipHistory();
+    if (changed) renderClipHistory();
   }
 
   function resetClipHistory() {
     clipHistory = [];
+    clipTotal = 0;
     lastClipAt = Number.NEGATIVE_INFINITY;
+    scheduledSteps = [];
+    clearTimeout(clipAnnounceTimer);
+    $("song-clip-status").textContent = "";
     renderClipHistory();
   }
-  $("song-clip-clear").addEventListener("click", resetClipHistory);
+  $("song-clip-clear").addEventListener("click", () => {
+    resetClipHistory();
+    $("song-clip-summary").focus(); // the button just disabled itself
+  });
 
   let peakMeterRaf = null;
   let peakMeterDrainTimer = null;
@@ -793,7 +848,7 @@
       const rms = Math.sqrt(sumSquares / buffer.length);
       peakFill.style.width = Math.min(100, Math.round(peak * 100)) + "%";
       peakFill.classList.toggle("song-peak-meter-clip", peak >= 0.98);
-      if (peak >= 1) recordClipFrame(peak, performance.now());
+      if (peak >= 1) recordClipFrame(peak, performance.now(), getAudioCtx().currentTime);
       rmsFill.style.width = Math.min(100, Math.round(rms * 100)) + "%";
       drawSpectrum();
       peakMeterRaf = requestAnimationFrame(tick);
@@ -1572,6 +1627,7 @@
       `Master volume: ${Math.round((typeof songData.master_volume === "number" ? songData.master_volume : 1) * 100)}%`,
       `Humanize: ${typeof songData.humanize === "number" ? songData.humanize : 0}%`,
       `Page background sync: ${songData.page_sync ? "on" : "off"}`,
+      ...(clipTotal ? [`Master clipping events this session: ${clipTotal}`] : []),
       "",
       "Drum tracks (steps hit / total):",
       ...TRACKS.map((t) => `  ${TRACK_LABELS[t]}: ${songData.tracks[t].filter(Boolean).length} / ${STEPS}${songData.trackMeta[t].muted === true ? " (muted)" : ""}`),

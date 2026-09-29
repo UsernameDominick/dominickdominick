@@ -1563,11 +1563,13 @@
         </div>
         <details class="panel-section song-clip-section" id="song-clip-section">
           <summary id="song-clip-summary">Clipping history (0)</summary>
-          <p class="song-clip-note">Logs each time the master output reaches full scale while you play. It measures the mixed output only; individual tracks aren't metered. Lower the master volume or use Normalize to peak to clear it.</p>
+          <p class="song-clip-note">Logs each time the mixed master output reaches full scale (100%) while you play; individual tracks aren't metered. Lowering the master volume fixes it. Normalize to peak sets a safe level from one pass, but random drum noise can occasionally still go over.</p>
           <p id="song-clip-empty" class="song-clip-empty">No clipping so far.</p>
-          <ol id="song-clip-list" class="song-clip-list"></ol>
+          <ul id="song-clip-list" class="song-clip-list" hidden></ul>
+          <p id="song-clip-dropped" class="song-clip-note" hidden></p>
           <button type="button" id="song-clip-clear" disabled>Clear history</button>
         </details>
+        <span id="song-clip-status" class="song-clip-status" role="status"></span>
         <h2 class="song-section-heading">Drums</h2>
         <div id="song-sequencer" class="song-sequencer"></div>
         <h2 class="song-section-heading">Melody (piano roll)

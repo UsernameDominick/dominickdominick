@@ -3762,7 +3762,17 @@ kbd {
 }
 
 .song-clip-section.song-clip-alert > summary {
-  color: var(--danger, #ff6b6b);
+  color: var(--error-text);
+}
+
+.song-clip-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .song-clip-note,
@@ -3774,7 +3784,8 @@ kbd {
 
 .song-clip-list {
   margin: 8px 0;
-  padding-left: 22px;
+  padding-left: 0;
+  list-style: none;
   font-size: 0.85rem;
   max-height: 160px;
   overflow-y: auto;
