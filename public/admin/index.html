@@ -1280,12 +1280,16 @@
             </div>
             <div class="pe-tool-group">
               <span class="pe-group-label">Brush</span>
+              <button type="button" class="pe-tool" data-tool="paint" title="Paint with a colour; Hardness sets how soft the edge is">Paint</button>
+              <button type="button" class="pe-tool" data-tool="pencil" title="Hard-edged, no antialiasing: every pixel is fully painted or untouched">Pencil</button>
+              <input type="color" id="pe-paint-color" value="#ff7a45" aria-label="Paint colour" title="Colour for the Paint and Pencil tools (the eyedropper sets it too)">
               <button type="button" class="pe-tool" data-tool="erase">Erase</button>
               <button type="button" class="pe-tool" data-tool="blur">Blur</button>
               <button type="button" class="pe-tool" data-tool="pixelate">Pixelate</button>
               <button type="button" class="pe-tool" data-tool="dodge" title="Brighten where you paint">Dodge</button>
               <button type="button" class="pe-tool" data-tool="burn" title="Darken where you paint">Burn</button>
-              <label>Brush <input type="range" id="pe-brush-size" min="5" max="150" value="30"></label>
+              <label>Brush <input type="range" id="pe-brush-size" min="1" max="150" value="30"></label>
+              <label title="Paint only: 100 is a crisp edge, lower values feather it">Hardness <input type="range" id="pe-brush-hardness" min="0" max="100" value="100"></label>
               <label title="How strongly each stroke applies -- lower it to build an effect up gradually over several passes instead of all at once">Opacity <input type="range" id="pe-brush-opacity" min="1" max="100" value="100"></label>
               <label title="While ON, holding the pointer still keeps building the effect up over time -- like a real airbrush -- instead of only applying where you move">Airbrush <input type="checkbox" id="pe-airbrush-mode"></label>
               <select id="pe-apply-brush-preset" title="Apply a saved brush tool/size/opacity combo">

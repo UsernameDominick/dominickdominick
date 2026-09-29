@@ -2497,7 +2497,10 @@
     c.width = canvas.width;
     c.height = canvas.height;
     const cx = c.getContext("2d");
-    if (tool === "blur") {
+    if (tool === "paint" || tool === "pencil") {
+      cx.fillStyle = $("pe-paint-color").value;
+      cx.fillRect(0, 0, c.width, c.height);
+    } else if (tool === "blur") {
       cx.filter = `blur(${Math.max(4, canvas.width * 0.012)}px)`;
       cx.drawImage(canvas, 0, 0);
     } else if (tool === "dodge" || tool === "burn") {
@@ -2520,7 +2523,48 @@
     return c;
   }
 
+  // Paint feathers the stroke's edge (Hardness < 100); the Pencil has no partial
+  // pixels at all. Both work on the stroke mask before the selection clips it.
+  function shapeStrokeMask(tool) {
+    if (tool === "pencil") {
+      const img = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
+      const d = img.data;
+      for (let i = 3; i < d.length; i += 4) d[i] = d[i] > 127 ? 255 : 0;
+      maskCtx.putImageData(img, 0, 0);
+    } else if (tool === "paint") {
+      const hardness = Math.max(0, Math.min(100, Number($("pe-brush-hardness").value)));
+      if (hardness >= 100) return;
+      const tmp = document.createElement("canvas");
+      tmp.width = maskCanvas.width;
+      tmp.height = maskCanvas.height;
+      const t = tmp.getContext("2d");
+      t.filter = `blur(${((brushSize() / 2) * (1 - hardness / 100) * 0.6).toFixed(2)}px)`;
+      t.drawImage(maskCanvas, 0, 0);
+      maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+      maskCtx.drawImage(tmp, 0, 0);
+    }
+  }
+
+  // Live preview of a Paint or Pencil stroke while it is being drawn.
+  function drawPaintPreview(point) {
+    clearOverlay();
+    const c = document.createElement("canvas");
+    c.width = canvas.width;
+    c.height = canvas.height;
+    const cx = c.getContext("2d");
+    cx.drawImage(maskCanvas, 0, 0);
+    cx.globalCompositeOperation = "source-in";
+    cx.fillStyle = $("pe-paint-color").value;
+    cx.fillRect(0, 0, c.width, c.height);
+    octx.save();
+    octx.globalAlpha = brushOpacity();
+    octx.drawImage(c, 0, 0);
+    octx.restore();
+    drawBrushCursorRing(point);
+  }
+
   function commitBrushStroke() {
+    if (currentTool === "paint" || currentTool === "pencil") shapeStrokeMask(currentTool);
     // With a selection, the stroke only counts inside it.
     if (hasSelection() && selMask.width === maskCanvas.width && selMask.height === maskCanvas.height) {
       maskCtx.save();
@@ -2564,6 +2608,9 @@
   // fill.
   function drawBrushCursor(point) {
     clearOverlay();
+    drawBrushCursorRing(point);
+  }
+  function drawBrushCursorRing(point) {
     const opacity = brushOpacity();
     octx.save();
     octx.beginPath();
@@ -2704,6 +2751,7 @@
     const [r, g, b] = ctx.getImageData(x, y, 1, 1).data;
     const hex = "#" + [r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("");
     $("pe-annotate-color").value = hex;
+    $("pe-paint-color").value = hex;
   }
 
   async function placeText(point) {
@@ -2850,7 +2898,7 @@
   }
 
   // ---------- Pointer routing ----------
-  const BRUSH_TOOLS = ["erase", "blur", "pixelate", "dodge", "burn"];
+  const BRUSH_TOOLS = ["paint", "pencil", "erase", "blur", "pixelate", "dodge", "burn"];
   const SHAPE_TOOLS = ["rect", "circle", "line", "arrow"];
 
   // The pointer (finger, pen or mouse) that owns the current drag. A second
@@ -2898,6 +2946,7 @@
       strokeActive = true;
       lastPoint = null;
       strokeTo(p, pressureMultiplier(e));
+      if (currentTool === "paint" || currentTool === "pencil") drawPaintPreview(p);
       airbrushPoint = p;
       airbrushPressure = pressureMultiplier(e);
       airbrushJustCommitted = false;
@@ -2938,7 +2987,8 @@
         // commit -- this genuinely new content needs its own commit.
         airbrushJustCommitted = false;
       }
-      drawBrushCursor(p);
+      if ((currentTool === "paint" || currentTool === "pencil") && dragging && strokeActive) drawPaintPreview(p);
+      else drawBrushCursor(p);
     } else if (SHAPE_TOOLS.includes(currentTool) && dragging && dragStart) {
       drawAnnotatePreview(dragStart.x, dragStart.y, p.x, p.y);
     } else if (SELECTION_TOOLS.includes(currentTool)) {

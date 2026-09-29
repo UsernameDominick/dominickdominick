@@ -7816,6 +7816,8 @@
         // how Compare works anywhere else in the editor.
         { label: "Photo Editor: Save named snapshot", sub: "", run: peClick("pe-save-snapshot") },
         { label: "Photo Editor: Restore named snapshot", sub: "", run: peClick("pe-restore-snapshot") },
+        { label: "Photo Editor: Paint brush tool", sub: "", run: peToolClick("paint") },
+        { label: "Photo Editor: Pencil tool", sub: "", run: peToolClick("pencil") },
         { label: "Photo Editor: Select / Crop tool", sub: "", run: peToolClick("select") },
         { label: "Photo Editor: Rectangle selection tool", sub: "", run: peToolClick("sel-rect") },
         { label: "Photo Editor: Ellipse selection tool", sub: "", run: peToolClick("sel-ellipse") },
