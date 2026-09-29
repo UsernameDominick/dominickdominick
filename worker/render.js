@@ -633,6 +633,12 @@ export function renderRelatedMediaHtml(articles, simulations, scans) {
   </div>`;
 }
 
+// Songs a project features: each is the same playable embed a Song block renders.
+export function renderRelatedSongsHtml(songs) {
+  if (!songs || !songs.length) return "";
+  return `<div class="related-posts"><strong>Tracks</strong>${songs.map((s) => renderSongBlockHtml(s)).join("")}</div>`;
+}
+
 export function renderRelatedProjectsHtml(projects) {
   if (!projects || !projects.length) return "";
   const items = projects

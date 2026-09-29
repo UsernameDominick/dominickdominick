@@ -22,6 +22,7 @@ import {
   getPublishedSimulation,
   listPublishedSimulationIds,
   getScan,
+  getSong,
   logError,
   logEvent,
   checkRateLimit,
@@ -67,6 +68,7 @@ import {
   renderBomHtml,
   renderDownloadsHtml,
   renderRelatedMediaHtml,
+  renderRelatedSongsHtml,
   renderTopicsIndexHtml,
   renderArchiveHtml,
   renderIndexPaginationHtml,
@@ -511,6 +513,8 @@ async function renderProject(env, project, navItems, previewReason = null, isAdm
   ]);
   const relatedArticleRows = allPublishedArticles.filter((a) => project.related_articles.includes(a.id));
   const relatedMediaHtml = renderRelatedMediaHtml(relatedArticleRows, relatedSims.filter(Boolean), relatedScanRows.filter(Boolean));
+  const relatedSongRows = (await Promise.all((project.related_songs || []).map((id) => getSong(env, id)))).filter(Boolean);
+  const relatedSongsHtml = renderRelatedSongsHtml(relatedSongRows);
 
   // Normal document flow (see .article-canvas in style.css), same fix and
   // reasoning as renderArticle just above — a project page has even more
@@ -550,6 +554,7 @@ async function renderProject(env, project, navItems, previewReason = null, isAdm
   ${downloadsHtml ? `<div class="block">${downloadsHtml}</div>` : ""}
   ${bomHtml ? `<div class="block">${bomHtml}</div>` : ""}
   ${journalHtml ? `<div class="block">${journalHtml}</div>` : ""}
+  ${relatedSongsHtml ? `<div class="block">${relatedSongsHtml}</div>` : ""}
   ${relatedMediaHtml ? `<div class="block">${relatedMediaHtml}</div>` : ""}
   ${relatedHtml ? `<div class="block">${relatedHtml}</div>` : ""}`;
 

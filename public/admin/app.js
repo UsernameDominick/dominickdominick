@@ -4525,6 +4525,7 @@
     el("project-related-articles").innerHTML = articles.map((a) => `<option value="${a.id}">${escapeHtml(a.title)}</option>`).join("");
     el("project-related-simulations").innerHTML = simulationOptions.map((s) => `<option value="${s.id}">${escapeHtml(simulationOptionLabel(s))}</option>`).join("");
     el("project-related-scans").innerHTML = scanOptions.map((s) => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join("");
+    el("project-related-songs").innerHTML = songOptions.map((s) => `<option value="${s.id}">${escapeHtml(s.name)}</option>`).join("");
   }
 
   // Pins specific projects as the "Related projects" shown on this
@@ -4589,6 +4590,7 @@
     setMultiSelectValues(el("project-related-articles"), project.related_articles);
     setMultiSelectValues(el("project-related-simulations"), project.related_simulations);
     setMultiSelectValues(el("project-related-scans"), project.related_scans);
+    setMultiSelectValues(el("project-related-songs"), project.related_songs || []);
     populateProjectRelatedOverrideSelect(project.id);
     setMultiSelectValues(el("project-related-override"), project.related_override || []);
     el("project-published").checked = !!project.published_at;
@@ -4641,6 +4643,7 @@
     setMultiSelectValues(el("project-related-articles"), []);
     setMultiSelectValues(el("project-related-simulations"), []);
     setMultiSelectValues(el("project-related-scans"), []);
+    setMultiSelectValues(el("project-related-songs"), []);
     populateProjectRelatedOverrideSelect(null);
     setMultiSelectValues(el("project-related-override"), []);
     el("project-published").checked = false;
@@ -4717,6 +4720,7 @@
       related_articles: getMultiSelectValues(el("project-related-articles")),
       related_simulations: getMultiSelectValues(el("project-related-simulations")),
       related_scans: getMultiSelectValues(el("project-related-scans")),
+      related_songs: getMultiSelectValues(el("project-related-songs")),
       related_override: getMultiSelectValues(el("project-related-override")),
       published_at: published ? (publishAtLocal ? new Date(publishAtLocal).toISOString() : new Date().toISOString()) : null,
       expires_at: expiresAtLocal ? new Date(expiresAtLocal).toISOString() : null,
@@ -4818,7 +4822,7 @@
   // gets its own "change" listener despite the same crash-recovery
   // exclusion. Without this, selecting a related item as the only edit
   // before a crash/tab-close was unprotected two ways instead of one.
-  ["project-related-articles", "project-related-simulations", "project-related-scans", "project-related-override"].forEach((id) =>
+  ["project-related-articles", "project-related-simulations", "project-related-scans", "project-related-songs", "project-related-override"].forEach((id) =>
     el(id).addEventListener("change", scheduleProjectAutosave)
   );
 

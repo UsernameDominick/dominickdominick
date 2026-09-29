@@ -278,6 +278,7 @@ export async function duplicateProject(env, id) {
     related_articles: [],
     related_simulations: [],
     related_scans: [],
+    related_songs: [],
     expires_at: null,
   });
 }
@@ -912,13 +913,19 @@ function parseProjectRow(row) {
   } catch {
     related_scans = [];
   }
+  let related_songs = [];
+  try {
+    related_songs = JSON.parse(row.related_songs || "[]");
+  } catch {
+    related_songs = [];
+  }
   let related_override = [];
   try {
     related_override = JSON.parse(row.related_override || "[]");
   } catch {
     related_override = [];
   }
-  return { ...row, tags, tech_stack, links, related_articles, related_simulations, related_scans, related_override };
+  return { ...row, tags, tech_stack, links, related_articles, related_simulations, related_scans, related_songs, related_override };
 }
 
 // Nulls-last ascending sort by a numeric field — shared by both the
@@ -932,6 +939,27 @@ function sortByOrderField(projects, field) {
     if (b[field] == null) return -1;
     return a[field] - b[field];
   });
+}
+
+// Migration 0002 adds projects.related_songs. Until it is applied (a deploy can
+// land first) the column is absent, so reads treat it as [] and writes skip it.
+// Once seen it is remembered; while absent it is re-checked at most every 30 s.
+let relatedSongsColumn = { has: false, checkedAt: 0 };
+async function projectsHaveRelatedSongs(env) {
+  if (relatedSongsColumn.has) return true;
+  const now = Date.now();
+  if (now - relatedSongsColumn.checkedAt < 30000) return false;
+  try {
+    const cols = await env.DB.prepare("PRAGMA table_info(projects)").all();
+    relatedSongsColumn = { has: (cols.results || []).some((c) => c.name === "related_songs"), checkedAt: now };
+  } catch {
+    relatedSongsColumn = { has: false, checkedAt: now };
+  }
+  return relatedSongsColumn.has;
+}
+
+function cleanIdList(value) {
+  return Array.isArray(value) ? [...new Set(value.map(Number).filter((n) => Number.isInteger(n) && n > 0))] : [];
 }
 
 export async function listProjects(env, { publishedOnly = false, limit = null, tag = null, featuredOnly = false, sort = "newest" } = {}) {
@@ -995,6 +1023,7 @@ export async function createProject(
     related_articles,
     related_simulations,
     related_scans,
+    related_songs,
     expires_at,
     sitemap_exclude,
     archived,
@@ -1038,6 +1067,10 @@ export async function createProject(
       custom_json_ld || null
     )
     .run();
+  const songs = cleanIdList(related_songs);
+  if (songs.length && (await projectsHaveRelatedSongs(env))) {
+    await env.DB.prepare("UPDATE projects SET related_songs = ? WHERE id = ?").bind(JSON.stringify(songs), res.meta.last_row_id).run();
+  }
   return res.meta.last_row_id;
 }
 
@@ -1093,6 +1126,11 @@ export async function updateProject(env, id, fields) {
   if ("related_scans" in fields) {
     cols.push("related_scans = ?");
     vals.push(JSON.stringify(Array.isArray(fields.related_scans) ? fields.related_scans : []));
+  }
+  // Skipped (not an error) while migration 0002 hasn't been applied.
+  if ("related_songs" in fields && (await projectsHaveRelatedSongs(env))) {
+    cols.push("related_songs = ?");
+    vals.push(JSON.stringify(cleanIdList(fields.related_songs)));
   }
   if ("sitemap_exclude" in fields) {
     cols.push("sitemap_exclude = ?");
@@ -1928,7 +1966,7 @@ export async function deleteScan(env, id) {
 // simulation/song can be referenced by a page block (block.content.scan_id/
 // simulation_id/song_id) *and*, for scans/simulations specifically, by a
 // project's "Related X" multi-select (project.related_scans/
-// related_simulations — songs have no such relation field). An earlier,
+// related_simulations/related_songs). An earlier,
 // per-type findScanUsage() only checked blocks, missing the project-
 // relation case entirely; this covers both for every type from one place
 // instead of three near-duplicate functions each with their own gaps.
@@ -1957,8 +1995,8 @@ export async function findContentUsage(env, type, id) {
       }
     }
   });
-  if (type === "scan" || type === "simulation") {
-    const relatedKey = type === "scan" ? "related_scans" : "related_simulations";
+  if (type === "scan" || type === "simulation" || type === "song") {
+    const relatedKey = type === "scan" ? "related_scans" : type === "song" ? "related_songs" : "related_simulations";
     const projects = await listProjects(env);
     projects.forEach((p) => {
       if ((p[relatedKey] || []).map(Number).includes(Number(id))) {
@@ -3363,6 +3401,7 @@ export async function importAll(env, data) {
     );
   }
 
+  const hasSongsColumn = await projectsHaveRelatedSongs(env);
   for (const p of projects) {
     stmts.push(
       env.DB
@@ -3405,6 +3444,16 @@ export async function importAll(env, data) {
           p.custom_json_ld ?? null
         )
     );
+    // A backup from after migration 0002 carries related_songs (a JSON string).
+    if (hasSongsColumn && p.related_songs) {
+      let ids = [];
+      try {
+        ids = cleanIdList(typeof p.related_songs === "string" ? JSON.parse(p.related_songs) : p.related_songs);
+      } catch {
+        ids = [];
+      }
+      if (ids.length) stmts.push(env.DB.prepare("UPDATE projects SET related_songs = ? WHERE id = ?").bind(JSON.stringify(ids), p.id));
+    }
   }
 
   for (const j of journalEntries) {
@@ -3758,6 +3807,9 @@ export async function getContentIntegrity(env) {
     });
     (p.related_scans || []).forEach((id) => {
       if (!scanIds.has(Number(id))) danglingRelations.push({ title: p.title, slug: p.slug, field: "Related scans" });
+    });
+    (p.related_songs || []).forEach((id) => {
+      if (!songIds.has(Number(id))) danglingRelations.push({ title: p.title, slug: p.slug, field: "Related songs" });
     });
     (p.related_override || []).forEach((id) => {
       if (!projectIds.has(Number(id))) danglingRelations.push({ title: p.title, slug: p.slug, field: "Related projects override" });
