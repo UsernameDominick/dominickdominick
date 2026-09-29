@@ -209,8 +209,14 @@
   });
 
   function fitCanvasToViewport() {
-    const maxW = stack.parentElement.clientWidth * 0.9;
-    const maxH = stack.parentElement.clientHeight * 0.9;
+    // 90% of the area, but never more than what is left inside its padding
+    // (clientWidth/Height include it), or a short window gets scrollbars.
+    const wrapEl = stack.parentElement;
+    const wrapStyle = getComputedStyle(wrapEl);
+    const innerW = wrapEl.clientWidth - parseFloat(wrapStyle.paddingLeft) - parseFloat(wrapStyle.paddingRight);
+    const innerH = wrapEl.clientHeight - parseFloat(wrapStyle.paddingTop) - parseFloat(wrapStyle.paddingBottom);
+    const maxW = Math.max(1, Math.min(wrapEl.clientWidth * 0.9, innerW));
+    const maxH = Math.max(1, Math.min(wrapEl.clientHeight * 0.9, innerH));
     const scale = Math.min(1, maxW / canvas.width, maxH / canvas.height);
     const w = Math.round(canvas.width * scale);
     const h = Math.round(canvas.height * scale);
@@ -1366,9 +1372,24 @@
     $("pe-sel-box-h").value = selBounds.h;
   }
 
+  // A fresh image starts with the whole-image box and the section folded away
+  // (the old numbers described another image).
+  function resetSelectionBox() {
+    $("pe-sel-box-x").value = 0;
+    $("pe-sel-box-y").value = 0;
+    $("pe-sel-box-w").value = canvas.width;
+    $("pe-sel-box-h").value = canvas.height;
+    document.querySelector(".pe-sel-box").open = false;
+  }
+
   $("pe-sel-box-apply").addEventListener("click", () => {
     if (isComparing()) return;
     const num = (id) => Math.round(Number($(id).value));
+    // An empty field would read as 0 (Number("") === 0); make the user say so.
+    if (["x", "y", "w", "h"].some((k) => $("pe-sel-box-" + k).value.trim() === "")) {
+      selectionNote("Fill in X, Y, width and height first.");
+      return;
+    }
     let x = num("pe-sel-box-x");
     let y = num("pe-sel-box-y");
     let w = num("pe-sel-box-w");
@@ -2563,7 +2584,16 @@
   const BRUSH_TOOLS = ["erase", "blur", "pixelate", "dodge", "burn"];
   const SHAPE_TOOLS = ["rect", "circle", "line", "arrow"];
 
+  // The pointer (finger, pen or mouse) that owns the current drag. A second
+  // finger landing mid-stroke is ignored instead of starting a second stroke or
+  // ending the first one when it lifts. Only trusted while the first pointer
+  // still holds capture, so a lost pointerup can't leave the editor deaf.
+  let activePointerId = null;
+  const isSecondaryPointer = (e) => dragging && activePointerId !== null && e.pointerId !== activePointerId;
+
   overlay.addEventListener("pointerdown", (e) => {
+    if (activePointerId !== null && e.pointerId !== activePointerId && overlay.hasPointerCapture(activePointerId)) return;
+    activePointerId = e.pointerId;
     // The reverse order of the guard already in startCompare() -- that one
     // blocks starting a compare mid-drag; this blocks starting a NEW drag
     // while a compare is already showing the original. Without it, on a
@@ -2609,6 +2639,7 @@
   });
 
   overlay.addEventListener("pointermove", (e) => {
+    if (isSecondaryPointer(e)) return;
     if (straightenPreviewing) return; // the tilt preview owns the overlay; no crop/brush cursor over it
     const p = pointFromEvent(e);
     if (currentTool === "select" && dragging && cropRect) {
@@ -2668,6 +2699,8 @@
   }
 
   overlay.addEventListener("pointerup", (e) => {
+    if (isSecondaryPointer(e)) return;
+    activePointerId = null;
     if (!dragging) return;
     dragging = false;
     const p = pointFromEvent(e);
@@ -2695,7 +2728,9 @@
   // every tool. What airbrush specifically needs, and gets here: its
   // timer stopped so it can't keep silently repainting forever after a
   // stroke that never received a real pointerup.
-  overlay.addEventListener("pointercancel", () => {
+  overlay.addEventListener("pointercancel", (e) => {
+    if (isSecondaryPointer(e)) return;
+    activePointerId = null;
     if (!dragging) return;
     dragging = false;
     if (BRUSH_TOOLS.includes(currentTool)) finalizeBrushStroke();
@@ -3042,6 +3077,7 @@
     dropSelection();
     $("pe-sel-view").value = "ants";
     $("pe-sel-mode").value = "replace";
+    resetSelectionBox();
     lastAdjust = { brightness: 0, contrast: 0, saturate: 0 };
     $("pe-brightness").value = 0;
     $("pe-contrast").value = 0;

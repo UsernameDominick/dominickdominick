@@ -502,18 +502,69 @@ function slugify(str) {
     .slice(0, 80);
 }
 
-// A JSON request body as a plain object: anything else (invalid JSON, null, a
-// string, a number, an array) reads as {}, so a handler's own field checks
-// answer with a 400 instead of a property access on null throwing a 500.
+// Thrown for a request the client got wrong; handleAdminApi answers it with a 400.
+class BadRequestError extends Error {}
+
+// A JSON request body as a plain object. No body at all reads as {}; anything
+// else that isn't a JSON object (invalid JSON, null, a string, a number, an
+// array) is a 400 rather than a silent {} -- an empty object would otherwise
+// reach handlers that treat missing fields as "clear this" (a settings save)
+// and blank data the caller never meant to touch.
 async function readJsonBody(request) {
-  const body = await request.json().catch(() => null);
-  return body && typeof body === "object" && !Array.isArray(body) ? body : {};
+  const text = await request.text();
+  if (!text.trim()) return {};
+  let body;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    throw new BadRequestError("The request body must be valid JSON.");
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw new BadRequestError("The request body must be a JSON object.");
+  }
+  return body;
+}
+
+// The request body as text, or null once it passes maxBytes. Bytes are counted
+// as they arrive and nothing past the cap is kept, so a chunked upload with no
+// Content-Length can't be buffered whole. A modestly oversized body is read on
+// (and discarded) to the end so the client gets a clean 413 instead of a cut
+// connection; a truly huge one is dropped where it stands.
+const OVERSIZE_DRAIN_BYTES = 4 * 1024 * 1024;
+async function readBodyTextCapped(request, maxBytes) {
+  if (Number(request.headers.get("content-length") || 0) > maxBytes) return null;
+  if (!request.body) return "";
+  const reader = request.body.getReader();
+  let chunks = [];
+  let size = 0;
+  let over = false;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > maxBytes) {
+      over = true;
+      chunks = [];
+      if (size > OVERSIZE_DRAIN_BYTES) break;
+    } else if (!over) {
+      chunks.push(value);
+    }
+  }
+  if (over) return null;
+  const all = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    all.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(all);
 }
 
 export async function handleAdminApi(request, env, url, ctx) {
   try {
     return await routeAdminApi(request, env, url, ctx);
   } catch (err) {
+    if (err instanceof BadRequestError) return json({ error: err.message }, { status: 400 });
     return json({ error: err.message || "Something went wrong" }, { status: 500 });
   }
 }
@@ -2283,6 +2334,11 @@ async function routeAdminApi(request, env, url, ctx) {
   }
   if (path === "/settings" && method === "PUT") {
     const body = await readJsonBody(request);
+    // Every key not in the body is saved as "", so a body with none of them
+    // would wipe the whole site's settings.
+    if (!SETTINGS_KEYS.some((key) => key in body)) {
+      return json({ error: "No settings were supplied." }, { status: 400 });
+    }
     // A settings save used to log as a bare "Updated settings" with no
     // detail — the Activity Log told you *when* something changed, never
     // *what*, so finding/reversing a specific change meant remembering
@@ -2517,10 +2573,10 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(JSON.parse(raw || "[]"));
   }
   if (path === "/selection-presets" && method === "POST") {
-    // Read as text so the size cap also holds for chunked uploads without a
-    // Content-Length.
-    const rawBody = await request.text();
-    if (rawBody.length > 300000) {
+    // Capped in bytes as they arrive, so it also holds for chunked uploads
+    // without a Content-Length.
+    const rawBody = await readBodyTextCapped(request, 300000);
+    if (rawBody === null) {
       return json({ error: "That selection is too large to save." }, { status: 413 });
     }
     let body = {};

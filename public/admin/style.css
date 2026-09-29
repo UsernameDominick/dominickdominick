@@ -6242,6 +6242,15 @@ kbd {
 /* Phone widths: "Type a box" opens inline in the scrolling strip, not as extra
    rows. This sits after the base rules above so it wins the cascade. */
 @media (max-width: 860px) {
+  /* One row in the scrolling strip: labels must not wrap onto extra lines (that
+     made this group, and so the whole strip, taller than every other group). */
+  #pe-selection-group > * {
+    flex-shrink: 0;
+  }
+  #pe-selection-group button,
+  #pe-selection-group label {
+    white-space: nowrap;
+  }
   .pe-sel-box label {
     flex: 0 0 auto;
   }
@@ -6264,20 +6273,48 @@ kbd {
   }
 }
 
-/* The selection's status line lives in the bottom status bar. With nothing to
-   report it is visually hidden (still there for screen readers). */
-.pe-sel-status {
-  flex: 1 1 100%;
-  font-size: 0.78rem;
-  line-height: 1.35;
-  color: var(--text-dim);
+/* The canvas area holds the canvas (scrolls) and, on top of it, the
+   selection's status pill. The pill is out of the layout, so showing or hiding
+   it can never resize the canvas or the bars around it. */
+.pe-canvas-area {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
 }
 
-.pe-sel-status.is-idle {
+.pe-canvas-area .pe-canvas-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.pe-sel-status {
   position: absolute;
+  left: 8px;
+  bottom: 8px;
+  max-width: calc(100% - 16px);
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  background: color-mix(in srgb, var(--bg-elevated) 90%, transparent);
+  color: var(--text);
+  font-size: 0.74rem;
+  line-height: 1.3;
+  pointer-events: none;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+/* With nothing to report it is visually hidden (still there for screen readers). */
+.pe-sel-status.is-idle {
   width: 1px;
   height: 1px;
-  overflow: hidden;
+  padding: 0;
+  border: 0;
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }

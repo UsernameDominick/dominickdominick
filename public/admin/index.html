@@ -1318,16 +1318,18 @@
               <button type="button" id="pe-delete-snapshot" title="Delete the selected named snapshot">Delete</button>
             </div>
           </div>
-          <div id="pe-canvas-wrap" class="pe-canvas-wrap pe-bg-checkerboard">
-            <div id="pe-canvas-stack" class="pe-canvas-stack">
-              <canvas id="pe-canvas"></canvas>
-              <canvas id="pe-overlay"></canvas>
+          <div class="pe-canvas-area">
+            <div id="pe-canvas-wrap" class="pe-canvas-wrap pe-bg-checkerboard">
+              <div id="pe-canvas-stack" class="pe-canvas-stack">
+                <canvas id="pe-canvas"></canvas>
+                <canvas id="pe-overlay"></canvas>
+              </div>
             </div>
+            <span id="pe-sel-status" class="pe-sel-status is-idle" role="status">No selection.</span>
           </div>
         </div>
         <div class="pe-actions">
           <span id="pe-status-bar" class="pe-status-bar" title="Actual image size · displayed scale"></span>
-          <span id="pe-sel-status" class="pe-sel-status is-idle" role="status">No selection.</span>
           <span id="pe-hint" class="pe-hint"></span>
           <span id="pe-limits-info" class="pe-limits-info" tabindex="0">ℹ️ Limits</span>
           <button type="button" id="pe-view-rotate" title="Rotate the on-screen VIEW only -- doesn't touch the image's actual pixels, unlike the Rotate tool above">↻ View: 0°</button>
