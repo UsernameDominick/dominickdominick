@@ -2141,12 +2141,13 @@ h6 { font-size: 0.9rem; }
   text-anchor: middle;
   pointer-events: none;
 }
-/* A halo in the page background keeps a meter reading legible over wires and
-   the cream breadboard, in either theme. */
+/* A halo in the canvas colour keeps a meter reading and its +/- marks legible
+   over wires and the cream breadboard, in either theme. */
 .sim-comp .ammeter-reading,
-.sim-comp .voltmeter-reading {
+.sim-comp .voltmeter-reading,
+.sim-comp .voltmeter-sign {
   paint-order: stroke;
-  stroke: var(--bg);
+  stroke: var(--bg-elevated);
   stroke-width: 2.5px;
   stroke-linejoin: round;
 }

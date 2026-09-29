@@ -618,7 +618,7 @@
         { id: "neg", x: 40, y: 10, label: "Negative probe" },
       ],
       render: () =>
-        `<rect class="voltmeter-hit" x="0" y="0" width="40" height="24" fill="transparent"/><line class="voltmeter-lead" x1="0" y1="10" x2="11" y2="10"/><circle class="voltmeter-body" cx="20" cy="10" r="9"/><text class="voltmeter-label" x="20" y="13" text-anchor="middle" font-size="9">V</text><text class="voltmeter-sign" x="5" y="8" text-anchor="middle" font-size="7">+</text><text class="voltmeter-sign voltmeter-sign-neg" x="35" y="8" text-anchor="middle" font-size="7">\u2212</text><line class="voltmeter-lead" x1="29" y1="10" x2="40" y2="10"/>`,
+        `<rect class="voltmeter-hit" x="0" y="0" width="40" height="24" fill="transparent"/><line class="voltmeter-lead" x1="0" y1="10" x2="11" y2="10"/><circle class="voltmeter-body" cx="20" cy="10" r="9"/><text class="voltmeter-label" x="20" y="13" text-anchor="middle" font-size="9">V</text><text class="voltmeter-sign" x="5" y="22" text-anchor="middle" font-size="8">+</text><text class="voltmeter-sign voltmeter-sign-neg" x="35" y="22" text-anchor="middle" font-size="8">\u2212</text><line class="voltmeter-lead" x1="29" y1="10" x2="40" y2="10"/>`,
     },
     // A two-terminal variable resistor -- no separate wiper-tap pin, so no
     // voltage-divider behavior (that needs a real multi-branch solver, out
@@ -1134,6 +1134,12 @@
     // Only voltmeters need node potentials, so nothing else pays for them.
     const wantPotentials = components.some((c) => c.type === "voltmeter");
     const potentialMaps = [];
+    // Terminals of every source: the domains, plus each Power Supply's output
+    // (a supply that is fed but whose own loop is unclosed has no domain yet).
+    const supplyTerminals = [];
+    components.forEach((c) => {
+      if (c.type === "power_supply") supplyTerminals.push(nodeId(c, "out_pos"), nodeId(c, "out_neg"));
+    });
     const otherTerminals = (domain) => {
       const others = new Set();
       domains.forEach((d) => {
@@ -1142,6 +1148,7 @@
           others.add(d.negNode);
         }
       });
+      supplyTerminals.forEach((n) => others.add(n));
       others.delete(domain.posNode);
       others.delete(domain.negNode);
       return others;
@@ -1158,6 +1165,7 @@
       // instead of coming from the edge-walking loop below.
       let totalResistance = domain.internalResistance || 0;
       let totalForwardVoltage = 0;
+    const reversedLedIds = new Set();
       const edges = [];
       for (let i = 0; i < path.length - 1; i++) {
         const a = path[i];
@@ -1167,11 +1175,13 @@
         if (!info) continue;
         totalResistance += info.resistance || 0;
         if (info.kind === "led") totalForwardVoltage += info.forwardVoltage || 0;
+      // A LED wired backwards blocks the loop like a diode.
+      if (info.kind === "led" && info.posNode !== undefined && a === info.negNode && b === info.posNode) reversedLedIds.add(info.compId);
         edges.push(info);
       }
       const netVoltage = domain.voltage - totalForwardVoltage;
       let currentAmps;
-      if (netVoltage <= 0) currentAmps = 0;
+      if (netVoltage <= 0 || reversedLedIds.size > 0) currentAmps = 0;
       else if (totalResistance <= 0) currentAmps = Infinity;
       else currentAmps = netVoltage / totalResistance;
       const currentMa = currentAmps === Infinity ? Infinity : currentAmps * 1000;
@@ -1182,6 +1192,8 @@
         if (info.kind === "led") {
           let status = "normal";
           if (domain.dangerous) status = "burnt";
+          else if (reversedLedIds.has(info.compId)) status = "reversed";
+          else if (reversedLedIds.size > 0) status = "blocked";
           else if (currentMa === Infinity || currentMa > LED_RATED_MA * 3) status = "burnt";
           else if (currentMa > LED_RATED_MA * 1.5) status = "overdriven";
           else if (netVoltage <= 0) status = "unlit-low-voltage";
@@ -1233,7 +1245,14 @@
           reason = "invalid";
         } else if (!hit) {
           const claimer = potentialMaps.find((m) => m.reason && (m.claims.has(pos) || m.claims.has(neg)));
-          reason = claimer ? claimer.reason : potentialMaps.some((m) => !m.reason && (m.map.has(pos) || m.map.has(neg))) ? "probes" : "unwired";
+          const wired = (node) => (adjacency.get(node) || new Set()).size > 0;
+            reason = claimer
+              ? claimer.reason
+              : potentialMaps.some((m) => !m.reason && (m.map.has(pos) || m.map.has(neg)))
+              ? "probes"
+              : wired(pos) && wired(neg)
+              ? "nosource"
+              : "unwired";
         }
         results[c.id] =
           volts === null

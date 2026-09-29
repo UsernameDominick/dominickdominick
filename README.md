@@ -86,8 +86,10 @@ Worker secret, not stored in this repo). From there:
   circuit, or an open circuit); anything hanging off the path without
   carrying current reads the potential where it attaches. It shows a dash,
   with the reason in the inspector, for parallel branches, a switch or wire
-  across a part, several sources in one circuit, a dead short, or LEDs that
-  can't conduct.
+  across a part, several sources in one circuit, a dead short, or two or
+  more LEDs that can't conduct (one blocked or backwards LED simply takes
+  the whole source voltage). A backwards LED blocks the loop: no current
+  flows and its inspector says so.
   Dragging an LED or resistor near a breadboard hole snaps it into place
   and plugs it in automatically, like a real breadboard.
   Select a part and press **R** (Shift+R the other way) to rotate it 90°, or **F** to flip it left to right

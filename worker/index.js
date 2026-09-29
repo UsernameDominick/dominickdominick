@@ -863,13 +863,16 @@ async function renderNotFound(env, navItems) {
 // power-toggle interactivity as the "Simulation" block, just on its own
 // page so a circuit can be linked to directly instead of only embedded.
 function simulationTopologyDescription(data) {
-  let analysis = {};
-  try {
-    analysis = computeCircuitAnalysis(data);
-  } catch {
-    // The summary is best-effort; a malformed circuit just loses its meter readings.
-  }
   const components = Array.isArray(data?.components) ? data.components : [];
+  // Only meter readings need the analysis, so circuits without a voltmeter skip it.
+  let analysis = {};
+  if (components.some((component) => component?.type === "voltmeter")) {
+    try {
+      analysis = computeCircuitAnalysis(data);
+    } catch {
+      // The summary is best-effort; a malformed circuit just loses its meter readings.
+    }
+  }
   const wires = Array.isArray(data?.wires) ? data.wires : [];
   const componentsById = new Map(
     components
@@ -926,7 +929,9 @@ function simulationTopologyDescription(data) {
         return component.closed === false ? "open switch" : "closed switch";
       case "voltmeter": {
         const reading = analysis[component.id];
-        return reading && typeof reading.volts === "number" ? `voltage meter reading ${formatVolts(reading.volts).replace("V", " volts")}` : "voltage meter with no reading";
+        if (!reading || typeof reading.volts !== "number") return "voltage meter with no reading";
+        const text = formatVolts(reading.volts);
+        return `voltage meter reading ${text.startsWith("-") ? "negative " + text.slice(1) : text}`.replace(/V$/, " volts");
       }
       case "switch_spdt":
         return `common terminal connected to throw ${component.position === "b" ? "B" : "A"}`;

@@ -1604,6 +1604,7 @@
   // Why a voltmeter shows a dash (the analysis says which; see collectNodePotentials).
   const VOLTMETER_NO_READING = {
     unwired: "connect both probes into a circuit.",
+    nosource: "there is no powered source in this circuit (a Power Supply needs its input fed and its own loop closed).",
     probes: "the two probes need to be in the same circuit.",
     sources: "more than one source is wired into this circuit, and the simulator solves each source on its own.",
     parallel: "this circuit has parallel branches or a bypass (a switch or wire across a part), and the simulator solves one series path per source, so it can't vouch for the voltage.",
@@ -1889,6 +1890,8 @@
               : `🔥 Burnt out — ${ma}mA is way more current than an LED can take (safe is under 30mA). Add a bigger resistor.`,
             overdriven: `⚠ Overdriven at ${ma}mA — it'll be too bright and won't last (safe is under 30mA).`,
             "unlit-low-voltage": "Not enough voltage in this loop to light it.",
+            reversed: "Wired backwards — an LED only conducts one way, so no current flows in this loop. Flip it around.",
+            blocked: "No current flows here: another LED in this loop is wired backwards.",
             dim: `Barely lit — only ${ma}mA is flowing. Try a smaller resistor.`,
             normal: `✓ ${ma}mA — a healthy, safe current.`,
           };
