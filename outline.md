@@ -428,7 +428,6 @@ permissions — out of scope], 597 [package/dependency system — out of scope],
 ### Current unnumbered follow-ups
 
 - External article/project header images have no persisted dimensions; decide between author-supplied dimensions and a fixed-ratio presentation before relying on remote covers. Current project-card blocks and article/project index cards are text-only and have no image layout shift.
-- The site-wide `.btn` hover lift and transition ignore `prefers-reduced-motion` and the manual reduce-motion switch; scope them like the embed controls do (glow on hover, lift only when motion is allowed).
 - Print output on a dark-theme site with Site Settings colours: the Site Settings `:root` block outranks the print block's `--bg`/`--bg-elevated`/`--text`, so dark cards (the song embed's card in particular) print dark with their black titles nearly invisible when backgrounds print. Make the print variables win (scoped or `!important`) and re-check every module.
 - Public logic-gate embeds show their truth table only in a hover title and screen-reader text; decide on a visible presentation for touch users (a small table under the circuit, or a tap-to-reveal).
 - Per-track clipping attribution (the other half of the old wishlist #309) needs per-track metering, which the single master analyser doesn't provide; only the master bus is logged today.

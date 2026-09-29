@@ -885,16 +885,24 @@ body {
   line-height: 1.2;
   text-decoration: none;
   white-space: nowrap;
-  transition: transform 0.2s var(--ease-smooth), box-shadow 0.2s var(--ease-smooth), background-color 0.2s ease, color 0.2s ease;
 }
 
 .btn:hover {
-  transform: translateY(-1px);
   box-shadow: 0 6px 20px -8px var(--accent);
 }
 
-.btn:active {
-  transform: translateY(0);
+/* The lift and the fades only run when motion isn't reduced (the OS setting
+   here, the site's manual switch below); the glow on hover always shows. */
+@media (prefers-reduced-motion: no-preference) {
+  .btn {
+    transition: transform 0.2s var(--ease-smooth), box-shadow 0.2s var(--ease-smooth), background-color 0.2s ease, color 0.2s ease;
+  }
+  .btn:hover {
+    transform: translateY(-1px);
+  }
+  .btn:active {
+    transform: translateY(0);
+  }
 }
 
 .btn:focus-visible {
@@ -1311,7 +1319,13 @@ h6 { font-size: 0.9rem; }
   border: 1px solid var(--border);
   border-radius: var(--card-radius);
   padding: 20px 24px;
-  transition: border-color 0.2s ease, transform 0.2s var(--ease-smooth);
+  transition: border-color 0.2s ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .project-card {
+    transition: border-color 0.2s ease, transform 0.2s var(--ease-smooth);
+  }
 }
 
 /* The whole card is the click target (the link's ::after stretches over
@@ -1333,7 +1347,12 @@ h6 { font-size: 0.9rem; }
 
 .project-card-linked:hover {
   border-color: var(--accent);
-  transform: translateY(-2px);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .project-card-linked:hover {
+    transform: translateY(-2px);
+  }
 }
 
 .project-card-link:focus-visible {
