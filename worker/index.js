@@ -897,9 +897,9 @@ function simulationTopologyDescription(data) {
         const info = LOGIC_GATES[gate];
         const custom = logicGateIsCustom(component);
         return custom
-          ? `custom ${info.inputs}-input gate based on ${info.label}; output for input${info.inputs === 2 ? "s A,B" : " A"} of ${logicGateRows(gate)
-              .map((bits) => bits.join(""))
-              .join(", ")} is ${logicGateTruth(component).join(", ")}`
+          ? `custom ${info.inputs}-input gate based on ${info.label}; with input${info.inputs === 2 ? "s A,B" : " A"}, ${logicGateRows(gate)
+              .map((bits, i) => `${bits.join("")} gives ${logicGateTruth(component)[i]}`)
+              .join(", ")}`
           : `${info.label} gate`;
       }
       case "capacitor":

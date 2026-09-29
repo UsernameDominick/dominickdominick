@@ -1970,8 +1970,9 @@ h6 { font-size: 0.9rem; }
 /* Capacitor and inductor -- two-terminal passives; the label prints the value. */
 .sim-comp .capacitor-lead,
 .sim-comp .inductor-lead {
-  /* Solid: a bounding-box gradient paints nothing on a zero-height line. */
-  stroke: #9aa0a6;
+  /* Solid: a bounding-box gradient paints nothing on a zero-height line.
+     Theme ink rather than a fixed grey, so it keeps its contrast on both themes. */
+  stroke: var(--text-dim);
   stroke-width: 2;
 }
 .sim-comp .capacitor-body {
@@ -2020,10 +2021,14 @@ h6 { font-size: 0.9rem; }
   stroke-linecap: round;
 }
 .sim-comp .gate-lead {
-  stroke: #9aa0a6;
+  stroke: var(--text-dim);
   stroke-width: 2;
 }
+/* A custom truth table: a dashed, accent-coloured, slightly heavier outline
+   (the default #555 outline is faint against the dark theme's canvas). */
 .sim-comp .gate-body-custom {
+  stroke: var(--accent);
+  stroke-width: 2;
   stroke-dasharray: 4 2.5;
 }
 
@@ -3380,13 +3385,21 @@ pre.has-line-numbers {
 
   /* Set on the buttons themselves so nothing further up can turn the pill
      pale or the label dark: themed songs bring a bright --accent, the light
-     theme and the Site Settings <style> both redefine --accent/--on-accent
-     on :root with more weight than the block above. */
+     theme and the Site Settings <style> both redefine --accent/--on-accent/
+     --text on :root with more weight than the block above. `exact` keeps the
+     fill when the print dialog's "background graphics" option is off. */
   .song-embed-play-btn,
-  .sim-power-btn,
-  .scan-ar-btn {
+  .sim-power-btn {
     --accent: #000;
     --on-accent: #fff;
+    --text: #000;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Nothing to press on paper. */
+  .scan-ar-btn {
+    display: none !important;
   }
 
   .topbar,

@@ -605,7 +605,7 @@
     // is. Skipped for mcu_teensy specifically -- it already prints the
     // same text as visible SVG <text>, so a tooltip repeating it would
     // just be redundant (a critic pass found this).
-    const titleText = comp.type === "mcu_teensy" ? "" : [comp.label, comp.type === "logic_gate" ? window.simLogicSummary(comp) : ""].filter(Boolean).join(" \u2014 ");
+    const titleText = comp.type === "mcu_teensy" ? "" : comp.type === "logic_gate" ? window.simLogicTitle(comp) : comp.label || "";
     const titleSvg = titleText ? `<title>${escapeXml(titleText)}</title>` : "";
     // Mirrors the public embed's own live reading (worker/simulation-
     // render.js) -- an ammeter's whole reason for existing is showing a
@@ -967,10 +967,13 @@
   // (once, on input) rather than re-normalizing it on every component's
   // match check during every render.
   let canvasSearchQuery = "";
+  // Extra words the palette search already knows (see the Logic Gate keywords).
+  const LOGIC_GATE_SEARCH_ALIASES = { not: "inverter", buffer: "non-inverting" };
   function componentMatchesSearch(comp) {
     if (!canvasSearchQuery) return false;
     const def = window.getSimComponentDefinition(comp);
-    const gateName = comp.type === "logic_gate" ? window.SIM_LOGIC_GATES[window.simLogicGate(comp)].label : "";
+    const gateKey = comp.type === "logic_gate" ? window.simLogicGate(comp) : "";
+    const gateName = gateKey ? `${window.SIM_LOGIC_GATES[gateKey].label} ${gateKey} ${LOGIC_GATE_SEARCH_ALIASES[gateKey] || ""}` : "";
     const haystacks = [comp.label, def && def.label, comp.type, gateName];
     return haystacks.some((s) => s && String(s).toLowerCase().includes(canvasSearchQuery));
   }
@@ -1881,7 +1884,7 @@
         extraFieldsHtml = `<label title="Which standard symbol to draw. A custom truth table is kept when the new gate has the same number of inputs, and reset to the standard one when it doesn't.">Gate<select id="sim-comp-gate">${Object.entries(window.SIM_LOGIC_GATES)
           .map(([key, g]) => `<option value="${key}" ${key === gateKey ? "selected" : ""}>${g.label}</option>`)
           .join("")}</select></label>
-        <table class="sim-truth-table"><caption>Truth table${custom ? " (custom)" : ""}</caption><thead><tr>${inputNames.map((n) => `<th scope="col">${n}</th>`).join("")}<th scope="col">Out</th></tr></thead><tbody>${rowBits
+        <table class="sim-truth-table" aria-describedby="sim-truth-hint"><caption>Truth table${custom ? " (custom)" : ""}</caption><thead><tr>${inputNames.map((n) => `<th scope="col">${n}</th>`).join("")}<th scope="col">Out</th></tr></thead><tbody>${rowBits
           .map(
             (bits, i) =>
               `<tr>${bits.map((b) => `<td>${b}</td>`).join("")}<td><button type="button" class="sim-truth-out" data-row="${i}" aria-pressed="${truth[i] === 1}" aria-label="Output when ${bits
@@ -1890,7 +1893,7 @@
           )
           .join("")}</tbody></table>
         <button type="button" id="sim-truth-reset" ${custom ? "" : "disabled"}>Reset to standard ${gateInfo.label}</button>
-        <p class="sim-electrical-effect"><strong>Truth table:</strong> Logic gates are drawn with their standard symbol and carry this table as documentation (a custom table dashes the outline). Signals aren't simulated, so wiring one into a circuit doesn't change any analysis. Click an output to flip it.</p>`;
+        <p id="sim-truth-hint" class="sim-electrical-effect"><strong>Truth table:</strong> Logic gates are drawn with their standard symbol and carry this table as documentation (a custom table dashes the outline). Signals aren't simulated, so wiring one into a circuit doesn't change any analysis. Click an output to flip it; a pressed output button means the gate outputs 1.</p>`;
       } else if (comp.type === "capacitor") {
         extraFieldsHtml = `<label title="How much charge the capacitor can hold per volt. Common values run from picofarads to thousands of microfarads. Recorded for reference -- charging over time isn't simulated.">Capacitance (µF)<input id="sim-comp-capacitance" type="number" min="0.000001" step="any" value="${window.simCapacitanceUf(comp)}"></label>
         <p class="sim-electrical-effect"><strong>Electrical effect:</strong> In a steady-state circuit a capacitor charges up and then stops current, so it acts like an open circuit here: anything wired through it gets no power. The value is for reference; charging over time isn't simulated.</p>`;
@@ -1923,7 +1926,7 @@
         <p class="sim-power-status ${isPowered || def.isSource ? "is-powered" : ""}">${statusLine}</p>
         ${electricalHtml}
         ${extraFieldsHtml}
-        <label>Label${comp.type === "mcu_teensy" ? " (shown on the part)" : " (shown as a hover tooltip, including on the public embed)"}<input id="sim-comp-label" type="text" value="${escapeXml(comp.label || "")}"></label>
+        <label>Label${comp.type === "mcu_teensy" ? " (shown on the part)" : " (shown as a hover tooltip, including on the public embed; logic gates add their truth table)"}<input id="sim-comp-label" type="text" value="${escapeXml(comp.label || "")}"></label>
         <label>Datasheet link (for your own reference -- admin only, not shown on the public embed)<input id="sim-comp-datasheet" type="url" placeholder="https://…" value="${escapeXml(comp.datasheetUrl || "")}"></label>
         <a id="sim-datasheet-link" class="sim-datasheet-link" href="${escapeXml(safeHref(comp.datasheetUrl || ""))}" target="_blank" rel="noopener noreferrer" ${
           comp.datasheetUrl ? "" : "hidden"
@@ -2029,7 +2032,10 @@
           pushHistory();
           const sameArity = window.SIM_LOGIC_GATES[gateSelect.value].inputs === window.SIM_LOGIC_GATES[window.simLogicGate(comp)].inputs;
           comp.gate = gateSelect.value;
-          if (!sameArity) delete comp.truth;
+          // Keep a custom table across same-input-count gates, but never store one
+          // that has become the new gate's standard table (it would read as custom
+          // again after the next switch).
+          if (!sameArity || JSON.stringify(window.simLogicTruth(comp)) === JSON.stringify(window.simStandardLogicTruth(gateSelect.value))) delete comp.truth;
           const removed = pruneWiresToMissingPins(comp);
           renderInspector();
           renderBuilder();
@@ -2479,8 +2485,8 @@
       tag === "INPUT" ||
       tag === "TEXTAREA" ||
       tag === "SELECT" ||
-      // Arrow keys and Backspace on a focused truth-table button must not nudge or delete the part.
-      Boolean(document.activeElement && document.activeElement.classList && document.activeElement.classList.contains("sim-truth-out")) ||
+      // Arrow keys and Backspace on a focused truth-table button (or its Reset) must not nudge or delete the part.
+      Boolean(document.activeElement && (document.activeElement.classList.contains("sim-truth-out") || document.activeElement.id === "sim-truth-reset")) ||
       Boolean(document.activeElement && document.activeElement.isContentEditable);
     const mod = e.metaKey || e.ctrlKey;
 

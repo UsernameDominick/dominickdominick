@@ -268,6 +268,14 @@ export function logicGateSummary(comp) {
   const inputs = LOGIC_GATES[gate].inputs === 2 ? "A,B" : "A";
   return `${LOGIC_GATES[gate].label} gate${logicGateIsCustom(comp) ? " (custom)" : ""}: inputs ${inputs} \u2192 out: ${rows}`;
 }
+// The hover title: the part's label (unless it only repeats the gate's own
+// name) followed by the summary.
+export function logicGateTitle(comp) {
+  const gateName = LOGIC_GATES[resolveLogicGate(comp)].label.toLowerCase();
+  const label = typeof comp.label === "string" ? comp.label.trim() : "";
+  const repeatsGate = label.toLowerCase() === gateName || label.toLowerCase() === `${gateName} gate`;
+  return [repeatsGate ? "" : label, logicGateSummary(comp)].filter(Boolean).join(" \u2014 ");
+}
 function logicGatePins(gate) {
   const out = { id: "out", x: 70, y: 25 };
   return LOGIC_GATES[gate].inputs === 2
@@ -1112,7 +1120,7 @@ function renderComponentSvg(comp, poweredComps, analysis) {
   // hover tooltip instead of printed text. Skipped for mcu_teensy itself,
   // which already prints the same text visibly -- a tooltip repeating it
   // would just be redundant (a critic pass found this).
-  const titleText = comp.type === "mcu_teensy" ? "" : [comp.label, comp.type === "logic_gate" ? logicGateSummary(comp) : ""].filter(Boolean).join(" \u2014 ");
+  const titleText = comp.type === "mcu_teensy" ? "" : comp.type === "logic_gate" ? logicGateTitle(comp) : comp.label || "";
   const titleSvg = titleText ? `<title>${escXml(titleText)}</title>` : "";
   // An ammeter's whole reason for existing is showing a number -- a critic
   // pass found the public embed never rendered ANY analysis result (only
