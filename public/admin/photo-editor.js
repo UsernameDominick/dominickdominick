@@ -974,7 +974,8 @@
     }
     if (focusKey) {
       const again = [...list.querySelectorAll("button")].find((b) => `${b.className}|${b.dataset.layerId}` === focusKey);
-      if (again) again.focus();
+      // The focused layer is gone (deleted or merged): land on the active row instead.
+      (again || list.querySelector(".pe-layer-row.is-active .pe-layer-pick") || list.querySelector("button"))?.focus();
     }
     if (!active) return;
     if (!layers.some((layer) => layer.visible)) setLayerNote("Every layer is hidden, so a saved image would be empty.");
@@ -1044,14 +1045,13 @@
   });
   // Escape clears a search field; it must not also close the editor and its edits.
   $("pe-layer-filter").addEventListener("keydown", (e) => {
-    if (e.key !== "Escape") return;
+    // Only a non-empty field swallows Escape; an empty one lets it close the editor.
+    if (e.key !== "Escape" || !$("pe-layer-filter").value) return;
     e.preventDefault();
     e.stopPropagation();
-    if ($("pe-layer-filter").value) {
-      $("pe-layer-filter").value = "";
-      layerFilterText = "";
-      renderLayerPanel();
-    }
+    $("pe-layer-filter").value = "";
+    layerFilterText = "";
+    renderLayerPanel();
   });
   $("pe-layer-filter-color").addEventListener("change", () => {
     layerFilterColor = $("pe-layer-filter-color").value;
@@ -4148,6 +4148,7 @@
       layer.canvas.height = 1;
     }
     updateHistoryButtons();
+    renderSnapshotSelect();
   }).observe(modal, { attributes: true, attributeFilter: ["hidden"] });
   $("close-photo-editor").addEventListener("click", close);
   window.addEventListener("resize", () => {
