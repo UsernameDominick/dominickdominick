@@ -3378,10 +3378,15 @@ pre.has-line-numbers {
     --on-accent: #fff;
   }
 
-  /* Themed songs bring their own bright accent, which would put the
-     white --on-accent label on a pale pill; print them black like the rest. */
-  .song-embed[class*="song-theme"] {
-    --accent: #000 !important;
+  /* Set on the buttons themselves so nothing further up can turn the pill
+     pale or the label dark: themed songs bring a bright --accent, the light
+     theme and the Site Settings <style> both redefine --accent/--on-accent
+     on :root with more weight than the block above. */
+  .song-embed-play-btn,
+  .sim-power-btn,
+  .scan-ar-btn {
+    --accent: #000;
+    --on-accent: #fff;
   }
 
   .topbar,
