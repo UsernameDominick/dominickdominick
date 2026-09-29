@@ -2606,17 +2606,21 @@ async function routeAdminApi(request, env, url, ctx) {
     // overrides and lone surrogates are dropped; composed (NFC) so "café" typed two
     // ways is one name; runs of spaces collapse; cut on whole characters rather than
     // through a surrogate pair.
-    const name = Array.from(
-      (typeof body.name === "string" ? body.name : "")
+    const cleanedName = (typeof body.name === "string" ? body.name : "")
         .replace(/[\u0000-\u001f\u007f-\u009f]/g, " ")
-        .replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u2069\u00ad\u061c\ufe0f\ufeff\u3164\u2800]|[\u{e0000}-\u{e007f}]/gu, "")
+        // Zero-width joiners and non-joiners, emoji selectors and tag characters carry
+        // meaning (family emoji, flags, Persian and Indic text) and stay.
+        .replace(/[\u200b\u200e\u200f\u202a-\u202e\u2060-\u2069\u00ad\u061c\ufeff\u3164\u2800]/g, "")
         .replace(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g, "")
         .normalize("NFC")
-        .replace(/\s+/g, " ")
-    )
-      .slice(0, 60)
-      .join("")
-      .trim();
+        .replace(/\s+/g, " ");
+    // Cut on whole characters as a reader sees them (an emoji sequence or a letter
+    // with its marks is never split), falling back to code points.
+    const nameChars =
+      typeof Intl !== "undefined" && typeof Intl.Segmenter === "function"
+        ? Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(cleanedName), (x) => x.segment)
+        : Array.from(cleanedName);
+    const name = nameChars.slice(0, 60).join("").trim();
     const ops = cleanSelectionOps(body.ops);
     // A name needs something visible: a letter, number, punctuation or symbol.
     if (!name || !/[\p{L}\p{N}\p{P}\p{S}]/u.test(name) || !ops) {
