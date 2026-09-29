@@ -208,6 +208,7 @@
     applyViewRotation();
   });
 
+  let lastFitDims = "";
   function fitCanvasToViewport() {
     // 90% of the area, but never more than what is left inside its padding
     // (clientWidth/Height include it), or a short window gets scrollbars.
@@ -246,6 +247,12 @@
     // file is always encoded fresh from the live canvas regardless, so
     // this only affects how current the *preview number* looks, never
     // what actually gets uploaded.
+    // ...but only when the pixel dimensions changed. A refit for any other reason
+    // (a window resize, the bars around the canvas re-wrapping) must not wipe a
+    // width or height someone has typed and not applied yet.
+    const dims = canvas.width + "x" + canvas.height;
+    if (dims === lastFitDims) return;
+    lastFitDims = dims;
     scheduleSizeEstimate();
     // Same free ride for the Resize width/height fields -- without this
     // they'd keep showing whatever dimensions were true when the modal
@@ -264,7 +271,15 @@
   function updateStatusBar(scale) {
     const el2 = $("pe-status-bar");
     if (!el2) return;
-    el2.textContent = `${canvas.width} × ${canvas.height}px · ${Math.round(scale * 100)}% displayed`;
+    // The percentage sits in a fixed-width box: "99" and "100" would otherwise
+    // differ in width, which can flip the bottom bar between one and two rows,
+    // which changes the canvas area, which changes the scale, which changes the
+    // text again (the canvas area's ResizeObserver then never settles).
+    el2.textContent = `${canvas.width} × ${canvas.height}px · `;
+    const pct = document.createElement("span");
+    pct.className = "pe-scale";
+    pct.textContent = String(Math.round(scale * 100));
+    el2.append(pct, "% displayed");
   }
 
   function clearOverlay() {
@@ -3097,11 +3112,20 @@
   // only on window resizes (otherwise it can open scrolled at short heights).
   if (typeof ResizeObserver === "function") {
     let fitFrame = 0;
+    let recentFits = [];
     new ResizeObserver(() => {
       if (fitFrame) return;
       fitFrame = requestAnimationFrame(() => {
         fitFrame = 0;
-        if (!modal.hidden) fitCanvasToViewport();
+        if (modal.hidden) return;
+        // Belt and braces: if refits keep re-triggering themselves (the bars
+        // around the canvas re-wrapping with each new size), stop after a burst
+        // and let the next real window resize or edit refit as usual.
+        const now = performance.now();
+        recentFits = recentFits.filter((t) => now - t < 500);
+        if (recentFits.length >= 8) return;
+        recentFits.push(now);
+        fitCanvasToViewport();
       });
     }).observe(stack.parentElement);
   }
@@ -3113,6 +3137,7 @@
   // (there have been several this session -- named snapshots, brush
   // presets, view rotation) only ever needs to happen in one place.
   function initEditorSession(w, h, drawContent, hint) {
+    lastFitDims = ""; // a new image: the size fields and the estimate start fresh even at the same size
     canvas.width = w;
     canvas.height = h;
     ctx.clearRect(0, 0, w, h);

@@ -5059,6 +5059,14 @@ kbd {
   color: var(--text-dim);
   font-size: 0.8rem;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Fixed width, so "99" and "100" take the same room (see updateStatusBar). */
+.pe-scale {
+  display: inline-block;
+  min-width: 3ch;
+  text-align: right;
 }
 
 .song-autosave-status {

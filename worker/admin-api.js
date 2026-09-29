@@ -502,6 +502,13 @@ function slugify(str) {
     .slice(0, 80);
 }
 
+// At most max characters (whole code points, so an emoji is never cut in half),
+// with an ellipsis when something was left out.
+function clipChars(text, max) {
+  const chars = Array.from(String(text));
+  return chars.length > max ? chars.slice(0, max).join("") + "…" : String(text);
+}
+
 // Thrown for a request the client got wrong; handleAdminApi answers it with a 400.
 class BadRequestError extends Error {}
 
@@ -2165,8 +2172,7 @@ async function routeAdminApi(request, env, url, ctx) {
 
   // /import — replaces ALL content with the uploaded backup, atomically
   if (path === "/import" && method === "POST") {
-    const body = await request.json().catch(() => null);
-    if (!body) return json({ error: "Invalid JSON" }, { status: 400 });
+    const body = await readJsonBody(request);
     try {
       await importAll(env, body);
     } catch (err) {
@@ -2357,7 +2363,7 @@ async function routeAdminApi(request, env, url, ctx) {
     // Values are truncated (some, like custom_head, can be long HTML) and
     // a key with no actual change is left out entirely.
     const before = await Promise.all(SETTINGS_KEYS.map((key) => getSetting(env, key)));
-    const truncate = (v) => (v && v.length > 60 ? v.slice(0, 60) + "…" : v);
+    const truncate = (v) => (v ? clipChars(v, 60) : v);
     const changes = SETTINGS_KEYS.map((key, i) => {
       const oldVal = before[i] || "";
       const newVal = body[key] || "";
@@ -2375,7 +2381,7 @@ async function routeAdminApi(request, env, url, ctx) {
       // unbounded join can run off the edge of the row with no way to
       // see the rest. Same 60-char-ish budget as a single value.
       let combined = changes.join("; ");
-      if (combined.length > 240) combined = combined.slice(0, 240) + "…";
+      combined = clipChars(combined, 240);
       log(ctx, env, "update", "settings", combined);
     }
     return json({ ok: true });
@@ -2596,9 +2602,18 @@ async function routeAdminApi(request, env, url, ctx) {
     } catch {
       // not JSON: fall through with {}, which fails validation below
     }
-    // Printable characters only (no control or bidi-override characters), cut on
-    // whole characters rather than through a surrogate pair.
-    const name = Array.from(typeof body.name === "string" ? body.name.replace(/[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, " ") : "")
+    // Printable characters only: control characters become spaces; bidi marks and
+    // overrides and lone surrogates are dropped; composed (NFC) so "café" typed two
+    // ways is one name; runs of spaces collapse; cut on whole characters rather than
+    // through a surrogate pair.
+    const name = Array.from(
+      (typeof body.name === "string" ? body.name : "")
+        .replace(/[\u0000-\u001f\u007f-\u009f]/g, " ")
+        .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, "")
+        .replace(/[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g, "")
+        .normalize("NFC")
+        .replace(/\s+/g, " ")
+    )
       .slice(0, 60)
       .join("")
       .trim();
@@ -2610,7 +2625,7 @@ async function routeAdminApi(request, env, url, ctx) {
     if (presets.length >= SELECTION_PRESET_LIMIT) {
       return json({ error: `You can save up to ${SELECTION_PRESET_LIMIT} selections; delete one first.` }, { status: 400 });
     }
-    if (presets.some((p) => p.name.toLowerCase() === name.toLowerCase())) {
+    if (presets.some((p) => p.name.normalize("NFC").toLowerCase() === name.toLowerCase())) {
       return json({ error: `A saved selection called "${name}" already exists; pick another name.` }, { status: 400 });
     }
     const id = presets.reduce((max, p) => Math.max(max, p.id || 0), 0) + 1;
