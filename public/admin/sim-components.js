@@ -216,7 +216,7 @@
   function logicGateTitle(comp) {
     const gateName = LOGIC_GATES[resolveLogicGate(comp)].label.toLowerCase();
     const label = typeof comp.label === "string" ? comp.label.trim() : "";
-    const repeatsGate = label.toLowerCase() === gateName || label.toLowerCase() === `${gateName} gate`;
+    const repeatsGate = [gateName, `${gateName} gate`, "logic gate"].includes(label.toLowerCase());
     return [repeatsGate ? "" : label, logicGateSummary(comp)].filter(Boolean).join(" \u2014 ");
   }
   function logicGatePins(gate) {

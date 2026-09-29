@@ -1926,7 +1926,7 @@
         <p class="sim-power-status ${isPowered || def.isSource ? "is-powered" : ""}">${statusLine}</p>
         ${electricalHtml}
         ${extraFieldsHtml}
-        <label>Label${comp.type === "mcu_teensy" ? " (shown on the part)" : " (shown as a hover tooltip, including on the public embed; logic gates add their truth table)"}<input id="sim-comp-label" type="text" value="${escapeXml(comp.label || "")}"></label>
+        <label>Label${comp.type === "mcu_teensy" ? " (shown on the part)" : ` (shown as a hover tooltip, including on the public embed${comp.type === "logic_gate" ? "; a gate's truth table is added" : ""})`}<input id="sim-comp-label" type="text" value="${escapeXml(comp.label || "")}"></label>
         <label>Datasheet link (for your own reference -- admin only, not shown on the public embed)<input id="sim-comp-datasheet" type="url" placeholder="https://…" value="${escapeXml(comp.datasheetUrl || "")}"></label>
         <a id="sim-datasheet-link" class="sim-datasheet-link" href="${escapeXml(safeHref(comp.datasheetUrl || ""))}" target="_blank" rel="noopener noreferrer" ${
           comp.datasheetUrl ? "" : "hidden"

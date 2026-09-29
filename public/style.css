@@ -2016,7 +2016,7 @@ h6 { font-size: 0.9rem; }
 }
 .sim-comp .gate-extra {
   fill: none;
-  stroke: #555;
+  stroke: var(--text-dim);
   stroke-width: 1.5;
   stroke-linecap: round;
 }
