@@ -958,8 +958,19 @@ async function projectsHaveRelatedSongs(env) {
   return relatedSongsColumn.has;
 }
 
-function cleanIdList(value) {
-  return Array.isArray(value) ? [...new Set(value.map(Number).filter((n) => Number.isInteger(n) && n > 0))] : [];
+// A project can list up to this many related songs; each becomes an embedded player.
+export const MAX_RELATED_SONGS = 50;
+
+// Positive whole ids only: numbers, or plain digit strings. Booleans, arrays,
+// exponent/hex strings and unsafe magnitudes are dropped instead of coerced.
+export function cleanIdList(value) {
+  if (!Array.isArray(value)) return [];
+  const ids = [];
+  for (const raw of value) {
+    const n = typeof raw === "number" ? raw : typeof raw === "string" && /^[0-9]{1,15}$/.test(raw) ? Number(raw) : NaN;
+    if (Number.isSafeInteger(n) && n > 0 && !ids.includes(n)) ids.push(n);
+  }
+  return ids.slice(0, MAX_RELATED_SONGS);
 }
 
 export async function listProjects(env, { publishedOnly = false, limit = null, tag = null, featuredOnly = false, sort = "newest" } = {}) {
@@ -1202,6 +1213,17 @@ export async function restoreProjectRevision(env, projectId, revisionId) {
     )
     .bind(p.title, p.summary, p.body, p.tags, p.tech_stack, p.status, p.links, p.og_image, p.published_at, projectId)
     .run();
+  // Related songs come back with the rest when the column exists and the
+  // snapshot carried it (snapshots from before migration 0002 have none).
+  if (typeof p.related_songs === "string" && (await projectsHaveRelatedSongs(env))) {
+    let ids = [];
+    try {
+      ids = cleanIdList(JSON.parse(p.related_songs));
+    } catch {
+      ids = [];
+    }
+    await env.DB.prepare("UPDATE projects SET related_songs = ? WHERE id = ?").bind(JSON.stringify(ids), projectId).run();
+  }
 }
 
 // ---------- Build journal entries ----------
@@ -2131,7 +2153,30 @@ export async function listSongs(env) {
 export async function getSong(env, id) {
   const row = await env.DB.prepare("SELECT * FROM songs WHERE id = ?").bind(id).first();
   if (!row) return null;
-  return { ...row, data: JSON.parse(row.data || "{}") };
+  return { ...row, data: parseSongData(row.data) };
+}
+
+// Song data is always an object; a damaged or odd row reads as an empty song
+// instead of taking a page (or a delete) down with it.
+function parseSongData(text) {
+  try {
+    const value = JSON.parse(text || "{}");
+    return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  } catch {
+    return {};
+  }
+}
+
+// Several songs in one query, in the order asked for; unknown ids are skipped.
+export async function getSongsByIds(env, ids) {
+  const list = cleanIdList(ids);
+  if (!list.length) return [];
+  const { results } = await env.DB
+    .prepare(`SELECT * FROM songs WHERE id IN (${list.map(() => "?").join(",")})`)
+    .bind(...list)
+    .all();
+  const byId = new Map((results || []).map((row) => [row.id, { ...row, data: parseSongData(row.data) }]));
+  return list.map((id) => byId.get(id)).filter(Boolean);
 }
 
 export async function createSong(env, { name, data }) {

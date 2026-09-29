@@ -1165,6 +1165,49 @@
               <button type="button" id="pe-zoom-in" aria-label="Zoom in" title="Zoom in (+, or Ctrl+wheel)">+</button>
               <button type="button" class="pe-tool" data-tool="pan" aria-label="Pan tool" title="Drag to move around a zoomed image. Also: hold Space, or drag with the middle mouse button.">✋ Pan</button>
             </div>
+            <div class="pe-tool-group pe-layers-group" id="pe-layers-group" role="group" aria-label="Layers">
+              <span class="pe-group-label">Layers</span>
+              <span id="pe-layer-count" class="pe-layer-count"></span>
+              <button type="button" id="pe-layer-add" title="Add an empty layer above the current one">+ Layer</button>
+              <button type="button" id="pe-layer-duplicate" title="Copy the current layer">Duplicate</button>
+              <button type="button" id="pe-layer-delete" title="Delete the current layer (Undo brings it back)">Delete</button>
+              <button type="button" id="pe-layer-merge" title="Merge the current layer into the one below it">Merge down</button>
+              <button type="button" id="pe-layer-flatten" title="Combine all layers into one">Flatten</button>
+              <button type="button" id="pe-layer-up" aria-label="Move layer up" title="Move the current layer up">↑</button>
+              <button type="button" id="pe-layer-down" aria-label="Move layer down" title="Move the current layer down">↓</button>
+              <button type="button" id="pe-layer-rename" title="Rename the current layer">Rename</button>
+              <label title="How see-through the current layer is">Opacity <input type="range" id="pe-layer-opacity" min="0" max="100" value="100"><output id="pe-layer-opacity-val" class="pe-layer-opacity-val">100%</output></label>
+              <label title="How the current layer mixes with the layers below it">Blend <select id="pe-layer-blend" aria-label="Layer blend mode">
+                <option value="normal">Normal</option>
+                <option value="multiply">Multiply</option>
+                <option value="screen">Screen</option>
+                <option value="overlay">Overlay</option>
+                <option value="darken">Darken</option>
+                <option value="lighten">Lighten</option>
+              </select></label>
+              <label title="A colour tag for the current layer, to find it faster">Label <select id="pe-layer-color" aria-label="Layer colour label">
+                <option value="">None</option>
+                <option value="red">Red</option>
+                <option value="orange">Orange</option>
+                <option value="yellow">Yellow</option>
+                <option value="green">Green</option>
+                <option value="blue">Blue</option>
+                <option value="purple">Purple</option>
+              </select></label>
+              <input type="search" id="pe-layer-filter" class="pe-layer-filter" placeholder="Find layer…" maxlength="40" aria-label="Find layers by name" autocomplete="off">
+              <select id="pe-layer-filter-color" aria-label="Show only layers with this colour label" title="Show only layers with this colour label">
+                <option value="">All labels</option>
+                <option value="none">No label</option>
+                <option value="red">Red</option>
+                <option value="orange">Orange</option>
+                <option value="yellow">Yellow</option>
+                <option value="green">Green</option>
+                <option value="blue">Blue</option>
+                <option value="purple">Purple</option>
+              </select>
+              <ul id="pe-layer-list" class="pe-layer-list" aria-label="Layers, top layer first"></ul>
+              <span id="pe-layer-note" class="pe-layer-note" role="status"></span>
+            </div>
             <div class="pe-tool-group">
               <span class="pe-group-label">Crop</span>
               <button type="button" class="pe-tool active" data-tool="select">Select / Crop</button>

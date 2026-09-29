@@ -3,12 +3,13 @@
 
   const $ = (id) => document.getElementById(id);
   const modal = $("photo-editor-modal");
-  const canvas = $("pe-canvas");
+  let canvas = $("pe-canvas"); // the ACTIVE layer's bitmap (see the Layers section)
+  const baseCanvasEl = canvas; // the always-present element; layers borrow it before making new ones
   const overlay = $("pe-overlay");
   const stack = $("pe-canvas-stack");
   const frame = $("pe-canvas-frame"); // sized to what the (possibly rotated) view occupies
   const canvasWrap = $("pe-canvas-wrap");
-  const ctx = canvas.getContext("2d");
+  let ctx = canvas.getContext("2d");
   const octx = overlay.getContext("2d");
 
   // Images larger than this (on the long edge) are downscaled on load —
@@ -175,6 +176,11 @@
   let originalKey = null;
   let undoStack = [];
   let redoStack = [];
+  // Layers, bottom first: {id, name, color, visible, opacity, blend, canvas}. Every
+  // layer bitmap is the same size; `canvas`/`ctx` above always point at the active one.
+  let layers = [];
+  let activeLayerId = 0;
+  let layerSeq = 0;
   let originalSnapshot = null; // canvas clone taken when the image is first loaded, for "Reset"
   let currentTool = "select";
   let cropRect = null; // {x0,y0,x1,y1} in canvas pixel space
@@ -306,8 +312,10 @@
     stack.classList.toggle("is-pixelated", scale >= 2);
     const w = Math.round(canvas.width * scale);
     const h = Math.round(canvas.height * scale);
-    canvas.style.width = w + "px";
-    canvas.style.height = h + "px";
+    for (const layer of layers) {
+      layer.canvas.style.width = w + "px";
+      layer.canvas.style.height = h + "px";
+    }
     overlay.style.width = w + "px";
     overlay.style.height = h + "px";
     stack.style.width = w + "px";
@@ -382,12 +390,15 @@
     overlay.height = canvas.height;
   }
 
-  function snapshotCanvas() {
+  function snapshotOf(el) {
     const snap = document.createElement("canvas");
-    snap.width = canvas.width;
-    snap.height = canvas.height;
-    snap.getContext("2d").drawImage(canvas, 0, 0);
+    snap.width = el.width;
+    snap.height = el.height;
+    snap.getContext("2d").drawImage(el, 0, 0);
     return snap;
+  }
+  function snapshotCanvas() {
+    return snapshotOf(canvas);
   }
 
   // Undo entries are {canvas, sel}: the pixels before an edit (null for a
@@ -400,36 +411,53 @@
   // Pixel snapshots are the heavy part, so they keep the original depth (15);
   // selection-only entries are tiny and are limited separately, so a run of
   // selection changes can never push a pixel edit out of the history.
+  // Entry kinds: {canvas, layer, sel} one layer's pixels; {all, sel} every layer
+  // (structure changes and anything that resizes the image); {meta, sel} only the
+  // layer settings (visibility, opacity, blend, name, label colour, order);
+  // {canvas: null, sel} a selection-only change. A whole-image entry costs one
+  // snapshot per layer, so the total is capped as well as the count.
   const SELECTION_UNDO_LIMIT = 40;
+  const UNDO_WEIGHT_LIMIT = 30;
+  const entryWeight = (entry) => (entry.all ? entry.all.layers.length : entry.canvas ? 1 : 0);
   function trimUndo() {
-    const dropOldest = (wantPixel) => {
-      const i = undoStack.findIndex((entry) => Boolean(entry.canvas) === wantPixel);
+    const heavy = (entry) => entryWeight(entry) > 0;
+    const dropOldest = (wantHeavy) => {
+      const i = undoStack.findIndex((entry) => heavy(entry) === wantHeavy);
       if (i >= 0) undoStack.splice(i, 1);
     };
-    let pixel = undoStack.filter((entry) => entry.canvas).length;
-    while (pixel > UNDO_LIMIT) {
-      dropOldest(true);
+    let pixel = undoStack.filter(heavy).length;
+    let weight = undoStack.reduce((sum, entry) => sum + entryWeight(entry), 0);
+    while (pixel > UNDO_LIMIT || (weight > UNDO_WEIGHT_LIMIT && pixel > 1)) {
+      const i = undoStack.findIndex(heavy);
+      weight -= entryWeight(undoStack[i]);
+      undoStack.splice(i, 1);
       pixel--;
     }
-    let selectionOnly = undoStack.length - pixel;
-    while (selectionOnly > SELECTION_UNDO_LIMIT) {
+    let light = undoStack.length - pixel;
+    while (light > SELECTION_UNDO_LIMIT) {
       dropOldest(false);
-      selectionOnly--;
+      light--;
     }
   }
 
-  function pushUndo() {
-    undoStack.push({ canvas: snapshotCanvas(), sel: cloneOps(selOps) });
+  function pushEntry(entry) {
+    undoStack.push(entry);
     trimUndo();
     redoStack = [];
     updateHistoryButtons();
+  }
+  function pushUndo() {
+    pushEntry({ canvas: snapshotCanvas(), layer: activeLayerId, sel: cloneOps(selOps) });
+  }
+  function pushUndoAll() {
+    pushEntry({ all: snapshotAll(), sel: cloneOps(selOps) });
+  }
+  function pushMetaUndo(before) {
+    pushEntry({ meta: before || layerMetaList(), sel: cloneOps(selOps) });
   }
 
   function pushSelectionUndo() {
-    undoStack.push({ canvas: null, sel: cloneOps(selOps) });
-    trimUndo();
-    redoStack = [];
-    updateHistoryButtons();
+    pushEntry({ canvas: null, sel: cloneOps(selOps) });
   }
 
   // Put the selection back to the given shapes (no-op when it already is).
@@ -444,10 +472,12 @@
     $("pe-redo").disabled = redoStack.length === 0;
   }
 
-  function restoreSnapshot(snap) {
-    canvas.width = snap.width;
-    canvas.height = snap.height;
-    ctx.drawImage(snap, 0, 0);
+  // Puts one layer's pixels (and size) back; the active layer unless told otherwise.
+  function restoreSnapshot(snap, target) {
+    const el = target ? target.canvas : canvas;
+    el.width = snap.width;
+    el.height = snap.height;
+    el.getContext("2d").drawImage(snap, 0, 0);
     syncOverlaySize();
     // Undo/redo/reset have the identical "canvas changed underneath any
     // in-progress interaction" problem rotate90()/flip() do -- a critic
@@ -456,6 +486,30 @@
     // mask or a shape tool's drag anchor, both invalidated the same way.
     cancelActiveDrag();
     fitCanvasToViewport();
+  }
+
+  // What the entry would replace, captured now so the opposite stack can put it back.
+  function counterpartOf(entry) {
+    const sel = cloneOps(selOps);
+    if (entry.all) return { all: snapshotAll(), sel };
+    if (entry.meta) return { meta: layerMetaList(), sel };
+    if (entry.canvas) {
+      const layer = layerById(entry.layer);
+      return { canvas: layer ? snapshotOf(layer.canvas) : null, layer: entry.layer, sel };
+    }
+    return { canvas: null, sel };
+  }
+  function applyEntry(entry) {
+    if (entry.all) restoreAll(entry.all);
+    else if (entry.meta) restoreLayerMeta(entry.meta);
+    else if (entry.canvas) {
+      const layer = layerById(entry.layer);
+      if (layer) restoreSnapshot(entry.canvas, layer);
+    }
+    restoreSelection(entry.sel);
+    selectionNoteText = "";
+    updateSelectionUi();
+    updateHistoryButtons();
   }
 
   // A critic pass caught a real corruption bug: Ctrl+Z fired while Compare
@@ -470,32 +524,476 @@
     if (isComparing()) return;
     const prev = undoStack.pop();
     if (!prev) return;
-    redoStack.push({ canvas: prev.canvas ? snapshotCanvas() : null, sel: cloneOps(selOps) });
-    if (prev.canvas) restoreSnapshot(prev.canvas);
-    restoreSelection(prev.sel);
-    selectionNoteText = "";
-    updateSelectionUi();
-    updateHistoryButtons();
+    redoStack.push(counterpartOf(prev));
+    applyEntry(prev);
   }
 
   function redo() {
     if (isComparing()) return;
     const next = redoStack.pop();
     if (!next) return;
-    undoStack.push({ canvas: next.canvas ? snapshotCanvas() : null, sel: cloneOps(selOps) });
-    if (next.canvas) restoreSnapshot(next.canvas);
-    restoreSelection(next.sel);
-    selectionNoteText = "";
-    updateSelectionUi();
-    updateHistoryButtons();
+    undoStack.push(counterpartOf(next));
+    applyEntry(next);
   }
 
   function resetToOriginal() {
     if (!originalSnapshot || isComparing()) return;
     if (!confirm("Discard all edits and go back to the original image?")) return;
-    pushUndo();
+    pushUndoAll();
+    const only = layers[0];
+    for (const layer of layers.slice(1)) releaseCanvasEl(layer.canvas);
+    Object.assign(only, defaultLayerMeta(only.id, "Background"));
+    layers = [only];
+    activeLayerId = only.id;
+    bindActiveLayer();
     restoreSnapshot(originalSnapshot);
+    syncLayerDom();
+    renderLayerPanel();
   }
+
+  // ---------- Layers ----------
+  // Each layer is its own bitmap, stacked as <canvas> elements (bottom first) so
+  // the view composites them with plain CSS opacity/blend modes; export draws
+  // the visible ones together the same way. Every tool paints into the active
+  // layer only, through `canvas`/`ctx`. Anything that changes the image size
+  // (crop, rotate, resize, straighten, canvas size) or flips it goes through all
+  // layers, and structure changes keep a whole-image undo entry.
+  const MAX_LAYERS = 6;
+  const LAYER_BLENDS = ["normal", "multiply", "screen", "overlay", "darken", "lighten"];
+  const LAYER_COLORS = {
+    "": "none",
+    red: "#e5484d",
+    orange: "#f76b15",
+    yellow: "#f5d90a",
+    green: "#30a46c",
+    blue: "#3e63dd",
+    purple: "#8e4ec6",
+  };
+  const LAYER_NAME_MAX = 40;
+
+  function defaultLayerMeta(id, name) {
+    return { id, name, color: "", visible: true, opacity: 100, blend: "normal" };
+  }
+  function metaOf(layer) {
+    return { id: layer.id, name: layer.name, color: layer.color, visible: layer.visible, opacity: layer.opacity, blend: layer.blend };
+  }
+  const layerById = (id) => layers.find((layer) => layer.id === id) || null;
+  const activeLayer = () => layerById(activeLayerId);
+  function layerMetaList() {
+    return layers.map(metaOf);
+  }
+  function snapshotAll() {
+    return { layers: layers.map((layer) => ({ meta: metaOf(layer), canvas: snapshotOf(layer.canvas) })), active: activeLayerId };
+  }
+
+  function acquireCanvasEl() {
+    if (!layers.some((layer) => layer.canvas === baseCanvasEl)) return baseCanvasEl;
+    const el = document.createElement("canvas");
+    el.className = "pe-layer";
+    stack.insertBefore(el, overlay);
+    return el;
+  }
+  function releaseCanvasEl(el) {
+    if (el === baseCanvasEl) {
+      el.style.display = "none"; // stays in the page for the next layer to borrow
+      return;
+    }
+    el.remove();
+  }
+
+  function bindActiveLayer() {
+    const layer = activeLayer() || layers[layers.length - 1];
+    activeLayerId = layer.id;
+    canvas = layer.canvas;
+    ctx = canvas.getContext("2d");
+  }
+
+  function compositeOp(blend) {
+    return blend === "normal" ? "source-over" : blend;
+  }
+
+  // The image as it will be saved: visible layers drawn bottom to top. A lone
+  // plain layer is returned as is, so the common one-layer case costs nothing.
+  function flattenedCanvas() {
+    const visible = layers.filter((layer) => layer.visible);
+    if (visible.length === 1 && visible[0].opacity === 100 && visible[0].blend === "normal") return visible[0].canvas;
+    const out = document.createElement("canvas");
+    out.width = canvas.width;
+    out.height = canvas.height;
+    const octx2 = out.getContext("2d");
+    for (const layer of visible) {
+      octx2.globalAlpha = layer.opacity / 100;
+      octx2.globalCompositeOperation = compositeOp(layer.blend);
+      octx2.drawImage(layer.canvas, 0, 0);
+    }
+    return out;
+  }
+
+  function syncLayerDom() {
+    layers.forEach((layer, i) => {
+      const el = layer.canvas;
+      el.classList.add("pe-layer");
+      el.classList.toggle("pe-layer-active", layer.id === activeLayerId);
+      el.dataset.layerId = String(layer.id);
+      el.style.zIndex = String(i + 1);
+      el.style.opacity = String(layer.opacity / 100);
+      el.style.mixBlendMode = layer.blend;
+      el.style.display = layer.visible ? "" : "none";
+      el.style.width = stack.style.width;
+      el.style.height = stack.style.height;
+    });
+  }
+
+  function setLayerNote(text) {
+    const note = $("pe-layer-note");
+    if (note) note.textContent = text || "";
+  }
+  // Drawing on a layer that is switched off would change pixels nobody can see.
+  function layerBlocked() {
+    const layer = activeLayer();
+    if (layer && !layer.visible) {
+      setLayerNote(`"${layer.name}" is hidden. Show it (or pick another layer) to edit it.`);
+      return true;
+    }
+    return false;
+  }
+
+  function initLayers(w, h) {
+    for (const layer of layers) releaseCanvasEl(layer.canvas);
+    layers = [];
+    layerSeq = 1;
+    const base = { ...defaultLayerMeta(1, "Background"), canvas: acquireCanvasEl() };
+    base.canvas.width = w;
+    base.canvas.height = h;
+    layers = [base];
+    activeLayerId = base.id;
+    bindActiveLayer();
+    layerFilterText = "";
+    layerFilterColor = "";
+    $("pe-layer-filter").value = "";
+    $("pe-layer-filter-color").value = "";
+    setLayerNote("");
+    syncLayerDom();
+    renderLayerPanel();
+  }
+
+  // Puts every layer back as the snapshot had it (Undo/Redo, snapshots, Reset).
+  function restoreAll(state) {
+    const keep = new Set(state.layers.map((entry) => entry.meta.id));
+    for (const layer of layers) if (!keep.has(layer.id)) releaseCanvasEl(layer.canvas);
+    const kept = layers.filter((layer) => keep.has(layer.id));
+    layers = state.layers.map((entry) => {
+      const layer = kept.find((l) => l.id === entry.meta.id) || { canvas: null };
+      if (!layer.canvas) layer.canvas = acquireCanvasEl();
+      Object.assign(layer, entry.meta);
+      layer.canvas.width = entry.canvas.width;
+      layer.canvas.height = entry.canvas.height;
+      layer.canvas.getContext("2d").drawImage(entry.canvas, 0, 0);
+      return layer;
+    });
+    activeLayerId = layerById(state.active) ? state.active : layers[layers.length - 1].id;
+    bindActiveLayer();
+    syncOverlaySize();
+    cancelActiveDrag();
+    fitCanvasToViewport();
+    syncLayerDom();
+    renderLayerPanel();
+  }
+
+  function restoreLayerMeta(list) {
+    const order = [];
+    for (const meta of list) {
+      const layer = layerById(meta.id);
+      if (layer) {
+        Object.assign(layer, meta);
+        order.push(layer);
+      }
+    }
+    // Layers the list doesn't mention (none in practice) keep their place on top.
+    for (const layer of layers) if (!order.includes(layer)) order.push(layer);
+    layers = order;
+    bindActiveLayer();
+    syncLayerDom();
+    renderLayerPanel();
+  }
+
+  // Runs `draw(layerCtx, source)` for every layer at a new size; `source` is the
+  // layer's earlier pixels. Used by every operation that resizes the image.
+  function transformAllLayers(w, h, draw) {
+    for (const layer of layers) {
+      const source = snapshotOf(layer.canvas);
+      layer.canvas.width = w;
+      layer.canvas.height = h;
+      draw(layer.canvas.getContext("2d"), source);
+    }
+  }
+
+  function nextLayerName() {
+    let n = layers.length + 1;
+    const taken = new Set(layers.map((layer) => layer.name));
+    while (taken.has(`Layer ${n}`)) n++;
+    return `Layer ${n}`;
+  }
+  function insertLayerAbove(index, layer) {
+    layers.splice(index + 1, 0, layer);
+    activeLayerId = layer.id;
+    bindActiveLayer();
+    invalidateOpenAdjustDrag();
+    syncLayerDom();
+    renderLayerPanel();
+  }
+  function layerIndex() {
+    return layers.findIndex((layer) => layer.id === activeLayerId);
+  }
+  // Layer actions leave the crop box, an open adjust drag and stroke state alone
+  // only while nothing is being dragged; while Compare is held they do nothing.
+  function layerActionsBlocked() {
+    return isComparing() || dragging || strokeActive;
+  }
+
+  function addLayer() {
+    if (layerActionsBlocked()) return;
+    if (layers.length >= MAX_LAYERS) return setLayerNote(`Up to ${MAX_LAYERS} layers per image.`);
+    pushUndoAll();
+    const el = acquireCanvasEl();
+    el.width = canvas.width;
+    el.height = canvas.height;
+    insertLayerAbove(layerIndex(), { ...defaultLayerMeta(++layerSeq, nextLayerName()), canvas: el });
+    setLayerNote("");
+  }
+  function duplicateLayer() {
+    if (layerActionsBlocked()) return;
+    if (layers.length >= MAX_LAYERS) return setLayerNote(`Up to ${MAX_LAYERS} layers per image.`);
+    pushUndoAll();
+    const source = activeLayer();
+    const el = acquireCanvasEl();
+    el.width = source.canvas.width;
+    el.height = source.canvas.height;
+    el.getContext("2d").drawImage(source.canvas, 0, 0);
+    const meta = { ...metaOf(source), id: ++layerSeq, name: `${source.name} copy`.slice(0, LAYER_NAME_MAX) };
+    insertLayerAbove(layerIndex(), { ...meta, canvas: el });
+    setLayerNote("");
+  }
+  function deleteLayer() {
+    if (layerActionsBlocked()) return;
+    if (layers.length < 2) return setLayerNote("An image needs at least one layer.");
+    pushUndoAll();
+    const i = layerIndex();
+    const [gone] = layers.splice(i, 1);
+    releaseCanvasEl(gone.canvas);
+    activeLayerId = layers[Math.min(i, layers.length - 1)].id;
+    bindActiveLayer();
+    invalidateOpenAdjustDrag();
+    syncLayerDom();
+    renderLayerPanel();
+    setLayerNote("");
+  }
+  function mergeLayerDown() {
+    if (layerActionsBlocked()) return;
+    const i = layerIndex();
+    if (i < 1) return setLayerNote("There's no layer below this one to merge into.");
+    const top = layers[i];
+    const below = layers[i - 1];
+    if (!top.visible || !below.visible) return setLayerNote("Show both layers to merge them.");
+    pushUndoAll();
+    const bctx = below.canvas.getContext("2d");
+    bctx.save();
+    bctx.globalAlpha = top.opacity / 100;
+    bctx.globalCompositeOperation = compositeOp(top.blend);
+    bctx.drawImage(top.canvas, 0, 0);
+    bctx.restore();
+    layers.splice(i, 1);
+    releaseCanvasEl(top.canvas);
+    activeLayerId = below.id;
+    bindActiveLayer();
+    invalidateOpenAdjustDrag();
+    syncLayerDom();
+    renderLayerPanel();
+    setLayerNote("");
+  }
+  function flattenLayers() {
+    if (layerActionsBlocked()) return;
+    if (layers.length < 2) return setLayerNote("There's only one layer.");
+    const hidden = layers.filter((layer) => !layer.visible).length;
+    if (hidden && !confirm(`${hidden} hidden layer${hidden === 1 ? "" : "s"} will be discarded. Flatten anyway? (Undo brings them back.)`)) return;
+    pushUndoAll();
+    const flat = snapshotOf(flattenedCanvas());
+    const first = layers[0];
+    for (const layer of layers.slice(1)) releaseCanvasEl(layer.canvas);
+    Object.assign(first, defaultLayerMeta(first.id, first.name));
+    first.canvas.width = flat.width;
+    first.canvas.height = flat.height;
+    first.canvas.getContext("2d").drawImage(flat, 0, 0);
+    layers = [first];
+    activeLayerId = first.id;
+    bindActiveLayer();
+    invalidateOpenAdjustDrag();
+    syncLayerDom();
+    renderLayerPanel();
+    setLayerNote("");
+  }
+  function moveLayer(delta) {
+    if (layerActionsBlocked()) return;
+    const i = layerIndex();
+    const j = i + delta;
+    if (j < 0 || j >= layers.length) return;
+    pushMetaUndo();
+    [layers[i], layers[j]] = [layers[j], layers[i]];
+    syncLayerDom();
+    renderLayerPanel();
+  }
+  function selectLayer(id) {
+    if (layerActionsBlocked() || id === activeLayerId || !layerById(id)) return;
+    activeLayerId = id;
+    bindActiveLayer();
+    // A half-finished adjust drag belongs to the layer it began on.
+    invalidateOpenAdjustDrag();
+    syncLayerDom();
+    renderLayerPanel();
+    setLayerNote("");
+  }
+  function toggleLayerVisible(id) {
+    if (layerActionsBlocked()) return;
+    const layer = layerById(id);
+    if (!layer) return;
+    pushMetaUndo();
+    layer.visible = !layer.visible;
+    syncLayerDom();
+    renderLayerPanel();
+    setLayerNote("");
+  }
+  async function renameLayer() {
+    if (layerActionsBlocked()) return;
+    const layer = activeLayer();
+    const id = layer.id;
+    const name = await promptForText("Rename layer", "Layer name", layer.name);
+    if (name === null || !layerById(id)) return;
+    const clean = name.trim().slice(0, LAYER_NAME_MAX);
+    if (!clean || clean === layerById(id).name) return;
+    pushMetaUndo();
+    layerById(id).name = clean;
+    renderLayerPanel();
+  }
+
+  let layerFilterText = "";
+  let layerFilterColor = "";
+  function layerMatchesFilter(layer) {
+    if (layerFilterColor === "none" ? layer.color !== "" : layerFilterColor && layer.color !== layerFilterColor) return false;
+    return !layerFilterText || layer.name.toLowerCase().includes(layerFilterText);
+  }
+
+  function renderLayerPanel() {
+    const list = $("pe-layer-list");
+    if (!list) return;
+    const i = layerIndex();
+    const active = layers[i];
+    list.textContent = "";
+    let shown = 0;
+    for (let k = layers.length - 1; k >= 0; k--) {
+      const layer = layers[k];
+      if (!layerMatchesFilter(layer) && layer.id !== activeLayerId) continue;
+      if (layerMatchesFilter(layer)) shown++;
+      const row = document.createElement("li");
+      row.className = "pe-layer-row";
+      row.classList.toggle("is-active", layer.id === activeLayerId);
+      row.classList.toggle("is-hidden", !layer.visible);
+      const eye = document.createElement("button");
+      eye.type = "button";
+      eye.className = "pe-layer-eye";
+      eye.setAttribute("aria-pressed", String(layer.visible));
+      eye.setAttribute("aria-label", `${layer.visible ? "Hide" : "Show"} layer ${layer.name}`);
+      eye.textContent = layer.visible ? "◉" : "◌";
+      eye.addEventListener("click", () => toggleLayerVisible(layer.id));
+      const pick = document.createElement("button");
+      pick.type = "button";
+      pick.className = "pe-layer-pick";
+      if (layer.id === activeLayerId) pick.setAttribute("aria-current", "true");
+      const dot = document.createElement("span");
+      dot.className = "pe-layer-dot";
+      dot.style.background = LAYER_COLORS[layer.color] && layer.color ? LAYER_COLORS[layer.color] : "transparent";
+      dot.title = layer.color ? `Label: ${layer.color}` : "No colour label";
+      const label = document.createElement("span");
+      label.className = "pe-layer-name";
+      label.textContent = layer.name;
+      if (layer.color) pick.append(dot);
+      pick.append(label);
+      pick.addEventListener("click", () => selectLayer(layer.id));
+      row.append(eye, pick);
+      list.append(row);
+    }
+    const filtering = Boolean(layerFilterText || layerFilterColor);
+    $("pe-layer-count").textContent = filtering ? `${shown} of ${layers.length} shown` : `${layers.length} layer${layers.length === 1 ? "" : "s"}`;
+    if (filtering && !shown) {
+      const empty = document.createElement("li");
+      empty.className = "pe-layer-empty";
+      empty.textContent = "No layers match.";
+      list.append(empty);
+    }
+    if (!active) return;
+    $("pe-layer-opacity").value = active.opacity;
+    $("pe-layer-opacity-val").textContent = `${active.opacity}%`;
+    $("pe-layer-blend").value = active.blend;
+    $("pe-layer-color").value = active.color;
+    $("pe-layer-up").disabled = i >= layers.length - 1;
+    $("pe-layer-down").disabled = i < 1;
+    $("pe-layer-merge").disabled = i < 1;
+    $("pe-layer-delete").disabled = layers.length < 2;
+    $("pe-layer-flatten").disabled = layers.length < 2;
+    $("pe-layer-add").disabled = layers.length >= MAX_LAYERS;
+    $("pe-layer-duplicate").disabled = layers.length >= MAX_LAYERS;
+  }
+
+  $("pe-layer-add").addEventListener("click", addLayer);
+  $("pe-layer-duplicate").addEventListener("click", duplicateLayer);
+  $("pe-layer-delete").addEventListener("click", deleteLayer);
+  $("pe-layer-merge").addEventListener("click", mergeLayerDown);
+  $("pe-layer-flatten").addEventListener("click", flattenLayers);
+  $("pe-layer-up").addEventListener("click", () => moveLayer(1));
+  $("pe-layer-down").addEventListener("click", () => moveLayer(-1));
+  $("pe-layer-rename").addEventListener("click", renameLayer);
+  $("pe-layer-color").addEventListener("change", () => {
+    const layer = activeLayer();
+    const value = $("pe-layer-color").value;
+    if (layerActionsBlocked() || !layer || layer.color === value) return renderLayerPanel();
+    pushMetaUndo();
+    layer.color = value;
+    renderLayerPanel();
+  });
+  $("pe-layer-blend").addEventListener("change", () => {
+    const layer = activeLayer();
+    const value = $("pe-layer-blend").value;
+    if (layerActionsBlocked() || !layer || !LAYER_BLENDS.includes(value) || layer.blend === value) return renderLayerPanel();
+    pushMetaUndo();
+    layer.blend = value;
+    syncLayerDom();
+    renderLayerPanel();
+  });
+  // One undo step per opacity drag: the state before the first tick is kept until
+  // the slider is released.
+  let opacityBefore = null;
+  $("pe-layer-opacity").addEventListener("input", () => {
+    const layer = activeLayer();
+    if (layerActionsBlocked() || !layer) return renderLayerPanel();
+    if (!opacityBefore) opacityBefore = layerMetaList();
+    layer.opacity = Math.max(0, Math.min(100, Math.round(Number($("pe-layer-opacity").value) || 0)));
+    $("pe-layer-opacity-val").textContent = `${layer.opacity}%`;
+    syncLayerDom();
+  });
+  $("pe-layer-opacity").addEventListener("change", () => {
+    if (!opacityBefore) return;
+    const before = opacityBefore;
+    opacityBefore = null;
+    const changed = JSON.stringify(before) !== JSON.stringify(layerMetaList());
+    if (changed) pushMetaUndo(before);
+  });
+  $("pe-layer-filter").addEventListener("input", () => {
+    layerFilterText = $("pe-layer-filter").value.trim().toLowerCase();
+    renderLayerPanel();
+  });
+  $("pe-layer-filter-color").addEventListener("change", () => {
+    layerFilterColor = $("pe-layer-filter-color").value;
+    renderLayerPanel();
+  });
 
   // ---------- Named snapshots ----------
   // A separate, unbounded-within-reason list an admin explicitly names
@@ -506,7 +1004,7 @@
   // stale-drag invalidation identically -- no separate restore logic to
   // keep in sync with future changes to that function.
   const NAMED_SNAPSHOT_LIMIT = 5;
-  let namedSnapshots = []; // { name, canvas }
+  let namedSnapshots = []; // { name, all } (every layer, see snapshotAll)
 
   function escapeHtmlAttr(s) {
     return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -540,10 +1038,10 @@
     if (isComparing()) return;
     // Capture pixels before the dialog yields, while a second pointer may still
     // be delivering changes from an in-progress gesture.
-    const snapshot = snapshotCanvas();
+    const snapshot = snapshotAll();
     const name = await promptForText("Save snapshot", "Snapshot name", `Snapshot ${namedSnapshots.length + 1}`);
     if (name === null) return;
-    namedSnapshots.push({ name: name.trim(), canvas: snapshot });
+    namedSnapshots.push({ name: name.trim(), all: snapshot });
     // Full-size canvas copies held in memory -- capped like the undo stack
     // so a long editing session on a large (MAX_DIMENSION-sized) image
     // can't quietly accumulate an unbounded number of them.
@@ -558,8 +1056,8 @@
     const snap = namedSnapshots[idx];
     if (!snap) return;
     if (!confirm(`Jump back to the "${snap.name}" snapshot? Your current state stays undoable afterward with Undo.`)) return;
-    pushUndo();
-    restoreSnapshot(snap.canvas);
+    pushUndoAll();
+    restoreAll(snap.all);
   });
 
   $("pe-delete-snapshot").addEventListener("click", () => {
@@ -619,6 +1117,7 @@
     if (!originalSnapshot || compareSavedState || dragging || baseSnapshot) return;
     resetStraightenUi();
     compareSavedState = snapshotCanvas();
+    stack.classList.add("is-comparing");
     compareScroll = { l: canvasWrap.scrollLeft, t: canvasWrap.scrollTop };
     canvas.width = originalSnapshot.width;
     canvas.height = originalSnapshot.height;
@@ -636,6 +1135,7 @@
     syncOverlaySize();
     fitCanvasToViewport();
     compareSavedState = null;
+    stack.classList.remove("is-comparing");
     if (compareScroll) {
       // A size-mismatched compare clamped the scroll position; put it back.
       canvasWrap.scrollLeft = compareScroll.l;
@@ -852,11 +1352,13 @@
     if (!cropRect) return;
     const r = normalizedCrop(cropRect);
     if (r.w < 2 || r.h < 2) return;
-    pushUndo();
-    const data = ctx.getImageData(r.x, r.y, r.w, r.h);
-    canvas.width = r.w;
-    canvas.height = r.h;
-    ctx.putImageData(data, 0, 0);
+    pushUndoAll();
+    const pieces = layers.map((layer) => layer.canvas.getContext("2d").getImageData(r.x, r.y, r.w, r.h));
+    layers.forEach((layer, i) => {
+      layer.canvas.width = r.w;
+      layer.canvas.height = r.h;
+      layer.canvas.getContext("2d").putImageData(pieces[i], 0, 0);
+    });
     syncOverlaySize();
     // Was: manually clearing cropRect/hiding the button/clearing the
     // overlay inline. Replaced with cancelActiveDrag() (same as rotate90()/
@@ -1502,7 +2004,7 @@
   $("pe-sel-clear").addEventListener("click", deselect);
 
   $("pe-sel-delete").addEventListener("click", () => {
-    if (isComparing() || !hasSelection()) return;
+    if (isComparing() || !hasSelection() || layerBlocked()) return;
     pushUndo();
     ctx.save();
     ctx.globalCompositeOperation = "destination-out";
@@ -1713,19 +2215,14 @@
 
   function rotate90(clockwise) {
     if (isComparing()) return;
-    pushUndo();
+    pushUndoAll();
     const w = canvas.width;
     const h = canvas.height;
-    const tmp = document.createElement("canvas");
-    tmp.width = h;
-    tmp.height = w;
-    const tctx = tmp.getContext("2d");
-    tctx.translate(clockwise ? h : 0, clockwise ? 0 : w);
-    tctx.rotate((clockwise ? 1 : -1) * (Math.PI / 2));
-    tctx.drawImage(canvas, 0, 0);
-    canvas.width = h;
-    canvas.height = w;
-    ctx.drawImage(tmp, 0, 0);
+    transformAllLayers(h, w, (lctx, source) => {
+      lctx.translate(clockwise ? h : 0, clockwise ? 0 : w);
+      lctx.rotate((clockwise ? 1 : -1) * (Math.PI / 2));
+      lctx.drawImage(source, 0, 0);
+    });
     syncOverlaySize();
     dropSelection("The selection was cleared because the image was rotated.");
     cancelActiveDrag();
@@ -1737,19 +2234,22 @@
   // ---------- Flip ----------
   function flip(horizontal) {
     if (isComparing()) return;
-    pushUndo();
-    const snap = snapshotCanvas();
-    ctx.save();
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (horizontal) {
-      ctx.translate(canvas.width, 0);
-      ctx.scale(-1, 1);
-    } else {
-      ctx.translate(0, canvas.height);
-      ctx.scale(1, -1);
+    pushUndoAll();
+    for (const layer of layers) {
+      const snap = snapshotOf(layer.canvas);
+      const lctx = layer.canvas.getContext("2d");
+      lctx.save();
+      lctx.clearRect(0, 0, snap.width, snap.height);
+      if (horizontal) {
+        lctx.translate(snap.width, 0);
+        lctx.scale(-1, 1);
+      } else {
+        lctx.translate(0, snap.height);
+        lctx.scale(1, -1);
+      }
+      lctx.drawImage(snap, 0, 0);
+      lctx.restore();
     }
-    ctx.drawImage(snap, 0, 0);
-    ctx.restore();
     dropSelection("The selection was cleared because the image was flipped.");
     cancelActiveDrag();
   }
@@ -1856,7 +2356,7 @@
     octx.save();
     octx.translate(w / 2, h / 2);
     octx.rotate(radians);
-    octx.drawImage(canvas, -w / 2, -h / 2);
+    octx.drawImage(flattenedCanvas(), -w / 2, -h / 2);
     octx.restore();
     octx.fillStyle = "rgba(0,0,0,0.55)";
     octx.beginPath();
@@ -1915,18 +2415,13 @@
     const h = canvas.height;
     const crop = straightenSize(w, h, radians);
     if (crop.tooSmall) return;
-    pushUndo();
-    const out = document.createElement("canvas");
-    out.width = crop.w;
-    out.height = crop.h;
-    const outCtx = out.getContext("2d");
-    outCtx.imageSmoothingQuality = "high";
-    outCtx.translate(crop.w / 2, crop.h / 2);
-    outCtx.rotate(radians);
-    outCtx.drawImage(canvas, -w / 2, -h / 2);
-    canvas.width = crop.w;
-    canvas.height = crop.h;
-    ctx.drawImage(out, 0, 0);
+    pushUndoAll();
+    transformAllLayers(crop.w, crop.h, (lctx, source) => {
+      lctx.imageSmoothingQuality = "high";
+      lctx.translate(crop.w / 2, crop.h / 2);
+      lctx.rotate(radians);
+      lctx.drawImage(source, -w / 2, -h / 2);
+    });
     syncOverlaySize();
     cancelActiveDrag();
     fitCanvasToViewport();
@@ -1976,17 +2471,16 @@
     const w = clampResizeDimension(Number($("pe-resize-width").value) || canvas.width);
     const h = clampResizeDimension(Number($("pe-resize-height").value) || canvas.height);
     if (w === canvas.width && h === canvas.height) return;
-    pushUndo();
-    const snap = snapshotCanvas();
-    canvas.width = w;
-    canvas.height = h;
-    // Higher-quality resampling than the browser default (which several
-    // engines leave at "low") -- most noticeable on a large downscale,
-    // where the default can look visibly blockier than necessary for a
-    // one-shot "resize the image" operation.
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(snap, 0, 0, snap.width, snap.height, 0, 0, w, h);
+    pushUndoAll();
+    transformAllLayers(w, h, (lctx, snap) => {
+      // Higher-quality resampling than the browser default (which several
+      // engines leave at "low") -- most noticeable on a large downscale,
+      // where the default can look visibly blockier than necessary for a
+      // one-shot "resize the image" operation.
+      lctx.imageSmoothingEnabled = true;
+      lctx.imageSmoothingQuality = "high";
+      lctx.drawImage(snap, 0, 0, snap.width, snap.height, 0, 0, w, h);
+    });
     syncOverlaySize();
     cancelActiveDrag();
     fitCanvasToViewport();
@@ -2021,14 +2515,11 @@
     const w = clampResizeDimension(Number($("pe-canvas-width").value) || canvas.width);
     const h = clampResizeDimension(Number($("pe-canvas-height").value) || canvas.height);
     if (w === canvas.width && h === canvas.height) return;
-    pushUndo();
-    const snap = snapshotCanvas();
+    pushUndoAll();
     const [fx, fy] = CANVAS_ANCHOR_FRACTIONS[$("pe-canvas-anchor").value] || [0.5, 0.5];
-    const dx = Math.round(fx * (w - snap.width));
-    const dy = Math.round(fy * (h - snap.height));
-    canvas.width = w;
-    canvas.height = h;
-    ctx.drawImage(snap, dx, dy);
+    const dx = Math.round(fx * (w - canvas.width));
+    const dy = Math.round(fy * (h - canvas.height));
+    transformAllLayers(w, h, (lctx, snap) => lctx.drawImage(snap, dx, dy));
     syncOverlaySize();
     cancelActiveDrag();
     fitCanvasToViewport();
@@ -2036,7 +2527,7 @@
 
   // ---------- One-click filters ----------
   function applyOneShotFilter(cssFilter) {
-    if (isComparing()) return;
+    if (isComparing() || layerBlocked()) return;
     pushUndo();
     const snap = snapshotCanvas();
     paintFiltered(snap, cssFilter);
@@ -2056,7 +2547,7 @@
   // identically to its R/G/B channels, matching real film grain's
   // luminance-only noise look rather than per-channel color static.
   function applyGrain(amount) {
-    if (isComparing()) return;
+    if (isComparing() || layerBlocked()) return;
     pushUndo();
     const beforeGrain = hasSelection() ? snapshotCanvas() : null;
     const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -2099,6 +2590,10 @@
     // that same temporary canvas, corrupting whatever the slider paints
     // next even after Compare is released.
     if (isComparing()) return;
+    if (layerBlocked()) {
+      ["pe-brightness", "pe-contrast", "pe-saturate"].forEach((id) => ($(id).value = 0));
+      return;
+    }
     cancelStraightenPreview();
     if (!baseSnapshot) {
       pushUndo();
@@ -2190,6 +2685,10 @@
     const id = Number($("pe-apply-preset").value);
     const preset = photoPresets.find((p) => p.id === id);
     if (!preset) return;
+    if (layerBlocked()) {
+      $("pe-apply-preset").value = "";
+      return;
+    }
     pushUndo();
     const snap = snapshotCanvas();
     const b = 100 + Number(preset.adjust.brightness);
@@ -2920,7 +3419,7 @@
   function pickColor(point) {
     const x = Math.max(0, Math.min(canvas.width - 1, Math.round(point.x)));
     const y = Math.max(0, Math.min(canvas.height - 1, Math.round(point.y)));
-    const [r, g, b] = ctx.getImageData(x, y, 1, 1).data;
+    const [r, g, b] = flattenedCanvas().getContext("2d").getImageData(x, y, 1, 1).data;
     const hex = "#" + [r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("");
     $("pe-annotate-color").value = hex;
     $("pe-paint-color").value = hex;
@@ -3102,6 +3601,7 @@
     // critic pass found this gap in the fix's symmetry after the first
     // round only guarded one direction.
     if (isComparing()) return;
+    if ((BRUSH_TOOLS.includes(currentTool) || SHAPE_TOOLS.includes(currentTool) || currentTool === "text") && layerBlocked()) return;
     cancelStraightenPreview();
     const p = pointFromEvent(e);
     dragging = true;
@@ -3389,7 +3889,7 @@
   // never capture the temporary preview no matter what left it stuck.
   function exportBlob(cb, mimeType, quality) {
     endCompare();
-    canvas.toBlob(cb, mimeType || "image/png", quality);
+    flattenedCanvas().toBlob(cb, mimeType || "image/png", quality);
   }
 
   // "Overwrite" always keeps the ORIGINAL file's own format, regardless
@@ -3436,7 +3936,8 @@
     const myGeneration = ++sizeEstimateGeneration;
     const format = $("pe-export-format").value;
     const quality = Number($("pe-export-quality").value) / 100;
-    canvas.toBlob(
+    const source = flattenedCanvas();
+    source.toBlob(
       (blob) => {
         if (myGeneration !== sizeEstimateGeneration || !blob) return;
         const saveAsNewText = `~${formatBytesLite(blob.size)} ("Save as new")`;
@@ -3446,7 +3947,7 @@
         }
         const overwriteMime = originalMimeType();
         const overwriteQuality = overwriteMime === "image/png" ? undefined : quality;
-        canvas.toBlob(
+        source.toBlob(
           (overwriteBlob) => {
             if (myGeneration !== sizeEstimateGeneration) return;
             const overwriteText = overwriteBlob ? `~${formatBytesLite(overwriteBlob.size)} ("Overwrite")` : "";
@@ -3607,8 +4108,7 @@
     zoomMode = "fit";
     resetPanState();
     lastFitDims = ""; // a new image: the size fields and the estimate start fresh even at the same size
-    canvas.width = w;
-    canvas.height = h;
+    initLayers(w, h);
     ctx.clearRect(0, 0, w, h);
     drawContent();
     syncOverlaySize();

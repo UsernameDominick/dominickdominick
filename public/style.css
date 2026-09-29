@@ -1548,6 +1548,11 @@ h6 { font-size: 0.9rem; }
   background: var(--bg-elevated);
 }
 
+/* Several tracks under one project stack with a gap between the cards. */
+.related-posts .song-embed + .song-embed {
+  margin-top: 12px;
+}
+
 .song-embed-header {
   display: flex;
   flex-wrap: wrap;

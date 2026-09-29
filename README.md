@@ -51,7 +51,10 @@ Worker secret, not stored in this repo). From there:
   selected area; a Mode menu (new, add, subtract, intersect) and a "Type a
   box" X/Y/W/H entry cover touch and keyboard use, Undo steps through
   selection changes, "Crop to selection" boxes it, mask views tint or show
-  it, and named selections are saved (as shapes, so they fit any image size). "Save as new" uploads a fresh file; "Overwrite original" replaces
+  it, and named selections are saved (as shapes, so they fit any image size). A Layers panel
+  holds up to six layers, each with visibility, opacity, a blend mode, a name and a colour label (with a
+  name/colour filter); brushes and filters change the active layer, size changes and flips change all of
+  them, and saving flattens what is visible. "Save as new" uploads a fresh file; "Overwrite original" replaces
   the file in place at the same URL, updating it everywhere it's used
   (this is why `/media/:key` now serves a short, revalidating cache
   instead of a year-long immutable one).
@@ -190,7 +193,8 @@ For an empty local database, apply `schema.sql` and then the Wrangler
 migrations; `schema.sql` intentionally omits columns tracked by migrations so
 the bootstrap and migration do not define the same column twice. The migration
 ledger tracks simulation publication in
-`migrations/0001_simulation_publication.sql`, but it does not reconstruct older
+`migrations/0001_simulation_publication.sql` and project related songs in
+`migrations/0002_project_related_songs.sql`, but it does not reconstruct older
 manual schema changes. Wrangler migrations target the selected config's
 top-level D1 binding, so use `wrangler.preview-migrations.jsonc` for Preview
 work and verify its name/ID against `wrangler.jsonc`'s Preview binding before

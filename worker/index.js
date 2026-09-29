@@ -22,7 +22,7 @@ import {
   getPublishedSimulation,
   listPublishedSimulationIds,
   getScan,
-  getSong,
+  getSongsByIds,
   logError,
   logEvent,
   checkRateLimit,
@@ -513,7 +513,7 @@ async function renderProject(env, project, navItems, previewReason = null, isAdm
   ]);
   const relatedArticleRows = allPublishedArticles.filter((a) => project.related_articles.includes(a.id));
   const relatedMediaHtml = renderRelatedMediaHtml(relatedArticleRows, relatedSims.filter(Boolean), relatedScanRows.filter(Boolean));
-  const relatedSongRows = (await Promise.all((project.related_songs || []).map((id) => getSong(env, id)))).filter(Boolean);
+  const relatedSongRows = await getSongsByIds(env, project.related_songs || []);
   const relatedSongsHtml = renderRelatedSongsHtml(relatedSongRows);
 
   // Normal document flow (see .article-canvas in style.css), same fix and

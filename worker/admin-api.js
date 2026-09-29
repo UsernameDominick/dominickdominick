@@ -125,6 +125,7 @@ import {
   detachSharedBlock,
   listProjects,
   createProject,
+  MAX_RELATED_SONGS,
   updateProject,
   deleteProject,
   restoreProject,
@@ -511,6 +512,17 @@ function clipChars(text, max) {
 
 // Thrown for a request the client got wrong; handleAdminApi answers it with a 400.
 class BadRequestError extends Error {}
+
+// related_songs must be a short list of whole-number ids; anything else is a 400
+// rather than being quietly reshaped.
+function relatedSongsError(body) {
+  if (!body || body.related_songs === undefined) return null;
+  const list = body.related_songs;
+  if (!Array.isArray(list)) return "related_songs must be a list of song ids.";
+  if (list.length > MAX_RELATED_SONGS) return `A project can list at most ${MAX_RELATED_SONGS} songs.`;
+  const okId = (v) => (typeof v === "number" ? Number.isSafeInteger(v) && v > 0 : typeof v === "string" && /^[0-9]{1,15}$/.test(v) && Number(v) > 0);
+  return list.every(okId) ? null : "related_songs must contain only positive whole-number song ids.";
+}
 
 // UTF-8 bytes to text; invalid sequences are a 400 rather than silently turning
 // into U+FFFD inside a stored name.
@@ -1126,6 +1138,8 @@ async function routeAdminApi(request, env, url, ctx) {
     if (resolvedPublishedAt && publishBodyTooShort(body.body)) {
       return json({ error: `Body needs more than ${MIN_PUBLISH_BODY_LENGTH} characters before publishing.` }, { status: 400 });
     }
+    const songsError = relatedSongsError(body);
+    if (songsError) return json({ error: songsError }, { status: 400 });
     const id = await createProject(env, { ...body, slug });
     log(ctx, env, "create", "project", body.title || slug);
     await maybeFireWebhook(env, ctx, {
@@ -1162,6 +1176,8 @@ async function routeAdminApi(request, env, url, ctx) {
         return json({ error: `Body needs more than ${MIN_PUBLISH_BODY_LENGTH} characters before publishing.` }, { status: 400 });
       }
     }
+    const songsError = relatedSongsError(body);
+    if (songsError) return json({ error: songsError }, { status: 400 });
     await snapshotProject(env, id);
     await updateProject(env, id, body);
     if (wasPublished !== isNowPublished) {

@@ -6574,3 +6574,121 @@ kbd {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* Photo editor layers: each layer is its own canvas stacked in the frame. */
+#pe-canvas,
+.pe-canvas-stack .pe-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+.pe-canvas-stack {
+  isolation: isolate;
+}
+#pe-overlay {
+  z-index: 100;
+}
+/* Compare shows the original alone: no other layers, no opacity or blend. */
+.pe-canvas-stack.is-comparing .pe-layer:not(.pe-layer-active) {
+  display: none !important;
+}
+.pe-canvas-stack.is-comparing .pe-layer-active {
+  display: block !important;
+  opacity: 1 !important;
+  mix-blend-mode: normal !important;
+}
+.pe-layers-group {
+  align-items: center;
+}
+/* In the single-row strip (phones and narrow windows) everything stays on one line. */
+@media (max-width: 860px) {
+  .pe-layers-group {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+  }
+  .pe-layer-list {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    max-height: none;
+    overflow: visible;
+  }
+  .pe-layer-note,
+  .pe-layers-group .pe-layer-count,
+  .pe-layers-group label,
+  .pe-layers-group button {
+    white-space: nowrap;
+  }
+}
+.pe-layer-count {
+  font-size: 0.8rem;
+  opacity: 0.75;
+}
+.pe-layer-opacity-val {
+  display: inline-block;
+  min-width: 3ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.pe-layer-filter {
+  max-width: 11rem;
+}
+.pe-layer-list {
+  flex: 1 1 100%;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 7.5rem;
+  overflow: auto;
+}
+.pe-layer-row {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--border, #444);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.pe-layer-row.is-active {
+  border-color: var(--accent);
+}
+.pe-layer-row.is-hidden .pe-layer-name {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+.pe-layer-row button {
+  border: 0;
+  border-radius: 0;
+  margin: 0;
+  padding-top: 3px;
+  padding-bottom: 3px;
+  min-height: 0;
+  line-height: 1.2;
+}
+.pe-layer-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 14rem;
+}
+.pe-layer-pick[aria-current="true"] {
+  color: var(--accent);
+}
+.pe-layer-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pe-layer-dot {
+  flex: none;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  border: 1px solid rgba(128, 128, 128, 0.6);
+}
+.pe-layer-empty,
+.pe-layer-note {
+  font-size: 0.85rem;
+  opacity: 0.8;
+}

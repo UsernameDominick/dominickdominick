@@ -60,8 +60,8 @@ worthwhile new ideas and pursue them without waiting. Any genuinely new paid ext
 needs a check-in before activation. The admin custom-animation editor is implemented; do not treat it as a
 planned feature.
 
-**D1/R2 cautions:** `schema.sql` is the base fresh-install bootstrap; apply the Wrangler migrations after it. Wrangler D1 migration `0001` tracks simulation
-publication only; older manual schema changes are not reconstructed. The `previews` block sets runtime bindings,
+**D1/R2 cautions:** `schema.sql` is the base fresh-install bootstrap; apply the Wrangler migrations after it. Wrangler D1 migrations `0001` (simulation
+publication) and `0002` (project related songs) are tracked; older manual schema changes are not reconstructed. The `previews` block sets runtime bindings,
 while Wrangler migrations use the selected config's top-level D1. Use `wrangler.preview-migrations.jsonc` and
 verify its database name/ID against the Preview binding before `--remote`; inspect production before any
 forward-only live migration. Preview D1/R2 are separate from production but shared by Previews using the same
@@ -91,7 +91,13 @@ Verify distinct test-only Preview values before protected-flow checks.
 - **Public design:** flow-layout and baseline code-block/link styling shipped. Typographic hierarchy and spacing
   remain open, best judged with real published content.
 - **Custom animations:** timeline/keyframe editor with server-side CSS generation is implemented.
-- **Photo Editor:** single Canvas2D raster canvas; no layer stack or nondestructive adjustments. It has a
+- **Photo Editor:** Canvas2D raster editor with a layer stack (up to 6 bitmap layers, each with visibility,
+  opacity, a blend mode of Normal/Multiply/Screen/Overlay/Darken/Lighten, a name, a colour label, order, and a
+  name/colour filter; add, duplicate, delete, merge down, flatten). Tools paint into the active layer only;
+  crop, rotate, flip, resize, straighten and canvas size act on every layer; save and the eyedropper use the
+  composite; Compare shows the original alone; named snapshots and Reset cover all layers; undo entries are per
+  layer, whole-image (structure and size changes) or settings-only. No layer masks, groups, text/shape layers or
+  nondestructive adjustment layers yet. It has a
   selection engine: rectangle, ellipse, freehand-lasso and polygon selections (Shift adds, Alt subtracts, Invert,
   Select all, Ctrl+D) held as a list of shapes and rasterised to an alpha mask; the adjust sliders and presets,
   one-shot filters, grain, brushes, annotation shapes, text and Delete selected act only inside it; crop, rotate,
@@ -232,7 +238,7 @@ Open and partial items only; completed implementation histories remain in Git hi
 - ☐ Automated tests wired into CI (Playwright scripts are ad hoc, local only)
 - 🔶 Worker Preview environment (D1/R2 separate from production and shared across Preview branches; branch Preview and runtime binding cleanup verified; authenticated/manual checks remain)
 - 🔶 Preview deployments tied to the `production` branch (mapping and successful code build verified on 2026-09-27; authenticated flow checks are partial; full sitewide visual review remains)
-- 🔶 Migration history (Wrangler tracks simulation publication; older manual schema changes are not reconstructed, and no broader migration inventory exists)
+- 🔶 Migration history (Wrangler tracks simulation publication and project related songs; older manual schema changes are not reconstructed, and no broader migration inventory exists)
 - 🔶 Staging content workflow (simulation drafts and publication are explicit; no general content-promotion workflow exists)
 
 ### Backups, health, and operating costs
@@ -329,14 +335,12 @@ The 600-item wish list covers the Photo Editor, Song/DAW, Simulation builder, an
 menu, not a code specification: inspect implementation and dependencies before selecting an item. Work one item
 at a time through research, implementation, tests, critic review, fixes, and shipping.
 
-**Current editor reality:** the Photo Editor is a single raster canvas; the Song builder synthesizes sound and
+**Current editor reality:** the Photo Editor is a raster editor with a bitmap layer stack (no masks, groups or adjustment layers); the Song builder synthesizes sound and
 has no sample timeline; Simulations use simplified connectivity analysis rather than SPICE.
 Pages/articles/projects have the strongest save/version lifecycle; media has file versions; songs and
 simulations need parity.
 
 ### Photo Editor — Easy
-- 17. Layer colors/labels — metadata fields once layers exist.
-- 18. Search/filter layers — simple list filter UI.
 
 ### Photo Editor — Medium
 4, 7, 9, 10, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 29, 30, 35, 36, 37, 38, 39, 42, 45, 46, 48, 49, 53, 55, 58,
@@ -345,10 +349,9 @@ simulations need parity.
 bookkeeping), 142, 144, 147, 148, 149, 151, 152, 154, 156, 157, 159, 160, 162 (AVIF pushes toward Hard), 170,
 172, 173, 176, 177, 178. Inspect the chosen item's requirements in the original wishlist and current code before
 implementation. Two recurring blockers worth designing around before working this tier: most of
-layers/compositing/masks/nondestructive- editing (#11-60) share ONE foundational dependency — a real
-layer-stack/ object-model architecture, which doesn't exist and is itself Hard, but unlocks dozens of these
-cheaply once built. Recommended sequencing: layer engine → selection-mask engine → most of the rest becomes
-incremental.
+layers/compositing/masks/nondestructive- editing (#11-60) share ONE foundational dependency. The bitmap
+layer stack and selection engine now exist (see §1); layer masks, groups and adjustment layers, which build on
+them, are the next foundation for most of the rest.
 
 ### Photo Editor — Hard
 1, 11, 12, 25, 26, 27, 28, 34, 41, 47, 50, 51, 52, 54, 56, 57, 94, 96, 97, 100, 105, 106, 113, 114, 115, 117,
@@ -459,6 +462,7 @@ permissions — out of scope], 597 [package/dependency system — out of scope],
 - Song clipping history (#309), critic pass 2: 8.5/10, no critical/high. Step attribution, merge/split, contrast, cap-of-50, focus and render cost were verified fixed. Follow-ups applied: Clear keeps the scheduled-step queue so a clip already inside the lookahead still names the right step; the merge gap stretches with slow frames (the larger of 120 ms and three frame intervals); the first clip of a run is announced at once and later ones at most every 2 s; entries that span several steps read "from step A to B". Accepted: the meter is frame-driven, so a backgrounded tab can still miss, split, or double clips.
 - Simulation capacitor/inductor (#403-405), critic pass 2: 8.5/10, no critical/high. Parity (4000 random circuits, 14 rotation values, hostile values), labels, leads, formatting, input handling, and undo/redo with the deferred refresh were verified. Follow-ups applied: refocusing after a refresh selects the field's text so typing replaces it (digits used to prepend to the old value); the refresh no longer replaces the inspector while a button is under the pointer (a slow click right after typing was swallowed); re-entering the stored value adds no history entry; the transparent hit areas shrank (32x24 and 64x24) so wires passing beside a part stay clickable. Accepted: extreme values still print large units ("1000F") that overflow the part; resistor/switch/ammeter leads remain invisible (pre-existing), so they look unlike the new parts; a slow click on an inspector button right after typing was a pre-existing problem for the resistor field, which still refreshes synchronously.
 - Song clipping history (#309), critic pass 3: 9/10, no critical/high; all pass-2 items verified fixed. Accepted nits: an event lasting exactly a whole number of loops can read "near step N" because its start and end steps match; the step-range text roughly doubles a sustained clip's re-render rate (about 11 to 23 renders/s, still cheap). A main-thread stall of 130 ms or more still splits a clip, which is correct because the scheduler runs on that thread and the audio really drops out.
+- Related songs on projects (#341), critic pass 1: 7/10. HIGH (fixed): the project editor built its song list once at page load, so a project opened after a song was added showed no selection and the next autosave wiped `related_songs`; the Projects button now refreshes the song list, a failed refresh keeps the old list, and any saved id without an option gets a "not in the current list" placeholder that stays selected. MEDIUM (fixed): no cap and one `getSong` query per id (5,000 ids took 11.7 s) — ids are capped at 50 (400 above that on create and update, silently trimmed on import), and the public page fetches all songs in one `WHERE id IN` query. MEDIUM/LOW (fixed): a damaged `songs.data` row made the project page and song delete return 500 — `getSong` now reads bad or non-object data as an empty song. MEDIUM/LOW (fixed): restoring a revision left `related_songs` untouched; it now restores them when the column exists and the snapshot has them. LOW (fixed): weak id coercion (`true`, `[1]`, `"1e3"`, `"0x10"`, `1e30` became ids) — only positive whole numbers or plain digit strings count, and a non-list is a 400. LOW (fixed): the track cards touched with no gap, and "Tracks" was a bare `<strong>` — cards now stack with a 12px gap inside a labelled group. LOW (fixed): docs still described only migration 0001. Accepted, not fixed: no exclusive playback (each song embed has its own AudioContext, so two can play at once; that is how every song embed behaves and is a separate change); waveform embeds without cached peaks render offline on page load; the section sits after the journal on long pages; before migration 0002 is applied the editor shows the select and "Saved" while the ids are dropped (by design, documented in §4); the same stale-list wipe is latent for the scans and simulations selects (out of scope for this feature; only songs got the fix); song delete confirm text lists projects without saying they use the song as a track, and songs used only by a trashed project get no usage warning (same as scans); a songs-only edit reads "No changes" in the revision label; crash-recovery drafts exclude all multi-selects, songs included (documented for the other relations); permanent project delete leaves orphan revision rows (pre-existing).
 - Simulation capacitor/inductor (#403-405), critic pass 3: 9/10, no critical/high/medium; all pass-2 items verified fixed (typing after Tab, slow clicks after typing, no-op history, wire clickability, parity). Accepted nits: label rounding at extremes ("1µF" for 0.999 µF, "1000F" for enormous values); resistor/switch/ammeter leads stay invisible (pre-existing); an inspector field can briefly show a clamped or blank value while a button is mid-click, until that button's own re-render.
 - Embed controls (#531), critic pass 1: 8/10, no critical/high. Style consistency across the three buttons, contrast on every song theme in both modes, AR-slot placement, layout, and removed-rule coverage were verified. Fixed in the follow-up: (1) the song and simulation buttons' labels name the action ("Play"/"Stop", "Power on"/"Power off") and no longer also carry `aria-pressed` (state was announced twice); the song button's accessible name includes its title ("Play <song>"), and its glyph is `aria-hidden` with U+FE0E so it renders as text, not colour emoji; (3) the hover lift and transitions only run when motion isn't reduced (OS setting or the site's manual switch) while the glow stays; (4) print sets `--on-accent` so the black print pill has a white label; (5) hover styles only apply on hover-capable devices, so a tap no longer leaves a sticky lift; (6) forced-colors mode gets a dashed border on the active state as a shape cue; (7) coarse pointers get 44px-tall targets; font size matches `.btn` (0.95rem). Accepted: `.btn` itself still lifts under reduced motion (a follow-up to scope it the same way); the AR button's no-wrap width can overflow a viewer narrower than about 185px; the simulation button's `margin-top` stacks with its wrapper's gap (pre-existing); the shared rule mirrors `.btn`'s properties rather than sharing its selector list, because `.btn` also sets layout properties these don't want.
 - Simulation logic gates (#441, #445), critic pass 1: 8/10, no critical/high. Parity of the gate helpers between client and worker, validation, truth-table edits, rotate/flip, public rendering and the accessible summary were checked. Fixed in the follow-up: (1) changing the gate in the inspector keeps focus on the Gate select; (2) the public summary now spells out which input combination each custom output belongs to ("output for inputs A,B of 00, 01, 10, 11 is ...") and the canvas tooltip includes the same summary; (3) the custom-table marker moved from a text caption (which collided with labels at quarter turns) to a dashed outline; (4) canvas search matches the gate name ("inverter", "nand") as well as the label; (5) truth-table buttons no longer encode the value twice (`aria-pressed` plus the value in the name); (6) Arrow keys and Backspace on a focused truth-table button no longer nudge or delete the part; (7) switching between gates with the same number of inputs keeps a custom table, and the field's tooltip says a different input count resets it; (8) nits: "Diagram part:" wording no longer repeats, the Reset button has bottom margin, light-theme leads use the solid grey stroke, and the truth-row and validation logic reuse the shared helpers instead of a third copy. Accepted residuals: gates are diagram-only (signals are not simulated); the 1-input gates (NOT, buffer) share a two-row table with no separate name for a custom one; the standard-table check is computed per render; the hand-mirrored client and worker helpers still have no committed parity test (scratch only).

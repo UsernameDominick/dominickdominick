@@ -4539,8 +4539,23 @@
       .join("");
   }
 
-  function setMultiSelectValues(select, ids) {
+  // keepMissing: ids the list has no option for (the list is stale, or failed to
+  // load) get a placeholder option instead of being dropped, so saving the form
+  // can never quietly remove a relation the editor couldn't show.
+  function setMultiSelectValues(select, ids, { keepMissing = false } = {}) {
     const idSet = new Set((ids || []).map(Number));
+    if (keepMissing) {
+      Array.from(select.options).forEach((opt) => opt.dataset.missing && opt.remove());
+      const have = new Set(Array.from(select.options).map((opt) => Number(opt.value)));
+      idSet.forEach((id) => {
+        if (have.has(id)) return;
+        const opt = document.createElement("option");
+        opt.value = String(id);
+        opt.dataset.missing = "1";
+        opt.textContent = `#${id} (not in the current list)`;
+        select.appendChild(opt);
+      });
+    }
     Array.from(select.options).forEach((opt) => {
       opt.selected = idSet.has(Number(opt.value));
     });
@@ -4590,7 +4605,7 @@
     setMultiSelectValues(el("project-related-articles"), project.related_articles);
     setMultiSelectValues(el("project-related-simulations"), project.related_simulations);
     setMultiSelectValues(el("project-related-scans"), project.related_scans);
-    setMultiSelectValues(el("project-related-songs"), project.related_songs || []);
+    setMultiSelectValues(el("project-related-songs"), project.related_songs || [], { keepMissing: true });
     populateProjectRelatedOverrideSelect(project.id);
     setMultiSelectValues(el("project-related-override"), project.related_override || []);
     el("project-published").checked = !!project.published_at;
@@ -4831,6 +4846,8 @@
     showMobileListPane("projects-modal");
     projects = await api("/projects");
     articles = await api("/articles");
+    // Songs made since the page loaded (or in another tab) should be pickable.
+    await window.refreshSongOptions();
     populateProjectRelatedSelects();
     renderProjectsList();
     clearProjectForm();
@@ -8514,7 +8531,7 @@
     try {
       songOptions = await api("/songs");
     } catch {
-      songOptions = [];
+      // A failed refresh keeps the list already loaded rather than emptying it.
     }
     renderInspector();
     renderCanvas();
