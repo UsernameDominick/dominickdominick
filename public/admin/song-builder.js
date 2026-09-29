@@ -561,7 +561,7 @@
     });
     $("song-preview-name").textContent = $("song-name").value || "Song name";
     const viz = songData.visualization || "bars";
-    const hits = songData.tracks && Object.keys(songData.tracks).some((t) => songData.tracks[t][step]);
+    const hits = Engine.stepHasAudibleDrumHit(songData, step);
     if (viz === "bars") {
       $("song-preview-bars")
         .querySelectorAll(".song-embed-bar")
@@ -942,12 +942,26 @@
   // use, rather than a third parallel implementation of "play this note."
   // Not passed for the drum sequencer, since its rows are sounds, not a
   // pitched instrument with keys to click.
+  const SONG_EYE_ICON =
+    '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+
   function renderStepGrid(containerId, rowKeys, rowLabel, getOn, setOn, rowClass, getMeta, onMetaChange, onLabelClick) {
     $(containerId).innerHTML = rowKeys
       .map((key) => {
         const label = rowLabel(key);
         const meta = getMeta ? getMeta(key) : null;
         const rowStyle = meta ? ` style="--track-color: ${escapeXml(meta.color)}"` : "";
+        const muted = Boolean(meta) && meta.muted === true;
+        const hidden = Boolean(meta) && meta.hidden === true;
+        const toggleHtml = meta
+          ? `<button type="button" class="song-track-toggle song-track-mute" data-row="${key}" aria-pressed="${muted}" aria-label="Mute ${label}" title="Mute ${label}: silent in the preview and on the public page">M</button>` +
+            `<button type="button" class="song-track-toggle song-track-hide" data-row="${key}" aria-pressed="${hidden}" aria-label="Hide ${label} row" title="Hide ${label} row: collapses it here in the editor, but it still plays unless muted">${SONG_EYE_ICON}</button>`
+          : "";
+        if (hidden) {
+          return `<div class="song-track-row song-track-row-hidden${muted ? " song-track-row-muted" : ""}"${rowStyle}><span class="song-track-label">${label}</span>${toggleHtml}<span class="song-track-hidden-note">Hidden, ${
+            muted ? "muted" : "still plays"
+          }</span></div>`;
+        }
         const metaHtml = meta
           ? `<input type="color" class="song-track-color" data-row="${key}" value="${escapeXml(meta.color)}" title="${label} color" aria-label="${label} color">` +
             `<input type="text" class="song-track-note" data-row="${key}" value="${escapeXml(meta.note)}" placeholder="note…" maxlength="60" title="${label} note" aria-label="${label} note">`
@@ -981,7 +995,7 @@
               NOTE_TO_KEYBOARD_KEY[key] || "?"
             }, when not typing in a text field)">${label}${keyHint}</button>`
           : `<span class="song-track-label">${label}</span>`;
-        return `<div class="song-track-row${rowClass ? rowClass(key) : ""}"${rowStyle}>${labelHtml}${metaHtml}<div class="song-steps" data-row="${key}">${Array.from(
+        return `<div class="song-track-row${rowClass ? rowClass(key) : ""}${muted ? " song-track-row-muted" : ""}"${rowStyle}>${labelHtml}${toggleHtml}${metaHtml}<div class="song-steps" data-row="${key}">${Array.from(
           { length: STEPS },
           (_, i) =>
             `<button type="button" class="song-step${getOn(key, i) ? " song-step-on" : ""}${
@@ -1012,6 +1026,26 @@
       });
     if (!onMetaChange) return;
     $(containerId)
+      .querySelectorAll(".song-track-mute")
+      .forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const next = getMeta(btn.dataset.row).muted !== true;
+          onMetaChange(btn.dataset.row, "muted", next);
+          btn.setAttribute("aria-pressed", String(next));
+          btn.closest(".song-track-row").classList.toggle("song-track-row-muted", next);
+          refreshWaveformPreview();
+          scheduleAutosave();
+        });
+      });
+    $(containerId)
+      .querySelectorAll(".song-track-hide")
+      .forEach((btn) => {
+        btn.addEventListener("click", () => {
+          onMetaChange(btn.dataset.row, "hidden", getMeta(btn.dataset.row).hidden !== true);
+          scheduleAutosave();
+        });
+      });
+    $(containerId)
       .querySelectorAll(".song-track-color")
       .forEach((inp) => {
         inp.addEventListener("input", () => {
@@ -1030,6 +1064,13 @@
       });
   }
 
+  // "muted" and "hidden" are only stored while true, so a song that never uses
+  // them saves byte-for-byte the same as before this feature existed.
+  function setFlag(target, field, value) {
+    if (value) target[field] = true;
+    else delete target[field];
+  }
+
   function renderSequencer() {
     renderStepGrid(
       "song-sequencer",
@@ -1039,11 +1080,47 @@
       (t, i, v) => (songData.tracks[t][i] = v),
       undefined,
       (t) => songData.trackMeta[t],
-      (t, field, value) => (songData.trackMeta[t][field] = value)
+      (t, field, value) => {
+        if (field === "muted" || field === "hidden") setFlag(songData.trackMeta[t], field, value);
+        else songData.trackMeta[t][field] = value;
+        if (field !== "hidden") return;
+        renderSequencer();
+        const toggle = $("song-sequencer").querySelector(`.song-track-hide[data-row="${t}"]`);
+        if (toggle) toggle.focus();
+      }
     );
   }
 
+  function updateMelodyToggles() {
+    $("song-melody-mute").setAttribute("aria-pressed", String(songData.melody.muted === true));
+    $("song-melody-hide").setAttribute("aria-pressed", String(songData.melody.hidden === true));
+  }
+
+  function setMelodyFlag(field) {
+    setFlag(songData.melody, field, songData.melody[field] !== true);
+    updateMelodyToggles();
+    if (field === "hidden") {
+      renderPianoRoll();
+      const toggle = $("song-piano-roll").querySelector(".song-melody-show") || $("song-melody-hide");
+      toggle.focus();
+    } else {
+      refreshWaveformPreview();
+    }
+    scheduleAutosave();
+  }
+  $("song-melody-mute").addEventListener("click", () => setMelodyFlag("muted"));
+  $("song-melody-hide").addEventListener("click", () => setMelodyFlag("hidden"));
+
   function renderPianoRoll() {
+    updateMelodyToggles();
+    if (songData.melody.hidden === true) {
+      $("song-piano-roll").innerHTML =
+        `<div class="song-track-row song-track-row-hidden${songData.melody.muted === true ? " song-track-row-muted" : ""}">` +
+        `<span class="song-track-hidden-note">Melody hidden, ${songData.melody.muted === true ? "muted" : "still plays"}</span>` +
+        `<button type="button" class="song-melody-show">Show melody</button></div>`;
+      $("song-piano-roll").querySelector(".song-melody-show").addEventListener("click", () => setMelodyFlag("hidden"));
+      return;
+    }
     renderStepGrid(
       "song-piano-roll",
       PIANO_NOTES,
@@ -1409,7 +1486,7 @@
       `Song: ${name}`,
       `Tempo: ${songData.tempo} BPM`,
       `Drum kit: ${songData.kit}`,
-      `Melody waveform: ${songData.melody.waveform}`,
+      `Melody waveform: ${songData.melody.waveform}${songData.melody.muted === true ? " (muted)" : ""}`,
       `Visualization: ${songData.visualization}`,
       `Theme: ${songData.theme}`,
       `Master volume: ${Math.round((typeof songData.master_volume === "number" ? songData.master_volume : 1) * 100)}%`,
@@ -1417,7 +1494,7 @@
       `Page background sync: ${songData.page_sync ? "on" : "off"}`,
       "",
       "Drum tracks (steps hit / total):",
-      ...TRACKS.map((t) => `  ${TRACK_LABELS[t]}: ${songData.tracks[t].filter(Boolean).length} / ${STEPS}`),
+      ...TRACKS.map((t) => `  ${TRACK_LABELS[t]}: ${songData.tracks[t].filter(Boolean).length} / ${STEPS}${songData.trackMeta[t].muted === true ? " (muted)" : ""}`),
       "",
       "Melody notes used:",
     ];

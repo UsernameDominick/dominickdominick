@@ -203,6 +203,21 @@ window.SongEngine = (function () {
     return (random() * 2 - 1) * HUMANIZE_MAX_JITTER_S * (amount / 100);
   }
 
+  // A muted drum track is silent everywhere the engine plays the song (admin
+  // preview, public embed, cached waveform); "hidden" is editor-only and is
+  // deliberately not consulted here.
+  function isTrackMuted(songData, track) {
+    return Boolean(songData.trackMeta && songData.trackMeta[track] && songData.trackMeta[track].muted === true);
+  }
+  function isMelodyMuted(songData) {
+    return Boolean(songData.melody && songData.melody.muted === true);
+  }
+  function stepHasAudibleDrumHit(songData, step) {
+    return Boolean(
+      songData.tracks && Object.keys(songData.tracks).some((t) => songData.tracks[t][step] && PLAYERS[t] && !isTrackMuted(songData, t))
+    );
+  }
+
   function scheduleStep(ctx, songData, step, time, random = Math.random) {
     // Read fresh every step, same as tempo/kit below, so a live volume-
     // slider drag while a song is already playing takes effect on the next
@@ -221,10 +236,10 @@ window.SongEngine = (function () {
         // throws a RangeError and kills the whole render -- a critic pass
         // caught this live (silently broken waveform preview, admin builder
         // AND public embed both, since they share this exact code path).
-        if (songData.tracks[track][step] && PLAYERS[track]) PLAYERS[track](ctx, Math.max(0, time + humanizeJitter(songData, random)), kit, random);
+        if (songData.tracks[track][step] && PLAYERS[track] && !isTrackMuted(songData, track)) PLAYERS[track](ctx, Math.max(0, time + humanizeJitter(songData, random)), kit, random);
       });
     }
-    if (songData.melody) {
+    if (songData.melody && !isMelodyMuted(songData)) {
       const waveform = songData.melody.waveform || "sine";
       const duration = stepDurationFor(songData.tempo);
       Object.keys(songData.melody.notes).sort().forEach((note) => {
@@ -368,6 +383,9 @@ window.SongEngine = (function () {
     noteToFreq,
     midiToNoteName,
     scheduleStep,
+    isTrackMuted,
+    isMelodyMuted,
+    stepHasAudibleDrumHit,
     playMelodyNote,
     createPlayer,
     renderWaveformPeaks,

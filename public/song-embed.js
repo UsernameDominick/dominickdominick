@@ -109,7 +109,7 @@
     function onStep(step) {
       if (bars.length) bars.forEach((bar, i) => bar.classList.toggle("song-embed-bar-active", i === step));
       if (canvas) drawWaveform(step / window.SongEngine.STEPS);
-      const hitsTrack = songData.tracks && Object.keys(songData.tracks).some((t) => songData.tracks[t][step]);
+      const hitsTrack = window.SongEngine.stepHasAudibleDrumHit(songData, step);
       if (pulse) {
         pulse.classList.toggle("song-embed-pulse-beat", hitsTrack);
         if (hitsTrack) {
