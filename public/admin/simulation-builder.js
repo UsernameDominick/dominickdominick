@@ -1935,8 +1935,15 @@
       }
       // Positive values are clamped to the field's minimum; a blank, zero or
       // negative entry is ignored and the stored value is shown again. The
-      // refresh waits a tick so it can put focus back on whatever the user
-      // just tabbed to (re-rendering the inspector would otherwise drop it).
+      // refresh waits a tick so it can put focus (and a select-all, so typing
+      // replaces the old value) back on whatever the user just tabbed to;
+      // if they are mid-click on an inspector button, replacing the inspector
+      // would swallow that click, so only the canvas is redrawn then.
+      const currentParam = {
+        capacitance: () => window.simCapacitanceUf(comp),
+        inductance: () => window.simInductanceMh(comp),
+        dcResistance: () => window.simInductorWindingOhms(comp),
+      };
       [
         ["sim-comp-capacitance", "capacitance", 1e-6],
         ["sim-comp-inductance", "inductance", 1e-6],
@@ -1947,15 +1954,26 @@
         input.addEventListener("change", () => {
           const value = Number(input.value);
           if (Number.isFinite(value) && value > 0) {
-            pushHistory();
-            comp[field] = Math.max(minimum, Math.min(value, 1e9));
+            const next = Math.max(minimum, Math.min(value, 1e9));
+            if (next !== currentParam[field]()) {
+              pushHistory();
+              comp[field] = next;
+            }
           }
           setTimeout(() => {
-            const activeId = document.activeElement && document.activeElement.id;
+            const active = document.activeElement;
+            if (active && active.tagName === "BUTTON" && $("sim-inspector").contains(active)) {
+              renderBuilder();
+              return;
+            }
+            const activeId = active && active.id;
             renderInspector();
             renderBuilder();
-            const next = activeId && $(activeId);
-            if (next) next.focus();
+            const refocus = activeId && $(activeId);
+            if (refocus) {
+              refocus.focus();
+              if (typeof refocus.select === "function" && refocus.tagName === "INPUT") refocus.select();
+            }
           }, 0);
         });
       });

@@ -412,7 +412,7 @@
         { id: "p2", x: 40, y: 12 },
       ],
       render: (c) =>
-        `<rect class="capacitor-hit" x="0" y="0" width="40" height="24" fill="transparent"/><line class="capacitor-lead" x1="0" y1="12" x2="12" y2="12"/><rect class="capacitor-body" x="12" y="1" width="16" height="22" rx="3"/><line class="capacitor-plate" x1="17" y1="5" x2="17" y2="19"/><line class="capacitor-plate" x1="23" y1="5" x2="23" y2="19"/><line class="capacitor-lead" x1="28" y1="12" x2="40" y2="12"/>${partLabelSvg("capacitor-label", formatCapacitance(capacitanceMicrofarads(c)), c, 20, 33, 27.8)}`,
+        `<rect class="capacitor-hit" x="4" y="0" width="32" height="24" fill="transparent"/><line class="capacitor-lead" x1="0" y1="12" x2="12" y2="12"/><rect class="capacitor-body" x="12" y="1" width="16" height="22" rx="3"/><line class="capacitor-plate" x1="17" y1="5" x2="17" y2="19"/><line class="capacitor-plate" x1="23" y1="5" x2="23" y2="19"/><line class="capacitor-lead" x1="28" y1="12" x2="40" y2="12"/>${partLabelSvg("capacitor-label", formatCapacitance(capacitanceMicrofarads(c)), c, 20, 33, 27.8)}`,
     },
     // Two-terminal inductor: at DC it passes current like a wire with only
     // its winding resistance (see inductorWindingOhms), so it is a passthrough
@@ -429,7 +429,7 @@
         { id: "p2", x: 80, y: 12 },
       ],
       render: (c) =>
-        `<rect class="inductor-hit" x="0" y="0" width="80" height="24" fill="transparent"/><line class="inductor-lead" x1="0" y1="12" x2="16" y2="12"/><rect class="inductor-body" x="16" y="2" width="48" height="20" rx="6"/><path class="inductor-coil" d="M16,12 a8,8 0 0 1 16,0 a8,8 0 0 1 16,0 a8,8 0 0 1 16,0"/><line class="inductor-lead" x1="64" y1="12" x2="80" y2="12"/>${partLabelSvg("inductor-label", formatInductance(inductanceMillihenries(c)), c, 40, 33, 26.8)}`,
+        `<rect class="inductor-hit" x="8" y="0" width="64" height="24" fill="transparent"/><line class="inductor-lead" x1="0" y1="12" x2="16" y2="12"/><rect class="inductor-body" x="16" y="2" width="48" height="20" rx="6"/><path class="inductor-coil" d="M16,12 a8,8 0 0 1 16,0 a8,8 0 0 1 16,0 a8,8 0 0 1 16,0"/><line class="inductor-lead" x1="64" y1="12" x2="80" y2="12"/>${partLabelSvg("inductor-label", formatInductance(inductanceMillihenries(c)), c, 40, 33, 26.8)}`,
     },
     // An idealized ammeter: zero resistance (doesn't disturb the circuit
     // it's measuring), placed IN SERIES like a switch/wire, reporting
