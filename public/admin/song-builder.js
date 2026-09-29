@@ -1449,6 +1449,12 @@
   // song" and "start from a template" paths so a stale template can't throw
   // on a missing key any more than a stale saved song already couldn't.
   function backfillSongData(data) {
+    // A row whose tracks object lacks (or mangles) a lane must still open.
+    if (!data.tracks || typeof data.tracks !== "object") data.tracks = {};
+    TRACKS.forEach((t) => {
+      const lane = Array.isArray(data.tracks[t]) ? data.tracks[t] : [];
+      data.tracks[t] = Array.from({ length: STEPS }, (_, i) => (lane[i] === undefined ? false : lane[i]));
+    });
     if (!data.melody) data.melody = defaultSongData().melody;
     if (!data.melody.notes) data.melody.notes = defaultSongData().melody.notes;
     PIANO_NOTES.forEach((n) => {
@@ -1603,6 +1609,8 @@
   async function closeTab(t) {
     if (!songTabs.includes(t)) return; // a second click on a tab already closed
     const active = t.draft ? currentSongId == null : t.id === currentSongId;
+    // Closing the tab whose open is still loading cancels that open.
+    if (!active && !t.draft && pendingOpenId === t.id) cancelPendingOpen();
     if (!active) {
       songTabs = songTabs.filter((x) => x !== t);
       renderSongTabs();
@@ -1648,9 +1656,9 @@
     if (openRequestSeq !== committedOpenSeq) openRequestSeq++;
   }
   async function leaveToSongList() {
-    cancelPendingOpen();
     await flushAutosaveBeforeSwitch();
     if (!canLeaveSongBuilder()) return;
+    cancelPendingOpen();
     stopPlayback();
     $("song-builder-modal").hidden = true;
     $("songs-modal").hidden = false;
@@ -1671,12 +1679,14 @@
   // while showing another's content. Resolves true once the new song is open.
   let openRequestSeq = 0;
   let committedOpenSeq = 0;
+  let pendingOpenId = null; // the song a not-yet-committed open is fetching
   async function openBuilder(id, templateId) {
     if (!canLeaveSongBuilder(false)) return false;
     const dirtyGenAtAsk = songDirtyGeneration;
     // Clicking Edit on song A and then song B before A's GET resolves: only the
     // latest request may apply its response.
     const mySeq = ++openRequestSeq;
+    pendingOpenId = id;
     let song = null;
     if (id) {
       try {
