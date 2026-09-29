@@ -966,9 +966,14 @@ export const MAX_RELATED_SONGS = 50;
 export function cleanIdList(value) {
   if (!Array.isArray(value)) return [];
   const ids = [];
+  const seen = new Set();
   for (const raw of value) {
+    if (ids.length >= MAX_RELATED_SONGS) break;
     const n = typeof raw === "number" ? raw : typeof raw === "string" && /^[0-9]{1,15}$/.test(raw) ? Number(raw) : NaN;
-    if (Number.isSafeInteger(n) && n > 0 && !ids.includes(n)) ids.push(n);
+    if (Number.isSafeInteger(n) && n > 0 && !seen.has(n)) {
+      seen.add(n);
+      ids.push(n);
+    }
   }
   return ids.slice(0, MAX_RELATED_SONGS);
 }

@@ -4658,7 +4658,7 @@
     setMultiSelectValues(el("project-related-articles"), []);
     setMultiSelectValues(el("project-related-simulations"), []);
     setMultiSelectValues(el("project-related-scans"), []);
-    setMultiSelectValues(el("project-related-songs"), []);
+    setMultiSelectValues(el("project-related-songs"), [], { keepMissing: true });
     populateProjectRelatedOverrideSelect(null);
     setMultiSelectValues(el("project-related-override"), []);
     el("project-published").checked = false;
