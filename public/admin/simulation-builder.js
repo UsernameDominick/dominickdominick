@@ -1449,6 +1449,10 @@
         pushHistory();
         comp.closed = comp.closed === false;
         renderInspector();
+      } else if (!historySaved && comp.type === "switch_spdt") {
+        pushHistory();
+        comp.position = window.simSpdtThrow(comp) === "a" ? "b" : "a";
+        renderInspector();
       }
       // A critic pass (reviewing the new arrow-key nudge feature's
       // interaction with snapped parts) found this rebuild ran on EVERY
@@ -1557,6 +1561,7 @@
     power_supply: { outputVoltage: 5 },
     led: { color: "red" },
     switch: { closed: true },
+    switch_spdt: { position: "a" },
     potentiometer: { maxResistance: 10000, wiper: 50 },
     capacitor: { capacitance: 100 },
     logic_gate: { gate: "and" },
@@ -1665,6 +1670,11 @@
   function describePotentiometerElectricalState(state) {
     const minimum = state.effectiveResistance === 1 ? " (minimum model value)" : "";
     return `Electrical effect: Wiper at ${state.wiperPct}% gives ${state.effectiveResistance} Ω between terminals${minimum}.`;
+  }
+
+  function describeSpdtElectricalEffect(position) {
+    const [on, off] = position === "b" ? ["B", "A"] : ["A", "B"];
+    return `Throw ${on} — the common terminal is connected to throw ${on}; throw ${off} is disconnected, so current only flows between common and throw ${on}, and only if the rest of the circuit is complete.`;
   }
 
   function describeSwitchElectricalEffect(closed) {
@@ -1917,6 +1927,11 @@
         const electricalEffect = describeSwitchElectricalEffect(closed);
         extraFieldsHtml = `<p class="sim-electrical-effect"><strong>Electrical effect:</strong> ${electricalEffect}</p>
         <label><input type="checkbox" id="sim-comp-switch-closed" ${closed ? "checked" : ""}> Closed — click the part on the canvas to toggle it too</label>`;
+      } else if (comp.type === "switch_spdt") {
+        const position = window.simSpdtThrow(comp);
+        extraFieldsHtml = `<p class="sim-electrical-effect"><strong>Electrical effect:</strong> ${describeSpdtElectricalEffect(position)}</p>
+        <label>Position<select id="sim-comp-spdt-position"><option value="a" ${position === "a" ? "selected" : ""}>Throw A (upper terminal)</option><option value="b" ${position === "b" ? "selected" : ""}>Throw B (lower terminal)</option></select></label>
+        <p style="color:var(--text-dim);font-size:0.8rem;">Click the part on the canvas to change position too. "Upper" and "lower" describe the default orientation, before any rotation or flip.</p>`;
       } else if (comp.type === "outlet") {
         extraFieldsHtml = `<p style="color:var(--text-dim);font-size:0.8rem;">Fixed 120V AC, like a real wall outlet. Never wire it directly to a breadboard part — it must go through a Power Supply, or everything downstream is destroyed instantly.</p>`;
       }
@@ -2141,6 +2156,17 @@
           comp.color = ledColorInput.value;
           renderInspector();
           renderBuilder();
+        });
+      }
+      const spdtPositionSelect = $("sim-comp-spdt-position");
+      if (spdtPositionSelect) {
+        spdtPositionSelect.addEventListener("change", () => {
+          pushHistory();
+          comp.position = spdtPositionSelect.value === "b" ? "b" : "a";
+          renderInspector();
+          renderBuilder();
+          const refreshed = $("sim-comp-spdt-position");
+          if (refreshed) refreshed.focus();
         });
       }
       const switchClosedInput = $("sim-comp-switch-closed");

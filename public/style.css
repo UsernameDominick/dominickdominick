@@ -2076,7 +2076,13 @@ h6 { font-size: 0.9rem; }
 .sim-comp .switch-pivot {
   fill: #333;
 }
-.sim-comp-switch {
+/* SPDT changeover switch: solid theme-ink leads (a bounding-box gradient paints nothing on a horizontal line). */
+.sim-comp .spdt-lead {
+  stroke: var(--text-dim);
+  stroke-width: 2;
+}
+.sim-comp-switch,
+.sim-comp-switch_spdt {
   cursor: pointer;
 }
 

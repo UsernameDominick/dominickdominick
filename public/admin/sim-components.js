@@ -501,6 +501,25 @@
         }" y2="${closed ? 10 : 1}"/><circle class="switch-pivot" cx="32" cy="10" r="2.5"/><line class="switch-lead" x1="32" y1="10" x2="40" y2="10"/>`;
       },
     },
+    // Single-pole double-throw (changeover) switch: the common terminal is
+    // connected to exactly one of the two throws, chosen by `position`. Leads
+    // use a solid class (spdt-lead), not the metal gradient, because a
+    // bounding-box gradient paints nothing on a horizontal line.
+    switch_spdt: {
+      label: "SPDT Switch",
+      keywords: "changeover, toggle, two-way, selector, single pole double throw, 3-way, common, throw",
+      w: 40,
+      h: 40,
+      pins: [
+        { id: "com", x: 0, y: 20 },
+        { id: "a", x: 40, y: 8 },
+        { id: "b", x: 40, y: 32 },
+      ],
+      render: (c) => {
+        const ty = c.position === "b" ? 32 : 8;
+        return `<rect class="switch-body" x="4" y="1" width="32" height="38" rx="3"/><line class="spdt-lead" x1="0" y1="20" x2="8" y2="20"/><line class="spdt-lead" x1="32" y1="8" x2="40" y2="8"/><line class="spdt-lead" x1="32" y1="32" x2="40" y2="32"/><circle class="switch-pivot" cx="8" cy="20" r="2.5"/><circle class="switch-pivot" cx="32" cy="8" r="2.5"/><circle class="switch-pivot" cx="32" cy="32" r="2.5"/><line class="switch-lever" x1="8" y1="20" x2="32" y2="${ty}"/>`;
+      },
+    },
     // A static logic-gate symbol (see the logic-gate block above): its pins
     // depend on the chosen gate, so getSimComponentDefinition swaps them in.
     logic_gate: {
@@ -703,6 +722,11 @@
     return c.closed !== false;
   }
   window.simIsSwitchClosed = isSwitchClosed;
+  // Which throw of an SPDT switch the common terminal is connected to.
+  function spdtThrow(c) {
+    return c.position === "b" ? "b" : "a";
+  }
+  window.simSpdtThrow = spdtThrow;
 
   function buildGraph(data, excludeLedId) {
     const components = (data && data.components) || [];
@@ -724,6 +748,7 @@
       if (def.passthrough && (c.type !== "switch" || isSwitchClosed(c))) {
         def.passthrough.forEach(([a, b]) => link(nodeId(c, a), nodeId(c, b)));
       }
+      if (c.type === "switch_spdt") link(nodeId(c, "com"), nodeId(c, spdtThrow(c)));
       if (c.type === "led" && def.polarity && c.id !== excludeLedId) {
         link(nodeId(c, def.polarity.pos), nodeId(c, def.polarity.neg));
       }
@@ -852,6 +877,8 @@
         link(nodeId(c, "p1"), nodeId(c, "p2"), { compId: c.id, kind: "resistor", resistance: inductorWindingOhms(c) });
       } else if (c.type === "switch") {
         if (isSwitchClosed(c)) link(nodeId(c, "p1"), nodeId(c, "p2"), { compId: c.id, kind: "wire", resistance: 0 });
+      } else if (c.type === "switch_spdt") {
+        link(nodeId(c, "com"), nodeId(c, spdtThrow(c)), { compId: c.id, kind: "wire", resistance: 0 });
       } else if (c.type === "ammeter") {
         link(nodeId(c, "p1"), nodeId(c, "p2"), { compId: c.id, kind: "ammeter", resistance: 0 });
       } else if (c.type === "mcu_teensy") {

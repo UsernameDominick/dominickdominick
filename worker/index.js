@@ -916,6 +916,8 @@ function simulationTopologyDescription(data) {
       }
       case "switch":
         return component.closed === false ? "open switch" : "closed switch";
+      case "switch_spdt":
+        return `changeover switch connected to throw ${component.position === "b" ? "B" : "A"}`;
       default:
         return "";
     }
