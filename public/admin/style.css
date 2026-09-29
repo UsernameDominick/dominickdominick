@@ -6703,3 +6703,19 @@ kbd {
     order: 99;
   }
 }
+
+.pe-layers-group button[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.pe-layer-mask-badge {
+  flex: none;
+  opacity: 0.8;
+}
+.pe-layer-row.is-mask-editing {
+  border-style: dashed;
+}
+.pe-canvas-stack.is-comparing .pe-layer-active {
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
+}

@@ -54,7 +54,7 @@ Worker secret, not stored in this repo). From there:
   it, and named selections are saved (as shapes, so they fit any image size). A Layers panel
   holds up to six layers, each with visibility, opacity, a blend mode, a name and a colour label (with a
   name/colour filter); brushes and filters change the active layer, size changes and flips change all of
-  them, and saving flattens what is visible. "Save as new" uploads a fresh file; "Overwrite original" replaces
+  them, and each layer can have a mask (Paint shows it, Erase hides it), and saving flattens what is visible. "Save as new" uploads a fresh file; "Overwrite original" replaces
   the file in place at the same URL, updating it everywhere it's used
   (this is why `/media/:key` now serves a short, revalidating cache
   instead of a year-long immutable one).

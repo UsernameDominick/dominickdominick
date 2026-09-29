@@ -96,8 +96,11 @@ Verify distinct test-only Preview values before protected-flow checks.
   name/colour filter; add, duplicate, delete, merge down, flatten). Tools paint into the active layer only;
   crop, rotate, flip, resize, straighten and canvas size act on every layer; save and the eyedropper use the
   composite; Compare shows the original alone; named snapshots and Reset cover all layers; undo entries are per
-  layer, whole-image (structure and size changes) or settings-only. No layer masks, groups, text/shape layers or
-  nondestructive adjustment layers yet. It has a
+  layer, whole-image (structure and size changes) or settings-only. Each layer can carry a mask (Add mask, Edit
+  mask, Mask on/off, Invert, Delete): editing points the tools at the mask, where Paint shows the layer and Erase
+  hides it; masks follow crop/rotate/flip/resize/straighten, are baked in by export, Flatten and Merge, and are
+  undoable. Merge down refuses a lower layer that has a mask. No layer groups, text/shape layers, clipping
+  masks or nondestructive adjustment layers yet. It has a
   selection engine: rectangle, ellipse, freehand-lasso and polygon selections (Shift adds, Alt subtracts, Invert,
   Select all, Ctrl+D) held as a list of shapes and rasterised to an alpha mask; the adjust sliders and presets,
   one-shot filters, grain, brushes, annotation shapes, text and Delete selected act only inside it; crop, rotate,
@@ -350,7 +353,7 @@ bookkeeping), 142, 144, 147, 148, 149, 151, 152, 154, 156, 157, 159, 160, 162 (A
 172, 173, 176, 177, 178. Inspect the chosen item's requirements in the original wishlist and current code before
 implementation. Two recurring blockers worth designing around before working this tier: most of
 layers/compositing/masks/nondestructive- editing (#11-60) share ONE foundational dependency. The bitmap
-layer stack and selection engine now exist (see §1); layer masks, groups and adjustment layers, which build on
+layer stack and selection engine now exist (see §1); groups, clipping masks and adjustment layers, which build on
 them, are the next foundation for most of the rest.
 
 ### Photo Editor — Hard

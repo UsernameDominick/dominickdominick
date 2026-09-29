@@ -1176,6 +1176,11 @@
               <button type="button" id="pe-layer-up" aria-label="Move layer up" title="Move the current layer up">↑</button>
               <button type="button" id="pe-layer-down" aria-label="Move layer down" title="Move the current layer down">↓</button>
               <button type="button" id="pe-layer-rename" title="Rename the current layer">Rename</button>
+              <button type="button" id="pe-mask-add" title="Add a mask to the current layer: paint or erase in it to show or hide parts of the layer without deleting them">+ Mask</button>
+              <button type="button" id="pe-mask-edit" aria-pressed="false" title="Switch between painting the layer and painting its mask (Paint shows the layer, Erase hides it)">Edit mask</button>
+              <button type="button" id="pe-mask-toggle" title="Turn the mask off to see the whole layer, or back on">Mask on</button>
+              <button type="button" id="pe-mask-invert" title="Swap the shown and hidden parts of the mask">Invert mask</button>
+              <button type="button" id="pe-mask-delete" title="Remove the mask (Undo brings it back); the layer shows in full">Delete mask</button>
               <label title="How see-through the current layer is">Opacity <input type="range" id="pe-layer-opacity" min="0" max="100" value="100"><output id="pe-layer-opacity-val" for="pe-layer-opacity" class="pe-layer-opacity-val">100%</output></label>
               <label title="How the current layer mixes with the layers below it">Blend <select id="pe-layer-blend" aria-label="Layer blend mode">
                 <option value="normal">Normal</option>

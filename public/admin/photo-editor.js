@@ -181,6 +181,7 @@
   let layers = [];
   let activeLayerId = 0;
   let layerSeq = 0;
+  let editingMask = false; // true: `canvas` is the active layer's mask, not its pixels
   let originalSnapshot = null; // canvas clone taken when the image is first loaded, for "Reset"
   let currentTool = "select";
   let cropRect = null; // {x0,y0,x1,y1} in canvas pixel space
@@ -321,6 +322,7 @@
     stack.style.width = w + "px";
     stack.style.height = h + "px";
     layoutFrame();
+    if (layers.some((layer) => layer.maskDirty && layer.mask)) syncLayerDom();
     updateStatusBar(scale);
     // A selection's coordinates belong to one canvas size: drop it when the
     // size changed (crop, rotate, resize, straighten, undo across a resize),
@@ -418,7 +420,7 @@
   // snapshot per layer, so the total is capped as well as the count.
   const SELECTION_UNDO_LIMIT = 40;
   const UNDO_WEIGHT_LIMIT = 30;
-  const entryWeight = (entry) => (entry.all ? entry.all.layers.length : entry.canvas ? 1 : 0);
+  const entryWeight = (entry) => (entry.all ? entry.all.layers.reduce((n, l) => n + 1 + (l.mask ? 1 : 0), 0) : entry.canvas ? 1 : 0);
   function trimUndo() {
     const heavy = (entry) => entryWeight(entry) > 0;
     const dropOldest = (wantHeavy) => {
@@ -447,7 +449,7 @@
     updateHistoryButtons();
   }
   function pushUndo() {
-    pushEntry({ canvas: snapshotCanvas(), layer: activeLayerId, sel: cloneOps(selOps) });
+    pushEntry({ canvas: snapshotCanvas(), layer: activeLayerId, target: editingMask ? "mask" : "pixels", sel: cloneOps(selOps) });
   }
   function pushUndoAll() {
     pushEntry({ all: snapshotAll(), sel: cloneOps(selOps) });
@@ -495,7 +497,8 @@
     if (entry.meta) return { meta: layerMetaList(), sel };
     if (entry.canvas) {
       const layer = layerById(entry.layer);
-      return { canvas: layer ? snapshotOf(layer.canvas) : null, layer: entry.layer, sel };
+      const bitmap = layer && (entry.target === "mask" ? layer.mask : layer.canvas);
+      return { canvas: bitmap ? snapshotOf(bitmap) : null, layer: entry.layer, target: entry.target, sel };
     }
     return { canvas: null, sel };
   }
@@ -505,7 +508,14 @@
     else if (entry.meta) restoreLayerMeta(entry.meta);
     else if (entry.canvas) {
       const layer = layerById(entry.layer);
-      if (layer) restoreSnapshot(entry.canvas, layer);
+      const bitmap = layer && (entry.target === "mask" ? layer.mask : layer.canvas);
+      if (bitmap) {
+        restoreSnapshot(entry.canvas, { canvas: bitmap });
+        if (entry.target === "mask") {
+          layer.maskDirty = true;
+          syncLayerDom();
+        }
+      }
     }
     restoreSelection(entry.sel);
     selectionNoteText = "";
@@ -544,6 +554,8 @@
     const only = layers[0];
     for (const layer of layers.slice(1)) releaseCanvasEl(layer.canvas);
     Object.assign(only, defaultLayerMeta(only.id, "Background"));
+    only.mask = null;
+    editingMask = false;
     layers = [only];
     activeLayerId = only.id;
     bindActiveLayer();
@@ -573,10 +585,10 @@
   const LAYER_NAME_MAX = 40;
 
   function defaultLayerMeta(id, name) {
-    return { id, name, color: "", visible: true, opacity: 100, blend: "normal" };
+    return { id, name, color: "", visible: true, opacity: 100, blend: "normal", maskOn: true };
   }
   function metaOf(layer) {
-    return { id: layer.id, name: layer.name, color: layer.color, visible: layer.visible, opacity: layer.opacity, blend: layer.blend };
+    return { id: layer.id, name: layer.name, color: layer.color, visible: layer.visible, opacity: layer.opacity, blend: layer.blend, maskOn: layer.maskOn !== false };
   }
   const layerById = (id) => layers.find((layer) => layer.id === id) || null;
   const activeLayer = () => layerById(activeLayerId);
@@ -584,7 +596,7 @@
     return layers.map(metaOf);
   }
   function snapshotAll() {
-    return { layers: layers.map((layer) => ({ meta: metaOf(layer), canvas: snapshotOf(layer.canvas) })), active: activeLayerId };
+    return { layers: layers.map((layer) => ({ meta: metaOf(layer), canvas: snapshotOf(layer.canvas), mask: layer.mask ? snapshotOf(layer.mask) : null })), active: activeLayerId, editingMask };
   }
 
   function acquireCanvasEl() {
@@ -607,7 +619,8 @@
   function bindActiveLayer() {
     const layer = activeLayer() || layers[layers.length - 1];
     activeLayerId = layer.id;
-    canvas = layer.canvas;
+    if (!layer.mask) editingMask = false;
+    canvas = editingMask ? layer.mask : layer.canvas;
     ctx = canvas.getContext("2d");
   }
 
@@ -617,9 +630,22 @@
 
   // The image as it will be saved: visible layers drawn bottom to top. A lone
   // plain layer is returned as is, so the common one-layer case costs nothing.
+  // A layer's pixels as they show: through its mask when it has one that is on.
+  function shownBitmap(layer) {
+    if (!layer.mask || layer.maskOn === false) return layer.canvas;
+    const out = document.createElement("canvas");
+    out.width = layer.canvas.width;
+    out.height = layer.canvas.height;
+    const c = out.getContext("2d");
+    c.drawImage(layer.canvas, 0, 0);
+    c.globalCompositeOperation = "destination-in";
+    c.drawImage(layer.mask, 0, 0);
+    return out;
+  }
+
   function flattenedCanvas() {
     const visible = layers.filter((layer) => layer.visible);
-    if (visible.length === 1 && visible[0].opacity === 100 && visible[0].blend === "normal") return visible[0].canvas;
+    if (visible.length === 1 && visible[0].opacity === 100 && visible[0].blend === "normal") return shownBitmap(visible[0]);
     const out = document.createElement("canvas");
     out.width = canvas.width;
     out.height = canvas.height;
@@ -627,9 +653,40 @@
     for (const layer of visible) {
       octx2.globalAlpha = layer.opacity / 100;
       octx2.globalCompositeOperation = compositeOp(layer.blend);
-      octx2.drawImage(layer.canvas, 0, 0);
+      octx2.drawImage(shownBitmap(layer), 0, 0);
     }
     return out;
+  }
+
+  // The view shows a mask with CSS mask-image (its alpha), rebuilt only when the
+  // mask's pixels changed.
+  function applyMaskCss(layer) {
+    const el = layer.canvas;
+    if (layer.mask && layer.maskOn !== false) {
+      if (layer.maskDirty || !layer.maskUrl) {
+        layer.maskUrl = layer.mask.toDataURL("image/png");
+        layer.maskDirty = false;
+      }
+      const url = `url(${layer.maskUrl})`;
+      el.style.webkitMaskImage = url;
+      el.style.maskImage = url;
+      el.style.webkitMaskSize = "100% 100%";
+      el.style.maskSize = "100% 100%";
+    } else {
+      el.style.webkitMaskImage = "";
+      el.style.maskImage = "";
+    }
+  }
+  let maskRefreshTimer = null;
+  function scheduleMaskRefresh() {
+    if (!editingMask || maskRefreshTimer) return; // one refresh per interval while a stroke moves
+    maskRefreshTimer = setTimeout(() => {
+      maskRefreshTimer = null;
+      const layer = activeLayer();
+      if (!layer || !layer.mask) return;
+      layer.maskDirty = true;
+      applyMaskCss(layer);
+    }, 120);
   }
 
   function syncLayerDom() {
@@ -642,6 +699,7 @@
       el.style.opacity = String(layer.opacity / 100);
       el.style.mixBlendMode = layer.blend;
       el.style.display = layer.visible ? "" : "none";
+      applyMaskCss(layer);
       el.style.width = stack.style.width;
       el.style.height = stack.style.height;
     });
@@ -660,8 +718,12 @@
     if (note) note.textContent = text || "";
   }
   // Drawing on a layer that is switched off would change pixels nobody can see.
-  function layerBlocked() {
+  function layerBlocked(allowMask) {
     const layer = activeLayer();
+    if (editingMask && !allowMask) {
+      setLayerNote("You're editing this layer's mask. Switch back to the layer's pixels (Edit mask) to use that. In a mask, Paint shows the layer and Erase hides it.");
+      return true;
+    }
     if (layer && !layer.visible) {
       setLayerNote(`"${layer.name}" is hidden. Show it (or pick another layer) to edit it.`);
       return true;
@@ -677,7 +739,8 @@
     for (const layer of layers) releaseCanvasEl(layer.canvas);
     layers = [];
     layerSeq = 1;
-    const base = { ...defaultLayerMeta(1, "Background"), canvas: acquireCanvasEl() };
+    editingMask = false;
+    const base = { ...defaultLayerMeta(1, "Background"), canvas: acquireCanvasEl(), mask: null };
     base.canvas.width = w;
     base.canvas.height = h;
     layers = [base];
@@ -705,8 +768,18 @@
       layer.canvas.width = entry.canvas.width;
       layer.canvas.height = entry.canvas.height;
       layer.canvas.getContext("2d").drawImage(entry.canvas, 0, 0);
+      if (entry.mask) {
+        if (!layer.mask) layer.mask = document.createElement("canvas");
+        layer.mask.width = entry.mask.width;
+        layer.mask.height = entry.mask.height;
+        layer.mask.getContext("2d").drawImage(entry.mask, 0, 0);
+      } else {
+        layer.mask = null;
+      }
+      layer.maskDirty = true;
       return layer;
     });
+    editingMask = Boolean(state.editingMask);
     activeLayerId = layerById(state.active) ? state.active : layers[layers.length - 1].id;
     bindActiveLayer();
     syncOverlaySize();
@@ -737,11 +810,16 @@
   // layer's earlier pixels. Used by every operation that resizes the image.
   function transformAllLayers(w, h, draw) {
     for (const layer of layers) {
-      const source = snapshotOf(layer.canvas);
-      layer.canvas.width = w;
-      layer.canvas.height = h;
-      draw(layer.canvas.getContext("2d"), source);
+      for (const bitmap of [layer.canvas, layer.mask]) {
+        if (!bitmap) continue;
+        const source = snapshotOf(bitmap);
+        bitmap.width = w;
+        bitmap.height = h;
+        draw(bitmap.getContext("2d"), source);
+      }
+      layer.maskDirty = true;
     }
+    // `canvas` may be a mask: the resize above changed it too.
   }
 
   function nextLayerName() {
@@ -774,7 +852,7 @@
     const el = acquireCanvasEl();
     el.width = canvas.width;
     el.height = canvas.height;
-    insertLayerAbove(layerIndex(), { ...defaultLayerMeta(++layerSeq, nextLayerName()), canvas: el });
+    insertLayerAbove(layerIndex(), { ...defaultLayerMeta(++layerSeq, nextLayerName()), canvas: el, mask: null });
     setLayerNote("");
   }
   function duplicateLayer() {
@@ -787,7 +865,14 @@
     el.height = source.canvas.height;
     el.getContext("2d").drawImage(source.canvas, 0, 0);
     const meta = { ...metaOf(source), id: ++layerSeq, name: Array.from(`${source.name} copy`).slice(0, LAYER_NAME_MAX).join("") };
-    insertLayerAbove(layerIndex(), { ...meta, canvas: el });
+    let mask = null;
+    if (source.mask) {
+      mask = document.createElement("canvas");
+      mask.width = source.mask.width;
+      mask.height = source.mask.height;
+      mask.getContext("2d").drawImage(source.mask, 0, 0);
+    }
+    insertLayerAbove(layerIndex(), { ...meta, canvas: el, mask, maskDirty: true });
     setLayerNote("");
   }
   function deleteLayer() {
@@ -811,12 +896,13 @@
     const top = layers[i];
     const below = layers[i - 1];
     if (!top.visible || !below.visible) return setLayerNote("Show both layers to merge them.");
+    if (below.mask) return setLayerNote("The layer below has a mask. Delete its mask first, or merge into a layer without one.");
     pushUndoAll();
     const bctx = below.canvas.getContext("2d");
     bctx.save();
     bctx.globalAlpha = top.opacity / 100;
     bctx.globalCompositeOperation = compositeOp(top.blend);
-    bctx.drawImage(top.canvas, 0, 0);
+    bctx.drawImage(shownBitmap(top), 0, 0);
     bctx.restore();
     layers.splice(i, 1);
     releaseCanvasEl(top.canvas);
@@ -840,6 +926,8 @@
     const first = layers[0];
     for (const layer of layers.slice(1)) releaseCanvasEl(layer.canvas);
     Object.assign(first, defaultLayerMeta(first.id, first.name));
+    first.mask = null;
+    editingMask = false;
     first.canvas.width = flat.width;
     first.canvas.height = flat.height;
     first.canvas.getContext("2d").drawImage(flat, 0, 0);
@@ -894,6 +982,101 @@
     renderLayerPanel();
   }
 
+  // ----- masks -----
+  // A mask is a bitmap the size of the image whose alpha decides where its layer
+  // shows. Editing one points `canvas`/`ctx` at it, so Paint (adds alpha: shows
+  // the layer) and Erase (removes alpha: hides it) work unchanged, with the
+  // selection, undo and zoom that already exist.
+  function addMask() {
+    if (layerActionsBlocked()) return;
+    const layer = activeLayer();
+    if (layer.mask) return;
+    pushUndoAll();
+    const mask = document.createElement("canvas");
+    mask.width = layer.canvas.width;
+    mask.height = layer.canvas.height;
+    const c = mask.getContext("2d");
+    c.fillStyle = "#000";
+    c.fillRect(0, 0, mask.width, mask.height); // fully shown until you erase
+    layer.mask = mask;
+    layer.maskOn = true;
+    layer.maskDirty = true;
+    editingMask = true;
+    bindActiveLayer();
+    invalidateOpenAdjustDrag();
+    syncLayerDom();
+    renderLayerPanel();
+    setLayerNote("Editing the mask: Erase hides parts of this layer, Paint shows them again.");
+  }
+  function toggleMaskEdit() {
+    if (layerActionsBlocked()) return;
+    const layer = activeLayer();
+    if (!layer.mask) return;
+    editingMask = !editingMask;
+    bindActiveLayer();
+    invalidateOpenAdjustDrag();
+    renderLayerPanel();
+    setLayerNote(editingMask ? "Editing the mask: Erase hides parts of this layer, Paint shows them again." : "");
+  }
+  function toggleMaskOn() {
+    if (layerActionsBlocked()) return;
+    const layer = activeLayer();
+    if (!layer.mask) return;
+    pushMetaUndo();
+    layer.maskOn = !layer.maskOn;
+    syncLayerDom();
+    renderLayerPanel();
+  }
+  function invertMask() {
+    if (layerActionsBlocked()) return;
+    const layer = activeLayer();
+    if (!layer.mask) return;
+    pushEntry({ canvas: snapshotOf(layer.mask), layer: layer.id, target: "mask", sel: cloneOps(selOps) });
+    const inverse = document.createElement("canvas");
+    inverse.width = layer.mask.width;
+    inverse.height = layer.mask.height;
+    const ic = inverse.getContext("2d");
+    ic.fillStyle = "#000";
+    ic.fillRect(0, 0, inverse.width, inverse.height);
+    ic.globalCompositeOperation = "destination-out";
+    ic.drawImage(layer.mask, 0, 0);
+    const mc = layer.mask.getContext("2d");
+    mc.clearRect(0, 0, layer.mask.width, layer.mask.height);
+    mc.drawImage(inverse, 0, 0);
+    layer.maskDirty = true;
+    syncLayerDom();
+    renderLayerPanel();
+  }
+  function deleteMask() {
+    if (layerActionsBlocked()) return;
+    const layer = activeLayer();
+    if (!layer.mask) return;
+    pushUndoAll();
+    layer.mask = null;
+    layer.maskUrl = null;
+    editingMask = false;
+    bindActiveLayer();
+    invalidateOpenAdjustDrag();
+    syncLayerDom();
+    renderLayerPanel();
+    setLayerNote("");
+  }
+  onLayerButton("pe-mask-add", addMask);
+  onLayerButton("pe-mask-edit", toggleMaskEdit);
+  onLayerButton("pe-mask-toggle", toggleMaskOn);
+  onLayerButton("pe-mask-invert", invertMask);
+  onLayerButton("pe-mask-delete", deleteMask);
+  // The view's mask picture follows the strokes while they are drawn and once they end.
+  overlay.addEventListener("pointermove", () => {
+    if (dragging) scheduleMaskRefresh();
+  });
+  for (const type of ["pointerup", "pointercancel"]) {
+    overlay.addEventListener(type, () => {
+      scheduleMaskRefresh();
+      setTimeout(scheduleMaskRefresh, 250);
+    });
+  }
+
   let layerFilterText = "";
   let layerFilterColor = "";
   function layerMatchesFilter(layer) {
@@ -937,6 +1120,7 @@
       row.className = "pe-layer-row";
       row.classList.toggle("is-active", layer.id === activeLayerId);
       row.classList.toggle("is-hidden", !layer.visible);
+      row.classList.toggle("is-mask-editing", layer.id === activeLayerId && editingMask);
       const eye = document.createElement("button");
       eye.type = "button";
       eye.className = "pe-layer-eye";
@@ -948,7 +1132,7 @@
       pick.type = "button";
       pick.className = "pe-layer-pick";
       pick.dataset.layerId = String(layer.id);
-      pick.setAttribute("aria-label", `${layer.name}${layer.color ? `, ${layer.color} label` : ""}${layer.visible ? "" : ", hidden"}${layer.opacity === 0 ? ", fully transparent" : ""}`);
+      pick.setAttribute("aria-label", `${layer.name}${layer.color ? `, ${layer.color} label` : ""}${layer.visible ? "" : ", hidden"}${layer.opacity === 0 ? ", fully transparent" : ""}${layer.mask ? `, has a mask${layer.maskOn === false ? " (off)" : ""}${layer.id === activeLayerId && editingMask ? ", editing the mask" : ""}` : ""}`);
       if (layer.id === activeLayerId) pick.setAttribute("aria-current", "true");
       const dot = document.createElement("span");
       dot.className = "pe-layer-dot";
@@ -960,6 +1144,13 @@
       label.textContent = layer.name;
       if (layer.color) pick.append(dot);
       pick.append(label);
+      if (layer.mask) {
+        const badge = document.createElement("span");
+        badge.className = "pe-layer-mask-badge";
+        badge.setAttribute("aria-hidden", "true");
+        badge.textContent = layer.maskOn === false ? "▧" : "▨";
+        pick.append(badge);
+      }
       pick.addEventListener("click", () => selectLayer(layer.id));
       row.append(eye, pick);
       list.append(row);
@@ -986,6 +1177,15 @@
     $("pe-layer-blend").value = active.blend;
     $("pe-layer-color").value = active.color;
     const full = `Up to ${MAX_LAYERS} layers per image.`;
+    const hasMask = Boolean(active.mask);
+    setLayerButtonState("pe-mask-add", hasMask, "This layer already has a mask.");
+    setLayerButtonState("pe-mask-edit", !hasMask, "Add a mask first.");
+    setLayerButtonState("pe-mask-toggle", !hasMask, "Add a mask first.");
+    setLayerButtonState("pe-mask-invert", !hasMask, "Add a mask first.");
+    setLayerButtonState("pe-mask-delete", !hasMask, "This layer has no mask.");
+    $("pe-mask-edit").setAttribute("aria-pressed", String(editingMask));
+    $("pe-mask-edit").textContent = editingMask ? "Editing mask" : "Edit mask";
+    $("pe-mask-toggle").textContent = hasMask && active.maskOn === false ? "Mask off" : "Mask on";
     setLayerButtonState("pe-layer-up", i >= layers.length - 1, "This is already the top layer.");
     setLayerButtonState("pe-layer-down", i < 1, "This is already the bottom layer.");
     setLayerButtonState("pe-layer-merge", i < 1, "There's no layer below this one to merge into.");
@@ -1180,6 +1380,10 @@
     // from starting mid-slider-drag in the first place rather than only
     // stopping the slider from acting while Compare is already active.
     if (!originalSnapshot || compareSavedState || dragging || baseSnapshot) return;
+    if (editingMask) {
+      setLayerNote("Switch to the layer's pixels (Edit mask) to compare with the original.");
+      return;
+    }
     resetStraightenUi();
     compareSavedState = snapshotCanvas();
     stack.classList.add("is-comparing");
@@ -1418,12 +1622,16 @@
     const r = normalizedCrop(cropRect);
     if (r.w < 2 || r.h < 2) return;
     pushUndoAll();
-    const pieces = layers.map((layer) => layer.canvas.getContext("2d").getImageData(r.x, r.y, r.w, r.h));
-    layers.forEach((layer, i) => {
-      layer.canvas.width = r.w;
-      layer.canvas.height = r.h;
-      layer.canvas.getContext("2d").putImageData(pieces[i], 0, 0);
-    });
+    for (const layer of layers) {
+      for (const bitmap of [layer.canvas, layer.mask]) {
+        if (!bitmap) continue;
+        const piece = bitmap.getContext("2d").getImageData(r.x, r.y, r.w, r.h);
+        bitmap.width = r.w;
+        bitmap.height = r.h;
+        bitmap.getContext("2d").putImageData(piece, 0, 0);
+      }
+      layer.maskDirty = true;
+    }
     syncOverlaySize();
     // Was: manually clearing cropRect/hiding the button/clearing the
     // overlay inline. Replaced with cancelActiveDrag() (same as rotate90()/
@@ -2069,7 +2277,7 @@
   $("pe-sel-clear").addEventListener("click", deselect);
 
   $("pe-sel-delete").addEventListener("click", () => {
-    if (isComparing() || !hasSelection() || layerBlocked()) return;
+    if (isComparing() || !hasSelection() || layerBlocked(true)) return;
     pushUndo();
     ctx.save();
     ctx.globalCompositeOperation = "destination-out";
@@ -2301,20 +2509,25 @@
     if (isComparing()) return;
     pushUndoAll();
     for (const layer of layers) {
-      const snap = snapshotOf(layer.canvas);
-      const lctx = layer.canvas.getContext("2d");
-      lctx.save();
-      lctx.clearRect(0, 0, snap.width, snap.height);
-      if (horizontal) {
-        lctx.translate(snap.width, 0);
-        lctx.scale(-1, 1);
-      } else {
-        lctx.translate(0, snap.height);
-        lctx.scale(1, -1);
+      for (const bitmap of [layer.canvas, layer.mask]) {
+        if (!bitmap) continue;
+        const snap = snapshotOf(bitmap);
+        const lctx = bitmap.getContext("2d");
+        lctx.save();
+        lctx.clearRect(0, 0, snap.width, snap.height);
+        if (horizontal) {
+          lctx.translate(snap.width, 0);
+          lctx.scale(-1, 1);
+        } else {
+          lctx.translate(0, snap.height);
+          lctx.scale(1, -1);
+        }
+        lctx.drawImage(snap, 0, 0);
+        lctx.restore();
       }
-      lctx.drawImage(snap, 0, 0);
-      lctx.restore();
+      layer.maskDirty = true;
     }
+    syncLayerDom();
     dropSelection("The selection was cleared because the image was flipped.");
     cancelActiveDrag();
   }
@@ -3666,7 +3879,7 @@
     // critic pass found this gap in the fix's symmetry after the first
     // round only guarded one direction.
     if (isComparing()) return;
-    if ((BRUSH_TOOLS.includes(currentTool) || SHAPE_TOOLS.includes(currentTool) || currentTool === "text") && layerBlocked()) return;
+    if ((BRUSH_TOOLS.includes(currentTool) || SHAPE_TOOLS.includes(currentTool) || currentTool === "text") && layerBlocked(["paint", "pencil", "erase"].includes(currentTool))) return;
     if (["blur", "pixelate", "dodge", "burn"].includes(currentTool) && layers.length > 1 && layerIsEmpty(canvas)) {
       setLayerNote(`"${activeLayer().name}" has nothing painted on it, so ${currentTool} has nothing to work on. These tools only read the active layer.`);
       return;
