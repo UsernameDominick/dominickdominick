@@ -4081,7 +4081,7 @@
       if (PASTE_SKIP.has(tag)) return "";
       if (tag === "br") return "\n";
       // Citation markers (a "[1]" or a link to an anchor) are dropped; a bare 2 in m² stays.
-      if (tag === "sup" && (/^\s*\[\d+\]\s*$/.test(node.textContent) || node.querySelector('a[href^="#"]') || /reference|noprint|cite/i.test(node.className || ""))) return "";
+      if (tag === "sup" && (/^\s*\[\d+\]\s*$/.test(node.textContent) || node.querySelector('a[href^="#"]') || /(^|[\s_-])(reference|noprint|cite)/i.test(node.className || ""))) return "";
       const free = !st.bold && !st.italic;
       const bold = free && isBoldEl(node, tag);
       const italic = free && !bold && isItalicEl(node, tag);
@@ -4224,7 +4224,10 @@
 
     const md = walk(doc.body).map((b) => b.text).join("\n\n");
     // A fragment pasted mid-sentence keeps its edge spaces ("bold " + next word).
-    const edge = (frag ? frag[1].replace(/<[^>]*>/g, "") : doc.body.textContent).replace(/&nbsp;/g, " ");
+    // Line breaks between tags are pretty-printing, not spaces the user copied.
+    const edge = (frag ? frag[1].replace(/<[^>]*>/g, "") : doc.body.textContent)
+      .replace(/&nbsp;/g, " ")
+      .replace(/^[ \t]*[\r\n]\s*|\s*[\r\n]\s*$/g, "");
     const single = !md.includes("\n\n");
     return single ? (/^\s/.test(edge) ? " " : "") + md + (/\s$/.test(edge) ? " " : "") : md;
   }
