@@ -4261,14 +4261,26 @@
     return href.replace(/[()\[\]|*\s]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0"));
   }
   // Emphasis marks that touch ("*a*" then "**b**") would read as one span: keep them apart.
-  const joinInline = (a, b) => {
-    if (!(a.endsWith("*") && b.startsWith("*"))) return a + b;
-    // Two runs of the same emphasis are one run ("Hel" + "lo" stays searchable);
-    // different emphasis is kept apart.
-    if (a.endsWith("**") && b.startsWith("**")) return a.slice(0, -2) + b.slice(2);
-    if (!a.endsWith("**") && !b.startsWith("**")) return a.slice(0, -1) + b.slice(1);
-    return a + "\u200b" + b;
-  };
+  // Pieces are collected in an array and joined once (a string built by repeated
+  // concatenation goes quadratic on a paragraph with tens of thousands of runs).
+  // Two runs of the same emphasis are one run ("Hel" + "lo" stays searchable);
+  // different emphasis is kept apart.
+  function pushInline(parts, piece) {
+    if (!piece) return;
+    const last = parts.length ? parts[parts.length - 1] : "";
+    if (last.endsWith("*") && piece.startsWith("*")) {
+      if (last.endsWith("**") && piece.startsWith("**")) {
+        parts[parts.length - 1] = last.slice(0, -2);
+        piece = piece.slice(2);
+      } else if (!last.endsWith("**") && !piece.startsWith("**")) {
+        parts[parts.length - 1] = last.slice(0, -1);
+        piece = piece.slice(1);
+      } else {
+        parts.push("\u200b");
+      }
+    }
+    parts.push(piece);
+  }
   const pasteEscape = (t) => t.replace(/\*/g, "∗").replace(/\]\(/g, "]​(");
   const pasteCollapse = (t) => t.replace(/[ \t\r\n ]+/g, " ");
   const pasteWrapLines = (text, mark) => text.split("\n").map((l) => (l.trim() ? mark + l.trim() + mark : l)).join("\n");
@@ -4296,8 +4308,9 @@
       const bold = free && isBoldEl(node, tag);
       const italic = free && !bold && isItalicEl(node, tag);
       const child = { bold: st.bold || bold, italic: st.italic || italic, noLink: st.noLink };
-      let inner = "";
-      node.childNodes.forEach((k) => (inner = joinInline(inner, inlineOf(k, child))));
+      const parts = [];
+      node.childNodes.forEach((k) => pushInline(parts, inlineOf(k, child)));
+      const inner = parts.join("");
       if (!inner.trim()) return inner;
       let text = inner;
       if (tag === "a" && !st.noLink) {
@@ -4399,7 +4412,9 @@
       let run = [];
       const flush = () => {
         if (!run.length) return;
-        const text = run.reduce((acc, n) => joinInline(acc, inlineOf(n, {})), "");
+        const parts = [];
+        run.forEach((n) => pushInline(parts, inlineOf(n, {})));
+        const text = parts.join("");
         run = [];
         paragraphs(text, out);
       };
@@ -4488,32 +4503,60 @@
   // when that is still empty. Word and PDF files aren't readable this way.
   const IMPORT_MAX_BYTES = 2 * 1024 * 1024;
   let importTarget = null;
-  function importedTextToMarkdown(name, text) {
-    const lower = name.toLowerCase();
-    const result = { body: "", title: "" };
-    if (/\.html?$/.test(lower)) {
-      const doc = new DOMParser().parseFromString(text, "text/html");
-      result.title = (doc.querySelector("title") || {}).textContent || "";
-      const h1 = doc.body && doc.body.querySelector("h1");
-      if (!result.title.trim() && h1) result.title = h1.textContent;
-      if (h1 && h1.textContent.trim() === result.title.trim()) h1.remove(); // the title has its own field
-      result.body = htmlToMarkdownLite(doc.body ? doc.body.innerHTML : text);
-    } else {
-      let md = text.replace(/\r\n?/g, "\n");
-      const fm = md.match(/^---\n([\s\S]*?)\n---\n?/);
-      if (fm) {
-        const t = fm[1].match(/^title:\s*["']?(.+?)["']?\s*$/m);
-        if (t) result.title = t[1];
-        md = md.slice(fm[0].length);
+  // Front matter is only recognised when it really is key: value lines between
+  // --- markers (or TOML between +++), so a note that merely starts with a rule is
+  // left alone. Returns {title, rest, found}.
+  function splitFrontMatter(md) {
+    const m = md.match(/^(---|\+\+\+)[ \t]*\n(?:([\s\S]*?)\n)?\1[ \t]*(?:\n|$)/);
+    if (!m) return { title: "", rest: md, found: false };
+    const lines = (m[2] || "").split("\n");
+    const isToml = m[1] === "+++";
+    const keyLine = isToml ? /^[A-Za-z0-9_-]+\s*=/ : /^[A-Za-z0-9_-]+\s*:/;
+    if (!lines.every((l) => !l.trim() || keyLine.test(l) || /^\s+\S/.test(l) || /^\s*-\s/.test(l) || /^\s*#/.test(l))) return { title: "", rest: md, found: false };
+    let title = "";
+    const idx = lines.findIndex((l) => (isToml ? /^title\s*=/ : /^title\s*:/).test(l));
+    if (idx >= 0) {
+      let value = lines[idx].replace(isToml ? /^title\s*=\s*/ : /^title\s*:[ \t]*/, "").trim();
+      if (/^[>|][+-]?$/.test(value) || value === "") {
+        const folded = [];
+        for (let k = idx + 1; k < lines.length && /^\s+\S/.test(lines[k]); k++) folded.push(lines[k].trim());
+        value = folded.join(" ");
       }
-      const first = md.match(/^\s*#\s+(.+)\n?/);
+      if (/^".*"$/.test(value)) value = value.slice(1, -1).replace(/\\(["\\])/g, "$1");
+      else if (/^'.*'$/.test(value)) value = value.slice(1, -1).replace(/''/g, "'");
+      title = value;
+    }
+    return { title, rest: md.slice(m[0].length), found: true };
+  }
+  function importedTextToMarkdown(name, text, titleFieldEmpty) {
+    const lower = name.toLowerCase();
+    const result = { body: "", title: "", frontMatter: false, titleUsed: false };
+    // A .html file with no tags at all is just text.
+    if (/\.html?$/.test(lower) && /<[a-z!\/][^>]*>/i.test(text)) {
+      const doc = new DOMParser().parseFromString(text, "text/html");
+      let title = (doc.querySelector("title") || {}).textContent || "";
+      const h1 = doc.body && doc.body.querySelector("h1");
+      if (!title.trim() && h1) title = h1.textContent;
+      // The heading moves into the title field only when that field is empty.
+      if (titleFieldEmpty && h1 && h1.textContent.trim() === title.trim()) h1.remove();
+      result.body = htmlToMarkdownLite(doc.body ? doc.body.innerHTML : text);
+      result.title = title;
+    } else {
+      let md = text.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
+      const fm = splitFrontMatter(md);
+      md = fm.rest;
+      result.title = fm.title;
+      result.frontMatter = fm.found;
+      // A first-line "# heading" (not indented, not a code line) is the title.
+      const first = md.match(/^(?:[ \t]*\n)*[ ]{0,3}#[ \t]+([^\n]+?)[ \t]*(?:\n|$)/);
       if (first) {
         if (!result.title) result.title = first[1].trim();
-        if (first[1].trim() === result.title.trim()) md = md.slice(first[0].length);
+        if (titleFieldEmpty && first[1].trim() === result.title.trim()) md = md.slice(first[0].length);
       }
       result.body = md.replace(/^\n+/, "").replace(/\s+$/, "");
     }
     result.title = result.title.replace(/\s+/g, " ").trim().slice(0, 200);
+    result.titleUsed = Boolean(titleFieldEmpty && result.title);
     return result;
   }
   document.querySelectorAll(".md-import-btn").forEach((btn) => {
@@ -4539,24 +4582,29 @@
       return alert("Couldn't read that file.");
     }
     if (text.includes("\u0000")) return alert("That doesn't look like a text file.");
-    const { body, title } = importedTextToMarkdown(file.name, text);
-    if (!body.trim()) return alert("Nothing to import: the file has no text.");
+    const titleInput = el(targetId === "article-body" ? "article-title" : "project-title");
+    if (/\.html?$/i.test(file.name) && file.size > PASTE_MAX_HTML) return alert("That HTML file is too large to clean up here (over 1.5 MB). Split it, or save it as Markdown.");
+    const { body, title, frontMatter, titleUsed } = importedTextToMarkdown(file.name, text, Boolean(titleInput && !titleInput.value.trim()));
+    if (!body.trim() && !titleUsed) return alert("Nothing to import: the file has no text.");
     const ta = el(targetId);
     ta.focus();
     const big = body.length > PASTE_UNDO_MAX || body.split("\n").length > PASTE_UNDO_LINES;
-    if (big || !document.execCommand || !document.execCommand("insertText", false, body)) {
-      ta.setRangeText(body, ta.selectionStart, ta.selectionEnd, "end");
-      ta.dispatchEvent(new Event("input", { bubbles: true }));
+    if (body.trim()) {
+      if (big || !document.execCommand || !document.execCommand("insertText", false, body)) {
+        ta.setRangeText(body, ta.selectionStart, ta.selectionEnd, "end");
+        ta.dispatchEvent(new Event("input", { bubbles: true }));
+      }
     }
-    const titleInput = el(targetId === "article-body" ? "article-title" : "project-title");
-    let usedTitle = false;
-    if (titleInput && title && !titleInput.value.trim()) {
+    if (titleUsed) {
       titleInput.value = title;
       titleInput.dispatchEvent(new Event("input", { bubbles: true }));
-      usedTitle = true;
     }
     if (note) {
-      note.textContent = `Imported ${file.name} (${body.length.toLocaleString()} characters${usedTitle ? ", title filled in" : ""}). ${big ? "This import is large, so Ctrl+Z can't undo it as one step." : "Ctrl+Z undoes it."}`;
+      const bits = [`${body.length.toLocaleString()} characters`];
+      if (titleUsed) bits.push("title filled in");
+      if (frontMatter) bits.push("front matter removed");
+      const warn = text.includes("\uFFFD") ? " Some characters couldn't be read, so the file may not be UTF-8 text." : "";
+      note.textContent = `Imported ${file.name} (${bits.join(", ")}). ${!body.trim() ? "" : big ? "This import is large, so Ctrl+Z can't undo it as one step." : `Ctrl+Z undoes the text${titleUsed ? " (not the title)" : ""}.`}${warn}`;
     }
   });
 
