@@ -683,7 +683,7 @@
   function renderMaskTint() {
     const tint = $("pe-mask-tint");
     const layer = activeLayer();
-    if (!(editingMask && layer && layer.mask && $("pe-mask-show").checked)) {
+    if (!(editingMask && layer && layer.mask && layer.maskOn !== false && layer.visible && $("pe-mask-show").checked)) {
       tint.style.display = "none";
       return;
     }
