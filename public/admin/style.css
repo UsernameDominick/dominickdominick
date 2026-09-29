@@ -4991,8 +4991,15 @@ kbd {
 
 /* margin:auto centres the image when it is smaller than the area and, unlike
    align/justify centring, still lets a larger (zoomed) image scroll to its edges. */
-.pe-canvas-wrap > .pe-canvas-stack {
+.pe-canvas-wrap > .pe-canvas-frame {
   margin: auto;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pe-canvas-frame > .pe-canvas-stack {
   flex-shrink: 0;
 }
 
@@ -6553,3 +6560,17 @@ kbd {
   color: var(--accent);
 }
 
+
+#pe-zoom-group button[aria-disabled="true"] {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pe-zoom-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

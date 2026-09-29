@@ -1157,6 +1157,7 @@
           <div class="pe-toolbar">
             <div class="pe-tool-group" id="pe-zoom-group" role="group" aria-label="Zoom and pan">
               <span class="pe-group-label">Zoom</span>
+              <span id="pe-zoom-status" class="pe-zoom-status" role="status"></span>
               <button type="button" id="pe-zoom-out" aria-label="Zoom out" title="Zoom out (-, or Ctrl+wheel)">−</button>
               <button type="button" id="pe-zoom-reset" aria-pressed="true" title="Fit the whole image in the window (0)">Fit</button>
               <button type="button" id="pe-zoom-100" aria-pressed="false" title="Actual pixels (1)">100%</button>
@@ -1328,9 +1329,11 @@
           </div>
           <div class="pe-canvas-area">
             <div id="pe-canvas-wrap" class="pe-canvas-wrap pe-bg-checkerboard">
-              <div id="pe-canvas-stack" class="pe-canvas-stack">
-                <canvas id="pe-canvas"></canvas>
-                <canvas id="pe-overlay"></canvas>
+              <div id="pe-canvas-frame" class="pe-canvas-frame">
+                <div id="pe-canvas-stack" class="pe-canvas-stack">
+                  <canvas id="pe-canvas"></canvas>
+                  <canvas id="pe-overlay"></canvas>
+                </div>
               </div>
             </div>
             <span id="pe-sel-status" class="pe-sel-status is-idle" role="status">No selection.</span>

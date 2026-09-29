@@ -6,6 +6,8 @@
   const canvas = $("pe-canvas");
   const overlay = $("pe-overlay");
   const stack = $("pe-canvas-stack");
+  const frame = $("pe-canvas-frame"); // sized to what the (possibly rotated) view occupies
+  const canvasWrap = $("pe-canvas-wrap");
   const ctx = canvas.getContext("2d");
   const octx = overlay.getContext("2d");
 
@@ -199,8 +201,19 @@
   // every image open like the other per-session view preferences
   // (background preview, crop ratio, etc.).
   let viewRotation = 0;
+  // The CSS rotation doesn't change layout, so the frame around the stack takes the
+  // rotated footprint (width and height swapped at 90/270) and the canvas area
+  // scrolls to the real edges of what is on screen.
+  function layoutFrame() {
+    const w = parseFloat(stack.style.width) || 0;
+    const h = parseFloat(stack.style.height) || 0;
+    const swapped = viewRotation % 180 !== 0;
+    frame.style.width = (swapped ? h : w) + "px";
+    frame.style.height = (swapped ? w : h) + "px";
+  }
   function applyViewRotation() {
     stack.style.transform = viewRotation === 0 ? "" : `rotate(${viewRotation}deg)`;
+    layoutFrame();
     $("pe-view-rotate").textContent = `↻ View: ${viewRotation}°`;
   }
   $("pe-view-rotate").addEventListener("click", () => {
@@ -221,7 +234,7 @@
   // Set the zoom, keeping the image point under (clientX, clientY) fixed (the
   // centre of the area by default).
   function setZoom(mode, clientX, clientY) {
-    const wrapEl = stack.parentElement;
+    const wrapEl = canvasWrap;
     const wr = wrapEl.getBoundingClientRect();
     const ax = clientX == null ? wr.left + wr.width / 2 : clientX;
     const ay = clientY == null ? wr.top + wr.height / 2 : clientY;
@@ -234,7 +247,9 @@
     wrapEl.scrollLeft += after.left + fx * after.width - ax;
     wrapEl.scrollTop += after.top + fy * after.height - ay;
     redrawOverlay();
+    if (selDraft && SELECTION_TOOLS.includes(currentTool)) drawSelectionDraft();
     updateZoomUi();
+    $("pe-zoom-status").textContent = `Zoom ${Math.round(currentScale() * 100)}%`;
   }
   function stepZoom(dir, clientX, clientY) {
     const cur = currentScale();
@@ -243,8 +258,10 @@
   }
   function updateZoomUi() {
     const cur = currentScale();
-    $("pe-zoom-out").disabled = cur <= ZOOM_STEPS[0] + 0.005;
-    $("pe-zoom-in").disabled = cur >= ZOOM_STEPS[ZOOM_STEPS.length - 1] - 0.005;
+    // aria-disabled, not disabled: a button that disables itself under the
+    // keyboard would strand focus on the page body.
+    $("pe-zoom-out").setAttribute("aria-disabled", String(cur <= ZOOM_STEPS[0] + 0.005));
+    $("pe-zoom-in").setAttribute("aria-disabled", String(cur >= ZOOM_STEPS[ZOOM_STEPS.length - 1] - 0.005));
     $("pe-zoom-reset").setAttribute("aria-pressed", String(zoomMode === "fit"));
     $("pe-zoom-100").setAttribute("aria-pressed", String(zoomMode === 1));
   }
@@ -253,7 +270,7 @@
   function fitCanvasToViewport(fromLayout = false) {
     // 90% of the area, but never more than what is left inside its padding
     // (clientWidth/Height include it), or a short window gets scrollbars.
-    const wrapEl = stack.parentElement;
+    const wrapEl = canvasWrap;
     const wrapStyle = getComputedStyle(wrapEl);
     const innerW = wrapEl.clientWidth - parseFloat(wrapStyle.paddingLeft) - parseFloat(wrapStyle.paddingRight);
     const innerH = wrapEl.clientHeight - parseFloat(wrapStyle.paddingTop) - parseFloat(wrapStyle.paddingBottom);
@@ -261,7 +278,11 @@
     const maxH = Math.max(1, Math.min(wrapEl.clientHeight * 0.9, innerH));
     // "fit" shows the whole image (never enlarged past 100%); a number is a fixed
     // magnification relative to real pixels.
-    const scale = zoomMode === "fit" ? Math.min(1, maxW / canvas.width, maxH / canvas.height) : zoomMode;
+    // A view rotated 90/270 occupies the swapped footprint.
+    const rotated = viewRotation % 180 !== 0;
+    const fitW = rotated ? canvas.height : canvas.width;
+    const fitH = rotated ? canvas.width : canvas.height;
+    const scale = zoomMode === "fit" ? Math.min(1, maxW / fitW, maxH / fitH) : zoomMode;
     stack.classList.toggle("is-zoomed", zoomMode !== "fit");
     // Enlarged pixels stay square instead of blurring, which is what retouching needs.
     stack.classList.toggle("is-pixelated", scale >= 2);
@@ -273,6 +294,7 @@
     overlay.style.height = h + "px";
     stack.style.width = w + "px";
     stack.style.height = h + "px";
+    layoutFrame();
     updateStatusBar(scale);
     // A selection's coordinates belong to one canvas size: drop it when the
     // size changed (crop, rotate, resize, straighten, undo across a resize),
@@ -557,6 +579,7 @@
   // than originalSnapshot -- swapping images without also swapping
   // dimensions would draw the original clipped to the (possibly smaller)
   // current canvas instead of showing it in full.
+  let compareScroll = null;
   function startCompare() {
     // `dragging` (an in-progress crop/brush/shape interaction on the main
     // canvas) is deliberately also blocked here: a critic pass found that
@@ -578,6 +601,7 @@
     if (!originalSnapshot || compareSavedState || dragging || baseSnapshot) return;
     resetStraightenUi();
     compareSavedState = snapshotCanvas();
+    compareScroll = { l: canvasWrap.scrollLeft, t: canvasWrap.scrollTop };
     canvas.width = originalSnapshot.width;
     canvas.height = originalSnapshot.height;
     ctx.drawImage(originalSnapshot, 0, 0);
@@ -594,6 +618,12 @@
     syncOverlaySize();
     fitCanvasToViewport();
     compareSavedState = null;
+    if (compareScroll) {
+      // A size-mismatched compare clamped the scroll position; put it back.
+      canvasWrap.scrollLeft = compareScroll.l;
+      canvasWrap.scrollTop = compareScroll.t;
+      compareScroll = null;
+    }
     // syncOverlaySize() cleared the overlay bitmap; bring the selection back.
     redrawOverlay();
     $("pe-compare").classList.remove("active");
@@ -742,8 +772,10 @@
     octx.fillRect(0, r.y, r.x, r.h);
     octx.fillRect(r.x + r.w, r.y, overlay.width - (r.x + r.w), r.h);
     octx.strokeStyle = "#ff7a45";
-    octx.lineWidth = Math.max(2, canvas.width * 0.002);
-    octx.setLineDash([8, 6]);
+    // Screen-sized when zoomed in (an image pixel is several screen pixels there).
+    const zoomDiv = Math.max(1, currentScale());
+    octx.lineWidth = Math.max(2, canvas.width * 0.002) / zoomDiv;
+    octx.setLineDash([8 / zoomDiv, 6 / zoomDiv]);
     octx.strokeRect(r.x, r.y, r.w, r.h);
     octx.restore();
   }
@@ -2690,20 +2722,72 @@
   $("pe-zoom-reset").addEventListener("click", () => setZoom("fit"));
   $("pe-zoom-100").addEventListener("click", () => setZoom(1));
   // Ctrl (or pinch-as-Ctrl) + wheel zooms about the cursor; a plain wheel scrolls.
-  stack.parentElement.addEventListener(
+  canvasWrap.addEventListener(
     "wheel",
     (e) => {
       if (!(e.ctrlKey || e.metaKey) || modal.hidden) return;
       e.preventDefault();
-      stepZoom(e.deltaY < 0 ? 1 : -1, e.clientX, e.clientY);
+      if (!e.deltaY) return;
+      // Proportional to the amount scrolled, so a trackpad pinch (dozens of tiny
+      // events) zooms smoothly and a mouse-wheel notch is a modest step.
+      const dy = e.deltaY * (e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 400 : 1);
+      const next = Math.round(currentScale() * Math.exp(-dy * 0.0025) * 1000) / 1000;
+      setZoom(Math.max(ZOOM_STEPS[0], Math.min(ZOOM_STEPS[ZOOM_STEPS.length - 1], next)), e.clientX, e.clientY);
     },
     { passive: false }
   );
   let spaceHeld = false;
   let panning = null;
+  let pointerOverArea = false;
+  canvasWrap.addEventListener("pointerenter", () => (pointerOverArea = true));
+  canvasWrap.addEventListener("pointerleave", () => (pointerOverArea = false));
   function typingInField(t) {
     return !!t && (t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable || (t.tagName === "INPUT" && !["range", "color", "checkbox", "radio", "button"].includes(t.type)));
   }
+  // Panning state must never outlive its gesture: a missed keyup (alt-tab), closing
+  // the editor or opening another image would otherwise leave every drag panning.
+  function resetPanState() {
+    spaceHeld = false;
+    panning = null;
+    overlay.style.cursor = currentTool === "pan" ? "grab" : "";
+  }
+  window.addEventListener("blur", resetPanState);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) resetPanState();
+  });
+  // Capture phase. Space is remembered whenever it isn't typing, so "hold Space,
+  // then press on the canvas" pans however you got there. Its own action (clicking a
+  // focused button, scrolling the page) is suppressed only while the pointer is over
+  // the canvas, so Space still toggles a focused checkbox or button elsewhere.
+  document.addEventListener(
+    "keydown",
+    (e) => {
+      if (e.key !== " " || modal.hidden || modal.getAttribute("aria-modal") !== "true" || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (typingInField(document.activeElement)) return;
+      if (pointerOverArea) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      if (!spaceHeld) {
+        spaceHeld = true;
+        overlay.style.cursor = "grab";
+      }
+    },
+    true
+  );
+  document.addEventListener(
+    "keyup",
+    (e) => {
+      if (e.key !== " " || !spaceHeld) return;
+      if (pointerOverArea) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      spaceHeld = false;
+      overlay.style.cursor = currentTool === "pan" ? "grab" : "";
+    },
+    true
+  );
   document.addEventListener("keydown", (e) => {
     if (modal.hidden || modal.getAttribute("aria-modal") !== "true" || e.ctrlKey || e.metaKey || e.altKey || typingInField(document.activeElement)) return;
     if (e.key === "+" || e.key === "=") {
@@ -2718,27 +2802,16 @@
     } else if (e.key === "1") {
       e.preventDefault();
       setZoom(1);
-    } else if (e.key === " " && document.activeElement && !["BUTTON", "SELECT", "SUMMARY"].includes(document.activeElement.tagName)) {
-      // Hold Space to pan with any tool.
-      e.preventDefault();
-      spaceHeld = true;
-      overlay.style.cursor = "grab";
-    }
-  });
-  document.addEventListener("keyup", (e) => {
-    if (e.key === " " && spaceHeld) {
-      spaceHeld = false;
-      overlay.style.cursor = currentTool === "pan" ? "grab" : "";
     }
   });
   function startPan(e) {
-    const wrapEl = stack.parentElement;
+    const wrapEl = canvasWrap;
     panning = { x: e.clientX, y: e.clientY, sl: wrapEl.scrollLeft, st: wrapEl.scrollTop, id: e.pointerId };
     overlay.setPointerCapture(e.pointerId);
     overlay.style.cursor = "grabbing";
   }
   function movePan(e) {
-    const wrapEl = stack.parentElement;
+    const wrapEl = canvasWrap;
     wrapEl.scrollLeft = panning.sl - (e.clientX - panning.x);
     wrapEl.scrollTop = panning.st - (e.clientY - panning.y);
   }
@@ -2760,7 +2833,7 @@
 
   overlay.addEventListener("pointerdown", (e) => {
     // Panning (Pan tool, held Space or the middle button) never reaches a tool.
-    if (currentTool === "pan" || spaceHeld || e.button === 1) {
+    if ((currentTool === "pan" && e.button !== 2) || spaceHeld || e.button === 1) {
       if (isComparing() || panning) return;
       e.preventDefault();
       startPan(e);
@@ -2818,6 +2891,7 @@
       return;
     }
     if (isSecondaryPointer(e)) return;
+    if (spaceHeld) return; // Space is held: this is a pan, not a hover over a tool
     if (straightenPreviewing) return; // the tilt preview owns the overlay; no crop/brush cursor over it
     const p = pointFromEvent(e);
     if (currentTool === "select" && dragging && cropRect) {
@@ -3163,7 +3237,6 @@
   // background (white/black/gray page), not just the conventional
   // checkerboard "this is transparent" indicator. Never touches pixel
   // data, so it needs no undo entry and nothing to persist.
-  const canvasWrap = $("pe-canvas-wrap");
   const bgPreviewSelect = $("pe-bg-preview");
   // Derives the class list to remove from the <select>'s own <option>
   // values rather than a hardcoded array -- a critic pass found the
@@ -3233,6 +3306,7 @@
 
   // ---------- Open / close ----------
   function close() {
+    resetPanState();
     modal.hidden = true;
   }
   $("close-photo-editor").addEventListener("click", close);
@@ -3267,7 +3341,7 @@
         recentFits.push(now);
         fitCanvasToViewport(true);
       });
-    }).observe(stack.parentElement);
+    }).observe(canvasWrap);
   }
 
   // Shared by both entry points below: everything that has to reset for
@@ -3278,6 +3352,7 @@
   // presets, view rotation) only ever needs to happen in one place.
   function initEditorSession(w, h, drawContent, hint) {
     zoomMode = "fit";
+    resetPanState();
     lastFitDims = ""; // a new image: the size fields and the estimate start fresh even at the same size
     canvas.width = w;
     canvas.height = h;
