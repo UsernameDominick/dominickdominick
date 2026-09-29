@@ -815,7 +815,7 @@
         const source = snapshotOf(bitmap);
         bitmap.width = w;
         bitmap.height = h;
-        draw(bitmap.getContext("2d"), source);
+        draw(bitmap.getContext("2d"), source, bitmap === layer.mask);
       }
       layer.maskDirty = true;
     }
@@ -1310,7 +1310,7 @@
     // so a long editing session on a large (MAX_DIMENSION-sized) image
     // can't quietly accumulate an unbounded number of them.
     if (namedSnapshots.length > NAMED_SNAPSHOT_LIMIT) namedSnapshots.shift();
-    while (namedSnapshots.length > 1 && namedSnapshots.reduce((n, snap) => n + snap.all.layers.length, 0) > NAMED_SNAPSHOT_BITMAP_LIMIT) namedSnapshots.shift();
+    while (namedSnapshots.length > 1 && namedSnapshots.reduce((n, snap) => n + snap.all.layers.reduce((m, l) => m + 1 + (l.mask ? 1 : 0), 0), 0) > NAMED_SNAPSHOT_BITMAP_LIMIT) namedSnapshots.shift();
     renderSnapshotSelect();
     $("pe-snapshot-select").value = String(namedSnapshots.length - 1);
   });
@@ -2797,7 +2797,15 @@
     const [fx, fy] = CANVAS_ANCHOR_FRACTIONS[$("pe-canvas-anchor").value] || [0.5, 0.5];
     const dx = Math.round(fx * (w - canvas.width));
     const dy = Math.round(fy * (h - canvas.height));
-    transformAllLayers(w, h, (lctx, snap) => lctx.drawImage(snap, dx, dy));
+    transformAllLayers(w, h, (lctx, snap, isMask) => {
+      if (isMask) {
+        // Added canvas area starts shown, so pixels painted there aren't hidden.
+        lctx.fillStyle = "#000";
+        lctx.fillRect(0, 0, w, h);
+        lctx.clearRect(dx, dy, snap.width, snap.height);
+      }
+      lctx.drawImage(snap, dx, dy);
+    });
     syncOverlaySize();
     cancelActiveDrag();
     fitCanvasToViewport();
@@ -3052,6 +3060,7 @@
     if (!strokeActive || !airbrushPoint) return;
     try {
       commitBrushStroke();
+      scheduleMaskRefresh(); // a held airbrush shows on a mask as it builds up
       // Reset the mask to just the current point after each commit -- if
       // this DIDN'T clear, a stroke that moved across a wide area would
       // recomposite its entire accumulated path on every single tick,
@@ -4359,6 +4368,11 @@
     for (const layer of layers) {
       layer.canvas.width = 1;
       layer.canvas.height = 1;
+      if (layer.mask) {
+        layer.mask.width = 1;
+        layer.mask.height = 1;
+      }
+      layer.maskUrl = null;
     }
     updateHistoryButtons();
     renderSnapshotSelect();
