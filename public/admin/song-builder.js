@@ -829,13 +829,14 @@
       const wasRecorded = songData.melody.notes[noteName][step] === true;
       songData.melody.notes[noteName][step] = true;
       // Recording into a collapsed piano roll would write notes nobody can see.
-      if (songData.melody.hidden === true) {
+      const revealed = songData.melody.hidden === true;
+      if (revealed) {
         setFlag(songData.melody, "hidden", false);
         renderPianoRoll();
       }
       const cell = document.querySelector(`.song-steps[data-row="${noteName}"] .song-step[data-step="${step}"]`);
       if (cell) cell.classList.add("song-step-on");
-      if (!wasRecorded) scheduleAutosave();
+      if (!wasRecorded || revealed) scheduleAutosave();
     }
   }
 
@@ -1108,6 +1109,9 @@
     $("song-melody-hide").setAttribute("aria-pressed", String(hidden));
     $("song-melody-mute").textContent = muted ? "Muted" : "Mute";
     $("song-melody-hide").textContent = hidden ? "Hidden" : "Hide";
+    // The accessible name always contains the visible word (WCAG 2.5.3).
+    $("song-melody-mute").setAttribute("aria-label", muted ? "Muted melody" : "Mute melody");
+    $("song-melody-hide").setAttribute("aria-label", hidden ? "Hidden melody piano roll" : "Hide melody piano roll");
   }
 
   function setMelodyFlag(field) {

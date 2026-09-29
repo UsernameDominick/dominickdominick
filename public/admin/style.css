@@ -3843,6 +3843,11 @@ kbd {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  max-width: 800px;
+}
+
+/* The drum rows carry two extra toggles, so they need a little more room. */
+#song-sequencer {
   max-width: 900px;
 }
 
@@ -3901,7 +3906,7 @@ kbd {
 
 .song-transpose-controls button.song-track-toggle {
   height: 28px;
-  min-width: 0;
+  min-width: 5.4em;
   padding: 0 12px;
   font-size: 0.8rem;
   font-weight: inherit;
@@ -3976,15 +3981,25 @@ kbd {
    you actually have" call already made for the mobile toolbars elsewhere
    in this file. */
 @media (max-width: 1200px) {
+  #song-sequencer .song-track-row {
+    flex-wrap: wrap;
+  }
+}
+
+/* The piano roll has no toggles, so it fits one line down to about 960px. */
+@media (max-width: 960px) {
+  #song-piano-roll .song-track-row {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 860px) {
   .song-track-row {
     flex-wrap: wrap;
   }
   .song-steps {
     flex-basis: 100%;
   }
-}
-
-@media (max-width: 860px) {
   .song-track-row .song-track-toggle {
     min-width: 36px;
     height: 36px;
@@ -4004,7 +4019,17 @@ kbd {
 /* Between phone and desktop the wrapped step grid is as wide as its panel,
    but the three 8px beat gaps (.song-step-beat) are added on top of the
    equal-width tracks, pushing step 16 into the panel's padding. Reserve them. */
-@media (min-width: 641px) and (max-width: 1200px) {
+@media (min-width: 861px) and (max-width: 1200px) {
+  #song-sequencer .song-steps {
+    flex: 0 1 calc(100% - 24px);
+  }
+}
+@media (min-width: 861px) and (max-width: 960px) {
+  #song-piano-roll .song-steps {
+    flex: 0 1 calc(100% - 24px);
+  }
+}
+@media (min-width: 641px) and (max-width: 860px) {
   .song-steps {
     flex: 0 1 calc(100% - 24px);
   }

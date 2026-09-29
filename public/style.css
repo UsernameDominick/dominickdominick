@@ -1532,6 +1532,11 @@ h6 { font-size: 0.9rem; }
   margin-bottom: 12px;
 }
 
+.song-embed-header strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .song-embed-play-btn {
   background: transparent;
   color: var(--text-dim);
