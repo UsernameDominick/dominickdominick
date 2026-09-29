@@ -1347,6 +1347,14 @@
     return "";
   }
 
+  // The same reading of an address rule as the server (worker/render.js parseUrlRule):
+  // returns the cleaned "name" or "name=value", or "" when it can't be read.
+  function urlRuleParsed(raw) {
+    const text = String(raw || "").trim().replace(/^\?/, "");
+    const m = text.match(/^([A-Za-z0-9_.-]{1,40})\s*(?:=\s*([^&#\s]{0,80}))?$/);
+    return m ? m[1] + (m[2] !== undefined ? "=" + m[2] : "") : "";
+  }
+
   function blockBadgesHtml(b) {
     const visibility = b.style && b.style.visibility;
     const readingOrderRaw = b.style && b.style.readingOrder;
@@ -1358,8 +1366,10 @@
     }${
       visibility === "mobile-only" ? ` <span class="lock-badge" title="Hidden on desktop — mobile only">Mobile only</span>` : ""
     }${
-      b.style && b.style.urlRule && b.style.urlParam
-        ? ` <span class="lock-badge" title="${b.style.urlRule === "show" ? "Only shown when the page address has" : "Hidden when the page address has"} ?${escapeHtml(String(b.style.urlParam))}">${b.style.urlRule === "show" ? "Only with" : "Hidden with"} ?${escapeHtml(String(b.style.urlParam))}</span>`
+      b.style && (b.style.urlRule === "show" || b.style.urlRule === "hide")
+        ? urlRuleParsed(b.style.urlParam)
+          ? ` <span class="lock-badge" title="${b.style.urlRule === "show" ? "Only shown when the page address has" : "Hidden when the page address has"} ?${escapeHtml(urlRuleParsed(b.style.urlParam))}">${b.style.urlRule === "show" ? "Only with" : "Hidden with"} ?${escapeHtml(urlRuleParsed(b.style.urlParam))}</span>`
+          : ` <span class="lock-badge diagnostic-error" title="${b.style.urlRule === "show" ? "The address rule can't be read, so this block is hidden from visitors" : "The address rule can't be read, so it has no effect"}. Write it as name or name=value.">Invalid address rule</span>`
         : ""
     }${b.style && b.style.hidden ? ` <span class="lock-badge" title="Hidden from the live site entirely">Hidden</span>` : ""}${scheduledVisibilityBadge(
       b.style
@@ -2083,7 +2093,7 @@
         ["hide", "Hide when the address has…"],
       ],
     },
-    { key: "urlParam", label: "…this query parameter (name or name=value, e.g. ref=newsletter). Test it by adding ?ref=newsletter to the page address.", type: "text" },
+    { key: "urlParam", label: "…this query parameter, written as name or name=value (for example ref=newsletter, without the ?). Case matters. \"Show only\" hides the block from everyone whose address lacks it, including you while previewing; add the parameter to the page address to see it. One parameter per block.", type: "text" },
     { key: "visibleFrom", label: "Visible from (blank = always)", type: "datetime-local" },
     { key: "visibleUntil", label: "Visible until (blank = never expires)", type: "datetime-local" },
     {

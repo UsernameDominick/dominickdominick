@@ -1400,18 +1400,21 @@ function isBlockInDateWindow(style) {
 // URL-conditional visibility: "show only when the address has ?name=value" (or
 // "hide when it does"), for campaign links and the like. Like the date window it
 // is a real server-side filter, so a hidden block never ships in the HTML. The
-// rule text is `name` (the parameter just has to be present) or `name=value`; a
-// malformed rule never hides anything, and a render without a query (previews)
-// shows every block.
+// rule text is `name` (the parameter just has to be present) or `name=value`,
+// matched exactly (case-sensitive). A leading "?" and spaces around the name and
+// "=" are forgiven. A rule that still can't be read fails CLOSED for "show" (the
+// block stays hidden rather than going public by accident) and open for "hide".
+export function parseUrlRule(raw) {
+  const text = String(raw || "").trim().replace(/^\?/, "");
+  const m = text.match(/^([A-Za-z0-9_.-]{1,40})\s*(?:=\s*([^&#\s]{0,80}))?$/);
+  return m ? { name: m[1], value: m[2] } : null;
+}
 function isBlockUrlAllowed(style, query) {
-  if (!style || !style.urlRule || !style.urlParam || !query) return true;
-  const m = String(style.urlParam).trim().match(/^([A-Za-z0-9_.-]{1,40})(?:=([^&#\s]{0,80}))?$/);
-  if (!m) return true;
-  const [, name, value] = m;
-  const has = value === undefined ? query.has(name) : query.getAll(name).includes(value);
-  if (style.urlRule === "show") return has;
-  if (style.urlRule === "hide") return !has;
-  return true;
+  if (!style || (style.urlRule !== "show" && style.urlRule !== "hide") || !query) return true;
+  const rule = parseUrlRule(style.urlParam);
+  if (!rule) return style.urlRule !== "show";
+  const has = rule.value === undefined ? query.has(rule.name) : query.getAll(rule.name).includes(rule.value);
+  return style.urlRule === "show" ? has : !has;
 }
 
 // Whether a block is part of the page a visitor gets: not switched off, inside its

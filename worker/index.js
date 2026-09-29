@@ -344,7 +344,10 @@ async function renderPage(env, page, url, request) {
     customHead,
     editUrl: isAdmin ? `/admin/?edit=page:${page.id}` : null,
   });
-  return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
+  // A page with address-gated blocks differs by query string, so it must never be
+  // served from a shared cache to someone with another address.
+  const gated = blocks.some((b) => b.style && (b.style.urlRule === "show" || b.style.urlRule === "hide"));
+  return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8", ...(gated ? { "Cache-Control": "private, no-store" } : {}) } });
 }
 
 async function renderArticle(env, article, navItems, previewReason = null, isAdmin = false) {
