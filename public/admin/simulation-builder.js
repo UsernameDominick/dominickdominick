@@ -1988,7 +1988,7 @@
         <label title="Which throw the common terminal is connected to. Click the part on the canvas to change it too.">Position<select id="sim-comp-spdt-position" aria-describedby="sim-spdt-effect"><option value="a" ${position === "a" ? "selected" : ""}>A — ${sideA} terminal</option><option value="b" ${position === "b" ? "selected" : ""}>B — ${sideB} terminal</option></select></label>
         <p style="color:var(--text-dim);font-size:0.8rem;">Hover a terminal to see whether it is Common, Throw A or Throw B. It doesn't plug into breadboard holes, so wire its terminals instead.</p>`;
       } else if (comp.type === "outlet") {
-        extraFieldsHtml = `<p style="color:var(--text-dim);font-size:0.8rem;">Fixed 120V AC, like a real wall outlet. Never wire it directly to a breadboard part — it must go through a Power Supply, or everything downstream is destroyed instantly.</p>`;
+        extraFieldsHtml = `<p style="color:var(--text-dim);font-size:0.8rem;">Fixed 120V AC, like a real wall outlet. Never wire it directly to a breadboard part.</p>`;
       }
 
       box.innerHTML = `
