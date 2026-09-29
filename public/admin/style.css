@@ -6692,3 +6692,14 @@ kbd {
   font-size: 0.85rem;
   opacity: 0.8;
 }
+
+.pe-layers-group button[aria-disabled="true"] {
+  opacity: 0.4;
+  cursor: default;
+}
+@media (max-width: 860px) {
+  /* Last in the strip, so it doesn't push every other tool far out of reach. */
+  .pe-layers-group {
+    order: 99;
+  }
+}

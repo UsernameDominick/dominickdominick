@@ -90,7 +90,7 @@
   // switch format) instead of repeating advice that does nothing for it.
   $("pe-limits-info").title =
     `Images wider or taller than ${MAX_DIMENSION}px are automatically downscaled when opened, to keep editing responsive. ` +
-    `Undo/redo keeps the last ${UNDO_LIMIT} steps. ` +
+    `Undo/redo keeps the last ${UNDO_LIMIT} steps (fewer for size changes and layer structure with several layers). ` +
     `Exported files are capped at ${MAX_EXPORT_MB}MB -- for JPEG/WebP, lower the quality slider; for PNG (no quality setting), try cropping/resizing first, or use "Save as new" with a JPEG/WebP format instead.`;
 
   // The site's one uploaded custom font (see worker/admin-api.js's
@@ -500,6 +500,7 @@
     return { canvas: null, sel };
   }
   function applyEntry(entry) {
+    setLayerNote("");
     if (entry.all) restoreAll(entry.all);
     else if (entry.meta) restoreLayerMeta(entry.meta);
     else if (entry.canvas) {
@@ -594,6 +595,8 @@
     return el;
   }
   function releaseCanvasEl(el) {
+    el.classList.remove("pe-layer-active");
+    delete el.dataset.layerId;
     if (el === baseCanvasEl) {
       el.style.display = "none"; // stays in the page for the next layer to borrow
       return;
@@ -644,8 +647,16 @@
     });
   }
 
+  function layerIsEmpty(el) {
+    const d = el.getContext("2d").getImageData(0, 0, el.width, el.height).data;
+    for (let i = 3; i < d.length; i += 4) if (d[i]) return false;
+    return true;
+  }
+
   function setLayerNote(text) {
     const note = $("pe-layer-note");
+    // Clearing the note never hides the standing warning about an all-hidden stack.
+    if (!text && layers.length && !layers.some((layer) => layer.visible)) text = "Every layer is hidden, so a saved image would be empty.";
     if (note) note.textContent = text || "";
   }
   // Drawing on a layer that is switched off would change pixels nobody can see.
@@ -653,6 +664,10 @@
     const layer = activeLayer();
     if (layer && !layer.visible) {
       setLayerNote(`"${layer.name}" is hidden. Show it (or pick another layer) to edit it.`);
+      return true;
+    }
+    if (layer && layer.opacity === 0) {
+      setLayerNote(`"${layer.name}" is at 0% opacity, so edits to it wouldn't show. Raise its opacity first.`);
       return true;
     }
     return false;
@@ -679,6 +694,7 @@
 
   // Puts every layer back as the snapshot had it (Undo/Redo, snapshots, Reset).
   function restoreAll(state) {
+    setLayerNote("");
     const keep = new Set(state.layers.map((entry) => entry.meta.id));
     for (const layer of layers) if (!keep.has(layer.id)) releaseCanvasEl(layer.canvas);
     const kept = layers.filter((layer) => keep.has(layer.id));
@@ -770,7 +786,7 @@
     el.width = source.canvas.width;
     el.height = source.canvas.height;
     el.getContext("2d").drawImage(source.canvas, 0, 0);
-    const meta = { ...metaOf(source), id: ++layerSeq, name: `${source.name} copy`.slice(0, LAYER_NAME_MAX) };
+    const meta = { ...metaOf(source), id: ++layerSeq, name: Array.from(`${source.name} copy`).slice(0, LAYER_NAME_MAX).join("") };
     insertLayerAbove(layerIndex(), { ...meta, canvas: el });
     setLayerNote("");
   }
@@ -809,7 +825,10 @@
     invalidateOpenAdjustDrag();
     syncLayerDom();
     renderLayerPanel();
-    setLayerNote("");
+    // The merged layer keeps the lower layer's own opacity and blend, and a blend
+    // mode was mixed against that layer alone, so the picture can shift a little.
+    const shifts = top.blend !== "normal" || below.opacity !== 100 || below.blend !== "normal";
+    setLayerNote(shifts ? "Merged. Blend and opacity settings were combined layer by layer, so the picture may look slightly different (Undo restores it)." : "");
   }
   function flattenLayers() {
     if (layerActionsBlocked()) return;
@@ -868,7 +887,7 @@
     const id = layer.id;
     const name = await promptForText("Rename layer", "Layer name", layer.name);
     if (name === null || !layerById(id)) return;
-    const clean = name.trim().slice(0, LAYER_NAME_MAX);
+    const clean = Array.from(name.trim()).slice(0, LAYER_NAME_MAX).join("");
     if (!clean || clean === layerById(id).name) return;
     pushMetaUndo();
     layerById(id).name = clean;
@@ -882,9 +901,30 @@
     return !layerFilterText || layer.name.toLowerCase().includes(layerFilterText);
   }
 
+  // Disabled layer buttons use aria-disabled so they keep keyboard focus; a click on
+  // one explains itself instead of doing nothing.
+  function setLayerButtonState(id, disabled, why) {
+    const btn = $(id);
+    btn.setAttribute("aria-disabled", String(disabled));
+    btn.dataset.why = disabled ? why : "";
+  }
+  function onLayerButton(id, fn) {
+    $(id).addEventListener("click", (e) => {
+      if ($(id).getAttribute("aria-disabled") === "true") {
+        e.preventDefault();
+        setLayerNote($(id).dataset.why || "");
+        return;
+      }
+      fn();
+    });
+  }
+
   function renderLayerPanel() {
     const list = $("pe-layer-list");
     if (!list) return;
+    // The list is rebuilt from scratch, so remember which control had focus.
+    const focused = document.activeElement;
+    const focusKey = focused && list.contains(focused) ? `${focused.className}|${focused.dataset.layerId}` : null;
     const i = layerIndex();
     const active = layers[i];
     list.textContent = "";
@@ -900,16 +940,19 @@
       const eye = document.createElement("button");
       eye.type = "button";
       eye.className = "pe-layer-eye";
-      eye.setAttribute("aria-pressed", String(layer.visible));
+      eye.dataset.layerId = String(layer.id);
       eye.setAttribute("aria-label", `${layer.visible ? "Hide" : "Show"} layer ${layer.name}`);
       eye.textContent = layer.visible ? "◉" : "◌";
       eye.addEventListener("click", () => toggleLayerVisible(layer.id));
       const pick = document.createElement("button");
       pick.type = "button";
       pick.className = "pe-layer-pick";
+      pick.dataset.layerId = String(layer.id);
+      pick.setAttribute("aria-label", `${layer.name}${layer.color ? `, ${layer.color} label` : ""}${layer.visible ? "" : ", hidden"}${layer.opacity === 0 ? ", fully transparent" : ""}`);
       if (layer.id === activeLayerId) pick.setAttribute("aria-current", "true");
       const dot = document.createElement("span");
       dot.className = "pe-layer-dot";
+      dot.setAttribute("aria-hidden", "true");
       dot.style.background = LAYER_COLORS[layer.color] && layer.color ? LAYER_COLORS[layer.color] : "transparent";
       dot.title = layer.color ? `Label: ${layer.color}` : "No colour label";
       const label = document.createElement("span");
@@ -929,27 +972,35 @@
       empty.textContent = "No layers match.";
       list.append(empty);
     }
+    if (focusKey) {
+      const again = [...list.querySelectorAll("button")].find((b) => `${b.className}|${b.dataset.layerId}` === focusKey);
+      if (again) again.focus();
+    }
     if (!active) return;
+    if (!layers.some((layer) => layer.visible)) setLayerNote("Every layer is hidden, so a saved image would be empty.");
+    else if (/^Every layer is hidden/.test($("pe-layer-note").textContent)) $("pe-layer-note").textContent = "";
+    scheduleSizeEstimate();
     $("pe-layer-opacity").value = active.opacity;
     $("pe-layer-opacity-val").textContent = `${active.opacity}%`;
     $("pe-layer-blend").value = active.blend;
     $("pe-layer-color").value = active.color;
-    $("pe-layer-up").disabled = i >= layers.length - 1;
-    $("pe-layer-down").disabled = i < 1;
-    $("pe-layer-merge").disabled = i < 1;
-    $("pe-layer-delete").disabled = layers.length < 2;
-    $("pe-layer-flatten").disabled = layers.length < 2;
-    $("pe-layer-add").disabled = layers.length >= MAX_LAYERS;
-    $("pe-layer-duplicate").disabled = layers.length >= MAX_LAYERS;
+    const full = `Up to ${MAX_LAYERS} layers per image.`;
+    setLayerButtonState("pe-layer-up", i >= layers.length - 1, "This is already the top layer.");
+    setLayerButtonState("pe-layer-down", i < 1, "This is already the bottom layer.");
+    setLayerButtonState("pe-layer-merge", i < 1, "There's no layer below this one to merge into.");
+    setLayerButtonState("pe-layer-delete", layers.length < 2, "An image needs at least one layer.");
+    setLayerButtonState("pe-layer-flatten", layers.length < 2, "There's only one layer.");
+    setLayerButtonState("pe-layer-add", layers.length >= MAX_LAYERS, full);
+    setLayerButtonState("pe-layer-duplicate", layers.length >= MAX_LAYERS, full);
   }
 
-  $("pe-layer-add").addEventListener("click", addLayer);
-  $("pe-layer-duplicate").addEventListener("click", duplicateLayer);
-  $("pe-layer-delete").addEventListener("click", deleteLayer);
-  $("pe-layer-merge").addEventListener("click", mergeLayerDown);
-  $("pe-layer-flatten").addEventListener("click", flattenLayers);
-  $("pe-layer-up").addEventListener("click", () => moveLayer(1));
-  $("pe-layer-down").addEventListener("click", () => moveLayer(-1));
+  onLayerButton("pe-layer-add", addLayer);
+  onLayerButton("pe-layer-duplicate", duplicateLayer);
+  onLayerButton("pe-layer-delete", deleteLayer);
+  onLayerButton("pe-layer-merge", mergeLayerDown);
+  onLayerButton("pe-layer-flatten", flattenLayers);
+  onLayerButton("pe-layer-up", () => moveLayer(1));
+  onLayerButton("pe-layer-down", () => moveLayer(-1));
   $("pe-layer-rename").addEventListener("click", renameLayer);
   $("pe-layer-color").addEventListener("change", () => {
     const layer = activeLayer();
@@ -978,6 +1029,7 @@
     layer.opacity = Math.max(0, Math.min(100, Math.round(Number($("pe-layer-opacity").value) || 0)));
     $("pe-layer-opacity-val").textContent = `${layer.opacity}%`;
     syncLayerDom();
+    scheduleSizeEstimate();
   });
   $("pe-layer-opacity").addEventListener("change", () => {
     if (!opacityBefore) return;
@@ -989,6 +1041,17 @@
   $("pe-layer-filter").addEventListener("input", () => {
     layerFilterText = $("pe-layer-filter").value.trim().toLowerCase();
     renderLayerPanel();
+  });
+  // Escape clears a search field; it must not also close the editor and its edits.
+  $("pe-layer-filter").addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    e.preventDefault();
+    e.stopPropagation();
+    if ($("pe-layer-filter").value) {
+      $("pe-layer-filter").value = "";
+      layerFilterText = "";
+      renderLayerPanel();
+    }
   });
   $("pe-layer-filter-color").addEventListener("change", () => {
     layerFilterColor = $("pe-layer-filter-color").value;
@@ -1004,6 +1067,7 @@
   // stale-drag invalidation identically -- no separate restore logic to
   // keep in sync with future changes to that function.
   const NAMED_SNAPSHOT_LIMIT = 5;
+  const NAMED_SNAPSHOT_BITMAP_LIMIT = 12; // total layer bitmaps kept across all snapshots
   let namedSnapshots = []; // { name, all } (every layer, see snapshotAll)
 
   function escapeHtmlAttr(s) {
@@ -1046,6 +1110,7 @@
     // so a long editing session on a large (MAX_DIMENSION-sized) image
     // can't quietly accumulate an unbounded number of them.
     if (namedSnapshots.length > NAMED_SNAPSHOT_LIMIT) namedSnapshots.shift();
+    while (namedSnapshots.length > 1 && namedSnapshots.reduce((n, snap) => n + snap.all.layers.length, 0) > NAMED_SNAPSHOT_BITMAP_LIMIT) namedSnapshots.shift();
     renderSnapshotSelect();
     $("pe-snapshot-select").value = String(namedSnapshots.length - 1);
   });
@@ -3602,6 +3667,10 @@
     // round only guarded one direction.
     if (isComparing()) return;
     if ((BRUSH_TOOLS.includes(currentTool) || SHAPE_TOOLS.includes(currentTool) || currentTool === "text") && layerBlocked()) return;
+    if (["blur", "pixelate", "dodge", "burn"].includes(currentTool) && layers.length > 1 && layerIsEmpty(canvas)) {
+      setLayerNote(`"${activeLayer().name}" has nothing painted on it, so ${currentTool} has nothing to work on. These tools only read the active layer.`);
+      return;
+    }
     cancelStraightenPreview();
     const p = pointFromEvent(e);
     dragging = true;
@@ -3842,7 +3911,7 @@
     const tag = active && active.tagName;
     // The tilt slider has no text-editing undo of its own and is where focus
     // lands after Straighten, so Ctrl+Z/Y must still reach the editor there.
-    if ((tag === "INPUT" && active.id !== "pe-straighten-angle") || tag === "TEXTAREA") return;
+    if ((tag === "INPUT" && active.id !== "pe-straighten-angle" && active.id !== "pe-layer-opacity") || tag === "TEXTAREA") return;
     const mod = e.metaKey || e.ctrlKey;
     // A polygon being clicked out: Enter closes it, Backspace drops the last
     // corner.
@@ -4063,6 +4132,23 @@
     resetPanState();
     modal.hidden = true;
   }
+  // However the editor closes (button, Escape, backdrop), let go of its bitmaps: the
+  // undo history, snapshots and layers can hold a gigabyte at 2000x2000 with six layers.
+  new MutationObserver(() => {
+    if (!modal.hidden) return;
+    undoStack = [];
+    redoStack = [];
+    namedSnapshots = [];
+    originalSnapshot = null;
+    compareSavedState = null;
+    baseSnapshot = null;
+    stack.classList.remove("is-comparing");
+    for (const layer of layers) {
+      layer.canvas.width = 1;
+      layer.canvas.height = 1;
+    }
+    updateHistoryButtons();
+  }).observe(modal, { attributes: true, attributeFilter: ["hidden"] });
   $("close-photo-editor").addEventListener("click", close);
   window.addEventListener("resize", () => {
     if (!modal.hidden) fitCanvasToViewport(true);
