@@ -82,6 +82,8 @@ Verify distinct test-only Preview values before protected-flow checks.
 - **Song builder:** drum sequencer, piano roll, MIDI input, bounded grouped Undo/Redo, autosave, waveform/player
   visualizations, public embeds, and private production notes. Waveform previews render deterministically;
   live drum playback retains fresh noise. New drafts warn before close and become autosaved after first Save.
+  Each drum track and the melody can be muted (silent in preview, embed, and cached waveform) or hidden
+  (collapsed in the editor only); flags are stored only while true in `trackMeta[t]` / `melody`.
 - **Admin mobile UX:** topbar overflow, page-builder reflow, and QA bugs were fixed. The broader
   visual/navigation pass remains open.
 - **Public design:** flow-layout and baseline code-block/link styling shipped. Typographic hierarchy and spacing
@@ -91,7 +93,7 @@ Verify distinct test-only Preview values before protected-flow checks.
   Existing undo is a 15-snapshot canvas stack.
 - **Song/DAW:** fixed 16-step sequencer with synthesized Web Audio; no sample playback, multitrack timeline,
   mixing, or effects.
-- **Simulation builder:** SVG circuits and simplified connectivity/Ohm's-law analysis, not a SPICE solver; breadboards support 15, 30, or 45 columns, manual wire bends, same-hole snap warnings, named checkpoints, and in-memory undo. Draft edits stay private until the saved name and circuit data are explicitly published; unpublish hides the live snapshot. Older simulations default to 30 columns, and save validation checks board-size pins.
+- **Simulation builder:** SVG circuits and simplified connectivity/Ohm's-law analysis, not a SPICE solver; breadboards support 15, 30, or 45 columns, manual wire bends, same-hole snap warnings, named checkpoints, and in-memory undo. Draft edits stay private until the saved name and circuit data are explicitly published; unpublish hides the live snapshot. Older simulations default to 30 columns, and save validation checks board-size pins. Parts (not breadboards) can be rotated in 90° steps and mirrored (R / Shift+R / F or the inspector buttons); orientation is applied at the component-definition level so pins, wires, snapping, and rendering all follow it, and save validation rejects invalid orientation values.
 - **Shared lifecycle:** pages/articles/projects have autosave, conflict detection, revisions, and trash; media
   has versions and usage tracking. Songs/simulations still lack full parity.
 ## 2. Active feature backlog
@@ -351,7 +353,6 @@ infra exists today.
 ### DAW/Audio — Easy
 - 184. Tempo/time-signature settings — tempo field exists; add a sibling field.
 - 190. Multiple sessions via tabs — songs already separate D1 rows/list UI.
-- 198. Hide tracks without disabling audio (add mute and hide together)
 - 199. Reorder/duplicate tracks — array ops, duplicate-song pattern exists.
 - 217. Reverse selected audio (requires imported/recorded audio buffers)
 - 220. Remove DC offset (requires imported/recorded audio buffers)
@@ -380,7 +381,6 @@ sandboxed plugin architecture — substantial new infra + security surface).
 
 ### Simulations — Easy
 - 363. Deterministic runs/seeds — sim is deterministic already; add a seed field for future randomness.
-- 373. Rotate/mirror — add transform + flip pin coords, small render change.
 - 389. Mechanical vs electrical distinction — already implicit; just surface it in UI.
 - 403-405. Resistor/capacitor/inductor basic params — extra content fields, same pattern as resistance.
 - 409. Relays/switches — variant of existing switch component.
