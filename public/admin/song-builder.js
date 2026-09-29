@@ -1468,7 +1468,10 @@
     await loadSongsList();
     await loadSongTemplates();
   });
-  $("close-songs").addEventListener("click", () => ($("songs-modal").hidden = true));
+  $("close-songs").addEventListener("click", () => {
+    cancelPendingOpen();
+    $("songs-modal").hidden = true;
+  });
   $("song-search").addEventListener("input", renderSongsList);
   $("new-song-btn").addEventListener("click", () => {
     const templateId = Number($("song-template-picker").value) || null;
@@ -1526,7 +1529,8 @@
     const add = document.createElement("button");
     add.type = "button";
     add.className = "song-tab-add";
-    add.textContent = "+ Open another song";
+    add.innerHTML = '<span class="song-tab-add-long">+ Open another song</span><span class="song-tab-add-short" aria-hidden="true">+ Open</span>';
+    add.setAttribute("aria-label", "Open another song");
     add.title = "Go to the song list (your open tabs stay)";
     add.addEventListener("click", leaveToSongList);
     bar.append(add);
@@ -1618,6 +1622,7 @@
           focusActiveTab();
         }
       } else if (canLeaveSongBuilder()) {
+        cancelPendingOpen();
         songTabs = [];
         renderSongTabs();
         stopPlayback();
@@ -1637,7 +1642,13 @@
       if (el) el.focus();
     });
   }
+  // An explicit leave (top ×, "+ Open another song", closing the last tab, closing
+  // the list) beats an open that is still waiting on its GET.
+  function cancelPendingOpen() {
+    if (openRequestSeq !== committedOpenSeq) openRequestSeq++;
+  }
   async function leaveToSongList() {
+    cancelPendingOpen();
     await flushAutosaveBeforeSwitch();
     if (!canLeaveSongBuilder()) return;
     stopPlayback();
@@ -1747,6 +1758,7 @@
 
   $("close-song-builder").addEventListener("click", () => {
     if (!canLeaveSongBuilder()) return;
+    cancelPendingOpen();
     songTabs = []; // the top × ends the editing session; "+ Open another song" keeps the tabs
     lastAnnouncedTab = null;
     renderSongTabs();
@@ -1822,7 +1834,12 @@
       }
       if (window.refreshSongOptions) window.refreshSongOptions();
     } catch (err) {
-      if (gen !== openGeneration) return;
+      if (gen !== openGeneration) {
+        // The user has already moved to another song, so nothing on screen shows
+        // this failure; say so rather than losing the edits silently.
+        alert(`The save of "${name}" failed after you left it: ${err.message}`);
+        return;
+      }
       saveFailed = true;
       songHasUnsavedChanges = true;
       setAutosaveStatus("Save failed: " + err.message);

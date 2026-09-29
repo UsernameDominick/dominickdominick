@@ -6519,3 +6519,16 @@ kbd {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+.song-tab-add-short {
+  display: none;
+}
+
+@media (max-width: 480px) {
+  .song-tab-add-long {
+    display: none;
+  }
+  .song-tab-add-short {
+    display: inline;
+  }
+}
