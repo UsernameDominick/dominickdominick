@@ -486,7 +486,7 @@
   // Deliberately doesn't attempt a merge or diff (that's real future work,
   // not a one-line fix); it just refuses to silently clobber the other
   // change and gives the admin an explicit way to load the current version.
-  function renderConflictStatus(statusElId, onReload) {
+  function renderConflictStatus(statusElId, onReload, onCompare) {
     const e = el(statusElId);
     e.innerHTML = "";
     const span = document.createElement("span");
@@ -498,8 +498,121 @@
     btn.textContent = "Reload latest version";
     btn.addEventListener("click", onReload);
     span.appendChild(btn);
+    if (onCompare) {
+      const cmp = document.createElement("button");
+      cmp.type = "button";
+      cmp.className = "save-conflict-reload";
+      cmp.textContent = "Compare and merge…";
+      cmp.addEventListener("click", onCompare);
+      span.appendChild(cmp);
+    }
     e.appendChild(span);
   }
+
+  // ---------- Compare and merge a save conflict ----------
+  // Shows, field by field, what this editor holds against what was saved elsewhere;
+  // each differing field is picked from one side (yours by default), and the merged
+  // result is saved on top of the latest version.
+  const CONFLICT_FIELDS = {
+    article: [["title", "Title"], ["slug", "Slug"], ["body", "Body"], ["tags", "Tags"], ["series", "Series"], ["co_authors", "Co-authors"], ["og_image", "Social image"], ["canonical_url", "Canonical URL"], ["custom_json_ld", "Custom JSON-LD"], ["correction_note", "Correction note"], ["private_notes", "Private notes"]],
+    project: [["title", "Title"], ["slug", "Slug"], ["summary", "Summary"], ["body", "Body"], ["tags", "Tags"], ["tech_stack", "Tech stack"], ["status", "Status"], ["links", "Links"], ["og_image", "Social image"], ["canonical_url", "Canonical URL"], ["custom_json_ld", "Custom JSON-LD"], ["correction_note", "Correction note"], ["private_notes", "Private notes"]],
+  };
+  const conflictText = (v) => {
+    if (v === null || v === undefined || v === "") return "";
+    if (Array.isArray(v)) return v.map((x) => (typeof x === "object" ? JSON.stringify(x) : String(x))).join(", ");
+    if (typeof v === "object") return Object.keys(v).length ? JSON.stringify(v, null, 2) : "";
+    return String(v);
+  };
+  let conflictCtx = null;
+  async function compareConflict(kind) {
+    const isArticle = kind === "article";
+    const id = isArticle ? currentArticleId : currentProjectId;
+    let latest;
+    try {
+      const list = await api(isArticle ? "/articles" : "/projects");
+      latest = list.find((x) => x.id === id);
+    } catch (err) {
+      return alert("Couldn't load the latest version: " + err.message);
+    }
+    if (!latest) return alert("This item no longer exists, so there is nothing to compare with.");
+    const mine = isArticle ? buildArticleBody() : buildProjectBody();
+    const diffs = CONFLICT_FIELDS[kind].filter(([key]) => conflictText(mine[key]) !== conflictText(latest[key]));
+    conflictCtx = { kind, id, mine, latest, diffs };
+    el("conflict-intro").textContent = diffs.length
+      ? "This was changed elsewhere after you opened it. Only the fields that differ are listed: pick which version of each to keep, then save."
+      : "The saved version differs only in settings that aren't listed here (such as publish dates). Saving keeps everything in this editor on top of the latest version.";
+    const rows = el("conflict-rows");
+    rows.innerHTML = "";
+    diffs.forEach(([key, label], i) => {
+      const fs = document.createElement("fieldset");
+      fs.className = "conflict-field";
+      const lg = document.createElement("legend");
+      lg.textContent = label;
+      fs.appendChild(lg);
+      const sides = document.createElement("div");
+      sides.className = "conflict-sides";
+      [["mine", "Yours (in this editor)", mine[key]], ["latest", "Latest saved", latest[key]]].forEach(([which, title, value]) => {
+        const lab = document.createElement("label");
+        lab.className = "conflict-side";
+        const r = document.createElement("input");
+        r.type = "radio";
+        r.name = `conflict-${i}`;
+        r.value = which;
+        r.checked = which === "mine";
+        const strong = document.createElement("strong");
+        strong.textContent = " " + title;
+        const pre = document.createElement("pre");
+        pre.textContent = conflictText(value) || "(empty)";
+        lab.append(r, strong, pre);
+        sides.appendChild(lab);
+      });
+      fs.appendChild(sides);
+      rows.appendChild(fs);
+    });
+    el("conflict-status").textContent = "";
+    el("conflict-apply").disabled = false;
+    el("conflict-modal").hidden = false;
+    el("conflict-apply").focus();
+  }
+  closeModalOnClick("close-conflict", "conflict-modal");
+  closeModalOnClick("conflict-cancel", "conflict-modal");
+  el("conflict-apply").addEventListener("click", async () => {
+    if (!conflictCtx) return;
+    const { kind, id, mine, latest, diffs } = conflictCtx;
+    const merged = { ...mine };
+    diffs.forEach(([key], i) => {
+      const picked = document.querySelector(`input[name="conflict-${i}"]:checked`);
+      if (picked && picked.value === "latest") merged[key] = latest[key];
+    });
+    merged.expected_version = latest.version;
+    el("conflict-apply").disabled = true;
+    el("conflict-status").textContent = "Saving…";
+    const isArticle = kind === "article";
+    try {
+      await api(`/${isArticle ? "articles" : "projects"}/${id}`, { method: "PATCH", body: JSON.stringify(merged) });
+      const list = await api(isArticle ? "/articles" : "/projects");
+      const saved = list.find((x) => x.id === id);
+      el("conflict-modal").hidden = true;
+      if (isArticle) {
+        articles = list;
+        if (saved && currentArticleId === id) populateArticleForm(saved);
+        renderArticlesList();
+        setAutosaveStatus("Merged and saved " + new Date().toLocaleTimeString());
+      } else {
+        projects = list;
+        if (saved && currentProjectId === id) populateProjectForm(saved);
+        renderProjectsList();
+        el("project-autosave-status").textContent = "Merged and saved " + new Date().toLocaleTimeString();
+      }
+      unsavedDirty = false;
+      clearDraft(kind, id);
+    } catch (err) {
+      el("conflict-apply").disabled = false;
+      el("conflict-status").textContent = err.conflict
+        ? "It changed again while you were choosing. Close this and press Compare again to see the newest version."
+        : "Couldn't save: " + err.message;
+    }
+  });
 
   // ---------- Crash recovery ----------
   // A local (per-browser, never sent anywhere) snapshot of in-progress
@@ -4524,7 +4637,7 @@
           articles = await api("/articles");
           const a = articles.find((x) => x.id === currentArticleId);
           if (a) populateArticleForm(a);
-        });
+        }, () => compareConflict("article"));
         return;
       }
       alert(err.message);
@@ -4560,7 +4673,7 @@
           articles = await api("/articles");
           const a = articles.find((x) => x.id === currentArticleId);
           if (a) populateArticleForm(a);
-        });
+        }, () => compareConflict("article"));
         return;
       }
       setAutosaveStatus("Autosave failed: " + err.message);
@@ -5063,7 +5176,7 @@
           projects = await api("/projects");
           const p = projects.find((x) => x.id === currentProjectId);
           if (p) populateProjectForm(p);
-        });
+        }, () => compareConflict("project"));
         return;
       }
       el("project-autosave-status").textContent = "Autosave failed: " + err.message;
@@ -5146,7 +5259,7 @@
           projects = await api("/projects");
           const p = projects.find((x) => x.id === currentProjectId);
           if (p) populateProjectForm(p);
-        });
+        }, () => compareConflict("project"));
         return;
       }
       alert(err.message);

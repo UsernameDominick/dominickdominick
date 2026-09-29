@@ -162,7 +162,7 @@ Open and partial items only; completed implementation histories remain in Git hi
 - 🔶 Import UI and paste cleanup from documents/websites (paste cleanup ✅ in the article and project body fields: rich clipboard HTML becomes headings, bold, italic, safe links, lists, quotes, code and tables; a file-import UI for documents ☐)
 
 ### Saving, recovery, and versioning
-- ☐ Side-by-side compare of conflicting versions (currently just "reload to see latest")
+- 🔶 Side-by-side compare of conflicting versions (articles and projects ✅: a save conflict offers "Compare and merge…", listing each differing field side by side to keep yours or the latest, then saving on top of the latest version; pages, simulations and songs still only offer "Reload latest")
 - 🔶 Field-level restore within an edit (whole-item, block, and media restore exist)
 - ☐ Separate working revisions of already-published content (editing live edits it directly)
 

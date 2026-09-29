@@ -1400,6 +1400,7 @@ code.color-field-value {
 }
 
 .article-autosave-status {
+  flex-shrink: 0; /* a wrapped conflict message keeps its height instead of overlapping what follows */
   font-size: 0.78rem;
   color: var(--text-dim);
   margin-top: -6px;
@@ -1409,6 +1410,11 @@ code.color-field-value {
 .save-conflict {
   color: var(--warning);
   font-weight: 600;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-bottom: 8px;
 }
 
 .save-conflict-reload {
@@ -6736,4 +6742,78 @@ kbd {
   min-height: 1em;
   color: var(--text-dim);
   font-size: 0.8rem;
+}
+
+/* Compare and merge dialog for save conflicts */
+.conflict-modal-inner {
+  width: min(960px, 96vw);
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+}
+.conflict-body {
+  padding: 0 20px 20px;
+  overflow: auto;
+}
+.conflict-rows {
+  display: grid;
+  gap: 14px;
+  margin: 12px 0;
+}
+.conflict-field {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.conflict-field legend {
+  padding: 0 6px;
+  font-weight: 600;
+}
+.conflict-sides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.conflict-side {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  cursor: pointer;
+  min-width: 0;
+}
+.conflict-side:has(input:checked) {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.conflict-side pre {
+  margin: 6px 0 0;
+  max-height: 11rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: inherit;
+  font-size: 0.85rem;
+}
+.conflict-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+.conflict-status {
+  min-height: 1.2em;
+  color: var(--text-dim);
+}
+@media (max-width: 640px) {
+  .conflict-sides {
+    grid-template-columns: 1fr;
+  }
+}
+#conflict-apply {
+  background: var(--accent);
+  color: #1a1305;
+  border-color: transparent;
+  font-weight: 600;
+}
+#conflict-apply:disabled {
+  opacity: 0.6;
 }
