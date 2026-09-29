@@ -750,9 +750,20 @@
     const c = Math.abs(Math.cos(radians));
     const s = Math.abs(Math.sin(radians));
     const margin = 2 * (c + s);
-    const scale = Math.max(0, Math.min((w - margin) / (w * c + h * s), (h - margin) / (w * s + h * c)));
-    const cw = Math.floor(w * scale);
-    const ch = Math.min(Math.round((cw * h) / w), Math.floor(h * scale));
+    const scaleByWidth = (w - margin) / (w * c + h * s);
+    const scaleByHeight = (h - margin) / (w * s + h * c);
+    const scale = Math.max(0, Math.min(scaleByWidth, scaleByHeight));
+    // Floor the side that limits the fit and derive the other from it, so the
+    // aspect ratio only drifts by the rounding of the derived side.
+    let cw;
+    let ch;
+    if (scaleByHeight < scaleByWidth) {
+      ch = Math.floor(h * scale);
+      cw = Math.min(Math.round((ch * w) / h), Math.floor(w * scale));
+    } else {
+      cw = Math.floor(w * scale);
+      ch = Math.min(Math.round((cw * h) / w), Math.floor(h * scale));
+    }
     return { w: Math.max(1, cw), h: Math.max(1, ch), tooSmall: cw < 8 || ch < 8 };
   }
 
@@ -775,6 +786,7 @@
     $("pe-straighten-number").value = 0;
     $("pe-apply-straighten").disabled = true;
     $("pe-apply-straighten").title = STRAIGHTEN_BUTTON_TITLE;
+    $("pe-apply-straighten").removeAttribute("aria-describedby");
     $("pe-straighten-note").hidden = true;
   }
 
@@ -803,6 +815,8 @@
     $("pe-apply-straighten").disabled = angle === 0 || crop.tooSmall;
     $("pe-apply-straighten").title = crop.tooSmall && angle !== 0 ? STRAIGHTEN_TOO_THIN : STRAIGHTEN_BUTTON_TITLE;
     $("pe-straighten-note").hidden = !(angle !== 0 && crop.tooSmall);
+    if (angle !== 0 && crop.tooSmall) $("pe-apply-straighten").setAttribute("aria-describedby", "pe-straighten-note");
+    else $("pe-apply-straighten").removeAttribute("aria-describedby");
     straightenPreviewing = angle !== 0;
     if (!angle) {
       // Only wipe the overlay if a preview was on it; a crop selection may be.
@@ -1905,9 +1919,9 @@
     }
     const active = document.activeElement;
     const tag = active && active.tagName;
-    // Range sliders have no text-editing undo of their own, so Ctrl+Z/Y should
-    // still reach the editor while one has focus (e.g. right after Straighten).
-    if ((tag === "INPUT" && active.type !== "range") || tag === "TEXTAREA") return;
+    // The tilt slider has no text-editing undo of its own and is where focus
+    // lands after Straighten, so Ctrl+Z/Y must still reach the editor there.
+    if ((tag === "INPUT" && active.id !== "pe-straighten-angle") || tag === "TEXTAREA") return;
     const mod = e.metaKey || e.ctrlKey;
     if (mod && e.key.toLowerCase() === "z") {
       e.preventDefault();
