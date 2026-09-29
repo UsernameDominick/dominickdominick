@@ -75,6 +75,7 @@ import {
   updateRedirect,
   deleteRedirect,
   maybeSnapshotPage,
+  snapshotPageNow,
   snapshotArticle,
   listRevisions,
   getRevision,
@@ -895,7 +896,10 @@ async function routeAdminApi(request, env, url, ctx) {
     const body = await readJsonBody(request);
     const id = Number(blockMatch[1]);
     const pageId = await getBlockPageId(env, id);
-    if (pageId) await maybeSnapshotPage(env, pageId);
+    // A bulk clear (the style-group reset) asks for a snapshot regardless of the throttle.
+    const forceSnapshot = body.force_snapshot === true;
+    delete body.force_snapshot;
+    if (pageId) await (forceSnapshot ? snapshotPageNow(env, pageId) : maybeSnapshotPage(env, pageId));
     // A reusable-block placement's content/style live on the shared_blocks
     // row, not this one — redirect those fields there so an edit updates
     // every page using it. Position fields (col/row/span) always stay

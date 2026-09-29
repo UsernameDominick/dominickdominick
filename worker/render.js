@@ -811,6 +811,10 @@ export const FONT_STACKS = {
 // borderColor, borderWidth } into a safe inline style string. Values are
 // escaped/coerced rather than trusted verbatim, since they end up inside an
 // HTML attribute.
+// A cleared setting is stored as null (or ""), and Number(null) is 0, which would
+// read as a real 0 (opacity 0 makes the block vanish). Blank counts as "not set".
+const styleNum = (v) => (v === null || v === undefined || v === "" ? NaN : Number(v));
+
 function blockStyleAttr(style) {
   if (!style) return "";
   const parts = [];
@@ -820,11 +824,11 @@ function blockStyleAttr(style) {
   const fontSize = Number(style.fontSize);
   if (Number.isFinite(fontSize) && fontSize > 0) parts.push(`font-size:${fontSize}px`);
   if (["left", "center", "right", "justify"].includes(style.textAlign)) parts.push(`text-align:${style.textAlign}`);
-  const padding = Number(style.padding);
+  const padding = styleNum(style.padding);
   if (Number.isFinite(padding) && padding >= 0) parts.push(`padding:${padding}px`);
-  const opacity = Number(style.opacity);
+  const opacity = styleNum(style.opacity);
   if (Number.isFinite(opacity) && opacity >= 0 && opacity <= 100) parts.push(`opacity:${opacity / 100}`);
-  const borderRadius = Number(style.borderRadius);
+  const borderRadius = styleNum(style.borderRadius);
   if (Number.isFinite(borderRadius) && borderRadius >= 0) parts.push(`border-radius:${borderRadius}px`);
   const borderWidth = Number(style.borderWidth);
   if (Number.isFinite(borderWidth) && borderWidth > 0) {
@@ -838,7 +842,7 @@ function blockStyleAttr(style) {
   // the image doesn't cover (or the only layer, with no image set).
   const gradientFrom = /^#[0-9a-fA-F]{6}$/.test(style.gradientFrom || "") ? style.gradientFrom : null;
   const gradientTo = /^#[0-9a-fA-F]{6}$/.test(style.gradientTo || "") ? style.gradientTo : null;
-  const gradientAngle = Number.isFinite(Number(style.gradientAngle)) ? Number(style.gradientAngle) : 135;
+  const gradientAngle = Number.isFinite(styleNum(style.gradientAngle)) ? Number(style.gradientAngle) : 135;
   const gradientCss = gradientFrom && gradientTo ? `linear-gradient(${gradientAngle}deg,${gradientFrom},${gradientTo})` : null;
   if (style.backgroundImage || gradientCss) {
     const layers = [style.backgroundImage ? `url('${esc(style.backgroundImage)}')` : null, gradientCss].filter(Boolean);
@@ -851,7 +855,7 @@ function blockStyleAttr(style) {
   }
   if (["sticky", "fixed"].includes(style.position)) {
     parts.push(`position:${style.position}`);
-    const offset = Number(style.stickyOffset);
+    const offset = styleNum(style.stickyOffset);
     parts.push(`top:${Number.isFinite(offset) ? offset : 0}px`);
   }
   const SHAPE_CLIP_PATHS = {

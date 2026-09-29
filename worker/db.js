@@ -2278,6 +2278,12 @@ async function snapshotPageBlocks(env, pageId) {
 
 const PAGE_SNAPSHOT_THROTTLE_MS = 3 * 60 * 1000;
 
+// An unconditional page snapshot (the throttled one above skips when the last is
+// under a few minutes old), for actions that should always be undoable.
+export async function snapshotPageNow(env, pageId) {
+  await snapshotPageBlocks(env, pageId);
+}
+
 export async function maybeSnapshotPage(env, pageId) {
   const last = await env.DB
     .prepare("SELECT created_at FROM revisions WHERE kind = 'page' AND entity_id = ? ORDER BY id DESC LIMIT 1")

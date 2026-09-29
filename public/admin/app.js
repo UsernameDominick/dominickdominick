@@ -2444,8 +2444,8 @@
       btn.addEventListener("click", () => el("songs-btn").click());
     });
 
-    function save() {
-      saveBlockStyleAndContent(block);
+    function save(opts) {
+      saveBlockStyleAndContent(block, opts);
     }
 
     // :not(button) excludes .edit-keyframes-btn (and any future button-type
@@ -2483,12 +2483,23 @@
     // history keeps the earlier version if it was a mistake).
     styleContainer.querySelectorAll(".style-group-reset").forEach((btn) => {
       btn.addEventListener("click", () => {
+        const groupId = btn.dataset.group;
         const keys = btn.dataset.keys.split(",").filter((k) => styleValueIsSet(block.style[k]));
+        // The timing fields behind custom animations aren't shown as fields, so they go with Motion.
+        if (groupId === "motion") ["animationDuration", "animationEasing"].forEach((k) => styleValueIsSet(block.style[k]) && keys.push(k));
         if (!keys.length) return;
-        if (!confirm(`Reset ${keys.length} setting${keys.length === 1 ? "" : "s"} in this group to their defaults?`)) return;
+        const title = (STYLE_GROUPS.find(([id]) => id === groupId) || [, groupId])[1];
+        const warnings = [];
+        if (groupId === "visibility" && (block.style.hidden || block.style.urlRule || block.style.visibleFrom || block.style.visibleUntil)) {
+          warnings.push("This can make a hidden, scheduled or address-limited block visible on the live site.");
+        }
+        if (block.shared_block_id) warnings.push("This is a reusable block, so the change applies on every page that uses it, and page history can't restore it.");
+        if (!confirm(`Reset ${keys.length} ${title.toLowerCase()} setting${keys.length === 1 ? "" : "s"} to ${keys.length === 1 ? "its default" : "their defaults"}?${warnings.length ? "\n\n" + warnings.join("\n") : ""}`)) return;
         keys.forEach((k) => (block.style[k] = null));
-        save();
+        save({ forceSnapshot: true }); // the page's history keeps the version before the reset
         renderInspector();
+        const summary = document.querySelector(`.style-group[data-group="${groupId}"] > summary`);
+        if (summary) summary.focus();
       });
     });
 
@@ -2506,13 +2517,13 @@
   // handlers below (which act on whatever block is selected at click time,
   // outside any single renderInspector() call, so they can't reuse its
   // local closure directly).
-  function saveBlockStyleAndContent(block) {
+  function saveBlockStyleAndContent(block, opts = {}) {
     renderCanvas();
     unsavedDirty = true;
     el("block-save-status").textContent = "Saving…";
     return api(`/blocks/${block.id}`, {
       method: "PATCH",
-      body: JSON.stringify({ content: block.content, style: block.style }),
+      body: JSON.stringify({ content: block.content, style: block.style, ...(opts.forceSnapshot ? { force_snapshot: true } : {}) }),
     })
       .then(() => {
         unsavedDirty = false;

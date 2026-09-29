@@ -6823,3 +6823,9 @@ kbd {
   align-self: flex-start;
   font-size: 0.8rem;
 }
+
+.style-group-reset {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+}
