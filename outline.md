@@ -277,9 +277,6 @@ The standing scope rule in section 0 applies. Keep shared builders consistent.
 - **Metadata viewer for image dimensions/format** — needs client canvas
   probing at upload or server-side binary header parsing; low value for
   a small personal media library relative to effort.
-- **Orphan-page detection** — real design complexity (every internal-
-  link-holding block type, plus list-block `limit` truncation logic);
-  worth doing right, not rushed.
 - **Automated tests in CI** — Playwright scripts stay ad hoc/local for
   now.
 - **Image CDN transforms** (Cloudflare Image Resizing) — needs a
