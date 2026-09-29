@@ -1178,6 +1178,12 @@
               <button type="button" id="pe-flip-v" title="Flip vertical">⇵</button>
             </div>
             <div class="pe-tool-group">
+              <span class="pe-group-label">Straighten</span>
+              <label>Tilt <input type="range" id="pe-straighten-angle" min="-45" max="45" step="0.1" value="0" title="Tilt the image to level a horizon (positive turns it clockwise). Shows a live preview; double-click to reset."></label>
+              <output id="pe-straighten-value" for="pe-straighten-angle" class="pe-straighten-value">0.0°</output>
+              <button type="button" id="pe-apply-straighten" disabled title="Rotate the image by the tilt above and crop away the empty corners, keeping the largest straight rectangle that fits inside the tilted image">Straighten</button>
+            </div>
+            <div class="pe-tool-group">
               <span class="pe-group-label">Resize image</span>
               <label>W <input type="number" id="pe-resize-width" min="1" max="2000" title="New image width in pixels"></label>
               <label>H <input type="number" id="pe-resize-height" min="1" max="2000" title="New image height in pixels"></label>

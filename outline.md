@@ -90,7 +90,8 @@ Verify distinct test-only Preview values before protected-flow checks.
   remain open, best judged with real published content.
 - **Custom animations:** timeline/keyframe editor with server-side CSS generation is implemented.
 - **Photo Editor:** single Canvas2D raster canvas; no layer stack, masks, or nondestructive adjustments.
-  Existing undo is a 15-snapshot canvas stack.
+  Existing undo is a 15-snapshot canvas stack. Straighten rotates by -45 to +45 degrees with a live overlay
+  preview and auto-crops to the largest same-aspect rectangle that fits inside the tilted image.
 - **Song/DAW:** fixed 16-step sequencer with synthesized Web Audio; no sample playback, multitrack timeline,
   mixing, or effects.
 - **Simulation builder:** SVG circuits and simplified connectivity/Ohm's-law analysis, not a SPICE solver; breadboards support 15, 30, or 45 columns, manual wire bends, same-hole snap warnings, named checkpoints, and in-memory undo. Draft edits stay private until the saved name and circuit data are explicitly published; unpublish hides the live snapshot. Older simulations default to 30 columns, and save validation checks board-size pins. Parts (not breadboards) can be rotated in 90° steps and mirrored (R / Shift+R / F or the inspector buttons); orientation is applied at the component-definition level so pins, wires, snapping, and rendering all follow it, and save validation rejects invalid orientation values.
@@ -328,7 +329,6 @@ simulations need parity.
 - 44. Colored mask overlays — tint mask canvas, trivial compositing.
 - 77. Hard-edged pencil (requires a real freehand paintbrush first)
 - 90. Magnified retouch comparison (requires zoom/pan)
-- 93. Horizon straightening — arbitrary-angle rotate + auto-crop.
 
 ### Photo Editor — Medium
 4, 7, 9, 10, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 29, 30, 35, 36, 37, 38, 39, 42, 45, 46, 48, 49, 53, 55, 58,

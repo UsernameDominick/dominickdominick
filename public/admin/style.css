@@ -4820,6 +4820,14 @@ kbd {
   width: 80px;
 }
 
+.pe-straighten-value {
+  min-width: 3.6em;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--text-dim);
+}
+
 .pe-toolbar button {
   background: var(--bg);
   color: var(--text);

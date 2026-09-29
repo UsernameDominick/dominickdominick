@@ -491,6 +491,7 @@
   // ---------- Tool selection ----------
   function setTool(tool) {
     currentTool = tool;
+    resetStraightenUi();
     document.querySelectorAll(".pe-tool").forEach((b) => b.classList.toggle("active", b.dataset.tool === tool));
     $("pe-apply-crop").hidden = tool !== "select" || !cropRect;
     $("pe-rect-radius-label").hidden = tool !== "rect";
@@ -679,6 +680,7 @@
   }
 
   function cancelActiveDrag() {
+    resetStraightenUi();
     cropRect = null;
     $("pe-apply-crop").hidden = true;
     dragging = false;
@@ -731,6 +733,104 @@
   }
   $("pe-flip-h").addEventListener("click", () => flip(true));
   $("pe-flip-v").addEventListener("click", () => flip(false));
+
+  // ---------- Straighten ----------
+  // Rotates by an arbitrary angle and auto-crops to the largest rectangle of
+  // the image's own aspect ratio that fits inside the tilted picture, so no
+  // transparent corners are left behind. That rectangle turns by `angle`
+  // inside the source, so it fits when its rotated bounding box fits:
+  // a*|cos| + b*|sin| <= W and a*|sin| + b*|cos| <= H. One pixel per side is
+  // trimmed so anti-aliased edge pixels never survive into the result.
+  function straightenSize(w, h, radians) {
+    const c = Math.abs(Math.cos(radians));
+    const s = Math.abs(Math.sin(radians));
+    const scale = Math.min(w / (w * c + h * s), h / (w * s + h * c));
+    return { w: Math.max(1, Math.floor(w * scale - 2)), h: Math.max(1, Math.floor(h * scale - 2)) };
+  }
+
+  function straightenAngle() {
+    const angle = Number($("pe-straighten-angle").value);
+    return Number.isFinite(angle) ? angle : 0;
+  }
+
+  function resetStraightenUi() {
+    $("pe-straighten-angle").value = 0;
+    $("pe-straighten-value").textContent = "0.0°";
+    $("pe-apply-straighten").disabled = true;
+  }
+
+  // Live preview on the overlay: the tilted picture, dimmed outside the crop
+  // that would be kept, with a thirds grid to line a horizon up against.
+  function drawStraightenPreview() {
+    const angle = straightenAngle();
+    $("pe-straighten-value").textContent = `${angle.toFixed(1)}°`;
+    $("pe-apply-straighten").disabled = angle === 0;
+    clearOverlay();
+    if (!angle) return;
+    const w = canvas.width;
+    const h = canvas.height;
+    const radians = (angle * Math.PI) / 180;
+    const crop = straightenSize(w, h, radians);
+    const x = (w - crop.w) / 2;
+    const y = (h - crop.h) / 2;
+    octx.save();
+    octx.fillStyle = "#101010";
+    octx.fillRect(0, 0, w, h);
+    octx.save();
+    octx.translate(w / 2, h / 2);
+    octx.rotate(radians);
+    octx.drawImage(canvas, -w / 2, -h / 2);
+    octx.restore();
+    octx.fillStyle = "rgba(0,0,0,0.55)";
+    octx.beginPath();
+    octx.rect(0, 0, w, h);
+    octx.rect(x, y, crop.w, crop.h);
+    octx.fill("evenodd");
+    octx.strokeStyle = "rgba(255,255,255,0.55)";
+    octx.lineWidth = Math.max(1, w * 0.0015);
+    octx.beginPath();
+    for (let i = 1; i <= 2; i++) {
+      octx.moveTo(x + (crop.w * i) / 3, y);
+      octx.lineTo(x + (crop.w * i) / 3, y + crop.h);
+      octx.moveTo(x, y + (crop.h * i) / 3);
+      octx.lineTo(x + crop.w, y + (crop.h * i) / 3);
+    }
+    octx.stroke();
+    octx.strokeStyle = "#ff7a45";
+    octx.lineWidth = Math.max(2, w * 0.002);
+    octx.strokeRect(x, y, crop.w, crop.h);
+    octx.restore();
+  }
+  $("pe-straighten-angle").addEventListener("input", drawStraightenPreview);
+  $("pe-straighten-angle").addEventListener("dblclick", () => {
+    resetStraightenUi();
+    clearOverlay();
+  });
+
+  $("pe-apply-straighten").addEventListener("click", () => {
+    if (isComparing()) return;
+    const angle = straightenAngle();
+    if (!angle) return;
+    const radians = (angle * Math.PI) / 180;
+    const w = canvas.width;
+    const h = canvas.height;
+    const crop = straightenSize(w, h, radians);
+    pushUndo();
+    const out = document.createElement("canvas");
+    out.width = crop.w;
+    out.height = crop.h;
+    const octx2 = out.getContext("2d");
+    octx2.imageSmoothingQuality = "high";
+    octx2.translate(crop.w / 2, crop.h / 2);
+    octx2.rotate(radians);
+    octx2.drawImage(canvas, -w / 2, -h / 2);
+    canvas.width = crop.w;
+    canvas.height = crop.h;
+    ctx.drawImage(out, 0, 0);
+    syncOverlaySize();
+    cancelActiveDrag();
+    fitCanvasToViewport();
+  });
 
   // ---------- Resize (scales the actual pixels, unlike Crop which only
   // ever cuts down to a sub-region without stretching anything) ----------
