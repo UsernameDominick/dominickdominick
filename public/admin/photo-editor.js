@@ -718,6 +718,9 @@
       });
     }
     overlay.style.cursor = tool === "pan" ? "grab" : "";
+    // Hardness only shapes Paint; the colour only matters to Paint and Pencil.
+    $("pe-brush-hardness").disabled = tool !== "paint";
+    $("pe-paint-color").disabled = tool !== "paint" && tool !== "pencil";
     redrawOverlay();
   }
 
@@ -2281,8 +2284,10 @@
       // whatever's happened (movement, or none) since the LAST tick,
       // exactly like a real airbrush's continuous-while-held behavior.
       maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+      resetPaintStroke();
       lastPoint = null;
       strokeTo(airbrushPoint, airbrushPressure);
+      if (currentTool === "paint" || currentTool === "pencil") drawPaintPreview(airbrushPoint);
       airbrushJustCommitted = true;
     } catch (err) {
       // A broken tick body must not keep firing silently forever against a
@@ -2314,6 +2319,15 @@
     if (!airbrushMode()) stopAirbrushTimer();
   });
 
+  let paintPts = []; // the Paint/Pencil stroke so far: {x, y, w}
+  // A small Pencil stroke is rasterised incrementally onto its own image-sized
+  // canvas (only the new segment each move), so a long stroke stays cheap.
+  let pencilStroke = null;
+  function resetPaintStroke() {
+    paintPts = [];
+    pencilStroke = null;
+  }
+
   function ensureMask() {
     if (maskCanvas && maskCanvas.width === canvas.width && maskCanvas.height === canvas.height) return;
     maskCanvas = document.createElement("canvas");
@@ -2339,7 +2353,7 @@
   // a separate /brush-presets resource -- that endpoint's own validation
   // is specifically shaped around `adjust: {brightness,contrast,saturate}`,
   // not brush parameters, so this isn't folded into it.
-  const BRUSH_PRESET_TOOLS = new Set(["erase", "blur", "pixelate", "dodge", "burn"]);
+  const BRUSH_PRESET_TOOLS = new Set(["paint", "pencil", "erase", "blur", "pixelate", "dodge", "burn"]);
   let brushPresets = [];
 
   async function loadBrushPresets() {
@@ -2361,17 +2375,21 @@
     setTool(preset.tool);
     $("pe-brush-size").value = preset.size;
     $("pe-brush-opacity").value = preset.opacity;
+    if (typeof preset.color === "string" && /^#[0-9a-f]{6}$/i.test(preset.color)) $("pe-paint-color").value = preset.color;
+    if (Number.isFinite(preset.hardness)) $("pe-brush-hardness").value = preset.hardness;
   });
 
   $("pe-save-brush-preset").addEventListener("click", async () => {
     if (!BRUSH_PRESET_TOOLS.has(currentTool)) {
-      alert("Select a brush tool (Erase, Blur, Pixelate, Dodge, or Burn) first, then save it as a preset.");
+      alert("Select a brush tool (Paint, Pencil, Erase, Blur, Pixelate, Dodge, or Burn) first, then save it as a preset.");
       return;
     }
     const preset = {
       tool: currentTool,
       size: brushSize(),
       opacity: Number($("pe-brush-opacity").value),
+      color: $("pe-paint-color").value,
+      hardness: Number($("pe-brush-hardness").value),
     };
     const name = await promptForText("Save brush preset", "Preset name");
     if (name === null) return;
@@ -2474,6 +2492,13 @@
 
   function strokeTo(point, sizeMultiplier = 1) {
     const size = brushSize() * sizeMultiplier;
+    if (currentTool === "paint" || currentTool === "pencil") {
+      // Paint and Pencil keep the stroke as points and render it when needed
+      // (see renderPaintLayer), so the preview and the result are one code path.
+      paintPts.push({ x: point.x, y: point.y, w: Math.max(1, size) });
+      lastPoint = point;
+      return;
+    }
     maskCtx.lineCap = "round";
     maskCtx.lineJoin = "round";
     maskCtx.strokeStyle = "#000";
@@ -2497,10 +2522,7 @@
     c.width = canvas.width;
     c.height = canvas.height;
     const cx = c.getContext("2d");
-    if (tool === "paint" || tool === "pencil") {
-      cx.fillStyle = $("pe-paint-color").value;
-      cx.fillRect(0, 0, c.width, c.height);
-    } else if (tool === "blur") {
+    if (tool === "blur") {
       cx.filter = `blur(${Math.max(4, canvas.width * 0.012)}px)`;
       cx.drawImage(canvas, 0, 0);
     } else if (tool === "dodge" || tool === "burn") {
@@ -2523,48 +2545,192 @@
     return c;
   }
 
-  // Paint feathers the stroke's edge (Hardness < 100); the Pencil has no partial
-  // pixels at all. Both work on the stroke mask before the selection clips it.
-  function shapeStrokeMask(tool) {
-    if (tool === "pencil") {
-      const img = maskCtx.getImageData(0, 0, maskCanvas.width, maskCanvas.height);
-      const d = img.data;
-      for (let i = 3; i < d.length; i += 4) d[i] = d[i] > 127 ? 255 : 0;
-      maskCtx.putImageData(img, 0, 0);
-    } else if (tool === "paint") {
-      const hardness = Math.max(0, Math.min(100, Number($("pe-brush-hardness").value)));
-      if (hardness >= 100) return;
-      const tmp = document.createElement("canvas");
-      tmp.width = maskCanvas.width;
-      tmp.height = maskCanvas.height;
-      const t = tmp.getContext("2d");
-      t.filter = `blur(${((brushSize() / 2) * (1 - hardness / 100) * 0.6).toFixed(2)}px)`;
-      t.drawImage(maskCanvas, 0, 0);
-      maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
-      maskCtx.drawImage(tmp, 0, 0);
+  // Pixel-exact disc for the Pencil: the centre snaps to a pixel centre (odd
+  // widths) or a pixel corner (even ones) and a pixel is painted when its centre
+  // is inside the radius, so a click is always a dot of the same shape.
+  function pencilStamp(g, x, y, width, ox, oy) {
+    const w = Math.max(1, Math.round(width));
+    const cx = w % 2 === 1 ? Math.floor(x) + 0.5 : Math.round(x);
+    const cy = w % 2 === 1 ? Math.floor(y) + 0.5 : Math.round(y);
+    const r = w / 2;
+    const r2 = r * r + 1e-6;
+    const lo = Math.floor(-r) - 1;
+    const hi = Math.ceil(r) + 1;
+    for (let dy = lo; dy <= hi; dy++) {
+      for (let dx = lo; dx <= hi; dx++) {
+        const px = Math.floor(cx) + dx;
+        const py = Math.floor(cy) + dy;
+        const ddx = px + 0.5 - cx;
+        const ddy = py + 0.5 - cy;
+        if (ddx * ddx + ddy * ddy <= r2) g.rect(px - ox, py - oy, 1, 1);
+      }
     }
   }
 
-  // Live preview of a Paint or Pencil stroke while it is being drawn.
+  // The Paint/Pencil stroke as a finished layer: feathered (Paint, by Hardness) or
+  // hard (Pencil), clipped to the selection, in the paint colour, at full strength.
+  // Rendered on its own padded canvas covering just the stroke, so a feather that
+  // runs past the image edge isn't dimmed there and the cost follows the stroke's
+  // size rather than the whole image. Returns {layer, x, y} (x and y are where the
+  // layer's top-left sits on the image), or null when there is nothing to paint.
+  function renderPaintLayer() {
+    if (!paintPts.length) return null;
+    const tool = currentTool;
+    const size = brushSize();
+    const hardness = tool === "paint" ? Math.max(0, Math.min(100, Number($("pe-brush-hardness").value))) : 100;
+    const feather = (size / 2) * (1 - hardness / 100) * 0.5; // half-width of the soft edge
+    const maxW = paintPts.reduce((m, q) => Math.max(m, q.w), 1);
+    const pad = Math.ceil(maxW / 2 + feather * 2 + 3);
+    let x0 = Infinity;
+    let y0 = Infinity;
+    let x1 = -Infinity;
+    let y1 = -Infinity;
+    for (const q of paintPts) {
+      x0 = Math.min(x0, q.x);
+      y0 = Math.min(y0, q.y);
+      x1 = Math.max(x1, q.x);
+      y1 = Math.max(y1, q.y);
+    }
+    const ox = Math.floor(x0) - pad;
+    const oy = Math.floor(y0) - pad;
+    const w = Math.ceil(x1) + pad - ox + 1;
+    const h = Math.ceil(y1) + pad - oy + 1;
+    if (w < 1 || h < 1 || w > 8000 || h > 8000) return null;
+    const layer = document.createElement("canvas");
+    layer.width = w;
+    layer.height = h;
+    const g = layer.getContext("2d");
+    g.fillStyle = "#000";
+    g.strokeStyle = "#000";
+    g.lineCap = "round";
+    g.lineJoin = "round";
+    const hardSmall = tool === "pencil" && maxW <= 8;
+    if (hardSmall) {
+      // Bresenham between the snapped points, stamping the pixel disc; only the
+      // points added since the last render are drawn. Every pixel of a call goes
+      // into one path that is filled once.
+      if (!pencilStroke || pencilStroke.c.width !== canvas.width || pencilStroke.c.height !== canvas.height) {
+        const c = document.createElement("canvas");
+        c.width = canvas.width;
+        c.height = canvas.height;
+        pencilStroke = { c, g: c.getContext("2d"), n: 0, prev: null };
+        pencilStroke.g.fillStyle = "#000";
+      }
+      const ps = pencilStroke;
+      ps.g.beginPath();
+      for (let k = ps.n; k < paintPts.length; k++) {
+        const q = paintPts[k];
+        const ix = Math.floor(q.x);
+        const iy = Math.floor(q.y);
+        if (ps.prev) {
+          let cx = ps.prev.ix;
+          let cy = ps.prev.iy;
+          const dx = Math.abs(ix - cx);
+          const dy = -Math.abs(iy - cy);
+          const sx = cx < ix ? 1 : -1;
+          const sy = cy < iy ? 1 : -1;
+          let err = dx + dy;
+          for (;;) {
+            pencilStamp(ps.g, cx + 0.5, cy + 0.5, q.w, 0, 0);
+            if (cx === ix && cy === iy) break;
+            const e2 = 2 * err;
+            if (e2 >= dy) {
+              err += dy;
+              cx += sx;
+            }
+            if (e2 <= dx) {
+              err += dx;
+              cy += sy;
+            }
+          }
+        } else {
+          pencilStamp(ps.g, q.x, q.y, q.w, 0, 0);
+        }
+        ps.prev = { ix, iy };
+      }
+      ps.g.fill();
+      ps.n = paintPts.length;
+      g.drawImage(ps.c, ox, oy, w, h, 0, 0, w, h);
+    } else {
+      // Soft or larger strokes: the round-capped path. Paint's core is drawn
+      // narrower by the feather on each side, then blurred, so the painted reach
+      // stays the brush size shown by the cursor ring.
+      g.save();
+      g.translate(-ox, -oy);
+      for (let k = 0; k < paintPts.length; k++) {
+        const q = paintPts[k];
+        g.lineWidth = Math.max(0.5, q.w - 2 * feather);
+        if (k === 0) {
+          g.beginPath();
+          g.arc(q.x, q.y, Math.max(0.25, (q.w - 2 * feather) / 2), 0, Math.PI * 2);
+          g.fill();
+        } else {
+          g.beginPath();
+          g.moveTo(paintPts[k - 1].x, paintPts[k - 1].y);
+          g.lineTo(q.x, q.y);
+          g.stroke();
+        }
+      }
+      g.restore();
+      if (feather > 0.05) {
+        const soft = document.createElement("canvas");
+        soft.width = w;
+        soft.height = h;
+        const sg = soft.getContext("2d");
+        sg.filter = `blur(${(feather / 2).toFixed(2)}px)`;
+        sg.drawImage(layer, 0, 0);
+        g.clearRect(0, 0, w, h);
+        g.drawImage(soft, 0, 0);
+      }
+    }
+    // Only inside the selection.
+    if (hasSelection() && selMask.width === canvas.width && selMask.height === canvas.height) {
+      g.save();
+      g.globalCompositeOperation = "destination-in";
+      g.drawImage(selMask, -ox, -oy);
+      g.restore();
+    }
+    if (tool === "pencil" && (!hardSmall || hasSelection())) {
+      // No partial pixels: cut the antialiased edge of a big Pencil stroke or of a
+      // selection to fully painted or untouched.
+      const img = g.getImageData(0, 0, w, h);
+      const d = img.data;
+      for (let i = 3; i < d.length; i += 4) d[i] = d[i] > 127 ? 255 : 0;
+      g.putImageData(img, 0, 0);
+    }
+    g.save();
+    g.globalCompositeOperation = "source-in";
+    g.fillStyle = $("pe-paint-color").value;
+    g.fillRect(0, 0, w, h);
+    g.restore();
+    return { layer, x: ox, y: oy };
+  }
+
+  // Live preview of a Paint or Pencil stroke while it is being drawn: the very
+  // layer that will be committed.
   function drawPaintPreview(point) {
     clearOverlay();
-    const c = document.createElement("canvas");
-    c.width = canvas.width;
-    c.height = canvas.height;
-    const cx = c.getContext("2d");
-    cx.drawImage(maskCanvas, 0, 0);
-    cx.globalCompositeOperation = "source-in";
-    cx.fillStyle = $("pe-paint-color").value;
-    cx.fillRect(0, 0, c.width, c.height);
-    octx.save();
-    octx.globalAlpha = brushOpacity();
-    octx.drawImage(c, 0, 0);
-    octx.restore();
+    const r = renderPaintLayer();
+    if (r) {
+      octx.save();
+      octx.globalAlpha = brushOpacity();
+      octx.drawImage(r.layer, r.x, r.y);
+      octx.restore();
+    }
     drawBrushCursorRing(point);
   }
 
   function commitBrushStroke() {
-    if (currentTool === "paint" || currentTool === "pencil") shapeStrokeMask(currentTool);
+    if (currentTool === "paint" || currentTool === "pencil") {
+      const r = renderPaintLayer();
+      if (r) {
+        ctx.save();
+        ctx.globalAlpha = brushOpacity();
+        ctx.drawImage(r.layer, r.x, r.y);
+        ctx.restore();
+      }
+      return;
+    }
     // With a selection, the stroke only counts inside it.
     if (hasSelection() && selMask.width === maskCanvas.width && selMask.height === maskCanvas.height) {
       maskCtx.save();
@@ -2943,6 +3109,7 @@
       pushUndo();
       ensureMask();
       maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+      resetPaintStroke();
       strokeActive = true;
       lastPoint = null;
       strokeTo(p, pressureMultiplier(e));
@@ -3026,6 +3193,7 @@
     }
     strokeActive = false;
     lastPoint = null;
+    resetPaintStroke();
     clearOverlay();
   }
 

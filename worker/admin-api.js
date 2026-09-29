@@ -2458,7 +2458,7 @@ async function routeAdminApi(request, env, url, ctx) {
   // kept as a separate resource rather than folded into /photo-presets
   // since that endpoint's own validation is specifically shaped around
   // `adjust: {brightness, contrast, saturate}`, not brush parameters.
-  const BRUSH_PRESET_TOOLS = new Set(["erase", "blur", "pixelate", "dodge", "burn"]);
+  const BRUSH_PRESET_TOOLS = new Set(["paint", "pencil", "erase", "blur", "pixelate", "dodge", "burn"]);
   if (path === "/brush-presets" && method === "GET") {
     const raw = await getSetting(env, "photo_editor_brush_presets");
     return json(JSON.parse(raw || "[]"));
@@ -2475,12 +2475,17 @@ async function routeAdminApi(request, env, url, ctx) {
     // the real minimum, since `0` is falsy. Fixed here too rather than
     // leaving the original instance of the bug in place once found.
     const rawSize = Number(body.size);
-    const size = Math.max(5, Math.min(150, Number.isFinite(rawSize) ? rawSize : 30));
+    const size = Math.max(1, Math.min(150, Number.isFinite(rawSize) ? rawSize : 30));
     const rawOpacity = Number(body.opacity);
     const opacity = Math.max(1, Math.min(100, Number.isFinite(rawOpacity) ? rawOpacity : 100));
     const presets = JSON.parse((await getSetting(env, "photo_editor_brush_presets")) || "[]");
     const id = presets.reduce((max, p) => Math.max(max, p.id || 0), 0) + 1;
-    presets.push({ id, name: String(body.name).slice(0, 60), tool: body.tool, size, opacity });
+    // Colour and hardness matter to Paint and Pencil; stored only when valid.
+    const preset = { id, name: String(body.name).slice(0, 60), tool: body.tool, size, opacity };
+    if (typeof body.color === "string" && /^#[0-9a-fA-F]{6}$/.test(body.color)) preset.color = body.color.toLowerCase();
+    const rawHardness = Number(body.hardness);
+    if (body.hardness !== undefined && Number.isFinite(rawHardness)) preset.hardness = Math.max(0, Math.min(100, Math.round(rawHardness)));
+    presets.push(preset);
     await setSetting(env, "photo_editor_brush_presets", JSON.stringify(presets));
     log(ctx, env, "create", "brush-preset", body.name);
     return json({ id });
