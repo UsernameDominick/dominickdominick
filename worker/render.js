@@ -1405,7 +1405,7 @@ function isBlockInDateWindow(style) {
 // "=" are forgiven. A rule that still can't be read fails CLOSED for "show" (the
 // block stays hidden rather than going public by accident) and open for "hide".
 export function parseUrlRule(raw) {
-  const text = String(raw || "").trim().replace(/^\?/, "");
+  const text = String(raw || "").trim().replace(/^\?/, "").trim();
   const m = text.match(/^([A-Za-z0-9_.-]{1,40})\s*(?:=\s*([^&#\s]{0,80}))?$/);
   return m ? { name: m[1], value: m[2] } : null;
 }

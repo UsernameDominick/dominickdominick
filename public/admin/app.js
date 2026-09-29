@@ -1350,7 +1350,7 @@
   // The same reading of an address rule as the server (worker/render.js parseUrlRule):
   // returns the cleaned "name" or "name=value", or "" when it can't be read.
   function urlRuleParsed(raw) {
-    const text = String(raw || "").trim().replace(/^\?/, "");
+    const text = String(raw || "").trim().replace(/^\?/, "").trim();
     const m = text.match(/^([A-Za-z0-9_.-]{1,40})\s*(?:=\s*([^&#\s]{0,80}))?$/);
     return m ? m[1] + (m[2] !== undefined ? "=" + m[2] : "") : "";
   }
@@ -2093,7 +2093,7 @@
         ["hide", "Hide when the address has…"],
       ],
     },
-    { key: "urlParam", label: "…this query parameter, written as name or name=value (for example ref=newsletter, without the ?). Case matters. \"Show only\" hides the block from everyone whose address lacks it, including you while previewing; add the parameter to the page address to see it. One parameter per block.", type: "text" },
+    { key: "urlParam", label: "…this query parameter, written as name or name=value (for example ref=newsletter, without the ?). Case matters. \"Show only\" hides the block from everyone whose address lacks it, including you while previewing; add the parameter to the page address to see it. One parameter per block. A \"Show only\" rule with no parameter hides the block.", type: "text" },
     { key: "visibleFrom", label: "Visible from (blank = always)", type: "datetime-local" },
     { key: "visibleUntil", label: "Visible until (blank = never expires)", type: "datetime-local" },
     {
