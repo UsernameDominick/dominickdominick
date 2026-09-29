@@ -2622,8 +2622,10 @@
       ps.g.beginPath();
       for (let k = ps.n; k < paintPts.length; k++) {
         const q = paintPts[k];
-        const ix = Math.floor(q.x);
-        const iy = Math.floor(q.y);
+        // A pointer exactly on a pixel boundary can map to 54.99999999999999; the
+        // epsilon keeps it on the pixel the pointer is really over.
+        const ix = Math.floor(q.x + 1e-6);
+        const iy = Math.floor(q.y + 1e-6);
         if (ps.prev) {
           let cx = ps.prev.ix;
           let cy = ps.prev.iy;
