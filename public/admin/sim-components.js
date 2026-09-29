@@ -958,6 +958,88 @@
     return path.reverse();
   }
 
+  // True when the analysed path is the only route for current: with every
+  // zero-resistance link (wire, closed switch, ammeter) contracted, each
+  // resistive part on the path is a bridge, so nothing runs in parallel with it
+  // and no wire, switch or ammeter bypasses it. Used by the voltmeter, and to
+  // decide whether a backwards LED really stops the loop.
+  function pathIsOnlyRoute(adjacency, edgeInfo, path) {
+    const edgeKey = (a, b) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+    const claims = new Set([path[0]]);
+    const walk = [path[0]];
+    while (walk.length) {
+      const cur = walk.shift();
+      for (const n of adjacency.get(cur) || []) {
+        if (!claims.has(n)) {
+          claims.add(n);
+          walk.push(n);
+        }
+      }
+    }
+    const isZero = (info) => !info || info.kind === "wire" || info.kind === "ammeter";
+    const parent = new Map();
+    const find = (x) => {
+      if (!parent.has(x)) parent.set(x, x);
+      let root = x;
+      while (parent.get(root) !== root) root = parent.get(root);
+      let cur = x;
+      while (parent.get(cur) !== root) {
+        const next = parent.get(cur);
+        parent.set(cur, root);
+        cur = next;
+      }
+      return root;
+    };
+    const resistive = [];
+    const seenKeys = new Set();
+    claims.forEach((a) => {
+      for (const b of adjacency.get(a) || []) {
+        const key = edgeKey(a, b);
+        if (seenKeys.has(key)) continue;
+        seenKeys.add(key);
+        if (isZero(edgeInfo.get(key))) {
+          const ra = find(a);
+          const rb = find(b);
+          if (ra !== rb) parent.set(ra, rb);
+        } else {
+          resistive.push({ a, b, key });
+        }
+      }
+    });
+    const superAdj = new Map();
+    resistive.forEach(({ a, b, key }) => {
+      const ra = find(a);
+      const rb = find(b);
+      if (ra === rb) return;
+      if (!superAdj.has(ra)) superAdj.set(ra, []);
+      if (!superAdj.has(rb)) superAdj.set(rb, []);
+      superAdj.get(ra).push({ to: rb, key });
+      superAdj.get(rb).push({ to: ra, key });
+    });
+    const pathEdges = [];
+    for (let i = 0; i < path.length - 1; i++) {
+      const key = edgeKey(path[i], path[i + 1]);
+      if (!isZero(edgeInfo.get(key))) pathEdges.push({ a: path[i], b: path[i + 1], key });
+    }
+    for (const { a, b, key } of pathEdges) {
+      const from = find(a);
+      const to = find(b);
+      if (from === to) return false;
+      const seen = new Set([from]);
+      const queue = [from];
+      while (queue.length) {
+        const cur = queue.shift();
+        for (const step of superAdj.get(cur) || []) {
+          if (step.key === key || seen.has(step.to)) continue;
+          seen.add(step.to);
+          queue.push(step.to);
+        }
+      }
+      if (seen.has(to)) return false;
+    }
+    return true;
+  }
+
   // Potential (volts above the source's negative terminal) of the nodes the
   // single-path model can honestly vouch for, for the voltmeter. The solver
   // follows ONE path per source, so a voltage is only defined when that path is
@@ -1007,69 +1089,11 @@
       return { map: potentials, reason: null, claims };
     }
 
-    const isZero = (info) => !info || info.kind === "wire" || info.kind === "ammeter";
-    const parent = new Map();
-    const find = (x) => {
-      if (!parent.has(x)) parent.set(x, x);
-      let root = x;
-      while (parent.get(root) !== root) root = parent.get(root);
-      let cur = x;
-      while (parent.get(cur) !== root) {
-        const next = parent.get(cur);
-        parent.set(cur, root);
-        cur = next;
-      }
-      return root;
-    };
-    const resistive = [];
-    const seenKeys = new Set();
-    claims.forEach((a) => {
-      for (const b of adjacency.get(a) || []) {
-        const key = edgeKey(a, b);
-        if (seenKeys.has(key)) continue;
-        seenKeys.add(key);
-        if (isZero(edgeInfo.get(key))) {
-          const ra = find(a);
-          const rb = find(b);
-          if (ra !== rb) parent.set(ra, rb);
-        } else {
-          resistive.push({ a, b, key });
-        }
-      }
-    });
-    const superAdj = new Map();
-    resistive.forEach(({ a, b, key }) => {
-      const ra = find(a);
-      const rb = find(b);
-      if (ra === rb) return;
-      if (!superAdj.has(ra)) superAdj.set(ra, []);
-      if (!superAdj.has(rb)) superAdj.set(rb, []);
-      superAdj.get(ra).push({ to: rb, key });
-      superAdj.get(rb).push({ to: ra, key });
-    });
-    const pathEdges = [];
+    if (!pathIsOnlyRoute(adjacency, edgeInfo, path)) return fail("parallel");
     const ledSteps = [];
     for (let i = 0; i < path.length - 1; i++) {
-      const key = edgeKey(path[i], path[i + 1]);
-      const info = edgeInfo.get(key);
-      if (!isZero(info)) pathEdges.push({ a: path[i], b: path[i + 1], key });
+      const info = edgeInfo.get(edgeKey(path[i], path[i + 1]));
       if (info && info.kind === "led") ledSteps.push(info.posNode === undefined || (path[i] === info.posNode && path[i + 1] === info.negNode));
-    }
-    for (const { a, b, key } of pathEdges) {
-      const from = find(a);
-      const to = find(b);
-      if (from === to) return fail("parallel");
-      const seen = new Set([from]);
-      const queue = [from];
-      while (queue.length) {
-        const cur = queue.shift();
-        for (const step of superAdj.get(cur) || []) {
-          if (step.key === key || seen.has(step.to)) continue;
-          seen.add(step.to);
-          queue.push(step.to);
-        }
-      }
-      if (seen.has(to)) return fail("parallel");
     }
 
     const blocked = netVoltage <= 0 || ledSteps.some((forward) => !forward);
@@ -1165,7 +1189,7 @@
       // instead of coming from the edge-walking loop below.
       let totalResistance = domain.internalResistance || 0;
       let totalForwardVoltage = 0;
-    const reversedLedIds = new Set();
+      const reversedLedIds = new Set();
       const edges = [];
       for (let i = 0; i < path.length - 1; i++) {
         const a = path[i];
@@ -1175,13 +1199,16 @@
         if (!info) continue;
         totalResistance += info.resistance || 0;
         if (info.kind === "led") totalForwardVoltage += info.forwardVoltage || 0;
-      // A LED wired backwards blocks the loop like a diode.
-      if (info.kind === "led" && info.posNode !== undefined && a === info.negNode && b === info.posNode) reversedLedIds.add(info.compId);
+        // A backwards LED blocks the loop like a diode (when that loop is a plain series path).
+        if (info.kind === "led" && info.posNode !== undefined && a === info.negNode && b === info.posNode) reversedLedIds.add(info.compId);
         edges.push(info);
       }
+      // With a parallel branch or bypass the single path isn't the whole story, so a
+      // backwards LED only stops the loop when the path is the only route.
+      const ledsBlock = reversedLedIds.size > 0 && pathIsOnlyRoute(adjacency, edgeInfo, path);
       const netVoltage = domain.voltage - totalForwardVoltage;
       let currentAmps;
-      if (netVoltage <= 0 || reversedLedIds.size > 0) currentAmps = 0;
+      if (netVoltage <= 0 || ledsBlock) currentAmps = 0;
       else if (totalResistance <= 0) currentAmps = Infinity;
       else currentAmps = netVoltage / totalResistance;
       const currentMa = currentAmps === Infinity ? Infinity : currentAmps * 1000;
@@ -1192,8 +1219,8 @@
         if (info.kind === "led") {
           let status = "normal";
           if (domain.dangerous) status = "burnt";
-          else if (reversedLedIds.has(info.compId)) status = "reversed";
-          else if (reversedLedIds.size > 0) status = "blocked";
+          else if (ledsBlock && reversedLedIds.has(info.compId)) status = "reversed";
+          else if (ledsBlock) status = "blocked";
           else if (currentMa === Infinity || currentMa > LED_RATED_MA * 3) status = "burnt";
           else if (currentMa > LED_RATED_MA * 1.5) status = "overdriven";
           else if (netVoltage <= 0) status = "unlit-low-voltage";

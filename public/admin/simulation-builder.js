@@ -1606,7 +1606,7 @@
     unwired: "connect both probes into a circuit.",
     nosource: "there is no powered source in this circuit (a Power Supply needs its input fed and its own loop closed).",
     probes: "the two probes need to be in the same circuit.",
-    sources: "more than one source is wired into this circuit, and the simulator solves each source on its own.",
+    sources: "more than one source (or a Power Supply output) is wired into this circuit, and the simulator solves each source on its own.",
     parallel: "this circuit has parallel branches or a bypass (a switch or wire across a part), and the simulator solves one series path per source, so it can't vouch for the voltage.",
     short: "this source is short-circuited, so no voltage is defined.",
     ambiguous: "LEDs that aren't conducting (too little voltage, or backwards) share the voltage in a way the simulator can't work out.",
@@ -1890,7 +1890,7 @@
               : `🔥 Burnt out — ${ma}mA is way more current than an LED can take (safe is under 30mA). Add a bigger resistor.`,
             overdriven: `⚠ Overdriven at ${ma}mA — it'll be too bright and won't last (safe is under 30mA).`,
             "unlit-low-voltage": "Not enough voltage in this loop to light it.",
-            reversed: "Wired backwards — an LED only conducts one way, so no current flows in this loop. Flip it around.",
+            reversed: "No current flows — an LED only conducts one way. Flip it around so current runs anode to cathode.",
             blocked: "No current flows here: another LED in this loop is wired backwards.",
             dim: `Barely lit — only ${ma}mA is flowing. Try a smaller resistor.`,
             normal: `✓ ${ma}mA — a healthy, safe current.`,
@@ -1915,6 +1915,8 @@
             electricalHtml = `<p class="sim-power-status is-danger">🔥 Charred instantly — this loop is running straight off 120V mains.</p>`;
           } else if (info.status === "overheating") {
             electricalHtml = `<p class="sim-power-status is-danger">${overheatMsg}</p>`;
+          } else if (info.currentMa === 0) {
+            electricalHtml = `<p class="sim-power-status">No current flows through it in this loop (something else in the loop is blocking it).</p>`;
           } else {
             electricalHtml = `<p class="sim-power-status is-powered">✓ ${ma}mA flowing, dissipating ${info.watts.toFixed(2)}W — well within its rating.</p>`;
           }
