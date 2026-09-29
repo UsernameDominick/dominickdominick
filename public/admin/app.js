@@ -522,7 +522,10 @@
   let articleBase = null; // the article as this tab last loaded or saved it
   let projectBase = null;
   const CONFLICT_NOT_FIELDS = new Set(["expected_version"]);
-  const conflictLabel = (key) => key.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+  const CONFLICT_LABELS = { tts_audio_key: "Read-aloud audio", co_authors: "Co-authors", published_at: "Publish time", expires_at: "Expiry time", og_image: "Social image", custom_json_ld: "Custom JSON-LD", sitemap_exclude: "Hide from sitemap", hero_video: "Hero video", featured_order: "Featured order", sort_order: "Sort order", series_order: "Series order" };
+  const conflictLabel = (key) => CONFLICT_LABELS[key] || key.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+  // The server stores a blank number as 0, so 0 and blank are the same for these.
+  const CONFLICT_BLANK_ZERO = new Set(["series_order", "featured_order", "sort_order"]);
   function conflictNorm(value, ref) {
     if (typeof ref === "boolean") return String(Boolean(value));
     if (value === null || value === undefined || value === "") return "";
@@ -533,7 +536,11 @@
     if (typeof value === "object") return Object.keys(value).length ? JSON.stringify(value, null, 2) : "";
     return String(value);
   }
-  const conflictShow = (value) => {
+  const conflictShow = (value, key) => {
+    if (/_at$/.test(key || "") && typeof value === "string" && value) {
+      const d = new Date(value);
+      if (!Number.isNaN(d.getTime())) return d.toLocaleString();
+    }
     const t = conflictNorm(value, undefined);
     return t.trim() ? t : "(empty)";
   };
@@ -574,11 +581,14 @@
         mineChanged = conflictTimeChanged(mine[key], base[key], key === "published_at" ? publishInput : expiresInput, key === "published_at");
         theirChanged = conflictTimeChanged(latest[key], base[key], "x", key === "published_at");
       } else {
-        mineChanged = conflictNorm(mine[key], mine[key]) !== conflictNorm(base[key], mine[key]);
-        theirChanged = conflictNorm(latest[key], mine[key]) !== conflictNorm(base[key], mine[key]);
+        const n = (v) => (CONFLICT_BLANK_ZERO.has(key) && (v === 0 || v === "0") ? "" : conflictNorm(v, mine[key]));
+        mineChanged = n(mine[key]) !== n(base[key]);
+        theirChanged = n(latest[key]) !== n(base[key]);
+        if (mineChanged && theirChanged && n(mine[key]) === n(latest[key])) mineChanged = false; // both made the same change
+        else if (mineChanged && theirChanged && n(mine[key]).trim() === n(latest[key]).trim()) theirChanged = false; // differ only in spacing: keep yours
       }
       const entry = { key, label: conflictLabel(key) };
-      if (mineChanged && theirChanged && conflictNorm(mine[key], mine[key]) !== conflictNorm(latest[key], mine[key])) both.push(entry);
+      if (mineChanged && theirChanged) both.push(entry);
       else if (mineChanged && !theirChanged) mineChanges.push(entry);
       else if (theirChanged && !mineChanged) theirChanges.push(entry);
     });
@@ -611,14 +621,18 @@
         const strong = document.createElement("strong");
         strong.textContent = " " + title;
         const pre = document.createElement("pre");
-        pre.textContent = conflictShow(value);
+        pre.textContent = conflictShow(value, key);
         lab.append(r, strong, pre);
         sides.appendChild(lab);
       });
       fs.appendChild(sides);
       rows.appendChild(fs);
     });
-    el("conflict-status").textContent = latest.locked ? "This item was locked elsewhere. Unlock it before saving." : "";
+    el("conflict-status").textContent = latest.locked
+      ? "This item was locked elsewhere. Unlock it before saving."
+      : !mineChanges.length && !both.length
+        ? "Nothing of yours differs from the saved version. Close this and press Reload latest version to clear the notice."
+        : "";
     el("conflict-apply").disabled = Boolean(latest.locked);
     el("conflict-apply").textContent = mineChanges.length || both.length ? "Save merged version" : "Nothing to save";
     if (!mineChanges.length && !both.length) el("conflict-apply").disabled = true;
