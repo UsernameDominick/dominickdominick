@@ -4405,6 +4405,10 @@ kbd {
   color: var(--text);
 }
 
+#sim-truth-reset {
+  margin-bottom: 8px;
+}
+
 .sim-truth-table {
   width: 100%;
   border-collapse: collapse;

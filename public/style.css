@@ -2012,10 +2012,8 @@ h6 { font-size: 0.9rem; }
   stroke: #9aa0a6;
   stroke-width: 2;
 }
-.sim-comp .gate-custom {
-  fill: var(--text-dim);
-  text-anchor: middle;
-  pointer-events: none;
+.sim-comp .gate-body-custom {
+  stroke-dasharray: 4 2.5;
 }
 
 /* Switch */

@@ -96,6 +96,7 @@ import {
   LED_COLORS,
   LOGIC_GATES,
   logicGateIsCustom,
+  logicGateRows,
   logicGateTruth,
   resolveLogicGate,
   OUTLET_VOLTAGE,
@@ -896,7 +897,9 @@ function simulationTopologyDescription(data) {
         const info = LOGIC_GATES[gate];
         const custom = logicGateIsCustom(component);
         return custom
-          ? `custom ${info.inputs}-input gate based on ${info.label}, outputs ${logicGateTruth(component).join(", ")}`
+          ? `custom ${info.inputs}-input gate based on ${info.label}; output for input${info.inputs === 2 ? "s A,B" : " A"} of ${logicGateRows(gate)
+              .map((bits) => bits.join(""))
+              .join(", ")} is ${logicGateTruth(component).join(", ")}`
           : `${info.label} gate`;
       }
       case "capacitor":

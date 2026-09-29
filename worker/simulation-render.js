@@ -242,10 +242,13 @@ export function isLogicGateName(value) {
 export function resolveLogicGate(comp) {
   return comp && isLogicGateName(comp.gate) ? comp.gate : "and";
 }
+// Input combinations in truth-table order (A, or A then B).
+export function logicGateRows(gate) {
+  return LOGIC_GATES[gate].inputs === 2 ? [[0, 0], [0, 1], [1, 0], [1, 1]] : [[0], [1]];
+}
 export function standardLogicTruth(gate) {
-  const { inputs, out } = LOGIC_GATES[gate];
-  const rows = inputs === 2 ? [[0, 0], [0, 1], [1, 0], [1, 1]] : [[0], [1]];
-  return rows.map((bits) => out(...bits));
+  const { out } = LOGIC_GATES[gate];
+  return logicGateRows(gate).map((bits) => out(...bits));
 }
 export function isValidLogicTruth(gate, truth) {
   return Array.isArray(truth) && truth.length === (LOGIC_GATES[gate].inputs === 2 ? 4 : 2) && truth.every((v) => v === 0 || v === 1);
@@ -256,6 +259,14 @@ export function logicGateTruth(comp) {
 }
 export function logicGateIsCustom(comp) {
   return JSON.stringify(logicGateTruth(comp)) !== JSON.stringify(standardLogicTruth(resolveLogicGate(comp)));
+}
+// One line for hover titles: "AND gate: inputs A,B -> out: 00->0, 01->0, ...".
+export function logicGateSummary(comp) {
+  const gate = resolveLogicGate(comp);
+  const truth = logicGateTruth(comp);
+  const rows = logicGateRows(gate).map((bits, i) => `${bits.join("")}\u2192${truth[i]}`).join(", ");
+  const inputs = LOGIC_GATES[gate].inputs === 2 ? "A,B" : "A";
+  return `${LOGIC_GATES[gate].label} gate${logicGateIsCustom(comp) ? " (custom)" : ""}: inputs ${inputs} \u2192 out: ${rows}`;
 }
 function logicGatePins(gate) {
   const out = { id: "out", x: 70, y: 25 };
@@ -285,8 +296,10 @@ function renderLogicGateSvg(gate, comp) {
     .join("");
   const bubble = shape.inverted ? `<circle class="gate-bubble" cx="${shape.tip + 3.5}" cy="25" r="3.5"/>` : "";
   const extra = shape.extra ? `<path class="gate-extra" d="${shape.extra}"/>` : "";
-  const custom = logicGateIsCustom(comp) ? `<text class="gate-custom" x="35" y="48" text-anchor="middle" font-size="7">custom</text>` : "";
-  return `<rect class="gate-hit" x="0" y="4" width="70" height="42" fill="transparent"/>${leads}<line class="gate-lead" x1="${outX}" y1="25" x2="70" y2="25"/>${extra}<path class="gate-body" d="${shape.body}"/>${bubble}${custom}`;
+  // A custom truth table dashes the outline (a text caption would collide with
+  // the body at quarter turns).
+  const bodyClass = logicGateIsCustom(comp) ? "gate-body gate-body-custom" : "gate-body";
+  return `<rect class="gate-hit" x="0" y="4" width="70" height="42" fill="transparent"/>${leads}<line class="gate-lead" x1="${outX}" y1="25" x2="70" y2="25"/>${extra}<path class="${bodyClass}" d="${shape.body}"/>${bubble}`;
 }
 function logicGateDefinition(base, comp) {
   const gate = resolveLogicGate(comp);
@@ -1099,7 +1112,8 @@ function renderComponentSvg(comp, poweredComps, analysis) {
   // hover tooltip instead of printed text. Skipped for mcu_teensy itself,
   // which already prints the same text visibly -- a tooltip repeating it
   // would just be redundant (a critic pass found this).
-  const titleSvg = comp.label && comp.type !== "mcu_teensy" ? `<title>${escXml(comp.label)}</title>` : "";
+  const titleText = comp.type === "mcu_teensy" ? "" : [comp.label, comp.type === "logic_gate" ? logicGateSummary(comp) : ""].filter(Boolean).join(" \u2014 ");
+  const titleSvg = titleText ? `<title>${escXml(titleText)}</title>` : "";
   // An ammeter's whole reason for existing is showing a number -- a critic
   // pass found the public embed never rendered ANY analysis result (only
   // used them to toggle a "damaged" CSS class), so a site visitor placed
