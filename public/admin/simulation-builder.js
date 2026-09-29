@@ -746,6 +746,15 @@
       ) {
         throw new Error(`Component ${index + 1} has an unsupported breadboard size. Choose 15, 30, or 45 columns.`);
       }
+      const hasRotation = Object.prototype.hasOwnProperty.call(component, "rotation");
+      const hasMirror = Object.prototype.hasOwnProperty.call(component, "mirror");
+      if (
+        (hasRotation && !window.SIM_ORIENTATION_ROTATIONS.includes(component.rotation)) ||
+        (hasMirror && typeof component.mirror !== "boolean") ||
+        (component.type === "breadboard" && ((hasRotation && component.rotation !== 0) || component.mirror === true))
+      ) {
+        throw new Error(`Component ${index + 1} has an invalid orientation. Rotation must be 0, 90, 180, or 270, mirror must be true or false, and breadboards cannot be rotated or mirrored.`);
+      }
       const renderedId = String(component.id);
       if (renderedComponentIds.has(renderedId)) {
         throw new Error(`Component ${index + 1} has an id that collides in the builder canvas.`);
@@ -1646,6 +1655,46 @@
   }
 
   // ---------- Inspector ----------
+  // Rotate (90-degree steps) and mirror a single part in place. Orientation
+  // lives in the part's definition (see orientDefinition in sim-components.js),
+  // so every pin position derives from it. A part plugged into a breadboard is
+  // re-seated afterwards: legs that still land exactly on a hole stay
+  // plugged (e.g. a resistor flipped end-for-end), the rest are unplugged
+  // rather than leaving a wire stretched to where the pin used to be.
+  function orientComponent(comp, { rotateBy = 0, flip = false } = {}) {
+    if (!comp || comp.type === "breadboard") return;
+    pushHistory();
+    if (rotateBy) {
+      const current = window.SIM_ORIENTATION_ROTATIONS.includes(Number(comp.rotation)) ? Number(comp.rotation) : 0;
+      const next = (((current + rotateBy) % 360) + 360) % 360;
+      if (next) comp.rotation = next;
+      else delete comp.rotation;
+    }
+    if (flip) {
+      if (comp.mirror === true) delete comp.mirror;
+      else comp.mirror = true;
+    }
+    let occupiedHoleCount = 0;
+    if (SNAP_TO_BREADBOARD_TYPES.has(comp.type)) {
+      const def = window.getSimComponentDefinition(comp);
+      const snapTargets = {};
+      def.pins.forEach((pin) => {
+        const hole = findNearestHole(comp.x + pin.x, comp.y + pin.y, comp.id, SNAP_EXACT_TOLERANCE);
+        if (hole) snapTargets[pin.id] = hole;
+      });
+      occupiedHoleCount = rebuildBreadboardSnapWires(
+        simData,
+        comp.id,
+        new Set(def.pins.map((pin) => pin.id)),
+        snapTargets,
+        () => newLocalId("wire")
+      );
+    }
+    renderInspector();
+    renderBuilder();
+    setSnapHoleWarning(occupiedHoleCount);
+  }
+
   function renderInspector() {
     const box = $("sim-inspector");
     if (
@@ -1657,7 +1706,7 @@
     }
     if (!selected) {
       box.innerHTML =
-        "<p style='color:var(--text-dim);font-size:0.85rem;'>Click a part or a wire to edit it. Click a pin, then another pin, to wire them. Shift+click parts, or drag a box over empty canvas, to select several at once.</p>" +
+        "<p style='color:var(--text-dim);font-size:0.85rem;'>Click a part or a wire to edit it. Click a pin, then another pin, to wire them. Shift+click parts, or drag a box over empty canvas, to select several at once. With a part selected, press R to rotate it, Shift+R to rotate the other way, or F to flip it.</p>" +
         "<p style='color:var(--text-dim);font-size:0.85rem;'>Breadboards are available in 15, 30, or 45 columns; older simulations default to 30. Each terminal column connects only its own five-hole group. The top rails and bottom rails aren't connected to each other either. Wire outlet → power supply → a rail → a column → resistor bridging to another column → LED → back to the other rail.</p>" +
         "<p style='color:var(--text-dim);font-size:0.85rem;'>Power needs a complete loop, and the numbers matter now: too little resistance burns out an LED, no resistor at all is a dead short, and wiring straight to the Wall Outlet (120V) destroys anything downstream — it must go through a Power Supply first. A backwards LED won't light even on an otherwise-complete loop, same as a real one.</p>";
       return;
@@ -1786,9 +1835,24 @@
         <a id="sim-datasheet-link" class="sim-datasheet-link" href="${escapeXml(safeHref(comp.datasheetUrl || ""))}" target="_blank" rel="noopener noreferrer" ${
           comp.datasheetUrl ? "" : "hidden"
         }>Open datasheet ↗</a>
+        ${
+          comp.type === "breadboard"
+            ? ""
+            : `<div class="sim-orient-row" role="group" aria-label="Orientation">
+          <button type="button" id="sim-rotate-ccw" title="Rotate 90° counter-clockwise (Shift+R)" aria-label="Rotate 90 degrees counter-clockwise">⟲ Rotate</button>
+          <button type="button" id="sim-rotate-cw" title="Rotate 90° clockwise (R)" aria-label="Rotate 90 degrees clockwise">⟳ Rotate</button>
+          <button type="button" id="sim-flip" title="Flip left to right (F)" aria-pressed="${comp.mirror === true ? "true" : "false"}">⇋ Flip</button>
+        </div>`
+        }
         <button type="button" id="sim-duplicate-selected">Duplicate part</button>
         <button type="button" id="sim-delete-selected" class="danger">Delete part</button>
       `;
+
+      if ($("sim-rotate-cw")) {
+        $("sim-rotate-cw").addEventListener("click", () => orientComponent(comp, { rotateBy: 90 }));
+        $("sim-rotate-ccw").addEventListener("click", () => orientComponent(comp, { rotateBy: -90 }));
+        $("sim-flip").addEventListener("click", () => orientComponent(comp, { flip: true }));
+      }
 
       const breadboardColsInput = $("sim-comp-breadboard-cols");
       if (breadboardColsInput) {
@@ -2232,6 +2296,18 @@
       e.preventDefault();
       const btn = $("sim-delete-selected");
       if (btn) btn.click();
+    }
+    // R rotates the selected part 90 degrees clockwise (Shift+R the other
+    // way), F flips it left to right -- single parts only, never a
+    // breadboard (its layout is fixed).
+    if (!mod && !e.altKey && selected && selected.kind === "component" && (e.key.toLowerCase() === "r" || e.key.toLowerCase() === "f")) {
+      const target = simData.components.find((c) => c.id === selected.id);
+      if (target && target.type !== "breadboard") {
+        e.preventDefault();
+        if (e.key.toLowerCase() === "f") orientComponent(target, { flip: true });
+        else orientComponent(target, { rotateBy: e.shiftKey ? -90 : 90 });
+        return;
+      }
     }
     // Keyboard placement: nudge every selected component by arrow key,
     // same idea as a normal drag but without needing a mouse/touch --

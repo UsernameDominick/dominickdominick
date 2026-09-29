@@ -4249,6 +4249,26 @@ kbd {
   margin-top: 8px;
 }
 
+/* Rotate / Rotate / Flip -- one row of three equal buttons. */
+.sim-orient-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.sim-inspector-panel .sim-orient-row button {
+  width: auto;
+  padding: 8px 4px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.sim-inspector-panel .sim-orient-row button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--text);
+}
+
 .sim-canvas-wrap {
   position: relative;
   flex: 1;

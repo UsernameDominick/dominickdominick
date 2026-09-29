@@ -161,6 +161,75 @@
 
   window.SIM_BREADBOARD_COLUMN_OPTIONS = BREADBOARD_COLUMN_OPTIONS;
 
+  // Orientation (rotate in 90-degree steps and/or mirror horizontally) is
+  // applied to a part's *definition*, not sprinkled through the builder:
+  // pins move, width/height swap, and the drawing is wrapped in a matching
+  // SVG transform -- so wire endpoints, selection boxes, hit-testing,
+  // breadboard snapping and the public embed all follow with no extra code.
+  // Mirrored first, then rotated clockwise. Mirror of worker/simulation-
+  // render.js (hand-duplicated, same as the rest of this file).
+  const ORIENTATION_ROTATIONS = Object.freeze([0, 90, 180, 270]);
+  window.SIM_ORIENTATION_ROTATIONS = ORIENTATION_ROTATIONS;
+
+  function componentOrientation(comp) {
+    const rotation = Number(comp && comp.rotation);
+    return {
+      rotation: ORIENTATION_ROTATIONS.includes(rotation) ? rotation : 0,
+      mirror: Boolean(comp) && comp.mirror === true,
+    };
+  }
+
+  function orientPoint(x, y, w, h, rotation, mirror) {
+    const mx = mirror ? w - x : x;
+    if (rotation === 90) return { x: h - y, y: mx };
+    if (rotation === 180) return { x: w - mx, y: h - y };
+    if (rotation === 270) return { x: y, y: w - mx };
+    return { x: mx, y };
+  }
+
+  // Labels printed on a part (Teensy name, pot resistance, ammeter unit)
+  // would turn upside-down or backwards with the drawing, so each <text> is
+  // given the inverse transform about its own anchor point.
+  function keepTextUpright(svg, rotation, mirror) {
+    return svg.replace(/<text\b([^>]*)>/g, (match, attrs) => {
+      const num = (name) => {
+        const m = new RegExp(`\\s${name}="(-?[0-9.]+)"`).exec(attrs);
+        return m ? Number(m[1]) : 0;
+      };
+      const x = num("x");
+      const y = num("y");
+      const parts = [`translate(${x} ${y})`];
+      if (mirror) parts.push("scale(-1 1)");
+      if (rotation) parts.push(`rotate(${-rotation})`);
+      parts.push(`translate(${-x} ${-y})`);
+      return `<text${attrs} transform="${parts.join(" ")}">`;
+    });
+  }
+
+  function orientDefinition(def, comp) {
+    const { rotation, mirror } = componentOrientation(comp);
+    if (!rotation && !mirror) return def;
+    const w = def.w;
+    const h = def.h;
+    const swap = rotation === 90 || rotation === 270;
+    const outer =
+      rotation === 90 ? `translate(${h} 0) rotate(90)` :
+      rotation === 180 ? `translate(${w} ${h}) rotate(180)` :
+      rotation === 270 ? `translate(0 ${w}) rotate(270)` : "";
+    const inner = mirror ? `translate(${w} 0) scale(-1 1)` : "";
+    const transform = [outer, inner].filter(Boolean).join(" ");
+    return {
+      ...def,
+      w: swap ? h : w,
+      h: swap ? w : h,
+      rotation,
+      mirror,
+      pins: def.pins.map((pin) => ({ ...pin, ...orientPoint(pin.x, pin.y, w, h, rotation, mirror) })),
+      render: (c) => `<g class="sim-oriented" transform="${transform}">${keepTextUpright(def.render(c), rotation, mirror)}</g>`,
+    };
+  }
+  window.simOrientDefinition = orientDefinition;
+
   window.SIM_COMPONENTS = {
     outlet: {
       label: "Wall Outlet",
@@ -380,7 +449,9 @@
       !Object.prototype.hasOwnProperty.call(window.SIM_COMPONENTS, comp.type)
     ) return null;
     const def = window.SIM_COMPONENTS[comp.type];
-    if (comp.type !== "breadboard") return def;
+    // Breadboards keep their fixed layout: their rails, holes and the snap
+    // logic all assume the horizontal board, so orientation is ignored.
+    if (comp.type !== "breadboard") return orientDefinition(def, comp);
     const cols = resolveBreadboardColumns(comp.cols);
     return {
       ...def,

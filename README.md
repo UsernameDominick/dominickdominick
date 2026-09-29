@@ -72,6 +72,10 @@ Worker secret, not stored in this repo). From there:
   a canvas and click one pin then another to wire them. Dragging an LED
   or resistor near a breadboard hole snaps it into place and plugs it in
   automatically, like a real breadboard.
+  Select a part and press **R** (Shift+R the other way) to rotate it 90°, or **F** to flip it left to right
+  (the Rotate/Flip buttons in the inspector do the same). A part plugged into a breadboard stays plugged in only
+  where its legs still land exactly on holes, so flipping a resistor end-for-end keeps it seated while rotating
+  one lifts it out. Breadboards themselves can't be rotated.
   What lights up is computed from an actual closed loop back to an
   outlet or battery — not just "is it connected to something." A
   dangling wire with no return path lights nothing, and an LED wired
