@@ -5040,6 +5040,8 @@ kbd {
   top: 0;
   left: 0;
   cursor: crosshair;
+  /* Drags on the canvas are the editor's tools, not page scrolling (touch and pen). */
+  touch-action: none;
 }
 
 .pe-actions {
@@ -5121,6 +5123,12 @@ kbd {
   }
   .pe-tool-group input[type="range"] {
     width: 60px;
+  }
+  /* The Selection group is far wider than a screen in one row; let it wrap
+     into a card, so its status text and Save/Load buttons stay in view. */
+  #pe-selection-group {
+    flex: 0 0 min(92vw, 520px);
+    flex-wrap: wrap;
   }
 }
 
@@ -6189,6 +6197,32 @@ kbd {
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+.pe-sel-box {
+  flex: 1 1 100%;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.pe-sel-box summary {
+  cursor: pointer;
+  padding: 2px 0;
+}
+
+.pe-sel-box[open] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.pe-sel-box[open] summary {
+  flex: 1 1 100%;
+}
+
+.pe-sel-box label input[type="number"] {
+  width: 5.2em;
 }
 
 .pe-sel-status {

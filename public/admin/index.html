@@ -1170,17 +1170,31 @@
               </select>
               <button type="button" id="pe-apply-crop" hidden>Apply Crop</button>
             </div>
-            <div class="pe-tool-group" id="pe-selection-group">
+            <div class="pe-tool-group" id="pe-selection-group" role="group" aria-label="Selection">
               <span class="pe-group-label">Selection</span>
-              <button type="button" class="pe-tool" data-tool="sel-rect" title="Drag a rectangular selection. Hold Shift to add to the current selection, Alt to subtract from it.">▭ Rect</button>
-              <button type="button" class="pe-tool" data-tool="sel-ellipse" title="Drag an elliptical selection. Hold Shift to add to the current selection, Alt to subtract from it.">◯ Ellipse</button>
-              <button type="button" class="pe-tool" data-tool="sel-lasso" title="Draw a freehand selection. Hold Shift to add, Alt to subtract.">Lasso</button>
-              <button type="button" class="pe-tool" data-tool="sel-poly" title="Click to place corners; double-click, press Enter, or click the first corner to close it. Backspace removes the last corner, Escape cancels. Hold Shift when you start to add, Alt to subtract.">Polygon</button>
+              <button type="button" class="pe-tool" data-tool="sel-rect" aria-label="Rectangle selection tool" title="Drag a rectangular selection. Hold Shift to add to the current selection, Alt to subtract from it (or pick a Mode).">▭ Rect</button>
+              <button type="button" class="pe-tool" data-tool="sel-ellipse" aria-label="Ellipse selection tool" title="Drag an elliptical selection. Hold Shift to add to the current selection, Alt to subtract from it (or pick a Mode).">◯ Ellipse</button>
+              <button type="button" class="pe-tool" data-tool="sel-lasso" aria-label="Freehand lasso selection tool" title="Draw a freehand selection. Hold Shift to add, Alt to subtract (or pick a Mode).">➰ Lasso</button>
+              <button type="button" class="pe-tool" data-tool="sel-poly" aria-label="Polygon selection tool" title="Click to place corners; double-click, press Enter, or click the first corner to close it. Backspace removes the last corner, Escape cancels. Hold Shift when you start to add, Alt to subtract (or pick a Mode).">⬠ Polygon</button>
+              <label title="How the next shape combines with the current selection. Shift and Alt still add and subtract for one shape.">Mode <select id="pe-sel-mode" aria-label="Selection mode">
+                <option value="replace">New selection</option>
+                <option value="add">Add to selection</option>
+                <option value="sub">Subtract from selection</option>
+                <option value="int">Intersect with selection</option>
+              </select></label>
               <button type="button" id="pe-sel-all" title="Select the whole image">Select all</button>
-              <button type="button" id="pe-sel-invert" disabled title="Swap the selected and unselected areas">Invert</button>
+              <button type="button" id="pe-sel-invert" disabled title="Swap the selected and unselected areas">Invert selection</button>
               <button type="button" id="pe-sel-clear" disabled title="Remove the selection (Ctrl+D)">Deselect</button>
-              <button type="button" id="pe-sel-delete" disabled title="Make the selected pixels transparent">Delete selected</button>
+              <button type="button" id="pe-sel-delete" disabled title="Make the selected pixels transparent">Delete selected pixels</button>
               <button type="button" id="pe-sel-crop" disabled title="Crop to the box around the selection">Crop to selection</button>
+              <details class="pe-sel-box">
+                <summary>Type a box</summary>
+                <label>X <input type="number" id="pe-sel-box-x" min="0" step="1" value="0" title="Left edge in pixels"></label>
+                <label>Y <input type="number" id="pe-sel-box-y" min="0" step="1" value="0" title="Top edge in pixels"></label>
+                <label>W <input type="number" id="pe-sel-box-w" min="1" step="1" value="100" title="Width in pixels"></label>
+                <label>H <input type="number" id="pe-sel-box-h" min="1" step="1" value="100" title="Height in pixels"></label>
+                <button type="button" id="pe-sel-box-apply" title="Make a rectangular selection from these numbers, using the Mode above">Select this box</button>
+              </details>
               <label title="How the selection is shown on the image">Show <select id="pe-sel-view" aria-label="Selection view">
                 <option value="ants">Outline</option>
                 <option value="inside">Tint selected</option>
@@ -1188,12 +1202,12 @@
                 <option value="mask">Mask only</option>
               </select></label>
               <input type="color" id="pe-sel-tint" value="#ff3b30" aria-label="Selection tint colour" title="Tint colour used by the tint views">
-              <select id="pe-apply-selection" title="Load a saved selection (it scales to this image)">
+              <select id="pe-apply-selection" aria-label="Saved selections" title="Choose a saved selection (it scales to this image)">
                 <option value="">Load saved selection…</option>
               </select>
-              <button type="button" id="pe-load-selection" title="Apply the saved selection chosen above to this image">Load</button>
+              <button type="button" id="pe-load-selection" disabled title="Apply the saved selection chosen above to this image">Load chosen selection</button>
               <button type="button" id="pe-save-selection" disabled title="Save this selection under a name so you can load it on any image">Save selection</button>
-              <button type="button" id="pe-delete-selection" title="Delete the saved selection chosen above">Delete saved selection</button>
+              <button type="button" id="pe-delete-selection" disabled title="Delete the saved selection chosen above">Delete chosen selection</button>
               <span id="pe-sel-status" class="pe-sel-status" role="status">No selection. Adjustments, filters, brushes, shapes and text apply to the whole image.</span>
             </div>
             <div class="pe-tool-group">
@@ -1254,7 +1268,7 @@
               <button type="button" id="pe-filter-sepia">Sepia</button>
               <button type="button" id="pe-filter-invert">Invert</button>
               <label title="How strong the applied grain looks -- higher is grainier">Grain <input type="range" id="pe-grain-amount" min="1" max="50" value="15"></label>
-              <button type="button" id="pe-filter-grain" title="Add film-style random noise across the whole image, using the amount set above">Add grain</button>
+              <button type="button" id="pe-filter-grain" title="Add film-style random noise across the whole image (or only inside the selection), using the amount set above">Add grain</button>
             </div>
             <div class="pe-tool-group">
               <span class="pe-group-label">Brush</span>

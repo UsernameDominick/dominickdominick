@@ -186,6 +186,9 @@
   let selBounds = null; // {x, y, w, h, coverage} of what the mask selects
   let selOverlay = null; // cached tint/outline layer that clearOverlay() lays down
   let selOverlayScale = 0; // display scale selOverlay was drawn for
+  let selMaskData = null; // RGBA pixels of selMask (alpha is the mask), kept for the outline
+  let selEdge = null; // cached two-tone outline layer
+  let selEdgeScale = 0; // display scale selEdge was drawn for
   let selDraft = null; // the shape being drawn right now
 
   // ---------- View rotation ----------
@@ -221,11 +224,13 @@
     // A selection's coordinates belong to one canvas size: drop it when the
     // size changed (crop, rotate, resize, straighten, undo across a resize),
     // and redraw its outline when only the display scale did.
+    // (Compare briefly swaps in the original, which may be another size; the
+    // selection waits for the real canvas to come back.)
     if (selMask && (selMask.width !== canvas.width || selMask.height !== canvas.height)) {
-      dropSelection();
+      if (!isComparing()) dropSelection("The selection was cleared because the image size changed.");
     } else if (selOverlay && Math.abs(selOverlayScale - displayScale()) > 0.01) {
       rebuildSelectionOverlay();
-      clearOverlay();
+      redrawOverlay();
     }
     // Covers every dimension-changing edit (crop, rotate, undo/redo/reset,
     // load) for free since they all already call this function. Content-
@@ -275,11 +280,38 @@
     return snap;
   }
 
+  // Undo entries are {canvas, sel}: the pixels before an edit (null for a
+  // selection-only change, which leaves the pixels alone) and the selection
+  // shapes at that moment, so Undo/Redo step through selection changes too.
+  function cloneOps(ops) {
+    return JSON.parse(JSON.stringify(ops));
+  }
+
+  function trimUndo() {
+    // Pixel snapshots are the heavy part, so they keep the original depth;
+    // selection-only entries are tiny and get a larger allowance.
+    while (undoStack.length > UNDO_LIMIT * 4 || undoStack.filter((entry) => entry.canvas).length > UNDO_LIMIT) undoStack.shift();
+  }
+
   function pushUndo() {
-    undoStack.push(snapshotCanvas());
-    if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+    undoStack.push({ canvas: snapshotCanvas(), sel: cloneOps(selOps) });
+    trimUndo();
     redoStack = [];
     updateHistoryButtons();
+  }
+
+  function pushSelectionUndo() {
+    undoStack.push({ canvas: null, sel: cloneOps(selOps) });
+    trimUndo();
+    redoStack = [];
+    updateHistoryButtons();
+  }
+
+  // Put the selection back to the given shapes (no-op when it already is).
+  function restoreSelection(ops) {
+    if (JSON.stringify(ops) === JSON.stringify(selOps)) return;
+    selOps = cloneOps(ops);
+    rebuildSelection();
   }
 
   function updateHistoryButtons() {
@@ -313,8 +345,9 @@
     if (isComparing()) return;
     const prev = undoStack.pop();
     if (!prev) return;
-    redoStack.push(snapshotCanvas());
-    restoreSnapshot(prev);
+    redoStack.push({ canvas: prev.canvas ? snapshotCanvas() : null, sel: cloneOps(selOps) });
+    if (prev.canvas) restoreSnapshot(prev.canvas);
+    restoreSelection(prev.sel);
     updateHistoryButtons();
   }
 
@@ -322,8 +355,9 @@
     if (isComparing()) return;
     const next = redoStack.pop();
     if (!next) return;
-    undoStack.push(snapshotCanvas());
-    restoreSnapshot(next);
+    undoStack.push({ canvas: next.canvas ? snapshotCanvas() : null, sel: cloneOps(selOps) });
+    if (next.canvas) restoreSnapshot(next.canvas);
+    restoreSelection(next.sel);
     updateHistoryButtons();
   }
 
@@ -460,6 +494,7 @@
     ctx.drawImage(originalSnapshot, 0, 0);
     syncOverlaySize();
     fitCanvasToViewport();
+    redrawOverlay();
     $("pe-compare").classList.add("active");
   }
   function endCompare() {
@@ -470,6 +505,8 @@
     syncOverlaySize();
     fitCanvasToViewport();
     compareSavedState = null;
+    // syncOverlaySize() cleared the overlay bitmap; bring the selection back.
+    redrawOverlay();
     $("pe-compare").classList.remove("active");
   }
 
@@ -510,13 +547,17 @@
 
   // ---------- Tool selection ----------
   function setTool(tool) {
+    const previousTool = currentTool;
     currentTool = tool;
     resetStraightenUi();
-    document.querySelectorAll(".pe-tool").forEach((b) => b.classList.toggle("active", b.dataset.tool === tool));
+    document.querySelectorAll(".pe-tool").forEach((b) => {
+      b.classList.toggle("active", b.dataset.tool === tool);
+      b.setAttribute("aria-pressed", String(b.dataset.tool === tool));
+    });
     $("pe-apply-crop").hidden = tool !== "select" || !cropRect;
-    // Leaving the selection tools abandons a shape still being drawn (the
-    // finished selection itself stays).
-    if (!SELECTION_TOOLS.includes(tool)) selDraft = null;
+    // Changing tool abandons a shape still being drawn (the finished
+    // selection itself stays).
+    if (tool !== previousTool) selDraft = null;
     $("pe-rect-radius-label").hidden = tool !== "rect";
     $("pe-text-font").hidden = tool !== "text";
     $("pe-apply-text-style").hidden = tool !== "text";
@@ -539,7 +580,7 @@
         if (!family && fontSelect.value === "custom") fontSelect.value = "sans-serif";
       });
     }
-    clearOverlay();
+    redrawOverlay();
   }
 
   document.querySelectorAll(".pe-tool").forEach((btn) => {
@@ -600,19 +641,34 @@
     return { x1: x0 + signX * w, y1: y0 + signY * h };
   }
 
-  function drawCropOverlay() {
-    clearOverlay();
-    if (!cropRect) return;
+  // Four dim bands around the crop box (rather than a full dim with a hole
+  // punched out), so a selection outline or tint inside the box stays visible.
+  function paintCropRect() {
     const r = normalizedCrop(cropRect);
     octx.save();
     octx.fillStyle = "rgba(0,0,0,0.5)";
-    octx.fillRect(0, 0, overlay.width, overlay.height);
-    octx.clearRect(r.x, r.y, r.w, r.h);
+    octx.fillRect(0, 0, overlay.width, r.y);
+    octx.fillRect(0, r.y + r.h, overlay.width, overlay.height - (r.y + r.h));
+    octx.fillRect(0, r.y, r.x, r.h);
+    octx.fillRect(r.x + r.w, r.y, overlay.width - (r.x + r.w), r.h);
     octx.strokeStyle = "#ff7a45";
     octx.lineWidth = Math.max(2, canvas.width * 0.002);
     octx.setLineDash([8, 6]);
     octx.strokeRect(r.x, r.y, r.w, r.h);
     octx.restore();
+  }
+
+  function drawCropOverlay() {
+    clearOverlay();
+    if (!cropRect) return;
+    paintCropRect();
+  }
+
+  // Repaint everything that lives on the overlay between tool gestures: the
+  // selection layer and, on the Select/Crop tool, a pending crop box.
+  function redrawOverlay() {
+    clearOverlay();
+    if (currentTool === "select" && cropRect) paintCropRect();
   }
 
   // Re-constrains an already-drawn selection when the ratio is changed
@@ -671,20 +727,24 @@
 
   // ---------- Selection ----------
   // A selection is the list of shapes that made it (rectangles, ellipses,
-  // lasso/polygon outlines, each added or subtracted, plus inversions), drawn
-  // into an alpha mask the size of the canvas. While one exists, the pixel
-  // edits below are limited to the masked area: the Adjust sliders and presets,
-  // the one-shot filters and grain, the brushes, the Draw & annotate shapes and
-  // Text, and Delete selected. Anything that changes the canvas geometry (crop,
-  // rotate, flip, resize, straighten) drops it, since its coordinates no longer
-  // describe the image; the shapes are also what "Save selection" stores, as
-  // fractions of the image size, so a saved one fits any image.
+  // lasso/polygon outlines, each added, subtracted or intersected, plus
+  // inversions), drawn into an alpha mask the size of the canvas. While one
+  // exists, the pixel edits below are limited to the masked area: the Adjust
+  // sliders and presets, the one-shot filters and grain, the brushes, the Draw &
+  // annotate shapes and Text, and Delete selected. Anything that changes the
+  // canvas geometry (crop, rotate, flip, resize, straighten) drops it, since its
+  // coordinates no longer describe the image; the shapes are also what "Save
+  // selection" stores, as fractions of the image size, so a saved one fits any
+  // image. Selection changes are undoable (see pushSelectionUndo).
   const SELECTION_TOOLS = ["sel-rect", "sel-ellipse", "sel-lasso", "sel-poly"];
   const SELECTION_KIND = { "sel-rect": "rect", "sel-ellipse": "ellipse", "sel-lasso": "poly", "sel-poly": "poly" };
   const SELECTION_MAX_POINTS = 1500;
+  const SELECTION_MAX_OPS = 40;
+  const MODE_GLYPH = { add: "+", sub: "−", int: "∩" };
   let selectionPresets = [];
   let selectionNoteText = "";
   let selScratch = [null, null];
+  let selOverlayFrame = 0;
 
   function hasSelection() {
     return selBounds !== null && selMask !== null && selMask.width === canvas.width && selMask.height === canvas.height;
@@ -741,7 +801,7 @@
         continue;
       }
       selMaskCtx.save();
-      selMaskCtx.globalCompositeOperation = op.mode === "sub" ? "destination-out" : "source-over";
+      selMaskCtx.globalCompositeOperation = op.mode === "sub" ? "destination-out" : op.mode === "int" ? "destination-in" : "source-over";
       selMaskCtx.fillStyle = "#000";
       tracePath(selMaskCtx, op);
       selMaskCtx.fill();
@@ -750,11 +810,13 @@
   }
 
   // Bounding box and coverage of what the mask actually selects (null when
-  // nothing is selected, e.g. after subtracting everything).
+  // nothing is selected, e.g. after subtracting everything). Keeps the pixels
+  // for the outline.
   function analyseSelection() {
     const w = canvas.width;
     const h = canvas.height;
     const data = selMaskCtx.getImageData(0, 0, w, h).data;
+    selMaskData = data;
     let minX = w;
     let minY = h;
     let maxX = -1;
@@ -782,29 +844,34 @@
 
   function updateSelectionUi() {
     const on = hasSelection();
-    $("pe-sel-invert").disabled = !on;
-    $("pe-sel-clear").disabled = !on;
-    $("pe-sel-delete").disabled = !on;
-    $("pe-sel-crop").disabled = !on;
-    $("pe-save-selection").disabled = !on;
-    const base = on
-      ? `Selection: ${selBounds.w} × ${selBounds.h} px box, ${Math.max(1, Math.round(selBounds.coverage * 100))}% of the image. Edits apply inside it only.`
+    const gated = ["pe-sel-invert", "pe-sel-clear", "pe-sel-delete", "pe-sel-crop", "pe-save-selection"];
+    // A button that disables itself (Deselect, or Invert that emptied the
+    // selection) must not strand keyboard focus on the page body.
+    const focusedGated = gated.some((id) => document.activeElement === $(id));
+    gated.forEach((id) => ($(id).disabled = !on));
+    if (focusedGated && !on) $("pe-sel-all").focus();
+    let base = on
+      ? `Selection: ${selBounds.w} × ${selBounds.h} px bounding box, ${Math.max(1, Math.round(selBounds.coverage * 100))}% of the image. Edits apply inside it only.`
       : "No selection. Adjustments, filters, brushes, shapes and text apply to the whole image.";
+    if (on && $("pe-sel-view").value === "mask") base += " The mask view hides the image; switch Show back to see your edits.";
     $("pe-sel-status").textContent = selectionNoteText ? `${selectionNoteText} ${base}` : base;
   }
 
-  function dropSelection() {
+  function dropSelection(note) {
     selOps = [];
     selMask = null;
     selMaskCtx = null;
+    selMaskData = null;
     selOverlay = null;
     selOverlayScale = 0;
+    selEdge = null;
+    selEdgeScale = 0;
     selBounds = null;
     selDraft = null;
     selScratch = [null, null];
-    selectionNoteText = "";
+    selectionNoteText = note || "";
     updateSelectionUi();
-    clearOverlay();
+    redrawOverlay();
   }
 
   function rebuildSelection() {
@@ -815,23 +882,56 @@
     rasterizeSelection();
     selBounds = analyseSelection();
     if (!selBounds) {
-      dropSelection();
-      selectionNote("The selection ended up empty, so it was cleared.");
+      dropSelection("The selection ended up empty, so it was cleared.");
       return;
     }
     selectionNoteText = "";
+    selEdge = null;
     // The next slider tick must repaint from pixels that respect the new mask.
     invalidateOpenAdjustDrag();
     rebuildSelectionOverlay();
     updateSelectionUi();
-    clearOverlay();
+    fillSelectionBoxFields();
+    redrawOverlay();
   }
 
-  // The tint / mask view and the outline are painted once into a cached layer
+  // The outline: selected pixels with an unselected neighbour one screen pixel
+  // away, drawn twice (dark, then light, nudged apart) so it reads on any image.
+  function buildEdgeLayer() {
+    const w = canvas.width;
+    const h = canvas.height;
+    const t = Math.max(1, Math.round(1 / displayScale()));
+    const src = selMaskData;
+    const edge = new Uint8Array(w * h);
+    for (let y = 0; y < h; y++) {
+      const row = y * w;
+      for (let x = 0; x < w; x++) {
+        if (src[((row + x) << 2) + 3] <= 127) continue;
+        const l = x - t;
+        const r = x + t;
+        const u = y - t;
+        const d = y + t;
+        if (l < 0 || r >= w || u < 0 || d >= h || src[((row + l) << 2) + 3] <= 127 || src[((row + r) << 2) + 3] <= 127 || src[((u * w + x) << 2) + 3] <= 127 || src[((d * w + x) << 2) + 3] <= 127) edge[row + x] = 1;
+      }
+    }
+    const out = new Uint32Array(w * h);
+    for (let y = 0; y < h - t; y++) {
+      const row = y * w;
+      for (let x = 0; x < w - t; x++) if (edge[row + x]) out[(y + t) * w + x + t] = 0xff000000;
+    }
+    for (let i = 0; i < edge.length; i++) if (edge[i]) out[i] = 0xffffffff;
+    const layer = document.createElement("canvas");
+    layer.width = w;
+    layer.height = h;
+    layer.getContext("2d").putImageData(new ImageData(new Uint8ClampedArray(out.buffer), w, h), 0, 0);
+    selEdgeScale = displayScale();
+    return layer;
+  }
+
+  // The tint / mask view and the outline are composed once into a cached layer
   // that clearOverlay() lays down, so the (frequent) overlay clears made by the
-  // brush cursor and other tools stay cheap. The outline is the mask minus its
-  // one-screen-pixel erosion, drawn twice (dark, then light, nudged apart) so it
-  // reads on any image.
+  // brush cursor and other tools stay cheap. The outline itself is cached
+  // separately, so changing the view or tint colour doesn't recompute it.
   function rebuildSelectionOverlay() {
     selOverlay = null;
     if (!hasSelection()) return;
@@ -842,21 +942,18 @@
     layer.height = h;
     const lc = layer.getContext("2d");
     const view = $("pe-sel-view").value;
-    const colorLayer = (color) => {
-      const c = document.createElement("canvas");
-      c.width = w;
-      c.height = h;
-      const cc = c.getContext("2d");
-      cc.fillStyle = color;
-      cc.fillRect(0, 0, w, h);
-      cc.globalCompositeOperation = "destination-in";
-      cc.drawImage(selMask, 0, 0);
-      return c;
-    };
     if (view === "mask") {
       lc.fillStyle = "#000";
       lc.fillRect(0, 0, w, h);
-      lc.drawImage(colorLayer("#fff"), 0, 0);
+      const white = document.createElement("canvas");
+      white.width = w;
+      white.height = h;
+      const wc = white.getContext("2d");
+      wc.fillStyle = "#fff";
+      wc.fillRect(0, 0, w, h);
+      wc.globalCompositeOperation = "destination-in";
+      wc.drawImage(selMask, 0, 0);
+      lc.drawImage(white, 0, 0);
       selOverlay = layer;
       selOverlayScale = displayScale();
       return;
@@ -874,46 +971,26 @@
       lc.drawImage(tint, 0, 0);
       lc.globalAlpha = 1;
     }
-    const t = Math.max(1, Math.round(1 / displayScale()));
-    const eroded = document.createElement("canvas");
-    eroded.width = w;
-    eroded.height = h;
-    const ec = eroded.getContext("2d");
-    ec.drawImage(selMask, 0, 0);
-    ec.globalCompositeOperation = "destination-in";
-    for (const [dx, dy] of [[t, 0], [-t, 0], [0, t], [0, -t], [t, t], [-t, -t], [t, -t], [-t, t]]) ec.drawImage(selMask, dx, dy);
-    const edge = document.createElement("canvas");
-    edge.width = w;
-    edge.height = h;
-    const gc = edge.getContext("2d");
-    gc.drawImage(selMask, 0, 0);
-    gc.globalCompositeOperation = "destination-out";
-    gc.drawImage(eroded, 0, 0);
-    const paintEdge = (color) => {
-      const c = document.createElement("canvas");
-      c.width = w;
-      c.height = h;
-      const cc = c.getContext("2d");
-      cc.drawImage(edge, 0, 0);
-      cc.globalCompositeOperation = "source-in";
-      cc.fillStyle = color;
-      cc.fillRect(0, 0, w, h);
-      return c;
-    };
-    lc.drawImage(paintEdge("#000"), t, t);
-    lc.drawImage(paintEdge("#fff"), 0, 0);
+    if (!selEdge || selEdge.width !== w || selEdge.height !== h || Math.abs(selEdgeScale - displayScale()) > 0.01) selEdge = buildEdgeLayer();
+    lc.drawImage(selEdge, 0, 0);
     selOverlay = layer;
     selOverlayScale = displayScale();
   }
 
-  $("pe-sel-view").addEventListener("change", () => {
-    rebuildSelectionOverlay();
-    clearOverlay();
-  });
+  // Dragging the colour picker fires many input events; repaint once per frame.
+  function scheduleSelectionOverlay() {
+    if (selOverlayFrame) return;
+    selOverlayFrame = requestAnimationFrame(() => {
+      selOverlayFrame = 0;
+      rebuildSelectionOverlay();
+      redrawOverlay();
+      updateSelectionUi();
+    });
+  }
+  $("pe-sel-view").addEventListener("change", scheduleSelectionOverlay);
   $("pe-sel-tint").addEventListener("input", () => {
     if ($("pe-sel-view").value === "ants" || $("pe-sel-view").value === "mask") return;
-    rebuildSelectionOverlay();
-    clearOverlay();
+    scheduleSelectionOverlay();
   });
 
   // Replace the canvas content inside the selection with `after`, keeping
@@ -985,8 +1062,10 @@
   }
 
   // ---- drawing a selection ----
+  // The Mode menu sets how a new shape combines with the current selection;
+  // holding Shift (add) or Alt (subtract) overrides it for one shape.
   function selectionModeFor(e) {
-    return e.shiftKey ? "add" : e.altKey ? "sub" : "replace";
+    return e.shiftKey ? "add" : e.altKey ? "sub" : $("pe-sel-mode").value || "replace";
   }
 
   function clampToCanvas(x, y) {
@@ -1015,7 +1094,7 @@
       return;
     }
     const [cx, cy] = clampToCanvas(p.x, p.y);
-    selDraft = { kind, mode: selectionModeFor(e), x0: cx, y0: cy, x1: cx, y1: cy, pts: [[cx, cy]] };
+    selDraft = { kind, mode: selectionModeFor(e), x0: cx, y0: cy, x1: cx, y1: cy, pts: kind === "poly" ? [[cx, cy]] : [] };
   }
 
   function updateSelectionDraft(p) {
@@ -1035,7 +1114,8 @@
     drawSelectionDraft();
   }
 
-  // The in-progress shape: a dark line with a light dashed one over it.
+  // The in-progress shape: a dark line with a light dashed one over it (pink
+  // to subtract, blue to intersect), plus a + / − / ∩ mark at its start.
   function drawSelectionDraft() {
     clearOverlay();
     const d = selDraft;
@@ -1063,7 +1143,7 @@
     path();
     octx.stroke();
     octx.lineWidth = 1.2 * px;
-    octx.strokeStyle = d.mode === "sub" ? "#ff9a9a" : "#fff";
+    octx.strokeStyle = d.mode === "sub" ? "#ff9a9a" : d.mode === "int" ? "#8fe3ff" : "#fff";
     octx.setLineDash([6 * px, 4 * px]);
     path();
     octx.stroke();
@@ -1079,6 +1159,17 @@
         octx.stroke();
       });
     }
+    if (MODE_GLYPH[d.mode]) {
+      const [ax, ay] = d.polyClick || d.kind === "poly" ? d.pts[0] : [Math.min(d.x0, d.x1), Math.min(d.y0, d.y1)];
+      octx.setLineDash([]);
+      octx.font = `bold ${15 * px}px sans-serif`;
+      octx.textBaseline = "bottom";
+      octx.lineWidth = 3 * px;
+      octx.strokeStyle = "#000";
+      octx.fillStyle = "#fff";
+      octx.strokeText(MODE_GLYPH[d.mode], ax + 4 * px, ay - 2 * px);
+      octx.fillText(MODE_GLYPH[d.mode], ax + 4 * px, ay - 2 * px);
+    }
     octx.restore();
   }
 
@@ -1089,14 +1180,20 @@
     return out;
   }
 
-  function polygonArea(pts) {
-    let a = 0;
-    for (let i = 0; i < pts.length; i++) {
-      const [x1, y1] = pts[i];
-      const [x2, y2] = pts[(i + 1) % pts.length];
-      a += x1 * y2 - x2 * y1;
+  // Area of the box around the points (a crossing lasso or bow-tie has no
+  // meaningful signed area, but it is still a real shape).
+  function pointsBoxArea(pts) {
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const [x, y] of pts) {
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
     }
-    return Math.abs(a) / 2;
+    return (maxX - minX) * (maxY - minY);
   }
 
   function roundPt(v) {
@@ -1104,12 +1201,14 @@
   }
 
   function applySelectionOp(op, mode) {
-    if (mode === "sub" && !hasSelection()) {
-      clearOverlay();
+    if ((mode === "sub" || mode === "int") && !hasSelection()) {
+      selectionNote(`There is no selection to ${mode === "sub" ? "subtract from" : "intersect with"}; make one first.`);
+      redrawOverlay();
       return;
     }
+    pushSelectionUndo();
     if (mode === "replace" || !hasSelection()) selOps = [];
-    selOps.push({ ...op, mode: mode === "sub" ? "sub" : "add" });
+    selOps.push({ ...op, mode: mode === "sub" ? "sub" : mode === "int" ? "int" : "add" });
     rebuildSelection();
   }
 
@@ -1117,7 +1216,7 @@
     const d = selDraft;
     selDraft = null;
     if (!d) {
-      clearOverlay();
+      redrawOverlay();
       return;
     }
     const scale = displayScale();
@@ -1130,12 +1229,12 @@
       if (w * scale >= 3 && h * scale >= 3) op = { kind: d.kind, box: [roundPt(x), roundPt(y), roundPt(w), roundPt(h)] };
     } else if (d.pts.length >= 3) {
       const pts = decimatePoints(d.pts, SELECTION_MAX_POINTS).map(([x, y]) => [roundPt(x), roundPt(y)]);
-      if (polygonArea(pts) * scale * scale >= 9) op = { kind: "poly", pts };
+      if (pointsBoxArea(pts) * scale * scale >= 9) op = { kind: "poly", pts };
     }
     if (!op) {
       // A plain click with a selection tool clears the selection, like most editors.
-      if (d.mode === "replace" && hasSelection()) dropSelection();
-      else clearOverlay();
+      if (d.mode === "replace" && hasSelection()) deselect();
+      else redrawOverlay();
       return;
     }
     applySelectionOp(op, d.mode);
@@ -1146,12 +1245,14 @@
     if (!d || !d.polyClick) return;
     selDraft = null;
     if (d.pts.length < 3) {
-      clearOverlay();
+      selectionNote("A polygon needs at least three corners.");
+      redrawOverlay();
       return;
     }
     const pts = d.pts.map(([x, y]) => [roundPt(x), roundPt(y)]);
-    if (polygonArea(pts) * displayScale() * displayScale() < 9) {
-      clearOverlay();
+    if (pointsBoxArea(pts) * displayScale() * displayScale() < 9) {
+      selectionNote("That polygon was too small to select anything.");
+      redrawOverlay();
       return;
     }
     applySelectionOp({ kind: "poly", pts }, d.mode);
@@ -1162,6 +1263,12 @@
   });
 
   // ---- actions ----
+  function deselect() {
+    if (isComparing() || !hasSelection()) return;
+    pushSelectionUndo();
+    dropSelection();
+  }
+
   $("pe-sel-all").addEventListener("click", () => {
     if (isComparing()) return;
     applySelectionOp({ kind: "rect", box: [0, 0, canvas.width, canvas.height] }, "replace");
@@ -1169,12 +1276,13 @@
 
   $("pe-sel-invert").addEventListener("click", () => {
     if (isComparing() || !hasSelection()) return;
+    pushSelectionUndo();
     if (selOps.length && selOps[selOps.length - 1].kind === "invert") selOps.pop();
     else selOps.push({ kind: "invert" });
     rebuildSelection();
   });
 
-  $("pe-sel-clear").addEventListener("click", () => dropSelection());
+  $("pe-sel-clear").addEventListener("click", deselect);
 
   $("pe-sel-delete").addEventListener("click", () => {
     if (isComparing() || !hasSelection()) return;
@@ -1184,6 +1292,7 @@
     ctx.drawImage(selMask, 0, 0);
     ctx.restore();
     invalidateOpenAdjustDrag();
+    selectionNote("Deleted the selected pixels (they're transparent now; Undo brings them back).");
   });
 
   $("pe-sel-crop").addEventListener("click", () => {
@@ -1193,19 +1302,55 @@
     setTool("select");
     drawCropOverlay();
     $("pe-apply-crop").hidden = false;
+    $("pe-apply-crop").focus();
+  });
+
+  // ---- numeric box (a keyboard-friendly way to make a rectangle) ----
+  function fillSelectionBoxFields() {
+    if (!selBounds) return;
+    $("pe-sel-box-x").value = selBounds.x;
+    $("pe-sel-box-y").value = selBounds.y;
+    $("pe-sel-box-w").value = selBounds.w;
+    $("pe-sel-box-h").value = selBounds.h;
+  }
+
+  $("pe-sel-box-apply").addEventListener("click", () => {
+    if (isComparing()) return;
+    const num = (id) => Math.round(Number($(id).value));
+    let x = num("pe-sel-box-x");
+    let y = num("pe-sel-box-y");
+    let w = num("pe-sel-box-w");
+    let h = num("pe-sel-box-h");
+    if (![x, y, w, h].every(Number.isFinite) || w < 1 || h < 1) {
+      selectionNote("Enter a width and height of at least 1 pixel.");
+      return;
+    }
+    x = Math.max(0, Math.min(canvas.width - 1, x));
+    y = Math.max(0, Math.min(canvas.height - 1, y));
+    w = Math.min(w, canvas.width - x);
+    h = Math.min(h, canvas.height - y);
+    applySelectionOp({ kind: "rect", box: [x, y, w, h] }, $("pe-sel-mode").value || "replace");
   });
 
   // ---- saved selections ----
+  function updateSavedSelectionButtons() {
+    const chosen = selectionPresets.some((p) => p.id === Number($("pe-apply-selection").value));
+    $("pe-load-selection").disabled = !chosen;
+    $("pe-delete-selection").disabled = !chosen;
+  }
+  $("pe-apply-selection").addEventListener("change", updateSavedSelectionButtons);
+
   async function loadSelectionPresets() {
     try {
       selectionPresets = (await window.adminApi("/selection-presets")) || [];
-    } catch (e) {
+    } catch {
       selectionPresets = [];
     }
     const select = $("pe-apply-selection");
     select.innerHTML =
       `<option value="">Load saved selection…</option>` +
       selectionPresets.map((p) => `<option value="${p.id}">${escapeHtmlAttr(p.name)}</option>`).join("");
+    updateSavedSelectionButtons();
   }
 
   // Shapes as fractions of the image size, at most 2000 points in all.
@@ -1226,6 +1371,10 @@
 
   $("pe-save-selection").addEventListener("click", async () => {
     if (!hasSelection()) return;
+    if (selOps.length > SELECTION_MAX_OPS) {
+      alert(`This selection is made of ${selOps.length} shapes; a saved selection can have at most ${SELECTION_MAX_OPS}. Simplify it (Deselect and redraw) before saving.`);
+      return;
+    }
     const name = await promptForText("Save selection", "Selection name");
     if (name === null) return;
     try {
@@ -1243,6 +1392,7 @@
     if (!preset || isComparing()) return;
     const w = canvas.width;
     const h = canvas.height;
+    pushSelectionUndo();
     selOps = preset.ops.map((op) => {
       if (op.kind === "invert") return { kind: "invert" };
       if (op.kind === "poly") return { kind: "poly", mode: op.mode, pts: op.pts.map(([x, y]) => [x * w, y * h]) };
@@ -1326,7 +1476,7 @@
     canvas.height = w;
     ctx.drawImage(tmp, 0, 0);
     syncOverlaySize();
-    dropSelection();
+    dropSelection("The selection was cleared because the image was rotated.");
     cancelActiveDrag();
     fitCanvasToViewport();
   }
@@ -1349,7 +1499,7 @@
     }
     ctx.drawImage(snap, 0, 0);
     ctx.restore();
-    dropSelection();
+    dropSelection("The selection was cleared because the image was flipped.");
     cancelActiveDrag();
   }
   $("pe-flip-h").addEventListener("click", () => flip(true));
@@ -2480,7 +2630,7 @@
     if (BRUSH_TOOLS.includes(currentTool)) finalizeBrushStroke();
     if (SELECTION_TOOLS.includes(currentTool) && currentTool !== "sel-poly") {
       selDraft = null;
-      clearOverlay();
+      redrawOverlay();
     }
     dragStart = null;
   });
@@ -2547,6 +2697,28 @@
       cancelStraightenPreview();
       return;
     }
+    // Selection shortcuts that must also work while a slider or colour input has
+    // focus (only real text entry keeps its own keys): Escape abandons a shape
+    // being drawn instead of closing the editor, Ctrl+D deselects.
+    const focused = document.activeElement;
+    const typingText =
+      focused &&
+      (focused.tagName === "TEXTAREA" ||
+        focused.isContentEditable ||
+        (focused.tagName === "INPUT" && !["range", "color", "checkbox", "radio", "button"].includes(focused.type)));
+    if (e.key === "Escape" && selDraft && SELECTION_TOOLS.includes(currentTool)) {
+      e.preventDefault();
+      selDraft = null;
+      dragging = false;
+      dragStart = null;
+      redrawOverlay();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "d" && !typingText) {
+      e.preventDefault();
+      deselect();
+      return;
+    }
     const active = document.activeElement;
     const tag = active && active.tagName;
     // The tilt slider has no text-editing undo of its own and is where focus
@@ -2554,7 +2726,7 @@
     if ((tag === "INPUT" && active.id !== "pe-straighten-angle") || tag === "TEXTAREA") return;
     const mod = e.metaKey || e.ctrlKey;
     // A polygon being clicked out: Enter closes it, Backspace drops the last
-    // corner, Escape abandons it.
+    // corner.
     if (currentTool === "sel-poly" && selDraft && selDraft.polyClick && !mod) {
       if (e.key === "Enter") {
         e.preventDefault();
@@ -2566,23 +2738,14 @@
         selDraft.pts.pop();
         if (!selDraft.pts.length) {
           selDraft = null;
-          clearOverlay();
+          redrawOverlay();
         } else {
           drawSelectionDraft();
         }
         return;
       }
-      if (e.key === "Escape") {
-        e.preventDefault();
-        selDraft = null;
-        clearOverlay();
-        return;
-      }
     }
-    if (mod && e.key.toLowerCase() === "d") {
-      e.preventDefault();
-      dropSelection();
-    } else if (mod && e.key.toLowerCase() === "z") {
+    if (mod && e.key.toLowerCase() === "z") {
       e.preventDefault();
       if (e.shiftKey) redo();
       else undo();
