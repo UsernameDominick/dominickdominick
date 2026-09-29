@@ -743,22 +743,25 @@
   // a*|cos| + b*|sin| <= W and a*|sin| + b*|cos| <= H. The box is kept a
   // little inside the source (2*(|cos|+|sin|) px, about one pixel per side
   // measured across the tilted edge) so anti-aliased edge pixels never survive
-  // into the result. Very thin images can't keep a usable crop at some
-  // angles; those are reported as tooSmall and Straighten is disabled.
+  // into the result. Crops under 8px on a side (very thin images at some
+  // angles) aren't useful; those are reported as tooSmall and Straighten is
+  // disabled.
   function straightenSize(w, h, radians) {
     const c = Math.abs(Math.cos(radians));
     const s = Math.abs(Math.sin(radians));
     const margin = 2 * (c + s);
     const scale = Math.max(0, Math.min((w - margin) / (w * c + h * s), (h - margin) / (w * s + h * c)));
     const cw = Math.floor(w * scale);
-    const ch = Math.floor((cw * h) / w);
-    return { w: Math.max(1, cw), h: Math.max(1, ch), tooSmall: cw < 3 || ch < 3 };
+    const ch = Math.min(Math.round((cw * h) / w), Math.floor(h * scale));
+    return { w: Math.max(1, cw), h: Math.max(1, ch), tooSmall: cw < 8 || ch < 8 };
   }
 
   // The preview owns the overlay and dims the whole picture, so it is an
   // exclusive mode: anything else that draws on the overlay or edits pixels
   // (crop drag, brush, shapes, text, adjust sliders, Compare) cancels it first.
   let straightenPreviewing = false;
+  const STRAIGHTEN_BUTTON_TITLE = $("pe-apply-straighten").title;
+  const STRAIGHTEN_TOO_THIN = "Too thin to straighten at this angle";
 
   function straightenAngle() {
     const angle = Number($("pe-straighten-angle").value);
@@ -771,6 +774,7 @@
     $("pe-straighten-angle").setAttribute("aria-valuetext", "0.0 degrees");
     $("pe-straighten-number").value = 0;
     $("pe-apply-straighten").disabled = true;
+    $("pe-apply-straighten").title = STRAIGHTEN_BUTTON_TITLE;
     $("pe-straighten-note").hidden = true;
   }
 
@@ -783,17 +787,29 @@
   // Live preview on the overlay: the tilted picture, dimmed outside the crop
   // that would be kept, with a thirds grid to line a horizon up against.
   function drawStraightenPreview() {
+    // A tilt can't be started mid-stroke or while Compare shows the original.
+    if (dragging || isComparing()) {
+      cancelStraightenPreview();
+      resetStraightenUi();
+      return;
+    }
     const angle = straightenAngle();
     const w = canvas.width;
     const h = canvas.height;
     const radians = (angle * Math.PI) / 180;
     const crop = straightenSize(w, h, radians);
+    const wasPreviewing = straightenPreviewing;
     $("pe-straighten-angle").setAttribute("aria-valuetext", `${angle.toFixed(1)} degrees`);
     $("pe-apply-straighten").disabled = angle === 0 || crop.tooSmall;
+    $("pe-apply-straighten").title = crop.tooSmall && angle !== 0 ? STRAIGHTEN_TOO_THIN : STRAIGHTEN_BUTTON_TITLE;
     $("pe-straighten-note").hidden = !(angle !== 0 && crop.tooSmall);
     straightenPreviewing = angle !== 0;
+    if (!angle) {
+      // Only wipe the overlay if a preview was on it; a crop selection may be.
+      if (wasPreviewing) clearOverlay();
+      return;
+    }
     clearOverlay();
-    if (!angle) return;
     // A crop selection would silently survive underneath the preview.
     cropRect = null;
     $("pe-apply-crop").hidden = true;
@@ -847,20 +863,12 @@
     $("pe-straighten-number").value = straightenAngle();
     drawStraightenPreview();
   });
-  const resetStraightenFromInput = () => {
+  // Double-click resets the tilt; only wipe the overlay if the tilt preview
+  // was on it (a crop selection may be there instead).
+  $("pe-straighten-angle").addEventListener("dblclick", () => {
+    const wasPreviewing = straightenPreviewing;
     resetStraightenUi();
-    clearOverlay();
-  };
-  $("pe-straighten-angle").addEventListener("dblclick", resetStraightenFromInput);
-  // Escape resets a tilt in progress instead of closing the whole editor;
-  // with nothing to reset it falls through to the normal close behaviour.
-  [$("pe-straighten-angle"), $("pe-straighten-number")].forEach((el) => {
-    el.addEventListener("keydown", (e) => {
-      if (e.key !== "Escape" || !straightenPreviewing) return;
-      e.preventDefault();
-      e.stopPropagation();
-      resetStraightenFromInput();
-    });
+    if (wasPreviewing) clearOverlay();
   });
 
   $("pe-apply-straighten").addEventListener("click", () => {
@@ -1888,8 +1896,18 @@
   document.addEventListener("keydown", (e) => {
     // Only the top dialog handles editor shortcuts and crop Escape.
     if (modal.hidden || modal.getAttribute("aria-modal") !== "true") return;
-    const tag = document.activeElement && document.activeElement.tagName;
-    if (tag === "INPUT" || tag === "TEXTAREA") return;
+    // Escape resets a tilt in progress wherever focus is, instead of closing
+    // the editor and losing edits; with nothing to reset it closes as usual.
+    if (e.key === "Escape" && straightenPreviewing) {
+      e.preventDefault();
+      cancelStraightenPreview();
+      return;
+    }
+    const active = document.activeElement;
+    const tag = active && active.tagName;
+    // Range sliders have no text-editing undo of their own, so Ctrl+Z/Y should
+    // still reach the editor while one has focus (e.g. right after Straighten).
+    if ((tag === "INPUT" && active.type !== "range") || tag === "TEXTAREA") return;
     const mod = e.metaKey || e.ctrlKey;
     if (mod && e.key.toLowerCase() === "z") {
       e.preventDefault();

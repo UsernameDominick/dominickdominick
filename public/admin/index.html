@@ -1181,7 +1181,7 @@
               <span class="pe-group-label">Straighten</span>
               <label>Tilt <input type="range" id="pe-straighten-angle" min="-45" max="45" step="0.1" value="0" aria-valuetext="0.0 degrees" title="Tilt the image to level a horizon (positive turns it clockwise). Shows a live preview. Double-click or press Escape to reset."></label>
               <label class="pe-straighten-number-label"><input type="number" id="pe-straighten-number" min="-45" max="45" step="0.1" value="0" aria-label="Tilt in degrees" title="Type an exact tilt in degrees (-45 to 45)"><span aria-hidden="true">°</span></label>
-              <button type="button" id="pe-apply-straighten" disabled title="Rotate the image by the tilt above and crop away the empty corners, keeping the largest straight rectangle that fits inside the tilted image">Straighten</button>
+              <button type="button" id="pe-apply-straighten" aria-describedby="pe-straighten-note" disabled title="Rotate the image by the tilt above and crop away the empty corners, keeping the largest straight rectangle that fits inside the tilted image">Straighten</button>
               <span id="pe-straighten-note" class="pe-straighten-note" role="status" hidden>Too thin to straighten at this angle.</span>
             </div>
             <div class="pe-tool-group">
@@ -1559,6 +1559,13 @@
           <canvas class="song-embed-waveform" id="song-preview-waveform" width="600" height="80" hidden></canvas>
           <div class="song-embed-pulse" id="song-preview-pulse" hidden><div class="song-embed-pulse-core"></div></div>
         </div>
+        <details class="panel-section song-clip-section" id="song-clip-section">
+          <summary id="song-clip-summary">Clipping history (0)</summary>
+          <p class="song-clip-note">Logs each time the master output reaches full scale while you play. It measures the mixed output only; individual tracks aren't metered. Lower the master volume or use Normalize to peak to clear it.</p>
+          <p id="song-clip-empty" class="song-clip-empty">No clipping so far.</p>
+          <ol id="song-clip-list" class="song-clip-list"></ol>
+          <button type="button" id="song-clip-clear" disabled>Clear history</button>
+        </details>
         <h2 class="song-section-heading">Drums</h2>
         <div id="song-sequencer" class="song-sequencer"></div>
         <h2 class="song-section-heading">Melody (piano roll)
