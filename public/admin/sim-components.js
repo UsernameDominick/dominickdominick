@@ -117,6 +117,40 @@
   }
   window.simResistorBandHexes = resistorBandHexes;
 
+  // Basic parameters for the two passive parts that don't change the DC
+  // analysis on their own: a capacitor is an open circuit once charged, and
+  // an inductor is a wire with only its winding resistance. Hand-mirrored in
+  // worker/simulation-render.js.
+  const trimNumber = (n) => String(Math.round(n * 100) / 100);
+  function capacitanceMicrofarads(c) {
+    const value = Number(c && c.capacitance);
+    return Number.isFinite(value) && value > 0 ? Math.min(value, 1e9) : 100;
+  }
+  function inductanceMillihenries(c) {
+    const value = Number(c && c.inductance);
+    return Number.isFinite(value) && value > 0 ? Math.min(value, 1e9) : 10;
+  }
+  function inductorWindingOhms(c) {
+    const value = Number(c && c.dcResistance);
+    return Number.isFinite(value) && value > 0 ? Math.max(0.01, Math.min(value, 1e9)) : 1;
+  }
+  function formatCapacitance(uF) {
+    if (uF < 1) return `${trimNumber(uF * 1000)}nF`;
+    if (uF >= 1000) return `${trimNumber(uF / 1000)}mF`;
+    return `${trimNumber(uF)}µF`;
+  }
+  function formatInductance(mH) {
+    if (mH < 1) return `${trimNumber(mH * 1000)}µH`;
+    if (mH >= 1000) return `${trimNumber(mH / 1000)}H`;
+    return `${trimNumber(mH)}mH`;
+  }
+  window.simCapacitanceUf = capacitanceMicrofarads;
+  window.simInductanceMh = inductanceMillihenries;
+  window.simInductorWindingOhms = inductorWindingOhms;
+  window.simFormatCapacitance = formatCapacitance;
+  window.simFormatInductance = formatInductance;
+
+
   const BREADBOARD_COLUMN_OPTIONS = Object.freeze([15, 30, 45]);
 
   function resolveBreadboardColumns(value) {
@@ -350,6 +384,39 @@
           closed ? 32 : 27
         }" y2="${closed ? 10 : 1}"/><circle class="switch-pivot" cx="32" cy="10" r="2.5"/><line class="switch-lead" x1="32" y1="10" x2="40" y2="10"/>`;
       },
+    },
+    // Two-terminal capacitor. In this DC model it charges up and then blocks
+    // current, so it is deliberately not a passthrough and adds no edge to the
+    // analysis: anything wired through it gets no power. Leads are one hole
+    // spacing (40px) apart so it plugs into adjacent breadboard columns.
+    capacitor: {
+      label: "Capacitor",
+      keywords: "farad, microfarad, uF, blocks DC, ceramic, electrolytic, energy storage",
+      w: 40,
+      h: 36,
+      pins: [
+        { id: "p1", x: 0, y: 12 },
+        { id: "p2", x: 40, y: 12 },
+      ],
+      render: (c) =>
+        `<line class="capacitor-lead" x1="0" y1="12" x2="12" y2="12"/><rect class="capacitor-body" x="12" y="1" width="16" height="22" rx="3"/><line class="capacitor-plate" x1="17" y1="5" x2="17" y2="19"/><line class="capacitor-plate" x1="23" y1="5" x2="23" y2="19"/><line class="capacitor-lead" x1="28" y1="12" x2="40" y2="12"/><text class="capacitor-label" x="20" y="33" text-anchor="middle" font-size="8">${escXml(formatCapacitance(capacitanceMicrofarads(c)))}</text>`,
+    },
+    // Two-terminal inductor: at DC it passes current like a wire with only
+    // its winding resistance (see inductorWindingOhms), so it is a passthrough
+    // and the analysis treats it as a small resistor. Leads are two hole
+    // spacings (80px) apart, like the resistor.
+    inductor: {
+      label: "Inductor",
+      keywords: "coil, choke, henry, millihenry, mH, winding, magnetic",
+      w: 80,
+      h: 36,
+      passthrough: [["p1", "p2"]],
+      pins: [
+        { id: "p1", x: 0, y: 12 },
+        { id: "p2", x: 80, y: 12 },
+      ],
+      render: (c) =>
+        `<line class="inductor-lead" x1="0" y1="12" x2="16" y2="12"/><rect class="inductor-body" x="16" y="2" width="48" height="20" rx="6"/><path class="inductor-coil" d="M16,12 a8,8 0 0 1 16,0 a8,8 0 0 1 16,0 a8,8 0 0 1 16,0"/><line class="inductor-lead" x1="64" y1="12" x2="80" y2="12"/><text class="inductor-label" x="40" y="33" text-anchor="middle" font-size="8">${escXml(formatInductance(inductanceMillihenries(c)))}</text>`,
     },
     // An idealized ammeter: zero resistance (doesn't disturb the circuit
     // it's measuring), placed IN SERIES like a switch/wire, reporting
@@ -650,6 +717,11 @@
         const rawWiper = Number(c.wiper);
         const wiperPct = Math.max(0, Math.min(100, Number.isFinite(rawWiper) ? rawWiper : 50));
         link(nodeId(c, "p1"), nodeId(c, "p2"), { compId: c.id, kind: "resistor", resistance: Math.max(1, Math.round(maxR * (wiperPct / 100))) });
+      } else if (c.type === "inductor") {
+        // Reuses "resistor" as the edge kind, like the potentiometer: at DC an
+        // inductor is just its winding resistance, so it gets the same
+        // current/wattage/overheating analysis.
+        link(nodeId(c, "p1"), nodeId(c, "p2"), { compId: c.id, kind: "resistor", resistance: inductorWindingOhms(c) });
       } else if (c.type === "switch") {
         if (isSwitchClosed(c)) link(nodeId(c, "p1"), nodeId(c, "p2"), { compId: c.id, kind: "wire", resistance: 0 });
       } else if (c.type === "ammeter") {

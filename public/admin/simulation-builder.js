@@ -1244,7 +1244,7 @@
   // multiple of the hole grid (see SIM_COMPONENTS), so once the first leg
   // snaps to a hole, every other leg lands exactly on a real neighboring
   // hole too — not just one anchor pin dragging the rest along for show.
-  const SNAP_TO_BREADBOARD_TYPES = new Set(["led", "resistor", "switch", "potentiometer", "ammeter"]);
+  const SNAP_TO_BREADBOARD_TYPES = new Set(["led", "resistor", "switch", "potentiometer", "ammeter", "capacitor", "inductor"]);
   const SNAP_THRESHOLD = 18; // magnetic pull radius while dragging
   const SNAP_EXACT_TOLERANCE = 4; // how close a non-anchor leg must land to also count as plugged in
   // Everything else just snaps to a light alignment grid while dragging.
@@ -1545,6 +1545,8 @@
     led: { color: "red" },
     switch: { closed: true },
     potentiometer: { maxResistance: 10000, wiper: 50 },
+    capacitor: { capacitance: 100 },
+    inductor: { inductance: 10, dcResistance: 1 },
   };
 
   // ---------- Recently-used parts ----------
@@ -1793,6 +1795,8 @@
           const overheatMsg =
             comp.type === "potentiometer"
               ? `🔥 Overheating — dissipating ${info.watts.toFixed(2)}W, more than this potentiometer can safely handle.`
+              : comp.type === "inductor"
+              ? `🔥 Overheating — dissipating ${info.watts.toFixed(2)}W in its winding, more than a small inductor can handle. Add a resistor to limit the current.`
               : `🔥 Overheating — dissipating ${info.watts.toFixed(2)}W, more than a typical 1/4W resistor can handle.`;
           if (info.dangerous) {
             electricalHtml = `<p class="sim-power-status is-danger">🔥 Charred instantly — this loop is running straight off 120V mains.</p>`;
@@ -1840,6 +1844,13 @@
         extraFieldsHtml = `<label title="The potentiometer's full end-to-end resistance -- the Wiper position below sets what fraction of that range is actually in the circuit right now, the same way turning a real knob does.">Max resistance (ohms)<input id="sim-comp-max-resistance" type="number" min="1" value="${potState.maxResistance}"></label>
         <label title="How far the sliding contact sits along the resistive track, from 0% (minimum resistance) to 100% (maximum) -- same idea as turning a real knob from one end to the other.">Wiper position: <span id="sim-comp-wiper-value">${potState.wiperPct}</span>%<input id="sim-comp-wiper" type="range" min="0" max="100" value="${potState.wiperPct}" aria-describedby="sim-comp-pot-effective"></label>
         <output id="sim-comp-pot-effective" class="sim-electrical-effect" for="sim-comp-wiper">${describePotentiometerElectricalState(potState)}</output>`;
+      } else if (comp.type === "capacitor") {
+        extraFieldsHtml = `<label title="How much charge the capacitor can hold per volt. Common values run from picofarads to thousands of microfarads. Recorded for reference -- charging over time isn't simulated.">Capacitance (µF)<input id="sim-comp-capacitance" type="number" min="0.001" step="any" value="${window.simCapacitanceUf(comp)}"></label>
+        <p class="sim-electrical-effect"><strong>Electrical effect:</strong> In a DC circuit a capacitor charges up and then stops current, so it acts like an open circuit here: anything wired through it gets no power. The value is for reference; charging over time isn't simulated.</p>`;
+      } else if (comp.type === "inductor") {
+        extraFieldsHtml = `<label title="How strongly the coil resists changes in current. Recorded for reference -- sudden-change behaviour isn't simulated.">Inductance (mH)<input id="sim-comp-inductance" type="number" min="0.001" step="any" value="${window.simInductanceMh(comp)}"></label>
+        <label title="The resistance of the coil's own wire. This is all that limits DC current through an inductor, so it does the actual work in the simulation.">Winding resistance (ohms)<input id="sim-comp-dc-resistance" type="number" min="0.01" step="any" value="${window.simInductorWindingOhms(comp)}"></label>
+        <p class="sim-electrical-effect"><strong>Electrical effect:</strong> Once current settles, an inductor passes DC like a wire with only its winding resistance. Inductance is for reference; sudden-change behaviour isn't simulated.</p>`;
       } else if (comp.type === "battery") {
         extraFieldsHtml = `<label title="The battery's nominal voltage -- how much electrical 'push' it supplies to the circuit, matching the voltage printed on a real battery (1.5V AA, 9V, etc.).">Voltage (V)<input id="sim-comp-voltage" type="number" min="0.1" step="0.1" value="${Number(comp.voltage) || 9}"></label>
         <label title="Real batteries aren't perfect voltage sources -- this models a non-ideal battery's own resistance, in series with the rest of the circuit. Leave at 0 for an ideal source (the default, matching every simulation saved before this field existed).">Internal resistance (ohms)<input id="sim-comp-internal-resistance" type="number" min="0" step="0.1" value="${Math.max(0, Number(comp.internalResistance) || 0)}"></label>`;
@@ -1921,6 +1932,21 @@
           renderBuilder();
         });
       }
+      [
+        ["sim-comp-capacitance", "capacitance", 100, 0.001],
+        ["sim-comp-inductance", "inductance", 10, 0.001],
+        ["sim-comp-dc-resistance", "dcResistance", 1, 0.01],
+      ].forEach(([id, field, fallback, minimum]) => {
+        const input = $(id);
+        if (!input) return;
+        input.addEventListener("change", () => {
+          pushHistory();
+          const value = Number(input.value);
+          comp[field] = Number.isFinite(value) && value > 0 ? Math.max(minimum, Math.min(value, 1e9)) : fallback;
+          renderInspector();
+          renderBuilder();
+        });
+      });
       const maxResistanceInput = $("sim-comp-max-resistance");
       if (maxResistanceInput) {
         maxResistanceInput.addEventListener("change", () => {

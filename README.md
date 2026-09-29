@@ -68,10 +68,13 @@ Worker secret, not stored in this repo). From there:
   renaming or deleting a page or post so old links don't just 404
 - "Simulations" is a small builder for wiring-accurate circuit/AV
   diagrams — drag parts (wall outlet, power supply, breadboard, LED,
-  resistor, battery, a Teensy-style microcontroller, a TV/display) onto
-  a canvas and click one pin then another to wire them. Dragging an LED
-  or resistor near a breadboard hole snaps it into place and plugs it in
-  automatically, like a real breadboard.
+  resistor, capacitor, inductor, battery, a Teensy-style microcontroller,
+  a TV/display) onto a canvas and click one pin then another to wire them.
+  The simulator is DC steady-state: a capacitor blocks current (an open
+  circuit), and an inductor passes it like a wire with only its winding
+  resistance; the capacitance and inductance values are kept for reference.
+  Dragging an LED or resistor near a breadboard hole snaps it into place
+  and plugs it in automatically, like a real breadboard.
   Select a part and press **R** (Shift+R the other way) to rotate it 90°, or **F** to flip it left to right
   (the Rotate/Flip buttons in the inspector do the same; Flip is always a left/right mirror as you see it). A
   quarter turn keeps the part's centre in place. A part plugged into a breadboard stays plugged in only where its

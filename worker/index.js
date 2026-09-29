@@ -86,7 +86,17 @@ import {
   CONTROL_PRESETS,
 } from "./render.js";
 import { handleAdminApi } from "./admin-api.js";
-import { getSimulationComponentDefinition, LED_COLORS, OUTLET_VOLTAGE, renderSimulationSvg } from "./simulation-render.js";
+import {
+  capacitanceMicrofarads,
+  formatCapacitance,
+  formatInductance,
+  getSimulationComponentDefinition,
+  inductanceMillihenries,
+  inductorWindingOhms,
+  LED_COLORS,
+  OUTLET_VOLTAGE,
+  renderSimulationSvg,
+} from "./simulation-render.js";
 
 // Whole-site draft-inclusive preview mode — a plain, non-secret cookie an
 // admin toggles from the admin header's "Preview mode" button. Unlike
@@ -877,6 +887,10 @@ function simulationTopologyDescription(data) {
         const wiper = Math.max(0, Math.min(100, Number.isFinite(rawWiper) ? rawWiper : 50));
         return `${Math.max(1, Math.round(maxResistance * (wiper / 100)))} ohms at ${wiper}%`;
       }
+      case "capacitor":
+        return `${formatCapacitance(capacitanceMicrofarads(component))} (blocks DC)`;
+      case "inductor":
+        return `${formatInductance(inductanceMillihenries(component))}, ${Number(inductorWindingOhms(component).toPrecision(3))} ohm winding resistance`;
       case "breadboard":
         return `${getSimulationComponentDefinition(component)?.cols || 30} columns`;
       case "led": {

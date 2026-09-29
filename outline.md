@@ -96,7 +96,7 @@ Verify distinct test-only Preview values before protected-flow checks.
   preview and auto-crops to the largest same-aspect rectangle that fits inside the tilted image.
 - **Song/DAW:** fixed 16-step sequencer with synthesized Web Audio; no sample playback, multitrack timeline,
   mixing, or effects.
-- **Simulation builder:** SVG circuits and simplified connectivity/Ohm's-law analysis, not a SPICE solver; breadboards support 15, 30, or 45 columns, manual wire bends, same-hole snap warnings, named checkpoints, and in-memory undo. Draft edits stay private until the saved name and circuit data are explicitly published; unpublish hides the live snapshot. Older simulations default to 30 columns, and save validation checks board-size pins. Parts (not breadboards) can be rotated in 90° steps and mirrored (R / Shift+R / F or the inspector buttons); orientation is applied at the component-definition level so pins, wires, snapping, and rendering all follow it, and save validation rejects invalid orientation values.
+- **Simulation builder:** SVG circuits and simplified connectivity/Ohm's-law analysis, not a SPICE solver; breadboards support 15, 30, or 45 columns, manual wire bends, same-hole snap warnings, named checkpoints, and in-memory undo. Draft edits stay private until the saved name and circuit data are explicitly published; unpublish hides the live snapshot. Older simulations default to 30 columns, and save validation checks board-size pins. Parts (not breadboards) can be rotated in 90° steps and mirrored (R / Shift+R / F or the inspector buttons); orientation is applied at the component-definition level so pins, wires, snapping, and rendering all follow it, and save validation rejects invalid orientation values. Capacitor and inductor parts carry basic parameters (capacitance in µF, inductance in mH, winding resistance in ohms) in the DC steady-state model: a capacitor is an open circuit and an inductor is a small resistor, so only the winding resistance affects the analysis.
 - **Shared lifecycle:** pages/articles/projects have autosave, conflict detection, revisions, and trash; media
   has versions and usage tracking. Songs/simulations still lack full parity.
 ## 2. Active feature backlog
@@ -383,7 +383,6 @@ sandboxed plugin architecture — substantial new infra + security surface).
 ### Simulations — Easy
 - 363. Deterministic runs/seeds — sim is deterministic already; add a seed field for future randomness.
 - 389. Mechanical vs electrical distinction — already implicit; just surface it in UI.
-- 403-405. Resistor/capacitor/inductor basic params — extra content fields, same pattern as resistance.
 - 409. Relays/switches — variant of existing switch component.
 - 415. Current source — checked while implementing #416: doesn't fit this simulator's model as worded. This
   solver assumes constant-voltage sources and derives current via I=V/R; a true current source needs a different

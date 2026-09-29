@@ -1885,6 +1885,43 @@ h6 { font-size: 0.9rem; }
   pointer-events: none;
 }
 
+/* Capacitor and inductor -- two-terminal passives; the label prints the value. */
+.sim-comp .capacitor-lead,
+.sim-comp .inductor-lead {
+  stroke: url(#sim-grad-metal);
+  stroke-width: 2;
+}
+.sim-comp .capacitor-body {
+  fill: url(#sim-grad-plastic);
+  stroke: #7a6a3a;
+  stroke-width: 1.2;
+}
+.sim-comp .capacitor-plate {
+  stroke: #333;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+.sim-comp .inductor-body {
+  fill: url(#sim-grad-plastic);
+  stroke: #555;
+  stroke-width: 1;
+}
+.sim-comp .inductor-coil {
+  fill: none;
+  stroke: #b87333;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+.sim-comp .capacitor-label,
+.sim-comp .inductor-label {
+  fill: var(--text-dim);
+  text-anchor: middle;
+  pointer-events: none;
+}
+.sim-comp.sim-damaged .inductor-body {
+  fill: #2a1810 !important;
+}
+
 /* Switch */
 .sim-comp .switch-body {
   fill: url(#sim-grad-plastic);

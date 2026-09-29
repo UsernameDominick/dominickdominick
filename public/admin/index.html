@@ -1181,7 +1181,7 @@
               <span class="pe-group-label">Straighten</span>
               <label>Tilt <input type="range" id="pe-straighten-angle" min="-45" max="45" step="0.1" value="0" aria-valuetext="0.0 degrees" title="Tilt the image to level a horizon (positive turns it clockwise). Shows a live preview. Double-click or press Escape to reset."></label>
               <label class="pe-straighten-number-label"><input type="number" id="pe-straighten-number" min="-45" max="45" step="0.1" value="0" aria-label="Tilt in degrees" title="Type an exact tilt in degrees (-45 to 45)"><span aria-hidden="true">°</span></label>
-              <button type="button" id="pe-apply-straighten" aria-describedby="pe-straighten-note" disabled title="Rotate the image by the tilt above and crop away the empty corners, keeping the largest straight rectangle that fits inside the tilted image">Straighten</button>
+              <button type="button" id="pe-apply-straighten" disabled title="Rotate the image by the tilt above and crop away the empty corners, keeping the largest straight rectangle that fits inside the tilted image">Straighten</button>
               <span id="pe-straighten-note" class="pe-straighten-note" role="status" hidden>Too thin to straighten at this angle.</span>
             </div>
             <div class="pe-tool-group">
@@ -1429,6 +1429,8 @@
           <button type="button" class="sim-palette-btn" data-sim-type="led">LED</button>
           <button type="button" class="sim-palette-btn" data-sim-type="resistor">Resistor</button>
           <button type="button" class="sim-palette-btn" data-sim-type="potentiometer">Potentiometer</button>
+          <button type="button" class="sim-palette-btn" data-sim-type="capacitor">Capacitor</button>
+          <button type="button" class="sim-palette-btn" data-sim-type="inductor">Inductor</button>
           <button type="button" class="sim-palette-btn" data-sim-type="switch">Switch</button>
           <button type="button" class="sim-palette-btn" data-sim-type="ammeter">Ammeter</button>
           <button type="button" class="sim-palette-btn" data-sim-type="battery">Battery</button>
