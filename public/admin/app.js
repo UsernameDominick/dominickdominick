@@ -2169,7 +2169,11 @@
       const setCount = style ? fields.filter((f) => styleValueIsSet(style[f.key])).length : 0;
       return `<details class="panel-section style-group" data-group="${id}"${openStyleGroups.has(id) ? " open" : ""}><summary>${escapeHtml(title)}${
         setCount ? `<span class="style-group-count">${setCount} set</span>` : ""
-      }</summary><div class="style-group-body">${fields.map((f) => fieldHtml(f, style ? style[f.key] : undefined, idPrefix)).join("")}</div></details>`;
+      }</summary><div class="style-group-body">${fields.map((f) => fieldHtml(f, style ? style[f.key] : undefined, idPrefix)).join("")}${
+        setCount && idPrefix !== "bulk"
+          ? `<button type="button" class="style-group-reset" data-group="${id}" data-keys="${escapeHtml(fields.map((f) => f.key).join(","))}" title="Clear every setting in this group so the block goes back to the theme's defaults">Reset ${setCount} ${escapeHtml(title.toLowerCase())} setting${setCount === 1 ? "" : "s"} to default</button>`
+          : ""
+      }</div></details>`;
     }).join("");
   }
   function wireStyleGroupToggles(container) {
@@ -2470,6 +2474,19 @@
     styleContainer.querySelectorAll(".clear-color").forEach((btn) => {
       btn.addEventListener("click", () => {
         block.style[btn.dataset.key] = null;
+        save();
+        renderInspector();
+      });
+    });
+
+    // One click puts a whole group back to the inherited/default look (the page
+    // history keeps the earlier version if it was a mistake).
+    styleContainer.querySelectorAll(".style-group-reset").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const keys = btn.dataset.keys.split(",").filter((k) => styleValueIsSet(block.style[k]));
+        if (!keys.length) return;
+        if (!confirm(`Reset ${keys.length} setting${keys.length === 1 ? "" : "s"} in this group to their defaults?`)) return;
+        keys.forEach((k) => (block.style[k] = null));
         save();
         renderInspector();
       });

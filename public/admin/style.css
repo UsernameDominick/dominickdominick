@@ -6817,3 +6817,9 @@ kbd {
 #conflict-apply:disabled {
   opacity: 0.6;
 }
+
+.style-group-reset {
+  margin-top: 10px;
+  align-self: flex-start;
+  font-size: 0.8rem;
+}

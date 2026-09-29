@@ -142,7 +142,7 @@ Open and partial items only; completed implementation histories remain in Git hi
 ### Design system and styling
 - 🔶 Global spacing and shadow tokens (color, typography, and border tokens exist)
 - ☐ Visual CSS inspector, style-inheritance inspector
-- 🔶 Reset overrides to inherited (per-field "Clear" on color pickers ✅; no general concept)
+- 🔶 Reset overrides to inherited (per-field "Clear" on color pickers ✅; each style group in the block inspector has "Reset N … settings to default" ✅ (single block, with a confirmation); the bulk multi-select inspector and non-block editors have no group reset ☐)
 - ☐ Page-specific CSS/JS controls (custom head code is site-wide only)
 - ☐ Preview custom styles/scripts before publishing; site-wide impact review of a design change
 
