@@ -1180,6 +1180,7 @@
               <button type="button" id="pe-mask-edit" aria-pressed="false" title="Switch between painting the layer and painting its mask (Paint shows the layer, Erase hides it)">Edit mask</button>
               <button type="button" id="pe-mask-toggle" title="Turn the mask off to see the whole layer, or back on">Mask on</button>
               <button type="button" id="pe-mask-invert" title="Swap the shown and hidden parts of the mask">Invert mask</button>
+              <label title="While editing a mask, tint the hidden parts of the layer red"><input type="checkbox" id="pe-mask-show" checked> Show mask</label>
               <button type="button" id="pe-mask-delete" title="Remove the mask (Undo brings it back); the layer shows in full">Delete mask</button>
               <label title="How see-through the current layer is">Opacity <input type="range" id="pe-layer-opacity" min="0" max="100" value="100"><output id="pe-layer-opacity-val" for="pe-layer-opacity" class="pe-layer-opacity-val">100%</output></label>
               <label title="How the current layer mixes with the layers below it">Blend <select id="pe-layer-blend" aria-label="Layer blend mode">
@@ -1385,6 +1386,7 @@
               <div id="pe-canvas-frame" class="pe-canvas-frame">
                 <div id="pe-canvas-stack" class="pe-canvas-stack">
                   <canvas id="pe-canvas"></canvas>
+                  <canvas id="pe-mask-tint" aria-hidden="true"></canvas>
                   <canvas id="pe-overlay"></canvas>
                 </div>
               </div>

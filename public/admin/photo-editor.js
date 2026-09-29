@@ -319,6 +319,8 @@
     }
     overlay.style.width = w + "px";
     overlay.style.height = h + "px";
+    $("pe-mask-tint").style.width = w + "px";
+    $("pe-mask-tint").style.height = h + "px";
     stack.style.width = w + "px";
     stack.style.height = h + "px";
     layoutFrame();
@@ -677,6 +679,26 @@
       el.style.maskImage = "";
     }
   }
+  // While a mask is being edited its hidden parts are tinted red over the picture.
+  function renderMaskTint() {
+    const tint = $("pe-mask-tint");
+    const layer = activeLayer();
+    if (!(editingMask && layer && layer.mask && $("pe-mask-show").checked)) {
+      tint.style.display = "none";
+      return;
+    }
+    tint.width = layer.mask.width;
+    tint.height = layer.mask.height;
+    const t = tint.getContext("2d");
+    t.fillStyle = "rgba(229, 72, 77, 0.55)";
+    t.fillRect(0, 0, tint.width, tint.height);
+    t.globalCompositeOperation = "destination-out";
+    t.drawImage(layer.mask, 0, 0);
+    tint.style.width = stack.style.width;
+    tint.style.height = stack.style.height;
+    tint.style.display = "block";
+  }
+  $("pe-mask-show").addEventListener("change", renderMaskTint);
   let maskRefreshTimer = null;
   function scheduleMaskRefresh() {
     if (!editingMask || maskRefreshTimer) return; // one refresh per interval while a stroke moves
@@ -686,6 +708,7 @@
       if (!layer || !layer.mask) return;
       layer.maskDirty = true;
       applyMaskCss(layer);
+      renderMaskTint();
     }, 120);
   }
 
@@ -703,6 +726,7 @@
       el.style.width = stack.style.width;
       el.style.height = stack.style.height;
     });
+    renderMaskTint();
   }
 
   function layerIsEmpty(el) {
@@ -1015,6 +1039,7 @@
     editingMask = !editingMask;
     bindActiveLayer();
     invalidateOpenAdjustDrag();
+    renderMaskTint();
     renderLayerPanel();
     setLayerNote(editingMask ? "Editing the mask: Erase hides parts of this layer, Paint shows them again." : "");
   }
@@ -4365,6 +4390,9 @@
     compareSavedState = null;
     baseSnapshot = null;
     stack.classList.remove("is-comparing");
+    $("pe-mask-tint").style.display = "none";
+    $("pe-mask-tint").width = 1;
+    $("pe-mask-tint").height = 1;
     for (const layer of layers) {
       layer.canvas.width = 1;
       layer.canvas.height = 1;
