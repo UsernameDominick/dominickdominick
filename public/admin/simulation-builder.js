@@ -612,9 +612,7 @@
     // just in the separate inspector panel one has to select the part to see.
     const readingSvg =
       comp.type === "ammeter" && info
-        ? `<text class="ammeter-reading" x="20" y="32" text-anchor="middle" font-size="8">${
-            info.currentMa === Infinity ? "∞" : info.currentMa.toFixed(1)
-          }mA</text>`
+        ? window.simAmmeterReadingSvg(`${info.currentMa === Infinity ? "∞" : info.currentMa.toFixed(1)}mA`, def.rotation || 0)
         : "";
     return `<g class="sim-comp sim-comp-${comp.type}${sel ? " sim-selected" : ""}${damaged ? " sim-damaged" : ""}${
       searchMatch ? " sim-search-match" : ""
@@ -622,7 +620,7 @@
       comp.id
     )}" data-powered="${poweredComps.has(comp.id) ? "true" : "false"}" transform="translate(${comp.x},${
       comp.y
-    })">${titleSvg}${def.render(comp)}${readingSvg}${sel ? `<rect class="sim-select-box" x="-4" y="-4" width="${def.w + 8}" height="${def.h + 8}" />` : ""}${
+    })">${titleSvg}${def.render(comp)}${readingSvg && def.overlay ? def.overlay(readingSvg) : readingSvg}${sel ? `<rect class="sim-select-box" x="-4" y="-4" width="${def.w + 8}" height="${def.h + 8}" />` : ""}${
       searchMatch ? `<rect class="sim-search-match-box" x="-6" y="-6" width="${def.w + 12}" height="${def.h + 12}" />` : ""
     }</g>`;
   }
@@ -1311,9 +1309,14 @@
 
   // This status is nonblocking: the dropped part stays connected to the same
   // breadboard node as any lead that was already using the target hole.
-  function setSnapHoleWarning(occupiedHoleCount) {
+  function setSnapHoleWarning(occupiedHoleCount, message = "") {
     const status = $("sim-hole-warning");
     if (!status) return;
+    if (message) {
+      status.textContent = message;
+      status.hidden = false;
+      return;
+    }
     if (!occupiedHoleCount) {
       status.textContent = "";
       status.hidden = true;
@@ -1655,24 +1658,44 @@
   }
 
   // ---------- Inspector ----------
-  // Rotate (90-degree steps) and mirror a single part in place. Orientation
+  // Rotate (90-degree steps) and flip a single part in place. Orientation
   // lives in the part's definition (see orientDefinition in sim-components.js),
-  // so every pin position derives from it. A part plugged into a breadboard is
-  // re-seated afterwards: legs that still land exactly on a hole stay
-  // plugged (e.g. a resistor flipped end-for-end), the rest are unplugged
-  // rather than leaving a wire stretched to where the pin used to be.
+  // so every pin position derives from it. Flip is a true left/right mirror on
+  // screen at every rotation: the stored mirror flag toggles and the rotation
+  // is reversed (a mirror applied outside a 90-degree turn is a mirror
+  // top-to-bottom inside it). A 90/270 turn keeps the part's visual centre
+  // (snapped to the grid) instead of pivoting on its corner. A part plugged
+  // into a breadboard is re-seated afterwards: legs that still land exactly on
+  // a hole stay plugged, the rest are unplugged rather than leaving a wire
+  // stretched to where the pin used to be, and the admin is told.
   function orientComponent(comp, { rotateBy = 0, flip = false } = {}) {
     if (!comp || comp.type === "breadboard") return;
     pushHistory();
-    if (rotateBy) {
-      const current = window.SIM_ORIENTATION_ROTATIONS.includes(Number(comp.rotation)) ? Number(comp.rotation) : 0;
-      const next = (((current + rotateBy) % 360) + 360) % 360;
-      if (next) comp.rotation = next;
-      else delete comp.rotation;
-    }
+    const focusId = document.activeElement && /^sim-(rotate-cw|rotate-ccw|flip)$/.test(document.activeElement.id) ? document.activeElement.id : null;
+    const countPlugged = () =>
+      simData.wires.filter((w) => w.auto && (w.from.compId === comp.id || w.to.compId === comp.id)).length;
+    const pluggedBefore = countPlugged();
+    const sizeBefore = window.getSimComponentDefinition(comp);
+    const current = typeof comp.rotation === "number" && window.SIM_ORIENTATION_ROTATIONS.includes(comp.rotation) ? comp.rotation : 0;
+    let rotation = current;
+    let mirror = comp.mirror === true;
+    if (rotateBy) rotation = (((current + rotateBy) % 360) + 360) % 360;
     if (flip) {
-      if (comp.mirror === true) delete comp.mirror;
-      else comp.mirror = true;
+      mirror = !mirror;
+      rotation = (360 - rotation) % 360;
+    }
+    if (rotation) comp.rotation = rotation;
+    else delete comp.rotation;
+    if (mirror) comp.mirror = true;
+    else delete comp.mirror;
+    const sizeAfter = window.getSimComponentDefinition(comp);
+    if (sizeAfter.w !== sizeBefore.w) {
+      const place = (value, max) => {
+        const snapped = gridSnapSize > 0 ? Math.round(value / gridSnapSize) * gridSnapSize : Math.round(value);
+        return Math.max(0, Math.min(max, snapped));
+      };
+      comp.x = place(comp.x + (sizeBefore.w - sizeAfter.w) / 2, 1500);
+      comp.y = place(comp.y + (sizeBefore.h - sizeAfter.h) / 2, 700);
     }
     let occupiedHoleCount = 0;
     if (SNAP_TO_BREADBOARD_TYPES.has(comp.type)) {
@@ -1690,9 +1713,22 @@
         () => newLocalId("wire")
       );
     }
+    const lifted = pluggedBefore - countPlugged();
     renderInspector();
     renderBuilder();
-    setSnapHoleWarning(occupiedHoleCount);
+    if (focusId && $(focusId)) $(focusId).focus();
+    setSnapHoleWarning(
+      occupiedHoleCount,
+      lifted > 0
+        ? `Turning this part unplugged ${lifted === 1 ? "1 lead" : `${lifted} leads`} from the breadboard. Drag the part back onto the holes to plug it in again.`
+        : ""
+    );
+  }
+
+  function describeOrientation(comp) {
+    const rotation = typeof comp.rotation === "number" && window.SIM_ORIENTATION_ROTATIONS.includes(comp.rotation) ? comp.rotation : 0;
+    if (!rotation && comp.mirror !== true) return "Orientation: default";
+    return `Orientation: ${rotation ? `${rotation}° clockwise` : "not rotated"}${comp.mirror === true ? ", flipped" : ""}`;
   }
 
   function renderInspector() {
@@ -1838,11 +1874,12 @@
         ${
           comp.type === "breadboard"
             ? ""
-            : `<div class="sim-orient-row" role="group" aria-label="Orientation">
-          <button type="button" id="sim-rotate-ccw" title="Rotate 90° counter-clockwise (Shift+R)" aria-label="Rotate 90 degrees counter-clockwise">⟲ Rotate</button>
-          <button type="button" id="sim-rotate-cw" title="Rotate 90° clockwise (R)" aria-label="Rotate 90 degrees clockwise">⟳ Rotate</button>
-          <button type="button" id="sim-flip" title="Flip left to right (F)" aria-pressed="${comp.mirror === true ? "true" : "false"}">⇋ Flip</button>
-        </div>`
+            : `<div class="sim-orient-row" role="group" aria-label="Orientation" aria-describedby="sim-orient-status">
+          <button type="button" id="sim-rotate-ccw" title="Rotate 90° counter-clockwise (Shift+R)" aria-label="Rotate 90 degrees counter-clockwise" aria-keyshortcuts="Shift+R">⟲ Rotate</button>
+          <button type="button" id="sim-rotate-cw" title="Rotate 90° clockwise (R)" aria-label="Rotate 90 degrees clockwise" aria-keyshortcuts="R">⟳ Rotate</button>
+          <button type="button" id="sim-flip" title="Flip left to right (F)" aria-label="Flip left to right" aria-keyshortcuts="F" aria-pressed="${comp.mirror === true ? "true" : "false"}">⇋ Flip</button>
+        </div>
+        <p id="sim-orient-status" class="sim-orient-status">${describeOrientation(comp)}</p>`
         }
         <button type="button" id="sim-duplicate-selected">Duplicate part</button>
         <button type="button" id="sim-delete-selected" class="danger">Delete part</button>
@@ -2026,7 +2063,7 @@
       const ids = new Set(selected.ids);
       box.innerHTML = `
         <p><strong>${ids.size} parts selected</strong></p>
-        <p style="color:var(--text-dim);font-size:0.85rem;">Drag any one of them to move the whole group. Shift+click a part to remove it from the selection.</p>
+        <p style="color:var(--text-dim);font-size:0.85rem;">Drag any one of them to move the whole group. Shift+click a part to remove it from the selection. Rotate and flip work on one part at a time.</p>
         <button type="button" id="sim-duplicate-selected">Duplicate all</button>
         <button type="button" id="sim-delete-selected" class="danger">Delete all</button>
       `;
@@ -2274,10 +2311,27 @@
   });
 
   // ---------- Keyboard shortcuts ----------
+  // Same "highest computed z-index, later DOM order wins" rule app.js uses for
+  // its own top-modal checks, so a single-letter shortcut never acts on the
+  // builder from behind another dialog (shortcuts help, media picker).
+  function builderIsTopModal() {
+    let top = null;
+    let highest = Number.NEGATIVE_INFINITY;
+    document.querySelectorAll(".modal:not([hidden]), .writing-focus-overlay:not([hidden])").forEach((modal) => {
+      const parsed = Number(getComputedStyle(modal).zIndex);
+      const zIndex = Number.isFinite(parsed) ? parsed : 0;
+      if (!top || zIndex >= highest) {
+        top = modal;
+        highest = zIndex;
+      }
+    });
+    return top === $("simulation-builder-modal");
+  }
+
   document.addEventListener("keydown", (e) => {
     if ($("simulation-builder-modal").hidden) return;
     const tag = document.activeElement && document.activeElement.tagName;
-    const isTyping = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+    const isTyping = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || Boolean(document.activeElement && document.activeElement.isContentEditable);
     const mod = e.metaKey || e.ctrlKey;
 
     if (mod && e.key.toLowerCase() === "z") {
@@ -2302,8 +2356,9 @@
     // breadboard (its layout is fixed).
     if (!mod && !e.altKey && selected && selected.kind === "component" && (e.key.toLowerCase() === "r" || e.key.toLowerCase() === "f")) {
       const target = simData.components.find((c) => c.id === selected.id);
-      if (target && target.type !== "breadboard") {
+      if (target && target.type !== "breadboard" && builderIsTopModal()) {
         e.preventDefault();
+        if (e.repeat) return;
         if (e.key.toLowerCase() === "f") orientComponent(target, { flip: true });
         else orientComponent(target, { rotateBy: e.shiftKey ? -90 : 90 });
         return;

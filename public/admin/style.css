@@ -4322,6 +4322,12 @@ kbd {
   color: var(--text);
 }
 
+.sim-orient-status {
+  margin: 4px 0 8px;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
 .sim-canvas-wrap {
   position: relative;
   flex: 1;

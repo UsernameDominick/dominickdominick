@@ -172,7 +172,7 @@
   window.SIM_ORIENTATION_ROTATIONS = ORIENTATION_ROTATIONS;
 
   function componentOrientation(comp) {
-    const rotation = Number(comp && comp.rotation);
+    const rotation = comp && typeof comp.rotation === "number" ? comp.rotation : 0;
     return {
       rotation: ORIENTATION_ROTATIONS.includes(rotation) ? rotation : 0,
       mirror: Boolean(comp) && comp.mirror === true,
@@ -189,15 +189,17 @@
 
   // Labels printed on a part (Teensy name, pot resistance, ammeter unit)
   // would turn upside-down or backwards with the drawing, so each <text> is
-  // given the inverse transform about its own anchor point.
+  // given the inverse transform. The pivot is the glyph's visual centre (a
+  // third of the font size above the baseline), not the baseline itself, so
+  // a label stays centred on where the un-rotated drawing put it.
   function keepTextUpright(svg, rotation, mirror) {
     return svg.replace(/<text\b([^>]*)>/g, (match, attrs) => {
-      const num = (name) => {
+      const num = (name, fallback) => {
         const m = new RegExp(`\\s${name}="(-?[0-9.]+)"`).exec(attrs);
-        return m ? Number(m[1]) : 0;
+        return m ? Number(m[1]) : fallback;
       };
-      const x = num("x");
-      const y = num("y");
+      const x = num("x", 0);
+      const y = num("y", 0) - num("font-size", 10) * 0.35;
       const parts = [`translate(${x} ${y})`];
       if (mirror) parts.push("scale(-1 1)");
       if (rotation) parts.push(`rotate(${-rotation})`);
@@ -206,6 +208,8 @@
     });
   }
 
+  // `overlay` wraps extra live drawing (the ammeter's reading) in the same
+  // orientation transform as the part, so it turns with the body.
   function orientDefinition(def, comp) {
     const { rotation, mirror } = componentOrientation(comp);
     if (!rotation && !mirror) return def;
@@ -218,6 +222,7 @@
       rotation === 270 ? `translate(0 ${w}) rotate(270)` : "";
     const inner = mirror ? `translate(${w} 0) scale(-1 1)` : "";
     const transform = [outer, inner].filter(Boolean).join(" ");
+    const wrap = (svg) => `<g class="sim-oriented" transform="${transform}">${keepTextUpright(svg, rotation, mirror)}</g>`;
     return {
       ...def,
       w: swap ? h : w,
@@ -225,10 +230,24 @@
       rotation,
       mirror,
       pins: def.pins.map((pin) => ({ ...pin, ...orientPoint(pin.x, pin.y, w, h, rotation, mirror) })),
-      render: (c) => `<g class="sim-oriented" transform="${transform}">${keepTextUpright(def.render(c), rotation, mirror)}</g>`,
+      render: (c) => wrap(def.render(c)),
+      overlay: wrap,
     };
   }
-  window.simOrientDefinition = orientDefinition;
+
+  // The ammeter prints its live reading below the body (or above it at 180
+  // degrees, via the oriented overlay). A quarter turn leaves no room there, so
+  // the reading is anchored beside the body instead, on the side away from it.
+  // Inline style because the stylesheet's own text-anchor rule outranks the
+  // presentation attribute.
+  function ammeterReadingSvg(text, rotation) {
+    const placement =
+      rotation === 90 ? { y: 22.8, anchor: "end" } :
+      rotation === 270 ? { y: 23.8, anchor: "start" } :
+      { y: 32, anchor: "middle" };
+    return `<text class="ammeter-reading" x="20" y="${placement.y}" text-anchor="${placement.anchor}" style="text-anchor:${placement.anchor}" font-size="8">${text}</text>`;
+  }
+  window.simAmmeterReadingSvg = ammeterReadingSvg;
 
   window.SIM_COMPONENTS = {
     outlet: {

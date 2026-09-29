@@ -401,7 +401,7 @@ export const SIM_COMPONENTS = {
 export const SIM_ORIENTATION_ROTATIONS = Object.freeze([0, 90, 180, 270]);
 
 function componentOrientation(comp) {
-  const rotation = Number(comp && comp.rotation);
+  const rotation = comp && typeof comp.rotation === "number" ? comp.rotation : 0;
   return {
     rotation: SIM_ORIENTATION_ROTATIONS.includes(rotation) ? rotation : 0,
     mirror: Boolean(comp) && comp.mirror === true,
@@ -417,15 +417,17 @@ function orientPoint(x, y, w, h, rotation, mirror) {
 }
 
 // Labels printed on a part would turn upside-down or backwards with the
-// drawing, so each <text> gets the inverse transform about its own anchor.
+// drawing, so each <text> gets the inverse transform about its visual centre
+// (a third of the font size above the baseline) to stay where the un-rotated
+// drawing put it.
 function keepTextUpright(svg, rotation, mirror) {
   return svg.replace(/<text\b([^>]*)>/g, (match, attrs) => {
-    const num = (name) => {
+    const num = (name, fallback) => {
       const m = new RegExp(`\\s${name}="(-?[0-9.]+)"`).exec(attrs);
-      return m ? Number(m[1]) : 0;
+      return m ? Number(m[1]) : fallback;
     };
-    const x = num("x");
-    const y = num("y");
+    const x = num("x", 0);
+    const y = num("y", 0) - num("font-size", 10) * 0.35;
     const parts = [`translate(${x} ${y})`];
     if (mirror) parts.push("scale(-1 1)");
     if (rotation) parts.push(`rotate(${-rotation})`);
@@ -434,6 +436,8 @@ function keepTextUpright(svg, rotation, mirror) {
   });
 }
 
+// `overlay` wraps extra live drawing (the ammeter's reading) in the same
+// orientation transform as the part, so it turns with the body.
 export function orientSimulationDefinition(def, comp) {
   const { rotation, mirror } = componentOrientation(comp);
   if (!rotation && !mirror) return def;
@@ -446,6 +450,7 @@ export function orientSimulationDefinition(def, comp) {
     rotation === 270 ? `translate(0 ${w}) rotate(270)` : "";
   const inner = mirror ? `translate(${w} 0) scale(-1 1)` : "";
   const transform = [outer, inner].filter(Boolean).join(" ");
+  const wrap = (svg) => `<g class="sim-oriented" transform="${transform}">${keepTextUpright(svg, rotation, mirror)}</g>`;
   return {
     ...def,
     w: swap ? h : w,
@@ -453,8 +458,22 @@ export function orientSimulationDefinition(def, comp) {
     rotation,
     mirror,
     pins: def.pins.map((pin) => ({ ...pin, ...orientPoint(pin.x, pin.y, w, h, rotation, mirror) })),
-    render: (c) => `<g class="sim-oriented" transform="${transform}">${keepTextUpright(def.render(c), rotation, mirror)}</g>`,
+    render: (c) => wrap(def.render(c)),
+    overlay: wrap,
   };
+}
+
+// The ammeter prints its live reading below the body (or above it at 180
+// degrees, via the oriented overlay). A quarter turn leaves no room there, so
+// the reading is anchored beside the body instead, on the side away from it.
+// Inline style because the stylesheet's own text-anchor rule outranks the
+// presentation attribute. Mirrors public/admin/sim-components.js.
+function ammeterReadingSvg(text, rotation) {
+  const placement =
+    rotation === 90 ? { y: 22.8, anchor: "end" } :
+    rotation === 270 ? { y: 23.8, anchor: "start" } :
+    { y: 32, anchor: "middle" };
+  return `<text class="ammeter-reading" x="20" y="${placement.y}" text-anchor="${placement.anchor}" style="text-anchor:${placement.anchor}" font-size="8">${text}</text>`;
 }
 
 // Breadboards keep their fixed layout (rails, holes and snapping all assume
@@ -915,13 +934,11 @@ function renderComponentSvg(comp, poweredComps, analysis) {
   // matching how mcu_teensy already prints its own label visibly.
   const readingSvg =
     comp.type === "ammeter" && info
-      ? `<text class="ammeter-reading" x="20" y="32" text-anchor="middle" font-size="8">${
-          info.currentMa === Infinity ? "∞" : info.currentMa.toFixed(1)
-        }mA</text>`
+      ? ammeterReadingSvg(`${info.currentMa === Infinity ? "∞" : info.currentMa.toFixed(1)}mA`, def.rotation || 0)
       : "";
   return `<g class="sim-comp sim-comp-${escXml(comp.type)}${statusClass}" data-id="${escXml(comp.id)}" data-powered="${
     poweredComps.has(comp.id) ? "true" : "false"
-  }" transform="translate(${comp.x},${comp.y})">${titleSvg}${def.render(comp)}${readingSvg}</g>`;
+  }" transform="translate(${comp.x},${comp.y})">${titleSvg}${def.render(comp)}${readingSvg && def.overlay ? def.overlay(readingSvg) : readingSvg}</g>`;
 }
 
 // Optional presentation-only route bends; electrical connectivity still uses wire.from/to.
