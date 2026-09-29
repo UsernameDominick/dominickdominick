@@ -121,20 +121,29 @@
       if (songData.page_sync && hitsTrack) flashPageSync();
     }
 
+    // The label names the action (so it isn't also aria-pressed); the glyph is
+    // decorative, with U+FE0E asking for the text (not emoji) form so it takes
+    // the button's colour. The accessible name carries the song's title, since
+    // several songs can share a page.
+    const songTitle = (wrap.querySelector(".song-embed-header strong") || {}).textContent || "song";
+    function setPlayLabel(playing) {
+      btn.classList.toggle("is-active", playing);
+      btn.setAttribute("aria-label", `${playing ? "Stop" : "Play"} ${songTitle}`);
+      btn.innerHTML = playing ? '<span aria-hidden="true">\u23F9\uFE0E</span> Stop' : '<span aria-hidden="true">\u25B6\uFE0E</span> Play';
+    }
+
     btn.addEventListener("click", () => {
       if (!player) player = window.SongEngine.createPlayer(getCtx, songData, onStep);
       if (player.isPlaying()) {
         player.stop();
-        btn.setAttribute("aria-pressed", "false");
         bars.forEach((bar) => bar.classList.remove("song-embed-bar-active"));
         if (pulse) pulse.classList.remove("song-embed-pulse-beat", "song-embed-pulse-hit");
         if (canvas) drawWaveform(0);
-        btn.textContent = "▶ Play";
+        setPlayLabel(false);
         if (window.trackEvent) window.trackEvent("song_stop");
       } else {
         player.start();
-        btn.setAttribute("aria-pressed", "true");
-        btn.textContent = "⏹ Stop";
+        setPlayLabel(true);
         if (window.trackEvent) window.trackEvent("song_play");
       }
     });

@@ -4,8 +4,11 @@ document.addEventListener("click", (e) => {
   const svg = document.getElementById(btn.dataset.target);
   if (!svg) return;
   const on = svg.classList.toggle("is-on");
+  // The label names the action ("Power on" / "Power off"), so it isn't also
+  // marked aria-pressed (that would announce the state twice); is-active only
+  // drives the outlined look.
   btn.textContent = on ? "Power off" : "Power on";
-  btn.setAttribute("aria-pressed", on ? "true" : "false");
+  btn.classList.toggle("is-active", on);
   if (window.trackEvent) window.trackEvent("sim_power_toggle", on ? "on" : "off");
 });
 

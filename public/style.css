@@ -1539,8 +1539,10 @@ h6 { font-size: 0.9rem; }
 
 /* Embed controls -- the song Play/Stop button, the simulation Power button and
    the 3D scan AR button -- share the site's primary button treatment (see
-   .btn): filled with the accent, lifting slightly on hover, and switching to
-   the outlined look while their toggle is pressed (playing / powered on). */
+   .btn): filled with the accent, a glow (and, unless motion is reduced, a
+   slight lift) on hover, and the outlined look while their toggle is active
+   (playing / powered on). Their labels name the action ("Play"/"Stop",
+   "Power on"/"Power off"), so state is never carried by colour alone. */
 .song-embed-play-btn,
 .sim-power-btn,
 .scan-ar-btn {
@@ -1550,25 +1552,40 @@ h6 { font-size: 0.9rem; }
   border-radius: var(--control-radius);
   padding: var(--control-pad-y) var(--control-pad-x);
   font: inherit;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 600;
   line-height: 1.2;
   white-space: nowrap;
   cursor: pointer;
-  transition: transform 0.2s var(--ease-smooth), box-shadow 0.2s var(--ease-smooth), background-color 0.2s ease, color 0.2s ease;
 }
 
-.song-embed-play-btn:hover,
-.sim-power-btn:hover,
-.scan-ar-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px -8px var(--accent);
+@media (prefers-reduced-motion: no-preference) {
+  .song-embed-play-btn,
+  .sim-power-btn,
+  .scan-ar-btn {
+    transition: transform 0.2s var(--ease-smooth), box-shadow 0.2s var(--ease-smooth), background-color 0.2s ease, color 0.2s ease;
+  }
 }
 
-.song-embed-play-btn:active,
-.sim-power-btn:active,
-.scan-ar-btn:active {
-  transform: translateY(0);
+@media (hover: hover) {
+  .song-embed-play-btn:hover,
+  .sim-power-btn:hover,
+  .scan-ar-btn:hover {
+    box-shadow: 0 6px 20px -8px var(--accent);
+  }
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion="reduce"]) .song-embed-play-btn:hover,
+  :root:not([data-motion="reduce"]) .sim-power-btn:hover,
+  :root:not([data-motion="reduce"]) .scan-ar-btn:hover {
+    transform: translateY(-1px);
+  }
+  :root:not([data-motion="reduce"]) .song-embed-play-btn:active,
+  :root:not([data-motion="reduce"]) .sim-power-btn:active,
+  :root:not([data-motion="reduce"]) .scan-ar-btn:active {
+    transform: translateY(0);
+  }
 }
 
 .song-embed-play-btn:focus-visible,
@@ -1578,10 +1595,29 @@ h6 { font-size: 0.9rem; }
   outline-offset: 3px;
 }
 
-.song-embed-play-btn[aria-pressed="true"],
-.sim-power-btn[aria-pressed="true"] {
+.song-embed-play-btn.is-active,
+.sim-power-btn.is-active {
   background: transparent;
   color: var(--text);
+}
+
+/* Windows high-contrast mode drops the fills, so give the active state a
+   shape cue as well as its label. */
+@media (forced-colors: active) {
+  .song-embed-play-btn.is-active,
+  .sim-power-btn.is-active {
+    border-style: dashed;
+    border-width: 2px;
+  }
+}
+
+/* Comfortable touch targets. */
+@media (pointer: coarse) {
+  .song-embed-play-btn,
+  .sim-power-btn,
+  .scan-ar-btn {
+    min-height: 44px;
+  }
 }
 
 .sim-power-btn {
@@ -3330,6 +3366,7 @@ pre.has-line-numbers {
     --text: #000;
     --text-dim: #333;
     --accent: #000;
+    --on-accent: #fff;
   }
 
   .topbar,
