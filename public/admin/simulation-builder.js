@@ -1576,26 +1576,27 @@
   // "Mechanical" parts only join holes, a "Display" responds to power without
   // being analysed, and a "Diagram part" is drawn but not simulated. Shown as the
   // palette tooltip and, under the part's name, in the inspector. `brief` parts
-  // already explain themselves in an "Electrical effect" paragraph there, so the
-  // inspector shows just the category for them; gates have their own status line.
+  // (the capacitor and inductor) already explain themselves in an "Electrical
+  // effect" paragraph there, so the inspector shows just the category for them;
+  // gates have their own status line.
   // Keep in step with SIM_COMPONENTS (a new part type without an entry simply
   // shows nothing).
   const SIM_PART_MODEL = {
-    outlet: { kind: "Electrical", text: "a constant 120 V source; parts wired straight to it are destroyed.", brief: true },
+    outlet: { kind: "Electrical", text: "supplies a constant 120V; most parts in a loop with it are destroyed, so go through a Power Supply." },
     power_supply: { kind: "Electrical", text: "gives a fixed DC voltage, but only once its input is powered." },
-    battery: { kind: "Electrical", text: "a constant DC voltage with an optional internal resistance." },
-    breadboard: { kind: "Mechanical", text: "only joins holes in column strips and power rails; nothing electrical of its own." },
-    led: { kind: "Electrical", text: "conducts one way; checked for current and burn-out." },
+    battery: { kind: "Electrical", text: "supplies a constant DC voltage, with an optional internal resistance." },
+    breadboard: { kind: "Mechanical", text: "joins holes in column strips and power rails; nothing electrical of its own." },
+    led: { kind: "Electrical", text: "lights only when wired the right way round; checked for current and burn-out." },
     resistor: { kind: "Electrical", text: "limits current by Ohm's law; checked for overheating." },
-    potentiometer: { kind: "Electrical", text: "used as a two-terminal variable resistor set by its wiper.", brief: true },
-    capacitor: { kind: "Electrical (DC only)", text: "counted as an open circuit.", brief: true },
-    inductor: { kind: "Electrical (DC only)", text: "counted as its winding resistance alone.", brief: true },
-    switch: { kind: "Electrical", text: "opens or closes the path.", brief: true },
-    switch_spdt: { kind: "Electrical", text: "joins the common terminal to one of two throws.", brief: true },
-    ammeter: { kind: "Electrical", text: "a zero-resistance meter that shows the current through it." },
-    mcu_teensy: { kind: "Electrical", text: "a fixed load; its digital pins and firmware aren't simulated." },
+    potentiometer: { kind: "Electrical", text: "acts as a two-terminal variable resistor set by its wiper." },
+    capacitor: { kind: "Electrical (DC only)", text: "counts as an open circuit.", brief: true },
+    inductor: { kind: "Electrical (DC only)", text: "counts as its winding resistance alone.", brief: true },
+    switch: { kind: "Electrical", text: "opens or closes the path." },
+    switch_spdt: { kind: "Electrical", text: "joins the common terminal to one of two throws." },
+    ammeter: { kind: "Electrical", text: "shows the current through it, with zero resistance." },
+    mcu_teensy: { kind: "Electrical", text: "acts as a fixed load; its digital pins and firmware aren't simulated." },
     tv: { kind: "Display", text: "lights up when powered (preview or Power on); it isn't analysed for current." },
-    logic_gate: { kind: "Diagram part", text: "drawn with a truth table for documentation; not simulated.", hideInInspector: true },
+    logic_gate: { kind: "Diagram part", text: "drawn for documentation, not simulated.", hideInInspector: true },
   };
   function partModel(type) {
     return Object.prototype.hasOwnProperty.call(SIM_PART_MODEL, type) ? SIM_PART_MODEL[type] : null;
