@@ -1769,12 +1769,13 @@
         <button id="close-preview" aria-label="Close Preview dialog">×</button>
       </header>
       <div class="preview-stress-row">
-        <button type="button" id="stress-long-text-btn" class="stress-toggle-btn" title="Temporarily lengthens headings/paragraphs in the preview to check how the layout holds up">Stress: long text</button>
-        <button type="button" id="stress-broken-images-btn" class="stress-toggle-btn" title="Temporarily breaks every image in the preview to check how the layout holds up">Stress: missing images</button>
+        <button type="button" id="stress-long-text-btn" class="stress-toggle-btn" aria-pressed="false" title="Temporarily lengthens headings/paragraphs in the preview to check how the layout holds up">Stress: long text</button>
+        <button type="button" id="stress-broken-images-btn" class="stress-toggle-btn" aria-pressed="false" title="Temporarily breaks every image in the preview to check how the layout holds up">Stress: missing images</button>
       </div>
       <div class="preview-stress-row">
-        <button type="button" id="force-hover-btn" class="stress-toggle-btn" title="Shows every hover effect at once (block lift, grow, glow, darken, link and button hover styles), so you can check them without holding the pointer over each one">Show hover states</button>
-        <button type="button" id="force-focus-btn" class="stress-toggle-btn" title="Shows the keyboard focus ring on every link, button and field at once, to check it is visible against the page">Show focus rings</button>
+        <button type="button" id="force-hover-btn" class="stress-toggle-btn" aria-pressed="false" title="Shows the page's hover styles on every element at once (block lift, grow, glow and darken, link and button hover, menus that open on hover), so you can check them without holding the pointer over each one. Hover animations follow your system's reduced-motion setting, as on the live site.">Show hover states</button>
+        <button type="button" id="force-focus-btn" class="stress-toggle-btn" aria-pressed="false" title="Shows the page's keyboard focus styles on every element at once, to check they are visible against the page. A focus ring the browser draws by default, where the site has no style of its own, is not shown.">Show focus rings</button>
+        <span id="state-preview-note" class="state-preview-note" role="status"></span>
       </div>
       <div class="preview-motion-row" title="Scrub or auto-play through the page's scroll-driven effects (parallax, scroll-timeline animations) without manually scrolling the preview">
         <span class="preview-motion-label">Motion audition</span>

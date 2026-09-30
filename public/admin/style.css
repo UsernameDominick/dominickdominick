@@ -6829,3 +6829,12 @@ kbd {
   color: var(--text-dim);
   border: 1px solid var(--border);
 }
+
+.state-preview-note {
+  flex-basis: 100%;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+.state-preview-note:empty {
+  display: none;
+}

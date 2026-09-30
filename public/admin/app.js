@@ -3416,25 +3416,31 @@
   el("preview-frame").addEventListener("load", applyStressEffects);
 
   // Hover and focus state previews. A real :hover or :focus can't be forced from
-  // script, so the page's own stylesheets are read and every rule that uses the
-  // pseudo-class is copied with an attribute selector in its place; the attribute
-  // is then put on the elements that can be hovered or focused. Nothing is changed
-  // in the page itself: a reload gives back the real thing, like the stress previews.
+  // script, so the page's own rules are rewritten in the preview frame: every
+  // :hover (or :focus-visible, :focus-within, :focus) in a selector becomes an
+  // attribute selector, and that attribute is put on every element. The rules keep
+  // their own place in the cascade, their own media and support conditions and
+  // their own selector lists, so the result follows the real page (including
+  // descendant rules such as ".card:hover .title" and ":not(:hover)"). Nothing is
+  // changed in the page itself: a reload gives back the real thing, like the stress
+  // previews. Browser-default focus rings that the site doesn't style are not shown.
   let forceHoverStates = false;
   let forceFocusStates = false;
-  function forcedStateCss(rules, pseudoPattern, attr) {
-    let css = "";
+  const HOVER_PSEUDO = "(?<!\\\\):hover(?![\\w-])";
+  const FOCUS_PSEUDO = "(?<!\\\\):(?:focus-visible|focus-within|focus)(?![\\w-])";
+  function forceStatesInRules(rules, pseudo, attr) {
+    const test = new RegExp(pseudo);
+    const all = new RegExp(pseudo, "g");
     for (const rule of Array.from(rules)) {
-      if (rule.selectorText !== undefined) {
-        if (pseudoPattern.test(rule.selectorText)) {
-          css += `${rule.selectorText.replace(new RegExp(pseudoPattern.source, "g"), `[${attr}]`)}{${rule.style.cssText}}\n`;
+      if (rule.selectorText !== undefined && test.test(rule.selectorText)) {
+        try {
+          rule.selectorText = rule.selectorText.replace(all, `[${attr}]`);
+        } catch (e) {
+          // a selector the browser won't take back: leave that rule as it was
         }
-      } else if (rule.cssRules && (rule.conditionText !== undefined || rule.media)) {
-        const inner = forcedStateCss(rule.cssRules, pseudoPattern, attr);
-        if (inner) css += `@${rule.constructor.name === "CSSSupportsRule" ? "supports" : "media"} ${rule.conditionText ?? rule.media.mediaText}{${inner}}\n`;
       }
+      if (rule.cssRules && rule.cssRules.length) forceStatesInRules(rule.cssRules, pseudo, attr);
     }
-    return css;
   }
   function applyStatePreviews() {
     if (!forceHoverStates && !forceFocusStates) return;
@@ -3445,26 +3451,34 @@
       return;
     }
     if (!doc || !doc.body) return;
-    let css = "";
-    const sheets = Array.from(doc.styleSheets);
-    for (const [on, pattern, attr, selector] of [
-      [forceHoverStates, /:hover/, "data-forced-hover", "a, button, .btn, .block, .project-card, .article-card, summary, [role='button']"],
-      [forceFocusStates, /:focus-visible|:focus(?![-\w])/, "data-forced-focus", "a[href], button, input, select, textarea, summary, [tabindex]"],
+    for (const [on, pseudo, attr] of [
+      [forceHoverStates, HOVER_PSEUDO, "data-forced-hover"],
+      [forceFocusStates, FOCUS_PSEUDO, "data-forced-focus"],
     ]) {
       if (!on) continue;
-      for (const sheet of sheets) {
+      for (const sheet of Array.from(doc.styleSheets)) {
+        if (sheet.disabled) continue;
         try {
-          css += forcedStateCss(sheet.cssRules, pattern, attr);
+          forceStatesInRules(sheet.cssRules, pseudo, attr);
         } catch (e) {
           // a cross-origin stylesheet can't be read: skip it
         }
       }
-      doc.querySelectorAll(selector).forEach((node) => node.setAttribute(attr, ""));
+      doc.querySelectorAll("*").forEach((node) => node.setAttribute(attr, ""));
     }
-    const style = doc.createElement("style");
-    style.id = "admin-forced-states";
-    style.textContent = css;
-    doc.head.appendChild(style);
+  }
+  // Reloads the preview so a toggle takes effect. A frame that is still loading
+  // applies the toggles when it finishes (the load handler reads them), and a frame
+  // that has navigated to another site is sent back to the page.
+  function reloadPreviewFrame() {
+    const frame = el("preview-frame");
+    if (!frame.src || frame.src === "about:blank") return;
+    try {
+      const d = frame.contentDocument;
+      if (d && d.readyState === "complete" && d.location.href !== "about:blank") frame.contentWindow.location.reload();
+    } catch (e) {
+      frame.src = frame.src;
+    }
   }
   el("preview-frame").addEventListener("load", applyStatePreviews);
   for (const [btnId, setter] of [["force-hover-btn", (v) => (forceHoverStates = v)], ["force-focus-btn", (v) => (forceFocusStates = v)]]) {
@@ -3473,7 +3487,10 @@
       setter(on);
       el(btnId).classList.toggle("is-active", on);
       el(btnId).setAttribute("aria-pressed", String(on));
-      if (el("preview-frame").src) el("preview-frame").contentWindow.location.reload();
+      const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      el("state-preview-note").textContent =
+        forceHoverStates && reduced ? "Your system is set to reduce motion, so hover animations such as lift, grow and glow are off here, as they are on the live site for you." : "";
+      reloadPreviewFrame();
     });
   }
 
@@ -3521,12 +3538,14 @@
   el("stress-long-text-btn").addEventListener("click", () => {
     stressLongText = !stressLongText;
     el("stress-long-text-btn").classList.toggle("is-active", stressLongText);
-    if (el("preview-frame").src) el("preview-frame").contentWindow.location.reload();
+    el("stress-long-text-btn").setAttribute("aria-pressed", String(stressLongText));
+    reloadPreviewFrame();
   });
   el("stress-broken-images-btn").addEventListener("click", () => {
     stressBrokenImages = !stressBrokenImages;
     el("stress-broken-images-btn").classList.toggle("is-active", stressBrokenImages);
-    if (el("preview-frame").src) el("preview-frame").contentWindow.location.reload();
+    el("stress-broken-images-btn").setAttribute("aria-pressed", String(stressBrokenImages));
+    reloadPreviewFrame();
   });
 
   // Motion audition: scroll-driven effects (parallax backgrounds, the
