@@ -192,7 +192,9 @@
         const unknown = lookupFailed ? "\n\nCouldn't check where some of these are used, so they may be in use on pages." : "";
         const confirmed = opts.confirmDelete ? await opts.confirmDelete(ids, names) : confirm(`Delete ${what}? This can't be undone.${warn}${unknown}`);
         if (!confirmed) {
+          // Cancelled: the buttons were disabled for the lookup, so put them back and keep focus on Delete.
           refresh();
+          del.focus();
           return;
         }
         const failedIds = [];
