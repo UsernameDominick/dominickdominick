@@ -88,8 +88,16 @@
     // After a bulk action the list re-renders and this bar's buttons are replaced, so put keyboard
     // focus on the fresh bar rather than letting it fall back to the top of the page.
     const refocus = () => {
-      const fresh = document.querySelector("#" + opts.listId + "-bulk-bar .bulk-list-all-box");
-      if (fresh) fresh.focus();
+      const bar = document.getElementById(opts.listId + "-bulk-bar");
+      const fresh = bar && !bar.hidden ? bar.querySelector(".bulk-list-all-box") : null;
+      if (fresh) {
+        fresh.focus();
+        return;
+      }
+      // The list emptied and the bar is hidden: keep focus inside the dialog, on its close button.
+      const modal = document.getElementById(opts.listId).closest(".modal");
+      const close = modal && modal.querySelector("header button");
+      if (close) close.focus();
     };
     const nameOf = (id) => {
       const row = rows.find((r) => {

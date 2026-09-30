@@ -7068,5 +7068,6 @@ kbd {
 }
 /* On a phone the name takes a full line; with a checkbox it leaves room beside it instead. */
 .simulation-row.simulation-row:has(.bulk-list-row-box) > span {
-  flex-basis: calc(100% - 40px);
+  flex-basis: calc(100% - 52px);
+  min-width: 0;
 }
