@@ -315,7 +315,7 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   min-width: 34px;
 }
 .admin-sidebar-footer #admin-density-toggle[aria-pressed="true"] {
-  color: var(--accent);
+  color: var(--text);
   border-color: var(--accent);
 }
 
@@ -6929,17 +6929,17 @@ kbd {
 :root[data-density="compact"] .admin-inspector h2 {
   margin: 10px 0 5px;
 }
-:root[data-density="compact"] .panel-section {
+:root[data-density="compact"] .panel-section:not(.simulation-builder-inner *) {
   margin-bottom: 6px;
 }
-:root[data-density="compact"] .panel-section > summary {
+:root[data-density="compact"] .panel-section:not(.simulation-builder-inner *) > summary {
   padding: 6px 12px;
 }
-:root[data-density="compact"] .panel-section > :not(summary):first-of-type,
-:root[data-density="compact"] .panel-section > summary + * {
+:root[data-density="compact"] .panel-section:not(.simulation-builder-inner *) > :not(summary):first-of-type,
+:root[data-density="compact"] .panel-section:not(.simulation-builder-inner *) > summary + * {
   margin-top: 8px;
 }
-:root[data-density="compact"] .panel-section > :last-child {
+:root[data-density="compact"] .panel-section:not(.simulation-builder-inner *) > :last-child {
   margin-bottom: 8px;
 }
 :root[data-density="compact"] .admin-palette label,
