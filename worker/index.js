@@ -1304,12 +1304,17 @@ async function decoratePreviewResponse(response, previewAt, url) {
     return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
   }
   const when = previewAt.slice(0, 16).replace("T", " ") + " UTC";
-  const exit = `${url.pathname}?preview_at=off`;
+  const back = new URLSearchParams(url.searchParams);
+  back.set("preview_at", "off");
+  const exit = `${url.pathname}?${back.toString().replace(/&/g, "&amp;")}`;
   const banner = `<div id="preview-at-banner" role="status" style="position:fixed;left:0;right:0;bottom:0;z-index:2147483000;display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:center;align-items:center;padding:8px 14px;background:#1d1a17;color:#fff;border-top:2px solid #e8a13a;font:600 13px/1.4 system-ui,sans-serif">Previewing the site as it will look on <time datetime="${previewAt}">${when}</time>. Only you can see this. <a href="${exit}" style="color:#ffd27a">Exit preview</a></div><style>body{padding-bottom:84px}@media print{#preview-at-banner{display:none!important}body{padding-bottom:0}}</style>`;
   // Insert before the LAST </body> with a replacer function: a "</body>" inside an earlier script string must
   // not catch it, and "$&"-style sequences in the request path must not be expanded.
   const text = await response.text();
-  const at = text.toLowerCase().lastIndexOf("</body>");
+  // Find the last </body> on the ORIGINAL string: lower-casing first shifts indexes for characters like
+  // "İ" (two code units once lower-cased) and would split the tag.
+  let at = -1;
+  for (const m of text.matchAll(/<\/body\s*>/gi)) at = m.index;
   const html = at === -1 ? text + banner : text.slice(0, at) + banner + text.slice(at);
   headers.delete("Content-Length");
   return new Response(html, { status: response.status, statusText: response.statusText, headers });

@@ -3686,7 +3686,7 @@ kbd {
   flex-direction: column;
   border: 1px solid color-mix(in srgb, var(--text) 28%, transparent);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.02);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
   padding: 12px 10px 10px;
 }
 
@@ -7067,9 +7067,11 @@ kbd {
   margin-right: 8px;
 }
 /* On a phone the name takes a full line; with a checkbox it leaves room beside it instead. */
-.simulation-row.simulation-row:has(.bulk-list-row-box) > span {
-  flex-basis: calc(100% - 52px);
-  min-width: 0;
+@media (max-width: 640px) {
+  .simulation-row.simulation-row:has(.bulk-list-row-box) > span {
+    flex-basis: calc(100% - 52px);
+    min-width: 0;
+  }
 }
 
 /* Builder legends and group borders were hard-coded white, which vanished on the light admin theme

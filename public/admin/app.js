@@ -939,8 +939,16 @@
     const entered = prompt("Preview the public site as it will look on which date? (YYYY-MM-DD, or YYYY-MM-DDTHH:MM, in UTC; up to 10 years ahead)", soon);
     if (entered === null) return;
     const value = entered.trim();
-    if (!/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2})?$/.test(value) || Number.isNaN(Date.parse(value.includes("T") ? value + "Z" : value + "T00:00:00Z"))) {
-      alert("Enter a date like 2026-12-01.");
+    // The same rules as the server (previewClock): a real calendar date, from a year back to ten years ahead.
+    const iso = value.includes("T") ? value + "Z" : value + "T00:00:00Z";
+    const t = Date.parse(iso);
+    const real = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2})?$/.test(value) && Number.isFinite(t) && new Date(t).toISOString().slice(0, 10) === value.slice(0, 10);
+    if (!real) {
+      alert("Enter a real date like 2026-12-01.");
+      return;
+    }
+    if (t < Date.now() - 366 * 24 * 3600 * 1000 || t > Date.now() + 10 * 366 * 24 * 3600 * 1000) {
+      alert("Choose a date from a year ago to ten years ahead.");
       return;
     }
     window.open(`/?preview_at=${encodeURIComponent(value)}`, "_blank", "noopener");
