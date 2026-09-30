@@ -69,7 +69,9 @@ export async function listNavPages(env) {
     .all();
   // A label of only spaces or invisible characters is an unnamed link: treated as no label.
   const results = navRows.filter((p) => visibleText(p.nav_label));
-  const topLevel = results.filter((p) => !p.nav_parent_id);
+  // A child whose parent was dropped above (blank label) is shown at top level rather than lost.
+  const shownIds = new Set(results.map((p) => p.id));
+  const topLevel = results.filter((p) => !p.nav_parent_id || !shownIds.has(p.nav_parent_id));
   for (const p of topLevel) {
     p.children = results.filter((c) => c.nav_parent_id === p.id);
   }
@@ -1903,7 +1905,7 @@ async function getMediaUsageMap(env) {
   ]);
   const usage = new Map();
   const add = (url, type, title) => {
-    if (!url) return;
+    if (!url || !String(url).trim()) return;
     if (!usage.has(url)) usage.set(url, []);
     usage.get(url).push({ type, title });
   };
@@ -3962,8 +3964,8 @@ export async function getSeoReport(env) {
     }
   });
   const missingOgImage = [
-    ...articles.filter((a) => !a.og_image).map((a) => ({ title: a.title, slug: a.slug, type: "article" })),
-    ...projects.filter((p) => !p.og_image).map((p) => ({ title: p.title, slug: p.slug, type: "project" })),
+    ...articles.filter((a) => !visibleText(a.og_image)).map((a) => ({ title: a.title, slug: a.slug, type: "article" })),
+    ...projects.filter((p) => !visibleText(p.og_image)).map((p) => ({ title: p.title, slug: p.slug, type: "project" })),
   ];
   // Same title used more than once across pages/articles/projects — not
   // technically broken, but confusing in search results and share cards,
