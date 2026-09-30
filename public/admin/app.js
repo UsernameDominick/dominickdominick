@@ -1081,6 +1081,7 @@
     el("page-og-image").value = currentPage.og_image || "";
     el("page-canonical-url").value = currentPage.canonical_url || "";
     el("page-custom-json-ld").value = currentPage.custom_json_ld || "";
+    loadPageCss();
     el("page-sitemap-exclude").checked = !!currentPage.sitemap_exclude;
     el("page-password-input").value = "";
     el("page-password-status-text").textContent = currentPage.password_hash ? "protected" : "not protected";
@@ -1205,6 +1206,68 @@
       }
       el("page-save-status").textContent = "Save failed: " + err.message;
       alert(err.message);
+    }
+  });
+
+  // ---------- Page-specific CSS ----------
+  // Stored per page on the server (its own endpoint, not part of the page's versioned fields). "Preview" applies the
+  // textarea to the Screen Preview frame without saving; "Save CSS" stores it for the live page.
+  let pageCssPreview = null;
+  let pageCssLoadedFor = null;
+  async function loadPageCss() {
+    const page = currentPage;
+    if (!page) return;
+    pageCssPreview = null;
+    el("page-custom-css").value = "";
+    el("page-css-status").textContent = "";
+    try {
+      const res = await api(`/pages/${page.id}/css`);
+      if (currentPage && currentPage.id === page.id) {
+        el("page-custom-css").value = res.css || "";
+        el("page-css-panel").open = !!res.css;
+        pageCssLoadedFor = page.id;
+      }
+    } catch (e) {
+      el("page-css-status").textContent = "Couldn't load the page CSS: " + e.message;
+    }
+  }
+  function applyPageCssPreview() {
+    let doc;
+    try {
+      doc = el("preview-frame").contentDocument;
+    } catch (e) {
+      return;
+    }
+    if (!doc || !doc.head) return;
+    doc.querySelectorAll("style[data-page-css-preview]").forEach((n) => n.remove());
+    if (pageCssPreview === null) return;
+    // The preview replaces the saved rules, so what's shown is exactly what saving would publish.
+    doc.querySelectorAll("style[data-page-css]").forEach((n) => n.remove());
+    const style = doc.createElement("style");
+    style.setAttribute("data-page-css-preview", "");
+    style.textContent = pageCssPreview;
+    doc.head.appendChild(style);
+  }
+  el("preview-frame").addEventListener("load", applyPageCssPreview);
+  el("page-css-preview-btn").addEventListener("click", () => {
+    if (!currentPage) return;
+    pageCssPreview = el("page-custom-css").value;
+    if (el("preview-modal").hidden) el("preview-btn").click();
+    else reloadPreviewFrame();
+    el("page-css-status").textContent = "Previewing (not saved)";
+  });
+  el("page-css-save-btn").addEventListener("click", async () => {
+    if (!currentPage) return;
+    const page = currentPage;
+    el("page-css-status").textContent = "Saving…";
+    try {
+      const res = await api(`/pages/${page.id}/css`, { method: "PUT", body: JSON.stringify({ css: el("page-custom-css").value }) });
+      el("page-custom-css").value = res.css || "";
+      pageCssPreview = null;
+      el("page-css-status").textContent = "Saved " + new Date().toLocaleTimeString();
+      schedulePreviewRefresh();
+    } catch (err) {
+      el("page-css-status").textContent = "Not saved: " + err.message;
     }
   });
 

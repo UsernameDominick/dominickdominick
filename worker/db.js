@@ -1,5 +1,5 @@
 import { toHex } from "./auth.js";
-import { visibleText, nowIso } from "./text.js";
+import { visibleText, nowIso, pageCssKey } from "./text.js";
 import { normalizeLegacySimulationWireIds, simulationDataError } from "./simulation-validation.js";
 
 export const RESERVED_SLUGS = new Set([
@@ -164,6 +164,7 @@ export async function hardDeletePage(env, id) {
   // whose parent was ever removed from the nav).
   await env.DB.prepare("UPDATE pages SET nav_parent_id = NULL WHERE nav_parent_id = ?").bind(id).run();
   await env.DB.prepare("DELETE FROM pages WHERE id = ?").bind(id).run();
+  await env.DB.prepare("DELETE FROM settings WHERE key = ?").bind(pageCssKey(id)).run();
 }
 
 // Copies a page's settings and every block onto a fresh page with a
@@ -187,6 +188,8 @@ export async function duplicatePage(env, id) {
     nav_order: null,
     og_image: source.og_image,
   });
+  const sourceCss = await getSetting(env, pageCssKey(id));
+  if (sourceCss) await setSetting(env, pageCssKey(newId), sourceCss);
   // A password-protected or sitemap-excluded source must not silently
   // become public through its copy — carry both over explicitly, since
   // createPage's field list doesn't accept them at insert time.

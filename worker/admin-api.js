@@ -147,7 +147,7 @@ import {
   sha256Hex,
   plausibleDims,
 } from "./db.js";
-import { cleanBodyFields } from "./text.js";
+import { cleanBodyFields, cleanPageCss, pageCssKey } from "./text.js";
 import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated, hmac, revokeAllSessions } from "./auth.js";
 import { normalizeLegacySimulationWireIds, simulationDataError } from "./simulation-validation.js";
 
@@ -939,6 +939,24 @@ async function routeAdminApi(request, env, url, ctx) {
     const p = await env.DB.prepare("SELECT title FROM pages WHERE id = ?").bind(id).first();
     log(ctx, env, "update", "page", `password protection removed from "${p?.title || `#${id}`}"`);
     return json({ ok: true });
+  }
+
+  // /pages/:id/css — per-page custom CSS, kept in the settings table so it needs no schema change
+  const pageCssMatch = path.match(/^\/pages\/(\d+)\/css$/);
+  if (pageCssMatch && method === "GET") {
+    return json({ css: (await getSetting(env, pageCssKey(pageCssMatch[1]))) || "" });
+  }
+  if (pageCssMatch && method === "PUT") {
+    const id = Number(pageCssMatch[1]);
+    const page = await env.DB.prepare("SELECT id, title FROM pages WHERE id = ?").bind(id).first();
+    if (!page) return json({ error: "Page not found" }, { status: 404 });
+    const body = await readJsonBody(request);
+    const cleaned = cleanPageCss(body.css);
+    if (cleaned.error) return json({ error: cleaned.error }, { status: 400 });
+    if (cleaned.css) await setSetting(env, pageCssKey(id), cleaned.css);
+    else await env.DB.prepare("DELETE FROM settings WHERE key = ?").bind(pageCssKey(id)).run();
+    log(ctx, env, "update", "page css", page.title);
+    return json({ ok: true, css: cleaned.css });
   }
 
   // /pages/:id/blocks

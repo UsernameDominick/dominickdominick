@@ -7339,3 +7339,10 @@ button[data-tier="quiet"] { border-color: transparent; }
 .admin-block-xs .pv-gallery img { width: 12px; height: 12px; }
 .admin-block-xs .pv-image { max-height: 12px; }
 .admin-block-xs .alt-text-warning { display: none; }
+
+/* ---- Page CSS panel ---- */
+
+.page-css-panel > summary { cursor: pointer; font-size: 0.85rem; color: var(--text-dim); padding: 4px 0; }
+.page-css-panel textarea { font-family: var(--font-mono, monospace); font-size: 0.8rem; width: 100%; }
+.page-css-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
+.page-css-status { font-size: 0.78rem; color: var(--text-dim); }

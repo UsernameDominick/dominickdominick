@@ -60,3 +60,36 @@ export function cleanBodyFields(body, keys, nullKeys = []) {
 export function nowIso(env) {
   return (env && env.__previewNow) || new Date().toISOString();
 }
+
+
+// Page-specific CSS is admin-authored, but it is emitted inside a <style> element and the admin console can be
+// reached with a stolen session, so it is still checked: no way out of the element, no external stylesheets,
+// no script-bearing values. Returns { css } (trimmed) or { error } naming the first problem.
+export const PAGE_CSS_MAX = 20000;
+export function cleanPageCss(input) {
+  const css = String(input == null ? "" : input).trim();
+  if (css.length > PAGE_CSS_MAX) return { error: `Page CSS is limited to ${PAGE_CSS_MAX} characters.` };
+  // Text inside quotes is inert (content: "\\201C" is a normal use of a backslash), so the remaining
+  // checks look at the CSS with quoted strings blanked out. Tags and comment markers are checked everywhere:
+  // they can end the <style> element even inside a string.
+  if (/<\s*\/?\s*(style|script)/i.test(css)) return { error: "It can't contain <style> or <script> tags." };
+  if (/<!--|-->/.test(css)) return { error: "It can't contain HTML comment markers." };
+  const bare = css.replace(/"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'/g, '""');
+  const banned = [
+    [/@import/i, "@import is not allowed; put the rules here instead."],
+    [/expression\s*\(/i, "expression() is not allowed."],
+    [/javascript\s*:/i, "javascript: values are not allowed."],
+    [/(-moz-binding|behavior\s*:)/i, "That property is not allowed."],
+    [/\\/, "Backslash escapes are only allowed inside quoted text (they can hide forbidden patterns)."],
+  ];
+  for (const [re, msg] of banned) if (re.test(bare)) return { error: msg };
+  for (const m of css.matchAll(/url\(\s*(['"]?)([^'")]*)\1\s*\)/gi)) {
+    const target = m[2].trim();
+    if (!/^(\/(?!\/)|data:image\/(png|jpe?g|gif|webp|avif);|https:\/\/)/i.test(target)) return { error: `url(${target.slice(0, 30)}) is not allowed; use a /media/ path or an https:// address.` };
+  }
+  return { css };
+}
+
+export function pageCssKey(pageId) {
+  return `page_css_${Number(pageId)}`;
+}

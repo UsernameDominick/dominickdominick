@@ -91,7 +91,7 @@ import {
   CONTROL_PRESETS,
 } from "./render.js";
 import { handleAdminApi } from "./admin-api.js";
-import { visibleText, nowIso } from "./text.js";
+import { visibleText, nowIso, cleanPageCss, pageCssKey } from "./text.js";
 import {
   capacitanceMicrofarads,
   computeCircuitAnalysis,
@@ -292,6 +292,9 @@ async function renderPage(env, page, url, request) {
     return new Response(html, { status: 401, headers: { "Content-Type": "text/html;charset=UTF-8" } });
   }
   const blocks = await listBlocks(env, page.id);
+  // Page-specific CSS (Page settings). Checked again here so a value that somehow got in unchecked never reaches the page.
+  const pageCss = cleanPageCss(await getSetting(env, pageCssKey(page.id)));
+  const pageCssTag = pageCss.css ? `<style data-page-css>${pageCss.css}</style>` : "";
   const activeTagFilter = url.searchParams.get("tag") || null;
   const bodyHtml = await renderBlocks(env, blocks, { activeTagFilter, isAdmin, query: url.searchParams });
   // A page has no single body-text field to fall back to the way an
@@ -346,7 +349,7 @@ async function renderPage(env, page, url, request) {
     canonicalUrl: page.canonical_url || null,
     theme,
     footerText,
-    customHead,
+    customHead: `${customHead || ""}${pageCssTag}`,
     editUrl: isAdmin ? `/admin/?edit=page:${page.id}` : null,
   });
   // A page with address-gated blocks differs by query string, so it must never be

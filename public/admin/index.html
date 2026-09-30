@@ -199,6 +199,15 @@
               </div>
             </div>
           </details>
+          <details class="panel-section page-css-panel" id="page-css-panel">
+            <summary>Page CSS</summary>
+            <label title="Extra CSS that loads only on this page. No @import, no script, images only from /media or https.">CSS for this page only<textarea id="page-custom-css" rows="6" spellcheck="false" placeholder="h1 { letter-spacing: 0.02em; }"></textarea></label>
+            <div class="page-css-actions">
+              <button type="button" id="page-css-preview-btn" title="Open Screen Preview with this CSS applied, without saving">Preview</button>
+              <button type="button" id="page-css-save-btn" data-tier="primary">Save CSS</button>
+              <span id="page-css-status" class="page-css-status" role="status"></span>
+            </div>
+          </details>
           <details class="panel-section">
             <summary>Access</summary>
             <div class="tts-audio-field">
