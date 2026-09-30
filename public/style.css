@@ -3633,3 +3633,9 @@ pre.has-line-numbers {
 .building-strip:focus-visible {
   border-color: var(--accent);
 }
+
+/* ---- 404: a trace with a gap ---- */
+.not-found-trace { display: block; margin: 0 0 var(--space-4); color: var(--text-dim); max-width: 100%; height: auto; }
+.not-found-code { margin: 0 0 var(--space-1); font-family: var(--font-mono); font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); }
+/* Light theme: the accent-coloured tag text sat just under AA at this size, so darken it there. */
+:root[data-theme="light"] .tag { color: color-mix(in srgb, var(--accent) 78%, #000); }

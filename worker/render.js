@@ -713,7 +713,9 @@ export function renderNotFoundHtml(navItems, recentArticles = []) {
         .map((a) => `<li><a href="/random/${esc(a.slug)}">${esc(a.title)}</a></li>`)
         .join("")}</ul>`
     : "";
-  return `<h1>Page not found</h1>
+  return `<svg class="not-found-trace" viewBox="0 0 240 40" width="240" height="40" role="img" aria-label="A circuit trace with a gap in it"><title>A circuit trace with a gap in it</title><path d="M4 20h92M144 20h92" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="104" cy="20" r="4" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="136" cy="20" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M112 12l16 16" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/></svg>
+<p class="not-found-code">Error 404</p>
+<h1>Page not found</h1>
 <p>Whatever you were looking for isn't here — it may have moved or never existed.</p>
 <form class="not-found-search" action="/search" method="get" role="search">
   <input type="search" name="q" placeholder="Search the site" aria-label="Search">
