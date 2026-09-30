@@ -9088,19 +9088,39 @@
       .forEach((row, i) => row.classList.toggle("active", i === index));
   }
 
+  // Result groups follow the label prefix ("Page: x", "Setting: y"); anything else is a command.
+  const COMMAND_GROUPS = {
+    Page: ["Pages", "Page"],
+    Article: ["Articles", "Article"],
+    Block: ["Blocks", "Block"],
+    Project: ["Projects", "Project"],
+    Simulation: ["Simulations", "Simulation"],
+    Song: ["Songs", "Song"],
+    "3D Scan": ["Scans", "Scan"],
+    "Reusable Block": ["Reusable blocks", "Reusable"],
+    Setting: ["Settings", "Setting"],
+  };
+  function commandGroupOf(it) {
+    const m = /^([^:]{1,20}):/.exec(it.label || "");
+    return (m && COMMAND_GROUPS[m[1]]) || ["Actions", "Action"];
+  }
+
   function renderCommandResults(items) {
     commandItems = items;
     commandActiveIndex = 0;
+    let lastGroup = null;
     el("command-results").innerHTML = items.length
       ? items
-          .map(
-            (it, i) =>
-              `<div class="command-result${i === 0 ? " active" : ""}" data-index="${i}"><span>${escapeHtml(
-                it.label
-              )}</span><span class="command-result-sub">${escapeHtml(it.sub || "")}</span></div>`
-          )
+          .map((it, i) => {
+            const [group, kind] = commandGroupOf(it);
+            const heading = group !== lastGroup ? `<div class="command-result-group" role="presentation">${escapeHtml(group)}</div>` : "";
+            lastGroup = group;
+            return `${heading}<div class="command-result${i === 0 ? " active" : ""}" data-index="${i}" data-k="${kind}"><span>${escapeHtml(
+              it.label
+            )}</span><span class="command-result-sub">${escapeHtml(it.sub || "")}</span></div>`;
+          })
           .join("")
-      : "<p class='command-empty'>No results.</p>";
+      : "<p class='command-empty'>Nothing matches. Try a page name, a setting, or a command like “theme”.</p>";
     el("command-results")
       .querySelectorAll(".command-result")
       .forEach((row) => {
