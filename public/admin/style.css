@@ -7058,17 +7058,20 @@ kbd {
   min-width: 5em;
 }
 .simulation-row .bulk-list-row-box,
+.redirect-row .bulk-list-row-box,
 .bulk-list-bar .bulk-list-all-box {
   flex: 0 0 auto;
   width: 24px;
   height: 24px;
 }
-.simulation-row .bulk-list-row-box {
+.simulation-row .bulk-list-row-box,
+.redirect-row .bulk-list-row-box {
   margin-right: 8px;
 }
 /* On a phone the name takes a full line; with a checkbox it leaves room beside it instead. */
 @media (max-width: 640px) {
-  .simulation-row.simulation-row:has(.bulk-list-row-box) > span {
+  .simulation-row.simulation-row:has(.bulk-list-row-box) > span,
+  .redirect-row.redirect-row:has(.bulk-list-row-box) > .redirect-paths {
     flex-basis: calc(100% - 52px);
     min-width: 0;
   }

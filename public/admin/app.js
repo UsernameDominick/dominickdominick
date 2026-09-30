@@ -50,6 +50,7 @@
   // button while a confirm is open) rather than leaving that first
   // await hanging forever.
   let typedConfirmResolve = null;
+  window.confirmTyped = (...args) => confirmTyped(...args);
   function confirmTyped(message, { title = "Confirm", requiredWord = "DELETE" } = {}) {
     if (typedConfirmResolve) settleTypedConfirm(false);
     return new Promise((resolve) => {
@@ -7034,6 +7035,19 @@
         )
         .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No redirects yet.</p>";
 
+    if (window.bulkList) {
+      window.bulkList({
+        listId: "redirects-list",
+        type: "redirect",
+        noun: "redirect",
+        rowSelector: ".redirect-row",
+        rowIdSelector: ".delete-redirect",
+        noUsage: true,
+        duplicate: null,
+        remove: (id) => api(`/redirects/${id}`, { method: "DELETE" }),
+        reload: loadRedirects,
+      });
+    }
     el("redirects-list")
       .querySelectorAll(".delete-redirect")
       .forEach((btn) => {
@@ -7102,6 +7116,26 @@
         )
         .join("") || `<p style='color:var(--text-dim);font-size:0.85rem;'>Nothing trashed.</p>`;
 
+    if (window.bulkList) {
+      window.bulkList({
+        listId: elId,
+        type: kind,
+        noun: kind,
+        rowSelector: ".redirect-row",
+        rowIdSelector: ".restore-trash-item",
+        noUsage: true,
+        duplicate: null,
+        restore: (id) => api(`${basePath}/${id}/restore`, { method: "POST" }),
+        remove: (id) => api(`${basePath}/${id}/permanent`, { method: "DELETE" }),
+        deleteLabel: "Delete forever",
+        confirmDelete: (ids) =>
+          window.confirmTyped(`Permanently delete ${ids.length} ${kind}${ids.length === 1 ? "" : "s"}? This can't be undone.`, { title: "Delete forever" }),
+        reload: async () => {
+          await loadTrash();
+          if (kind === "page") await loadPages();
+        },
+      });
+    }
     el(elId)
       .querySelectorAll(".restore-trash-item")
       .forEach((btn) => {

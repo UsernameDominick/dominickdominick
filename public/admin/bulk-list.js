@@ -1,7 +1,8 @@
 (function () {
   "use strict";
-  // Bulk actions for the Songs, Simulations and Scans lists: a checkbox on each row, Select all,
-  // "Duplicate selected" (where the type can be duplicated) and "Delete selected". Each list's own
+  // Bulk actions for the Songs, Simulations, Scans, Redirects and Trash lists: a checkbox on each row,
+  // Select all, "Duplicate selected" (where the type can be duplicated), "Restore selected" (Trash)
+  // and "Delete selected". Each list's own
   // renderer calls window.bulkList(...) after it draws its rows; the selection survives redraws
   // for rows that still exist and is pruned for rows that don't.
   const state = new Map(); // listId -> Set of selected ids (as strings)
@@ -28,20 +29,24 @@
         '<label class="bulk-list-all"><input type="checkbox" class="bulk-list-all-box" aria-label="Select all"> <span>Select all</span></label>' +
         '<span class="bulk-list-count" role="status" aria-live="polite"></span>' +
         '<button type="button" class="bulk-list-duplicate">Duplicate selected</button>' +
+        '<button type="button" class="bulk-list-restore">Restore selected</button>' +
         '<button type="button" class="bulk-list-delete danger">Delete selected</button>';
       listEl.parentNode.insertBefore(bar, listEl);
     }
     return bar;
   }
 
-  // opts: { listId, type ("song"|"simulation"|"scan"|...), noun, rowIdSelector, duplicate(id) | null, remove(id), reload(), usageUrl(id)?, inUseNote? }
+  // opts: { listId, type ("song"|"simulation"|"scan"|...), noun, rowIdSelector, duplicate(id) | null, remove(id), reload(),
+  //         usageUrl(id)?, inUseNote?, rowSelector? (default ".simulation-row"), noUsage? (skip the where-used lookup),
+  //         restore(id)? (adds "Restore selected"), confirmDelete(ids, names)? (async; replaces the confirm dialog),
+  //         deleteLabel? }
   window.bulkList = function (opts) {
     const listEl = document.getElementById(opts.listId);
     if (!listEl) return;
     const bar = ensureBar(listEl);
     const selected = state.get(opts.listId) || new Set();
     state.set(opts.listId, selected);
-    const rows = [...listEl.querySelectorAll(".simulation-row")];
+    const rows = [...listEl.querySelectorAll(opts.rowSelector || ".simulation-row")];
     const present = new Set();
     rows.forEach((row) => {
       const idEl = row.querySelector(opts.rowIdSelector);
@@ -65,7 +70,10 @@
     [...selected].forEach((id) => !present.has(id) && selected.delete(id));
 
     const dupBtn = bar.querySelector(".bulk-list-duplicate");
+    const resBtn = bar.querySelector(".bulk-list-restore");
     const delBtn = bar.querySelector(".bulk-list-delete");
+    resBtn.hidden = !opts.restore;
+    delBtn.textContent = opts.deleteLabel || "Delete selected";
     const allBox = bar.querySelector(".bulk-list-all-box");
     dupBtn.hidden = !opts.duplicate;
     // Replace the handlers on every redraw so they always see this render's callbacks.
@@ -75,6 +83,7 @@
       return clone;
     };
     const dup = fresh(dupBtn);
+    const res = fresh(resBtn);
     const del = fresh(delBtn);
     const all = fresh(allBox);
     bar.hidden = rows.length === 0;
@@ -83,6 +92,7 @@
       const n = selected.size;
       bar.querySelector(".bulk-list-count").textContent = n ? `${n} selected` : "";
       dup.disabled = !n;
+      res.disabled = !n;
       del.disabled = !n;
       all.checked = n > 0 && n === present.size;
       all.indeterminate = n > 0 && n < present.size;
@@ -118,6 +128,26 @@
       const shown = failedIds.slice(0, 5).map(nameOf).join(", ");
       return `${failedIds.length} of ${total} could not be ${verb}: ${shown}${failedIds.length > 5 ? ", …" : ""}. They stay selected so you can try again.`;
     };
+    res.addEventListener("click", async () => {
+      const ids = [...selected];
+      if (!ids.length || !opts.restore) return;
+      dup.disabled = res.disabled = del.disabled = true;
+      const failedIds = [];
+      try {
+        for (const id of ids) {
+          try {
+            await opts.restore(id);
+            selected.delete(id);
+          } catch (e) {
+            failedIds.push(id);
+          }
+        }
+        await opts.reload();
+      } finally {
+        refocus();
+      }
+      if (failedIds.length) alert(failureText("restored", failedIds, ids.length));
+    });
     dup.addEventListener("click", async () => {
       const ids = [...selected];
       if (!ids.length || !opts.duplicate) return;
@@ -141,7 +171,7 @@
     del.addEventListener("click", async () => {
       const ids = [...selected];
       if (!ids.length) return;
-      del.disabled = dup.disabled = true;
+      del.disabled = dup.disabled = res.disabled = true;
       try {
         const names = new Map();
         rows.forEach((row) => {
@@ -150,7 +180,7 @@
         });
         const inUse = [];
         let lookupFailed = false;
-        for (const id of ids) {
+        for (const id of opts.noUsage ? [] : ids) {
           const usage = await window.adminApi(opts.usageUrl ? opts.usageUrl(id) : `/content-usage?type=${opts.type}&id=${id}`).catch(() => null);
           if (usage === null) lookupFailed = true;
           else if (usage.length) inUse.push(`${names.get(id) || id}: ${usage.map((u) => u.title).join(", ")}`);
@@ -160,7 +190,8 @@
           ? `\n\nIn use, and ${opts.inUseNote || "those blocks will be omitted from public pages until replaced"}:\n- ${inUse.join("\n- ")}`
           : "";
         const unknown = lookupFailed ? "\n\nCouldn't check where some of these are used, so they may be in use on pages." : "";
-        if (!confirm(`Delete ${what}? This can't be undone.${warn}${unknown}`)) {
+        const confirmed = opts.confirmDelete ? await opts.confirmDelete(ids, names) : confirm(`Delete ${what}? This can't be undone.${warn}${unknown}`);
+        if (!confirmed) {
           refresh();
           return;
         }
