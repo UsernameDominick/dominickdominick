@@ -140,7 +140,7 @@ Open and partial items only; completed implementation histories remain in Git hi
 - 🔶 Conditional display by date/device/URL/content field (device, date and URL rules work: a block can be shown only when the address has `?name` or `?name=value`, or hidden when it does, filtered server-side; content-field rules remain open)
 
 ### Design system and styling
-- 🔶 Global spacing and shadow tokens (color, typography, and border tokens exist)
+- 🔶 Global spacing and shadow tokens (spacing steps --space-1 to --space-6 and shadows --shadow-sm/md/lg exist, default Compact scale 4/8/12/16/24/32 px and Soft shadows, nothing on the site uses them until chosen so there is no visible change; Site Settings > Appearance has "Spacing scale" (Compact or Roomy 6/12/18/24/36/48) and "Shadow strength" (Soft or Strong); every block's Box group has a "Padding step" (applies when no exact padding is set) and a "Shadow" (none, small, medium, large). Not yet: the tokens aren't applied to the built-in components such as cards and embeds)
 - ☐ Visual CSS inspector, style-inheritance inspector
 - 🔶 Reset overrides to inherited (per-field "Clear" on color pickers ✅; each style group in the block inspector has "Reset N … settings to default" ✅ (single block, with a confirmation); the bulk multi-select inspector and non-block editors have no group reset ☐)
 - ☐ Page-specific CSS/JS controls (custom head code is site-wide only)

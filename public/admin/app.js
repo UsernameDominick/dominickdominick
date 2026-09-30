@@ -2009,6 +2009,31 @@
       ],
     },
     { key: "padding", label: "Padding (px)", type: "number" },
+    {
+      key: "paddingStep",
+      label: "Padding step (used when no exact padding is set)",
+      type: "select",
+      options: [
+        ["", "None"],
+        ["1", "1 (smallest)"],
+        ["2", "2"],
+        ["3", "3"],
+        ["4", "4"],
+        ["5", "5"],
+        ["6", "6 (largest)"],
+      ],
+    },
+    {
+      key: "shadow",
+      label: "Shadow",
+      type: "select",
+      options: [
+        ["", "None"],
+        ["sm", "Small"],
+        ["md", "Medium"],
+        ["lg", "Large"],
+      ],
+    },
     { key: "opacity", label: "Opacity (%)", type: "number" },
     { key: "borderWidth", label: "Border width (px)", type: "number" },
     { key: "borderColor", label: "Border color", type: "color" },
@@ -2169,7 +2194,7 @@
   // because the inspector re-renders after every style change.
   const STYLE_GROUPS = [
     ["text", "Text", ["color", "fontFamily", "fontSize", "textAlign"]],
-    ["box", "Box", ["bg", "padding", "opacity", "borderWidth", "borderColor", "borderRadius"]],
+    ["box", "Box", ["bg", "padding", "paddingStep", "shadow", "opacity", "borderWidth", "borderColor", "borderRadius"]],
     ["background", "Background", ["backgroundImage", "gradientFrom", "gradientTo", "gradientAngle", "backgroundSize", "backgroundVideoUrl", "parallax", "blendMode", "overlayColor", "overlayOpacity"]],
     ["layout", "Layout & position", ["position", "stickyOffset", "readingOrder", "mobileColSpan", "shapeMask"]],
     ["motion", "Motion", ["animation", "animationDelay", "customKeyframes", "hoverEffect"]],
@@ -7212,6 +7237,22 @@
       round: { "--card-radius": "22px" },
       soft: { "--card-radius": "8px" },
       square: { "--card-radius": "2px" },
+    },
+    space_scale: {
+      compact: { "--space-1": "4px", "--space-2": "8px", "--space-3": "12px", "--space-4": "16px", "--space-5": "24px", "--space-6": "32px" },
+      roomy: { "--space-1": "6px", "--space-2": "12px", "--space-3": "18px", "--space-4": "24px", "--space-5": "36px", "--space-6": "48px" },
+    },
+    shadow_strength: {
+      soft: {
+        "--shadow-sm": "0 1px 2px rgba(0,0,0,0.18)",
+        "--shadow-md": "0 4px 12px rgba(0,0,0,0.22)",
+        "--shadow-lg": "0 12px 32px rgba(0,0,0,0.28)",
+      },
+      strong: {
+        "--shadow-sm": "0 2px 4px rgba(0,0,0,0.32)",
+        "--shadow-md": "0 8px 20px rgba(0,0,0,0.4)",
+        "--shadow-lg": "0 18px 44px rgba(0,0,0,0.5)",
+      },
     },
   };
   const controlPresetValues = {};

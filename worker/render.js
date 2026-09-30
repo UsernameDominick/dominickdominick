@@ -837,6 +837,10 @@ function blockStyleAttr(style) {
   if (["left", "center", "right", "justify"].includes(style.textAlign)) parts.push(`text-align:${style.textAlign}`);
   const padding = styleNum(style.padding);
   if (Number.isFinite(padding) && padding >= 0) parts.push(`padding:${padding}px`);
+  // Design-token choices: a padding step (--space-1..6) applies when no exact pixel padding is set,
+  // and a shadow (--shadow-sm|md|lg). Both follow Site Settings > Spacing scale / Shadow strength.
+  else if (/^[1-6]$/.test(String(style.paddingStep ?? ""))) parts.push(`padding:var(--space-${style.paddingStep})`);
+  if (["sm", "md", "lg"].includes(style.shadow)) parts.push(`box-shadow:var(--shadow-${style.shadow})`);
   const opacity = styleNum(style.opacity);
   if (Number.isFinite(opacity) && opacity >= 0 && opacity <= 100) parts.push(`opacity:${opacity / 100}`);
   const borderRadius = styleNum(style.borderRadius);
@@ -916,6 +920,23 @@ export const CONTROL_PRESETS = {
     rounded: { "--card-radius": "14px" },
     soft: { "--card-radius": "8px" },
     square: { "--card-radius": "2px" },
+  },
+  // Spacing and shadow design tokens. The first option of each is style.css's own default.
+  space_scale: {
+    compact: { "--space-1": "4px", "--space-2": "8px", "--space-3": "12px", "--space-4": "16px", "--space-5": "24px", "--space-6": "32px" },
+    roomy: { "--space-1": "6px", "--space-2": "12px", "--space-3": "18px", "--space-4": "24px", "--space-5": "36px", "--space-6": "48px" },
+  },
+  shadow_strength: {
+    soft: {
+      "--shadow-sm": "0 1px 2px rgba(0,0,0,0.18)",
+      "--shadow-md": "0 4px 12px rgba(0,0,0,0.22)",
+      "--shadow-lg": "0 12px 32px rgba(0,0,0,0.28)",
+    },
+    strong: {
+      "--shadow-sm": "0 2px 4px rgba(0,0,0,0.32)",
+      "--shadow-md": "0 8px 20px rgba(0,0,0,0.4)",
+      "--shadow-lg": "0 18px 44px rgba(0,0,0,0.5)",
+    },
   },
 };
 

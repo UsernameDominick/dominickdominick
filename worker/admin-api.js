@@ -244,6 +244,8 @@ const SETTINGS_KEYS = [
   "control_outline",
   "field_shape",
   "card_shape",
+  "space_scale",
+  "shadow_strength",
 ];
 
 // Paths a redirect could otherwise break by intercepting a system route.
