@@ -7310,4 +7310,29 @@ button[data-tier="quiet"] { border-color: transparent; }
 }
 .canvas-toolbar button { border: none; padding: 4px 10px; font-size: 0.75rem; border-radius: 6px; }
 .canvas-toolbar button:hover { background: var(--bg); }
-.canvas-toolbar .canvas-toolbar-danger:hover { background: var(--error-bg); color: #fff; }
+.canvas-toolbar .canvas-toolbar-danger:hover:not(:disabled) { background: var(--error-bg); color: var(--on-accent, #fff); }
+.canvas-toolbar button:disabled { opacity: 0.4; cursor: not-allowed; }
+.canvas-toolbar button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Short blocks: hide the type name (badges stay), tighten padding and scale the miniatures down. */
+.admin-block-compact { padding: 4px 8px; }
+.admin-block-compact .block-type-label { margin-bottom: 2px; }
+.admin-block-compact .block-type-name { display: none; }
+.admin-block-compact .block-type-label:not(:has(.lock-badge)) { display: none; }
+.admin-block-compact .pv-heading { font-size: 0.95rem; }
+.admin-block-compact .pv-button { font-size: 0.72rem; padding: 2px 10px; }
+.admin-block-compact .pv-text { -webkit-line-clamp: 2; }
+.admin-block-compact .pv-image { max-height: 40px; }
+.admin-block-compact .pv-gallery img { width: 28px; height: 28px; }
+.admin-block-compact .pv-card span { display: none; }
+
+/* One-row blocks are only ~16px tall: a single tight line. */
+.admin-block-xs { padding: 0 6px; }
+.admin-block-xs .block-preview { flex-direction: row; align-items: center; height: 100%; font-size: 0.7rem; line-height: 1; gap: 6px; }
+.admin-block-xs .pv-heading { font-size: 0.78rem; line-height: 1; }
+.admin-block-xs .pv-button { font-size: 0.68rem; padding: 0 8px; line-height: 1.4; }
+.admin-block-xs .pv-text { -webkit-line-clamp: 1; line-height: 1.1; }
+.admin-block-xs .pv-quote, .admin-block-xs .pv-card { padding-top: 0; padding-bottom: 0; line-height: 1.1; }
+.admin-block-xs .pv-gallery img { width: 12px; height: 12px; }
+.admin-block-xs .pv-image { max-height: 12px; }
+.admin-block-xs .alt-text-warning { display: none; }

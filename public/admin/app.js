@@ -1495,9 +1495,15 @@
       div.style.width = style.width + "px";
       div.style.height = style.height + "px";
       div.dataset.id = b.id;
-      div.innerHTML = `<div class="block-type-label">${blockLabel(b.type)}${blockBadgesHtml(
+      div.innerHTML = `<div class="block-type-label"><span class="block-type-name">${blockLabel(b.type)}</span>${blockBadgesHtml(
         b
       )}</div><div class="block-preview">${blockPreview(b)}</div><div class="resize-handle"></div>`;
+      // Short blocks drop the type name (kept as a tooltip) so the miniature gets the room.
+      if (style.height < 80) {
+        div.classList.add("admin-block-compact");
+        if (style.height < 34) div.classList.add("admin-block-xs");
+        div.title = blockLabel(b.type);
+      }
       canvas.appendChild(div);
       wireBlockInteractions(div, b);
     }
@@ -1511,6 +1517,8 @@
   function hideCanvasToolbar() {
     canvas.querySelectorAll(".canvas-toolbar").forEach((n) => (n.hidden = true));
   }
+  // After a toolbar action the canvas rebuilds; this remembers which button to put focus back on.
+  let toolbarFocusIndex = null;
   function renderCanvasToolbar() {
     canvas.querySelectorAll(".canvas-toolbar").forEach((n) => n.remove());
     if (contentOnlyMode || multiSelectedIds.size > 1 || selectedBlockId === null) return;
@@ -1521,29 +1529,48 @@
     bar.className = "canvas-toolbar";
     bar.setAttribute("role", "toolbar");
     bar.setAttribute("aria-label", `${blockLabel(b.type)} block actions`);
-    bar.style.left = style.left + "px";
     // Above the block when there's room; in the first row it would cover the block, so sit below instead.
     bar.style.top = (style.top >= 40 ? style.top - 36 : style.top + style.height + 4) + "px";
+    bar.style.left = style.left + "px";
     [
       ["copy-block-btn", "Copy"],
       ["duplicate-block-btn", "Duplicate"],
       ["lock-block-btn", b.locked ? "Unlock" : "Lock"],
       ["delete-block-btn", "Delete"],
-    ].forEach(([id, label]) => {
+    ].forEach(([id, label], idx) => {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.textContent = label;
-      if (id === "delete-block-btn") btn.className = "canvas-toolbar-danger";
+      if (id === "delete-block-btn") {
+        btn.className = "canvas-toolbar-danger";
+        if (b.locked) {
+          btn.disabled = true;
+          btn.title = "Unlock this block before deleting it";
+        }
+      }
       // Keep the press from starting a drag or clearing the selection underneath.
       btn.addEventListener("mousedown", (e) => e.stopPropagation());
       btn.addEventListener("pointerdown", (e) => e.stopPropagation());
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
+        toolbarFocusIndex = id === "delete-block-btn" ? null : idx;
+        if (toolbarFocusIndex !== null) setTimeout(() => (toolbarFocusIndex = null), 3000);
         el(id).click();
       });
       bar.appendChild(btn);
     });
-    canvas.appendChild(bar);
+    // Right after the selected block in the DOM, so Tab reaches it without crossing every later block.
+    const blockDiv = canvas.querySelector(`.admin-block[data-id="${b.id}"]`);
+    if (blockDiv) blockDiv.after(bar);
+    else canvas.appendChild(bar);
+    // Keep it inside the canvas: slide left when the block sits against the right edge.
+    const max = canvas.clientWidth - bar.offsetWidth - 2;
+    if (style.left > max) bar.style.left = Math.max(2, max) + "px";
+    if (toolbarFocusIndex !== null) {
+      const target = bar.querySelectorAll("button")[toolbarFocusIndex];
+      toolbarFocusIndex = null;
+      if (target && !target.disabled) target.focus();
+    }
   }
 
   // The absolute-position 24-column grid is a faithful desktop editing
@@ -3984,6 +4011,10 @@
     if (!selectedBlockId) return;
     const block = blocks.find((b) => b.id === selectedBlockId);
     if (!block) return;
+    if (block.locked) {
+      alert("This block is locked. Unlock it before deleting.");
+      return;
+    }
     if (isMobile()) closeDrawers();
     await api(`/blocks/${selectedBlockId}`, { method: "DELETE" });
     await loadBlocks();
@@ -4009,6 +4040,7 @@
       multiSelectedIds.clear();
       renderInspector();
       document.querySelectorAll(".admin-block").forEach((d) => d.classList.remove("selected"));
+      renderCanvasToolbar();
     }
   });
 
