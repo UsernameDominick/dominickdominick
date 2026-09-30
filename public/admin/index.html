@@ -1128,10 +1128,10 @@
   <div id="command-modal" class="modal command-modal" hidden role="dialog" aria-label="Command palette">
     <div class="modal-inner command-modal-inner">
       <div class="command-input-row">
-        <input id="command-input" class="command-input" placeholder="Search pages, articles, blocks… or jump to an action">
+        <input id="command-input" class="command-input" role="combobox" aria-expanded="true" aria-controls="command-results" aria-autocomplete="list" placeholder="Search pages, articles, blocks… or jump to an action">
         <button type="button" id="close-command" aria-label="Close Command palette dialog">×</button>
       </div>
-      <div id="command-results" class="command-results"></div>
+      <div id="command-results" class="command-results" role="listbox" aria-label="Search results"></div>
     </div>
   </div>
 

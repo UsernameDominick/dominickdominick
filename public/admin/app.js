@@ -9085,7 +9085,11 @@
     commandActiveIndex = index;
     el("command-results")
       .querySelectorAll(".command-result")
-      .forEach((row, i) => row.classList.toggle("active", i === index));
+      .forEach((row, i) => {
+        row.classList.toggle("active", i === index);
+        row.setAttribute("aria-selected", i === index ? "true" : "false");
+        if (i === index) el("command-input").setAttribute("aria-activedescendant", row.id);
+      });
   }
 
   // Result groups follow the label prefix ("Page: x", "Setting: y"); anything else is a command.
@@ -9100,12 +9104,22 @@
     "Reusable Block": ["Reusable blocks", "Reusable"],
     Setting: ["Settings", "Setting"],
   };
+  // Display order of the groups; "Best match" holds commands that named the query.
+  const COMMAND_GROUP_ORDER = ["Best match", "Settings", "Actions", "Pages", "Articles", "Blocks", "Projects", "Simulations", "Songs", "Scans", "Reusable blocks"];
   function commandGroupOf(it) {
+    if (it.best) return ["Best match", "Action"];
     const m = /^([^:]{1,20}):/.exec(it.label || "");
+    // "Block: …" is a block search result only when it points at a page; otherwise it's a command.
+    if (m && m[1] === "Block" && !/^page #/.test(it.sub || "")) return ["Actions", "Action"];
     return (m && COMMAND_GROUPS[m[1]]) || ["Actions", "Action"];
   }
 
   function renderCommandResults(items) {
+    // One heading per group: stable-sort by group so a group never reappears later in the list.
+    items = items
+      .map((it, i) => ({ it, i, r: COMMAND_GROUP_ORDER.indexOf(commandGroupOf(it)[0]) }))
+      .sort((a, b) => a.r - b.r || a.i - b.i)
+      .map((x) => x.it);
     commandItems = items;
     commandActiveIndex = 0;
     let lastGroup = null;
@@ -9113,14 +9127,15 @@
       ? items
           .map((it, i) => {
             const [group, kind] = commandGroupOf(it);
-            const heading = group !== lastGroup ? `<div class="command-result-group" role="presentation">${escapeHtml(group)}</div>` : "";
+            const heading = group !== lastGroup ? `<div class="command-result-group" aria-hidden="true">${escapeHtml(group)}</div>` : "";
             lastGroup = group;
-            return `${heading}<div class="command-result${i === 0 ? " active" : ""}" data-index="${i}" data-k="${kind}"><span>${escapeHtml(
+            return `${heading}<div class="command-result${i === 0 ? " active" : ""}" id="command-opt-${i}" role="option" aria-selected="${i === 0 ? "true" : "false"}" data-index="${i}" data-k="${kind}"><span>${escapeHtml(
               it.label
             )}</span><span class="command-result-sub">${escapeHtml(it.sub || "")}</span></div>`;
           })
           .join("")
       : "<p class='command-empty'>Nothing matches. Try a page name, a setting, or a command like “theme”.</p>";
+    el("command-input").setAttribute("aria-activedescendant", items.length ? "command-opt-0" : "");
     el("command-results")
       .querySelectorAll(".command-result")
       .forEach((row) => {
@@ -9144,6 +9159,7 @@
     // what this index exists for, so it should surface before generic
     // "Go to page: ..." matches that happen to share a word.
     const settingsMatches = settingsSearchActions(q);
+    leading.forEach((a) => (a.best = true));
     renderCommandResults([...leading, ...settingsMatches, ...localMatches.filter((a) => !leading.includes(a))]);
     if (!q) return;
     clearTimeout(commandSearchTimer);
