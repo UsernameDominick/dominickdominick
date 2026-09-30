@@ -2890,6 +2890,20 @@
         })
         .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No reusable blocks yet — select a block on a page and use \"Save as reusable block…\" in its settings.</p>";
 
+    if (window.bulkList) {
+      window.bulkList({
+        listId: "shared-blocks-list",
+        type: "shared-block",
+        noun: "reusable block",
+        rowIdSelector: ".delete-shared-block",
+        duplicate: null,
+        remove: (id) => api(`/shared-blocks/${id}`, { method: "DELETE" }),
+        reload: loadSharedBlocksList,
+        usageUrl: (id) => `/shared-blocks/usage?id=${id}`,
+        inUseNote: "those placements become empty blocks",
+      });
+    }
+
     el("shared-blocks-list")
       .querySelectorAll(".shared-block-issues-badge")
       .forEach((badge) => badge.addEventListener("click", () => alert(`Issues with this reusable block:\n\n${badge.dataset.issues}`)));

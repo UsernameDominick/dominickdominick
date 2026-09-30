@@ -25,7 +25,7 @@
     return bar;
   }
 
-  // opts: { listId, type ("song"|"simulation"|"scan"), noun, rowIdSelector, duplicate(id) | null, remove(id), reload() }
+  // opts: { listId, type ("song"|"simulation"|"scan"|...), noun, rowIdSelector, duplicate(id) | null, remove(id), reload(), usageUrl(id)?, inUseNote? }
   window.bulkList = function (opts) {
     const listEl = document.getElementById(opts.listId);
     if (!listEl) return;
@@ -145,13 +145,13 @@
         const inUse = [];
         let lookupFailed = false;
         for (const id of ids) {
-          const usage = await window.adminApi(`/content-usage?type=${opts.type}&id=${id}`).catch(() => null);
+          const usage = await window.adminApi(opts.usageUrl ? opts.usageUrl(id) : `/content-usage?type=${opts.type}&id=${id}`).catch(() => null);
           if (usage === null) lookupFailed = true;
           else if (usage.length) inUse.push(`${names.get(id) || id}: ${usage.map((u) => u.title).join(", ")}`);
         }
         const what = `${ids.length} ${opts.noun}${ids.length === 1 ? "" : "s"}`;
         const warn = inUse.length
-          ? `\n\nIn use, and those blocks will be omitted from public pages until replaced:\n- ${inUse.join("\n- ")}`
+          ? `\n\nIn use, and ${opts.inUseNote || "those blocks will be omitted from public pages until replaced"}:\n- ${inUse.join("\n- ")}`
           : "";
         const unknown = lookupFailed ? "\n\nCouldn't check where some of these are used, so they may be in use on pages." : "";
         if (!confirm(`Delete ${what}? This can't be undone.${warn}${unknown}`)) {
