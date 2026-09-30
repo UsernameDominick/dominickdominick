@@ -134,7 +134,7 @@ Open and partial items only; completed implementation histories remain in Git hi
 - ☐ Block grouping/ungrouping
 - 🔶 Guides/rulers/snapping (alignment guides + grid snapping ✅; literal ruler/gap-measurement UI ☐)
 - ☐ Nested sections and columns (needs `blocks.parent_id` + reworked drag/resize)
-- 🔶 Hover/focus/mobile-state previews (mobile ✅ via responsive preview; hover/focus simulation ☐)
+- ✅ Hover/focus/mobile-state previews (mobile via the responsive preview; Screen Preview now has "Show hover states" and "Show focus rings" toggles that copy the page's own :hover and :focus rules onto the elements so every state shows at once; a reload restores the real page)
 - 🔶 Copy/paste blocks between pages (blocks ✅; "sections" n/a)
 - ☐ Bulk updates to pages sharing a template
 - 🔶 Conditional display by date/device/URL/content field (device, date and URL rules work: a block can be shown only when the address has `?name` or `?name=value`, or hidden when it does, filtered server-side; content-field rules remain open)

@@ -3415,6 +3415,68 @@
   }
   el("preview-frame").addEventListener("load", applyStressEffects);
 
+  // Hover and focus state previews. A real :hover or :focus can't be forced from
+  // script, so the page's own stylesheets are read and every rule that uses the
+  // pseudo-class is copied with an attribute selector in its place; the attribute
+  // is then put on the elements that can be hovered or focused. Nothing is changed
+  // in the page itself: a reload gives back the real thing, like the stress previews.
+  let forceHoverStates = false;
+  let forceFocusStates = false;
+  function forcedStateCss(rules, pseudoPattern, attr) {
+    let css = "";
+    for (const rule of Array.from(rules)) {
+      if (rule.selectorText !== undefined) {
+        if (pseudoPattern.test(rule.selectorText)) {
+          css += `${rule.selectorText.replace(new RegExp(pseudoPattern.source, "g"), `[${attr}]`)}{${rule.style.cssText}}\n`;
+        }
+      } else if (rule.cssRules && (rule.conditionText !== undefined || rule.media)) {
+        const inner = forcedStateCss(rule.cssRules, pseudoPattern, attr);
+        if (inner) css += `@${rule.constructor.name === "CSSSupportsRule" ? "supports" : "media"} ${rule.conditionText ?? rule.media.mediaText}{${inner}}\n`;
+      }
+    }
+    return css;
+  }
+  function applyStatePreviews() {
+    if (!forceHoverStates && !forceFocusStates) return;
+    let doc;
+    try {
+      doc = el("preview-frame").contentDocument;
+    } catch (e) {
+      return;
+    }
+    if (!doc || !doc.body) return;
+    let css = "";
+    const sheets = Array.from(doc.styleSheets);
+    for (const [on, pattern, attr, selector] of [
+      [forceHoverStates, /:hover/, "data-forced-hover", "a, button, .btn, .block, .project-card, .article-card, summary, [role='button']"],
+      [forceFocusStates, /:focus-visible|:focus(?![-\w])/, "data-forced-focus", "a[href], button, input, select, textarea, summary, [tabindex]"],
+    ]) {
+      if (!on) continue;
+      for (const sheet of sheets) {
+        try {
+          css += forcedStateCss(sheet.cssRules, pattern, attr);
+        } catch (e) {
+          // a cross-origin stylesheet can't be read: skip it
+        }
+      }
+      doc.querySelectorAll(selector).forEach((node) => node.setAttribute(attr, ""));
+    }
+    const style = doc.createElement("style");
+    style.id = "admin-forced-states";
+    style.textContent = css;
+    doc.head.appendChild(style);
+  }
+  el("preview-frame").addEventListener("load", applyStatePreviews);
+  for (const [btnId, setter] of [["force-hover-btn", (v) => (forceHoverStates = v)], ["force-focus-btn", (v) => (forceFocusStates = v)]]) {
+    el(btnId).addEventListener("click", () => {
+      const on = !el(btnId).classList.contains("is-active");
+      setter(on);
+      el(btnId).classList.toggle("is-active", on);
+      el(btnId).setAttribute("aria-pressed", String(on));
+      if (el("preview-frame").src) el("preview-frame").contentWindow.location.reload();
+    });
+  }
+
   // Field-change preview: the admin canvas is a simplified schematic (no
   // real CSS, fonts, or motion effects — see computeRenderedLayoutDiagnostics
   // above for why), so seeing what a style/content edit actually looks like
