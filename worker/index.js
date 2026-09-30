@@ -468,7 +468,8 @@ async function renderArticle(env, article, navItems, previewReason = null, isAdm
 }
 
 async function renderProject(env, project, navItems, previewReason = null, isAdmin = false) {
-  const description = project.summary || excerpt(project.body) || project.title;
+  const summary = (project.summary || "").trim();
+  const description = summary || excerpt(project.body) || project.title;
   const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
 
   const linkButtons = ["github", "demo", "docs", "download"]
@@ -541,7 +542,7 @@ async function renderProject(env, project, navItems, previewReason = null, isAdm
       <span>${mins} min read</span>
     </div>
     <h1>${esc(project.title)}</h1>
-    ${project.summary ? `<p class="page-lede">${esc(project.summary)}</p>` : ""}
+    ${summary ? `<p class="page-lede">${esc(summary)}</p>` : ""}
     ${linkButtons ? `<div class="project-link-buttons">${linkButtons}</div>` : ""}
     ${techStackHtml}
     ${renderTags(project.tags)}

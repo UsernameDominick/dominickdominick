@@ -982,7 +982,7 @@
     pages = await api("/pages");
     const picker = el("page-picker");
     picker.innerHTML = pages
-      .map((p) => `<option value="${p.id}">${p.title || p.slug}</option>`)
+      .map((p) => `<option value="${p.id}">${escapeHtml(p.title || p.slug)}</option>`)
       .join("");
     if (pages.length) {
       const stillExists = currentPage && pages.find((p) => p.id === currentPage.id);
@@ -7636,8 +7636,21 @@
   // it only scans whichever single page is currently open in the editor,
   // not the whole site, so it doesn't fit the same "run everywhere" model.
   // Wording shared by the Site Health overview and the SEO Report list below it.
-  const seoWeakAltStatus = (m) => `${m.where}: alt text "${m.alt.length > 60 ? m.alt.slice(0, 57) + "…" : m.alt}" is unhelpful (${m.reason})`;
-  const seoLongTitleStatus = (m) => `Title is ${m.length} characters${m.type === "page" ? "" : " with the site name"}; search results cut it off around 60`;
+  const seoShort = (text, max) => {
+    const chars = Array.from(text); // by code point, so an emoji is never cut in half
+    return chars.length > max ? chars.slice(0, max - 1).join("") + "…" : text;
+  };
+  const seoWeakAltStatus = (m) => {
+    const file = (m.url || "").split("/").pop();
+    const where = m.slug === null ? m.where : `${m.where}${file ? ` (${seoShort(file, 32)})` : ""}`;
+    return m.long
+      ? `${where}: alt text is ${m.alt.length} characters; screen readers handle about 125 well, so consider moving the detail into a caption`
+      : `${where}: alt text "${seoShort(m.alt, 60)}" says nothing useful (${m.reason}). ${
+          m.slug === null ? "Edit it in the Media Library, under the image's Details." : "Write a short description of what the image shows."
+        }`;
+  };
+  const seoLongTitleStatus = (m) =>
+    `Title is ${m.length} characters${m.type === "page" ? "" : ' including the " · Dominick" the site adds'}; search results cut it off around 60. Shorten it.`;
   const seoDescriptionLengthStatus = (m) =>
     `${m.type === "project" ? "Summary" : "Meta description"} is ${m.length} characters (${m.problem === "short" ? "a bit thin: aim for 50 to 160" : "search results cut it off at about 160"})`;
   el("run-site-health-btn").addEventListener("click", async () => {
@@ -7656,7 +7669,7 @@
         api("/accessibility-report"),
         api("/content-integrity"),
       ]);
-      const typePath = { article: "/random/", project: "/projects/", page: "/" };
+      const typePath = { article: "/random/", project: "/projects/", page: "/", simulation: "/simulation/" };
       const pagePath = (slug) => `/${slug === "home" ? "" : slug}`;
       // Severity is just a sort key, not a formal classification — 3 for
       // things a visitor would actually notice (broken links, missing alt
@@ -7717,7 +7730,7 @@
           status: "No social-share image",
         })),
         ...(seoData.weakAlt || []).map((m) => ({
-          severity: 2,
+          severity: m.long ? 1 : 2,
           check: "SEO",
           title: m.title,
           url: m.slug ? pagePath(m.slug) : m.url,
@@ -7765,7 +7778,7 @@
     btn.disabled = true;
     try {
       const { missingMeta, missingAlt, missingOgImage, duplicateTitles, duplicateMeta, sitemapCanonicalMismatch, weakAlt = [], longTitles = [], descriptionLength = [] } = await api("/seo-report");
-      const typePath = { article: "/random/", project: "/projects/", page: "/" };
+      const typePath = { article: "/random/", project: "/projects/", page: "/", simulation: "/simulation/" };
       const rows = [
         ...missingMeta.map(
           (p) =>

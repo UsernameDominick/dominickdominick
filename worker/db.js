@@ -3886,28 +3886,51 @@ export function isInSitemap(item, type) {
   return true;
 }
 
-// Reasons an alt text is present but unhelpful to a screen-reader user or search engine.
-// Missing alt text is a separate, louder finding (see getSeoReport's missingAlt), so an empty
-// string returns null here. Checks are deliberately narrow so a genuine description isn't
-// flagged: a file name or a bare camera/screenshot number, a one-word placeholder, a redundant
-// "image of ..." lead-in (the reader already announces "image"), or a description so long that
-// screen readers break it up (about 125 characters is the usual guidance).
-export function altTextProblem(alt) {
-  const text = String(alt || "").trim();
+// Alt text with the characters that render as nothing (zero-width spaces and joiners, BOM,
+// and ordinary whitespace) taken out, so "present but invisible" counts as missing.
+export function cleanAlt(alt) {
+  return String(alt ?? "")
+    .replace(/[​-‍⁠﻿]/g, "")
+    .trim();
+}
+
+// Why an alt text is present but unhelpful to a screen-reader user or search engine, as
+// { reason, long }, or null. Missing alt text is a separate, louder finding (getSeoReport's
+// missingAlt), so an empty one returns null here. The checks are deliberately narrow so a
+// genuine description isn't flagged: a file name (one token ending in an image extension), a
+// bare camera or screenshot number, a one-word placeholder or punctuation-only text, a
+// redundant "image of ..." lead-in (the reader already announces "image"), or a description
+// so long that screen readers break it up (about 125 characters is the usual guidance, a
+// softer finding: `long` is true so it can be ranked lower).
+export function altTextProblemDetail(alt) {
+  const text = cleanAlt(alt);
   if (!text) return null;
-  if (/\.(jpe?g|png|gif|webp|svg|avif|heic|bmp|tiff?)$/i.test(text)) return "Looks like a file name";
+  const bad = (reason) => ({ reason, long: false });
+  if (/^\S+\.(jpe?g|png|gif|webp|svg|avif|heic|bmp|tiff?)$/i.test(text)) return bad("Looks like a file name");
   if (
-    /^(img|dsc|dscn|dscf|pxl|mvimg)[\s_-]?\d{3,}[\w-]*$/i.test(text) ||
-    /^(screenshot|screen shot)[\s_-]*(\(\d+\)|\d{4}-\d{2}-\d{2}.*|\d+)$/i.test(text) ||
-    /^(image|photo|picture|pic)[\s_-]*\d+$/i.test(text)
+    /^(img|dsc|dscn|dscf|pxl|mvimg)[\s_-]?e?\d{2,}(?:[\w-]*|\s*\(\d+\))$/i.test(text) ||
+    /^(screenshot|screen shot)[\s_-]*(?:from\s+)?(?:\(\d+\)|\d{4}-\d{2}-\d{2}.*|\d+)$/i.test(text) ||
+    /^(image|photo|picture|pic)[\s_-]*\(?\d+\)?$/i.test(text)
   ) {
-    return "Looks like a camera or screenshot number";
+    return bad("Looks like a camera or screenshot number");
   }
-  if (/^\d+$/.test(text)) return "Just a number";
-  if (/^(image|photo|picture|pic|img|graphic|screenshot|untitled|alt|alt text|placeholder|thumbnail|banner|logo|icon)\.?$/i.test(text)) return "A generic placeholder, not a description";
-  if (/^(an?\s+)?(image|picture|photo|photograph|graphic)\s+(of|showing|for)\b/i.test(text)) return 'Starts with "image of" (screen readers already announce it as an image)';
-  if (text.length > 125) return `${text.length} characters (screen readers handle about 125 well; move the detail into a caption)`;
+  if (/^\d+$/.test(text)) return bad("Just a number");
+  if (/^[\p{P}\p{S}\p{Z}_]+$/u.test(text)) return bad("No actual words");
+  if (
+    /^(image|photo|picture|pic|img|graphic|screenshot|untitled[\s_-]*\d*|alt|alt text|placeholder|thumbnail|banner|logo|icon|download|spacer|n\/a|na|none|null|undefined|todo|tbd)\.?$/i.test(text) ||
+    /^lorem ipsum\b/i.test(text)
+  ) {
+    return bad("A generic placeholder, not a description");
+  }
+  if (/^(an?\s+)?(images?|pictures?|photos?|photographs?|graphics?)\s+(of|showing)\b/i.test(text)) {
+    return bad('Starts with "image of" (screen readers already announce it as an image)');
+  }
+  if (text.length > 125) return { reason: `${text.length} characters (screen readers handle about 125 well)`, long: true };
   return null;
+}
+export function altTextProblem(alt) {
+  const found = altTextProblemDetail(alt);
+  return found ? found.reason : null;
 }
 
 // Site-wide SEO/accessibility sweep: pages missing a meta description
@@ -3925,7 +3948,7 @@ export async function getSeoReport(env) {
   pages.forEach((p, i) => {
     for (const b of pageBlocks[i]) {
       const c = b.content || {};
-      if (b.type === "image" && c.url && !(c.alt && c.alt.trim())) {
+      if (b.type === "image" && c.url && !cleanAlt(c.alt)) {
         missingAlt.push({ title: p.title, slug: p.slug, url: c.url });
       }
     }
@@ -3995,11 +4018,19 @@ export async function getSeoReport(env) {
   const DESC_MIN = 50;
   const DESC_MAX = 160;
   const longTitles = [];
+  // Browsers and search engines collapse runs of whitespace in a <title>, so count them that way.
+  const titleLength = (title) => String(title || "").replace(/\s+/g, " ").trim().length;
   for (const [items, type, suffix] of [[pages, "page", ""], [articles, "article", TITLE_SUFFIX], [projects, "project", TITLE_SUFFIX]]) {
     for (const item of items) {
-      const length = (item.title || "").trim().length + suffix.length;
+      const length = titleLength(item.title) + suffix.length;
       if (length > TITLE_MAX) longTitles.push({ title: item.title, slug: item.slug, type, length });
     }
+  }
+  // A published simulation's own page is titled "<published name> · Dominick" too.
+  const publishedSims = await env.DB.prepare("SELECT id, published_name FROM simulations WHERE published_data IS NOT NULL AND published_name IS NOT NULL").all();
+  for (const sim of publishedSims.results || []) {
+    const length = titleLength(sim.published_name) + TITLE_SUFFIX.length;
+    if (length > TITLE_MAX) longTitles.push({ title: sim.published_name, slug: String(sim.id), type: "simulation", length });
   }
   const descriptionLength = [];
   const judgeDescription = (item, type, text) => {
@@ -4017,22 +4048,22 @@ export async function getSeoReport(env) {
     for (const b of pageBlocks[i]) {
       const c = b.content || {};
       if (b.type === "image" && c.url) {
-        const reason = altTextProblem(c.alt);
-        if (reason) weakAlt.push({ title: p.title, slug: p.slug, where: "Image block", url: c.url, alt: String(c.alt).trim(), reason });
+        const found = altTextProblemDetail(c.alt);
+        if (found) weakAlt.push({ title: p.title, slug: p.slug, where: "Image block", url: c.url, alt: cleanAlt(c.alt), reason: found.reason, long: found.long });
       }
       if (b.type === "gallery" && Array.isArray(c.images)) {
         for (const img of c.images) {
           if (!img || typeof img === "string" || !img.url) continue;
-          const reason = altTextProblem(img.alt);
-          if (reason) weakAlt.push({ title: p.title, slug: p.slug, where: "Gallery image", url: img.url, alt: String(img.alt).trim(), reason });
+          const found = altTextProblemDetail(img.alt);
+          if (found) weakAlt.push({ title: p.title, slug: p.slug, where: "Gallery image", url: img.url, alt: cleanAlt(img.alt), reason: found.reason, long: found.long });
         }
       }
     }
   });
   const mediaAlt = await env.DB.prepare("SELECT key, alt_text FROM media WHERE alt_text IS NOT NULL AND TRIM(alt_text) != ''").all();
   for (const row of mediaAlt.results || []) {
-    const reason = altTextProblem(row.alt_text);
-    if (reason) weakAlt.push({ title: "Media Library", slug: null, where: "Library default", url: `/media/${row.key}`, alt: String(row.alt_text).trim(), reason });
+    const found = altTextProblemDetail(row.alt_text);
+    if (found) weakAlt.push({ title: "Media Library", slug: null, where: "Media Library default alt text", url: `/media/${row.key}`, alt: cleanAlt(row.alt_text), reason: found.reason, long: found.long });
   }
   return { missingMeta, missingAlt, missingOgImage, duplicateTitles, duplicateMeta, sitemapCanonicalMismatch, longTitles, descriptionLength, weakAlt };
 }

@@ -6929,17 +6929,17 @@ kbd {
 :root[data-density="compact"] .admin-inspector h2 {
   margin: 10px 0 5px;
 }
-:root[data-density="compact"] .panel-section:not(.simulation-builder-inner *) {
+:root[data-density="compact"] .panel-section:not(:where(.simulation-builder-inner *)) {
   margin-bottom: 6px;
 }
-:root[data-density="compact"] .panel-section:not(.simulation-builder-inner *) > summary {
+:root[data-density="compact"] .panel-section:not(:where(.simulation-builder-inner *)) > summary {
   padding: 6px 12px;
 }
-:root[data-density="compact"] .panel-section:not(.simulation-builder-inner *) > :not(summary):first-of-type,
-:root[data-density="compact"] .panel-section:not(.simulation-builder-inner *) > summary + * {
+:root[data-density="compact"] .panel-section:not(:where(.simulation-builder-inner *)) > :not(summary):first-of-type,
+:root[data-density="compact"] .panel-section:not(:where(.simulation-builder-inner *)) > summary + * {
   margin-top: 8px;
 }
-:root[data-density="compact"] .panel-section:not(.simulation-builder-inner *) > :last-child {
+:root[data-density="compact"] .panel-section:not(:where(.simulation-builder-inner *)) > :last-child {
   margin-bottom: 8px;
 }
 :root[data-density="compact"] .admin-palette label,
@@ -6965,4 +6965,11 @@ kbd {
 :root[data-density="compact"] .admin-sidebar-footer #admin-theme-toggle,
 :root[data-density="compact"] .admin-sidebar-footer #admin-density-toggle {
   min-width: 34px;
+}
+
+/* A long unbroken alt text, file name or slug in a Site Health row wraps instead of pushing the row wide. */
+.link-check-row .link-check-status,
+.link-check-row .link-check-source,
+.link-check-row .link-check-url {
+  overflow-wrap: anywhere;
 }
