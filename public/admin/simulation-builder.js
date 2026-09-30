@@ -395,6 +395,17 @@
           await loadSimulationsList();
         })
       );
+    if (window.bulkList) {
+      window.bulkList({
+        listId: "simulations-list",
+        type: "simulation",
+        noun: "simulation",
+        rowIdSelector: ".delete-simulation",
+        duplicate: (id) => window.adminApi(`/simulations/${id}/duplicate`, { method: "POST" }),
+        remove: (id) => window.adminApi(`/simulations/${id}`, { method: "DELETE" }),
+        reload: loadSimulationsList,
+      });
+    }
     $("simulations-list")
       .querySelectorAll(".delete-simulation")
       .forEach((btn) =>

@@ -58,6 +58,17 @@
         )
         .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No scans yet.</p>";
 
+    if (window.bulkList) {
+      window.bulkList({
+        listId: "scans-list",
+        type: "scan",
+        noun: "scan",
+        rowIdSelector: ".edit-scan",
+        duplicate: null,
+        remove: (id) => window.adminApi(`/scans/${id}`, { method: "DELETE" }),
+        reload: loadScansList,
+      });
+    }
     $("scans-list")
       .querySelectorAll(".edit-scan")
       .forEach((btn) => btn.addEventListener("click", () => openScanEditor(Number(btn.dataset.id))));

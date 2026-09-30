@@ -7035,3 +7035,29 @@ kbd {
   margin-bottom: 6px;
   line-height: 1.45;
 }
+
+/* Bulk actions on the Songs, Simulations and Scans lists. */
+.bulk-list-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 8px;
+}
+.bulk-list-bar .bulk-list-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.bulk-list-bar .bulk-list-count {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  min-width: 5em;
+}
+.simulation-row .bulk-list-row-box {
+  flex: 0 0 auto;
+  margin-right: 8px;
+}

@@ -1366,6 +1366,17 @@
       `<p style='color:var(--text-dim);font-size:0.85rem;'>${
         songs.length ? "No songs match your search." : "No songs yet."
       }</p>`;
+    if (window.bulkList) {
+      window.bulkList({
+        listId: "songs-list",
+        type: "song",
+        noun: "song",
+        rowIdSelector: ".edit-song",
+        duplicate: (id) => window.adminApi(`/songs/${id}/duplicate`, { method: "POST" }),
+        remove: (id) => window.adminApi(`/songs/${id}`, { method: "DELETE" }),
+        reload: loadSongsList,
+      });
+    }
     $("songs-list")
       .querySelectorAll(".edit-song")
       .forEach((btn) => btn.addEventListener("click", () => openBuilder(Number(btn.dataset.id))));
