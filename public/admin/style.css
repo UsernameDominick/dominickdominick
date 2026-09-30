@@ -311,6 +311,13 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
 .admin-sidebar-footer #admin-density-toggle {
   flex: 0 0 auto;
 }
+.admin-sidebar-footer #admin-density-toggle {
+  min-width: 34px;
+}
+.admin-sidebar-footer #admin-density-toggle[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
 
 /* Recent's popover anchors from the sidebar's left edge instead of the
    default right:0 (sized for a wide header) — right:0 against a ~90px-wide
@@ -6863,11 +6870,14 @@ kbd {
    fields. It never shrinks text, and every control stays at least 24px tall (WCAG 2.2
    target size). The default-control rules use :where() so any button or field with its own
    padding keeps it; the builders (Songs, Simulations, Scans, Photo editor) keep their
-   fixed sizing on purpose. */
-:where(:root[data-density="compact"]) button {
+   fixed sizing on purpose (their own modals are left out of the default-control and
+   dialog-header rules above). The 24px floor holds for everything compact touches; a few
+   controls that were already smaller in Comfortable (checkboxes, colour swatches, the media
+   "i" button, range sliders) are the same in both modes. */
+:where(:root[data-density="compact"]) button:not(:where(.simulation-builder-inner *, .photo-editor-inner *)) {
   padding: 4px 9px;
 }
-:where(:root[data-density="compact"]) :where(select, textarea, input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]):not([type="file"])) {
+:where(:root[data-density="compact"]) :where(select, textarea, input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]):not([type="file"])):not(:where(.simulation-builder-inner *, .photo-editor-inner *)) {
   padding: 4px 7px;
 }
 :root[data-density="compact"] .admin-sidebar-group {
@@ -6881,7 +6891,7 @@ kbd {
 :root[data-density="compact"] .admin-sidebar-footer {
   padding: 8px 12px;
 }
-:root[data-density="compact"] .modal-inner header {
+:root[data-density="compact"] .modal-inner:not(.simulation-builder-inner):not(.photo-editor-inner) header {
   padding: 10px 20px;
 }
 :root[data-density="compact"] .settings-body {
@@ -6908,6 +6918,12 @@ kbd {
 }
 :root[data-density="compact"] .drawer-scroll-content {
   padding: 10px;
+}
+/* The sticky Blocks/Page strip bleeds out by the drawer's padding (16px in Comfortable),
+   so it has to follow the tighter 10px or it scrolls the palette sideways. */
+:root[data-density="compact"] .seg-control.panel-switch {
+  top: -10px;
+  margin: -10px -10px 10px;
 }
 :root[data-density="compact"] .admin-palette h2,
 :root[data-density="compact"] .admin-inspector h2 {
@@ -6944,4 +6960,9 @@ kbd {
 }
 :root[data-density="compact"] .style-group > .style-group-body {
   margin: 8px 12px;
+}
+/* Compact's tighter side padding would make the two footer icon buttons slightly oval. */
+:root[data-density="compact"] .admin-sidebar-footer #admin-theme-toggle,
+:root[data-density="compact"] .admin-sidebar-footer #admin-density-toggle {
+  min-width: 34px;
 }

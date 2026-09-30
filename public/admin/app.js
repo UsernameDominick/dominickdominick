@@ -146,9 +146,11 @@
   // closing the whole drawer on every click on it would fire alongside its
   // own open/close toggle (both listeners sit on the same element, so the
   // toggle handler's own stopPropagation() doesn't prevent this one from
-  // also running) and immediately collapse the drawer it just opened.
+  // also running) and immediately collapse the drawer it just opened. The theme and
+  // density toggles stay open too: they change how the drawer itself looks, so closing
+  // it would hide the very change being made.
   el("admin-sidebar").querySelectorAll("button, a").forEach((node) => {
-    if (["close-site-menu", "recent-items-btn"].includes(node.id)) return;
+    if (["close-site-menu", "recent-items-btn", "admin-theme-toggle", "admin-density-toggle"].includes(node.id)) return;
     node.addEventListener("click", () => {
       if (isMobile()) closeDrawers();
     });
