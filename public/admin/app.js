@@ -1342,32 +1342,35 @@
     return s ? s.name : null;
   }
 
+  // A miniature of how the block reads on the live site (same content, scaled-down styling). Every
+  // value is escaped; the wrapper classes (.pv-*) carry the look, so the text stays plain and testable.
   function blockPreview(b) {
     const c = b.content || {};
+    const imgs = (urls) => urls.filter(Boolean).slice(0, 4).map((u) => `<img src="${escapeHtml(u)}" alt="" loading="lazy">`).join("");
     switch (b.type) {
-      case "heading": return `<strong>${escapeHtml(c.text || "(empty)")}</strong>`;
-      case "text": return escapeHtml((c.text || "").slice(0, 80) || "(empty)");
+      case "heading": return `<strong class="pv-heading">${escapeHtml(c.text || "(empty)")}</strong>`;
+      case "text": return `<span class="pv-text">${escapeHtml((c.text || "").slice(0, 160) || "(empty)")}</span>`;
       case "image":
         return c.url
-          ? `<img src="${escapeHtml(c.url)}" style="max-width:100%;max-height:60px;">${
+          ? `<img class="pv-image" src="${escapeHtml(c.url)}" alt="">${
               c.alt ? "" : `<span class="alt-text-warning" title="No alt text set — add one for accessibility and SEO">⚠ No alt text</span>`
             }`
           : "(no image url)";
-      case "button": return `Button: ${escapeHtml(c.label || "(no label)")}`;
-      case "project-card": return `<strong>${escapeHtml(c.title || "(untitled)")}</strong>`;
-      case "article-list": return `Shows latest ${c.limit || 10} posts`;
-      case "project-list": return `Shows latest ${c.limit || 12} projects`;
-      case "video": return c.url ? escapeHtml(c.url) : "(no video url)";
-      case "embed": return c.url ? escapeHtml(c.url) : "(no embed url)";
-      case "quote": return c.text ? `“${escapeHtml(c.text.slice(0, 60))}”` : "(empty)";
-      case "gallery": return `${(c.images || []).length} image(s)`;
-      case "before-after": return c.beforeUrl && c.afterUrl ? "Before/after comparison" : "(missing before or after image)";
+      case "button": return `<span class="pv-button">Button: ${escapeHtml(c.label || "(no label)")}</span>`;
+      case "project-card": return `<span class="pv-card"><strong>${escapeHtml(c.title || "(untitled)")}</strong>${c.description ? `<span>${escapeHtml(String(c.description).slice(0, 90))}</span>` : ""}</span>`;
+      case "article-list": return `<span class="pv-list">Shows latest ${c.limit || 10} posts</span>`;
+      case "project-list": return `<span class="pv-list">Shows latest ${c.limit || 12} projects</span>`;
+      case "video": return c.url ? `<span class="pv-media">▶ ${escapeHtml(c.url)}</span>` : "(no video url)";
+      case "embed": return c.url ? `<span class="pv-media">${escapeHtml(c.url)}</span>` : "(no embed url)";
+      case "quote": return c.text ? `<span class="pv-quote">“${escapeHtml(c.text.slice(0, 100))}”</span>` : "(empty)";
+      case "gallery": return `<span class="pv-gallery">${imgs((c.images || []).map((i) => (typeof i === "string" ? i : i && i.url)))}</span>${(c.images || []).length} image(s)`;
+      case "before-after": return c.beforeUrl && c.afterUrl ? `<span class="pv-gallery">${imgs([c.beforeUrl, c.afterUrl])}</span>Before/after comparison` : "(missing before or after image)";
       case "simulation": return c.simulation_id ? escapeHtml(simulationNameById(c.simulation_id) || `#${c.simulation_id}`) : "(choose a simulation)";
       case "scan": return c.scan_id ? escapeHtml(scanNameById(c.scan_id) || `#${c.scan_id}`) : "(choose a scan)";
       case "song": return c.song_id ? escapeHtml(songNameById(c.song_id) || `#${c.song_id}`) : "(choose a song)";
-      case "divider": return "—";
-      case "spacer": return "(spacer)";
-      case "links": return `${(c.items || []).length} link(s)`;
+      case "divider": return `<hr class="pv-divider">`;
+      case "spacer": return `<span class="pv-spacer">(spacer)</span>`;
+      case "links": return `<span class="pv-list">${(c.items || []).length} link(s)</span>`;
       case "changelog": return `${(c.entries || []).length} entr${(c.entries || []).length === 1 ? "y" : "ies"}`;
       case "html": return c.html ? "(custom HTML)" : "(empty)";
       case "accordion": return `${(c.items || []).length} section(s)`;
@@ -1499,7 +1502,48 @@
       wireBlockInteractions(div, b);
     }
     canvas.style.minHeight = maxBottom + "px";
+    renderCanvasToolbar();
     if (!el("layers-modal").hidden) renderLayersList();
+  }
+
+  // A small toolbar floating above the single selected block. Each button just presses the matching
+  // Inspector button, so lock checks, confirmations and saving stay in one place.
+  function hideCanvasToolbar() {
+    canvas.querySelectorAll(".canvas-toolbar").forEach((n) => (n.hidden = true));
+  }
+  function renderCanvasToolbar() {
+    canvas.querySelectorAll(".canvas-toolbar").forEach((n) => n.remove());
+    if (contentOnlyMode || multiSelectedIds.size > 1 || selectedBlockId === null) return;
+    const b = blocks.find((x) => x.id === selectedBlockId);
+    if (!b) return;
+    const style = blockPixelStyle(b);
+    const bar = document.createElement("div");
+    bar.className = "canvas-toolbar";
+    bar.setAttribute("role", "toolbar");
+    bar.setAttribute("aria-label", `${blockLabel(b.type)} block actions`);
+    bar.style.left = style.left + "px";
+    // Above the block when there's room; in the first row it would cover the block, so sit below instead.
+    bar.style.top = (style.top >= 40 ? style.top - 36 : style.top + style.height + 4) + "px";
+    [
+      ["copy-block-btn", "Copy"],
+      ["duplicate-block-btn", "Duplicate"],
+      ["lock-block-btn", b.locked ? "Unlock" : "Lock"],
+      ["delete-block-btn", "Delete"],
+    ].forEach(([id, label]) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = label;
+      if (id === "delete-block-btn") btn.className = "canvas-toolbar-danger";
+      // Keep the press from starting a drag or clearing the selection underneath.
+      btn.addEventListener("mousedown", (e) => e.stopPropagation());
+      btn.addEventListener("pointerdown", (e) => e.stopPropagation());
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        el(id).click();
+      });
+      bar.appendChild(btn);
+    });
+    canvas.appendChild(bar);
   }
 
   // The absolute-position 24-column grid is a faithful desktop editing
@@ -1694,6 +1738,7 @@
       });
       div.classList.add("selected");
       canvas.classList.toggle("isolation-mode", isolationMode);
+      renderCanvasToolbar();
       // Selection still works on a locked block (so its content/style stay
       // editable) — only the drag-to-move below is skipped, which is the
       // "accidental" change locking is meant to guard against.
@@ -1719,6 +1764,7 @@
           const style = blockPixelStyle(block);
           div.style.left = style.left + "px";
           div.style.top = style.top + "px";
+          hideCanvasToolbar();
         }
         updateSnapGuides(block);
       }
@@ -1726,6 +1772,8 @@
         div.removeEventListener("pointermove", onMove);
         div.removeEventListener("pointerup", onUp);
         clearSnapGuides();
+        // Put the toolbar back over wherever the block ended up (also after a snap-back).
+        queueMicrotask(renderCanvasToolbar);
         // No overlaps allowed: if the drop spot collides with another
         // block, snap back to where the drag started instead of saving it.
         if ((block.col !== startCol || block.row !== startRow) && wouldOverlap(block)) {
@@ -1773,6 +1821,7 @@
           const style = blockPixelStyle(block);
           div.style.width = style.width + "px";
           div.style.height = style.height + "px";
+          hideCanvasToolbar();
         }
         updateSnapGuides(block);
       }
@@ -1780,6 +1829,7 @@
         handle.removeEventListener("pointermove", onMove);
         handle.removeEventListener("pointerup", onUp);
         clearSnapGuides();
+        queueMicrotask(renderCanvasToolbar);
         if ((block.col_span !== startSpan || block.row_span !== startRowSpan) && wouldOverlap(block)) {
           block.col_span = startSpan;
           block.row_span = startRowSpan;

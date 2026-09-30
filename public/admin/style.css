@@ -7279,3 +7279,35 @@ button[data-tier="quiet"] { border-color: transparent; }
   margin: var(--space-5, 24px) 0 var(--space-2, 8px);
 }
 #trash-modal .redirects-body h2 .danger { margin-top: 0 !important; }
+
+/* ---- Canvas: miniature block previews ---- */
+.admin-block .block-preview { font-size: 0.85rem; color: var(--text); overflow: hidden; display: flex; flex-direction: column; gap: 4px; min-height: 0; }
+.pv-heading { font-size: 1.15rem; line-height: 1.2; overflow-wrap: anywhere; }
+.pv-text { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; color: var(--text-dim); line-height: 1.45; overflow-wrap: anywhere; }
+.pv-image { max-width: 100%; max-height: 90px; object-fit: contain; align-self: flex-start; border-radius: 4px; }
+.pv-button { align-self: flex-start; padding: 4px 12px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-weight: 600; font-size: 0.8rem; }
+.pv-card { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); overflow-wrap: anywhere; }
+.pv-card span { color: var(--text-dim); font-size: 0.78rem; }
+.pv-list { color: var(--text-dim); border-left: 2px solid var(--border); padding-left: 8px; }
+.pv-quote { border-left: 3px solid var(--accent); padding-left: 8px; font-style: italic; color: var(--text-dim); overflow-wrap: anywhere; }
+.pv-media { font-family: var(--font-mono, monospace); font-size: 0.75rem; color: var(--text-dim); overflow-wrap: anywhere; }
+.pv-gallery { display: flex; gap: 4px; }
+.pv-gallery img { width: 44px; height: 44px; object-fit: cover; border-radius: 4px; }
+.pv-divider { width: 100%; border: none; border-top: 1px solid var(--text-dim); margin: 6px 0; }
+.pv-spacer { color: var(--text-dim); font-size: 0.75rem; background: repeating-linear-gradient(45deg, transparent 0 6px, var(--border) 6px 7px); padding: 2px 6px; border-radius: 4px; align-self: flex-start; }
+
+/* ---- Canvas: floating toolbar for the selected block ---- */
+.canvas-toolbar {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.22));
+}
+.canvas-toolbar button { border: none; padding: 4px 10px; font-size: 0.75rem; border-radius: 6px; }
+.canvas-toolbar button:hover { background: var(--bg); }
+.canvas-toolbar .canvas-toolbar-danger:hover { background: var(--error-bg); color: #fff; }
