@@ -12,6 +12,8 @@
       bar = document.createElement("div");
       bar.id = listEl.id + "-bulk-bar";
       bar.className = "bulk-list-bar";
+      bar.setAttribute("role", "toolbar");
+      bar.setAttribute("aria-label", "Bulk actions for this list");
       bar.hidden = true;
       bar.innerHTML =
         '<label class="bulk-list-all"><input type="checkbox" class="bulk-list-all-box" aria-label="Select all"> <span>Select all</span></label>' +
@@ -83,21 +85,43 @@
       else selected.clear();
       refresh();
     });
+    // After a bulk action the list re-renders and this bar's buttons are replaced, so put keyboard
+    // focus on the fresh bar rather than letting it fall back to the top of the page.
+    const refocus = () => {
+      const fresh = document.querySelector("#" + opts.listId + "-bulk-bar .bulk-list-all-box");
+      if (fresh) fresh.focus();
+    };
+    const nameOf = (id) => {
+      const row = rows.find((r) => {
+        const el = r.querySelector(opts.rowIdSelector);
+        return el && String(el.dataset.id) === String(id);
+      });
+      const span = row && row.querySelector("span");
+      return span ? span.textContent.trim() : String(id);
+    };
+    const failureText = (verb, failedIds, total) => {
+      const shown = failedIds.slice(0, 5).map(nameOf).join(", ");
+      return `${failedIds.length} of ${total} could not be ${verb}: ${shown}${failedIds.length > 5 ? ", …" : ""}. They stay selected so you can try again.`;
+    };
     dup.addEventListener("click", async () => {
       const ids = [...selected];
       if (!ids.length || !opts.duplicate) return;
       dup.disabled = del.disabled = true;
-      let failed = 0;
-      for (const id of ids) {
-        try {
-          await opts.duplicate(id);
-        } catch (e) {
-          failed++;
+      const failedIds = [];
+      try {
+        for (const id of ids) {
+          try {
+            await opts.duplicate(id);
+            selected.delete(id);
+          } catch (e) {
+            failedIds.push(id);
+          }
         }
+        await opts.reload();
+      } finally {
+        refocus();
       }
-      selected.clear();
-      await opts.reload();
-      if (failed) alert(`${failed} of ${ids.length} could not be duplicated.`);
+      if (failedIds.length) alert(failureText("duplicated", failedIds, ids.length));
     });
     del.addEventListener("click", async () => {
       const ids = [...selected];
@@ -111,29 +135,33 @@
           if (idEl && name) names.set(String(idEl.dataset.id), name.textContent.trim());
         });
         const inUse = [];
+        let lookupFailed = false;
         for (const id of ids) {
-          const usage = await window.adminApi(`/content-usage?type=${opts.type}&id=${id}`).catch(() => []);
-          if (usage.length) inUse.push(`${names.get(id) || id}: ${usage.map((u) => u.title).join(", ")}`);
+          const usage = await window.adminApi(`/content-usage?type=${opts.type}&id=${id}`).catch(() => null);
+          if (usage === null) lookupFailed = true;
+          else if (usage.length) inUse.push(`${names.get(id) || id}: ${usage.map((u) => u.title).join(", ")}`);
         }
         const what = `${ids.length} ${opts.noun}${ids.length === 1 ? "" : "s"}`;
         const warn = inUse.length
           ? `\n\nIn use, and those blocks will be omitted from public pages until replaced:\n- ${inUse.join("\n- ")}`
           : "";
-        if (!confirm(`Delete ${what}? This can't be undone.${warn}`)) {
+        const unknown = lookupFailed ? "\n\nCouldn't check where some of these are used, so they may be in use on pages." : "";
+        if (!confirm(`Delete ${what}? This can't be undone.${warn}${unknown}`)) {
           refresh();
           return;
         }
-        let failed = 0;
+        const failedIds = [];
         for (const id of ids) {
           try {
             await opts.remove(id);
             selected.delete(id);
           } catch (e) {
-            failed++;
+            failedIds.push(id);
           }
         }
         await opts.reload();
-        if (failed) alert(`${failed} of ${ids.length} could not be deleted.`);
+        refocus();
+        if (failedIds.length) alert(failureText("deleted", failedIds, ids.length));
       } finally {
         refresh();
       }
