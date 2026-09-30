@@ -8643,10 +8643,12 @@
       { label: "Open Trash", sub: "", run: () => { closeCommandPalette(); el("trash-btn").click(); } },
       { label: "Open Site Settings", sub: "", run: () => { closeCommandPalette(); el("site-settings-btn").click(); } },
       { label: "Keyboard Shortcuts", sub: "", run: () => { closeCommandPalette(); el("shortcuts-modal").hidden = false; } },
-      { label: "Toggle light / dark admin theme", sub: "", run: () => { closeCommandPalette(); el("admin-theme-toggle").click(); } },
+      { label: "Toggle light / dark admin theme", sub: "", leads: true, keywords: ["theme", "dark mode", "light mode", "dark", "light", "appearance of the admin"], run: () => { closeCommandPalette(); el("admin-theme-toggle").click(); } },
       {
         label: document.documentElement.getAttribute("data-density") === "compact" ? "Interface density: switch to comfortable" : "Interface density: switch to compact",
         sub: "This browser only",
+        leads: true,
+        keywords: ["compact", "comfortable", "density", "spacing", "tighter"],
         run: () => { closeCommandPalette(); el("admin-density-toggle").click(); },
       },
       { label: "Toggle Focus mode (hide the block palette)", sub: "", run: () => { closeCommandPalette(); el("focus-mode-btn").click(); } },
@@ -8656,13 +8658,25 @@
       {
         label: "Run all Site Health checks",
         sub: "",
+        leads: true,
+        keywords: ["health", "audit", "seo check", "broken links", "check the site"],
         run: () => {
           closeCommandPalette();
           el("seo-dashboard-btn").click();
           setTimeout(() => el("run-site-health-btn").click(), 250);
         },
       },
-      { label: "Log out", sub: "", run: () => { closeCommandPalette(); el("logout-btn").click(); } },
+      {
+        label: "Log out (signs out every device)",
+        sub: "",
+        leads: true,
+        keywords: ["logout", "log out", "sign out", "log off", "signout"],
+        run: () => {
+          closeCommandPalette();
+          // Logging out revokes every session, phones included, so the keyboard route asks first.
+          if (confirm("Log out? This signs you out on every device.")) el("logout-btn").click();
+        },
+      },
       {
         label: "Open Activity Log",
         sub: "",
@@ -8857,18 +8871,24 @@
 
   let commandSearchTimer = null;
   function runCommandSearch(q) {
-    const localMatches = q ? quickActions().filter((a) => a.label.toLowerCase().includes(q.toLowerCase())) : quickActions();
+    const needle = q.toLowerCase();
+    const localMatches = q
+      ? quickActions().filter((a) => a.label.toLowerCase().includes(needle) || (a.keywords || []).some((k) => k.includes(needle)))
+      : quickActions();
+    // A command that names what was typed (its label or one of its own keywords) outranks
+    // the settings index, so "theme" toggles the theme instead of opening Accent color first.
+    const leading = q ? localMatches.filter((a) => a.leads) : [];
     // Settings matches lead the list — "where is this setting" is exactly
     // what this index exists for, so it should surface before generic
     // "Go to page: ..." matches that happen to share a word.
     const settingsMatches = settingsSearchActions(q);
-    renderCommandResults([...settingsMatches, ...localMatches]);
+    renderCommandResults([...leading, ...settingsMatches, ...localMatches.filter((a) => !leading.includes(a))]);
     if (!q) return;
     clearTimeout(commandSearchTimer);
     commandSearchTimer = setTimeout(async () => {
       try {
         const results = await api(`/search?q=${encodeURIComponent(q)}`);
-        const items = [...settingsMatches, ...localMatches];
+        const items = [...leading, ...settingsMatches, ...localMatches.filter((a) => !leading.includes(a))];
         results.pages.forEach((p) =>
           items.push({
             label: `Page: ${p.title}`,
