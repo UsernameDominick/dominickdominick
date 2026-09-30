@@ -8523,6 +8523,74 @@
     if (currentArticleId) openRevisions("article", currentArticleId);
   });
 
+  // ---------- Contextual help for the big editors ----------
+  // A "?" in each editor's header opens a short, plain list of what the editor can do and
+  // the keys it answers to. The text lives here so it is one place to keep true.
+  const EDITOR_HELP = {
+    photo: {
+      title: "Photo editor help",
+      sections: [
+        ["Moving around", ["Zoom with the + and - buttons, the keys + - 0 (fit) and 1 (actual pixels), or Ctrl+wheel.", "Pan with the Pan tool, by holding Space, or with the middle mouse button."]],
+        ["Making changes", ["Undo and redo with Ctrl+Z and Ctrl+Shift+Z; Reset goes back to the original.", "Selections (rectangle, ellipse, lasso, polygon) limit where a tool works; Ctrl+D deselects.", "Layers and masks live in the Layers panel: add, duplicate, merge down, flatten, reorder."]],
+        ["Saving", ["Save as new file keeps the original untouched.", "Overwrite original replaces the file at the same address; the old bytes are kept as a file version you can restore from the Media Library."]],
+        ["Faster", ["Ctrl+K lists every tool and action while this editor is open."]],
+      ],
+    },
+    song: {
+      title: "Song builder help",
+      sections: [
+        ["Building", ["Drum tracks use the step sequencer; the melody uses the piano roll; both can be muted or hidden.", "Play / stop previews the loop. The melody can be transposed up or down."]],
+        ["Working on several songs", ["Open another song from the tab row; each tab keeps its own unsaved changes, and closing a tab with changes asks first."]],
+        ["Publishing", ["Songs are embedded in articles and projects with the Song block, or attached to a project under Related songs."]],
+        ["Faster", ["Ctrl+K has a Play / stop command while this builder is open."]],
+      ],
+    },
+    simulation: {
+      title: "Simulation builder help",
+      sections: [
+        ["Building a circuit", ["Add parts from the parts list and connect their pins with wires; parts can be rotated and mirrored.", "Power on runs the circuit; LEDs, meters and logic gates respond live."]],
+        ["Saving and publishing", ["Save keeps your draft private. Publish makes the current version public at /simulation/<id> and in the Simulation block; Unpublish takes it down without losing the draft."]],
+        ["Checkpoints", ["Checkpoints are named snapshots you can return to while experimenting."]],
+      ],
+    },
+    scan: {
+      title: "3D scan editor help",
+      sections: [
+        ["Adding a scan", ["A name and a GLB or GLTF model file are required."]],
+        ["Using it", ["Add a scan to a page with the 3D scan block, or attach it to a project under Related scans.", "Usage in the Scans list shows where a scan is used before you delete it."]],
+      ],
+    },
+  };
+  let editorHelpReturnFocus = null;
+  function openEditorHelp(key, trigger) {
+    const help = EDITOR_HELP[key];
+    if (!help) return;
+    el("editor-help-title").textContent = help.title;
+    el("editor-help-body").innerHTML = help.sections
+      .map(([heading, items]) => `<h2>${escapeHtml(heading)}</h2><ul>${items.map((t) => `<li>${escapeHtml(t)}</li>`).join("")}</ul>`)
+      .join("");
+    editorHelpReturnFocus = trigger || document.activeElement;
+    el("editor-help-modal").hidden = false;
+    el("close-editor-help").focus();
+  }
+  function closeEditorHelp() {
+    el("editor-help-modal").hidden = true;
+    if (editorHelpReturnFocus && typeof editorHelpReturnFocus.focus === "function") editorHelpReturnFocus.focus();
+    editorHelpReturnFocus = null;
+  }
+  document.querySelectorAll(".editor-help-btn").forEach((btn) => btn.addEventListener("click", () => openEditorHelp(btn.dataset.help, btn)));
+  el("close-editor-help").addEventListener("click", closeEditorHelp);
+  el("editor-help-modal").addEventListener("click", (e) => {
+    if (e.target === el("editor-help-modal")) closeEditorHelp();
+  });
+  el("editor-help-modal").addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      closeEditorHelp();
+    }
+  });
+
   // ---------- Command palette (Ctrl/Cmd+K) ----------
   let commandItems = [];
   let commandActiveIndex = 0;
@@ -8709,6 +8777,10 @@
         },
       });
     });
+    const openEditorHelpKey = [["photo-editor-modal", "photo"], ["simulation-builder-modal", "simulation"], ["song-builder-modal", "song"], ["scan-editor-modal", "scan"]].find(([id]) => !el(id).hidden);
+    if (openEditorHelpKey) {
+      actions.push({ label: "Help for this editor", sub: "", leads: true, keywords: ["help", "tips", "how do i"], run: () => { closeCommandPalette(); openEditorHelp(openEditorHelpKey[1], null); } });
+    }
     if (!el("song-builder-modal").hidden) {
       actions.push({ label: "Song builder: Play / stop", sub: "", run: () => { closeCommandPalette(); el("song-play").click(); } });
     }

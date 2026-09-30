@@ -226,7 +226,7 @@ Open and partial items only; completed implementation histories remain in Git hi
 - 🔶 Broader command-palette coverage (Ctrl+K now also runs: light/dark theme, Comfortable/Compact density, Focus mode, Content-only mode, draft preview mode, Screen Preview, "Run all Site Health checks", Log out; Site Settings search finds "Backfill image dimensions" and "Scan media for duplicates"; while the Photo editor is open, zoom in/out/fit/100%, the Pan tool and the layer actions; while the Song builder is open, Play/stop. Simulation-builder and Scan actions, and per-block commands, remain)
 - 🔶 Interface density (the ⇕ button in the sidebar footer switches the admin between Comfortable and Compact, remembered per browser and applied before first paint: tighter sidebar, dialog headers, settings forms, list rows, block inspector and default buttons and fields, never below 24px targets; the Song/Simulation/Scan builders and the Photo editor keep their fixed sizing). Still ☐: customizable dashboard, saved workspace layouts
 - 🔶 Universal bulk-action toolbar (currently articles, projects, and blocks)
-- ☐ Contextual help for complex editors, shortcut remapping
+- 🔶 Contextual help for complex editors (a "?" in the header of the Photo editor, Song builder, Simulation builder and 3D scan editor opens a short list of what the editor does and its keys, Escape closes only the help and focus returns to the button; Ctrl+K offers "Help for this editor" while one is open); shortcut remapping ☐
 - ☐ Role-specific preview (requires a roles system; none exists)
 
 ### Authentication and permissions
