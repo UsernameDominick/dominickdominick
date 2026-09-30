@@ -36,6 +36,7 @@ import {
   getArchive,
   listArticlesPaged,
   listProjectsPaged,
+  getLatestJournalEntry,
   INDEX_PAGE_SIZE,
   SEARCH_PAGE_SIZE,
   getContentByTag,
@@ -75,6 +76,7 @@ import {
   renderIndexPaginationHtml,
   renderArticlesIndexHtml,
   renderProjectsIndexHtml,
+  renderBuildingStripHtml,
   renderTopicPageHtml,
   renderShareLinks,
   renderReactionsHtml,
@@ -742,8 +744,10 @@ async function renderProjectsIndex(env, navItems, page) {
   const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
   const { projects, totalCount } = await listProjectsPaged(env, { page });
   const totalPages = Math.max(1, Math.ceil(totalCount / INDEX_PAGE_SIZE));
+  const building = page === 1 && totalCount ? renderBuildingStripHtml(await getLatestJournalEntry(env)) : "";
   const bodyHtml = `<div class="block">
     <header class="index-header"><h1>Projects</h1>${totalCount ? `<p class="index-count">${totalCount} ${totalCount === 1 ? "project" : "projects"}</p>` : ""}</header>
+    ${building}
     ${renderProjectsIndexHtml(projects)}
     ${renderIndexPaginationHtml("/projects", page, totalPages)}
   </div>`;

@@ -1,5 +1,5 @@
 import { listArticles, listProjects, getSimulation, getScan, getSong, getMediaMeta } from "./db.js";
-import { nowIso } from "./text.js";
+import { nowIso, visibleText } from "./text.js";
 import { renderSimulationSvg } from "./simulation-render.js";
 
 export function esc(str) {
@@ -555,11 +555,22 @@ export function renderProjectsIndexHtml(projects, customEmptyText = "") {
     .map(
       (p) =>
         `<div class="project-card"><h2><a href="/projects/${esc(p.slug)}">${esc(p.title)}</a></h2>${
-          p.summary ? `<p>${esc(p.summary)}</p>` : ""
+          visibleText(p.status) ? `<p class="card-status"><span class="status-led" aria-hidden="true"></span>${esc(visibleText(p.status))}</p>` : ""
+        }${p.summary ? `<p>${esc(p.summary)}</p>` : ""
         }${renderTags(p.tags)}</div>`
     )
     .join("\n");
   return `<div class="project-list index-grid">${items}</div>`;
+}
+
+// One-line "currently building" call-out from the newest journal entry.
+export function renderBuildingStripHtml(entry) {
+  if (!entry) return "";
+  const title = visibleText(entry.title) || excerpt(entry.body || "", 80);
+  if (!title) return "";
+  return `<a class="building-strip" href="/projects/${esc(entry.project_slug)}"><span class="building-strip-label"><span class="status-led" aria-hidden="true"></span>Currently building</span><span class="building-strip-text"><strong>${esc(
+    entry.project_title
+  )}</strong> · ${esc(title)}</span><time datetime="${esc(entry.entry_date)}">${esc(entry.entry_date)}</time></a>`;
 }
 
 export function renderByline(article) {

@@ -1254,6 +1254,23 @@ export async function listJournalEntries(env, projectId, { order = "DESC" } = {}
   return results;
 }
 
+// Newest dated journal entry across published projects, for the "currently
+// building" strip. Future-dated entries stay hidden until their day.
+export async function getLatestJournalEntry(env) {
+  const now = nowIso(env);
+  const row = await env.DB
+    .prepare(
+      `SELECT j.id, j.entry_date, j.title, j.body, p.slug AS project_slug, p.title AS project_title
+       FROM journal_entries j JOIN projects p ON p.id = j.project_id
+       WHERE p.deleted_at IS NULL AND p.published_at IS NOT NULL AND p.published_at <= ?
+         AND (p.expires_at IS NULL OR p.expires_at > ?) AND p.archived = 0 AND j.entry_date <= ?
+       ORDER BY j.entry_date DESC, j.id DESC LIMIT 1`
+    )
+    .bind(now, now, now.slice(0, 10))
+    .first();
+  return row || null;
+}
+
 export async function createJournalEntry(env, projectId, { entry_date, title, body, entry_type }) {
   const res = await env.DB
     .prepare("INSERT INTO journal_entries (project_id, entry_date, title, body, entry_type) VALUES (?, ?, ?, ?, ?)")
