@@ -3523,3 +3523,47 @@ pre.has-line-numbers {
     text-decoration: underline;
   }
 }
+
+/* ---- Subtle voice pass: mono metadata, token-based surfaces ---- */
+:root {
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+.index-card-date,
+.index-count,
+.archive-list time,
+.tag,
+.site-footer .footer-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+.tag {
+  font-size: 0.74rem;
+}
+.project-card {
+  padding: var(--space-4) var(--space-5);
+  box-shadow: var(--shadow-sm);
+}
+@media (hover: hover) {
+  .project-card:hover {
+    box-shadow: var(--shadow-md);
+  }
+}
+/* A class-level list reset beats the generic ".block ul" indent, which was
+   pushing the topics and archive lists in from the left edge. */
+.block .topics-list,
+.block .archive-list,
+.block .search-results {
+  padding-left: 0;
+}
+.site-footer .footer-mono {
+  font-size: 0.8rem;
+}
+.not-found-heading {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}

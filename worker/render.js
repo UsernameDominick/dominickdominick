@@ -2089,7 +2089,7 @@ ${customHead || ""}
     <main class="${esc(canvasClass)}" id="main-content">
       ${bodyHtml}
     </main>
-    ${footerText ? `<footer class="site-footer">${paragraphsHtml(footerText)}</footer>` : ""}
+    ${footerText ? `<footer class="site-footer">${paragraphsHtml(footerText)}</footer>` : `<footer class="site-footer"><p class="footer-mono">© ${new Date().getUTCFullYear()} Dominick</p></footer>`}
   </div>
 </body>
 </html>`;
