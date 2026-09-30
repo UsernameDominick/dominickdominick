@@ -1677,6 +1677,9 @@
           flashRejected(div);
           return;
         }
+        // A plain click (select without moving) must not write: it bumped the block's
+        // updated_at and could race a concurrent edit for nothing.
+        if (block.col === startCol && block.row === startRow) return;
         api(`/blocks/${block.id}`, {
           method: "PATCH",
           body: JSON.stringify({ col: block.col, row: block.row }),
@@ -1726,6 +1729,7 @@
           flashRejected(div);
           return;
         }
+        if (block.col_span === startSpan && block.row_span === startRowSpan) return; // nothing changed: no write
         api(`/blocks/${block.id}`, {
           method: "PATCH",
           body: JSON.stringify({ col_span: block.col_span, row_span: block.row_span }),
