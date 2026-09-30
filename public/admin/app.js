@@ -8540,7 +8540,7 @@
       title: "Song builder help",
       sections: [
         ["Building", ["Drum tracks use the step sequencer; the melody uses the piano roll; both can be muted or hidden.", "Play / stop previews the loop. The melody can be transposed up or down."]],
-        ["Working on several songs", ["Open another song from the tab row. Switching saves a song that was already saved; if the current one has unsaved changes you are asked whether to discard them."]],
+        ["Working on several songs", ["Open another song from the tab row. Switching autosaves a saved song; an unsaved draft asks before it is discarded."]],
         ["Publishing", ["Songs go onto a page with the Song block, and onto a project under Related songs."]],
         ["Faster", ["Ctrl+K has a Play / stop command while this builder is open."]],
       ],

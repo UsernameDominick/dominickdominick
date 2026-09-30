@@ -4788,7 +4788,7 @@ kbd {
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   }
 
-  .simulation-builder-inner .editor-header-end {
+  .simulation-builder-inner:not(.scan-editor-inner) .editor-header-end {
     order: -1;
   }
 
