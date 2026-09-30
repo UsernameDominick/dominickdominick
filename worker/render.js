@@ -257,6 +257,14 @@ export function tableOfContentsHtml(headings) {
   return `<nav class="table-of-contents" aria-label="Table of contents"><strong>Contents</strong><ul>${items}</ul></nav>`;
 }
 
+// An admin-set footer wins; blank or whitespace-only falls back to a minimal default.
+export function footerHtml(text, year = new Date().getUTCFullYear()) {
+  const body = String(text == null ? "" : text).trim();
+  return body
+    ? `<footer class="site-footer">${paragraphsHtml(body)}</footer>`
+    : `<footer class="site-footer"><p class="footer-mono">© ${year} Dominick</p></footer>`;
+}
+
 export function paragraphsHtml(text) {
   const { cleaned, defs } = extractFootnotes(text);
   const { replaced: withoutCallouts, callouts } = extractCallouts(cleaned);
@@ -2089,7 +2097,7 @@ ${customHead || ""}
     <main class="${esc(canvasClass)}" id="main-content">
       ${bodyHtml}
     </main>
-    ${footerText ? `<footer class="site-footer">${paragraphsHtml(footerText)}</footer>` : `<footer class="site-footer"><p class="footer-mono">© ${new Date().getUTCFullYear()} Dominick</p></footer>`}
+    ${footerHtml(footerText)}
   </div>
 </body>
 </html>`;

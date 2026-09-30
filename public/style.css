@@ -9,6 +9,7 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.18);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.22);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.28);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   /* Deep violet-black rather than neutral gray-black — same near-black
      depth as before, but with a color cast that gives the whole dark
      theme a warmer, more distinctive identity instead of reading as a
@@ -1335,12 +1336,12 @@ h6 { font-size: 0.9rem; }
   border: 1px solid var(--border);
   border-radius: var(--card-radius);
   padding: 20px 24px;
-  transition: border-color 0.2s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .project-card {
-    transition: border-color 0.2s ease, transform 0.2s var(--ease-smooth);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s var(--ease-smooth);
   }
 }
 
@@ -2633,7 +2634,12 @@ hr {
 }
 
 .not-found-heading {
-  font-size: 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
   margin: 24px 0 12px;
 }
 
@@ -3525,45 +3531,32 @@ pre.has-line-numbers {
 }
 
 /* ---- Subtle voice pass: mono metadata, token-based surfaces ---- */
-:root {
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-}
 .index-card-date,
 .index-count,
 .archive-list time,
+.topic-count,
+.article-meta time,
 .tag,
 .site-footer .footer-mono {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
 }
-.tag {
-  font-size: 0.74rem;
-}
-.project-card {
-  padding: var(--space-4) var(--space-5);
-  box-shadow: var(--shadow-sm);
-}
-@media (hover: hover) {
-  .project-card:hover {
-    box-shadow: var(--shadow-md);
-  }
-}
-/* A class-level list reset beats the generic ".block ul" indent, which was
-   pushing the topics and archive lists in from the left edge. */
-.block .topics-list,
-.block .archive-list,
-.block .search-results {
-  padding-left: 0;
-}
 .site-footer .footer-mono {
   font-size: 0.8rem;
 }
-.not-found-heading {
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-dim);
+.project-card {
+  box-shadow: var(--shadow-sm);
+}
+@media (hover: hover) {
+  .project-card-linked:hover,
+  .project-card:has(h2 a):hover {
+    box-shadow: var(--shadow-md);
+  }
+}
+/* ".block ul" (0,1,1) would indent these list-reset lists; the class-level
+   rule here is later in the file and more specific. */
+.block .topics-list,
+.block .archive-list {
+  padding-left: 0;
 }
