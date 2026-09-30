@@ -1339,7 +1339,7 @@ async function routeAdminApi(request, env, url, ctx) {
   const journalMatch = path.match(/^\/journal\/(\d+)$/);
   if (journalMatch && method === "PATCH") {
     const body = await readJsonBody(request);
-    if (!validEntryDate(body.entry_date, true)) return json({ error: "Entry date must be a real date like 2026-09-30." }, { status: 400 });
+    if (!validEntryDate(body.entry_date, !("entry_date" in body))) return json({ error: "Entry date must be a real date like 2026-09-30." }, { status: 400 });
     await updateJournalEntry(env, Number(journalMatch[1]), body);
     return json({ ok: true });
   }
