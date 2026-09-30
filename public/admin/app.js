@@ -931,6 +931,21 @@
     } catch (e) {}
   });
 
+  // ---------- Preview the public site as of another date ----------
+  // Opens the public site in a new tab with ?preview_at=<date>; the worker honours it only for this
+  // signed-in admin (see previewClock in worker/index.js), keeps it for an hour, and shows an exit banner.
+  el("preview-at-btn").addEventListener("click", () => {
+    const soon = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+    const entered = prompt("Preview the public site as it will look on which date? (YYYY-MM-DD, or YYYY-MM-DDTHH:MM, in UTC; up to 10 years ahead)", soon);
+    if (entered === null) return;
+    const value = entered.trim();
+    if (!/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2})?$/.test(value) || Number.isNaN(Date.parse(value.includes("T") ? value + "Z" : value + "T00:00:00Z"))) {
+      alert("Enter a date like 2026-12-01.");
+      return;
+    }
+    window.open(`/?preview_at=${encodeURIComponent(value)}`, "_blank", "noopener");
+  });
+
   // ---------- Focus mode (hide the block palette for more canvas room) ----------
   function applyFocusMode(on) {
     el("app").classList.toggle("focus-mode", on);
@@ -8782,6 +8797,7 @@
       { label: "Toggle Content-only mode (lock block positions)", sub: "", run: () => { closeCommandPalette(); el("content-only-mode-btn").click(); } },
       { label: "Toggle draft preview mode", sub: "", run: () => { closeCommandPalette(); el("draft-preview-mode-toggle").click(); } },
       { label: "Screen Preview", sub: "", run: () => { closeCommandPalette(); el("preview-btn").click(); } },
+      { label: "Preview the site at a future date", sub: "", leads: true, keywords: ["preview at", "future", "scheduled", "as of a date", "time travel"], run: () => { closeCommandPalette(); el("preview-at-btn").click(); } },
       {
         label: "Run all Site Health checks",
         sub: "",

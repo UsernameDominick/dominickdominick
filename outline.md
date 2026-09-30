@@ -168,7 +168,7 @@ Open and partial items only; completed implementation histories remain in Git hi
 
 ### Publishing workflow
 - ☐ Publishing approvals/review steps, editorial calendar, review reminders
-- ☐ Future-date preview for scheduled changes
+- 🔶 Future-date preview for scheduled changes (owner approved the read-path change on 2026-09-30: the admin's View group has "Preview at a date…" and Ctrl+K "Preview the site at a future date", which open the public site with `?preview_at=YYYY-MM-DD` (or a full time, UTC, from a year back to ten years ahead). Only a valid admin session is honoured, anonymous visitors and forged cookies get nothing; the date is kept for an hour in a cookie, every such response is private, no-store and noindex, a bottom banner shows the date with an Exit link, and `?preview_at=off` clears it. Every public read that decides what is live (published, scheduled, expired, and block visibleFrom/visibleUntil windows) takes its clock from one per-request value (`nowIso(env)`), so articles, projects, indexes, RSS, sitemap, search and blocks agree; nothing is written and real visitors are unaffected. Not covered: the admin's own lists and editors, and the scheduled-publish cron, which always use the real clock)
 - ☐ Publish-as-package (related pages/nav/updates together), rollback of a package, affected-pages preview,
   URL-change impact preview
 

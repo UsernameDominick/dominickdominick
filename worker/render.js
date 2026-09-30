@@ -1,4 +1,5 @@
 import { listArticles, listProjects, getSimulation, getScan, getSong, getMediaMeta } from "./db.js";
+import { nowIso } from "./text.js";
 import { renderSimulationSvg } from "./simulation-render.js";
 
 export function esc(str) {
@@ -1425,9 +1426,9 @@ async function renderBlockInner(env, block, ctx) {
 // shouldn't ship in the HTML at all before/after its window, not just be
 // hidden client-side, since nothing about "not yet announced" should be
 // visible in page source.
-function isBlockInDateWindow(style) {
+function isBlockInDateWindow(style, env) {
   if (!style) return true;
-  const now = new Date().toISOString();
+  const now = nowIso(env);
   if (style.visibleFrom && style.visibleFrom > now) return false;
   if (style.visibleUntil && style.visibleUntil <= now) return false;
   return true;
@@ -1457,8 +1458,8 @@ function isBlockUrlAllowed(style, query) {
 // date window, and allowed by its address rule. Everything built from a page's
 // blocks (the rendered body, the meta description) must use this, so hidden text
 // never ships in any form.
-export function isBlockShown(b, query) {
-  return !(b.style && b.style.hidden) && isBlockInDateWindow(b.style) && isBlockUrlAllowed(b.style, query);
+export function isBlockShown(b, query, env) {
+  return !(b.style && b.style.hidden) && isBlockInDateWindow(b.style, env) && isBlockUrlAllowed(b.style, query);
 }
 
 // A fixed easing name/keyword set, not a raw admin-typed cubic-bezier
@@ -1556,7 +1557,7 @@ export async function renderBlocks(env, blocks, ctx = {}) {
   const customAnimationCssBlocks = [];
   const withInner = await Promise.all(
     blocks
-      .filter((b) => isBlockShown(b, ctx.query))
+      .filter((b) => isBlockShown(b, ctx.query, env))
       .map(async (b) => ({ b, inner: await renderBlockInner(env, b, ctx) }))
   );
   // The order these render in becomes DOM order, which is what a screen

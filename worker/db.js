@@ -1,5 +1,5 @@
 import { toHex } from "./auth.js";
-import { visibleText } from "./text.js";
+import { visibleText, nowIso } from "./text.js";
 import { normalizeLegacySimulationWireIds, simulationDataError } from "./simulation-validation.js";
 
 export const RESERVED_SLUGS = new Set([
@@ -495,7 +495,7 @@ export async function getSeriesArticles(env, series) {
        AND published_at IS NOT NULL AND published_at <= ?
        ORDER BY series_order IS NULL, series_order ASC, published_at ASC`
     )
-    .bind(series, new Date().toISOString())
+    .bind(series, nowIso(env))
     .all();
   return results.map(parseArticleRow);
 }
@@ -509,7 +509,7 @@ export async function listArticles(env, { publishedOnly = false, limit = null, t
   // out of every publishedOnly listing (though it isn't deleted, and an
   // admin editing it directly still sees it — same as a draft would).
   if (publishedOnly) {
-    const now = new Date().toISOString();
+    const now = nowIso(env);
     // archived is deliberately folded into publishedOnly rather than its
     // own option: an archived article stays directly reachable at its
     // URL (same as an expired one) but drops out of every listing/
@@ -537,7 +537,7 @@ export const INDEX_PAGE_SIZE = 20;
 // listArticles() above only supports a flat LIMIT with no offset/total
 // count, which a real "page 2 of N" listing needs.
 export async function listArticlesPaged(env, { page = 1, perPage = INDEX_PAGE_SIZE } = {}) {
-  const now = new Date().toISOString();
+  const now = nowIso(env);
   const offset = (Math.max(1, page) - 1) * perPage;
   const [{ results }, countRow] = await Promise.all([
     env.DB
@@ -559,7 +559,7 @@ export async function listArticlesPaged(env, { page = 1, perPage = INDEX_PAGE_SI
 
 // Same as listArticlesPaged, for the /projects index page.
 export async function listProjectsPaged(env, { page = 1, perPage = INDEX_PAGE_SIZE } = {}) {
-  const now = new Date().toISOString();
+  const now = nowIso(env);
   const offset = (Math.max(1, page) - 1) * perPage;
   const [{ results }, countRow] = await Promise.all([
     env.DB
@@ -990,7 +990,7 @@ export async function listProjects(env, { publishedOnly = false, limit = null, t
   let sql = "SELECT * FROM projects WHERE deleted_at IS NULL";
   const params = [];
   if (publishedOnly) {
-    const now = new Date().toISOString();
+    const now = nowIso(env);
     sql += " AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?) AND archived = 0";
     params.push(now, now);
   }
@@ -2479,7 +2479,7 @@ export const SEARCH_PAGE_SIZE = 20;
 export async function publicSearch(env, q, { type = "", sort = "newest", page = 1 } = {}) {
   const like = `%${escapeLike(q)}%`;
   const dateOrder = sort === "oldest" ? "ASC" : "DESC";
-  const now = new Date().toISOString();
+  const now = nowIso(env);
   const paginated = !!type;
   const limit = paginated ? SEARCH_PAGE_SIZE : 20;
   const offset = paginated ? (Math.max(1, page) - 1) * SEARCH_PAGE_SIZE : 0;

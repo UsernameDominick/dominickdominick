@@ -89,7 +89,7 @@ import {
   CONTROL_PRESETS,
 } from "./render.js";
 import { handleAdminApi } from "./admin-api.js";
-import { visibleText } from "./text.js";
+import { visibleText, nowIso } from "./text.js";
 import {
   capacitanceMicrofarads,
   computeCircuitAnalysis,
@@ -304,7 +304,7 @@ async function renderPage(env, page, url, request) {
     visibleText(page.meta_description) ||
     excerpt(
       blocks
-        .filter((b) => isBlockShown(b, url.searchParams) && (b.type === "text" || b.type === "heading") && b.content && b.content.text)
+        .filter((b) => isBlockShown(b, url.searchParams, env) && (b.type === "text" || b.type === "heading") && b.content && b.content.text)
         .sort((a, b) => a.row - b.row || a.col - b.col)
         .map((b) => b.content.text)
         .join(" ")
@@ -1242,10 +1242,83 @@ function withSecurityHeaders(response) {
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
+// ---------- Preview the site as of another date (admin only) ----------
+// ?preview_at=2026-12-01 (or a full ISO time) shows every public page as it will look on that date:
+// scheduled articles and projects that will have gone live, expired ones gone, scheduled blocks
+// in or out of their window. It is a per-request copy of env carrying __previewNow, read through
+// nowIso() by the public queries; nothing is written, no other visitor is affected, and the
+// choice is kept for an hour in a cookie so ordinary navigation keeps the same date.
+// ?preview_at=off clears it. It is refused unless the admin session is valid.
+const PREVIEW_AT_COOKIE = "preview_at";
+const PREVIEW_AT_RE = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?Z?)?$/;
+
+export function parsePreviewAt(value) {
+  const raw = String(value || "").trim();
+  if (!PREVIEW_AT_RE.test(raw)) return null;
+  const iso = raw.includes("T") ? (raw.endsWith("Z") ? raw : raw + "Z") : raw + "T00:00:00.000Z";
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return null;
+  const now = Date.now();
+  if (t < now - 366 * 24 * 3600 * 1000 || t > now + 10 * 366 * 24 * 3600 * 1000) return null;
+  return new Date(t).toISOString();
+}
+
+async function previewClock(request, env) {
+  const url = new URL(request.url);
+  const path = url.pathname;
+  const none = { env, previewAt: null, setCookie: null };
+  if (request.method !== "GET" && request.method !== "HEAD") return none;
+  if (path.startsWith("/api/") || path.startsWith("/admin") || path.startsWith("/media/")) return none;
+  const param = url.searchParams.get("preview_at");
+  const cookieValue = parseCookies(request.headers.get("Cookie"))[PREVIEW_AT_COOKIE];
+  let wanted = param !== null ? param : cookieValue;
+  if (param === null && wanted) {
+    try {
+      wanted = decodeURIComponent(wanted);
+    } catch {
+      wanted = "";
+    }
+  }
+  if (!wanted) return none;
+  if (!(await isAuthenticated(request, env))) return none;
+  const cookieBase = `${PREVIEW_AT_COOKIE}=`;
+  if (wanted === "off") {
+    return { env, previewAt: null, setCookie: `${cookieBase}; Path=/; Max-Age=0; SameSite=Lax; HttpOnly; Secure` };
+  }
+  const iso = parsePreviewAt(wanted);
+  if (!iso) return none;
+  return {
+    env: { ...env, __previewNow: iso },
+    previewAt: iso,
+    setCookie: param !== null ? `${cookieBase}${encodeURIComponent(iso)}; Path=/; Max-Age=3600; SameSite=Lax; HttpOnly; Secure` : null,
+  };
+}
+
+async function decoratePreviewResponse(response, previewAt, url) {
+  const headers = new Headers(response.headers);
+  headers.set("Cache-Control", "private, no-store");
+  headers.set("X-Robots-Tag", "noindex");
+  if (!(headers.get("Content-Type") || "").includes("text/html")) {
+    return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+  }
+  const when = previewAt.slice(0, 16).replace("T", " ") + " UTC";
+  const exit = `${url.pathname}?preview_at=off`;
+  const banner = `<div id="preview-at-banner" role="status" style="position:fixed;left:0;right:0;bottom:0;z-index:2147483000;display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:center;align-items:center;padding:8px 14px;background:#1d1a17;color:#fff;border-top:2px solid #e8a13a;font:600 13px/1.4 system-ui,sans-serif">Previewing the site as it will look on <time datetime="${previewAt}">${when}</time>. Only you can see this. <a href="${exit}" style="color:#ffd27a">Exit preview</a></div>`;
+  const html = (await response.text()).replace(/<\/body>/i, banner + "</body>");
+  headers.delete("Content-Length");
+  return new Response(html, { status: response.status, statusText: response.statusText, headers });
+}
+
 export default {
   async fetch(request, env, ctx) {
     try {
-      const response = await route(request, env, ctx);
+      const clock = await previewClock(request, env);
+      let response = await route(request, clock.env, ctx);
+      if (clock.previewAt) response = await decoratePreviewResponse(response, clock.previewAt, new URL(request.url));
+      if (clock.setCookie) {
+        response = new Response(response.body, { status: response.status, statusText: response.statusText, headers: new Headers(response.headers) });
+        response.headers.append("Set-Cookie", clock.setCookie);
+      }
       return withSecurityHeaders(response);
     } catch (err) {
       const path = new URL(request.url).pathname;
@@ -1519,7 +1592,7 @@ async function route(request, env, ctx) {
     const articleMatch = path.match(/^\/random\/([a-z0-9-]+)$/);
     if (articleMatch) {
       const article = await getArticleBySlug(env, articleMatch[1]);
-      const now = new Date().toISOString();
+      const now = nowIso(env);
       const isPublished = article && article.published_at && article.published_at <= now && (!article.expires_at || article.expires_at > now);
       const previewModeCookie = hasPreviewModeCookie(request);
       const isAdminPreview =
@@ -1557,7 +1630,7 @@ async function route(request, env, ctx) {
     const projectMatch = path.match(/^\/projects\/([a-z0-9-]+)$/);
     if (projectMatch) {
       const project = await getProjectBySlug(env, projectMatch[1]);
-      const now = new Date().toISOString();
+      const now = nowIso(env);
       const isPublished = project && project.published_at && project.published_at <= now && (!project.expires_at || project.expires_at > now);
       const previewModeCookie = hasPreviewModeCookie(request);
       const isAdminPreview =

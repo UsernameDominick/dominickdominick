@@ -53,3 +53,10 @@ export function cleanBodyFields(body, keys, nullKeys = []) {
   }
   return body;
 }
+
+// "Now" for every public read that decides what is live (published, scheduled, expired). An
+// admin previewing the site as of another date gets a per-request copy of env carrying
+// __previewNow (see worker/index.js); everyone else, and every write, uses the real clock.
+export function nowIso(env) {
+  return (env && env.__previewNow) || new Date().toISOString();
+}
