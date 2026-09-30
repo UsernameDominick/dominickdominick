@@ -8789,16 +8789,23 @@
         closeCommandPalette();
         el(id).click();
       };
-      actions.push(
-        { label: "Block: Copy selected block", sub: "", run: blockClick("copy-block-btn") },
-        { label: "Block: Duplicate selected block", sub: "", run: blockClick("duplicate-block-btn") },
-        { label: "Block: Lock / unlock selected block", sub: "", run: blockClick("lock-block-btn") },
-        { label: "Block: Isolate selected block on the canvas", sub: "", run: blockClick("isolate-block-btn") },
-        { label: "Block: Save selected block as reusable block…", sub: "", run: blockClick("save-as-shared-block-btn") }
-      );
+      // Each command follows its own button: one the inspector hides (Save as reusable on a block
+      // that is already reusable) or disables is not offered.
+      const blockCommands = [
+        ["copy-block-btn", "Block: Copy selected block", ["copy", "copy block"]],
+        ["duplicate-block-btn", "Block: Duplicate selected block", ["duplicate", "duplicate block", "clone"]],
+        ["lock-block-btn", "Block: Lock / unlock selected block", ["lock", "unlock", "lock block"]],
+        ["isolate-block-btn", "Block: Isolate selected block on the canvas", ["isolate", "focus block", "dim others"]],
+        ["save-as-shared-block-btn", "Block: Save selected block as reusable block…", ["reusable", "shared block", "save as reusable"]],
+      ];
+      blockCommands.forEach(([id, label, keywords]) => {
+        const btn = el(id);
+        if (btn.hidden || btn.disabled) return;
+        actions.push({ label, sub: "", leads: true, keywords, run: blockClick(id) });
+      });
     }
     if (!el("paste-block-btn").hidden) {
-      actions.push({ label: "Block: Paste copied block", sub: "", run: () => { closeCommandPalette(); el("paste-block-btn").click(); } });
+      actions.push({ label: "Block: Paste copied block", sub: "", leads: true, keywords: ["paste", "paste block"], run: () => { closeCommandPalette(); el("paste-block-btn").click(); } });
     }
     const clickAction = (id) => () => {
       closeCommandPalette();
