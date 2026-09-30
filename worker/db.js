@@ -3886,6 +3886,30 @@ export function isInSitemap(item, type) {
   return true;
 }
 
+// Reasons an alt text is present but unhelpful to a screen-reader user or search engine.
+// Missing alt text is a separate, louder finding (see getSeoReport's missingAlt), so an empty
+// string returns null here. Checks are deliberately narrow so a genuine description isn't
+// flagged: a file name or a bare camera/screenshot number, a one-word placeholder, a redundant
+// "image of ..." lead-in (the reader already announces "image"), or a description so long that
+// screen readers break it up (about 125 characters is the usual guidance).
+export function altTextProblem(alt) {
+  const text = String(alt || "").trim();
+  if (!text) return null;
+  if (/\.(jpe?g|png|gif|webp|svg|avif|heic|bmp|tiff?)$/i.test(text)) return "Looks like a file name";
+  if (
+    /^(img|dsc|dscn|dscf|pxl|mvimg)[\s_-]?\d{3,}[\w-]*$/i.test(text) ||
+    /^(screenshot|screen shot)[\s_-]*(\(\d+\)|\d{4}-\d{2}-\d{2}.*|\d+)$/i.test(text) ||
+    /^(image|photo|picture|pic)[\s_-]*\d+$/i.test(text)
+  ) {
+    return "Looks like a camera or screenshot number";
+  }
+  if (/^\d+$/.test(text)) return "Just a number";
+  if (/^(image|photo|picture|pic|img|graphic|screenshot|untitled|alt|alt text|placeholder|thumbnail|banner|logo|icon)\.?$/i.test(text)) return "A generic placeholder, not a description";
+  if (/^(an?\s+)?(image|picture|photo|photograph|graphic)\s+(of|showing|for)\b/i.test(text)) return 'Starts with "image of" (screen readers already announce it as an image)';
+  if (text.length > 125) return `${text.length} characters (screen readers handle about 125 well; move the detail into a caption)`;
+  return null;
+}
+
 // Site-wide SEO/accessibility sweep: pages missing a meta description
 // (falls back to the title, which is worse for search-result snippets and
 // social shares), and every image block missing alt text (aggregating
@@ -3962,7 +3986,55 @@ export async function getSeoReport(env) {
       }
     }
   }
-  return { missingMeta, missingAlt, missingOgImage, duplicateTitles, duplicateMeta, sitemapCanonicalMismatch };
+  // Titles and descriptions the search engine will cut off or find thin. Measured on what is
+  // actually served: articles and projects get " · Dominick" appended to the <title>, and only
+  // an explicit, admin-typed description is judged (a page's Meta description, a project's
+  // Summary); the automatic ~155-character excerpt is already sized for a snippet.
+  const TITLE_SUFFIX = " · Dominick";
+  const TITLE_MAX = 60;
+  const DESC_MIN = 50;
+  const DESC_MAX = 160;
+  const longTitles = [];
+  for (const [items, type, suffix] of [[pages, "page", ""], [articles, "article", TITLE_SUFFIX], [projects, "project", TITLE_SUFFIX]]) {
+    for (const item of items) {
+      const length = (item.title || "").trim().length + suffix.length;
+      if (length > TITLE_MAX) longTitles.push({ title: item.title, slug: item.slug, type, length });
+    }
+  }
+  const descriptionLength = [];
+  const judgeDescription = (item, type, text) => {
+    const length = String(text || "").trim().length;
+    if (!length) return; // absence is reported elsewhere (missingMeta) or falls back to the excerpt
+    if (length < DESC_MIN) descriptionLength.push({ title: item.title, slug: item.slug, type, length, problem: "short" });
+    else if (length > DESC_MAX) descriptionLength.push({ title: item.title, slug: item.slug, type, length, problem: "long" });
+  };
+  for (const p of pages) judgeDescription(p, "page", p.meta_description);
+  for (const pr of projects) judgeDescription(pr, "project", pr.summary);
+  // Alt text that exists but doesn't describe anything: on page image blocks, gallery images
+  // and the Media Library's default alt text (what gets inserted with an image).
+  const weakAlt = [];
+  pages.forEach((p, i) => {
+    for (const b of pageBlocks[i]) {
+      const c = b.content || {};
+      if (b.type === "image" && c.url) {
+        const reason = altTextProblem(c.alt);
+        if (reason) weakAlt.push({ title: p.title, slug: p.slug, where: "Image block", url: c.url, alt: String(c.alt).trim(), reason });
+      }
+      if (b.type === "gallery" && Array.isArray(c.images)) {
+        for (const img of c.images) {
+          if (!img || typeof img === "string" || !img.url) continue;
+          const reason = altTextProblem(img.alt);
+          if (reason) weakAlt.push({ title: p.title, slug: p.slug, where: "Gallery image", url: img.url, alt: String(img.alt).trim(), reason });
+        }
+      }
+    }
+  });
+  const mediaAlt = await env.DB.prepare("SELECT key, alt_text FROM media WHERE alt_text IS NOT NULL AND TRIM(alt_text) != ''").all();
+  for (const row of mediaAlt.results || []) {
+    const reason = altTextProblem(row.alt_text);
+    if (reason) weakAlt.push({ title: "Media Library", slug: null, where: "Library default", url: `/media/${row.key}`, alt: String(row.alt_text).trim(), reason });
+  }
+  return { missingMeta, missingAlt, missingOgImage, duplicateTitles, duplicateMeta, sitemapCanonicalMismatch, longTitles, descriptionLength, weakAlt };
 }
 
 // Same WCAG relative-luminance contrast formula used both by the Site

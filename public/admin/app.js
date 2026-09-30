@@ -7635,6 +7635,11 @@
   // time. Diagnostics (further up the "Tools" menu) isn't included here —
   // it only scans whichever single page is currently open in the editor,
   // not the whole site, so it doesn't fit the same "run everywhere" model.
+  // Wording shared by the Site Health overview and the SEO Report list below it.
+  const seoWeakAltStatus = (m) => `${m.where}: alt text "${m.alt.length > 60 ? m.alt.slice(0, 57) + "…" : m.alt}" is unhelpful (${m.reason})`;
+  const seoLongTitleStatus = (m) => `Title is ${m.length} characters${m.type === "page" ? "" : " with the site name"}; search results cut it off around 60`;
+  const seoDescriptionLengthStatus = (m) =>
+    `${m.type === "project" ? "Summary" : "Meta description"} is ${m.length} characters (${m.problem === "short" ? "a bit thin: aim for 50 to 160" : "search results cut it off at about 160"})`;
   el("run-site-health-btn").addEventListener("click", async () => {
     const btn = el("run-site-health-btn");
     const originalText = btn.textContent;
@@ -7711,6 +7716,27 @@
           url: typePath[m.type] + (m.slug === "home" ? "" : m.slug),
           status: "No social-share image",
         })),
+        ...(seoData.weakAlt || []).map((m) => ({
+          severity: 2,
+          check: "SEO",
+          title: m.title,
+          url: m.slug ? pagePath(m.slug) : m.url,
+          status: seoWeakAltStatus(m),
+        })),
+        ...(seoData.longTitles || []).map((m) => ({
+          severity: 1,
+          check: "SEO",
+          title: m.title,
+          url: typePath[m.type] + (m.slug === "home" ? "" : m.slug),
+          status: seoLongTitleStatus(m),
+        })),
+        ...(seoData.descriptionLength || []).map((m) => ({
+          severity: 1,
+          check: "SEO",
+          title: m.title,
+          url: typePath[m.type] + (m.slug === "home" ? "" : m.slug),
+          status: seoDescriptionLengthStatus(m),
+        })),
       ];
       issues.sort((a, b) => b.severity - a.severity || a.title.localeCompare(b.title));
       summaryEl.textContent = issues.length ? `${issues.length} issue${issues.length === 1 ? "" : "s"} found across 6 checks.` : "No issues found across any check.";
@@ -7738,7 +7764,7 @@
     btn.textContent = "Checking…";
     btn.disabled = true;
     try {
-      const { missingMeta, missingAlt, missingOgImage, duplicateTitles, duplicateMeta, sitemapCanonicalMismatch } = await api("/seo-report");
+      const { missingMeta, missingAlt, missingOgImage, duplicateTitles, duplicateMeta, sitemapCanonicalMismatch, weakAlt = [], longTitles = [], descriptionLength = [] } = await api("/seo-report");
       const typePath = { article: "/random/", project: "/projects/", page: "/" };
       const rows = [
         ...missingMeta.map(
@@ -7776,6 +7802,24 @@
             `<div class="link-check-row broken"><span class="link-check-url">${escapeHtml(m.title)}</span><span class="link-check-source">${escapeHtml(
               typePath[m.type] + (m.slug === "home" ? "" : m.slug)
             )}</span><span class="link-check-status">Canonical URL points elsewhere but still in sitemap.xml (→ ${escapeHtml(m.canonicalUrl)})</span></div>`
+        ),
+        ...weakAlt.map(
+          (m) =>
+            `<div class="link-check-row broken"><span class="link-check-url">${escapeHtml(m.title)}</span><span class="link-check-source">${escapeHtml(
+              m.url
+            )}</span><span class="link-check-status">${escapeHtml(seoWeakAltStatus(m))}</span></div>`
+        ),
+        ...longTitles.map(
+          (m) =>
+            `<div class="link-check-row"><span class="link-check-url">${escapeHtml(m.title)}</span><span class="link-check-source">${escapeHtml(
+              typePath[m.type] + (m.slug === "home" ? "" : m.slug)
+            )}</span><span class="link-check-status">${escapeHtml(seoLongTitleStatus(m))}</span></div>`
+        ),
+        ...descriptionLength.map(
+          (m) =>
+            `<div class="link-check-row"><span class="link-check-url">${escapeHtml(m.title)}</span><span class="link-check-source">${escapeHtml(
+              typePath[m.type] + (m.slug === "home" ? "" : m.slug)
+            )}</span><span class="link-check-status">${escapeHtml(seoDescriptionLengthStatus(m))}</span></div>`
         ),
       ];
       el("seo-report-results").innerHTML = rows.join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No issues found.</p>";

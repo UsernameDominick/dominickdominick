@@ -216,7 +216,7 @@ Open and partial items only; completed implementation histories remain in Git hi
   annotations, bot filtering, data-retention settings, scheduled summaries, rearrangeable widgets
 
 ### SEO and sharing
-- 🔶 Additional metadata reports beyond the existing SEO report
+- 🔶 Additional metadata reports beyond the existing SEO report (Site Health's SEO Report and overview now also flag: titles over 60 characters as served, counting the " · Dominick" added to articles and projects; meta descriptions and project summaries under 50 or over 160 characters; and alt text that exists but says nothing, such as a file name, a camera or screenshot number, a bare "image", an "image of…" lead-in or over 125 characters, across image blocks, gallery images and the Media Library's default alt text. Other metadata report ideas remain open)
 
 ### Accessibility
 - 🔶 Admin dialogs and writing-focus semantics (implemented; real-browser verification remains)
