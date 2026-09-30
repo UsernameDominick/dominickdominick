@@ -8561,6 +8561,8 @@
     { label: "Error Log", tab: "logs", field: "error-log-list", keywords: ["error", "log", "crash"] },
     { label: "Backup / Restore", tab: "backups", field: "export-btn", keywords: ["backup", "restore", "export", "import"] },
     { label: "Storage usage", tab: "backups", field: "load-storage-usage-btn", keywords: ["storage", "usage", "r2", "database size"] },
+    { label: "Backfill image dimensions", tab: "tools", field: "media-backfill-dimensions-btn", keywords: ["backfill", "image size", "width", "height", "dimensions", "older uploads", "layout shift"] },
+    { label: "Scan media for duplicates", tab: "tools", field: "media-scan-duplicates-btn", keywords: ["duplicate", "duplicates", "hash", "media", "uploads"] },
   ];
 
   // Common short/filler words stripped before matching — otherwise a
@@ -8641,6 +8643,26 @@
       { label: "Open Trash", sub: "", run: () => { closeCommandPalette(); el("trash-btn").click(); } },
       { label: "Open Site Settings", sub: "", run: () => { closeCommandPalette(); el("site-settings-btn").click(); } },
       { label: "Keyboard Shortcuts", sub: "", run: () => { closeCommandPalette(); el("shortcuts-modal").hidden = false; } },
+      { label: "Toggle light / dark admin theme", sub: "", run: () => { closeCommandPalette(); el("admin-theme-toggle").click(); } },
+      {
+        label: document.documentElement.getAttribute("data-density") === "compact" ? "Interface density: switch to comfortable" : "Interface density: switch to compact",
+        sub: "This browser only",
+        run: () => { closeCommandPalette(); el("admin-density-toggle").click(); },
+      },
+      { label: "Toggle Focus mode (hide the block palette)", sub: "", run: () => { closeCommandPalette(); el("focus-mode-btn").click(); } },
+      { label: "Toggle Content-only mode (lock block positions)", sub: "", run: () => { closeCommandPalette(); el("content-only-mode-btn").click(); } },
+      { label: "Toggle draft preview mode", sub: "", run: () => { closeCommandPalette(); el("draft-preview-mode-toggle").click(); } },
+      { label: "Screen Preview", sub: "", run: () => { closeCommandPalette(); el("preview-btn").click(); } },
+      {
+        label: "Run all Site Health checks",
+        sub: "",
+        run: () => {
+          closeCommandPalette();
+          el("seo-dashboard-btn").click();
+          setTimeout(() => el("run-site-health-btn").click(), 250);
+        },
+      },
+      { label: "Log out", sub: "", run: () => { closeCommandPalette(); el("logout-btn").click(); } },
       {
         label: "Open Activity Log",
         sub: "",
@@ -8673,6 +8695,9 @@
         },
       });
     });
+    if (!el("song-builder-modal").hidden) {
+      actions.push({ label: "Song builder: Play / stop", sub: "", run: () => { closeCommandPalette(); el("song-play").click(); } });
+    }
     // Photo Editor's own tools/actions -- only surfaced while that modal is
     // actually open on top of this one, so the global palette isn't
     // cluttered with irrelevant "Erase"/"Blur" entries the rest of the
@@ -8739,6 +8764,18 @@
         { label: "Photo Editor: Line tool", sub: "", run: peToolClick("line") },
         { label: "Photo Editor: Arrow tool", sub: "", run: peToolClick("arrow") },
         { label: "Photo Editor: Text tool", sub: "", run: peToolClick("text") },
+        { label: "Photo Editor: Zoom in", sub: "+", run: peClick("pe-zoom-in") },
+        { label: "Photo Editor: Zoom out", sub: "-", run: peClick("pe-zoom-out") },
+        { label: "Photo Editor: Fit image to window", sub: "0", run: peClick("pe-zoom-reset") },
+        { label: "Photo Editor: Actual pixels (100%)", sub: "1", run: peClick("pe-zoom-100") },
+        { label: "Photo Editor: Pan tool", sub: "", run: peToolClick("pan") },
+        { label: "Photo Editor: New layer", sub: "", run: peClick("pe-layer-add") },
+        { label: "Photo Editor: Duplicate layer", sub: "", run: peClick("pe-layer-duplicate") },
+        { label: "Photo Editor: Delete layer", sub: "", run: peClick("pe-layer-delete") },
+        { label: "Photo Editor: Merge layer down", sub: "", run: peClick("pe-layer-merge") },
+        { label: "Photo Editor: Flatten layers", sub: "", run: peClick("pe-layer-flatten") },
+        { label: "Photo Editor: Move layer up", sub: "", run: peClick("pe-layer-up") },
+        { label: "Photo Editor: Move layer down", sub: "", run: peClick("pe-layer-down") },
         { label: "Photo Editor: Save as new file", sub: "", run: peClick("pe-save-new") },
         { label: "Photo Editor: Overwrite original", sub: "", run: peClick("pe-save-overwrite") }
       );
