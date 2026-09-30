@@ -1114,6 +1114,7 @@ async function renderSitemap(env) {
 }
 
 function trackView(ctx, env, request, path) {
+  if (env.__previewNow) return; // a date preview is not a real visit
   let referrer = null;
   const refHeader = request.headers.get("Referer");
   if (refHeader) {
@@ -1258,6 +1259,7 @@ export function parsePreviewAt(value) {
   const iso = raw.includes("T") ? (raw.endsWith("Z") ? raw : raw + "Z") : raw + "T00:00:00.000Z";
   const t = Date.parse(iso);
   if (!Number.isFinite(t)) return null;
+  if (new Date(t).toISOString().slice(0, 10) !== raw.slice(0, 10)) return null; // 2026-02-30 is not a date
   const now = Date.now();
   if (t < now - 366 * 24 * 3600 * 1000 || t > now + 10 * 366 * 24 * 3600 * 1000) return null;
   return new Date(t).toISOString();
@@ -1268,7 +1270,7 @@ async function previewClock(request, env) {
   const path = url.pathname;
   const none = { env, previewAt: null, setCookie: null };
   if (request.method !== "GET" && request.method !== "HEAD") return none;
-  if (path.startsWith("/api/") || path.startsWith("/admin") || path.startsWith("/media/")) return none;
+  if ((path.startsWith("/api/") && path !== "/api/search-suggest") || path.startsWith("/admin") || path.startsWith("/media/")) return none;
   const param = url.searchParams.get("preview_at");
   const cookieValue = parseCookies(request.headers.get("Cookie"))[PREVIEW_AT_COOKIE];
   let wanted = param !== null ? param : cookieValue;
@@ -1303,8 +1305,12 @@ async function decoratePreviewResponse(response, previewAt, url) {
   }
   const when = previewAt.slice(0, 16).replace("T", " ") + " UTC";
   const exit = `${url.pathname}?preview_at=off`;
-  const banner = `<div id="preview-at-banner" role="status" style="position:fixed;left:0;right:0;bottom:0;z-index:2147483000;display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:center;align-items:center;padding:8px 14px;background:#1d1a17;color:#fff;border-top:2px solid #e8a13a;font:600 13px/1.4 system-ui,sans-serif">Previewing the site as it will look on <time datetime="${previewAt}">${when}</time>. Only you can see this. <a href="${exit}" style="color:#ffd27a">Exit preview</a></div>`;
-  const html = (await response.text()).replace(/<\/body>/i, banner + "</body>");
+  const banner = `<div id="preview-at-banner" role="status" style="position:fixed;left:0;right:0;bottom:0;z-index:2147483000;display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:center;align-items:center;padding:8px 14px;background:#1d1a17;color:#fff;border-top:2px solid #e8a13a;font:600 13px/1.4 system-ui,sans-serif">Previewing the site as it will look on <time datetime="${previewAt}">${when}</time>. Only you can see this. <a href="${exit}" style="color:#ffd27a">Exit preview</a></div><style>body{padding-bottom:84px}@media print{#preview-at-banner{display:none!important}body{padding-bottom:0}}</style>`;
+  // Insert before the LAST </body> with a replacer function: a "</body>" inside an earlier script string must
+  // not catch it, and "$&"-style sequences in the request path must not be expanded.
+  const text = await response.text();
+  const at = text.toLowerCase().lastIndexOf("</body>");
+  const html = at === -1 ? text + banner : text.slice(0, at) + banner + text.slice(at);
   headers.delete("Content-Length");
   return new Response(html, { status: response.status, statusText: response.statusText, headers });
 }
