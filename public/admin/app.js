@@ -8877,7 +8877,9 @@
       : quickActions();
     // A command that names what was typed (its label or one of its own keywords) outranks
     // the settings index, so "theme" toggles the theme instead of opening Accent color first.
-    const leading = q ? localMatches.filter((a) => a.leads) : [];
+    // Only a whole keyword, or the start of one from four letters up, leads: "a", "l" or "mode"
+    // must not push these four ahead of everything else, and "log" still means the logs.
+    const leading = q ? localMatches.filter((a) => a.leads && (a.keywords || []).some((k) => k === needle || (needle.length >= 4 && k.startsWith(needle)))) : [];
     // Settings matches lead the list — "where is this setting" is exactly
     // what this index exists for, so it should surface before generic
     // "Go to page: ..." matches that happen to share a word.
