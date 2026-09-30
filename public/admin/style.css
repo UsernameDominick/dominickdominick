@@ -6838,3 +6838,7 @@ kbd {
 .state-preview-note:empty {
   display: none;
 }
+
+.preview-stress-row {
+  flex-wrap: wrap;
+}

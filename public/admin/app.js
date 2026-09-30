@@ -3426,8 +3426,14 @@
   // previews. Browser-default focus rings that the site doesn't style are not shown.
   let forceHoverStates = false;
   let forceFocusStates = false;
-  const HOVER_PSEUDO = "(?<!\\\\):hover(?![\\w-])";
-  const FOCUS_PSEUDO = "(?<!\\\\):(?:focus-visible|focus-within|focus)(?![\\w-])";
+  // [pseudo-class pattern, attribute]. Hover is forced on every element (a real pointer
+  // hovers an element and all its ancestors, and a rule can target any of them); focus
+  // only on things that can take focus, and :focus-within on those and their ancestors,
+  // so a bare ":focus-visible" rule doesn't ring the whole page.
+  const HOVER_RULE = ["(?<!\\\\):hover(?![\\w-])", "data-forced-hover"];
+  const FOCUS_RULE = ["(?<!\\\\):(?:focus-visible|focus)(?![\\w-])", "data-forced-focus"];
+  const FOCUS_WITHIN_RULE = ["(?<!\\\\):focus-within(?![\\w-])", "data-forced-focus-within"];
+  const FOCUSABLE = "a[href], button, input, select, textarea, summary, iframe, [contenteditable]:not([contenteditable='false']), [tabindex]:not([tabindex='-1'])";
   function forceStatesInRules(rules, pseudo, attr) {
     const test = new RegExp(pseudo);
     const all = new RegExp(pseudo, "g");
@@ -3440,6 +3446,25 @@
         }
       }
       if (rule.cssRules && rule.cssRules.length) forceStatesInRules(rule.cssRules, pseudo, attr);
+      // A stylesheet pulled in with @import is not in document.styleSheets itself.
+      if (rule.styleSheet) {
+        try {
+          forceStatesInRules(rule.styleSheet.cssRules, pseudo, attr);
+        } catch (e) {
+          // cross-origin import: skip it
+        }
+      }
+    }
+  }
+  // Puts the state attributes on `root` and everything inside it.
+  function markForcedStates(root, hover, focus) {
+    const nodes = [root, ...root.querySelectorAll("*")].filter((n) => n.nodeType === 1);
+    if (hover) nodes.forEach((n) => n.setAttribute("data-forced-hover", ""));
+    if (focus) {
+      nodes.filter((n) => n.matches(FOCUSABLE)).forEach((n) => {
+        n.setAttribute("data-forced-focus", "");
+        for (let p = n; p && p.nodeType === 1; p = p.parentElement) p.setAttribute("data-forced-focus-within", "");
+      });
     }
   }
   function applyStatePreviews() {
@@ -3451,11 +3476,10 @@
       return;
     }
     if (!doc || !doc.body) return;
-    for (const [on, pseudo, attr] of [
-      [forceHoverStates, HOVER_PSEUDO, "data-forced-hover"],
-      [forceFocusStates, FOCUS_PSEUDO, "data-forced-focus"],
-    ]) {
-      if (!on) continue;
+    const rules = [];
+    if (forceHoverStates) rules.push(HOVER_RULE);
+    if (forceFocusStates) rules.push(FOCUS_RULE, FOCUS_WITHIN_RULE);
+    for (const [pseudo, attr] of rules) {
       for (const sheet of Array.from(doc.styleSheets)) {
         if (sheet.disabled) continue;
         try {
@@ -3464,8 +3488,13 @@
           // a cross-origin stylesheet can't be read: skip it
         }
       }
-      doc.querySelectorAll("*").forEach((node) => node.setAttribute(attr, ""));
     }
+    markForcedStates(doc.documentElement, forceHoverStates, forceFocusStates);
+    // Elements the page adds later (search suggestions, menus built by script) get the
+    // same treatment; the observer goes away with the document on the next reload.
+    new doc.defaultView.MutationObserver((mutations) => {
+      for (const m of mutations) m.addedNodes.forEach((n) => n.nodeType === 1 && markForcedStates(n, forceHoverStates, forceFocusStates));
+    }).observe(doc.body, { childList: true, subtree: true });
   }
   // Reloads the preview so a toggle takes effect. A frame that is still loading
   // applies the toggles when it finishes (the load handler reads them), and a frame
@@ -3475,7 +3504,9 @@
     if (!frame.src || frame.src === "about:blank") return;
     try {
       const d = frame.contentDocument;
-      if (d && d.readyState === "complete" && d.location.href !== "about:blank") frame.contentWindow.location.reload();
+      // null means the frame is on another origin (or an error page): send it back to the page.
+      if (!d) frame.src = frame.src;
+      else if (d.readyState === "complete" && d.location.href !== "about:blank") frame.contentWindow.location.reload();
     } catch (e) {
       frame.src = frame.src;
     }
