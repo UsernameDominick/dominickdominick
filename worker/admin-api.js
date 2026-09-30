@@ -299,7 +299,8 @@ function readExifOrientation(view, start, length) {
       const entry = ifd + 2 + i * 12;
       if (entry + 12 > end) return 0;
       if (view.getUint16(entry, little) === 0x0112) {
-        if (view.getUint16(entry + 2, little) !== 3 || view.getUint32(entry + 4, little) !== 1) return 0;
+        // a malformed entry (not one SHORT) is skipped, not fatal: a later valid one still counts
+        if (view.getUint16(entry + 2, little) !== 3 || view.getUint32(entry + 4, little) !== 1) continue;
         const value = view.getUint16(entry + 8, little);
         return value >= 1 && value <= 8 ? value : 0;
       }
