@@ -8533,23 +8533,23 @@
         ["Moving around", ["Zoom with the + and - buttons, the keys + - 0 (fit) and 1 (actual pixels), or Ctrl+wheel.", "Pan with the Pan tool, by holding Space, or with the middle mouse button."]],
         ["Making changes", ["Undo and redo with Ctrl+Z and Ctrl+Shift+Z; Reset goes back to the original.", "Selections (rectangle, ellipse, lasso, polygon) limit where a tool works; Ctrl+D deselects.", "Layers and masks live in the Layers panel: add, duplicate, merge down, flatten, reorder."]],
         ["Saving", ["Save as new file keeps the original untouched.", "Overwrite original replaces the file at the same address; the old bytes are kept as a file version you can restore from the Media Library."]],
-        ["Faster", ["Ctrl+K lists every tool and action while this editor is open."]],
+        ["Faster", ["Ctrl+K lists the tools and actions while this editor is open."]],
       ],
     },
     song: {
       title: "Song builder help",
       sections: [
         ["Building", ["Drum tracks use the step sequencer; the melody uses the piano roll; both can be muted or hidden.", "Play / stop previews the loop. The melody can be transposed up or down."]],
-        ["Working on several songs", ["Open another song from the tab row; each tab keeps its own unsaved changes, and closing a tab with changes asks first."]],
-        ["Publishing", ["Songs are embedded in articles and projects with the Song block, or attached to a project under Related songs."]],
+        ["Working on several songs", ["Open another song from the tab row. Switching saves a song that was already saved; if the current one has unsaved changes you are asked whether to discard them."]],
+        ["Publishing", ["Songs go onto a page with the Song block, and onto a project under Related songs."]],
         ["Faster", ["Ctrl+K has a Play / stop command while this builder is open."]],
       ],
     },
     simulation: {
       title: "Simulation builder help",
       sections: [
-        ["Building a circuit", ["Add parts from the parts list and connect their pins with wires; parts can be rotated and mirrored.", "Power on runs the circuit; LEDs, meters and logic gates respond live."]],
-        ["Saving and publishing", ["Save keeps your draft private. Publish makes the current version public at /simulation/<id> and in the Simulation block; Unpublish takes it down without losing the draft."]],
+        ["Building a circuit", ["Add parts from the Add part list and connect their pins with wires; parts can be rotated and mirrored.", "Preview: power on runs the circuit; LEDs, meters and logic gates respond live."]],
+        ["Saving and publishing", ["Save keeps your draft private. Publish and Unpublish are in the Simulations list (open Simulations from the sidebar): Publish makes the current version public at /simulation/<id> and in the Simulation block, and Unpublish takes it down without losing the draft."]],
         ["Checkpoints", ["Checkpoints are named snapshots you can return to while experimenting."]],
       ],
     },
@@ -8779,7 +8779,7 @@
     });
     const openEditorHelpKey = [["photo-editor-modal", "photo"], ["simulation-builder-modal", "simulation"], ["song-builder-modal", "song"], ["scan-editor-modal", "scan"]].find(([id]) => !el(id).hidden);
     if (openEditorHelpKey) {
-      actions.push({ label: "Help for this editor", sub: "", leads: true, keywords: ["help", "tips", "how do i"], run: () => { closeCommandPalette(); openEditorHelp(openEditorHelpKey[1], null); } });
+      actions.push({ label: "Help for this editor", sub: "", leads: true, keywords: ["help", "tips", "how do i"], run: () => { closeCommandPalette(); openEditorHelp(openEditorHelpKey[1], document.querySelector(`.editor-help-btn[data-help="${openEditorHelpKey[1]}"]`)); } });
     }
     if (!el("song-builder-modal").hidden) {
       actions.push({ label: "Song builder: Play / stop", sub: "", run: () => { closeCommandPalette(); el("song-play").click(); } });
@@ -9034,6 +9034,7 @@
   }
 
   function openCommandPalette() {
+    if (!el("editor-help-modal").hidden) closeEditorHelp(); // the palette needs the keyboard
     // Recorded before .hidden flips and before focus moves into the
     // palette's own search input -- the only modal in the app that moves
     // focus into itself on open, which otherwise races the generic
@@ -9684,7 +9685,8 @@
   });
   document.querySelectorAll(".modal").forEach((modal) => {
     modal.addEventListener("click", (e) => {
-      if (e.target === modal) closeTopModal();
+      // the editor-help dialog closes itself; letting this run too would close the editor under it
+      if (e.target === modal && modal.id !== "editor-help-modal") closeTopModal();
     });
   });
 

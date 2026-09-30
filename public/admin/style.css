@@ -3656,8 +3656,7 @@ kbd {
     grid-column: 2;
     grid-row: 1;
   }
-  .simulation-builder-inner #close-simulation-builder,
-  .simulation-builder-inner #close-song-builder {
+  .simulation-builder-inner .editor-header-end {
     grid-column: 3;
     grid-row: 1;
   }
@@ -4789,8 +4788,7 @@ kbd {
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   }
 
-  #close-simulation-builder,
-  #close-song-builder {
+  .simulation-builder-inner .editor-header-end {
     order: -1;
   }
 
@@ -6982,6 +6980,25 @@ kbd {
 }
 
 /* Contextual help: a "?" beside each big editor's close button, and its dialog. */
+.editor-header-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.modal-inner header .editor-help-btn,
+.simulation-builder-inner header .editor-help-btn {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.modal-inner header .editor-help-btn:hover {
+  color: var(--text);
+  border-color: var(--text-dim);
+}
 .editor-help-btn {
   min-width: 28px;
   height: 28px;
