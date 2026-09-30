@@ -3563,9 +3563,9 @@ kbd {
   position: relative;
   display: flex;
   flex-direction: column;
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  border: 1px solid color-mix(in srgb, var(--text) 28%, transparent);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.02);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
   padding: 12px 10px 10px;
 }
 
@@ -3584,7 +3584,7 @@ kbd {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--text-dim);
 }
 
 .sim-toolbar-group-buttons {
@@ -3684,7 +3684,7 @@ kbd {
   position: relative;
   display: flex;
   flex-direction: column;
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  border: 1px solid color-mix(in srgb, var(--text) 28%, transparent);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.02);
   padding: 12px 10px 10px;
@@ -6421,12 +6421,12 @@ kbd {
     flex-wrap: wrap;
     gap: 6px;
     padding: 14px 10px 10px;
-    border: 1px solid rgba(255, 255, 255, 0.28);
+    border: 1px solid color-mix(in srgb, var(--text) 28%, transparent);
     border-radius: 8px;
-    background: rgba(255, 255, 255, 0.02);
+    background: color-mix(in srgb, var(--text) 3%, transparent);
   }
   .pe-tool-group:last-child {
-    border-right: 1px solid rgba(255, 255, 255, 0.28);
+    border-right: 1px solid color-mix(in srgb, var(--text) 28%, transparent);
   }
   .pe-group-label {
     position: absolute;
@@ -6434,7 +6434,7 @@ kbd {
     left: 10px;
     padding: 0 5px;
     background: var(--bg-elevated);
-    color: rgba(255, 255, 255, 0.75);
+    color: var(--text-dim);
   }
   /* Sliders get a full row each: label on the left, track filling the rest. */
   .pe-tool-group label:has(input[type="range"]) {
@@ -7070,4 +7070,34 @@ kbd {
 .simulation-row.simulation-row:has(.bulk-list-row-box) > span {
   flex-basis: calc(100% - 52px);
   min-width: 0;
+}
+
+/* Builder legends and group borders were hard-coded white, which vanished on the light admin theme
+   (1.16:1); they now follow the theme. Sliders and placeholders follow the accent and dim text. */
+input[type="range"] {
+  accent-color: var(--accent);
+}
+::placeholder {
+  color: color-mix(in srgb, var(--text-dim) 85%, transparent);
+  opacity: 1;
+}
+
+/* A row with many buttons (Simulations: View, Usage, Duplicate, Edit, Delete) wraps its actions onto a
+   second line instead of clipping Delete at the dialog edge. */
+.simulation-row {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+.simulation-row span {
+  min-width: 8em;
+}
+.simulation-row a,
+.simulation-row button {
+  white-space: nowrap;
+}
+
+/* A heading focused by script when a dialog opens isn't a control: no focus box around the title. */
+.modal h1:focus,
+.modal h1:focus-visible {
+  outline: none;
 }
