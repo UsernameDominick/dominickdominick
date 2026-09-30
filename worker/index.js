@@ -340,7 +340,7 @@ async function renderPage(env, page, url, request) {
     activeSlug: page.slug,
     bodyHtml,
     jsonLd: withCustomJsonLd(jsonLd, page.custom_json_ld),
-    ogImage: page.og_image || defaultOgImage || null,
+    ogImage: visibleText(page.og_image) || defaultOgImage || null,
     canonicalUrl: page.canonical_url || null,
     theme,
     footerText,
@@ -400,7 +400,7 @@ async function renderArticle(env, article, navItems, previewReason = null, isAdm
     <h1>${esc(article.title)}</h1>
     ${renderTags(article.tags)}
     <div class="article-actions">${renderShareLinks(article.title, `/random/${article.slug}`)}</div>
-    ${article.og_image ? `<img class="article-cover" src="${esc(article.og_image)}" alt="" loading="eager" fetchpriority="high"${await coverSizeAttrs(env, article.og_image)}>` : ""}
+    ${visibleText(article.og_image) ? `<img class="article-cover" src="${esc(visibleText(article.og_image))}" alt="" loading="eager" fetchpriority="high"${await coverSizeAttrs(env, visibleText(article.og_image))}>` : ""}
   </div>
   <div class="block">${ttsBarHtml}</div>
   ${correctionNoteHtml ? `<div class="block">${correctionNoteHtml}</div>` : ""}
@@ -421,7 +421,7 @@ async function renderArticle(env, article, navItems, previewReason = null, isAdm
       url: `https://dominickdominick.com/random/${article.slug}`,
       // Google's Article rich result requires an image; relative URLs aren't
       // valid here (or in og:image) -- see absoluteUrl().
-      ...(article.og_image || defaultOgImage ? { image: [absoluteUrl(article.og_image || defaultOgImage)] } : {}),
+      ...(visibleText(article.og_image) || defaultOgImage ? { image: [absoluteUrl(visibleText(article.og_image) || defaultOgImage)] } : {}),
       datePublished: toIso8601(article.published_at),
       dateModified: toIso8601(article.updated_at || article.published_at),
       author: SITE_AUTHOR,
@@ -453,8 +453,8 @@ async function renderArticle(env, article, navItems, previewReason = null, isAdm
     publishedTime: toIso8601(article.published_at),
     modifiedTime: toIso8601(article.updated_at),
     keywords: article.tags && article.tags.length ? article.tags.join(", ") : null,
-    ogImage: article.og_image || defaultOgImage || null,
-    ogImageSize: await coverSizeAttrs(env, article.og_image || defaultOgImage),
+    ogImage: visibleText(article.og_image) || defaultOgImage || null,
+    ogImageSize: await coverSizeAttrs(env, visibleText(article.og_image) || defaultOgImage),
     canonicalUrl: article.canonical_url || null,
     theme,
     footerText,
@@ -507,7 +507,7 @@ async function renderProject(env, project, navItems, previewReason = null, isAdm
   const downloadsHtml = renderDownloadsHtml(downloads);
   const correctionNoteHtml = renderCorrectionNoteHtml(project.correction_note);
   const ttsBarHtml = renderTtsBarHtml(project.tts_audio_key);
-  const heroVideoHtml = renderHeroVideoHtml(project.hero_video, project.og_image);
+  const heroVideoHtml = renderHeroVideoHtml(project.hero_video, visibleText(project.og_image));
   const wasUpdated = project.updated_at && project.published_at && new Date(project.updated_at) - new Date(project.published_at) > 24 * 3600 * 1000;
   // Build journals can add a lot of reading beyond the project body itself
   // (that's the whole point of a "long project page") — same reasoning
@@ -550,7 +550,7 @@ async function renderProject(env, project, navItems, previewReason = null, isAdm
     ${techStackHtml}
     ${renderTags(project.tags)}
     <div class="article-actions">${renderShareLinks(project.title, `/projects/${project.slug}`)}</div>
-    ${project.og_image && !heroVideoHtml ? `<img class="article-cover" src="${esc(project.og_image)}" alt="" loading="eager" fetchpriority="high"${await coverSizeAttrs(env, project.og_image)}>` : ""}
+    ${visibleText(project.og_image) && !heroVideoHtml ? `<img class="article-cover" src="${esc(visibleText(project.og_image))}" alt="" loading="eager" fetchpriority="high"${await coverSizeAttrs(env, visibleText(project.og_image))}>` : ""}
   </div>
   ${heroVideoHtml ? `<div class="block">${heroVideoHtml}</div>` : ""}
   <div class="block">${ttsBarHtml}</div>
@@ -573,7 +573,7 @@ async function renderProject(env, project, navItems, previewReason = null, isAdm
       name: project.title,
       description,
       url: `https://dominickdominick.com/projects/${project.slug}`,
-      ...(project.og_image || defaultOgImage ? { image: [absoluteUrl(project.og_image || defaultOgImage)] } : {}),
+      ...(visibleText(project.og_image) || defaultOgImage ? { image: [absoluteUrl(visibleText(project.og_image) || defaultOgImage)] } : {}),
       dateCreated: toIso8601(project.created_at),
       ...(project.published_at ? { datePublished: toIso8601(project.published_at) } : {}),
       dateModified: toIso8601(project.updated_at),
@@ -604,8 +604,8 @@ async function renderProject(env, project, navItems, previewReason = null, isAdm
     publishedTime: toIso8601(project.published_at),
     modifiedTime: toIso8601(project.updated_at),
     keywords: project.tags && project.tags.length ? project.tags.join(", ") : null,
-    ogImage: project.og_image || defaultOgImage || null,
-    ogImageSize: await coverSizeAttrs(env, project.og_image || defaultOgImage),
+    ogImage: visibleText(project.og_image) || defaultOgImage || null,
+    ogImageSize: await coverSizeAttrs(env, visibleText(project.og_image) || defaultOgImage),
     canonicalUrl: project.canonical_url || null,
     theme,
     footerText,
@@ -823,17 +823,17 @@ async function renderTopicPage(env, tag, navItems) {
   const isEmpty = articles.length + projects.length === 0;
   const bodyHtml = `<div class="block">
     <h1>Tagged: ${esc(tag)}</h1>
-    ${topicMeta?.description ? `<p class="topic-intro">${esc(topicMeta.description)}</p>` : ""}
+    ${visibleText(topicMeta?.description) ? `<p class="topic-intro">${esc(topicMeta.description)}</p>` : ""}
     ${renderTopicPageHtml(tag, articles, projects)}
   </div>`;
   const html = renderShell({
     title: `${tag} · Topics · Dominick`,
-    description: topicMeta?.description || `Posts and projects tagged "${tag}" on dominickdominick.com.`,
+    description: visibleText(topicMeta?.description) || `Posts and projects tagged "${tag}" on dominickdominick.com.`,
     path: `/topics/${encodeURIComponent(tag)}`,
     navItems,
     activeSlug: "topics",
     bodyHtml,
-    ogImage: topicMeta?.og_image || defaultOgImage || null,
+    ogImage: visibleText(topicMeta?.og_image) || defaultOgImage || null,
     theme,
     footerText,
     customHead,

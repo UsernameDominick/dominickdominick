@@ -62,11 +62,13 @@ const BASELINE_NAV_ITEMS = [
 ];
 
 export async function listNavPages(env) {
-  const { results } = await env.DB
+  const { results: navRows } = await env.DB
     .prepare(
       "SELECT id, slug, nav_label, nav_parent_id FROM pages WHERE nav_label IS NOT NULL AND deleted_at IS NULL ORDER BY nav_order ASC, id ASC"
     )
     .all();
+  // A label of only spaces or invisible characters is an unnamed link: treated as no label.
+  const results = navRows.filter((p) => visibleText(p.nav_label));
   const topLevel = results.filter((p) => !p.nav_parent_id);
   for (const p of topLevel) {
     p.children = results.filter((c) => c.nav_parent_id === p.id);

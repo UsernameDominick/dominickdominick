@@ -799,7 +799,7 @@ async function routeAdminApi(request, env, url, ctx) {
   }
   if (path === "/pages" && method === "POST") {
     const body = await readJsonBody(request);
-    cleanBodyFields(body, ["meta_description", "nav_label", "og_image"]);
+    cleanBodyFields(body, ["meta_description", "nav_label", "og_image"], ["nav_label", "og_image"]);
     const jsonLdError = validateCustomJsonLd(body);
     if (jsonLdError) return json({ error: jsonLdError }, { status: 400 });
     const canonicalError = validateCanonicalUrl(body);
@@ -827,7 +827,7 @@ async function routeAdminApi(request, env, url, ctx) {
   const pageMatch = path.match(/^\/pages\/(\d+)$/);
   if (pageMatch && method === "PATCH") {
     const body = await readJsonBody(request);
-    cleanBodyFields(body, ["meta_description", "nav_label", "og_image"]);
+    cleanBodyFields(body, ["meta_description", "nav_label", "og_image"], ["nav_label", "og_image"]);
     const jsonLdError = validateCustomJsonLd(body);
     if (jsonLdError) return json({ error: jsonLdError }, { status: 400 });
     const canonicalError = validateCanonicalUrl(body);
