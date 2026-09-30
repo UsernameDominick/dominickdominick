@@ -6089,6 +6089,10 @@
       return filename.includes(search) || item.tags.some((t) => t.toLowerCase().includes(search));
     });
     lastFilteredMediaKeys = filtered.map((item) => item.key);
+    // Bulk actions apply to what is selected, so a selection never outlives the filter
+    // that showed it: anything no longer shown is dropped from it.
+    const shownKeys = new Set(lastFilteredMediaKeys);
+    selectedMediaKeys.forEach((k) => !shownKeys.has(k) && selectedMediaKeys.delete(k));
 
     el("media-grid").innerHTML =
       filtered
@@ -6122,7 +6126,10 @@
                 : ""
             }</div></div>`
         )
-        .join("") || "<p style='color:var(--text-dim);'>No uploads match.</p>";
+        .join("") ||
+      `<p style='color:var(--text-dim);'>No uploads match.${
+        sizeFilter ? " Sizes are recorded when a file is uploaded; older images can be filled in with Settings, Tools, Backfill image dimensions." : ""
+      }</p>`;
 
     el("media-grid")
       .querySelectorAll(".media-item")
@@ -6527,6 +6534,7 @@
     el("media-folder-filter").value = f.folder || "";
     el("media-type-filter").value = f.type || "";
     el("media-size-filter").value = f.size || "";
+    if (el("media-size-filter").value !== (f.size || "")) el("media-size-filter").value = ""; // a value this version doesn't know
     el("media-search").value = f.search || "";
     el("media-usage-filter").value = f.usage || "";
     el("media-unused-filter").checked = !!f.unused;

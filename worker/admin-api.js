@@ -279,6 +279,34 @@ function sanitizeSvg(text) {
 // Returns null (never throws) for anything it can't confidently parse --
 // a missing width/height attribute on one image is a much smaller
 // problem than corrupting an upload over a header-parsing edge case.
+// The EXIF Orientation tag (1-8) from a JPEG APP1 segment starting at `start`, or 0
+// when there isn't one or the segment doesn't parse.
+function readExifOrientation(view, start, length) {
+  try {
+    const end = Math.min(view.byteLength, start + length);
+    if (length < 14 || view.getUint32(start) !== 0x45786966 /* "Exif" */ || view.getUint16(start + 4) !== 0) return 0;
+    const tiff = start + 6;
+    const order = view.getUint16(tiff);
+    const little = order === 0x4949;
+    if (!little && order !== 0x4d4d) return 0;
+    if (view.getUint16(tiff + 2, little) !== 42) return 0;
+    const ifd = tiff + view.getUint32(tiff + 4, little);
+    if (ifd + 2 > end) return 0;
+    const count = view.getUint16(ifd, little);
+    for (let i = 0; i < count; i++) {
+      const entry = ifd + 2 + i * 12;
+      if (entry + 12 > end) return 0;
+      if (view.getUint16(entry, little) === 0x0112) {
+        const value = view.getUint16(entry + 8, little);
+        return value >= 1 && value <= 8 ? value : 0;
+      }
+    }
+    return 0;
+  } catch {
+    return 0;
+  }
+}
+
 function readImageDimensions(buf, contentType) {
   try {
     const view = new DataView(buf);
@@ -317,24 +345,34 @@ function readImageDimensions(buf, contentType) {
       // explicitly excluding 0xC4/0xC8/0xCC, which share that numeric
       // range but are DHT/JPG-extension/DAC markers, not SOF).
       let offset = 2; // skip the initial 0xFFD8 SOI marker
+      let orientation = 1;
       while (offset + 9 < buf.byteLength) {
         if (view.getUint8(offset) !== 0xff) {
           offset++;
           continue;
         }
         const marker = view.getUint8(offset + 1);
+        if (marker === 0xff) {
+          offset++; // a fill byte before the marker
+          continue;
+        }
         if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd9)) {
           offset += 2; // standalone marker, no length field
           continue;
         }
         const segmentLength = view.getUint16(offset + 2);
+        if (marker === 0xe1) orientation = readExifOrientation(view, offset + 4, segmentLength - 2) || orientation;
         const isSof =
           (marker >= 0xc0 && marker <= 0xc3) ||
           (marker >= 0xc5 && marker <= 0xc7) ||
           (marker >= 0xc9 && marker <= 0xcb) ||
           (marker >= 0xcd && marker <= 0xcf);
         if (isSof) {
-          return plausibleDims({ height: view.getUint16(offset + 5), width: view.getUint16(offset + 7) });
+          const height = view.getUint16(offset + 5);
+          const width = view.getUint16(offset + 7);
+          // EXIF orientations 5-8 turn the picture a quarter turn when it is shown, so
+          // its displayed size is the stored size with width and height swapped.
+          return plausibleDims(orientation >= 5 && orientation <= 8 ? { width: height, height: width } : { width, height });
         }
         offset += 2 + segmentLength;
       }
@@ -403,7 +441,7 @@ function readImageDimensions(buf, contentType) {
 // (a common root-<svg> attribute in icon sets), silently reading the
 // wrong attribute's value as the file's dimensions.
 function readSvgPixelAttr(openTag, attrName) {
-  const match = openTag.match(new RegExp(`(?:^|[\\s<])${attrName}\\s*=\\s*["']?([\\d.]+)\\s*(%|px|em|ex|pt|pc|cm|mm|in)?`, "i"));
+  const match = openTag.match(new RegExp(`(?:^|[\\s<])${attrName}\\s*=\\s*["']?([\\d.]+)\\s*(%|px|em|ex|pt|pc|cm|mm|in)?(?=["'\\s/>]|$)`, "i"));
   if (!match) return null;
   const unit = match[2];
   if (unit && unit.toLowerCase() !== "px") return null;
@@ -419,7 +457,7 @@ function readSvgDimensions(svgText) {
     const dims = plausibleDims({ width: Math.round(width), height: Math.round(height) });
     if (dims) return dims;
   }
-  const viewBoxMatch = svgText.match(/<svg\b[^>]*\bviewBox\s*=\s*["']?\s*[\d.-]+\s+[\d.-]+\s+([\d.]+)\s+([\d.]+)/i);
+  const viewBoxMatch = svgText.match(/<svg\b[^>]*\bviewBox\s*=\s*["']?\s*[\d.-]+[\s,]+[\d.-]+[\s,]+([\d.]+)[\s,]+([\d.]+)/i);
   if (viewBoxMatch) {
     return plausibleDims({ width: Math.round(Number(viewBoxMatch[1])), height: Math.round(Number(viewBoxMatch[2])) });
   }
@@ -1677,7 +1715,15 @@ async function routeAdminApi(request, env, url, ctx) {
       await env.MEDIA.put(preRestoreKey, await currentObj.arrayBuffer(), { httpMetadata: currentObj.httpMetadata });
       await recordMediaVersion(env, version.media_key, preRestoreKey, currentObj.size);
     }
-    await env.MEDIA.put(version.media_key, await versionObj.arrayBuffer(), { httpMetadata: versionObj.httpMetadata });
+    const restoredBytes = await versionObj.arrayBuffer();
+    await env.MEDIA.put(version.media_key, restoredBytes, { httpMetadata: versionObj.httpMetadata });
+    // The recorded size must follow the bytes (an overwrite does the same): a restored
+    // version can have a different size from the file it replaces.
+    const restoredType = versionObj.httpMetadata?.contentType || "";
+    const restoredDims = plausibleDims(
+      restoredType === "image/svg+xml" ? readSvgDimensions(new TextDecoder().decode(restoredBytes)) : readImageDimensions(restoredBytes, restoredType)
+    );
+    await upsertMediaMeta(env, version.media_key, { width: restoredDims ? restoredDims.width : null, height: restoredDims ? restoredDims.height : null });
     log(ctx, env, "restore", "media-file-version", version.media_key);
     return json({ ok: true });
   }
@@ -2687,7 +2733,7 @@ async function routeAdminApi(request, env, url, ctx) {
   }
 
   // /media-saved-searches — a named snapshot of the media library's
-  // filter controls (folder/type/search text/unused/duplicates), same
+  // filter controls (folder/type/dimensions/search text/usage/unused/duplicates), same
   // storage pattern as style presets above and for the same reason: an
   // individually added-to/removed-from list, not something the settings
   // bulk PUT should own.
