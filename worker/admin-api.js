@@ -279,12 +279,14 @@ function sanitizeSvg(text) {
 // Returns null (never throws) for anything it can't confidently parse --
 // a missing width/height attribute on one image is a much smaller
 // problem than corrupting an upload over a header-parsing edge case.
-// The EXIF Orientation tag (1-8) from a JPEG APP1 segment starting at `start`, or 0
-// when there isn't one or the segment doesn't parse.
+// The EXIF Orientation tag from a JPEG APP1 segment starting at `start`: null when the
+// segment isn't an Exif block at all (e.g. XMP), 0 when it is one but holds no usable
+// orientation, else 1-8. Only a well-formed entry counts (type SHORT, count 1), the same
+// as browsers, which ignore an orientation tag of any other type.
 function readExifOrientation(view, start, length) {
   try {
     const end = Math.min(view.byteLength, start + length);
-    if (length < 14 || view.getUint32(start) !== 0x45786966 /* "Exif" */ || view.getUint16(start + 4) !== 0) return 0;
+    if (length < 14 || view.getUint32(start) !== 0x45786966 /* "Exif" */ || view.getUint16(start + 4) !== 0) return null;
     const tiff = start + 6;
     const order = view.getUint16(tiff);
     const little = order === 0x4949;
@@ -297,6 +299,7 @@ function readExifOrientation(view, start, length) {
       const entry = ifd + 2 + i * 12;
       if (entry + 12 > end) return 0;
       if (view.getUint16(entry, little) === 0x0112) {
+        if (view.getUint16(entry + 2, little) !== 3 || view.getUint32(entry + 4, little) !== 1) return 0;
         const value = view.getUint16(entry + 8, little);
         return value >= 1 && value <= 8 ? value : 0;
       }
@@ -346,6 +349,7 @@ function readImageDimensions(buf, contentType) {
       // range but are DHT/JPG-extension/DAC markers, not SOF).
       let offset = 2; // skip the initial 0xFFD8 SOI marker
       let orientation = 1;
+      let exifSeen = false; // the first Exif block decides, as in browsers
       while (offset + 9 < buf.byteLength) {
         if (view.getUint8(offset) !== 0xff) {
           offset++;
@@ -361,7 +365,13 @@ function readImageDimensions(buf, contentType) {
           continue;
         }
         const segmentLength = view.getUint16(offset + 2);
-        if (marker === 0xe1) orientation = readExifOrientation(view, offset + 4, segmentLength - 2) || orientation;
+        if (marker === 0xe1 && !exifSeen) {
+          const found = readExifOrientation(view, offset + 4, segmentLength - 2);
+          if (found !== null) {
+            exifSeen = true;
+            orientation = found || 1;
+          }
+        }
         const isSof =
           (marker >= 0xc0 && marker <= 0xc3) ||
           (marker >= 0xc5 && marker <= 0xc7) ||

@@ -3115,6 +3115,14 @@ code.color-field-value {
   border-top: 1px solid var(--border);
 }
 
+/* The Metadata history / File versions lists sit in a flex column that is capped
+   to the viewport; left to shrink they collapsed to 0px on ordinary screen heights and
+   Restore could not be clicked. Keep their own height (they scroll past 240px) and let
+   the dialog scroll instead. */
+.media-info-modal-inner .link-check-results {
+  flex-shrink: 0;
+}
+
 .pe-new-doc-modal-inner {
   max-width: 420px;
 }

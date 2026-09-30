@@ -6128,7 +6128,9 @@
         )
         .join("") ||
       `<p style='color:var(--text-dim);'>No uploads match.${
-        sizeFilter ? " Sizes are recorded when a file is uploaded; older images can be filled in with Settings, Tools, Backfill image dimensions." : ""
+        sizeFilter && mediaItems.some((i) => mediaItemType(i) === "image" && !(i.width && i.height))
+          ? " Some images have no recorded size yet: older uploads can be filled in with Settings, Tools, Backfill image dimensions."
+          : ""
       }</p>`;
 
     el("media-grid")
