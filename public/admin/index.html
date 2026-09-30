@@ -44,6 +44,7 @@
       <nav class="admin-sidebar-scroll">
         <div class="admin-sidebar-group">
           <h3>Content</h3>
+          <button id="dashboard-btn">Dashboard</button>
           <button id="articles-btn">Articles</button>
           <button id="projects-btn">Projects</button>
         </div>
@@ -851,6 +852,16 @@
         </div>
         <div id="redirects-list" class="redirects-list"></div>
       </div>
+    </div>
+  </div>
+
+  <div id="dashboard-modal" class="modal" hidden role="dialog" aria-labelledby="dashboard-modal-title">
+    <div class="modal-inner dashboard-modal-inner">
+      <header>
+        <h1 id="dashboard-modal-title">Dashboard</h1>
+        <button id="close-dashboard" aria-label="Close Dashboard dialog">×</button>
+      </header>
+      <div id="dashboard-body" class="dashboard-body" aria-live="polite"></div>
     </div>
   </div>
 

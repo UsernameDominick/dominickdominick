@@ -3484,6 +3484,75 @@
     statusEl.innerHTML = `<span class="contrast-fail">⚠ Last automatic check ${when} — ${status.broken.length} broken link(s) found</span>${rows}`;
   }
 
+  // ---------- Dashboard ----------
+  // One screen answering "what needs me?": health flags, recent edits, drafts and shortcuts.
+  // Built from endpoints the other panels already use, so it adds no server code.
+  function dashboardItemHtml(kind, row) {
+    const when = row.updated_at || row.created_at || "";
+    return `<li><button type="button" class="dash-item" data-kind="${kind}" data-id="${Number(row.id)}"><span class="dash-item-title">${escapeHtml(
+      row.title || "(untitled)"
+    )}</span><span class="dash-item-meta">${kind}${when ? " · " + escapeHtml(String(when).slice(0, 10)) : ""}</span></button></li>`;
+  }
+  async function openDashboard() {
+    const body = el("dashboard-body");
+    el("dashboard-modal").hidden = false;
+    body.innerHTML = "<p class='command-empty'>Loading…</p>";
+    const [arts, projs, notes, seo] = await Promise.allSettled([api("/articles"), api("/projects"), api("/notifications-summary"), api("/seo-report")]);
+    const A = arts.status === "fulfilled" ? arts.value : [];
+    const P = projs.status === "fulfilled" ? projs.value : [];
+    const flags = [];
+    if (notes.status === "fulfilled") {
+      const n = notes.value;
+      if (n.backupFailed) flags.push("The last scheduled backup failed");
+      if (n.brokenLinks) flags.push(`${n.brokenLinks} broken link${n.brokenLinks === 1 ? "" : "s"}`);
+      if (n.recentErrors) flags.push(`${n.recentErrors} recent error${n.recentErrors === 1 ? "" : "s"}`);
+      if (n.recentFailedWebhooks) flags.push(`${n.recentFailedWebhooks} failed webhook${n.recentFailedWebhooks === 1 ? "" : "s"}`);
+    }
+    if (seo.status === "fulfilled") {
+      const r = seo.value;
+      if (r.missingMeta && r.missingMeta.length) flags.push(`${r.missingMeta.length} page${r.missingMeta.length === 1 ? "" : "s"} without a description`);
+      if (r.missingAlt && r.missingAlt.length) flags.push(`${r.missingAlt.length} image${r.missingAlt.length === 1 ? "" : "s"} without alt text`);
+    }
+    const all = [...A.map((r) => ({ k: "article", r })), ...P.map((r) => ({ k: "project", r }))];
+    const recent = [...all].sort((a, b) => String(b.r.updated_at || "").localeCompare(String(a.r.updated_at || ""))).slice(0, 6);
+    const drafts = all.filter((x) => !x.r.published_at).slice(0, 6);
+    const list = (items, empty) => (items.length ? `<ul class="dash-list">${items.map((x) => dashboardItemHtml(x.k, x.r)).join("")}</ul>` : `<p class="dash-empty">${empty}</p>`);
+    body.innerHTML = `
+      <section class="dash-card dash-attention${flags.length ? " has-flags" : ""}"><h2>${flags.length ? "Needs attention" : "All clear"}</h2>${
+        flags.length
+          ? `<ul class="dash-flags">${flags.map((f) => `<li>${escapeHtml(f)}</li>`).join("")}</ul><button type="button" class="dash-link" data-go="seo-dashboard-btn">Open Site Health</button>`
+          : "<p class='dash-empty'>No broken links, failed backups or recent errors.</p>"
+      }</section>
+      <section class="dash-card"><h2>Recent edits</h2>${list(recent, "Nothing edited yet.")}</section>
+      <section class="dash-card"><h2>Drafts</h2>${list(drafts, "No drafts waiting.")}</section>
+      <section class="dash-card"><h2>Jump to</h2><div class="dash-links">${[
+        ["new-page-btn", "New page"],
+        ["articles-btn", "Articles"],
+        ["projects-btn", "Projects"],
+        ["media-btn", "Media"],
+        ["analytics-btn", "Analytics"],
+        ["site-settings-btn", "Site Settings"],
+      ]
+        .map(([id, label]) => `<button type="button" class="dash-link" data-go="${id}">${escapeHtml(label)}</button>`)
+        .join("")}</div></section>`;
+    body.querySelectorAll(".dash-item").forEach((b) =>
+      b.addEventListener("click", () => {
+        el("dashboard-modal").hidden = true;
+        const id = Number(b.dataset.id);
+        if (b.dataset.kind === "article") openArticleEditorById(id);
+        else openProjectEditorById(id);
+      })
+    );
+    body.querySelectorAll("[data-go]").forEach((b) =>
+      b.addEventListener("click", () => {
+        el("dashboard-modal").hidden = true;
+        el(b.dataset.go).click();
+      })
+    );
+  }
+  el("dashboard-btn").addEventListener("click", () => openDashboard().catch((e) => (el("dashboard-body").textContent = "Couldn't load the dashboard: " + e.message)));
+  el("close-dashboard").addEventListener("click", () => (el("dashboard-modal").hidden = true));
+
   el("seo-dashboard-btn").addEventListener("click", async () => {
     el("seo-dashboard-modal").hidden = false;
     // Pages/articles/projects need to be loaded for the exclusions list to
@@ -8827,6 +8896,7 @@
       { label: "Open Reusable Blocks", sub: "", run: () => { closeCommandPalette(); el("shared-blocks-btn").click(); } },
       { label: "Open Layers", sub: "", run: () => { closeCommandPalette(); el("layers-btn").click(); } },
       { label: "Open Diagnostics", sub: "", run: () => { closeCommandPalette(); el("diagnostics-btn").click(); } },
+      { label: "Open Dashboard", sub: "", leads: true, keywords: ["dashboard", "home", "overview", "what needs me"], run: () => { closeCommandPalette(); el("dashboard-btn").click(); } },
       { label: "Open SEO Dashboard", sub: "", run: () => { closeCommandPalette(); el("seo-dashboard-btn").click(); } },
       { label: "Open Topic Pages", sub: "", run: () => { closeCommandPalette(); el("topic-pages-btn").click(); } },
       { label: "Open Trash", sub: "", run: () => { closeCommandPalette(); el("trash-btn").click(); } },
