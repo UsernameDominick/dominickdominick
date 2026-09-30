@@ -224,7 +224,7 @@ Open and partial items only; completed implementation histories remain in Git hi
 
 ### Admin interface
 - 🔶 Broader command-palette coverage beyond current pages/articles/projects/blocks/Songs/Diagnostics/SEO/Topics
-- ☐ Customizable dashboard, interface density settings, saved workspace layouts
+- 🔶 Interface density (the ⇕ button in the sidebar footer switches the admin between Comfortable and Compact, remembered per browser and applied before first paint: tighter sidebar, dialog headers, settings forms, list rows, block inspector and default buttons and fields, never below 24px targets; the Song/Simulation/Scan builders and the Photo editor keep their fixed sizing). Still ☐: customizable dashboard, saved workspace layouts
 - 🔶 Universal bulk-action toolbar (currently articles, projects, and blocks)
 - ☐ Contextual help for complex editors, shortcut remapping
 - ☐ Role-specific preview (requires a roles system; none exists)

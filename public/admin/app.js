@@ -909,6 +909,26 @@
     } catch (e) {}
   });
 
+  // ---------- Interface density (comfortable / compact) ----------
+  // A per-browser preference, like the theme: the head script in index.html applies a
+  // saved "compact" before first paint, this keeps the button's state in step with it.
+  function applyDensity(compact) {
+    const root = document.documentElement;
+    if (compact) root.setAttribute("data-density", "compact");
+    else root.removeAttribute("data-density");
+    const btn = el("admin-density-toggle");
+    btn.setAttribute("aria-pressed", compact ? "true" : "false");
+    btn.title = compact ? "Compact interface is on: click for comfortable spacing" : "Compact interface: tighter spacing in this browser";
+  }
+  applyDensity(document.documentElement.getAttribute("data-density") === "compact");
+  el("admin-density-toggle").addEventListener("click", () => {
+    const compact = document.documentElement.getAttribute("data-density") !== "compact";
+    applyDensity(compact);
+    try {
+      localStorage.setItem("admin-density", compact ? "compact" : "comfortable");
+    } catch (e) {}
+  });
+
   // ---------- Focus mode (hide the block palette for more canvas room) ----------
   function applyFocusMode(on) {
     el("app").classList.toggle("focus-mode", on);

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>(function(){try{var t=localStorage.getItem("admin-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();</script>
+<script>(function(){try{var t=localStorage.getItem("admin-theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);if(localStorage.getItem("admin-density")==="compact")document.documentElement.setAttribute("data-density","compact");}catch(e){}})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin · Dominick</title>
@@ -79,6 +79,7 @@
       </nav>
       <div class="admin-sidebar-footer">
         <button id="admin-theme-toggle" aria-label="Toggle admin panel light/dark theme" title="Toggle admin panel theme">◐</button>
+        <button id="admin-density-toggle" aria-pressed="false" aria-label="Compact interface" title="Compact interface: tighter spacing in this browser">⇕</button>
         <button id="logout-btn">Log out</button>
       </div>
     </aside>

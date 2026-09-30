@@ -306,6 +306,12 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   flex: 1;
 }
 
+/* The two icon toggles keep their own width so "Log out" still fits on one line. */
+.admin-sidebar-footer #admin-theme-toggle,
+.admin-sidebar-footer #admin-density-toggle {
+  flex: 0 0 auto;
+}
+
 /* Recent's popover anchors from the sidebar's left edge instead of the
    default right:0 (sized for a wide header) — right:0 against a ~90px-wide
    button in a 240px column would hang the panel's left edge off-screen. */
@@ -6849,4 +6855,93 @@ kbd {
 
 .preview-stress-row {
   flex-wrap: wrap;
+}
+
+/* Interface density. "Compact" (a per-browser choice, the ⇕ button in the sidebar footer)
+   trims the vertical padding and gaps of the surfaces used all day: the sidebar, dialog
+   headers, settings forms, list rows, the block inspector and the default buttons and
+   fields. It never shrinks text, and every control stays at least 24px tall (WCAG 2.2
+   target size). The default-control rules use :where() so any button or field with its own
+   padding keeps it; the builders (Songs, Simulations, Scans, Photo editor) keep their
+   fixed sizing on purpose. */
+:where(:root[data-density="compact"]) button {
+  padding: 4px 9px;
+}
+:where(:root[data-density="compact"]) :where(select, textarea, input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]):not([type="file"])) {
+  padding: 4px 7px;
+}
+:root[data-density="compact"] .admin-sidebar-group {
+  gap: 1px;
+}
+:root[data-density="compact"] .admin-sidebar-group button,
+:root[data-density="compact"] .admin-sidebar-group a {
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+:root[data-density="compact"] .admin-sidebar-footer {
+  padding: 8px 12px;
+}
+:root[data-density="compact"] .modal-inner header {
+  padding: 10px 20px;
+}
+:root[data-density="compact"] .settings-body {
+  padding: 14px 20px;
+}
+:root[data-density="compact"] .settings-panel {
+  gap: 8px;
+}
+:root[data-density="compact"] .settings-body input:not([type="checkbox"]):not([type="color"]),
+:root[data-density="compact"] .settings-body select,
+:root[data-density="compact"] .settings-body textarea {
+  padding: 5px 9px;
+  margin-top: 3px;
+}
+:root[data-density="compact"] .settings-save-bar {
+  padding: 8px 20px;
+}
+:root[data-density="compact"] .articles-list {
+  padding: 8px;
+}
+:root[data-density="compact"] .article-list-item {
+  padding: 4px 10px;
+  margin-bottom: 2px;
+}
+:root[data-density="compact"] .drawer-scroll-content {
+  padding: 10px;
+}
+:root[data-density="compact"] .admin-palette h2,
+:root[data-density="compact"] .admin-inspector h2 {
+  margin: 10px 0 5px;
+}
+:root[data-density="compact"] .panel-section {
+  margin-bottom: 6px;
+}
+:root[data-density="compact"] .panel-section > summary {
+  padding: 6px 12px;
+}
+:root[data-density="compact"] .panel-section > :not(summary):first-of-type,
+:root[data-density="compact"] .panel-section > summary + * {
+  margin-top: 8px;
+}
+:root[data-density="compact"] .panel-section > :last-child {
+  margin-bottom: 8px;
+}
+:root[data-density="compact"] .admin-palette label,
+:root[data-density="compact"] .admin-inspector label {
+  margin-bottom: 6px;
+}
+:root[data-density="compact"] .admin-palette input:not([type="checkbox"]):not([type="color"]),
+:root[data-density="compact"] .admin-palette textarea,
+:root[data-density="compact"] .admin-palette select,
+:root[data-density="compact"] .admin-inspector input:not([type="checkbox"]):not([type="color"]),
+:root[data-density="compact"] .admin-inspector textarea,
+:root[data-density="compact"] .admin-inspector select {
+  padding: 4px 7px;
+  margin-top: 3px;
+}
+:root[data-density="compact"] .style-group {
+  margin-bottom: 5px;
+}
+:root[data-density="compact"] .style-group > .style-group-body {
+  margin: 8px 12px;
 }
