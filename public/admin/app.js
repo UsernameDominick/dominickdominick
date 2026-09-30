@@ -8781,8 +8781,28 @@
     if (openEditorHelpKey) {
       actions.push({ label: "Help for this editor", sub: "", leads: true, keywords: ["help", "tips", "how do i"], run: () => { closeCommandPalette(); openEditorHelp(openEditorHelpKey[1], document.querySelector(`.editor-help-btn[data-help="${openEditorHelpKey[1]}"]`)); } });
     }
+    const clickAction = (id) => () => {
+      closeCommandPalette();
+      el(id).click();
+    };
     if (!el("song-builder-modal").hidden) {
-      actions.push({ label: "Song builder: Play / stop", sub: "", run: () => { closeCommandPalette(); el("song-play").click(); } });
+      actions.push(
+        { label: "Song builder: Play / stop", sub: "", run: clickAction("song-play") },
+        { label: "Song builder: Save", sub: "", run: clickAction("save-song") },
+        { label: "Song builder: Undo", sub: "", run: clickAction("song-undo") },
+        { label: "Song builder: Redo", sub: "", run: clickAction("song-redo") }
+      );
+    }
+    if (!el("simulation-builder-modal").hidden) {
+      actions.push(
+        { label: "Simulation builder: Save", sub: "", run: clickAction("save-simulation") },
+        { label: "Simulation builder: Undo", sub: "", run: clickAction("sim-undo") },
+        { label: "Simulation builder: Redo", sub: "", run: clickAction("sim-redo") },
+        { label: "Simulation builder: Preview power on / off", sub: "", run: clickAction("sim-preview-power") }
+      );
+    }
+    if (!el("scan-editor-modal").hidden) {
+      actions.push({ label: "3D scan editor: Save", sub: "", run: clickAction("save-scan-btn") });
     }
     // Photo Editor's own tools/actions -- only surfaced while that modal is
     // actually open on top of this one, so the global palette isn't
