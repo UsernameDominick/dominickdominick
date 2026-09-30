@@ -3500,31 +3500,48 @@
     const [arts, projs, notes, seo] = await Promise.allSettled([api("/articles"), api("/projects"), api("/notifications-summary"), api("/seo-report")]);
     const A = arts.status === "fulfilled" ? arts.value : [];
     const P = projs.status === "fulfilled" ? projs.value : [];
+    // [text, panel button to open]; errors and webhooks live in Diagnostics, the rest in Site Health.
     const flags = [];
+    const unavailable = [];
+    if (arts.status !== "fulfilled") unavailable.push("articles");
+    if (projs.status !== "fulfilled") unavailable.push("projects");
     if (notes.status === "fulfilled") {
       const n = notes.value;
-      if (n.backupFailed) flags.push("The last scheduled backup failed");
-      if (n.brokenLinks) flags.push(`${n.brokenLinks} broken link${n.brokenLinks === 1 ? "" : "s"}`);
-      if (n.recentErrors) flags.push(`${n.recentErrors} recent error${n.recentErrors === 1 ? "" : "s"}`);
-      if (n.recentFailedWebhooks) flags.push(`${n.recentFailedWebhooks} failed webhook${n.recentFailedWebhooks === 1 ? "" : "s"}`);
-    }
+      if (n.backupFailed) flags.push(["The last scheduled backup failed", "seo-dashboard-btn"]);
+      if (n.brokenLinks) flags.push([`${n.brokenLinks} broken link${n.brokenLinks === 1 ? "" : "s"}`, "seo-dashboard-btn"]);
+      if (n.recentErrors) flags.push([`${n.recentErrors} recent error${n.recentErrors === 1 ? "" : "s"}`, "diagnostics-btn"]);
+      if (n.recentFailedWebhooks) flags.push([`${n.recentFailedWebhooks} failed webhook${n.recentFailedWebhooks === 1 ? "" : "s"}`, "diagnostics-btn"]);
+    } else unavailable.push("alerts");
     if (seo.status === "fulfilled") {
       const r = seo.value;
-      if (r.missingMeta && r.missingMeta.length) flags.push(`${r.missingMeta.length} page${r.missingMeta.length === 1 ? "" : "s"} without a description`);
-      if (r.missingAlt && r.missingAlt.length) flags.push(`${r.missingAlt.length} image${r.missingAlt.length === 1 ? "" : "s"} without alt text`);
-    }
-    const all = [...A.map((r) => ({ k: "article", r })), ...P.map((r) => ({ k: "project", r }))];
+      if (r.missingMeta && r.missingMeta.length) flags.push([`${r.missingMeta.length} page${r.missingMeta.length === 1 ? "" : "s"} without a description`, "seo-dashboard-btn"]);
+      if (r.missingAlt && r.missingAlt.length) flags.push([`${r.missingAlt.length} image${r.missingAlt.length === 1 ? "" : "s"} without alt text`, "seo-dashboard-btn"]);
+    } else unavailable.push("site health");
+    const nowStr = new Date().toISOString();
+    // Archived items are deliberately out of the way, so they stay off both lists.
+    const all = [...A.map((r) => ({ k: "article", r })), ...P.map((r) => ({ k: "project", r }))].filter((x) => !x.r.archived);
     const recent = [...all].sort((a, b) => String(b.r.updated_at || "").localeCompare(String(a.r.updated_at || ""))).slice(0, 6);
-    const drafts = all.filter((x) => !x.r.published_at).slice(0, 6);
-    const list = (items, empty) => (items.length ? `<ul class="dash-list">${items.map((x) => dashboardItemHtml(x.k, x.r)).join("")}</ul>` : `<p class="dash-empty">${empty}</p>`);
+    const draftsAll = all.filter((x) => !x.r.published_at);
+    const scheduled = all.filter((x) => x.r.published_at && String(x.r.published_at) > nowStr);
+    const list = (items, empty, total) =>
+      items.length
+        ? `<ul class="dash-list">${items.map((x) => dashboardItemHtml(x.k, x.r)).join("")}</ul>${
+            total > items.length ? `<p class="dash-empty">and ${total - items.length} more in Articles and Projects</p>` : ""
+          }`
+        : `<p class="dash-empty">${empty}</p>`;
+    const attention = flags.length
+      ? `<ul class="dash-flags">${flags.map(([f]) => `<li>${escapeHtml(f)}</li>`).join("")}</ul>${[...new Set(flags.map(([, go]) => go))]
+          .map((go) => `<button type="button" class="dash-link" data-go="${go}">${go === "diagnostics-btn" ? "Open Diagnostics" : "Open Site Health"}</button>`)
+          .join(" ")}`
+      : unavailable.length
+        ? ""
+        : "<p class='dash-empty'>No broken links, failed backups or recent errors.</p>";
+    const unavailableNote = unavailable.length ? `<p class="dash-empty dash-unavailable">Couldn't load: ${escapeHtml(unavailable.join(", "))}. What's shown may be incomplete.</p>` : "";
     body.innerHTML = `
-      <section class="dash-card dash-attention${flags.length ? " has-flags" : ""}"><h2>${flags.length ? "Needs attention" : "All clear"}</h2>${
-        flags.length
-          ? `<ul class="dash-flags">${flags.map((f) => `<li>${escapeHtml(f)}</li>`).join("")}</ul><button type="button" class="dash-link" data-go="seo-dashboard-btn">Open Site Health</button>`
-          : "<p class='dash-empty'>No broken links, failed backups or recent errors.</p>"
-      }</section>
-      <section class="dash-card"><h2>Recent edits</h2>${list(recent, "Nothing edited yet.")}</section>
-      <section class="dash-card"><h2>Drafts</h2>${list(drafts, "No drafts waiting.")}</section>
+      <section class="dash-card dash-attention${flags.length ? " has-flags" : ""}"><h2>${flags.length ? "Needs attention" : unavailable.length ? "Couldn't check everything" : "All clear"}</h2>${attention}${unavailableNote}</section>
+      <section class="dash-card"><h2>Recent edits</h2>${list(recent, "Nothing edited yet.", recent.length)}</section>
+      <section class="dash-card"><h2>Drafts${draftsAll.length ? ` (${draftsAll.length})` : ""}</h2>${list(draftsAll.slice(0, 6), "No drafts waiting.", draftsAll.length)}</section>
+      ${scheduled.length ? `<section class="dash-card"><h2>Scheduled (${scheduled.length})</h2>${list(scheduled.slice(0, 6), "", scheduled.length)}</section>` : ""}
       <section class="dash-card"><h2>Jump to</h2><div class="dash-links">${[
         ["new-page-btn", "New page"],
         ["articles-btn", "Articles"],
