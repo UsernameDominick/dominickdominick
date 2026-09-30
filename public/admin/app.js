@@ -8781,6 +8781,25 @@
     if (openEditorHelpKey) {
       actions.push({ label: "Help for this editor", sub: "", leads: true, keywords: ["help", "tips", "how do i"], run: () => { closeCommandPalette(); openEditorHelp(openEditorHelpKey[1], document.querySelector(`.editor-help-btn[data-help="${openEditorHelpKey[1]}"]`)); } });
     }
+    // Commands for the block that is selected right now (single selection only), so they
+    // never act on something the user can't see selected.
+    const singleBlockOpen = !el("inspector").hidden && !el("single-block-inspector").hidden && selectedBlockId != null;
+    if (singleBlockOpen) {
+      const blockClick = (id) => () => {
+        closeCommandPalette();
+        el(id).click();
+      };
+      actions.push(
+        { label: "Block: Copy selected block", sub: "", run: blockClick("copy-block-btn") },
+        { label: "Block: Duplicate selected block", sub: "", run: blockClick("duplicate-block-btn") },
+        { label: "Block: Lock / unlock selected block", sub: "", run: blockClick("lock-block-btn") },
+        { label: "Block: Isolate selected block on the canvas", sub: "", run: blockClick("isolate-block-btn") },
+        { label: "Block: Save selected block as reusable block…", sub: "", run: blockClick("save-as-shared-block-btn") }
+      );
+    }
+    if (!el("paste-block-btn").hidden) {
+      actions.push({ label: "Block: Paste copied block", sub: "", run: () => { closeCommandPalette(); el("paste-block-btn").click(); } });
+    }
     const clickAction = (id) => () => {
       closeCommandPalette();
       el(id).click();
