@@ -978,9 +978,21 @@
   // that existing per-item ?preview=1 gate follow normal navigation
   // (nav links, related content, a URL typed by hand) in this browser
   // without needing the query param re-added on every link.
+  // Warning strip under the admin header: the site is down for visitors, or browsing is in draft preview.
+  let maintenanceOn = false;
+  function refreshStatusStrip() {
+    const strip = el("admin-status-strip");
+    if (!strip) return;
+    const msgs = [];
+    if (maintenanceOn) msgs.push("Maintenance mode is on: visitors see a “be right back” page.");
+    if (hasPreviewModeCookie()) msgs.push("Draft preview mode is on: this browser sees unpublished content on the live site.");
+    strip.textContent = msgs.join("  ·  ");
+    strip.hidden = !msgs.length;
+  }
   function applyPreviewModeButton(on) {
     el("draft-preview-mode-toggle").textContent = "Preview mode: " + (on ? "On" : "Off");
     el("draft-preview-mode-toggle").setAttribute("aria-pressed", on ? "true" : "false");
+    refreshStatusStrip();
   }
   function hasPreviewModeCookie() {
     return document.cookie.split("; ").some((c) => c === "preview_mode=1");
@@ -992,6 +1004,29 @@
     applyPreviewModeButton(on);
   });
   applyPreviewModeButton(hasPreviewModeCookie());
+
+  // Save-status pill: the editors each write free text ("Saving…", "Saved 10:42", "Save failed: …")
+  // into their own status element. Classify it into data-state so one CSS rule can style them all.
+  const SAVE_STATUS_IDS = ["page-save-status", "block-save-status", "article-autosave-status", "project-autosave-status", "song-autosave-status"];
+  function classifySaveText(t) {
+    if (!t) return "";
+    if (/fail|error|couldn|conflict/i.test(t)) return "error";
+    if (/^saving|merging/i.test(t)) return "saving";
+    if (/unsaved|changes…|editing/i.test(t)) return "dirty";
+    if (/saved/i.test(t)) return "saved";
+    return "";
+  }
+  SAVE_STATUS_IDS.forEach((id) => {
+    const node = el(id);
+    if (!node) return;
+    const sync = () => {
+      const st = classifySaveText(node.textContent.trim());
+      if (st) node.dataset.state = st;
+      else delete node.dataset.state;
+    };
+    new MutationObserver(sync).observe(node, { childList: true, characterData: true, subtree: true });
+    sync();
+  });
 
   el("content-only-mode-btn").addEventListener("click", () => {
     contentOnlyMode = !contentOnlyMode;
@@ -7318,6 +7353,8 @@
   // colors (plus the shades the public shell derives from them) and the
   // control presets here keeps both halves of the site one character.
   function applySiteThemeToAdmin(settings) {
+    maintenanceOn = !!settings && settings.maintenance_mode === "1";
+    refreshStatusStrip();
     const hex = (v) => (/^#[0-9a-f]{6}$/i.test(v || "") ? v : "");
     const accent = hex(settings.theme_accent);
     const bg = hex(settings.theme_bg);

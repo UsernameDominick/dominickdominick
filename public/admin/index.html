@@ -79,8 +79,8 @@
         </div>
       </nav>
       <div class="admin-sidebar-footer">
-        <button id="admin-theme-toggle" aria-label="Toggle admin panel light/dark theme" title="Toggle admin panel theme">◐</button>
-        <button id="admin-density-toggle" aria-pressed="false" aria-label="Compact interface" title="Compact interface: tighter spacing in this browser">⇕</button>
+        <button id="admin-theme-toggle" aria-label="Toggle admin panel light/dark theme" title="Toggle admin panel theme"><svg class="ico" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor"/></svg></button>
+        <button id="admin-density-toggle" aria-pressed="false" aria-label="Compact interface" title="Compact interface: tighter spacing in this browser"><svg class="ico" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 4h10M3 8h10M3 12h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg></button>
         <button id="logout-btn">Log out</button>
       </div>
     </aside>
@@ -99,6 +99,7 @@
           <button id="command-btn" title="Search / jump to anything (Ctrl+K)">Search ⌘K</button>
         </div>
       </header>
+      <div id="admin-status-strip" class="admin-status-strip" role="status" hidden></div>
 
     <div id="drawer-backdrop" class="drawer-backdrop" hidden></div>
 
@@ -554,7 +555,7 @@
             <input id="journal-entry-title" placeholder="Entry title">
             <textarea id="journal-entry-body" rows="4" placeholder="What happened. Same formatting as the project body."></textarea>
             <div class="journal-form-actions">
-              <button type="button" id="save-journal-entry-btn">Add entry</button>
+              <button type="button" id="save-journal-entry-btn" data-tier="primary">Add entry</button>
               <button type="button" id="cancel-journal-entry-btn" hidden>Cancel edit</button>
             </div>
           </details>
@@ -578,7 +579,7 @@
               <input id="bom-substitution" placeholder="Substitution notes (optional)">
             </div>
             <div class="journal-form-actions">
-              <button type="button" id="save-bom-item-btn">Add item</button>
+              <button type="button" id="save-bom-item-btn" data-tier="primary">Add item</button>
               <button type="button" id="cancel-bom-item-btn" hidden>Cancel edit</button>
             </div>
           </details>
@@ -1982,7 +1983,7 @@
     <div class="modal-inner simulation-builder-inner scan-editor-inner">
       <header>
         <input id="scan-name" class="simulation-name-input" placeholder="Scan name">
-        <button type="button" id="save-scan-btn">Save</button>
+        <button type="button" id="save-scan-btn" data-tier="primary">Save</button>
         <span class="editor-header-end">
           <button type="button" class="editor-help-btn" data-help="scan" aria-label="Help for the 3D scan editor" title="Tips and shortcuts for this editor">?</button>
           <button id="close-scan-editor" aria-label="Close 3D scan editor dialog">×</button>
