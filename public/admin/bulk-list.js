@@ -6,6 +6,15 @@
   // for rows that still exist and is pruned for rows that don't.
   const state = new Map(); // listId -> Set of selected ids (as strings)
 
+  // A row's name is the text directly inside its first span; nested badges (block type, issue
+  // counts) are not part of the name.
+  function rowName(row, fallback) {
+    const span = row && row.querySelector("span");
+    if (!span) return fallback;
+    const own = [...span.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join("").trim();
+    return own || span.textContent.trim() || fallback;
+  }
+
   function ensureBar(listEl) {
     let bar = document.getElementById(listEl.id + "-bulk-bar");
     if (!bar) {
@@ -45,8 +54,7 @@
       box.className = "bulk-list-row-box";
       box.dataset.id = id;
       box.checked = selected.has(id);
-      const name = row.querySelector("span");
-      box.setAttribute("aria-label", "Select " + (name ? name.textContent.trim() : opts.noun));
+      box.setAttribute("aria-label", "Select " + rowName(row, opts.noun));
       box.addEventListener("change", () => {
         if (box.checked) selected.add(id);
         else selected.delete(id);
@@ -104,8 +112,7 @@
         const el = r.querySelector(opts.rowIdSelector);
         return el && String(el.dataset.id) === String(id);
       });
-      const span = row && row.querySelector("span");
-      return span ? span.textContent.trim() : String(id);
+      return rowName(row, String(id));
     };
     const failureText = (verb, failedIds, total) => {
       const shown = failedIds.slice(0, 5).map(nameOf).join(", ");
@@ -139,8 +146,7 @@
         const names = new Map();
         rows.forEach((row) => {
           const idEl = row.querySelector(opts.rowIdSelector);
-          const name = row.querySelector("span");
-          if (idEl && name) names.set(String(idEl.dataset.id), name.textContent.trim());
+          if (idEl) names.set(String(idEl.dataset.id), rowName(row, String(idEl.dataset.id)));
         });
         const inUse = [];
         let lookupFailed = false;
