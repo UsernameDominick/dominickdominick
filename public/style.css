@@ -3572,10 +3572,14 @@ pre.has-line-numbers {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
   vertical-align: middle;
 }
+.status-led-quiet {
+  background: var(--text-dim);
+  box-shadow: none;
+}
 .card-status {
   margin: 0 0 var(--space-2);
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -3622,4 +3626,10 @@ pre.has-line-numbers {
   border: 1px dashed var(--border);
   border-radius: var(--card-radius);
   text-align: center;
+}
+.project-card h2 a {
+  overflow-wrap: anywhere;
+}
+.building-strip:focus-visible {
+  border-color: var(--accent);
 }

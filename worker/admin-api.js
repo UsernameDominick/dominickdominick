@@ -643,6 +643,15 @@ async function readBodyTextCapped(request, maxBytes) {
   return decodeUtf8(all);
 }
 
+// Journal entry dates are plain YYYY-MM-DD strings (compared as text by the public reads).
+function validEntryDate(v, optional) {
+  if (v === undefined || v === null || v === "") return !!optional;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v));
+  if (!m) return false;
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  return d.getUTCFullYear() === +m[1] && d.getUTCMonth() === +m[2] - 1 && d.getUTCDate() === +m[3];
+}
+
 export async function handleAdminApi(request, env, url, ctx) {
   try {
     return await routeAdminApi(request, env, url, ctx);
@@ -1322,6 +1331,7 @@ async function routeAdminApi(request, env, url, ctx) {
   if (journalListMatch && method === "POST") {
     const body = await readJsonBody(request);
     const projectId = Number(journalListMatch[1]);
+    if (!validEntryDate(body.entry_date, true)) return json({ error: "Entry date must be a real date like 2026-09-30." }, { status: 400 });
     const id = await createJournalEntry(env, projectId, body);
     log(ctx, env, "create", "journal entry", body.title || `on project #${projectId}`);
     return json({ id });
@@ -1329,6 +1339,7 @@ async function routeAdminApi(request, env, url, ctx) {
   const journalMatch = path.match(/^\/journal\/(\d+)$/);
   if (journalMatch && method === "PATCH") {
     const body = await readJsonBody(request);
+    if (!validEntryDate(body.entry_date, true)) return json({ error: "Entry date must be a real date like 2026-09-30." }, { status: 400 });
     await updateJournalEntry(env, Number(journalMatch[1]), body);
     return json({ ok: true });
   }

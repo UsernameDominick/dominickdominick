@@ -549,13 +549,16 @@ export function renderArticlesIndexHtml(articles, customEmptyText = "") {
   return `<div class="project-list index-grid">${items}</div>`;
 }
 
+// Finished or parked projects get a muted LED so it doesn't read as "live".
+const STATUS_DONE_RE = /complete|done|finish|shipped|retired|archiv|paused|abandon|on hold/i;
+
 export function renderProjectsIndexHtml(projects, customEmptyText = "") {
   if (!projects.length) return `<p class="empty-hint">${esc(customEmptyText || "No projects published yet.")}</p>`;
   const items = projects
     .map(
       (p) =>
         `<div class="project-card"><h2><a href="/projects/${esc(p.slug)}">${esc(p.title)}</a></h2>${
-          visibleText(p.status) ? `<p class="card-status"><span class="status-led" aria-hidden="true"></span>${esc(visibleText(p.status))}</p>` : ""
+          visibleText(p.status) ? `<p class="card-status"><span class="status-led${STATUS_DONE_RE.test(visibleText(p.status)) ? " status-led-quiet" : ""}" aria-hidden="true"></span>${esc(visibleText(p.status))}</p>` : ""
         }${p.summary ? `<p>${esc(p.summary)}</p>` : ""
         }${renderTags(p.tags)}</div>`
     )
@@ -570,7 +573,7 @@ export function renderBuildingStripHtml(entry) {
   if (!title) return "";
   return `<a class="building-strip" href="/projects/${esc(entry.project_slug)}"><span class="building-strip-label"><span class="status-led" aria-hidden="true"></span>Currently building</span><span class="building-strip-text"><strong>${esc(
     entry.project_title
-  )}</strong> · ${esc(title)}</span><time datetime="${esc(entry.entry_date)}">${esc(entry.entry_date)}</time></a>`;
+  )}</strong> · ${esc(title)}</span><time datetime="${esc(entry.entry_date)}">${esc(displayDate(entry.entry_date) || entry.entry_date)}</time></a>`;
 }
 
 export function renderByline(article) {
