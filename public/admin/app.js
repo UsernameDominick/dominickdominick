@@ -7531,12 +7531,12 @@
     el("keyframe-rows").innerHTML = keyframeEditorRows
       .map(
         (row, i) => `<div class="keyframe-row" data-index="${i}">
-          <label>Offset % <input type="number" class="keyframe-field kf-offset" min="0" max="100" value="${row.offset ?? ""}"></label>
-          <label>Opacity <input type="number" class="keyframe-field kf-opacity" min="0" max="1" step="0.05" value="${row.opacity ?? ""}"></label>
-          <label>X (px) <input type="number" class="keyframe-field kf-x" value="${row.x ?? ""}"></label>
-          <label>Y (px) <input type="number" class="keyframe-field kf-y" value="${row.y ?? ""}"></label>
-          <label>Scale <input type="number" class="keyframe-field kf-scale" step="0.05" value="${row.scale ?? ""}"></label>
-          <label>Rotate (deg) <input type="number" class="keyframe-field kf-rotate" value="${row.rotate ?? ""}"></label>
+          <label>Offset % <input type="number" class="keyframe-field kf-offset" min="0" max="100" value="${escapeHtml(row.offset ?? "")}"></label>
+          <label>Opacity <input type="number" class="keyframe-field kf-opacity" min="0" max="1" step="0.05" value="${escapeHtml(row.opacity ?? "")}"></label>
+          <label>X (px) <input type="number" class="keyframe-field kf-x" value="${escapeHtml(row.x ?? "")}"></label>
+          <label>Y (px) <input type="number" class="keyframe-field kf-y" value="${escapeHtml(row.y ?? "")}"></label>
+          <label>Scale <input type="number" class="keyframe-field kf-scale" step="0.05" value="${escapeHtml(row.scale ?? "")}"></label>
+          <label>Rotate (deg) <input type="number" class="keyframe-field kf-rotate" value="${escapeHtml(row.rotate ?? "")}"></label>
           <button type="button" class="keyframe-remove-row" title="Remove this keyframe">×</button>
         </div>`
       )
@@ -7636,16 +7636,25 @@
   // it only scans whichever single page is currently open in the editor,
   // not the whole site, so it doesn't fit the same "run everywhere" model.
   // Wording shared by the Site Health overview and the SEO Report list below it.
+  // Cut by user-perceived character, so an emoji, a flag or a combining sequence is never split
+  // just before the ellipsis (falls back to code points where Intl.Segmenter is missing).
   const seoShort = (text, max) => {
-    const chars = Array.from(text); // by code point, so an emoji is never cut in half
+    let chars;
+    try {
+      chars = Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text), (s) => s.segment);
+    } catch (e) {
+      chars = Array.from(text);
+    }
     return chars.length > max ? chars.slice(0, max - 1).join("") + "…" : text;
   };
+  // Links in the overview only ever go to a same-site path or an http(s) address.
+  const seoSafeHref = (u) => (/^(\/(?!\/)|https?:\/\/)/i.test(String(u)) ? u : "#");
   const seoWeakAltStatus = (m) => {
     const file = (m.url || "").split("/").pop();
     const where = m.slug === null ? m.where : `${m.where}${file ? ` (${seoShort(file, 32)})` : ""}`;
     return m.long
       ? `${where}: alt text is ${m.alt.length} characters; screen readers handle about 125 well, so consider moving the detail into a caption`
-      : `${where}: alt text "${seoShort(m.alt, 60)}" says nothing useful (${m.reason}). ${
+      : `${where}: the alt text "${seoShort(m.alt, 60)}" needs work. ${m.reason}. ${
           m.slug === null ? "Edit it in the Media Library, under the image's Details." : "Write a short description of what the image shows."
         }`;
   };
@@ -7758,7 +7767,7 @@
           (i) =>
             `<div class="link-check-row${i.severity === 3 ? " broken" : ""}"><span class="lock-badge">${escapeHtml(
               i.check
-            )}</span><a class="link-check-url" href="${escapeHtml(i.url)}" target="_blank" rel="noopener">${escapeHtml(
+            )}</span><a class="link-check-url" href="${escapeHtml(seoSafeHref(i.url))}" target="_blank" rel="noopener">${escapeHtml(
               i.title
             )}</a><span class="link-check-source">${escapeHtml(i.url)}</span><span class="link-check-status">${escapeHtml(i.status)}</span></div>`
         )
@@ -7818,7 +7827,7 @@
         ),
         ...weakAlt.map(
           (m) =>
-            `<div class="link-check-row broken"><span class="link-check-url">${escapeHtml(m.title)}</span><span class="link-check-source">${escapeHtml(
+            `<div class="link-check-row${m.long ? "" : " broken"}"><span class="link-check-url">${escapeHtml(m.title)}</span><span class="link-check-source">${escapeHtml(
               m.url
             )}</span><span class="link-check-status">${escapeHtml(seoWeakAltStatus(m))}</span></div>`
         ),

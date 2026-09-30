@@ -6973,3 +6973,10 @@ kbd {
 .link-check-row .link-check-url {
   overflow-wrap: anywhere;
 }
+/* .link-check-source never shrank (flex-shrink: 0), so a long file name or slug still ran past the
+   row however it was allowed to wrap. It may shrink now, and only ever to fit its row. */
+.link-check-row .link-check-source {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}

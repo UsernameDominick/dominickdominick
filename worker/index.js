@@ -297,8 +297,12 @@ async function renderPage(env, page, url, request) {
   // top-to-bottom/left-to-right sort Diagnostics uses) so a page whose
   // admin never filled in "Meta description" doesn't ship an empty
   // <meta name="description"> and empty og:description instead.
+  // A whitespace-only or invisible-characters-only value counts as unset (it would otherwise
+  // be truthy and ship a blank <meta name="description">).
   const description =
-    page.meta_description ||
+    String(page.meta_description || "")
+      .replace(/[​-‍⁠﻿]/g, "")
+      .trim() ||
     excerpt(
       blocks
         .filter((b) => isBlockShown(b, url.searchParams) && (b.type === "text" || b.type === "heading") && b.content && b.content.text)

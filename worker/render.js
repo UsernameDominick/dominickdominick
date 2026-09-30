@@ -367,7 +367,11 @@ export function displayDate(iso) {
 export function excerpt(text, maxLen = 155) {
   // Headings are dropped, not flattened: "…on the page.\n## The model\nEvery
   // part…" otherwise read as "…on the page. The model Every part…".
-  const body = String(text || "").replace(/^\s{0,3}#{1,6}\s.*$/gm, "");
+  // Thematic breaks ("---", "***", "___") and raw HTML tags carry no text for a snippet.
+  const body = String(text || "")
+    .replace(/^\s{0,3}#{1,6}\s.*$/gm, "")
+    .replace(/^\s{0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/gm, "")
+    .replace(/<\/?[a-zA-Z][^>]*>/g, "");
   const flat = stripMarkdown(body).replace(/\s+/g, " ").trim();
   if (flat.length <= maxLen) return flat;
   const cut = flat.slice(0, maxLen);

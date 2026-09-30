@@ -925,7 +925,10 @@ function parseProjectRow(row) {
   } catch {
     related_override = [];
   }
-  return { ...row, tags, tech_stack, links, related_articles, related_simulations, related_scans, related_songs, related_override };
+  // A whitespace-only summary is truthy everywhere it is read (meta description, RSS, cards),
+  // so it is normalised to empty once, here, and the excerpt fallback applies.
+  const summary = typeof row.summary === "string" ? row.summary.trim() : row.summary;
+  return { ...row, summary, tags, tech_stack, links, related_articles, related_simulations, related_scans, related_songs, related_override };
 }
 
 // Nulls-last ascending sort by a numeric field — shared by both the
@@ -3888,10 +3891,13 @@ export function isInSitemap(item, type) {
 
 // Alt text with the characters that render as nothing (zero-width spaces and joiners, BOM,
 // and ordinary whitespace) taken out, so "present but invisible" counts as missing.
+// Only the edges are cleaned: a zero-width joiner or non-joiner between characters is part of
+// the text (emoji families, Persian and Indic words) and stays. A lone combining mark is empty.
+const INVISIBLE_EDGE = "\\s\\u00AD\\u034F\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u202A-\\u202E\\u2060-\\u2064\\u3164\\uFEFF";
+const INVISIBLE_EDGE_RE = new RegExp(`^[${INVISIBLE_EDGE}]+|[${INVISIBLE_EDGE}]+$`, "g");
 export function cleanAlt(alt) {
-  return String(alt ?? "")
-    .replace(/[​-‍⁠﻿]/g, "")
-    .trim();
+  const text = String(alt ?? "").replace(INVISIBLE_EDGE_RE, "");
+  return /^\p{M}+$/u.test(text) ? "" : text;
 }
 
 // Why an alt text is present but unhelpful to a screen-reader user or search engine, as
@@ -3917,7 +3923,7 @@ export function altTextProblemDetail(alt) {
   if (/^\d+$/.test(text)) return bad("Just a number");
   if (/^[\p{P}\p{S}\p{Z}_]+$/u.test(text)) return bad("No actual words");
   if (
-    /^(image|photo|picture|pic|img|graphic|screenshot|untitled[\s_-]*\d*|alt|alt text|placeholder|thumbnail|banner|logo|icon|download|spacer|n\/a|na|none|null|undefined|todo|tbd)\.?$/i.test(text) ||
+    /^(image|photo|picture|pic|img|graphic|screenshot|untitled[\s_-]*\d*|alt|alt text|placeholder|thumbnail|banner|logo|icon|spacer|n\/a|none|null|undefined|todo|tbd)\.?$/i.test(text) ||
     /^lorem ipsum\b/i.test(text)
   ) {
     return bad("A generic placeholder, not a description");
@@ -3943,7 +3949,7 @@ export async function getSeoReport(env) {
   const pageBlocks = await Promise.all(pages.map((p) => listBlocks(env, p.id)));
   const articles = await listArticles(env, { publishedOnly: true });
   const projects = await listProjects(env, { publishedOnly: true });
-  const missingMeta = pages.filter((p) => !p.meta_description || !p.meta_description.trim()).map((p) => ({ title: p.title, slug: p.slug }));
+  const missingMeta = pages.filter((p) => !cleanAlt(p.meta_description)).map((p) => ({ title: p.title, slug: p.slug }));
   const missingAlt = [];
   pages.forEach((p, i) => {
     for (const b of pageBlocks[i]) {

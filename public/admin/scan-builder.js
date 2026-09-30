@@ -7,10 +7,14 @@
   let currentScanId = null;
   let currentScanData = {};
 
+  // Used in both text and attribute positions (data-name="..."), so quotes are escaped too.
   function escapeXml(s) {
-    const d = document.createElement("div");
-    d.textContent = s == null ? "" : String(s);
-    return d.innerHTML;
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
   }
 
   function formatSize(bytes) {
