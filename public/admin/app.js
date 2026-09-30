@@ -1001,7 +1001,7 @@
   // page nested under something can't also be a parent itself (one level
   // of dropdown only), matching the server-side check in admin-api.js.
   function populatePageNavParentSelect(excludeId) {
-    const options = pages.filter((p) => p.nav_label && p.id !== excludeId && !p.nav_parent_id);
+    const options = pages.filter((p) => String(p.nav_label || "").trim() && p.id !== excludeId && !p.nav_parent_id);
     el("page-nav-parent").innerHTML =
       `<option value="">— none (top-level) —</option>` + options.map((p) => `<option value="${p.id}">${escapeHtml(p.nav_label)}</option>`).join("");
   }
