@@ -740,6 +740,16 @@
         <div class="media-filter-row">
           <label class="filter-chip"><input type="checkbox" id="media-unused-filter"> Unused</label>
           <label class="filter-chip"><input type="checkbox" id="media-duplicates-filter"> Possible duplicates</label>
+          <select id="media-size-filter" aria-label="Image dimensions" title="Filter images by shape or size (the longest side, in pixels)">
+            <option value="">Any dimensions</option>
+            <option value="landscape">Landscape</option>
+            <option value="portrait">Portrait</option>
+            <option value="square">Square</option>
+            <option value="large">Large (1600 px or more)</option>
+            <option value="medium">Medium (800 to 1599 px)</option>
+            <option value="small">Small (under 800 px)</option>
+            <option value="unknown">Size not recorded</option>
+          </select>
           <div class="media-saved-searches">
             <select id="media-saved-search-select" aria-label="Saved searches"><option value="">Saved searches…</option></select>
             <button type="button" id="media-save-search-btn" class="media-secondary-btn" title="Save the current filters under a name">Save</button>

@@ -195,7 +195,7 @@ Open and partial items only; completed implementation histories remain in Git hi
 ### Media library and file management
 - 🔶 Nested folders and smart collections (flat folders, tags, and saved searches exist)
 - 🔶 Bulk rename (R2 keys are content-addressed; rename metadata instead)
-- 🔶 Search media by dimensions (filename, tag, type, and usage searches exist)
+- ✅ Search media by dimensions (the Media Library has an "Any dimensions" filter: landscape, portrait, square, large, medium, small and "size not recorded", using the width and height recorded at upload; it is part of saved searches; filename, tag, type and usage searches exist too)
 - ☐ Image optimization comparison, video captions/transcripts, general media-audio support (TTS audio is
   separate), PDF/document previews, direct-download controls, drag-to-page, resumable uploads, retry queue
 

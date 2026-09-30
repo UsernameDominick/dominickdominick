@@ -6046,9 +6046,32 @@
     return "other";
   }
 
+  // Whether an item passes the dimensions filter. Sizes are recorded for images only,
+  // so anything but "Any" leaves out audio and other files; "Size not recorded" finds
+  // images uploaded before sizes were kept.
+  function mediaMatchesSize(item, size) {
+    if (!size) return true;
+    if (mediaItemType(item) !== "image") return false;
+    const w = Number(item.width);
+    const h = Number(item.height);
+    const known = w > 0 && h > 0;
+    if (size === "unknown") return !known;
+    if (!known) return false;
+    const longest = Math.max(w, h);
+    const ratio = w / h;
+    if (size === "landscape") return ratio > 1.05;
+    if (size === "portrait") return ratio < 0.95;
+    if (size === "square") return ratio >= 0.95 && ratio <= 1.05;
+    if (size === "large") return longest >= 1600;
+    if (size === "medium") return longest >= 800 && longest < 1600;
+    if (size === "small") return longest < 800;
+    return true;
+  }
+
   function renderMediaGrid() {
     const folderFilter = el("media-folder-filter").value;
     const typeFilter = el("media-type-filter").value;
+    const sizeFilter = el("media-size-filter").value;
     const search = el("media-search").value.trim().toLowerCase();
     const usageSearch = el("media-usage-filter").value.trim().toLowerCase();
     const unusedOnly = el("media-unused-filter").checked;
@@ -6057,6 +6080,7 @@
       if (folderFilter === "__uncategorized__" && item.folder) return false;
       else if (folderFilter && folderFilter !== "__uncategorized__" && item.folder !== folderFilter) return false;
       if (typeFilter && mediaItemType(item) !== typeFilter) return false;
+      if (!mediaMatchesSize(item, sizeFilter)) return false;
       if (unusedOnly && item.used) return false;
       if (duplicatesOnly && !item.isDuplicate) return false;
       if (usageSearch && !(item.usage || []).some((u) => u.toLowerCase().includes(usageSearch))) return false;
@@ -6481,6 +6505,7 @@
 
   el("media-folder-filter").addEventListener("change", renderMediaGrid);
   el("media-type-filter").addEventListener("change", renderMediaGrid);
+  el("media-size-filter").addEventListener("change", renderMediaGrid);
   el("media-search").addEventListener("input", renderMediaGrid);
   el("media-usage-filter").addEventListener("input", renderMediaGrid);
 
@@ -6501,6 +6526,7 @@
     const f = search.filters;
     el("media-folder-filter").value = f.folder || "";
     el("media-type-filter").value = f.type || "";
+    el("media-size-filter").value = f.size || "";
     el("media-search").value = f.search || "";
     el("media-usage-filter").value = f.usage || "";
     el("media-unused-filter").checked = !!f.unused;
@@ -6514,6 +6540,7 @@
     const filters = {
       folder: el("media-folder-filter").value,
       type: el("media-type-filter").value,
+      size: el("media-size-filter").value,
       search: el("media-search").value,
       usage: el("media-usage-filter").value,
       unused: el("media-unused-filter").checked,
