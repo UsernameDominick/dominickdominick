@@ -7648,7 +7648,7 @@
     return chars.length > max ? chars.slice(0, max - 1).join("") + "…" : text;
   };
   // Links in the overview only ever go to a same-site path or an http(s) address.
-  const seoSafeHref = (u) => (/^(\/(?!\/)|https?:\/\/)/i.test(String(u)) ? u : "#");
+  const seoSafeHref = (u) => (/^\/(?![\/\\])[^\\\t\n\r]*$/.test(String(u)) || /^https?:\/\/[^\s\\]+$/i.test(String(u)) ? u : "#");
   const seoWeakAltStatus = (m) => {
     const file = (m.url || "").split("/").pop();
     const where = m.slug === null ? m.where : `${m.where}${file ? ` (${seoShort(file, 32)})` : ""}`;

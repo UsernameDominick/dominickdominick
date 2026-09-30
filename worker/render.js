@@ -364,6 +364,11 @@ export function displayDate(iso) {
   return `${DISPLAY_MONTHS[Number(m[2]) - 1]} ${Number(m[3])}, ${m[1]}`;
 }
 
+// Well-formed HTML tags of the usual names only, bounded and single-line, so prose such as
+// "i<n and j>k", "Vec<String>" or "<https://example.com>" is never mistaken for markup.
+const HTML_TAG_RE =
+  /<\/?(?:div|span|p|br|hr|img|a|b|i|u|s|em|strong|small|sub|sup|mark|ul|ol|li|dl|dt|dd|h[1-6]|table|thead|tbody|tfoot|tr|td|th|section|article|aside|header|footer|nav|main|blockquote|pre|code|iframe|video|audio|source|figure|figcaption|details|summary|button|form|input|label|select|option|textarea|script|style|center|font)(?:\s[^<>\n]{0,200})?\/?>/gi;
+
 export function excerpt(text, maxLen = 155) {
   // Headings are dropped, not flattened: "…on the page.\n## The model\nEvery
   // part…" otherwise read as "…on the page. The model Every part…".
@@ -371,7 +376,9 @@ export function excerpt(text, maxLen = 155) {
   const body = String(text || "")
     .replace(/^\s{0,3}#{1,6}\s.*$/gm, "")
     .replace(/^\s{0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/gm, "")
-    .replace(/<\/?[a-zA-Z][^>]*>/g, "");
+    .split(/(`[^`\n]*`)/)
+    .map((part, i) => (i % 2 ? part : part.replace(HTML_TAG_RE, "")))
+    .join("");
   const flat = stripMarkdown(body).replace(/\s+/g, " ").trim();
   if (flat.length <= maxLen) return flat;
   const cut = flat.slice(0, maxLen);

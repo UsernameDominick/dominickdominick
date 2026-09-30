@@ -1,4 +1,5 @@
 import { toHex } from "./auth.js";
+import { visibleText } from "./text.js";
 import { normalizeLegacySimulationWireIds, simulationDataError } from "./simulation-validation.js";
 
 export const RESERVED_SLUGS = new Set([
@@ -927,7 +928,7 @@ function parseProjectRow(row) {
   }
   // A whitespace-only summary is truthy everywhere it is read (meta description, RSS, cards),
   // so it is normalised to empty once, here, and the excerpt fallback applies.
-  const summary = typeof row.summary === "string" ? row.summary.trim() : row.summary;
+  const summary = typeof row.summary === "string" ? visibleText(row.summary) : row.summary;
   return { ...row, summary, tags, tech_stack, links, related_articles, related_simulations, related_scans, related_songs, related_override };
 }
 
@@ -3891,13 +3892,9 @@ export function isInSitemap(item, type) {
 
 // Alt text with the characters that render as nothing (zero-width spaces and joiners, BOM,
 // and ordinary whitespace) taken out, so "present but invisible" counts as missing.
-// Only the edges are cleaned: a zero-width joiner or non-joiner between characters is part of
-// the text (emoji families, Persian and Indic words) and stays. A lone combining mark is empty.
-const INVISIBLE_EDGE = "\\s\\u00AD\\u034F\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B-\\u200F\\u202A-\\u202E\\u2060-\\u2064\\u3164\\uFEFF";
-const INVISIBLE_EDGE_RE = new RegExp(`^[${INVISIBLE_EDGE}]+|[${INVISIBLE_EDGE}]+$`, "g");
+// Alt text with invisible edge characters removed (see worker/text.js); empty means missing.
 export function cleanAlt(alt) {
-  const text = String(alt ?? "").replace(INVISIBLE_EDGE_RE, "");
-  return /^\p{M}+$/u.test(text) ? "" : text;
+  return visibleText(alt);
 }
 
 // Why an alt text is present but unhelpful to a screen-reader user or search engine, as
@@ -3909,8 +3906,11 @@ export function cleanAlt(alt) {
 // so long that screen readers break it up (about 125 characters is the usual guidance, a
 // softer finding: `long` is true so it can be ranked lower).
 export function altTextProblemDetail(alt) {
-  const text = cleanAlt(alt);
-  if (!text) return null;
+  const shown = cleanAlt(alt);
+  if (!shown) return null;
+  // Patterns are tested with zero-width characters removed everywhere (a pasted "IMG\u200b_1234"
+  // is still a camera number); the text itself is never altered.
+  const text = shown.replace(/[\u200B-\u200D\u2060\uFEFF]/g, "");
   const bad = (reason) => ({ reason, long: false });
   if (/^\S+\.(jpe?g|png|gif|webp|svg|avif|heic|bmp|tiff?)$/i.test(text)) return bad("Looks like a file name");
   if (
@@ -3920,7 +3920,7 @@ export function altTextProblemDetail(alt) {
   ) {
     return bad("Looks like a camera or screenshot number");
   }
-  if (/^\d+$/.test(text)) return bad("Just a number");
+  if (/^\p{Nd}+$/u.test(text)) return bad("Just a number");
   if (/^[\p{P}\p{S}\p{Z}_]+$/u.test(text)) return bad("No actual words");
   if (
     /^(image|photo|picture|pic|img|graphic|screenshot|untitled[\s_-]*\d*|alt|alt text|placeholder|thumbnail|banner|logo|icon|spacer|n\/a|none|null|undefined|todo|tbd)\.?$/i.test(text) ||

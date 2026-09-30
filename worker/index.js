@@ -89,6 +89,7 @@ import {
   CONTROL_PRESETS,
 } from "./render.js";
 import { handleAdminApi } from "./admin-api.js";
+import { visibleText } from "./text.js";
 import {
   capacitanceMicrofarads,
   computeCircuitAnalysis,
@@ -275,7 +276,7 @@ async function renderPage(env, page, url, request) {
     const bodyHtml = renderPagePasswordFormHtml(page, url.searchParams.get("error") === "1");
     const html = renderShell({
       title: page.title,
-      description: page.meta_description,
+      description: visibleText(page.meta_description),
       path: page.slug === "home" ? "/" : `/${page.slug}`,
       navItems,
       activeSlug: page.slug,
@@ -300,9 +301,7 @@ async function renderPage(env, page, url, request) {
   // A whitespace-only or invisible-characters-only value counts as unset (it would otherwise
   // be truthy and ship a blank <meta name="description">).
   const description =
-    String(page.meta_description || "")
-      .replace(/[​-‍⁠﻿]/g, "")
-      .trim() ||
+    visibleText(page.meta_description) ||
     excerpt(
       blocks
         .filter((b) => isBlockShown(b, url.searchParams) && (b.type === "text" || b.type === "heading") && b.content && b.content.text)

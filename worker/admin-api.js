@@ -147,6 +147,7 @@ import {
   sha256Hex,
   plausibleDims,
 } from "./db.js";
+import { cleanBodyFields } from "./text.js";
 import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated, hmac, revokeAllSessions } from "./auth.js";
 import { normalizeLegacySimulationWireIds, simulationDataError } from "./simulation-validation.js";
 
@@ -798,6 +799,7 @@ async function routeAdminApi(request, env, url, ctx) {
   }
   if (path === "/pages" && method === "POST") {
     const body = await readJsonBody(request);
+    cleanBodyFields(body, ["meta_description", "nav_label", "og_image"]);
     const jsonLdError = validateCustomJsonLd(body);
     if (jsonLdError) return json({ error: jsonLdError }, { status: 400 });
     const canonicalError = validateCanonicalUrl(body);
@@ -825,6 +827,7 @@ async function routeAdminApi(request, env, url, ctx) {
   const pageMatch = path.match(/^\/pages\/(\d+)$/);
   if (pageMatch && method === "PATCH") {
     const body = await readJsonBody(request);
+    cleanBodyFields(body, ["meta_description", "nav_label", "og_image"]);
     const jsonLdError = validateCustomJsonLd(body);
     if (jsonLdError) return json({ error: jsonLdError }, { status: 400 });
     const canonicalError = validateCanonicalUrl(body);
@@ -1030,6 +1033,7 @@ async function routeAdminApi(request, env, url, ctx) {
   }
   if (path === "/articles" && method === "POST") {
     const body = await readJsonBody(request);
+    cleanBodyFields(body, ["og_image"]);
     const jsonLdError = validateCustomJsonLd(body);
     if (jsonLdError) return json({ error: jsonLdError }, { status: 400 });
     const canonicalError = validateCanonicalUrl(body);
@@ -1060,6 +1064,7 @@ async function routeAdminApi(request, env, url, ctx) {
   const articleMatch = path.match(/^\/articles\/(\d+)$/);
   if (articleMatch && method === "PATCH") {
     const body = await readJsonBody(request);
+    cleanBodyFields(body, ["og_image"]);
     const jsonLdError = validateCustomJsonLd(body);
     if (jsonLdError) return json({ error: jsonLdError }, { status: 400 });
     const canonicalError = validateCanonicalUrl(body);
@@ -1175,6 +1180,7 @@ async function routeAdminApi(request, env, url, ctx) {
   }
   if (path === "/projects" && method === "POST") {
     const body = await readJsonBody(request);
+    cleanBodyFields(body, ["summary", "og_image"]);
     const jsonLdError = validateCustomJsonLd(body);
     if (jsonLdError) return json({ error: jsonLdError }, { status: 400 });
     const canonicalError = validateCanonicalUrl(body);
@@ -1206,6 +1212,7 @@ async function routeAdminApi(request, env, url, ctx) {
   const projectMatch = path.match(/^\/projects\/(\d+)$/);
   if (projectMatch && method === "PATCH") {
     const body = await readJsonBody(request);
+    cleanBodyFields(body, ["summary", "og_image"]);
     const jsonLdError = validateCustomJsonLd(body);
     if (jsonLdError) return json({ error: jsonLdError }, { status: 400 });
     const canonicalError = validateCanonicalUrl(body);
@@ -1981,6 +1988,7 @@ async function routeAdminApi(request, env, url, ctx) {
   }
   if (path === "/topic-meta" && method === "PUT") {
     const body = await readJsonBody(request);
+    cleanBodyFields(body, ["description", "og_image"]);
     if (!body.tag) return json({ error: "tag is required" }, { status: 400 });
     if (!body.description && !body.og_image) {
       await deleteTopicMeta(env, body.tag);
