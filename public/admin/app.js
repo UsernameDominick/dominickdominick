@@ -1209,6 +1209,101 @@
     }
   });
 
+  // ---------- Group / ungroup and reusable sections ----------
+  el("bulk-group-btn").addEventListener("click", async () => {
+    const sel = selectedBlocksList();
+    if (sel.length < 2) return alert("Select at least two blocks to group them.");
+    if (sel.some((b) => b.shared_block_id)) return alert("Reusable blocks can't be grouped: their style is shared across pages.");
+    try {
+      await setBlocksGroup(sel, newGroupId());
+    } catch (err) {
+      alert(err.message);
+    }
+    renderCanvas();
+    renderInspector();
+  });
+  el("bulk-ungroup-btn").addEventListener("click", async () => {
+    const sel = selectedBlocksList().filter((b) => groupOf(b));
+    if (!sel.length) return alert("None of the selected blocks are grouped.");
+    // Ungrouping one member releases the whole group, not just the selected part of it.
+    const ids = new Set(sel.map(groupOf));
+    const all = blocks.filter((b) => ids.has(groupOf(b)));
+    try {
+      await setBlocksGroup(all, null);
+    } catch (err) {
+      alert(err.message);
+    }
+    renderCanvas();
+    renderInspector();
+  });
+
+  let sectionsCache = [];
+  async function loadSections() {
+    try {
+      sectionsCache = await api("/sections");
+    } catch (e) {
+      sectionsCache = [];
+    }
+    const box = el("sections-list");
+    box.innerHTML = sectionsCache.length
+      ? sectionsCache
+          .map(
+            (sec) =>
+              `<div class="section-row"><span class="section-name">${escapeHtml(sec.name)} <span class="section-count">${sec.blocks.length} block${sec.blocks.length === 1 ? "" : "s"}</span></span><button type="button" class="insert-section" data-id="${Number(sec.id)}">Insert</button><button type="button" class="delete-section danger" data-id="${Number(sec.id)}" aria-label="Delete section ${escapeHtml(sec.name)}">Delete</button></div>`
+          )
+          .join("")
+      : "<p class='dash-empty'>No saved sections yet.</p>";
+    box.querySelectorAll(".insert-section").forEach((btn) => btn.addEventListener("click", () => insertSection(Number(btn.dataset.id))));
+    box.querySelectorAll(".delete-section").forEach((btn) =>
+      btn.addEventListener("click", async () => {
+        if (!confirm("Delete this saved section? Pages that already used it keep their blocks.")) return;
+        await api(`/sections/${btn.dataset.id}`, { method: "DELETE" }).catch((err) => alert(err.message));
+        await loadSections();
+      })
+    );
+  }
+  async function insertSection(id) {
+    const sec = sectionsCache.find((x) => x.id === id);
+    if (!sec || !currentPage) return;
+    const base = blocks.reduce((m, b) => Math.max(m, b.row + b.row_span), 1);
+    const group = sec.blocks.length > 1 ? newGroupId() : null;
+    try {
+      for (const b of sec.blocks) {
+        const style = { ...(b.style || {}) };
+        if (group) style.group = group;
+        await api(`/pages/${currentPage.id}/blocks`, {
+          method: "POST",
+          body: JSON.stringify({ type: b.type, content: b.content, style, col: b.col, col_span: b.col_span, row: base + b.row - 1, row_span: b.row_span }),
+        });
+      }
+    } catch (err) {
+      alert("Couldn't insert the whole section: " + err.message);
+    }
+    await loadBlocks();
+    schedulePreviewRefresh();
+  }
+  el("bulk-save-section-btn").addEventListener("click", async () => {
+    const sel = selectedBlocksList();
+    if (!sel.length) return;
+    if (sel.some((b) => b.shared_block_id)) return alert("Sections can't include reusable blocks (they'd stop being shared). Duplicate them as normal blocks first.");
+    const name = (prompt("Name this section:", "") || "").trim();
+    if (!name) return;
+    try {
+      await api("/sections", {
+        method: "POST",
+        body: JSON.stringify({ name, blocks: sel.map((b) => ({ type: b.type, content: b.content, style: b.style || {}, col: b.col, col_span: b.col_span, row: b.row, row_span: b.row_span })) }),
+      });
+      await loadSections();
+      el("sections-panel").open = true;
+      alert(`Saved "${name}". Find it under Sections in the Page tab.`);
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+  el("sections-panel").addEventListener("toggle", () => {
+    if (el("sections-panel").open) loadSections();
+  });
+
   // ---------- Page-specific CSS ----------
   // Stored per page on the server (its own endpoint, not part of the page's versioned fields). "Preview" applies the
   // textarea to the Screen Preview frame without saving; "Save CSS" stores it for the live page.
@@ -1510,7 +1605,7 @@
     const visibility = b.style && b.style.visibility;
     const readingOrderRaw = b.style && b.style.readingOrder;
     const hasReadingOrder = typeof readingOrderRaw === "number" && Number.isFinite(readingOrderRaw);
-    return `${
+    return `${groupOf(b) ? ` <span class="lock-badge" title="Part of a group: grouped blocks drag together">Group</span>` : ""}${
       b.shared_block_id ? ` <span class="lock-badge" title="Reusable block — editing it updates every page that uses it">Reusable</span>` : ""
     }${b.locked ? ` <span class="lock-badge" title="Locked — protected from accidental drag/resize/delete">Locked</span>` : ""}${
       visibility === "desktop-only" ? ` <span class="lock-badge" title="Hidden on mobile — desktop only">Desktop only</span>` : ""
@@ -1534,6 +1629,48 @@
         : ""
     }`;
   }
+
+  // ---------- Block groups ----------
+  // A group is just a shared style.group id on several blocks (no schema change; the public renderer ignores it).
+  // Grouped blocks drag together, show a dashed outline, and can be saved as a reusable section.
+  const groupOf = (b) => (b && b.style && typeof b.style.group === "string" && b.style.group) || null;
+  function groupMatesOf(block) {
+    const g = groupOf(block);
+    if (!g) return [];
+    const mates = blocks.filter((x) => x.id !== block.id && groupOf(x) === g);
+    return mates.some((m) => isLayoutLocked(m)) || isLayoutLocked(block) ? [] : mates;
+  }
+  function renderGroupOutlines() {
+    canvas.querySelectorAll(".group-outline").forEach((n) => n.remove());
+    const groups = new Map();
+    blocks.forEach((b) => {
+      const g = groupOf(b);
+      if (g) groups.set(g, [...(groups.get(g) || []), b]);
+    });
+    groups.forEach((members) => {
+      if (members.length < 2) return;
+      const rects = members.map(blockPixelStyle);
+      const left = Math.min(...rects.map((r) => r.left)) - 4;
+      const top = Math.min(...rects.map((r) => r.top)) - 4;
+      const right = Math.max(...rects.map((r) => r.left + r.width)) + 4;
+      const bottom = Math.max(...rects.map((r) => r.top + r.height)) + 4;
+      const box = document.createElement("div");
+      box.className = "group-outline";
+      box.setAttribute("aria-hidden", "true");
+      box.style.cssText = `left:${left}px;top:${top}px;width:${right - left}px;height:${bottom - top}px`;
+      canvas.insertBefore(box, canvas.firstChild);
+    });
+  }
+  async function setBlocksGroup(list, group) {
+    for (const b of list) {
+      const style = { ...(b.style || {}) };
+      if (group) style.group = group;
+      else delete style.group;
+      await api(`/blocks/${b.id}`, { method: "PATCH", body: JSON.stringify({ style }) });
+      b.style = style;
+    }
+  }
+  const newGroupId = () => "g" + Math.random().toString(36).slice(2, 10);
 
   function renderCanvas() {
     if (isMobile()) renderCanvasMobile();
@@ -1574,6 +1711,7 @@
       wireBlockInteractions(div, b);
     }
     canvas.style.minHeight = maxBottom + "px";
+    renderGroupOutlines();
     renderCanvasToolbar();
     if (!el("layers-modal").hidden) renderLayersList();
   }
@@ -1844,19 +1982,32 @@
       const { colW, rowH, gap } = canvasMetrics();
       div.setPointerCapture(e.pointerId);
 
+      // A block in a group drags with the rest of its group (unless one of them is locked, then it moves alone).
+      const mates = groupMatesOf(block);
+      const members = [block, ...mates];
+      const starts = new Map(members.map((m) => [m.id, { col: m.col, row: m.row }]));
+      const minDC = Math.max(...members.map((m) => 1 - starts.get(m.id).col));
+      const maxDC = Math.min(...members.map((m) => COLS - m.col_span + 1 - starts.get(m.id).col));
+      const minDR = Math.max(...members.map((m) => 1 - starts.get(m.id).row));
+      const placeDiv = (m) => {
+        const d = m === block ? div : canvas.querySelector(`.admin-block[data-id="${m.id}"]`);
+        if (!d) return;
+        const st = blockPixelStyle(m);
+        d.style.left = st.left + "px";
+        d.style.top = st.top + "px";
+      };
+
       function onMove(ev) {
         const dx = ev.clientX - startX;
         const dy = ev.clientY - startY;
-        const dCol = Math.round(dx / (colW + gap));
-        const dRow = Math.round(dy / (rowH + gap));
-        const newCol = Math.min(Math.max(1, startCol + dCol), COLS - block.col_span + 1);
-        const newRow = Math.max(1, startRow + dRow);
-        if (newCol !== block.col || newRow !== block.row) {
-          block.col = newCol;
-          block.row = newRow;
-          const style = blockPixelStyle(block);
-          div.style.left = style.left + "px";
-          div.style.top = style.top + "px";
+        const dC = Math.min(Math.max(Math.round(dx / (colW + gap)), minDC), maxDC);
+        const dR = Math.max(Math.round(dy / (rowH + gap)), minDR);
+        if (members.some((m) => m.col !== starts.get(m.id).col + dC || m.row !== starts.get(m.id).row + dR)) {
+          members.forEach((m) => {
+            m.col = starts.get(m.id).col + dC;
+            m.row = starts.get(m.id).row + dR;
+            placeDiv(m);
+          });
           hideCanvasToolbar();
         }
         updateSnapGuides(block);
@@ -1867,24 +2018,26 @@
         clearSnapGuides();
         // Put the toolbar back over wherever the block ended up (also after a snap-back).
         queueMicrotask(renderCanvasToolbar);
+        const moved = members.filter((m) => m.col !== starts.get(m.id).col || m.row !== starts.get(m.id).row);
         // No overlaps allowed: if the drop spot collides with another
         // block, snap back to where the drag started instead of saving it.
-        if ((block.col !== startCol || block.row !== startRow) && wouldOverlap(block)) {
-          block.col = startCol;
-          block.row = startRow;
-          const style = blockPixelStyle(block);
-          div.style.left = style.left + "px";
-          div.style.top = style.top + "px";
+        if (moved.length && moved.some((m) => wouldOverlap(m))) {
+          members.forEach((m) => {
+            m.col = starts.get(m.id).col;
+            m.row = starts.get(m.id).row;
+            placeDiv(m);
+          });
           flashRejected(div);
           return;
         }
         // A plain click (select without moving) must not write: it bumped the block's
         // updated_at and could race a concurrent edit for nothing.
-        if (block.col === startCol && block.row === startRow) return;
-        api(`/blocks/${block.id}`, {
-          method: "PATCH",
-          body: JSON.stringify({ col: block.col, row: block.row }),
-        }).catch((err) => alert(err.message));
+        if (!moved.length) return;
+        Promise.all(
+          moved.map((m) => api(`/blocks/${m.id}`, { method: "PATCH", body: JSON.stringify({ col: m.col, row: m.row }) }))
+        )
+          .then(() => (mates.length ? renderCanvas() : undefined))
+          .catch((err) => alert(err.message));
       }
       div.addEventListener("pointermove", onMove);
       div.addEventListener("pointerup", onUp);

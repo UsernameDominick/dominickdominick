@@ -2511,6 +2511,55 @@ async function routeAdminApi(request, env, url, ctx) {
     return json({ ok: true });
   }
 
+  // /sections — reusable multi-block sections ("save this group, insert it on any page"). Kept as one JSON list under
+  // its own settings key (like style presets), so it needs no schema change. Each block stores its content, style
+  // and a position relative to the section's top row; inserting recreates them through the normal block route.
+  const SECTIONS_KEY = "page_sections";
+  const readSections = async () => {
+    try {
+      const list = JSON.parse((await getSetting(env, SECTIONS_KEY)) || "[]");
+      return Array.isArray(list) ? list : [];
+    } catch {
+      return [];
+    }
+  };
+  if (path === "/sections" && method === "GET") return json(await readSections());
+  if (path === "/sections" && method === "POST") {
+    const body = await readJsonBody(request);
+    const name = String(body.name || "").trim().slice(0, 60);
+    const input = Array.isArray(body.blocks) ? body.blocks : [];
+    if (!name) return json({ error: "A section needs a name." }, { status: 400 });
+    if (!input.length || input.length > 24) return json({ error: "A section holds 1 to 24 blocks." }, { status: 400 });
+    const int = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
+    const cleaned = [];
+    for (const b of input) {
+      if (!b || typeof b.type !== "string" || !/^[a-z0-9-]{1,40}$/.test(b.type)) return json({ error: "A block has an invalid type." }, { status: 400 });
+      if (!int(b.col, 1, 24) || !int(b.col_span, 1, 24) || !int(b.row, 1, 5000) || !int(b.row_span, 1, 200)) return json({ error: "A block has an invalid position." }, { status: 400 });
+      const style = b.style && typeof b.style === "object" && !Array.isArray(b.style) ? { ...b.style } : {};
+      delete style.group;
+      cleaned.push({ type: b.type, content: b.content && typeof b.content === "object" ? b.content : {}, style, col: b.col, col_span: b.col_span, row: b.row, row_span: b.row_span });
+    }
+    const top = Math.min(...cleaned.map((b) => b.row));
+    cleaned.forEach((b) => (b.row = b.row - top + 1));
+    const list = await readSections();
+    if (list.length >= 30) return json({ error: "You can keep up to 30 sections; delete one first." }, { status: 400 });
+    const entry = { id: list.reduce((m, x) => Math.max(m, x.id || 0), 0) + 1, name, blocks: cleaned };
+    const next = JSON.stringify([...list, entry]);
+    if (next.length > 200000) return json({ error: "That section is too large to save." }, { status: 400 });
+    await setSetting(env, SECTIONS_KEY, next);
+    log(ctx, env, "create", "section", name);
+    return json({ id: entry.id });
+  }
+  const sectionMatch = path.match(/^\/sections\/(\d+)$/);
+  if (sectionMatch && method === "DELETE") {
+    const id = Number(sectionMatch[1]);
+    const list = await readSections();
+    const gone = list.find((x) => x.id === id);
+    await setSetting(env, SECTIONS_KEY, JSON.stringify(list.filter((x) => x.id !== id)));
+    if (gone) log(ctx, env, "delete", "section", gone.name);
+    return json({ ok: true });
+  }
+
   // /style-presets — reusable block-style snapshots (color/hover/animation/
   // etc. — the same STYLE_FIELDS every block type shares), stored as one
   // JSON blob under its own settings key rather than folded into the

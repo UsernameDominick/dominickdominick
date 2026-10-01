@@ -208,6 +208,11 @@
               <span id="page-css-status" class="page-css-status" role="status"></span>
             </div>
           </details>
+          <details class="panel-section" id="sections-panel">
+            <summary>Sections</summary>
+            <p class="redirects-hint">Select two or more blocks, press Group, then "Save as section…". Saved sections can be inserted below the page's last block.</p>
+            <div id="sections-list" class="sections-list"></div>
+          </details>
           <details class="panel-section">
             <summary>Access</summary>
             <div class="tts-audio-field">
@@ -277,6 +282,9 @@
           <button type="button" id="bulk-distribute-vertical">Distribute evenly (top to bottom)</button>
           <div id="bulk-style-fields"></div>
           <div class="panel-action-grid inspector-action-grid">
+            <button type="button" id="bulk-group-btn" title="Grouped blocks drag together">Group</button>
+            <button type="button" id="bulk-ungroup-btn">Ungroup</button>
+            <button type="button" id="bulk-save-section-btn" class="span-2" title="Save these blocks as a section you can insert on any page">Save as section…</button>
             <button type="button" id="bulk-duplicate-btn" class="span-2">Duplicate all</button>
           </div>
           <button type="button" id="bulk-delete-btn" class="danger">Delete all</button>

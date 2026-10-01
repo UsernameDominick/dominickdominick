@@ -7353,3 +7353,10 @@ button[data-tier="quiet"] { border-color: transparent; }
 .footer-editor legend { font-size: 0.75rem; color: var(--text-dim); padding: 0 4px; }
 .footer-editor input, .footer-editor textarea { width: 100%; box-sizing: border-box; }
 .footer-editor textarea { font-family: var(--font-mono, monospace); font-size: 0.78rem; margin-top: 6px; }
+
+/* ---- Block groups and saved sections ---- */
+.group-outline { position: absolute; z-index: 0; border: 1px dashed var(--accent); border-radius: 10px; pointer-events: none; opacity: 0.7; }
+.section-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+.section-name { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 0.85rem; }
+.section-count { color: var(--text-dim); font-size: 0.75rem; }
+.section-row .danger { margin-top: 0 !important; }
