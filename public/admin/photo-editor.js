@@ -3165,6 +3165,49 @@
     cancelActiveDrag();
     setLayerNote(`Sharpened at ${amount}.`);
   }
+  // Auto levels: one shared black and white point for all three channels (so colours don't shift), taken from the
+  // brightness histogram of visible pixels with the extreme 0.5% at each end ignored, then every channel is stretched.
+  function applyAutoLevels() {
+    if (isComparing() || layerBlocked()) return;
+    const w = canvas.width;
+    const h = canvas.height;
+    const img = ctx.getImageData(0, 0, w, h);
+    const d = img.data;
+    const hist = new Uint32Array(256);
+    let total = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] === 0) continue;
+      hist[Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2])]++;
+      total++;
+    }
+    const clip = Math.floor(total * 0.005);
+    let low = 0;
+    for (let acc = 0; low < 255 && acc + hist[low] <= clip; low++) acc += hist[low];
+    let high = 255;
+    for (let acc = 0; high > 0 && acc + hist[high] <= clip; high--) acc += hist[high];
+    if (!total || high - low < 8) {
+      setLayerNote(total ? "Auto levels found nothing to stretch: the tones already span almost nothing." : "Auto levels needs some visible pixels on this layer.");
+      return;
+    }
+    if (low === 0 && high === 255) {
+      setLayerNote("The tones already run from black to white, so Auto levels changed nothing.");
+      return;
+    }
+    pushUndo();
+    const before = hasSelection() ? snapshotCanvas() : null;
+    const scale = 255 / (high - low);
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] === 0) continue;
+      d[i] = (d[i] - low) * scale;
+      d[i + 1] = (d[i + 1] - low) * scale;
+      d[i + 2] = (d[i + 2] - low) * scale;
+    }
+    ctx.putImageData(img, 0, 0);
+    if (before) blendThroughSelection(before, snapshotCanvas());
+    cancelActiveDrag();
+    setLayerNote(`Auto levels stretched ${low}-${high} to 0-255.`);
+  }
+  $("pe-filter-autolevels").addEventListener("click", applyAutoLevels);
   $("pe-filter-sharpen").addEventListener("click", () => applySharpen(Number($("pe-sharpen-amount").value) || 25));
   $("pe-sharpen-amount").addEventListener("input", () => $("pe-sharpen-amount").setAttribute("aria-valuetext", $("pe-sharpen-amount").value));
   $("pe-filter-grain").addEventListener("click", () => applyGrain(Number($("pe-grain-amount").value) || 15));
