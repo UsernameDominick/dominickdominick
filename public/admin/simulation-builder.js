@@ -1104,6 +1104,106 @@
     renderBuilder();
   });
 
+  // ---------- Build checklist ----------
+  // A plain-language list for building the circuit on real hardware: the parts to gather, then one step per wire
+  // ("Connect R1 end 2 to LED1 anode"). Ticks live only in the open dialog (nothing is saved), and the whole list
+  // can be copied as text or printed.
+  const BB_PIN_NAMES = { rpt: "+ rail (top)", rnt: "− rail (top)", rnb: "− rail (bottom)", rpb: "+ rail (bottom)", t: "top half, column", b: "bottom half, column" };
+  function checklistPartNames() {
+    const counts = {};
+    const names = new Map();
+    for (const c of simData.components) {
+      const def = REG[c.type];
+      const base = (def && def.label) || c.type;
+      counts[c.type] = (counts[c.type] || 0) + 1;
+      const label = String(c.label || "").trim();
+      // A part still carrying its default label (the type's own name) is numbered instead: "Resistor 1".
+      names.set(c.id, label && label.toLowerCase() !== base.toLowerCase() ? `${label} (${base})` : `${base} ${counts[c.type]}`);
+    }
+    return names;
+  }
+  function checklistPinName(comp, pinId) {
+    if (comp && comp.type === "breadboard") {
+      const m = /^(rpt|rnt|rnb|rpb|t|b)(\d+)$/.exec(String(pinId));
+      if (m) return m[1].length === 3 ? `${BB_PIN_NAMES[m[1]]}, hole ${m[2]}` : `${BB_PIN_NAMES[m[1]]} ${m[2]}`;
+    }
+    const def = comp && REG[comp.type];
+    const pin = def && def.pins.find((x) => x.id === pinId);
+    return (pin && pin.label) || String(pinId);
+  }
+  function buildChecklist() {
+    const names = checklistPartNames();
+    const byId = new Map(simData.components.map((c) => [c.id, c]));
+    const parts = simData.components.filter((c) => c.type !== "breadboard").map((c) => names.get(c.id));
+    const boards = simData.components.filter((c) => c.type === "breadboard").map((c) => names.get(c.id));
+    const steps = [];
+    for (const w of simData.wires) {
+      const a = byId.get(w.from.compId);
+      const b = byId.get(w.to.compId);
+      if (!a || !b) continue;
+      steps.push(`Connect ${names.get(a.id)}, ${checklistPinName(a, w.from.pin)} to ${names.get(b.id)}, ${checklistPinName(b, w.to.pin)}${w.label ? ` (${w.label})` : ""}`);
+    }
+    return { boards, parts, steps };
+  }
+  function renderChecklist() {
+    const { boards, parts, steps } = buildChecklist();
+    const list = $("sim-checklist-list");
+    const row = (text, group, i) => `<label class="sim-checklist-row"><input type="checkbox" data-group="${group}" data-i="${i}"> <span>${escapeXml(text)}</span></label>`;
+    list.innerHTML =
+      (boards.length ? `<h2>Boards</h2>${boards.map((t, i) => row(t, "board", i)).join("")}` : "") +
+      `<h2>Parts to gather (${parts.length})</h2>${parts.length ? parts.map((t, i) => row(t, "part", i)).join("") : "<p class='sim-checklist-empty'>No parts placed yet.</p>"}` +
+      `<h2>Connections (${steps.length})</h2>${steps.length ? steps.map((t, i) => row(t, "step", i)).join("") : "<p class='sim-checklist-empty'>No wires yet.</p>"}`;
+    list.querySelectorAll("input[type=checkbox]").forEach((box) => box.addEventListener("change", updateChecklistProgress));
+    updateChecklistProgress();
+  }
+  function updateChecklistProgress() {
+    const boxes = [...$("sim-checklist-list").querySelectorAll("input[type=checkbox]")];
+    const done = boxes.filter((b) => b.checked).length;
+    $("sim-checklist-progress").textContent = boxes.length ? `${done} of ${boxes.length} done` : "Nothing to build yet: place some parts first.";
+    boxes.forEach((b) => b.closest("label").classList.toggle("is-done", b.checked));
+  }
+  function checklistText() {
+    const { boards, parts, steps } = buildChecklist();
+    const lines = [`Build checklist (${simData.components.length} parts, ${steps.length} wires)`];
+    if (boards.length) lines.push("", "Boards", ...boards.map((t) => `[ ] ${t}`));
+    lines.push("", "Parts to gather", ...(parts.length ? parts.map((t) => `[ ] ${t}`) : ["(none)"]));
+    lines.push("", "Connections", ...(steps.length ? steps.map((t, i) => `[ ] ${i + 1}. ${t}`) : ["(none)"]));
+    return lines.join("\n");
+  }
+  $("sim-checklist-btn").addEventListener("click", () => {
+    renderChecklist();
+    $("sim-checklist-modal").hidden = false;
+  });
+  $("close-sim-checklist").addEventListener("click", () => {
+    $("sim-checklist-modal").hidden = true;
+    $("sim-checklist-btn").focus();
+  });
+  $("sim-checklist-clear").addEventListener("click", () => {
+    $("sim-checklist-list").querySelectorAll("input[type=checkbox]").forEach((b) => (b.checked = false));
+    updateChecklistProgress();
+  });
+  $("sim-checklist-copy").addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(checklistText());
+      $("sim-checklist-progress").textContent = "Copied to the clipboard.";
+    } catch (e) {
+      alert("Couldn't copy automatically. Select the list and copy it by hand.");
+    }
+  });
+  $("sim-checklist-print").addEventListener("click", () => {
+    // Printed from a hidden frame so the page behind it isn't printed with it.
+    const frame = document.createElement("iframe");
+    frame.style.cssText = "position:fixed;width:0;height:0;border:0;right:0;bottom:0";
+    document.body.appendChild(frame);
+    const doc = frame.contentDocument;
+    doc.open();
+    doc.write(`<!doctype html><title>Build checklist</title><style>body{font:14px/1.5 system-ui,sans-serif;margin:24px}h2{font-size:15px;margin:18px 0 6px}pre{white-space:pre-wrap;font:inherit}</style><pre>${escapeXml(checklistText())}</pre>`);
+    doc.close();
+    frame.contentWindow.focus();
+    frame.contentWindow.print();
+    setTimeout(() => frame.remove(), 1000);
+  });
+
   $("sim-show-disconnected").addEventListener("click", () => {
     showDisconnected = !showDisconnected;
     renderBuilder();

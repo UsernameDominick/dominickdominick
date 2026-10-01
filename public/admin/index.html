@@ -1602,6 +1602,7 @@
             <div class="sim-toolbar-group-buttons">
               <button type="button" id="sim-preview-power">Preview: power on</button>
               <input type="search" id="sim-canvas-search" placeholder="Find on canvas…" title="Highlights any placed part whose label or type matches what you type">
+              <button type="button" id="sim-checklist-btn" title="A step-by-step list of the parts and wires to build this circuit on a real breadboard, with checkboxes">Build checklist</button>
               <button type="button" id="sim-show-disconnected" title="Highlight every pin that has no wire attached">Show disconnected pins</button>
               <button type="button" id="sim-show-ghost-wires" title="Draw every wire again on top of components, as a dashed outline -- reveals a wire routed underneath a breadboard or other opaque part">Show hidden wires</button>
               <label class="sim-snap-label" title="How closely a dragged part snaps to an alignment grid. Doesn't affect parts that plug into a breadboard -- those always snap to the breadboard's own holes.">
@@ -1845,6 +1846,24 @@
       <div class="redirects-body">
         <p class="redirects-hint">Select a block on a page and use "Save as reusable block…" in its settings to add one here. Editing a reusable block's content updates every page that uses it. Insert one onto the currently open page below.</p>
         <div id="shared-blocks-list" class="redirects-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="sim-checklist-modal" class="modal" hidden role="dialog" aria-labelledby="sim-checklist-title">
+    <div class="modal-inner sim-checklist-inner">
+      <header>
+        <h1 id="sim-checklist-title">Build checklist</h1>
+        <button id="close-sim-checklist" aria-label="Close Build checklist dialog">×</button>
+      </header>
+      <div class="sim-checklist-body">
+        <p id="sim-checklist-progress" class="sim-checklist-progress" role="status"></p>
+        <div class="sim-checklist-actions">
+          <button type="button" id="sim-checklist-copy">Copy as text</button>
+          <button type="button" id="sim-checklist-print">Print</button>
+          <button type="button" id="sim-checklist-clear">Untick all</button>
+        </div>
+        <div id="sim-checklist-list" class="sim-checklist-list"></div>
       </div>
     </div>
   </div>

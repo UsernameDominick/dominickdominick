@@ -7389,3 +7389,15 @@ button[data-tier="quiet"] { border-color: transparent; }
 .pe-navigator { overflow: hidden; }
 .pe-navigator:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (max-width: 640px) { .pe-navigator { right: 10px; bottom: 10px; } .pe-navigator canvas { max-width: 110px; max-height: 110px; } }
+
+/* ---- Simulation build checklist ---- */
+.sim-checklist-inner { height: auto; max-height: 85vh; max-width: 640px; }
+.sim-checklist-body { padding: var(--space-4, 16px) var(--space-5, 24px); overflow-y: auto; }
+.sim-checklist-progress { margin: 0 0 var(--space-2, 8px); font-size: 0.85rem; color: var(--text-dim); }
+.sim-checklist-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: var(--space-3, 12px); }
+.sim-checklist-list h2 { margin: var(--space-4, 16px) 0 var(--space-2, 8px); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); }
+.sim-checklist-row { display: flex; align-items: flex-start; gap: 8px; padding: 4px 0; font-size: 0.88rem; cursor: pointer; }
+.sim-checklist-row input { margin-top: 3px; flex: 0 0 auto; }
+.sim-checklist-row span { min-width: 0; overflow-wrap: anywhere; }
+.sim-checklist-row.is-done span { text-decoration: line-through; color: var(--text-dim); }
+.sim-checklist-empty { color: var(--text-dim); font-size: 0.85rem; margin: 0; }
