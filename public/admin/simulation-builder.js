@@ -97,8 +97,11 @@
     if (!undoStack.length) return;
     setSnapHoleWarning(0);
     redoStack.push(JSON.stringify(simData));
+    const keepSelected = selectedIds();
     simData = JSON.parse(undoStack.pop());
-    selected = null;
+    // Parts that still exist stay selected, so an alignment can be tried,
+    // undone and tried another way without picking the parts again.
+    setMultiSelection(keepSelected.filter((id) => simData.components.some((c) => c.id === id)));
     wireStart = null;
     updateHistoryButtons();
     renderInspector();
@@ -110,8 +113,11 @@
     if (!redoStack.length) return;
     setSnapHoleWarning(0);
     undoStack.push(JSON.stringify(simData));
+    const keepSelected = selectedIds();
     simData = JSON.parse(redoStack.pop());
-    selected = null;
+    // Parts that still exist stay selected, so an alignment can be tried,
+    // undone and tried another way without picking the parts again.
+    setMultiSelection(keepSelected.filter((id) => simData.components.some((c) => c.id === id)));
     wireStart = null;
     updateHistoryButtons();
     renderInspector();
@@ -1684,10 +1690,6 @@
     let snapTargets = {}; // pinId -> { breadboardId, holeId }
 
     function onMove(ev) {
-      if (!historySaved) {
-        pushHistory();
-        historySaved = true;
-      }
       const p = svgPoint(ev);
       let dx = p.x - start.x;
       let dy = p.y - start.y;
@@ -1696,6 +1698,13 @@
         dy = Math.round((startPositions.get(compId).y + dy) / gridSnapSize) * gridSnapSize - startPositions.get(compId).y;
       }
       ({ dx, dy } = clampMoveToBoard(Array.from(startPositions.values()), dx, dy));
+      if (!historySaved) {
+        // A drag that goes nowhere (pushing against the board edge, or a
+        // wobble that snaps back to the grid) is still just a click.
+        if (!dx && !dy) return;
+        pushHistory();
+        historySaved = true;
+      }
       groupIds.forEach((id) => {
         const c = simData.components.find((x) => x.id === id);
         const startPos = startPositions.get(id);
@@ -1707,10 +1716,19 @@
         // The first leg gets a generous magnetic pull toward the nearest
         // hole, snapping the whole part into place...
         const anchorAbs = { x: comp.x + anchorPin.x, y: comp.y + anchorPin.y };
-        const hole = findNearestHole(anchorAbs.x, anchorAbs.y, compId, SNAP_THRESHOLD);
+        let hole = findNearestHole(anchorAbs.x, anchorAbs.y, compId, SNAP_THRESHOLD);
         if (hole) {
-          comp.x += hole.x - anchorAbs.x;
-          comp.y += hole.y - anchorAbs.y;
+          // A hole near the board's edge can sit where the part itself
+          // would have to hang off it (and then never be drawn): skip
+          // that snap and leave the part where the drag put it.
+          const snappedX = comp.x + hole.x - anchorAbs.x;
+          const snappedY = comp.y + hole.y - anchorAbs.y;
+          if (snappedX >= 0 && snappedX <= BOARD_MAX_X && snappedY >= 0 && snappedY <= BOARD_MAX_Y) {
+            comp.x = snappedX;
+            comp.y = snappedY;
+          } else {
+            hole = null;
+          }
         }
         // ...then every leg (the anchor included) is checked for landing
         // exactly on a real hole — since lead spacing matches the hole
@@ -2147,53 +2165,77 @@
     return { dx: Math.min(highX, Math.max(lowX, dx)), dy: Math.min(highY, Math.max(lowY, dy)) };
   }
 
+  // Where a duplicate lands: 20px down and right, or up and left on an
+  // axis where that would run off the board, so it never sits invisibly
+  // on top of the original.
+  function duplicateShift(parts) {
+    const forward = clampMoveToBoard(parts, 20, 20);
+    const back = clampMoveToBoard(parts, -20, -20);
+    return { dx: forward.dx || back.dx, dy: forward.dy || back.dy };
+  }
+
   // ---------- Align / distribute ----------
   // Pure layout maths on {id, x, y, w, h} footprints: returns a Map of
   // id -> {x, y} for just the parts that have to move. Wires are drawn from
   // the parts' live positions, so they follow without being touched.
   function computeSimArrangement(boxes, action) {
     const moves = new Map();
+    moves.clamped = 0; // parts whose result was held at the board edge
+    moves.overlap = false; // distribute declined because the parts overlap
     if (!Array.isArray(boxes) || boxes.length < 2) return moves;
     const left = Math.min(...boxes.map((b) => b.x));
     const right = Math.max(...boxes.map((b) => b.x + b.w));
     const top = Math.min(...boxes.map((b) => b.y));
     const bottom = Math.max(...boxes.map((b) => b.y + b.h));
-    const place = (b, x, y) => {
-      const nx = Math.round(x);
-      const ny = Math.round(y);
-      if (nx !== b.x || ny !== b.y) moves.set(b.id, { x: nx, y: ny });
+    const heldAtEdge = new Set();
+    // Sets one axis of one part. Moves under half a pixel are ignored (parts
+    // already lined up with fractional coordinates stay put), only the axis
+    // being changed is rounded, and the result is held on the board so a
+    // wide part can't be sent somewhere that is never drawn.
+    const put = (b, axis, value) => {
+      if (Math.abs(value - b[axis]) < 0.5) return;
+      const wanted = Math.round(value);
+      const next = Math.max(0, Math.min(axis === "x" ? BOARD_MAX_X : BOARD_MAX_Y, wanted));
+      if (next !== wanted) heldAtEdge.add(b.id);
+      if (next === b[axis]) return;
+      moves.set(b.id, { ...(moves.get(b.id) || { x: b.x, y: b.y }), [axis]: next });
     };
     const spread = (axis) => {
       if (boxes.length < 3) return;
-      const pos = axis === "x" ? "x" : "y";
       const size = axis === "x" ? "w" : "h";
       // Ordered by centre, so a wide part doesn't leapfrog a narrow one;
       // the two outermost parts stay put and the gaps between are equalised.
       const order = boxes
-        .map((b, index) => ({ b, index, centre: b[pos] + b[size] / 2 }))
-        .sort((p, q) => p.centre - q.centre || p.b[pos] - q.b[pos] || p.index - q.index)
+        .map((b, index) => ({ b, index, centre: b[axis] + b[size] / 2 }))
+        .sort((p, q) => p.centre - q.centre || p.b[axis] - q.b[axis] || p.index - q.index)
         .map((entry) => entry.b);
       const first = order[0];
       const last = order[order.length - 1];
       const used = order.reduce((sum, b) => sum + b[size], 0);
-      const gap = (last[pos] + last[size] - first[pos] - used) / (order.length - 1);
-      let cursor = first[pos];
+      const gap = (last[axis] + last[size] - first[axis] - used) / (order.length - 1);
+      // Parts that already overlap more than the space allows have no even
+      // spacing; pretending otherwise would shuffle them on every press.
+      if (gap < 0) {
+        moves.overlap = true;
+        return;
+      }
+      let cursor = first[axis];
       order.forEach((b) => {
-        if (axis === "x") place(b, cursor, b.y);
-        else place(b, b.x, cursor);
+        put(b, axis, cursor);
         cursor += b[size] + gap;
       });
     };
     switch (action) {
-      case "align-left": boxes.forEach((b) => place(b, left, b.y)); break;
-      case "align-center": boxes.forEach((b) => place(b, (left + right) / 2 - b.w / 2, b.y)); break;
-      case "align-right": boxes.forEach((b) => place(b, right - b.w, b.y)); break;
-      case "align-top": boxes.forEach((b) => place(b, b.x, top)); break;
-      case "align-middle": boxes.forEach((b) => place(b, b.x, (top + bottom) / 2 - b.h / 2)); break;
-      case "align-bottom": boxes.forEach((b) => place(b, b.x, bottom - b.h)); break;
+      case "align-left": boxes.forEach((b) => put(b, "x", left)); break;
+      case "align-center": boxes.forEach((b) => put(b, "x", (left + right) / 2 - b.w / 2)); break;
+      case "align-right": boxes.forEach((b) => put(b, "x", right - b.w)); break;
+      case "align-top": boxes.forEach((b) => put(b, "y", top)); break;
+      case "align-middle": boxes.forEach((b) => put(b, "y", (top + bottom) / 2 - b.h / 2)); break;
+      case "align-bottom": boxes.forEach((b) => put(b, "y", bottom - b.h)); break;
       case "distribute-h": spread("x"); break;
       case "distribute-v": spread("y"); break;
     }
+    moves.clamped = heldAtEdge.size;
     return moves;
   }
   window.computeSimArrangement = computeSimArrangement;
@@ -2218,6 +2260,7 @@
     return `<div class="sim-arrange" role="group" aria-label="Align and distribute">
       <div class="sim-arrange-row">${ARRANGE_ACTIONS.slice(0, 6).map(button).join("")}</div>
       <div class="sim-arrange-row">${ARRANGE_ACTIONS.slice(6).map(button).join("")}</div>
+      ${count < 3 ? '<p class="sim-arrange-note">Distribute needs three or more parts.</p>' : ""}
       <p id="sim-arrange-status" class="sim-orient-status" role="status" aria-live="polite"></p>
     </div>`;
   }
@@ -2233,18 +2276,35 @@
       })
       .filter(Boolean);
     const info = ARRANGE_ACTIONS.find((a) => a.id === action);
+    if (!info) return;
     const moves = computeSimArrangement(boxes, action);
-    if (!info || !moves.size) {
-      if (status) status.textContent = info ? `${info.label}: already lined up.` : "";
+    if (!moves.size) {
+      if (status) status.textContent = moves.overlap ? `${info.label}: these parts overlap too much to space out evenly.` : `${info.label}: already lined up.`;
       return;
     }
     pushHistory();
+    let unplugged = 0;
     moves.forEach((pos, id) => {
       const comp = simData.components.find((c) => c.id === id);
-      if (comp) { comp.x = pos.x; comp.y = pos.y; }
+      if (!comp) return;
+      comp.x = pos.x;
+      comp.y = pos.y;
+      // A part that was seated in a breadboard is no longer seated once it
+      // moves; drop its automatic leads, the same as dragging it alone would.
+      if (SNAP_TO_BREADBOARD_TYPES.has(comp.type)) {
+        const def = window.getSimComponentDefinition(comp);
+        const before = simData.wires.length;
+        if (def) rebuildBreadboardSnapWires(simData, comp.id, new Set(def.pins.map((pin) => pin.id)), {}, () => newLocalId("wire"));
+        if (simData.wires.length < before) unplugged += 1;
+      }
     });
     renderBuilder();
-    if (status) status.textContent = `${info.label}: moved ${moves.size} ${moves.size === 1 ? "part" : "parts"}.`;
+    if (status) {
+      const notes = [];
+      if (moves.clamped) notes.push(`${moves.clamped} held at the board edge`);
+      if (unplugged) notes.push(`${unplugged} unplugged from the breadboard`);
+      status.textContent = `${info.label}: moved ${moves.size} ${moves.size === 1 ? "part" : "parts"}${notes.length ? ` (${notes.join(", ")})` : ""}.`;
+    }
   }
 
   function renderInspector() {
@@ -2712,7 +2772,7 @@
         pushHistory();
         const clone = JSON.parse(JSON.stringify(comp));
         clone.id = newLocalId(comp.type);
-        const shift = clampMoveToBoard([comp], 20, 20);
+        const shift = duplicateShift([comp]);
         clone.x = comp.x + shift.dx;
         clone.y = comp.y + shift.dy;
         simData.components.push(clone);
@@ -2743,7 +2803,7 @@
       $("sim-duplicate-selected").addEventListener("click", () => {
         pushHistory();
         const idMap = new Map();
-        const shift = clampMoveToBoard(selected.ids.map((id) => simData.components.find((c) => c.id === id)).filter(Boolean), 20, 20);
+        const shift = duplicateShift(selected.ids.map((id) => simData.components.find((c) => c.id === id)).filter(Boolean));
         const clones = selected.ids.map((id) => {
           const src = simData.components.find((c) => c.id === id);
           const clone = JSON.parse(JSON.stringify(src));
@@ -3241,6 +3301,8 @@
       tag === "SELECT" ||
       // Arrow keys and Backspace on a focused truth-table button (or its Reset) must not nudge or delete the part.
       Boolean(document.activeElement && (document.activeElement.classList.contains("sim-truth-out") || document.activeElement.id === "sim-truth-reset")) ||
+      // Arrow keys and Delete on a focused align/distribute button must not nudge or delete the parts either.
+      Boolean(document.activeElement && document.activeElement.classList.contains("sim-arrange-btn")) ||
       Boolean(document.activeElement && document.activeElement.isContentEditable);
     const mod = e.metaKey || e.ctrlKey;
 
