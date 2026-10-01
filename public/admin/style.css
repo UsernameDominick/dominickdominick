@@ -7375,3 +7375,8 @@ button[data-tier="quiet"] { border-color: transparent; }
 .pe-recovery-bar { flex: 0 0 auto; align-self: flex-start; width: 100%; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 12px; margin-bottom: 8px; border: 1px solid var(--accent); border-radius: 8px; background: color-mix(in srgb, var(--accent) 10%, var(--bg-elevated)); font-size: 0.85rem; }
 .pe-recovery-bar span { flex: 1 1 18em; min-width: 0; }
 .pe-autosave-status { font-size: 0.75rem; color: var(--text-dim); white-space: nowrap; }
+
+/* ---- Photo editor: memory indicator ---- */
+.pe-memory { font-size: 0.75rem; color: var(--text-dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pe-memory[data-level="warn"] { color: var(--warning); }
+.pe-memory[data-level="high"] { color: var(--error-text); font-weight: 600; }

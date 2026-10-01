@@ -476,6 +476,48 @@
   function updateHistoryButtons() {
     $("pe-undo").disabled = undoStack.length === 0;
     $("pe-redo").disabled = redoStack.length === 0;
+    scheduleMemoryUpdate();
+  }
+
+  // ---------- Memory-use indicator ----------
+  // An estimate (width x height x 4 bytes per bitmap) of what the editor is holding: the layers and their masks, the
+  // Undo/Redo history, saved snapshots and the "original" copy used by Reset and Compare. Browsers don't report the
+  // real figure, so this is a guide to when to prune history or flatten layers, not a meter.
+  const MEMORY_WARN_BYTES = 400 * 1024 * 1024;
+  const MEMORY_HIGH_BYTES = 900 * 1024 * 1024;
+  const bitmapBytes = (c) => (c ? (c.width || 0) * (c.height || 0) * 4 : 0);
+  const stateBytes = (st) => (st && st.layers ? st.layers.reduce((n, l) => n + bitmapBytes(l.canvas) + bitmapBytes(l.mask), 0) : 0);
+  const entryBytes = (entry) => (entry ? (entry.all ? stateBytes(entry.all) : bitmapBytes(entry.canvas)) : 0);
+  function memoryUsage() {
+    const parts = {
+      layers: layers.reduce((n, l) => n + bitmapBytes(l.canvas) + bitmapBytes(l.mask), 0),
+      history: undoStack.reduce((n, e) => n + entryBytes(e), 0) + redoStack.reduce((n, e) => n + entryBytes(e), 0),
+      snapshots: namedSnapshots.reduce((n, sn) => n + stateBytes(sn.all), 0),
+      reference: bitmapBytes(originalSnapshot) + bitmapBytes(baseSnapshot) + stateBytes(compareSavedState),
+    };
+    parts.total = parts.layers + parts.history + parts.snapshots + parts.reference;
+    return parts;
+  }
+  const formatMemory = (n) => (n >= 1024 * 1024 * 1024 ? `${(n / 1024 ** 3).toFixed(1)} GB` : `${Math.max(1, Math.round(n / 1024 ** 2))} MB`);
+  let memoryTimer = 0;
+  function scheduleMemoryUpdate() {
+    if (memoryTimer) return;
+    memoryTimer = setTimeout(() => {
+      memoryTimer = 0;
+      const el = $("pe-memory");
+      if (!el) return;
+      if (modal.hidden) {
+        el.textContent = "";
+        return;
+      }
+      const m = memoryUsage();
+      const level = m.total >= MEMORY_HIGH_BYTES ? "high" : m.total >= MEMORY_WARN_BYTES ? "warn" : "ok";
+      el.dataset.level = level;
+      el.textContent = `Memory ~${formatMemory(m.total)}${level === "ok" ? "" : level === "warn" ? " (getting large)" : " (very large)"}`;
+      el.title =
+        `Estimated memory held by the editor: layers ${formatMemory(m.layers)}, undo/redo history ${formatMemory(m.history)}, snapshots ${formatMemory(m.snapshots)}, original and compare copies ${formatMemory(m.reference)}.` +
+        (level === "ok" ? "" : " To free some: delete saved snapshots, merge or delete layers, or save and reopen the image to start with a clean history.");
+    }, 150);
   }
 
   // Puts one layer's pixels (and size) back; the active layer unless told otherwise.
