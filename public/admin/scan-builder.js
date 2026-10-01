@@ -42,7 +42,7 @@
   // One inline save indicator, like the other editors, instead of a pop-up "Saved." dialog.
   function setScanSaveStatus(text) {
     const el = $("scan-save-status");
-    if (el) el.textContent = text;
+    if (el && el.textContent !== text) el.textContent = text; // unchanged text isn't re-announced on every keystroke
   }
   ["scan-name", "scan-poster-url"].forEach((id) => $(id).addEventListener("input", () => setScanSaveStatus("Unsaved changes…")));
 

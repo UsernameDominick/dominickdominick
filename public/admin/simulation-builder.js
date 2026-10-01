@@ -75,9 +75,17 @@
     setSimSaveStatus("Unsaved changes…");
   }
   // One inline save indicator, like the other editors, instead of a pop-up "Saved." dialog.
+  let simSavedText = ""; // what the status said at the last save ("Saved 1:42 AM"); shown again when edits are undone back to it
   function setSimSaveStatus(text) {
     const el = $("sim-save-status");
-    if (el) el.textContent = text;
+    if (el && el.textContent !== text) el.textContent = text; // unchanged text isn't re-announced on every keystroke
+  }
+  // Dirty = what is on screen differs from the last save/open (name, poster, circuit and checkpoints all count),
+  // so undoing back to the saved state reads "Saved" again. pushHistory itself can't use this: it runs just
+  // BEFORE its caller changes the circuit, so it marks dirty unconditionally.
+  function refreshSimSaveState() {
+    if (typeof initialSimSnapshot !== "string") return;
+    setSimSaveStatus(captureInitialSimulationSnapshot() !== initialSimSnapshot ? "Unsaved changes…" : simSavedText);
   }
 
   function updateHistoryButtons() {
@@ -95,6 +103,7 @@
     updateHistoryButtons();
     renderInspector();
     renderBuilder();
+    refreshSimSaveState();
   }
 
   function redoHistory() {
@@ -107,6 +116,7 @@
     updateHistoryButtons();
     renderInspector();
     renderBuilder();
+    refreshSimSaveState();
   }
 
   function captureInitialSimulationSnapshot() {
@@ -134,6 +144,7 @@
     renderCheckpointSelect();
     renderInspector();
     renderBuilder();
+    refreshSimSaveState();
   }
 
   $("sim-undo").addEventListener("click", undoHistory);
@@ -182,6 +193,7 @@
     // caps it automatically rather than needing manual cleanup.
     if (simCheckpoints.length > CHECKPOINT_LIMIT) simCheckpoints = simCheckpoints.slice(simCheckpoints.length - CHECKPOINT_LIMIT);
     renderCheckpointSelect();
+    refreshSimSaveState();
   });
   $("sim-checkpoint-restore").addEventListener("click", () => {
     const i = selectedCheckpointIndex();
@@ -203,6 +215,7 @@
     if (!confirm(`Delete the checkpoint "${cp.name}"? This can't be undone (checkpoints aren't part of the undo history).`)) return;
     simCheckpoints.splice(i, 1);
     renderCheckpointSelect();
+    refreshSimSaveState();
   });
 
   // Where the next palette-added part lands — walks left to right, wrapping
@@ -553,6 +566,7 @@
       $("sim-poster-url").value = "";
     }
     initialSimSnapshot = captureInitialSimulationSnapshot();
+    simSavedText = "";
     setSimSaveStatus(""); // a freshly opened circuit has no unsaved changes
     $("simulations-modal").hidden = true;
     $("simulation-builder-modal").hidden = false;
@@ -2994,6 +3008,7 @@
       if (!blob) throw new Error("Couldn't encode the thumbnail image.");
       const { url } = await window.adminUploadBlob(blob);
       $("sim-poster-url").value = url;
+      refreshSimSaveState();
     } catch (err) {
       alert(err.message);
     } finally {
@@ -3094,7 +3109,8 @@
       // silently discard already-saved work, not just this session's
       // in-progress edits.
       initialSimSnapshot = captureInitialSimulationSnapshot();
-      setSimSaveStatus("Saved " + new Date().toLocaleTimeString());
+      simSavedText = "Saved " + new Date().toLocaleTimeString();
+      setSimSaveStatus(simSavedText);
       if (window.refreshSimulationOptions) window.refreshSimulationOptions();
     } catch (err) {
       setSimSaveStatus("Save failed: " + err.message);
@@ -3102,6 +3118,7 @@
     }
   });
 
-  $("simulation-name").addEventListener("input", () => setSimSaveStatus("Unsaved changes…"));
+  $("simulation-name").addEventListener("input", refreshSimSaveState);
+  $("sim-poster-url").addEventListener("input", refreshSimSaveState);
   $("sim-reset").addEventListener("click", resetSimToInitial);
 })();
