@@ -6768,7 +6768,7 @@
           e.stopPropagation();
           const item = mediaItems.find((m) => m.key === btn.dataset.key);
           const usage = item ? await usageSummary(item.url) : "";
-          if (!confirm(`Delete this file? This can't be undone.\n\n${usage}`)) return;
+          if (!confirm(`Delete this file, along with its older versions and its edit history? This can't be undone.\n\n${usage}`)) return;
           try {
             await api(`/media/${btn.dataset.key}`, { method: "DELETE" });
             selectedMediaKeys.delete(btn.dataset.key);
@@ -7372,7 +7372,7 @@
         remove: (id) => api(`${basePath}/${id}/permanent`, { method: "DELETE" }),
         deleteLabel: "Delete forever",
         confirmDelete: (ids) =>
-          window.confirmTyped(`Permanently delete ${ids.length} ${kind}${ids.length === 1 ? "" : "s"}? This can't be undone.`, { title: "Delete forever" }),
+          window.confirmTyped(`Permanently delete ${ids.length} ${kind}${ids.length === 1 ? "" : "s"}, along with ${ids.length === 1 ? "its" : "their"} saved versions? This can't be undone.`, { title: "Delete forever" }),
         reload: async () => {
           await loadTrash();
           if (kind === "page") await loadPages();
@@ -7392,7 +7392,7 @@
       .querySelectorAll(".delete-trash-item")
       .forEach((btn) => {
         btn.addEventListener("click", async () => {
-          if (!confirm(`Permanently delete this ${kind}? This can't be undone.`)) return;
+          if (!confirm(`Permanently delete this ${kind} and all of its saved versions? This can't be undone.`)) return;
           await api(`${basePath}/${btn.dataset.id}/permanent`, { method: "DELETE" });
           await loadTrash();
         });
@@ -7416,7 +7416,7 @@
       const basePath = btn.dataset.basePath;
       const items = await api(`${basePath}/trash`);
       if (!items.length) return alert(`No trashed ${kind}s to delete.`);
-      const ok = await confirmTyped(`Permanently delete all ${items.length} trashed ${kind}${items.length === 1 ? "" : "s"}? This can't be undone.`, { title: "Empty trash" });
+      const ok = await confirmTyped(`Permanently delete all ${items.length} trashed ${kind}${items.length === 1 ? "" : "s"}, along with their saved versions? This can't be undone.`, { title: "Empty trash" });
       if (!ok) return;
       for (const item of items) {
         await api(`${basePath}/${item.id}/permanent`, { method: "DELETE" }).catch(() => {});

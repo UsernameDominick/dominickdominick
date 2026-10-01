@@ -165,6 +165,14 @@ export async function hardDeletePage(env, id) {
   await env.DB.prepare("UPDATE pages SET nav_parent_id = NULL WHERE nav_parent_id = ?").bind(id).run();
   await env.DB.prepare("DELETE FROM pages WHERE id = ?").bind(id).run();
   await env.DB.prepare("DELETE FROM settings WHERE key = ?").bind(pageCssKey(id)).run();
+  // "Permanent" means the saved versions of the page go too.
+  await deleteRevisionHistory(env, "page", id);
+}
+
+// Removes every saved revision of one page, article or project. Used by the permanent-delete paths so
+// deleting something for good doesn't leave its old text behind in the history table.
+export async function deleteRevisionHistory(env, kind, entityId) {
+  await env.DB.prepare("DELETE FROM revisions WHERE kind = ? AND entity_id = ?").bind(kind, entityId).run();
 }
 
 // Copies a page's settings and every block onto a fresh page with a
@@ -892,6 +900,7 @@ export async function restoreArticle(env, id) {
 
 export async function hardDeleteArticle(env, id) {
   await env.DB.prepare("DELETE FROM articles WHERE id = ?").bind(id).run();
+  await deleteRevisionHistory(env, "article", id);
 }
 
 // ---------- Projects (a real content type — its own list/detail pages,
@@ -1214,6 +1223,7 @@ export async function restoreProject(env, id) {
 
 export async function hardDeleteProject(env, id) {
   await env.DB.prepare("DELETE FROM projects WHERE id = ?").bind(id).run();
+  await deleteRevisionHistory(env, "project", id);
 }
 
 export async function snapshotProject(env, projectId) {
@@ -1901,6 +1911,8 @@ export async function getDuplicateMediaHashes(env) {
 
 export async function deleteMediaMeta(env, key) {
   await env.DB.prepare("DELETE FROM media WHERE key = ?").bind(key).run();
+  // The file is gone for good, so its metadata history (alt text, captions, credits) goes with it.
+  await env.DB.prepare("DELETE FROM media_revisions WHERE media_key = ?").bind(key).run();
 }
 
 export async function listMediaFolders(env) {
