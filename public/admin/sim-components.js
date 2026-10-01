@@ -1155,6 +1155,9 @@
     });
 
     const results = {};
+    // Admin-only extra (the worker's copy doesn't need it): whether any source's circuit has a parallel branch or a
+    // bypass that the one-path analysis below ignores. Non-enumerable, so loops over `results` never see it.
+    let parallelFound = false;
     // Only voltmeters need node potentials, so nothing else pays for them.
     const wantPotentials = components.some((c) => c.type === "voltmeter");
     const potentialMaps = [];
@@ -1205,7 +1208,9 @@
       }
       // With a parallel branch or bypass the single path isn't the whole story, so a
       // backwards LED only stops the loop when the path is the only route.
-      const ledsBlock = reversedLedIds.size > 0 && pathIsOnlyRoute(adjacency, edgeInfo, path);
+      const onlyRoute = pathIsOnlyRoute(adjacency, edgeInfo, path);
+      if (!onlyRoute) parallelFound = true;
+      const ledsBlock = reversedLedIds.size > 0 && onlyRoute;
       const netVoltage = domain.voltage - totalForwardVoltage;
       let currentAmps;
       if (netVoltage <= 0 || ledsBlock) currentAmps = 0;
@@ -1288,6 +1293,7 @@
       });
     }
 
+    Object.defineProperty(results, "meta", { value: { parallel: parallelFound }, enumerable: false });
     return results;
   };
 })();

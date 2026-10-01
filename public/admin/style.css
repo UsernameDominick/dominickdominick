@@ -7418,3 +7418,5 @@ button[data-tier="quiet"] { border-color: transparent; }
 .sim-warning-list li { padding: 8px 10px; border: 1px solid var(--border); border-left-width: 3px; border-radius: 6px; }
 .sim-warning-list li[data-level="danger"] { border-left-color: var(--error-text); }
 .sim-warning-list li[data-level="warning"] { border-left-color: var(--warning); }
+.sim-sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+#sim-warnings-btn[data-level="note"] { color: var(--text); }
