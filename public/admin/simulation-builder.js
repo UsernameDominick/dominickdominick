@@ -3440,6 +3440,9 @@
               <button type="button" class="sim-wire-waypoint-remove" data-wire-waypoint-remove="${index}">Remove bend ${index + 1}</button>
             </div>`).join("")}
             <button type="button" id="sim-wire-add-bend" ${waypoints.length >= MAX_MANUAL_WIRE_WAYPOINTS ? "disabled" : ""}>Add bend point</button>
+            <button type="button" id="sim-wire-right-angles" title="Replace the bends with a neat route made only of horizontal and vertical segments">Route at right angles</button>
+            <button type="button" id="sim-wire-straighten" ${waypoints.length ? "" : "disabled"} title="Remove every bend so the wire runs straight between its pins">Remove all bends</button>
+            <p id="sim-wire-route-status" class="sim-orient-status" role="status" aria-live="polite"></p>
           </fieldset>`;
       box.innerHTML = `
         <p><strong>Wire</strong></p>
@@ -3497,6 +3500,40 @@
           ($("sim-wire-add-bend") || $("sim-delete-selected"))?.focus();
         });
       }
+      const reroute = (mode) => {
+        const fromComp = simData.components.find((c) => c.id === wire.from.compId);
+        const toComp = simData.components.find((c) => c.id === wire.to.compId);
+        const p1 = fromComp && pinPosition(fromComp, wire.from.pin);
+        const p2 = toComp && pinPosition(toComp, wire.to.pin);
+        if (!p1 || !p2) return;
+        let points = [];
+        if (mode === "right") {
+          const dx = p2.x - p1.x;
+          const dy = p2.y - p1.y;
+          const round1 = (v) => Math.round(v * 10) / 10;
+          // Already level or plumb: a straight wire is already at a right angle to everything.
+          if (Math.abs(dx) >= 1 && Math.abs(dy) >= 1) {
+            // Runs along the longer direction first, turns once in the middle, then finishes along the other.
+            points = Math.abs(dx) >= Math.abs(dy)
+              ? [{ x: round1(p1.x + dx / 2), y: p1.y }, { x: round1(p1.x + dx / 2), y: p2.y }]
+              : [{ x: p1.x, y: round1(p1.y + dy / 2) }, { x: p2.x, y: round1(p1.y + dy / 2) }];
+          }
+        }
+        const before = JSON.stringify(getWireWaypoints(wire));
+        if (JSON.stringify(points) === before) {
+          $("sim-wire-route-status").textContent = mode === "right" ? "Already at right angles." : "No bends to remove.";
+          return;
+        }
+        pushHistory();
+        setWireWaypoints(wire, points);
+        renderInspector();
+        renderBuilder();
+        const status = $("sim-wire-route-status");
+        if (status) status.textContent = mode === "right" ? (points.length ? "Routed at right angles." : "The pins line up, so the wire is straight.") : "Removed every bend.";
+        ($(mode === "right" ? "sim-wire-right-angles" : "sim-wire-straighten") || $("sim-wire-right-angles"))?.focus();
+      };
+      $("sim-wire-right-angles")?.addEventListener("click", () => reroute("right"));
+      $("sim-wire-straighten")?.addEventListener("click", () => reroute("straight"));
       const addBendButton = $("sim-wire-add-bend");
       if (addBendButton) {
         addBendButton.addEventListener("click", () => {
