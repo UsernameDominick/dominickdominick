@@ -1351,7 +1351,8 @@
         const inNet = netNodeIds && netNodeIds.has(window.simNodeId(comp, p.id));
         // On a touchscreen the pin dots are only full size for the selected part (or while a wire is being
         // made), so a tap on the middle of a small part selects it instead of starting a wire.
-        const armed = isCompSelected(comp.id) || Boolean(wireStart) || continuityMode;
+        // A selected breadboard's many holes would sit over the parts seated on it, so those arm only while wiring.
+        const armed = (isCompSelected(comp.id) && comp.type !== "breadboard") || Boolean(wireStart) || continuityMode;
         return `<circle class="sim-pin${armed ? " sim-pin-armed" : ""}${active ? " sim-pin-active" : ""}${
           disconnected ? " sim-pin-disconnected" : ""
         }${inNet ? " sim-net-highlight" : ""}" data-comp="${escapeXml(comp.id)}" data-pin="${p.id}" cx="${comp.x + p.x}" cy="${
@@ -3580,7 +3581,7 @@
   // A phone's starting zoom is deliberately below 1 — big enough to
   // actually tap a pin, small enough that getting oriented doesn't take
   // several screens of scrolling before you've placed a single part.
-  const defaultZoomLevel = () => (isMobileBuilder() ? 0.5 : 1);
+  const defaultZoomLevel = () => (isMobileBuilder() ? 0.75 : 1);
   let zoomLevel = 1;
 
   function applyZoom() {
