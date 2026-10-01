@@ -304,11 +304,14 @@ window.SongEngine = (function () {
     }
 
     return {
-      start() {
+      // atTime (optional, AudioContext seconds): begin on that moment of the audio clock instead of "now",
+      // so a caller that has already scheduled something before the song (a count-in) can land exactly on it.
+      start(atTime) {
         if (playing) return;
         playing = true;
         currentStep = 0;
-        nextStepTime = getAudioCtx().currentTime + 0.05;
+        const ctx = getAudioCtx();
+        nextStepTime = Number.isFinite(atTime) && atTime > ctx.currentTime ? atTime : ctx.currentTime + 0.05;
         loop();
       },
       stop() {

@@ -648,9 +648,9 @@
   function metroClickAt(time, accented) {
     const ctx = getAudioCtx();
     const def = METRO_SOUNDS[metroPrefs.sound] || METRO_SOUNDS.click;
-    const gainNode = ctx.createGain();
     const peak = (metroPrefs.volume / 100) * (accented ? 0.5 : 0.35);
     if (peak <= 0) return null;
+    const gainNode = ctx.createGain();
     gainNode.gain.setValueAtTime(0.0001, time);
     gainNode.gain.exponentialRampToValueAtTime(peak, time + 0.002);
     gainNode.gain.exponentialRampToValueAtTime(0.0001, time + def.ms / 1000);
@@ -674,8 +674,12 @@
   }
   let countInTimer = null;
   let countInOscs = [];
-  const isCountingIn = () => countInTimer !== null;
+  let countInActive = false;
+  let countInToken = 0; // bumped on cancel so a count-in still waiting for the audio context to resume gives up
+  const isCountingIn = () => countInActive;
   function cancelCountIn() {
+    countInToken++;
+    countInActive = false;
     clearTimeout(countInTimer);
     countInTimer = null;
     countInOscs.forEach((o) => {
@@ -1015,24 +1019,38 @@
       $("song-play").textContent = "⏸ Stop";
       return;
     }
-    // Count-in: schedule the clicks, then start the song exactly when the last one's beat ends.
+    // Count-in: the clicks AND the song's first step are both placed on the audio clock, so the song starts exactly
+    // when the last count-in beat ends, whatever the main thread or a throttled tab is doing. The audio context
+    // is resumed first (a suspended one has a frozen clock).
+    const token = ++countInToken;
+    countInActive = true;
+    const silent = metroPrefs.volume <= 0;
+    $("song-play").textContent = silent ? "⏸ Stop (counting in, click volume is 0…)" : "⏸ Stop (counting in…)";
+    const live = $("song-transport-live");
+    if (live) live.textContent = `Counting in ${beats} beats`;
     const ctx = getAudioCtx();
-    if (ctx.state === "suspended") ctx.resume();
-    const beatSec = 60 / (songData.tempo || 120);
-    const t0 = ctx.currentTime + 0.08;
-    countInOscs = [];
-    for (let i = 0; i < beats; i++) {
-      const o = metroClickAt(t0 + i * beatSec, i % 4 === 0);
-      if (o) countInOscs.push(o);
-    }
-    $("song-play").textContent = "⏸ Stop (counting in…)";
-    countInTimer = setTimeout(() => {
-      countInTimer = null;
-      countInOscs = [];
-      player.start();
-      startPeakMeter();
-      $("song-play").textContent = "⏸ Stop";
-    }, (0.08 + beats * beatSec) * 1000 - 40);
+    Promise.resolve(ctx.state === "suspended" ? ctx.resume() : null)
+      .catch(() => {})
+      .then(() => {
+        if (token !== countInToken) return;
+        const beatSec = 60 / (songData.tempo || 120);
+        const t0 = ctx.currentTime + 0.08;
+        countInOscs = [];
+        for (let i = 0; i < beats; i++) {
+          const o = metroClickAt(t0 + i * beatSec, metroPrefs.accent && i % 4 === 0);
+          if (o) countInOscs.push(o);
+        }
+        const startAt = t0 + beats * beatSec;
+        player.start(startAt);
+        startPeakMeter();
+        countInTimer = setTimeout(() => {
+          countInTimer = null;
+          countInActive = false;
+          countInOscs = [];
+          $("song-play").textContent = "⏸ Stop";
+          if (live) live.textContent = "Playing";
+        }, Math.max(0, (startAt - ctx.currentTime) * 1000));
+      });
   }
 
   function stopPlayback() {
@@ -1077,7 +1095,7 @@
     const duration = 60 / (songData.tempo || 120) / 4;
     Engine.playMelodyNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), waveform, duration);
     if (!songData.melody.notes[noteName]) return; // outside the 2-octave piano roll range — preview only
-    if (player.isPlaying() && $("song-record").checked) {
+    if (player.isPlaying() && !isCountingIn() && $("song-record").checked) {
       const step = player.currentStep();
       const wasRecorded = songData.melody.notes[noteName][step] === true;
       songData.melody.notes[noteName][step] = true;
@@ -1098,7 +1116,7 @@
     const isNoteOn = status >> 4 === 9 && velocity > 0;
     if (!isNoteOn) return;
     const noteName = Engine.midiToNoteName(note);
-    const shouldRecord = player.isPlaying() && $("song-record").checked && !!songData.melody.notes[noteName];
+    const shouldRecord = player.isPlaying() && !isCountingIn() && $("song-record").checked && !!songData.melody.notes[noteName];
     const historyBefore = shouldRecord ? captureSongHistoryState() : null;
     playAndMaybeRecordNote(noteName);
     if (historyBefore && pushSongUndoState(historyBefore)) songEditGeneration++;
