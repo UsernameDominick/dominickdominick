@@ -3646,3 +3646,5 @@ pre.has-line-numbers {
 .site-footer .footer-column ul, .site-footer .footer-social { list-style: none; margin: 0; padding: 0; }
 .site-footer .footer-column li { margin: 0 0 4px; }
 .site-footer .footer-social { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px var(--space-4, 16px); margin: 0 0 var(--space-3, 12px); }
+.site-footer .footer-column, .site-footer .footer-column a, .site-footer .footer-social a { min-width: 0; overflow-wrap: anywhere; }
+.site-footer .footer-column { max-width: 100%; }

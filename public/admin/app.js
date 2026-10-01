@@ -7413,7 +7413,8 @@
       const i = line.lastIndexOf("|");
       const label = i === -1 ? "" : line.slice(0, i).trim();
       const url = i === -1 ? "" : line.slice(i + 1).trim();
-      if (label && /^(\/(?!\/)|https?:\/\/|mailto:|tel:)/i.test(url)) links.push({ label, url });
+      const okUrl = /^(\/(?!\/)|https?:\/\/|mailto:|tel:)/i.test(url) && !/[\u0000-\u0020\u007f\\]/.test(url) && url.length <= 500;
+      if (label && label.length <= 60 && okUrl && links.length < 8) links.push({ label, url });
       else footerIgnoredLines++;
     }
     return links;
@@ -7438,8 +7439,9 @@
     const columns = [1, 2, 3].map((n) => ({ title: el(`settings-footer-col-title-${n}`).value.trim(), links: parseLinkLines(el(`settings-footer-col-links-${n}`).value) }));
     const social = parseLinkLines(el("settings-footer-social").value);
     el("settings-footer-note").textContent = footerIgnoredLines
-      ? `${footerIgnoredLines} line${footerIgnoredLines === 1 ? " was" : "s were"} left out: each needs "Label | /page" or a full https:// address.`
+      ? `${footerIgnoredLines} line${footerIgnoredLines === 1 ? " was" : "s were"} left out: each needs "Label | /page" or a full https:// address, a label up to 60 characters, and at most 8 links per list.`
       : "";
+    if (footerIgnoredLines) alert(el("settings-footer-note").textContent);
     return columns.some((c) => c.links.length) || social.length ? JSON.stringify({ columns, social }) : "";
   }
 

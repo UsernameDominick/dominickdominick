@@ -262,10 +262,15 @@ export function tableOfContentsHtml(headings) {
 // a site path or an http(s)/mailto/tel address, so a hand-edited value can't smuggle in anything else.
 export const FOOTER_MAX_COLUMNS = 3;
 export const FOOTER_MAX_LINKS = 8;
+export const FOOTER_MAX_LABEL = 60;
+export const FOOTER_MAX_URL = 500;
 function cleanFooterLink(l) {
-  const label = String(l && l.label != null ? l.label : "").trim().slice(0, 60);
-  const url = String(l && l.url != null ? l.url : "").trim().slice(0, 500);
-  if (!label || !url) return null;
+  const label = String(l && l.label != null ? l.label : "").trim();
+  const url = String(l && l.url != null ? l.url : "").trim();
+  // Too long is refused, never cut: a shortened address would be a different, broken link.
+  if (!label || !url || label.length > FOOTER_MAX_LABEL || url.length > FOOTER_MAX_URL) return null;
+  // No control characters, spaces or backslashes anywhere (browsers read "/\\x" and "/<tab>/x" as "//x").
+  if (/[\u0000-\u0020\u007f\\]/.test(url)) return null;
   if (!/^(\/(?!\/)|https?:\/\/|mailto:|tel:)/i.test(url)) return null;
   return { label, url };
 }
@@ -281,13 +286,13 @@ export function cleanFooterLinks(raw) {
   }
   if (!data || typeof data !== "object") return null;
   const columns = (Array.isArray(data.columns) ? data.columns : [])
-    .slice(0, FOOTER_MAX_COLUMNS)
     .map((c) => ({
       title: String(c && c.title != null ? c.title : "").trim().slice(0, 40),
-      links: (Array.isArray(c && c.links) ? c.links : []).slice(0, FOOTER_MAX_LINKS).map(cleanFooterLink).filter(Boolean),
+      links: (Array.isArray(c && c.links) ? c.links : []).map(cleanFooterLink).filter(Boolean).slice(0, FOOTER_MAX_LINKS),
     }))
-    .filter((c) => c.links.length);
-  const social = (Array.isArray(data.social) ? data.social : []).slice(0, FOOTER_MAX_LINKS).map(cleanFooterLink).filter(Boolean);
+    .filter((c) => c.links.length)
+    .slice(0, FOOTER_MAX_COLUMNS);
+  const social = (Array.isArray(data.social) ? data.social : []).map(cleanFooterLink).filter(Boolean).slice(0, FOOTER_MAX_LINKS);
   return columns.length || social.length ? { columns, social } : null;
 }
 
@@ -301,10 +306,10 @@ export function footerHtml(footer, year = new Date().getUTCFullYear()) {
   const link = (l) => `<a href="${esc(safeHref(l.url))}"${/^https?:/i.test(l.url) ? ' rel="noopener"' : ""}>${esc(l.label)}</a>`;
   const colsHtml = columns.length
     ? `<nav class="footer-columns" aria-label="Footer">${columns
-        .map((c) => `<div class="footer-column">${c.title ? `<h2>${esc(c.title)}</h2>` : ""}<ul>${c.links.map((l) => `<li>${link(l)}</li>`).join("")}</ul></div>`)
+        .map((c) => `<div class="footer-column">${c.title ? `<h2>${esc(c.title)}</h2>` : ""}<ul role="list">${c.links.map((l) => `<li>${link(l)}</li>`).join("")}</ul></div>`)
         .join("")}</nav>`
     : "";
-  const socialHtml = social.length ? `<ul class="footer-social" aria-label="Elsewhere">${social.map((l) => `<li>${link(l)}</li>`).join("")}</ul>` : "";
+  const socialHtml = social.length ? `<ul class="footer-social" role="list" aria-label="Elsewhere">${social.map((l) => `<li>${link(l)}</li>`).join("")}</ul>` : "";
   if (!body && !columns.length && !social.length) return `<footer class="site-footer"><p class="footer-mono">© ${year} Dominick</p></footer>`;
   return `<footer class="site-footer">${colsHtml}${socialHtml}${body ? paragraphsHtml(body) : ""}</footer>`;
 }
