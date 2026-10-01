@@ -327,7 +327,7 @@ export async function listBlocks(env, pageId) {
 }
 
 export async function createBlock(env, pageId, block) {
-  // Keep the block inside the 24-column grid: one that spills past it widens the whole public page.
+  // Keep the block inside the 24-column grid: one that spills past it widens the whole public page (updateBlock does the same).
   const col = Math.min(24, Math.max(1, Math.trunc(Number(block.col ?? 1)) || 1));
   block = { ...block, col, col_span: Math.min(25 - col, Math.max(1, Math.trunc(Number(block.col_span ?? 24)) || 24)) };
   const res = await env.DB
@@ -350,6 +350,16 @@ export async function createBlock(env, pageId, block) {
 }
 
 export async function updateBlock(env, id, fields) {
+  // Same grid bounds as createBlock: a block that spills past column 24 widens the whole public page. A change to
+  // only one of col / col_span is clamped against the stored value of the other.
+  if ("col" in fields || "col_span" in fields) {
+    const cur = await env.DB.prepare("SELECT col, col_span FROM blocks WHERE id = ?").bind(id).first();
+    if (cur) {
+      const col = Math.min(24, Math.max(1, Math.trunc(Number("col" in fields ? fields.col : cur.col)) || cur.col));
+      const span = Math.min(25 - col, Math.max(1, Math.trunc(Number("col_span" in fields ? fields.col_span : cur.col_span)) || 1));
+      fields = { ...fields, col, col_span: span };
+    }
+  }
   const cols = [];
   const vals = [];
   for (const key of ["type", "col", "col_span", "row", "row_span", "shared_block_id"]) {
