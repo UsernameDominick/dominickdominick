@@ -2019,7 +2019,7 @@
     let base = on
       ? `Selection: ${selBounds.w} × ${selBounds.h} px bounding box, ${Math.max(1, Math.round(selBounds.coverage * 100))}% of the image. Edits apply inside it only.`
       : "No selection.";
-    if (on && $("pe-sel-view").value === "mask") base += " Mask view hides the image.";
+    if (on && $("pe-sel-view").value === "mask") base += " Mask view hides the image (change it under More selection options on a phone).";
     const text = selectionNoteText ? `${selectionNoteText} ${base}` : base;
     const statusEl = $("pe-sel-status");
     statusEl.textContent = text;
@@ -2606,7 +2606,7 @@
     const focusedGated = document.activeElement === $("pe-load-selection") || document.activeElement === $("pe-delete-selection");
     $("pe-load-selection").disabled = !chosen;
     $("pe-delete-selection").disabled = !chosen;
-    if (focusedGated && !chosen) $("pe-apply-selection").focus();
+    if (focusedGated && !chosen) { const more = $("pe-sel-more"); if (more && !more.open) more.open = true; $("pe-apply-selection").focus(); }
   }
   $("pe-apply-selection").addEventListener("change", updateSavedSelectionButtons);
 
@@ -5149,7 +5149,11 @@
   if (!more || !window.matchMedia) return;
   const wide = window.matchMedia("(min-width: 861px)");
   const sync = () => { more.open = wide.matches ? true : more.open && more.dataset.userOpened === "1"; };
-  more.addEventListener("toggle", () => { if (!wide.matches) more.dataset.userOpened = more.open ? "1" : "0"; });
+  more.addEventListener("toggle", () => {
+    if (wide.matches) return;
+    more.dataset.userOpened = more.open ? "1" : "0";
+    if (more.open) requestAnimationFrame(() => more.querySelector("select, input, button")?.scrollIntoView({ inline: "nearest", block: "nearest" }));
+  });
   if (wide.addEventListener) wide.addEventListener("change", sync); else if (wide.addListener) wide.addListener(sync);
   sync();
 })();
