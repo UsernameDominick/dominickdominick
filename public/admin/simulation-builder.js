@@ -1660,21 +1660,29 @@
     if (lead) return `lead ${lead[1]}`;
     return /^[a-z]{1,2}\d+$/i.test(id) ? `pin ${id.toUpperCase()}` : id; // "d0" -> "pin D0"; "anode" stays "anode"
   }
-  // Wire-length estimates for a physical build. The board art uses 40 canvas units for the standard 0.1 inch
-  // (2.54 mm) hole pitch, so a unit is about 0.0635 mm. The estimate follows the drawn route and adds about
-  // 1 cm for the ends going into the holes, rounded up to the next half centimetre; jumper wires need slack
-  // anyway, so it errs long.
-  const MM_PER_UNIT = 2.54 / 40;
+  // Wire-length estimates for a physical build. Only a jumper between two holes of the SAME breadboard has a
+  // physical meaning here (the art is drawn to a 0.1 inch pitch along the board, and part drawings and their
+  // distances on the canvas aren't to scale), so only those get a length. It is the straight-line distance on
+  // a standard board: 2.54 mm between columns, and the usual row spacing (rail pair 2.54 mm apart, about 12.7 mm
+  // from a rail to the middle of the top terminal group, 17.78 mm across the centre channel to the bottom
+  // group, 10.16 mm out to the lower rails), plus about 1 cm for the ends going into the holes, rounded up to the
+  // next half centimetre.
+  const BB_HOLE_PITCH_MM = 2.54;
+  const BB_ROW_MM = { rpt: 0, rnt: 2.54, t: 12.7, b: 30.48, rnb: 40.64, rpb: 43.18 };
   const WIRE_END_ALLOWANCE_MM = 10;
+  function breadboardHoleMm(comp, pinId) {
+    if (!comp || comp.type !== "breadboard") return null;
+    const m = /^(rpt|rnt|rnb|rpb|t|b)(\d+)$/.exec(String(pinId));
+    return m ? { x: (Number(m[2]) - 1) * BB_HOLE_PITCH_MM, y: BB_ROW_MM[m[1]] } : null;
+  }
   function wireLengthCm(wire, a, b) {
-    const p1 = pinPosition(a, wire.from.pin);
-    const p2 = pinPosition(b, wire.to.pin);
+    if (a.id !== b.id) return null;
+    const p1 = breadboardHoleMm(a, wire.from.pin);
+    const p2 = breadboardHoleMm(b, wire.to.pin);
     if (!p1 || !p2) return null;
-    const points = getWireRoutePoints(wire, p1, p2);
-    let units = 0;
-    for (let i = 1; i < points.length; i++) units += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
-    if (units < 0.5) return null;
-    return Math.ceil((units * MM_PER_UNIT + WIRE_END_ALLOWANCE_MM) / 5) / 2;
+    const apart = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+    if (apart < 0.1) return null;
+    return Math.ceil((apart + WIRE_END_ALLOWANCE_MM) / 5) / 2;
   }
   const formatWireLength = (cm) => `${cm} cm (${(cm / 2.54).toFixed(1)} in)`;
   function buildChecklist() {
@@ -1691,13 +1699,13 @@
       const verb = w.auto === true ? "Plug" : "Connect";
       const joiner = w.auto === true ? "into" : "to";
       const wl = cleanChecklistText(w.label);
-      // Automatic leads are a part's own legs going into the board, so only real wires get a length.
+      // Automatic leads are a part's own legs going into the board, and only jumpers between holes of one board are measured.
       const cm = w.auto === true ? null : wireLengthCm(w, a, b);
       if (cm !== null) lengths.push(cm);
       steps.push(`${verb} ${names.get(a.id)}, ${checklistPinName(a, w.from.pin)} ${joiner} ${names.get(b.id)}, ${checklistPinName(b, w.to.pin)}${wl ? ` (${wl})` : ""}${cm !== null ? ` - about ${formatWireLength(cm)}` : ""}`);
     }
     const wireNote = lengths.length
-      ? `Wire needed: about ${formatWireLength(Math.round(lengths.reduce((n, v) => n + v, 0) * 2) / 2)} in total for ${lengths.length} ${lengths.length === 1 ? "wire" : "wires"}, the longest ${formatWireLength(Math.max(...lengths))}. Lengths follow the layout at a standard 0.1 inch hole pitch and include about 1 cm for the ends; cut a little long.`
+      ? `Wire to cut: about ${formatWireLength(Math.round(lengths.reduce((n, v) => n + v, 0) * 2) / 2)} in total for ${lengths.length} ${lengths.length === 1 ? "jumper" : "jumpers"} between holes of one breadboard, the longest ${formatWireLength(Math.max(...lengths))}. Lengths assume a standard 0.1 inch hole pitch and include about 1 cm for the ends. Wires to other parts aren't measured, since that depends on where you put them.`
       : "";
     return { boards, parts, steps, wireNote };
   }
