@@ -7401,3 +7401,12 @@ button[data-tier="quiet"] { border-color: transparent; }
 .sim-checklist-row span { min-width: 0; overflow-wrap: anywhere; }
 .sim-checklist-row.is-done span { text-decoration: line-through; color: var(--text-dim); }
 .sim-checklist-empty { color: var(--text-dim); font-size: 0.85rem; margin: 0; }
+
+/* ---- Simulation model notes ---- */
+.sim-model-body h2 { margin: var(--space-4, 16px) 0 var(--space-2, 8px); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); }
+.sim-model-body h2:first-child { margin-top: 0; }
+.sim-model-list { margin: 0; padding-left: 1.2em; font-size: 0.88rem; line-height: 1.5; }
+.sim-model-list li { margin-bottom: 6px; overflow-wrap: anywhere; }
+.sim-model-kind { color: var(--text-dim); font-size: 0.75rem; }
+.sim-model-more { margin-top: var(--space-3, 12px); font-size: 0.88rem; }
+.sim-model-more summary { cursor: pointer; color: var(--text-dim); }

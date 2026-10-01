@@ -1104,6 +1104,40 @@
     renderBuilder();
   });
 
+  // ---------- Model notes ----------
+  // Answers "what is this simulator really doing?": the general limits, then how each part type in THIS circuit
+  // is modelled (the same text the part tooltips and the inspector use), then the rest of the parts.
+  const SIM_GENERAL_LIMITS = [
+    "It checks a circuit as direct current (DC) only: no AC, and nothing changes over time (no start-up or switching transients).",
+    "Each source is solved on its own as one series path. Parallel branches, bypasses and several sources in one circuit are beyond what it can vouch for, and voltmeters show a dash there instead of a guess.",
+    "Capacitors count as open circuits and inductors as their winding resistance alone.",
+    "Microcontroller pins and firmware are not simulated, and logic gates are diagram parts that document the truth table without being simulated.",
+    "It is a learning aid, not a design tool: real parts have tolerances and limits it does not model.",
+  ];
+  function renderModelNotes() {
+    const typesHere = [...new Set(simData.components.map((c) => c.type))];
+    const partRow = (type) => {
+      const m = partModel(type);
+      const def = REG[type];
+      if (!m || !def) return "";
+      return `<li><strong>${escapeXml(def.label)}</strong> <span class="sim-model-kind">${escapeXml(m.kind)}</span>: ${escapeXml(m.text)}</li>`;
+    };
+    const here = typesHere.map(partRow).filter(Boolean);
+    const others = Object.keys(SIM_PART_MODEL).filter((t) => !typesHere.includes(t) && REG[t]).map(partRow).filter(Boolean);
+    $("sim-model-body").innerHTML =
+      `<h2>What the simulator assumes</h2><ul class="sim-model-list">${SIM_GENERAL_LIMITS.map((t) => `<li>${escapeXml(t)}</li>`).join("")}</ul>` +
+      `<h2>Parts in this circuit</h2>${here.length ? `<ul class="sim-model-list">${here.join("")}</ul>` : "<p class='sim-checklist-empty'>No parts placed yet.</p>"}` +
+      (others.length ? `<details class="sim-model-more"><summary>Other parts (${others.length})</summary><ul class="sim-model-list">${others.join("")}</ul></details>` : "");
+  }
+  $("sim-model-notes-btn").addEventListener("click", () => {
+    renderModelNotes();
+    $("sim-model-modal").hidden = false;
+  });
+  $("close-sim-model").addEventListener("click", () => {
+    $("sim-model-modal").hidden = true;
+    $("sim-model-notes-btn").focus();
+  });
+
   // ---------- Build checklist ----------
   // A plain-language list for building the circuit on real hardware: the parts to gather, then one step per wire
   // ("Connect R1 end 2 to LED1 anode"). Ticks live only in the open dialog (nothing is saved), and the whole list

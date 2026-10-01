@@ -1602,6 +1602,7 @@
             <div class="sim-toolbar-group-buttons">
               <button type="button" id="sim-preview-power">Preview: power on</button>
               <input type="search" id="sim-canvas-search" placeholder="Find on canvas…" title="Highlights any placed part whose label or type matches what you type">
+              <button type="button" id="sim-model-notes-btn" title="What the simulator assumes and can't do, and how each part in this circuit is modelled">Model notes</button>
               <button type="button" id="sim-checklist-btn" title="A step-by-step list of the parts and wires to build this circuit on a real breadboard, with checkboxes">Build checklist</button>
               <button type="button" id="sim-show-disconnected" title="Highlight every pin that has no wire attached">Show disconnected pins</button>
               <button type="button" id="sim-show-ghost-wires" title="Draw every wire again on top of components, as a dashed outline -- reveals a wire routed underneath a breadboard or other opaque part">Show hidden wires</button>
@@ -1847,6 +1848,16 @@
         <p class="redirects-hint">Select a block on a page and use "Save as reusable block…" in its settings to add one here. Editing a reusable block's content updates every page that uses it. Insert one onto the currently open page below.</p>
         <div id="shared-blocks-list" class="redirects-list"></div>
       </div>
+    </div>
+  </div>
+
+  <div id="sim-model-modal" class="modal" hidden role="dialog" aria-labelledby="sim-model-title">
+    <div class="modal-inner sim-checklist-inner">
+      <header>
+        <h1 id="sim-model-title">Model notes</h1>
+        <button id="close-sim-model" aria-label="Close Model notes dialog">×</button>
+      </header>
+      <div id="sim-model-body" class="sim-checklist-body sim-model-body"></div>
     </div>
   </div>
 
