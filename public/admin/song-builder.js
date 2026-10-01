@@ -1576,8 +1576,13 @@
 
   // Scale highlight: marks the piano roll rows that belong to a key's scale (stored as songData.scale, a viewing aid only).
   const SCALES = { major: [0, 2, 4, 5, 7, 9, 11], minor: [0, 2, 3, 5, 7, 8, 10], majpent: [0, 2, 4, 7, 9], minpent: [0, 3, 5, 7, 10], blues: [0, 3, 5, 6, 7, 10] };
-  function scaleRowClass(note) {
+  // The scale only counts when both its type and key are valid, so the controls and the row marks never disagree.
+  const activeScale = () => {
     const sc = songData.scale;
+    return sc && SCALES[sc.type] && NOTE_NAMES.includes(sc.root) ? sc : null;
+  };
+  function scaleRowClass(note) {
+    const sc = activeScale();
     const set = sc && SCALES[sc.type];
     if (!set) return "";
     const pc = NOTE_NAMES.indexOf(note.replace(/\d+$/, ""));
@@ -1587,15 +1592,17 @@
     return degree === 0 ? " song-row-scale song-row-scale-root" : set.includes(degree) ? " song-row-scale" : " song-row-off-scale";
   }
   function syncScaleControls() {
-    const sc = songData.scale;
-    $("song-scale-type").value = sc && SCALES[sc.type] ? sc.type : "off";
-    $("song-scale-root").value = sc && NOTE_NAMES.includes(sc.root) ? sc.root : "C";
+    const sc = activeScale();
+    $("song-scale-type").value = sc ? sc.type : "off";
+    $("song-scale-root").value = sc ? sc.root : "C";
   }
   function onScaleChange() {
     const type = $("song-scale-type").value;
     if (type === "off") delete songData.scale;
     else songData.scale = { root: $("song-scale-root").value, type };
     renderPianoRoll();
+    const sc = activeScale();
+    $("song-scale-status").textContent = sc ? `Highlighting ${sc.root} ${$("song-scale-type").selectedOptions[0].textContent.toLowerCase()}: ${$("song-piano-roll").querySelectorAll(".song-row-scale").length} rows in scale.` : "Scale highlight off.";
     scheduleAutosave();
   }
   $("song-scale-type").addEventListener("change", onScaleChange);
@@ -1625,6 +1632,11 @@
       (n) => playAndMaybeRecordNote(n)
     );
     renderRuler("song-piano-roll");
+    // Spoken cue for the highlight: "C4, root of the scale" / "D4, in scale".
+    $("song-piano-roll").querySelectorAll(".song-row-scale").forEach((row) => {
+      const label = row.querySelector(".song-track-label-playable");
+      if (label) label.setAttribute("aria-label", label.getAttribute("aria-label").replace(", press", row.classList.contains("song-row-scale-root") ? ", root of the scale, press" : ", in scale, press"));
+    });
   }
 
   // Shifts every note in the melody up/down by `semitones` (positive =
