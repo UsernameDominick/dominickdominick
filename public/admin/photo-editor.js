@@ -321,6 +321,9 @@
     overlay.style.height = h + "px";
     $("pe-mask-tint").style.width = w + "px";
     $("pe-mask-tint").style.height = h + "px";
+    $("pe-guides").style.width = w + "px";
+    $("pe-guides").style.height = h + "px";
+    drawGuides(scale);
     stack.style.width = w + "px";
     stack.style.height = h + "px";
     layoutFrame();
@@ -383,6 +386,32 @@
     el2.append(pct, "% displayed");
     updateZoomUi();
   }
+
+  // Composition guides: a viewing aid on their own canvas above everything, never part of the image or export.
+  function drawGuides(scale) {
+    const g = $("pe-guides");
+    if (g.width !== canvas.width) g.width = canvas.width;
+    if (g.height !== canvas.height) g.height = canvas.height;
+    const ctx = g.getContext("2d");
+    ctx.clearRect(0, 0, g.width, g.height);
+    const mode = $("pe-guides-mode").value;
+    if (mode === "off") return;
+    const W = g.width;
+    const H = g.height;
+    const px = 1 / Math.max(scale || 1, 0.01);
+    const line = (x0, y0, x1, y1) => { ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); };
+    const stroke = (color, dash) => {
+      // A dark under-stroke keeps the line readable on both light and dark photos.
+      ctx.setLineDash(dash ? [6 * px, 4 * px] : []);
+      ctx.lineWidth = 3 * px; ctx.strokeStyle = "rgba(0,0,0,0.45)";
+      return () => { ctx.lineWidth = 1 * px; ctx.strokeStyle = color; };
+    };
+    const draw = (color, dash, fn) => { const top = stroke(color, dash); fn(); top(); fn(); };
+    if (mode === "thirds" || mode === "all") draw("rgba(255,255,255,0.9)", false, () => { line(W / 3, 0, W / 3, H); line(W * 2 / 3, 0, W * 2 / 3, H); line(0, H / 3, W, H / 3); line(0, H * 2 / 3, W, H * 2 / 3); });
+    if (mode === "safe" || mode === "all") draw("rgba(255,214,10,0.95)", true, () => { ctx.beginPath(); ctx.rect(W * 0.1, H * 0.1, W * 0.8, H * 0.8); ctx.stroke(); });
+    if (mode === "center" || mode === "all") draw("rgba(80,200,255,0.95)", true, () => { line(W / 2, 0, W / 2, H); line(0, H / 2, W, H / 2); });
+  }
+  $("pe-guides-mode").addEventListener("change", () => drawGuides((parseFloat($("pe-guides").style.width) || canvas.width) / canvas.width));
 
   function clearOverlay() {
     octx.clearRect(0, 0, overlay.width, overlay.height);

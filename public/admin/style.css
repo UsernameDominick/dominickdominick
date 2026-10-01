@@ -7567,3 +7567,6 @@ button[data-tier="quiet"] { border-color: transparent; }
     .pe-sel-more > .pe-sel-box, .pe-sel-more > label, .pe-sel-more > button, .pe-sel-more > select { flex: 0 0 auto; }
   }
 }
+
+#pe-guides { position: absolute; top: 0; left: 0; z-index: 101; pointer-events: none; }
+.pe-canvas-stack.is-comparing #pe-guides { display: none !important; }

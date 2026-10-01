@@ -1243,6 +1243,13 @@
               <button type="button" id="pe-zoom-reset" aria-pressed="true" title="Fit the whole image in the window (0)">Fit</button>
               <button type="button" id="pe-zoom-100" aria-pressed="false" title="Actual pixels (1)">100%</button>
               <button type="button" id="pe-zoom-in" aria-label="Zoom in" title="Zoom in (+, or Ctrl+wheel)">+</button>
+              <select id="pe-guides-mode" aria-label="Guides" title="Show composition guides over the image. They are only a viewing aid and never become part of the image or the export.">
+                <option value="off">Guides: off</option>
+                <option value="thirds">Rule of thirds</option>
+                <option value="safe">Text safe area (10% margin)</option>
+                <option value="center">Centre lines</option>
+                <option value="all">All guides</option>
+              </select>
               <button type="button" class="pe-tool" data-tool="pan" aria-label="Pan tool" title="Drag to move around a zoomed image. Also: hold Space, or drag with the middle mouse button.">✋ Pan</button>
             </div>
             <div class="pe-tool-group pe-layers-group" id="pe-layers-group" role="group" aria-label="Layers">
@@ -1489,6 +1496,7 @@
                   <canvas id="pe-canvas"></canvas>
                   <canvas id="pe-mask-tint" aria-hidden="true"></canvas>
                   <canvas id="pe-overlay"></canvas>
+                  <canvas id="pe-guides" aria-hidden="true"></canvas>
                 </div>
               </div>
             </div>
