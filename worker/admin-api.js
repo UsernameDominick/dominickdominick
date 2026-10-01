@@ -131,6 +131,8 @@ import {
   deleteProject,
   restoreProject,
   hardDeleteProject,
+  countOrphanedHistory,
+  purgeOrphanedHistory,
   listTrashedProjects,
   snapshotProject,
   restoreProjectRevision,
@@ -909,7 +911,9 @@ async function routeAdminApi(request, env, url, ctx) {
   const pagePermanentMatch = path.match(/^\/pages\/(\d+)\/permanent$/);
   if (pagePermanentMatch && method === "DELETE") {
     const id = Number(pagePermanentMatch[1]);
-    const p = await env.DB.prepare("SELECT title FROM pages WHERE id = ?").bind(id).first();
+    const p = await env.DB.prepare("SELECT title, deleted_at FROM pages WHERE id = ?").bind(id).first();
+    // The UI only offers this from the Trash; refuse a live item rather than deleting it with no way back.
+    if (p && !p.deleted_at) return json({ error: "Move it to the Trash first; only trashed items can be deleted permanently." }, { status: 409 });
     await hardDeletePage(env, id);
     log(ctx, env, "delete-forever", "page", p?.title || `#${id}`);
     return json({ ok: true });
@@ -1185,7 +1189,9 @@ async function routeAdminApi(request, env, url, ctx) {
   const articlePermanentMatch = path.match(/^\/articles\/(\d+)\/permanent$/);
   if (articlePermanentMatch && method === "DELETE") {
     const id = Number(articlePermanentMatch[1]);
-    const a = await env.DB.prepare("SELECT title FROM articles WHERE id = ?").bind(id).first();
+    const a = await env.DB.prepare("SELECT title, deleted_at FROM articles WHERE id = ?").bind(id).first();
+    // The UI only offers this from the Trash; refuse a live item rather than deleting it with no way back.
+    if (a && !a.deleted_at) return json({ error: "Move it to the Trash first; only trashed items can be deleted permanently." }, { status: 409 });
     await hardDeleteArticle(env, id);
     log(ctx, env, "delete-forever", "article", a?.title || `#${id}`);
     return json({ ok: true });
@@ -1330,7 +1336,9 @@ async function routeAdminApi(request, env, url, ctx) {
   const projectPermanentMatch = path.match(/^\/projects\/(\d+)\/permanent$/);
   if (projectPermanentMatch && method === "DELETE") {
     const id = Number(projectPermanentMatch[1]);
-    const p = await env.DB.prepare("SELECT title FROM projects WHERE id = ?").bind(id).first();
+    const p = await env.DB.prepare("SELECT title, deleted_at FROM projects WHERE id = ?").bind(id).first();
+    // The UI only offers this from the Trash; refuse a live item rather than deleting it with no way back.
+    if (p && !p.deleted_at) return json({ error: "Move it to the Trash first; only trashed items can be deleted permanently." }, { status: 409 });
     await hardDeleteProject(env, id);
     log(ctx, env, "delete-forever", "project", p?.title || `#${id}`);
     return json({ ok: true });
@@ -1677,6 +1685,9 @@ async function routeAdminApi(request, env, url, ctx) {
   }
   if (mediaKeyMatch && method === "PATCH") {
     const body = await readJsonBody(request);
+    // Editing the details of a file that has been deleted would otherwise create a ghost row holding them.
+    const known = (await env.DB.prepare("SELECT 1 AS ok FROM media WHERE key = ?").bind(mediaKeyMatch[1]).first()) || (await env.MEDIA.head(mediaKeyMatch[1]));
+    if (!known) return json({ error: "That file no longer exists" }, { status: 404 });
     await upsertMediaMeta(env, mediaKeyMatch[1], body);
     return json({ ok: true });
   }
@@ -2325,6 +2336,16 @@ async function routeAdminApi(request, env, url, ctx) {
   // database size, for the Site Settings "Storage" panel.
   if (path === "/storage-usage" && method === "GET") {
     return json(await getStorageUsage(env));
+  }
+  // Saved versions whose page, article, project or file is already gone (see countOrphanedHistory). Counting is
+  // harmless; removing them is an explicit action from Settings > Backups.
+  if (path === "/history-orphans" && method === "GET") {
+    return json(await countOrphanedHistory(env));
+  }
+  if (path === "/history-orphans/purge" && method === "POST") {
+    const removed = await purgeOrphanedHistory(env);
+    log(ctx, env, "cleanup", "history", `${removed.revisions} revision(s), ${removed.mediaRevisions} media edit(s)`);
+    return json({ removed });
   }
   // /scheduled-backups-contents?key=... — a query param, not a path
   // segment, since a backup key contains slashes (backups/2026-...json).

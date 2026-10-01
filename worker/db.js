@@ -162,17 +162,36 @@ export async function hardDeletePage(env, id) {
   // detach any children first rather than leaving them permanently
   // undeletable (they just fall back to top-level nav, same as any page
   // whose parent was ever removed from the nav).
-  await env.DB.prepare("UPDATE pages SET nav_parent_id = NULL WHERE nav_parent_id = ?").bind(id).run();
-  await env.DB.prepare("DELETE FROM pages WHERE id = ?").bind(id).run();
-  await env.DB.prepare("DELETE FROM settings WHERE key = ?").bind(pageCssKey(id)).run();
-  // "Permanent" means the saved versions of the page go too.
-  await deleteRevisionHistory(env, "page", id);
+  // One batch (a single transaction), so a failure can't leave a page's history behind with the page gone.
+  await env.DB.batch([
+    env.DB.prepare("UPDATE pages SET nav_parent_id = NULL WHERE nav_parent_id = ?").bind(id),
+    env.DB.prepare("DELETE FROM pages WHERE id = ?").bind(id),
+    env.DB.prepare("DELETE FROM settings WHERE key = ?").bind(pageCssKey(id)),
+    // "Permanent" means the saved versions of the page go too.
+    env.DB.prepare("DELETE FROM revisions WHERE kind = 'page' AND entity_id = ?").bind(id),
+  ]);
 }
 
-// Removes every saved revision of one page, article or project. Used by the permanent-delete paths so
-// deleting something for good doesn't leave its old text behind in the history table.
-export async function deleteRevisionHistory(env, kind, entityId) {
-  await env.DB.prepare("DELETE FROM revisions WHERE kind = ? AND entity_id = ?").bind(kind, entityId).run();
+// History rows that belong to a page, article, project or media file that no longer exists (left behind by
+// permanent deletes made before history was purged with them, or by a backup restore). Ids and media keys are
+// never reused, so a row whose owner is gone can never be reached again.
+const ORPHAN_REVISIONS_WHERE =
+  "(kind = 'page' AND entity_id NOT IN (SELECT id FROM pages)) OR (kind = 'article' AND entity_id NOT IN (SELECT id FROM articles)) OR (kind = 'project' AND entity_id NOT IN (SELECT id FROM projects))";
+const ORPHAN_MEDIA_REVISIONS_WHERE = "NOT EXISTS (SELECT 1 FROM media m WHERE m.key = media_revisions.media_key)";
+export async function countOrphanedHistory(env) {
+  const [revisions, mediaRevisions] = await Promise.all([
+    env.DB.prepare(`SELECT COUNT(*) AS n FROM revisions WHERE ${ORPHAN_REVISIONS_WHERE}`).first(),
+    env.DB.prepare(`SELECT COUNT(*) AS n FROM media_revisions WHERE ${ORPHAN_MEDIA_REVISIONS_WHERE}`).first(),
+  ]);
+  return { revisions: revisions.n, mediaRevisions: mediaRevisions.n };
+}
+export async function purgeOrphanedHistory(env) {
+  const before = await countOrphanedHistory(env);
+  await env.DB.batch([
+    env.DB.prepare(`DELETE FROM revisions WHERE ${ORPHAN_REVISIONS_WHERE}`),
+    env.DB.prepare(`DELETE FROM media_revisions WHERE ${ORPHAN_MEDIA_REVISIONS_WHERE}`),
+  ]);
+  return before;
 }
 
 // Copies a page's settings and every block onto a fresh page with a
@@ -899,8 +918,10 @@ export async function restoreArticle(env, id) {
 }
 
 export async function hardDeleteArticle(env, id) {
-  await env.DB.prepare("DELETE FROM articles WHERE id = ?").bind(id).run();
-  await deleteRevisionHistory(env, "article", id);
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM articles WHERE id = ?").bind(id),
+    env.DB.prepare("DELETE FROM revisions WHERE kind = 'article' AND entity_id = ?").bind(id),
+  ]);
 }
 
 // ---------- Projects (a real content type — its own list/detail pages,
@@ -1222,8 +1243,10 @@ export async function restoreProject(env, id) {
 }
 
 export async function hardDeleteProject(env, id) {
-  await env.DB.prepare("DELETE FROM projects WHERE id = ?").bind(id).run();
-  await deleteRevisionHistory(env, "project", id);
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM projects WHERE id = ?").bind(id),
+    env.DB.prepare("DELETE FROM revisions WHERE kind = 'project' AND entity_id = ?").bind(id),
+  ]);
 }
 
 export async function snapshotProject(env, projectId) {
@@ -1910,9 +1933,11 @@ export async function getDuplicateMediaHashes(env) {
 }
 
 export async function deleteMediaMeta(env, key) {
-  await env.DB.prepare("DELETE FROM media WHERE key = ?").bind(key).run();
-  // The file is gone for good, so its metadata history (alt text, captions, credits) goes with it.
-  await env.DB.prepare("DELETE FROM media_revisions WHERE media_key = ?").bind(key).run();
+  // The file is gone for good, so its metadata history (alt text, captions, credits) goes with it, together.
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM media WHERE key = ?").bind(key),
+    env.DB.prepare("DELETE FROM media_revisions WHERE media_key = ?").bind(key),
+  ]);
 }
 
 export async function listMediaFolders(env) {
@@ -3342,6 +3367,9 @@ export async function importAll(env, data) {
     env.DB.prepare("DELETE FROM simulations"),
     env.DB.prepare("DELETE FROM songs"),
     env.DB.prepare("DELETE FROM topic_meta"),
+    // History belongs to the content being replaced, and ids may be reused by the backup being restored.
+    env.DB.prepare("DELETE FROM revisions"),
+    env.DB.prepare("DELETE FROM media_revisions"),
   ];
 
   for (const p of pages) {

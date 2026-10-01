@@ -889,7 +889,7 @@
         <button id="close-trash" aria-label="Close Trash dialog">×</button>
       </header>
       <div class="redirects-body">
-        <p class="redirects-hint">Deleted pages and articles land here first — restore them or delete forever. Nothing here is reachable on the live site.</p>
+        <p class="redirects-hint">Deleted pages, articles and projects land here first — restore them or delete forever, which also removes their saved versions. Nothing here is reachable on the live site.</p>
         <h2>Pages <span class="trash-section-actions"><button type="button" class="restore-all-trash-btn" data-kind="page" data-base-path="/pages">Restore all</button><button type="button" class="danger empty-trash-btn" data-kind="page" data-base-path="/pages">Empty pages trash</button></span></h2>
         <div id="trash-pages-list" class="redirects-list"></div>
         <h2>Articles <span class="trash-section-actions"><button type="button" class="restore-all-trash-btn" data-kind="article" data-base-path="/articles">Restore all</button><button type="button" class="danger empty-trash-btn" data-kind="article" data-base-path="/articles">Empty articles trash</button></span></h2>
@@ -1155,6 +1155,9 @@
           <button type="button" id="load-storage-usage-btn">Refresh</button>
           <div id="storage-usage-summary"></div>
           <div id="storage-usage-list" class="link-check-results"></div>
+          <label style="margin-bottom:0;">Saved versions that belong to pages, articles, projects or files already deleted for good (before deleting also removed them).</label>
+          <button type="button" id="clean-orphan-history-btn">Clean up orphaned history…</button>
+          <div id="orphan-history-status" role="status" aria-live="polite"></div>
         </div>
       </div>
       <div class="settings-save-bar">

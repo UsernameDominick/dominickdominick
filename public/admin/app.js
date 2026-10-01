@@ -1413,7 +1413,7 @@
 
   el("delete-page-btn").addEventListener("click", async () => {
     if (!currentPage) return;
-    if (!confirm(`Delete "${currentPage.title}" and all its blocks? This can't be undone.`)) return;
+    if (!confirm(`Move "${currentPage.title}" and all its blocks to the Trash? You can restore it from there.`)) return;
     await api(`/pages/${currentPage.id}`, { method: "DELETE" });
     currentPage = null;
     await loadPages();
@@ -7235,7 +7235,7 @@
 
   el("media-bulk-delete-btn").addEventListener("click", async () => {
     if (!selectedMediaKeys.size) return;
-    const ok = await confirmTyped(`Permanently delete ${selectedMediaKeys.size} file(s)? This can't be undone.`, { title: "Delete files" });
+    const ok = await confirmTyped(`Permanently delete ${selectedMediaKeys.size} file(s), along with their older versions and edit history? This can't be undone.`, { title: "Delete files" });
     if (!ok) return;
     try {
       await api("/media/bulk-delete", { method: "POST", body: JSON.stringify({ keys: [...selectedMediaKeys] }) });
@@ -7416,7 +7416,7 @@
       const basePath = btn.dataset.basePath;
       const items = await api(`${basePath}/trash`);
       if (!items.length) return alert(`No trashed ${kind}s to delete.`);
-      const ok = await confirmTyped(`Permanently delete all ${items.length} trashed ${kind}${items.length === 1 ? "" : "s"}, along with their saved versions? This can't be undone.`, { title: "Empty trash" });
+      const ok = await confirmTyped(`Permanently delete ${items.length === 1 ? `the ${kind} in the trash` : `all ${items.length} trashed ${kind}s`}, along with ${items.length === 1 ? "its" : "their"} saved versions? This can't be undone.`, { title: "Empty trash" });
       if (!ok) return;
       for (const item of items) {
         await api(`${basePath}/${item.id}/permanent`, { method: "DELETE" }).catch(() => {});
@@ -8943,6 +8943,29 @@
     el("storage-usage-list").innerHTML = `${r2Rows}<div class="backup-contents-meta">Row counts — ${rowCountRows}</div>`;
   }
   el("load-storage-usage-btn").addEventListener("click", () => loadStorageUsage().catch((err) => alert(err.message)));
+
+  // Saved versions left behind by items deleted for good before their history was removed with them.
+  el("clean-orphan-history-btn").addEventListener("click", async () => {
+    const status = el("orphan-history-status");
+    try {
+      const counts = await api("/history-orphans");
+      const total = counts.revisions + counts.mediaRevisions;
+      if (!total) {
+        status.textContent = "Nothing to clean up: every saved version still belongs to something that exists.";
+        return;
+      }
+      const ok = await confirmTyped(
+        `Remove ${counts.revisions} saved version${counts.revisions === 1 ? "" : "s"} of pages, articles and projects and ${counts.mediaRevisions} file edit${counts.mediaRevisions === 1 ? "" : "s"} that belong to items already deleted for good? Nothing that still exists is touched. This can't be undone.`,
+        { title: "Remove orphaned history" }
+      );
+      if (!ok) return;
+      const res = await api("/history-orphans/purge", { method: "POST" });
+      status.textContent = `Removed ${res.removed.revisions} saved version(s) and ${res.removed.mediaRevisions} file edit(s).`;
+      loadStorageUsage().catch(() => {});
+    } catch (err) {
+      status.textContent = `Couldn't clean up: ${err.message}`;
+    }
+  });
 
   // ---------- Revisions ----------
   // A simple word-level LCS diff — fine for typical article lengths. Capped
