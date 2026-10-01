@@ -708,6 +708,23 @@
     refreshWaveformPreview();
     scheduleAutosave();
   });
+  // Tap tempo: the BPM comes from the average gap between your last few taps; a pause of two seconds starts over.
+  let tapTimes = [];
+  $("song-tap-tempo").addEventListener("click", () => {
+    const now = performance.now();
+    if (tapTimes.length && now - tapTimes[tapTimes.length - 1] > 2000) tapTimes = [];
+    tapTimes.push(now);
+    tapTimes = tapTimes.slice(-6);
+    if (tapTimes.length < 2) {
+      $("song-tap-status").textContent = "Keep tapping.";
+      return;
+    }
+    const gap = (tapTimes[tapTimes.length - 1] - tapTimes[0]) / (tapTimes.length - 1);
+    const bpm = Math.max(40, Math.min(240, Math.round(60000 / gap)));
+    $("song-tempo").value = bpm;
+    $("song-tempo").dispatchEvent(new Event("input", { bubbles: true }));
+    $("song-tap-status").textContent = `${bpm} BPM`;
+  });
   $("song-kit").addEventListener("change", () => {
     songData.kit = $("song-kit").value;
     refreshWaveformPreview();
