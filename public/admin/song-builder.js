@@ -586,7 +586,111 @@
     if (songData.page_sync && hits) flashPageSync();
   }
 
-  let player = Engine.createPlayer(getAudioCtx, songData, highlightStep);
+  // ---------- Metronome and count-in ----------
+  // A practice aid that lives only in this editor: the clicks go straight to the speakers (not through the song's
+  // master bus, so volume/normalize/meters and the saved song or public player never include them). Each choice is
+  // remembered in this browser. Songs are 16 steps of sixteenth notes, so a beat is every 4th step and the bar
+  // starts on step 0.
+  const METRO_STORE_KEY = "song_metronome_prefs";
+  const METRO_SOUNDS = {
+    click: { type: "square", hi: 1500, lo: 1000, ms: 18 },
+    beep: { type: "sine", hi: 1320, lo: 880, ms: 70 },
+    wood: { type: "triangle", hi: 1200, lo: 800, ms: 45 },
+    tick: { type: "sawtooth", hi: 3200, lo: 2400, ms: 10 },
+  };
+  const metroPrefs = { on: false, sound: "click", accent: true, volume: 60, countIn: 0 };
+  try {
+    const saved = JSON.parse(localStorage.getItem(METRO_STORE_KEY) || "null");
+    if (saved && typeof saved === "object") {
+      if (typeof saved.on === "boolean") metroPrefs.on = saved.on;
+      if (typeof saved.sound === "string" && Object.prototype.hasOwnProperty.call(METRO_SOUNDS, saved.sound)) metroPrefs.sound = saved.sound;
+      if (typeof saved.accent === "boolean") metroPrefs.accent = saved.accent;
+      if (Number.isFinite(saved.volume)) metroPrefs.volume = Math.min(100, Math.max(0, Math.round(saved.volume)));
+      if ([0, 2, 4, 8].includes(saved.countIn)) metroPrefs.countIn = saved.countIn;
+    }
+  } catch (e) {}
+  function syncMetroControls() {
+    $("song-metronome-on").checked = metroPrefs.on;
+    $("song-metronome-sound").value = metroPrefs.sound;
+    $("song-metronome-accent").checked = metroPrefs.accent;
+    $("song-metronome-volume").value = String(metroPrefs.volume);
+    $("song-count-in").value = String(metroPrefs.countIn);
+  }
+  function saveMetroPrefs() {
+    try {
+      localStorage.setItem(METRO_STORE_KEY, JSON.stringify(metroPrefs));
+    } catch (e) {}
+  }
+  syncMetroControls();
+  $("song-metronome-on").addEventListener("change", () => {
+    metroPrefs.on = $("song-metronome-on").checked;
+    saveMetroPrefs();
+  });
+  $("song-metronome-sound").addEventListener("change", () => {
+    metroPrefs.sound = $("song-metronome-sound").value;
+    saveMetroPrefs();
+    previewMetroClick();
+  });
+  $("song-metronome-accent").addEventListener("change", () => {
+    metroPrefs.accent = $("song-metronome-accent").checked;
+    saveMetroPrefs();
+  });
+  $("song-metronome-volume").addEventListener("input", () => {
+    metroPrefs.volume = Number($("song-metronome-volume").value) || 0;
+    saveMetroPrefs();
+  });
+  $("song-metronome-volume").addEventListener("change", previewMetroClick);
+  $("song-count-in").addEventListener("change", () => {
+    metroPrefs.countIn = Number($("song-count-in").value) || 0;
+    saveMetroPrefs();
+  });
+  // One click at `time` (AudioContext seconds); returns the oscillator so a cancelled count-in can silence it.
+  function metroClickAt(time, accented) {
+    const ctx = getAudioCtx();
+    const def = METRO_SOUNDS[metroPrefs.sound] || METRO_SOUNDS.click;
+    const gainNode = ctx.createGain();
+    const peak = (metroPrefs.volume / 100) * (accented ? 0.5 : 0.35);
+    if (peak <= 0) return null;
+    gainNode.gain.setValueAtTime(0.0001, time);
+    gainNode.gain.exponentialRampToValueAtTime(peak, time + 0.002);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, time + def.ms / 1000);
+    const osc = ctx.createOscillator();
+    osc.type = def.type;
+    osc.frequency.value = accented ? def.hi : def.lo;
+    osc.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    osc.start(time);
+    osc.stop(time + def.ms / 1000 + 0.02);
+    return osc;
+  }
+  function previewMetroClick() {
+    if (getAudioCtx().state === "suspended") getAudioCtx().resume();
+    metroClickAt(getAudioCtx().currentTime + 0.01, metroPrefs.accent);
+  }
+  // Called for every scheduled sequencer step while playing.
+  function metroOnStep(step, time) {
+    if (!metroPrefs.on || typeof time !== "number" || step % 4 !== 0) return;
+    metroClickAt(time, metroPrefs.accent && step === 0);
+  }
+  let countInTimer = null;
+  let countInOscs = [];
+  const isCountingIn = () => countInTimer !== null;
+  function cancelCountIn() {
+    clearTimeout(countInTimer);
+    countInTimer = null;
+    countInOscs.forEach((o) => {
+      try {
+        o.stop();
+      } catch (e) {}
+    });
+    countInOscs = [];
+  }
+  const onPlayerStep = (step, time) => {
+    highlightStep(step, time);
+    metroOnStep(step, time);
+  };
+
+  let player = Engine.createPlayer(getAudioCtx, songData, onPlayerStep);
 
   // Editing tempo/kit/waveform while a song is already playing should
   // take effect immediately, not just after Save — so these write
@@ -904,12 +1008,35 @@
   }
 
   function startPlayback() {
-    player.start();
-    startPeakMeter();
-    $("song-play").textContent = "⏸ Stop";
+    const beats = metroPrefs.countIn;
+    if (!beats) {
+      player.start();
+      startPeakMeter();
+      $("song-play").textContent = "⏸ Stop";
+      return;
+    }
+    // Count-in: schedule the clicks, then start the song exactly when the last one's beat ends.
+    const ctx = getAudioCtx();
+    if (ctx.state === "suspended") ctx.resume();
+    const beatSec = 60 / (songData.tempo || 120);
+    const t0 = ctx.currentTime + 0.08;
+    countInOscs = [];
+    for (let i = 0; i < beats; i++) {
+      const o = metroClickAt(t0 + i * beatSec, i % 4 === 0);
+      if (o) countInOscs.push(o);
+    }
+    $("song-play").textContent = "⏸ Stop (counting in…)";
+    countInTimer = setTimeout(() => {
+      countInTimer = null;
+      countInOscs = [];
+      player.start();
+      startPeakMeter();
+      $("song-play").textContent = "⏸ Stop";
+    }, (0.08 + beats * beatSec) * 1000 - 40);
   }
 
   function stopPlayback() {
+    cancelCountIn();
     player.stop();
     stopPeakMeter();
     document.querySelectorAll(".song-step").forEach((el) => el.classList.remove("song-step-playing"));
@@ -923,7 +1050,7 @@
   }
 
   $("song-play").addEventListener("click", () => {
-    if (player.isPlaying()) stopPlayback();
+    if (player.isPlaying() || isCountingIn()) stopPlayback();
     else startPlayback();
   });
 
@@ -1764,7 +1891,7 @@
     $("song-preview-name").textContent = $("song-name").value || "Song name";
     // songData was just reassigned to a new object — the player has to be
     // rebuilt against it, since createPlayer captured the old reference.
-    player = Engine.createPlayer(getAudioCtx, songData, highlightStep);
+    player = Engine.createPlayer(getAudioCtx, songData, onPlayerStep);
     $("songs-modal").hidden = true;
     $("song-builder-modal").hidden = false;
     resetSongHistory();

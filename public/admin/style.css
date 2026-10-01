@@ -7420,3 +7420,6 @@ button[data-tier="quiet"] { border-color: transparent; }
 .sim-warning-list li[data-level="warning"] { border-left-color: var(--warning); }
 .sim-sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 #sim-warnings-btn[data-level="note"] { color: var(--text); }
+
+/* ---- Song metronome and count-in ---- */
+.song-metronome-group { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }

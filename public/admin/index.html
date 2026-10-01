@@ -1729,6 +1729,23 @@
             <span class="sim-toolbar-group-label">Transport</span>
             <div class="song-group-controls">
               <button type="button" id="song-play">▶ Play</button>
+              <span class="song-metronome-group" role="group" aria-label="Metronome and count-in">
+                <label class="song-record-label" title="A click on every beat while the song plays (heard only here, never in the saved song or the public player)"><input type="checkbox" id="song-metronome-on"> Metronome</label>
+                <select id="song-metronome-sound" aria-label="Metronome sound" title="Metronome sound">
+                  <option value="click">Click</option>
+                  <option value="beep">Beep</option>
+                  <option value="wood">Wood block</option>
+                  <option value="tick">Tick</option>
+                </select>
+                <label class="song-record-label" title="Make the first beat of each bar higher and louder"><input type="checkbox" id="song-metronome-accent" checked> Accent beat 1</label>
+                <label class="song-tempo-label" title="Metronome volume">Click vol<input type="range" id="song-metronome-volume" min="0" max="100" value="60"></label>
+                <select id="song-count-in" aria-label="Count-in before playback" title="Count-in: clicks before the song starts (also useful before recording notes)">
+                  <option value="0">No count-in</option>
+                  <option value="2">Count in 2 beats</option>
+                  <option value="4">Count in 4 beats</option>
+                  <option value="8">Count in 8 beats</option>
+                </select>
+              </span>
               <label class="song-tempo-label" title="Master volume">Vol<input type="range" id="song-master-volume" min="0" max="100" value="100"></label>
               <span class="song-meter-group" title="Live output while playing: peak, average loudness, and spectrum"><span class="song-meter-label">Level</span><div id="song-peak-meter" class="song-peak-meter" title="Live master peak level while playing"><div id="song-peak-meter-fill" class="song-peak-meter-fill"></div></div>
               <div id="song-rms-meter" class="song-peak-meter" title="Live master RMS (average loudness) while playing"><div id="song-rms-meter-fill" class="song-peak-meter-fill song-rms-meter-fill"></div></div>
