@@ -1436,12 +1436,17 @@
               <button type="button" class="pe-tool" data-tool="paint" title="Paint with a colour; Hardness sets how soft the edge is">Paint</button>
               <button type="button" class="pe-tool" data-tool="pencil" title="Hard-edged, no antialiasing: every pixel is fully painted or untouched">Pencil</button>
               <button type="button" class="pe-tool" data-tool="bucket" title="Fill: click to flood an area of similar colour on the active layer with the paint colour (Opacity applies; a selection limits it)">Fill</button>
-              <input type="color" id="pe-paint-color" value="#ff7a45" aria-label="Paint colour" title="Colour for the Paint, Pencil and Fill tools (the eyedropper sets it too)">
+              <button type="button" class="pe-tool" data-tool="gradient" title="Gradient: drag from where it starts to where it ends. It runs from the paint colour to the end colour (or fades out), at the Opacity setting, inside any selection">Gradient</button>
+              <input type="color" id="pe-paint-color" value="#ff7a45" aria-label="Paint colour" title="Colour for the Paint, Pencil, Fill and Gradient tools (the eyedropper sets it too)">
               <button type="button" class="pe-tool" data-tool="erase">Erase</button>
               <button type="button" class="pe-tool" data-tool="blur">Blur</button>
               <button type="button" class="pe-tool" data-tool="pixelate">Pixelate</button>
               <button type="button" class="pe-tool" data-tool="dodge" title="Brighten where you paint">Dodge</button>
               <button type="button" class="pe-tool" data-tool="burn" title="Darken where you paint">Burn</button>
+              <span id="pe-gradient-options" class="pe-fill-options" hidden>
+                <label title="The colour the gradient ends in">To <input type="color" id="pe-gradient-end" value="#3050c0" aria-label="Gradient end colour"></label>
+                <label title="Fade the paint colour out to transparent instead of blending to the end colour">Fade out <input type="checkbox" id="pe-gradient-fade"></label>
+              </span>
               <span id="pe-fill-options" class="pe-fill-options" hidden>
                 <label title="How different a pixel may be from the one you click and still be filled (0 = exact match only)">Tolerance <input type="range" id="pe-fill-tolerance" min="0" max="100" value="24" aria-valuetext="24"></label>
                 <label title="Widen the filled area by this many pixels, to cover the pale antialiased edge around a shape">Grow <input type="number" id="pe-fill-grow" min="0" max="3" step="1" value="0" style="width:3.2em"></label>

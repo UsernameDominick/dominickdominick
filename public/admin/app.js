@@ -9501,6 +9501,7 @@
         { label: "Photo Editor: Paint brush tool", sub: "", run: peToolClick("paint") },
         { label: "Photo Editor: Pencil tool", sub: "", run: peToolClick("pencil") },
         { label: "Photo Editor: Fill tool", sub: "", run: peToolClick("bucket") },
+        { label: "Photo Editor: Gradient tool", sub: "", run: peToolClick("gradient") },
         { label: "Photo Editor: Select / Crop tool", sub: "", run: peToolClick("select") },
         { label: "Photo Editor: Rectangle selection tool", sub: "", run: peToolClick("sel-rect") },
         { label: "Photo Editor: Ellipse selection tool", sub: "", run: peToolClick("sel-ellipse") },

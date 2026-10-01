@@ -1685,8 +1685,9 @@
     overlay.style.cursor = tool === "pan" ? "grab" : "";
     // Hardness only shapes Paint; the colour only matters to Paint and Pencil.
     $("pe-brush-hardness").disabled = tool !== "paint";
-    $("pe-paint-color").disabled = tool !== "paint" && tool !== "pencil" && tool !== "bucket";
+    $("pe-paint-color").disabled = tool !== "paint" && tool !== "pencil" && tool !== "bucket" && tool !== "gradient";
     $("pe-fill-options").hidden = tool !== "bucket";
+    $("pe-gradient-options").hidden = tool !== "gradient";
     redrawOverlay();
   }
 
@@ -3926,8 +3927,37 @@
     c.stroke();
   }
 
+  // Paints the gradient dragged from (x0,y0) to (x1,y1) onto `target` (the whole canvas; a selection clips it later).
+  function paintGradient(target, x0, y0, x1, y1) {
+    const hex = $("pe-paint-color").value;
+    const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+    const grad = target.createLinearGradient(x0, y0, x1, y1);
+    grad.addColorStop(0, `rgb(${r}, ${g}, ${b})`);
+    grad.addColorStop(1, $("pe-gradient-fade").checked ? `rgba(${r}, ${g}, ${b}, 0)` : $("pe-gradient-end").value);
+    target.save();
+    target.globalAlpha = brushOpacity();
+    target.fillStyle = grad;
+    target.fillRect(0, 0, canvas.width, canvas.height);
+    target.restore();
+  }
+
   function drawAnnotatePreview(x0, y0, x1, y1) {
     clearOverlay();
+    if (currentTool === "gradient") {
+      if (x0 === x1 && y0 === y1) return;
+      paintGradient(octx, x0, y0, x1, y1);
+      // The guide line shows where it starts and ends.
+      octx.save();
+      octx.strokeStyle = "rgba(255,255,255,0.9)";
+      octx.lineWidth = Math.max(1, canvas.width * 0.002);
+      octx.setLineDash([6, 4]);
+      octx.beginPath();
+      octx.moveTo(x0, y0);
+      octx.lineTo(x1, y1);
+      octx.stroke();
+      octx.restore();
+      return;
+    }
     const color = annotateColor();
     const size = annotateSize();
     octx.strokeStyle = color;
@@ -3952,6 +3982,10 @@
   }
 
   function commitAnnotation(x0, y0, x1, y1) {
+    if (currentTool === "gradient") {
+      paintGradient(ctx, x0, y0, x1, y1);
+      return;
+    }
     const color = annotateColor();
     const size = annotateSize();
     if (currentTool === "rect") {
@@ -4222,7 +4256,7 @@
   const DEFAULT_TOOL_SHORTCUTS = {
     select: "v", pan: "h", "sel-rect": "m", "sel-ellipse": "o", "sel-lasso": "l", "sel-poly": "g",
     paint: "b", pencil: "n", erase: "e", blur: "r", pixelate: "x", dodge: "d", burn: "u",
-    rect: "q", circle: "c", line: "i", arrow: "a", text: "t", eyedropper: "k", bucket: "f",
+    rect: "q", circle: "c", line: "i", arrow: "a", text: "t", eyedropper: "k", bucket: "f", gradient: "j",
   };
   let toolShortcuts = { ...DEFAULT_TOOL_SHORTCUTS };
   try {
@@ -4389,7 +4423,7 @@
 
   // ---------- Pointer routing ----------
   const BRUSH_TOOLS = ["paint", "pencil", "erase", "blur", "pixelate", "dodge", "burn"];
-  const SHAPE_TOOLS = ["rect", "circle", "line", "arrow"];
+  const SHAPE_TOOLS = ["rect", "circle", "line", "arrow", "gradient"];
 
   // The pointer (finger, pen or mouse) that owns the current drag. A second
   // finger landing mid-stroke is ignored instead of starting a second stroke or
@@ -4547,6 +4581,8 @@
       finalizeBrushStroke();
     } else if (SELECTION_TOOLS.includes(currentTool)) {
       if (currentTool !== "sel-poly") commitSelectionDraft();
+    } else if (currentTool === "gradient" && dragStart && Math.hypot(p.x - dragStart.x, p.y - dragStart.y) < 2) {
+      clearOverlay(); // a click without a drag has no direction
     } else if (SHAPE_TOOLS.includes(currentTool) && dragStart) {
       pushUndo();
       const anchor = dragStart;
