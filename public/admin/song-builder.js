@@ -1574,7 +1574,35 @@
   $("song-melody-mute").addEventListener("click", () => setMelodyFlag("muted"));
   $("song-melody-hide").addEventListener("click", () => setMelodyFlag("hidden"));
 
+  // Scale highlight: marks the piano roll rows that belong to a key's scale (stored as songData.scale, a viewing aid only).
+  const SCALES = { major: [0, 2, 4, 5, 7, 9, 11], minor: [0, 2, 3, 5, 7, 8, 10], majpent: [0, 2, 4, 7, 9], minpent: [0, 3, 5, 7, 10], blues: [0, 3, 5, 6, 7, 10] };
+  function scaleRowClass(note) {
+    const sc = songData.scale;
+    const set = sc && SCALES[sc.type];
+    if (!set) return "";
+    const pc = NOTE_NAMES.indexOf(note.replace(/\d+$/, ""));
+    const root = NOTE_NAMES.indexOf(sc.root);
+    if (pc < 0 || root < 0) return "";
+    const degree = (pc - root + 12) % 12;
+    return degree === 0 ? " song-row-scale song-row-scale-root" : set.includes(degree) ? " song-row-scale" : " song-row-off-scale";
+  }
+  function syncScaleControls() {
+    const sc = songData.scale;
+    $("song-scale-type").value = sc && SCALES[sc.type] ? sc.type : "off";
+    $("song-scale-root").value = sc && NOTE_NAMES.includes(sc.root) ? sc.root : "C";
+  }
+  function onScaleChange() {
+    const type = $("song-scale-type").value;
+    if (type === "off") delete songData.scale;
+    else songData.scale = { root: $("song-scale-root").value, type };
+    renderPianoRoll();
+    scheduleAutosave();
+  }
+  $("song-scale-type").addEventListener("change", onScaleChange);
+  $("song-scale-root").addEventListener("change", onScaleChange);
+
   function renderPianoRoll() {
+    syncScaleControls();
     updateMelodyToggles();
     if (songData.melody.hidden === true) {
       $("song-piano-roll").innerHTML =
@@ -1591,7 +1619,7 @@
       (n) => n,
       (n, i) => songData.melody.notes[n][i],
       (n, i, v) => (songData.melody.notes[n][i] = v),
-      (n) => (n.includes("#") ? " song-row-black-key" : ""),
+      (n) => (n.includes("#") ? " song-row-black-key" : "") + scaleRowClass(n),
       undefined,
       undefined,
       (n) => playAndMaybeRecordNote(n)

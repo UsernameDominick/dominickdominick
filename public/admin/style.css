@@ -7574,3 +7574,9 @@ button[data-tier="quiet"] { border-color: transparent; }
 .song-track-volume { width: 64px; flex-shrink: 0; accent-color: var(--track-color, var(--accent)); }
 .song-track-row-muted .song-track-volume { opacity: 0.4; }
 @media (pointer: coarse) { .song-track-volume { height: 28px; min-width: 72px; } }
+
+.song-scale-select { font-size: 0.78rem; padding: 2px 4px; max-width: 9.5em; }
+.song-row-off-scale .song-step:not(.song-step-on) { opacity: 0.55; }
+.song-row-scale .song-track-label { color: var(--text); font-weight: 600; }
+.song-row-scale-root .song-track-label { color: var(--accent); }
+.song-row-scale-root { box-shadow: inset 3px 0 0 var(--accent); }
