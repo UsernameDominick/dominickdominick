@@ -2182,12 +2182,14 @@
     const moves = new Map();
     moves.clamped = 0; // parts whose result was held at the board edge
     moves.overlap = false; // distribute declined because the parts overlap
+    moves.blocked = 0; // parts that could not move because they are already at the board edge
     if (!Array.isArray(boxes) || boxes.length < 2) return moves;
     const left = Math.min(...boxes.map((b) => b.x));
     const right = Math.max(...boxes.map((b) => b.x + b.w));
     const top = Math.min(...boxes.map((b) => b.y));
     const bottom = Math.max(...boxes.map((b) => b.y + b.h));
-    const heldAtEdge = new Set();
+    const heldAtEdge = new Set(); // moved, but stopped short at the edge
+    const blocked = new Set(); // wanted to move but is already at the edge
     // Sets one axis of one part. Moves under half a pixel are ignored (parts
     // already lined up with fractional coordinates stay put), only the axis
     // being changed is rounded, and the result is held on the board so a
@@ -2196,8 +2198,11 @@
       if (Math.abs(value - b[axis]) < 0.5) return;
       const wanted = Math.round(value);
       const next = Math.max(0, Math.min(axis === "x" ? BOARD_MAX_X : BOARD_MAX_Y, wanted));
+      if (next === b[axis]) {
+        if (next !== wanted) blocked.add(b.id);
+        return;
+      }
       if (next !== wanted) heldAtEdge.add(b.id);
-      if (next === b[axis]) return;
       moves.set(b.id, { ...(moves.get(b.id) || { x: b.x, y: b.y }), [axis]: next });
     };
     const spread = (axis) => {
@@ -2236,6 +2241,7 @@
       case "distribute-v": spread("y"); break;
     }
     moves.clamped = heldAtEdge.size;
+    moves.blocked = blocked.size;
     return moves;
   }
   window.computeSimArrangement = computeSimArrangement;
@@ -2255,12 +2261,12 @@
     const button = (a) => {
       const off = a.needs && count < a.needs;
       const title = off ? `${a.label} (select at least ${a.needs} parts)` : a.label;
-      return `<button type="button" class="sim-arrange-btn" data-arrange="${a.id}" aria-label="${a.label}" title="${title}"${off ? " disabled" : ""}><svg viewBox="0 0 18 18" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">${a.icon}</svg></button>`;
+      return `<button type="button" class="sim-arrange-btn" data-arrange="${a.id}" aria-label="${a.label}" title="${title}"${off ? ' disabled aria-describedby="sim-arrange-note"' : ""}><svg viewBox="0 0 18 18" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">${a.icon}</svg></button>`;
     };
     return `<div class="sim-arrange" role="group" aria-label="Align and distribute">
       <div class="sim-arrange-row">${ARRANGE_ACTIONS.slice(0, 6).map(button).join("")}</div>
       <div class="sim-arrange-row">${ARRANGE_ACTIONS.slice(6).map(button).join("")}</div>
-      ${count < 3 ? '<p class="sim-arrange-note">Distribute needs three or more parts.</p>' : ""}
+      ${count < 3 ? '<p id="sim-arrange-note" class="sim-arrange-note">Distribute needs three or more parts.</p>' : ""}
       <p id="sim-arrange-status" class="sim-orient-status" role="status" aria-live="polite"></p>
     </div>`;
   }
@@ -2279,25 +2285,48 @@
     if (!info) return;
     const moves = computeSimArrangement(boxes, action);
     if (!moves.size) {
-      if (status) status.textContent = moves.overlap ? `${info.label}: these parts overlap too much to space out evenly.` : `${info.label}: already lined up.`;
+      if (status) {
+        status.textContent = moves.overlap
+          ? `${info.label}: these parts overlap too much to space out evenly.`
+          : moves.blocked
+            ? `${info.label}: ${moves.blocked} ${moves.blocked === 1 ? "part is" : "parts are"} at the board edge and can't move further.`
+            : `${info.label}: already lined up.`;
+      }
       return;
     }
     pushHistory();
-    let unplugged = 0;
+    const oldPos = new Map(boxes.map((box) => [box.id, { x: box.x, y: box.y }]));
     moves.forEach((pos, id) => {
       const comp = simData.components.find((c) => c.id === id);
-      if (!comp) return;
-      comp.x = pos.x;
-      comp.y = pos.y;
-      // A part that was seated in a breadboard is no longer seated once it
-      // moves; drop its automatic leads, the same as dragging it alone would.
-      if (SNAP_TO_BREADBOARD_TYPES.has(comp.type)) {
-        const def = window.getSimComponentDefinition(comp);
-        const before = simData.wires.length;
-        if (def) rebuildBreadboardSnapWires(simData, comp.id, new Set(def.pins.map((pin) => pin.id)), {}, () => newLocalId("wire"));
-        if (simData.wires.length < before) unplugged += 1;
+      if (comp) {
+        comp.x = pos.x;
+        comp.y = pos.y;
       }
     });
+    // A part seated in a breadboard stays seated only if it and the board
+    // moved together. When one moved without the other, the automatic lead
+    // would be left stretched across the canvas, so it is dropped (the same
+    // as dragging the part alone) and the part counts as unplugged.
+    const shiftOf = (comp) => {
+      const old = oldPos.get(comp.id);
+      return old ? { dx: comp.x - old.x, dy: comp.y - old.y } : { dx: 0, dy: 0 };
+    };
+    const unpluggedParts = new Set();
+    simData.wires = simData.wires.filter((wire) => {
+      if (wire.auto !== true || !wire.from || !wire.to) return true;
+      const a = simData.components.find((c) => c.id === wire.from.compId);
+      const b = simData.components.find((c) => c.id === wire.to.compId);
+      if (!a || !b) return true;
+      const board = a.type === "breadboard" ? a : b.type === "breadboard" ? b : null;
+      if (!board) return true;
+      const lead = board === a ? b : a;
+      const moveOfBoard = shiftOf(board);
+      const moveOfLead = shiftOf(lead);
+      if (Math.abs(moveOfBoard.dx - moveOfLead.dx) < 0.5 && Math.abs(moveOfBoard.dy - moveOfLead.dy) < 0.5) return true;
+      unpluggedParts.add(lead.id);
+      return false;
+    });
+    const unplugged = unpluggedParts.size;
     renderBuilder();
     if (status) {
       const notes = [];
