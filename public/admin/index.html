@@ -1692,6 +1692,7 @@
         </div>
         <aside class="sim-inspector-panel">
           <h2>Inspector</h2>
+          <button type="button" id="sim-connect-btn" title="Wire two pins together by choosing them from lists, instead of clicking them on the board">Connect pins…</button>
           <div id="sim-inspector"></div>
         </aside>
       </div>
@@ -1885,6 +1886,28 @@
       <div class="redirects-body">
         <p class="redirects-hint">Select a block on a page and use "Save as reusable block…" in its settings to add one here. Editing a reusable block's content updates every page that uses it. Insert one onto the currently open page below.</p>
         <div id="shared-blocks-list" class="redirects-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="sim-connect-modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="sim-connect-title">
+    <div class="modal-inner sim-checklist-inner">
+      <header>
+        <h1 id="sim-connect-title">Connect pins</h1>
+        <button id="close-sim-connect" aria-label="Close Connect pins dialog">×</button>
+      </header>
+      <div class="sim-checklist-body sim-connect-body">
+        <p class="sim-connect-help">Choose a pin on each end and press Connect. It does the same as clicking one pin and then the other on the board, and works from the keyboard.</p>
+        <div class="sim-connect-grid">
+          <label>From part <select id="sim-connect-from-part"></select></label>
+          <label>Pin <select id="sim-connect-from-pin"></select></label>
+          <label>To part <select id="sim-connect-to-part"></select></label>
+          <label>Pin <select id="sim-connect-to-pin"></select></label>
+        </div>
+        <button type="button" id="sim-connect-go">Connect</button>
+        <p id="sim-connect-status" class="sim-connect-status" role="status" aria-live="polite"></p>
+        <h2>Wires</h2>
+        <ul id="sim-connect-wires" class="sim-connect-wires"></ul>
       </div>
     </div>
   </div>

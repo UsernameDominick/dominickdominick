@@ -340,6 +340,135 @@
     $("sim-view-status").textContent = `Deleted view "${view.name}".`;
   });
 
+  // ---------- Connect pins (keyboard-friendly wiring) ----------
+  // Clicking one pin and then another on the board needs a pointer and fairly
+  // steady aim. This dialog makes the same wire from four lists, and lists the
+  // wires so any of them can be removed without finding it on the canvas.
+  const connectModal = $("sim-connect-modal");
+  function connectPinsOf(comp) {
+    const def = comp && window.getSimComponentDefinition(comp);
+    return def ? def.pins : [];
+  }
+  function fillConnectPartSelect(select, keepId) {
+    const names = checklistPartNames();
+    select.innerHTML = simData.components.map((c) => `<option value="${escapeXml(c.id)}">${escapeXml(names.get(c.id))}</option>`).join("");
+    if (keepId && simData.components.some((c) => c.id === keepId)) select.value = keepId;
+  }
+  function fillConnectPinSelect(pinSelect, partId) {
+    const comp = simData.components.find((c) => c.id === partId);
+    const pins = connectPinsOf(comp);
+    pinSelect.innerHTML = pins
+      .map((pin) => `<option value="${escapeXml(pin.id)}">${escapeXml(checklistPinName(comp, pin.id))}${isPinConnected(comp.id, pin.id) ? " (has a wire)" : ""}</option>`)
+      .join("");
+  }
+  function renderConnectWires() {
+    const names = checklistPartNames();
+    const byId = new Map(simData.components.map((c) => [c.id, c]));
+    const rows = simData.wires
+      .filter((w) => w.auto !== true && byId.has(w.from.compId) && byId.has(w.to.compId))
+      .map((w) => {
+        const a = byId.get(w.from.compId);
+        const b = byId.get(w.to.compId);
+        const text = `${names.get(a.id)}, ${checklistPinName(a, w.from.pin)} to ${names.get(b.id)}, ${checklistPinName(b, w.to.pin)}`;
+        return `<li><span>${escapeXml(text)}</span><button type="button" data-remove-wire="${escapeXml(w.id)}" aria-label="Remove wire: ${escapeXml(text)}">Remove</button></li>`;
+      });
+    $("sim-connect-wires").innerHTML = rows.length ? rows.join("") : "<li class='sim-connect-empty'>No wires yet.</li>";
+  }
+  function refreshConnectDialog(keep = {}) {
+    const from = $("sim-connect-from-part");
+    const to = $("sim-connect-to-part");
+    fillConnectPartSelect(from, keep.fromPart);
+    fillConnectPartSelect(to, keep.toPart);
+    fillConnectPinSelect($("sim-connect-from-pin"), from.value);
+    fillConnectPinSelect($("sim-connect-to-pin"), to.value);
+    if (keep.fromPin) $("sim-connect-from-pin").value = keep.fromPin;
+    if (keep.toPin) $("sim-connect-to-pin").value = keep.toPin;
+    $("sim-connect-go").disabled = !simData.components.length;
+    renderConnectWires();
+  }
+  function openConnectDialog() {
+    const status = $("sim-connect-status");
+    status.textContent = simData.components.length ? "" : "Place at least one part first.";
+    const first = selectedIds()[0] || (simData.components[0] && simData.components[0].id);
+    const second = (simData.components.find((c) => c.id !== first) || simData.components[0] || {}).id;
+    refreshConnectDialog({ fromPart: first, toPart: selectedIds()[1] || second });
+    connectModal.hidden = false;
+    $("sim-connect-from-part").focus();
+  }
+  function closeConnectDialog() {
+    connectModal.hidden = true;
+    $("sim-connect-btn").focus();
+  }
+  $("sim-connect-btn").addEventListener("click", openConnectDialog);
+  $("close-sim-connect").addEventListener("click", closeConnectDialog);
+  connectModal.addEventListener("click", (e) => {
+    if (e.target === connectModal) closeConnectDialog();
+  });
+  connectModal.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    e.preventDefault();
+    e.stopPropagation(); // don't let it also close the builder behind
+    closeConnectDialog();
+  });
+  $("sim-connect-from-part").addEventListener("change", (e) => fillConnectPinSelect($("sim-connect-from-pin"), e.target.value));
+  $("sim-connect-to-part").addEventListener("change", (e) => fillConnectPinSelect($("sim-connect-to-pin"), e.target.value));
+  $("sim-connect-go").addEventListener("click", () => {
+    const status = $("sim-connect-status");
+    const a = { compId: $("sim-connect-from-part").value, pin: $("sim-connect-from-pin").value };
+    const b = { compId: $("sim-connect-to-part").value, pin: $("sim-connect-to-pin").value };
+    const compA = simData.components.find((c) => c.id === a.compId);
+    const compB = simData.components.find((c) => c.id === b.compId);
+    if (!compA || !compB || !a.pin || !b.pin) {
+      status.textContent = "Choose a part and a pin for both ends.";
+      return;
+    }
+    if (a.compId === b.compId && a.pin === b.pin) {
+      status.textContent = "Choose two different pins.";
+      return;
+    }
+    const names = checklistPartNames();
+    const label = `${names.get(compA.id)}, ${checklistPinName(compA, a.pin)} to ${names.get(compB.id)}, ${checklistPinName(compB, b.pin)}`;
+    const duplicate = simData.wires.some(
+      (w) =>
+        (w.from.compId === a.compId && w.from.pin === a.pin && w.to.compId === b.compId && w.to.pin === b.pin) ||
+        (w.from.compId === b.compId && w.from.pin === b.pin && w.to.compId === a.compId && w.to.pin === a.pin)
+    );
+    if (duplicate) {
+      status.textContent = `Already connected: ${label}.`;
+      return;
+    }
+    pushHistory();
+    simData.wires.push({ id: newLocalId("wire"), from: a, to: b, kind: "wire" });
+    wireStart = null;
+    renderBuilder();
+    refreshConnectDialog({ fromPart: a.compId, fromPin: a.pin, toPart: b.compId, toPin: b.pin });
+    status.textContent = `Connected ${label}.`;
+  });
+  $("sim-connect-wires").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-remove-wire]");
+    if (!btn) return;
+    const id = btn.dataset.removeWire;
+    const wire = simData.wires.find((w) => String(w.id) === id);
+    if (!wire) return;
+    const rows = Array.from($("sim-connect-wires").querySelectorAll("[data-remove-wire]"));
+    const at = rows.indexOf(btn);
+    pushHistory();
+    simData.wires = simData.wires.filter((w) => String(w.id) !== id);
+    if (selected && selected.kind === "wire" && String(selected.id) === id) selected = null;
+    renderInspector();
+    renderBuilder();
+    refreshConnectDialog({
+      fromPart: $("sim-connect-from-part").value,
+      fromPin: $("sim-connect-from-pin").value,
+      toPart: $("sim-connect-to-part").value,
+      toPin: $("sim-connect-to-pin").value,
+    });
+    $("sim-connect-status").textContent = "Removed the wire.";
+    // Keep focus in the list, on the wire that took its place.
+    const left = Array.from($("sim-connect-wires").querySelectorAll("[data-remove-wire]"));
+    (left[Math.min(at, left.length - 1)] || $("sim-connect-go")).focus();
+  });
+
   // Where the next palette-added part lands — walks left to right, wrapping
   // to a new row by actual part width so a 340px breadboard doesn't overlap
   // the very next (tiny) part the way a fixed-step stagger would.

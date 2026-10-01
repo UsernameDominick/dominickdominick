@@ -7500,3 +7500,18 @@ button[data-tier="quiet"] { border-color: transparent; }
 .sim-lock-hint { color: var(--text-dim); font-size: 0.78rem; }
 .sim-lock-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 @media (forced-colors: active) { .sim-lock-badge rect { fill: Canvas; stroke: CanvasText; } .sim-lock-badge path { stroke: CanvasText; } }
+
+/* Connect pins dialog (simulation builder) */
+.sim-connect-body { display: grid; gap: 10px; align-content: start; }
+.sim-connect-help { margin: 0; color: var(--text-dim); font-size: 0.85rem; }
+.sim-connect-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+.sim-connect-grid label { display: grid; gap: 4px; font-size: 0.85rem; }
+.sim-connect-grid select { width: 100%; min-width: 0; }
+.sim-connect-status { margin: 0; min-height: 1.3em; font-size: 0.85rem; }
+.sim-connect-body h2 { margin: 6px 0 0; font-size: 0.95rem; }
+.sim-connect-wires { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.sim-connect-wires li { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; }
+.sim-connect-wires li > span { min-width: 0; overflow-wrap: anywhere; }
+.sim-connect-wires li.sim-connect-empty { color: var(--text-dim); justify-content: flex-start; }
+#sim-connect-btn { margin: 0 0 10px; }
+@media (max-width: 520px) { .sim-connect-grid { grid-template-columns: 1fr; } }
