@@ -464,6 +464,8 @@ function setMasterVolume(ctx, value) {
     stepHasAudibleDrumHit,
     swingDelay,
     playMelodyNote,
+    withVolume,
+    volumeOf,
     createPlayer,
     renderWaveformPeaks,
     renderLoopAudio,

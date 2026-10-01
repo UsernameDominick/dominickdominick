@@ -7573,3 +7573,4 @@ button[data-tier="quiet"] { border-color: transparent; }
 
 .song-track-volume { width: 64px; flex-shrink: 0; accent-color: var(--track-color, var(--accent)); }
 .song-track-row-muted .song-track-volume { opacity: 0.4; }
+@media (pointer: coarse) { .song-track-volume { height: 28px; min-width: 72px; } }

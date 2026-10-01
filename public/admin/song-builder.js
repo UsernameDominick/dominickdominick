@@ -1164,7 +1164,7 @@
     const ctx = getAudioCtx();
     const waveform = $("song-waveform").value;
     const duration = 60 / (songData.tempo || 120) / 4;
-    Engine.playMelodyNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), waveform, duration);
+    Engine.withVolume(ctx, Engine.volumeOf(songData.melody), () => Engine.playMelodyNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), waveform, duration));
     if (!songData.melody.notes[noteName]) return; // outside the 2-octave piano roll range — preview only
     if (player.isPlaying() && !isCountingIn() && $("song-record").checked) {
       const step = player.currentStep();
@@ -1311,7 +1311,7 @@
         if (hidden) {
           return `<div class="song-track-row song-track-row-hidden${muted ? " song-track-row-muted" : ""}"${rowStyle}><span class="song-track-label">${label}</span>${toggleHtml}<span class="song-track-hidden-note">Hidden, ${
             muted ? "muted" : "still plays"
-          }</span></div>`;
+          }${reportVolume(meta)}</span></div>`;
         }
         const metaHtml = meta
           ? `<input type="color" class="song-track-color" data-row="${key}" value="${escapeXml(meta.color)}" title="${label} color" aria-label="${label} color">` +
@@ -1432,6 +1432,7 @@
     const n = Number(v);
     return `${Math.round((Number.isFinite(n) && v != null ? Math.max(0, Math.min(1, n)) : 1) * 100)}%`;
   }
+  const reportVolume = (meta) => (Engine.volumeOf(meta) < 1 ? ` (volume ${Math.round(Engine.volumeOf(meta) * 100)}%)` : "");
   function setVolume(target, value) {
     if (value >= 1) delete target.volume;
     else target.volume = Math.max(0, Math.min(1, value));
@@ -2215,7 +2216,7 @@
       `Song: ${name}`,
       `Tempo: ${songData.tempo} BPM`,
       `Drum kit: ${songData.kit}`,
-      `Melody waveform: ${songData.melody.waveform}${songData.melody.muted === true ? " (muted)" : ""}`,
+      `Melody waveform: ${songData.melody.waveform}${songData.melody.muted === true ? " (muted)" : ""}${reportVolume(songData.melody)}`,
       `Visualization: ${songData.visualization}`,
       `Theme: ${songData.theme}`,
       `Master volume: ${Math.round((typeof songData.master_volume === "number" ? songData.master_volume : 1) * 100)}%`,
@@ -2225,7 +2226,7 @@
       ...(clipTotal ? [`Master clipping events this session: ${clipTotal}`] : []),
       "",
       "Drum tracks (steps hit / total):",
-      ...TRACKS.map((t) => `  ${TRACK_LABELS[t]}: ${songData.tracks[t].filter(Boolean).length} / ${STEPS}${songData.trackMeta[t].muted === true ? " (muted)" : ""}`),
+      ...TRACKS.map((t) => `  ${TRACK_LABELS[t]}: ${songData.tracks[t].filter(Boolean).length} / ${STEPS}${songData.trackMeta[t].muted === true ? " (muted)" : ""}${reportVolume(songData.trackMeta[t])}`),
       "",
       "Melody notes used:",
     ];
