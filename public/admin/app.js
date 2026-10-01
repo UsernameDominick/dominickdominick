@@ -10001,9 +10001,22 @@
 
     if (mod && e.key.toLowerCase() === "s") {
       e.preventDefault();
-      if (!el("articles-modal").hidden) el("save-article").click();
-      else if (!el("settings-modal").hidden) el("save-settings").click();
-      else if (currentPage) el("save-page-settings").click();
+      // Ctrl/Cmd+S saves the topmost editor, never something that is only visible behind it:
+      // pressing it inside the Simulation builder used to save the page settings underneath.
+      const top = getTopModal();
+      if (top) {
+        const saveButtonId = {
+          "articles-modal": "save-article",
+          "settings-modal": "save-settings",
+          "simulation-builder-modal": "save-simulation",
+          "song-builder-modal": "save-song",
+          "scan-editor-modal": "save-scan-btn",
+        }[top.id];
+        const btn = saveButtonId && el(saveButtonId);
+        if (btn && !btn.disabled) btn.click();
+        return; // any other dialog on top (photo editor, pickers, confirmations): nothing to save with this key
+      }
+      if (currentPage) el("save-page-settings").click();
       return;
     }
 
