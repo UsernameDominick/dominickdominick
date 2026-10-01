@@ -1660,12 +1660,30 @@
     if (lead) return `lead ${lead[1]}`;
     return /^[a-z]{1,2}\d+$/i.test(id) ? `pin ${id.toUpperCase()}` : id; // "d0" -> "pin D0"; "anode" stays "anode"
   }
+  // Wire-length estimates for a physical build. The board art uses 40 canvas units for the standard 0.1 inch
+  // (2.54 mm) hole pitch, so a unit is about 0.0635 mm. The estimate follows the drawn route and adds about
+  // 1 cm for the ends going into the holes, rounded up to the next half centimetre; jumper wires need slack
+  // anyway, so it errs long.
+  const MM_PER_UNIT = 2.54 / 40;
+  const WIRE_END_ALLOWANCE_MM = 10;
+  function wireLengthCm(wire, a, b) {
+    const p1 = pinPosition(a, wire.from.pin);
+    const p2 = pinPosition(b, wire.to.pin);
+    if (!p1 || !p2) return null;
+    const points = getWireRoutePoints(wire, p1, p2);
+    let units = 0;
+    for (let i = 1; i < points.length; i++) units += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+    if (units < 0.5) return null;
+    return Math.ceil((units * MM_PER_UNIT + WIRE_END_ALLOWANCE_MM) / 5) / 2;
+  }
+  const formatWireLength = (cm) => `${cm} cm (${(cm / 2.54).toFixed(1)} in)`;
   function buildChecklist() {
     const names = checklistPartNames();
     const byId = new Map(simData.components.map((c) => [c.id, c]));
     const parts = simData.components.filter((c) => c.type !== "breadboard").map((c) => names.get(c.id));
     const boards = simData.components.filter((c) => c.type === "breadboard").map((c) => names.get(c.id));
     const steps = [];
+    const lengths = [];
     for (const w of simData.wires) {
       const a = byId.get(w.from.compId);
       const b = byId.get(w.to.compId);
@@ -1673,18 +1691,25 @@
       const verb = w.auto === true ? "Plug" : "Connect";
       const joiner = w.auto === true ? "into" : "to";
       const wl = cleanChecklistText(w.label);
-      steps.push(`${verb} ${names.get(a.id)}, ${checklistPinName(a, w.from.pin)} ${joiner} ${names.get(b.id)}, ${checklistPinName(b, w.to.pin)}${wl ? ` (${wl})` : ""}`);
+      // Automatic leads are a part's own legs going into the board, so only real wires get a length.
+      const cm = w.auto === true ? null : wireLengthCm(w, a, b);
+      if (cm !== null) lengths.push(cm);
+      steps.push(`${verb} ${names.get(a.id)}, ${checklistPinName(a, w.from.pin)} ${joiner} ${names.get(b.id)}, ${checklistPinName(b, w.to.pin)}${wl ? ` (${wl})` : ""}${cm !== null ? ` - about ${formatWireLength(cm)}` : ""}`);
     }
-    return { boards, parts, steps };
+    const wireNote = lengths.length
+      ? `Wire needed: about ${formatWireLength(Math.round(lengths.reduce((n, v) => n + v, 0) * 2) / 2)} in total for ${lengths.length} ${lengths.length === 1 ? "wire" : "wires"}, the longest ${formatWireLength(Math.max(...lengths))}. Lengths follow the layout at a standard 0.1 inch hole pitch and include about 1 cm for the ends; cut a little long.`
+      : "";
+    return { boards, parts, steps, wireNote };
   }
   function renderChecklist() {
-    const { boards, parts, steps } = buildChecklist();
+    const { boards, parts, steps, wireNote } = buildChecklist();
     const list = $("sim-checklist-list");
     const row = (text, group, i) => `<label class="sim-checklist-row"><input type="checkbox" data-group="${group}" data-i="${i}"> <span>${escapeXml(text)}</span></label>`;
     list.innerHTML =
       (boards.length ? `<h2>Boards</h2>${boards.map((t, i) => row(t, "board", i)).join("")}` : "") +
       `<h2>Parts to gather (${parts.length})</h2>${parts.length ? parts.map((t, i) => row(t, "part", i)).join("") : "<p class='sim-checklist-empty'>No parts placed yet.</p>"}` +
-      `<h2>Connections (${steps.length})</h2>${steps.length ? steps.map((t, i) => row(t, "step", i)).join("") : "<p class='sim-checklist-empty'>No wires yet.</p>"}`;
+      `<h2>Connections (${steps.length})</h2>${steps.length ? steps.map((t, i) => row(t, "step", i)).join("") : "<p class='sim-checklist-empty'>No wires yet.</p>"}` +
+      (wireNote ? `<p class="sim-checklist-note">${escapeXml(wireNote)}</p>` : "");
     list.querySelectorAll("input[type=checkbox]").forEach((box) => box.addEventListener("change", updateChecklistProgress));
     updateChecklistProgress();
   }
@@ -1695,11 +1720,12 @@
     boxes.forEach((b) => b.closest("label").classList.toggle("is-done", b.checked));
   }
   function checklistText() {
-    const { boards, parts, steps } = buildChecklist();
+    const { boards, parts, steps, wireNote } = buildChecklist();
     const lines = [`Build checklist (${parts.length} parts${boards.length ? `, ${boards.length} board${boards.length === 1 ? "" : "s"}` : ""}, ${steps.length} connections)`];
     if (boards.length) lines.push("", "Boards", ...boards.map((t) => `[ ] ${t}`));
     lines.push("", "Parts to gather", ...(parts.length ? parts.map((t) => `[ ] ${t}`) : ["(none)"]));
     lines.push("", "Connections", ...(steps.length ? steps.map((t, i) => `[ ] ${i + 1}. ${t}`) : ["(none)"]));
+    if (wireNote) lines.push("", wireNote);
     return lines.join("\n");
   }
   $("sim-checklist-btn").addEventListener("click", () => {
