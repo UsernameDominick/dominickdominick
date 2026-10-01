@@ -7370,3 +7370,8 @@ button[data-tier="quiet"] { border-color: transparent; }
 .pe-shortcut-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.82rem; }
 .pe-shortcut-key { min-width: 3.4em; font-family: var(--font-mono, monospace); padding: 2px 8px; }
 .pe-shortcut-key.is-waiting { border-color: var(--accent); color: var(--accent); }
+
+/* ---- Photo editor: crash recovery bar and autosave status ---- */
+.pe-recovery-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 12px; margin-bottom: 8px; border: 1px solid var(--accent); border-radius: 8px; background: color-mix(in srgb, var(--accent) 10%, var(--bg-elevated)); font-size: 0.85rem; }
+.pe-recovery-bar span { flex: 1 1 18em; min-width: 0; }
+.pe-autosave-status { font-size: 0.75rem; color: var(--text-dim); white-space: nowrap; }

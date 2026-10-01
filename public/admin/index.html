@@ -1459,6 +1459,11 @@
             </div>
           </div>
           <div class="pe-canvas-area">
+            <div id="pe-recovery-bar" class="pe-recovery-bar" role="alert" hidden>
+              <span id="pe-recovery-text"></span>
+              <button type="button" id="pe-recovery-restore" data-tier="primary">Restore</button>
+              <button type="button" id="pe-recovery-discard">Discard</button>
+            </div>
             <div id="pe-canvas-wrap" class="pe-canvas-wrap pe-bg-checkerboard">
               <div id="pe-canvas-frame" class="pe-canvas-frame">
                 <div id="pe-canvas-stack" class="pe-canvas-stack">
@@ -1474,6 +1479,7 @@
         <div class="pe-actions">
           <span id="pe-status-bar" class="pe-status-bar" title="Actual image size · displayed scale"></span>
           <span id="pe-hint" class="pe-hint"></span>
+          <span id="pe-autosave-status" class="pe-autosave-status" role="status"></span>
           <span id="pe-limits-info" class="pe-limits-info" tabindex="0">ℹ️ Limits</span>
           <button type="button" id="pe-shortcuts-btn" aria-expanded="false" aria-controls="pe-shortcuts-panel" title="See and change the one-key tool shortcuts">⌨ Keys</button>
           <div id="pe-shortcuts-panel" class="pe-shortcuts-panel" role="group" aria-label="Tool shortcuts" hidden><div class="pe-shortcuts-head"><strong>Tool shortcuts</strong><button type="button" id="pe-shortcuts-reset">Reset all</button></div><p id="pe-shortcuts-msg" class="pe-shortcuts-msg" role="status"></p><div id="pe-shortcut-grid" class="pe-shortcut-grid"></div></div>
