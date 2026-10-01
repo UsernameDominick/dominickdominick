@@ -1512,6 +1512,36 @@
         add("note", `${n} shows a dash: ${VOLTMETER_NO_READING[r.reason] || "the simulator can't vouch for a reading here."}`);
       }
     }
+    // A two-leg part whose legs end up on the same electrical node (the same breadboard strip or rail, or joined
+    // by wires) is bypassed: current skips straight past it, whatever its value.
+    const parent = new Map();
+    const root = (x) => {
+      let r = x;
+      while (parent.has(r) && parent.get(r) !== r) r = parent.get(r);
+      let cur = x;
+      while (cur !== r) { const next = parent.get(cur); parent.set(cur, r); cur = next; }
+      return r;
+    };
+    const byId = new Map(simData.components.map((c) => [c.id, c]));
+    for (const w of simData.wires) {
+      const a = byId.get(w.from.compId);
+      const b = byId.get(w.to.compId);
+      if (!a || !b) continue;
+      const na = window.simNodeId(a, w.from.pin);
+      const nb = window.simNodeId(b, w.to.pin);
+      if (!parent.has(na)) parent.set(na, na);
+      if (!parent.has(nb)) parent.set(nb, nb);
+      parent.set(root(na), root(nb));
+    }
+    const BYPASSABLE = new Set(["resistor", "led", "capacitor", "inductor", "switch"]);
+    for (const comp of simData.components) {
+      if (!BYPASSABLE.has(comp.type)) continue;
+      const def = window.getSimComponentDefinition(comp);
+      if (!def || def.pins.length !== 2) continue;
+      const [pa, pb] = def.pins.map((pin) => window.simNodeId(comp, pin.id));
+      if (pa !== pb && (!parent.has(pa) || !parent.has(pb) || root(pa) !== root(pb))) continue;
+      add("warning", `${nameOf(comp.id)} is bypassed: both of its legs are on the same breadboard strip or rail, or joined by wires, so current goes straight past it. Move one leg to a different strip.`);
+    }
     if (outletLoop) add("danger", "The wall outlet (120 V) is wired straight into this circuit, which destroys most parts. Go through a Power Supply.");
     if (analysis.meta && analysis.meta.parallel) {
       add("warning", "This circuit has a parallel branch or a bypass. The simulator follows one path from each source, so the figures and statuses may be incomplete or missing: a backwards LED, for one, is only flagged when it is on the only route.");
