@@ -7521,3 +7521,7 @@ button[data-tier="quiet"] { border-color: transparent; }
 /* the hole a wire was started from stays marked inside its lit group */
 .sim-pin.sim-strip-hole.sim-pin-active { fill: var(--accent); stroke: #fff; stroke-width: 4; }
 @media (forced-colors: active) { .sim-pin.sim-strip-hole { fill: Highlight; stroke: Highlight; } }
+
+/* Photo editor: note beside the crop ratio (what a site template will do) */
+.pe-crop-note { font-size: 0.78rem; color: var(--text-dim); max-width: 26ch; }
+.pe-crop-note:empty { display: none; }

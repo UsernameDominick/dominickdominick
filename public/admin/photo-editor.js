@@ -1755,7 +1755,45 @@
   // that doesn't match the ratio the next Apply Crop would silently jump
   // to (applyCropRatio only runs during the drag itself, not on an
   // already-finished selection).
+  // The selected "Site image templates" entry (Social share, Project cover...)
+  // as {w, h}, or null for Free and the plain ratios.
+  function cropTemplateSize() {
+    const opt = $("pe-crop-ratio").selectedOptions[0];
+    const m = opt && opt.dataset.size ? /^(\d+)x(\d+)$/.exec(opt.dataset.size) : null;
+    return m ? { w: Number(m[1]), h: Number(m[2]), label: opt.textContent } : null;
+  }
+  function setCropNote(text) {
+    $("pe-crop-note").textContent = text;
+  }
+  function updateCropNote() {
+    const t = cropTemplateSize();
+    setCropNote(t ? `Apply Crop will resize the result to ${t.w}×${t.h}.` : "");
+  }
+  // Picking a template with no crop box yet draws the biggest centred one of
+  // that shape, so "choose template, Apply Crop" works in two clicks.
+  function startTemplateCrop(t) {
+    const ratio = t.w / t.h;
+    let w = canvas.width;
+    let h = w / ratio;
+    if (h > canvas.height) {
+      h = canvas.height;
+      w = h * ratio;
+    }
+    const x0 = Math.round((canvas.width - w) / 2);
+    const y0 = Math.round((canvas.height - h) / 2);
+    cropRect = { x0, y0, x1: x0 + Math.round(w), y1: y0 + Math.round(h) };
+    drawCropOverlay();
+    $("pe-apply-crop").hidden = false;
+  }
+
   $("pe-crop-ratio").addEventListener("change", () => {
+    updateCropNote();
+    const template = cropTemplateSize();
+    if (template && !cropRect && !isComparing() && canvas.width > 1) {
+      setTool("select");
+      startTemplateCrop(template);
+      return;
+    }
     // Also guards on currentTool -- without it, switching to another tool
     // (e.g. Erase) after drawing a selection and then changing the ratio
     // "just to see" redraws the crop mask overlay (a full-canvas dark fill
@@ -1796,6 +1834,25 @@
         bitmap.getContext("2d").putImageData(piece, 0, 0);
       }
       layer.maskDirty = true;
+    }
+    // A site image template also scales the cropped result to its exact
+    // size, in the same undo step as the crop.
+    const template = cropTemplateSize();
+    if (template && (r.w !== template.w || r.h !== template.h)) {
+      transformAllLayers(template.w, template.h, (lctx, snap) => {
+        lctx.imageSmoothingEnabled = true;
+        lctx.imageSmoothingQuality = "high";
+        lctx.drawImage(snap, 0, 0, snap.width, snap.height, 0, 0, template.w, template.h);
+      });
+      setCropNote(
+        r.w < template.w || r.h < template.h
+          ? `Cropped and enlarged from ${r.w}×${r.h} to ${template.w}×${template.h}, so it may look soft.`
+          : `Cropped and resized to ${template.w}×${template.h}.`
+      );
+    } else if (template) {
+      setCropNote(`Cropped to ${template.w}×${template.h}.`);
+    } else {
+      setCropNote("");
     }
     syncOverlaySize();
     // Was: manually clearing cropRect/hiding the button/clearing the
@@ -4994,6 +5051,7 @@
     $("pe-apply-brush-preset").value = "";
     $("pe-apply-text-style").value = "";
     $("pe-crop-ratio").value = "free";
+    setCropNote("");
     $("pe-rect-radius").value = 0;
     $("pe-text-font").value = "sans-serif";
     viewRotation = 0;
