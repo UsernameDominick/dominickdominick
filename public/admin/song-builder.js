@@ -256,7 +256,8 @@
     $("song-page-sync").checked = !!songData.page_sync;
     $("song-master-volume").value = Math.round((typeof songData.master_volume === "number" ? songData.master_volume : 1) * 100);
     $("song-humanize").value = typeof songData.humanize === "number" ? songData.humanize : 0;
-    $("song-swing").value = typeof songData.swing === "number" ? songData.swing : 0;
+    $("song-swing").value = Number(songData.swing) || 0;
+    $("song-swing").setAttribute("aria-valuetext", Number(songData.swing) ? `${Number(songData.swing)}% swing` : "Straight");
     $("song-notes").value = songData.private_notes || "";
     applySongTheme($("song-preview-embed"), songData.theme);
     Engine.setMasterVolume(getAudioCtx(), songData.master_volume);
@@ -1980,7 +1981,8 @@
     $("song-page-sync").checked = !!songData.page_sync;
     $("song-master-volume").value = Math.round((typeof songData.master_volume === "number" ? songData.master_volume : 1) * 100);
     $("song-humanize").value = typeof songData.humanize === "number" ? songData.humanize : 0;
-    $("song-swing").value = typeof songData.swing === "number" ? songData.swing : 0;
+    $("song-swing").value = Number(songData.swing) || 0;
+    $("song-swing").setAttribute("aria-valuetext", Number(songData.swing) ? `${Number(songData.swing)}% swing` : "Straight");
     $("song-notes").value = songData.private_notes || "";
     // The shared AudioContext (and its master GainNode) persists across
     // songs -- without this, opening song B right after playing song A

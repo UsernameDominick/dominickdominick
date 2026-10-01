@@ -1352,7 +1352,7 @@
         // On a touchscreen the pin dots are only full size for the selected part (or while a wire is being
         // made), so a tap on the middle of a small part selects it instead of starting a wire.
         // A selected breadboard's many holes would sit over the parts seated on it, so those arm only while wiring.
-        const armed = (isCompSelected(comp.id) && comp.type !== "breadboard") || Boolean(wireStart) || continuityMode;
+        const armed = (isCompSelected(comp.id) && comp.type !== "breadboard" && comp.type !== "switch" && comp.type !== "switch_spdt") || Boolean(wireStart) || continuityMode;
         return `<circle class="sim-pin${armed ? " sim-pin-armed" : ""}${active ? " sim-pin-active" : ""}${
           disconnected ? " sim-pin-disconnected" : ""
         }${inNet ? " sim-net-highlight" : ""}" data-comp="${escapeXml(comp.id)}" data-pin="${p.id}" cx="${comp.x + p.x}" cy="${

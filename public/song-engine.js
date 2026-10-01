@@ -304,7 +304,7 @@ window.SongEngine = (function () {
       const ctx = getAudioCtx();
       while (nextStepTime < ctx.currentTime + SCHEDULE_AHEAD_S) {
         scheduleStep(ctx, songData, currentStep, nextStepTime);
-        if (onStep) onStep(currentStep, nextStepTime);
+        if (onStep) onStep(currentStep, nextStepTime + swingDelay(songData, currentStep)); // the time the step actually sounds
         nextStepTime += stepDurationFor(songData.tempo);
         currentStep = (currentStep + 1) % STEPS;
       }
