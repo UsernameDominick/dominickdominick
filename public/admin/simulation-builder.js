@@ -454,6 +454,14 @@
   function isCompSelected(compId) {
     return selectedIds().includes(compId);
   }
+  // Lock explanations share the hole-warning line; they are cleared the next
+  // time the inspector is rebuilt (selection change, lock toggled) so they
+  // can't linger after they stop being true.
+  let lockNoticeActive = false;
+  function showLockNotice(message) {
+    lockNoticeActive = true;
+    setSnapHoleWarning(0, message);
+  }
   // A locked part stays where it is (no drag, nudge, align, rotate, flip or
   // delete); its values and wiring can still be edited.
   function isCompLocked(compId) {
@@ -584,7 +592,10 @@
     const name = prompt("Template name:");
     if (!name) return;
     try {
-      await window.adminApi("/templates", { method: "POST", body: JSON.stringify({ kind: "simulation", name, data: simData }) });
+      // A template is a starting point, so it doesn't carry the lock flags.
+      const templateData = JSON.parse(JSON.stringify(simData));
+      templateData.components.forEach((c) => { delete c.locked; });
+      await window.adminApi("/templates", { method: "POST", body: JSON.stringify({ kind: "simulation", name, data: templateData }) });
       await loadSimTemplates();
     } catch (err) {
       alert(err.message);
@@ -793,7 +804,7 @@
       comp.y
     })">${titleSvg}${def.render(comp)}${readingSvg && def.overlay ? def.overlay(readingSvg) : readingSvg}${sel ? `<rect class="sim-select-box" x="-4" y="-4" width="${def.w + 8}" height="${def.h + 8}" />` : ""}${
       searchMatch ? `<rect class="sim-search-match-box${comp.id === canvasSearchCurrent ? " is-current" : ""}" x="-6" y="-6" width="${def.w + 12}" height="${def.h + 12}" />` : ""
-    }${comp.locked === true ? `<g class="sim-lock-badge" transform="translate(${def.w - 5},-11)"><title>Locked</title><rect x="0" y="5" width="11" height="8" rx="1.5"/><path d="M2.5 5V3.5a3 3 0 0 1 6 0V5" fill="none"/></g>` : ""}</g>`;
+    }${comp.locked === true ? `<g class="sim-lock-badge" transform="translate(${def.w - 7},${comp.y < 16 ? def.h - 3 : -15}) scale(1.4)"><title>Locked</title><rect x="0" y="5" width="11" height="8" rx="1.5"/><path d="M2.5 5V3.5a3 3 0 0 1 6 0V5" fill="none"/></g>` : ""}</g>`;
   }
 
   // Optional presentation-only route bends; electrical connectivity still uses wire.from/to.
@@ -1866,6 +1877,7 @@
     }));
     g.setPointerCapture(e.pointerId);
     let historySaved = false;
+    let pointerDragged = false; // set when a press on a part that can't move is dragged
 
     // Breadboard auto-snap only applies to a single-part drag — snapping
     // several independently-positioned parts to holes at once as a rigid
@@ -1947,12 +1959,12 @@
     function onUp() {
       g.removeEventListener("pointermove", onMove);
       g.removeEventListener("pointerup", onUp);
-      if (!historySaved && comp.type === "switch") {
+      if (!historySaved && !pointerDragged && comp.type === "switch") {
         // A plain click (no drag) on a switch toggles it, like flipping one for real.
         pushHistory();
         comp.closed = comp.closed === false;
         renderInspector();
-      } else if (!historySaved && comp.type === "switch_spdt") {
+      } else if (!historySaved && !pointerDragged && comp.type === "switch_spdt") {
         pushHistory();
         comp.position = window.simSpdtThrow(comp) === "a" ? "b" : "a";
         renderInspector();
@@ -1992,7 +2004,8 @@
       const explain = (ev) => {
         if (Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 5) return;
         g.removeEventListener("pointermove", explain);
-        setSnapHoleWarning(0, "That part is locked. Unlock it in the inspector to move it.");
+        pointerDragged = true;
+        showLockNotice("That part is locked. Unlock it in the inspector to move it.");
       };
       g.addEventListener("pointermove", explain);
       g.addEventListener("pointerup", () => g.removeEventListener("pointermove", explain), { once: true });
@@ -2276,7 +2289,7 @@
   function orientComponent(comp, { rotateBy = 0, flip = false } = {}) {
     if (!comp || comp.type === "breadboard") return;
     if (comp.locked === true) {
-      setSnapHoleWarning(0, "Unlock this part to rotate or flip it.");
+      showLockNotice("Unlock this part to rotate or flip it.");
       return;
     }
     pushHistory();
@@ -2499,7 +2512,9 @@
           ? `${info.label}: these parts overlap too much to space out evenly.`
           : lockedCount && lockedCount === boxes.length
             ? `${info.label}: these parts are locked.`
-            : moves.blocked
+            : lockedCount && action.startsWith("distribute") && boxes.length - lockedCount < 3
+              ? `${info.label}: needs three or more unlocked parts.`
+              : moves.blocked
             ? `${info.label}: ${moves.blocked} ${moves.blocked === 1 ? "part is" : "parts are"} at the board edge and can't move further.`
             : `${info.label}: already lined up.`;
       }
@@ -2550,6 +2565,10 @@
 
   function renderInspector() {
     const box = $("sim-inspector");
+    if (lockNoticeActive) {
+      lockNoticeActive = false;
+      setSnapHoleWarning(0);
+    }
     if (
       !selected ||
       selected.kind !== "component" ||
@@ -2739,7 +2758,7 @@
         <a id="sim-datasheet-link" class="sim-datasheet-link" href="${escapeXml(safeHref(comp.datasheetUrl || ""))}" target="_blank" rel="noopener noreferrer" ${
           comp.datasheetUrl ? "" : "hidden"
         }>Open datasheet ↗</a>
-        <label class="sim-lock-row"><input type="checkbox" id="sim-comp-locked"${comp.locked === true ? " checked" : ""}> Lock this part <span class="sim-lock-hint">(it can't be dragged, nudged, aligned, rotated or deleted until you unlock it)</span></label>
+        <label class="sim-lock-row"><input type="checkbox" id="sim-comp-locked"${comp.locked === true ? " checked" : ""}> Lock this part <span class="sim-lock-hint">(it can't be dragged, nudged, aligned, rotated or deleted until you unlock it; its settings and wires stay editable)</span></label>
         ${
           comp.type === "breadboard"
             ? ""
@@ -3126,9 +3145,9 @@
         simData.components = simData.components.filter((c) => !doomed.has(c.id));
         simData.wires = simData.wires.filter((w) => !doomed.has(w.from.compId) && !doomed.has(w.to.compId));
         setMultiSelection(Array.from(ids).filter((id) => !doomed.has(id)));
-        if (keptLocked) setSnapHoleWarning(0, `${keptLocked} locked ${keptLocked === 1 ? "part was" : "parts were"} kept.`);
         renderInspector();
         renderBuilder();
+        if (keptLocked) showLockNotice(`${keptLocked} locked ${keptLocked === 1 ? "part was" : "parts were"} kept.`);
       });
     } else if (selected.kind === "wire") {
       const wire = simData.wires.find((w) => w.id === selected.id);
@@ -3641,8 +3660,12 @@
       e.preventDefault();
       const comps = allSelected.filter((c) => c.locked !== true);
       if (!comps.length) {
-        setSnapHoleWarning(0, "That part is locked. Unlock it in the inspector to move it.");
+        showLockNotice("That part is locked. Unlock it in the inspector to move it.");
         return;
+      }
+      if (comps.length < allSelected.length) {
+        const stayed = allSelected.length - comps.length;
+        showLockNotice(`${stayed} locked ${stayed === 1 ? "part stayed" : "parts stayed"} put.`);
       }
       const step = e.shiftKey && gridSnapSize > 0 ? gridSnapSize : 1;
       const [dx, dy] = ARROW_DELTAS[e.key];

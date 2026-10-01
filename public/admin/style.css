@@ -7494,6 +7494,7 @@ button[data-tier="quiet"] { border-color: transparent; }
 .sim-lock-badge path { stroke: var(--text-dim, #999); stroke-width: 1.4; }
 .sim-comp.sim-locked { cursor: not-allowed; }
 .sim-comp.sim-locked .sim-pin { cursor: crosshair; }
+.sim-comp-switch.sim-locked, .sim-comp-switch_spdt.sim-locked { cursor: pointer; } /* a click still flips a switch */
 .sim-lock-row { display: flex; gap: 8px; align-items: flex-start; margin: 10px 0 4px; font-size: 0.85rem; }
 .sim-lock-row input { margin-top: 3px; }
 .sim-lock-hint { color: var(--text-dim); font-size: 0.78rem; }
