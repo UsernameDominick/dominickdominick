@@ -1878,8 +1878,10 @@
   }
 
   // Lights every hole of a breadboard that is electrically joined to the given
-  // one (its five-hole column group, or the whole power rail). Other parts'
-  // pins have nothing joined to them, so they light nothing.
+  // one. The board is modelled with one pin per terminal column half (it
+  // stands for the whole five-hole group, so it only lights itself) and one
+  // per rail hole (the whole rail lights). Other parts' pins have nothing
+  // joined to them, so they light nothing.
   function setStripHighlight(compId, pinId) {
     const svg = $("sim-builder-svg");
     if (!svg) return;
@@ -1887,9 +1889,13 @@
     if (compId == null || pinId == null) return;
     const comp = simData.components.find((c) => String(c.id) === String(compId));
     if (!comp || comp.type !== "breadboard") return;
-    const node = window.simNodeId(comp, pinId);
-    svg.querySelectorAll(".sim-pin").forEach((dot) => {
-      if (dot.dataset.comp === String(comp.id) && window.simNodeId(comp, dot.dataset.pin) === node) dot.classList.add("sim-strip-hole");
+    // The rail the hole belongs to, worked out once (not per dot).
+    const def = window.getSimComponentDefinition(comp);
+    const rails = (def && def.railGroups) || {};
+    const rail = Object.keys(rails).find((name) => rails[name].includes(pinId));
+    const joined = new Set(rail ? rails[rail] : [pinId]);
+    svg.querySelectorAll(`.sim-pin[data-comp="${CSS.escape(String(comp.id))}"]`).forEach((dot) => {
+      if (joined.has(dot.dataset.pin)) dot.classList.add("sim-strip-hole");
     });
   }
 
