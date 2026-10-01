@@ -1733,6 +1733,7 @@
         }
         updateWiresForComponent(id);
       });
+      queueMinimapRender();
     }
     function onUp() {
       g.removeEventListener("pointermove", onMove);
@@ -2848,31 +2849,51 @@
   // currently showing. It only appears when the canvas actually scrolls (a
   // zoomed-in desktop board, or any phone), and everything is derived from
   // the live svg/canvas rects so zoom, padding and resizes can't drift out
-  // of sync with it.
+  // of sync with it. A small toggle tucks it away when it covers a part.
+  const minimapDock = $("sim-minimap-dock");
   const minimapBox = $("sim-minimap");
+  const minimapToggle = $("sim-minimap-toggle");
+  const minimapStatus = $("sim-minimap-status");
+  const MINIMAP_COLLAPSED_KEY = "sim-minimap-collapsed";
+  let minimapCollapsed = false;
+  try { minimapCollapsed = localStorage.getItem(MINIMAP_COLLAPSED_KEY) === "1"; } catch (_) { /* storage blocked */ }
   let minimapDrag = null;
   let minimapFrameQueued = false;
+  let minimapRenderQueued = false;
 
   function canvasIsScrollable() {
     const canvas = $("sim-builder-canvas");
     return !!canvas && (canvas.scrollWidth > canvas.clientWidth + 1 || canvas.scrollHeight > canvas.clientHeight + 1);
   }
 
-  // The canvas's visible area as fractions (0-1) of the svg's width/height.
-  function minimapViewFractions() {
+  // How much a transformed ancestor (the modal's scale-in) shrinks layout
+  // pixels on screen. Rect measurements are scaled by it but clientWidth
+  // and friends are not, so every mix of the two goes through here.
+  function canvasScreenScale(canvas) {
+    return canvas.offsetWidth ? canvas.getBoundingClientRect().width / canvas.offsetWidth : 1;
+  }
+
+  // The canvas's visible area as fractions of the svg's width/height. The
+  // canvas has padding around the svg, so at a scroll extreme the view
+  // reaches past the svg: pass clamp=false for the true view (its centre
+  // is what a drag needs), true for the drawn frame.
+  function minimapViewFractions(clamp = true) {
     const canvas = $("sim-builder-canvas");
     const svg = $("sim-builder-svg");
     if (!canvas || !svg) return null;
     const svgRect = svg.getBoundingClientRect();
     if (!svgRect.width || !svgRect.height) return null;
-    const left = canvas.getBoundingClientRect().left + canvas.clientLeft;
-    const top = canvas.getBoundingClientRect().top + canvas.clientTop;
-    const clamp01 = (n) => Math.max(0, Math.min(1, n));
-    const x0 = clamp01((left - svgRect.left) / svgRect.width);
-    const y0 = clamp01((top - svgRect.top) / svgRect.height);
-    const x1 = clamp01((left + canvas.clientWidth - svgRect.left) / svgRect.width);
-    const y1 = clamp01((top + canvas.clientHeight - svgRect.top) / svgRect.height);
-    return { x0, y0, x1, y1 };
+    const sc = canvasScreenScale(canvas);
+    const canvasRect = canvas.getBoundingClientRect();
+    const left = canvasRect.left + canvas.clientLeft * sc;
+    const top = canvasRect.top + canvas.clientTop * sc;
+    const fit = (n) => (clamp ? Math.max(0, Math.min(1, n)) : n);
+    return {
+      x0: fit((left - svgRect.left) / svgRect.width),
+      y0: fit((top - svgRect.top) / svgRect.height),
+      x1: fit((left + canvas.clientWidth * sc - svgRect.left) / svgRect.width),
+      y1: fit((top + canvas.clientHeight * sc - svgRect.top) / svgRect.height)
+    };
   }
 
   function updateMinimapFrame() {
@@ -2887,15 +2908,41 @@
     frame.setAttribute("height", Math.max(0, (view.y1 - view.y0) * vb.height));
   }
 
+  function syncMinimapToggle() {
+    minimapToggle.setAttribute("aria-expanded", String(!minimapCollapsed));
+    minimapToggle.textContent = minimapCollapsed ? "Map" : "×";
+    minimapToggle.setAttribute("aria-label", minimapCollapsed ? "Show minimap" : "Hide minimap");
+    minimapToggle.title = minimapCollapsed ? "Show minimap" : "Hide minimap";
+    minimapDock.classList.toggle("is-collapsed", minimapCollapsed);
+  }
+
+  function hideMinimap() {
+    minimapDrag = null;
+    const active = document.activeElement;
+    // Don't strand keyboard focus on something that is about to vanish.
+    if (active === minimapBox || active === minimapToggle) $("sim-zoom-reset").focus({ preventScroll: true });
+    minimapDock.hidden = true;
+    minimapBox.hidden = true;
+    minimapBox.textContent = "";
+  }
+
   function renderMinimap() {
     const svg = $("sim-builder-svg");
     if (!svg || !canvasIsScrollable()) {
+      hideMinimap();
+      return;
+    }
+    syncMinimapToggle();
+    minimapDock.hidden = false;
+    if (minimapCollapsed) {
+      minimapDrag = null;
       minimapBox.hidden = true;
       minimapBox.textContent = "";
       return;
     }
     const vb = svg.viewBox.baseVal;
     const picked = new Set(selectedIds());
+    const byId = new Map(simData.components.map((c) => [c.id, c]));
     const comps = simData.components
       .map((comp) => {
         const def = window.getSimComponentDefinition(comp);
@@ -2905,8 +2952,8 @@
       .join("");
     const wires = simData.wires
       .map((wire) => {
-        const a = pinPosition(simData.components.find((c) => c.id === wire.from.compId), wire.from.pin);
-        const b = pinPosition(simData.components.find((c) => c.id === wire.to.compId), wire.to.pin);
+        const a = pinPosition(byId.get(wire.from.compId), wire.from.pin);
+        const b = pinPosition(byId.get(wire.to.compId), wire.to.pin);
         if (!a || !b) return "";
         const points = getWireRoutePoints(wire, a, b).map((pt) => `${pt.x},${pt.y}`).join(" ");
         return `<polyline class="sim-minimap-wire" points="${points}"/>`;
@@ -2917,18 +2964,29 @@
     updateMinimapFrame();
   }
 
+  // Coalesces rebuilds asked for in quick succession (a part being dragged).
+  function queueMinimapRender() {
+    if (minimapRenderQueued || minimapBox.hidden) return;
+    minimapRenderQueued = true;
+    requestAnimationFrame(() => {
+      minimapRenderQueued = false;
+      renderMinimap();
+    });
+  }
+
   // Scrolls the canvas so the given point (fractions of the board) sits in
   // the middle of the view; the browser clamps it at the edges.
   function centerCanvasOn(fx, fy) {
     const canvas = $("sim-builder-canvas");
     const svg = $("sim-builder-svg");
     if (!canvas || !svg) return;
+    const sc = canvasScreenScale(canvas) || 1;
     const svgRect = svg.getBoundingClientRect();
     const canvasRect = canvas.getBoundingClientRect();
-    const contentLeft = svgRect.left - (canvasRect.left + canvas.clientLeft) + canvas.scrollLeft;
-    const contentTop = svgRect.top - (canvasRect.top + canvas.clientTop) + canvas.scrollTop;
-    canvas.scrollLeft = contentLeft + fx * svgRect.width - canvas.clientWidth / 2;
-    canvas.scrollTop = contentTop + fy * svgRect.height - canvas.clientHeight / 2;
+    const contentLeft = (svgRect.left - canvasRect.left) / sc - canvas.clientLeft + canvas.scrollLeft;
+    const contentTop = (svgRect.top - canvasRect.top) / sc - canvas.clientTop + canvas.scrollTop;
+    canvas.scrollLeft = contentLeft + fx * (svgRect.width / sc) - canvas.clientWidth / 2;
+    canvas.scrollTop = contentTop + fy * (svgRect.height / sc) - canvas.clientHeight / 2;
   }
 
   function minimapPointerFractions(ev) {
@@ -2950,8 +3008,11 @@
     minimapBox.focus({ preventScroll: true });
     // Grabbing inside the frame keeps the spot you grabbed; clicking
     // outside it jumps the view so its centre lands where you clicked.
-    const view = minimapViewFractions();
-    const inside = view && at.x >= view.x0 && at.x <= view.x1 && at.y >= view.y0 && at.y <= view.y1;
+    // The offset is taken from the unclamped view so grabbing at a scroll
+    // extreme (where the padding makes the view overhang) doesn't nudge it.
+    const drawn = minimapViewFractions();
+    const view = minimapViewFractions(false);
+    const inside = drawn && view && at.x >= drawn.x0 && at.x <= drawn.x1 && at.y >= drawn.y0 && at.y <= drawn.y1;
     minimapDrag = {
       id: ev.pointerId,
       dx: inside ? at.x - (view.x0 + view.x1) / 2 : 0,
@@ -2970,9 +3031,12 @@
   };
   minimapBox.addEventListener("pointerup", endMinimapDrag);
   minimapBox.addEventListener("pointercancel", endMinimapDrag);
+  minimapBox.addEventListener("lostpointercapture", endMinimapDrag);
 
   // Arrow keys scroll the view from the minimap; stopPropagation keeps the
   // builder's own arrow-key nudge of the selected part from also firing.
+  // The position is announced after each key press (not on every scroll,
+  // which would chatter during a drag).
   minimapBox.addEventListener("keydown", (e) => {
     const canvas = $("sim-builder-canvas");
     const dirs = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
@@ -2981,6 +3045,18 @@
     e.stopPropagation();
     canvas.scrollLeft += dirs[e.key][0] * canvas.clientWidth * 0.2;
     canvas.scrollTop += dirs[e.key][1] * canvas.clientHeight * 0.2;
+    const view = minimapViewFractions();
+    if (view) {
+      const pct = (n) => Math.round(n * 100);
+      minimapStatus.textContent = `Viewing ${pct(view.x0)} to ${pct(view.x1)} percent across, ${pct(view.y0)} to ${pct(view.y1)} percent down`;
+    }
+  });
+  minimapBox.addEventListener("blur", () => { minimapStatus.textContent = ""; });
+
+  minimapToggle.addEventListener("click", () => {
+    minimapCollapsed = !minimapCollapsed;
+    try { localStorage.setItem(MINIMAP_COLLAPSED_KEY, minimapCollapsed ? "1" : "0"); } catch (_) { /* storage blocked */ }
+    renderMinimap();
   });
 
   $("sim-builder-canvas").addEventListener("scroll", () => {
