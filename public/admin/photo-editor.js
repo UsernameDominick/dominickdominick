@@ -489,7 +489,14 @@
   const navCanvas = $("pe-nav-canvas");
   const navView = $("pe-nav-view");
   let navThumbTimer = 0;
-  const navActive = () => !modal.hidden && viewRotation % 180 === 0 && viewRotation === 0 && (canvasWrap.scrollWidth > canvasWrap.clientWidth + 1 || canvasWrap.scrollHeight > canvasWrap.clientHeight + 1);
+  const navActive = () => !modal.hidden && viewRotation === 0 && (canvasWrap.scrollWidth > canvasWrap.clientWidth + 1 || canvasWrap.scrollHeight > canvasWrap.clientHeight + 1);
+  // The part of the scroll area you can actually see: its box minus any classic scrollbars.
+  function visibleWrapRect() {
+    const wr = canvasWrap.getBoundingClientRect();
+    const left = wr.left + canvasWrap.clientLeft;
+    const top = wr.top + canvasWrap.clientTop;
+    return { left, top, right: left + canvasWrap.clientWidth, bottom: top + canvasWrap.clientHeight, width: canvasWrap.clientWidth, height: canvasWrap.clientHeight };
+  }
   function drawNavThumb() {
     navThumbTimer = 0;
     if (!navActive() || !layers.length) return;
@@ -515,13 +522,13 @@
     navEl.hidden = !show;
     if (!show) return;
     if (wasHidden || !navCanvas.dataset.ready) return void drawNavThumb();
-    const wr = canvasWrap.getBoundingClientRect();
+    const vis = visibleWrapRect();
     const sr = stack.getBoundingClientRect();
     if (!sr.width || !sr.height) return;
-    const l = Math.max(0, (wr.left - sr.left) / sr.width);
-    const t = Math.max(0, (wr.top - sr.top) / sr.height);
-    const r = Math.min(1, (wr.right - sr.left) / sr.width);
-    const b = Math.min(1, (wr.bottom - sr.top) / sr.height);
+    const l = Math.max(0, (vis.left - sr.left) / sr.width);
+    const t = Math.max(0, (vis.top - sr.top) / sr.height);
+    const r = Math.min(1, (vis.right - sr.left) / sr.width);
+    const b = Math.min(1, (vis.bottom - sr.top) / sr.height);
     navView.style.left = l * 100 + "%";
     navView.style.top = t * 100 + "%";
     navView.style.width = Math.max(0, r - l) * 100 + "%";
@@ -529,10 +536,10 @@
   }
   // Centre the main view on a point of the overview (fx, fy are 0..1 across the image).
   function navigateTo(fx, fy) {
-    const wr = canvasWrap.getBoundingClientRect();
+    const vis = visibleWrapRect();
     const sr = stack.getBoundingClientRect();
-    canvasWrap.scrollLeft += sr.left + Math.min(1, Math.max(0, fx)) * sr.width - (wr.left + wr.width / 2);
-    canvasWrap.scrollTop += sr.top + Math.min(1, Math.max(0, fy)) * sr.height - (wr.top + wr.height / 2);
+    canvasWrap.scrollLeft += sr.left + Math.min(1, Math.max(0, fx)) * sr.width - (vis.left + vis.width / 2);
+    canvasWrap.scrollTop += sr.top + Math.min(1, Math.max(0, fy)) * sr.height - (vis.top + vis.height / 2);
     updateNavigator();
   }
   let navDrag = null;
