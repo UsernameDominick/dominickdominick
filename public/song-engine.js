@@ -381,31 +381,39 @@ window.SongEngine = (function () {
   }
 
   // Renders `loops` repeats of the pattern to mono samples for exporting as
-  // audio: every loop is exactly the same whole number of samples, so the
-  // result repeats seamlessly, and the song's own master volume, humanize and
-  // mutes are applied (the same mix you hear). Humanize and drum noise use the
-  // content-seeded random stream, so exporting the same song twice gives
-  // identical audio and every repeat is identical to the first.
-  // `tailSeconds` adds silence-padded time after the last loop for notes that
-  // are still ringing; without it the render is cut at the loop boundary.
+  // audio, with the song's own master volume, humanize and mutes applied (the
+  // same mix you hear). The pattern is played twice in an offline context and
+  // the SECOND pass is kept: it already contains the ring-out of the notes at
+  // the end of the first pass, exactly as a loop in playback does, so it joins
+  // onto itself without a click. That one pass is then copied `loops` times, so
+  // every repeat is the identical whole number of samples. Humanize and drum
+  // noise use a content-seeded random stream restarted for each pass.
+  // `tailSeconds` keeps the ring-out after the last repeat; without it the
+  // result is cut at the loop boundary.
   async function renderLoopAudio(songData, options = {}) {
     const rate = Number(options.sampleRate);
     const sampleRate = Number.isFinite(rate) && rate >= 8000 && rate <= 192000 ? Math.round(rate) : 44100;
     const loops = Math.max(1, Math.min(16, Math.round(Number(options.loops)) || 1));
     const tail = Math.max(0, Math.min(10, Number(options.tailSeconds) || 0));
     const loopSamples = Math.max(1, Math.round(stepDurationFor(songData.tempo) * STEPS * sampleRate));
-    const total = loopSamples * loops + Math.round(tail * sampleRate);
+    const tailSamples = Math.round(tail * sampleRate);
     const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-    const ctx = new OfflineCtx(1, total, sampleRate);
+    const ctx = new OfflineCtx(1, loopSamples * 2 + tailSamples, sampleRate);
+    // The master gain starts at 1 and setMasterVolume only ramps towards the
+    // song's volume over 30 ms, which would leave the first moments too loud;
+    // start it at the right level so the whole render is at the song's volume.
+    getMasterGain(ctx).gain.value = Number.isFinite(songData.master_volume) ? Math.max(0, Math.min(1, songData.master_volume)) : 1;
     const stepSeconds = loopSamples / sampleRate / STEPS;
-    // A fresh random stream per repeat, so every loop is the same audio (drum
-    // noise included) rather than each hit drawing new noise.
-    for (let loop = 0; loop < loops; loop++) {
+    for (let pass = 0; pass < 2; pass++) {
       const random = previewRandom(songData);
-      for (let step = 0; step < STEPS; step++) scheduleStep(ctx, songData, step, (loop * STEPS + step) * stepSeconds, random);
+      for (let step = 0; step < STEPS; step++) scheduleStep(ctx, songData, step, (pass * STEPS + step) * stepSeconds, random);
     }
-    const buffer = await ctx.startRendering();
-    return { samples: buffer.getChannelData(0).slice(), sampleRate, loopSamples, loops };
+    const rendered = (await ctx.startRendering()).getChannelData(0);
+    const samples = new Float32Array(loopSamples * loops + tailSamples);
+    const oneLoop = rendered.subarray(loopSamples, loopSamples * 2);
+    for (let loop = 0; loop < loops; loop++) samples.set(oneLoop, loop * loopSamples);
+    if (tailSamples) samples.set(rendered.subarray(loopSamples * 2, loopSamples * 2 + tailSamples), loopSamples * loops);
+    return { samples, sampleRate, loopSamples, loops };
   }
 
   return {

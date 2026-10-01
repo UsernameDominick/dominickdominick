@@ -7537,3 +7537,4 @@ button[data-tier="quiet"] { border-color: transparent; }
 .song-audio-summary, .song-audio-status { margin: 0; font-size: 0.85rem; min-height: 1.3em; }
 .song-audio-summary { color: var(--text-dim); }
 @media (max-width: 520px) { .song-audio-grid { grid-template-columns: 1fr; } }
+.song-audio-actions { display: flex; gap: 8px; flex-wrap: wrap; }

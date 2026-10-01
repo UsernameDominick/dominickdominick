@@ -1905,7 +1905,7 @@
         <button id="close-song-audio" aria-label="Close Export audio dialog">×</button>
       </header>
       <div class="sim-checklist-body song-audio-body">
-        <p class="song-audio-help">Renders this song's loop to a mono WAV file, with its master volume, humanize and mutes applied. Every repeat is exactly one loop long, so the file loops without a gap.</p>
+        <p class="song-audio-help">Renders this song's loop to a mono WAV file, with its master volume, humanize and mutes applied. Every repeat is exactly one loop long, and notes still ringing at the end carry into the start of the next repeat, so the file loops without a click.</p>
         <div class="song-audio-grid">
           <label>Sample rate
             <select id="song-audio-rate">
@@ -1938,7 +1938,10 @@
         </div>
         <label class="song-audio-dither"><input type="checkbox" id="song-audio-dither" checked> Dither when reducing to 16 or 24 bits <span class="sim-lock-hint">(adds a whisper of noise that hides rounding distortion; float needs none)</span></label>
         <p id="song-audio-summary" class="song-audio-summary" aria-live="polite"></p>
-        <button type="button" id="song-audio-go">Export WAV</button>
+        <div class="song-audio-actions">
+          <button type="button" id="song-audio-go">Export WAV</button>
+          <button type="button" id="song-audio-cancel" hidden>Cancel</button>
+        </div>
         <p id="song-audio-status" class="song-audio-status" role="status" aria-live="polite"></p>
       </div>
     </div>

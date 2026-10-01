@@ -2146,7 +2146,9 @@
   // WAV: 16- or 24-bit integer PCM, or 32-bit float. Integer depths can be
   // dithered (TPDF, one least-significant bit either side) so rounding error
   // doesn't turn into distortion on quiet material; exact digital silence is
-  // left silent rather than given a noise floor.
+  // left silent rather than given a noise floor. The same song exports the same
+  // audio each time, give or take floating-point differences far below one
+  // 16-bit step.
   const audioModal = $("song-audio-modal");
   const AUDIO_DEPTHS = { "16": { bytes: 2, label: "16-bit" }, "24": { bytes: 3, label: "24-bit" }, "32f": { bytes: 4, label: "32-bit float" } };
 
@@ -2154,12 +2156,13 @@
     const bytesPer = AUDIO_DEPTHS[depth].bytes;
     const isFloat = depth === "32f";
     const dataBytes = samples.length * bytesPer;
+    const pad = dataBytes % 2; // RIFF chunks sit on even boundaries; an odd 24-bit data chunk gets one pad byte
     const factBytes = isFloat ? 12 : 0; // float WAVs carry a 'fact' chunk with the frame count
-    const buffer = new ArrayBuffer(44 + factBytes + dataBytes);
+    const buffer = new ArrayBuffer(44 + factBytes + dataBytes + pad);
     const view = new DataView(buffer);
     const text = (offset, str) => { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); };
     text(0, "RIFF");
-    view.setUint32(4, 36 + factBytes + dataBytes, true);
+    view.setUint32(4, 36 + factBytes + dataBytes + pad, true);
     text(8, "WAVE");
     text(12, "fmt ");
     view.setUint32(16, 16, true);
@@ -2234,11 +2237,24 @@
     audioModal.hidden = false;
     $("song-audio-rate").focus();
   });
+  // Offline rendering can't be interrupted part-way, but its result can be thrown away: bumping the
+  // token makes a render that finishes later do nothing.
+  let audioRenderToken = 0;
+  function cancelAudioRender() {
+    audioRenderToken++;
+    $("song-audio-go").disabled = false;
+    $("song-audio-cancel").hidden = true;
+  }
   function closeAudioDialog() {
-    if ($("song-audio-go").disabled) return; // a render is running
+    if (!$("song-audio-cancel").hidden) cancelAudioRender();
     audioModal.hidden = true;
     $("song-export-audio").focus();
   }
+  $("song-audio-cancel").addEventListener("click", () => {
+    cancelAudioRender();
+    $("song-audio-status").textContent = "Cancelled.";
+    $("song-audio-go").focus();
+  });
   $("close-song-audio").addEventListener("click", closeAudioDialog);
   audioModal.addEventListener("click", (e) => {
     if (e.target === audioModal) closeAudioDialog();
@@ -2253,12 +2269,16 @@
     const btn = $("song-audio-go");
     const status = $("song-audio-status");
     const o = audioOptions();
+    const token = ++audioRenderToken;
     btn.disabled = true;
-    status.textContent = "Rendering…";
+    $("song-audio-cancel").hidden = false;
+    status.textContent = "Rendering… long exports at a high sample rate can take a while. Cancel stops waiting for it.";
     try {
       const render = await window.SongEngine.renderLoopAudio(songData, { sampleRate: o.sampleRate, loops: o.loops, tailSeconds: o.tailSeconds });
+      if (token !== audioRenderToken) return; // cancelled while rendering
       const { blob, peak, clipped } = encodeWavMono(render.samples, render.sampleRate, o.depth, o.dither);
-      const name = ($("song-name").value.trim() || "song").replace(/[^a-z0-9-_]+/gi, "-") || "song";
+      // Letters and numbers of any language survive; everything else becomes one dash; capped so the file name stays usable.
+      const name = ($("song-name").value.trim().replace(/[^\p{L}\p{N}_-]+/gu, "-").replace(/-{2,}/g, "-").replace(/^[-_]+|[-_]+$/g, "").slice(0, 80)) || "song";
       const file = `${name}-${o.loops}x-${o.sampleRate / 1000}kHz-${o.depth === "32f" ? "32f" : o.depth + "bit"}.wav`;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -2273,9 +2293,14 @@
           ? `Exported ${file}. The peak was above full scale (${level}), so ${clipped} samples were clipped. Lower the master volume, or export 32-bit float to keep them.`
           : `Exported ${file}. Peak ${level}.`;
     } catch (err) {
-      status.textContent = `Export failed: ${err.message || err}`;
+      if (token === audioRenderToken) status.textContent = `Export failed: ${err.message || err}`;
     } finally {
-      btn.disabled = false;
+      if (token === audioRenderToken) {
+        btn.disabled = false;
+        $("song-audio-cancel").hidden = true;
+        // The button disabled itself while rendering; keep keyboard users on it.
+        if (!audioModal.hidden && (document.activeElement === document.body || document.activeElement === btn)) btn.focus();
+      }
     }
   });
 
