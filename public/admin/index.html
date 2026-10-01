@@ -1444,6 +1444,7 @@
               <button type="button" class="pe-tool" data-tool="burn" title="Darken where you paint">Burn</button>
               <span id="pe-fill-options" class="pe-fill-options" hidden>
                 <label title="How different a pixel may be from the one you click and still be filled (0 = exact match only)">Tolerance <input type="range" id="pe-fill-tolerance" min="0" max="100" value="24" aria-valuetext="24"></label>
+                <label title="Widen the filled area by this many pixels, to cover the pale antialiased edge around a shape">Grow <input type="number" id="pe-fill-grow" min="0" max="3" step="1" value="0" style="width:3.2em"></label>
                 <label title="On: only the connected area around your click. Off: every similar pixel on the layer.">Connected only <input type="checkbox" id="pe-fill-contiguous" checked></label>
               </span>
               <label>Brush <input type="range" id="pe-brush-size" min="1" max="150" value="30"></label>

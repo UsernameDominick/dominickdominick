@@ -3995,13 +3995,13 @@
   function floodFill(point) {
     const w = canvas.width;
     const h = canvas.height;
-    const x = Math.round(point.x);
-    const y = Math.round(point.y);
+    const x = Math.floor(point.x);
+    const y = Math.floor(point.y);
     if (x < 0 || y < 0 || x >= w || y >= h) return;
     const src = ctx.getImageData(0, 0, w, h).data;
     const o = (y * w + x) * 4;
     const t0 = src[o], t1 = src[o + 1], t2 = src[o + 2], t3 = src[o + 3];
-    const tol = (Number($("pe-fill-tolerance").value) || 0) * 2.55;
+    const tol = Math.round(((Number($("pe-fill-tolerance").value) || 0) / 100) * 255);
     const match = (i) => Math.abs(src[i] - t0) <= tol && Math.abs(src[i + 1] - t1) <= tol && Math.abs(src[i + 2] - t2) <= tol && Math.abs(src[i + 3] - t3) <= tol;
     const region = new Uint8Array(w * h);
     let count = 0;
@@ -4033,6 +4033,23 @@
       for (let i = 0; i < w * h; i++) if (match(i * 4)) { region[i] = 1; count++; }
     }
     if (!count) return;
+    // "Grow" widens the filled area by a few pixels so the pale antialiased fringe around a shape is covered too.
+    for (let pass = Math.max(0, Math.min(3, Math.round(Number($("pe-fill-grow").value) || 0))); pass > 0; pass--) {
+      const next = region.slice();
+      for (let yy = 0; yy < h; yy++) {
+        for (let xx = 0; xx < w; xx++) {
+          const i = yy * w + xx;
+          if (!region[i]) continue;
+          if (xx > 0) next[i - 1] = 1;
+          if (xx < w - 1) next[i + 1] = 1;
+          if (yy > 0) next[i - w] = 1;
+          if (yy < h - 1) next[i + w] = 1;
+        }
+      }
+      region.set(next);
+    }
+    count = 0;
+    for (let i = 0; i < region.length; i++) if (region[i]) count++;
     const hex = $("pe-paint-color").value;
     const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
     const alpha = Math.round(brushOpacity() * 255);
@@ -4051,6 +4068,7 @@
     pushUndo();
     withSelectionClip(() => ctx.drawImage(layer, 0, 0));
     invalidateOpenAdjustDrag();
+    setLayerNote(`Filled ${count.toLocaleString("en-US")} pixel${count === 1 ? "" : "s"}${hasSelection() ? " (the selection limits where it shows)" : ""}.`);
   }
 
   async function placeText(point) {
