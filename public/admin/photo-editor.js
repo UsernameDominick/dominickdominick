@@ -3173,39 +3173,51 @@
     const h = canvas.height;
     const img = ctx.getImageData(0, 0, w, h);
     const d = img.data;
-    const hist = new Uint32Array(256);
+    const perChannel = $("pe-autolevels-channels").checked;
+    // Histograms (brightness, or one per channel) weighted by opacity, so faint antialiased rims count for little.
+    const hists = [new Float64Array(256), new Float64Array(256), new Float64Array(256)];
+    const lum = new Float64Array(256);
     let total = 0;
     for (let i = 0; i < d.length; i += 4) {
-      if (d[i + 3] === 0) continue;
-      hist[Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2])]++;
-      total++;
+      const wgt = d[i + 3] / 255;
+      if (!wgt) continue;
+      lum[Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2])] += wgt;
+      hists[0][d[i]] += wgt;
+      hists[1][d[i + 1]] += wgt;
+      hists[2][d[i + 2]] += wgt;
+      total += wgt;
     }
-    const clip = Math.floor(total * 0.005);
-    let low = 0;
-    for (let acc = 0; low < 255 && acc + hist[low] <= clip; low++) acc += hist[low];
-    let high = 255;
-    for (let acc = 0; high > 0 && acc + hist[high] <= clip; high--) acc += hist[high];
-    if (!total || high - low < 8) {
+    const clip = total * 0.005;
+    const points = (hist) => {
+      let low = 0;
+      for (let acc = 0; low < 255 && acc + hist[low] <= clip; low++) acc += hist[low];
+      let high = 255;
+      for (let acc = 0; high > 0 && acc + hist[high] <= clip; high--) acc += hist[high];
+      return [low, high];
+    };
+    const ranges = perChannel ? hists.map(points) : [points(lum), points(lum), points(lum)];
+    if (!total || ranges.every(([lo, hi]) => hi - lo < 8)) {
       setLayerNote(total ? "Auto levels found nothing to stretch: the tones already span almost nothing." : "Auto levels needs some visible pixels on this layer.");
       return;
     }
-    if (low === 0 && high === 255) {
+    if (ranges.every(([lo, hi]) => lo === 0 && hi === 255)) {
       setLayerNote("The tones already run from black to white, so Auto levels changed nothing.");
       return;
     }
     pushUndo();
     const before = hasSelection() ? snapshotCanvas() : null;
-    const scale = 255 / (high - low);
     for (let i = 0; i < d.length; i += 4) {
       if (d[i + 3] === 0) continue;
-      d[i] = (d[i] - low) * scale;
-      d[i + 1] = (d[i + 1] - low) * scale;
-      d[i + 2] = (d[i + 2] - low) * scale;
+      for (let c = 0; c < 3; c++) {
+        const [lo, hi] = ranges[c];
+        if (hi - lo >= 8) d[i + c] = (d[i + c] - lo) * (255 / (hi - lo));
+      }
     }
     ctx.putImageData(img, 0, 0);
     if (before) blendThroughSelection(before, snapshotCanvas());
     cancelActiveDrag();
-    setLayerNote(`Auto levels stretched ${low}-${high} to 0-255.`);
+    const text = perChannel ? ranges.map(([lo, hi], c) => `${"RGB"[c]} ${lo}-${hi}`).join(", ") : `${ranges[0][0]}-${ranges[0][1]}`;
+    setLayerNote(`Auto levels stretched ${text} to 0-255${hasSelection() ? " (inside the selection; levels taken from the whole layer)" : ""}.`);
   }
   $("pe-filter-autolevels").addEventListener("click", applyAutoLevels);
   $("pe-filter-sharpen").addEventListener("click", () => applySharpen(Number($("pe-sharpen-amount").value) || 25));
