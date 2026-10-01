@@ -1315,7 +1315,8 @@
         }
         const metaHtml = meta
           ? `<input type="color" class="song-track-color" data-row="${key}" value="${escapeXml(meta.color)}" title="${label} color" aria-label="${label} color">` +
-            `<input type="text" class="song-track-note" data-row="${key}" value="${escapeXml(meta.note)}" placeholder="note…" maxlength="60" title="${label} note" aria-label="${label} note">`
+            `<input type="text" class="song-track-note" data-row="${key}" value="${escapeXml(meta.note)}" placeholder="note…" maxlength="60" title="${label} note" aria-label="${label} note">` +
+            `<input type="range" class="song-track-volume" data-row="${key}" min="0" max="100" value="${Math.round((Number.isFinite(Number(meta.volume)) && meta.volume != null ? Math.max(0, Math.min(1, Number(meta.volume))) : 1) * 100)}" title="${label} volume" aria-label="${label} volume" aria-valuetext="${volumeText(meta.volume)}">`
           : "";
         // The keyboard-shortcut hint (e.g. "Q") is shown right in the
         // clickable label itself rather than only in a hover tooltip --
@@ -1406,6 +1407,17 @@
         });
       });
     $(containerId)
+      .querySelectorAll(".song-track-volume")
+      .forEach((inp) => {
+        inp.addEventListener("input", () => {
+          const v = Number(inp.value) / 100;
+          onMetaChange(inp.dataset.row, "volume", v);
+          inp.setAttribute("aria-valuetext", volumeText(v));
+          refreshWaveformPreview();
+          scheduleAutosave();
+        });
+      });
+    $(containerId)
       .querySelectorAll(".song-track-note")
       .forEach((inp) => {
         inp.addEventListener("input", () => {
@@ -1413,6 +1425,16 @@
           scheduleAutosave();
         });
       });
+  }
+
+  // A track's volume is only stored while below full, so songs that never touch it save exactly as before.
+  function volumeText(v) {
+    const n = Number(v);
+    return `${Math.round((Number.isFinite(n) && v != null ? Math.max(0, Math.min(1, n)) : 1) * 100)}%`;
+  }
+  function setVolume(target, value) {
+    if (value >= 1) delete target.volume;
+    else target.volume = Math.max(0, Math.min(1, value));
   }
 
   // "muted" and "hidden" are only stored while true, so a song that never uses
@@ -1501,6 +1523,7 @@
       (t) => songData.trackMeta[t],
       (t, field, value) => {
         if (field === "muted" || field === "hidden") setFlag(songData.trackMeta[t], field, value);
+        else if (field === "volume") setVolume(songData.trackMeta[t], value);
         else songData.trackMeta[t][field] = value;
         // A collapsed row's "Hidden, muted / still plays" text is only
         // rendered with the row, so re-render whenever it could go stale.
@@ -1516,6 +1539,9 @@
   function updateMelodyToggles() {
     const muted = songData.melody.muted === true;
     const hidden = songData.melody.hidden === true;
+    const melodyVolume = Number.isFinite(Number(songData.melody.volume)) && songData.melody.volume != null ? Math.max(0, Math.min(1, Number(songData.melody.volume))) : 1;
+    $("song-melody-volume").value = Math.round(melodyVolume * 100);
+    $("song-melody-volume").setAttribute("aria-valuetext", volumeText(melodyVolume));
     $("song-melody-mute").setAttribute("aria-pressed", String(muted));
     $("song-melody-hide").setAttribute("aria-pressed", String(hidden));
     $("song-melody-mute").textContent = muted ? "Muted" : "Mute";
@@ -1538,6 +1564,12 @@
     }
     scheduleAutosave();
   }
+  $("song-melody-volume").addEventListener("input", () => {
+    setVolume(songData.melody, Number($("song-melody-volume").value) / 100);
+    $("song-melody-volume").setAttribute("aria-valuetext", volumeText(songData.melody.volume ?? 1));
+    refreshWaveformPreview();
+    scheduleAutosave();
+  });
   $("song-melody-mute").addEventListener("click", () => setMelodyFlag("muted"));
   $("song-melody-hide").addEventListener("click", () => setMelodyFlag("hidden"));
 

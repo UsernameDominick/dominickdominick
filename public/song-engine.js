@@ -87,7 +87,30 @@ window.SongEngine = (function () {
     return analyser;
   }
 
-  function setMasterVolume(ctx, value) {
+    // Per-track mix: while a voice is being scheduled its output goes through a gain node of that
+  // track's volume instead of straight to the master bus.
+  let voiceDest = null;
+  function voiceOut(ctx) {
+    return voiceDest || getMasterGain(ctx);
+  }
+  function volumeOf(meta) {
+    const v = meta && Number(meta.volume);
+    return Number.isFinite(v) && meta.volume !== null && meta.volume !== "" ? Math.max(0, Math.min(1, v)) : 1;
+  }
+  function withVolume(ctx, volume, fn) {
+    if (volume >= 1) return fn();
+    const gain = ctx.createGain();
+    gain.gain.value = volume;
+    gain.connect(getMasterGain(ctx));
+    voiceDest = gain;
+    try {
+      return fn();
+    } finally {
+      voiceDest = null;
+    }
+  }
+
+function setMasterVolume(ctx, value) {
     const clamped = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 1;
     const gainParam = getMasterGain(ctx).gain;
     const now = ctx.currentTime;
@@ -111,7 +134,7 @@ window.SongEngine = (function () {
     osc.frequency.exponentialRampToValueAtTime(p.kickFreq * 0.5, time + p.kickDecay);
     gain.gain.setValueAtTime(1, time);
     gain.gain.exponentialRampToValueAtTime(0.001, time + p.kickDecay);
-    osc.connect(gain).connect(getMasterGain(ctx));
+    osc.connect(gain).connect(voiceOut(ctx));
     osc.start(time);
     osc.stop(time + p.kickDecay + 0.05);
   }
@@ -126,7 +149,7 @@ window.SongEngine = (function () {
     const noiseGain = ctx.createGain();
     noiseGain.gain.setValueAtTime(0.7, time);
     noiseGain.gain.exponentialRampToValueAtTime(0.001, time + p.snareDecay);
-    noise.connect(noiseFilter).connect(noiseGain).connect(getMasterGain(ctx));
+    noise.connect(noiseFilter).connect(noiseGain).connect(voiceOut(ctx));
     noise.start(time);
 
     const osc = ctx.createOscillator();
@@ -135,7 +158,7 @@ window.SongEngine = (function () {
     osc.frequency.value = p.snareTone;
     oscGain.gain.setValueAtTime(0.5, time);
     oscGain.gain.exponentialRampToValueAtTime(0.001, time + p.snareDecay * 0.8);
-    osc.connect(oscGain).connect(getMasterGain(ctx));
+    osc.connect(oscGain).connect(voiceOut(ctx));
     osc.start(time);
     osc.stop(time + p.snareDecay + 0.05);
   }
@@ -150,7 +173,7 @@ window.SongEngine = (function () {
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(0.4, time);
     gain.gain.exponentialRampToValueAtTime(0.001, time + p.hihatDecay);
-    noise.connect(filter).connect(gain).connect(getMasterGain(ctx));
+    noise.connect(filter).connect(gain).connect(voiceOut(ctx));
     noise.start(time);
   }
 
@@ -167,7 +190,7 @@ window.SongEngine = (function () {
       const gain = ctx.createGain();
       gain.gain.setValueAtTime(0.5, time + offset);
       gain.gain.exponentialRampToValueAtTime(0.001, time + offset + p.clapDecay);
-      noise.connect(filter).connect(gain).connect(getMasterGain(ctx));
+      noise.connect(filter).connect(gain).connect(voiceOut(ctx));
       noise.start(time + offset);
     });
   }
@@ -181,7 +204,7 @@ window.SongEngine = (function () {
     osc.frequency.value = freq;
     gain.gain.setValueAtTime(0.25, time);
     gain.gain.exponentialRampToValueAtTime(0.001, time + duration * 0.9);
-    osc.connect(gain).connect(getMasterGain(ctx));
+    osc.connect(gain).connect(voiceOut(ctx));
     osc.start(time);
     osc.stop(time + duration);
   }
@@ -244,14 +267,20 @@ window.SongEngine = (function () {
         // throws a RangeError and kills the whole render -- a critic pass
         // caught this live (silently broken waveform preview, admin builder
         // AND public embed both, since they share this exact code path).
-        if (songData.tracks[track][step] && PLAYERS[track] && !isTrackMuted(songData, track)) PLAYERS[track](ctx, Math.max(0, time + humanizeJitter(songData, random)), kit, random);
+        if (songData.tracks[track][step] && PLAYERS[track] && !isTrackMuted(songData, track)) {
+          const hitTime = Math.max(0, time + humanizeJitter(songData, random));
+          withVolume(ctx, volumeOf(songData.trackMeta && songData.trackMeta[track]), () => PLAYERS[track](ctx, hitTime, kit, random));
+        }
       });
     }
     if (songData.melody && !isMelodyMuted(songData)) {
       const waveform = songData.melody.waveform || "sine";
       const duration = stepDurationFor(songData.tempo);
       Object.keys(songData.melody.notes).sort().forEach((note) => {
-        if (songData.melody.notes[note][step]) playMelodyNote(ctx, Math.max(0, time + humanizeJitter(songData, random)), noteToFreq(note), waveform, duration);
+        if (songData.melody.notes[note][step]) {
+          const noteTime = Math.max(0, time + humanizeJitter(songData, random));
+          withVolume(ctx, volumeOf(songData.melody), () => playMelodyNote(ctx, noteTime, noteToFreq(note), waveform, duration));
+        }
       });
     }
   }
