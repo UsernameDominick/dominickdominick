@@ -257,12 +257,56 @@ export function tableOfContentsHtml(headings) {
   return `<nav class="table-of-contents" aria-label="Table of contents"><strong>Contents</strong><ul>${items}</ul></nav>`;
 }
 
+// Footer layout: up to FOOTER_MAX_COLUMNS link columns and a row of social links, kept as JSON in the
+// "site_footer_links" setting. Returns the cleaned shape or null; labels are plain text and links must be
+// a site path or an http(s)/mailto/tel address, so a hand-edited value can't smuggle in anything else.
+export const FOOTER_MAX_COLUMNS = 3;
+export const FOOTER_MAX_LINKS = 8;
+function cleanFooterLink(l) {
+  const label = String(l && l.label != null ? l.label : "").trim().slice(0, 60);
+  const url = String(l && l.url != null ? l.url : "").trim().slice(0, 500);
+  if (!label || !url) return null;
+  if (!/^(\/(?!\/)|https?:\/\/|mailto:|tel:)/i.test(url)) return null;
+  return { label, url };
+}
+export function cleanFooterLinks(raw) {
+  let data = raw;
+  if (typeof raw === "string") {
+    if (!raw.trim()) return null;
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+  if (!data || typeof data !== "object") return null;
+  const columns = (Array.isArray(data.columns) ? data.columns : [])
+    .slice(0, FOOTER_MAX_COLUMNS)
+    .map((c) => ({
+      title: String(c && c.title != null ? c.title : "").trim().slice(0, 40),
+      links: (Array.isArray(c && c.links) ? c.links : []).slice(0, FOOTER_MAX_LINKS).map(cleanFooterLink).filter(Boolean),
+    }))
+    .filter((c) => c.links.length);
+  const social = (Array.isArray(data.social) ? data.social : []).slice(0, FOOTER_MAX_LINKS).map(cleanFooterLink).filter(Boolean);
+  return columns.length || social.length ? { columns, social } : null;
+}
+
+// The footer is either plain text (the older setting) or { text, columns, social } once a layout is set.
 // An admin-set footer wins; blank or whitespace-only falls back to a minimal default.
-export function footerHtml(text, year = new Date().getUTCFullYear()) {
-  const body = String(text == null ? "" : text).trim();
-  return body
-    ? `<footer class="site-footer">${paragraphsHtml(body)}</footer>`
-    : `<footer class="site-footer"><p class="footer-mono">© ${year} Dominick</p></footer>`;
+export function footerHtml(footer, year = new Date().getUTCFullYear()) {
+  const obj = footer && typeof footer === "object" ? footer : { text: footer };
+  const body = String(obj.text == null ? "" : obj.text).trim();
+  const columns = obj.columns || [];
+  const social = obj.social || [];
+  const link = (l) => `<a href="${esc(safeHref(l.url))}"${/^https?:/i.test(l.url) ? ' rel="noopener"' : ""}>${esc(l.label)}</a>`;
+  const colsHtml = columns.length
+    ? `<nav class="footer-columns" aria-label="Footer">${columns
+        .map((c) => `<div class="footer-column">${c.title ? `<h2>${esc(c.title)}</h2>` : ""}<ul>${c.links.map((l) => `<li>${link(l)}</li>`).join("")}</ul></div>`)
+        .join("")}</nav>`
+    : "";
+  const socialHtml = social.length ? `<ul class="footer-social" aria-label="Elsewhere">${social.map((l) => `<li>${link(l)}</li>`).join("")}</ul>` : "";
+  if (!body && !columns.length && !social.length) return `<footer class="site-footer"><p class="footer-mono">© ${year} Dominick</p></footer>`;
+  return `<footer class="site-footer">${colsHtml}${socialHtml}${body ? paragraphsHtml(body) : ""}</footer>`;
 }
 
 export function paragraphsHtml(text) {

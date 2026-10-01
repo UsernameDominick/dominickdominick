@@ -148,6 +148,7 @@ import {
   plausibleDims,
 } from "./db.js";
 import { cleanBodyFields, cleanPageCss, pageCssKey } from "./text.js";
+import { cleanFooterLinks } from "./render.js";
 import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated, hmac, revokeAllSessions } from "./auth.js";
 import { normalizeLegacySimulationWireIds, simulationDataError } from "./simulation-validation.js";
 
@@ -227,6 +228,7 @@ const SETTINGS_KEYS = [
   "theme_border",
   "theme_heading_font",
   "site_footer",
+  "site_footer_links",
   "custom_head",
   "webhook_url",
   "webhook_on_project_publish",
@@ -2479,6 +2481,11 @@ async function routeAdminApi(request, env, url, ctx) {
     // Diffing old vs. new per-key gives a real changelog entry instead.
     // Values are truncated (some, like custom_head, can be long HTML) and
     // a key with no actual change is left out entirely.
+    // The footer layout is stored normalised, so what is saved is exactly what the site will render.
+    if (body.site_footer_links) {
+      const cleaned = cleanFooterLinks(body.site_footer_links);
+      body.site_footer_links = cleaned ? JSON.stringify(cleaned) : "";
+    }
     const before = await Promise.all(SETTINGS_KEYS.map((key) => getSetting(env, key)));
     const truncate = (v) => (v ? clipChars(v, 60) : v);
     const changes = SETTINGS_KEYS.map((key, i) => {

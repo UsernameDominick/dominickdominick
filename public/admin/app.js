@@ -7325,6 +7325,7 @@
     el("settings-font").value = settings.theme_font || "";
     el("settings-heading-font").value = settings.theme_heading_font || "";
     el("settings-footer").value = settings.site_footer || "";
+    loadFooterEditor(settings.site_footer_links);
     el("settings-custom-head").value = settings.custom_head || "";
     el("settings-webhook-url").value = settings.webhook_url || "";
     el("settings-webhook-on-project-publish").checked = settings.webhook_on_project_publish === "1";
@@ -7380,6 +7381,7 @@
           theme_font: el("settings-font").value,
           theme_heading_font: el("settings-heading-font").value,
           site_footer: el("settings-footer").value,
+          site_footer_links: footerLayoutJson(),
           custom_head: el("settings-custom-head").value,
           webhook_url: el("settings-webhook-url").value,
           webhook_on_project_publish: el("settings-webhook-on-project-publish").checked ? "1" : "",
@@ -7400,6 +7402,46 @@
       alert(err.message);
     }
   });
+
+  // ---------- Footer layout (link columns + social links) ----------
+  // Edited as "Label | url" lines; the server normalises and drops anything that isn't a site path or http(s)/mailto/tel link.
+  let footerIgnoredLines = 0;
+  function parseLinkLines(text) {
+    const links = [];
+    for (const line of String(text || "").split("\n")) {
+      if (!line.trim()) continue;
+      const i = line.lastIndexOf("|");
+      const label = i === -1 ? "" : line.slice(0, i).trim();
+      const url = i === -1 ? "" : line.slice(i + 1).trim();
+      if (label && /^(\/(?!\/)|https?:\/\/|mailto:|tel:)/i.test(url)) links.push({ label, url });
+      else footerIgnoredLines++;
+    }
+    return links;
+  }
+  const linkLines = (links) => (links || []).map((l) => `${l.label} | ${l.url}`).join("\n");
+  function loadFooterEditor(raw) {
+    let data = {};
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch (e) {}
+    const cols = data.columns || [];
+    for (let n = 1; n <= 3; n++) {
+      const c = cols[n - 1] || {};
+      el(`settings-footer-col-title-${n}`).value = c.title || "";
+      el(`settings-footer-col-links-${n}`).value = linkLines(c.links);
+    }
+    el("settings-footer-social").value = linkLines(data.social);
+    el("settings-footer-note").textContent = "";
+  }
+  function footerLayoutJson() {
+    footerIgnoredLines = 0;
+    const columns = [1, 2, 3].map((n) => ({ title: el(`settings-footer-col-title-${n}`).value.trim(), links: parseLinkLines(el(`settings-footer-col-links-${n}`).value) }));
+    const social = parseLinkLines(el("settings-footer-social").value);
+    el("settings-footer-note").textContent = footerIgnoredLines
+      ? `${footerIgnoredLines} line${footerIgnoredLines === 1 ? " was" : "s were"} left out: each needs "Label | /page" or a full https:// address.`
+      : "";
+    return columns.some((c) => c.links.length) || social.length ? JSON.stringify({ columns, social }) : "";
+  }
 
   // ---------- Theme contrast checker ----------
   // WCAG relative-luminance contrast ratio, same formula used to audit

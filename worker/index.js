@@ -77,6 +77,7 @@ import {
   renderArticlesIndexHtml,
   renderProjectsIndexHtml,
   renderBuildingStripHtml,
+  cleanFooterLinks,
   renderTopicPageHtml,
   renderShareLinks,
   renderReactionsHtml,
@@ -224,15 +225,19 @@ async function getTheme(env) {
 // Settings every rendered page/article needs, fetched together since
 // renderPage and renderArticle both want the exact same four.
 async function getSiteContext(env) {
-  const [defaultOgImage, theme, footerText, customHead, emptySearchText, emptyArchiveText, emptyTopicsText] = await Promise.all([
+  const [defaultOgImage, theme, footerPlain, footerLinksRaw, customHead, emptySearchText, emptyArchiveText, emptyTopicsText] = await Promise.all([
     getSetting(env, "default_og_image"),
     getTheme(env),
     getSetting(env, "site_footer"),
+    getSetting(env, "site_footer_links"),
     getSetting(env, "custom_head"),
     getSetting(env, "empty_search_text"),
     getSetting(env, "empty_archive_text"),
     getSetting(env, "empty_topics_text"),
   ]);
+  // The footer is plain text until a layout (link columns, social links) is saved, then { text, columns, social }.
+  const footerLinks = cleanFooterLinks(footerLinksRaw);
+  const footerText = footerLinks ? { text: footerPlain || "", ...footerLinks } : footerPlain;
   return { defaultOgImage, theme, footerText, customHead, emptySearchText, emptyArchiveText, emptyTopicsText };
 }
 

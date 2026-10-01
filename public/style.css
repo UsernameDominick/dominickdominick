@@ -3639,3 +3639,10 @@ pre.has-line-numbers {
 .not-found-code { margin: 0 0 var(--space-1); font-family: var(--font-mono); font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); }
 /* Light theme: the accent-coloured tag text sat just under AA at this size, so darken it there. */
 :root[data-theme="light"] .tag { color: color-mix(in srgb, var(--accent) 78%, #000); }
+
+/* ---- Footer layout: link columns and social links ---- */
+.site-footer .footer-columns { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-5, 24px) var(--space-6, 32px); margin: 0 0 var(--space-4, 16px); text-align: left; }
+.site-footer .footer-column h2 { margin: 0 0 var(--space-2, 8px); font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-dim); font-weight: 600; }
+.site-footer .footer-column ul, .site-footer .footer-social { list-style: none; margin: 0; padding: 0; }
+.site-footer .footer-column li { margin: 0 0 4px; }
+.site-footer .footer-social { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px var(--space-4, 16px); margin: 0 0 var(--space-3, 12px); }
