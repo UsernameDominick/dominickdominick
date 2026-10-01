@@ -4049,7 +4049,11 @@
   });
 
   // ---------- Save ----------
+  // A second Save while one is still in flight (a double click, a held Ctrl+S) would create the
+  // simulation twice, so it is ignored until the first finishes.
+  let simSaveInFlight = false;
   $("save-simulation").addEventListener("click", async () => {
+    if (simSaveInFlight) return;
     const name = $("simulation-name").value.trim();
     if (!name) return alert("Name is required.");
     // Checkpoints ride along inside the saved `data` blob (so they
@@ -4061,6 +4065,7 @@
     // name field -- not part of simData/undo history either, since it's
     // page-level metadata, not circuit state.
     const payloadData = { ...simData, checkpoints: simCheckpoints, views: simViews, og_image: $("sim-poster-url").value.trim() || null };
+    simSaveInFlight = true;
     try {
       if (currentSimId) {
         await window.adminApi(`/simulations/${currentSimId}`, { method: "PATCH", body: JSON.stringify({ name, data: payloadData }) });
@@ -4080,6 +4085,8 @@
     } catch (err) {
       setSimSaveStatus("Save failed: " + err.message);
       alert(err.message);
+    } finally {
+      simSaveInFlight = false;
     }
   });
 

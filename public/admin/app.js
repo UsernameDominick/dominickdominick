@@ -5507,10 +5507,15 @@
     }
   }
 
+  // A second Save (a double click, a held Ctrl+S) while the first is still in flight would create the
+  // article twice, so it is ignored until the first finishes.
+  let articleSaveInFlight = false;
   el("save-article").addEventListener("click", async () => {
+    if (articleSaveInFlight) return;
     const body = buildArticleBody();
     if (!body.title) return alert("Title is required.");
     const isNewArticle = !currentArticleId;
+    articleSaveInFlight = true;
     try {
       if (currentArticleId) {
         body.expected_version = currentArticleVersion;
@@ -5543,6 +5548,8 @@
         return;
       }
       alert(err.message);
+    } finally {
+      articleSaveInFlight = false;
     }
   });
 
@@ -9999,18 +10006,26 @@
       return;
     }
 
-    if (mod && e.key.toLowerCase() === "s") {
+    // Plain Ctrl/Cmd+S only (Ctrl+Shift+S and Ctrl+Alt+S are left to the browser), by physical key so it
+    // works on non-Latin layouts, and not on the signed-out screen where there is nothing to save.
+    if (mod && !e.shiftKey && !e.altKey && (e.code === "KeyS" || e.key.toLowerCase() === "s") && !app.hidden) {
       e.preventDefault();
+      if (e.repeat) return; // a held key must not save over and over
       // Ctrl/Cmd+S saves the topmost editor, never something that is only visible behind it:
       // pressing it inside the Simulation builder used to save the page settings underneath.
-      const top = getTopModal();
+      // Distraction-free Focus mode is part of the article or project editor beneath it.
+      const top = getTopModal("writing-focus-overlay");
       if (top) {
         const saveButtonId = {
           "articles-modal": "save-article",
+          "projects-modal": "save-project",
           "settings-modal": "save-settings",
           "simulation-builder-modal": "save-simulation",
           "song-builder-modal": "save-song",
           "scan-editor-modal": "save-scan-btn",
+          "media-info-modal": "save-media-info",
+          "topic-meta-edit-modal": "save-topic-meta",
+          "keyframe-editor-modal": "save-keyframe-editor",
         }[top.id];
         const btn = saveButtonId && el(saveButtonId);
         if (btn && !btn.disabled) btn.click();
@@ -10322,10 +10337,11 @@
   // A modal opened from inside another is promoted by modalStackObserver.
   // Use computed z-index to identify the same top surface for Escape, focus,
   // and aria-modal semantics; later DOM order breaks ties.
-  function getTopModal() {
+  function getTopModal(ignoreId) {
     let top = null;
     let highestZIndex = Number.NEGATIVE_INFINITY;
     for (const modal of document.querySelectorAll(OPEN_DIALOG_SELECTOR)) {
+      if (ignoreId && modal.id === ignoreId) continue;
       const parsedZIndex = Number(getComputedStyle(modal).zIndex);
       const zIndex = Number.isFinite(parsedZIndex) ? parsedZIndex : 0;
       if (!top || zIndex >= highestZIndex) {
