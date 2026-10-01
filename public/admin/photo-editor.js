@@ -498,7 +498,7 @@
     parts.total = parts.layers + parts.history + parts.snapshots + parts.reference;
     return parts;
   }
-  const formatMemory = (n) => (n >= 1024 * 1024 * 1024 ? `${(n / 1024 ** 3).toFixed(1)} GB` : `${Math.max(1, Math.round(n / 1024 ** 2))} MB`);
+  const formatMemory = (n) => (n >= 1024 * 1024 * 1024 ? `${(n / 1024 ** 3).toFixed(1)} GB` : n <= 0 ? "0 MB" : n < 1024 * 1024 ? "<1 MB" : `${Math.round(n / 1024 ** 2)} MB`);
   let memoryTimer = 0;
   function scheduleMemoryUpdate() {
     if (memoryTimer) return;
@@ -515,8 +515,8 @@
       el.dataset.level = level;
       el.textContent = `Memory ~${formatMemory(m.total)}${level === "ok" ? "" : level === "warn" ? " (getting large)" : " (very large)"}`;
       el.title =
-        `Estimated memory held by the editor: layers ${formatMemory(m.layers)}, undo/redo history ${formatMemory(m.history)}, snapshots ${formatMemory(m.snapshots)}, original and compare copies ${formatMemory(m.reference)}.` +
-        (level === "ok" ? "" : " To free some: delete saved snapshots, merge or delete layers, or save and reopen the image to start with a clean history.");
+        `Estimated memory held by the editor: layers ${formatMemory(m.layers)}, undo/redo history ${formatMemory(m.history)}, snapshots ${formatMemory(m.snapshots)}, the original, adjust and compare copies ${formatMemory(m.reference)}.` +
+        (level === "ok" ? "" : " History holds a copy of the layers before each change, so merging or deleting layers does not free memory. Deleting saved snapshots, Reset, or saving and reopening the image does.");
     }, 150);
   }
 
