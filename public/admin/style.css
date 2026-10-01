@@ -4130,6 +4130,10 @@ kbd {
   background: var(--track-color, var(--accent));
   border-color: var(--track-color, var(--accent));
 }
+/* A step below full strength shows its strength as a paler fill. */
+.song-step-on[style*="--lv"] {
+  background: color-mix(in srgb, var(--track-color, var(--accent)) calc(var(--lv) * 100%), var(--bg-elevated));
+}
 
 /* Deliberately a different hue from .song-step-on's accent color — this
    marks "currently playing," not "on," and needs to read as a distinct

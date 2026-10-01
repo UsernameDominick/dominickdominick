@@ -97,6 +97,10 @@ window.SongEngine = (function () {
     const v = meta && Number(meta.volume);
     return Number.isFinite(v) && meta.volume !== null && meta.volume !== "" ? Math.max(0, Math.min(1, v)) : 1;
   }
+  // A step is on when truthy: `true` plays at full strength, a number between 0 and 1 plays at that fraction of it.
+  function stepLevel(value) {
+    return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 1;
+  }
   function withVolume(ctx, volume, fn) {
     if (volume >= 1) return fn();
     const gain = ctx.createGain();
@@ -269,7 +273,7 @@ function setMasterVolume(ctx, value) {
         // AND public embed both, since they share this exact code path).
         if (songData.tracks[track][step] && PLAYERS[track] && !isTrackMuted(songData, track)) {
           const hitTime = Math.max(0, time + humanizeJitter(songData, random));
-          withVolume(ctx, volumeOf(songData.trackMeta && songData.trackMeta[track]), () => PLAYERS[track](ctx, hitTime, kit, random));
+          withVolume(ctx, volumeOf(songData.trackMeta && songData.trackMeta[track]) * stepLevel(songData.tracks[track][step]), () => PLAYERS[track](ctx, hitTime, kit, random));
         }
       });
     }
@@ -279,7 +283,7 @@ function setMasterVolume(ctx, value) {
       Object.keys(songData.melody.notes).sort().forEach((note) => {
         if (songData.melody.notes[note][step]) {
           const noteTime = Math.max(0, time + humanizeJitter(songData, random));
-          withVolume(ctx, volumeOf(songData.melody), () => playMelodyNote(ctx, noteTime, noteToFreq(note), waveform, duration));
+          withVolume(ctx, volumeOf(songData.melody) * stepLevel(songData.melody.notes[note][step]), () => playMelodyNote(ctx, noteTime, noteToFreq(note), waveform, duration));
         }
       });
     }
@@ -465,6 +469,7 @@ function setMasterVolume(ctx, value) {
     swingDelay,
     playMelodyNote,
     withVolume,
+    stepLevel,
     volumeOf,
     createPlayer,
     renderWaveformPeaks,

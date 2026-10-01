@@ -783,7 +783,7 @@
   let patternAnnounce = 0;
   function patternEdit(fn, message) {
     for (const k of patternRows()) {
-      const row = Array.from({ length: STEPS }, (_, i) => !!songData.tracks[k][i]);
+      const row = Array.from({ length: STEPS }, (_, i) => songData.tracks[k][i] || false);
       songData.tracks[k] = fn(row, k);
     }
     renderSequencer();
@@ -1168,8 +1168,8 @@
     if (!songData.melody.notes[noteName]) return; // outside the 2-octave piano roll range — preview only
     if (player.isPlaying() && !isCountingIn() && $("song-record").checked) {
       const step = player.currentStep();
-      const wasRecorded = songData.melody.notes[noteName][step] === true;
-      songData.melody.notes[noteName][step] = true;
+      const wasRecorded = Boolean(songData.melody.notes[noteName][step]);
+      if (!wasRecorded) songData.melody.notes[noteName][step] = true;
       // Recording into a collapsed piano roll would write notes nobody can see.
       const revealed = songData.melody.hidden === true;
       if (revealed) {
@@ -1352,7 +1352,7 @@
           (_, i) =>
             `<button type="button" class="song-step${getOn(key, i) ? " song-step-on" : ""}${
               i % 4 === 0 ? " song-step-beat" : ""
-            }" data-row="${key}" data-step="${i}" aria-label="${label} step ${i + 1}"></button>`
+            }" data-row="${key}" data-step="${i}"${stepLevelAttrs(getOn(key, i))} aria-label="${label} step ${i + 1}${stepLevelSpoken(getOn(key, i))}"></button>`
         ).join("")}</div></div>`;
       })
       .join("");
@@ -1369,9 +1369,15 @@
         btn.addEventListener("click", () => {
           const key = btn.dataset.row;
           const step = Number(btn.dataset.step);
-          const next = !getOn(key, step);
+          // The "Step strength" menu decides how hard a step is struck: clicking an empty step turns it on at that strength,
+          // clicking an on step of a different strength changes it, and clicking one that already matches turns it off.
+          const level = selectedStepLevel();
+          const current = getOn(key, step);
+          const next = !current || Engine.stepLevel(current) !== level ? (level >= 1 ? true : level) : false;
           setOn(key, step, next);
-          btn.classList.toggle("song-step-on", next);
+          btn.classList.toggle("song-step-on", Boolean(next));
+          if (next && next !== true) btn.style.setProperty("--lv", String(next)); else btn.style.removeProperty("--lv");
+          btn.setAttribute("aria-label", btn.getAttribute("aria-label").replace(/, (soft|medium)$/, "") + stepLevelSpoken(next));
           refreshWaveformPreview();
           scheduleAutosave();
         });
@@ -1427,6 +1433,12 @@
       });
   }
 
+  const STEP_LEVELS = { full: 1, medium: 0.65, soft: 0.35 };
+  const selectedStepLevel = () => STEP_LEVELS[$("song-step-level").value] || 1;
+  // On steps below full strength carry their level as a number in the same array (true = full), so every
+  // consumer that only asks "is it on?" keeps working and older songs are unchanged.
+  const stepLevelAttrs = (v) => (v && Engine.stepLevel(v) < 1 ? ` style="--lv: ${Engine.stepLevel(v)}"` : "");
+  const stepLevelSpoken = (v) => (!v || Engine.stepLevel(v) >= 1 ? "" : Engine.stepLevel(v) >= 0.5 ? ", medium" : ", soft");
   // A track's volume is only stored while below full, so songs that never touch it save exactly as before.
   function volumeText(v) {
     const n = Number(v);
@@ -1666,7 +1678,7 @@
       const targetName = PIANO_NOTES[sourceIndex - semitones];
       for (let step = 0; step < STEPS; step++) {
         if (!oldNotes[sourceName][step]) continue;
-        if (targetName) newNotes[targetName][step] = true;
+        if (targetName) newNotes[targetName][step] = oldNotes[sourceName][step];
         else dropped.push(`${sourceName} (step ${step + 1})`);
       }
     });
