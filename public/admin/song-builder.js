@@ -2324,7 +2324,8 @@
         ? `${files} stem${files === 1 ? "" : "s"} of ${seconds.toFixed(2)} seconds at ${songData.tempo} BPM in one ZIP, about ${size}.`
         : "Nothing to export as stems: no unmuted track has any notes."
       : `${seconds.toFixed(2)} seconds at ${songData.tempo} BPM, about ${size}.`;
-    $("song-audio-go").disabled = o.stems && !files;
+    // Not while a render is running: Cancel is showing and Export must stay disabled.
+    if ($("song-audio-cancel").hidden) $("song-audio-go").disabled = o.stems && !files;
   }
   ["song-audio-rate", "song-audio-depth", "song-audio-loops", "song-audio-tail", "song-audio-dither", "song-audio-stems"].forEach((id) => $(id).addEventListener("change", refreshAudioSummary));
   $("song-export-audio").addEventListener("click", () => {
@@ -2368,6 +2369,7 @@
     const token = ++audioRenderToken;
     btn.disabled = true;
     $("song-audio-cancel").hidden = false;
+    $("song-audio-cancel").focus(); // Export just disabled itself; keep keyboard users in the dialog
     status.textContent = "Rendering… long exports at a high sample rate can take a while. Cancel stops waiting for it.";
     try {
       const jobs = o.stems ? stemJobs() : [{ id: "", label: "", data: songData }];
@@ -2397,10 +2399,11 @@
       const clipped = results.reduce((n, r) => n + r.clipped, 0);
       const level = peak > 0 ? `${(20 * Math.log10(peak)).toFixed(1)} dBFS` : "silent";
       const what = o.stems ? `${results.length} stem${results.length === 1 ? "" : "s"} in ${file}` : file;
+      const hot = o.stems ? results.filter((r) => r.clipped).map((r) => r.job.label.toLowerCase()) : [];
       status.textContent = !peak
         ? `Exported ${what}, but it is silent: there is nothing sounding in it.`
         : clipped && o.depth !== "32f"
-          ? `Exported ${what}. The ${o.stems ? "loudest peak" : "peak"} was above full scale (${level}), so ${clipped} samples were clipped. Lower the master volume, or export 32-bit float to keep them.`
+          ? `Exported ${what}. The ${o.stems ? "loudest peak" : "peak"} was above full scale (${level}), so ${clipped} samples were clipped${hot.length ? ` (in the ${hot.join(", ")} ${hot.length === 1 ? "stem" : "stems"})` : ""}. Lower the master volume, or export 32-bit float to keep them.`
           : `Exported ${what}. ${o.stems ? "Loudest peak" : "Peak"} ${level}.`;
     } catch (err) {
       if (token === audioRenderToken) status.textContent = `Export failed: ${err.message || err}`;
