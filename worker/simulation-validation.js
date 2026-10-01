@@ -2,6 +2,7 @@ import { SIM_COMPONENTS, getSimulationComponentDefinition, getSimulationCanvasBo
 
 const MAX_MANUAL_WIRE_WAYPOINTS = 20;
 const MAX_SIMULATION_CHECKPOINTS = 20;
+const MAX_SIMULATION_VIEWS = 12;
 
 function isSimulationRecordId(value) {
   return (
@@ -125,6 +126,37 @@ export function simulationDataError(data, requireCircuitArrays = false, allowChe
       }
       const checkpointError = simulationDataError(checkpoint.data, true, false);
       if (checkpointError) return `Checkpoint ${index + 1}: ${checkpointError}`;
+    }
+  }
+
+  // Named views: saved zoom levels and positions of the builder canvas (x and y
+  // are the view's centre as fractions of the board). Only on the top level.
+  if (Object.prototype.hasOwnProperty.call(data, "views")) {
+    if (!allowCheckpoints) return "Nested simulation views are not supported.";
+    if (!Array.isArray(data.views) || data.views.length > MAX_SIMULATION_VIEWS) {
+      return `Simulation views must be an array of at most ${MAX_SIMULATION_VIEWS} items.`;
+    }
+    for (let index = 0; index < data.views.length; index++) {
+      const view = data.views[index];
+      if (
+        !view ||
+        typeof view !== "object" ||
+        Array.isArray(view) ||
+        typeof view.name !== "string" ||
+        !view.name.trim() ||
+        view.name.length > 60 ||
+        !Number.isFinite(view.zoom) ||
+        view.zoom < 0.25 ||
+        view.zoom > 4 ||
+        !Number.isFinite(view.x) ||
+        view.x < 0 ||
+        view.x > 1 ||
+        !Number.isFinite(view.y) ||
+        view.y < 0 ||
+        view.y > 1
+      ) {
+        return `View ${index + 1} has an invalid structure.`;
+      }
     }
   }
   return null;

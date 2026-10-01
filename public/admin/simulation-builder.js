@@ -58,6 +58,12 @@
   // stack only ever holds actual circuit state.
   let simCheckpoints = [];
   const CHECKPOINT_LIMIT = 20;
+  // Named views (a zoom level and where the canvas is looking) ride along
+  // with the saved simulation like checkpoints do, and for the same reason
+  // stay out of simData: they are not circuit state, so they don't belong
+  // in the undo history.
+  let simViews = [];
+  const VIEW_LIMIT = 12;
 
   // ---------- Undo / redo ----------
   // Snapshot-based rather than diff-based: simData is a small plain-JSON
@@ -129,6 +135,7 @@
     return JSON.stringify({
       simData,
       simCheckpoints,
+      simViews,
       name: $("simulation-name").value.trim(),
       posterUrl: $("sim-poster-url").value.trim(),
     });
@@ -142,6 +149,8 @@
     pushHistory();
     simData = initialState.simData;
     simCheckpoints = initialState.simCheckpoints;
+    simViews = initialState.simViews || [];
+    renderViewSelect();
     $("simulation-name").value = initialState.name;
     $("sim-poster-url").value = initialState.posterUrl;
     selected = null;
@@ -223,6 +232,58 @@
     simCheckpoints.splice(i, 1);
     renderCheckpointSelect();
     refreshSimSaveState();
+  });
+
+  // ---------- Named views ----------
+  function renderViewSelect() {
+    const select = $("sim-view-select");
+    select.innerHTML =
+      `<option value="">Go to view…</option>` +
+      simViews.map((v, i) => `<option value="${i}">${escapeHtmlLite(v.name)} (${Math.round(v.zoom * 100)}%)</option>`).join("");
+    $("sim-view-delete").disabled = true;
+  }
+  function selectedViewIndex() {
+    const raw = $("sim-view-select").value;
+    return raw === "" ? -1 : Number(raw);
+  }
+  $("sim-view-select").addEventListener("change", (e) => {
+    const view = simViews[selectedViewIndex()];
+    $("sim-view-delete").disabled = !view;
+    if (!view) return;
+    // Same zoom steps as the +/- buttons; a saved zoom that isn't one of them (a hand-edited file) snaps to the nearest.
+    zoomLevel = ZOOM_STEPS.reduce((best, step) => (Math.abs(step - view.zoom) < Math.abs(best - view.zoom) ? step : best), ZOOM_STEPS[0]);
+    applyZoom();
+    centerCanvasOn(view.x, view.y);
+    $("sim-view-status").textContent = `View "${view.name}" at ${Math.round(zoomLevel * 100)}%.`;
+  });
+  $("sim-view-save").addEventListener("click", () => {
+    if (simViews.length >= VIEW_LIMIT) {
+      alert(`A simulation can keep ${VIEW_LIMIT} views. Delete one to save another.`);
+      return;
+    }
+    const name = prompt("Name this view:", `View ${simViews.length + 1}`);
+    if (!name || !name.trim()) return;
+    const view = minimapViewFractions(false);
+    const round3 = (n) => Math.round(Math.max(0, Math.min(1, n)) * 1000) / 1000;
+    simViews.push({
+      name: name.trim().slice(0, 60),
+      zoom: zoomLevel,
+      x: view ? round3((view.x0 + view.x1) / 2) : 0.5,
+      y: view ? round3((view.y0 + view.y1) / 2) : 0.5,
+    });
+    renderViewSelect();
+    refreshSimSaveState();
+    $("sim-view-status").textContent = `Saved view "${simViews[simViews.length - 1].name}".`;
+  });
+  $("sim-view-delete").addEventListener("click", () => {
+    const i = selectedViewIndex();
+    const view = simViews[i];
+    if (!view) return;
+    if (!confirm(`Delete the view "${view.name}"?`)) return;
+    simViews.splice(i, 1);
+    renderViewSelect();
+    refreshSimSaveState();
+    $("sim-view-status").textContent = `Deleted view "${view.name}".`;
   });
 
   // Where the next palette-added part lands — walks left to right, wrapping
@@ -532,6 +593,7 @@
       const wires = Array.isArray(savedData.wires) ? savedData.wires : [];
       simData = { components, wires };
       simCheckpoints = Array.isArray(savedData.checkpoints) ? savedData.checkpoints : [];
+      simViews = Array.isArray(savedData.views) ? savedData.views : [];
       $("sim-poster-url").value = savedData.og_image || "";
     } else if (templateId) {
       const t = simTemplates.find((x) => x.id === templateId);
@@ -562,6 +624,7 @@
       }
       simData = JSON.parse(JSON.stringify({ components: templateData.components, wires: templateData.wires }));
       simCheckpoints = [];
+      simViews = [];
       // A template is a fresh starting point -- its own poster/share image
       // (if the simulation it was saved from had one) shouldn't carry over
       // into every new simulation created from it, same reasoning already
@@ -571,6 +634,7 @@
       $("simulation-name").value = "New simulation";
       simData = { components: [], wires: [] };
       simCheckpoints = [];
+      simViews = [];
       $("sim-poster-url").value = "";
     }
     initialSimSnapshot = captureInitialSimulationSnapshot();
@@ -582,6 +646,7 @@
     document.querySelectorAll(".sim-palette-btn").forEach((btn) => btn.classList.remove("is-hidden-by-search"));
     updateHistoryButtons();
     renderCheckpointSelect();
+    renderViewSelect();
     renderInspector();
     renderBuilder();
   }
@@ -855,6 +920,21 @@
           throw new Error(`Checkpoint ${index + 1} has an invalid structure.`);
         }
         validateSimulationStructure(checkpoint.data, true, false);
+      });
+    }
+    if (Object.prototype.hasOwnProperty.call(data, "views")) {
+      if (!allowCheckpoints) throw new Error("Nested simulation views are not supported.");
+      if (!Array.isArray(data.views) || data.views.length > VIEW_LIMIT) {
+        throw new Error(`Simulation views must be an array of at most ${VIEW_LIMIT} items.`);
+      }
+      data.views.forEach((view, index) => {
+        const bad =
+          !view || typeof view !== "object" || Array.isArray(view) ||
+          typeof view.name !== "string" || !view.name.trim() || view.name.length > 60 ||
+          !Number.isFinite(view.zoom) || view.zoom < 0.25 || view.zoom > 4 ||
+          !Number.isFinite(view.x) || view.x < 0 || view.x > 1 ||
+          !Number.isFinite(view.y) || view.y < 0 || view.y > 1;
+        if (bad) throw new Error(`View ${index + 1} has an invalid structure.`);
       });
     }
   }
@@ -3527,7 +3607,7 @@
     URL.revokeObjectURL(url);
   });
 
-  function splitImportedSimulation(parsed, existingCheckpoints) {
+  function splitImportedSimulation(parsed, existingCheckpoints, existingViews = []) {
     const hasImportedCheckpoints = Object.prototype.hasOwnProperty.call(parsed, "checkpoints");
     const checkpoints = hasImportedCheckpoints
       ? parsed.checkpoints.map((checkpoint) => ({
@@ -3537,10 +3617,12 @@
       : existingCheckpoints;
     const data = { ...parsed };
     delete data.checkpoints;
+    delete data.views;
     delete data.og_image;
     return {
       data,
       checkpoints,
+      views: Object.prototype.hasOwnProperty.call(parsed, "views") ? parsed.views : existingViews,
       hasPoster: Object.prototype.hasOwnProperty.call(parsed, "og_image"),
       posterUrl: typeof parsed.og_image === "string" ? parsed.og_image : "",
     };
@@ -3558,13 +3640,15 @@
       }
       normalizeSimulationBuilderIds(parsed);
       validateSimulationStructure(parsed, true);
-      const imported = splitImportedSimulation(parsed, simCheckpoints);
+      const imported = splitImportedSimulation(parsed, simCheckpoints, simViews);
       if (imported.hasPoster) $("sim-poster-url").value = imported.posterUrl;
       setSnapHoleWarning(0);
       pushHistory();
       simData = imported.data;
       canvasSearchCurrent = null; // part ids can repeat across circuits
       simCheckpoints = imported.checkpoints;
+      simViews = imported.views;
+      renderViewSelect();
       renderCheckpointSelect();
       selected = null;
       wireStart = null;
@@ -3594,7 +3678,7 @@
     // string read straight from its own input at save time, same as the
     // name field -- not part of simData/undo history either, since it's
     // page-level metadata, not circuit state.
-    const payloadData = { ...simData, checkpoints: simCheckpoints, og_image: $("sim-poster-url").value.trim() || null };
+    const payloadData = { ...simData, checkpoints: simCheckpoints, views: simViews, og_image: $("sim-poster-url").value.trim() || null };
     try {
       if (currentSimId) {
         await window.adminApi(`/simulations/${currentSimId}`, { method: "PATCH", body: JSON.stringify({ name, data: payloadData }) });
