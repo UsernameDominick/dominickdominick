@@ -1358,8 +1358,9 @@
   // already has its own spoken label), lined up with the real step grid by measuring it, and redrawn whenever the grid
   // is, the tempo changes or the panel is resized.
   const RULER_SUBDIVISIONS = ["", "e", "&", "a"];
+  // The tempo field accepts 40-240 (a typed value outside it is shown clamped here rather than as negative or zero time).
   function formatRulerTime(seconds) {
-    return seconds >= 10 ? `${seconds.toFixed(1)}s` : `${seconds.toFixed(2)}s`;
+    return `${seconds.toFixed(2)}s`;
   }
   function renderRuler(containerId) {
     const container = $(containerId);
@@ -1371,7 +1372,7 @@
       return;
     }
     ruler.hidden = false;
-    const stepSeconds = 60 / (songData.tempo || 120) / 4;
+    const stepSeconds = 60 / Math.min(240, Math.max(40, Number(songData.tempo) || 120)) / 4;
     ruler.innerHTML =
       '<div class="song-steps song-ruler-steps">' +
       Array.from({ length: STEPS }, (_, i) => {
