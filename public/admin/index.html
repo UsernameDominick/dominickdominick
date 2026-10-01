@@ -1297,7 +1297,7 @@
             <div class="pe-tool-group">
               <span class="pe-group-label">Crop</span>
               <button type="button" class="pe-tool active" data-tool="select">Select / Crop</button>
-              <select id="pe-crop-ratio" title="Constrain the crop selection to a fixed aspect ratio">
+              <select id="pe-crop-ratio" aria-label="Crop shape" title="Constrain the crop selection to a fixed aspect ratio">
                 <option value="free">Free</option>
                 <option value="1:1">1:1</option>
                 <option value="4:3">4:3</option>
@@ -1316,7 +1316,7 @@
                   <option value="1080:1350" data-size="1080x1350">Phone portrait 1080×1350 (4:5)</option>
                   <option value="1080:1920" data-size="1080x1920">Phone full-screen 1080×1920 (9:16)</option>
                   <option value="1920:1080" data-size="1920x1080">Desktop hero 1920×1080 (16:9)</option>
-                  <option value="1920:600" data-size="1920x600">Desktop banner 1920×600</option>
+                  <option value="1920:600" data-size="1920x600">Desktop banner 1920×600 (16:5)</option>
                 </optgroup>
               </select>
               <button type="button" id="pe-apply-crop" hidden>Apply Crop</button>

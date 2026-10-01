@@ -1769,7 +1769,8 @@
   }
   function updateCropNote() {
     const t = cropTemplateSize();
-    setCropNote(t ? `Apply Crop will resize the result to ${t.w}×${t.h}.` : "");
+    const small = t && canvas.width < t.w && canvas.height < t.h ? " This image is smaller than the target, so the result will be enlarged and may look soft." : "";
+    setCropNote(t ? `Apply Crop will resize the result to ${t.w}×${t.h}.${small}` : "");
   }
   // Picking a template with no crop box yet draws the biggest centred one of
   // that shape, so "choose template, Apply Crop" works in two clicks.
