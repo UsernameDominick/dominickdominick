@@ -1822,6 +1822,7 @@
             <span class="sim-toolbar-group-label">Export</span>
             <div class="song-group-controls">
               <button type="button" id="song-export-report" title="Download a plain-text summary of this song's settings and note counts">Export report</button>
+              <button type="button" id="song-export-audio" title="Render the loop to a WAV file: choose the sample rate, bit depth and number of repeats">Export audio…</button>
               <button type="button" id="song-generate-cover-art" title="Render this song's waveform as a 1200x630 cover image and add it to the Media Library">Generate cover art</button>
               <button type="button" id="song-snapshot-mix" title="Save the current in-progress mix as a new, separate song -- lets you try a different direction without losing this exact version, even if it hasn't been saved yet">Snapshot mix</button>
             </div>
@@ -1893,6 +1894,52 @@
       <div class="redirects-body">
         <p class="redirects-hint">Select a block on a page and use "Save as reusable block…" in its settings to add one here. Editing a reusable block's content updates every page that uses it. Insert one onto the currently open page below.</p>
         <div id="shared-blocks-list" class="redirects-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="song-audio-modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="song-audio-title">
+    <div class="modal-inner sim-checklist-inner">
+      <header>
+        <h1 id="song-audio-title">Export audio</h1>
+        <button id="close-song-audio" aria-label="Close Export audio dialog">×</button>
+      </header>
+      <div class="sim-checklist-body song-audio-body">
+        <p class="song-audio-help">Renders this song's loop to a mono WAV file, with its master volume, humanize and mutes applied. Every repeat is exactly one loop long, so the file loops without a gap.</p>
+        <div class="song-audio-grid">
+          <label>Sample rate
+            <select id="song-audio-rate">
+              <option value="44100" selected>44.1 kHz (CD)</option>
+              <option value="48000">48 kHz (video)</option>
+              <option value="96000">96 kHz</option>
+            </select>
+          </label>
+          <label>Bit depth
+            <select id="song-audio-depth">
+              <option value="16" selected>16-bit</option>
+              <option value="24">24-bit</option>
+              <option value="32f">32-bit float</option>
+            </select>
+          </label>
+          <label>Repeats
+            <select id="song-audio-loops">
+              <option value="1" selected>1 loop</option>
+              <option value="2">2 loops</option>
+              <option value="4">4 loops</option>
+              <option value="8">8 loops</option>
+            </select>
+          </label>
+          <label>End
+            <select id="song-audio-tail">
+              <option value="0" selected>Cut exactly at the loop length</option>
+              <option value="1">Add 1 second for ringing notes</option>
+            </select>
+          </label>
+        </div>
+        <label class="song-audio-dither"><input type="checkbox" id="song-audio-dither" checked> Dither when reducing to 16 or 24 bits <span class="sim-lock-hint">(adds a whisper of noise that hides rounding distortion; float needs none)</span></label>
+        <p id="song-audio-summary" class="song-audio-summary" aria-live="polite"></p>
+        <button type="button" id="song-audio-go">Export WAV</button>
+        <p id="song-audio-status" class="song-audio-status" role="status" aria-live="polite"></p>
       </div>
     </div>
   </div>

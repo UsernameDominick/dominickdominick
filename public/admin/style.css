@@ -7525,3 +7525,15 @@ button[data-tier="quiet"] { border-color: transparent; }
 /* Photo editor: note beside the crop ratio (what a site template will do) */
 .pe-crop-note { font-size: 0.78rem; color: var(--text-dim); max-width: 26ch; }
 .pe-crop-note:empty { display: none; }
+
+/* Export audio dialog (song builder) */
+.song-audio-body { display: grid; gap: 12px; align-content: start; }
+.song-audio-help { margin: 0; color: var(--text-dim); font-size: 0.85rem; }
+.song-audio-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+.song-audio-grid label { display: grid; gap: 4px; font-size: 0.85rem; }
+.song-audio-grid select { width: 100%; min-width: 0; }
+.song-audio-dither { display: flex; gap: 8px; align-items: flex-start; font-size: 0.85rem; }
+.song-audio-dither input { margin-top: 3px; }
+.song-audio-summary, .song-audio-status { margin: 0; font-size: 0.85rem; min-height: 1.3em; }
+.song-audio-summary { color: var(--text-dim); }
+@media (max-width: 520px) { .song-audio-grid { grid-template-columns: 1fr; } }

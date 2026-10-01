@@ -380,6 +380,34 @@ window.SongEngine = (function () {
     return peaks;
   }
 
+  // Renders `loops` repeats of the pattern to mono samples for exporting as
+  // audio: every loop is exactly the same whole number of samples, so the
+  // result repeats seamlessly, and the song's own master volume, humanize and
+  // mutes are applied (the same mix you hear). Humanize and drum noise use the
+  // content-seeded random stream, so exporting the same song twice gives
+  // identical audio and every repeat is identical to the first.
+  // `tailSeconds` adds silence-padded time after the last loop for notes that
+  // are still ringing; without it the render is cut at the loop boundary.
+  async function renderLoopAudio(songData, options = {}) {
+    const rate = Number(options.sampleRate);
+    const sampleRate = Number.isFinite(rate) && rate >= 8000 && rate <= 192000 ? Math.round(rate) : 44100;
+    const loops = Math.max(1, Math.min(16, Math.round(Number(options.loops)) || 1));
+    const tail = Math.max(0, Math.min(10, Number(options.tailSeconds) || 0));
+    const loopSamples = Math.max(1, Math.round(stepDurationFor(songData.tempo) * STEPS * sampleRate));
+    const total = loopSamples * loops + Math.round(tail * sampleRate);
+    const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    const ctx = new OfflineCtx(1, total, sampleRate);
+    const stepSeconds = loopSamples / sampleRate / STEPS;
+    // A fresh random stream per repeat, so every loop is the same audio (drum
+    // noise included) rather than each hit drawing new noise.
+    for (let loop = 0; loop < loops; loop++) {
+      const random = previewRandom(songData);
+      for (let step = 0; step < STEPS; step++) scheduleStep(ctx, songData, step, (loop * STEPS + step) * stepSeconds, random);
+    }
+    const buffer = await ctx.startRendering();
+    return { samples: buffer.getChannelData(0).slice(), sampleRate, loopSamples, loops };
+  }
+
   return {
     STEPS,
     NOTE_NAMES,
@@ -392,6 +420,7 @@ window.SongEngine = (function () {
     playMelodyNote,
     createPlayer,
     renderWaveformPeaks,
+    renderLoopAudio,
     setMasterVolume,
     getPeakMeterAnalyser,
   };

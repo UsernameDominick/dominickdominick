@@ -2141,6 +2141,144 @@
     URL.revokeObjectURL(url);
   });
 
+  // ---------- Export audio (WAV) ----------
+  // Renders the loop offline (SongEngine.renderLoopAudio) and writes a mono
+  // WAV: 16- or 24-bit integer PCM, or 32-bit float. Integer depths can be
+  // dithered (TPDF, one least-significant bit either side) so rounding error
+  // doesn't turn into distortion on quiet material; exact digital silence is
+  // left silent rather than given a noise floor.
+  const audioModal = $("song-audio-modal");
+  const AUDIO_DEPTHS = { "16": { bytes: 2, label: "16-bit" }, "24": { bytes: 3, label: "24-bit" }, "32f": { bytes: 4, label: "32-bit float" } };
+
+  function encodeWavMono(samples, sampleRate, depth, dither) {
+    const bytesPer = AUDIO_DEPTHS[depth].bytes;
+    const isFloat = depth === "32f";
+    const dataBytes = samples.length * bytesPer;
+    const factBytes = isFloat ? 12 : 0; // float WAVs carry a 'fact' chunk with the frame count
+    const buffer = new ArrayBuffer(44 + factBytes + dataBytes);
+    const view = new DataView(buffer);
+    const text = (offset, str) => { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); };
+    text(0, "RIFF");
+    view.setUint32(4, 36 + factBytes + dataBytes, true);
+    text(8, "WAVE");
+    text(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, isFloat ? 3 : 1, true); // 1 = integer PCM, 3 = IEEE float
+    view.setUint16(22, 1, true); // mono
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * bytesPer, true);
+    view.setUint16(32, bytesPer, true);
+    view.setUint16(34, bytesPer * 8, true);
+    let at = 36;
+    if (isFloat) {
+      text(at, "fact");
+      view.setUint32(at + 4, 4, true);
+      view.setUint32(at + 8, samples.length, true);
+      at += 12;
+    }
+    text(at, "data");
+    view.setUint32(at + 4, dataBytes, true);
+    at += 8;
+    let peak = 0;
+    let clipped = 0;
+    let state = 0x9e3779b9 ^ samples.length; // fixed seed: the same song always exports the same file
+    const noise = () => { state ^= state << 13; state ^= state >>> 17; state ^= state << 5; return (state >>> 0) / 4294967296; };
+    const full = isFloat ? 0 : Math.pow(2, bytesPer * 8 - 1);
+    for (let i = 0; i < samples.length; i++) {
+      const x = samples[i];
+      const mag = Math.abs(x);
+      if (mag > peak) peak = mag;
+      if (mag > 1) clipped++;
+      if (isFloat) {
+        view.setFloat32(at, x, true);
+      } else {
+        let v = Math.max(-1, Math.min(1, x)) * (full - 1);
+        if (dither && mag > 1e-9) v += noise() + noise() - 1;
+        v = Math.max(-full, Math.min(full - 1, Math.round(v)));
+        if (bytesPer === 2) view.setInt16(at, v, true);
+        else {
+          const u = v < 0 ? v + 0x1000000 : v;
+          view.setUint8(at, u & 0xff);
+          view.setUint8(at + 1, (u >> 8) & 0xff);
+          view.setUint8(at + 2, (u >> 16) & 0xff);
+        }
+      }
+      at += bytesPer;
+    }
+    return { blob: new Blob([buffer], { type: "audio/wav" }), peak, clipped };
+  }
+
+  function audioOptions() {
+    return {
+      sampleRate: Number($("song-audio-rate").value),
+      depth: $("song-audio-depth").value,
+      loops: Number($("song-audio-loops").value),
+      tailSeconds: Number($("song-audio-tail").value),
+      dither: $("song-audio-dither").checked && $("song-audio-depth").value !== "32f",
+    };
+  }
+  function refreshAudioSummary() {
+    const o = audioOptions();
+    const tempo = Number(songData.tempo) || 120;
+    const loopSeconds = (60 / tempo / 4) * STEPS;
+    const seconds = loopSeconds * o.loops + o.tailSeconds;
+    const bytes = Math.round(seconds * o.sampleRate) * AUDIO_DEPTHS[o.depth].bytes;
+    const size = bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+    $("song-audio-dither").disabled = o.depth === "32f";
+    $("song-audio-summary").textContent = `${seconds.toFixed(2)} seconds at ${songData.tempo} BPM, about ${size}.`;
+  }
+  ["song-audio-rate", "song-audio-depth", "song-audio-loops", "song-audio-tail", "song-audio-dither"].forEach((id) => $(id).addEventListener("change", refreshAudioSummary));
+  $("song-export-audio").addEventListener("click", () => {
+    $("song-audio-status").textContent = "";
+    refreshAudioSummary();
+    audioModal.hidden = false;
+    $("song-audio-rate").focus();
+  });
+  function closeAudioDialog() {
+    if ($("song-audio-go").disabled) return; // a render is running
+    audioModal.hidden = true;
+    $("song-export-audio").focus();
+  }
+  $("close-song-audio").addEventListener("click", closeAudioDialog);
+  audioModal.addEventListener("click", (e) => {
+    if (e.target === audioModal) closeAudioDialog();
+  });
+  audioModal.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    e.preventDefault();
+    e.stopPropagation();
+    closeAudioDialog();
+  });
+  $("song-audio-go").addEventListener("click", async () => {
+    const btn = $("song-audio-go");
+    const status = $("song-audio-status");
+    const o = audioOptions();
+    btn.disabled = true;
+    status.textContent = "Rendering…";
+    try {
+      const render = await window.SongEngine.renderLoopAudio(songData, { sampleRate: o.sampleRate, loops: o.loops, tailSeconds: o.tailSeconds });
+      const { blob, peak, clipped } = encodeWavMono(render.samples, render.sampleRate, o.depth, o.dither);
+      const name = ($("song-name").value.trim() || "song").replace(/[^a-z0-9-_]+/gi, "-") || "song";
+      const file = `${name}-${o.loops}x-${o.sampleRate / 1000}kHz-${o.depth === "32f" ? "32f" : o.depth + "bit"}.wav`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = file;
+      a.click();
+      URL.revokeObjectURL(url);
+      const level = peak > 0 ? `${(20 * Math.log10(peak)).toFixed(1)} dBFS` : "silent";
+      status.textContent = !peak
+        ? `Exported ${file}, but the loop is silent: there is nothing sounding in it.`
+        : clipped && o.depth !== "32f"
+          ? `Exported ${file}. The peak was above full scale (${level}), so ${clipped} samples were clipped. Lower the master volume, or export 32-bit float to keep them.`
+          : `Exported ${file}. Peak ${level}.`;
+    } catch (err) {
+      status.textContent = `Export failed: ${err.message || err}`;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
   // ---------- Generate waveform cover art ----------
   // Renders the song's own already-existing offline waveform peaks
   // (the same Engine.renderWaveformPeaks() used for the "waveform"
