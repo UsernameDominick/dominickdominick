@@ -1685,7 +1685,8 @@
     overlay.style.cursor = tool === "pan" ? "grab" : "";
     // Hardness only shapes Paint; the colour only matters to Paint and Pencil.
     $("pe-brush-hardness").disabled = tool !== "paint";
-    $("pe-paint-color").disabled = tool !== "paint" && tool !== "pencil";
+    $("pe-paint-color").disabled = tool !== "paint" && tool !== "pencil" && tool !== "bucket";
+    $("pe-fill-options").hidden = tool !== "bucket";
     redrawOverlay();
   }
 
@@ -3988,6 +3989,70 @@
     $("pe-paint-color").value = hex;
   }
 
+  // Fill: floods the pixels of the active layer that are within the tolerance of the one clicked (connected to it, or
+  // anywhere on the layer when "Connected only" is off) with the paint colour at the brush opacity. A selection limits it.
+  $("pe-fill-tolerance").addEventListener("input", () => $("pe-fill-tolerance").setAttribute("aria-valuetext", $("pe-fill-tolerance").value));
+  function floodFill(point) {
+    const w = canvas.width;
+    const h = canvas.height;
+    const x = Math.round(point.x);
+    const y = Math.round(point.y);
+    if (x < 0 || y < 0 || x >= w || y >= h) return;
+    const src = ctx.getImageData(0, 0, w, h).data;
+    const o = (y * w + x) * 4;
+    const t0 = src[o], t1 = src[o + 1], t2 = src[o + 2], t3 = src[o + 3];
+    const tol = (Number($("pe-fill-tolerance").value) || 0) * 2.55;
+    const match = (i) => Math.abs(src[i] - t0) <= tol && Math.abs(src[i + 1] - t1) <= tol && Math.abs(src[i + 2] - t2) <= tol && Math.abs(src[i + 3] - t3) <= tol;
+    const region = new Uint8Array(w * h);
+    let count = 0;
+    if ($("pe-fill-contiguous").checked) {
+      const stack = [x, y];
+      while (stack.length) {
+        const cy = stack.pop();
+        let cx = stack.pop();
+        if (region[cy * w + cx] || !match((cy * w + cx) * 4)) continue;
+        let left = cx;
+        while (left > 0 && !region[cy * w + left - 1] && match((cy * w + left - 1) * 4)) left--;
+        let right = cx;
+        while (right < w - 1 && !region[cy * w + right + 1] && match((cy * w + right + 1) * 4)) right++;
+        for (let i = left; i <= right; i++) {
+          region[cy * w + i] = 1;
+          count++;
+        }
+        for (const ny of [cy - 1, cy + 1]) {
+          if (ny < 0 || ny >= h) continue;
+          let inSpan = false;
+          for (let i = left; i <= right; i++) {
+            const ok = !region[ny * w + i] && match((ny * w + i) * 4);
+            if (ok && !inSpan) stack.push(i, ny);
+            inSpan = ok;
+          }
+        }
+      }
+    } else {
+      for (let i = 0; i < w * h; i++) if (match(i * 4)) { region[i] = 1; count++; }
+    }
+    if (!count) return;
+    const hex = $("pe-paint-color").value;
+    const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+    const alpha = Math.round(brushOpacity() * 255);
+    const fill = new ImageData(w, h);
+    for (let i = 0; i < w * h; i++) {
+      if (!region[i]) continue;
+      fill.data[i * 4] = r;
+      fill.data[i * 4 + 1] = g;
+      fill.data[i * 4 + 2] = b;
+      fill.data[i * 4 + 3] = alpha;
+    }
+    const layer = document.createElement("canvas");
+    layer.width = w;
+    layer.height = h;
+    layer.getContext("2d").putImageData(fill, 0, 0);
+    pushUndo();
+    withSelectionClip(() => ctx.drawImage(layer, 0, 0));
+    invalidateOpenAdjustDrag();
+  }
+
   async function placeText(point) {
     const style = {
       fontSize: Math.max(16, annotateSize() * 6),
@@ -4139,7 +4204,7 @@
   const DEFAULT_TOOL_SHORTCUTS = {
     select: "v", pan: "h", "sel-rect": "m", "sel-ellipse": "o", "sel-lasso": "l", "sel-poly": "g",
     paint: "b", pencil: "n", erase: "e", blur: "r", pixelate: "x", dodge: "d", burn: "u",
-    rect: "q", circle: "c", line: "i", arrow: "a", text: "t", eyedropper: "k",
+    rect: "q", circle: "c", line: "i", arrow: "a", text: "t", eyedropper: "k", bucket: "f",
   };
   let toolShortcuts = { ...DEFAULT_TOOL_SHORTCUTS };
   try {
@@ -4337,7 +4402,7 @@
     // critic pass found this gap in the fix's symmetry after the first
     // round only guarded one direction.
     if (isComparing()) return;
-    if ((BRUSH_TOOLS.includes(currentTool) || SHAPE_TOOLS.includes(currentTool) || currentTool === "text") && layerBlocked(["paint", "pencil", "erase"].includes(currentTool))) return;
+    if ((BRUSH_TOOLS.includes(currentTool) || SHAPE_TOOLS.includes(currentTool) || currentTool === "text" || currentTool === "bucket") && layerBlocked(["paint", "pencil", "erase"].includes(currentTool))) return;
     if (["blur", "pixelate", "dodge", "burn"].includes(currentTool) && layers.length > 1 && layerIsEmpty(canvas)) {
       setLayerNote(`"${activeLayer().name}" has nothing painted on it, so ${currentTool} has nothing to work on. These tools only read the active layer.`);
       return;
@@ -4368,6 +4433,10 @@
       dragging = false;
       dragStart = null;
       void placeText(p);
+    } else if (currentTool === "bucket") {
+      dragging = false;
+      dragStart = null;
+      floodFill(p);
     } else if (currentTool === "eyedropper") {
       pickColor(p);
       dragging = false;

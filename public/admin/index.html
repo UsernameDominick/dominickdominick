@@ -1435,12 +1435,17 @@
               <span class="pe-group-label">Brush</span>
               <button type="button" class="pe-tool" data-tool="paint" title="Paint with a colour; Hardness sets how soft the edge is">Paint</button>
               <button type="button" class="pe-tool" data-tool="pencil" title="Hard-edged, no antialiasing: every pixel is fully painted or untouched">Pencil</button>
-              <input type="color" id="pe-paint-color" value="#ff7a45" aria-label="Paint colour" title="Colour for the Paint and Pencil tools (the eyedropper sets it too)">
+              <button type="button" class="pe-tool" data-tool="bucket" title="Fill: click to flood an area of similar colour on the active layer with the paint colour (Opacity applies; a selection limits it)">Fill</button>
+              <input type="color" id="pe-paint-color" value="#ff7a45" aria-label="Paint colour" title="Colour for the Paint, Pencil and Fill tools (the eyedropper sets it too)">
               <button type="button" class="pe-tool" data-tool="erase">Erase</button>
               <button type="button" class="pe-tool" data-tool="blur">Blur</button>
               <button type="button" class="pe-tool" data-tool="pixelate">Pixelate</button>
               <button type="button" class="pe-tool" data-tool="dodge" title="Brighten where you paint">Dodge</button>
               <button type="button" class="pe-tool" data-tool="burn" title="Darken where you paint">Burn</button>
+              <span id="pe-fill-options" class="pe-fill-options" hidden>
+                <label title="How different a pixel may be from the one you click and still be filled (0 = exact match only)">Tolerance <input type="range" id="pe-fill-tolerance" min="0" max="100" value="24" aria-valuetext="24"></label>
+                <label title="On: only the connected area around your click. Off: every similar pixel on the layer.">Connected only <input type="checkbox" id="pe-fill-contiguous" checked></label>
+              </span>
               <label>Brush <input type="range" id="pe-brush-size" min="1" max="150" value="30"></label>
               <label title="Paint only: 100 is a crisp edge, lower values feather it">Hardness <input type="range" id="pe-brush-hardness" min="0" max="100" value="100"></label>
               <label title="How strongly each stroke applies -- lower it to build an effect up gradually over several passes instead of all at once">Opacity <input type="range" id="pe-brush-opacity" min="1" max="100" value="100"></label>
