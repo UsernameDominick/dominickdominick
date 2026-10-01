@@ -218,7 +218,15 @@ window.SongEngine = (function () {
     );
   }
 
+  // Swing delays every second sixteenth (steps 2, 4, 6... counting from 1) by up to half a step: 0 is straight,
+  // about 67 is a triplet feel, 100 a dotted rhythm. Stored as songData.swing (0-100); absent means straight.
+  function swingDelay(songData, step) {
+    const amount = Math.max(0, Math.min(100, Number(songData.swing) || 0));
+    return step % 2 === 1 ? (amount / 100) * 0.5 * stepDurationFor(songData.tempo) : 0;
+  }
+
   function scheduleStep(ctx, songData, step, time, random = Math.random) {
+    time += swingDelay(songData, step);
     // Read fresh every step, same as tempo/kit below, so a live volume-
     // slider drag while a song is already playing takes effect on the next
     // scheduled step too (on top of the immediate application a caller
@@ -425,6 +433,7 @@ window.SongEngine = (function () {
     isTrackMuted,
     isMelodyMuted,
     stepHasAudibleDrumHit,
+    swingDelay,
     playMelodyNote,
     createPlayer,
     renderWaveformPeaks,

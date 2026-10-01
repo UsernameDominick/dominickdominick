@@ -44,6 +44,7 @@
       page_sync: false,
       master_volume: 1,
       humanize: 0,
+      swing: 0,
       // Free-text production notes -- mix references, arrangement ideas,
       // "redo the kick" reminders. Rides in the same JSON blob as every
       // other song setting, but renderSongBlockHtml() (worker/render.js)
@@ -255,6 +256,7 @@
     $("song-page-sync").checked = !!songData.page_sync;
     $("song-master-volume").value = Math.round((typeof songData.master_volume === "number" ? songData.master_volume : 1) * 100);
     $("song-humanize").value = typeof songData.humanize === "number" ? songData.humanize : 0;
+    $("song-swing").value = typeof songData.swing === "number" ? songData.swing : 0;
     $("song-notes").value = songData.private_notes || "";
     applySongTheme($("song-preview-embed"), songData.theme);
     Engine.setMasterVolume(getAudioCtx(), songData.master_volume);
@@ -733,6 +735,12 @@
   });
   $("song-humanize").addEventListener("input", () => {
     songData.humanize = Number($("song-humanize").value) || 0;
+    scheduleAutosave();
+  });
+  $("song-swing").addEventListener("input", () => {
+    songData.swing = Number($("song-swing").value) || 0;
+    $("song-swing").setAttribute("aria-valuetext", songData.swing ? `${songData.swing}% swing` : "Straight");
+    refreshWaveformPreview();
     scheduleAutosave();
   });
   $("song-notes").addEventListener("input", () => {
@@ -1972,6 +1980,7 @@
     $("song-page-sync").checked = !!songData.page_sync;
     $("song-master-volume").value = Math.round((typeof songData.master_volume === "number" ? songData.master_volume : 1) * 100);
     $("song-humanize").value = typeof songData.humanize === "number" ? songData.humanize : 0;
+    $("song-swing").value = typeof songData.swing === "number" ? songData.swing : 0;
     $("song-notes").value = songData.private_notes || "";
     // The shared AudioContext (and its master GainNode) persists across
     // songs -- without this, opening song B right after playing song A
@@ -2018,6 +2027,7 @@
     songData.page_sync = $("song-page-sync").checked;
     songData.master_volume = Number($("song-master-volume").value) / 100;
     songData.humanize = Number($("song-humanize").value) || 0;
+    songData.swing = Number($("song-swing").value) || 0;
     songData.private_notes = $("song-notes").value;
     const gen = openGeneration;
     const id = currentSongId;
@@ -2115,6 +2125,7 @@
       `Theme: ${songData.theme}`,
       `Master volume: ${Math.round((typeof songData.master_volume === "number" ? songData.master_volume : 1) * 100)}%`,
       `Humanize: ${typeof songData.humanize === "number" ? songData.humanize : 0}%`,
+      `Swing: ${typeof songData.swing === "number" ? songData.swing : 0}%`,
       `Page background sync: ${songData.page_sync ? "on" : "off"}`,
       ...(clipTotal ? [`Master clipping events this session: ${clipTotal}`] : []),
       "",
