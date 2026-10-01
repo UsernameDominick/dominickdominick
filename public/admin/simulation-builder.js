@@ -64,6 +64,17 @@
   // in the undo history.
   let simViews = [];
   const VIEW_LIMIT = 12;
+  // Same rules as the server's check (worker/simulation-validation.js).
+  function viewIsValid(view) {
+    return Boolean(
+      view && typeof view === "object" && !Array.isArray(view) &&
+      Object.keys(view).every((key) => ["name", "zoom", "x", "y"].includes(key)) &&
+      typeof view.name === "string" && view.name.trim() && view.name.length <= 60 &&
+      Number.isFinite(view.zoom) && view.zoom >= 0.25 && view.zoom <= 4 &&
+      Number.isFinite(view.x) && view.x >= 0 && view.x <= 1 &&
+      Number.isFinite(view.y) && view.y >= 0 && view.y <= 1
+    );
+  }
 
   // ---------- Undo / redo ----------
   // Snapshot-based rather than diff-based: simData is a small plain-JSON
@@ -241,39 +252,82 @@
       `<option value="">Go to view…</option>` +
       simViews.map((v, i) => `<option value="${i}">${escapeHtmlLite(v.name)} (${Math.round(v.zoom * 100)}%)</option>`).join("");
     $("sim-view-delete").disabled = true;
+    $("sim-view-go").disabled = true;
   }
   function selectedViewIndex() {
     const raw = $("sim-view-select").value;
     return raw === "" ? -1 : Number(raw);
   }
-  $("sim-view-select").addEventListener("change", (e) => {
+  // The middle of the part of the board you can actually see: the canvas
+  // clipped to the window, because on a phone the canvas grows with the zoom
+  // and the page, not the canvas, does the vertical scrolling.
+  function visibleBoardCentre() {
+    const canvas = $("sim-builder-canvas");
+    const svg = $("sim-builder-svg");
+    if (!canvas || !svg) return { x: 0.5, y: 0.5 };
+    const sc = canvasScreenScale(canvas);
+    const cr = canvas.getBoundingClientRect();
+    const sr = svg.getBoundingClientRect();
+    if (!sr.width || !sr.height) return { x: 0.5, y: 0.5 };
+    let left = Math.max(cr.left + canvas.clientLeft * sc, 0);
+    let right = Math.min(cr.left + (canvas.clientLeft + canvas.clientWidth) * sc, window.innerWidth);
+    let top = Math.max(cr.top + canvas.clientTop * sc, 0);
+    let bottom = Math.min(cr.top + (canvas.clientTop + canvas.clientHeight) * sc, window.innerHeight);
+    if (right <= left || bottom <= top) {
+      left = cr.left; right = cr.right; top = cr.top; bottom = cr.bottom; // canvas is off-screen: use all of it
+    }
+    const clamp01 = (n) => Math.max(0, Math.min(1, n));
+    return { x: clamp01(((left + right) / 2 - sr.left) / sr.width), y: clamp01(((top + bottom) / 2 - sr.top) / sr.height) };
+  }
+  function goToSelectedView() {
     const view = simViews[selectedViewIndex()];
     $("sim-view-delete").disabled = !view;
+    $("sim-view-go").disabled = !view;
     if (!view) return;
     // Same zoom steps as the +/- buttons; a saved zoom that isn't one of them (a hand-edited file) snaps to the nearest.
     zoomLevel = ZOOM_STEPS.reduce((best, step) => (Math.abs(step - view.zoom) < Math.abs(best - view.zoom) ? step : best), ZOOM_STEPS[0]);
     applyZoom();
     centerCanvasOn(view.x, view.y);
+    // When the canvas grows with the zoom (phones) it can't scroll vertically
+    // itself, so bring that point to the middle of the screen through the page.
+    const canvas = $("sim-builder-canvas");
+    const svg = $("sim-builder-svg");
+    if (canvas && svg && canvas.scrollHeight <= canvas.clientHeight + 1) {
+      const vb = svg.viewBox.baseVal;
+      const marker = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      marker.setAttribute("x", view.x * vb.width);
+      marker.setAttribute("y", view.y * vb.height);
+      marker.setAttribute("width", 1);
+      marker.setAttribute("height", 1);
+      marker.setAttribute("visibility", "hidden");
+      svg.appendChild(marker);
+      marker.scrollIntoView({ block: "center", inline: "nearest" });
+      marker.remove();
+    }
     $("sim-view-status").textContent = `View "${view.name}" at ${Math.round(zoomLevel * 100)}%.`;
-  });
+  }
+  $("sim-view-select").addEventListener("change", goToSelectedView);
+  // Picking the view that is already selected fires no change event, so this
+  // is how to return to it after panning or zooming away.
+  $("sim-view-go").addEventListener("click", goToSelectedView);
   $("sim-view-save").addEventListener("click", () => {
     if (simViews.length >= VIEW_LIMIT) {
       alert(`A simulation can keep ${VIEW_LIMIT} views. Delete one to save another.`);
       return;
     }
-    const name = prompt("Name this view:", `View ${simViews.length + 1}`);
+    let n = simViews.length + 1;
+    while (simViews.some((v) => v.name === `View ${n}`)) n++;
+    const name = prompt("Name this view:", `View ${n}`);
     if (!name || !name.trim()) return;
-    const view = minimapViewFractions(false);
-    const round3 = (n) => Math.round(Math.max(0, Math.min(1, n)) * 1000) / 1000;
-    simViews.push({
-      name: name.trim().slice(0, 60),
-      zoom: zoomLevel,
-      x: view ? round3((view.x0 + view.x1) / 2) : 0.5,
-      y: view ? round3((view.y0 + view.y1) / 2) : 0.5,
-    });
+    const centre = visibleBoardCentre();
+    const round3 = (v) => Math.round(Math.max(0, Math.min(1, v)) * 1000) / 1000;
+    // 60 characters, without cutting an emoji or other surrogate pair in half.
+    const clean = name.trim().slice(0, 60).replace(/[\uD800-\uDBFF]$/, "").trim();
+    if (!clean) return;
+    simViews.push({ name: clean, zoom: zoomLevel, x: round3(centre.x), y: round3(centre.y) });
     renderViewSelect();
     refreshSimSaveState();
-    $("sim-view-status").textContent = `Saved view "${simViews[simViews.length - 1].name}".`;
+    $("sim-view-status").textContent = `Saved view "${clean}".`;
   });
   $("sim-view-delete").addEventListener("click", () => {
     const i = selectedViewIndex();
@@ -582,6 +636,9 @@
       const savedData = sim && sim.data ? sim.data : { components: [], wires: [] };
       try {
         normalizeSimulationBuilderIds(savedData);
+        // Views are only a convenience: a bad one is dropped rather than making the whole circuit unopenable.
+        if (Array.isArray(savedData.views)) savedData.views = savedData.views.filter(viewIsValid).slice(0, VIEW_LIMIT);
+        else delete savedData.views;
         validateSimulationStructure(savedData);
       } catch (err) {
         currentSimId = null;
@@ -928,13 +985,7 @@
         throw new Error(`Simulation views must be an array of at most ${VIEW_LIMIT} items.`);
       }
       data.views.forEach((view, index) => {
-        const bad =
-          !view || typeof view !== "object" || Array.isArray(view) ||
-          typeof view.name !== "string" || !view.name.trim() || view.name.length > 60 ||
-          !Number.isFinite(view.zoom) || view.zoom < 0.25 || view.zoom > 4 ||
-          !Number.isFinite(view.x) || view.x < 0 || view.x > 1 ||
-          !Number.isFinite(view.y) || view.y < 0 || view.y > 1;
-        if (bad) throw new Error(`View ${index + 1} has an invalid structure.`);
+        if (!viewIsValid(view)) throw new Error(`View ${index + 1} has an invalid structure.`);
       });
     }
   }

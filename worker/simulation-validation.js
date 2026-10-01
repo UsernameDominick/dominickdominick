@@ -142,6 +142,7 @@ export function simulationDataError(data, requireCircuitArrays = false, allowChe
         !view ||
         typeof view !== "object" ||
         Array.isArray(view) ||
+        Object.keys(view).some((key) => !["name", "zoom", "x", "y"].includes(key)) ||
         typeof view.name !== "string" ||
         !view.name.trim() ||
         view.name.length > 60 ||
