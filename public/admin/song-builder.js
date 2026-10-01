@@ -777,16 +777,19 @@
   // Drum pattern tools: shift (wraps), randomize or clear one drum row or all of them.
   const patternRows = () => {
     const t = $("song-pattern-target").value;
-    return t === "all" ? TRACKS : TRACKS.filter((k) => k === t);
+    return t === "all" ? TRACKS.filter((k) => songData.trackMeta[k].hidden !== true) : TRACKS.filter((k) => k === t);
   };
   const patternWord = () => ($("song-pattern-target").value === "all" ? "all drums" : TRACK_LABELS[$("song-pattern-target").value]);
+  let patternAnnounce = 0;
   function patternEdit(fn, message) {
     for (const k of patternRows()) {
-      const row = Array.from({ length: STEPS }, (_, i) => songData.tracks[k][i] === true);
+      const row = Array.from({ length: STEPS }, (_, i) => !!songData.tracks[k][i]);
       songData.tracks[k] = fn(row, k);
     }
     renderSequencer();
-    $("song-pattern-status").textContent = `${message} (${patternWord()}).`;
+    const skipped = $("song-pattern-target").value === "all" ? TRACKS.length - patternRows().length : 0;
+    patternAnnounce++;
+    $("song-pattern-status").textContent = `${message} (${patternWord()}${skipped ? `, ${skipped} hidden row${skipped > 1 ? "s" : ""} skipped` : ""}).${patternAnnounce % 2 ? "" : " "}`;
     scheduleAutosave();
     refreshWaveformPreview();
   }

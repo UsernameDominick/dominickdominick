@@ -7551,3 +7551,4 @@ button[data-tier="quiet"] { border-color: transparent; }
 #song-tap-tempo { touch-action: manipulation; }
 .song-pattern-tools { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0 0 0.5rem; }
 .song-pattern-tools label { display: inline-flex; gap: 0.4rem; align-items: center; }
+@media (pointer: coarse) { .song-pattern-tools .song-track-toggle, .song-pattern-tools select { min-height: 40px; } }
