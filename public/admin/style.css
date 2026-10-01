@@ -7488,3 +7488,14 @@ button[data-tier="quiet"] { border-color: transparent; }
 .sim-canvas-search-count:empty { display: none; }
 .sim-search-match-box.is-current { stroke-width: 4; fill: rgba(45, 212, 191, 0.14); animation: none; opacity: 1; }
 @media (forced-colors: active) { .sim-search-match-box { stroke: Highlight; } .sim-search-match-box.is-current { stroke: Highlight; fill: none; } }
+
+/* Locked parts in the simulation builder */
+.sim-lock-badge rect { fill: var(--bg-elevated, #222); stroke: var(--text-dim, #999); stroke-width: 1; }
+.sim-lock-badge path { stroke: var(--text-dim, #999); stroke-width: 1.4; }
+.sim-comp.sim-locked { cursor: not-allowed; }
+.sim-comp.sim-locked .sim-pin { cursor: crosshair; }
+.sim-lock-row { display: flex; gap: 8px; align-items: flex-start; margin: 10px 0 4px; font-size: 0.85rem; }
+.sim-lock-row input { margin-top: 3px; }
+.sim-lock-hint { color: var(--text-dim); font-size: 0.78rem; }
+.sim-lock-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+@media (forced-colors: active) { .sim-lock-badge rect { fill: Canvas; stroke: CanvasText; } .sim-lock-badge path { stroke: CanvasText; } }

@@ -454,6 +454,12 @@
   function isCompSelected(compId) {
     return selectedIds().includes(compId);
   }
+  // A locked part stays where it is (no drag, nudge, align, rotate, flip or
+  // delete); its values and wiring can still be edited.
+  function isCompLocked(compId) {
+    const comp = simData.components.find((c) => c.id === compId);
+    return Boolean(comp && comp.locked === true);
+  }
   // Collapses to the simplest shape for however many ids end up selected —
   // a bare component selection for exactly one, multi for more, null for
   // none — so the rest of the code only has to handle "component"/"wire"/
@@ -781,13 +787,13 @@
         : "";
     return `<g class="sim-comp sim-comp-${comp.type}${sel ? " sim-selected" : ""}${damaged ? " sim-damaged" : ""}${
       searchMatch ? " sim-search-match" : ""
-    }" data-id="${escapeXml(
+    }${comp.locked === true ? " sim-locked" : ""}" data-id="${escapeXml(
       comp.id
     )}" data-powered="${poweredComps.has(comp.id) ? "true" : "false"}" transform="translate(${comp.x},${
       comp.y
     })">${titleSvg}${def.render(comp)}${readingSvg && def.overlay ? def.overlay(readingSvg) : readingSvg}${sel ? `<rect class="sim-select-box" x="-4" y="-4" width="${def.w + 8}" height="${def.h + 8}" />` : ""}${
       searchMatch ? `<rect class="sim-search-match-box${comp.id === canvasSearchCurrent ? " is-current" : ""}" x="-6" y="-6" width="${def.w + 12}" height="${def.h + 12}" />` : ""
-    }</g>`;
+    }${comp.locked === true ? `<g class="sim-lock-badge" transform="translate(${def.w - 5},-11)"><title>Locked</title><rect x="0" y="5" width="11" height="8" rx="1.5"/><path d="M2.5 5V3.5a3 3 0 0 1 6 0V5" fill="none"/></g>` : ""}</g>`;
   }
 
   // Optional presentation-only route bends; electrical connectivity still uses wire.from/to.
@@ -901,6 +907,9 @@
         component.y > 700
       ) {
         throw new Error(`Component ${index + 1} must have a unique id, supported type, and numeric coordinates inside the builder canvas.`);
+      }
+      if (component.locked !== undefined && typeof component.locked !== "boolean") {
+        throw new Error(`Component ${index + 1} has an invalid lock setting.`);
       }
       if (
         component.type === "breadboard" &&
@@ -1842,8 +1851,10 @@
     // Clicking a part that's already part of a multi-selection drags the
     // whole group together; clicking anything else collapses to selecting
     // just that one part (the normal, non-multi case).
-    const groupIds = selected && selected.kind === "multi" && selected.ids.includes(compId) ? selected.ids : [compId];
-    if (groupIds.length === 1) selected = { kind: "component", id: compId };
+    const selectedGroupIds = selected && selected.kind === "multi" && selected.ids.includes(compId) ? selected.ids : [compId];
+    if (selectedGroupIds.length === 1) selected = { kind: "component", id: compId };
+    // Locked members stay put while the rest of the group moves.
+    const groupIds = selectedGroupIds.filter((id) => !isCompLocked(id));
     renderInspector();
     document.querySelectorAll(".sim-select-box").forEach((n) => n.remove());
     g.classList.add("sim-selected");
@@ -1861,7 +1872,7 @@
     // group doesn't make physical sense, so a group drag is a plain,
     // grid-snapped move instead.
     const isGroup = groupIds.length > 1;
-    const canSnap = !isGroup && SNAP_TO_BREADBOARD_TYPES.has(comp.type);
+    const canSnap = !isGroup && groupIds[0] === compId && SNAP_TO_BREADBOARD_TYPES.has(comp.type);
     const compDef = canSnap ? window.getSimComponentDefinition(comp) : null;
     const anchorPin = compDef ? compDef.pins[0] : null;
     let snapTargets = {}; // pinId -> { breadboardId, holeId }
@@ -1871,8 +1882,10 @@
       let dx = p.x - start.x;
       let dy = p.y - start.y;
       if (!canSnap && gridSnapSize > 0) {
-        dx = Math.round((startPositions.get(compId).x + dx) / gridSnapSize) * gridSnapSize - startPositions.get(compId).x;
-        dy = Math.round((startPositions.get(compId).y + dy) / gridSnapSize) * gridSnapSize - startPositions.get(compId).y;
+        // Snapped by the first part that can move (the clicked one may be locked).
+        const anchorStart = startPositions.get(groupIds[0]);
+        dx = Math.round((anchorStart.x + dx) / gridSnapSize) * gridSnapSize - anchorStart.x;
+        dy = Math.round((anchorStart.y + dy) / gridSnapSize) * gridSnapSize - anchorStart.y;
       }
       ({ dx, dy } = clampMoveToBoard(Array.from(startPositions.values()), dx, dy));
       if (!historySaved) {
@@ -1972,7 +1985,18 @@
       renderBuilder();
       if (canSnap && historySaved) setSnapHoleWarning(occupiedHoleCount);
     }
-    g.addEventListener("pointermove", onMove);
+    if (groupIds.length) {
+      g.addEventListener("pointermove", onMove);
+    } else {
+      // Nothing here can move: say why the first time the pointer drags.
+      const explain = (ev) => {
+        if (Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 5) return;
+        g.removeEventListener("pointermove", explain);
+        setSnapHoleWarning(0, "That part is locked. Unlock it in the inspector to move it.");
+      };
+      g.addEventListener("pointermove", explain);
+      g.addEventListener("pointerup", () => g.removeEventListener("pointermove", explain), { once: true });
+    }
     g.addEventListener("pointerup", onUp);
   }
 
@@ -2251,6 +2275,10 @@
   // stretched to where the pin used to be, and the admin is told.
   function orientComponent(comp, { rotateBy = 0, flip = false } = {}) {
     if (!comp || comp.type === "breadboard") return;
+    if (comp.locked === true) {
+      setSnapHoleWarning(0, "Unlock this part to rotate or flip it.");
+      return;
+    }
     pushHistory();
     const focusId = document.activeElement && /^sim-(rotate-cw|rotate-ccw|flip)$/.test(document.activeElement.id) ? document.activeElement.id : null;
     const countPlugged = () =>
@@ -2372,6 +2400,7 @@
     // being changed is rounded, and the result is held on the board so a
     // wide part can't be sent somewhere that is never drawn.
     const put = (b, axis, value) => {
+      if (b.locked) return; // locked parts are fixed references
       if (Math.abs(value - b[axis]) < 0.5) return;
       const wanted = Math.round(value);
       const next = Math.max(0, Math.min(axis === "x" ? BOARD_MAX_X : BOARD_MAX_Y, wanted));
@@ -2383,11 +2412,13 @@
       moves.set(b.id, { ...(moves.get(b.id) || { x: b.x, y: b.y }), [axis]: next });
     };
     const spread = (axis) => {
-      if (boxes.length < 3) return;
+      // Locked parts don't take part in spacing: the rest are spread among themselves.
+      const free = boxes.filter((b) => !b.locked);
+      if (free.length < 3) return;
       const size = axis === "x" ? "w" : "h";
       // Ordered by centre, so a wide part doesn't leapfrog a narrow one;
       // the two outermost parts stay put and the gaps between are equalised.
-      const order = boxes
+      const order = free
         .map((b, index) => ({ b, index, centre: b[axis] + b[size] / 2 }))
         .sort((p, q) => p.centre - q.centre || p.b[axis] - q.b[axis] || p.index - q.index)
         .map((entry) => entry.b);
@@ -2455,17 +2486,20 @@
       .filter(Boolean)
       .map((comp) => {
         const def = window.getSimComponentDefinition(comp);
-        return def && Number.isFinite(comp.x) && Number.isFinite(comp.y) ? { id: comp.id, x: comp.x, y: comp.y, w: def.w, h: def.h } : null;
+        return def && Number.isFinite(comp.x) && Number.isFinite(comp.y) ? { id: comp.id, x: comp.x, y: comp.y, w: def.w, h: def.h, locked: comp.locked === true } : null;
       })
       .filter(Boolean);
     const info = ARRANGE_ACTIONS.find((a) => a.id === action);
     if (!info) return;
+    const lockedCount = boxes.filter((b) => b.locked).length;
     const moves = computeSimArrangement(boxes, action);
     if (!moves.size) {
       if (status) {
         status.textContent = moves.overlap
           ? `${info.label}: these parts overlap too much to space out evenly.`
-          : moves.blocked
+          : lockedCount && lockedCount === boxes.length
+            ? `${info.label}: these parts are locked.`
+            : moves.blocked
             ? `${info.label}: ${moves.blocked} ${moves.blocked === 1 ? "part is" : "parts are"} at the board edge and can't move further.`
             : `${info.label}: already lined up.`;
       }
@@ -2509,6 +2543,7 @@
       const notes = [];
       if (moves.clamped) notes.push(`${moves.clamped} held at the board edge`);
       if (unplugged) notes.push(`${unplugged} unplugged from the breadboard`);
+      if (lockedCount) notes.push(`${lockedCount} locked ${lockedCount === 1 ? "part stayed" : "parts stayed"} put`);
       status.textContent = `${info.label}: moved ${moves.size} ${moves.size === 1 ? "part" : "parts"}${notes.length ? ` (${notes.join(", ")})` : ""}.`;
     }
   }
@@ -2704,19 +2739,29 @@
         <a id="sim-datasheet-link" class="sim-datasheet-link" href="${escapeXml(safeHref(comp.datasheetUrl || ""))}" target="_blank" rel="noopener noreferrer" ${
           comp.datasheetUrl ? "" : "hidden"
         }>Open datasheet ↗</a>
+        <label class="sim-lock-row"><input type="checkbox" id="sim-comp-locked"${comp.locked === true ? " checked" : ""}> Lock this part <span class="sim-lock-hint">(it can't be dragged, nudged, aligned, rotated or deleted until you unlock it)</span></label>
         ${
           comp.type === "breadboard"
             ? ""
             : `<div class="sim-orient-row" role="group" aria-label="Orientation" aria-describedby="sim-orient-status">
-          <button type="button" id="sim-rotate-ccw" title="Rotate 90° counter-clockwise (Shift+R)" aria-label="Rotate 90 degrees counter-clockwise" aria-keyshortcuts="Shift+R">⟲ Rotate</button>
-          <button type="button" id="sim-rotate-cw" title="Rotate 90° clockwise (R)" aria-label="Rotate 90 degrees clockwise" aria-keyshortcuts="R">⟳ Rotate</button>
-          <button type="button" id="sim-flip" title="Flip left to right (F)" aria-label="Flip left to right" aria-keyshortcuts="F" aria-pressed="${comp.mirror === true ? "true" : "false"}">⇋ Flip</button>
+          <button type="button" id="sim-rotate-ccw"${comp.locked === true ? " disabled" : ""} title="Rotate 90° counter-clockwise (Shift+R)" aria-label="Rotate 90 degrees counter-clockwise" aria-keyshortcuts="Shift+R">⟲ Rotate</button>
+          <button type="button" id="sim-rotate-cw"${comp.locked === true ? " disabled" : ""} title="Rotate 90° clockwise (R)" aria-label="Rotate 90 degrees clockwise" aria-keyshortcuts="R">⟳ Rotate</button>
+          <button type="button" id="sim-flip"${comp.locked === true ? " disabled" : ""} title="Flip left to right (F)" aria-label="Flip left to right" aria-keyshortcuts="F" aria-pressed="${comp.mirror === true ? "true" : "false"}">⇋ Flip</button>
         </div>
         <p id="sim-orient-status" class="sim-orient-status">${describeOrientation(comp)}</p>`
         }
         <button type="button" id="sim-duplicate-selected">Duplicate part</button>
-        <button type="button" id="sim-delete-selected" class="danger">Delete part</button>
+        <button type="button" id="sim-delete-selected" class="danger"${comp.locked === true ? ' disabled title="Unlock this part to delete it"' : ""}>Delete part</button>
       `;
+      $("sim-comp-locked").addEventListener("change", (e) => {
+        pushHistory();
+        if (e.target.checked) comp.locked = true;
+        else delete comp.locked;
+        renderBuilder();
+        renderInspector();
+        const again = $("sim-comp-locked");
+        if (again) again.focus();
+      });
 
       if ($("sim-rotate-cw")) {
         $("sim-rotate-cw").addEventListener("click", () => orientComponent(comp, { rotateBy: 90 }));
@@ -2978,6 +3023,7 @@
         pushHistory();
         const clone = JSON.parse(JSON.stringify(comp));
         clone.id = newLocalId(comp.type);
+        delete clone.locked; // a copy starts unlocked
         const shift = duplicateShift([comp]);
         clone.x = comp.x + shift.dx;
         clone.y = comp.y + shift.dy;
@@ -3000,12 +3046,34 @@
         <p><strong>${ids.size} parts selected</strong></p>
         <p style="color:var(--text-dim);font-size:0.85rem;">Drag any one of them to move the whole group. Shift+click a part to remove it from the selection. Rotate and flip work on one part at a time.</p>
         ${arrangeButtonsHtml(ids.size)}
+        <div class="sim-lock-actions" role="group" aria-label="Lock">
+          <button type="button" id="sim-lock-selected">Lock all</button>
+          <button type="button" id="sim-unlock-selected">Unlock all</button>
+        </div>
+        <p id="sim-lock-status" class="sim-orient-status" role="status" aria-live="polite"></p>
         <button type="button" id="sim-duplicate-selected">Duplicate all</button>
         <button type="button" id="sim-delete-selected" class="danger">Delete all</button>
       `;
       box.querySelectorAll("[data-arrange]").forEach((btn) => {
         btn.addEventListener("click", () => arrangeSelected(btn.dataset.arrange));
       });
+      const setLocks = (locked) => {
+        const parts = selected.ids.map((id) => simData.components.find((c) => c.id === id)).filter((c) => c && (c.locked === true) !== locked);
+        const status = $("sim-lock-status");
+        if (!parts.length) {
+          status.textContent = locked ? "Already all locked." : "None of them are locked.";
+          return;
+        }
+        pushHistory();
+        parts.forEach((c) => {
+          if (locked) c.locked = true;
+          else delete c.locked;
+        });
+        renderBuilder();
+        status.textContent = `${locked ? "Locked" : "Unlocked"} ${parts.length} ${parts.length === 1 ? "part" : "parts"}.`;
+      };
+      $("sim-lock-selected").addEventListener("click", () => setLocks(true));
+      $("sim-unlock-selected").addEventListener("click", () => setLocks(false));
       $("sim-duplicate-selected").addEventListener("click", () => {
         pushHistory();
         const idMap = new Map();
@@ -3014,6 +3082,7 @@
           const src = simData.components.find((c) => c.id === id);
           const clone = JSON.parse(JSON.stringify(src));
           clone.id = newLocalId(clone.type);
+          delete clone.locked; // copies start unlocked
           clone.x = src.x + shift.dx;
           clone.y = src.y + shift.dy;
           idMap.set(id, clone.id);
@@ -3046,10 +3115,18 @@
         renderBuilder();
       });
       $("sim-delete-selected").addEventListener("click", () => {
+        // Locked parts are kept; whatever is left selected stays selected.
+        const doomed = new Set(Array.from(ids).filter((id) => !isCompLocked(id)));
+        if (!doomed.size) {
+          $("sim-lock-status").textContent = "These parts are locked. Unlock them to delete them.";
+          return;
+        }
+        const keptLocked = ids.size - doomed.size;
         pushHistory();
-        simData.components = simData.components.filter((c) => !ids.has(c.id));
-        simData.wires = simData.wires.filter((w) => !ids.has(w.from.compId) && !ids.has(w.to.compId));
-        selected = null;
+        simData.components = simData.components.filter((c) => !doomed.has(c.id));
+        simData.wires = simData.wires.filter((w) => !doomed.has(w.from.compId) && !doomed.has(w.to.compId));
+        setMultiSelection(Array.from(ids).filter((id) => !doomed.has(id)));
+        if (keptLocked) setSnapHoleWarning(0, `${keptLocked} locked ${keptLocked === 1 ? "part was" : "parts were"} kept.`);
         renderInspector();
         renderBuilder();
       });
@@ -3557,11 +3634,16 @@
       // longer exists, e.g. after an external delete) would otherwise
       // still push a no-op history entry even though nothing was
       // actually going to move.
-      const comps = selectedIds()
+      const allSelected = selectedIds()
         .map((id) => simData.components.find((c) => c.id === id))
         .filter(Boolean);
-      if (!comps.length) return;
+      if (!allSelected.length) return;
       e.preventDefault();
+      const comps = allSelected.filter((c) => c.locked !== true);
+      if (!comps.length) {
+        setSnapHoleWarning(0, "That part is locked. Unlock it in the inspector to move it.");
+        return;
+      }
       const step = e.shiftKey && gridSnapSize > 0 ? gridSnapSize : 1;
       const [dx, dy] = ARROW_DELTAS[e.key];
       // Held at the board's edge rather than letting the part slip off it.
@@ -3605,6 +3687,7 @@
       // of filling it -- a critic-found bug that reproduced with the
       // mobile admin's own default zoom level, not just a manual-zoom
       // edge case.
+      svgClone.querySelectorAll(".sim-lock-badge").forEach((node) => node.remove()); // editor-only marker
       svgClone.style.width = "";
       svgClone.style.height = "";
       svgClone.setAttribute("width", vb.width);

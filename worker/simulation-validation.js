@@ -54,6 +54,9 @@ export function simulationDataError(data, requireCircuitArrays = false, allowChe
     ) {
       return `Component ${index + 1} must have a unique id, supported type, and numeric coordinates inside the builder canvas.`;
     }
+    if (component.locked !== undefined && typeof component.locked !== "boolean") {
+      return `Component ${index + 1} has an invalid lock setting.`;
+    }
     componentsById.set(component.id, component);
     renderedComponentIds.add(String(component.id));
   }
