@@ -7552,3 +7552,18 @@ button[data-tier="quiet"] { border-color: transparent; }
 .song-pattern-tools { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0 0 0.5rem; }
 .song-pattern-tools label { display: inline-flex; gap: 0.4rem; align-items: center; }
 @media (pointer: coarse) { .song-pattern-tools .song-track-toggle, .song-pattern-tools select { min-height: 40px; } }
+
+/* Selection group: desktop shows the folded controls inline; phones show a disclosure
+   that opens in place in the scrolling strip (same pattern as "Type a box"). */
+.pe-sel-more { display: contents; }
+.pe-sel-more > summary { display: none; }
+@media (max-width: 860px) {
+  .pe-sel-more { display: block; flex: 0 0 auto; }
+  .pe-sel-more > summary { display: list-item; cursor: pointer; white-space: nowrap; }
+  .pe-sel-more > * { flex-shrink: 0; white-space: nowrap; }
+  @supports selector(::details-content) {
+    .pe-sel-more[open] { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; }
+    .pe-sel-more[open]::details-content { display: flex; flex-wrap: nowrap; gap: 6px; align-items: center; }
+    .pe-sel-more > .pe-sel-box, .pe-sel-more > label, .pe-sel-more > button, .pe-sel-more > select { flex: 0 0 auto; }
+  }
+}

@@ -5141,3 +5141,15 @@
   };
 })();
 
+
+// Phones: the less-used selection controls fold into one "More selection options" section so the Selection group
+// stays short in the scrolling strip; wider screens always show them (the section is open and its summary hidden).
+(() => {
+  const more = document.getElementById("pe-sel-more");
+  if (!more || !window.matchMedia) return;
+  const wide = window.matchMedia("(min-width: 861px)");
+  const sync = () => { more.open = wide.matches ? true : more.open && more.dataset.userOpened === "1"; };
+  more.addEventListener("toggle", () => { if (!wide.matches) more.dataset.userOpened = more.open ? "1" : "0"; });
+  if (wide.addEventListener) wide.addEventListener("change", sync); else if (wide.addListener) wide.addListener(sync);
+  sync();
+})();
