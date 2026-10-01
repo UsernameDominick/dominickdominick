@@ -3880,6 +3880,156 @@
     overlay.style.cursor = spaceHeld || currentTool === "pan" ? "grab" : "";
   }
 
+  // ---------- Tool shortcuts (bare keys, remappable) ----------
+  // One letter per tool, saved in this browser. The panel next to "View" lists them: click a tool, press the
+  // new key (Backspace clears it, Escape cancels). A key can belong to one tool only, and the keys the editor
+  // already uses (zoom 0, 1, +, -, Space, Escape, Enter) can't be taken.
+  const SHORTCUT_STORE_KEY = "pe-tool-shortcuts";
+  const DEFAULT_TOOL_SHORTCUTS = {
+    select: "v", pan: "h", "sel-rect": "m", "sel-ellipse": "o", "sel-lasso": "l", "sel-poly": "g",
+    paint: "b", pencil: "n", erase: "e", blur: "r", pixelate: "x", dodge: "d", burn: "u",
+    rect: "q", circle: "c", line: "i", arrow: "a", text: "t", eyedropper: "k",
+  };
+  let toolShortcuts = { ...DEFAULT_TOOL_SHORTCUTS };
+  try {
+    const saved = JSON.parse(localStorage.getItem(SHORTCUT_STORE_KEY) || "null");
+    if (saved && typeof saved === "object") {
+      for (const tool of Object.keys(DEFAULT_TOOL_SHORTCUTS)) {
+        if (tool in saved && (saved[tool] === "" || /^[a-z]$/.test(saved[tool]))) toolShortcuts[tool] = saved[tool];
+      }
+      // A hand-edited store can't hand one key to two tools.
+      const seen = new Set();
+      for (const tool of Object.keys(toolShortcuts)) {
+        const k = toolShortcuts[tool];
+        if (k && seen.has(k)) toolShortcuts[tool] = "";
+        else if (k) seen.add(k);
+      }
+    }
+  } catch (e) {}
+  const toolButton = (tool) => document.querySelector(`.pe-tool[data-tool="${tool}"]`);
+  const toolLabel = (btn) => (btn.getAttribute("aria-label") || btn.textContent || btn.dataset.tool).replace(/\s*tool$/i, "").replace(/^[^A-Za-z0-9]+/, "").trim() || btn.dataset.tool;
+  function applyShortcutHints() {
+    document.querySelectorAll(".pe-tool").forEach((btn) => {
+      if (btn.dataset.baseTitle === undefined) btn.dataset.baseTitle = btn.getAttribute("title") || "";
+      const key = toolShortcuts[btn.dataset.tool];
+      const base = btn.dataset.baseTitle;
+      if (key) {
+        btn.setAttribute("aria-keyshortcuts", key.toUpperCase());
+        btn.setAttribute("title", `${base ? base + " " : ""}(Shortcut: ${key.toUpperCase()})`);
+      } else {
+        btn.removeAttribute("aria-keyshortcuts");
+        if (base) btn.setAttribute("title", base);
+        else btn.removeAttribute("title");
+      }
+    });
+  }
+  function saveToolShortcuts() {
+    try {
+      localStorage.setItem(SHORTCUT_STORE_KEY, JSON.stringify(toolShortcuts));
+    } catch (e) {}
+    applyShortcutHints();
+  }
+  const keyOwner = (key) => Object.keys(toolShortcuts).find((t) => toolShortcuts[t] === key);
+  document.addEventListener("keydown", (e) => {
+    if (modal.hidden || modal.getAttribute("aria-modal") !== "true" || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+    if (capturingShortcutFor || typingInField(document.activeElement)) return;
+    if (e.key.length !== 1) return;
+    const tool = keyOwner(e.key.toLowerCase());
+    const btn = tool && toolButton(tool);
+    if (!btn || btn.disabled || btn.hidden || btn.offsetParent === null) return;
+    e.preventDefault();
+    btn.click();
+    btn.focus({ preventScroll: true });
+  });
+  let capturingShortcutFor = null;
+  function renderShortcutPanel(message) {
+    const panel = $("pe-shortcuts-panel");
+    const rows = Object.keys(DEFAULT_TOOL_SHORTCUTS)
+      .map((tool) => {
+        const btn = toolButton(tool);
+        if (!btn) return "";
+        const key = toolShortcuts[tool];
+        const waiting = capturingShortcutFor === tool;
+        return `<div class="pe-shortcut-row"><span>${toolLabel(btn).replace(/[<>&"]/g, "")}</span><button type="button" class="pe-shortcut-key${waiting ? " is-waiting" : ""}" data-tool="${tool}" aria-label="Change shortcut for ${toolLabel(btn).replace(/[<>&"]/g, "")}">${waiting ? "Press a key…" : key ? key.toUpperCase() : "none"}</button></div>`;
+      })
+      .join("");
+    panel.innerHTML = `<div class="pe-shortcuts-head"><strong>Tool shortcuts</strong><button type="button" id="pe-shortcuts-reset">Reset all</button></div><p class="pe-shortcuts-msg" role="status">${message || "Click a tool, then press the key you want. Backspace clears it."}</p><div class="pe-shortcut-grid">${rows}</div>`;
+    panel.querySelectorAll(".pe-shortcut-key").forEach((b) =>
+      b.addEventListener("click", () => {
+        capturingShortcutFor = b.dataset.tool;
+        renderShortcutPanel();
+        panel.querySelector(".pe-shortcut-key.is-waiting")?.focus();
+      })
+    );
+    $("pe-shortcuts-reset").addEventListener("click", () => {
+      capturingShortcutFor = null;
+      toolShortcuts = { ...DEFAULT_TOOL_SHORTCUTS };
+      saveToolShortcuts();
+      renderShortcutPanel("Back to the default shortcuts.");
+    });
+  }
+  // Capture phase, so a key meant for the panel never also reaches the editor (Escape would close it).
+  document.addEventListener(
+    "keydown",
+    (e) => {
+      if (modal.hidden) return;
+      const panel = $("pe-shortcuts-panel");
+      if (capturingShortcutFor) {
+        e.preventDefault();
+        e.stopPropagation();
+        const tool = capturingShortcutFor;
+        if (e.key === "Escape") {
+          capturingShortcutFor = null;
+          renderShortcutPanel("Cancelled.");
+        } else if (e.key === "Backspace" || e.key === "Delete") {
+          capturingShortcutFor = null;
+          toolShortcuts[tool] = "";
+          saveToolShortcuts();
+          renderShortcutPanel("Shortcut cleared.");
+        } else if (/^[a-z]$/i.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          const key = e.key.toLowerCase();
+          const owner = keyOwner(key);
+          if (owner && owner !== tool) {
+            capturingShortcutFor = null;
+            renderShortcutPanel(`${key.toUpperCase()} already belongs to ${toolLabel(toolButton(owner))}. Clear that one first.`);
+          } else {
+            capturingShortcutFor = null;
+            toolShortcuts[tool] = key;
+            saveToolShortcuts();
+            renderShortcutPanel(`${toolLabel(toolButton(tool))} is now ${key.toUpperCase()}.`);
+          }
+        } else if (e.key === "Tab") {
+          capturingShortcutFor = null;
+          renderShortcutPanel();
+        } else {
+          // Still waiting: keep the capture open and say what's allowed.
+          renderShortcutPanel("Use a letter A to Z (0, 1, +, - and Space already do other things).");
+        }
+        const waiting = panel.querySelector(".pe-shortcut-key.is-waiting");
+        if (waiting) waiting.focus();
+        else panel.querySelector(`.pe-shortcut-key[data-tool="${tool}"]`)?.focus();
+        return;
+      }
+      if (e.key === "Escape" && !panel.hidden) {
+        e.preventDefault();
+        e.stopPropagation();
+        panel.hidden = true;
+        $("pe-shortcuts-btn").setAttribute("aria-expanded", "false");
+        $("pe-shortcuts-btn").focus();
+      }
+    },
+    true
+  );
+  $("pe-shortcuts-btn").addEventListener("click", () => {
+    const panel = $("pe-shortcuts-panel");
+    const open = panel.hidden;
+    capturingShortcutFor = null;
+    if (open) renderShortcutPanel();
+    panel.hidden = !open;
+    $("pe-shortcuts-btn").setAttribute("aria-expanded", String(open));
+  });
+  applyShortcutHints();
+
   // ---------- Pointer routing ----------
   const BRUSH_TOOLS = ["paint", "pencil", "erase", "blur", "pixelate", "dodge", "burn"];
   const SHAPE_TOOLS = ["rect", "circle", "line", "arrow"];

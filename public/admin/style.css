@@ -7360,3 +7360,13 @@ button[data-tier="quiet"] { border-color: transparent; }
 .section-name { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 0.85rem; }
 .section-count { color: var(--text-dim); font-size: 0.75rem; }
 .section-row .danger { margin-top: 0 !important; }
+
+/* ---- Photo editor: remappable tool shortcuts ---- */
+.pe-actions { position: relative; }
+.pe-shortcuts-panel { position: absolute; right: 8px; bottom: calc(100% + 6px); z-index: 30; width: min(420px, calc(100vw - 32px)); max-height: 60vh; overflow-y: auto; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; padding: 12px; box-shadow: var(--shadow-lg, 0 12px 32px rgba(0, 0, 0, 0.28)); }
+.pe-shortcuts-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pe-shortcuts-msg { margin: 6px 0 10px; font-size: 0.78rem; color: var(--text-dim); }
+.pe-shortcut-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 4px 12px; }
+.pe-shortcut-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.82rem; }
+.pe-shortcut-key { min-width: 3.4em; font-family: var(--font-mono, monospace); padding: 2px 8px; }
+.pe-shortcut-key.is-waiting { border-color: var(--accent); color: var(--accent); }
