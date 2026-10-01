@@ -2208,7 +2208,96 @@
       }
       at += bytesPer;
     }
-    return { blob: new Blob([buffer], { type: "audio/wav" }), peak, clipped };
+    return { blob: new Blob([buffer], { type: "audio/wav" }), bytes: new Uint8Array(buffer), peak, clipped };
+  }
+
+  // A minimal ZIP writer (stored, no compression: WAV doesn't compress usefully
+  // and this keeps it dependency-free). File names are flagged as UTF-8.
+  const CRC_TABLE = (() => {
+    const table = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      table[n] = c >>> 0;
+    }
+    return table;
+  })();
+  function crc32(bytes) {
+    let c = 0xffffffff;
+    for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  }
+  function buildZip(files) {
+    const enc = new TextEncoder();
+    const now = new Date();
+    const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+    const dosDate = ((Math.max(1980, now.getFullYear()) - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+    const parts = [];
+    const central = [];
+    let offset = 0;
+    for (const file of files) {
+      const name = enc.encode(file.name);
+      const crc = crc32(file.bytes);
+      const local = new DataView(new ArrayBuffer(30));
+      local.setUint32(0, 0x04034b50, true);
+      local.setUint16(4, 20, true);
+      local.setUint16(6, 0x0800, true); // UTF-8 names
+      local.setUint16(8, 0, true); // stored
+      local.setUint16(10, dosTime, true);
+      local.setUint16(12, dosDate, true);
+      local.setUint32(14, crc, true);
+      local.setUint32(18, file.bytes.length, true);
+      local.setUint32(22, file.bytes.length, true);
+      local.setUint16(26, name.length, true);
+      local.setUint16(28, 0, true);
+      parts.push(local.buffer, name, file.bytes);
+      const entry = new DataView(new ArrayBuffer(46));
+      entry.setUint32(0, 0x02014b50, true);
+      entry.setUint16(4, 20, true);
+      entry.setUint16(6, 20, true);
+      entry.setUint16(8, 0x0800, true);
+      entry.setUint16(10, 0, true);
+      entry.setUint16(12, dosTime, true);
+      entry.setUint16(14, dosDate, true);
+      entry.setUint32(16, crc, true);
+      entry.setUint32(20, file.bytes.length, true);
+      entry.setUint32(24, file.bytes.length, true);
+      entry.setUint16(28, name.length, true);
+      entry.setUint32(42, offset, true);
+      central.push(entry.buffer, name);
+      offset += 30 + name.length + file.bytes.length;
+    }
+    const centralSize = central.reduce((n, part) => n + (part.byteLength !== undefined ? part.byteLength : part.length), 0);
+    const end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true);
+    end.setUint16(8, files.length, true);
+    end.setUint16(10, files.length, true);
+    end.setUint32(12, centralSize, true);
+    end.setUint32(16, offset, true);
+    return new Blob([...parts, ...central, end.buffer], { type: "application/zip" });
+  }
+
+  // One copy of the song per stem, with every other track and the melody muted
+  // (a muted track in the song itself is left out). Stems are rendered on their
+  // own, so noise-based drums and humanize timing are not sample-identical to
+  // the same track inside the full mix.
+  function stemJobs() {
+    const jobs = [];
+    const copyFor = (solo) => {
+      const copy = JSON.parse(JSON.stringify(songData));
+      copy.trackMeta = copy.trackMeta || {};
+      TRACKS.forEach((t) => { copy.trackMeta[t] = { ...(copy.trackMeta[t] || {}), muted: t !== solo }; });
+      copy.melody = copy.melody || { waveform: "sine", notes: {} };
+      copy.melody.muted = solo !== "melody";
+      return copy;
+    };
+    TRACKS.forEach((t) => {
+      const hits = (songData.tracks && songData.tracks[t] || []).some(Boolean);
+      if (hits && !(songData.trackMeta && songData.trackMeta[t] && songData.trackMeta[t].muted === true)) jobs.push({ id: t, label: TRACK_LABELS[t], data: copyFor(t) });
+    });
+    const notes = (songData.melody && songData.melody.notes) || {};
+    if (Object.keys(notes).some((n) => notes[n] && notes[n].some(Boolean)) && !(songData.melody && songData.melody.muted === true)) jobs.push({ id: "melody", label: "Melody", data: copyFor("melody") });
+    return jobs;
   }
 
   function audioOptions() {
@@ -2218,6 +2307,7 @@
       loops: Number($("song-audio-loops").value),
       tailSeconds: Number($("song-audio-tail").value),
       dither: $("song-audio-dither").checked && $("song-audio-depth").value !== "32f",
+      stems: $("song-audio-stems").checked,
     };
   }
   function refreshAudioSummary() {
@@ -2225,12 +2315,18 @@
     const tempo = Number(songData.tempo) || 120;
     const loopSeconds = (60 / tempo / 4) * STEPS;
     const seconds = loopSeconds * o.loops + o.tailSeconds;
-    const bytes = Math.round(seconds * o.sampleRate) * AUDIO_DEPTHS[o.depth].bytes;
+    const files = o.stems ? stemJobs().length : 1;
+    const bytes = Math.round(seconds * o.sampleRate) * AUDIO_DEPTHS[o.depth].bytes * Math.max(1, files);
     const size = bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
     $("song-audio-dither").disabled = o.depth === "32f";
-    $("song-audio-summary").textContent = `${seconds.toFixed(2)} seconds at ${songData.tempo} BPM, about ${size}.`;
+    $("song-audio-summary").textContent = o.stems
+      ? files
+        ? `${files} stem${files === 1 ? "" : "s"} of ${seconds.toFixed(2)} seconds at ${songData.tempo} BPM in one ZIP, about ${size}.`
+        : "Nothing to export as stems: no unmuted track has any notes."
+      : `${seconds.toFixed(2)} seconds at ${songData.tempo} BPM, about ${size}.`;
+    $("song-audio-go").disabled = o.stems && !files;
   }
-  ["song-audio-rate", "song-audio-depth", "song-audio-loops", "song-audio-tail", "song-audio-dither"].forEach((id) => $(id).addEventListener("change", refreshAudioSummary));
+  ["song-audio-rate", "song-audio-depth", "song-audio-loops", "song-audio-tail", "song-audio-dither", "song-audio-stems"].forEach((id) => $(id).addEventListener("change", refreshAudioSummary));
   $("song-export-audio").addEventListener("click", () => {
     $("song-audio-status").textContent = "";
     refreshAudioSummary();
@@ -2274,24 +2370,38 @@
     $("song-audio-cancel").hidden = false;
     status.textContent = "Rendering… long exports at a high sample rate can take a while. Cancel stops waiting for it.";
     try {
-      const render = await window.SongEngine.renderLoopAudio(songData, { sampleRate: o.sampleRate, loops: o.loops, tailSeconds: o.tailSeconds });
-      if (token !== audioRenderToken) return; // cancelled while rendering
-      const { blob, peak, clipped } = encodeWavMono(render.samples, render.sampleRate, o.depth, o.dither);
+      const jobs = o.stems ? stemJobs() : [{ id: "", label: "", data: songData }];
+      if (!jobs.length) {
+        status.textContent = "Nothing to export as stems: no unmuted track has any notes.";
+        return;
+      }
+      const results = [];
+      for (const job of jobs) {
+        const render = await window.SongEngine.renderLoopAudio(job.data, { sampleRate: o.sampleRate, loops: o.loops, tailSeconds: o.tailSeconds });
+        if (token !== audioRenderToken) return; // cancelled while rendering
+        results.push({ job, ...encodeWavMono(render.samples, render.sampleRate, o.depth, o.dither) });
+      }
       // Letters and numbers of any language survive; everything else becomes one dash; capped so the file name stays usable.
       const name = ($("song-name").value.trim().replace(/[^\p{L}\p{N}_-]+/gu, "-").replace(/-{2,}/g, "-").replace(/^[-_]+|[-_]+$/g, "").slice(0, 80)) || "song";
-      const file = `${name}-${o.loops}x-${o.sampleRate / 1000}kHz-${o.depth === "32f" ? "32f" : o.depth + "bit"}.wav`;
+      const suffix = `${o.loops}x-${o.sampleRate / 1000}kHz-${o.depth === "32f" ? "32f" : o.depth + "bit"}`;
+      const wavName = (id) => `${name}${id ? "-" + id : ""}-${suffix}.wav`;
+      const file = o.stems ? `${name}-stems-${suffix}.zip` : wavName("");
+      const blob = o.stems ? buildZip(results.map((r) => ({ name: wavName(r.job.id), bytes: r.bytes }))) : results[0].blob;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = file;
       a.click();
       URL.revokeObjectURL(url);
+      const peak = results.reduce((m, r) => Math.max(m, r.peak), 0);
+      const clipped = results.reduce((n, r) => n + r.clipped, 0);
       const level = peak > 0 ? `${(20 * Math.log10(peak)).toFixed(1)} dBFS` : "silent";
+      const what = o.stems ? `${results.length} stem${results.length === 1 ? "" : "s"} in ${file}` : file;
       status.textContent = !peak
-        ? `Exported ${file}, but the loop is silent: there is nothing sounding in it.`
+        ? `Exported ${what}, but it is silent: there is nothing sounding in it.`
         : clipped && o.depth !== "32f"
-          ? `Exported ${file}. The peak was above full scale (${level}), so ${clipped} samples were clipped. Lower the master volume, or export 32-bit float to keep them.`
-          : `Exported ${file}. Peak ${level}.`;
+          ? `Exported ${what}. The ${o.stems ? "loudest peak" : "peak"} was above full scale (${level}), so ${clipped} samples were clipped. Lower the master volume, or export 32-bit float to keep them.`
+          : `Exported ${what}. ${o.stems ? "Loudest peak" : "Peak"} ${level}.`;
     } catch (err) {
       if (token === audioRenderToken) status.textContent = `Export failed: ${err.message || err}`;
     } finally {
