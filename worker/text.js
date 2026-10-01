@@ -75,9 +75,37 @@ export function cleanPageCss(input) {
   // Tags and comment markers can end the <style> element, even inside a string.
   if (/<\s*\/?\s*(style|script)/i.test(css)) return { error: "It can't contain <style> or <script> tags." };
   if (/<!--|-->/.test(css)) return { error: "It can't contain HTML comment markers." };
-  // Text inside quotes is inert (content: "\\201C" is a normal use of a backslash), so the remaining
-  // checks look at the CSS with quoted strings blanked out.
-  const bare = css.replace(/"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'/g, '""');
+  // One pass over the text, the way a CSS parser reads it: comments are dropped and quoted strings are
+  // blanked for the pattern checks (their text is inert, and content: "\\201C" is a normal use of a
+  // backslash). A quote inside a comment is not a string, so comments must go before strings are paired;
+  // an unterminated string or comment is refused rather than guessed at.
+  let noComments = "";
+  let bare = "";
+  for (let i = 0; i < css.length; ) {
+    const ch = css[i];
+    if (ch === "/" && css[i + 1] === "*") {
+      const end = css.indexOf("*/", i + 2);
+      if (end === -1) return { error: "A comment is never closed." };
+      noComments += " ";
+      bare += " ";
+      i = end + 2;
+    } else if (ch === '"' || ch === "'") {
+      let j = i + 1;
+      for (;;) {
+        if (j >= css.length || css[j] === "\n") return { error: "A quoted string is never closed." };
+        if (css[j] === "\\") j += 2;
+        else if (css[j] === ch) break;
+        else j++;
+      }
+      noComments += css.slice(i, j + 1);
+      bare += '""';
+      i = j + 1;
+    } else {
+      noComments += ch;
+      bare += ch;
+      i++;
+    }
+  }
   const banned = [
     [/@import/i, "@import is not allowed; put the rules here instead."],
     [/expression\s*\(/i, "expression() is not allowed."],
@@ -89,8 +117,8 @@ export function cleanPageCss(input) {
   for (const [re, msg] of banned) if (re.test(bare)) return { error: msg };
   // Every url() must be one of the simple forms below and point at this site or an inline image.
   const urlForm = /url\(\s*(?:"([^"\n\\]*)"|'([^'\n\\]*)'|([^)\s'"\\]*))\s*\)/gi;
-  const matches = [...css.matchAll(urlForm)];
-  if ((css.match(/url\s*\(/gi) || []).length !== matches.length) return { error: "A url() is written in a form that can't be checked; use url(/media/…) or url(\"/media/…\")." };
+  const matches = [...noComments.matchAll(urlForm)];
+  if ((noComments.match(/url\s*\(/gi) || []).length !== matches.length) return { error: "A url() is written in a form that can't be checked; use url(/media/…) or url(\"/media/…\")." };
   for (const m of matches) {
     const target = (m[1] ?? m[2] ?? m[3] ?? "").trim();
     if (!/^(\/(?!\/)|data:image\/(png|jpe?g|gif|webp|avif);base64,[A-Za-z0-9+\/=]*$)/i.test(target)) return { error: `url(${target.slice(0, 30)}) is not allowed; use a /media/ path or an inline PNG, JPEG, GIF, WebP or AVIF image.` };
