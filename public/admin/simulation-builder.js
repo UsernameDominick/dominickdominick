@@ -1533,14 +1533,24 @@
       if (!parent.has(nb)) parent.set(nb, nb);
       parent.set(root(na), root(nb));
     }
-    const BYPASSABLE = new Set(["resistor", "led", "capacitor", "inductor", "switch"]);
+    // (A voltmeter is meant to sit across a part, so only series parts are checked; an ammeter shorted out reads nothing useful.)
+    const BYPASSABLE = new Set(["resistor", "led", "capacitor", "inductor", "switch", "ammeter"]);
+    const bypassed = [];
     for (const comp of simData.components) {
       if (!BYPASSABLE.has(comp.type)) continue;
       const def = window.getSimComponentDefinition(comp);
       if (!def || def.pins.length !== 2) continue;
       const [pa, pb] = def.pins.map((pin) => window.simNodeId(comp, pin.id));
       if (pa !== pb && (!parent.has(pa) || !parent.has(pb) || root(pa) !== root(pb))) continue;
-      add("warning", `${nameOf(comp.id)} is bypassed: both of its legs are on the same breadboard strip or rail, or joined by wires, so current goes straight past it. Move one leg to a different strip.`);
+      bypassed.push(comp);
+    }
+    const bypassedIds = new Set(bypassed.map((c) => c.id));
+    const fixFor = (comp) => (simData.wires.some((w) => w.from.compId === comp.id && w.to.compId === comp.id) ? "Remove the wire between its legs." : "Move one leg to a different strip.");
+    if (bypassed.length > 5) {
+      // A messy board would otherwise list dozens of near-identical lines.
+      add("warning", `${bypassed.length} parts are bypassed, with both legs on the same breadboard strip or rail or joined by wires, so current goes straight past them: ${bypassed.slice(0, 5).map((c) => nameOf(c.id)).join(", ")}, …. Move one leg of each to a different strip.`);
+    } else {
+      bypassed.forEach((comp) => add("warning", `${nameOf(comp.id)} is bypassed: both of its legs are on the same breadboard strip or rail, or joined by wires, so current goes straight past it. ${fixFor(comp)}`));
     }
     if (outletLoop) add("danger", "The wall outlet (120 V) is wired straight into this circuit, which destroys most parts. Go through a Power Supply.");
     if (analysis.meta && analysis.meta.parallel) {
@@ -1552,7 +1562,7 @@
       const d = window.getSimComponentDefinition(c);
       return d && d.isSource;
     });
-    const skipped = simData.components.filter((c) => analysable.has(c.type) && !analysis[c.id]);
+    const skipped = simData.components.filter((c) => analysable.has(c.type) && !analysis[c.id] && !bypassedIds.has(c.id));
     if (simData.components.length && !hasSource && skipped.length) {
       add("note", "There is no powered source in this circuit (a Power Supply only counts once its input is fed), so nothing is analysed yet.");
     } else if (skipped.length) {
