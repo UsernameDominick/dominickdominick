@@ -326,6 +326,7 @@
     layoutFrame();
     if (layers.some((layer) => layer.maskDirty && layer.mask)) syncLayerDom();
     updateStatusBar(scale);
+    scheduleNavThumb();
     // A selection's coordinates belong to one canvas size: drop it when the
     // size changed (crop, rotate, resize, straighten, undo across a resize),
     // and redraw its outline when only the display scale did.
@@ -477,7 +478,93 @@
     $("pe-undo").disabled = undoStack.length === 0;
     $("pe-redo").disabled = redoStack.length === 0;
     scheduleMemoryUpdate();
+    scheduleNavThumb();
   }
+
+  // ---------- Overview (navigator) ----------
+  // A small picture of the whole image with a frame showing what the main view covers, shown whenever the image is
+  // larger than the window (zoomed in). Click or drag it to move the view; with focus on it, arrow keys scroll.
+  const NAV_MAX_EDGE = 160;
+  const navEl = $("pe-navigator");
+  const navCanvas = $("pe-nav-canvas");
+  const navView = $("pe-nav-view");
+  let navThumbTimer = 0;
+  const navActive = () => !modal.hidden && viewRotation % 180 === 0 && viewRotation === 0 && (canvasWrap.scrollWidth > canvasWrap.clientWidth + 1 || canvasWrap.scrollHeight > canvasWrap.clientHeight + 1);
+  function drawNavThumb() {
+    navThumbTimer = 0;
+    if (!navActive() || !layers.length) return;
+    const long = Math.max(canvas.width, canvas.height) || 1;
+    const k = Math.min(1, NAV_MAX_EDGE / long);
+    navCanvas.width = Math.max(1, Math.round(canvas.width * k));
+    navCanvas.height = Math.max(1, Math.round(canvas.height * k));
+    navCanvas.dataset.ready = "1";
+    const g = navCanvas.getContext("2d");
+    g.clearRect(0, 0, navCanvas.width, navCanvas.height);
+    try {
+      g.drawImage(flattenedCanvas(), 0, 0, navCanvas.width, navCanvas.height);
+    } catch (e) {}
+    updateNavigator();
+  }
+  function scheduleNavThumb() {
+    if (navThumbTimer) return;
+    navThumbTimer = setTimeout(drawNavThumb, 400);
+  }
+  function updateNavigator() {
+    const show = navActive();
+    const wasHidden = navEl.hidden;
+    navEl.hidden = !show;
+    if (!show) return;
+    if (wasHidden || !navCanvas.dataset.ready) return void drawNavThumb();
+    const wr = canvasWrap.getBoundingClientRect();
+    const sr = stack.getBoundingClientRect();
+    if (!sr.width || !sr.height) return;
+    const l = Math.max(0, (wr.left - sr.left) / sr.width);
+    const t = Math.max(0, (wr.top - sr.top) / sr.height);
+    const r = Math.min(1, (wr.right - sr.left) / sr.width);
+    const b = Math.min(1, (wr.bottom - sr.top) / sr.height);
+    navView.style.left = l * 100 + "%";
+    navView.style.top = t * 100 + "%";
+    navView.style.width = Math.max(0, r - l) * 100 + "%";
+    navView.style.height = Math.max(0, b - t) * 100 + "%";
+  }
+  // Centre the main view on a point of the overview (fx, fy are 0..1 across the image).
+  function navigateTo(fx, fy) {
+    const wr = canvasWrap.getBoundingClientRect();
+    const sr = stack.getBoundingClientRect();
+    canvasWrap.scrollLeft += sr.left + Math.min(1, Math.max(0, fx)) * sr.width - (wr.left + wr.width / 2);
+    canvasWrap.scrollTop += sr.top + Math.min(1, Math.max(0, fy)) * sr.height - (wr.top + wr.height / 2);
+    updateNavigator();
+  }
+  let navDrag = null;
+  navEl.addEventListener("pointerdown", (e) => {
+    const rect = navCanvas.getBoundingClientRect();
+    navDrag = e.pointerId;
+    navEl.setPointerCapture(e.pointerId);
+    navigateTo((e.clientX - rect.left) / rect.width, (e.clientY - rect.top) / rect.height);
+    e.preventDefault();
+  });
+  navEl.addEventListener("pointermove", (e) => {
+    if (navDrag !== e.pointerId) return;
+    const rect = navCanvas.getBoundingClientRect();
+    navigateTo((e.clientX - rect.left) / rect.width, (e.clientY - rect.top) / rect.height);
+  });
+  const endNavDrag = (e) => {
+    if (navDrag === e.pointerId) navDrag = null;
+  };
+  navEl.addEventListener("pointerup", endNavDrag);
+  navEl.addEventListener("pointercancel", endNavDrag);
+  navEl.addEventListener("keydown", (e) => {
+    const step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+    if (!step || e.ctrlKey || e.metaKey || e.altKey) return;
+    e.preventDefault();
+    e.stopPropagation();
+    canvasWrap.scrollLeft += step[0] * canvasWrap.clientWidth * 0.2;
+    canvasWrap.scrollTop += step[1] * canvasWrap.clientHeight * 0.2;
+    updateNavigator();
+  });
+  canvasWrap.addEventListener("scroll", () => {
+    if (!navEl.hidden) updateNavigator();
+  });
 
   // ---------- Memory-use indicator ----------
   // An estimate (width x height x 4 bytes per bitmap) of what the editor is holding: the layers and their masks, the

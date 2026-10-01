@@ -7380,3 +7380,12 @@ button[data-tier="quiet"] { border-color: transparent; }
 .pe-memory { font-size: 0.75rem; color: var(--text-dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .pe-memory[data-level="warn"] { color: var(--warning); }
 .pe-memory[data-level="high"] { color: var(--error-text); font-weight: 600; }
+
+/* ---- Photo editor: overview (navigator) ---- */
+.pe-canvas-area { position: relative; }
+.pe-navigator { position: absolute; right: 22px; bottom: 22px; z-index: 5; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 6px; padding: 0; box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.22)); cursor: crosshair; touch-action: none; line-height: 0; }
+.pe-navigator canvas { display: block; max-width: 160px; max-height: 160px; border-radius: 3px; background: repeating-conic-gradient(var(--border) 0 25%, transparent 0 50%) 50% / 12px 12px; }
+.pe-nav-view { position: absolute; border: 2px solid var(--accent); box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35); pointer-events: none; box-sizing: border-box; }
+.pe-navigator { overflow: hidden; }
+.pe-navigator:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 640px) { .pe-navigator { right: 10px; bottom: 10px; } .pe-navigator canvas { max-width: 110px; max-height: 110px; } }
