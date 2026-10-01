@@ -7515,3 +7515,7 @@ button[data-tier="quiet"] { border-color: transparent; }
 .sim-connect-wires li.sim-connect-empty { color: var(--text-dim); justify-content: flex-start; }
 #sim-connect-btn { margin: 0 0 10px; }
 @media (max-width: 520px) { .sim-connect-grid { grid-template-columns: 1fr; } }
+
+/* Breadboard holes joined to the hovered (or wire-start) hole */
+.sim-pin.sim-strip-hole { fill: #ffd54a; stroke: #ffd54a; stroke-width: 3; }
+@media (forced-colors: active) { .sim-pin.sim-strip-hole { fill: Highlight; stroke: Highlight; } }

@@ -1865,6 +1865,32 @@
       })
     );
     svg.addEventListener("pointerdown", onCanvasBackgroundPointerDown);
+    // Hovering a breadboard hole lights the holes it is joined to; a wire
+    // being started from a hole keeps its group lit until it is finished.
+    svg.addEventListener("pointerover", (e) => {
+      const dot = e.target.closest && e.target.closest(".sim-pin");
+      if (dot) setStripHighlight(dot.dataset.comp, dot.dataset.pin);
+    });
+    svg.addEventListener("pointerout", () => {
+      setStripHighlight(wireStart ? wireStart.compId : null, wireStart ? wireStart.pin : null);
+    });
+    if (wireStart) setStripHighlight(wireStart.compId, wireStart.pin);
+  }
+
+  // Lights every hole of a breadboard that is electrically joined to the given
+  // one (its five-hole column group, or the whole power rail). Other parts'
+  // pins have nothing joined to them, so they light nothing.
+  function setStripHighlight(compId, pinId) {
+    const svg = $("sim-builder-svg");
+    if (!svg) return;
+    svg.querySelectorAll(".sim-strip-hole").forEach((dot) => dot.classList.remove("sim-strip-hole"));
+    if (compId == null || pinId == null) return;
+    const comp = simData.components.find((c) => String(c.id) === String(compId));
+    if (!comp || comp.type !== "breadboard") return;
+    const node = window.simNodeId(comp, pinId);
+    svg.querySelectorAll(".sim-pin").forEach((dot) => {
+      if (dot.dataset.comp === String(comp.id) && window.simNodeId(comp, dot.dataset.pin) === node) dot.classList.add("sim-strip-hole");
+    });
   }
 
   function updateWiresForComponent(compId) {
