@@ -4132,7 +4132,8 @@ kbd {
 }
 /* A step below full strength shows its strength as a paler fill. */
 .song-step-on[style*="--lv"] {
-  background: color-mix(in srgb, var(--track-color, var(--accent)) calc(var(--lv) * 100%), var(--bg-elevated));
+  /* The fill rises from the bottom to the strength, so medium and soft differ by shape, not just by shade. */
+  background: linear-gradient(to top, var(--track-color, var(--accent)) calc(var(--lv) * 100%), var(--bg-elevated) 0);
 }
 
 /* Deliberately a different hue from .song-step-on's accent color — this

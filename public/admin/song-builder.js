@@ -798,7 +798,7 @@
   $("song-pattern-shift-right").addEventListener("click", () => patternEdit((r) => shiftRow(r, 1), "Shifted one step later"));
   $("song-pattern-clear").addEventListener("click", () => patternEdit((r) => r.map(() => false), "Cleared"));
   $("song-pattern-random").addEventListener("click", () =>
-    patternEdit((r, k) => r.map((_, i) => Math.random() < (k === "hihat" ? 0.5 : k === "kick" ? 0.25 : 0.2) || (k === "kick" && i % 4 === 0 && Math.random() < 0.7)), "Randomized"));
+    patternEdit((r, k) => r.map((_, i) => Math.random() < (k === "hihat" ? 0.5 : k === "kick" ? 0.25 : 0.2) || (k === "kick" && i % 4 === 0 && Math.random() < 0.7)), "Randomized, all hits at full strength"));
   $("song-swing").addEventListener("input", () => {
     songData.swing = Number($("song-swing").value) || 0;
     $("song-swing").setAttribute("aria-valuetext", songData.swing ? `${songData.swing}% swing` : "Straight");
@@ -1378,6 +1378,7 @@
           btn.classList.toggle("song-step-on", Boolean(next));
           if (next && next !== true) btn.style.setProperty("--lv", String(next)); else btn.style.removeProperty("--lv");
           btn.setAttribute("aria-label", btn.getAttribute("aria-label").replace(/, (soft|medium)$/, "") + stepLevelSpoken(next));
+          $("song-step-status").textContent = `${btn.getAttribute("aria-label").replace(/,.*$/, "").replace(/ step (\d+).*$/, " step $1")}: ${!next ? "off" : Engine.stepLevel(next) >= 1 ? "full" : Engine.stepLevel(next) >= 0.5 ? "medium" : "soft"}.`;
           refreshWaveformPreview();
           scheduleAutosave();
         });
