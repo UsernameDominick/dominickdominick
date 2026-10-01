@@ -7548,3 +7548,4 @@ button[data-tier="quiet"] { border-color: transparent; }
 
 /* Dragging a part with a finger must move it, not scroll the page; the empty board still pans normally. */
 .sim-builder-canvas .sim-comp { touch-action: none; }
+#song-tap-tempo { touch-action: manipulation; }

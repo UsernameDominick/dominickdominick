@@ -125,6 +125,9 @@
   let songHistoryInputGroup = null;
   let songHistoryInputTimer = null;
   let songHistoryKnownName = $("song-name").value;
+  let tapTimes = [];
+  let tapStatusTimer = null;
+  let tapPreviewTimer = null;
 
   function captureSongHistoryState(name = $("song-name").value) {
     return { name, data: JSON.parse(JSON.stringify(songData)) };
@@ -161,6 +164,7 @@
     songHistoryInputTimer = null;
     songHistoryInputGroup = null;
     songUndoStack.length = 0;
+    tapTimes = [];
     songRedoStack.length = 0;
     songHistoryKnownName = $("song-name").value;
     updateSongHistoryButtons();
@@ -183,6 +187,10 @@
   }
   function captureSongHistoryEvent(event) {
     if ($("song-builder-modal").hidden) return;
+    if (event.type === "click" && event.target && event.target.closest && event.target.closest("#song-tap-tempo")) {
+      songHistoryEvents.set(event, { skip: true });
+      return;
+    }
     if (event.type === "click" && songHistoryCommand(event.target)) {
       flushSongHistoryInputGroup();
       songHistoryEvents.set(event, { skip: true });
@@ -709,21 +717,32 @@
     scheduleAutosave();
   });
   // Tap tempo: the BPM comes from the average gap between your last few taps; a pause of two seconds starts over.
-  let tapTimes = [];
+  // A whole tap session is one undo step, and the preview render waits until the taps settle.
   $("song-tap-tempo").addEventListener("click", () => {
     const now = performance.now();
     if (tapTimes.length && now - tapTimes[tapTimes.length - 1] > 2000) tapTimes = [];
     tapTimes.push(now);
     tapTimes = tapTimes.slice(-6);
+    clearTimeout(tapStatusTimer);
+    tapStatusTimer = setTimeout(() => { $("song-tap-status").textContent = ""; }, 4000);
     if (tapTimes.length < 2) {
       $("song-tap-status").textContent = "Keep tapping.";
       return;
     }
     const gap = (tapTimes[tapTimes.length - 1] - tapTimes[0]) / (tapTimes.length - 1);
-    const bpm = Math.max(40, Math.min(240, Math.round(60000 / gap)));
+    const raw = Math.round(60000 / gap);
+    const bpm = Math.max(40, Math.min(240, raw));
+    if (!songHistoryInputGroup) songHistoryInputGroup = { target: $("song-tap-tempo"), before: captureSongHistoryState() };
+    clearTimeout(songHistoryInputTimer);
+    songHistoryInputTimer = setTimeout(flushSongHistoryInputGroup, 2200);
+    songEditGeneration++;
     $("song-tempo").value = bpm;
-    $("song-tempo").dispatchEvent(new Event("input", { bubbles: true }));
-    $("song-tap-status").textContent = `${bpm} BPM`;
+    songData.tempo = bpm;
+    renderRulers();
+    scheduleAutosave();
+    clearTimeout(tapPreviewTimer);
+    tapPreviewTimer = setTimeout(refreshWaveformPreview, 300);
+    $("song-tap-status").textContent = raw === bpm ? `${bpm} BPM` : `${bpm} BPM (${raw < bpm ? "slowest" : "fastest"} allowed)`;
   });
   $("song-kit").addEventListener("change", () => {
     songData.kit = $("song-kit").value;
