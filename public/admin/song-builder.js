@@ -1847,11 +1847,9 @@
         songHasUnsavedChanges = false;
         autosaveQueued = false;
         setAutosaveStatus("Saved " + new Date().toLocaleTimeString());
-        alert("Saved.");
       } else {
         songHasUnsavedChanges = true;
-        setAutosaveStatus("Unsaved changes…");
-        alert("Saved. Newer edits still need to be saved.");
+        setAutosaveStatus("Saved, but newer edits still need saving…");
       }
       if (window.refreshSongOptions) window.refreshSongOptions();
     } catch (err) {

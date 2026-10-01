@@ -72,6 +72,12 @@
     if (undoStack.length > HISTORY_LIMIT) undoStack.shift();
     redoStack = [];
     updateHistoryButtons();
+    setSimSaveStatus("Unsaved changes…");
+  }
+  // One inline save indicator, like the other editors, instead of a pop-up "Saved." dialog.
+  function setSimSaveStatus(text) {
+    const el = $("sim-save-status");
+    if (el) el.textContent = text;
   }
 
   function updateHistoryButtons() {
@@ -547,6 +553,7 @@
       $("sim-poster-url").value = "";
     }
     initialSimSnapshot = captureInitialSimulationSnapshot();
+    setSimSaveStatus(""); // a freshly opened circuit has no unsaved changes
     $("simulations-modal").hidden = true;
     $("simulation-builder-modal").hidden = false;
     $("sim-palette-search").value = "";
@@ -3087,12 +3094,14 @@
       // silently discard already-saved work, not just this session's
       // in-progress edits.
       initialSimSnapshot = captureInitialSimulationSnapshot();
-      alert("Saved.");
+      setSimSaveStatus("Saved " + new Date().toLocaleTimeString());
       if (window.refreshSimulationOptions) window.refreshSimulationOptions();
     } catch (err) {
+      setSimSaveStatus("Save failed: " + err.message);
       alert(err.message);
     }
   });
 
+  $("simulation-name").addEventListener("input", () => setSimSaveStatus("Unsaved changes…"));
   $("sim-reset").addEventListener("click", resetSimToInitial);
 })();

@@ -39,6 +39,13 @@
     return res.json();
   }
 
+  // One inline save indicator, like the other editors, instead of a pop-up "Saved." dialog.
+  function setScanSaveStatus(text) {
+    const el = $("scan-save-status");
+    if (el) el.textContent = text;
+  }
+  ["scan-name", "scan-poster-url"].forEach((id) => $(id).addEventListener("input", () => setScanSaveStatus("Unsaved changes…")));
+
   // ---------- List modal ----------
   async function loadScansList() {
     scans = await window.adminApi("/scans");
@@ -111,6 +118,7 @@
 
   async function openScanEditor(id) {
     currentScanId = id;
+    setScanSaveStatus("");
     $("scan-glb-status").textContent = "";
     $("scan-usdz-status").textContent = "";
     $("scan-camera-status").textContent = "";
@@ -165,6 +173,7 @@
       const { key, size } = await uploadScanFile(file, kind);
       currentScanData.glb_key = key;
       currentScanData.size = size;
+      setScanSaveStatus("Unsaved changes…");
       $("scan-glb-status").textContent = `${file.name} (${formatSize(size)})`;
       applyPreview();
     } catch (err) {
@@ -182,6 +191,7 @@
     try {
       const { key, size } = await uploadScanFile(file, "usdz");
       currentScanData.usdz_key = key;
+      setScanSaveStatus("Unsaved changes…");
       $("scan-usdz-status").textContent = `${file.name} (${formatSize(size)})`;
       applyPreview();
     } catch (err) {
@@ -203,6 +213,7 @@
     currentScanData.camera_orbit = orbit.toString();
     currentScanData.camera_target = target.toString();
     currentScanData.field_of_view = `${fov.toFixed(2)}deg`;
+    setScanSaveStatus("Unsaved changes…");
     $("scan-camera-status").textContent = `Camera saved: ${currentScanData.camera_orbit}`;
   });
 
@@ -240,9 +251,10 @@
         const res = await window.adminApi("/scans", { method: "POST", body: JSON.stringify(body) });
         currentScanId = res.id;
       }
-      alert("Saved.");
+      setScanSaveStatus("Saved " + new Date().toLocaleTimeString());
       if (window.refreshScanOptions) window.refreshScanOptions();
     } catch (err) {
+      setScanSaveStatus("Save failed: " + err.message);
       alert(err.message);
     }
   });

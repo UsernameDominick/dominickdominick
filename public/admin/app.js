@@ -1013,12 +1013,12 @@
   // Save-status pill: the editors each write free text ("Saving…", "Saved 10:42", "Save failed: …")
   // into their own status element. Classify it into data-state (errors first, since "wasn't saved"
   // contains "saved") so the .save-pill CSS can style them all alike.
-  const SAVE_STATUS_IDS = ["page-save-status", "block-save-status", "article-autosave-status", "project-autosave-status", "song-autosave-status"];
+  const SAVE_STATUS_IDS = ["page-save-status", "block-save-status", "article-autosave-status", "project-autosave-status", "song-autosave-status", "sim-save-status", "scan-save-status"];
   function classifySaveText(t) {
     if (!t) return "";
     if (/fail|error|couldn|conflict|wasn.t saved|not saved|changed elsewhere/i.test(t)) return "error";
     if (/^saving|merging/i.test(t)) return "saving";
-    if (/unsaved|changes…|editing/i.test(t)) return "dirty";
+    if (/unsaved|changes…|editing|need saving/i.test(t)) return "dirty";
     if (/saved/i.test(t)) return "saved";
     return "";
   }
