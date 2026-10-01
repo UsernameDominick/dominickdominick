@@ -73,7 +73,7 @@ export function cleanPageCss(input) {
   // line break allowed is \n (a string never spans one) and other control characters are refused.
   if (/[\u0000-\u0008\u000b-\u001f\u007f\u2028\u2029]/.test(css)) return { error: "It can't contain control characters (carriage returns and form feeds included)." };
   // Tags and comment markers can end the <style> element, even inside a string.
-  if (/<\s*\/?\s*(style|script)/i.test(css)) return { error: "It can't contain <style> or <script> tags." };
+  if (/<\/?(style|script)/i.test(css)) return { error: "It can't contain <style> or <script> tags." };
   if (/<!--|-->/.test(css)) return { error: "It can't contain HTML comment markers." };
   // One pass over the text, the way a CSS parser reads it: comments are dropped and quoted strings are
   // blanked for the pattern checks (their text is inert, and content: "\\201C" is a normal use of a
@@ -111,7 +111,7 @@ export function cleanPageCss(input) {
     [/expression\s*\(/i, "expression() is not allowed."],
     [/javascript\s*:/i, "javascript: values are not allowed."],
     [/(-moz-binding|behavior\s*:)/i, "That property is not allowed."],
-    [/(^|[^a-z-])(-webkit-)?(image-set|src|cross-fade|element)\s*\(/i, "image-set(), src(), cross-fade() and element() are not allowed; use url()."],
+    [/(^|[^a-z])(-[a-z]+-)?(image-set|src|cross-fade|element)\s*\(/i, "image-set(), src(), cross-fade() and element() are not allowed; use url()."],
     [/\\/, "Backslash escapes are only allowed inside quoted text (they can hide forbidden patterns)."],
   ];
   for (const [re, msg] of banned) if (re.test(bare)) return { error: msg };
