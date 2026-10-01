@@ -208,6 +208,7 @@
     if (!confirm(`Discard all current edits and restore the checkpoint "${cp.name}"?`)) return;
     pushHistory();
     simData = { components: JSON.parse(JSON.stringify(cp.data.components)), wires: JSON.parse(JSON.stringify(cp.data.wires)) };
+    canvasSearchCurrent = null;
     selected = null;
     wireStart = null;
     updateHistoryButtons();
@@ -1134,13 +1135,15 @@
   // "3 matches", or "2 of 3" once Enter has stepped to one of them.
   function updateCanvasSearchCount() {
     const el = $("sim-canvas-search-count");
-    if (!canvasSearchQuery) {
-      el.textContent = "";
-      return;
+    let text = "";
+    if (canvasSearchQuery) {
+      const matches = simData.components.filter(componentMatchesSearch);
+      const at = matches.findIndex((c) => c.id === canvasSearchCurrent);
+      text = !matches.length ? "No match" : at >= 0 ? `${at + 1} of ${matches.length}` : `${matches.length} ${matches.length === 1 ? "match" : "matches"}`;
     }
-    const matches = simData.components.filter(componentMatchesSearch);
-    const at = matches.findIndex((c) => c.id === canvasSearchCurrent);
-    el.textContent = !matches.length ? "No match" : at >= 0 ? `${at + 1} of ${matches.length}` : `${matches.length} ${matches.length === 1 ? "match" : "matches"}`;
+    // Only written when it changes: this runs on every render, and a live
+    // region that is rewritten with the same words gets announced again.
+    if (el.textContent !== text) el.textContent = text;
   }
 
   $("sim-canvas-search").addEventListener("input", (e) => {
@@ -1153,7 +1156,8 @@
   // it into the middle of the view, so a match off-screen on a zoomed board
   // can actually be found.
   $("sim-canvas-search").addEventListener("keydown", (e) => {
-    if (e.key !== "Enter" || e.isComposing) return;
+    // keyCode 229 is Safari's Enter that commits an IME candidate (isComposing is already false then).
+    if (e.key !== "Enter" || e.isComposing || e.keyCode === 229) return;
     e.preventDefault();
     const matches = simData.components.filter(componentMatchesSearch);
     if (!matches.length) return;
@@ -1167,6 +1171,10 @@
     if (def && svg) {
       const vb = svg.viewBox.baseVal;
       centerCanvasOn((next.x + def.w / 2) / vb.width, (next.y + def.h / 2) / vb.height);
+      // On a phone or a short window the canvas can sit below the fold, so
+      // bring the match itself into view too (a no-op when it already is).
+      const box = svg.querySelector(".sim-search-match-box.is-current");
+      if (box && box.scrollIntoView) box.scrollIntoView({ block: "nearest", inline: "nearest" });
     }
   });
 
@@ -3555,6 +3563,7 @@
       setSnapHoleWarning(0);
       pushHistory();
       simData = imported.data;
+      canvasSearchCurrent = null; // part ids can repeat across circuits
       simCheckpoints = imported.checkpoints;
       renderCheckpointSelect();
       selected = null;
