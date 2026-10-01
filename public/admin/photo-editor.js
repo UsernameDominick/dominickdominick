@@ -3148,7 +3148,16 @@
         const r = (y * w + Math.min(w - 1, x + 1)) * 4;
         const u = (up + x) * 4;
         const d = (down + x) * 4;
-        for (let c = 0; c < 3; c++) dst[i + c] = src[i + c] * (1 + 4 * a) - a * (src[l + c] + src[r + c] + src[u + c] + src[d + c]);
+        // A neighbour's colour only counts as much as it is visible: transparent ones (reported as black) and the faint
+        // rim of an antialiased edge (whose colour is rounded coarsely) borrow this pixel's own colour in proportion,
+        // so sharpening reacts to real differences between visible pixels instead of brightening shape outlines.
+        if (src[i + 3] === 0) continue;
+        const wl = src[l + 3] / 255, wr = src[r + 3] / 255, wu = src[u + 3] / 255, wd = src[d + 3] / 255;
+        for (let c = 0; c < 3; c++) {
+          const centre = src[i + c];
+          const around = centre * 4 + wl * (src[l + c] - centre) + wr * (src[r + c] - centre) + wu * (src[u + c] - centre) + wd * (src[d + c] - centre);
+          dst[i + c] = centre * (1 + 4 * a) - a * around;
+        }
       }
     }
     ctx.putImageData(img, 0, 0);
@@ -3156,7 +3165,7 @@
     cancelActiveDrag();
     setLayerNote(`Sharpened at ${amount}.`);
   }
-  $("pe-filter-sharpen").addEventListener("click", () => applySharpen(Number($("pe-sharpen-amount").value) || 40));
+  $("pe-filter-sharpen").addEventListener("click", () => applySharpen(Number($("pe-sharpen-amount").value) || 25));
   $("pe-sharpen-amount").addEventListener("input", () => $("pe-sharpen-amount").setAttribute("aria-valuetext", $("pe-sharpen-amount").value));
   $("pe-filter-grain").addEventListener("click", () => applyGrain(Number($("pe-grain-amount").value) || 15));
 
