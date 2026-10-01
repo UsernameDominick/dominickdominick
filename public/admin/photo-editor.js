@@ -3128,6 +3128,36 @@
     if (beforeGrain) blendThroughSelection(beforeGrain, snapshotCanvas());
     cancelActiveDrag();
   }
+  // Sharpen: a 3x3 kernel (centre 1+4a, the four neighbours -a) on the colour channels, edges clamped, alpha untouched.
+  function applySharpen(amount) {
+    if (isComparing() || layerBlocked()) return;
+    pushUndo();
+    const before = hasSelection() ? snapshotCanvas() : null;
+    const w = canvas.width;
+    const h = canvas.height;
+    const img = ctx.getImageData(0, 0, w, h);
+    const src = new Uint8ClampedArray(img.data);
+    const dst = img.data;
+    const a = amount / 100;
+    for (let y = 0; y < h; y++) {
+      const up = Math.max(0, y - 1) * w;
+      const down = Math.min(h - 1, y + 1) * w;
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        const l = (y * w + Math.max(0, x - 1)) * 4;
+        const r = (y * w + Math.min(w - 1, x + 1)) * 4;
+        const u = (up + x) * 4;
+        const d = (down + x) * 4;
+        for (let c = 0; c < 3; c++) dst[i + c] = src[i + c] * (1 + 4 * a) - a * (src[l + c] + src[r + c] + src[u + c] + src[d + c]);
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    if (before) blendThroughSelection(before, snapshotCanvas());
+    cancelActiveDrag();
+    setLayerNote(`Sharpened at ${amount}.`);
+  }
+  $("pe-filter-sharpen").addEventListener("click", () => applySharpen(Number($("pe-sharpen-amount").value) || 40));
+  $("pe-sharpen-amount").addEventListener("input", () => $("pe-sharpen-amount").setAttribute("aria-valuetext", $("pe-sharpen-amount").value));
   $("pe-filter-grain").addEventListener("click", () => applyGrain(Number($("pe-grain-amount").value) || 15));
 
   $("pe-filter-grayscale").addEventListener("click", () => applyOneShotFilter("grayscale(1)"));
