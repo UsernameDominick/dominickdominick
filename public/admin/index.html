@@ -1852,6 +1852,14 @@
         </details>
         <span id="song-clip-status" class="song-clip-status" role="status"></span>
         <h2 class="song-section-heading">Drums</h2>
+        <div class="song-pattern-tools" role="group" aria-label="Drum pattern tools">
+          <label>Apply to <select id="song-pattern-target"><option value="all">All drums</option><option value="kick">Kick</option><option value="snare">Snare</option><option value="hihat">Hi-Hat</option><option value="clap">Clap</option></select></label>
+          <button type="button" id="song-pattern-shift-left" class="song-track-toggle" title="Move every hit one step earlier; the first step wraps to the end">◀ Shift</button>
+          <button type="button" id="song-pattern-shift-right" class="song-track-toggle" title="Move every hit one step later; the last step wraps to the start">Shift ▶</button>
+          <button type="button" id="song-pattern-random" class="song-track-toggle" title="Replace the pattern with a random one (undoable)">Randomize</button>
+          <button type="button" id="song-pattern-clear" class="song-track-toggle" title="Remove every hit (undoable)">Clear</button>
+          <span id="song-pattern-status" class="sim-sr-only" role="status"></span>
+        </div>
         <div id="song-sequencer-ruler" class="song-ruler" aria-hidden="true"></div>
         <div id="song-sequencer" class="song-sequencer"></div>
         <h2 class="song-section-heading">Melody (piano roll)

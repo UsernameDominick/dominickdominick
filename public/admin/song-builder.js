@@ -774,6 +774,28 @@
     songData.humanize = Number($("song-humanize").value) || 0;
     scheduleAutosave();
   });
+  // Drum pattern tools: shift (wraps), randomize or clear one drum row or all of them.
+  const patternRows = () => {
+    const t = $("song-pattern-target").value;
+    return t === "all" ? TRACKS : TRACKS.filter((k) => k === t);
+  };
+  const patternWord = () => ($("song-pattern-target").value === "all" ? "all drums" : TRACK_LABELS[$("song-pattern-target").value]);
+  function patternEdit(fn, message) {
+    for (const k of patternRows()) {
+      const row = Array.from({ length: STEPS }, (_, i) => songData.tracks[k][i] === true);
+      songData.tracks[k] = fn(row, k);
+    }
+    renderSequencer();
+    $("song-pattern-status").textContent = `${message} (${patternWord()}).`;
+    scheduleAutosave();
+    refreshWaveformPreview();
+  }
+  const shiftRow = (row, by) => row.map((_, i) => row[(i - by + STEPS) % STEPS]);
+  $("song-pattern-shift-left").addEventListener("click", () => patternEdit((r) => shiftRow(r, -1), "Shifted one step earlier"));
+  $("song-pattern-shift-right").addEventListener("click", () => patternEdit((r) => shiftRow(r, 1), "Shifted one step later"));
+  $("song-pattern-clear").addEventListener("click", () => patternEdit((r) => r.map(() => false), "Cleared"));
+  $("song-pattern-random").addEventListener("click", () =>
+    patternEdit((r, k) => r.map((_, i) => Math.random() < (k === "hihat" ? 0.5 : k === "kick" ? 0.25 : 0.2) || (k === "kick" && i % 4 === 0 && Math.random() < 0.7)), "Randomized"));
   $("song-swing").addEventListener("input", () => {
     songData.swing = Number($("song-swing").value) || 0;
     $("song-swing").setAttribute("aria-valuetext", songData.swing ? `${songData.swing}% swing` : "Straight");
