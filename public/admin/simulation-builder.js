@@ -491,6 +491,7 @@
     showDisconnected = false;
     showGhostWires = false;
     canvasSearchQuery = "";
+    canvasSearchCurrent = null;
     $("sim-canvas-search").value = "";
     gridSnapSize = 5;
     $("sim-grid-snap").value = "5";
@@ -662,7 +663,7 @@
     )}" data-powered="${poweredComps.has(comp.id) ? "true" : "false"}" transform="translate(${comp.x},${
       comp.y
     })">${titleSvg}${def.render(comp)}${readingSvg && def.overlay ? def.overlay(readingSvg) : readingSvg}${sel ? `<rect class="sim-select-box" x="-4" y="-4" width="${def.w + 8}" height="${def.h + 8}" />` : ""}${
-      searchMatch ? `<rect class="sim-search-match-box" x="-6" y="-6" width="${def.w + 12}" height="${def.h + 12}" />` : ""
+      searchMatch ? `<rect class="sim-search-match-box${comp.id === canvasSearchCurrent ? " is-current" : ""}" x="-6" y="-6" width="${def.w + 12}" height="${def.h + 12}" />` : ""
     }</g>`;
   }
 
@@ -1010,6 +1011,8 @@
   // (once, on input) rather than re-normalizing it on every component's
   // match check during every render.
   let canvasSearchQuery = "";
+  // The match Enter last jumped to (drawn heavier than the other matches).
+  let canvasSearchCurrent = null;
   // Extra words the palette search already knows (see the Logic Gate keywords).
   const LOGIC_GATE_SEARCH_ALIASES = { not: "inverter", buffer: "non-inverting" };
   function componentMatchesSearch(comp) {
@@ -1112,6 +1115,7 @@
     }">${window.SIM_DEFS_SVG}${wiresSvg}${compsSvg}${ghostWiresSvg}${pinsSvg}</svg>`;
     attachBuilderEvents();
     applyZoom();
+    updateCanvasSearchCount();
     if (showDisconnected) {
       const n = countDisconnectedPins();
       $("sim-show-disconnected").textContent = n ? `Disconnected pins: ${n}` : "No disconnected pins";
@@ -1127,9 +1131,43 @@
     $("sim-continuity-test").classList.toggle("is-active", continuityMode);
   }
 
+  // "3 matches", or "2 of 3" once Enter has stepped to one of them.
+  function updateCanvasSearchCount() {
+    const el = $("sim-canvas-search-count");
+    if (!canvasSearchQuery) {
+      el.textContent = "";
+      return;
+    }
+    const matches = simData.components.filter(componentMatchesSearch);
+    const at = matches.findIndex((c) => c.id === canvasSearchCurrent);
+    el.textContent = !matches.length ? "No match" : at >= 0 ? `${at + 1} of ${matches.length}` : `${matches.length} ${matches.length === 1 ? "match" : "matches"}`;
+  }
+
   $("sim-canvas-search").addEventListener("input", (e) => {
     canvasSearchQuery = e.target.value.trim().toLowerCase();
+    canvasSearchCurrent = null;
     renderBuilder();
+  });
+
+  // Enter steps to the next match (Shift+Enter the previous one) and scrolls
+  // it into the middle of the view, so a match off-screen on a zoomed board
+  // can actually be found.
+  $("sim-canvas-search").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || e.isComposing) return;
+    e.preventDefault();
+    const matches = simData.components.filter(componentMatchesSearch);
+    if (!matches.length) return;
+    const at = matches.findIndex((c) => c.id === canvasSearchCurrent);
+    const step = e.shiftKey ? -1 : 1;
+    const next = matches[at === -1 ? (step > 0 ? 0 : matches.length - 1) : (at + step + matches.length) % matches.length];
+    canvasSearchCurrent = next.id;
+    renderBuilder();
+    const def = window.getSimComponentDefinition(next);
+    const svg = $("sim-builder-svg");
+    if (def && svg) {
+      const vb = svg.viewBox.baseVal;
+      centerCanvasOn((next.x + def.w / 2) / vb.width, (next.y + def.h / 2) / vb.height);
+    }
   });
 
   // ---------- Circuit warnings ----------
