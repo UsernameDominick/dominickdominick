@@ -678,6 +678,7 @@
     redoStack.push(counterpartOf(prev));
     editVersion++;
     applyEntry(prev);
+    updateCropNote();
   }
 
   function redo() {
@@ -687,6 +688,7 @@
     undoStack.push(counterpartOf(next));
     editVersion++;
     applyEntry(next);
+    updateCropNote();
   }
 
   function resetToOriginal() {
@@ -1784,14 +1786,30 @@
     cropRect = { x0, y0, x1: x0 + Math.round(w), y1: y0 + Math.round(h) };
     drawCropOverlay();
     $("pe-apply-crop").hidden = false;
+    // On a phone the toolbar scrolls sideways; bring the button into view.
+    $("pe-apply-crop").scrollIntoView({ block: "nearest", inline: "nearest" });
   }
 
   $("pe-crop-ratio").addEventListener("change", () => {
     updateCropNote();
     const template = cropTemplateSize();
-    if (template && !cropRect && !isComparing() && canvas.width > 1) {
+    if (template && (canvas.width < 4 || canvas.height < 4)) {
+      setCropNote("This image is too small to crop to a template.");
+      return;
+    }
+    if (template && !isComparing() && (!cropRect || currentTool !== "select")) {
+      // From another tool, or with no box yet: go to Crop and show a box of the new shape.
       setTool("select");
-      startTemplateCrop(template);
+      if (cropRect) {
+        const constrained = applyCropRatio(cropRect.x0, cropRect.y0, cropRect.x1, cropRect.y1);
+        cropRect.x1 = constrained.x1;
+        cropRect.y1 = constrained.y1;
+        drawCropOverlay();
+        $("pe-apply-crop").hidden = false;
+      } else {
+        startTemplateCrop(template);
+      }
+      $("pe-apply-crop").scrollIntoView({ block: "nearest", inline: "nearest" });
       return;
     }
     // Also guards on currentTool -- without it, switching to another tool
@@ -1855,6 +1873,10 @@
       setCropNote("");
     }
     syncOverlaySize();
+    // The selection's coordinates no longer describe the cropped picture (and
+    // a template can resize back to the same size, where the size check that
+    // normally clears it never fires).
+    if (hasSelection()) dropSelection("The selection was cleared because the image was cropped.");
     // Was: manually clearing cropRect/hiding the button/clearing the
     // overlay inline. Replaced with cancelActiveDrag() (same as rotate90()/
     // flip() already do) after a critic pass found this handler was still
@@ -1865,6 +1887,8 @@
     // resized canvas at the wrong scale/offset, destroying the crop.
     cancelActiveDrag();
     fitCanvasToViewport();
+    // The Apply button hides itself; keep keyboard users in the Crop group.
+    if (document.activeElement === document.body || document.activeElement === $("pe-apply-crop")) $("pe-crop-ratio").focus();
   });
 
   // ---------- Selection ----------
