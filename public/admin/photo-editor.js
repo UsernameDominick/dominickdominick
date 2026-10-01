@@ -3928,6 +3928,8 @@
   }
 
   // Paints the gradient dragged from (x0,y0) to (x1,y1) onto `target` (the whole canvas; a selection clips it later).
+  let gradientPreviewArgs = null;
+  let gradientPreviewFrame = 0;
   function paintGradient(target, x0, y0, x1, y1) {
     const hex = $("pe-paint-color").value;
     const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
@@ -4025,6 +4027,10 @@
 
   // Fill: floods the pixels of the active layer that are within the tolerance of the one clicked (connected to it, or
   // anywhere on the layer when "Connected only" is off) with the paint colour at the brush opacity. A selection limits it.
+  $("pe-fill-grow").addEventListener("change", () => { $("pe-fill-grow").value = Math.max(0, Math.min(3, Math.round(Number($("pe-fill-grow").value) || 0))); });
+  const syncGradientEnd = () => { $("pe-gradient-end").disabled = $("pe-gradient-fade").checked; };
+  $("pe-gradient-fade").addEventListener("change", syncGradientEnd);
+  syncGradientEnd();
   $("pe-fill-tolerance").addEventListener("input", () => $("pe-fill-tolerance").setAttribute("aria-valuetext", $("pe-fill-tolerance").value));
   function floodFill(point) {
     const w = canvas.width;
@@ -4524,7 +4530,18 @@
       if ((currentTool === "paint" || currentTool === "pencil") && dragging && strokeActive) drawPaintPreview(p);
       else drawBrushCursor(p);
     } else if (SHAPE_TOOLS.includes(currentTool) && dragging && dragStart) {
-      drawAnnotatePreview(dragStart.x, dragStart.y, p.x, p.y);
+      if (currentTool === "gradient") {
+        // A full-canvas gradient is costly on big images: repaint at most once per frame.
+        gradientPreviewArgs = [dragStart.x, dragStart.y, p.x, p.y];
+        if (!gradientPreviewFrame) {
+          gradientPreviewFrame = requestAnimationFrame(() => {
+            gradientPreviewFrame = 0;
+            const a = gradientPreviewArgs;
+            gradientPreviewArgs = null;
+            if (a && dragging && currentTool === "gradient") drawAnnotatePreview(...a);
+          });
+        }
+      } else drawAnnotatePreview(dragStart.x, dragStart.y, p.x, p.y);
     } else if (SELECTION_TOOLS.includes(currentTool)) {
       updateSelectionDraft(p);
     }
@@ -4581,9 +4598,10 @@
       finalizeBrushStroke();
     } else if (SELECTION_TOOLS.includes(currentTool)) {
       if (currentTool !== "sel-poly") commitSelectionDraft();
-    } else if (currentTool === "gradient" && dragStart && Math.hypot(p.x - dragStart.x, p.y - dragStart.y) < 2) {
+    } else if (currentTool === "gradient" && dragStart && Math.hypot(p.x - dragStart.x, p.y - dragStart.y) < 4) {
       clearOverlay(); // a click without a drag has no direction
     } else if (SHAPE_TOOLS.includes(currentTool) && dragStart) {
+      gradientPreviewArgs = null;
       pushUndo();
       const anchor = dragStart;
       withSelectionClip(() => commitAnnotation(anchor.x, anchor.y, p.x, p.y));
@@ -4688,6 +4706,15 @@
       (focused.tagName === "TEXTAREA" ||
         focused.isContentEditable ||
         (focused.tagName === "INPUT" && !["range", "color", "checkbox", "radio", "button"].includes(focused.type)));
+    // Escape also abandons a shape or gradient being dragged, instead of closing the editor mid-drag.
+    if (e.key === "Escape" && dragging && dragStart && SHAPE_TOOLS.includes(currentTool)) {
+      e.preventDefault();
+      dragging = false;
+      dragStart = null;
+      gradientPreviewArgs = null;
+      redrawOverlay();
+      return;
+    }
     if (e.key === "Escape" && selDraft && SELECTION_TOOLS.includes(currentTool)) {
       e.preventDefault();
       selDraft = null;
