@@ -1695,6 +1695,7 @@
         dx = Math.round((startPositions.get(compId).x + dx) / gridSnapSize) * gridSnapSize - startPositions.get(compId).x;
         dy = Math.round((startPositions.get(compId).y + dy) / gridSnapSize) * gridSnapSize - startPositions.get(compId).y;
       }
+      ({ dx, dy } = clampMoveToBoard(Array.from(startPositions.values()), dx, dy));
       groupIds.forEach((id) => {
         const c = simData.components.find((x) => x.id === id);
         const startPos = startPositions.get(id);
@@ -2124,6 +2125,126 @@
     const rotation = typeof comp.rotation === "number" && window.SIM_ORIENTATION_ROTATIONS.includes(comp.rotation) ? comp.rotation : 0;
     if (!rotation && comp.mirror !== true) return "Orientation: default";
     return `Orientation: ${rotation ? `${rotation}° clockwise` : "not rotated"}${comp.mirror === true ? ", flipped" : ""}`;
+  }
+
+  // The builder only draws (and the viewer only accepts) parts with
+  // 0 <= x <= 1500 and 0 <= y <= 700, so a drag, nudge or duplicate that
+  // crossed an edge used to make the part vanish. This trims a move so
+  // every part in the group stays on the board.
+  const BOARD_MAX_X = 1500;
+  const BOARD_MAX_Y = 700;
+  function clampMoveToBoard(starts, dx, dy) {
+    let lowX = -Infinity;
+    let highX = Infinity;
+    let lowY = -Infinity;
+    let highY = Infinity;
+    starts.forEach((pos) => {
+      lowX = Math.max(lowX, -pos.x);
+      highX = Math.min(highX, BOARD_MAX_X - pos.x);
+      lowY = Math.max(lowY, -pos.y);
+      highY = Math.min(highY, BOARD_MAX_Y - pos.y);
+    });
+    return { dx: Math.min(highX, Math.max(lowX, dx)), dy: Math.min(highY, Math.max(lowY, dy)) };
+  }
+
+  // ---------- Align / distribute ----------
+  // Pure layout maths on {id, x, y, w, h} footprints: returns a Map of
+  // id -> {x, y} for just the parts that have to move. Wires are drawn from
+  // the parts' live positions, so they follow without being touched.
+  function computeSimArrangement(boxes, action) {
+    const moves = new Map();
+    if (!Array.isArray(boxes) || boxes.length < 2) return moves;
+    const left = Math.min(...boxes.map((b) => b.x));
+    const right = Math.max(...boxes.map((b) => b.x + b.w));
+    const top = Math.min(...boxes.map((b) => b.y));
+    const bottom = Math.max(...boxes.map((b) => b.y + b.h));
+    const place = (b, x, y) => {
+      const nx = Math.round(x);
+      const ny = Math.round(y);
+      if (nx !== b.x || ny !== b.y) moves.set(b.id, { x: nx, y: ny });
+    };
+    const spread = (axis) => {
+      if (boxes.length < 3) return;
+      const pos = axis === "x" ? "x" : "y";
+      const size = axis === "x" ? "w" : "h";
+      // Ordered by centre, so a wide part doesn't leapfrog a narrow one;
+      // the two outermost parts stay put and the gaps between are equalised.
+      const order = boxes
+        .map((b, index) => ({ b, index, centre: b[pos] + b[size] / 2 }))
+        .sort((p, q) => p.centre - q.centre || p.b[pos] - q.b[pos] || p.index - q.index)
+        .map((entry) => entry.b);
+      const first = order[0];
+      const last = order[order.length - 1];
+      const used = order.reduce((sum, b) => sum + b[size], 0);
+      const gap = (last[pos] + last[size] - first[pos] - used) / (order.length - 1);
+      let cursor = first[pos];
+      order.forEach((b) => {
+        if (axis === "x") place(b, cursor, b.y);
+        else place(b, b.x, cursor);
+        cursor += b[size] + gap;
+      });
+    };
+    switch (action) {
+      case "align-left": boxes.forEach((b) => place(b, left, b.y)); break;
+      case "align-center": boxes.forEach((b) => place(b, (left + right) / 2 - b.w / 2, b.y)); break;
+      case "align-right": boxes.forEach((b) => place(b, right - b.w, b.y)); break;
+      case "align-top": boxes.forEach((b) => place(b, b.x, top)); break;
+      case "align-middle": boxes.forEach((b) => place(b, b.x, (top + bottom) / 2 - b.h / 2)); break;
+      case "align-bottom": boxes.forEach((b) => place(b, b.x, bottom - b.h)); break;
+      case "distribute-h": spread("x"); break;
+      case "distribute-v": spread("y"); break;
+    }
+    return moves;
+  }
+  window.computeSimArrangement = computeSimArrangement;
+
+  const ARRANGE_ACTIONS = [
+    { id: "align-left", label: "Align left", icon: '<path d="M2 2v14"/><rect x="4" y="4" width="11" height="4"/><rect x="4" y="10" width="7" height="4"/>' },
+    { id: "align-center", label: "Align centres horizontally", icon: '<path d="M9 2v14"/><rect x="3" y="4" width="12" height="4"/><rect x="5" y="10" width="8" height="4"/>' },
+    { id: "align-right", label: "Align right", icon: '<path d="M16 2v14"/><rect x="3" y="4" width="11" height="4"/><rect x="7" y="10" width="7" height="4"/>' },
+    { id: "align-top", label: "Align top", icon: '<path d="M2 2h14"/><rect x="4" y="4" width="4" height="11"/><rect x="10" y="4" width="4" height="7"/>' },
+    { id: "align-middle", label: "Align centres vertically", icon: '<path d="M2 9h14"/><rect x="4" y="3" width="4" height="12"/><rect x="10" y="5" width="4" height="8"/>' },
+    { id: "align-bottom", label: "Align bottom", icon: '<path d="M2 16h14"/><rect x="4" y="3" width="4" height="11"/><rect x="10" y="7" width="4" height="7"/>' },
+    { id: "distribute-h", label: "Distribute horizontally", icon: '<path d="M2 2v14M16 2v14"/><rect x="6" y="4" width="6" height="10"/>', needs: 3 },
+    { id: "distribute-v", label: "Distribute vertically", icon: '<path d="M2 2h14M2 16h14"/><rect x="4" y="6" width="10" height="6"/>', needs: 3 }
+  ];
+
+  function arrangeButtonsHtml(count) {
+    const button = (a) => {
+      const off = a.needs && count < a.needs;
+      const title = off ? `${a.label} (select at least ${a.needs} parts)` : a.label;
+      return `<button type="button" class="sim-arrange-btn" data-arrange="${a.id}" aria-label="${a.label}" title="${title}"${off ? " disabled" : ""}><svg viewBox="0 0 18 18" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">${a.icon}</svg></button>`;
+    };
+    return `<div class="sim-arrange" role="group" aria-label="Align and distribute">
+      <div class="sim-arrange-row">${ARRANGE_ACTIONS.slice(0, 6).map(button).join("")}</div>
+      <div class="sim-arrange-row">${ARRANGE_ACTIONS.slice(6).map(button).join("")}</div>
+      <p id="sim-arrange-status" class="sim-orient-status" role="status" aria-live="polite"></p>
+    </div>`;
+  }
+
+  function arrangeSelected(action) {
+    const status = $("sim-arrange-status");
+    const boxes = selectedIds()
+      .map((id) => simData.components.find((c) => c.id === id))
+      .filter(Boolean)
+      .map((comp) => {
+        const def = window.getSimComponentDefinition(comp);
+        return def && Number.isFinite(comp.x) && Number.isFinite(comp.y) ? { id: comp.id, x: comp.x, y: comp.y, w: def.w, h: def.h } : null;
+      })
+      .filter(Boolean);
+    const info = ARRANGE_ACTIONS.find((a) => a.id === action);
+    const moves = computeSimArrangement(boxes, action);
+    if (!info || !moves.size) {
+      if (status) status.textContent = info ? `${info.label}: already lined up.` : "";
+      return;
+    }
+    pushHistory();
+    moves.forEach((pos, id) => {
+      const comp = simData.components.find((c) => c.id === id);
+      if (comp) { comp.x = pos.x; comp.y = pos.y; }
+    });
+    renderBuilder();
+    if (status) status.textContent = `${info.label}: moved ${moves.size} ${moves.size === 1 ? "part" : "parts"}.`;
   }
 
   function renderInspector() {
@@ -2591,8 +2712,9 @@
         pushHistory();
         const clone = JSON.parse(JSON.stringify(comp));
         clone.id = newLocalId(comp.type);
-        clone.x = comp.x + 20;
-        clone.y = comp.y + 20;
+        const shift = clampMoveToBoard([comp], 20, 20);
+        clone.x = comp.x + shift.dx;
+        clone.y = comp.y + shift.dy;
         simData.components.push(clone);
         selected = { kind: "component", id: clone.id };
         renderInspector();
@@ -2611,18 +2733,23 @@
       box.innerHTML = `
         <p><strong>${ids.size} parts selected</strong></p>
         <p style="color:var(--text-dim);font-size:0.85rem;">Drag any one of them to move the whole group. Shift+click a part to remove it from the selection. Rotate and flip work on one part at a time.</p>
+        ${arrangeButtonsHtml(ids.size)}
         <button type="button" id="sim-duplicate-selected">Duplicate all</button>
         <button type="button" id="sim-delete-selected" class="danger">Delete all</button>
       `;
+      box.querySelectorAll("[data-arrange]").forEach((btn) => {
+        btn.addEventListener("click", () => arrangeSelected(btn.dataset.arrange));
+      });
       $("sim-duplicate-selected").addEventListener("click", () => {
         pushHistory();
         const idMap = new Map();
+        const shift = clampMoveToBoard(selected.ids.map((id) => simData.components.find((c) => c.id === id)).filter(Boolean), 20, 20);
         const clones = selected.ids.map((id) => {
           const src = simData.components.find((c) => c.id === id);
           const clone = JSON.parse(JSON.stringify(src));
           clone.id = newLocalId(clone.type);
-          clone.x = src.x + 20;
-          clone.y = src.y + 20;
+          clone.x = src.x + shift.dx;
+          clone.y = src.y + shift.dy;
           idMap.set(id, clone.id);
           return clone;
         });
@@ -2640,8 +2767,8 @@
               delete clonedWire.waypoints;
             } else {
               const shiftedWaypoints = getWireWaypoints(w).map((point) => ({
-                x: clampWireWaypointValue(point.x + 20, "x"),
-                y: clampWireWaypointValue(point.y + 20, "y"),
+                x: clampWireWaypointValue(point.x + shift.dx, "x"),
+                y: clampWireWaypointValue(point.y + shift.dy, "y"),
               }));
               setWireWaypoints(clonedWire, shiftedWaypoints);
             }
@@ -3169,10 +3296,13 @@
       e.preventDefault();
       const step = e.shiftKey && gridSnapSize > 0 ? gridSnapSize : 1;
       const [dx, dy] = ARROW_DELTAS[e.key];
+      // Held at the board's edge rather than letting the part slip off it.
+      const move = clampMoveToBoard(comps, dx * step, dy * step);
+      if (!move.dx && !move.dy) return;
       pushHistory();
       comps.forEach((comp) => {
-        comp.x += dx * step;
-        comp.y += dy * step;
+        comp.x += move.dx;
+        comp.y += move.dy;
       });
       renderBuilder();
     }

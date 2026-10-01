@@ -7469,3 +7469,14 @@ button[data-tier="quiet"] { border-color: transparent; }
   .sim-minimap-wire { stroke: GrayText; }
   .sim-minimap-frame { fill: none; stroke: Highlight; }
 }
+
+/* Align / distribute buttons in the simulation builder's multi-select inspector */
+.sim-arrange { margin: 8px 0; }
+.sim-arrange-row { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
+.sim-arrange-btn { width: 34px; height: 30px; padding: 0; display: inline-grid; place-items: center; color: var(--text); background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--control-radius, 6px); cursor: pointer; }
+.sim-arrange-btn:hover:not(:disabled) { border-color: var(--accent); }
+.sim-arrange-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.sim-arrange-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.sim-arrange-btn svg { display: block; }
+@media (pointer: coarse) { .sim-arrange-btn { width: 42px; height: 38px; } }
+@media (forced-colors: active) { .sim-arrange-btn { color: ButtonText; border-color: ButtonText; } .sim-arrange-btn:disabled { color: GrayText; border-color: GrayText; } }
