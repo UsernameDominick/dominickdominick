@@ -1977,6 +1977,13 @@
     });
   }
 
+  // Chromium ignores touch-action on SVG elements, so a finger drag that starts on a part would be taken over
+  // by the browser to scroll the dialog (pointercancel after two moves). Cancelling the touch's default
+  // action on parts only keeps the drag with the builder; the empty board still pans.
+  $("sim-builder-canvas").addEventListener("touchstart", (e) => {
+    if (e.target.closest && e.target.closest(".sim-comp")) e.preventDefault();
+  }, { passive: false });
+
   function updateWiresForComponent(compId) {
     const svg = $("sim-builder-svg");
     simData.wires.forEach((wire) => {
@@ -3511,8 +3518,8 @@
           const dx = p2.x - p1.x;
           const dy = p2.y - p1.y;
           const round1 = (v) => Math.round(v * 10) / 10;
-          // Already level or plumb: a straight wire is already at a right angle to everything.
-          if (Math.abs(dx) >= 1 && Math.abs(dy) >= 1) {
+          // Level or plumb (within 3 units, which would only make a fussy jog): already straight.
+          if (Math.abs(dx) >= 3 && Math.abs(dy) >= 3) {
             // Runs along the longer direction first, turns once in the middle, then finishes along the other.
             points = Math.abs(dx) >= Math.abs(dy)
               ? [{ x: round1(p1.x + dx / 2), y: p1.y }, { x: round1(p1.x + dx / 2), y: p2.y }]
