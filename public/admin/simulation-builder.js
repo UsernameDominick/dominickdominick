@@ -1109,6 +1109,8 @@
   // ("Connect R1 end 2 to LED1 anode"). Ticks live only in the open dialog (nothing is saved), and the whole list
   // can be copied as text or printed.
   const BB_PIN_NAMES = { rpt: "+ rail (top)", rnt: "− rail (top)", rnb: "− rail (bottom)", rpb: "+ rail (bottom)", t: "top half, column", b: "bottom half, column" };
+  // Labels are typed by hand; control and direction-override characters could reorder the text that names a part.
+  const cleanChecklistText = (v) => String(v == null ? "" : v).replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g, "").trim();
   function checklistPartNames() {
     const counts = {};
     const names = new Map();
@@ -1116,9 +1118,19 @@
       const def = REG[c.type];
       const base = (def && def.label) || c.type;
       counts[c.type] = (counts[c.type] || 0) + 1;
-      const label = String(c.label || "").trim();
+      const label = cleanChecklistText(c.label);
       // A part still carrying its default label (the type's own name) is numbered instead: "Resistor 1".
       names.set(c.id, label && label.toLowerCase() !== base.toLowerCase() ? `${label} (${base})` : `${base} ${counts[c.type]}`);
+    }
+    // Two parts that ended up with the same name are told apart by a number, so every step names one physical part.
+    const seen = {};
+    for (const n of names.values()) seen[n] = (seen[n] || 0) + 1;
+    const used = {};
+    for (const [id, n] of names) {
+      if (seen[n] > 1) {
+        used[n] = (used[n] || 0) + 1;
+        names.set(id, `${n} #${used[n]}`);
+      }
     }
     return names;
   }
@@ -1129,7 +1141,12 @@
     }
     const def = comp && REG[comp.type];
     const pin = def && def.pins.find((x) => x.id === pinId);
-    return (pin && pin.label) || String(pinId);
+    if (pin && pin.label) return cleanChecklistText(pin.label);
+    // Registry ids like "p1" or "d0" mean little to someone building it: "lead 1", "pin D0".
+    const id = String(pinId);
+    const lead = /^p(\d+)$/i.exec(id);
+    if (lead) return `lead ${lead[1]}`;
+    return /^[a-z]{1,2}\d+$/i.test(id) ? `pin ${id.toUpperCase()}` : id; // "d0" -> "pin D0"; "anode" stays "anode"
   }
   function buildChecklist() {
     const names = checklistPartNames();
@@ -1141,7 +1158,10 @@
       const a = byId.get(w.from.compId);
       const b = byId.get(w.to.compId);
       if (!a || !b) continue;
-      steps.push(`Connect ${names.get(a.id)}, ${checklistPinName(a, w.from.pin)} to ${names.get(b.id)}, ${checklistPinName(b, w.to.pin)}${w.label ? ` (${w.label})` : ""}`);
+      const verb = w.auto === true ? "Plug" : "Connect";
+      const joiner = w.auto === true ? "into" : "to";
+      const wl = cleanChecklistText(w.label);
+      steps.push(`${verb} ${names.get(a.id)}, ${checklistPinName(a, w.from.pin)} ${joiner} ${names.get(b.id)}, ${checklistPinName(b, w.to.pin)}${wl ? ` (${wl})` : ""}`);
     }
     return { boards, parts, steps };
   }
@@ -1164,7 +1184,7 @@
   }
   function checklistText() {
     const { boards, parts, steps } = buildChecklist();
-    const lines = [`Build checklist (${simData.components.length} parts, ${steps.length} wires)`];
+    const lines = [`Build checklist (${parts.length} parts${boards.length ? `, ${boards.length} board${boards.length === 1 ? "" : "s"}` : ""}, ${steps.length} connections)`];
     if (boards.length) lines.push("", "Boards", ...boards.map((t) => `[ ] ${t}`));
     lines.push("", "Parts to gather", ...(parts.length ? parts.map((t) => `[ ] ${t}`) : ["(none)"]));
     lines.push("", "Connections", ...(steps.length ? steps.map((t, i) => `[ ] ${i + 1}. ${t}`) : ["(none)"]));
@@ -1185,9 +1205,11 @@
   $("sim-checklist-copy").addEventListener("click", async () => {
     try {
       await navigator.clipboard.writeText(checklistText());
-      $("sim-checklist-progress").textContent = "Copied to the clipboard.";
+      updateChecklistProgress();
+      $("sim-checklist-progress").textContent += " · Copied to the clipboard";
     } catch (e) {
-      alert("Couldn't copy automatically. Select the list and copy it by hand.");
+      updateChecklistProgress();
+      $("sim-checklist-progress").textContent += " · Couldn't copy automatically; select the list and copy it by hand";
     }
   });
   $("sim-checklist-print").addEventListener("click", () => {
@@ -1199,9 +1221,11 @@
     doc.open();
     doc.write(`<!doctype html><title>Build checklist</title><style>body{font:14px/1.5 system-ui,sans-serif;margin:24px}h2{font-size:15px;margin:18px 0 6px}pre{white-space:pre-wrap;font:inherit}</style><pre>${escapeXml(checklistText())}</pre>`);
     doc.close();
+    const cleanup = () => frame.remove();
+    frame.contentWindow.addEventListener("afterprint", cleanup);
+    setTimeout(cleanup, 60000); // fallback if the browser never reports the print dialog closing
     frame.contentWindow.focus();
     frame.contentWindow.print();
-    setTimeout(() => frame.remove(), 1000);
   });
 
   $("sim-show-disconnected").addEventListener("click", () => {
