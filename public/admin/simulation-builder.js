@@ -124,6 +124,7 @@
     renderInspector();
     renderBuilder();
     refreshSimSaveState();
+    refreshConnectDialogIfOpen();
   }
 
   function redoHistory() {
@@ -140,6 +141,7 @@
     renderInspector();
     renderBuilder();
     refreshSimSaveState();
+    refreshConnectDialogIfOpen();
   }
 
   function captureInitialSimulationSnapshot() {
@@ -386,9 +388,25 @@
     $("sim-connect-go").disabled = !simData.components.length;
     renderConnectWires();
   }
+  // Undo or redo while the dialog is open changes the wires under it.
+  function refreshConnectDialogIfOpen() {
+    if (connectModal.hidden) return;
+    refreshConnectDialog({
+      fromPart: $("sim-connect-from-part").value,
+      fromPin: $("sim-connect-from-pin").value,
+      toPart: $("sim-connect-to-part").value,
+      toPin: $("sim-connect-to-pin").value,
+    });
+    $("sim-connect-status").textContent = "The wires changed (undo or redo).";
+  }
   function openConnectDialog() {
     const status = $("sim-connect-status");
     status.textContent = simData.components.length ? "" : "Place at least one part first.";
+    // A pin picked on the board is dropped: this dialog starts its own wire.
+    if (wireStart) {
+      wireStart = null;
+      renderBuilder();
+    }
     const first = selectedIds()[0] || (simData.components[0] && simData.components[0].id);
     const second = (simData.components.find((c) => c.id !== first) || simData.components[0] || {}).id;
     refreshConnectDialog({ fromPart: first, toPart: selectedIds()[1] || second });
@@ -452,6 +470,7 @@
     if (!wire) return;
     const rows = Array.from($("sim-connect-wires").querySelectorAll("[data-remove-wire]"));
     const at = rows.indexOf(btn);
+    const removedText = btn.closest("li").querySelector("span").textContent;
     pushHistory();
     simData.wires = simData.wires.filter((w) => String(w.id) !== id);
     if (selected && selected.kind === "wire" && String(selected.id) === id) selected = null;
@@ -463,7 +482,7 @@
       toPart: $("sim-connect-to-part").value,
       toPin: $("sim-connect-to-pin").value,
     });
-    $("sim-connect-status").textContent = "Removed the wire.";
+    $("sim-connect-status").textContent = `Removed ${removedText}.`;
     // Keep focus in the list, on the wire that took its place.
     const left = Array.from($("sim-connect-wires").querySelectorAll("[data-remove-wire]"));
     (left[Math.min(at, left.length - 1)] || $("sim-connect-go")).focus();
@@ -1619,6 +1638,12 @@
     }
     return names;
   }
+  // Parts whose registry pins carry only ids ("in_hot", "a"), named the way their terminals are marked.
+  const PIN_FRIENDLY_NAMES = {
+    power_supply: { in_hot: "mains hot in", in_neutral: "mains neutral in", out_pos: "output +", out_neg: "output −" },
+    logic_gate: { a: "input A", b: "input B", out: "output" },
+    mcu_teensy: { vin: "VIN", gnd: "GND" },
+  };
   function checklistPinName(comp, pinId) {
     if (comp && comp.type === "breadboard") {
       const m = /^(rpt|rnt|rnb|rpb|t|b)(\d+)$/.exec(String(pinId));
@@ -1627,6 +1652,8 @@
     const def = comp && REG[comp.type];
     const pin = def && def.pins.find((x) => x.id === pinId);
     if (pin && pin.label) return cleanChecklistText(pin.label);
+    const friendly = comp && PIN_FRIENDLY_NAMES[comp.type] && PIN_FRIENDLY_NAMES[comp.type][String(pinId)];
+    if (friendly) return friendly;
     // Registry ids like "p1" or "d0" mean little to someone building it: "lead 1", "pin D0".
     const id = String(pinId);
     const lead = /^p(\d+)$/i.exec(id);
@@ -3749,6 +3776,9 @@
       return;
     }
     if (isTyping) return;
+    // With another dialog open on top (checklist, notes, Connect pins) a key
+    // press with focus on one of its buttons must not edit the part behind it.
+    if (!builderIsTopModal()) return;
     if ((e.key === "Delete" || e.key === "Backspace") && selected) {
       e.preventDefault();
       const btn = $("sim-delete-selected");
