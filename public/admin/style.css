@@ -7438,3 +7438,25 @@ button[data-tier="quiet"] { border-color: transparent; }
 @media (max-width: 640px) {
   .song-ruler .song-ruler-steps { max-height: none; }
 }
+
+/* Simulation builder minimap: sits over the canvas's bottom-left corner,
+   above the horizontal scrollbar, only while the board scrolls. */
+.sim-minimap { position: absolute; left: 16px; bottom: 24px; z-index: 5; width: 168px; padding: 0; line-height: 0; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 6px; box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.3)); opacity: 0.92; cursor: crosshair; touch-action: none; overflow: hidden; }
+.sim-minimap[hidden] { display: none; }
+.sim-minimap:hover, .sim-minimap:focus-visible { opacity: 1; }
+.sim-minimap:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sim-minimap svg { display: block; width: 100%; height: auto; }
+.sim-minimap-comp { fill: color-mix(in srgb, var(--text-dim) 55%, transparent); stroke: none; }
+.sim-minimap-comp.is-selected { fill: var(--accent); }
+.sim-minimap-wire { fill: none; stroke: var(--text-dim); stroke-width: 1.5px; vector-effect: non-scaling-stroke; opacity: 0.8; }
+.sim-minimap-frame { fill: color-mix(in srgb, var(--accent) 14%, transparent); stroke: var(--accent); stroke-width: 1.5px; vector-effect: non-scaling-stroke; }
+@media (max-width: 860px) {
+  .sim-minimap { width: 120px; left: 10px; bottom: 20px; }
+}
+@media (forced-colors: active) {
+  .sim-minimap { border-color: CanvasText; background: Canvas; }
+  .sim-minimap-comp { fill: GrayText; }
+  .sim-minimap-comp.is-selected { fill: Highlight; }
+  .sim-minimap-wire { stroke: GrayText; }
+  .sim-minimap-frame { fill: none; stroke: Highlight; }
+}
