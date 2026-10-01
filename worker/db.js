@@ -327,6 +327,9 @@ export async function listBlocks(env, pageId) {
 }
 
 export async function createBlock(env, pageId, block) {
+  // Keep the block inside the 24-column grid: one that spills past it widens the whole public page.
+  const col = Math.min(24, Math.max(1, Math.trunc(Number(block.col ?? 1)) || 1));
+  block = { ...block, col, col_span: Math.min(25 - col, Math.max(1, Math.trunc(Number(block.col_span ?? 24)) || 24)) };
   const res = await env.DB
     .prepare(
       "INSERT INTO blocks (page_id, type, content, style, col, col_span, row, row_span, shared_block_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"

@@ -1249,11 +1249,11 @@
       ? sectionsCache
           .map(
             (sec) =>
-              `<div class="section-row"><span class="section-name">${escapeHtml(sec.name)} <span class="section-count">${sec.blocks.length} block${sec.blocks.length === 1 ? "" : "s"}</span></span><button type="button" class="insert-section" data-id="${Number(sec.id)}">Insert</button><button type="button" class="delete-section danger" data-id="${Number(sec.id)}" aria-label="Delete section ${escapeHtml(sec.name)}">Delete</button></div>`
+              `<div class="section-row"><span class="section-name">${escapeHtml(sec.name)} <span class="section-count">${sec.blocks.length} block${sec.blocks.length === 1 ? "" : "s"}</span></span><button type="button" class="insert-section" data-id="${escapeHtml(String(sec.id))}">Insert</button><button type="button" class="delete-section danger" data-id="${escapeHtml(String(sec.id))}" aria-label="Delete section ${escapeHtml(sec.name)}">Delete</button></div>`
           )
           .join("")
       : "<p class='dash-empty'>No saved sections yet.</p>";
-    box.querySelectorAll(".insert-section").forEach((btn) => btn.addEventListener("click", () => insertSection(Number(btn.dataset.id))));
+    box.querySelectorAll(".insert-section").forEach((btn) => btn.addEventListener("click", () => insertSection(btn.dataset.id)));
     box.querySelectorAll(".delete-section").forEach((btn) =>
       btn.addEventListener("click", async () => {
         if (!confirm("Delete this saved section? Pages that already used it keep their blocks.")) return;
@@ -1263,7 +1263,7 @@
     );
   }
   async function insertSection(id) {
-    const sec = sectionsCache.find((x) => x.id === id);
+    const sec = sectionsCache.find((x) => String(x.id) === String(id));
     if (!sec || !currentPage) return;
     const base = blocks.reduce((m, b) => Math.max(m, b.row + b.row_span), 1);
     const group = sec.blocks.length > 1 ? newGroupId() : null;
@@ -1605,7 +1605,7 @@
     const visibility = b.style && b.style.visibility;
     const readingOrderRaw = b.style && b.style.readingOrder;
     const hasReadingOrder = typeof readingOrderRaw === "number" && Number.isFinite(readingOrderRaw);
-    return `${groupOf(b) ? ` <span class="lock-badge" title="Part of a group: grouped blocks drag together">Group</span>` : ""}${
+    return `${groupOf(b) && blocks.filter((x) => groupOf(x) === groupOf(b)).length > 1 ? ` <span class="lock-badge" title="Part of a group: grouped blocks drag together">Group</span>` : ""}${
       b.shared_block_id ? ` <span class="lock-badge" title="Reusable block — editing it updates every page that uses it">Reusable</span>` : ""
     }${b.locked ? ` <span class="lock-badge" title="Locked — protected from accidental drag/resize/delete">Locked</span>` : ""}${
       visibility === "desktop-only" ? ` <span class="lock-badge" title="Hidden on mobile — desktop only">Desktop only</span>` : ""
@@ -1670,6 +1670,11 @@
       b.style = style;
     }
   }
+  const styleWithoutGroup = (style) => {
+    const out = { ...(style || {}) };
+    delete out.group;
+    return out;
+  };
   const newGroupId = () => "g" + Math.random().toString(36).slice(2, 10);
 
   function renderCanvas() {
@@ -2230,7 +2235,7 @@
     try {
       await api(`/pages/${currentPage.id}/blocks`, {
         method: "POST",
-        body: JSON.stringify({ type: clip.type, content: clip.content, style: clip.style, col: 1, row: maxRow, col_span: clip.col_span, row_span: clip.row_span }),
+        body: JSON.stringify({ type: clip.type, content: clip.content, style: styleWithoutGroup(clip.style), col: 1, row: maxRow, col_span: clip.col_span, row_span: clip.row_span }),
       });
       await loadBlocks();
       if (isMobile()) closeDrawers();
@@ -3138,13 +3143,21 @@
     const maxRow = blocks.reduce((m, b) => Math.max(m, b.row + b.row_span), 1);
     const minSelectedRow = Math.min(...selected.map((b) => b.row));
     const newIds = [];
+    // Copies of grouped blocks form their own new group instead of joining the original one.
+    const groupRemap = new Map();
     for (const b of selected) {
+      const g = groupOf(b);
+      const style = styleWithoutGroup(b.style);
+      if (g) {
+        if (!groupRemap.has(g)) groupRemap.set(g, newGroupId());
+        style.group = groupRemap.get(g);
+      }
       const res = await api(`/pages/${currentPage.id}/blocks`, {
         method: "POST",
         body: JSON.stringify({
           type: b.type,
           content: b.content,
-          style: b.style,
+          style,
           col: b.col,
           col_span: b.col_span,
           row: maxRow + (b.row - minSelectedRow),
@@ -4189,7 +4202,7 @@
         body: JSON.stringify({
           type: block.type,
           content: block.content,
-          style: block.style,
+          style: styleWithoutGroup(block.style),
           col: block.col,
           col_span: block.col_span,
           row: maxRow,
@@ -4243,6 +4256,7 @@
         body: JSON.stringify({
           type: block.type,
           content: block.content,
+          style: block.style || {},
           col: block.col,
           col_span: block.col_span,
           row: block.row,
