@@ -1109,8 +1109,10 @@
   // is modelled (the same text the part tooltips and the inspector use), then the rest of the parts.
   const SIM_GENERAL_LIMITS = [
     "It checks a circuit as direct current (DC) only: no AC, and nothing changes over time (no start-up or switching transients).",
-    "Each source is solved on its own as one series path. Parallel branches, bypasses and several sources in one circuit are beyond what it can vouch for, and voltmeters show a dash there instead of a guess.",
+    "Each source is solved on its own as one series path. Parallel branches, bypasses and several sources in one circuit are beyond what it can vouch for. Only voltmeters flag this, with a dash; other parts still show figures worked out from that one path, and a part on a side branch gets no status at all.",
+    "Wires, breadboard strips and meter probes are perfect conductors (zero resistance), and sources are ideal: they hold their voltage with no sag or current limit beyond the part's own settings.",
     "Capacitors count as open circuits and inductors as their winding resistance alone.",
+    "Part ratings are typical fixed values, not a real part's datasheet: LEDs 20 mA, resistors 0.25 W, the Teensy 1 W.",
     "Microcontroller pins and firmware are not simulated, and logic gates are diagram parts that document the truth table without being simulated.",
     "It is a learning aid, not a design tool: real parts have tolerances and limits it does not model.",
   ];
@@ -1753,12 +1755,12 @@
   // Keep in step with SIM_COMPONENTS (a new part type without an entry simply
   // shows nothing).
   const SIM_PART_MODEL = {
-    outlet: { kind: "Electrical", text: "supplies a constant 120V; most parts in a loop with it are destroyed, so go through a Power Supply." },
+    outlet: { kind: "Electrical", text: "supplies a constant 120V (real mains is AC; here it is treated as steady DC); most parts in a loop with it are destroyed, so go through a Power Supply." },
     power_supply: { kind: "Electrical", text: "gives a fixed DC voltage, but only once its input is powered." },
     battery: { kind: "Electrical", text: "supplies a constant DC voltage, with an optional internal resistance." },
     breadboard: { kind: "Mechanical", text: "joins holes in column strips and power rails; nothing electrical of its own." },
-    led: { kind: "Electrical", text: "lights only when wired the right way round; checked for current and burn-out." },
-    resistor: { kind: "Electrical", text: "limits current by Ohm's law; checked for overheating." },
+    led: { kind: "Electrical", text: "lights only when wired the right way round; checked for current and burn-out against a typical 20 mA rating." },
+    resistor: { kind: "Electrical", text: "limits current by Ohm's law; checked for overheating against a typical 0.25 W rating." },
     potentiometer: { kind: "Electrical", text: "acts as a two-terminal variable resistor set by its wiper." },
     capacitor: { kind: "Electrical (DC only)", text: "counts as an open circuit.", brief: true },
     inductor: { kind: "Electrical (DC only)", text: "counts as its winding resistance alone.", brief: true },
@@ -1766,7 +1768,7 @@
     switch_spdt: { kind: "Electrical", text: "joins the common terminal to one of two throws." },
     ammeter: { kind: "Electrical", text: "shows the current through it, with zero resistance." },
     voltmeter: { kind: "Electrical", text: "reads the voltage between its probes in a series circuit and draws no current; a dash means the simulator can't vouch for that point (parallel branches, several sources)." },
-    mcu_teensy: { kind: "Electrical", text: "acts as a fixed load; its digital pins and firmware aren't simulated." },
+    mcu_teensy: { kind: "Electrical", text: "acts as a fixed 300 Ω load and is checked for overheating (1 W); its digital pins and firmware aren't simulated." },
     tv: { kind: "Display", text: "lights up when powered (preview or Power on); it isn't analysed for current." },
     logic_gate: { kind: "Diagram part", text: "drawn for documentation, not simulated.", hideInInspector: true },
   };
