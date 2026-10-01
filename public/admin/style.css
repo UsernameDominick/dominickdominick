@@ -4893,8 +4893,13 @@ kbd {
 
 @media (pointer: coarse) {
   /* Bigger tap target for wiring pins on touchscreens, without changing
-     how they look on a mouse-driven desktop. */
+     how they look on a mouse-driven desktop. Full size only for the selected
+     part's pins (or while a wire is in progress): a big dot on every part
+     would swallow taps meant to select a small part. */
   .sim-pin {
+    r: 6;
+  }
+  .sim-pin.sim-pin-armed {
     r: 10;
   }
 }

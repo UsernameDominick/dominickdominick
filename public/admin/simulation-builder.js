@@ -1349,7 +1349,10 @@
           (continuityProbe && continuityProbe.compId === comp.id && continuityProbe.pin === p.id);
         const disconnected = showDisconnected && !isPinConnected(comp.id, p.id);
         const inNet = netNodeIds && netNodeIds.has(window.simNodeId(comp, p.id));
-        return `<circle class="sim-pin${active ? " sim-pin-active" : ""}${
+        // On a touchscreen the pin dots are only full size for the selected part (or while a wire is being
+        // made), so a tap on the middle of a small part selects it instead of starting a wire.
+        const armed = isCompSelected(comp.id) || Boolean(wireStart) || continuityMode;
+        return `<circle class="sim-pin${armed ? " sim-pin-armed" : ""}${active ? " sim-pin-active" : ""}${
           disconnected ? " sim-pin-disconnected" : ""
         }${inNet ? " sim-net-highlight" : ""}" data-comp="${escapeXml(comp.id)}" data-pin="${p.id}" cx="${comp.x + p.x}" cy="${
           comp.y + p.y
