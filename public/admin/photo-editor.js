@@ -3929,11 +3929,12 @@
     } catch (e) {}
     applyShortcutHints();
   }
-  // The physical key (KeyA..KeyZ) when there is one, so other keyboard layouts (Cyrillic, Greek...) get the same
-  // shortcuts; otherwise the typed character if it is a Latin letter.
+  // The typed letter when it is a Latin one (so AZERTY, Dvorak and the like match the letters printed on the
+  // keys, which is what the hints show); on layouts without Latin letters (Cyrillic, Greek...) the physical
+  // key (KeyA..KeyZ) stands in for it.
   function shortcutLetter(e) {
-    if (/^Key[A-Z]$/.test(e.code || "")) return e.code.slice(3).toLowerCase();
-    return /^[a-z]$/i.test(e.key || "") ? e.key.toLowerCase() : "";
+    if (/^[a-z]$/i.test(e.key || "")) return e.key.toLowerCase();
+    return /^Key[A-Z]$/.test(e.code || "") ? e.code.slice(3).toLowerCase() : "";
   }
   const keyOwner = (key) => Object.keys(toolShortcuts).find((t) => toolShortcuts[t] === key);
   document.addEventListener("keydown", (e) => {
