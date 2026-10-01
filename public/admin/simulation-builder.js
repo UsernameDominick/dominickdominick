@@ -1031,6 +1031,7 @@
   function renderBuilder() {
     const { poweredComps, poweredWires } = window.computeSimPoweredSet(simData);
     const analysis = window.computeSimElectricalAnalysis(simData);
+    updateWarningsBadge(analysis);
     // Selecting a wire highlights the whole wire-tied net it belongs to,
     // not just that one segment -- clicking any wire is a cheap, already-
     // familiar way to trigger this without a new interaction mode that
@@ -1102,6 +1103,76 @@
   $("sim-canvas-search").addEventListener("input", (e) => {
     canvasSearchQuery = e.target.value.trim().toLowerCase();
     renderBuilder();
+  });
+
+  // ---------- Circuit warnings ----------
+  // The solver already works out a status for every part it can analyse; this turns those statuses (and the parts it
+  // could NOT analyse) into plain sentences, so a misleading-looking circuit says so instead of just showing a dim
+  // part. Danger and warning lines are counted on the toolbar button; notes are only listed.
+  function circuitWarnings(analysis) {
+    const out = [];
+    const names = checklistPartNames();
+    const nameOf = (id) => names.get(id) || "A part";
+    const add = (level, text) => out.push({ level, text });
+    let outletLoop = false;
+    for (const comp of simData.components) {
+      const r = analysis[comp.id];
+      if (!r) continue;
+      const n = nameOf(comp.id);
+      if (r.dangerous) outletLoop = true;
+      if (r.kind === "led") {
+        if (r.status === "reversed") add("warning", `${n} is the wrong way round, so no current can flow through this loop. Swap its two legs.`);
+        else if (r.status === "blocked") add("warning", `${n} is blocked by a backwards LED in the same loop.`);
+        else if (r.status === "burnt" && !r.dangerous) add("danger", `${n} would burn out: the current is far above a typical LED's 20 mA. Add or enlarge a series resistor.`);
+        else if (r.status === "overdriven") add("warning", `${n} is overdriven: more than 1.5 times a typical LED's 20 mA.`);
+        else if (r.status === "unlit-low-voltage") add("warning", `${n} gets too little voltage to light.`);
+        else if (r.status === "dim") add("note", `${n} has almost no current (under 1 mA), so it will barely glow.`);
+      } else if (r.kind === "resistor" && r.status === "overheating") {
+        add("warning", `${n} would overheat: it dissipates ${r.watts.toFixed(2)} W against a typical 0.25 W rating.`);
+      } else if (r.kind === "teensy" && r.status === "overheating") {
+        add("warning", `${n} would overheat at this current.`);
+      } else if (r.kind === "voltmeter" && r.status === "no-reading") {
+        add("note", `${n} shows a dash: ${VOLTMETER_NO_READING[r.reason] || "the simulator can't vouch for a reading here."}`);
+      }
+    }
+    if (outletLoop) add("danger", "The wall outlet (120 V) is wired straight into this circuit, which destroys most parts. Go through a Power Supply.");
+    // Parts that can carry or show current but weren't analysed: not on any source's closed series loop.
+    const analysable = new Set(["led", "resistor", "ammeter", "mcu_teensy"]);
+    const hasSource = simData.components.some((c) => {
+      const d = window.getSimComponentDefinition(c);
+      return d && d.isSource;
+    });
+    const skipped = simData.components.filter((c) => analysable.has(c.type) && !analysis[c.id]);
+    if (simData.components.length && !hasSource && skipped.length) {
+      add("note", "There is no power source in this circuit, so nothing is analysed yet.");
+    } else if (skipped.length) {
+      const shown = skipped.slice(0, 5).map((c) => nameOf(c.id)).join(", ");
+      add("note", `${skipped.length === 1 ? "This part isn't" : `${skipped.length} parts aren't`} on any source's closed loop, so ${skipped.length === 1 ? "it shows" : "they show"} no status: ${shown}${skipped.length > 5 ? ", …" : ""}. ${skipped.length === 1 ? "It" : "They"} may be on a side branch, or the loop isn't complete.`);
+    }
+    const rank = { danger: 0, warning: 1, note: 2 };
+    return out.sort((a, b) => rank[a.level] - rank[b.level]);
+  }
+  let lastWarnings = [];
+  function updateWarningsBadge(analysis) {
+    const btn = $("sim-warnings-btn");
+    if (!btn) return;
+    lastWarnings = circuitWarnings(analysis);
+    const counted = lastWarnings.filter((w) => w.level !== "note");
+    const worst = counted.some((w) => w.level === "danger") ? "danger" : counted.length ? "warning" : "";
+    btn.textContent = counted.length ? `Warnings: ${counted.length}` : "No warnings";
+    btn.dataset.level = worst;
+    btn.title = lastWarnings.length ? `${counted.length} problem${counted.length === 1 ? "" : "s"} and ${lastWarnings.length - counted.length} note${lastWarnings.length - counted.length === 1 ? "" : "s"} about this circuit` : "The simulator found nothing to flag in this circuit";
+  }
+  $("sim-warnings-btn").addEventListener("click", () => {
+    const LEVEL_LABEL = { danger: "Danger", warning: "Warning", note: "Note" };
+    $("sim-warnings-body").innerHTML = lastWarnings.length
+      ? `<ul class="sim-model-list sim-warning-list">${lastWarnings.map((w) => `<li data-level="${w.level}"><strong>${LEVEL_LABEL[w.level]}:</strong> ${escapeXml(w.text)}</li>`).join("")}</ul>`
+      : "<p class='sim-checklist-empty'>Nothing to flag. Every part the simulator can analyse looks fine for this circuit. See Model notes for what it does not check.</p>";
+    $("sim-warnings-modal").hidden = false;
+  });
+  $("close-sim-warnings").addEventListener("click", () => {
+    $("sim-warnings-modal").hidden = true;
+    $("sim-warnings-btn").focus();
   });
 
   // ---------- Model notes ----------

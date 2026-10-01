@@ -7410,3 +7410,11 @@ button[data-tier="quiet"] { border-color: transparent; }
 .sim-model-kind { color: var(--text-dim); font-size: 0.75rem; }
 .sim-model-more { margin-top: var(--space-3, 12px); font-size: 0.88rem; }
 .sim-model-more summary { cursor: pointer; color: var(--text-dim); }
+
+/* ---- Simulation warnings ---- */
+#sim-warnings-btn[data-level="warning"] { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 55%, var(--border)); }
+#sim-warnings-btn[data-level="danger"] { color: var(--error-text); border-color: color-mix(in srgb, var(--error-text) 55%, var(--border)); font-weight: 600; }
+.sim-warning-list { list-style: none; padding-left: 0; }
+.sim-warning-list li { padding: 8px 10px; border: 1px solid var(--border); border-left-width: 3px; border-radius: 6px; }
+.sim-warning-list li[data-level="danger"] { border-left-color: var(--error-text); }
+.sim-warning-list li[data-level="warning"] { border-left-color: var(--warning); }
