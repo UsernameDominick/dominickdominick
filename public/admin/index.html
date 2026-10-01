@@ -1476,7 +1476,7 @@
           <span id="pe-hint" class="pe-hint"></span>
           <span id="pe-limits-info" class="pe-limits-info" tabindex="0">ℹ️ Limits</span>
           <button type="button" id="pe-shortcuts-btn" aria-expanded="false" aria-controls="pe-shortcuts-panel" title="See and change the one-key tool shortcuts">⌨ Keys</button>
-          <div id="pe-shortcuts-panel" class="pe-shortcuts-panel" hidden></div>
+          <div id="pe-shortcuts-panel" class="pe-shortcuts-panel" role="group" aria-label="Tool shortcuts" hidden><div class="pe-shortcuts-head"><strong>Tool shortcuts</strong><button type="button" id="pe-shortcuts-reset">Reset all</button></div><p id="pe-shortcuts-msg" class="pe-shortcuts-msg" role="status"></p><div id="pe-shortcut-grid" class="pe-shortcut-grid"></div></div>
           <button type="button" id="pe-view-rotate" title="Rotate the on-screen VIEW only -- doesn't touch the image's actual pixels, unlike the Rotate tool above">↻ View: 0°</button>
           <label>Preview against<select id="pe-bg-preview" title="Change the background behind the canvas to check how transparent areas will look against different page backgrounds">
             <option value="checkerboard">Checkerboard</option>

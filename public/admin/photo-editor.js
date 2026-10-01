@@ -3895,7 +3895,7 @@
     const saved = JSON.parse(localStorage.getItem(SHORTCUT_STORE_KEY) || "null");
     if (saved && typeof saved === "object") {
       for (const tool of Object.keys(DEFAULT_TOOL_SHORTCUTS)) {
-        if (tool in saved && (saved[tool] === "" || /^[a-z]$/.test(saved[tool]))) toolShortcuts[tool] = saved[tool];
+        if (tool in saved && typeof saved[tool] === "string" && (saved[tool] === "" || /^[a-z]$/.test(saved[tool]))) toolShortcuts[tool] = saved[tool];
       }
       // A hand-edited store can't hand one key to two tools.
       const seen = new Set();
@@ -3911,7 +3911,7 @@
   function applyShortcutHints() {
     document.querySelectorAll(".pe-tool").forEach((btn) => {
       if (btn.dataset.baseTitle === undefined) btn.dataset.baseTitle = btn.getAttribute("title") || "";
-      const key = toolShortcuts[btn.dataset.tool];
+      const key = typeof toolShortcuts[btn.dataset.tool] === "string" ? toolShortcuts[btn.dataset.tool] : "";
       const base = btn.dataset.baseTitle;
       if (key) {
         btn.setAttribute("aria-keyshortcuts", key.toUpperCase());
@@ -3929,12 +3929,19 @@
     } catch (e) {}
     applyShortcutHints();
   }
+  // The physical key (KeyA..KeyZ) when there is one, so other keyboard layouts (Cyrillic, Greek...) get the same
+  // shortcuts; otherwise the typed character if it is a Latin letter.
+  function shortcutLetter(e) {
+    if (/^Key[A-Z]$/.test(e.code || "")) return e.code.slice(3).toLowerCase();
+    return /^[a-z]$/i.test(e.key || "") ? e.key.toLowerCase() : "";
+  }
   const keyOwner = (key) => Object.keys(toolShortcuts).find((t) => toolShortcuts[t] === key);
   document.addEventListener("keydown", (e) => {
     if (modal.hidden || modal.getAttribute("aria-modal") !== "true" || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
-    if (capturingShortcutFor || typingInField(document.activeElement)) return;
-    if (e.key.length !== 1) return;
-    const tool = keyOwner(e.key.toLowerCase());
+    if (capturingShortcutFor || typingInField(document.activeElement) || e.repeat || e.isComposing) return;
+    const letter = shortcutLetter(e);
+    if (!letter) return;
+    const tool = keyOwner(letter);
     const btn = tool && toolButton(tool);
     if (!btn || btn.disabled || btn.hidden || btn.offsetParent === null) return;
     e.preventDefault();
@@ -3943,36 +3950,47 @@
   });
   let capturingShortcutFor = null;
   function renderShortcutPanel(message) {
-    const panel = $("pe-shortcuts-panel");
     const rows = Object.keys(DEFAULT_TOOL_SHORTCUTS)
       .map((tool) => {
         const btn = toolButton(tool);
         if (!btn) return "";
         const key = toolShortcuts[tool];
         const waiting = capturingShortcutFor === tool;
-        return `<div class="pe-shortcut-row"><span>${toolLabel(btn).replace(/[<>&"]/g, "")}</span><button type="button" class="pe-shortcut-key${waiting ? " is-waiting" : ""}" data-tool="${tool}" aria-label="Change shortcut for ${toolLabel(btn).replace(/[<>&"]/g, "")}">${waiting ? "Press a key…" : key ? key.toUpperCase() : "none"}</button></div>`;
+        const label = toolLabel(btn).replace(/[<>&"]/g, "");
+        return `<div class="pe-shortcut-row"><span>${label}</span><button type="button" class="pe-shortcut-key${waiting ? " is-waiting" : ""}" data-tool="${tool}" aria-label="Change shortcut for ${label}">${waiting ? "Press a key…" : key ? key.toUpperCase() : "none"}</button></div>`;
       })
       .join("");
-    panel.innerHTML = `<div class="pe-shortcuts-head"><strong>Tool shortcuts</strong><button type="button" id="pe-shortcuts-reset">Reset all</button></div><p class="pe-shortcuts-msg" role="status">${message || "Click a tool, then press the key you want. Backspace clears it."}</p><div class="pe-shortcut-grid">${rows}</div>`;
-    panel.querySelectorAll(".pe-shortcut-key").forEach((b) =>
+    $("pe-shortcut-grid").innerHTML = rows;
+    // The message element stays in the page (only its text changes) so screen readers announce it.
+    $("pe-shortcuts-msg").textContent = message || "Click a tool, then press the key you want. Backspace clears it.";
+    $("pe-shortcut-grid").querySelectorAll(".pe-shortcut-key").forEach((b) =>
       b.addEventListener("click", () => {
         capturingShortcutFor = b.dataset.tool;
         renderShortcutPanel();
-        panel.querySelector(".pe-shortcut-key.is-waiting")?.focus();
+        $("pe-shortcut-grid").querySelector(".pe-shortcut-key.is-waiting")?.focus();
       })
     );
-    $("pe-shortcuts-reset").addEventListener("click", () => {
-      capturingShortcutFor = null;
-      toolShortcuts = { ...DEFAULT_TOOL_SHORTCUTS };
-      saveToolShortcuts();
-      renderShortcutPanel("Back to the default shortcuts.");
-    });
   }
+  $("pe-shortcuts-reset").addEventListener("click", () => {
+    capturingShortcutFor = null;
+    toolShortcuts = { ...DEFAULT_TOOL_SHORTCUTS };
+    saveToolShortcuts();
+    renderShortcutPanel("Back to the default shortcuts.");
+  });
+  // Closing or reopening the editor drops a half-finished capture and closes the panel.
+  function resetShortcutUi() {
+    capturingShortcutFor = null;
+    renderShortcutPanel();
+    $("pe-shortcuts-panel").hidden = true;
+    $("pe-shortcuts-btn").setAttribute("aria-expanded", "false");
+  }
+  new MutationObserver(resetShortcutUi).observe(modal, { attributes: true, attributeFilter: ["hidden"] });
   // Capture phase, so a key meant for the panel never also reaches the editor (Escape would close it).
   document.addEventListener(
     "keydown",
     (e) => {
-      if (modal.hidden) return;
+      // Only while the editor is the top dialog; a stacked prompt keeps its own Escape.
+      if (modal.hidden || modal.getAttribute("aria-modal") !== "true") return;
       const panel = $("pe-shortcuts-panel");
       if (capturingShortcutFor) {
         e.preventDefault();
@@ -3986,8 +4004,8 @@
           toolShortcuts[tool] = "";
           saveToolShortcuts();
           renderShortcutPanel("Shortcut cleared.");
-        } else if (/^[a-z]$/i.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
-          const key = e.key.toLowerCase();
+        } else if (shortcutLetter(e) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          const key = shortcutLetter(e);
           const owner = keyOwner(key);
           if (owner && owner !== tool) {
             capturingShortcutFor = null;
@@ -4005,9 +4023,9 @@
           // Still waiting: keep the capture open and say what's allowed.
           renderShortcutPanel("Use a letter A to Z (0, 1, +, - and Space already do other things).");
         }
-        const waiting = panel.querySelector(".pe-shortcut-key.is-waiting");
+        const waiting = $("pe-shortcut-grid").querySelector(".pe-shortcut-key.is-waiting");
         if (waiting) waiting.focus();
-        else panel.querySelector(`.pe-shortcut-key[data-tool="${tool}"]`)?.focus();
+        else $("pe-shortcut-grid").querySelector(`.pe-shortcut-key[data-tool="${tool}"]`)?.focus();
         return;
       }
       if (e.key === "Escape" && !panel.hidden) {
@@ -4028,7 +4046,11 @@
     panel.hidden = !open;
     $("pe-shortcuts-btn").setAttribute("aria-expanded", String(open));
   });
-  applyShortcutHints();
+  try {
+    applyShortcutHints();
+  } catch (e) {
+    toolShortcuts = { ...DEFAULT_TOOL_SHORTCUTS };
+  }
 
   // ---------- Pointer routing ----------
   const BRUSH_TOOLS = ["paint", "pencil", "erase", "blur", "pixelate", "dodge", "burn"];
