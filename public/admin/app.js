@@ -900,6 +900,10 @@
 
   el("logout-btn").addEventListener("click", async () => {
     await fetch("/api/admin/logout", { method: "POST" });
+    // Photo editor autosaves live in this browser; signing out removes them.
+    try {
+      indexedDB.deleteDatabase("pe-recovery");
+    } catch (e) {}
     showLogin();
   });
 

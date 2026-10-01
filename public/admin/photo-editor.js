@@ -4555,16 +4555,20 @@
 
   // ---------- Autosave and crash recovery ----------
   // While the editor is open, every few seconds (and only when something changed) the layers are written to this
-  // browser's IndexedDB as PNGs. If the tab dies or the editor is closed by accident, opening the same image (or a
-  // blank image of the same size) offers to bring the edits back. Saving the image or choosing Discard clears it.
-  // Autosave is paused while that offer is waiting, so an unanswered offer is never overwritten.
+  // browser's IndexedDB as PNGs. If the tab dies or the editor is closed by accident, opening the same image offers
+  // to bring the edits back. Saving the image, choosing Discard, or logging out clears them; anything older than
+  // seven days goes on the next open. One record is kept per image (library file or blank/external image of that
+  // size, told apart by a tiny fingerprint of the starting pixels), newest five kept, so editing one image never
+  // overwrites another's unsaved work. Autosave is paused while an offer is waiting.
   const RECOVERY_DB = "pe-recovery";
   const RECOVERY_MAX_AGE_MS = 7 * 24 * 3600 * 1000;
+  const RECOVERY_MAX_RECORDS = 5;
   const RECOVERY_MAX_PIXELS = 48e6;
   const AUTOSAVE_EVERY_MS = 10000;
   let recoveryPending = false;
   let savedVersion = -1;
   let autosaving = false;
+  let recoveryGen = 0; // bumped by clearRecovery so an autosave already encoding can't write after it
   function recoveryDb() {
     return new Promise((resolve, reject) => {
       if (!window.indexedDB) return reject(new Error("no indexedDB"));
@@ -4589,12 +4593,54 @@
     }
   }
   const canvasBlob = (c) => new Promise((resolve) => c.toBlob((b) => resolve(b), "image/png"));
-  async function clearRecovery() {
+  // 8x8 luminance of the image as it was when the session started, in 16 levels: cheap, deterministic in one
+  // browser, and enough to tell two different images apart.
+  function fingerprintOf(source) {
     try {
-      await recoveryOp("readwrite", (store) => store.delete("current"));
+      const c = document.createElement("canvas");
+      c.width = 8;
+      c.height = 8;
+      const g = c.getContext("2d");
+      g.drawImage(source, 0, 0, 8, 8);
+      const d = g.getImageData(0, 0, 8, 8).data;
+      let out = "";
+      for (let i = 0; i < d.length; i += 4) out += ((d[i] * 3 + d[i + 1] * 6 + d[i + 2] + (255 - d[i + 3]) * 10) / 10 / 17 | 0).toString(16);
+      return out;
+    } catch (e) {
+      return "";
+    }
+  }
+  const recoveryKey = () => {
+    const first = layers[0] && layers[0].canvas;
+    return `${originalKey || "blank"}|${first ? first.width + "x" + first.height : "0x0"}|${originalSnapshot ? fingerprintOf(originalSnapshot) : ""}`;
+  };
+  let currentRecoveryKey = "";
+  async function clearRecovery() {
+    recoveryGen++;
+    try {
+      const key = currentRecoveryKey || recoveryKey();
+      await recoveryOp("readwrite", (store) => store.delete(key));
     } catch (e) {}
     savedVersion = editVersion;
     $("pe-autosave-status").textContent = "";
+  }
+  // Drops expired records and keeps only the newest few; failures are ignored (it's housekeeping).
+  async function pruneRecovery() {
+    try {
+      await recoveryOp("readwrite", (store) => {
+        const all = store.getAll();
+        const keys = store.getAllKeys();
+        all.onsuccess = () => {
+          keys.onsuccess = () => {
+            const rows = all.result.map((rec, i) => ({ rec, key: keys.result[i] })).sort((x, y) => (y.rec.savedAt || 0) - (x.rec.savedAt || 0));
+            rows.forEach((row, i) => {
+              if (Date.now() - (row.rec.savedAt || 0) > RECOVERY_MAX_AGE_MS || i >= RECOVERY_MAX_RECORDS) store.delete(row.key);
+            });
+          };
+        };
+        return all;
+      });
+    } catch (e) {}
   }
   async function autosaveNow() {
     if (autosaving || recoveryPending || modal.hidden || savedVersion === editVersion || !layers.length) return;
@@ -4605,14 +4651,18 @@
     }
     autosaving = true;
     const version = editVersion;
+    const gen = recoveryGen;
+    const key = currentRecoveryKey;
     try {
       const state = snapshotAll();
       const entries = [];
       for (const l of state.layers) entries.push({ meta: l.meta, canvas: await canvasBlob(l.canvas), mask: l.mask ? await canvasBlob(l.mask) : null });
       if (entries.some((e) => !e.canvas)) throw new Error("encode failed");
+      // The image was saved or the offer discarded while this was encoding: don't bring the record back.
+      if (gen !== recoveryGen || modal.hidden) return;
       const first = state.layers[0].canvas;
       await recoveryOp("readwrite", (store) =>
-        store.put({ originalKey: originalKey || null, w: first.width, h: first.height, layers: entries, active: state.active, editingMask: state.editingMask, savedAt: Date.now() }, "current")
+        store.put({ originalKey: originalKey || null, w: first.width, h: first.height, layers: entries, active: state.active, editingMask: state.editingMask, savedAt: Date.now() }, key)
       );
       savedVersion = version;
       $("pe-autosave-status").textContent = "Autosaved " + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -4646,39 +4696,51 @@
   let recoveryRecord = null;
   async function checkRecovery() {
     savedVersion = editVersion;
-    recoveryPending = false;
+    recoveryRecord = null;
     $("pe-recovery-bar").hidden = true;
     $("pe-autosave-status").textContent = "";
+    currentRecoveryKey = recoveryKey();
+    // Autosave waits until we know whether an older copy exists, so it can't overwrite one that is still unanswered.
+    recoveryPending = true;
+    const sessionKey = currentRecoveryKey;
     let rec = null;
     try {
-      rec = await recoveryOp("readonly", (store) => store.get("current"));
+      await pruneRecovery();
+      rec = await recoveryOp("readonly", (store) => store.get(sessionKey));
     } catch (e) {
+      rec = null;
+    }
+    if (modal.hidden || sessionKey !== currentRecoveryKey) return; // a newer session took over
+    const first = layers[0] && layers[0].canvas;
+    const usable = rec && Array.isArray(rec.layers) && rec.layers.length && first && rec.w === first.width && rec.h === first.height;
+    if (!usable) {
+      recoveryPending = false;
       return;
     }
-    if (!rec || !Array.isArray(rec.layers) || !rec.layers.length) return;
-    if (Date.now() - (rec.savedAt || 0) > RECOVERY_MAX_AGE_MS) return void clearRecovery();
-    const first = layers[0] && layers[0].canvas;
-    if (!first || (rec.originalKey || null) !== (originalKey || null) || rec.w !== first.width || rec.h !== first.height) return;
-    // Something already edited while this was loading: leave the offer for the next time.
-    if (editVersion !== savedVersion || modal.hidden) return;
     recoveryRecord = rec;
-    recoveryPending = true;
     $("pe-recovery-text").textContent = `Unsaved edits from ${new Date(rec.savedAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })} were found for this image. Autosave is paused until you choose.`;
     $("pe-recovery-bar").hidden = false;
   }
   $("pe-recovery-restore").addEventListener("click", async () => {
     const rec = recoveryRecord;
     if (!rec) return;
+    const undoBefore = undoStack.length;
     try {
       const restored = [];
       for (const entry of rec.layers) restored.push({ meta: entry.meta, canvas: await blobCanvas(entry.canvas), mask: entry.mask ? await blobCanvas(entry.mask) : null });
       pushUndoAll(); // the restore itself can be undone
       restoreAll({ layers: restored, active: rec.active, editingMask: rec.editingMask });
+      // Layer ids come from the old session; new layers must not reuse them.
+      layerSeq = Math.max(layerSeq, ...layers.map((l) => Number(l.id) || 0));
       recoveryPending = false;
       recoveryRecord = null;
       $("pe-recovery-bar").hidden = true;
       savedVersion = -1; // the restored state is new work as far as autosave is concerned
     } catch (e) {
+      if (undoStack.length > undoBefore) {
+        undoStack.pop();
+        updateHistoryButtons();
+      }
       $("pe-recovery-text").textContent = "Couldn't restore those edits (the saved copy is damaged). You can discard it.";
     }
   });
