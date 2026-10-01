@@ -701,6 +701,7 @@
   // straight into the same songData object the running player reads.
   $("song-tempo").addEventListener("input", () => {
     songData.tempo = Number($("song-tempo").value) || 120;
+    renderRulers();
     refreshWaveformPreview();
     scheduleAutosave();
   });
@@ -1351,6 +1352,73 @@
     else delete target[field];
   }
 
+  // ---------- Bars-and-beats and time ruler ----------
+  // A strip above each grid labelling its 16 steps the way a musician counts them (1 e & a 2 e & a ...) with the
+  // absolute time of each beat at the current tempo underneath. It is decoration (aria-hidden: every step button
+  // already has its own spoken label), lined up with the real step grid by measuring it, and redrawn whenever the grid
+  // is, the tempo changes or the panel is resized.
+  const RULER_SUBDIVISIONS = ["", "e", "&", "a"];
+  function formatRulerTime(seconds) {
+    return seconds >= 10 ? `${seconds.toFixed(1)}s` : `${seconds.toFixed(2)}s`;
+  }
+  function renderRuler(containerId) {
+    const container = $(containerId);
+    const ruler = $(`${containerId}-ruler`);
+    if (!container || !ruler) return;
+    const steps = container.querySelector(".song-steps");
+    if (!steps) {
+      ruler.hidden = true; // every row is collapsed: nothing to line up with
+      return;
+    }
+    ruler.hidden = false;
+    const stepSeconds = 60 / (songData.tempo || 120) / 4;
+    ruler.innerHTML =
+      '<div class="song-steps song-ruler-steps">' +
+      Array.from({ length: STEPS }, (_, i) => {
+        const beat = i % 4 === 0;
+        const label = beat ? String(i / 4 + 1) : RULER_SUBDIVISIONS[i % 4];
+        return `<span class="song-step song-ruler-cell${beat ? " song-step-beat song-ruler-beat" : ""}"><span class="song-ruler-label">${label}</span>${
+          beat ? `<span class="song-ruler-time">${formatRulerTime(i * stepSeconds)}</span>` : ""
+        }</span>`;
+      }).join("") +
+      "</div>";
+    layoutRuler(containerId);
+    // The builder dialog scales in over ~0.2 s and rects measured mid-animation are scaled too, so measure again after.
+    clearTimeout(rulerSettleTimers[containerId]);
+    rulerSettleTimers[containerId] = setTimeout(() => layoutRuler(containerId), 320);
+  }
+  const rulerSettleTimers = {};
+  // Lines the ruler up with the first visible step grid by measuring it (layout, not looks: the grid's left edge
+  // depends on how wide the row labels and toggles in front of it turned out).
+  function layoutRuler(containerId) {
+    const container = $(containerId);
+    const ruler = $(`${containerId}-ruler`);
+    const steps = container && container.querySelector(".song-steps");
+    const inner = ruler && ruler.firstChild;
+    if (!steps || !inner || inner.nodeType !== 1) return;
+    const cr = container.getBoundingClientRect();
+    const sr = steps.getBoundingClientRect();
+    inner.style.flex = "none";
+    inner.style.marginLeft = `${Math.max(0, sr.left - cr.left)}px`;
+    inner.style.width = `${sr.width}px`;
+  }
+  function renderRulers() {
+    renderRuler("song-sequencer");
+    renderRuler("song-piano-roll");
+  }
+  if (typeof ResizeObserver === "function") {
+    let rulerFrame = 0;
+    const ro = new ResizeObserver(() => {
+      if (rulerFrame) return;
+      rulerFrame = requestAnimationFrame(() => {
+        rulerFrame = 0;
+        if (!$("song-builder-modal").hidden) renderRulers();
+      });
+    });
+    ro.observe($("song-sequencer"));
+    ro.observe($("song-piano-roll"));
+  }
+
   function renderSequencer() {
     renderStepGrid(
       "song-sequencer",
@@ -1371,6 +1439,7 @@
         if (toggle) toggle.focus();
       }
     );
+    renderRuler("song-sequencer");
   }
 
   function updateMelodyToggles() {
@@ -1409,6 +1478,7 @@
         `<span class="song-track-hidden-note">Melody hidden, ${songData.melody.muted === true ? "muted" : "still plays"}</span>` +
         `<button type="button" class="song-melody-show">Show melody</button></div>`;
       $("song-piano-roll").querySelector(".song-melody-show").addEventListener("click", () => setMelodyFlag("hidden"));
+      renderRuler("song-piano-roll");
       return;
     }
     renderStepGrid(
@@ -1422,6 +1492,7 @@
       undefined,
       (n) => playAndMaybeRecordNote(n)
     );
+    renderRuler("song-piano-roll");
   }
 
   // Shifts every note in the melody up/down by `semitones` (positive =

@@ -7423,3 +7423,18 @@ button[data-tier="quiet"] { border-color: transparent; }
 
 /* ---- Song metronome and count-in ---- */
 .song-metronome-group { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+
+/* ---- Song step ruler (bars and beats, with time) ----
+   The ruler's cells are real ".song-step" squares, just emptied of their button look, so the grid sizes them exactly like
+   the steps below (beat gaps and all). The strip is clipped to a short height; on phones, where the grid wraps into
+   two rows, every row of labels is shown. */
+.song-ruler { max-width: 900px; margin-bottom: 4px; }
+.song-ruler[hidden] { display: none; }
+.song-ruler .song-ruler-steps { max-height: 36px; overflow: hidden; }
+.song-ruler .song-ruler-cell { border: 0; background: none; cursor: default; pointer-events: none; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 1px; color: var(--text-dim); font-size: 0.68rem; line-height: 1.2; font-variant-numeric: tabular-nums; white-space: nowrap; box-sizing: border-box; }
+.song-ruler .song-ruler-beat { color: var(--text); font-weight: 600; font-size: 0.8rem; }
+.song-ruler .song-ruler-time { font-weight: 400; font-size: 0.66rem; color: var(--text-dim); }
+.song-ruler .song-ruler-label { min-height: 1.2em; }
+@media (max-width: 640px) {
+  .song-ruler .song-ruler-steps { max-height: none; }
+}
