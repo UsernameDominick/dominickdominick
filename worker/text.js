@@ -69,23 +69,31 @@ export const PAGE_CSS_MAX = 20000;
 export function cleanPageCss(input) {
   const css = String(input == null ? "" : input).trim();
   if (css.length > PAGE_CSS_MAX) return { error: `Page CSS is limited to ${PAGE_CSS_MAX} characters.` };
-  // Text inside quotes is inert (content: "\\201C" is a normal use of a backslash), so the remaining
-  // checks look at the CSS with quoted strings blanked out. Tags and comment markers are checked everywhere:
-  // they can end the <style> element even inside a string.
+  // CSS ends a string at a raw CR, FF or newline, which a regex-based check can't mirror, so the only
+  // line break allowed is \n (a string never spans one) and other control characters are refused.
+  if (/[\u0000-\u0008\u000b-\u001f\u007f\u2028\u2029]/.test(css)) return { error: "It can't contain control characters (carriage returns and form feeds included)." };
+  // Tags and comment markers can end the <style> element, even inside a string.
   if (/<\s*\/?\s*(style|script)/i.test(css)) return { error: "It can't contain <style> or <script> tags." };
   if (/<!--|-->/.test(css)) return { error: "It can't contain HTML comment markers." };
+  // Text inside quotes is inert (content: "\\201C" is a normal use of a backslash), so the remaining
+  // checks look at the CSS with quoted strings blanked out.
   const bare = css.replace(/"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'/g, '""');
   const banned = [
     [/@import/i, "@import is not allowed; put the rules here instead."],
     [/expression\s*\(/i, "expression() is not allowed."],
     [/javascript\s*:/i, "javascript: values are not allowed."],
     [/(-moz-binding|behavior\s*:)/i, "That property is not allowed."],
+    [/(^|[^a-z-])(-webkit-)?(image-set|src|cross-fade|element)\s*\(/i, "image-set(), src(), cross-fade() and element() are not allowed; use url()."],
     [/\\/, "Backslash escapes are only allowed inside quoted text (they can hide forbidden patterns)."],
   ];
   for (const [re, msg] of banned) if (re.test(bare)) return { error: msg };
-  for (const m of css.matchAll(/url\(\s*(['"]?)([^'")]*)\1\s*\)/gi)) {
-    const target = m[2].trim();
-    if (!/^(\/(?!\/)|data:image\/(png|jpe?g|gif|webp|avif);|https:\/\/)/i.test(target)) return { error: `url(${target.slice(0, 30)}) is not allowed; use a /media/ path or an https:// address.` };
+  // Every url() must be one of the simple forms below and point at this site or an inline image.
+  const urlForm = /url\(\s*(?:"([^"\n\\]*)"|'([^'\n\\]*)'|([^)\s'"\\]*))\s*\)/gi;
+  const matches = [...css.matchAll(urlForm)];
+  if ((css.match(/url\s*\(/gi) || []).length !== matches.length) return { error: "A url() is written in a form that can't be checked; use url(/media/…) or url(\"/media/…\")." };
+  for (const m of matches) {
+    const target = (m[1] ?? m[2] ?? m[3] ?? "").trim();
+    if (!/^(\/(?!\/)|data:image\/(png|jpe?g|gif|webp|avif);base64,[A-Za-z0-9+\/=]*$)/i.test(target)) return { error: `url(${target.slice(0, 30)}) is not allowed; use a /media/ path or an inline PNG, JPEG, GIF, WebP or AVIF image.` };
   }
   return { css };
 }

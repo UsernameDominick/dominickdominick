@@ -1228,7 +1228,7 @@
         pageCssLoadedFor = page.id;
       }
     } catch (e) {
-      el("page-css-status").textContent = "Couldn't load the page CSS: " + e.message;
+      if (currentPage && currentPage.id === page.id) el("page-css-status").textContent = "Couldn't load the page CSS: " + e.message;
     }
   }
   function applyPageCssPreview() {
@@ -1262,12 +1262,14 @@
     el("page-css-status").textContent = "Saving…";
     try {
       const res = await api(`/pages/${page.id}/css`, { method: "PUT", body: JSON.stringify({ css: el("page-custom-css").value }) });
+      // The admin may have switched pages while this was in flight; only touch the panel if it still shows this page.
+      if (!currentPage || currentPage.id !== page.id) return;
       el("page-custom-css").value = res.css || "";
       pageCssPreview = null;
       el("page-css-status").textContent = "Saved " + new Date().toLocaleTimeString();
       schedulePreviewRefresh();
     } catch (err) {
-      el("page-css-status").textContent = "Not saved: " + err.message;
+      if (currentPage && currentPage.id === page.id) el("page-css-status").textContent = "Not saved: " + err.message;
     }
   });
 
