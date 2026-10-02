@@ -2854,6 +2854,11 @@ hr {
   gap: 14px;
 }
 
+.not-found-suggest {
+  font-size: 1.05rem;
+  margin: 0 0 20px;
+}
+
 .not-found-heading {
   font-family: var(--font-mono);
   font-size: 0.85rem;

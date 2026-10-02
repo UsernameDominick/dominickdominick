@@ -784,7 +784,7 @@ export function renderFeaturedInProjectsHtml(projects) {
   return `<div class="related-posts"><strong>Featured in</strong><div class="project-list">${items}</div></div>`;
 }
 
-export function renderNotFoundHtml(navItems, recentArticles = []) {
+export function renderNotFoundHtml(navItems, recentArticles = [], suggestion = null) {
   const links = navItems
     .map((n) => `<li><a href="${n.slug === "home" ? "/" : "/" + esc(n.slug)}">${esc(n.nav_label)}</a></li>`)
     .join("");
@@ -797,6 +797,7 @@ export function renderNotFoundHtml(navItems, recentArticles = []) {
 <p class="not-found-code" aria-hidden="true">Error 404</p>
 <h1>Page not found</h1>
 <p>Whatever you were looking for isn't here — it may have moved or never existed.</p>
+${suggestion ? `<p class="not-found-suggest">Did you mean <a href="${esc(suggestion.path)}">${esc(suggestion.label || suggestion.path)}</a>?</p>` : ""}
 <form class="not-found-search" action="/search" method="get" role="search" aria-label="Search for another page">
   <input type="search" name="q" placeholder="Search the site" aria-label="Search">
   <button type="submit">Search</button>

@@ -1,5 +1,6 @@
 import { toHex } from "./auth.js";
 import { visibleText, nowIso, pageCssKey } from "./text.js";
+import { suggestNearest } from "./notfound.js";
 import { normalizeLegacySimulationWireIds, simulationDataError } from "./simulation-validation.js";
 
 export const RESERVED_SLUGS = new Set([
@@ -1690,6 +1691,59 @@ export async function getTopEventUrls(env, eventName, days = 30) {
   return results.map((r) => ({ url: r.detail, n: r.n }));
 }
 
+// The addresses readers asked for that don't exist (recorded as "not_found" events by the public 404), most-asked first: how many
+// times, when last, where from (the most common referring site, if any), whether a redirect already covers it, and the nearest
+// real address as a suggested destination (when one is close enough to be a likely typo).
+export async function getMissingPages(env, days = 30) {
+  const window = `created_at > datetime('now', '-${Math.max(1, Math.floor(days))} days')`;
+  const { results: rows } = await env.DB
+    .prepare(
+      `SELECT path, COUNT(*) AS n, MAX(created_at) AS last_seen FROM events WHERE name = 'not_found' AND path IS NOT NULL AND ${window}
+       GROUP BY path ORDER BY n DESC, last_seen DESC LIMIT 25`
+    )
+    .all();
+  if (!rows.length) return [];
+  const marks = rows.map(() => "?").join(",");
+  const paths = rows.map((r) => r.path);
+  const [{ results: refs }, { results: redirected }] = await Promise.all([
+    env.DB
+      .prepare(
+        `SELECT path, detail, COUNT(*) AS n FROM events WHERE name = 'not_found' AND detail IS NOT NULL AND ${window} AND path IN (${marks})
+         GROUP BY path, detail ORDER BY n DESC`
+      )
+      .bind(...paths)
+      .all(),
+    env.DB.prepare(`SELECT from_path FROM redirects WHERE from_path IN (${marks})`).bind(...paths).all(),
+  ]);
+  const topReferrer = new Map();
+  for (const r of refs) if (!topReferrer.has(r.path)) topReferrer.set(r.path, r.detail);
+  const covered = new Set(redirected.map((r) => r.from_path));
+  const candidates = await listLinkTargets(env);
+  return rows.map((r) => ({
+    path: r.path,
+    n: r.n,
+    lastSeen: r.last_seen,
+    referrer: topReferrer.get(r.path) || null,
+    redirected: covered.has(r.path),
+    suggestion: suggestNearest(r.path, candidates),
+  }));
+}
+
+// The site's own public addresses with a readable name for each (published pages, articles and projects), for "did you mean"
+// suggestions. Drafts, scheduled, archived and expired items are left out, as they are everywhere else.
+export async function listLinkTargets(env) {
+  const [pages, articles, projects] = await Promise.all([
+    listPages(env),
+    listArticles(env, { publishedOnly: true }),
+    listProjects(env, { publishedOnly: true }),
+  ]);
+  return [
+    ...pages.filter((p) => p.slug && p.slug !== "home").map((p) => ({ path: `/${p.slug}`, label: visibleText(p.title) || visibleText(p.nav_label) || p.slug })),
+    ...articles.map((a) => ({ path: `/random/${a.slug}`, label: visibleText(a.title) || a.slug })),
+    ...projects.map((p) => ({ path: `/projects/${p.slug}`, label: visibleText(p.title) || p.slug })),
+  ];
+}
+
 // ---------- Rate limiting (generic) ----------
 // Separate from login's own checkLoginRateLimit/recordLoginAttempt — that
 // path is already proven and left untouched; this is for other public
@@ -2934,6 +2988,7 @@ export async function getAnalytics(env, days = 7, filters = {}) {
     searchInsights,
     topOutboundLinks,
     topDownloads,
+    missingPages,
   ] = await Promise.all([
     isFiltered
       ? env.DB
@@ -3012,6 +3067,7 @@ export async function getAnalytics(env, days = 7, filters = {}) {
     getSearchInsights(env, days),
     getTopEventUrls(env, "outbound_link", days),
     getTopEventUrls(env, "download", days),
+    getMissingPages(env, days),
   ]);
 
   return {
@@ -3032,6 +3088,7 @@ export async function getAnalytics(env, days = 7, filters = {}) {
     noResultSearchTerms: searchInsights.noResultTerms,
     topOutboundLinks,
     topDownloads,
+    missingPages,
   };
 }
 

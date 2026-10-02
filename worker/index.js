@@ -16,6 +16,7 @@ import {
   parseUserAgent,
   isBot,
   getRedirect,
+  listLinkTargets,
   publicSearch,
   getRelatedArticles,
   getProjectsLinkingToArticle,
@@ -95,6 +96,7 @@ import {
   CONTROL_PRESETS,
 } from "./render.js";
 import { handleAdminApi } from "./admin-api.js";
+import { notFoundLogPath, suggestNearest } from "./notfound.js";
 import { visibleText, nowIso, cleanPageCss, pageCssKey } from "./text.js";
 import {
   capacitanceMicrofarads,
@@ -870,13 +872,15 @@ async function renderTopicPage(env, tag, navItems) {
   return new Response(html, { status: isEmpty ? 404 : 200, headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
-async function renderNotFound(env, navItems) {
-  const [{ defaultOgImage, theme, footerText, customHead }, recentArticles] = await Promise.all([
+async function renderNotFound(env, navItems, missingPath = null) {
+  const [{ defaultOgImage, theme, footerText, customHead }, recentArticles, suggestion] = await Promise.all([
     getSiteContext(env),
     listArticles(env, { publishedOnly: true, limit: 5 }),
+    // A mistyped address usually has one obvious neighbour: offered first, before the generic lists.
+    missingPath ? listLinkTargets(env).then((targets) => suggestNearest(missingPath, targets)).catch(() => null) : null,
   ]);
   const bodyHtml = `<div class="block">
-    ${renderNotFoundHtml(navItems, recentArticles)}
+    ${renderNotFoundHtml(navItems, recentArticles, suggestion)}
   </div>`;
   const html = renderShell({
     title: "Page not found · Dominick",
@@ -1192,6 +1196,45 @@ function trackView(ctx, env, request, path) {
       })
       .catch(() => {})
   );
+}
+
+// The address someone asked for that doesn't exist, noted so the owner can fix the link or add a redirect (Analytics shows the most
+// asked-for ones). Like trackView it ignores crawlers, prefetches and the signed-in owner, and probes for WordPress and the like
+// are dropped by notFoundLogPath. The referrer is the site it came from, or, for a link on this site, the page that holds it.
+function trackMiss(ctx, env, request, path) {
+  if (env.__previewNow || request.method !== "GET") return;
+  if (isBot(request.headers.get("User-Agent"))) return;
+  const purpose = `${request.headers.get("Sec-Purpose") || ""} ${request.headers.get("Purpose") || ""}`;
+  if (/prefetch|prerender/i.test(purpose)) return;
+  const logPath = notFoundLogPath(path);
+  if (!logPath) return;
+  let from = null;
+  const refHeader = request.headers.get("Referer");
+  if (refHeader) {
+    try {
+      const ref = new URL(refHeader);
+      const own = ref.hostname === "dominickdominick.com" || ref.hostname.endsWith(".dominickdominick.com") || ref.hostname === new URL(request.url).hostname;
+      from = own ? `${ref.hostname}${ref.pathname}`.slice(0, 160) : ref.hostname;
+    } catch {
+      // ignore malformed referrer
+    }
+  }
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  ctx.waitUntil(
+    isAuthenticated(request, env)
+      .then((isOwner) => (isOwner ? false : checkRateLimit(env, "notfound", ip, { windowMinutes: 1, maxAttempts: 20 })))
+      .then((allowed) => {
+        if (!allowed) return;
+        return Promise.all([logEvent(env, { name: "not_found", path: logPath, detail: from }), recordRateLimitHit(env, "notfound", ip)]);
+      })
+      .catch(() => {})
+  );
+}
+
+// The branded 404 for a missing address, after noting the miss.
+async function respondNotFound(ctx, env, request, path) {
+  trackMiss(ctx, env, request, path);
+  return renderNotFound(env, await listNavPages(env), path);
 }
 
 // A public JSON body as a plain object (anything else reads as {}).
@@ -1580,7 +1623,7 @@ async function route(request, env, ctx) {
       if (!sim) {
         const assetResponse = await env.ASSETS.fetch(request);
         if (assetResponse.status !== 404) return assetResponse;
-        return renderNotFound(env, await listNavPages(env));
+        return respondNotFound(ctx, env, request, path);
       }
       const navItems = await listNavPages(env);
       trackView(ctx, env, request, path);
@@ -1672,7 +1715,7 @@ async function route(request, env, ctx) {
       if (!article || (!isPublished && !isPreview)) {
         const assetResponse = await env.ASSETS.fetch(request);
         if (assetResponse.status !== 404) return assetResponse;
-        return renderNotFound(env, await listNavPages(env));
+        return respondNotFound(ctx, env, request, path);
       }
       const navItems = await listNavPages(env);
       if (isPublished) trackView(ctx, env, request, path);
@@ -1706,7 +1749,7 @@ async function route(request, env, ctx) {
       if (!project || (!isPublished && !isPreview)) {
         const assetResponse = await env.ASSETS.fetch(request);
         if (assetResponse.status !== 404) return assetResponse;
-        return renderNotFound(env, await listNavPages(env));
+        return respondNotFound(ctx, env, request, path);
       }
       const navItems = await listNavPages(env);
       if (isPublished) trackView(ctx, env, request, path);
@@ -1732,6 +1775,5 @@ async function route(request, env, ctx) {
     // branded one that helps a lost reader find their way back in.
     const assetResponse = await env.ASSETS.fetch(request);
     if (assetResponse.status !== 404) return assetResponse;
-    const navItems = await listNavPages(env);
-    return renderNotFound(env, navItems);
+    return respondNotFound(ctx, env, request, path);
 }

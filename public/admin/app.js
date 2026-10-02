@@ -7345,6 +7345,8 @@
       el("redirect-from").value = "";
       el("redirect-to").value = "";
       await loadRedirects();
+      // Added from a "Missing pages" row: that row now reads "Redirect set".
+      if (!el("analytics-modal").hidden) await loadAnalytics();
     } catch (err) {
       alert(err.message);
     }
@@ -9946,6 +9948,41 @@
     renderList("analytics-no-result-searches", data.noResultSearchTerms, "term");
     renderList("analytics-outbound-links", data.topOutboundLinks, "url");
     renderList("analytics-downloads", data.topDownloads, "url");
+    renderMissingPages(data.missingPages || []);
+  }
+
+  // Addresses readers asked for that don't exist, with a one-click way to send each somewhere real (the Redirects dialog opens with
+  // the address filled in, and the nearest real page when one looks like the intended target).
+  function renderMissingPages(rows) {
+    const box = el("analytics-missing-pages");
+    if (!rows.length) {
+      box.innerHTML = "<p style='color:var(--text-dim);font-size:0.85rem;'>Nothing missing in this period.</p>";
+      return;
+    }
+    box.innerHTML = rows
+      .map((r, i) => {
+        const notes = [];
+        if (r.referrer) notes.push(`from ${escapeHtml(r.referrer)}`);
+        if (r.lastSeen) notes.push(`last seen ${escapeHtml(relativeAge(String(r.lastSeen).replace(" ", "T") + "Z"))}`);
+        if (r.suggestion && !r.redirected) notes.push(`maybe meant ${escapeHtml(r.suggestion.path)}`);
+        return `<div class="missing-row"><div class="missing-main"><span class="missing-path">${escapeHtml(r.path)}</span>${
+          notes.length ? `<span class="missing-note">${notes.join(" · ")}</span>` : ""
+        }</div><span class="missing-count">${r.n} ${r.n === 1 ? "visit" : "visits"}</span>${
+          r.redirected
+            ? '<span class="missing-done">Redirect set</span>'
+            : `<button type="button" class="missing-redirect-btn" data-index="${i}" aria-label="Create a redirect for ${escapeHtml(r.path)}">Create redirect</button>`
+        }</div>`;
+      })
+      .join("");
+    box.querySelectorAll(".missing-redirect-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const row = rows[Number(btn.dataset.index)];
+        el("redirects-btn").click();
+        el("redirect-from").value = row.path;
+        el("redirect-to").value = row.suggestion ? row.suggestion.path : "";
+        el("redirect-to").focus();
+      });
+    });
   }
 
   el("analytics-btn").addEventListener("click", async () => {
