@@ -1,3 +1,5 @@
+import "../public/admin/sim-solver.js"; // the general network solver (attaches globalThis.SimSolver); shared with the admin builder
+
 // Component library for the simulation builder/renderer. This models real
 // breadboard topology (separate power rails vs. individually-wired terminal
 // columns split by the center gutter — not one big shared bus) and real
@@ -1535,10 +1537,29 @@ export function computeCircuitAnalysis(data) {
     others.delete(domain.negNode);
     return others;
   };
+  // Networks the one-path solver can't vouch for (a parallel branch, a bypass, several sources) are handed to the general
+  // solver in public/admin/sim-solver.js after the loop below; `engage` holds a node of each.
+  const engage = new Set();
+  const reachFrom = (start) => {
+    const seen = new Set([start]);
+    const queue = [start];
+    while (queue.length) {
+      const cur = queue.shift();
+      for (const n of adjacency.get(cur) || []) {
+        if (!seen.has(n)) {
+          seen.add(n);
+          queue.push(n);
+        }
+      }
+    }
+    return seen;
+  };
   domains.forEach((domain) => {
     const path = shortestPathNodes(adjacency, domain.posNode, domain.negNode);
     if (!path || path.length < 2) {
       if (wantPotentials) potentialMaps.push({ domain, ...collectNodePotentials(adjacency, edgeInfo, domain, null, otherTerminals(domain), 0, 0) });
+      // No loop of its own, but another source is wired into the same network (cells in series, say): solve it as a whole.
+      if (domains.length > 1 && domains.some((d) => d !== domain && (reachFrom(domain.posNode).has(d.posNode) || reachFrom(domain.posNode).has(d.negNode)))) engage.add(domain.posNode);
       return;
     }
     let totalResistance = domain.internalResistance || 0;
@@ -1559,7 +1580,9 @@ export function computeCircuitAnalysis(data) {
     }
     // With a parallel branch or bypass the single path isn't the whole story, so a
     // backwards LED only stops the loop when the path is the only route.
-    const ledsBlock = reversedLedIds.size > 0 && pathIsOnlyRoute(adjacency, edgeInfo, path);
+    const onlyRoute = pathIsOnlyRoute(adjacency, edgeInfo, path);
+    if (!onlyRoute || (domains.length > 1 && domains.some((d) => d !== domain && (reachFrom(domain.posNode).has(d.posNode) || reachFrom(domain.posNode).has(d.negNode))))) engage.add(path[0]);
+    const ledsBlock = reversedLedIds.size > 0 && onlyRoute;
     const netVoltage = domain.voltage - totalForwardVoltage;
     let currentAmps;
     if (netVoltage <= 0 || ledsBlock) currentAmps = 0;
@@ -1649,6 +1672,25 @@ export function computeCircuitAnalysis(data) {
           ? { kind: "voltmeter", volts: null, status: "no-reading", reason, dangerous: false }
           : { kind: "voltmeter", volts, status: "normal", reason: null, dangerous: hit.domain.dangerous };
     });
+  }
+
+  if (engage.size && globalThis.SimSolver) {
+    const solved = globalThis.SimSolver.analyze(
+      data,
+      {
+        getDef: getSimulationComponentDefinition,
+        nodeId,
+        isSwitchClosed,
+        spdtThrow,
+        validWire: (w) => Boolean(w && w.from && w.to),
+        inductorOhms: inductorWindingOhms,
+        forwardVoltage: (c) => (c.type === "diode" ? DIODE_FORWARD_V : LED_COLORS[LED_COLORS[c.color] ? c.color : "red"].forwardVoltage),
+        supplyActive: (c) => poweredNodes.has(nodeId(c, "in_hot")) && poweredNodes.has(nodeId(c, "in_neutral")),
+        limits: { ledMa: LED_RATED_MA, diodeMa: DIODE_RATED_MA, resistorWatts: RESISTOR_WATTAGE_RATING, teensyWatts: TEENSY_WATTAGE_RATING, teensyOhms: TEENSY_LOAD_OHMS },
+      },
+      engage
+    );
+    if (solved) Object.assign(results, solved.results);
   }
 
   if (components.some((c) => c.type === "ohmmeter")) Object.assign(results, ohmmeterReadings(components, (data && data.wires) || []));

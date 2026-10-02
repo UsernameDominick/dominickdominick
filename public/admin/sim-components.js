@@ -1453,10 +1453,30 @@
       others.delete(domain.negNode);
       return others;
     };
+    // Networks the one-path solver can't vouch for (a parallel branch, a bypass, several sources) are handed to the general
+    // solver in sim-solver.js after the loop below; `engage` holds a node of each, `parallelNodes` those it flagged as parallel.
+    const engage = new Set();
+    const parallelNodes = [];
+    const reachFrom = (start) => {
+      const seen = new Set([start]);
+      const queue = [start];
+      while (queue.length) {
+        const cur = queue.shift();
+        for (const n of adjacency.get(cur) || []) {
+          if (!seen.has(n)) {
+            seen.add(n);
+            queue.push(n);
+          }
+        }
+      }
+      return seen;
+    };
     domains.forEach((domain) => {
       const path = shortestPathNodes(adjacency, domain.posNode, domain.negNode);
       if (!path || path.length < 2) {
         if (wantPotentials) potentialMaps.push({ domain, ...collectNodePotentials(adjacency, edgeInfo, domain, null, otherTerminals(domain), 0, 0) });
+        // No loop of its own, but another source is wired into the same network (cells in series, say): solve it as a whole.
+        if (domains.length > 1 && domains.some((d) => d !== domain && (reachFrom(domain.posNode).has(d.posNode) || reachFrom(domain.posNode).has(d.negNode)))) engage.add(domain.posNode);
         return;
       }
       // The battery's own internal resistance (if set) is in series with
@@ -1482,7 +1502,8 @@
       // With a parallel branch or bypass the single path isn't the whole story, so a
       // backwards LED only stops the loop when the path is the only route.
       const onlyRoute = pathIsOnlyRoute(adjacency, edgeInfo, path);
-      if (!onlyRoute) parallelFound = true;
+      if (!onlyRoute) parallelNodes.push(path[0]);
+      if (!onlyRoute || (domains.length > 1 && domains.some((d) => d !== domain && (reachFrom(domain.posNode).has(d.posNode) || reachFrom(domain.posNode).has(d.negNode))))) engage.add(path[0]);
       const ledsBlock = reversedLedIds.size > 0 && onlyRoute;
       const netVoltage = domain.voltage - totalForwardVoltage;
       let currentAmps;
@@ -1574,6 +1595,26 @@
             : { kind: "voltmeter", volts, status: "normal", reason: null, dangerous: hit.domain.dangerous };
       });
     }
+
+    if (engage.size && window.SimSolver) {
+      const solved = window.SimSolver.analyze(
+        data,
+        {
+          getDef: getSimComponentDefinition,
+          nodeId,
+          isSwitchClosed,
+          spdtThrow,
+          validWire: validWireEndpoints,
+          inductorOhms: inductorWindingOhms,
+          forwardVoltage: (c) => (c.type === "diode" ? DIODE_FORWARD_V : window.LED_COLORS[window.LED_COLORS[c.color] ? c.color : "red"].forwardVoltage),
+          supplyActive: (c) => poweredNodes.has(nodeId(c, "in_hot")) && poweredNodes.has(nodeId(c, "in_neutral")),
+          limits: { ledMa: LED_RATED_MA, diodeMa: DIODE_RATED_MA, resistorWatts: RESISTOR_WATTAGE_RATING, teensyWatts: TEENSY_WATTAGE_RATING, teensyOhms: TEENSY_LOAD_OHMS },
+        },
+        engage
+      );
+      if (solved) Object.assign(results, solved.results);
+      parallelFound = parallelNodes.some((n) => !(solved && solved.covered.has(n)));
+    } else parallelFound = parallelNodes.length > 0;
 
     if (components.some((c) => c.type === "ohmmeter")) Object.assign(results, ohmmeterReadings(components, (data && data.wires) || []));
 

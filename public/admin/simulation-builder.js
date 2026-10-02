@@ -1572,7 +1572,7 @@
     }
     if (outletLoop) add("danger", "The wall outlet (120 V) is wired straight into this circuit, which destroys most parts. Go through a Power Supply.");
     if (analysis.meta && analysis.meta.parallel) {
-      add("warning", "This circuit has a parallel branch or a bypass. The simulator follows one path from each source, so the figures and statuses may be incomplete or missing: a backwards LED or diode, for one, is only flagged when it is on the only route.");
+      add("warning", "This circuit has a parallel branch or a bypass that the simulator couldn't solve as a whole network (a dead short, two sources that contradict each other, or more than 200 nodes), so it follows one path from each source: the figures and statuses may be incomplete or missing, and a backwards LED or diode is only flagged when it is on the only route.");
     }
     // Parts that can carry or show current but weren't analysed: not on the path the solver followed.
     const analysable = new Set(["led", "diode", "resistor", "ammeter", "mcu_teensy"]);
@@ -1635,7 +1635,7 @@
   // is modelled (the same text the part tooltips and the inspector use), then the rest of the parts.
   const SIM_GENERAL_LIMITS = [
     "It checks a circuit as direct current (DC) only: no AC, and nothing changes over time (no start-up or switching transients).",
-    "Each source is solved on its own as one series path. Parallel branches, bypasses and several sources in one circuit are beyond what it can vouch for. Only voltmeters flag this, with a dash (an ohmmeter solves its own network exactly instead); other parts still show figures worked out from that one path, and a part on a side branch gets no status at all.",
+    "A plain series loop is solved as one path from its source. A circuit with parallel branches, a bypass or several sources is solved as a whole network instead (every node voltage and branch current, with LEDs and diodes each either off or conducting at their forward voltage). If it can't be (a dead short, two sources that contradict each other, a network over 200 nodes, or a wall outlet, which keeps the one-path mains rules), it falls back to one path with a warning, and voltmeters show a dash.",
     "Wires, breadboard strips and meter probes are perfect conductors (zero resistance), and sources are ideal: they hold their voltage with no sag or current limit beyond the part's own settings.",
     "Capacitors count as open circuits and inductors as their winding resistance alone.",
     "Part ratings are typical fixed values, not a real part's datasheet: LEDs 20 mA, diodes 1 A, resistors 0.25 W, the Teensy 1 W.",
@@ -2402,7 +2402,7 @@
     battery: { kind: "Electrical", text: "supplies a constant DC voltage, with an optional internal resistance." },
     breadboard: { kind: "Mechanical", text: "joins holes in column strips and power rails (optionally split in the middle into two rails each); nothing electrical of its own." },
     led: { kind: "Electrical", text: "lights only when wired the right way round; checked for current and burn-out against a typical 20 mA rating." },
-    diode: { kind: "Electrical", text: "conducts only anode to cathode (towards the bar) with a fixed 0.7 V drop and blocks the other way; checked for burn-out against a typical 1 A rating. A backwards diode stops power for everything beyond it in a single loop; a diode on a parallel side branch isn't solved (the one-path limit, warned about)." },
+    diode: { kind: "Electrical", text: "conducts only anode to cathode (towards the bar) with a fixed 0.7 V drop and blocks the other way; checked for burn-out against a typical 1 A rating. In a circuit with parallel branches or several sources the whole network is solved, so a backwards diode blocks just its own branch; the glow of powered parts only follows a diode's blocking in a simple loop." },
     resistor: { kind: "Electrical", text: "limits current by Ohm's law; checked for overheating against a typical 0.25 W rating." },
     potentiometer: { kind: "Electrical", text: "acts as a two-terminal variable resistor set by its wiper." },
     capacitor: { kind: "Electrical (DC only)", text: "counts as an open circuit.", brief: true },
@@ -2410,7 +2410,7 @@
     switch: { kind: "Electrical", text: "opens or closes the path." },
     switch_spdt: { kind: "Electrical", text: "joins the common terminal to one of two throws." },
     ammeter: { kind: "Electrical", text: "shows the current through it, with zero resistance." },
-    voltmeter: { kind: "Electrical", text: "reads the voltage between its probes in a series circuit and draws no current; a dash means the simulator can't vouch for that point (parallel branches, several sources)." },
+    voltmeter: { kind: "Electrical", text: "reads the voltage between its probes anywhere in a solved circuit (series, parallel branches, several sources) and draws no current; a dash means the circuit couldn't be solved (a dead short, contradicting sources, a very large network, mains) or the probes aren't both in it." },
     ohmmeter: { kind: "Electrical", text: "reads the resistance between its probes through the unpowered circuit, parallel branches included. OL means no path; a dash means a source is wired in (any battery, outlet or power supply counts, even behind an open switch). LEDs, capacitors and chips such as the Teensy read as open, and a potentiometer at 0% reads its 1 Ω minimum." },
     mcu_teensy: { kind: "Electrical", text: "acts as a fixed 300 Ω load and is checked for overheating (1 W); its digital pins and firmware aren't simulated." },
     tv: { kind: "Display", text: "lights up when powered (preview or Power on); it isn't analysed for current." },
@@ -2421,8 +2421,8 @@
     unwired: "connect both probes into a circuit.",
     nosource: "there is no powered source in this circuit (a Power Supply needs its input fed and its own loop closed).",
     probes: "the two probes need to be in the same circuit.",
-    sources: "more than one source (or a Power Supply output) is wired into this circuit, and the simulator solves each source on its own.",
-    parallel: "this circuit has parallel branches or a bypass (a switch or wire across a part), and the simulator solves one series path per source, so it can't vouch for the voltage.",
+    sources: "more than one source (or a Power Supply output) is wired into this circuit in a way the simulator couldn't solve as a whole network.",
+    parallel: "this circuit has parallel branches or a bypass (a switch or wire across a part) that couldn't be solved as a whole network, and the one-path solver can't vouch for the voltage.",
     short: "this source is short-circuited, so no voltage is defined.",
     ambiguous: "LEDs or diodes that aren't conducting (too little voltage, or backwards) share the voltage in a way the simulator can't work out.",
     invalid: "the source's voltage isn't a usable number.",

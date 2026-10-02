@@ -97,15 +97,15 @@ Worker secret, not stored in this repo). From there:
   capacitors and chips read as open. It shows OL when there is no path and a dash
   when a source is wired into the circuit, since an ohmmeter measures an unpowered circuit.
   A voltmeter reads the voltage between its two probes and draws no
-  current. Because the solver follows one path per source, it only prints
-  a number when that path is the only route for current (a series
-  circuit, or an open circuit); anything hanging off the path without
-  carrying current reads the potential where it attaches. It shows a dash,
-  with the reason in the inspector, for parallel branches, a switch or wire
-  across a part, several sources in one circuit, a dead short, or two or
-  more LEDs that can't conduct (one blocked or backwards LED simply takes
-  the whole source voltage). A backwards LED blocks the loop: no current
-  flows and its inspector says so.
+  current. A plain series loop is solved as one path from its source; a circuit with
+  parallel branches, a switch or wire across a part, or several sources is solved as a
+  whole network (every node voltage and branch current; LEDs and diodes are each off or
+  conducting at their forward voltage), so meters, currents and statuses are right
+  there too. It shows a dash, with the reason in the inspector, only when the network
+  can't be solved (a dead short, two sources that contradict each other, over 200
+  nodes, or a wall outlet, which keeps the one-path mains rules) or the probes aren't
+  both in it. A backwards LED or diode blocks its loop: no current flows and its
+  inspector says so.
   Dragging an LED or resistor near a breadboard hole snaps it into place
   and plugs it in automatically, like a real breadboard.
   Select a part and press **R** (Shift+R the other way) to rotate it 90°, or **F** to flip it left to right
