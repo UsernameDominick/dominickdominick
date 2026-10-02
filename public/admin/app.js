@@ -4956,7 +4956,8 @@
     }
     parts.push(piece);
   }
-  const pasteEscape = (t) => t.replace(/\*/g, "∗").replace(/\]\(/g, "]​(");
+  // A literal backtick in pasted text would start an inline-code span, so it is swapped for the look-alike modifier letter.
+  const pasteEscape = (t) => t.replace(/\*/g, "∗").replace(/`/g, "ˋ").replace(/\]\(/g, "]​(");
   const pasteCollapse = (t) => t.replace(/[ \t\r\n ]+/g, " ");
   const pasteWrapLines = (text, mark) => text.split("\n").map((l) => (l.trim() ? mark + l.trim() + mark : l)).join("\n");
 
@@ -4977,6 +4978,12 @@
       const tag = node.tagName.toLowerCase();
       if (PASTE_SKIP.has(tag)) return "";
       if (tag === "br") return "\n";
+      // Inline code (a <code>, <kbd>, <samp> or <tt> that is not part of a code block) keeps its backticks; what is inside stays literal.
+      if ((tag === "code" || tag === "kbd" || tag === "samp" || tag === "tt") && !node.closest("pre")) {
+        const raw = pasteCollapse(node.textContent).replace(/`/g, "ˋ");
+        const core = raw.trim();
+        return core ? raw.match(/^\s*/)[0] + "`" + core + "`" + raw.match(/\s*$/)[0] : raw;
+      }
       // Citation markers (a "[1]" or a link to an anchor) are dropped; a bare 2 in m² stays.
       if (tag === "sup" && (/^\s*\[\d+\]\s*$/.test(node.textContent) || node.querySelector('a[href^="#"]') || /(^|[\s_-])(reference|noprint|cite)/i.test(node.className || ""))) return "";
       const free = !st.bold && !st.italic;
@@ -5352,6 +5359,21 @@
         case "h3":
           prefixCurrentLine(textarea, "### ");
           break;
+        case "inline-code":
+          wrapSelection(textarea, "`", "`", "code");
+          break;
+        case "hr": {
+          // A divider is its own paragraph, so it goes on a blank-line-separated line of its own at the cursor.
+          const start = textarea.selectionStart;
+          const before = textarea.value.slice(0, start);
+          const lead = before.length === 0 || before.endsWith("\n\n") ? "" : before.endsWith("\n") ? "\n" : "\n\n";
+          const insert = `${lead}---\n\n`;
+          textarea.value = before + insert + textarea.value.slice(textarea.selectionEnd);
+          textarea.focus();
+          textarea.setSelectionRange(start + insert.length, start + insert.length);
+          textarea.dispatchEvent(new Event("input", { bubbles: true }));
+          break;
+        }
         case "code":
           wrapSelection(textarea, "```\n", "\n```", "code here");
           break;

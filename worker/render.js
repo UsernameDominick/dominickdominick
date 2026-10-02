@@ -85,17 +85,29 @@ export function withCustomJsonLd(jsonLd, customJsonLdRaw) {
 // the only unescaped characters left are the ones this inserts itself —
 // safe against breaking the surrounding markup.
 function richText(escapedText, footnoteNums) {
+  // `inline code` is lifted out first, so what is inside it (stars, brackets) stays literal; it is put back as <code> at the end.
+  const codeSpans = [];
   let out = escapedText
+    .replace(/`([^`\n]+?)`/g, (m, code) => {
+      codeSpans.push(code);
+      return `\u0000CODESPAN${codeSpans.length - 1}\u0000`;
+    })
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.+?)\*/g, "<em>$1</em>")
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m, label, url) => `<a href="${safeHref(url)}" target="_blank" rel="noopener">${label}</a>`);
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m, label, url) => {
+      const href = safeHref(url);
+      // A link to another page of this site stays in the same tab; one to another site opens a new tab and says so.
+      return /^https?:\/\//i.test(href)
+        ? `<a href="${href}" target="_blank" rel="noopener">${label}<span class="sr-only"> (opens in a new tab)</span></a>`
+        : `<a href="${href}">${label}</a>`;
+    });
   if (footnoteNums && footnoteNums.size) {
     out = out.replace(/\[\^([^\]]+)\]/g, (m, label) => {
       const n = footnoteNums.get(label);
       return n ? `<sup id="fnref-${n}"><a href="#fn-${n}">${n}</a></sup>` : m;
     });
   }
-  return out;
+  return codeSpans.length ? out.replace(/\u0000CODESPAN(\d+)\u0000/g, (m, i) => `<code>${codeSpans[Number(i)]}</code>`) : out;
 }
 
 // Footnote definitions look like their own paragraph/line: "[^label]: text".
@@ -352,6 +364,8 @@ export function paragraphsHtml(text) {
         }
         return `<pre><code class="language-${esc(lang || "plaintext")}">${esc(code)}</code></pre>`;
       }
+      // A paragraph that is only "---" (or "***", "___") is a divider.
+      if (/^(?:-{3,}|\*{3,}|_{3,})$/.test(trimmed)) return "<hr>";
       const table = tableMatch(trimmed);
       if (table) return tableHtml(table);
       const ba = beforeAfterMatch(trimmed);
