@@ -5,6 +5,8 @@
   const ROW_H = 16;
 
   const el = (id) => document.getElementById(id);
+  // A <header> inside an open dialog would count as a second page banner; the page's own header is the only one.
+  document.querySelectorAll(".modal-inner header").forEach((h) => h.setAttribute("role", "presentation"));
   const DIALOG_SELECTOR = ".modal, .writing-focus-overlay";
   const OPEN_DIALOG_SELECTOR = ".modal:not([hidden]), .writing-focus-overlay:not([hidden])";
   // Wires a "×" button that just needs to hide its modal — most of them.
@@ -1810,7 +1812,8 @@
         (b.locked ? " block-locked" : "");
       div.dataset.id = b.id;
       div.tabIndex = 0;
-      div.setAttribute("role", "button");
+      // A group, not a button: it holds its own Move up / Move down buttons, and a button may not contain controls.
+      div.setAttribute("role", "group");
       div.setAttribute("aria-label", `${blockLabel(b.type)} block`);
       div.innerHTML = `<div class="block-type-label">${blockLabel(b.type)}${blockBadgesHtml(b)}</div><div class="block-preview">${blockPreview(
         b
@@ -4409,7 +4412,7 @@
     el("articles-list").innerHTML = articles
       .map(
         (a) =>
-          `<div class="article-list-item${a.id === currentArticleId ? " active" : ""}" data-id="${a.id}"><input type="checkbox" class="article-select-checkbox" data-id="${a.id}"${
+          `<div class="article-list-item${a.id === currentArticleId ? " active" : ""}" data-id="${a.id}"><input type="checkbox" class="article-select-checkbox" data-id="${a.id}" aria-label="Select ${escapeHtml(a.title)}"${
             selectedArticleIds.has(a.id) ? " checked" : ""
           }><div class="article-list-text"><span class="article-list-title">${escapeHtml(a.title)}</span>${articleStatusLabel(a)}${articleLockBadge(a)}${
             a.tags && a.tags.length ? `<div class="article-list-tags">${a.tags.map(escapeHtml).join(", ")}</div>` : ""
@@ -5731,7 +5734,7 @@
     el("projects-list").innerHTML = projects
       .map(
         (p) =>
-          `<div class="article-list-item${p.id === currentProjectId ? " active" : ""}" data-id="${p.id}"><input type="checkbox" class="project-select-checkbox" data-id="${p.id}"${
+          `<div class="article-list-item${p.id === currentProjectId ? " active" : ""}" data-id="${p.id}"><input type="checkbox" class="project-select-checkbox" data-id="${p.id}" aria-label="Select ${escapeHtml(p.title)}"${
             selectedProjectIds.has(p.id) ? " checked" : ""
           }><div class="article-list-text"><span class="article-list-title">${escapeHtml(p.title)}</span>${projectStatusLabel(p)}${projectBadges(p)}${
             p.tags && p.tags.length ? `<div class="article-list-tags">${p.tags.map(escapeHtml).join(", ")}</div>` : ""

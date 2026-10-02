@@ -766,7 +766,7 @@ export function renderNotFoundHtml(navItems, recentArticles = []) {
 <p class="not-found-code" aria-hidden="true">Error 404</p>
 <h1>Page not found</h1>
 <p>Whatever you were looking for isn't here — it may have moved or never existed.</p>
-<form class="not-found-search" action="/search" method="get" role="search">
+<form class="not-found-search" action="/search" method="get" role="search" aria-label="Search for another page">
   <input type="search" name="q" placeholder="Search the site" aria-label="Search">
   <button type="submit">Search</button>
 </form>
@@ -2142,7 +2142,7 @@ ${customHead || ""}
           : ""
       }
       <div class="topbar-tools">
-        <form class="site-search" action="/search" method="get" role="search" autocomplete="off">
+        <form class="site-search" action="/search" method="get" role="search" aria-label="Search the site" autocomplete="off">
           <input type="search" name="q" placeholder="Search" aria-label="Search" value="${esc(searchQuery || "")}" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="search-suggest-list">
           <div class="search-suggest" id="search-suggest-list" hidden></div>
         </form>

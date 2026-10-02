@@ -22,15 +22,15 @@
   </div>
 
   <div id="app" class="admin-app" hidden>
-    <aside class="admin-sidebar" id="admin-sidebar">
+    <aside class="admin-sidebar" id="admin-sidebar" aria-label="Admin menu">
       <div class="admin-sidebar-header">
         <button id="close-site-menu" class="mobile-only close-drawer" aria-label="Close">×</button>
         <strong class="brand-label">dominick.dominick</strong>
       </div>
       <div class="admin-sidebar-pages">
-        <select id="page-picker"></select>
+        <select id="page-picker" aria-label="Page to edit"></select>
         <button id="new-page-btn" title="New page">+ Page</button>
-        <select id="page-template-picker" title="Start the next new page from a saved template">
+        <select id="page-template-picker" aria-label="Template for the next new page" title="Start the next new page from a saved template">
           <option value="">Blank page</option>
         </select>
         <div class="admin-more-wrap">
@@ -89,6 +89,7 @@
 
     <div class="admin-main">
       <header class="admin-header">
+        <h1 class="sim-sr-only">Site admin</h1>
         <button id="site-menu-btn" class="mobile-only" aria-label="Menu">☰</button>
         <button id="mobile-menu-btn" class="mobile-only" aria-label="Add block">+ Block</button>
         <div class="admin-header-right" id="admin-header-right">
@@ -112,7 +113,7 @@
     </div>
 
     <div class="admin-body-layout">
-      <aside id="palette" class="admin-palette">
+      <aside id="palette" class="admin-palette" aria-label="Add blocks">
         <button id="close-palette" class="mobile-only close-drawer" aria-label="Close">×</button>
         <div class="drawer-scroll-content">
         <div class="panel-switch seg-control" role="tablist" aria-label="Left panel">
@@ -244,7 +245,7 @@
         <div id="canvas" class="admin-canvas"></div>
       </main>
 
-      <aside id="inspector" class="admin-inspector" hidden>
+      <aside id="inspector" class="admin-inspector" aria-label="Block inspector" hidden>
         <button id="close-inspector" class="mobile-only close-drawer" aria-label="Close">×</button>
         <div class="drawer-scroll-content">
         <div id="single-block-inspector">
@@ -423,7 +424,7 @@
           </details>
           <div class="article-actions editor-primary-actions">
             <a id="preview-article-link" href="#" target="_blank" class="preview-link" hidden>Preview ↗</a>
-            <select id="article-template-picker" title="Fill a new article's body from a saved template">
+            <select id="article-template-picker" aria-label="Template for a new article" title="Fill a new article's body from a saved template">
               <option value="">Start blank</option>
             </select>
             <button id="new-article">New</button>
@@ -627,7 +628,7 @@
           </details>
           <div class="article-actions editor-primary-actions">
             <a id="preview-project-link" href="#" target="_blank" class="preview-link" hidden>Preview ↗</a>
-            <select id="project-template-picker" title="Fill a new project's body/summary/tech-stack/status from a saved template">
+            <select id="project-template-picker" aria-label="Template for a new project" title="Fill a new project's body/summary/tech-stack/status from a saved template">
               <option value="">Start blank</option>
             </select>
             <button id="new-project">New</button>
@@ -663,17 +664,17 @@
         <button id="close-analytics" aria-label="Close Analytics dialog">×</button>
       </header>
       <div class="analytics-filters">
-        <select id="analytics-filter-content-type">
+        <select id="analytics-filter-content-type" aria-label="Filter by content type">
           <option value="">All content types</option>
           <option value="page">Pages</option>
           <option value="article">Articles</option>
           <option value="project">Projects</option>
         </select>
-        <select id="analytics-filter-device"><option value="">All devices</option></select>
-        <select id="analytics-filter-referrer"><option value="">All referrers</option></select>
+        <select id="analytics-filter-device" aria-label="Filter by device"><option value="">All devices</option></select>
+        <select id="analytics-filter-referrer" aria-label="Filter by referrer"><option value="">All referrers</option></select>
         <button type="button" id="analytics-clear-filters" hidden>Clear filters</button>
       </div>
-      <div class="analytics-body">
+      <div class="analytics-body" tabindex="0" role="region" aria-label="Analytics results">
         <div class="analytics-tiles">
           <div class="analytics-tile"><span id="stat-active">–</span><label>Active now (5 min)</label></div>
           <div class="analytics-tile"><span id="stat-today">–</span><label>Today</label></div>
@@ -861,7 +862,7 @@
           <input id="redirect-from" placeholder="/old-path">
           <span class="redirect-arrow">→</span>
           <input id="redirect-to" placeholder="/new-path or https://...">
-          <select id="redirect-status">
+          <select id="redirect-status" aria-label="Redirect type">
             <option value="301">301 (permanent)</option>
             <option value="302">302 (temporary)</option>
           </select>
@@ -1600,7 +1601,7 @@
         <p class="redirects-hint">Wire real chains — outlet → power supply → breadboard → Teensy, Teensy → breadboard — and only what's actually connected to a power source lights up. Build once, reuse in any article or page via the Simulation block. Saves are drafts; publish to update the public simulation and embeds.</p>
         <div class="sim-new-row">
           <button type="button" id="new-simulation-btn">New simulation</button>
-          <select id="sim-template-picker"><option value="">Blank</option></select>
+          <select id="sim-template-picker" aria-label="Template for a new simulation"><option value="">Blank</option></select>
         </div>
         <div id="simulations-list" class="redirects-list"></div>
       </div>
@@ -1624,7 +1625,7 @@
           <div class="sim-toolbar-group" data-group="checkpoints">
             <span class="sim-toolbar-group-label">Checkpoints</span>
             <div class="sim-toolbar-group-buttons">
-              <select id="sim-checkpoint-select" title="Named checkpoints saved with this simulation">
+              <select id="sim-checkpoint-select" aria-label="Saved checkpoints" title="Named checkpoints saved with this simulation">
                 <option value="">Checkpoints…</option>
               </select>
               <button type="button" id="sim-checkpoint-restore" title="Restore the selected checkpoint" disabled>Restore</button>
@@ -1656,7 +1657,7 @@
             <span class="sim-toolbar-group-label">Test &amp; view</span>
             <div class="sim-toolbar-group-buttons">
               <button type="button" class="sim-quick" id="sim-preview-power">Preview: power on</button>
-              <input type="search" id="sim-canvas-search" aria-describedby="sim-canvas-search-count" placeholder="Find on canvas…" title="Highlights any placed part whose label or type matches what you type. Enter jumps to the next match, Shift+Enter to the previous one."><span id="sim-canvas-search-count" class="sim-canvas-search-count" role="status" aria-live="polite"></span>
+              <input type="search" id="sim-canvas-search" aria-label="Find on canvas" aria-describedby="sim-canvas-search-count" placeholder="Find on canvas…" title="Highlights any placed part whose label or type matches what you type. Enter jumps to the next match, Shift+Enter to the previous one."><span id="sim-canvas-search-count" class="sim-canvas-search-count" role="status" aria-live="polite"></span>
               <button type="button" class="sim-quick" id="sim-warnings-btn" title="Problems the simulator found in this circuit, in plain words">No warnings</button><span id="sim-warnings-live" class="sim-sr-only" role="status" aria-live="polite"></span>
               <button type="button" id="sim-model-notes-btn" title="What the simulator assumes and can't do, and how each part in this circuit is modelled">Model notes</button>
               <button type="button" id="sim-checklist-btn" title="A step-by-step list of the parts and wires to build this circuit on a real breadboard, with checkboxes">Build checklist</button>
@@ -1699,7 +1700,7 @@
       </div>
       <div id="sim-hole-warning" class="sim-hole-warning" role="status" aria-live="polite" aria-atomic="true" hidden></div>
       <div class="sim-builder-body">
-        <aside class="sim-palette">
+        <aside class="sim-palette" aria-label="Simulation parts">
           <h2>Add part</h2>
           <input type="search" id="sim-palette-search" placeholder="Search parts…">
           <div id="sim-palette-recent" class="sim-palette-recent" hidden></div>
@@ -1724,7 +1725,7 @@
           <button type="button" class="sim-palette-btn" data-sim-type="tv">TV / Display</button>
         </aside>
         <div class="sim-canvas-wrap">
-          <div id="sim-builder-canvas" class="sim-builder-canvas"></div>
+          <div id="sim-builder-canvas" class="sim-builder-canvas" tabindex="0" role="region" aria-label="Circuit canvas (scrolls sideways when zoomed)"></div>
           <div id="sim-minimap-dock" class="sim-minimap-dock" hidden>
             <div id="sim-minimap" class="sim-minimap" hidden tabindex="0" role="group" aria-label="Board minimap. Click or drag to move the view; arrow keys scroll it."></div>
             <button type="button" id="sim-minimap-toggle" class="sim-minimap-toggle" aria-controls="sim-minimap" aria-expanded="true" aria-label="Hide minimap" title="Hide minimap">×</button>
@@ -1736,7 +1737,7 @@
             <button type="button" id="sim-zoom-in" aria-label="Zoom in">+</button>
           </div>
         </div>
-        <aside class="sim-inspector-panel">
+        <aside class="sim-inspector-panel" aria-label="Part inspector">
           <h2>Inspector</h2>
           <button type="button" id="sim-connect-btn" title="Wire two pins together by choosing them from lists, instead of clicking them on the board">Connect pins…</button>
           <div id="sim-inspector"></div>
@@ -1755,7 +1756,7 @@
         <p class="redirects-hint">Build a short loop — a drum pattern, a melody, or both — with a step sequencer, a piano roll, and built-in drum kits. Reuse it in any article or project via the Song block.</p>
         <div class="sim-new-row">
           <button type="button" id="new-song-btn">New song</button>
-          <select id="song-template-picker"><option value="">Blank</option></select>
+          <select id="song-template-picker" aria-label="Template for a new song"><option value="">Blank</option></select>
         </div>
         <input type="search" id="song-search" placeholder="Search songs by name…">
         <div id="songs-list" class="redirects-list"></div>
@@ -1825,7 +1826,7 @@
             <div class="song-group-controls">
               <label class="song-tempo-label">BPM<input type="number" id="song-tempo" min="40" max="240" value="120"></label>
               <button type="button" id="song-tap-tempo" title="Tap this in time with a beat to set the BPM from your taps (needs two taps; a pause of two seconds starts over)">Tap tempo</button><span id="song-tap-status" class="sim-sr-only" role="status" aria-live="polite"></span>
-              <select id="song-kit">
+              <select id="song-kit" aria-label="Drum kit">
               <option value="acoustic">Acoustic kit</option>
               <option value="electronic">Electronic kit</option>
               <option value="808">808 kit</option>
@@ -2274,7 +2275,7 @@
         </span>
       </header>
       <div class="scan-editor-body">
-        <aside class="scan-editor-fields">
+        <aside class="scan-editor-fields" aria-label="Scan details">
           <label>Model file (.glb or .gltf — 80MB max)
             <input type="file" id="scan-glb-input" accept=".glb,.gltf,model/gltf-binary,model/gltf+json">
           </label>

@@ -1882,8 +1882,11 @@
     bar.innerHTML = "";
     const list = document.createElement("div");
     list.className = "song-tablist";
-    list.setAttribute("role", "tablist");
-    list.setAttribute("aria-label", "Open songs");
+    // An empty tablist is invalid ARIA; it only exists once there is a tab in it.
+    if (songTabs.length) {
+      list.setAttribute("role", "tablist");
+      list.setAttribute("aria-label", "Open songs");
+    }
     songTabs.forEach((t) => {
       const active = t.draft ? currentSongId == null : t.id === currentSongId;
       const title = (t.draft ? "(unsaved) " : "") + (t.name || "Untitled song");
@@ -1909,6 +1912,9 @@
       close.type = "button";
       close.className = "song-tab-close";
       close.tabIndex = -1; // Delete on the tab closes it; one Tab stop per tab, not two
+      // A tablist may only hold tabs, so the mouse-only close button is hidden from assistive technology: Delete on the tab
+      // (announced in its description) is the keyboard and screen-reader way to close it.
+      close.setAttribute("aria-hidden", "true");
       close.setAttribute("aria-label", "Close tab " + title);
       close.textContent = "×";
       close.addEventListener("click", () => closeTab(t));

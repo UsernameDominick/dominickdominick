@@ -1350,7 +1350,8 @@ h6 { font-size: 0.9rem; }
 .project-card-link {
   display: inline-block;
   margin-top: 14px;
-  color: var(--accent);
+  /* Nudged toward the text colour so the small link stays readable (4.5:1) on the card surface whatever accent is chosen. */
+  color: color-mix(in srgb, var(--accent) 84%, var(--text));
   font-weight: 600;
   text-decoration: none;
 }
