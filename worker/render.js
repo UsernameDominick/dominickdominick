@@ -326,7 +326,7 @@ export function footerHtml(footer, year = new Date().getUTCFullYear()) {
   return `<footer class="site-footer">${colsHtml}${socialHtml}${body ? paragraphsHtml(body) : ""}</footer>`;
 }
 
-export function paragraphsHtml(text) {
+export function paragraphsHtml(text, { anchors = false } = {}) {
   const { cleaned, defs } = extractFootnotes(text);
   const { replaced: withoutCallouts, callouts } = extractCallouts(cleaned);
   const { replaced, blocks } = extractCodeBlocks(withoutCallouts);
@@ -373,7 +373,10 @@ export function paragraphsHtml(text) {
       const h = headingMatch(trimmed);
       if (h) {
         const { id, level } = headings[hi++];
-        return `<h${level} id="${esc(id)}">${richText(esc(h.text))}</h${level}>`;
+        // Article and project bodies (anchors: true) get a "#" permalink beside each heading; page text blocks don't, since
+        // several of them on one page would repeat the same ids.
+        const anchor = anchors ? `<a class="heading-anchor" href="#${esc(id)}" aria-label="Link to this section: ${esc(h.text)}">#</a>` : "";
+        return `<h${level} id="${esc(id)}">${richText(esc(h.text))}${anchor}</h${level}>`;
       }
       // Lists and blockquotes -- the two most common Markdown constructs --
       // weren't supported at all: "- item" and "> quote" rendered as literal
@@ -657,6 +660,20 @@ export function renderSeriesNavHtml(article, seriesArticles) {
       ${next ? `<a href="/random/${esc(next.slug)}" class="series-next">${esc(next.title)} →</a>` : ""}
     </div>
   </div>`;
+}
+
+// Older / newer links at the end of an article or project. `kind` is "article" or "project"; `adjacent` is
+// { older, newer }, each null or { title, slug } (see getAdjacentPublished).
+export function renderPrevNextHtml(kind, adjacent) {
+  const { older, newer } = adjacent || {};
+  if (!older && !newer) return "";
+  const base = kind === "project" ? "/projects/" : "/random/";
+  const noun = kind === "project" ? "project" : "article";
+  const link = (item, rel, label, cls) =>
+    item
+      ? `<a class="prev-next-link ${cls}" href="${base}${esc(item.slug)}" rel="${rel}"><span class="prev-next-label">${label}</span><span class="prev-next-title">${esc(item.title)}</span></a>`
+      : "<span></span>";
+  return `<nav class="prev-next" aria-label="More ${noun}s">${link(older, "prev", `← Older ${noun}`, "prev-next-older")}${link(newer, "next", `Newer ${noun} →`, "prev-next-newer")}</nav>`;
 }
 
 export function renderRelatedArticlesHtml(articles) {

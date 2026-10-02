@@ -543,6 +543,26 @@ export async function getSeriesArticles(env, series) {
   return results.map(parseArticleRow);
 }
 
+// The published item just before and just after this one in publication order, for "Older / Newer" links. Only items a
+// visitor can see count (published, not scheduled, expired, archived or deleted), judged at the site's current time (a
+// date preview moves it). A draft or scheduled item being previewed has no neighbours.
+export async function getAdjacentPublished(env, table, item) {
+  if (!["articles", "projects"].includes(table) || !item || !item.published_at) return { older: null, newer: null };
+  const now = nowIso(env);
+  if (item.published_at > now) return { older: null, newer: null };
+  const visible = "deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?) AND archived = 0";
+  const pick = async (cmp, order) =>
+    env.DB
+      .prepare(
+        `SELECT title, slug FROM ${table} WHERE ${visible} AND id != ? AND (published_at ${cmp} ? OR (published_at = ? AND id ${cmp} ?))
+         ORDER BY published_at ${order}, id ${order} LIMIT 1`
+      )
+      .bind(now, now, item.id, item.published_at, item.published_at, item.id)
+      .first();
+  const [older, newer] = await Promise.all([pick("<", "DESC"), pick(">", "ASC")]);
+  return { older: older || null, newer: newer || null };
+}
+
 export async function listArticles(env, { publishedOnly = false, limit = null, tag = null, featuredOnly = false } = {}) {
   let sql = "SELECT * FROM articles WHERE deleted_at IS NULL";
   const params = [];

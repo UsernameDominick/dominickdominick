@@ -20,6 +20,7 @@ import {
   getRelatedArticles,
   getProjectsLinkingToArticle,
   getSeriesArticles,
+  getAdjacentPublished,
   getPublishedSimulation,
   listPublishedSimulationIds,
   getScan,
@@ -66,6 +67,7 @@ import {
   renderNotFoundHtml,
   renderByline,
   renderSeriesNavHtml,
+  renderPrevNextHtml,
   renderRelatedProjectsHtml,
   renderJournalHtml,
   renderBomHtml,
@@ -377,6 +379,7 @@ async function renderArticle(env, article, navItems, previewReason = null, isAdm
   const featuredInHtml = renderFeaturedInProjectsHtml(featuredInProjects);
   const seriesArticles = article.series ? await getSeriesArticles(env, article.series) : [];
   const seriesNavHtml = renderSeriesNavHtml(article, seriesArticles);
+  const prevNextHtml = renderPrevNextHtml("article", await getAdjacentPublished(env, "articles", article));
   const bylineHtml = renderByline(article);
   const reactionCounts = await getReactionCounts(env, "article", article.id);
   const reactionsHtml = renderReactionsHtml("article", article.id, reactionCounts);
@@ -419,11 +422,12 @@ async function renderArticle(env, article, navItems, previewReason = null, isAdm
   ${seriesNavHtml ? `<div class="block">${seriesNavHtml}</div>` : ""}
   ${tocHtml ? `<div class="block">${tocHtml}</div>` : ""}
   <div class="block">
-    <div id="readable-content">${paragraphsHtml(article.body)}</div>
+    <div id="readable-content">${paragraphsHtml(article.body, { anchors: true })}</div>
   </div>
   <div class="block">${reactionsHtml}</div>
   ${featuredInHtml ? `<div class="block">${featuredInHtml}</div>` : ""}
-  ${relatedHtml ? `<div class="block">${relatedHtml}</div>` : ""}`;
+  ${relatedHtml ? `<div class="block">${relatedHtml}</div>` : ""}
+  ${prevNextHtml ? `<div class="block">${prevNextHtml}</div>` : ""}`;
   const jsonLd = [
     {
       "@context": "https://schema.org",
@@ -486,6 +490,9 @@ async function renderProject(env, project, navItems, previewReason = null, isAdm
   const summary = (project.summary || "").trim();
   const description = summary || excerpt(project.body) || project.title;
   const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
+  // The same Contents box articles have (it only appears with two or more headings), and Older / Newer links at the end.
+  const projectTocHtml = tableOfContentsHtml(extractHeadings(project.body));
+  const projectPrevNextHtml = renderPrevNextHtml("project", await getAdjacentPublished(env, "projects", project));
 
   const linkButtons = ["github", "demo", "docs", "download"]
     .filter((key) => project.links && project.links[key])
@@ -567,8 +574,9 @@ async function renderProject(env, project, navItems, previewReason = null, isAdm
   ${heroVideoHtml ? `<div class="block">${heroVideoHtml}</div>` : ""}
   <div class="block">${ttsBarHtml}</div>
   ${correctionNoteHtml ? `<div class="block">${correctionNoteHtml}</div>` : ""}
+  ${projectTocHtml ? `<div class="block">${projectTocHtml}</div>` : ""}
   <div class="block">
-    <div id="readable-content">${paragraphsHtml(project.body)}</div>
+    <div id="readable-content">${paragraphsHtml(project.body, { anchors: true })}</div>
   </div>
   <div class="block">${reactionsHtml}</div>
   ${downloadsHtml ? `<div class="block">${downloadsHtml}</div>` : ""}
@@ -576,7 +584,8 @@ async function renderProject(env, project, navItems, previewReason = null, isAdm
   ${journalHtml ? `<div class="block">${journalHtml}</div>` : ""}
   ${relatedSongsHtml ? `<div class="block">${relatedSongsHtml}</div>` : ""}
   ${relatedMediaHtml ? `<div class="block">${relatedMediaHtml}</div>` : ""}
-  ${relatedHtml ? `<div class="block">${relatedHtml}</div>` : ""}`;
+  ${relatedHtml ? `<div class="block">${relatedHtml}</div>` : ""}
+  ${projectPrevNextHtml ? `<div class="block">${projectPrevNextHtml}</div>` : ""}`;
 
   const jsonLd = [
     {

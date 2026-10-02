@@ -1116,6 +1116,87 @@ body {
   margin-bottom: 8px;
 }
 
+/* "#" permalink beside a heading in article and project bodies: quiet until the heading is hovered or the link is focused. */
+.heading-anchor {
+  margin-left: 0.4em;
+  font-weight: 400;
+  text-decoration: none;
+  color: var(--text-dim);
+  opacity: 0;
+}
+:is(h2, h3):hover > .heading-anchor,
+.heading-anchor:focus-visible {
+  opacity: 1;
+}
+.heading-anchor:hover {
+  color: var(--accent);
+}
+@media (hover: none) {
+  .heading-anchor {
+    opacity: 0.45;
+  }
+}
+h2[id], h3[id] {
+  scroll-margin-top: 80px;
+}
+
+/* Older / newer links closing an article or project. */
+.prev-next {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+.prev-next-link {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--card-radius, 12px);
+  color: var(--text);
+  text-decoration: none;
+}
+.prev-next-newer {
+  text-align: right;
+  grid-column: 2;
+}
+.prev-next-older {
+  grid-column: 1;
+}
+.prev-next-link:hover,
+.prev-next-link:focus-visible {
+  border-color: var(--accent);
+}
+.prev-next-label {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+.prev-next-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 520px) {
+  .prev-next {
+    grid-template-columns: 1fr;
+  }
+  .prev-next > span:empty {
+    display: none;
+  }
+  .prev-next-newer,
+  .prev-next-older {
+    grid-column: 1;
+    text-align: left;
+  }
+}
+@media print {
+  .heading-anchor,
+  .prev-next {
+    display: none;
+  }
+}
+
 .series-nav-links {
   display: flex;
   justify-content: space-between;
