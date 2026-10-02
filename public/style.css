@@ -3934,3 +3934,58 @@ pre.has-line-numbers {
   border-radius: 3px;
   padding: 0 2px;
 }
+
+/* Asking a circuit's parts for their readings (see sim-player.js). */
+.sim-comp[data-readout-name] {
+  cursor: pointer;
+}
+.sim-comp[data-readout-name]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.sim-comp.is-selected {
+  filter: drop-shadow(0 0 4px var(--accent));
+}
+.sim-readout {
+  margin: 8px 0 0;
+  min-height: 1.5em;
+  font-size: 0.9rem;
+  color: var(--text-dim);
+}
+.sim-about {
+  margin-top: 20px;
+}
+.sim-about h2 {
+  font-size: 1.05rem;
+  margin: 0 0 6px;
+}
+.sim-about ul {
+  margin: 8px 0 0;
+  padding-left: 1.2em;
+  columns: 2 220px;
+}
+@media (forced-colors: active) {
+  .sim-comp.is-selected {
+    outline: 2px solid Highlight;
+  }
+}
+@media print {
+  .sim-readout {
+    display: none;
+  }
+}
+
+.sim-about-part {
+  background: none;
+  border: none;
+  padding: 2px 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.sim-about-part:hover {
+  color: var(--accent);
+}

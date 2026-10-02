@@ -62,6 +62,7 @@ import {
   safeHref,
   paragraphsHtml,
   loadBodyMedia,
+  simulationEmbedHtml,
   extractHeadings,
   tableOfContentsHtml,
   renderSearchResultsHtml,
@@ -120,6 +121,7 @@ import {
   resolveLogicGate,
   OUTLET_VOLTAGE,
   renderSimulationSvg,
+  describeSimulation,
 } from "./simulation-render.js";
 
 // Whole-site draft-inclusive preview mode — a plain, non-secret cookie an
@@ -1028,22 +1030,18 @@ function simulationTopologyDescription(data) {
 
 async function renderSimulationPage(env, sim, navItems) {
   const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
-  const uid = "sim-standalone";
-  const descId = `${uid}-desc`;
-  const svg = renderSimulationSvg(sim.data).replace(
-    'class="sim-svg"',
-    `class="sim-svg" id="${esc(uid)}" role="img" aria-label="${esc(sim.name || "Circuit simulation")}" aria-describedby="${esc(descId)}"`
-  );
   const topologyDescription = simulationTopologyDescription(sim.data);
   const bodyHtml = `<div class="block" style="grid-column:1 / span 24;grid-row:1 / span 2;">
     <h1>${esc(sim.name)}</h1>
   </div>
   <div class="block" style="grid-column:1 / span 24;grid-row:3 / span 25;">
-    <div class="sim-block-wrap"><p id="${esc(descId)}" class="sr-only">${esc(topologyDescription)}</p>${svg}<div class="sim-block-actions"><button type="button" class="sim-power-btn" data-target="${esc(uid)}">Power on</button><button type="button" class="sim-power-btn sim-view-btn" aria-pressed="false" data-target="${esc(uid)}">Schematic view</button></div></div>
+    ${simulationEmbedHtml(sim, "sim-standalone", topologyDescription, { about: true })}
   </div>`;
+  // The search-result description names what is in the circuit instead of saying only that it is a simulation.
+  const summary = describeSimulation(sim.data).sentence;
   const html = renderShell({
     title: `${sim.name} · Dominick`,
-    description: `An interactive circuit simulation: ${sim.name}.`,
+    description: `${sim.name}: ${summary}`.slice(0, 200),
     path: `/simulation/${sim.id}`,
     navItems,
     activeSlug: null,

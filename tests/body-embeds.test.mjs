@@ -47,7 +47,7 @@ const simIds = [...html.matchAll(/<svg[^>]*class="sim-svg" id="(sim-body-\d+)"/g
 assert.equal(simIds.length, 2);
 assert.notEqual(simIds[0], simIds[1], "two embeds of the same circuit get different ids");
 assert.match(html, new RegExp(`<p id="${simIds[0]}-desc" class="sr-only">A resistor limiting current to an LED</p>`));
-assert.doesNotMatch(html, new RegExp(`${simIds[1]}-desc`));
+assert.match(html, new RegExp(`<p id="${simIds[1]}-desc" class="sr-only">An empty circuit\\.</p>`), "without a description of its own, a generated one is used");
 assert.equal((html.match(/data-target="sim-body-\d+"/g) || []).length, 4, "each has Power on and Schematic view buttons pointing at it");
 assert.match(html, /<div class="body-embed body-embed-sim">/);
 // the song: data rides along but not the private notes; name escaped

@@ -1841,6 +1841,158 @@ function solvedNotConducting(info) {
   return Boolean(info) && (info.kind === "led" || info.kind === "diode" || info.kind === "transistor") && NOT_CONDUCTING.has(info.status);
 }
 
+// ---------- What a visitor can read off a part ----------
+// A short value for each kind of part ("220 Ω", "9 V battery", "red LED"), the live figures the solver found once the circuit is
+// powered ("19.8 mA · 0.09 W · OK"), and a plain-language summary of the whole circuit. The public page shows them when a part is
+// tapped or focused, and the standalone page lists them under "About this circuit".
+const spaced = (text) => String(text).replace(/(\d)(?=[^\d.\s])/, "$1 ");
+const STATUS_WORDS = {
+  normal: "OK",
+  dim: "Dim",
+  overdriven: "Overdriven",
+  burnt: "Burnt out",
+  overheating: "Overheating",
+  reversed: "Wrong way round",
+  blocked: "Blocked by another LED",
+  "unlit-low-voltage": "Not enough voltage",
+  off: "Off",
+  idle: "Idle",
+  saturated: "Switched on",
+  active: "Amplifying",
+  cutoff: "Off",
+};
+function formatCurrent(ma) {
+  if (ma === Infinity) return "no limit";
+  if (!Number.isFinite(ma)) return "";
+  const abs = Math.abs(ma);
+  if (abs >= 1000) return `${(ma / 1000).toFixed(2)} A`;
+  if (abs >= 100) return `${ma.toFixed(0)} mA`;
+  if (abs >= 1) return `${ma.toFixed(1)} mA`;
+  if (abs >= 0.01) return `${ma.toFixed(2)} mA`;
+  return abs === 0 ? "0 mA" : `${(ma * 1000).toFixed(0)} µA`;
+}
+function formatPower(watts) {
+  if (!Number.isFinite(watts)) return "";
+  if (watts >= 1) return `${watts.toFixed(2)} W`;
+  if (watts >= 0.01) return `${watts.toFixed(2)} W`;
+  return `${(watts * 1000).toFixed(1)} mW`;
+}
+const joinReadout = (parts) => parts.filter(Boolean).join(" · ");
+
+function staticDetail(comp) {
+  const num = (raw, fallback) => (Number.isFinite(Number(raw)) && Number(raw) !== 0 ? Number(raw) : fallback);
+  switch (comp.type) {
+    case "resistor":
+      return spaced(formatOhms(Math.max(1, Math.round(Number(comp.resistance) || 220))));
+    case "potentiometer": {
+      const maxR = Math.max(1, Number(comp.maxResistance) || 10000);
+      const raw = Number(comp.wiper);
+      const wiper = Math.max(0, Math.min(100, Number.isFinite(raw) ? raw : 50));
+      return `${spaced(formatOhms(Math.max(1, Math.round(maxR * (wiper / 100)))))} (${wiper}% of ${spaced(formatOhms(maxR))})`;
+    }
+    case "capacitor":
+      return spaced(formatCapacitance(capacitanceMicrofarads(comp)));
+    case "inductor":
+      return spaced(formatInductance(inductanceMillihenries(comp)));
+    case "battery":
+      return `${num(comp.voltage, 9)} V battery`;
+    case "power_supply":
+      return `${num(comp.outputVoltage, 5)} V DC output`;
+    case "outlet":
+      return `${OUTLET_VOLTAGE} V AC`;
+    case "led":
+      return `${LED_COLORS[comp.color]?.onColor ? comp.color : "red"} LED`;
+    case "diode":
+      return "silicon diode";
+    case "transistor":
+      return `${comp.polarity === "pnp" ? "PNP" : "NPN"}, gain ${Math.min(1000, Math.max(1, Number(comp.gain) || 100))}`;
+    case "switch":
+      return comp.closed === false ? "open" : "closed";
+    case "switch_spdt":
+      return `common connected to ${comp.position === "b" ? "B" : "A"}`;
+    case "logic_gate": {
+      const gate = LOGIC_GATES[resolveLogicGate(comp)];
+      return gate ? `${gate.label} gate` : "";
+    }
+    default:
+      return "";
+  }
+}
+
+function liveDetail(info) {
+  if (!info) return "";
+  const word = STATUS_WORDS[info.status] || "";
+  switch (info.kind) {
+    case "resistor":
+      return joinReadout([formatCurrent(info.currentMa), formatPower(info.watts), word]);
+    case "led":
+    case "diode":
+      return joinReadout([formatCurrent(info.currentMa), word]);
+    case "transistor":
+      return joinReadout([info.currentMa === undefined ? "" : `collector ${formatCurrent(info.currentMa)}`, word]);
+    case "teensy":
+      return joinReadout([formatPower(info.watts), word]);
+    case "ammeter":
+      return `reads ${formatCurrent(info.currentMa)}`;
+    case "voltmeter":
+      return info.volts === null || info.volts === undefined ? "no reading" : `reads ${spaced(formatVolts(info.volts))}`;
+    case "ohmmeter":
+      return info.status === "no-reading" ? "no reading" : `reads ${spaced(formatOhms(info.ohms, info.status))}`;
+    default:
+      return "";
+  }
+}
+
+// { name, value, live } for a part, or null when there is nothing worth showing (a breadboard, a part we know nothing about).
+function partReadout(comp, info) {
+  const def = getSimulationComponentDefinition(comp);
+  if (!def || comp.type === "breadboard") return null;
+  const value = staticDetail(comp);
+  const live = liveDetail(info);
+  if (!value && !live) return null;
+  return { name: String(comp.label || def.label || "Part").slice(0, 60), value, live };
+}
+
+// The parts of a circuit in plain language: one line per part, and a sentence for a page description.
+export function describeSimulation(data) {
+  const safe = sanitizeSimulationRenderData(data);
+  const lines = [];
+  const items = [];
+  const phrases = new Map();
+  for (const comp of safe.components) {
+    const def = getSimulationComponentDefinition(comp);
+    if (!def) continue;
+    const value = staticDetail(comp);
+    const name = String(comp.label || def.label || "Part").slice(0, 60);
+    if (comp.type === "breadboard") {
+      lines.push(`${name} (${def.cols || 30} columns)`);
+      items.push({ id: null, text: lines[lines.length - 1] });
+      continue;
+    }
+    lines.push(value && value.toLowerCase().includes(name.toLowerCase()) ? value : value ? `${name}: ${value}` : name);
+    items.push({ id: comp.id, text: lines[lines.length - 1] });
+    // "a 220 Ω resistor", "a red LED", "a 9 V battery", "an NPN transistor": what a person would call the part.
+    const phrase =
+      comp.type === "transistor" ? `${comp.polarity === "pnp" ? "PNP" : "NPN"} transistor`
+      : comp.type === "outlet" ? "wall outlet"
+      : comp.type === "power_supply" ? "DC power supply"
+      : comp.type === "switch" || comp.type === "switch_spdt" ? String(def.label || "switch").toLowerCase()
+      : /battery|LED|diode|gate/.test(value) ? value
+      : value ? `${value} ${String(def.label || "part").toLowerCase()}`
+      : String(def.label || "part").toLowerCase();
+    phrases.set(phrase, (phrases.get(phrase) || 0) + 1);
+  }
+  const plural = (phrase) => (/y$/.test(phrase) ? `${phrase.slice(0, -1)}ies` : /s$/.test(phrase) ? phrase : `${phrase}s`);
+  const named = [...phrases.entries()].map(([phrase, n]) => (n > 1 ? `${n} × ${plural(phrase)}` : /^(?:[aeiou]|8|11|18|NPN|PNP)/.test(phrase) ? `an ${phrase}` : `a ${phrase}`));
+  const shown = named.slice(0, 8);
+  const rest = named.length - shown.length;
+  const list = shown.length > 1 ? `${shown.slice(0, -1).join(", ")} and ${shown[shown.length - 1]}` : shown[0] || "";
+  const sentence = list
+    ? `An interactive circuit with ${list}${rest > 0 ? ` and ${rest} other kinds of part` : ""}. Power it on, then tap or press any part to see its readings.`
+    : "An empty circuit.";
+  return { sentence, lines, items };
+}
+
 function renderComponentSvg(comp, poweredComps, analysis) {
   const def = getSimulationComponentDefinition(comp);
   if (!def) return "";
@@ -1872,9 +2024,16 @@ function renderComponentSvg(comp, poweredComps, analysis) {
       : comp.type === "ohmmeter" && info
       ? ohmmeterReadingSvg(formatOhms(info.ohms, info.status), def.rotation || 0)
       : "";
+  // A part a visitor can ask about: tapping or focusing it shows its name, value and (once powered) its live figures.
+  const readout = partReadout(comp, info);
+  const readoutAttrs = readout
+    ? ` tabindex="0" role="button" data-readout-name="${escXml(readout.name)}" data-readout="${escXml(readout.value)}" data-readout-live="${escXml(readout.live)}" aria-label="${escXml(
+        `${readout.name}${readout.value ? `, ${readout.value}` : ""}. Show its readings`
+      )}"`
+    : "";
   return `<g class="sim-comp sim-comp-${escXml(comp.type)}${statusClass}" data-id="${escXml(comp.id)}" data-powered="${
     poweredComps.has(comp.id) && !solvedNotConducting(info) ? "true" : "false"
-  }" transform="translate(${comp.x},${comp.y})">${titleSvg}${def.render(comp)}${readingSvg && def.overlay ? def.overlay(readingSvg) : readingSvg}</g>`;
+  }"${readoutAttrs} transform="translate(${comp.x},${comp.y})">${titleSvg}${def.render(comp)}${readingSvg && def.overlay ? def.overlay(readingSvg) : readingSvg}</g>`;
 }
 
 // Optional presentation-only route bends; electrical connectivity still uses wire.from/to.

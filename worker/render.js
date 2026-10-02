@@ -2,7 +2,7 @@ import { listArticles, listProjects, getPublishedSimulation, getScan, getSong, g
 import { safeImageSrc, mediaKeyFor, paragraphPictures, bodyPictures, PICTURE_ONLY_LINE } from "./pictures.js";
 import { paragraphEmbed, bodyEmbeds, EMBED_ONLY_LINE, MAX_BODY_EMBEDS } from "./embeds.js";
 import { nowIso, visibleText } from "./text.js";
-import { renderSimulationSvg, SIM_DEFS_SVG } from "./simulation-render.js";
+import { renderSimulationSvg, SIM_DEFS_SVG, describeSimulation } from "./simulation-render.js";
 
 export function esc(str) {
   return String(str ?? "")
@@ -1451,27 +1451,41 @@ export async function imgSizeAttrs(env, imgUrl) {
 // The interactive circuit shown by a Simulation block and by `::sim 148::` in a text: `uid` is the SVG's id (the power buttons point
 // at it, so it must be unique on the page).
 const simSvgCache = new WeakMap();
-function simulationEmbedHtml(sim, uid, description) {
+// A circuit with its Power on / Schematic view buttons, a line that shows the readings of the part a visitor taps, and (unless the
+// placement gave its own description) a plain-language description of what is in it for screen readers. `describe` adds the visible
+// "About this circuit" list, for the circuit's own page.
+export function simulationEmbedHtml(sim, uid, description, { about = false } = {}) {
   // The same circuit embedded several times is drawn once per request; each copy only gets its own id.
-  let drawn = simSvgCache.get(sim);
-  if (!drawn) {
-    drawn = renderSimulationSvg(sim.data);
-    simSvgCache.set(sim, drawn);
+  let cached = simSvgCache.get(sim);
+  if (!cached) {
+    cached = { svg: renderSimulationSvg(sim.data), summary: describeSimulation(sim.data) };
+    simSvgCache.set(sim, cached);
   }
-  // The SVG itself is a visual circuit diagram with no inherent text equivalent — an interactive canvas like this needs someone
-  // to actually describe what it does, so this is opt-in per placement rather than derived from the simulation's (often terse) name.
-  const descId = description ? `${uid}-desc` : "";
+  const { svg: drawn, summary } = cached;
+  // The SVG itself is a visual circuit diagram with no inherent text equivalent: an explicit description from the placement wins,
+  // otherwise the generated one is used. It is a group, not an image, because the parts inside can be focused and asked for readings.
+  const text = description || summary.sentence;
+  const descId = `${uid}-desc`;
   const svg = drawn.replace(
     'class="sim-svg"',
-    `class="sim-svg" id="${esc(uid)}" role="img" aria-label="${esc(sim.name || "Circuit simulation")}"${descId ? ` aria-describedby="${esc(descId)}"` : ""}`
+    `class="sim-svg" id="${esc(uid)}" role="group" aria-label="${esc(sim.name || "Circuit simulation")}" aria-describedby="${esc(descId)}"`
   );
-  const descHtml = description ? `<p id="${esc(descId)}" class="sr-only">${esc(description)}</p>` : "";
+  const descHtml = `<p id="${esc(descId)}" class="sr-only">${esc(text)}</p>`;
   // The buttons are described by the circuit they drive (its name), so several "Power on" buttons on a page can be told apart.
+  const aboutHtml = about
+    ? `<section class="sim-about" aria-labelledby="${esc(uid)}-about-h"><h2 id="${esc(uid)}-about-h">About this circuit</h2><p>${esc(summary.sentence)}</p><ul>${summary.items
+        .slice(0, 40)
+        .map((item) =>
+          // Each part is also a button that shows its readings (the drawing's parts are tiny on a phone).
+          item.id != null ? `<li><button type="button" class="sim-about-part" data-part="${esc(item.id)}" data-target="${esc(uid)}">${esc(item.text)}</button></li>` : `<li>${esc(item.text)}</li>`
+        )
+        .join("")}</ul></section>`
+    : "";
   return `<div class="sim-block-wrap">${descHtml}${svg}<div class="sim-block-actions"><button type="button" class="sim-power-btn" data-target="${esc(
     uid
   )}" aria-describedby="${esc(uid)}">Power on</button><button type="button" class="sim-power-btn sim-view-btn" aria-pressed="false" data-target="${esc(
     uid
-  )}" aria-describedby="${esc(uid)}">Schematic view</button></div></div>`;
+  )}" aria-describedby="${esc(uid)}">Schematic view</button></div><p class="sim-readout" role="status" aria-live="polite" data-hint="Tap or press a part to see its readings.">Tap or press a part to see its readings.</p>${aboutHtml}</div>`;
 }
 
 async function renderBlockInner(env, block, ctx) {

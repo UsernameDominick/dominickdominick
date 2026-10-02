@@ -45,8 +45,62 @@ document.addEventListener("click", (e) => {
   // drives the outlined look.
   btn.textContent = on ? "Power off" : "Power on";
   btn.classList.toggle("is-active", on);
+  svg.dispatchEvent(new CustomEvent("sim-power-changed", { bubbles: true }));
   if (window.trackEvent) window.trackEvent("sim_power_toggle", on ? "on" : "off");
 });
+
+// ---------- Readings of a part ----------
+// Tapping (or pressing Enter or Space on) a part names it, gives its value, and, once the circuit is powered, adds the figures the
+// page was built with ("Resistor R1 — 220 Ω · 19.8 mA · 0.09 W · OK"). The text is in a live region under the buttons, so it is
+// announced too. Switching the power on or off updates the part that is selected.
+(function () {
+  function show(part) {
+    const wrap = part.closest(".sim-block-wrap");
+    const out = wrap && wrap.querySelector(".sim-readout");
+    const svg = part.closest(".sim-svg");
+    if (!out || !svg) return;
+    wrap.querySelectorAll(".sim-comp.is-selected").forEach((p) => p.classList.remove("is-selected"));
+    part.classList.add("is-selected");
+    const name = part.dataset.readoutName || "Part";
+    const value = part.dataset.readout || "";
+    const live = part.dataset.readoutLive || "";
+    const on = svg.classList.contains("is-on");
+    let text = value ? name + " — " + value : name;
+    if (live) text += on ? " · " + live : ". Power on to see its live readings.";
+    out.textContent = text;
+  }
+  document.addEventListener("click", (e) => {
+    const part = e.target.closest && e.target.closest(".sim-comp[data-readout-name]");
+    if (!part) return;
+    show(part);
+    if (window.trackEvent) window.trackEvent("sim_part_readout", part.dataset.readoutName);
+  });
+  // The "About this circuit" list: each part is a button that selects it in the drawing and shows its readings.
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest && e.target.closest(".sim-about-part");
+    if (!btn) return;
+    const svg = document.getElementById(btn.dataset.target);
+    let part = null;
+    try {
+      part = svg && svg.querySelector('.sim-comp[data-id="' + CSS.escape(btn.dataset.part) + '"]');
+    } catch (err) {
+      return;
+    }
+    if (part && part.dataset.readoutName) show(part);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const part = e.target.closest && e.target.closest(".sim-comp[data-readout-name]");
+    if (!part || e.target !== part) return;
+    e.preventDefault();
+    show(part);
+  });
+  document.addEventListener("sim-power-changed", (e) => {
+    const wrap = e.target.closest && e.target.closest(".sim-block-wrap");
+    const selected = wrap && wrap.querySelector(".sim-comp.is-selected");
+    if (selected) show(selected);
+  });
+})();
 
 // ---------- Deep links to a specific component ----------
 // A URL hash of #sim-<blockId>-comp-<componentId> scrolls to and briefly
