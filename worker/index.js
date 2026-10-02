@@ -104,6 +104,8 @@ import { notFoundLogPath, suggestNearest } from "./notfound.js";
 import { stripPictureLines } from "./pictures.js";
 import { stripEmbedLines } from "./embeds.js";
 import { visibleText, nowIso, cleanPageCss, pageCssKey } from "./text.js";
+// STUDY (temporary): see worker/study/README.md.
+import { handleStudyUnlock } from "./study/index.js";
 import {
   capacitanceMicrofarads,
   computeCircuitAnalysis,
@@ -1457,6 +1459,11 @@ async function route(request, env, ctx) {
 
     if (path.startsWith("/api/admin")) {
       return handleAdminApi(request, env, url, ctx);
+    }
+
+    // STUDY (temporary): the password check behind the Study block.
+    if (path === "/api/study/unlock" && request.method === "POST") {
+      return handleStudyUnlock(request, env);
     }
 
     if (path === "/api/track" && request.method === "POST") {

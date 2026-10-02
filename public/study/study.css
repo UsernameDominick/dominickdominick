@@ -1,0 +1,30 @@
+/* STUDY (temporary): the popup for the Study block (public/study/study.js). */
+html.study-is-open { overflow: hidden; }
+.study-block { margin: 0; }
+.study-dialog {
+  position: fixed; inset: 0; margin: auto; padding: 0; border: 1px solid var(--border); border-radius: 12px;
+  width: min(980px, 96vw); height: min(900px, 92vh); height: min(900px, 92dvh); max-width: none; max-height: none;
+  background: var(--bg-elevated); color: var(--text); overflow: hidden;
+}
+.study-dialog[open] { display: flex; flex-direction: column; }
+.study-dialog::backdrop { background: rgba(0, 0, 0, 0.85); }
+.study-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 8px 8px 16px; border-bottom: 1px solid var(--border); flex: none; }
+.study-title { margin: 0; font-size: 1rem; line-height: 1.3; }
+.study-close {
+  display: grid; place-items: center; min-width: 44px; min-height: 44px; padding: 0; border: 1px solid var(--border); border-radius: 50%;
+  background: transparent; color: var(--text); font-size: 1.6rem; line-height: 1; cursor: pointer;
+}
+.study-close:hover { background: var(--border); }
+.study-close:focus-visible, .study-input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.study-gate { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 24px 20px; max-width: 420px; }
+.study-lead { margin: 0 0 4px; color: var(--text-dim); }
+.study-label { font-weight: 600; }
+.study-input { width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; box-sizing: border-box; }
+.study-status { margin: 0; min-height: 1.4em; color: var(--text-dim); }
+.study-stage { flex: 1 1 auto; min-height: 0; }
+.study-stage[hidden], .study-gate[hidden] { display: none; }
+.study-frame { display: block; width: 100%; height: 100%; border: 0; background: #10141b; }
+@media (max-width: 640px) {
+  .study-dialog { width: 100vw; height: 100vh; height: 100dvh; border: 0; border-radius: 0; }
+}
+@media print { .study-dialog { display: none !important; } }

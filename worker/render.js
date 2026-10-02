@@ -3,6 +3,8 @@ import { safeImageSrc, mediaKeyFor, paragraphPictures, bodyPictures, PICTURE_ONL
 import { paragraphEmbed, bodyEmbeds, EMBED_ONLY_LINE, MAX_BODY_EMBEDS } from "./embeds.js";
 import { nowIso, visibleText } from "./text.js";
 import { renderSimulationSvg, SIM_DEFS_SVG, describeSimulation } from "./simulation-render.js";
+// STUDY (temporary): see worker/study/README.md.
+import { renderStudyBlock, studyPageTags } from "./study/index.js";
 
 export function esc(str) {
   return String(str ?? "")
@@ -1602,6 +1604,9 @@ async function renderBlockInner(env, block, ctx) {
       return `<blockquote class="block-quote${c.large ? " block-quote-large" : ""}">${paragraphsHtml(c.text, { media: await loadBodyMedia(env, c.text) })}${c.cite ? `<footer>${esc(c.cite)}</footer>` : ""}</blockquote>`;
     case "embed":
       return genericEmbedHtml(c.url);
+    // STUDY (temporary): just a button; the password and the study page are never in the page.
+    case "study":
+      return renderStudyBlock(c, block.id, esc);
     case "gallery": {
       // Each entry is either a bare URL string (older galleries, and any
       // newly-appended image before its alt text is filled in) or a
@@ -2109,6 +2114,8 @@ function pageScriptsHtml(bodyHtml) {
   }
   // Pictures a reader can open larger: an image block, a gallery, or a picture written into the text.
   if (/class="(?:block-image|gallery)"|body-figure|image-figure/.test(html)) tags.push('<script src="/lightbox.js" defer></script>');
+  // STUDY (temporary): the popup for a Study block.
+  tags.push(...studyPageTags(html));
   return tags.join("\n");
 }
 

@@ -1501,7 +1501,7 @@
   }
 
   function blockLabel(type) {
-    return { heading: "Heading", text: "Text", image: "Image", button: "Button", "project-card": "Project Card", "article-list": "Article List", "project-list": "Project List", video: "Video", quote: "Quote", gallery: "Gallery", "before-after": "Before / After", simulation: "Simulation", scan: "3D Scan", song: "Song", divider: "Divider", spacer: "Spacer", links: "Links", html: "HTML / Embed", changelog: "Changelog / Now", embed: "Generic Embed", accordion: "Accordion", tabs: "Tabs" }[type] || type;
+    return { heading: "Heading", text: "Text", image: "Image", button: "Button", "project-card": "Project Card", "article-list": "Article List", "project-list": "Project List", video: "Video", quote: "Quote", gallery: "Gallery", "before-after": "Before / After", simulation: "Simulation", scan: "3D Scan", song: "Song", divider: "Divider", spacer: "Spacer", links: "Links", html: "HTML / Embed", changelog: "Changelog / Now", embed: "Generic Embed", accordion: "Accordion", tabs: "Tabs", study: "Study" }[type] || type;
   }
 
   let simulationOptions = [];
@@ -1546,6 +1546,8 @@
       case "project-list": return `<span class="pv-list">Shows latest ${c.limit || 12} projects</span>`;
       case "video": return c.url ? `<span class="pv-media">▶ ${escapeHtml(c.url)}</span>` : "(no video url)";
       case "embed": return c.url ? `<span class="pv-media">${escapeHtml(c.url)}</span>` : "(no embed url)";
+      // STUDY (temporary): never show the password here.
+      case "study": return `<span class="pv-button">Study: ${escapeHtml(c.label || "Open study")} (locked)</span>`;
       case "quote": return c.text ? `<span class="pv-quote">“${escapeHtml(c.text.slice(0, 100))}”</span>` : "(empty)";
       case "gallery": return `<span class="pv-gallery">${imgs((c.images || []).map((i) => (typeof i === "string" ? i : i && i.url)))}</span>${(c.images || []).length} image(s)`;
       case "before-after": return c.beforeUrl && c.afterUrl ? `<span class="pv-gallery">${imgs([c.beforeUrl, c.afterUrl])}</span>Before/after comparison` : "(missing before or after image)";
@@ -2190,6 +2192,8 @@
         scan: { content: { scan_id: null }, col_span: 24, row_span: 22 },
         video: { content: { url: "" }, col_span: 16, row_span: 12 },
         embed: { content: { url: "" }, col_span: 16, row_span: 12 },
+        // STUDY (temporary): a blank password means the site's default study password (worker/study/index.js).
+        study: { content: { label: "Open study", lab: "core1-lab", password: "" }, col_span: 8, row_span: 3 },
         quote: { content: { text: "Quote text here.", cite: "" }, col_span: 16, row_span: 6 },
         gallery: { content: { images: [] }, col_span: 24, row_span: 12 },
         "before-after": { content: { beforeUrl: "", afterUrl: "", beforeLabel: "Before", afterLabel: "After" }, col_span: 16, row_span: 14 },
@@ -2338,6 +2342,12 @@
     ],
     video: [{ key: "url", label: "YouTube or Vimeo URL", type: "text" }],
     embed: [{ key: "url", label: "Embed URL (CodePen, Spotify, Figma, CodeSandbox, GitHub Gist, or any iframe-able link)", type: "text" }],
+    // STUDY (temporary): see worker/study/README.md.
+    study: [
+      { key: "label", label: "Button text", type: "text" },
+      { key: "lab", label: "Study page", type: "select", options: [["core1-lab", "A+ Core 1 Drill"]] },
+      { key: "password", label: "Password (blank = the site's default study password)", type: "text", noSpellcheck: true },
+    ],
     quote: [
       { key: "text", label: "Quote text", type: "textarea" },
       { key: "cite", label: "Attribution (optional)", type: "text" },
