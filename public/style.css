@@ -1984,7 +1984,7 @@ h6 { font-size: 0.9rem; }
   stroke-linejoin: round;
 }
 .sim-comp .diode-bar {
-  stroke: #333;
+  stroke: var(--text);
   stroke-width: 3;
   stroke-linecap: round;
 }

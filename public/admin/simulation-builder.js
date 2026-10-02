@@ -1569,7 +1569,7 @@
     }
     if (outletLoop) add("danger", "The wall outlet (120 V) is wired straight into this circuit, which destroys most parts. Go through a Power Supply.");
     if (analysis.meta && analysis.meta.parallel) {
-      add("warning", "This circuit has a parallel branch or a bypass. The simulator follows one path from each source, so the figures and statuses may be incomplete or missing: a backwards LED, for one, is only flagged when it is on the only route.");
+      add("warning", "This circuit has a parallel branch or a bypass. The simulator follows one path from each source, so the figures and statuses may be incomplete or missing: a backwards LED or diode, for one, is only flagged when it is on the only route.");
     }
     // Parts that can carry or show current but weren't analysed: not on the path the solver followed.
     const analysable = new Set(["led", "diode", "resistor", "ammeter", "mcu_teensy"]);
@@ -2395,7 +2395,7 @@
     battery: { kind: "Electrical", text: "supplies a constant DC voltage, with an optional internal resistance." },
     breadboard: { kind: "Mechanical", text: "joins holes in column strips and power rails; nothing electrical of its own." },
     led: { kind: "Electrical", text: "lights only when wired the right way round; checked for current and burn-out against a typical 20 mA rating." },
-    diode: { kind: "Electrical", text: "conducts only anode to cathode (towards the bar) with a fixed 0.7 V drop and blocks the other way; checked for burn-out against a typical 1 A rating. The glow of powered parts doesn't follow a diode's blocking." },
+    diode: { kind: "Electrical", text: "conducts only anode to cathode (towards the bar) with a fixed 0.7 V drop and blocks the other way; checked for burn-out against a typical 1 A rating. A backwards diode stops power for everything beyond it." },
     resistor: { kind: "Electrical", text: "limits current by Ohm's law; checked for overheating against a typical 0.25 W rating." },
     potentiometer: { kind: "Electrical", text: "acts as a two-terminal variable resistor set by its wiper." },
     capacitor: { kind: "Electrical (DC only)", text: "counts as an open circuit.", brief: true },
@@ -2893,6 +2893,8 @@
         statusLine = "⚡ Power source";
       } else if (isPowered) {
         statusLine = "⚡ Part of a complete circuit";
+      } else if (comp.type === "diode" && info && info.status === "reversed") {
+        statusLine = "Both legs reach power, but wired backwards";
       } else if (def.polarity) {
         const posNode = window.simNodeId(comp, def.polarity.pos);
         const negNode = window.simNodeId(comp, def.polarity.neg);

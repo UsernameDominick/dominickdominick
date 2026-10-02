@@ -803,6 +803,12 @@
       adjacency.get(a).add(b);
       adjacency.get(b).add(a);
     };
+    // A diode only passes power from its anode to its cathode, so it is a one-way link; everything else conducts both ways.
+    const linkOneWay = (from, to) => {
+      if (!adjacency.has(from)) adjacency.set(from, new Set());
+      if (!adjacency.has(to)) adjacency.set(to, new Set());
+      adjacency.get(from).add(to);
+    };
     components.forEach((c) => {
       const def = getSimComponentDefinition(c);
       if (!def) return;
@@ -815,7 +821,8 @@
       }
       if (c.type === "switch_spdt") link(nodeId(c, "com"), nodeId(c, spdtThrow(c)));
       if ((c.type === "led" || c.type === "diode") && def.polarity && c.id !== excludeLedId) {
-        link(nodeId(c, def.polarity.pos), nodeId(c, def.polarity.neg));
+        if (c.type === "diode") linkOneWay(nodeId(c, def.polarity.pos), nodeId(c, def.polarity.neg));
+        else link(nodeId(c, def.polarity.pos), nodeId(c, def.polarity.neg));
       }
     });
     wires.forEach((w) => {
@@ -842,6 +849,14 @@
       }
     }
     return visited;
+  }
+
+  // The same graph with every one-way link turned round: reaching A from B here means current can flow from A to B.
+  function reversedGraph(adjacency) {
+    const reversed = new Map();
+    adjacency.forEach((_, node) => reversed.set(node, new Set()));
+    adjacency.forEach((neighbours, node) => neighbours.forEach((n) => reversed.get(n).add(node)));
+    return reversed;
   }
 
   function connected(adjacency, a, b) {
@@ -878,7 +893,7 @@
         const correctlyOriented = activeSources.some(
           (s) =>
             bfsReach(graphWithoutThisLed, s.posNode, negNode).has(posNode) &&
-            bfsReach(graphWithoutThisLed, s.negNode, posNode).has(negNode)
+            bfsReach(reversedGraph(graphWithoutThisLed), s.negNode, posNode).has(negNode)
         );
         if (correctlyOriented) poweredComps.add(c.id);
         return;
