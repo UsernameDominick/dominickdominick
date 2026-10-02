@@ -4844,6 +4844,8 @@
   // — doesn't need to be byte-exact, just give a realistic sense of length.
   function clientExcerpt(text, maxLen = 140) {
     const flat = String(text || "")
+      .replace(/^[ \t]*::(?:sim|song|scan)\s+\d{1,9}(?:\s+"[^"\n]*")?\s*::[ \t]*$/gim, "")
+      .replace(/^[ \t]*!\[[^\]\n]*\]\(\s*[^\s)]+(?:\s+(?:"[^"\n]*"|'[^'\n]*'))?\s*\)[ \t]*$/gm, "")
       .replace(/^#{2,3}\s+/gm, "")
       .replace(/\*\*(.+?)\*\*/g, "$1")
       .replace(/\*(.+?)\*/g, "$1")
@@ -4952,6 +4954,32 @@
         }
       }
     }
+    return [...warnings, ...checkEmbedLines(text)];
+  }
+
+  // Embedded simulations, songs and scans (::sim 148::) only show when written exactly right on a paragraph of their own, and a page
+  // shows at most 20; anything else would silently show as plain text or nothing, so say so while writing.
+  function checkEmbedLines(text) {
+    const warnings = [];
+    const lines = String(text || "").split("\n");
+    const strict = /^::(sim|song|scan)\s+\d{1,9}(?:\s+"[^"\n]*")?\s*::$/i;
+    let inFence = false;
+    let count = 0;
+    lines.forEach((raw, i) => {
+      const line = raw.trim();
+      if (/^```/.test(line)) inFence = !inFence;
+      if (inFence || !line) return;
+      if (strict.test(line)) {
+        count++;
+        const touching = (lines[i - 1] || "").trim() || (lines[i + 1] || "").trim();
+        if (touching) warnings.push(`"${line}" needs a blank line above and below it to show as an embed`);
+      } else if (/^[-*+>|]\s*::(sim|song|scan)\b/i.test(line)) {
+        warnings.push(`"${line.slice(0, 40)}" is inside a list, quote or table; embeds only work on a paragraph of their own`);
+      } else if (/^::[a-z]+\b[^:]*::$/i.test(line)) {
+        warnings.push(`"${line.slice(0, 40)}" isn't a recognised embed; write ::sim 12:: (or ::song / ::scan) with the item's number, 9 digits at most`);
+      }
+    });
+    if (count > 20) warnings.push(`This text embeds ${count} items; a page shows only the first 20`);
     return warnings;
   }
 
@@ -5582,7 +5610,7 @@
     el("embed-picker-desc-label").hidden = kind === "song";
     el("embed-picker-hint").textContent =
       kind === "sim" ? "Only a published simulation shows to readers; a draft is simply left out until you publish it."
-      : kind === "song" ? "Readers get a Play button for the song."
+      : kind === "song" ? "Readers get a Play button for the song. A song has no draft state: they always get its latest saved version."
       : "Readers can orbit and zoom the scan.";
   }
   function openEmbedPicker(textarea) {

@@ -66,7 +66,12 @@
         stop();
         return;
       }
-      utterance = new SpeechSynthesisUtterance(content.innerText);
+      // Embedded circuits, songs and scans (their labels and buttons) aren't text to be read out: hide them for the moment innerText is taken.
+      var embeds = content.querySelectorAll(".body-embed");
+      embeds.forEach(function (e) { e.hidden = true; });
+      var spoken = content.innerText;
+      embeds.forEach(function (e) { e.hidden = false; });
+      utterance = new SpeechSynthesisUtterance(spoken);
       utterance.onend = stop;
       utterance.onerror = stop;
       window.speechSynthesis.speak(utterance);

@@ -3,9 +3,9 @@
 // `::sim 148 "A resistor limiting the current to an LED"::`. Pure helpers shared by the renderer and the places that count words.
 import { proseOf } from "./pictures.js";
 
-export const EMBED_LINE = /^::(sim|song|scan)\s+(\d{1,9})(?:\s+"([^"\n]*)")?\s*::$/;
+export const EMBED_LINE = /^::(sim|song|scan)\s+(\d{1,9})(?:\s+"([^"\n]*)")?\s*::$/i;
 // The same line inside a longer text (for stripping it from excerpts and word counts).
-export const EMBED_ONLY_LINE = /^[ \t]*::(?:sim|song|scan)\s+\d{1,9}(?:\s+"[^"\n]*")?\s*::[ \t]*$/gm;
+export const EMBED_ONLY_LINE = /^[ \t]*::(?:sim|song|scan)\s+\d{1,9}(?:\s+"[^"\n]*")?\s*::[ \t]*$/gim;
 // A page asks for at most this many embedded items, so a pasted wall of them can't turn into a wall of queries.
 export const MAX_BODY_EMBEDS = 20;
 
@@ -14,7 +14,7 @@ export function paragraphEmbed(paragraph) {
   const text = String(paragraph).trim();
   if (text.includes("\n")) return null;
   const m = EMBED_LINE.exec(text);
-  return m ? { kind: m[1], id: Number(m[2]), description: m[3] || "" } : null;
+  return m ? { kind: m[1].toLowerCase(), id: Number(m[2]), description: m[3] || "" } : null;
 }
 
 // Every embed the renderer would show in a text (code examples and callout markers handled like pictures), in order.

@@ -2529,6 +2529,15 @@ hr {
 /* 3D scan block — <model-viewer> has no intrinsic size, so it needs an
    explicit height (a custom element can't be styled with aspect-ratio the
    way an <img> can here, since its content is a canvas it manages itself). */
+.scan-block-wrap {
+  position: relative;
+}
+
+/* Until the viewer script has loaded (offline, blocked, slow) its AR button would float over whatever is near it. */
+.scan-block-wrap model-viewer:not(:defined) .scan-ar-btn {
+  display: none;
+}
+
 .scan-block-wrap model-viewer {
   width: 100%;
   height: 420px;
@@ -3906,4 +3915,14 @@ pre.has-line-numbers {
 /* Inside the admin's live preview pane the owner's edit pencil would load a second admin inside the frame. */
 .in-frame .edit-this-btn {
   display: none;
+}
+
+/* Embedded circuits, songs and scans stay in one piece on a printed page, and their buttons (which do nothing on paper) are left out. */
+@media print {
+  .body-embed {
+    break-inside: avoid;
+  }
+  .body-embed .song-embed-play-btn {
+    display: none;
+  }
 }

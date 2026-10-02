@@ -680,7 +680,16 @@
       .forEach((btn) =>
         btn.addEventListener("click", async () => {
           const simulation = simulations.find((item) => item.id === Number(btn.dataset.id));
-          if (!confirm(`Unpublish ${simulation ? `“${simulation.name}”` : "this simulation"}? Visitors will no longer see it.`)) return;
+          // Wherever it is used (page blocks, project "Related" lists, text that embeds it) it stops showing: say where.
+          let usedBy = [];
+          try {
+            usedBy = await window.adminApi(`/content-usage?type=simulation&id=${Number(btn.dataset.id)}`);
+          } catch {}
+          const places = [...new Set(usedBy.map((u) => `${u.type}: ${u.title}`))];
+          const where = places.length
+            ? `\n\nIt is used in ${places.length} place${places.length === 1 ? "" : "s"} (${places.slice(0, 6).join("; ")}${places.length > 6 ? `; and ${places.length - 6} more` : ""}), which will stop showing it.`
+            : "";
+          if (!confirm(`Unpublish ${simulation ? `“${simulation.name}”` : "this simulation"}? Visitors will no longer see it.${where}`)) return;
           try {
             await window.adminApi(`/simulations/${btn.dataset.id}/unpublish`, { method: "POST" });
             await loadSimulationsList();

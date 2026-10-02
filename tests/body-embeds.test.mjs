@@ -81,4 +81,25 @@ assert.equal(paragraphsHtml("::sim 1::", { media: broken }).trim(), "");
 assert.equal(excerpt("Before.\n\n::sim 148::\n\nAfter."), "Before. After.");
 assert.equal(readingTime(`${"word ".repeat(400)}\n\n${"::sim 1::\n\n".repeat(300)}`), 2);
 
+// ---- review fixes ----
+// the kind is not case sensitive
+assert.deepEqual(paragraphEmbed("::SIM 148::"), { kind: "sim", id: 148, description: "" });
+assert.deepEqual(bodyEmbeds("::Song 3::").map((e) => e.kind), ["song"]);
+assert.equal(stripEmbedLines("a\n\n::SCAN 2::\n\nb").replace(/\s+/g, " ").trim(), "a b");
+// a page shows at most 20 embeds in total, copies included
+{
+  const many = Array.from({ length: 35 }, () => "::sim 1::").join("\n\n");
+  const m = await loadBodyMedia(env, many);
+  const out = paragraphsHtml(many, { media: m });
+  assert.equal((out.match(/<svg[^>]*class="sim-svg"/g) || []).length, 20);
+}
+// one drawing per circuit per request: the extra copies reuse it, each with its own id and buttons described by the circuit
+{
+  const two = "::sim 1::\n\n::sim 1::";
+  const out = paragraphsHtml(two, { media: await loadBodyMedia(env, two) });
+  const svgs = out.match(/<svg[^>]*class="sim-svg"[^>]*>/g) || [];
+  assert.equal(svgs.length, 2);
+  assert.match(out, /<button type="button" class="sim-power-btn" data-target="(sim-body-\d+)" aria-describedby="\1">Power on<\/button>/);
+}
+
 console.log("ALL PASS");

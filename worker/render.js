@@ -2,7 +2,7 @@ import { listArticles, listProjects, getPublishedSimulation, getScan, getSong, g
 import { safeImageSrc, mediaKeyFor, paragraphPictures, bodyPictures, PICTURE_ONLY_LINE } from "./pictures.js";
 import { paragraphEmbed, bodyEmbeds, EMBED_ONLY_LINE, MAX_BODY_EMBEDS } from "./embeds.js";
 import { nowIso, visibleText } from "./text.js";
-import { renderSimulationSvg } from "./simulation-render.js";
+import { renderSimulationSvg, SIM_DEFS_SVG } from "./simulation-render.js";
 
 export function esc(str) {
   return String(str ?? "")
@@ -380,6 +380,10 @@ function bodyEmbedHtml(embed, embeds) {
   if (!embeds) return null;
   const item = embeds.get(`${embed.kind}:${embed.id}`);
   if (!item) return "";
+  // A page shows at most MAX_BODY_EMBEDS embeds in total, copies included (an accidental paste of one line a few hundred times
+  // would otherwise be a few hundred circuits); the editor warns when a text asks for more.
+  embeds.shown = (embeds.shown || 0) + 1;
+  if (embeds.shown > MAX_BODY_EMBEDS) return "";
   const inner =
     embed.kind === "sim"
       ? simulationEmbedHtml(item, `sim-body-${++bodyEmbedSeq}`, embed.description)
@@ -1394,20 +1398,28 @@ export async function imgSizeAttrs(env, imgUrl) {
 
 // The interactive circuit shown by a Simulation block and by `::sim 148::` in a text: `uid` is the SVG's id (the power buttons point
 // at it, so it must be unique on the page).
+const simSvgCache = new WeakMap();
 function simulationEmbedHtml(sim, uid, description) {
+  // The same circuit embedded several times is drawn once per request; each copy only gets its own id.
+  let drawn = simSvgCache.get(sim);
+  if (!drawn) {
+    drawn = renderSimulationSvg(sim.data);
+    simSvgCache.set(sim, drawn);
+  }
   // The SVG itself is a visual circuit diagram with no inherent text equivalent — an interactive canvas like this needs someone
   // to actually describe what it does, so this is opt-in per placement rather than derived from the simulation's (often terse) name.
   const descId = description ? `${uid}-desc` : "";
-  const svg = renderSimulationSvg(sim.data).replace(
+  const svg = drawn.replace(
     'class="sim-svg"',
     `class="sim-svg" id="${esc(uid)}" role="img" aria-label="${esc(sim.name || "Circuit simulation")}"${descId ? ` aria-describedby="${esc(descId)}"` : ""}`
   );
   const descHtml = description ? `<p id="${esc(descId)}" class="sr-only">${esc(description)}</p>` : "";
+  // The buttons are described by the circuit they drive (its name), so several "Power on" buttons on a page can be told apart.
   return `<div class="sim-block-wrap">${descHtml}${svg}<div class="sim-block-actions"><button type="button" class="sim-power-btn" data-target="${esc(
     uid
-  )}">Power on</button><button type="button" class="sim-power-btn sim-view-btn" aria-pressed="false" data-target="${esc(
+  )}" aria-describedby="${esc(uid)}">Power on</button><button type="button" class="sim-power-btn sim-view-btn" aria-pressed="false" data-target="${esc(
     uid
-  )}">Schematic view</button></div></div>`;
+  )}" aria-describedby="${esc(uid)}">Schematic view</button></div></div>`;
 }
 
 async function renderBlockInner(env, block, ctx) {
@@ -2000,6 +2012,16 @@ const ICON = {
 // article scripts whether or not it had any of those features. Each is
 // now included only when the rendered body actually contains markup it
 // drives, so a plain page ships none of them.
+// The circuit drawings paint themselves with gradients and a glow defined once, by id, in their own <defs>, and the stylesheet
+// refers to them by those ids. Several drawings on one page repeat the ids and the browser uses the first one in the page; if that
+// first one is inside something hidden (an inactive tab, a block hidden on phones) every other drawing loses its colours. A copy in
+// an always-rendered, zero-size SVG at the top of the page comes first, so it is the one used.
+function simDefsHolder(bodyHtml) {
+  return String(bodyHtml || "").includes('class="sim-svg"')
+    ? `<svg class="sim-defs-holder" width="0" height="0" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true" focusable="false">${SIM_DEFS_SVG}</svg>`
+    : "";
+}
+
 function pageScriptsHtml(bodyHtml) {
   const html = String(bodyHtml || "");
   const tags = [];
@@ -2259,7 +2281,7 @@ ${(Array.isArray(jsonLd) ? jsonLd : jsonLd ? [jsonLd] : [])
 ${customHead || ""}
 </head>
 <body>
-  <a class="skip-link" href="#main-content">Skip to content</a>
+  ${simDefsHolder(bodyHtml)}<a class="skip-link" href="#main-content">Skip to content</a>
   <div class="page">
     <header class="topbar">
       <a class="brand" href="/">dominick<span class="accent">.</span>dominick</a>

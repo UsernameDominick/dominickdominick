@@ -2040,6 +2040,17 @@ function findBeforeAfterUrls(body) {
   return urls;
 }
 
+// The pieces of written text a page block holds (text, quote, accordion items, tabs), for everything that looks inside text:
+// pictures, embedded items, links.
+function blockTexts(block) {
+  const c = block.content || {};
+  const texts = [];
+  if (block.type === "text" || block.type === "quote") texts.push(c.text);
+  if (block.type === "accordion" && Array.isArray(c.items)) c.items.forEach((it) => it && texts.push(it.body));
+  if (block.type === "tabs" && Array.isArray(c.tabs)) c.tabs.forEach((it) => it && texts.push(it.body));
+  return texts.filter((t) => typeof t === "string" && t);
+}
+
 async function getMediaUsageMap(env) {
   const pages = await listPages(env);
   const pageBlocks = await Promise.all(pages.map((p) => listBlocks(env, p.id)));
@@ -2070,11 +2081,7 @@ async function getMediaUsageMap(env) {
       }
       if (style.backgroundImage) add(style.backgroundImage, "Block background", p.title);
       // Pictures written into text (![alt](address)) in a text, quote, accordion or tabs block.
-      const texts = [];
-      if (b.type === "text" || b.type === "quote") texts.push(c.text);
-      if (b.type === "accordion" && Array.isArray(c.items)) c.items.forEach((it) => it && texts.push(it.body));
-      if (b.type === "tabs" && Array.isArray(c.tabs)) c.tabs.forEach((it) => it && texts.push(it.body));
-      for (const text of texts) bodyPictures(text).forEach((pic) => add(pictureUrl(pic), "Picture in text block", p.title));
+      for (const text of blockTexts(b)) bodyPictures(text).forEach((pic) => add(pictureUrl(pic), "Picture in text block", p.title));
     }
   });
   for (const a of articles) {
@@ -2208,12 +2215,7 @@ export async function findContentUsage(env, type, id) {
     for (const j of journalRows.results || []) if (embeds(j.body)) usage.push({ type: "Project journal (embedded in the text)", title: j.title });
     pages.forEach((p, i) => {
       for (const b of pageBlocks[i]) {
-        const c = b.content || {};
-        const texts = [];
-        if (b.type === "text" || b.type === "quote") texts.push(c.text);
-        if (b.type === "accordion" && Array.isArray(c.items)) c.items.forEach((it) => it && texts.push(it.body));
-        if (b.type === "tabs" && Array.isArray(c.tabs)) c.tabs.forEach((it) => it && texts.push(it.body));
-        if (texts.some(embeds)) usage.push({ type: "Text on a page (embedded)", title: p.title });
+        if (blockTexts(b).some(embeds)) usage.push({ type: "Text on a page (embedded)", title: p.title });
       }
     });
   }
@@ -3896,6 +3898,10 @@ async function gatherInternalLinks(env) {
   const embedLinks = (text) => bodyEmbeds(text).map((e) => (e.kind === "sim" ? `/simulation/${e.id}` : `Embedded ${e.kind} #${e.id}`));
 
   const found = [];
+  const addTextLinks = (text, source) => {
+    for (const url of markdownLinks(text)) found.push({ url, source });
+    for (const url of embedLinks(text)) found.push({ url, source: `${source} (embedded)` });
+  };
   pages.forEach((p, i) => {
     for (const b of pageBlocks[i]) {
       const c = b.content || {};
@@ -3905,16 +3911,17 @@ async function gatherInternalLinks(env) {
       if (b.type === "links" && Array.isArray(c.items)) {
         for (const it of c.items) if (it && it.url) found.push({ url: it.url, source: `Page "${p.title}" — Links block` });
       }
-      if (b.type === "text" && c.text) {
-        for (const url of [...markdownLinks(c.text), ...embedLinks(c.text)]) found.push({ url, source: `Page "${p.title}" — Text block` });
+      for (const text of blockTexts(b)) {
+        const label = { text: "Text block", quote: "Quote block", accordion: "Accordion block", tabs: "Tabs block" }[b.type] || "Text";
+        addTextLinks(text, `Page "${p.title}" — ${label}`);
       }
     }
   });
   for (const a of articles) {
-    for (const url of [...markdownLinks(a.body), ...embedLinks(a.body)]) found.push({ url, source: `Article "${a.title}"` });
+    addTextLinks(a.body, `Article "${a.title}"`);
   }
   projects.forEach((p, i) => {
-    for (const url of [...markdownLinks(p.body), ...embedLinks(p.body)]) found.push({ url, source: `Project "${p.title}"` });
+    addTextLinks(p.body, `Project "${p.title}"`);
     for (const key of ["github", "demo", "docs", "download"]) {
       if (p.links && p.links[key]) found.push({ url: p.links[key], source: `Project "${p.title}" — ${key} link` });
     }
@@ -3924,7 +3931,7 @@ async function gatherInternalLinks(env) {
       }
     }
     for (const j of projectJournals[i]) {
-      for (const url of [...markdownLinks(j.body), ...embedLinks(j.body)]) found.push({ url, source: `Project "${p.title}" — journal entry "${j.title || j.entry_date}"` });
+      addTextLinks(j.body, `Project "${p.title}" — journal entry "${j.title || j.entry_date}"`);
     }
   });
   return { found, pages, articles, projects };
