@@ -1875,7 +1875,7 @@
           <div class="sim-toolbar-group" data-group="transport">
             <span class="sim-toolbar-group-label">Transport</span>
             <div class="song-group-controls">
-              <button type="button" class="sim-quick" id="song-play">▶ Play</button><span id="song-transport-live" class="sim-sr-only" role="status" aria-live="polite"></span>
+              <button type="button" class="sim-quick" id="song-play" title="Play or stop (the Space bar does it too, when no button or field has the focus)">▶ Play</button><span id="song-transport-live" class="sim-sr-only" role="status" aria-live="polite"></span>
               <span class="song-metronome-group" role="group" aria-label="Metronome and count-in">
                 <label class="song-record-label" title="A click on every beat while the song plays (heard only here, never in the saved song or the public player)"><input type="checkbox" id="song-metronome-on"> Metronome</label>
                 <select id="song-metronome-sound" aria-label="Metronome sound" title="Metronome sound">
@@ -1989,6 +1989,13 @@
           <button type="button" id="song-pattern-random" class="song-track-toggle" title="Replace the pattern with a random one (undoable)">Randomize</button>
           <button type="button" id="song-pattern-clear" class="song-track-toggle" title="Remove every hit (undoable)">Clear</button>
           <span id="song-pattern-status" class="sim-sr-only" role="status"></span>
+        </div>
+        <div class="song-pattern-tools" role="group" aria-label="Pattern generators">
+          <label>Starter beat <select id="song-starter-beat"></select></label>
+          <button type="button" id="song-starter-apply" class="song-track-toggle" title="Replace the drums chosen under Apply to with this beat (undoable)">Use beat</button>
+          <label>Hits <input type="number" id="song-euclid-hits" min="0" max="16" step="1" value="5" inputmode="numeric" title="How many hits to spread evenly over the 16 steps"></label>
+          <label>Rotate <input type="number" id="song-euclid-rotate" min="0" max="15" step="1" value="0" inputmode="numeric" title="Move the pattern this many steps later"></label>
+          <button type="button" id="song-euclid-apply" class="song-track-toggle" title="Replace the drums chosen under Apply to with the hits spread as evenly as possible (a Euclidean rhythm, undoable)">Spread evenly</button>
         </div>
         <div id="song-sequencer-ruler" class="song-ruler" aria-hidden="true"></div>
         <div id="song-sequencer" class="song-sequencer"></div>
@@ -2454,6 +2461,7 @@
 <script src="/admin/bulk-list.js"></script>
 <script src="/admin/simulation-builder.js"></script>
 <script src="/song-engine.js"></script>
+<script src="/admin/song-patterns.js"></script>
 <script src="/admin/song-builder.js"></script>
 <script src="/admin/scan-builder.js"></script>
 </body>

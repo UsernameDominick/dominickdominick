@@ -799,6 +799,29 @@
   $("song-pattern-clear").addEventListener("click", () => patternEdit((r) => r.map(() => false), "Cleared"));
   $("song-pattern-random").addEventListener("click", () =>
     patternEdit((r, k) => r.map((_, i) => Math.random() < (k === "hihat" ? 0.5 : k === "kick" ? 0.25 : 0.2) || (k === "kick" && i % 4 === 0 && Math.random() < 0.7)), "Randomized, all hits at full strength"));
+  // Starter beats and Euclidean rhythms replace the rows chosen under "Apply to" (hidden rows are skipped, as for Randomize).
+  const starterSelect = $("song-starter-beat");
+  window.SongPatterns.STARTERS.forEach((b) => {
+    const opt = document.createElement("option");
+    opt.value = b.id;
+    opt.textContent = b.label;
+    starterSelect.appendChild(opt);
+  });
+  const clampInt = (id, lo, hi) => {
+    const input = $(id);
+    const v = Math.max(lo, Math.min(hi, Math.floor(Number(input.value)) || 0));
+    input.value = v;
+    return v;
+  };
+  $("song-starter-apply").addEventListener("click", () => {
+    const beat = window.SongPatterns.STARTERS.find((b) => b.id === starterSelect.value);
+    patternEdit((r, k) => window.SongPatterns.starterRow(starterSelect.value, k, STEPS), `Replaced with the ${beat ? beat.label : "starter"} beat`);
+  });
+  $("song-euclid-apply").addEventListener("click", () => {
+    const hits = clampInt("song-euclid-hits", 0, STEPS);
+    const rotate = clampInt("song-euclid-rotate", 0, STEPS - 1);
+    patternEdit(() => window.SongPatterns.euclideanRow(hits, STEPS, rotate), `${hits} hit${hits === 1 ? "" : "s"} spread evenly${rotate ? `, turned ${rotate} step${rotate === 1 ? "" : "s"} later` : ""}`);
+  });
   $("song-swing").addEventListener("input", () => {
     songData.swing = Number($("song-swing").value) || 0;
     $("song-swing").setAttribute("aria-valuetext", songData.swing ? `${songData.swing}% swing` : "Straight");
@@ -1260,6 +1283,21 @@
     if (!(key in KEYBOARD_NOTE_MAP)) return;
     e.preventDefault();
     playAndMaybeRecordNote(KEYBOARD_NOTE_MAP[key] + KEYBOARD_NOTE_OCTAVE[key]);
+  });
+  // Space plays and stops, the way it does in a music program. It only counts when no control has the focus (on a button, a step or a
+  // field, Space already means "press this"), and only while the song builder is the dialog on top.
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== " " || e.repeat || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+    const modal = $("song-builder-modal");
+    if (modal.hidden) return;
+    const active = document.activeElement;
+    if (active && active !== document.body && !(active === modal)) {
+      if (!modal.contains(active) || active.matches('input, textarea, select, button, a[href], summary, [contenteditable], [role="button"], [role="tab"], [role="checkbox"], [role="slider"], [tabindex]:not([tabindex="-1"])') || active.isContentEditable) return;
+    }
+    const z = (m) => Number(getComputedStyle(m).zIndex) || 0;
+    if ([...document.querySelectorAll(".modal:not([hidden])")].some((m) => m !== modal && z(m) >= z(modal))) return;
+    e.preventDefault();
+    $("song-play").click();
   });
   document.addEventListener("keydown", finishSongHistoryEvent);
   $("song-record-label").hidden = false;
