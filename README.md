@@ -89,6 +89,8 @@ Worker secret, not stored in this repo). From there:
   (changeover) switch connects its common terminal to one of two throws;
   click it on the canvas or use the inspector to change position. It
   doesn't snap into breadboard holes; wire its three terminals instead.
+  A breadboard can be set to 15, 30 or 45 columns, and its power rails can be
+  split in the middle (as on many real boards) so each rail is two separate halves.
   An ohmmeter reads the resistance between its two probes by solving the
   whole unpowered network exactly (parallel branches and bridges included): resistors,
   potentiometers, inductor windings, wires and closed switches conduct, while LEDs,

@@ -1080,6 +1080,9 @@
       ) {
         throw new Error(`Component ${index + 1} has an unsupported breadboard size. Choose 15, 30, or 45 columns.`);
       }
+      if (component.type === "breadboard" && Object.prototype.hasOwnProperty.call(component, "splitRails") && typeof component.splitRails !== "boolean") {
+        throw new Error(`Component ${index + 1} has an invalid split-rails setting.`);
+      }
       const hasRotation = Object.prototype.hasOwnProperty.call(component, "rotation");
       const hasMirror = Object.prototype.hasOwnProperty.call(component, "mirror");
       if (
@@ -1702,7 +1705,11 @@
   function checklistPinName(comp, pinId) {
     if (comp && comp.type === "breadboard") {
       const m = /^(rpt|rnt|rnb|rpb|t|b)(\d+)$/.exec(String(pinId));
-      if (m) return m[1].length === 3 ? `${BB_PIN_NAMES[m[1]]}, hole ${m[2]}` : `${BB_PIN_NAMES[m[1]]} ${m[2]}`;
+      if (m) {
+        // On a board with split rails, say which half the hole is in.
+        const half = comp.splitRails === true && m[1].length === 3 ? (Number(m[2]) <= Math.ceil(window.getSimComponentDefinition(comp).cols / 2) ? ", left half" : ", right half") : "";
+        return m[1].length === 3 ? `${BB_PIN_NAMES[m[1]]}${half}, hole ${m[2]}` : `${BB_PIN_NAMES[m[1]]} ${m[2]}`;
+      }
     }
     const def = comp && REG[comp.type];
     const pin = def && def.pins.find((x) => x.id === pinId);
@@ -2393,7 +2400,7 @@
     outlet: { kind: "Electrical", text: "supplies a constant 120V (real mains is AC; here it is treated as steady DC); most parts in a loop with it are destroyed, so go through a Power Supply." },
     power_supply: { kind: "Electrical", text: "gives a fixed DC voltage, but only once its input is powered." },
     battery: { kind: "Electrical", text: "supplies a constant DC voltage, with an optional internal resistance." },
-    breadboard: { kind: "Mechanical", text: "joins holes in column strips and power rails; nothing electrical of its own." },
+    breadboard: { kind: "Mechanical", text: "joins holes in column strips and power rails (optionally split in the middle into two rails each); nothing electrical of its own." },
     led: { kind: "Electrical", text: "lights only when wired the right way round; checked for current and burn-out against a typical 20 mA rating." },
     diode: { kind: "Electrical", text: "conducts only anode to cathode (towards the bar) with a fixed 0.7 V drop and blocks the other way; checked for burn-out against a typical 1 A rating. A backwards diode stops power for everything beyond it." },
     resistor: { kind: "Electrical", text: "limits current by Ohm's law; checked for overheating against a typical 0.25 W rating." },
@@ -3000,6 +3007,9 @@
           <select id="sim-comp-breadboard-cols">${window.SIM_BREADBOARD_COLUMN_OPTIONS
             .map((cols) => `<option value="${cols}" ${def.cols === cols ? "selected" : ""}>${cols} columns</option>`)
             .join("")}</select>
+        </label>
+        <label title="Real half and full boards often break each power rail in the middle, so the left and right halves are separate rails. Turn this on to match your board; wires stay where they are, only which holes are joined changes.">
+          <input type="checkbox" id="sim-comp-breadboard-split" ${comp.splitRails === true ? "checked" : ""}> Split the power rails in the middle
         </label>${breadboardResizeNotice ? `<p role="status" style="color:var(--text-dim);font-size:0.8rem;">${breadboardResizeNotice}</p>` : ""}`;
       } else if (comp.type === "resistor") {
         extraFieldsHtml = `<label title="How much the resistor limits current flow through it -- higher values let less current through. A common LED current-limiting resistor is 220-330 ohms.">Resistance (ohms)<input id="sim-comp-resistance" type="number" min="1" value="${Number(comp.resistance) || 220}"></label>`;
@@ -3120,6 +3130,19 @@
           breadboardResizeNotice = removedWireCount
             ? `Removed ${removedWireCount} wire${removedWireCount === 1 ? "" : "s"} attached to columns outside the ${cols}-column board.`
             : "";
+          renderInspector();
+          renderBuilder();
+        });
+      }
+      const breadboardSplitInput = $("sim-comp-breadboard-split");
+      if (breadboardSplitInput) {
+        breadboardSplitInput.addEventListener("change", () => {
+          const split = breadboardSplitInput.checked;
+          if (split === (comp.splitRails === true)) return;
+          pushHistory();
+          if (split) comp.splitRails = true;
+          else delete comp.splitRails;
+          breadboardResizeNotice = "";
           renderInspector();
           renderBuilder();
         });

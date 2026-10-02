@@ -155,17 +155,33 @@ function createBreadboardPins(cols) {
   ]);
 }
 
-function createBreadboardRailGroups(cols) {
-  return {
+// With `split`, each power rail is two separate halves (left and right of the middle column), like the split rails on real
+// half+ boards; without it the whole length is one rail, as before.
+function createBreadboardRailGroups(cols, split = false) {
+  const groups = {
     pos_top: Array.from({ length: cols }, (_, i) => `rpt${i + 1}`),
     neg_top: Array.from({ length: cols }, (_, i) => `rnt${i + 1}`),
     neg_bottom: Array.from({ length: cols }, (_, i) => `rnb${i + 1}`),
     pos_bottom: Array.from({ length: cols }, (_, i) => `rpb${i + 1}`),
   };
+  if (!split) return groups;
+  const half = Math.ceil(cols / 2);
+  const halves = {};
+  Object.keys(groups).forEach((name) => {
+    halves[`${name}_l`] = groups[name].slice(0, half);
+    halves[`${name}_r`] = groups[name].slice(half);
+  });
+  return halves;
 }
 
-function renderBreadboardSvg(cols) {
+function renderBreadboardSvg(cols, split = false) {
   const width = cols * 40;
+  const gapX = Math.ceil(cols / 2) * 40;
+  // One rail line, or two halves with a gap in the middle when the rails are split.
+  const railLine = (cls, y) =>
+    split
+      ? `<rect class="bb-rail-line ${cls}" x="10" y="${y}" width="${gapX - 16}" height="3" rx="1.5"/><rect class="bb-rail-line ${cls}" x="${gapX + 6}" y="${y}" width="${width - gapX - 16}" height="3" rx="1.5"/>`
+      : `<rect class="bb-rail-line ${cls}" x="10" y="${y}" width="${width - 20}" height="3" rx="1.5"/>`;
   let holes = "";
   for (let i = 0; i < cols; i++) {
     const x = 20 + i * 40;
@@ -176,7 +192,7 @@ function renderBreadboardSvg(cols) {
     holes += `<circle class="bb-hole bb-hole-rail" cx="${x}" cy="124" r="2.5"/>`;
     holes += `<circle class="bb-hole bb-hole-rail" cx="${x}" cy="136" r="2.5"/>`;
   }
-  return `<rect class="bb-body" x="0" y="0" width="${width}" height="150" rx="6"/><rect class="bb-sheen" x="3" y="3" width="${width - 6}" height="16" rx="4"/><rect class="bb-rail-line bb-rail-pos" x="10" y="12.5" width="${width - 20}" height="3" rx="1.5"/><rect class="bb-rail-line bb-rail-neg" x="10" y="24.5" width="${width - 20}" height="3" rx="1.5"/><text class="bb-rail-label bb-rail-label-pos" x="4" y="17">+</text><text class="bb-rail-label bb-rail-label-neg" x="4" y="29">-</text><rect class="bb-channel" x="4" y="68" width="${width - 8}" height="14" rx="3"/><rect class="bb-rail-line bb-rail-neg" x="10" y="122.5" width="${width - 20}" height="3" rx="1.5"/><rect class="bb-rail-line bb-rail-pos" x="10" y="134.5" width="${width - 20}" height="3" rx="1.5"/><text class="bb-rail-label bb-rail-label-neg" x="4" y="127">-</text><text class="bb-rail-label bb-rail-label-pos" x="4" y="139">+</text>${holes}`;
+  return `<rect class="bb-body" x="0" y="0" width="${width}" height="150" rx="6"/><rect class="bb-sheen" x="3" y="3" width="${width - 6}" height="16" rx="4"/>${railLine("bb-rail-pos", 12.5)}${railLine("bb-rail-neg", 24.5)}<text class="bb-rail-label bb-rail-label-pos" x="4" y="17">+</text><text class="bb-rail-label bb-rail-label-neg" x="4" y="29">-</text><rect class="bb-channel" x="4" y="68" width="${width - 8}" height="14" rx="3"/>${railLine("bb-rail-neg", 122.5)}${railLine("bb-rail-pos", 134.5)}<text class="bb-rail-label bb-rail-label-neg" x="4" y="127">-</text><text class="bb-rail-label bb-rail-label-pos" x="4" y="139">+</text>${holes}`;
 }
 
 // Basic parameters for the two passive parts that don't change the DC
@@ -785,8 +801,8 @@ export function getSimulationComponentDefinition(comp) {
     cols,
     w: cols * 40,
     pins: createBreadboardPins(cols),
-    railGroups: createBreadboardRailGroups(cols),
-    render: () => renderBreadboardSvg(cols),
+    railGroups: createBreadboardRailGroups(cols, comp.splitRails === true),
+    render: () => renderBreadboardSvg(cols, comp.splitRails === true),
   };
 }
 
@@ -802,6 +818,11 @@ export function validateBreadboardColumnSizes(data) {
     ) continue;
     if (!BREADBOARD_COLUMN_OPTIONS.includes(Number(comp.cols))) {
       return "Breadboard size must be 15, 30, or 45 columns.";
+    }
+  }
+  for (const comp of data.components) {
+    if (comp && typeof comp === "object" && !Array.isArray(comp) && comp.type === "breadboard" && Object.prototype.hasOwnProperty.call(comp, "splitRails") && typeof comp.splitRails !== "boolean") {
+      return "A breadboard's split-rails setting must be true or false.";
     }
   }
   return null;
