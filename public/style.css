@@ -3043,9 +3043,15 @@ hr {
   clip-path: inset(0 calc(100% - var(--pos)) 0 0);
 }
 
+/* In the top corners, clear of the slider along the bottom edge; never in the way of a press either. */
 .before-after-tag {
   position: absolute;
-  bottom: 12px;
+  top: 12px;
+  max-width: calc(50% - 20px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
   background: rgba(0, 0, 0, 0.6);
   color: #fff;
   font-size: 0.8rem;
