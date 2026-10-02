@@ -2676,9 +2676,9 @@
       moreBtn.querySelector(".sim-more-caret").textContent = open ? "▴" : "▾";
     };
     moreBtn.addEventListener("click", () => setMore(!inner.classList.contains("sim-more-open")));
-    // The preview card and clipping history fold away on a phone so the drum grid is in reach; desktop always shows them.
+    // The preview card and clipping history fold away on a phone or a short laptop screen so the drum grid is in reach; a tall desktop always shows them.
     const fold = $("song-preview-fold");
-    const wide = window.matchMedia("(min-width: 861px)");
+    const wide = window.matchMedia("(min-width: 861px) and (min-height: 861px)");
     wide.addEventListener("change", (e) => {
       if (e.matches) fold.open = true;
     });

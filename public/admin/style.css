@@ -7654,7 +7654,8 @@ button[data-tier="quiet"] { border-color: transparent; }
    two short rows -- Undo, Redo, Save and More; then Preview and the warnings badge -- and everything else lives behind
    "More". The part tray is one scrolling strip of chips, and the long help is folded away. */
 .sim-toolbar-more { display: none; }
-@media (max-width: 860px) {
+/* The same quick bar also serves a wide but short screen (a 1366x768 laptop): there the full toolbar left the canvas about 300px. */
+@media (max-width: 860px), (min-width: 861px) and (max-height: 860px) {
   .simulation-builder-inner .sim-toolbar-more { display: block; order: 6; min-height: 40px; }
   .simulation-builder-inner header.sim-toolbar { gap: 6px; row-gap: 6px; padding: 10px; }
   .simulation-builder-inner .simulation-name-input { min-height: 40px; }
@@ -7693,7 +7694,8 @@ button[data-tier="quiet"] { border-color: transparent; }
   .simulation-builder-inner.sim-more-open .sim-toolbar-group-buttons { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
   .simulation-builder-inner.sim-more-open .sim-toolbar-group button,
   .simulation-builder-inner.sim-more-open .sim-toolbar-group select { min-height: 38px; font-size: 0.85rem; }
-
+}
+@media (max-width: 860px) {
   /* The part tray: one scrolling strip. Recent parts come first as outlined chips inside the same strip. */
   .simulation-builder-inner .sim-palette { flex-wrap: nowrap; gap: 6px; padding: 8px 10px; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
   .simulation-builder-inner #sim-palette-search { flex: 0 0 150px; width: 150px; min-height: 38px; margin: 0; }
@@ -7722,8 +7724,23 @@ button[data-tier="quiet"] { border-color: transparent; }
 .sim-help-more summary { cursor: pointer; color: var(--text-dim); font-size: 0.85rem; }
 
 
-/* ===== Song builder on a phone: the same quick bar as the simulation builder ===== */
-@media (max-width: 860px) {
+/* On a wide short screen the header is a wrapping row like a phone's (not the tall desktop grid) and the quick buttons keep their
+   natural width in one tidy row instead of stretching edge to edge. */
+@media (min-width: 861px) and (max-height: 860px) {
+  .simulation-builder-inner header.sim-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; column-gap: 8px; row-gap: 6px; padding: 10px 14px; }
+  .simulation-builder-inner .simulation-name-input { flex: 1 1 0; min-width: 0; order: -2; }
+  .simulation-builder-inner:not(.scan-editor-inner) .editor-header-end { order: -1; }
+  .simulation-builder-inner .sim-toolbar-groups { flex: 1 1 100%; }
+  .simulation-builder-inner:not(.sim-more-open) .sim-quick,
+  .simulation-builder-inner:not(.sim-more-open) .sim-toolbar-more { flex: 0 0 auto; min-width: 88px; padding-inline: 16px; }
+  .simulation-builder-inner:not(.sim-more-open) .sim-toolbar::after { display: none; }
+  .simulation-builder-inner:not(.sim-more-open) #sim-preview-power,
+  .simulation-builder-inner:not(.sim-more-open) #sim-warnings-btn { flex-grow: 0; }
+  .simulation-builder-inner.sim-more-open .sim-toolbar-more { flex: 0 0 auto; }
+}
+
+/* ===== Song builder on a phone (or a short laptop screen): the same quick bar as the simulation builder ===== */
+@media (max-width: 860px), (min-width: 861px) and (max-height: 860px) {
   .simulation-builder-inner:not(.sim-more-open) .song-group-controls { display: contents; }
   .simulation-builder-inner:not(.sim-more-open) .song-group-controls > *:not(.sim-quick):not(.sim-sr-only),
   .simulation-builder-inner:not(.sim-more-open) .song-group-controls > .song-metronome-group { display: none; }
@@ -7742,6 +7759,7 @@ button[data-tier="quiet"] { border-color: transparent; }
   .song-preview-fold > summary { cursor: pointer; min-height: 40px; display: flex; align-items: center; padding: 6px 10px; color: var(--text-dim); font-size: 0.9rem; border: 1px solid var(--border); border-radius: var(--control-radius); }
   .song-preview-fold[open] > summary { margin-bottom: 8px; }
 }
-@media (min-width: 861px) {
+/* The summary only shows when the fold can be closed; a tall desktop shows the preview open and the summary hidden. */
+@media (min-width: 861px) and (min-height: 861px) {
   .song-preview-fold > summary { display: none; }
 }
