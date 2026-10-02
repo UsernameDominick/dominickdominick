@@ -164,6 +164,17 @@ wrangler d1 migrations apply dominickdominick --local
 wrangler dev --local
 ```
 
+## Tests
+
+```bash
+node tests/run.mjs
+```
+
+This runs the pure checks with no server or browser (Node 22): the circuit solver (analytic cases, thousands of random
+networks checked for consistency) and that the simulation analysis gives identical results in the admin builder and on the
+public page. GitHub Actions runs it on every push (`.github/workflows/tests.yml`). The Playwright scripts that drive the
+admin UI are not in the repo; they run by hand against `wrangler dev`.
+
 ## Deploying
 
 `production` is the pre-release integration branch for active work and
