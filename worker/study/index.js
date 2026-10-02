@@ -9,7 +9,7 @@ import { checkRateLimit, recordRateLimitHit } from "../db.js";
 
 // Used when a Study block has no password of its own (set one in the block's settings to override it).
 // An env var STUDY_PASSWORD, if set, replaces it too.
-const DEFAULT_PASSWORD = "Sebastain";
+const DEFAULT_PASSWORD = "123";
 
 // The study pages that can be chosen in the block. `load` is only called after the password is right.
 export const STUDY_LABS = {

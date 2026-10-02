@@ -8,7 +8,7 @@ A+ Core 1 drill for now; it is meant to be taken out again.
 - **Add it:** in the admin, open a page, then Add block > Embeds & interactive > **Study (locked)**. It shows as a button
   ("Open study" unless you change the text). Pressing it asks for a password and, if that is right, opens the study page
   in a popup. Esc, the x button, or a press outside closes it; opening it again keeps your place.
-- **Password:** **Sebastain** (not case sensitive). Set a different one per block in the block's settings; a blank box means
+- **Password:** **123** (not case sensitive). Set a different one per block in the block's settings; a blank box means
   the default, which is the `DEFAULT_PASSWORD` line in `worker/study/index.js` (or the `STUDY_PASSWORD` variable, if the Worker has one).
 - **Not hidden in the page:** the page only contains the button. The password is checked by the Worker (`POST /api/study/unlock`,
   8 wrong tries per 15 minutes per visitor) and the study page is only sent back when it is right. It is shown in a sandboxed frame
