@@ -65,14 +65,44 @@ const BASELINE_NAV_ITEMS = [
   { slug: "topics", nav_label: "Topics", nav_parent_id: null, children: [] },
 ];
 
+// Pages whose nav link only the signed-in owner sees (for trying a page out before it is announced). Kept as a list of page ids
+// in one setting, so it needs no new column; the page itself stays reachable by its address.
+const NAV_ADMIN_ONLY_KEY = "nav_admin_only";
+export function parseNavAdminOnly(raw) {
+  try {
+    const list = JSON.parse(raw || "[]");
+    return Array.isArray(list) ? [...new Set(list.map(Number).filter((n) => Number.isInteger(n) && n > 0))] : [];
+  } catch {
+    return [];
+  }
+}
+export async function getNavAdminOnlyIds(env) {
+  return parseNavAdminOnly(await getSetting(env, NAV_ADMIN_ONLY_KEY));
+}
+export async function setNavAdminOnly(env, pageId, on) {
+  const id = Number(pageId);
+  const ids = (await getNavAdminOnlyIds(env)).filter((n) => n !== id);
+  if (on) ids.push(id);
+  await setSetting(env, NAV_ADMIN_ONLY_KEY, JSON.stringify(ids.sort((a, b) => a - b)));
+}
+
+// `env.__isAdmin` is set per request by the worker; an admin-only link is left out for everyone else, along with anything nested
+// under it (a child must not pop up at the top level just because its parent is hidden).
 export async function listNavPages(env) {
   const { results: navRows } = await env.DB
     .prepare(
-      "SELECT id, slug, nav_label, nav_parent_id FROM pages WHERE nav_label IS NOT NULL AND deleted_at IS NULL ORDER BY nav_order ASC, id ASC"
+      `SELECT id, slug, nav_label, nav_parent_id, (SELECT value FROM settings WHERE key = '${NAV_ADMIN_ONLY_KEY}') AS admin_only_ids
+       FROM pages WHERE nav_label IS NOT NULL AND deleted_at IS NULL ORDER BY nav_order ASC, id ASC`
     )
     .all();
   // A label of only spaces or invisible characters is an unnamed link: treated as no label.
-  const results = navRows.filter((p) => visibleText(p.nav_label));
+  const labelled = navRows.filter((p) => visibleText(p.nav_label));
+  const adminOnly = new Set(parseNavAdminOnly(labelled.length ? labelled[0].admin_only_ids : null));
+  labelled.forEach((p) => {
+    delete p.admin_only_ids;
+    if (adminOnly.has(p.id)) p.admin_only = true;
+  });
+  const results = env.__isAdmin ? labelled : labelled.filter((p) => !adminOnly.has(p.id) && !adminOnly.has(p.nav_parent_id));
   // A child whose parent was dropped above (blank label) is shown at top level rather than lost.
   const shownIds = new Set(results.map((p) => p.id));
   const topLevel = results.filter((p) => !p.nav_parent_id || !shownIds.has(p.nav_parent_id));
@@ -86,7 +116,7 @@ export async function listNavPages(env) {
   // active at once. The admin's own nav pages now come first in their
   // chosen order, and a baseline item is only added if no nav page
   // already links to the same place (the admin's label wins).
-  const taken = new Set(results.map((p) => p.slug));
+  const taken = new Set(labelled.map((p) => p.slug));
   return [...topLevel, ...BASELINE_NAV_ITEMS.filter((item) => !taken.has(item.slug))];
 }
 

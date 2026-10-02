@@ -1106,6 +1106,7 @@
     el("page-custom-json-ld").value = currentPage.custom_json_ld || "";
     loadPageCss();
     el("page-sitemap-exclude").checked = !!currentPage.sitemap_exclude;
+    el("page-nav-admin-only").checked = !!currentPage.nav_admin_only;
     el("page-password-input").value = "";
     el("page-password-status-text").textContent = currentPage.password_hash ? "protected" : "not protected";
     el("page-remove-password-btn").hidden = !currentPage.password_hash;
@@ -1123,7 +1124,7 @@
   // Page settings have no server-side autosave at all (only the explicit
   // Save button), so this local snapshot is the *only* safety net between
   // typing and clicking Save — a bigger gap than articles have.
-  const PAGE_DRAFT_FIELD_IDS = ["page-title", "page-meta", "page-nav-label", "page-nav-order", "page-nav-parent", "page-og-image", "page-canonical-url", "page-custom-json-ld", "page-sitemap-exclude"];
+  const PAGE_DRAFT_FIELD_IDS = ["page-title", "page-meta", "page-nav-label", "page-nav-order", "page-nav-parent", "page-og-image", "page-canonical-url", "page-custom-json-ld", "page-sitemap-exclude", "page-nav-admin-only"];
   function capturePageRawFields() {
     const out = {};
     for (const id of PAGE_DRAFT_FIELD_IDS) {
@@ -1189,7 +1190,7 @@
       snapshotPageDraft();
     })
   );
-  ["page-sitemap-exclude", "page-nav-parent"].forEach((id) =>
+  ["page-sitemap-exclude", "page-nav-parent", "page-nav-admin-only"].forEach((id) =>
     el(id).addEventListener("change", () => {
       unsavedDirty = true;
       el("page-save-status").textContent = "Unsaved changes…";
@@ -1213,6 +1214,7 @@
           canonical_url: el("page-canonical-url").value.trim() || null,
           custom_json_ld: el("page-custom-json-ld").value.trim() || null,
           sitemap_exclude: el("page-sitemap-exclude").checked,
+          nav_admin_only: el("page-nav-admin-only").checked,
           expected_version: currentPage.version,
         }),
       });

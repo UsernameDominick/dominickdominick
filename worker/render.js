@@ -2245,14 +2245,14 @@ export function renderShell({
     .map((n) => {
       const isChildActive = (n.children || []).some((c) => c.slug === activeSlug);
       const tabHref = n.slug === "home" ? "/" : "/" + esc(n.slug);
-      const tab = `<a class="tab${n.slug === activeSlug || isChildActive ? " is-active" : ""}" href="${tabHref}"${
+      const tab = `<a class="tab${n.slug === activeSlug || isChildActive ? " is-active" : ""}${n.admin_only ? " is-admin-only" : ""}" href="${tabHref}"${
         n.slug === activeSlug ? ' aria-current="page"' : ""
-      }>${esc(n.nav_label)}</a>`;
+      }${n.admin_only ? ' title="Only you can see this link"' : ""}>${esc(n.nav_label)}${n.admin_only ? '<span class="sr-only"> (admin-only link)</span>' : ""}</a>`;
       if (!n.children || !n.children.length) return tab;
       const childLinks = n.children
         .map(
           (c) =>
-            `<a href="/${esc(c.slug)}"${c.slug === activeSlug ? ' aria-current="page" class="is-active"' : ""}>${esc(c.nav_label)}</a>`
+            `<a href="/${esc(c.slug)}"${c.slug === activeSlug ? ' aria-current="page" class="is-active"' : ""}${c.admin_only ? ' title="Only you can see this link" data-admin-only="1"' : ""}>${esc(c.nav_label)}${c.admin_only ? '<span class="sr-only"> (admin-only link)</span>' : ""}</a>`
         )
         .join("\n");
       // No role="menu" here — that ARIA role commits to full application-

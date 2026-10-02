@@ -4,6 +4,8 @@ import {
   createPage,
   updatePage,
   setPagePassword,
+  getNavAdminOnlyIds,
+  setNavAdminOnly,
   deletePage,
   restorePage,
   hardDeletePage,
@@ -815,7 +817,8 @@ async function routeAdminApi(request, env, url, ctx) {
 
   // /pages
   if (path === "/pages" && method === "GET") {
-    return json(await listPages(env));
+    const adminOnly = new Set(await getNavAdminOnlyIds(env));
+    return json((await listPages(env)).map((p) => ({ ...p, nav_admin_only: adminOnly.has(p.id) })));
   }
   if (path === "/pages" && method === "POST") {
     const body = await readJsonBody(request);
@@ -878,6 +881,10 @@ async function routeAdminApi(request, env, url, ctx) {
       if (hasChildren) return json({ error: "This page already has its own dropdown items — can't also nest it under another page" }, { status: 400 });
     }
     const beforePage = body.slug ? await env.DB.prepare("SELECT slug FROM pages WHERE id = ?").bind(id).first() : null;
+    if ("nav_admin_only" in body) {
+      await setNavAdminOnly(env, id, body.nav_admin_only === true);
+      delete body.nav_admin_only;
+    }
     await updatePage(env, id, body);
     log(ctx, env, "update", "page", body.title || body.slug || `#${id}`);
     // The home page's slug ("home") maps to "/", not "/home" — every

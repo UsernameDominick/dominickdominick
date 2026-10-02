@@ -1399,7 +1399,7 @@ export default {
       // (the admin API, any non-GET) gets none, so it never reads a stale one back.
       const { pathname } = new URL(request.url);
       const readOnly = request.method === "GET" && !pathname.startsWith("/api/") && !pathname.startsWith("/admin");
-      const reqEnv = readOnly ? { ...clock.env, __settingsCache: new Map() } : clock.env;
+      const reqEnv = readOnly ? { ...clock.env, __settingsCache: new Map(), __isAdmin: await isAuthenticated(request, clock.env) } : clock.env;
       let response = await route(request, reqEnv, ctx);
       if (clock.previewAt) response = await decoratePreviewResponse(response, clock.previewAt, new URL(request.url));
       if (clock.setCookie) {
