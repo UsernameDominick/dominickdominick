@@ -3021,6 +3021,54 @@ function buildPageviewFilter({ device, referrer, contentType } = {}) {
   return { sql: clauses.length ? `AND ${clauses.join(" AND ")}` : "", binds };
 }
 
+// A readable name for each address in a "top pages" list: the title of the article, project, page or circuit behind it (Home,
+// Articles and Projects for the index pages). An address that matches nothing (a deleted page, a search, a topic) gets no entry.
+export async function titlesForPaths(env, paths) {
+  const out = new Map();
+  const slugs = { articles: new Map(), projects: new Map(), pages: new Map() };
+  const sims = new Map();
+  const fixed = { "/": "Home", "/random": "Articles", "/projects": "Projects" };
+  const decode = (v) => {
+    try {
+      return decodeURIComponent(v);
+    } catch {
+      return null;
+    }
+  };
+  for (const path of paths || []) {
+    if (fixed[path]) {
+      out.set(path, fixed[path]);
+      continue;
+    }
+    let m;
+    if ((m = /^\/random\/([^/]+)$/.exec(path))) slugs.articles.set(path, decode(m[1]));
+    else if ((m = /^\/projects\/([^/]+)$/.exec(path))) slugs.projects.set(path, decode(m[1]));
+    else if ((m = /^\/simulation\/(\d{1,9})$/.exec(path))) sims.set(path, Number(m[1]));
+    else if ((m = /^\/([^/]+)$/.exec(path))) slugs.pages.set(path, decode(m[1]));
+  }
+  const lookup = async (table, keyColumn, titleSql, byPath) => {
+    const wanted = [...new Set([...byPath.values()].filter((v) => v !== null && v !== undefined))];
+    if (!wanted.length) return;
+    try {
+      const { results } = await env.DB
+        .prepare(`SELECT ${keyColumn} AS k, ${titleSql} AS title FROM ${table} WHERE ${keyColumn} IN (${wanted.map(() => "?").join(",")})`)
+        .bind(...wanted)
+        .all();
+      const titles = new Map(results.map((r) => [r.k, r.title]));
+      for (const [path, key] of byPath) if (titles.get(key)) out.set(path, String(titles.get(key)).slice(0, 80));
+    } catch {
+      // A title is a nicety: a failed lookup leaves the bare address.
+    }
+  };
+  await Promise.all([
+    lookup("articles", "slug", "title", slugs.articles),
+    lookup("projects", "slug", "title", slugs.projects),
+    lookup("pages", "slug", "title", slugs.pages),
+    lookup("simulations", "id", "COALESCE(published_name, name)", sims),
+  ]);
+  return out;
+}
+
 export async function getAnalytics(env, days = 7, filters = {}) {
   const since = `datetime('now', '-${Math.max(1, Math.floor(days))} days')`;
   const { sql: filterSql, binds: filterBinds } = buildPageviewFilter(filters);
@@ -3040,6 +3088,7 @@ export async function getAnalytics(env, days = 7, filters = {}) {
     topOutboundLinks,
     topDownloads,
     missingPages,
+    periodRow,
   ] = await Promise.all([
     isFiltered
       ? env.DB
@@ -3119,16 +3168,29 @@ export async function getAnalytics(env, days = 7, filters = {}) {
     getTopEventUrls(env, "outbound_link", days),
     getTopEventUrls(env, "download", days),
     getMissingPages(env, days),
+    // Views in this range, and in the range of the same length just before it (for "up 12% on the week before").
+    env.DB
+      .prepare(
+        `SELECT
+           (SELECT COUNT(*) FROM pageviews WHERE created_at > ${since} ${filterSql}) AS current,
+           (SELECT COUNT(*) FROM pageviews WHERE created_at <= ${since} AND created_at > datetime('now', '-${2 * Math.max(1, Math.floor(days))} days') ${filterSql}) AS previous`
+      )
+      .bind(...filterBinds, ...filterBinds)
+      .first(),
   ]);
+  const titles = await titlesForPaths(env, topPaths.results.map((r) => r.path));
 
   return {
+    rangeDays: Math.max(1, Math.floor(days)),
+    rangeTotal: periodRow?.current || 0,
+    previousTotal: periodRow?.previous || 0,
     activeNow: totalsRow?.activeNow || 0,
     today: totalsRow?.today || 0,
     last7: totalsRow?.last7 || 0,
     last30: totalsRow?.last30 || 0,
     allTime: totalsRow?.allTime || 0,
     byDay: byDay.results,
-    topPaths: topPaths.results,
+    topPaths: topPaths.results.map((r) => (titles.has(r.path) ? { ...r, title: titles.get(r.path) } : r)),
     topReferrers: topReferrers.results,
     topCountries: topCountries.results,
     topLocations: topLocations.results.map((r) => ({ location: r.city !== "?" ? `${r.city}, ${r.region}` : "?", n: r.n })),

@@ -3813,7 +3813,7 @@
     const body = el("dashboard-body");
     el("dashboard-modal").hidden = false;
     body.innerHTML = "<p class='command-empty'>Loading…</p>";
-    const [arts, projs, notes, seo] = await Promise.allSettled([api("/articles"), api("/projects"), api("/notifications-summary"), api("/seo-report")]);
+    const [arts, projs, notes, seo, week] = await Promise.allSettled([api("/articles"), api("/projects"), api("/notifications-summary"), api("/seo-report"), api("/analytics?days=7")]);
     const A = arts.status === "fulfilled" ? arts.value : [];
     const P = projs.status === "fulfilled" ? projs.value : [];
     // [text, panel button to open]; errors and webhooks live in Diagnostics, the rest in Site Health.
@@ -3833,6 +3833,18 @@
       if (r.missingMeta && r.missingMeta.length) flags.push([`${r.missingMeta.length} page${r.missingMeta.length === 1 ? "" : "s"} without a description`, "seo-dashboard-btn"]);
       if (r.missingAlt && r.missingAlt.length) flags.push([`${r.missingAlt.length} image${r.missingAlt.length === 1 ? "" : "s"} without alt text`, "seo-dashboard-btn"]);
     } else unavailable.push("site health");
+    // "This week": views against the week before, and the pages people read most (with titles).
+    let weekCard = "";
+    if (week.status === "fulfilled") {
+      const w = week.value;
+      const cmp = window.PeriodCompare.describe(w.rangeTotal, w.previousTotal, 7);
+      const top = (w.topPaths || []).slice(0, 3);
+      weekCard = `<section class="dash-card dash-week"><h2>This week</h2><p class="dash-week-total"><strong>${Number(w.rangeTotal) || 0}</strong> view${w.rangeTotal === 1 ? "" : "s"} in the last 7 days</p><p class="dash-week-compare" data-trend="${cmp.trend}">${escapeHtml(cmp.text)}</p>${
+        top.length
+          ? `<ol class="dash-week-pages">${top.map((r) => `<li><span class="dash-week-page">${escapeHtml(r.title || r.path)}</span><span class="dash-week-n">${Number(r.n)}</span></li>`).join("")}</ol>`
+          : ""
+      }<button type="button" class="dash-link" data-go="analytics-btn">Open Analytics</button></section>`;
+    } else unavailable.push("this week's views");
     const nowStr = new Date().toISOString();
     // Archived items are deliberately out of the way, so they stay off both lists.
     const all = [...A.map((r) => ({ k: "article", r })), ...P.map((r) => ({ k: "project", r }))].filter((x) => !x.r.archived);
@@ -3855,6 +3867,7 @@
     const unavailableNote = unavailable.length ? `<p class="dash-empty dash-unavailable">Couldn't load: ${escapeHtml(unavailable.join(", "))}. What's shown may be incomplete.</p>` : "";
     body.innerHTML = `
       <section class="dash-card dash-attention${flags.length ? " has-flags" : ""}"><h2>${flags.length ? "Needs attention" : unavailable.length ? "Couldn't check everything" : "All clear"}</h2>${attention}${unavailableNote}</section>
+      ${weekCard}
       <section class="dash-card"><h2>Recent edits</h2>${list(recent, "Nothing edited yet.", recent.length)}</section>
       <section class="dash-card"><h2>Drafts${draftsAll.length ? ` (${draftsAll.length})` : ""}</h2>${list(draftsAll.slice(0, 6), "No drafts waiting.", draftsAll.length)}</section>
       ${scheduled.length ? `<section class="dash-card"><h2>Scheduled (${scheduled.length})</h2>${list(scheduled.slice(0, 6), "", scheduled.length)}</section>` : ""}
@@ -10441,7 +10454,15 @@
         rows.map((r) => `<div class="analytics-row"><span>${escapeHtml(r[keyName])}</span><span>${r.n}</span></div>`).join("") ||
         "<p style='color:var(--text-dim);font-size:0.85rem;'>No data yet.</p>");
 
-    renderList("analytics-pages", data.topPaths, "path");
+    // The days the figures cover, against the same number of days just before (the range's total, not the tiles above).
+    const cmp = window.PeriodCompare.describe(data.rangeTotal, data.previousTotal, data.rangeDays || analyticsRange);
+    el("analytics-compare").textContent = `${data.rangeTotal || 0} view${data.rangeTotal === 1 ? "" : "s"} in the last ${analyticsRange === 1 ? "day" : analyticsRange + " days"}. ${cmp.text}`;
+    el("analytics-compare").dataset.trend = cmp.trend;
+    // A page's title (when it has one) leads; the address stays beside it for telling similar pages apart.
+    el("analytics-pages").innerHTML =
+      data.topPaths
+        .map((r) => `<div class="analytics-row"><span>${r.title ? `${escapeHtml(r.title)} <span class="analytics-path">${escapeHtml(r.path)}</span>` : escapeHtml(r.path)}</span><span>${r.n}</span></div>`)
+        .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No data yet.</p>";
     renderList("analytics-referrers", data.topReferrers, "referrer");
     renderList("analytics-countries", data.topCountries, "country");
     renderList("analytics-locations", data.topLocations, "location");
