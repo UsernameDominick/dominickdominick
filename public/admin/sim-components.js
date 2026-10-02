@@ -312,7 +312,7 @@
     // One rail line, or two halves with a gap in the middle when the rails are split.
     const railLine = (cls, y) =>
       split
-        ? `<rect class="bb-rail-line ${cls}" x="10" y="${y}" width="${gapX - 16}" height="3" rx="1.5"/><rect class="bb-rail-line ${cls}" x="${gapX + 6}" y="${y}" width="${width - gapX - 16}" height="3" rx="1.5"/>`
+        ? `<rect class="bb-rail-line ${cls}" x="10" y="${y}" width="${gapX - 20}" height="3" rx="1.5"/><rect class="bb-rail-line ${cls}" x="${gapX + 10}" y="${y}" width="${width - gapX - 20}" height="3" rx="1.5"/>`
         : `<rect class="bb-rail-line ${cls}" x="10" y="${y}" width="${width - 20}" height="3" rx="1.5"/>`;
     let holes = "";
     for (let i = 0; i < cols; i++) {

@@ -2402,7 +2402,7 @@
     battery: { kind: "Electrical", text: "supplies a constant DC voltage, with an optional internal resistance." },
     breadboard: { kind: "Mechanical", text: "joins holes in column strips and power rails (optionally split in the middle into two rails each); nothing electrical of its own." },
     led: { kind: "Electrical", text: "lights only when wired the right way round; checked for current and burn-out against a typical 20 mA rating." },
-    diode: { kind: "Electrical", text: "conducts only anode to cathode (towards the bar) with a fixed 0.7 V drop and blocks the other way; checked for burn-out against a typical 1 A rating. A backwards diode stops power for everything beyond it." },
+    diode: { kind: "Electrical", text: "conducts only anode to cathode (towards the bar) with a fixed 0.7 V drop and blocks the other way; checked for burn-out against a typical 1 A rating. A backwards diode stops power for everything beyond it in a single loop; a diode on a parallel side branch isn't solved (the one-path limit, warned about)." },
     resistor: { kind: "Electrical", text: "limits current by Ohm's law; checked for overheating against a typical 0.25 W rating." },
     potentiometer: { kind: "Electrical", text: "acts as a two-terminal variable resistor set by its wiper." },
     capacitor: { kind: "Electrical (DC only)", text: "counts as an open circuit.", brief: true },
@@ -2901,7 +2901,7 @@
       } else if (isPowered) {
         statusLine = "⚡ Part of a complete circuit";
       } else if (comp.type === "diode" && info && info.status === "reversed") {
-        statusLine = "Both legs reach power, but wired backwards";
+        statusLine = "Wired backwards: power stops at this diode";
       } else if (def.polarity) {
         const posNode = window.simNodeId(comp, def.polarity.pos);
         const negNode = window.simNodeId(comp, def.polarity.neg);

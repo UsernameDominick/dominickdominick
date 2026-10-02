@@ -946,7 +946,7 @@ function simulationTopologyDescription(data) {
         return `${formatInductance(inductanceMillihenries(component))}, ${windingOhms} ${windingOhms === 1 ? "ohm" : "ohms"} winding resistance`;
       }
       case "breadboard":
-        return `${getSimulationComponentDefinition(component)?.cols || 30} columns`;
+        return `${getSimulationComponentDefinition(component)?.cols || 30} columns${component.splitRails === true ? ", power rails split in the middle into left and right halves" : ""}`;
       case "led": {
         const color = LED_COLORS[component.color]?.onColor ? component.color : "red";
         return `${color} LED`;
@@ -987,7 +987,10 @@ function simulationTopologyDescription(data) {
     const component = componentsById.get(String(endpoint?.compId));
     if (!component) return "an unidentified component pin";
     const pinLabel = getSimulationComponentDefinition(component)?.pins?.find((pin) => pin.id === endpoint?.pin)?.label;
-    return pinLabel ? `${describeComponent(component)}, ${pinLabel.charAt(0).toLowerCase()}${pinLabel.slice(1)} pin` : `${describeComponent(component)} pin ${shortValue(endpoint?.pin) || "unknown"}`;
+    // On a board with split power rails, say which half of the rail a hole is in.
+    const railHole = component.type === "breadboard" && component.splitRails === true ? /^(?:rpt|rnt|rnb|rpb)(\d+)$/.exec(String(endpoint?.pin)) : null;
+    const half = railHole ? (Number(railHole[1]) <= Math.ceil((getSimulationComponentDefinition(component)?.cols || 30) / 2) ? " (left half of the split rail)" : " (right half of the split rail)") : "";
+    return pinLabel ? `${describeComponent(component)}, ${pinLabel.charAt(0).toLowerCase()}${pinLabel.slice(1)} pin` : `${describeComponent(component)} pin ${shortValue(endpoint?.pin) || "unknown"}${half}`;
   };
   const componentSummary = components.slice(0, 20).map(describeComponent);
   const wireSummary = wires.slice(0, 30).map((wire) => `${describeEndpoint(wire?.from)} connects to ${describeEndpoint(wire?.to)}`);
