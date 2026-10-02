@@ -4725,12 +4725,13 @@
   function checkInternalLinks(text) {
     // A picture (![alt](address "caption")) is not a link to a page, and a link's own title ("text") isn't part of its address.
     const links = [...(text || "").matchAll(/\[([^\]]*)\]\(([^)]+)\)/g)]
-      .filter((m) => text[m.index - 1] !== "!")
-      .map((m) => ({ label: m[1] || m[2], url: m[2].trim().replace(/\s+"[^"]*"$/, "") }));
+      .filter((m) => !(text[m.index - 1] === "!" && (m.index < 2 || /\s/.test(text[m.index - 2]))))
+      .map((m) => ({ label: m[1] || m[2], url: m[2].trim().replace(/\s+(?:"[^"]*"|'[^']*')$/, "") }));
     const staticRoutes = new Set(["topics", "archive", "search", "saved", "history", "shuffle", "random", "projects", ""]);
     const warnings = [];
     for (const { label, url } of links) {
       if (!url.startsWith("/") || url.startsWith("//")) continue; // only internal relative links
+      if (url.startsWith("/media/")) continue; // an uploaded file (a download, a picture): the Link Checker looks for the file itself
       let m;
       if ((m = url.match(/^\/random\/([a-z0-9-]+)$/))) {
         if (!articles.some((a) => a.slug === m[1])) {
@@ -4875,7 +4876,7 @@
 
   function updateWordCount() {
     // A picture line (![alt](address "caption")) holds no words of the article.
-    const text = el("article-body").value.replace(/^[ \t]*!\[[^\]\n]*\]\([^\n]*\)[ \t]*$/gm, "").trim();
+    const text = el("article-body").value.replace(/^[ \t]*!\[[^\]\n]*\]\(\s*[^\s)]+(?:\s+(?:"[^"\n]*"|'[^'\n]*'))?\s*\)[ \t]*$/gm, "").trim();
     const words = text ? text.split(/\s+/).length : 0;
     const mins = Math.max(1, Math.round(words / 200));
     const score = text ? fleschReadingEase(text) : null;
@@ -5350,7 +5351,8 @@
     const trail = after.length === 0 || !after.startsWith("\n") ? "\n\n" : after.startsWith("\n\n") ? "" : "\n";
     const insert = `${lead}${line}${trail}`;
     textarea.value = before + insert + after;
-    const caret = start + insert.length + (trail === "" ? 2 : 0);
+    // The caret goes to the start of what follows: past the blank line that was already there, or the one newline kept.
+    const caret = start + insert.length + (trail === "" ? 2 : trail === "\n" ? 1 : 0);
     textarea.focus();
     textarea.setSelectionRange(caret, caret);
     textarea.dispatchEvent(new Event("input", { bubbles: true }));
@@ -5368,9 +5370,10 @@
     if (!url || !target) return;
     const item = mediaItems.find((m) => m.url === url) || {};
     const altAnswer = prompt("Describe the picture for people who can't see it (alt text). Leave empty to use the Media Library's description of this file, if it has one:", item.alt_text || "");
-    if (altAnswer === null) return;
+    const refocus = () => setTimeout(() => target.textarea.focus(), 0);
+    if (altAnswer === null) return refocus();
     const captionAnswer = prompt("Caption under the picture (optional):", item.caption || "");
-    if (captionAnswer === null) return;
+    if (captionAnswer === null) return refocus();
     const alt = altAnswer.replace(/[\[\]\n]/g, " ").trim();
     const caption = captionAnswer.replace(/"/g, "\u201d").replace(/\s+/g, " ").trim();
     const address = url.replace(/[\s()]/g, (ch) => encodeURIComponent(ch));

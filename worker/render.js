@@ -1,5 +1,5 @@
 import { listArticles, listProjects, getPublishedSimulation, getScan, getSong, getMediaMeta } from "./db.js";
-import { safeImageSrc, mediaKeyFor, paragraphPictures, bodyPictures } from "./pictures.js";
+import { safeImageSrc, mediaKeyFor, paragraphPictures, bodyPictures, PICTURE_ONLY_LINE } from "./pictures.js";
 import { nowIso, visibleText } from "./text.js";
 import { renderSimulationSvg } from "./simulation-render.js";
 
@@ -457,12 +457,12 @@ function stripMarkdown(text) {
     // excerpts and meta descriptions as raw syntax ("- CSS `:has()`...").
     .replace(/^\s*(?:[-*+]|\d+[.)])\s+/gm, "")
     .replace(/^\s*>\s?/gm, "")
-    .replace(/^[ \t]*!\[[^\]\n]*\]\([^\n]*\)[ \t]*$/gm, "") // a picture on its own line has no words
+    .replace(PICTURE_ONLY_LINE, "") // a picture on its own line has no words
     .replace(/!\[([^\]\n]*)\]\(\s*[^\s)]+(?:\s+"[^"\n]*")?\s*\)/g, "$1")
     .replace(/`([^`]+)`/g, "$1")
     .replace(/\*\*(.+?)\*\*/g, "$1")
     .replace(/\*(.+?)\*/g, "$1")
-    .replace(/\[([^\]\n]+)\]\([^)\n]+\)/g, "$1"); // one line only: an unfinished link must not swallow the text below it
+    .replace(/!?\[([^\]\n]+)\]\([^)\n]+\)/g, "$1"); // one line only: an unfinished link must not swallow the text below it
 }
 
 // A rough, standard estimate (200 words/minute) — good enough to give a

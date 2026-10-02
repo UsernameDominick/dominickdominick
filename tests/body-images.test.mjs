@@ -160,4 +160,16 @@ const failing = { DB: { prepare: () => { throw new Error("D1 is down"); } } };
 assert.deepEqual(await loadBodyMedia(failing, "![a](/media/uploads/board.jpg)"), {});
 assert.deepEqual(await loadBodyMedia(failing, null), {});
 
+// A line that starts with a picture but carries words is prose, not a picture-only line.
+assert.equal(excerpt("![icon](/i.png) Prose after the icon (a note)"), "icon Prose after the icon (a note)");
+assert.equal(excerpt("![a](/x.png) text (a) and more (b)"), "a text (a) and more (b)");
+assert.equal(stripPictureLines("![icon](/i.png) Prose (a note)\n![only](/i.png)\n![only](/i.png 'single')").trim(), "![icon](/i.png) Prose (a note)");
+// Non-standard inline pictures leave no stray "!".
+assert.equal(excerpt("See ![a](/x y.png) here"), "See a here");
+assert.equal(excerpt("See ![a](/x.png 'single') here"), "See a here");
+// Link targets: unfinished links stay on their own line, single-quoted titles go, code examples are not links.
+assert.deepEqual(markdownLinkTargets("[a](/x\n\n[b](/y)"), ["/y"]);
+assert.deepEqual(markdownLinkTargets("[k](/projects/x 'single') and [j](/random/y \"Title\")"), ["/projects/x", "/random/y"]);
+assert.deepEqual(markdownLinkTargets("Real [r](/real)\n\n```\n![in code](/media/uploads/nope.png)\n[l](/nope)\n```\n\n[after](/after)"), ["/real", "/after"]);
+
 console.log("ALL PASS");
