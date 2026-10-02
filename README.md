@@ -77,7 +77,7 @@ Worker secret, not stored in this repo). From there:
   renaming or deleting a page or post so old links don't just 404
 - "Simulations" is a small builder for wiring-accurate circuit/AV
   diagrams — drag parts (wall outlet, power supply, breadboard, LED,
-  resistor, capacitor, inductor, switch, SPDT switch, logic gate, ammeter, voltmeter, battery, a Teensy-style
+  resistor, capacitor, inductor, switch, SPDT switch, logic gate, ammeter, voltmeter, ohmmeter, battery, a Teensy-style
   microcontroller, a TV/display) onto a canvas and click one pin then
   another to wire them. Logic gates are static diagram symbols (AND, OR,
   NAND, NOR, XOR, XNOR, NOT, buffer) with an editable truth table for
@@ -89,6 +89,11 @@ Worker secret, not stored in this repo). From there:
   (changeover) switch connects its common terminal to one of two throws;
   click it on the canvas or use the inspector to change position. It
   doesn't snap into breadboard holes; wire its three terminals instead.
+  An ohmmeter reads the resistance between its two probes by solving the
+  whole unpowered network exactly (parallel branches and bridges included): resistors,
+  potentiometers, inductor windings, wires and closed switches conduct, while LEDs,
+  capacitors and chips read as open. It shows OL when there is no path and a dash
+  when a source is wired into the circuit, since an ohmmeter measures an unpowered circuit.
   A voltmeter reads the voltage between its two probes and draws no
   current. Because the solver follows one path per source, it only prints
   a number when that path is the only route for current (a series

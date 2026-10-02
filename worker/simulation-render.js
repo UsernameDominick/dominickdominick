@@ -545,6 +545,20 @@ export const SIM_COMPONENTS = {
     render: () =>
       `<rect class="voltmeter-hit" x="0" y="0" width="40" height="24" fill="transparent"/><line class="voltmeter-lead" x1="0" y1="10" x2="11" y2="10"/><circle class="voltmeter-body" cx="20" cy="10" r="9"/><text class="voltmeter-label" x="20" y="13" text-anchor="middle" font-size="9">V</text><text class="voltmeter-sign" x="5" y="22" text-anchor="middle" font-size="8">+</text><text class="voltmeter-sign voltmeter-sign-neg" x="35" y="22" text-anchor="middle" font-size="8">\u2212</text><line class="voltmeter-lead" x1="29" y1="10" x2="40" y2="10"/>`,
   },
+  // An idealized ohmmeter: it measures the resistance between its two probes through the unpowered network (resistors,
+  // potentiometers, inductor windings, wires, closed switches), reads OL when there is no path, and refuses a circuit that
+  // has a source wired into it. It is not a series part and adds no analysis edge; see ohmmeterReadings.
+  ohmmeter: {
+    label: "Ohmmeter",
+    w: 40,
+    h: 34,
+    pins: [
+      { id: "p1", x: 0, y: 10, label: "Probe A" },
+      { id: "p2", x: 40, y: 10, label: "Probe B" },
+    ],
+    render: () =>
+      `<rect class="ohmmeter-hit" x="0" y="0" width="40" height="24" fill="transparent"/><line class="ohmmeter-lead" x1="0" y1="10" x2="11" y2="10"/><circle class="ohmmeter-body" cx="20" cy="10" r="9"/><text class="ohmmeter-label" x="20" y="13.5" text-anchor="middle" font-size="10">\u03A9</text><line class="ohmmeter-lead" x1="29" y1="10" x2="40" y2="10"/>`,
+  },
   // A two-terminal variable resistor -- no separate wiper-tap pin, so no
   // voltage-divider behavior (that needs a real multi-branch solver, out
   // of scope here). The wiper % just scales the resistance between p1/p2
@@ -711,6 +725,9 @@ function ammeterReadingSvg(text, rotation) {
 }
 function voltmeterReadingSvg(text, rotation) {
   return meterReadingSvg("voltmeter-reading", text, rotation);
+}
+function ohmmeterReadingSvg(text, rotation) {
+  return meterReadingSvg("ohmmeter-reading", text, rotation);
 }
 // "4.60V", "-3.10V", or a dash when the probes can't be read.
 export function formatVolts(volts) {
@@ -1213,6 +1230,197 @@ function collectNodePotentials(adjacency, edgeInfo, domain, path, otherTerminals
 // destroyed. This is a simplified single-series-path model per domain —
 // good enough for the loop-based circuits this builder makes, not a
 // general multi-branch solver.
+// ---------- Ohmmeter ----------
+// Resistance between a meter's two probes. A real ohmmeter reads an UNPOWERED circuit, so a probe whose circuit has a source
+// (battery, outlet, power supply) wired into it shows a dash. Resistors, potentiometers and inductor windings are resistances,
+// wires, closed switches and ammeters are 0 ohm, and LEDs, capacitors, chips and meters are open (the meter's test current is
+// far too small to turn them on). The network is solved exactly (a nodal solve), so parallel branches and bridges are right.
+// Unlike the one-path solver above, nothing here assumes the circuit is a single loop.
+function ohmmeterReadings(components, wires) {
+  const parent = new Map();
+  const find = (x) => {
+    if (!parent.has(x)) parent.set(x, x);
+    let root = x;
+    while (parent.get(root) !== root) root = parent.get(root);
+    let cur = x;
+    while (parent.get(cur) !== root) {
+      const next = parent.get(cur);
+      parent.set(cur, root);
+      cur = next;
+    }
+    return root;
+  };
+  const touched = new Set();
+  const resistive = [];
+  const sourceNodes = [];
+  const join = (a, b) => {
+    touched.add(a);
+    touched.add(b);
+    const ra = find(a);
+    const rb = find(b);
+    if (ra !== rb) parent.set(ra, rb);
+  };
+  const resist = (a, b, r) => {
+    if (!(r > 0)) return join(a, b);
+    touched.add(a);
+    touched.add(b);
+    resistive.push({ a, b, r });
+  };
+  components.forEach((c) => {
+    const def = getSimulationComponentDefinition(c);
+    if (!def) return;
+    def.pins.forEach((p) => find(nodeId(c, p.id)));
+    if (def.isSource || c.type === "power_supply") def.pins.forEach((p) => sourceNodes.push(nodeId(c, p.id)));
+    if (c.type === "resistor") resist(nodeId(c, "p1"), nodeId(c, "p2"), Math.max(1, Number(c.resistance) || 220));
+    else if (c.type === "potentiometer") {
+      const maxR = Math.max(1, Number(c.maxResistance) || 10000);
+      const rawWiper = Number(c.wiper);
+      const wiperPct = Math.max(0, Math.min(100, Number.isFinite(rawWiper) ? rawWiper : 50));
+      resist(nodeId(c, "p1"), nodeId(c, "p2"), Math.max(1, Math.round(maxR * (wiperPct / 100))));
+    } else if (c.type === "inductor") resist(nodeId(c, "p1"), nodeId(c, "p2"), inductorWindingOhms(c));
+    else if (c.type === "switch") {
+      if (isSwitchClosed(c)) join(nodeId(c, "p1"), nodeId(c, "p2"));
+    } else if (c.type === "switch_spdt") join(nodeId(c, "com"), nodeId(c, spdtThrow(c)));
+    else if (c.type === "ammeter") join(nodeId(c, "p1"), nodeId(c, "p2"));
+  });
+  wires.forEach((w) => {
+    if (!(w && w.from && w.to)) return;
+    const fromComp = components.find((c) => c.id === w.from.compId);
+    const toComp = components.find((c) => c.id === w.to.compId);
+    if (!fromComp || !toComp) return;
+    join(nodeId(fromComp, w.from.pin), nodeId(toComp, w.to.pin));
+  });
+  // The network on joined nodes: each resistance links two groups (one that starts and ends on the same group is shorted out).
+  const edges = [];
+  const around = new Map();
+  resistive.forEach(({ a, b, r }) => {
+    const ra = find(a);
+    const rb = find(b);
+    if (ra === rb) return;
+    edges.push({ a: ra, b: rb, g: 1 / r });
+    if (!around.has(ra)) around.set(ra, []);
+    if (!around.has(rb)) around.set(rb, []);
+    around.get(ra).push(rb);
+    around.get(rb).push(ra);
+  });
+  const sourceGroups = new Set(sourceNodes.map(find));
+  const reach = (start) => {
+    const seen = new Set([start]);
+    const queue = [start];
+    while (queue.length) {
+      const cur = queue.shift();
+      for (const n of around.get(cur) || []) {
+        if (!seen.has(n)) {
+          seen.add(n);
+          queue.push(n);
+        }
+      }
+    }
+    return seen;
+  };
+  const MAX_NODES = 250;
+  const results = {};
+  components.forEach((c) => {
+    if (c.type !== "ohmmeter") return;
+    const pa = nodeId(c, "p1");
+    const pb = nodeId(c, "p2");
+    const none = (reason) => ({ kind: "ohmmeter", ohms: null, status: "no-reading", reason, dangerous: false });
+    if (!touched.has(pa) || !touched.has(pb)) {
+      results[c.id] = none("unwired");
+      return;
+    }
+    const A = find(pa);
+    const B = find(pb);
+    const netA = reach(A);
+    const netB = netA.has(B) ? netA : reach(B);
+    if ([...netA, ...netB].some((n) => sourceGroups.has(n))) {
+      results[c.id] = none("powered");
+      return;
+    }
+    if (A === B) {
+      results[c.id] = { kind: "ohmmeter", ohms: 0, status: "normal", reason: null, dangerous: false };
+      return;
+    }
+    if (!netA.has(B)) {
+      results[c.id] = { kind: "ohmmeter", ohms: null, status: "open", reason: null, dangerous: false };
+      return;
+    }
+    const nodes = [...netA];
+    if (nodes.length > MAX_NODES) {
+      results[c.id] = none("large");
+      return;
+    }
+    // Inject 1 A at A, hold B at 0 V: the potential at A is then the resistance.
+    const index = new Map();
+    nodes.filter((n) => n !== B).forEach((n, i) => index.set(n, i));
+    const n = index.size;
+    const m = Array.from({ length: n }, () => new Float64Array(n + 1));
+    m[index.get(A)][n] = 1;
+    edges.forEach(({ a, b, g }) => {
+      if (!netA.has(a)) return;
+      const ia = index.get(a);
+      const ib = index.get(b);
+      if (ia !== undefined) m[ia][ia] += g;
+      if (ib !== undefined) m[ib][ib] += g;
+      if (ia !== undefined && ib !== undefined) {
+        m[ia][ib] -= g;
+        m[ib][ia] -= g;
+      }
+    });
+    let singular = false;
+    for (let col = 0; col < n && !singular; col++) {
+      let pivot = col;
+      for (let row = col + 1; row < n; row++) if (Math.abs(m[row][col]) > Math.abs(m[pivot][col])) pivot = row;
+      if (Math.abs(m[pivot][col]) < 1e-18) {
+        singular = true;
+        break;
+      }
+      [m[col], m[pivot]] = [m[pivot], m[col]];
+      for (let row = col + 1; row < n; row++) {
+        const f = m[row][col] / m[col][col];
+        if (!f) continue;
+        for (let k = col; k <= n; k++) m[row][k] -= f * m[col][k];
+      }
+    }
+    if (singular) {
+      results[c.id] = none("invalid");
+      return;
+    }
+    const x = new Float64Array(n);
+    for (let row = n - 1; row >= 0; row--) {
+      let sum = m[row][n];
+      for (let k = row + 1; k < n; k++) sum -= m[row][k] * x[k];
+      x[row] = sum / m[row][row];
+    }
+    // Twelve significant digits hide the solver's rounding noise (300.00000000000006).
+    const ohms = Number(x[index.get(A)].toPrecision(12));
+    results[c.id] = Number.isFinite(ohms) && ohms >= 0
+      ? { kind: "ohmmeter", ohms, status: "normal", reason: null, dangerous: false }
+      : none("invalid");
+  });
+  return results;
+}
+
+// "47.0Ω", "4.70kΩ", "1.00MΩ"; a dash when there is no reading and OL when the probes aren't connected.
+const OHM_UNITS = [["Ω", 1], ["kΩ", 1e3], ["MΩ", 1e6], ["GΩ", 1e9]];
+export function formatOhms(ohms, status) {
+  if (status === "open") return "OL";
+  if (typeof ohms !== "number" || !Number.isFinite(ohms) || ohms < 0) return "—";
+  if (ohms < 0.005) return "0Ω";
+  if (ohms < 1) return `${ohms.toFixed(2)}Ω`;
+  let u = 0;
+  while (u < OHM_UNITS.length - 1 && ohms >= OHM_UNITS[u + 1][1]) u++;
+  const digits = (value) => (value < 10 ? 2 : value < 100 ? 1 : 0);
+  let scaled = ohms / OHM_UNITS[u][1];
+  let text = scaled.toFixed(digits(scaled));
+  if (Number(text) >= 1000 && u < OHM_UNITS.length - 1) {
+    u++;
+    scaled = ohms / OHM_UNITS[u][1];
+    text = scaled.toFixed(digits(scaled));
+  }
+  return `${text}${OHM_UNITS[u][0]}`;
+}
+
 export function computeCircuitAnalysis(data) {
   const components = (data && data.components) || [];
   const { poweredNodes } = computePoweredSet(data);
@@ -1371,6 +1579,8 @@ export function computeCircuitAnalysis(data) {
     });
   }
 
+  if (components.some((c) => c.type === "ohmmeter")) Object.assign(results, ohmmeterReadings(components, (data && data.wires) || []));
+
   return results;
 }
 
@@ -1422,6 +1632,8 @@ function renderComponentSvg(comp, poweredComps, analysis) {
       ? ammeterReadingSvg(`${info.currentMa === Infinity ? "∞" : info.currentMa.toFixed(1)}mA`, def.rotation || 0)
       : comp.type === "voltmeter" && info
       ? voltmeterReadingSvg(formatVolts(info.volts), def.rotation || 0)
+      : comp.type === "ohmmeter" && info
+      ? ohmmeterReadingSvg(formatOhms(info.ohms, info.status), def.rotation || 0)
       : "";
   return `<g class="sim-comp sim-comp-${escXml(comp.type)}${statusClass}" data-id="${escXml(comp.id)}" data-powered="${
     poweredComps.has(comp.id) ? "true" : "false"

@@ -943,6 +943,8 @@
         ? window.simAmmeterReadingSvg(`${info.currentMa === Infinity ? "∞" : info.currentMa.toFixed(1)}mA`, def.rotation || 0)
         : comp.type === "voltmeter" && info
         ? window.simVoltmeterReadingSvg(window.simFormatVolts(info.volts), def.rotation || 0)
+        : comp.type === "ohmmeter" && info
+        ? window.simOhmmeterReadingSvg(window.simFormatOhms(info.ohms, info.status), def.rotation || 0)
         : "";
     return `<g class="sim-comp sim-comp-${comp.type}${sel ? " sim-selected" : ""}${damaged ? " sim-damaged" : ""}${
       searchMatch ? " sim-search-match" : ""
@@ -1514,6 +1516,8 @@
         add("warning", `${n} would overheat at this current.`);
       } else if (r.kind === "voltmeter" && r.status === "no-reading") {
         add("note", `${n} shows a dash: ${VOLTMETER_NO_READING[r.reason] || "the simulator can't vouch for a reading here."}`);
+      } else if (r.kind === "ohmmeter" && r.status === "no-reading") {
+        add("note", `${n} shows a dash: ${OHMMETER_NO_READING[r.reason] || "the simulator can't work out a resistance here."}`);
       }
     }
     // A two-leg part whose legs end up on the same electrical node (the same breadboard strip or rail, or joined
@@ -1621,7 +1625,7 @@
   // is modelled (the same text the part tooltips and the inspector use), then the rest of the parts.
   const SIM_GENERAL_LIMITS = [
     "It checks a circuit as direct current (DC) only: no AC, and nothing changes over time (no start-up or switching transients).",
-    "Each source is solved on its own as one series path. Parallel branches, bypasses and several sources in one circuit are beyond what it can vouch for. Only voltmeters flag this, with a dash; other parts still show figures worked out from that one path, and a part on a side branch gets no status at all.",
+    "Each source is solved on its own as one series path. Parallel branches, bypasses and several sources in one circuit are beyond what it can vouch for. Only voltmeters flag this, with a dash (an ohmmeter solves its own network exactly instead); other parts still show figures worked out from that one path, and a part on a side branch gets no status at all.",
     "Wires, breadboard strips and meter probes are perfect conductors (zero resistance), and sources are ideal: they hold their voltage with no sag or current limit beyond the part's own settings.",
     "Capacitors count as open circuits and inductors as their winding resistance alone.",
     "Part ratings are typical fixed values, not a real part's datasheet: LEDs 20 mA, resistors 0.25 W, the Teensy 1 W.",
@@ -2026,7 +2030,7 @@
   // multiple of the hole grid (see SIM_COMPONENTS), so once the first leg
   // snaps to a hole, every other leg lands exactly on a real neighboring
   // hole too — not just one anchor pin dragging the rest along for show.
-  const SNAP_TO_BREADBOARD_TYPES = new Set(["led", "resistor", "switch", "potentiometer", "ammeter", "voltmeter", "capacitor", "inductor"]);
+  const SNAP_TO_BREADBOARD_TYPES = new Set(["led", "resistor", "switch", "potentiometer", "ammeter", "voltmeter", "ohmmeter", "capacitor", "inductor"]);
   const SNAP_THRESHOLD = 18; // magnetic pull radius while dragging
   const SNAP_EXACT_TOLERANCE = 4; // how close a non-anchor leg must land to also count as plugged in
   // Everything else just snaps to a light alignment grid while dragging.
@@ -2392,6 +2396,7 @@
     switch_spdt: { kind: "Electrical", text: "joins the common terminal to one of two throws." },
     ammeter: { kind: "Electrical", text: "shows the current through it, with zero resistance." },
     voltmeter: { kind: "Electrical", text: "reads the voltage between its probes in a series circuit and draws no current; a dash means the simulator can't vouch for that point (parallel branches, several sources)." },
+    ohmmeter: { kind: "Electrical", text: "reads the resistance between its probes through the unpowered circuit (parallel branches included); OL means no path, and a dash means a source is wired in." },
     mcu_teensy: { kind: "Electrical", text: "acts as a fixed 300 Ω load and is checked for overheating (1 W); its digital pins and firmware aren't simulated." },
     tv: { kind: "Display", text: "lights up when powered (preview or Power on); it isn't analysed for current." },
     logic_gate: { kind: "Diagram part", text: "drawn for documentation, not simulated.", hideInInspector: true },
@@ -2406,6 +2411,13 @@
     short: "this source is short-circuited, so no voltage is defined.",
     ambiguous: "LEDs that aren't conducting (too little voltage, or backwards) share the voltage in a way the simulator can't work out.",
     invalid: "the source's voltage isn't a usable number.",
+  };
+  // Why an ohmmeter shows a dash.
+  const OHMMETER_NO_READING = {
+    unwired: "connect both probes into a circuit.",
+    powered: "a source (battery, outlet or power supply) is wired into this circuit. An ohmmeter measures an unpowered circuit, so disconnect or remove the source.",
+    large: "this network is too big for the simulator to solve exactly.",
+    invalid: "the simulator couldn't work out a resistance for this network.",
   };
   function partModel(type) {
     return Object.prototype.hasOwnProperty.call(SIM_PART_MODEL, type) ? SIM_PART_MODEL[type] : null;
@@ -2867,7 +2879,7 @@
       let statusLine;
       if (comp.type === "logic_gate") {
         statusLine = "Diagram part: drawn for documentation, not simulated";
-      } else if (comp.type === "voltmeter") {
+      } else if (comp.type === "voltmeter" || comp.type === "ohmmeter") {
         statusLine = "Meter: reads without carrying any current";
       } else if (def.isSource) {
         statusLine = "⚡ Power source";
@@ -2936,6 +2948,13 @@
             info.volts === null
               ? `<p class="sim-power-status">No reading — ${VOLTMETER_NO_READING[info.reason] || VOLTMETER_NO_READING.unwired}</p>`
               : `<p class="sim-power-status is-powered">⚡ Reads ${window.simFormatVolts(info.volts)} from the + probe to the − probe.</p>`;
+        } else if (info.kind === "ohmmeter") {
+          electricalHtml =
+            info.status === "open"
+              ? `<p class="sim-power-status">Reads OL (open): there is no path between the probes.</p>`
+              : info.status === "no-reading"
+              ? `<p class="sim-power-status">No reading — ${OHMMETER_NO_READING[info.reason] || OHMMETER_NO_READING.unwired}</p>`
+              : `<p class="sim-power-status is-powered">Ω Reads ${window.simFormatOhms(info.ohms, info.status)} between the probes${info.ohms === 0 ? " (they are joined directly)" : ""}.</p>`;
         } else if (info.kind === "ammeter") {
           electricalHtml = info.dangerous
             ? `<p class="sim-power-status is-danger">🔥 Destroyed instantly — 120V mains directly across this ammeter.</p>`

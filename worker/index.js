@@ -98,6 +98,7 @@ import {
   computeCircuitAnalysis,
   formatCapacitance,
   formatVolts,
+  formatOhms,
   formatInductance,
   getSimulationComponentDefinition,
   inductanceMillihenries,
@@ -889,9 +890,9 @@ async function renderNotFound(env, navItems) {
 // page so a circuit can be linked to directly instead of only embedded.
 function simulationTopologyDescription(data) {
   const components = Array.isArray(data?.components) ? data.components : [];
-  // Only meter readings need the analysis, so circuits without a voltmeter skip it.
+  // Only meter readings need the analysis, so circuits without a voltmeter or ohmmeter skip it.
   let analysis = {};
-  if (components.some((component) => component?.type === "voltmeter")) {
+  if (components.some((component) => component?.type === "voltmeter" || component?.type === "ohmmeter")) {
     try {
       analysis = computeCircuitAnalysis(data);
     } catch {
@@ -957,6 +958,12 @@ function simulationTopologyDescription(data) {
         if (!reading || typeof reading.volts !== "number") return "voltage meter with no reading";
         const text = formatVolts(reading.volts);
         return `voltage meter reading ${text.startsWith("-") ? "negative " + text.slice(1) : text}`.replace(/V$/, " volts");
+      }
+      case "ohmmeter": {
+        const reading = analysis[component.id];
+        if (reading?.status === "open") return "resistance meter reading open circuit";
+        if (!reading || typeof reading.ohms !== "number") return "resistance meter with no reading";
+        return `resistance meter reading ${formatOhms(reading.ohms, reading.status).replace("GΩ", " gigohms").replace("MΩ", " megohms").replace("kΩ", " kilohms").replace("Ω", " ohms")}`;
       }
       case "switch_spdt":
         return `common terminal connected to throw ${component.position === "b" ? "B" : "A"}`;

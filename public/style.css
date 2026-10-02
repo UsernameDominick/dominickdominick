@@ -2157,9 +2157,31 @@ h6 { font-size: 0.9rem; }
   text-anchor: middle;
   pointer-events: none;
 }
+/* Ohmmeter -- measures resistance between its probes of an unpowered circuit. */
+.sim-comp .ohmmeter-lead {
+  stroke: var(--text-dim);
+  stroke-width: 2;
+}
+.sim-comp .ohmmeter-body {
+  fill: url(#sim-grad-plastic);
+  stroke: #555;
+  stroke-width: 1;
+}
+.sim-comp .ohmmeter-label {
+  fill: #333;
+  text-anchor: middle;
+  font-weight: 700;
+  pointer-events: none;
+}
+.sim-comp .ohmmeter-reading {
+  fill: var(--text-dim);
+  text-anchor: middle;
+  pointer-events: none;
+}
 /* A halo in the canvas colour keeps a meter reading and its +/- marks legible
    over wires and the cream breadboard, in either theme. */
 .sim-comp .ammeter-reading,
+.sim-comp .ohmmeter-reading,
 .sim-comp .voltmeter-reading,
 .sim-comp .voltmeter-sign {
   paint-order: stroke;
