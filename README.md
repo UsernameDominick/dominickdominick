@@ -77,7 +77,7 @@ Worker secret, not stored in this repo). From there:
   renaming or deleting a page or post so old links don't just 404
 - "Simulations" is a small builder for wiring-accurate circuit/AV
   diagrams — drag parts (wall outlet, power supply, breadboard, LED,
-  resistor, diode, capacitor, inductor, switch, SPDT switch, logic gate, ammeter, voltmeter, ohmmeter, battery, a Teensy-style
+  resistor, diode, transistor, capacitor, inductor, switch, SPDT switch, logic gate, ammeter, voltmeter, ohmmeter, battery, a Teensy-style
   microcontroller, a TV/display) onto a canvas and click one pin then
   another to wire them. Logic gates are static diagram symbols (AND, OR,
   NAND, NOR, XOR, XNOR, NOT, buffer) with an editable truth table for
@@ -100,8 +100,8 @@ Worker secret, not stored in this repo). From there:
   current. A plain series loop is solved as one path from its source; a circuit with
   parallel branches, a switch or wire across a part, or several sources is solved as a
   whole network (every node voltage and branch current; LEDs and diodes are each off or
-  conducting at their forward voltage), so meters, currents and statuses are right
-  there too. It shows a dash, with the reason in the inspector, only when the network
+  conducting at their forward voltage; a transistor, NPN or PNP, is off, amplifying at its
+  gain, or saturated), so meters, currents and statuses are right there too. It shows a dash, with the reason in the inspector, only when the network
   can't be solved (a dead short, two sources that contradict each other, over 200
   nodes, or a wall outlet, which keeps the one-path mains rules) or the probes aren't
   both in it. A backwards LED or diode blocks its loop: no current flows and its

@@ -1989,6 +1989,41 @@ h6 { font-size: 0.9rem; }
   stroke-linecap: round;
 }
 
+/* Transistor -- the arrow on the emitter leg points out of an NPN and into a PNP. */
+.sim-comp .transistor-lead {
+  stroke: var(--text-dim);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.sim-comp .transistor-bar {
+  stroke: var(--text-dim);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+.sim-comp .transistor-arrow {
+  fill: var(--text-dim);
+}
+.sim-comp .transistor-label {
+  fill: var(--text-dim);
+  font-family: inherit;
+  pointer-events: none;
+}
+.sim-svg.is-on .sim-comp[data-powered="true"] .transistor-lead,
+.sim-svg.is-on .sim-comp[data-powered="true"] .transistor-bar {
+  stroke: var(--accent);
+}
+.sim-svg.is-on .sim-comp[data-powered="true"] .transistor-arrow {
+  fill: var(--accent);
+}
+.sim-comp.sim-damaged .transistor-bar,
+.sim-comp.sim-damaged .transistor-lead {
+  stroke: #5a2a1a !important;
+}
+.sim-comp.sim-damaged .transistor-arrow {
+  fill: #5a2a1a !important;
+}
+
 /* Resistor — band colors are set inline per-instance from its actual
    resistance value (see resistorBandHexes()), so only opacity/stroke
    are shared here. */

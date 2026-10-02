@@ -80,6 +80,9 @@
   const LED_RATED_MA = 20;
   const DIODE_FORWARD_V = 0.7; // silicon
   const DIODE_RATED_MA = 1000; // a 1N400x-style 1 A part
+const TRANSISTOR_RATED_MA = 200; // a 2N3904-style small-signal part's collector current
+const TRANSISTOR_BASE_RATED_MA = 50;
+const TRANSISTOR_WATTAGE_RATING = 0.625; // TO-92 package
   const OUTLET_VOLTAGE = 120;
   const RESISTOR_WATTAGE_RATING = 0.25;
   const TEENSY_LOAD_OHMS = 300;
@@ -517,6 +520,26 @@
       render: () =>
         `<rect class="diode-hit" x="0" y="14" width="40" height="26" fill="transparent"/><path class="diode-lead" d="M0,40 L0,26 L10,26" fill="none"/><path class="diode-lead" d="M28,26 L40,26 L40,40" fill="none"/><polygon class="diode-body" points="10,16 10,36 28,26"/><line class="diode-bar" x1="28" y1="15" x2="28" y2="37"/>`,
     },
+    // A bipolar transistor (NPN by default, PNP via `polarity`): the base-emitter junction drops 0.7 V when it conducts, and the
+    // collector then carries `gain` times the base current until the part saturates (0.2 V collector-emitter). It is solved
+    // by the general network solver (sim-solver.js); the one-path analysis ignores it.
+    transistor: {
+      label: "Transistor",
+      keywords: "BJT, bipolar, NPN, PNP, 2N3904, 2N2222, switch, amplifier, gain, base collector emitter",
+      w: 40,
+      h: 60,
+      pins: [
+        { id: "collector", x: 40, y: 0, label: "Collector" },
+        { id: "base", x: 0, y: 30, label: "Base" },
+        { id: "emitter", x: 40, y: 60, label: "Emitter" },
+      ],
+      render: (c) => {
+        const pnp = c && c.polarity === "pnp";
+        // The arrow sits on the emitter leg: pointing out for an NPN, in towards the base for a PNP.
+        const arrow = pnp ? "25.6,40.8 29.3,47.5 32.9,42.7" : "37.3,49.9 29.9,48 33.6,43.2";
+        return `<rect class="transistor-hit" x="0" y="0" width="40" height="60" fill="transparent"/><path class="transistor-lead" d="M0,30 L22,30" fill="none"/><path class="transistor-lead" d="M22,22 L40,10 L40,0" fill="none"/><path class="transistor-lead" d="M22,38 L40,52 L40,60" fill="none"/><line class="transistor-bar" x1="22" y1="14" x2="22" y2="46"/><polygon class="transistor-arrow" points="${arrow}"/><text class="transistor-label" x="3" y="52" font-size="8">${pnp ? "PNP" : "NPN"}</text>`;
+      },
+    },
     resistor: {
       label: "Resistor",
       keywords: "current limiting, ohms, resistance, color bands",
@@ -809,7 +832,7 @@
   }
   window.simSpdtThrow = spdtThrow;
 
-  function buildGraph(data, excludeLedId) {
+  function buildGraph(data, excludeLedId, transistorLinks) {
     const components = (data && data.components) || [];
     const wires = (data && data.wires) || [];
     const adjacency = new Map();
@@ -848,6 +871,8 @@
       if (!fromComp || !toComp) return;
       link(nodeId(fromComp, w.from.pin), nodeId(toComp, w.to.pin));
     });
+    // A conducting transistor passes power collector to emitter (emitter to collector for a PNP), one way, like a diode.
+    (transistorLinks || []).forEach(([from, to]) => linkOneWay(from, to));
     return adjacency;
   }
 
@@ -879,10 +904,45 @@
     return bfsReach(adjacency, a).has(b);
   }
 
+  // Which transistors let power through, for the powered view only (the real answer comes from the general solver): an NPN
+  // whose base can be reached from a source's positive terminal, or a PNP whose base can reach a source's negative terminal,
+  // without passing through the other terminal. Re-checked until it settles, since one transistor can drive another.
+  function conductingTransistorLinks(data) {
+    const components = (data && data.components) || [];
+    const transistors = components.filter((c) => c.type === "transistor");
+    if (!transistors.length) return [];
+    const sources = [];
+    components.forEach((c) => {
+      const def = getSimComponentDefinition(c);
+      if (def && def.isSource && def.polarity) sources.push({ pos: nodeId(c, def.polarity.pos), neg: nodeId(c, def.polarity.neg) });
+    });
+    let links = [];
+    for (let pass = 0; pass <= transistors.length; pass++) {
+      const graph = buildGraph(data, null, links);
+      const backwards = reversedGraph(graph);
+      const high = new Set();
+      const low = new Set();
+      sources.forEach((s) => {
+        bfsReach(graph, s.pos, s.neg).forEach((n) => high.add(n));
+        bfsReach(backwards, s.neg, s.pos).forEach((n) => low.add(n));
+      });
+      const next = [];
+      transistors.forEach((c) => {
+        const pnp = c.polarity === "pnp";
+        if (!(pnp ? low : high).has(nodeId(c, "base"))) return;
+        next.push(pnp ? [nodeId(c, "emitter"), nodeId(c, "collector")] : [nodeId(c, "collector"), nodeId(c, "emitter")]);
+      });
+      if (next.length === links.length) break;
+      links = next;
+    }
+    return links;
+  }
+
   window.computeSimPoweredSet = function (data) {
     const components = (data && data.components) || [];
     const wires = (data && data.wires) || [];
-    const adjacency = buildGraph(data, null);
+    const transistorLinks = conductingTransistorLinks(data);
+    const adjacency = buildGraph(data, null, transistorLinks);
 
     const activeSources = [];
     const poweredNodes = new Set();
@@ -905,7 +965,7 @@
         const posNode = nodeId(c, def.polarity.pos);
         const negNode = nodeId(c, def.polarity.neg);
         if (!poweredNodes.has(posNode) || !poweredNodes.has(negNode)) return;
-        const graphWithoutThisLed = buildGraph(data, c.id);
+        const graphWithoutThisLed = buildGraph(data, c.id, transistorLinks);
         const correctlyOriented = activeSources.some(
           (s) =>
             bfsReach(graphWithoutThisLed, s.posNode, negNode).has(posNode) &&
@@ -1456,6 +1516,39 @@
     // Networks the one-path solver can't vouch for (a parallel branch, a bypass, several sources) are handed to the general
     // solver in sim-solver.js after the loop below; `engage` holds a node of each, `parallelNodes` those it flagged as parallel.
     const engage = new Set();
+    // Transistors are only understood by the general solver: hand it the network of any source that can reach a transistor pin.
+    const transistorParts = components.filter((c) => c.type === "transistor");
+    const transistorAdjacency = new Map();
+    const transistorPins = new Set();
+    if (transistorParts.length) {
+      adjacency.forEach((set, key) => transistorAdjacency.set(key, new Set(set)));
+      transistorParts.forEach((c) => {
+        const pins = ["collector", "base", "emitter"].map((p) => nodeId(c, p));
+        pins.forEach((n) => {
+          transistorPins.add(n);
+          if (!transistorAdjacency.has(n)) transistorAdjacency.set(n, new Set());
+        });
+        [[0, 1], [1, 2], [0, 2]].forEach(([i, j]) => {
+          transistorAdjacency.get(pins[i]).add(pins[j]);
+          transistorAdjacency.get(pins[j]).add(pins[i]);
+        });
+      });
+    }
+    const reachesTransistor = (start) => {
+      const seen = new Set([start]);
+      const queue = [start];
+      while (queue.length) {
+        const cur = queue.shift();
+        if (transistorPins.has(cur)) return true;
+        for (const n of transistorAdjacency.get(cur) || []) {
+          if (!seen.has(n)) {
+            seen.add(n);
+            queue.push(n);
+          }
+        }
+      }
+      return false;
+    };
     const parallelNodes = [];
     const reachFrom = (start) => {
       const seen = new Set([start]);
@@ -1472,6 +1565,10 @@
       return seen;
     };
     domains.forEach((domain) => {
+      if (transistorParts.length && reachesTransistor(domain.posNode)) {
+        engage.add(domain.posNode);
+        parallelNodes.push(domain.posNode);
+      }
       const path = shortestPathNodes(adjacency, domain.posNode, domain.negNode);
       if (!path || path.length < 2) {
         if (wantPotentials) potentialMaps.push({ domain, ...collectNodePotentials(adjacency, edgeInfo, domain, null, otherTerminals(domain), 0, 0) });
@@ -1612,7 +1709,7 @@
           inductorOhms: inductorWindingOhms,
           forwardVoltage: (c) => (c.type === "diode" ? DIODE_FORWARD_V : window.LED_COLORS[window.LED_COLORS[c.color] ? c.color : "red"].forwardVoltage),
           supplyActive: (c) => poweredNodes.has(nodeId(c, "in_hot")) && poweredNodes.has(nodeId(c, "in_neutral")),
-          limits: { ledMa: LED_RATED_MA, diodeMa: DIODE_RATED_MA, resistorWatts: RESISTOR_WATTAGE_RATING, teensyWatts: TEENSY_WATTAGE_RATING, teensyOhms: TEENSY_LOAD_OHMS },
+          limits: { ledMa: LED_RATED_MA, diodeMa: DIODE_RATED_MA, transistorMa: TRANSISTOR_RATED_MA, transistorBaseMa: TRANSISTOR_BASE_RATED_MA, transistorWatts: TRANSISTOR_WATTAGE_RATING, resistorWatts: RESISTOR_WATTAGE_RATING, teensyWatts: TEENSY_WATTAGE_RATING, teensyOhms: TEENSY_LOAD_OHMS },
         },
         engage
       );

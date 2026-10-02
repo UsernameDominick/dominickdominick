@@ -904,6 +904,13 @@
     return pin ? { x: comp.x + pin.x, y: comp.y + pin.y } : null;
   }
 
+  // The glow comes from the topology (a closed loop through the part); where the network solver found that a part passes no
+  // current (a reversed or under-driven LED or diode on a side branch, a cut-off transistor) it must not glow.
+  const NOT_CONDUCTING = new Set(["reversed", "blocked", "unlit-low-voltage", "off"]);
+  function solvedNotConducting(info) {
+    return Boolean(info) && (info.kind === "led" || info.kind === "diode" || info.kind === "transistor") && NOT_CONDUCTING.has(info.status);
+  }
+
   function renderComponentSvg(comp, poweredComps, analysis) {
     if (
       !comp ||
@@ -952,7 +959,7 @@
       searchMatch ? " sim-search-match" : ""
     }${comp.locked === true ? " sim-locked" : ""}" data-id="${escapeXml(
       comp.id
-    )}" data-powered="${poweredComps.has(comp.id) ? "true" : "false"}" transform="translate(${comp.x},${
+    )}" data-powered="${poweredComps.has(comp.id) && !solvedNotConducting(info) ? "true" : "false"}" transform="translate(${comp.x},${
       comp.y
     })">${titleSvg}${def.render(comp)}${readingSvg && def.overlay ? def.overlay(readingSvg) : readingSvg}${sel ? `<rect class="sim-select-box" x="-4" y="-4" width="${def.w + 8}" height="${def.h + 8}" />` : ""}${
       searchMatch ? `<rect class="sim-search-match-box${comp.id === canvasSearchCurrent ? " is-current" : ""}" x="-6" y="-6" width="${def.w + 12}" height="${def.h + 12}" />` : ""
@@ -1516,6 +1523,10 @@
         else if (r.status === "burnt" && !r.dangerous) add("danger", `${n} would burn out: the current is far above a typical diode's 1 A rating. Add a series resistor.`);
         else if (r.status === "overdriven") add("warning", `${n} is overdriven: more than 1.5 times a typical diode's 1 A rating.`);
         else if (r.status === "off") add("warning", `${n} gets less than its 0.7 V forward voltage, so it isn't conducting.`);
+      } else if (r.kind === "transistor") {
+        if (r.status === "burnt") add("danger", `${n} would burn out: ${r.currentMa.toFixed(0)} mA through the collector and ${r.baseMa.toFixed(1)} mA into the base are far above a small transistor's 200 mA and 50 mA. Add or enlarge a resistor in the base or collector leg.`);
+        else if (r.status === "overdriven") add("warning", `${n} is overdriven: ${r.currentMa.toFixed(0)} mA through the collector and ${r.baseMa.toFixed(1)} mA into the base, over 1.5 times a small transistor's 200 mA and 50 mA.`);
+        else if (r.status === "overheating") add("warning", `${n} would run hot: it dissipates ${r.watts.toFixed(2)} W against a typical 0.625 W rating.`);
       } else if (r.kind === "resistor" && r.status === "overheating") {
         add(
           "warning",
@@ -1576,7 +1587,7 @@
       add("warning", "This circuit has a parallel branch or a bypass that the simulator couldn't solve as a whole network (a dead short, two sources that contradict each other, or more than 200 nodes), so it follows one path from each source: the figures and statuses may be incomplete or missing, and a backwards LED or diode is only flagged when it is on the only route.");
     }
     // Parts that can carry or show current but weren't analysed: not on the path the solver followed.
-    const analysable = new Set(["led", "diode", "resistor", "ammeter", "mcu_teensy"]);
+    const analysable = new Set(["led", "diode", "transistor", "resistor", "ammeter", "mcu_teensy"]);
     const hasSource = simData.components.some((c) => {
       const d = window.getSimComponentDefinition(c);
       return d && d.isSource;
@@ -1639,7 +1650,7 @@
     "A plain series loop is solved as one path from its source. A circuit with parallel branches, a bypass or several sources is solved as a whole network instead (every node voltage and branch current, with LEDs and diodes each either off or conducting at their forward voltage). If it can't be (a dead short, two sources that contradict each other, a network over 200 nodes, or a wall outlet, which keeps the one-path mains rules), it falls back to one path with a warning, and voltmeters show a dash.",
     "Wires, breadboard strips and meter probes are perfect conductors (zero resistance), and sources are ideal: they hold their voltage with no sag or current limit beyond the part's own settings.",
     "Capacitors count as open circuits and inductors as their winding resistance alone.",
-    "Part ratings are typical fixed values, not a real part's datasheet: LEDs 20 mA, diodes 1 A, resistors 0.25 W, the Teensy 1 W.",
+    "Part ratings are typical fixed values, not a real part's datasheet: LEDs 20 mA, diodes 1 A, transistors 200 mA collector / 50 mA base / 0.625 W, resistors 0.25 W, the Teensy 1 W.",
     "Microcontroller pins and firmware are not simulated, and logic gates are diagram parts that document the truth table without being simulated.",
     "It is a learning aid, not a design tool: real parts have tolerances and limits it does not model.",
   ];
@@ -2404,6 +2415,7 @@
     battery: { kind: "Electrical", text: "supplies a constant DC voltage, with an optional internal resistance." },
     breadboard: { kind: "Mechanical", text: "joins holes in column strips and power rails (optionally split in the middle into two rails each); nothing electrical of its own." },
     led: { kind: "Electrical", text: "lights only when wired the right way round; checked for current and burn-out against a typical 20 mA rating." },
+    transistor: { kind: "Electrical", text: "a bipolar transistor (NPN, or PNP in the inspector): once the base-emitter junction gets 0.7 V the collector carries the gain (default 100) times the base current, until the collector-emitter voltage falls to 0.2 V and it saturates like a closed switch; with less than 0.7 V on the base it is off. Solved together with the rest of the circuit (several transistors, parallel branches), checked against typical 200 mA collector, 50 mA base and 0.625 W ratings. It has no leakage, no temperature drift and no reverse-active region, and a circuit that would need one is left unsolved with a warning." },
     diode: { kind: "Electrical", text: "conducts only anode to cathode (towards the bar) with a fixed 0.7 V drop and blocks the other way; checked for burn-out against a typical 1 A rating. In a circuit with parallel branches or several sources the whole network is solved, so a backwards diode blocks just its own branch; the glow of powered parts only follows a diode's blocking in a simple loop." },
     resistor: { kind: "Electrical", text: "limits current by Ohm's law; checked for overheating against a typical 0.25 W rating." },
     potentiometer: { kind: "Electrical", text: "acts as a two-terminal variable resistor set by its wiper." },
@@ -2900,10 +2912,13 @@
         statusLine = "Meter: reads without carrying any current";
       } else if (def.isSource) {
         statusLine = "⚡ Power source";
+      } else if (comp.type === "transistor" && info) {
+        statusLine = info.region === "off" ? "Off: no collector current" : info.region === "saturated" ? "⚡ On: saturated like a closed switch" : "⚡ On: amplifying";
       } else if (isPowered) {
         statusLine = "⚡ Part of a complete circuit";
       } else if (comp.type === "diode" && info && info.status === "reversed") {
         statusLine = "Wired backwards: power stops at this diode";
+
       } else if (def.polarity) {
         const posNode = window.simNodeId(comp, def.polarity.pos);
         const negNode = window.simNodeId(comp, def.polarity.neg);
@@ -2930,6 +2945,18 @@
             normal: `✓ ${ma}mA — a healthy, safe current.`,
           };
           electricalHtml = `<p class="sim-power-status ${info.status === "normal" ? "is-powered" : "is-danger"}">${messages[info.status] || ""}</p>`;
+        } else if (info.kind === "transistor") {
+          const ib = info.baseMa.toFixed(2);
+          const icText = `${info.currentMa.toFixed(1)} mA`;
+          const messages = {
+            burnt: `🔥 Burnt out — ${icText} through the collector and ${ib} mA into the base are far above a small transistor's 200 mA and 50 mA. Add or enlarge a resistor.`,
+            overdriven: `⚠ Overdriven at ${icText} collector / ${ib} mA base — over 1.5 times a small transistor's 200 mA and 50 mA.`,
+            overheating: `🔥 Running hot — dissipating ${info.watts.toFixed(2)} W against a typical 0.625 W rating.`,
+            off: "Off: the base is not getting 0.7 V above the emitter, so no collector current flows.",
+            active: `Amplifying: the collector carries ${icText}, ${(info.currentMa / Math.max(info.baseMa, 1e-9)).toFixed(0)} times the ${ib} mA base current; Vce is ${info.vce.toFixed(2)} V.`,
+            saturated: `✓ Saturated: fully on like a closed switch. ${icText} flows, limited by the rest of the circuit (the gain would allow more); Vce is ${info.vce.toFixed(2)} V.`,
+          };
+          electricalHtml = `<p class="sim-power-status ${info.status === "off" || info.status === "active" || info.status === "saturated" ? "is-powered" : "is-danger"}">${messages[info.status] || ""}</p>`;
         } else if (info.kind === "diode") {
           const messages = {
             burnt: info.dangerous
@@ -3058,6 +3085,10 @@
         extraFieldsHtml = `<label>Color<select id="sim-comp-led-color">${Object.entries(window.LED_COLORS)
           .map(([key, c]) => `<option value="${key}" ${(comp.color || "red") === key ? "selected" : ""}>${c.label}</option>`)
           .join("")}</select></label>`;
+      } else if (comp.type === "transistor") {
+        extraFieldsHtml = `<label title="NPN: the emitter goes to the negative side and a positive base voltage turns it on. PNP: the emitter goes to the positive side and a base pulled low turns it on.">Type<select id="sim-comp-transistor-type"><option value="npn" ${comp.polarity === "pnp" ? "" : "selected"}>NPN</option><option value="pnp" ${comp.polarity === "pnp" ? "selected" : ""}>PNP</option></select></label>
+        <label title="How many times the base current the collector carries while the part is active (hFE or beta). A small-signal part is typically 100-300.">Gain (hFE)<input id="sim-comp-transistor-gain" type="number" min="1" max="1000" step="1" value="${Math.min(1000, Math.max(1, Number(comp.gain) || 100))}"></label>
+        <p style="color:var(--text-dim);font-size:0.8rem;">Hover a leg to see Collector, Base or Emitter. It doesn't plug into breadboard holes, so wire its legs.</p>`;
       } else if (comp.type === "switch") {
         const closed = comp.closed !== false;
         const electricalEffect = describeSwitchElectricalEffect(closed);
@@ -3306,6 +3337,26 @@
         outputVoltageInput.addEventListener("change", () => {
           pushHistory();
           comp.outputVoltage = Number(outputVoltageInput.value);
+          renderInspector();
+          renderBuilder();
+        });
+      }
+      const transistorTypeInput = $("sim-comp-transistor-type");
+      if (transistorTypeInput) {
+        transistorTypeInput.addEventListener("change", () => {
+          pushHistory();
+          comp.polarity = transistorTypeInput.value === "pnp" ? "pnp" : "npn";
+          renderInspector();
+          renderBuilder();
+          const refreshed = $("sim-comp-transistor-type");
+          if (refreshed) refreshed.focus();
+        });
+      }
+      const transistorGainInput = $("sim-comp-transistor-gain");
+      if (transistorGainInput) {
+        transistorGainInput.addEventListener("change", () => {
+          pushHistory();
+          comp.gain = Math.min(1000, Math.max(1, Math.round(Number(transistorGainInput.value) || 100)));
           renderInspector();
           renderBuilder();
         });

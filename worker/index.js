@@ -953,6 +953,8 @@ function simulationTopologyDescription(data) {
       }
       case "diode":
         return "silicon diode, conducting from anode to cathode";
+      case "transistor":
+        return `${component.polarity === "pnp" ? "PNP" : "NPN"} transistor (gain ${Math.min(1000, Math.max(1, Number(component.gain) || 100))})`;
       case "switch":
         return component.closed === false ? "open switch" : "closed switch";
       case "voltmeter": {

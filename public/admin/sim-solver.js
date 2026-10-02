@@ -8,6 +8,9 @@
 //   - an ammeter is a zero-volt link whose current is reported;
 //   - LEDs and diodes are one-way parts with a fixed forward voltage: each is either off (open) or on (a source of
 //     that voltage with a tiny series resistance), and the solver finds the combination that is consistent;
+//   - a transistor (NPN or PNP) is a base-emitter junction with a fixed 0.7 V drop plus either nothing (cut off), a collector
+//     current of gain times the base current (active), or a 0.2 V collector-emitter drop (saturated); the solver finds the
+//     region that is consistent;
 //   - capacitors, voltmeters, ohmmeters, TVs and gates draw no current.
 // It declines (returns nothing for that network) rather than guess: a wall outlet in the network (mains is handled by
 // the one-path solver's "dangerous" rules), a dead short or two sources that contradict each other, a network over
@@ -18,6 +21,10 @@
   const MAX_NODES = 200;
   const GMIN = 1e-12; // keeps a node that only an "off" diode touches from making the matrix singular
   const DIODE_ON_OHMS = 0.001; // a conducting diode's small series resistance: splits current between parallel diodes
+  const BJT_VBE = 0.7; // base-emitter drop of a conducting transistor
+  const BJT_VCE_SAT = 0.2; // collector-emitter drop of a saturated one
+  const BJT_DEFAULT_GAIN = 100;
+  const BJT_MAX_GAIN = 1000;
 
   // ---- the linear solve --------------------------------------------------------------------------------------------
   // Elements (node names are strings; "ref" nodes are chosen here, one per connected network):
@@ -25,12 +32,16 @@
   //   { kind: "src", id, a, b, v }            ideal source, + at a, - at b
   //   { kind: "link", id, a, b }              zero-volt link (ammeter): a current to report, no voltage
   //   { kind: "diode", id, a, b, vf }         anode a, cathode b
-  // Returns { ok, reason, volts: Map(node -> V), current: Map(id -> A flowing a to b through the element), on: Map(id -> bool) }.
+  //   { kind: "bjt", id, a, b, base, beta, pnp }  collector a, emitter b (an NPN; a PNP has the emitter on the high side)
+  // Returns { ok, reason, volts: Map(node -> V), current: Map(id -> A flowing a to b through the element), on: Map(id -> bool),
+  // mode: Map(bjt id -> "off" | "active" | "sat") } -- a transistor's currents are under "<id>:b" (base, into the base for an
+  // NPN) and "<id>:c" (collector, into the collector for an NPN).
   function solveNetwork(elements) {
     const nodes = new Set();
     elements.forEach((e) => {
       nodes.add(e.a);
       nodes.add(e.b);
+      if (e.kind === "bjt") nodes.add(e.base);
     });
     if (nodes.size > MAX_NODES) return { ok: false, reason: "large" };
     // Connected networks (every element joins its two nodes), each with one reference node held at 0 V.
@@ -45,6 +56,11 @@
       const ra = find(e.a);
       const rb = find(e.b);
       if (ra !== rb) parent.set(ra, rb);
+      if (e.kind === "bjt") {
+        const rc = find(e.base);
+        const rd = find(e.a);
+        if (rc !== rd) parent.set(rc, rd);
+      }
     });
     const refOf = new Map();
     elements.forEach((e) => {
@@ -60,48 +76,90 @@
     const nodeIdx = (n) => (index.has(n) ? index.get(n) : -1);
 
     const diodes = elements.filter((e) => e.kind === "diode");
+    const bjts = elements.filter((e) => e.kind === "bjt");
     const on = new Map(diodes.map((d) => [d.id, false]));
-    const maxIterations = 4 * diodes.length + 10;
+    const mode = new Map(bjts.map((t) => [t.id, "off"]));
+    const maxIterations = 4 * diodes.length + 8 * bjts.length + 10;
+    // Base-emitter and collector-emitter voltages in the part's own direction (positive when it conducts normally).
+    const vbeOf = (t, v) => (t.pnp ? v.get(t.b) - v.get(t.base) : v.get(t.base) - v.get(t.b));
+    const vceOf = (t, v) => (t.pnp ? v.get(t.b) - v.get(t.a) : v.get(t.a) - v.get(t.b));
     let solution = null;
     for (let iteration = 0; iteration <= maxIterations; iteration++) {
-      solution = solveWith(on);
+      solution = solveWith();
       if (!solution.ok) return solution;
-      // Look for the diode whose state is most wrong: an "on" diode carrying current backwards goes off first; otherwise an
-      // "off" diode forward biased past its drop goes on.
+      // Look for the part whose state is most wrong. First anything conducting backwards goes off (an "on" diode carrying
+      // current backwards, a transistor with its base current reversed); otherwise an "off" diode forward biased past its drop
+      // goes on, a cut-off transistor driven past 0.7 V turns on, an active one pushed below its saturation voltage saturates,
+      // and a saturated one that would need more collector current than the gain allows drops back to active.
       let worst = null;
       let worstAmount = 0;
+      const consider = (amount, flip) => {
+        if (amount > worstAmount) {
+          worstAmount = amount;
+          worst = flip;
+        }
+      };
       diodes.forEach((d) => {
         if (!on.get(d.id)) return;
         const i = solution.current.get(d.id);
-        if (i < -1e-12 && -i > worstAmount) {
-          worst = d;
-          worstAmount = -i;
-        }
+        if (i < -1e-12) consider(-i, () => on.set(d.id, false));
+      });
+      bjts.forEach((t) => {
+        if (mode.get(t.id) === "off") return;
+        const ib = solution.current.get(`${t.id}:b`);
+        if (ib < -1e-12) consider(-ib, () => mode.set(t.id, "off"));
       });
       if (!worst) {
         diodes.forEach((d) => {
           if (on.get(d.id)) return;
           const over = solution.volts.get(d.a) - solution.volts.get(d.b) - d.vf;
-          if (over > 1e-9 && over > worstAmount) {
-            worst = d;
-            worstAmount = over;
+          if (over > 1e-9) consider(over, () => on.set(d.id, true));
+        });
+        bjts.forEach((t) => {
+          const md = mode.get(t.id);
+          if (md === "off") {
+            const over = vbeOf(t, solution.volts) - BJT_VBE;
+            if (over > 1e-9) consider(over, () => mode.set(t.id, "active"));
+          } else if (md === "active") {
+            const under = BJT_VCE_SAT - vceOf(t, solution.volts);
+            if (under > 1e-9) consider(under, () => mode.set(t.id, "sat"));
+          } else {
+            const ic = solution.current.get(`${t.id}:c`);
+            const ib = solution.current.get(`${t.id}:b`);
+            const excess = ic - t.beta * ib;
+            if (excess > 1e-9 * (1 + Math.abs(ic))) consider(excess, () => mode.set(t.id, "active"));
+            // A saturated transistor can't carry its collector current backwards: that would be the inverse region this model
+            // doesn't have, so the flip to active is allowed to chase its tail until the iteration cap declines the network.
+            else if (ic < -1e-9 * (1 + Math.abs(ib))) consider(-ic, () => mode.set(t.id, "active"));
           }
         });
       }
       if (!worst) {
         solution.on = on;
+        solution.mode = mode;
         // Nine significant digits hide the solver's own rounding noise (6.000000001) without losing anything a display shows.
         const tidy = (v) => (v === 0 ? 0 : Number(v.toPrecision(9)));
         solution.volts.forEach((v, k) => solution.volts.set(k, tidy(v)));
         solution.current.forEach((v, k) => solution.current.set(k, tidy(v)));
         return solution;
       }
-      on.set(worst.id, !on.get(worst.id));
+      worst();
     }
     return { ok: false, reason: "diodes" };
 
-    function solveWith(state) {
-      const branches = elements.filter((e) => e.kind === "src" || e.kind === "link" || (e.kind === "diode" && state.get(e.id)));
+    function solveWith() {
+      // Everything that carries a current of its own: sources, ammeter links, conducting diodes and transistor junctions.
+      const branches = [];
+      elements.forEach((e) => {
+        if (e.kind === "src") branches.push({ id: e.id, a: e.a, b: e.b, v: e.v, r: 0 });
+        else if (e.kind === "link") branches.push({ id: e.id, a: e.a, b: e.b, v: 0, r: 0 });
+        else if (e.kind === "diode" && on.get(e.id)) branches.push({ id: e.id, a: e.a, b: e.b, v: e.vf, r: DIODE_ON_OHMS });
+        else if (e.kind === "bjt" && mode.get(e.id) !== "off") {
+          // The junction: base to emitter for an NPN, emitter to base for a PNP (the branch current is the base current).
+          branches.push({ id: `${e.id}:be`, a: e.pnp ? e.b : e.base, b: e.pnp ? e.base : e.b, v: BJT_VBE, r: DIODE_ON_OHMS, bjt: mode.get(e.id) === "active" ? e : null });
+          if (mode.get(e.id) === "sat") branches.push({ id: `${e.id}:ce`, a: e.pnp ? e.b : e.a, b: e.pnp ? e.a : e.b, v: BJT_VCE_SAT, r: 0 });
+        }
+      });
       const n = free.length;
       const size = n + branches.length;
       const m = Array.from({ length: size }, () => new Float64Array(size + 1));
@@ -129,10 +187,13 @@
         // Va - Vb - r*I = E
         add(row, ia, 1);
         add(row, ib, -1);
-        if (e.kind === "diode") {
-          m[row][row] -= DIODE_ON_OHMS;
-          m[row][size] = e.vf;
-        } else if (e.kind === "src") m[row][size] = e.v;
+        m[row][row] -= e.r;
+        m[row][size] = e.v;
+        // An active transistor also pulls gain times that base current from collector to emitter (emitter to collector for a PNP).
+        if (e.bjt) {
+          add(nodeIdx(e.bjt.pnp ? e.bjt.b : e.bjt.a), row, e.bjt.beta);
+          add(nodeIdx(e.bjt.pnp ? e.bjt.a : e.bjt.b), row, -e.bjt.beta);
+        }
       });
       // Gaussian elimination with partial pivoting.
       let scale = 0;
@@ -164,9 +225,19 @@
       const current = new Map();
       elements.forEach((e) => {
         if (e.kind === "res") current.set(e.id, (volts.get(e.a) - volts.get(e.b)) / e.r);
-        else if (e.kind === "diode" && !state.get(e.id)) current.set(e.id, 0);
+        else if (e.kind === "diode" && !on.get(e.id)) current.set(e.id, 0);
+        else if (e.kind === "bjt" && mode.get(e.id) === "off") {
+          current.set(`${e.id}:b`, 0);
+          current.set(`${e.id}:c`, 0);
+        }
       });
       branches.forEach((e, k) => current.set(e.id, x[n + k]));
+      elements.forEach((e) => {
+        if (e.kind !== "bjt" || mode.get(e.id) === "off") return;
+        const ib = current.get(`${e.id}:be`);
+        current.set(`${e.id}:b`, ib);
+        current.set(`${e.id}:c`, mode.get(e.id) === "active" ? e.beta * ib : current.get(`${e.id}:ce`));
+      });
       return { ok: true, volts, current };
     }
   }
@@ -263,6 +334,15 @@
           elements.push({ kind: "link", id: c.id, a: node(c, "p1"), b: node(c, "p2") });
           meta.set(c.id, { comp: c, kind: "link" });
         }
+      } else if (c.type === "transistor") {
+        // A transistor with its collector and emitter wired together does nothing the solver can model.
+        const collector = node(c, "collector");
+        const emitter = node(c, "emitter");
+        if (collector !== emitter) {
+          const gain = Math.min(BJT_MAX_GAIN, Math.max(1, Number(c.gain) || BJT_DEFAULT_GAIN));
+          elements.push({ kind: "bjt", id: c.id, a: collector, b: emitter, base: node(c, "base"), beta: gain, pnp: c.polarity === "pnp" });
+          meta.set(c.id, { comp: c, kind: "bjt" });
+        }
       } else if ((c.type === "led" || c.type === "diode") && def.polarity) {
         // Likewise a diode or LED shorted by a wire.
         if (node(c, def.polarity.pos) !== node(c, def.polarity.neg)) {
@@ -280,7 +360,13 @@
       adj.get(a).add(b);
       adj.get(b).add(a);
     };
-    elements.forEach((e) => link(e.a, e.b));
+    elements.forEach((e) => {
+      link(e.a, e.b);
+      if (e.kind === "bjt") {
+        link(e.base, e.a);
+        link(e.base, e.b);
+      }
+    });
     const wanted = new Set();
     (engageNodes || []).forEach((n) => wanted.add(find(n)));
     const seen = new Set();
@@ -334,7 +420,13 @@
           reachAdj.get(b).push(a);
         };
         mine.forEach((e) => {
-          if (e.kind !== "diode" || solved.on.get(e.id)) connect(e.a, e.b);
+          if (e.kind === "bjt") {
+            const md = solved.mode.get(e.id);
+            if (md !== "off") {
+              connect(e.a, e.b);
+              connect(e.base, e.b);
+            }
+          } else if (e.kind !== "diode" || solved.on.get(e.id)) connect(e.a, e.b);
         });
         let label = 0;
         mine
@@ -375,7 +467,24 @@
         const c = info.comp;
         const i = solved.current.get(e.id);
         const L = env.limits;
-        if (e.kind === "res") {
+        if (e.kind === "bjt") {
+          const region = solved.mode.get(e.id);
+          const ib = solved.current.get(`${e.id}:b`);
+          const ic = solved.current.get(`${e.id}:c`);
+          const sign = e.pnp ? -1 : 1;
+          const vce = sign * (solved.volts.get(e.a) - solved.volts.get(e.b));
+          const vbe = sign * (solved.volts.get(e.base) - solved.volts.get(e.b));
+          const watts = Math.max(0, vce) * Math.max(0, ic) + BJT_VBE * Math.max(0, ib);
+          const icMa = ic * 1000;
+          const ibMa = ib * 1000;
+          const ratedMa = L.transistorMa || 200;
+          const ratedBaseMa = L.transistorBaseMa || 50;
+          let status = region === "sat" ? "saturated" : region;
+          if (icMa > ratedMa * 3 || ibMa > ratedBaseMa * 3) status = "burnt";
+          else if (icMa > ratedMa * 1.5 || ibMa > ratedBaseMa * 1.5) status = "overdriven";
+          else if (watts > (L.transistorWatts || 0.625)) status = "overheating";
+          results[c.id] = { kind: "transistor", region: region === "sat" ? "saturated" : region, polarity: e.pnp ? "pnp" : "npn", currentMa: icMa, baseMa: ibMa, vce, vbe, watts, status, dangerous: false };
+        } else if (e.kind === "res") {
           const amps = Math.abs(i);
           if (c.type === "mcu_teensy") {
             const watts = amps * amps * e.r;
@@ -387,7 +496,10 @@
         } else if (e.kind === "link") {
           results[c.id] = { kind: "ammeter", currentMa: Math.abs(i) * 1000, status: "normal", dangerous: false };
         } else if (e.kind === "diode") {
-          const conducting = solved.on.get(e.id);
+          // "On" with a few femtoamps (only the solver's own leakage reaches it, as with an LED in series with an open transistor)
+          // is not conducting in any sense a person would mean: nothing to say about it.
+          const wasOn = solved.on.get(e.id);
+          const conducting = wasOn && i > 1e-9;
           const ma = conducting ? Math.max(0, i) * 1000 : 0;
           const vd = solved.volts.get(e.a) - solved.volts.get(e.b);
           const isDiode = c.type === "diode";
@@ -399,7 +511,7 @@
             else if (!isDiode && ma < 1) status = "dim";
             else status = "normal";
           } else if (vd < -0.1) status = "reversed";
-          else if (degree(e.a) <= 1 || degree(e.b) <= 1) status = null; // dangling: nothing to say
+          else if (wasOn || degree(e.a) <= 1 || degree(e.b) <= 1) status = null; // dangling or carrying nothing: nothing to say
           else status = isDiode ? "off" : "unlit-low-voltage"; // forward biased (or nearly) but below its drop
           if (status) results[c.id] = { kind: isDiode ? "diode" : "led", currentMa: ma, voltage: supplyVoltage, status, dangerous: false };
         }
