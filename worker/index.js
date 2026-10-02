@@ -1,3 +1,4 @@
+import { buildSitemapEntries, sitemapXml } from "./sitemap.js";
 import {
   getPageBySlug,
   listPages,
@@ -24,7 +25,7 @@ import {
   getSeriesArticles,
   getAdjacentPublished,
   getPublishedSimulation,
-  listPublishedSimulationIds,
+  listPublishedSimulations,
   getScan,
   getSongsByIds,
   logError,
@@ -1127,39 +1128,10 @@ async function renderSitemap(env) {
   const pages = await listPages(env);
   const articles = await listArticles(env, { publishedOnly: true });
   const projects = await listProjects(env, { publishedOnly: true });
-  const publishedSimulationIds = await listPublishedSimulationIds(env);
+  const simulations = await listPublishedSimulations(env);
   const tagCounts = await getTagCounts(env);
-  const entries = [
-    // isInSitemap() is shared with getSeoReport()'s sitemapCanonicalMismatch
-    // check, so the two can't independently drift on what "excluded from
-    // the sitemap" means the way they briefly did (a password-protected
-    // page was correctly excluded here but not recognized as excluded
-    // there, producing a false-positive "still in sitemap.xml" finding).
-    ...pages
-      .filter((p) => isInSitemap(p, "page") && !RESERVED_SLUGS.has(p.slug))
-      .map((p) => ({ loc: p.slug === "home" ? "/" : `/${p.slug}`, lastmod: p.updated_at })),
-    ...articles.filter((a) => isInSitemap(a, "article")).map((a) => ({ loc: `/random/${a.slug}`, lastmod: a.updated_at || a.published_at })),
-    ...projects.filter((p) => isInSitemap(p, "project")).map((p) => ({ loc: `/projects/${p.slug}`, lastmod: p.updated_at || p.published_at })),
-    ...publishedSimulationIds.map((id) => ({ loc: `/simulation/${id}`, lastmod: null })),
-    { loc: "/topics", lastmod: null },
-    { loc: "/archive", lastmod: null },
-    { loc: "/random", lastmod: null },
-    { loc: "/projects", lastmod: null },
-    ...tagCounts.map((t) => ({ loc: `/topics/${encodeURIComponent(t.tag)}`, lastmod: null })),
-  ];
-  // Each URL once -- /projects and /random were listed twice (as a page
-  // and as a built-in index), which search engines treat as noise.
-  const seenLocs = new Set();
-  const uniqueEntries = entries.filter((e) => !seenLocs.has(e.loc) && seenLocs.add(e.loc));
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${uniqueEntries
-    .map(
-      (e) =>
-        `  <url><loc>https://dominickdominick.com${e.loc}</loc>${
-          e.lastmod ? `<lastmod>${new Date(e.lastmod.replace(" ", "T") + "Z").toISOString().slice(0, 10)}</lastmod>` : ""
-        }</url>`
-    )
-    .join("\n")}\n</urlset>`;
-  return new Response(xml, { headers: { "Content-Type": "application/xml;charset=UTF-8" } });
+  const entries = buildSitemapEntries({ pages, articles, projects, simulations, tagCounts }, { isInSitemap, reservedSlugs: RESERVED_SLUGS });
+  return new Response(sitemapXml(entries), { headers: { "Content-Type": "application/xml;charset=UTF-8" } });
 }
 
 function trackView(ctx, env, request, path) {

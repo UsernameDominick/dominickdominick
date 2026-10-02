@@ -2265,6 +2265,14 @@ export async function listPublishedSimulationIds(env) {
   return results.map(({ id }) => id);
 }
 
+// Published circuits with the time each last changed, for the sitemap.
+export async function listPublishedSimulations(env) {
+  const { results } = await env.DB
+    .prepare("SELECT id, updated_at FROM simulations WHERE published_data IS NOT NULL AND published_name IS NOT NULL ORDER BY id")
+    .all();
+  return results;
+}
+
 export async function getSimulation(env, id, { includeData = true, includeRawData = false } = {}) {
   const row = await env.DB
     .prepare("SELECT id, name, data, published_name, published_data, created_at, updated_at FROM simulations WHERE id = ?")
