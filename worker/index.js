@@ -14,6 +14,7 @@ import {
   getSetting,
   recordPageview,
   parseUserAgent,
+  isBot,
   getRedirect,
   publicSearch,
   getRelatedArticles,
@@ -1143,6 +1144,10 @@ async function renderSitemap(env) {
 
 function trackView(ctx, env, request, path) {
   if (env.__previewNow) return; // a date preview is not a real visit
+  // Crawlers, link-preview fetchers and monitors are not readers, and neither is a browser still prefetching the page.
+  if (isBot(request.headers.get("User-Agent"))) return;
+  const purpose = `${request.headers.get("Sec-Purpose") || ""} ${request.headers.get("Purpose") || ""}`;
+  if (/prefetch|prerender/i.test(purpose)) return;
   let referrer = null;
   const refHeader = request.headers.get("Referer");
   if (refHeader) {
@@ -1166,7 +1171,9 @@ function trackView(ctx, env, request, path) {
   // to stop a script hammering pages purely to inflate the numbers, not to
   // limit real browsing.
   ctx.waitUntil(
-    checkRateLimit(env, "pageview", ip, { windowMinutes: 1, maxAttempts: 90 })
+    // The owner browsing their own site while signed in is not a visit either.
+    isAuthenticated(request, env)
+      .then((isOwner) => (isOwner ? false : checkRateLimit(env, "pageview", ip, { windowMinutes: 1, maxAttempts: 90 })))
       .then((allowed) => {
         if (!allowed) return;
         return Promise.all([
@@ -1513,6 +1520,7 @@ async function route(request, env, ctx) {
 
     if (path === "/topics") {
       const navItems = await listNavPages(env);
+      trackView(ctx, env, request, path);
       return renderTopicsIndex(env, navItems);
     }
     const topicMatch = path.match(/^\/topics\/([^/]+)$/);
@@ -1529,18 +1537,21 @@ async function route(request, env, ctx) {
 
     if (path === "/archive") {
       const navItems = await listNavPages(env);
+      trackView(ctx, env, request, path);
       return renderArchive(env, navItems);
     }
 
     if (path === "/random") {
       const navItems = await listNavPages(env);
       const page = Math.max(1, Number(url.searchParams.get("page")) || 1);
+      trackView(ctx, env, request, path);
       return renderArticlesIndex(env, navItems, page);
     }
 
     if (path === "/projects") {
       const navItems = await listNavPages(env);
       const page = Math.max(1, Number(url.searchParams.get("page")) || 1);
+      trackView(ctx, env, request, path);
       return renderProjectsIndex(env, navItems, page);
     }
 
@@ -1563,6 +1574,7 @@ async function route(request, env, ctx) {
         return renderNotFound(env, await listNavPages(env));
       }
       const navItems = await listNavPages(env);
+      trackView(ctx, env, request, path);
       return renderSimulationPage(env, sim, navItems);
     }
 

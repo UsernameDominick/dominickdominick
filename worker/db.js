@@ -2866,6 +2866,14 @@ export function parseUserAgent(ua) {
   return { device, browser };
 }
 
+// Crawlers, link-preview fetchers, uptime monitors and command-line clients: none of them is a reader, so their requests are
+// not counted as pageviews. A missing User-Agent counts as a bot (every real browser sends one). Headless Chrome is NOT
+// listed: scripted traffic that looks like a browser cannot be told apart, and the site's own browser tests use it.
+export function isBot(ua) {
+  if (!ua || !String(ua).trim()) return true;
+  return /bot\b|bot\/|crawl|spider|slurp|scrape|facebookexternalhit|facebot|embedly|quora link preview|whatsapp|telegram|discord|slack|skype|pinterest|vkshare|w3c_validator|lighthouse|pagespeed|gtmetrix|pingdom|uptime|monitor|statuscake|datadog|newrelic|curl\/|wget\/|python-requests|python-urllib|aiohttp|httpx|go-http-client|okhttp|java\/|apache-httpclient|libwww|node-fetch|axios\/|undici|postman|insomnia|feedfetcher|feedly|newsblur|inoreader|rss|reader\b/i.test(String(ua));
+}
+
 // contentType maps to a path prefix: "article" -> /random/, "project" ->
 // /projects/, "page" -> neither of those (everything else — pages, home,
 // topics, archive). device/referrer match the pageviews columns exactly

@@ -1689,15 +1689,23 @@ h6 { font-size: 0.9rem; }
 .sim-block-actions .sim-power-btn {
   margin-top: 0;
 }
-.sim-view-btn {
-  background: transparent;
-  color: var(--text);
-  border-color: var(--border-strong, var(--border));
+@media not print {
+  .sim-view-btn {
+    background: transparent;
+    color: var(--text);
+    border-color: var(--border-strong, var(--border));
+  }
+  .sim-view-btn[aria-pressed="true"] {
+    background: var(--accent);
+    color: var(--on-accent);
+    border-color: var(--accent);
+  }
 }
-.sim-view-btn[aria-pressed="true"] {
-  background: var(--accent);
-  color: var(--on-accent);
-  border-color: var(--accent);
+/* A printed page cannot press it, so it is not printed. */
+@media print {
+  .sim-view-btn {
+    display: none;
+  }
 }
 @media (forced-colors: active) {
   /* Fills are dropped in high-contrast mode, so the pressed state gets a shape cue like Power off's dashed outline. */
