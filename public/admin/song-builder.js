@@ -2659,4 +2659,19 @@
       btn.disabled = false;
     }
   });
+
+  // Phone toolbar: "More" opens the full grouped tools (the CSS in style.css does the rest); each opening starts closed.
+  {
+    const inner = $("song-builder-modal").querySelector(".simulation-builder-inner");
+    const moreBtn = $("song-toolbar-more");
+    const setMore = (open) => {
+      inner.classList.toggle("sim-more-open", open);
+      moreBtn.setAttribute("aria-expanded", String(open));
+      moreBtn.textContent = open ? "Hide extra tools ▴" : "More ▾";
+    };
+    moreBtn.addEventListener("click", () => setMore(!inner.classList.contains("sim-more-open")));
+    new MutationObserver(() => {
+      if (!$("song-builder-modal").hidden) setMore(false);
+    }).observe($("song-builder-modal"), { attributes: true, attributeFilter: ["hidden"] });
+  }
 })();

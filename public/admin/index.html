@@ -1611,12 +1611,13 @@
     <div class="modal-inner simulation-builder-inner">
       <header class="sim-toolbar">
         <input id="simulation-name" class="simulation-name-input" placeholder="Simulation name">
+        <button type="button" id="sim-toolbar-more" class="sim-toolbar-more" aria-expanded="false" aria-controls="sim-toolbar-groups" title="Checkpoints, views, import and export, build checklist, model notes and more">More ▾</button>
         <div id="sim-toolbar-groups" class="sim-toolbar-groups">
           <div class="sim-toolbar-group" data-group="history">
             <span class="sim-toolbar-group-label">History</span>
             <div class="sim-toolbar-group-buttons">
-              <button type="button" id="sim-undo" title="Undo (Ctrl+Z)">Undo</button>
-              <button type="button" id="sim-redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
+              <button type="button" class="sim-quick" id="sim-undo" title="Undo (Ctrl+Z)">Undo</button>
+              <button type="button" class="sim-quick" id="sim-redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
               <button type="button" id="sim-reset" title="Discard all edits and go back to the last saved state">Reset</button>
             </div>
           </div>
@@ -1654,9 +1655,9 @@
           <div class="sim-toolbar-group" data-group="test">
             <span class="sim-toolbar-group-label">Test &amp; view</span>
             <div class="sim-toolbar-group-buttons">
-              <button type="button" id="sim-preview-power">Preview: power on</button>
+              <button type="button" class="sim-quick" id="sim-preview-power">Preview: power on</button>
               <input type="search" id="sim-canvas-search" aria-describedby="sim-canvas-search-count" placeholder="Find on canvas…" title="Highlights any placed part whose label or type matches what you type. Enter jumps to the next match, Shift+Enter to the previous one."><span id="sim-canvas-search-count" class="sim-canvas-search-count" role="status" aria-live="polite"></span>
-              <button type="button" id="sim-warnings-btn" title="Problems the simulator found in this circuit, in plain words">No warnings</button><span id="sim-warnings-live" class="sim-sr-only" role="status" aria-live="polite"></span>
+              <button type="button" class="sim-quick" id="sim-warnings-btn" title="Problems the simulator found in this circuit, in plain words">No warnings</button><span id="sim-warnings-live" class="sim-sr-only" role="status" aria-live="polite"></span>
               <button type="button" id="sim-model-notes-btn" title="What the simulator assumes and can't do, and how each part in this circuit is modelled">Model notes</button>
               <button type="button" id="sim-checklist-btn" title="A step-by-step list of the parts and wires to build this circuit on a real breadboard, with checkboxes">Build checklist</button>
               <button type="button" id="sim-show-disconnected" title="Highlight every pin that has no wire attached">Show disconnected pins</button>
@@ -1679,7 +1680,7 @@
         <div class="sim-toolbar-group sim-toolbar-group-save">
           <span class="sim-toolbar-group-label">Save</span>
           <div class="sim-toolbar-group-buttons">
-            <button type="button" id="save-simulation">Save</button>
+            <button type="button" class="sim-quick" id="save-simulation">Save</button>
             <span id="sim-save-status" class="article-autosave-status" role="status"></span>
             <button type="button" id="save-sim-template-btn" title="Save this circuit as a reusable starting point">Save as template</button>
           </div>
@@ -1767,10 +1768,11 @@
       <span id="song-tab-status" class="song-tab-status" role="status"></span>
       <header class="sim-toolbar song-toolbar">
         <input id="song-name" class="simulation-name-input" placeholder="Song name">
+        <button type="button" id="song-toolbar-more" class="sim-toolbar-more" aria-expanded="false" title="Sound, player look, metronome, export and more">More ▾</button>
         <div class="sim-toolbar-group sim-toolbar-group-save">
           <span class="sim-toolbar-group-label">Save</span>
           <div class="song-group-controls">
-            <button type="button" id="save-song">Save</button>
+            <button type="button" class="sim-quick" id="save-song">Save</button>
             <button type="button" id="save-song-template-btn" title="Save this song as a reusable starting point">Save as template</button>
             <span id="song-autosave-status" class="song-autosave-status"></span>
           </div>
@@ -1783,14 +1785,14 @@
           <div class="sim-toolbar-group" data-group="history">
             <span class="sim-toolbar-group-label">Edit</span>
             <div class="sim-toolbar-group-buttons">
-              <button type="button" id="song-undo" disabled title="Undo the last song change (Ctrl+Z)">Undo</button>
-              <button type="button" id="song-redo" disabled title="Redo the last undone song change (Ctrl+Shift+Z or Ctrl+Y)">Redo</button>
+              <button type="button" class="sim-quick" id="song-undo" disabled title="Undo the last song change (Ctrl+Z)">Undo</button>
+              <button type="button" class="sim-quick" id="song-redo" disabled title="Redo the last undone song change (Ctrl+Shift+Z or Ctrl+Y)">Redo</button>
             </div>
           </div>
           <div class="sim-toolbar-group" data-group="transport">
             <span class="sim-toolbar-group-label">Transport</span>
             <div class="song-group-controls">
-              <button type="button" id="song-play">▶ Play</button><span id="song-transport-live" class="sim-sr-only" role="status" aria-live="polite"></span>
+              <button type="button" class="sim-quick" id="song-play">▶ Play</button><span id="song-transport-live" class="sim-sr-only" role="status" aria-live="polite"></span>
               <span class="song-metronome-group" role="group" aria-label="Metronome and count-in">
                 <label class="song-record-label" title="A click on every beat while the song plays (heard only here, never in the saved song or the public player)"><input type="checkbox" id="song-metronome-on"> Metronome</label>
                 <select id="song-metronome-sound" aria-label="Metronome sound" title="Metronome sound">

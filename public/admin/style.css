@@ -4040,7 +4040,7 @@ kbd {
    scrolling at all -- the same "give up on fitting one row, use the width
    you actually have" call already made for the mobile toolbars elsewhere
    in this file. */
-@media (max-width: 1200px) {
+@media (max-width: 1360px) {
   #song-sequencer .song-track-row {
     flex-wrap: wrap;
   }
@@ -4079,7 +4079,7 @@ kbd {
 /* Between phone and desktop the wrapped step grid is as wide as its panel,
    but the three 8px beat gaps (.song-step-beat) are added on top of the
    equal-width tracks, pushing step 16 into the panel's padding. Reserve them. */
-@media (min-width: 861px) and (max-width: 1200px) {
+@media (min-width: 861px) and (max-width: 1360px) {
   #song-sequencer .song-steps {
     flex: 0 1 calc(100% - 24px);
   }
@@ -7587,3 +7587,81 @@ button[data-tier="quiet"] { border-color: transparent; }
 .song-row-scale .song-track-label { color: var(--text); font-weight: 600; }
 .song-row-scale-root .song-track-label { color: var(--accent); }
 .song-row-scale-root { box-shadow: inset 3px 0 0 var(--accent); }
+
+
+/* ===== Simulation builder on a phone: canvas first =====
+   The toolbar used to stack five outlined groups (over a thousand pixels) before the canvas. On a phone the essentials sit in
+   two short rows -- Undo, Redo, Save and More; then Preview and the warnings badge -- and everything else lives behind
+   "More". The part tray is one scrolling strip of chips, and the long help is folded away. */
+.sim-toolbar-more { display: none; }
+@media (max-width: 860px) {
+  .simulation-builder-inner .sim-toolbar-more { display: block; order: 6; min-height: 40px; }
+  .simulation-builder-inner header.sim-toolbar { gap: 6px; row-gap: 6px; padding: 10px; }
+  .simulation-builder-inner .simulation-name-input { min-height: 40px; }
+
+  /* Collapsed (the default): the quick buttons become direct children of the header and are laid out in rows. */
+  .simulation-builder-inner:not(.sim-more-open) .sim-toolbar-groups,
+  .simulation-builder-inner:not(.sim-more-open) .sim-toolbar-group,
+  .simulation-builder-inner:not(.sim-more-open) .sim-toolbar-group-buttons,
+  .simulation-builder-inner:not(.sim-more-open) .sim-toolbar-group-save { display: contents; }
+  .simulation-builder-inner:not(.sim-more-open) .sim-toolbar-group-label { display: none; }
+  .simulation-builder-inner:not(.sim-more-open) .sim-toolbar-group-buttons > *:not(.sim-quick),
+  .simulation-builder-inner:not(.sim-more-open) .sim-toolbar-group-save .sim-toolbar-group-buttons > *:not(.sim-quick) { display: none; }
+  .simulation-builder-inner:not(.sim-more-open) .sim-toolbar::before,
+  .simulation-builder-inner:not(.sim-more-open) .sim-toolbar::after { content: ""; flex: 0 0 100%; height: 0; }
+  .simulation-builder-inner:not(.sim-more-open) .sim-toolbar::before { order: 2; }
+  .simulation-builder-inner:not(.sim-more-open) .sim-toolbar::after { order: 7; }
+  .simulation-builder-inner:not(.sim-more-open) .sim-quick { min-height: 40px; width: auto; margin: 0; flex: 1 1 0; min-width: 0; padding-inline: 6px; border-radius: var(--control-radius); }
+  .simulation-builder-inner:not(.sim-more-open) #sim-undo { order: 3; }
+  .simulation-builder-inner:not(.sim-more-open) #sim-redo { order: 4; }
+  .simulation-builder-inner:not(.sim-more-open) #save-simulation { order: 5; }
+  .simulation-builder-inner:not(.sim-more-open) .sim-toolbar-more { flex: 1 1 0; min-width: 0; padding-inline: 6px; }
+  .simulation-builder-inner:not(.sim-more-open) #sim-preview-power { order: 8; flex-grow: 1; }
+  .simulation-builder-inner:not(.sim-more-open) #sim-warnings-btn { order: 9; flex-grow: 1; }
+  /* Readouts that only exist once something has happened still show. */
+  .simulation-builder-inner:not(.sim-more-open) #sim-save-status:not(:empty),
+  .simulation-builder-inner:not(.sim-more-open) #sim-continuity-result:not(:empty) { display: block; flex: 0 0 100%; order: 10; margin: 0; font-size: 0.78rem; text-align: center; }
+  .simulation-builder-inner:not(.sim-more-open) #sim-poster-row { display: none; }
+
+  /* Expanded: the full grouped tools, directly under the name row, in compact two-column cards. */
+  .simulation-builder-inner.sim-more-open .sim-toolbar-more { order: 0; flex: 1 1 100%; }
+  .simulation-builder-inner.sim-more-open .sim-toolbar-groups { gap: 8px; }
+  .simulation-builder-inner.sim-more-open .sim-toolbar-group { padding: 10px 8px 8px; }
+  .simulation-builder-inner.sim-more-open .sim-toolbar-group-buttons { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .simulation-builder-inner.sim-more-open .sim-toolbar-group button,
+  .simulation-builder-inner.sim-more-open .sim-toolbar-group select { min-height: 38px; font-size: 0.85rem; }
+
+  /* The part tray: one scrolling strip. Recent parts come first as outlined chips inside the same strip. */
+  .simulation-builder-inner .sim-palette { flex-wrap: nowrap; gap: 6px; padding: 8px 10px; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
+  .simulation-builder-inner #sim-palette-search { flex: 0 0 150px; width: 150px; min-height: 38px; margin: 0; }
+  .simulation-builder-inner .sim-palette-recent { display: contents; margin: 0; padding: 0; border: 0; }
+  .simulation-builder-inner .sim-palette-recent[hidden] { display: none; }
+  .simulation-builder-inner .sim-palette-recent h3 { display: none; }
+  .simulation-builder-inner .sim-palette-recent-btn { flex: 0 0 auto; margin: 0; min-height: 38px; padding: 6px 12px; border-radius: var(--field-radius); border-color: var(--accent); white-space: nowrap; }
+  .simulation-builder-inner .sim-palette-btn { min-height: 38px; padding: 6px 12px; }
+
+  /* A roomy canvas right under the tools. */
+  .simulation-builder-inner .sim-canvas-wrap { min-height: 360px; min-height: 52dvh; }
+  .simulation-builder-inner .sim-inspector-panel { padding: 10px 12px 18px; }
+  .sim-help-more { margin-top: 6px; font-size: 0.85rem; color: var(--text-dim); }
+  .sim-help-more summary { cursor: pointer; padding: 6px 0; }
+}
+.sim-help-more { margin-top: 6px; }
+.sim-help-more summary { cursor: pointer; color: var(--text-dim); font-size: 0.85rem; }
+
+
+/* ===== Song builder on a phone: the same quick bar as the simulation builder ===== */
+@media (max-width: 860px) {
+  .simulation-builder-inner:not(.sim-more-open) .song-group-controls { display: contents; }
+  .simulation-builder-inner:not(.sim-more-open) .song-group-controls > *:not(.sim-quick):not(.sim-sr-only),
+  .simulation-builder-inner:not(.sim-more-open) .song-group-controls > .song-metronome-group { display: none; }
+  .simulation-builder-inner:not(.sim-more-open) .song-toolbar::after { display: none; }
+  .simulation-builder-inner:not(.sim-more-open) .song-toolbar #song-undo { order: 3; }
+  .simulation-builder-inner:not(.sim-more-open) .song-toolbar #song-redo { order: 4; }
+  .simulation-builder-inner:not(.sim-more-open) .song-toolbar #song-play { order: 5; }
+  .simulation-builder-inner:not(.sim-more-open) .song-toolbar #save-song { order: 6; }
+  .simulation-builder-inner:not(.sim-more-open) .song-toolbar .sim-toolbar-more { order: 7; }
+  .simulation-builder-inner:not(.sim-more-open) .song-toolbar .song-autosave-status:not(:empty) { display: block; flex: 0 0 100%; order: 10; margin: 0; font-size: 0.78rem; text-align: center; }
+  .simulation-builder-inner:not(.sim-more-open) .song-toolbar .simulation-name-input { flex: 1 1 0; min-width: 0; }
+  .song-toolbar .sim-quick { font-size: 0.9rem; }
+}

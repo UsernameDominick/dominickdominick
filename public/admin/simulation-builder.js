@@ -864,6 +864,7 @@
     setSimSaveStatus(""); // a freshly opened circuit has no unsaved changes
     $("simulations-modal").hidden = true;
     $("simulation-builder-modal").hidden = false;
+    window.dispatchEvent(new Event("sim-builder-opened"));
     $("sim-palette-search").value = "";
     document.querySelectorAll(".sim-palette-btn").forEach((btn) => btn.classList.remove("is-hidden-by-search"));
     updateHistoryButtons();
@@ -2879,8 +2880,8 @@
     if (!selected) {
       box.innerHTML =
         "<p style='color:var(--text-dim);font-size:0.85rem;'>Click a part or a wire to edit it. Click a pin, then another pin, to wire them. Shift+click parts, or drag a box over empty canvas, to select several at once. With a part selected, press R to rotate it, Shift+R to rotate the other way, or F to flip it.</p>" +
-        "<p style='color:var(--text-dim);font-size:0.85rem;'>Breadboards are available in 15, 30, or 45 columns; older simulations default to 30. Each terminal column connects only its own five-hole group. The top rails and bottom rails aren't connected to each other either. Wire outlet → power supply → a rail → a column → resistor bridging to another column → LED → back to the other rail.</p>" +
-        "<p style='color:var(--text-dim);font-size:0.85rem;'>Power needs a complete loop, and the numbers matter now: too little resistance burns out an LED, no resistor at all is a dead short, and wiring straight to the Wall Outlet (120V) destroys anything downstream — it must go through a Power Supply first. A backwards LED won't light even on an otherwise-complete loop, same as a real one.</p>";
+        "<details class='sim-help-more'><summary>How breadboards and power work</summary><p style='color:var(--text-dim);font-size:0.85rem;'>Breadboards are available in 15, 30, or 45 columns; older simulations default to 30. Each terminal column connects only its own five-hole group. The top rails and bottom rails aren't connected to each other either. Wire outlet → power supply → a rail → a column → resistor bridging to another column → LED → back to the other rail.</p>" +
+        "<p style='color:var(--text-dim);font-size:0.85rem;'>Power needs a complete loop, and the numbers matter now: too little resistance burns out an LED, no resistor at all is a dead short, and wiring straight to the Wall Outlet (120V) destroys anything downstream — it must go through a Power Supply first. A backwards LED won't light even on an otherwise-complete loop, same as a real one.</p></details>";
       return;
     }
     if (selected.kind === "component") {
@@ -3719,7 +3720,11 @@
   const minimapStatus = $("sim-minimap-status");
   const MINIMAP_COLLAPSED_KEY = "sim-minimap-collapsed";
   let minimapCollapsed = false;
-  try { minimapCollapsed = localStorage.getItem(MINIMAP_COLLAPSED_KEY) === "1"; } catch (_) { /* storage blocked */ }
+  try {
+    const stored = localStorage.getItem(MINIMAP_COLLAPSED_KEY);
+    // On a phone the map covers a lot of a small canvas, so it starts as a small "Map" button unless the user opened it before.
+    minimapCollapsed = stored === null ? window.innerWidth <= 640 : stored === "1";
+  } catch (_) { /* storage blocked */ }
   let minimapDrag = null;
   let minimapFrameQueued = false;
   let minimapRenderQueued = false;
@@ -4241,6 +4246,26 @@
       simSaveInFlight = false;
     }
   });
+
+  // Phone toolbar: the "More" button opens and closes the full grouped tools (CSS does the rest).
+  const simBuilderInner = document.querySelector(".simulation-builder-inner");
+  const simMoreBtn = $("sim-toolbar-more");
+  function setSimMore(open) {
+    simBuilderInner.classList.toggle("sim-more-open", open);
+    simMoreBtn.setAttribute("aria-expanded", String(open));
+    simMoreBtn.textContent = open ? "Hide extra tools ▴" : "More ▾";
+  }
+  simMoreBtn.addEventListener("click", () => setSimMore(!simBuilderInner.classList.contains("sim-more-open")));
+  // Tools that act on the canvas close the panel so the result is in view; opening a simulation starts it closed.
+  ["sim-show-disconnected", "sim-show-ghost-wires", "sim-continuity-test", "sim-view-go", "sim-checkpoint-restore"].forEach((id) => {
+    const el = $(id);
+    if (el) el.addEventListener("click", () => setSimMore(false));
+  });
+  // (capture: close the panel first so the jump to a match scrolls against the final layout)
+  $("sim-canvas-search").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") setSimMore(false);
+  }, true);
+  window.addEventListener("sim-builder-opened", () => setSimMore(false));
 
   $("simulation-name").addEventListener("input", refreshSimSaveState);
   $("sim-poster-url").addEventListener("input", refreshSimSaveState);
