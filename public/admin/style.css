@@ -1208,6 +1208,100 @@ code.color-field-value {
   color: var(--text);
 }
 
+/* ---- Live preview beside the article / project editor ---- */
+.live-preview-pane {
+  display: none;
+  flex: 0 0 46%;
+  min-width: 300px;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+  background: var(--bg);
+}
+.live-preview-pane[hidden] {
+  display: none;
+}
+.modal-inner.with-live-preview {
+  max-width: min(1500px, 98vw);
+  width: min(98vw, calc(100vw - var(--admin-sidebar-width, 0px) - 24px));
+}
+.with-live-preview .articles-list-wrap {
+  display: none;
+}
+.with-live-preview .article-editor {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.with-live-preview .live-preview-pane:not([hidden]) {
+  display: flex;
+}
+.live-preview-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.live-preview-bar strong {
+  margin-right: auto;
+  font-size: 0.9rem;
+}
+.live-preview-widths {
+  display: inline-flex;
+}
+.live-preview-widths .live-preview-width-btn {
+  border-radius: 0;
+  margin-left: -1px;
+}
+.live-preview-widths .live-preview-width-btn:first-child {
+  margin-left: 0;
+  border-top-left-radius: var(--control-radius);
+  border-bottom-left-radius: var(--control-radius);
+}
+.live-preview-widths .live-preview-width-btn:last-child {
+  border-top-right-radius: var(--control-radius);
+  border-bottom-right-radius: var(--control-radius);
+}
+.live-preview-width-btn[aria-pressed="true"],
+.live-preview-toggle[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--text);
+}
+.live-preview-note {
+  margin: 0;
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+.live-preview-frame-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  justify-content: center;
+  overflow: auto;
+  padding: 0 0 8px;
+}
+.live-preview-frame-wrap iframe {
+  border: 0;
+  width: 100%;
+  height: 100%;
+  background: #fff;
+}
+.live-preview-pane[data-width="phone"] iframe {
+  width: 390px;
+  max-width: 100%;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+/* Too narrow for two columns: the pane and its button are simply not offered (Preview ↗ still opens the page in a tab). */
+@media (max-width: 860px) {
+  .live-preview-toggle,
+  .live-preview-pane {
+    display: none !important;
+  }
+}
+
 .article-editor {
   flex: 1;
   padding: 20px;

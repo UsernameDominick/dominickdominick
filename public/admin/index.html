@@ -426,6 +426,7 @@
             <button id="delete-article" class="danger">Delete</button>
           </details>
           <div class="article-actions editor-primary-actions">
+            <button type="button" id="live-preview-article-btn" class="live-preview-toggle" aria-pressed="false" aria-controls="live-preview-article" title="Show the article beside the editor as readers see it" hidden>Live preview</button>
             <a id="preview-article-link" href="#" target="_blank" class="preview-link" hidden>Preview ↗</a>
             <select id="article-template-picker" aria-label="Template for a new article" title="Fill a new article's body from a saved template">
               <option value="">Start blank</option>
@@ -445,6 +446,19 @@
             <div id="preview-links-list-article" class="preview-links-list"></div>
           </div>
         </div>
+        <aside class="live-preview-pane" id="live-preview-article" data-width="desktop" hidden aria-label="Live preview of this article">
+          <div class="live-preview-bar">
+            <strong>Live preview</strong>
+            <span class="live-preview-widths" role="group" aria-label="Preview width">
+              <button type="button" class="live-preview-width-btn" data-width="desktop" aria-pressed="true">Desktop</button>
+              <button type="button" class="live-preview-width-btn" data-width="phone" aria-pressed="false">Phone</button>
+            </span>
+            <button type="button" class="live-preview-refresh" title="Reload the preview now">Refresh</button>
+            <button type="button" class="live-preview-close" aria-label="Close the live preview">×</button>
+          </div>
+          <p class="live-preview-note">Shows the saved article; it refreshes a couple of seconds after you stop typing.</p>
+          <div class="live-preview-frame-wrap"><iframe title="Live preview of this article" src="about:blank"></iframe></div>
+        </aside>
       </div>
     </div>
   </div>
@@ -633,6 +647,7 @@
             <button id="delete-project" class="danger">Delete</button>
           </details>
           <div class="article-actions editor-primary-actions">
+            <button type="button" id="live-preview-project-btn" class="live-preview-toggle" aria-pressed="false" aria-controls="live-preview-project" title="Show the project beside the editor as readers see it" hidden>Live preview</button>
             <a id="preview-project-link" href="#" target="_blank" class="preview-link" hidden>Preview ↗</a>
             <select id="project-template-picker" aria-label="Template for a new project" title="Fill a new project's body/summary/tech-stack/status from a saved template">
               <option value="">Start blank</option>
@@ -652,6 +667,19 @@
             <div id="preview-links-list-project" class="preview-links-list"></div>
           </div>
         </div>
+        <aside class="live-preview-pane" id="live-preview-project" data-width="desktop" hidden aria-label="Live preview of this project">
+          <div class="live-preview-bar">
+            <strong>Live preview</strong>
+            <span class="live-preview-widths" role="group" aria-label="Preview width">
+              <button type="button" class="live-preview-width-btn" data-width="desktop" aria-pressed="true">Desktop</button>
+              <button type="button" class="live-preview-width-btn" data-width="phone" aria-pressed="false">Phone</button>
+            </span>
+            <button type="button" class="live-preview-refresh" title="Reload the preview now">Refresh</button>
+            <button type="button" class="live-preview-close" aria-label="Close the live preview">×</button>
+          </div>
+          <p class="live-preview-note">Shows the saved project; it refreshes a couple of seconds after you stop typing.</p>
+          <div class="live-preview-frame-wrap"><iframe title="Live preview of this project" src="about:blank"></iframe></div>
+        </aside>
       </div>
     </div>
   </div>

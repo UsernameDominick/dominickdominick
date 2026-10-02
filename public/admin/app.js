@@ -4565,9 +4565,102 @@
     });
   }
 
+  // ---------- Live preview beside the editor ----------
+  // A pane next to the article or project editor with the real public page in an iframe (the same ?preview=1 address the Preview
+  // link opens, so drafts show for the signed-in owner). It shows the SAVED text and reloads, keeping the scroll position, a moment
+  // after every save: the editor's own debounced autosave writes it, and the "Saved …" note the save paths already print is what
+  // triggers the reload, so manual saves, autosaves and merged saves all refresh it with no separate wiring.
+  function setupLivePreview({ kind, modalId, previewUrl, statusId }) {
+    const btn = el(`live-preview-${kind}-btn`);
+    const pane = el(`live-preview-${kind}`);
+    const frame = pane.querySelector("iframe");
+    const modal = el(modalId);
+    const inner = modal.querySelector(".modal-inner");
+    let timer = null;
+    let scrollTop = 0;
+    const isOpen = () => !pane.hidden;
+    const absolute = (url) => new URL(url, location.origin).href;
+    function reload() {
+      const url = previewUrl();
+      if (!url) return close();
+      if (frame.src === absolute(url)) {
+        try {
+          scrollTop = frame.contentWindow.scrollY || 0;
+          frame.contentWindow.location.reload();
+        } catch {
+          frame.src = url;
+        }
+      } else {
+        scrollTop = 0;
+        frame.src = url;
+      }
+    }
+    frame.addEventListener("load", () => {
+      if (!scrollTop) return;
+      try {
+        frame.contentWindow.scrollTo({ top: scrollTop, behavior: "instant" });
+      } catch {}
+    });
+    const refreshSoon = () => {
+      if (!isOpen()) return;
+      clearTimeout(timer);
+      timer = setTimeout(reload, 150);
+    };
+    function open() {
+      if (!previewUrl()) return;
+      pane.hidden = false;
+      inner.classList.add("with-live-preview");
+      btn.setAttribute("aria-pressed", "true");
+      reload();
+    }
+    function close() {
+      clearTimeout(timer);
+      if (pane.hidden) return;
+      const hadFocus = pane.contains(document.activeElement);
+      pane.hidden = true;
+      inner.classList.remove("with-live-preview");
+      btn.setAttribute("aria-pressed", "false");
+      frame.src = "about:blank";
+      if (hadFocus && btn.offsetParent) btn.focus();
+    }
+    btn.addEventListener("click", () => (isOpen() ? close() : open()));
+    pane.querySelector(".live-preview-close").addEventListener("click", close);
+    pane.querySelector(".live-preview-refresh").addEventListener("click", reload);
+    pane.querySelectorAll(".live-preview-width-btn").forEach((b) =>
+      b.addEventListener("click", () => {
+        pane.dataset.width = b.dataset.width;
+        pane.querySelectorAll(".live-preview-width-btn").forEach((o) => o.setAttribute("aria-pressed", String(o === b)));
+      })
+    );
+    // A save prints "Saved …" (or "Merged and saved …") in the status line under the editor.
+    new MutationObserver(() => {
+      if (/^(Saved|Merged and saved)\b/.test(el(statusId).textContent.trim())) refreshSoon();
+    }).observe(el(statusId), { childList: true, characterData: true, subtree: true });
+    // Closing the dialog closes the pane (and puts the dialog back to its normal width).
+    new MutationObserver(() => {
+      if (modal.hidden) close();
+    }).observe(modal, { attributes: true, attributeFilter: ["hidden"] });
+    // Called whenever the open item changes: no address (a new, unsaved item) closes the pane and hides the button.
+    return {
+      sync() {
+        const url = previewUrl();
+        btn.hidden = !url;
+        if (!url) close();
+        else refreshSoon();
+      },
+    };
+  }
+
   // Shows/hides the Preview and History controls, which only make sense
   // once an article has been saved (so it has a slug and a real id).
+  const articleLivePreview = setupLivePreview({
+    kind: "article",
+    modalId: "articles-modal",
+    statusId: "article-autosave-status",
+    previewUrl: () => (currentArticleId && el("article-slug").value ? `/random/${el("article-slug").value}?preview=1` : null),
+  });
   function updateArticleExtras() {
+    articleLivePreview.sync();
     const slug = el("article-slug").value;
     const previewLink = el("preview-article-link");
     const historyBtn = el("article-history-btn");
@@ -6025,7 +6118,14 @@
     el("bom-total").textContent = "";
   }
 
+  const projectLivePreview = setupLivePreview({
+    kind: "project",
+    modalId: "projects-modal",
+    statusId: "project-autosave-status",
+    previewUrl: () => (currentProjectId && el("project-slug").value ? `/projects/${el("project-slug").value}?preview=1` : null),
+  });
   function updateProjectExtras() {
+    projectLivePreview.sync();
     const slug = el("project-slug").value;
     const previewLink = el("preview-project-link");
     if (currentProjectId && slug) {
