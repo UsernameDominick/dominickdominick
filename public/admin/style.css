@@ -7987,3 +7987,4 @@ button[data-tier="quiet"] { border-color: transparent; }
 .pe-histogram summary { cursor: pointer; font-size: 0.8rem; color: var(--text-dim); }
 .pe-histogram canvas { display: block; width: 256px; max-width: 100%; height: 80px; margin-top: 6px; border: 1px solid var(--border); border-radius: 4px; }
 .pe-histogram-text { margin: 4px 0 0; font-size: 0.75rem; color: var(--text-dim); max-width: 256px; }
+.media-shrink-label { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--text-dim); }

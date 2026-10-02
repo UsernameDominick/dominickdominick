@@ -814,6 +814,7 @@
             <select id="media-upload-folder"><option value="">No folder</option></select>
           </label>
           <button type="button" id="media-new-blank-btn" class="media-secondary-btn" title="Start a new image from scratch in the Photo Editor, instead of editing an existing upload">New blank image</button>
+          <label class="media-shrink-label" title="Pictures over 3000 pixels on the longest side are made smaller when uploaded, so big phone and camera photos fit the 8 MB limit. Untick to keep full size."><input type="checkbox" id="media-shrink-big" checked> Shrink big photos</label>
           <button type="button" id="media-upload-btn" class="media-primary-btn" title="Choose images to upload, or drag them from your computer onto this window">Upload files</button>
         </div>
         <button id="close-media" aria-label="Close Media Library dialog">×</button>
@@ -929,6 +930,7 @@
       <label class="settings-checkbox-row" title="Requires being logged in to view this file's direct URL. Useful for a source file with private/sensitive material that shouldn't be publicly reachable, even by a guessed or leaked link."><input type="checkbox" id="media-info-private"> Private (admin-only — not publicly reachable, even by direct link)</label>
       <div class="article-actions">
         <button id="save-media-info">Save</button>
+        <button type="button" id="media-info-shrink-btn" hidden title="Make this big picture smaller in place. The address stays the same and the current file is kept under Previous versions">Shrink</button>
         <button type="button" id="media-info-history-btn" title="Metadata history (folder/tags/alt/caption/credit/license)">Metadata history</button>
         <button type="button" id="media-info-file-versions-btn" title="Previous versions of the file itself, from 'Overwrite original' in the photo editor">File versions</button>
       </div>
@@ -2499,6 +2501,7 @@
 </div>
 
 <script src="/admin/period-compare.js"></script>
+<script src="/admin/image-fit.js"></script>
 <script src="/admin/app.js"></script>
 <script src="/admin/photo-color.js"></script>
 <script src="/admin/photo-editor.js"></script>

@@ -266,29 +266,45 @@
   // the metadata it would strip. Falls back to the original file untouched
   // on any decode error, since stripping metadata should never be the
   // reason a legitimate upload fails.
-  async function stripImageMetadata(file) {
-    // A plain Blob (not a File) can only have come from in-app canvas
-    // processing — the Photo Editor's own save flow exports via
-    // canvas.toBlob(), which by construction already carries zero
-    // metadata — so re-decoding+re-encoding it here would be a pointless
-    // extra pass for no benefit. Every real upload path (file inputs,
-    // single or bulk) always hands over a real File.
-    if (!(file instanceof File)) return file;
-    if (file.type !== "image/jpeg" && file.type !== "image/png") return file;
+  // Whether big photos are shrunk on upload (the "Shrink big photos" box in the Media Library; on unless switched off).
+  const SHRINK_KEY = "media_shrink_big";
+  function shrinkBigEnabled() {
     try {
-      const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
-      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(bitmap, 0, 0);
-      const blob = await canvas.convertToBlob({ type: file.type, quality: 0.92 });
-      return blob.size ? blob : file;
+      return localStorage.getItem(SHRINK_KEY) !== "0";
     } catch {
-      return file;
+      return true;
     }
   }
 
+  // The bytes to upload for a file, and whether it was made smaller to fit: JPEG and PNG pass through a canvas (which drops the
+  // metadata, as above) and, when the box is ticked and the picture is over the limit (window.ImageFit.MAX_SIDE), are scaled down
+  // so the longest side fits. A phone photo is often over the uploader's 8 MB cap, so this is also what lets it in at all.
+  async function prepareImageForUpload(file) {
+    const plain = { blob: file, resized: null };
+    // A plain Blob (not a File) can only have come from in-app canvas processing -- see above.
+    if (!(file instanceof File)) return plain;
+    if (!window.ImageFit.canShrink(file.type)) return plain;
+    try {
+      const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+      const fit = shrinkBigEnabled() ? window.ImageFit.fitWithin(bitmap.width, bitmap.height) : { width: bitmap.width, height: bitmap.height, scaled: false };
+      const canvas = new OffscreenCanvas(fit.width, fit.height);
+      const ctx = canvas.getContext("2d");
+      if (fit.scaled) ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(bitmap, 0, 0, fit.width, fit.height);
+      const blob = await canvas.convertToBlob({ type: file.type, quality: 0.92 });
+      if (!blob.size) return plain;
+      return { blob, resized: fit.scaled ? { from: [bitmap.width, bitmap.height], to: [fit.width, fit.height] } : null };
+    } catch {
+      return plain;
+    }
+  }
+  async function stripImageMetadata(file) {
+    return (await prepareImageForUpload(file)).blob;
+  }
+
   async function uploadFile(file, folder) {
-    file = await stripImageMetadata(file);
+    const prepared = await prepareImageForUpload(file);
+    file = prepared.blob;
     const res = await fetch("/api/admin/upload" + (folder ? `?folder=${encodeURIComponent(folder)}` : ""), {
       method: "POST",
       headers: { "Content-Type": file.type },
@@ -298,7 +314,8 @@
       const body = await res.json().catch(() => ({}));
       throw new Error(body.error || "Upload failed");
     }
-    return res.json();
+    const json = await res.json();
+    return prepared.resized ? { ...json, resized: prepared.resized } : json;
   }
 
   async function uploadAudioFile(file) {
@@ -7279,10 +7296,24 @@
     const isImage = /^(uploads)\//.test(item.key) || /\.(png|jpe?g|gif|webp|svg|avif)$/i.test(item.key);
     const metaEl = el("media-info-meta");
     metaEl.textContent = `${ext} · ${formatBytes(item.size)}`;
+    el("media-info-shrink-btn").hidden = true;
+    // A big JPEG or PNG can be shrunk in place (GIF and WebP may be animated, so they are left alone). The size the library
+    // recorded is trusted over the browser's picture, which may still be a cached copy of the file from before a shrink.
+    const offerShrink = (w, h) => {
+      const type = /\.png$/i.test(item.key) ? "image/png" : /\.jpe?g$/i.test(item.key) ? "image/jpeg" : "";
+      const fit = window.ImageFit.fitWithin(w, h);
+      const btn = el("media-info-shrink-btn");
+      btn.hidden = !(type && fit.scaled);
+      btn.textContent = `Shrink to ${fit.width}×${fit.height}`;
+    };
     if (isImage) {
+      const recorded = item.width > 0 && item.height > 0;
+      if (recorded) offerShrink(item.width, item.height);
       const probe = new Image();
       probe.onload = () => {
-        if (mediaInfoKey === key) metaEl.textContent = `${ext} · ${formatBytes(item.size)} · ${probe.naturalWidth}×${probe.naturalHeight}px`;
+        if (mediaInfoKey !== key) return;
+        metaEl.textContent = `${ext} · ${formatBytes(item.size)} · ${recorded ? item.width : probe.naturalWidth}×${recorded ? item.height : probe.naturalHeight}px`;
+        if (!recorded) offerShrink(probe.naturalWidth, probe.naturalHeight);
       };
       probe.src = item.url;
     }
@@ -7298,6 +7329,38 @@
     el("media-info-modal").hidden = false;
   }
   closeModalOnClick("close-media-info", "media-info-modal");
+  // Shrinks a big picture in place: same address, the old file kept under "Previous versions" so it can be put back.
+  el("media-info-shrink-btn").addEventListener("click", async () => {
+    const key = mediaInfoKey;
+    const item = mediaItems.find((m) => m.key === key);
+    if (!item) return;
+    const type = /\.png$/i.test(item.key) ? "image/png" : "image/jpeg";
+    const btn = el("media-info-shrink-btn");
+    btn.disabled = true;
+    try {
+      const source = await (await fetch(item.url, { credentials: "same-origin" })).blob();
+      const bitmap = await createImageBitmap(source, { imageOrientation: "from-image" });
+      const fit = window.ImageFit.fitWithin(bitmap.width, bitmap.height);
+      if (!fit.scaled) {
+        alert("This picture is already within the size limit.");
+        return;
+      }
+      if (!confirm(`Shrink this picture from ${bitmap.width}×${bitmap.height} to ${fit.width}×${fit.height}?\n\nIts address stays the same, and the current file is kept under "Previous versions" so you can put it back.`)) return;
+      const canvas = new OffscreenCanvas(fit.width, fit.height);
+      const c2 = canvas.getContext("2d");
+      c2.imageSmoothingQuality = "high";
+      c2.drawImage(bitmap, 0, 0, fit.width, fit.height);
+      const out = await canvas.convertToBlob({ type, quality: 0.92 });
+      const res = await fetch(`/api/admin/media/${item.key}`, { method: "PUT", headers: { "Content-Type": type }, body: out, credentials: "same-origin" });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Couldn't save the smaller picture");
+      await loadMediaLibrary();
+      if (mediaInfoKey === key) openMediaInfoModal(key);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
   el("save-media-info").addEventListener("click", async () => {
     if (!mediaInfoKey) return;
     const item = mediaItems.find((m) => m.key === mediaInfoKey);
@@ -7658,6 +7721,14 @@
   mediaUploadInput.hidden = true;
   el("media-upload-btn").after(mediaUploadInput);
   el("media-upload-btn").addEventListener("click", () => mediaUploadInput.click());
+  el("media-shrink-big").checked = shrinkBigEnabled();
+  el("media-shrink-big").addEventListener("change", () => {
+    try {
+      localStorage.setItem(SHRINK_KEY, el("media-shrink-big").checked ? "1" : "0");
+    } catch {
+      // Without storage the choice just lasts until the page is reloaded.
+    }
+  });
   // Uploads the given files one after another into the folder chosen under "Upload to", then reloads the library. Shared by the
   // Upload files button and by dropping files on the library.
   let mediaUploading = false;
@@ -7670,13 +7741,16 @@
     btn.disabled = true;
     try {
       let duplicateCount = 0;
+      const shrunk = [];
       for (let i = 0; i < files.length; i++) {
         btn.textContent = `Uploading ${i + 1}/${files.length}…`;
-        const { duplicateOf } = await uploadFile(files[i], folder);
+        const { duplicateOf, resized } = await uploadFile(files[i], folder);
         if (duplicateOf) duplicateCount++;
+        if (resized) shrunk.push(resized);
       }
       await loadMediaLibrary();
-      if (note) el("media-load-status").textContent = note;
+      const fullNote = [note, window.ImageFit.describeShrunk(shrunk)].filter(Boolean).join(" ");
+      if (fullNote) el("media-load-status").textContent = fullNote;
       if (duplicateCount) {
         alert(
           `${duplicateCount} of ${files.length} file(s) look identical to something already in the library — turn on "Possible duplicates" to compare.`
