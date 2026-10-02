@@ -8812,7 +8812,7 @@
       items
         .map(
           (b) =>
-            `<div class="link-check-row"><span class="link-check-url">${escapeHtml(b.key.replace("backups/", ""))}</span><span class="link-check-source">${formatBytes(
+            `<div class="link-check-row"><span class="link-check-url">${escapeHtml(b.key.replace("backups/", ""))}${b.key.startsWith("backups/pre-restore-") ? ' <em class="backup-safety-tag">(saved automatically before a restore)</em>' : ""}</span><span class="link-check-source">${formatBytes(
               b.size
             )}</span><button type="button" class="view-backup-contents-btn" data-key="${escapeHtml(
               b.key
@@ -8907,19 +8907,24 @@
       .querySelectorAll(".restore-backup-btn")
       .forEach((btn) => {
         btn.addEventListener("click", async () => {
-          if (
-            !confirm(
-              "This will REPLACE every page, block, article, and setting with what's in this backup. This can't be undone. Continue?"
-            )
-          ) {
+          const originalText = btn.textContent;
+          btn.disabled = true;
+          let summary = "";
+          try {
+            summary = backupPreviewText(await api(`/scheduled-backups-preview?key=${encodeURIComponent(btn.dataset.key)}`));
+          } catch (err) {
+            alert("Couldn't read that backup: " + err.message);
+            btn.disabled = false;
             return;
           }
-          const originalText = btn.textContent;
+          if (!confirm(restoreConfirmText("this backup", summary))) {
+            btn.disabled = false;
+            return;
+          }
           btn.textContent = "Restoring…";
-          btn.disabled = true;
           try {
-            await api("/scheduled-backups-restore", { method: "POST", body: JSON.stringify({ key: btn.dataset.key }) });
-            alert("Restored. Reloading…");
+            const res = await api("/scheduled-backups-restore", { method: "POST", body: JSON.stringify({ key: btn.dataset.key }) });
+            alert(restoredText(res));
             location.reload();
           } catch (err) {
             alert("Restore failed: " + err.message);
@@ -8936,6 +8941,20 @@
     } else {
       statusEl.innerHTML = "";
     }
+  }
+  // Restore wording shared by "Restore from file…" and a scheduled backup's Restore: what would change, and that a safety copy is made first.
+  function backupPreviewText(preview) {
+    const rows = (preview.rows || [])
+      .filter((r) => r.file || r.now)
+      .map((r) => `  ${r.table.replace(/_/g, " ")}: ${r.now} now → ${r.file} in the backup${r.now === r.file ? "" : r.file < r.now ? " (fewer)" : " (more)"}`);
+    const when = preview.exported_at ? new Date(preview.exported_at).toLocaleString() : "an unknown date";
+    return `Backup made ${when}.\n\nRows on the site now → in the backup:\n${rows.join("\n") || "  (nothing)"}`;
+  }
+  function restoreConfirmText(what, summary) {
+    return `${summary}\n\nRestoring replaces every page, block, article, project, simulation, song and setting with what is in ${what}. The site as it is now is saved first as a backup in Settings → Backups, so you can undo this by restoring that copy. Continue?`;
+  }
+  function restoredText(res) {
+    return `Restored.${res && res.safetyBackup ? `\n\nThe previous site was saved as ${res.safetyBackup} (Settings → Backups); restore it to undo.` : ""}\n\nReloading…`;
   }
   el("run-backup-now-btn").addEventListener("click", async () => {
     const btn = el("run-backup-now-btn");
@@ -9841,18 +9860,12 @@
     input.addEventListener("change", async () => {
       const file = input.files[0];
       if (!file) return;
-      if (
-        !confirm(
-          "This will REPLACE every page, block, article, and setting with what's in this file. This can't be undone. Continue?"
-        )
-      ) {
-        return;
-      }
       try {
-        const text = await file.text();
-        const data = JSON.parse(text);
-        await api("/import", { method: "POST", body: JSON.stringify(data) });
-        alert("Restored. Reloading…");
+        const data = JSON.parse(await file.text());
+        const summary = backupPreviewText(await api("/import-preview", { method: "POST", body: JSON.stringify(data) }));
+        if (!confirm(restoreConfirmText("this file", summary))) return;
+        const res = await api("/import", { method: "POST", body: JSON.stringify(data) });
+        alert(restoredText(res));
         location.reload();
       } catch (err) {
         alert("Restore failed: " + err.message);

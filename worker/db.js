@@ -3153,6 +3153,10 @@ export async function exportAll(env) {
 // aren't re-copied; they already live durably in R2 as-is.
 const BACKUP_PREFIX = "backups/";
 const BACKUP_KEEP = 30;
+// A copy of the site saved automatically right before any restore (see runSafetyBackup). It lives under the same prefix, so
+// the download, verify and restore routes accept it, but it is rotated on its own so it never pushes a daily backup out.
+export const SAFETY_BACKUP_PREFIX = `${BACKUP_PREFIX}pre-restore-`;
+const SAFETY_BACKUP_KEEP = 10;
 
 // Records success/failure to settings (not just the error_log a failure
 // also gets) so the admin UI can show a clear "backups are fine" or
@@ -3166,27 +3170,28 @@ export async function sha256Hex(buf) {
   return toHex(await crypto.subtle.digest("SHA-256", buf));
 }
 
+// Exports the whole site to `key` in R2, then reads it straight back and re-hashes it, so a truncated or corrupted write is
+// caught now rather than the day the file is needed. Throws on any failure.
+async function writeVerifiedBackup(env, key) {
+  const data = await exportAll(env);
+  const bytes = new TextEncoder().encode(JSON.stringify(data));
+  const checksum = await sha256Hex(bytes);
+  await env.MEDIA.put(key, bytes, { httpMetadata: { contentType: "application/json" }, customMetadata: { sha256: checksum } });
+  const written = await env.MEDIA.get(key);
+  if (!written) throw new Error("Backup write succeeded but the file can't be read back");
+  const readBackHash = await sha256Hex(await written.arrayBuffer());
+  if (readBackHash !== checksum) throw new Error("Backup file failed integrity check after writing (hash mismatch)");
+}
+
 export async function runScheduledBackup(env) {
   try {
-    const data = await exportAll(env);
     const key = `${BACKUP_PREFIX}${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
-    const bytes = new TextEncoder().encode(JSON.stringify(data));
-    const checksum = await sha256Hex(bytes);
-    await env.MEDIA.put(key, bytes, { httpMetadata: { contentType: "application/json" }, customMetadata: { sha256: checksum } });
-    // Read the just-written object straight back and re-hash it — catches
-    // any corruption/truncation in the R2 write itself, rather than only
-    // finding out the file is bad the day it's actually needed for a
-    // restore. A mismatch fails the whole backup (same as any other
-    // exportAll/put error above), since a backup nobody can trust is as
-    // good as no backup at all.
-    const written = await env.MEDIA.get(key);
-    if (!written) throw new Error("Backup write succeeded but the file can't be read back");
-    const readBackHash = await sha256Hex(await written.arrayBuffer());
-    if (readBackHash !== checksum) throw new Error("Backup file failed integrity check after writing (hash mismatch)");
+    await writeVerifiedBackup(env, key);
     const listed = await env.MEDIA.list({ prefix: BACKUP_PREFIX });
-    const sorted = listed.objects.sort((a, b) => new Date(b.uploaded) - new Date(a.uploaded));
-    const stale = sorted.slice(BACKUP_KEEP);
-    await Promise.all(stale.map((o) => env.MEDIA.delete(o.key)));
+    // Rotation: the newest BACKUP_KEEP daily files stay; the pre-restore safety copies are counted and kept separately.
+    const newestFirst = (list) => list.sort((a, b) => new Date(b.uploaded) - new Date(a.uploaded));
+    const daily = newestFirst(listed.objects.filter((o) => !o.key.startsWith(SAFETY_BACKUP_PREFIX)));
+    await Promise.all(daily.slice(BACKUP_KEEP).map((o) => env.MEDIA.delete(o.key)));
     await setSetting(env, "last_backup_at", new Date().toISOString());
     await setSetting(env, "last_backup_error", "");
     return key;
@@ -3194,6 +3199,37 @@ export async function runScheduledBackup(env) {
     await setSetting(env, "last_backup_error", err.message || "Backup failed");
     throw err;
   }
+}
+
+// Saved automatically before a restore replaces the site, so a wrong file or the wrong backup can be undone by restoring this
+// copy. It does not touch the "last backup" status shown for the daily backups. Throws if the copy can't be saved and verified,
+// and the caller must then leave the site alone.
+export async function runSafetyBackup(env) {
+  const key = `${SAFETY_BACKUP_PREFIX}${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+  await writeVerifiedBackup(env, key);
+  const listed = await env.MEDIA.list({ prefix: SAFETY_BACKUP_PREFIX });
+  const stale = listed.objects.sort((a, b) => new Date(b.uploaded) - new Date(a.uploaded)).slice(SAFETY_BACKUP_KEEP);
+  await Promise.all(stale.map((o) => env.MEDIA.delete(o.key)));
+  return key;
+}
+
+// What a restore would change, before it happens: rows per table in the backup next to rows on the site right now.
+export async function compareBackupToSite(env, data) {
+  if (!data || typeof data !== "object" || !Array.isArray(data.pages)) throw new Error("Not a valid backup file");
+  const now = await exportAll(env);
+  const tables = [...new Set([...Object.keys(data), ...Object.keys(now)])].filter((k) => Array.isArray(data[k]) || Array.isArray(now[k]));
+  return {
+    version: data.version ?? null,
+    exported_at: data.exported_at ?? null,
+    rows: tables.map((table) => ({ table, file: Array.isArray(data[table]) ? data[table].length : 0, now: Array.isArray(now[table]) ? now[table].length : 0 })),
+  };
+}
+
+export async function previewScheduledBackup(env, key) {
+  if (!key.startsWith(BACKUP_PREFIX)) throw new Error("Not a backup file");
+  const obj = await env.MEDIA.get(key);
+  if (!obj) throw new Error("Backup file not found");
+  return compareBackupToSite(env, JSON.parse(await obj.text()));
 }
 
 export async function getBackupStatus(env) {

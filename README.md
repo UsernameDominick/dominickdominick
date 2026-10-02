@@ -67,7 +67,11 @@ Worker secret, not stored in this repo). From there:
   site-wide footer (same markdown support), a default share image (with
   per-page/article overrides), and **Backup** — download everything as
   one JSON file, or restore from one (replaces all current content,
-  atomically — a bad file can't half-wipe the site)
+  atomically — a bad file can't half-wipe the site). A restore first shows
+  what it would change (rows per table, the backup against the site now)
+  and saves the current site as a `pre-restore` backup (the last ten are
+  kept, apart from the daily ones); if that copy can't be saved, nothing
+  is replaced, and restoring the copy undoes the restore
 - Check "Analytics" for views/day, top pages, top referrers, top
   countries — no third-party dashboard needed
 - Create new pages with "+ Page" — they get their own URL but aren't

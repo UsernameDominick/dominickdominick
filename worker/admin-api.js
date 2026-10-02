@@ -46,6 +46,9 @@ import {
   listErrors,
   logError,
   runScheduledBackup,
+  runSafetyBackup,
+  compareBackupToSite,
+  previewScheduledBackup,
   listScheduledBackups,
   getBackupStatus,
   getNotificationSummary,
@@ -2301,15 +2304,41 @@ async function routeAdminApi(request, env, url, ctx) {
   }
 
   // /import — replaces ALL content with the uploaded backup, atomically
+  // /import-preview — what the file would change (rows per table: backup vs site now), without changing anything
+  if (path === "/import-preview" && method === "POST") {
+    const body = await readJsonBody(request);
+    try {
+      return json(await compareBackupToSite(env, body));
+    } catch (err) {
+      return json({ error: err.message || "Not a valid backup file" }, { status: 400 });
+    }
+  }
+  if (path === "/scheduled-backups-preview" && method === "GET") {
+    const key = url.searchParams.get("key");
+    if (!key) return json({ error: "key is required" }, { status: 400 });
+    try {
+      return json(await previewScheduledBackup(env, key));
+    } catch (err) {
+      return json({ error: err.message }, { status: 400 });
+    }
+  }
   if (path === "/import" && method === "POST") {
     const body = await readJsonBody(request);
+    if (!body || typeof body !== "object" || !Array.isArray(body.pages)) return json({ error: "Not a valid backup file" }, { status: 400 });
+    // The site as it is now is saved first; if that can't be done and verified, nothing is replaced.
+    let safetyKey;
+    try {
+      safetyKey = await runSafetyBackup(env);
+    } catch (err) {
+      return json({ error: `Couldn't save a safety copy of the site first, so nothing was changed (${err.message || "backup failed"}).` }, { status: 500 });
+    }
     try {
       await importAll(env, body);
     } catch (err) {
       return json({ error: err.message || "Import failed" }, { status: 400 });
     }
-    log(ctx, env, "import", "backup", body.exported_at || null);
-    return json({ ok: true });
+    log(ctx, env, "import", "backup", `${body.exported_at || "unknown date"}; previous site saved as ${safetyKey}`);
+    return json({ ok: true, safetyBackup: safetyKey });
   }
 
   // /scheduled-backups — the automatic daily R2 backups (separate from the
@@ -2389,10 +2418,18 @@ async function routeAdminApi(request, env, url, ctx) {
   if (path === "/scheduled-backups-restore" && method === "POST") {
     const body = await readJsonBody(request);
     if (!body.key) return json({ error: "key is required" }, { status: 400 });
+    // The chosen file has to exist before the site is touched or a safety copy is made for nothing.
+    if (!String(body.key).startsWith("backups/") || !(await env.MEDIA.head(body.key))) return json({ error: "Backup file not found" }, { status: 400 });
+    let safetyKey;
+    try {
+      safetyKey = await runSafetyBackup(env);
+    } catch (err) {
+      return json({ error: `Couldn't save a safety copy of the site first, so nothing was changed (${err.message || "backup failed"}).` }, { status: 500 });
+    }
     try {
       const { exported_at } = await restoreScheduledBackup(env, body.key);
-      log(ctx, env, "import", "backup", `${body.key} (${exported_at || "unknown date"})`);
-      return json({ ok: true });
+      log(ctx, env, "import", "backup", `${body.key} (${exported_at || "unknown date"}); previous site saved as ${safetyKey}`);
+      return json({ ok: true, safetyBackup: safetyKey });
     } catch (err) {
       return json({ error: err.message || "Restore failed" }, { status: 400 });
     }
