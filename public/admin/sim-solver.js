@@ -32,7 +32,7 @@
   //   { kind: "src", id, a, b, v }            ideal source, + at a, - at b
   //   { kind: "link", id, a, b }              zero-volt link (ammeter): a current to report, no voltage
   //   { kind: "diode", id, a, b, vf }         anode a, cathode b
-  //   { kind: "bjt", id, a, b, base, beta, pnp }  collector a, emitter b (an NPN; a PNP has the emitter on the high side)
+  //   { kind: "bjt", id, a, b, base, beta, pnp, forceOff }  collector a, emitter b (an NPN; a PNP has the emitter on the high side)
   // Returns { ok, reason, volts: Map(node -> V), current: Map(id -> A flowing a to b through the element), on: Map(id -> bool),
   // mode: Map(bjt id -> "off" | "active" | "sat") } -- a transistor's currents are under "<id>:b" (base, into the base for an
   // NPN) and "<id>:c" (collector, into the collector for an NPN).
@@ -118,6 +118,7 @@
         bjts.forEach((t) => {
           const md = mode.get(t.id);
           if (md === "off") {
+            if (t.forceOff) return; // a base wired to nothing: its node would float at the reference voltage and turn a PNP on
             const over = vbeOf(t, solution.volts) - BJT_VBE;
             if (over > 1e-9) consider(over, () => mode.set(t.id, "active"));
           } else if (md === "active") {
@@ -352,6 +353,12 @@
       }
     });
 
+    // A transistor whose base is wired to nothing else stays off (the unconnected node would otherwise sit at the reference voltage).
+    elements.forEach((e) => {
+      if (e.kind !== "bjt") return;
+      e.forceOff = !elements.some((o) => o !== e && (o.a === e.base || o.b === e.base || (o.kind === "bjt" && o.base === e.base)));
+    });
+
     // Networks (connected through any element) that hold a source, no outlet, and one of the nodes the caller engaged.
     const adj = new Map();
     const link = (a, b) => {
@@ -468,9 +475,15 @@
         const i = solved.current.get(e.id);
         const L = env.limits;
         if (e.kind === "bjt") {
-          const region = solved.mode.get(e.id);
-          const ib = solved.current.get(`${e.id}:b`);
-          const ic = solved.current.get(`${e.id}:c`);
+          let region = solved.mode.get(e.id);
+          let ib = solved.current.get(`${e.id}:b`);
+          let ic = solved.current.get(`${e.id}:c`);
+          // A base current under a nanoamp is the solver's own leakage, not a transistor that is on.
+          if (region !== "off" && ib < 1e-9) {
+            region = "off";
+            ib = 0;
+            ic = 0;
+          }
           const sign = e.pnp ? -1 : 1;
           const vce = sign * (solved.volts.get(e.a) - solved.volts.get(e.b));
           const vbe = sign * (solved.volts.get(e.base) - solved.volts.get(e.b));
@@ -499,7 +512,7 @@
           // "On" with a few femtoamps (only the solver's own leakage reaches it, as with an LED in series with an open transistor)
           // is not conducting in any sense a person would mean: nothing to say about it.
           const wasOn = solved.on.get(e.id);
-          const conducting = wasOn && i > 1e-9;
+          const conducting = wasOn && i > 1e-7;
           const ma = conducting ? Math.max(0, i) * 1000 : 0;
           const vd = solved.volts.get(e.a) - solved.volts.get(e.b);
           const isDiode = c.type === "diode";
@@ -511,7 +524,8 @@
             else if (!isDiode && ma < 1) status = "dim";
             else status = "normal";
           } else if (vd < -0.1) status = "reversed";
-          else if (wasOn || degree(e.a) <= 1 || degree(e.b) <= 1) status = null; // dangling or carrying nothing: nothing to say
+          else if (degree(e.a) <= 1 || degree(e.b) <= 1) status = null; // dangling: nothing to say
+          else if (wasOn || vd < 0.1) status = "idle"; // joined into a live loop but carrying (next to) nothing, with no voltage across it: it must not glow
           else status = isDiode ? "off" : "unlit-low-voltage"; // forward biased (or nearly) but below its drop
           if (status) results[c.id] = { kind: isDiode ? "diode" : "led", currentMa: ma, voltage: supplyVoltage, status, dangerous: false };
         }

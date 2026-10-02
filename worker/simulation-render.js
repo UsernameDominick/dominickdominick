@@ -974,7 +974,7 @@ function connected(adjacency, a, b) {
 // Which transistors let power through, for the powered view only (the real answer comes from the general solver): an NPN
 // whose base can be reached from a source's positive terminal, or a PNP whose base can reach a source's negative terminal,
 // without passing through the other terminal. Re-checked until it settles, since one transistor can drive another.
-function conductingTransistorLinks(data) {
+function conductingTransistorLinks(data, analysis) {
   const components = (data && data.components) || [];
   const transistors = components.filter((c) => c.type === "transistor");
   if (!transistors.length) return [];
@@ -996,8 +996,13 @@ function conductingTransistorLinks(data) {
     const next = [];
     transistors.forEach((c) => {
       const pnp = c.polarity === "pnp";
-      if (!(pnp ? low : high).has(nodeId(c, "base"))) return;
-      next.push(pnp ? [nodeId(c, "emitter"), nodeId(c, "collector")] : [nodeId(c, "collector"), nodeId(c, "emitter")]);
+      // Where the network solver has already decided, its answer wins; the base-reach test is only the fallback.
+      const solvedResult = analysis && analysis[c.id] && analysis[c.id].kind === "transistor" ? analysis[c.id] : null;
+      if (solvedResult ? solvedResult.region === "off" : !(pnp ? low : high).has(nodeId(c, "base"))) return;
+      const [collector, base, emitter] = [nodeId(c, "collector"), nodeId(c, "base"), nodeId(c, "emitter")];
+      // Power passes collector to emitter and base to emitter (the other way round for a PNP).
+      if (pnp) next.push([emitter, collector], [emitter, base]);
+      else next.push([collector, emitter], [base, emitter]);
     });
     if (next.length === links.length) break;
     links = next;
@@ -1008,12 +1013,12 @@ function conductingTransistorLinks(data) {
 // Everything on a genuinely closed loop back to an outlet or battery is
 // "powered" — a component with a dangling, unreturned wire to power is
 // not, and an LED wired backwards on an otherwise-complete loop is not.
-export function computePoweredSet(data) {
+export function computePoweredSet(data, analysis) {
   const components = (data && data.components) || [];
   const wires = (data && data.wires) || [];
   // The main graph treats every correctly-conducting device (including a
   // wired-in LED) as an edge, so a simple series loop actually closes.
-  const transistorLinks = conductingTransistorLinks(data);
+  const transistorLinks = conductingTransistorLinks(data, analysis);
   const adjacency = buildGraph(data, null, transistorLinks);
 
   const activeSources = [];
@@ -1820,7 +1825,7 @@ function pinPosition(comp, pinId) {
 
 // The glow comes from the topology (a closed loop through the part); where the network solver found that a part passes no
 // current (a reversed or under-driven LED or diode on a side branch, a cut-off transistor) it must not glow.
-const NOT_CONDUCTING = new Set(["reversed", "blocked", "unlit-low-voltage", "off"]);
+const NOT_CONDUCTING = new Set(["reversed", "blocked", "unlit-low-voltage", "off", "idle"]);
 function solvedNotConducting(info) {
   return Boolean(info) && (info.kind === "led" || info.kind === "diode" || info.kind === "transistor") && NOT_CONDUCTING.has(info.status);
 }
@@ -2062,8 +2067,8 @@ export function renderSimulationSvg(data, { width = 1500, height = 700 } = {}) {
   const safeData = sanitizeSimulationRenderData(data);
   const components = safeData.components;
   const wires = safeData.wires;
-  const { poweredComps, poweredWires } = computePoweredSet(safeData);
   const analysis = computeCircuitAnalysis(safeData);
+  const { poweredComps, poweredWires } = computePoweredSet(safeData, analysis);
   const wiresSvg = wires.map((w) => renderWireSvg(w, components, poweredWires)).join("");
   const compsSvg = components.map((c) => renderComponentSvg(c, poweredComps, analysis)).join("");
   return `<svg class="sim-svg" viewBox="${fittedViewBox(components, wires, width, height)}" xmlns="http://www.w3.org/2000/svg">${SIM_DEFS_SVG}${wiresSvg}${compsSvg}</svg>`;

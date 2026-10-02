@@ -906,7 +906,7 @@
 
   // The glow comes from the topology (a closed loop through the part); where the network solver found that a part passes no
   // current (a reversed or under-driven LED or diode on a side branch, a cut-off transistor) it must not glow.
-  const NOT_CONDUCTING = new Set(["reversed", "blocked", "unlit-low-voltage", "off"]);
+  const NOT_CONDUCTING = new Set(["reversed", "blocked", "unlit-low-voltage", "off", "idle"]);
   function solvedNotConducting(info) {
     return Boolean(info) && (info.kind === "led" || info.kind === "diode" || info.kind === "transistor") && NOT_CONDUCTING.has(info.status);
   }
@@ -1377,8 +1377,8 @@
   }
 
   function renderBuilder() {
-    const { poweredComps, poweredWires } = window.computeSimPoweredSet(simData);
     const analysis = window.computeSimElectricalAnalysis(simData);
+    const { poweredComps, poweredWires } = window.computeSimPoweredSet(simData, analysis);
     updateWarningsBadge(analysis);
     // Selecting a wire highlights the whole wire-tied net it belongs to,
     // not just that one segment -- clicking any wire is a cheap, already-
@@ -1499,6 +1499,8 @@
   // The solver already works out a status for every part it can analyse; this turns those statuses (and the parts it
   // could NOT analyse) into plain sentences, so a misleading-looking circuit says so instead of just showing a dim
   // part. Danger and warning lines are counted on the toolbar button; notes are only listed.
+  // A stiff source wired straight to a base gives thousands of amps: say "over 10,000 mA" rather than print them.
+  const fmtMa = (ma, digits = 1) => (!Number.isFinite(ma) || ma >= 10000 ? "over 10,000 mA" : `${ma.toFixed(digits)} mA`);
   function circuitWarnings(analysis) {
     const out = [];
     const names = checklistPartNames();
@@ -1524,8 +1526,9 @@
         else if (r.status === "overdriven") add("warning", `${n} is overdriven: more than 1.5 times a typical diode's 1 A rating.`);
         else if (r.status === "off") add("warning", `${n} gets less than its 0.7 V forward voltage, so it isn't conducting.`);
       } else if (r.kind === "transistor") {
-        if (r.status === "burnt") add("danger", `${n} would burn out: ${r.currentMa.toFixed(0)} mA through the collector and ${r.baseMa.toFixed(1)} mA into the base are far above a small transistor's 200 mA and 50 mA. Add or enlarge a resistor in the base or collector leg.`);
-        else if (r.status === "overdriven") add("warning", `${n} is overdriven: ${r.currentMa.toFixed(0)} mA through the collector and ${r.baseMa.toFixed(1)} mA into the base, over 1.5 times a small transistor's 200 mA and 50 mA.`);
+        if (r.status === "burnt") add("danger", `${n} would burn out: ${fmtMa(r.currentMa, 0)} through the collector and ${fmtMa(r.baseMa)} into the base are far above a small transistor's 200 mA and 50 mA. Add or enlarge a resistor in the base or collector leg.`);
+        else if (r.status === "overdriven") add("warning", `${n} is overdriven: ${fmtMa(r.currentMa, 0)} through the collector and ${fmtMa(r.baseMa)} into the base, over 1.5 times a small transistor's 200 mA and 50 mA.`);
+        else if (r.vce < -0.2) add("warning", `${n} has its collector ${comp.polarity === "pnp" ? "above" : "below"} its emitter by ${Math.abs(r.vce).toFixed(1)} V. A ${comp.polarity === "pnp" ? "PNP" : "NPN"} wants the collector on the ${comp.polarity === "pnp" ? "lower" : "higher"} side, so the collector and emitter legs may be swapped (this simulator has no backwards operation).`);
         else if (r.status === "overheating") add("warning", `${n} would run hot: it dissipates ${r.watts.toFixed(2)} W against a typical 0.625 W rating.`);
       } else if (r.kind === "resistor" && r.status === "overheating") {
         add(
@@ -1584,7 +1587,7 @@
     }
     if (outletLoop) add("danger", "The wall outlet (120 V) is wired straight into this circuit, which destroys most parts. Go through a Power Supply.");
     if (analysis.meta && analysis.meta.parallel) {
-      add("warning", "This circuit has a parallel branch or a bypass that the simulator couldn't solve as a whole network (a dead short, two sources that contradict each other, or more than 200 nodes), so it follows one path from each source: the figures and statuses may be incomplete or missing, and a backwards LED or diode is only flagged when it is on the only route.");
+      add("warning", "This circuit has a parallel branch or a bypass that the simulator couldn't solve as a whole network (a dead short, two sources that contradict each other, more than 200 nodes, or diodes and transistors with no consistent on/off state, such as a transistor wired upside down), so it follows one path from each source: the figures and statuses may be incomplete or missing, and a backwards LED or diode is only flagged when it is on the only route.");
     }
     // Parts that can carry or show current but weren't analysed: not on the path the solver followed.
     const analysable = new Set(["led", "diode", "transistor", "resistor", "ammeter", "mcu_teensy"]);
@@ -1762,7 +1765,18 @@
   function buildChecklist() {
     const names = checklistPartNames();
     const byId = new Map(simData.components.map((c) => [c.id, c]));
-    const parts = simData.components.filter((c) => c.type !== "breadboard").map((c) => names.get(c.id));
+    // What a person needs to buy: the value, colour or type that the name alone doesn't say.
+    const specOf = (c) => {
+      switch (c.type) {
+        case "resistor": return `${Math.max(1, Number(c.resistance) || 220)} ohms`;
+        case "potentiometer": return `${Math.max(1, Number(c.maxResistance) || 10000)} ohms`;
+        case "led": return `${window.LED_COLORS[c.color] ? c.color : "red"}`;
+        case "battery": return `${Number(c.voltage) || 9} V`;
+        case "transistor": return `${c.polarity === "pnp" ? "PNP" : "NPN"}, gain ${Math.min(1000, Math.max(1, Number(c.gain) || 100))}`;
+        default: return "";
+      }
+    };
+    const parts = simData.components.filter((c) => c.type !== "breadboard").map((c) => (specOf(c) ? `${names.get(c.id)} - ${specOf(c)}` : names.get(c.id)));
     const boards = simData.components.filter((c) => c.type === "breadboard").map((c) => names.get(c.id));
     const steps = [];
     const lengths = [];
@@ -2901,8 +2915,8 @@
       const comp = simData.components.find((c) => c.id === selected.id);
       if (!comp) return;
     const def = window.getSimComponentDefinition(comp);
-      const { poweredComps, poweredNodes } = window.computeSimPoweredSet(simData);
       const analysis = window.computeSimElectricalAnalysis(simData);
+      const { poweredComps, poweredNodes } = window.computeSimPoweredSet(simData, analysis);
       const info = analysis[comp.id];
       const isPowered = poweredComps.has(comp.id);
       let statusLine;
@@ -2942,17 +2956,18 @@
             reversed: "No current flows — an LED only conducts one way. Flip it around so current runs anode to cathode.",
             blocked: "No current flows here: another LED in this loop is wired backwards.",
             dim: `Barely lit — only ${ma}mA is flowing. Try a smaller resistor.`,
+            idle: "No current flows through it in this circuit right now (something else in the loop is switched off).",
             normal: `✓ ${ma}mA — a healthy, safe current.`,
           };
           electricalHtml = `<p class="sim-power-status ${info.status === "normal" ? "is-powered" : "is-danger"}">${messages[info.status] || ""}</p>`;
         } else if (info.kind === "transistor") {
-          const ib = info.baseMa.toFixed(2);
-          const icText = `${info.currentMa.toFixed(1)} mA`;
+          const ib = Number.isFinite(info.baseMa) && info.baseMa < 10000 ? info.baseMa.toFixed(2) : "over 10,000";
+          const icText = fmtMa(info.currentMa);
           const messages = {
             burnt: `🔥 Burnt out — ${icText} through the collector and ${ib} mA into the base are far above a small transistor's 200 mA and 50 mA. Add or enlarge a resistor.`,
             overdriven: `⚠ Overdriven at ${icText} collector / ${ib} mA base — over 1.5 times a small transistor's 200 mA and 50 mA.`,
             overheating: `🔥 Running hot — dissipating ${info.watts.toFixed(2)} W against a typical 0.625 W rating.`,
-            off: "Off: the base is not getting 0.7 V above the emitter, so no collector current flows.",
+            off: info.polarity === "pnp" ? "Off: the base is not at least 0.7 V below the emitter, so no collector current flows." : "Off: the base is not getting 0.7 V above the emitter, so no collector current flows.",
             active: `Amplifying: the collector carries ${icText}, ${(info.currentMa / Math.max(info.baseMa, 1e-9)).toFixed(0)} times the ${ib} mA base current; Vce is ${info.vce.toFixed(2)} V.`,
             saturated: `✓ Saturated: fully on like a closed switch. ${icText} flows, limited by the rest of the circuit (the gain would allow more); Vce is ${info.vce.toFixed(2)} V.`,
           };
@@ -2966,6 +2981,7 @@
             off: "Not conducting: the loop's voltage is below the diode's 0.7V forward drop.",
             reversed: "Blocking — a diode only conducts anode to cathode (towards the bar). Flip it around to let current through.",
             blocked: "No current flows here: another diode or LED in this loop is wired backwards.",
+            idle: "No current flows through it in this circuit right now (something else in the loop is switched off).",
             normal: `✓ Conducting ${ma}mA with a 0.7V drop.`,
           };
           electricalHtml = `<p class="sim-power-status ${info.status === "normal" ? "is-powered" : "is-danger"}">${messages[info.status] || ""}</p>`;
@@ -3356,7 +3372,8 @@
       if (transistorGainInput) {
         transistorGainInput.addEventListener("change", () => {
           pushHistory();
-          comp.gain = Math.min(1000, Math.max(1, Math.round(Number(transistorGainInput.value) || 100)));
+          const typedGain = Number(transistorGainInput.value);
+          comp.gain = transistorGainInput.value.trim() !== "" && Number.isFinite(typedGain) ? Math.min(1000, Math.max(1, Math.round(typedGain))) : 100;
           renderInspector();
           renderBuilder();
         });
@@ -3542,7 +3559,7 @@
     } else if (selected.kind === "wire") {
       const wire = simData.wires.find((w) => w.id === selected.id);
       if (!wire) return;
-      const { poweredWires } = window.computeSimPoweredSet(simData);
+      const { poweredWires } = window.computeSimPoweredSet(simData, window.computeSimElectricalAnalysis(simData));
       const isPowered = poweredWires.has(wire.id);
       const waypoints = getWireWaypoints(wire);
       const waypointBounds = getSimulationCanvasBounds();

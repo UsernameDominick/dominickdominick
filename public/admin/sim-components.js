@@ -907,7 +907,7 @@ const TRANSISTOR_WATTAGE_RATING = 0.625; // TO-92 package
   // Which transistors let power through, for the powered view only (the real answer comes from the general solver): an NPN
   // whose base can be reached from a source's positive terminal, or a PNP whose base can reach a source's negative terminal,
   // without passing through the other terminal. Re-checked until it settles, since one transistor can drive another.
-  function conductingTransistorLinks(data) {
+  function conductingTransistorLinks(data, analysis) {
     const components = (data && data.components) || [];
     const transistors = components.filter((c) => c.type === "transistor");
     if (!transistors.length) return [];
@@ -929,8 +929,13 @@ const TRANSISTOR_WATTAGE_RATING = 0.625; // TO-92 package
       const next = [];
       transistors.forEach((c) => {
         const pnp = c.polarity === "pnp";
-        if (!(pnp ? low : high).has(nodeId(c, "base"))) return;
-        next.push(pnp ? [nodeId(c, "emitter"), nodeId(c, "collector")] : [nodeId(c, "collector"), nodeId(c, "emitter")]);
+        // Where the network solver has already decided, its answer wins; the base-reach test is only the fallback.
+        const solvedResult = analysis && analysis[c.id] && analysis[c.id].kind === "transistor" ? analysis[c.id] : null;
+        if (solvedResult ? solvedResult.region === "off" : !(pnp ? low : high).has(nodeId(c, "base"))) return;
+        const [collector, base, emitter] = [nodeId(c, "collector"), nodeId(c, "base"), nodeId(c, "emitter")];
+        // Power passes collector to emitter and base to emitter (the other way round for a PNP).
+        if (pnp) next.push([emitter, collector], [emitter, base]);
+        else next.push([collector, emitter], [base, emitter]);
       });
       if (next.length === links.length) break;
       links = next;
@@ -938,10 +943,10 @@ const TRANSISTOR_WATTAGE_RATING = 0.625; // TO-92 package
     return links;
   }
 
-  window.computeSimPoweredSet = function (data) {
+  window.computeSimPoweredSet = function (data, analysis) {
     const components = (data && data.components) || [];
     const wires = (data && data.wires) || [];
-    const transistorLinks = conductingTransistorLinks(data);
+    const transistorLinks = conductingTransistorLinks(data, analysis);
     const adjacency = buildGraph(data, null, transistorLinks);
 
     const activeSources = [];
