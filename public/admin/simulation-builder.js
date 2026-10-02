@@ -932,7 +932,8 @@
     // is. Skipped for mcu_teensy specifically -- it already prints the
     // same text as visible SVG <text>, so a tooltip repeating it would
     // just be redundant (a critic pass found this).
-    const titleText = comp.type === "mcu_teensy" ? "" : comp.type === "logic_gate" ? window.simLogicTitle(comp) : comp.label || "";
+    const meterTitle = comp.type === "ohmmeter" && info ? `Ohmmeter reading ${info.status === "open" ? "open circuit (OL)" : info.status === "no-reading" ? "none" : window.simFormatOhms(info.ohms, info.status)}` : "";
+    const titleText = comp.type === "mcu_teensy" ? "" : comp.type === "logic_gate" ? window.simLogicTitle(comp) : meterTitle ? (comp.label ? `${comp.label}: ${meterTitle}` : meterTitle) : comp.label || "";
     const titleSvg = titleText ? `<title>${escapeXml(titleText)}</title>` : "";
     // Mirrors the public embed's own live reading (worker/simulation-
     // render.js) -- an ammeter's whole reason for existing is showing a
@@ -1572,7 +1573,7 @@
     });
     const skipped = simData.components.filter((c) => analysable.has(c.type) && !analysis[c.id] && !bypassedIds.has(c.id));
     if (simData.components.length && !hasSource && skipped.length) {
-      add("note", "There is no powered source in this circuit (a Power Supply only counts once its input is fed), so nothing is analysed yet.");
+      add("note", `There is no powered source in this circuit (a Power Supply only counts once its input is fed), so no currents are analysed yet${simData.components.some((c) => c.type === "ohmmeter") ? " (an ohmmeter still reads resistance)" : ""}.`);
     } else if (skipped.length) {
       const shown = skipped.slice(0, 5).map((c) => nameOf(c.id)).join(", ");
       const openSwitch = simData.components.some((c) => c.type === "switch" && !window.simIsSwitchClosed(c));
@@ -2396,7 +2397,7 @@
     switch_spdt: { kind: "Electrical", text: "joins the common terminal to one of two throws." },
     ammeter: { kind: "Electrical", text: "shows the current through it, with zero resistance." },
     voltmeter: { kind: "Electrical", text: "reads the voltage between its probes in a series circuit and draws no current; a dash means the simulator can't vouch for that point (parallel branches, several sources)." },
-    ohmmeter: { kind: "Electrical", text: "reads the resistance between its probes through the unpowered circuit (parallel branches included); OL means no path, and a dash means a source is wired in." },
+    ohmmeter: { kind: "Electrical", text: "reads the resistance between its probes through the unpowered circuit, parallel branches included. OL means no path; a dash means a source is wired in (any battery, outlet or power supply counts, even behind an open switch). LEDs, capacitors and chips such as the Teensy read as open, and a potentiometer at 0% reads its 1 Ω minimum." },
     mcu_teensy: { kind: "Electrical", text: "acts as a fixed 300 Ω load and is checked for overheating (1 W); its digital pins and firmware aren't simulated." },
     tv: { kind: "Display", text: "lights up when powered (preview or Power on); it isn't analysed for current." },
     logic_gate: { kind: "Diagram part", text: "drawn for documentation, not simulated.", hideInInspector: true },

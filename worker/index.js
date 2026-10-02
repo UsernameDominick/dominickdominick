@@ -962,6 +962,8 @@ function simulationTopologyDescription(data) {
       case "ohmmeter": {
         const reading = analysis[component.id];
         if (reading?.status === "open") return "resistance meter reading open circuit";
+        if (reading?.reason === "powered") return "resistance meter with no reading because a power source is wired into the circuit";
+        if (reading?.reason === "unwired") return "resistance meter with a probe not connected";
         if (!reading || typeof reading.ohms !== "number") return "resistance meter with no reading";
         return `resistance meter reading ${formatOhms(reading.ohms, reading.status).replace("GΩ", " gigohms").replace("MΩ", " megohms").replace("kΩ", " kilohms").replace("Ω", " ohms")}`;
       }

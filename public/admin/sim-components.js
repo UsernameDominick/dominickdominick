@@ -1175,6 +1175,12 @@
     };
     const resist = (a, b, r) => {
       if (!(r > 0)) return join(a, b);
+      if (r >= 1e12) {
+        // Beyond what any meter could read: counts as open (a part that is merely there).
+        touched.add(a);
+        touched.add(b);
+        return;
+      }
       touched.add(a);
       touched.add(b);
       resistive.push({ a, b, r });
@@ -1280,11 +1286,14 @@
           m[ib][ia] -= g;
         }
       });
-      let singular = false;
+      // Pivots are judged relative to the largest conductance, so a network of very large resistances still solves.
+    let scale = 0;
+    for (let i = 0; i < n; i++) scale = Math.max(scale, m[i][i]);
+    let singular = false;
       for (let col = 0; col < n && !singular; col++) {
         let pivot = col;
         for (let row = col + 1; row < n; row++) if (Math.abs(m[row][col]) > Math.abs(m[pivot][col])) pivot = row;
-        if (Math.abs(m[pivot][col]) < 1e-18) {
+        if (Math.abs(m[pivot][col]) < 1e-12 * scale) {
           singular = true;
           break;
         }
@@ -1319,7 +1328,8 @@
   function formatOhms(ohms, status) {
     if (status === "open") return "OL";
     if (typeof ohms !== "number" || !Number.isFinite(ohms) || ohms < 0) return "—";
-    if (ohms < 0.005) return "0Ω";
+    if (ohms >= 1e11) return "OL";
+  if (ohms < 0.005) return "0Ω";
     if (ohms < 1) return `${ohms.toFixed(2)}Ω`;
     let u = 0;
     while (u < OHM_UNITS.length - 1 && ohms >= OHM_UNITS[u + 1][1]) u++;
