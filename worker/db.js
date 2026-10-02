@@ -3268,6 +3268,23 @@ function normalizeSimulationBackupData(value, label) {
   return JSON.stringify(normalized);
 }
 
+// Tables a backup deliberately leaves out, each with the reason. tests/backup-coverage.test.mjs fails when a table is in neither
+// exportAll() nor this list, so a new table is a decision made on purpose, not a quiet hole in the backup.
+export const BACKUP_NOT_INCLUDED = {
+  login_attempts: "Short-lived sign-in rate-limit counters; nothing worth restoring.",
+  rate_limits: "Short-lived request counters; nothing worth restoring.",
+  error_log: "A rolling log of recent errors, pruned automatically; only useful for the current session of problems.",
+  events: "Analytics events (clicks, searches, misses), a rolling record rather than site content.",
+  pageviews: "Analytics page views, a rolling record rather than site content; large and rebuilt as visitors arrive.",
+  activity_log: "The admin activity trail, pruned automatically.",
+  webhook_deliveries: "A short history of webhook calls, pruned to the latest 200.",
+  revisions: "Version history of pages, articles and projects. Not in the backup file today; the current content is. Restoring starts history afresh. (Worth deciding whether to include.)",
+  media_revisions: "History of each media file's description edits. Not in the backup file today. (Worth deciding whether to include.)",
+  media_versions: "Pointers to older uploaded versions of a file (the old bytes stay in R2). Not in the backup file today. (Worth deciding whether to include.)",
+  reactions: "Reader reaction counts. Not in the backup file today. (Worth deciding whether to include.)",
+  preview_links: "Secret share-links for unpublished items; deliberately not copied into a backup file, so a leaked backup can't reveal working links.",
+};
+
 export async function exportAll(env) {
   const [
     pages,
@@ -3782,9 +3799,11 @@ export async function importAll(env, data) {
     stmts.push(
       env.DB
         .prepare(
-          "INSERT INTO media (key, folder, tags, alt_text, caption, credit, license, hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+          "INSERT INTO media (key, folder, tags, alt_text, caption, credit, license, hash, private, width, height, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
-        .bind(m.key, m.folder ?? null, m.tags ?? "[]", m.alt_text ?? null, m.caption ?? null, m.credit ?? null, m.license ?? null, m.hash ?? null, m.created_at)
+        // `private` has to come back as it was: a file marked private is only kept from readers by this flag, so a restore that
+        // dropped it would publish the file. The sizes go through the same sanity check as an upload's.
+        .bind(m.key, m.folder ?? null, m.tags ?? "[]", m.alt_text ?? null, m.caption ?? null, m.credit ?? null, m.license ?? null, m.hash ?? null, m.private ? 1 : 0, boundedImageDim(Number(m.width)), boundedImageDim(Number(m.height)), m.created_at)
     );
   }
 
