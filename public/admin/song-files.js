@@ -154,6 +154,7 @@
       master_volume: clampNum(src.master_volume, 0, 1, 1),
       humanize: clampNum(src.humanize, 0, 100, 0),
       swing: clampNum(src.swing, 0, 100, 0),
+      space: clampNum(src.space, 0, 100, 0),
       private_notes: cleanText(src.private_notes, 20000),
       tracks: {},
       trackMeta: {},

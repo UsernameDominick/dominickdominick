@@ -83,6 +83,8 @@ window.SongEngine = (function () {
       analyser.fftSize = 2048;
       getMasterGain(ctx).connect(analyser);
       peakMeterAnalysers.set(ctx, analyser);
+      const send = reverbSends.get(ctx);
+      if (send) send.wet.connect(analyser);
     }
     return analyser;
   }
@@ -121,6 +123,73 @@ function setMasterVolume(ctx, value) {
     gainParam.cancelScheduledValues(now);
     gainParam.setValueAtTime(gainParam.value, now);
     gainParam.linearRampToValueAtTime(clamped, now + 0.03);
+  }
+
+  // ---------- Space (reverb) ----------
+  // A send off the master bus: master gain -> convolver -> wet gain -> destination, next to the
+  // dry path that is already there. A song with Space at 0 never builds any of it, so those
+  // songs sound and render exactly as before. The impulse response is generated from a fixed
+  // seed (decaying noise), so exports and the public player always get the same room.
+  const REVERB_SECONDS = 1.8;
+  const REVERB_MAX_WET = 1.8;
+  const reverbSends = new WeakMap();
+  function reverbImpulse(ctx) {
+    const rate = ctx.sampleRate;
+    const length = Math.max(1, Math.round(rate * REVERB_SECONDS));
+    const buffer = ctx.createBuffer(2, length, rate);
+    for (let channel = 0; channel < 2; channel++) {
+      const data = buffer.getChannelData(channel);
+      let state = (0x9e3779b9 + channel * 0x85ebca6b) >>> 0 || 1;
+      for (let i = 0; i < length; i++) {
+        state ^= state << 13;
+        state ^= state >>> 17;
+        state ^= state << 5;
+        const noise = (state >>> 0) / 2147483648 - 1;
+        // -60 dB by the end of the tail, with a short fade-in so it does not smear the attack.
+        const decay = Math.pow(0.001, i / length);
+        const fadeIn = Math.min(1, i / (rate * 0.004));
+        data[i] = noise * decay * fadeIn;
+      }
+    }
+    return buffer;
+  }
+  function getReverbSend(ctx) {
+    let send = reverbSends.get(ctx);
+    if (!send) {
+      const convolver = ctx.createConvolver();
+      convolver.buffer = reverbImpulse(ctx);
+      const wet = ctx.createGain();
+      wet.gain.value = 0;
+      getMasterGain(ctx).connect(convolver);
+      convolver.connect(wet);
+      wet.connect(ctx.destination);
+      // The meters read the same signal the speakers get, reverb included.
+      const analyser = peakMeterAnalysers.get(ctx);
+      if (analyser) wet.connect(analyser);
+      send = { wet };
+      reverbSends.set(ctx, send);
+    }
+    return send;
+  }
+  function spaceAmount(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) / 100 : 0;
+  }
+  // Space is 0 to 100 (percent). Ramps like the master volume to avoid clicks; `immediate` sets
+  // it outright, for an offline render that has to be at the right level from its first sample.
+  function setSpace(ctx, value, immediate) {
+    const amount = spaceAmount(value);
+    if (amount === 0 && !reverbSends.has(ctx)) return;
+    const gainParam = getReverbSend(ctx).wet.gain;
+    const level = amount * REVERB_MAX_WET;
+    if (immediate) {
+      gainParam.value = level;
+      return;
+    }
+    const now = ctx.currentTime;
+    gainParam.cancelScheduledValues(now);
+    gainParam.setValueAtTime(gainParam.value, now);
+    gainParam.linearRampToValueAtTime(level, now + 0.03);
   }
 
   const KIT_PARAMS = {
@@ -260,6 +329,7 @@ function setMasterVolume(ctx, value) {
     // does directly via setMasterVolume -- this is a cheap idempotent
     // re-application, not the only place the value gets applied).
     setMasterVolume(ctx, songData.master_volume);
+    setSpace(ctx, songData.space);
     const kit = songData.kit || "acoustic";
     if (songData.tracks) {
       Object.keys(songData.tracks).sort().forEach((track) => {
@@ -385,10 +455,11 @@ function setMasterVolume(ctx, value) {
     // The preview ignores humanize and uses a content-seeded noise stream:
     // repeated renders of the same song therefore show the same pattern,
     // while normal playback keeps fresh noise on each hit.
+    // The same goes for Space: a reverb tail would smear the pattern it is meant to show.
     const previewData =
-      songData.master_volume === 1 && !songData.humanize
+      songData.master_volume === 1 && !songData.humanize && !songData.space
         ? songData
-        : Object.assign({}, songData, { master_volume: 1, humanize: 0 });
+        : Object.assign({}, songData, { master_volume: 1, humanize: 0, space: 0 });
     const random = previewRandom(previewData);
     for (let step = 0; step < STEPS; step++) scheduleStep(ctx, previewData, step, step * stepDur, random);
     const buffer = await ctx.startRendering();
@@ -444,6 +515,7 @@ function setMasterVolume(ctx, value) {
     // song's volume over 30 ms, which would leave the first moments too loud;
     // start it at the right level so the whole render is at the song's volume.
     getMasterGain(ctx).gain.value = Number.isFinite(songData.master_volume) ? Math.max(0, Math.min(1, songData.master_volume)) : 1;
+    setSpace(ctx, songData.space, true);
     const stepSeconds = loopSamples / sampleRate / STEPS;
     for (let pass = 0; pass < 2; pass++) {
       const random = previewRandom(songData);
@@ -475,6 +547,7 @@ function setMasterVolume(ctx, value) {
     renderWaveformPeaks,
     renderLoopAudio,
     setMasterVolume,
+    setSpace,
     getPeakMeterAnalyser,
   };
 })();

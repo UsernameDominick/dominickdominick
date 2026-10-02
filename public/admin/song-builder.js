@@ -45,6 +45,7 @@
       master_volume: 1,
       humanize: 0,
       swing: 0,
+      space: 0,
       // Free-text production notes -- mix references, arrangement ideas,
       // "redo the kick" reminders. Rides in the same JSON blob as every
       // other song setting, but renderSongBlockHtml() (worker/render.js)
@@ -266,9 +267,12 @@
     $("song-humanize").value = typeof songData.humanize === "number" ? songData.humanize : 0;
     $("song-swing").value = Number(songData.swing) || 0;
     $("song-swing").setAttribute("aria-valuetext", Number(songData.swing) ? `${Number(songData.swing)}% swing` : "Straight");
+    $("song-space").value = Number(songData.space) || 0;
+    $("song-space").setAttribute("aria-valuetext", Number(songData.space) ? `${Number(songData.space)}% space` : "Dry");
     $("song-notes").value = songData.private_notes || "";
     applySongTheme($("song-preview-embed"), songData.theme);
     Engine.setMasterVolume(getAudioCtx(), songData.master_volume);
+    Engine.setSpace(getAudioCtx(), songData.space);
     $("song-preview-name").textContent = state.name || "Song name";
     renderSequencer();
     renderPianoRoll();
@@ -826,6 +830,13 @@
     songData.swing = Number($("song-swing").value) || 0;
     $("song-swing").setAttribute("aria-valuetext", songData.swing ? `${songData.swing}% swing` : "Straight");
     refreshWaveformPreview();
+    scheduleAutosave();
+  });
+  $("song-space").addEventListener("input", () => {
+    songData.space = Number($("song-space").value) || 0;
+    $("song-space").setAttribute("aria-valuetext", songData.space ? `${songData.space}% space` : "Dry");
+    // Applied straight away so a held note or a MIDI-keyboard preview hears it, not just the next step.
+    Engine.setSpace(getAudioCtx(), songData.space);
     scheduleAutosave();
   });
   $("song-notes").addEventListener("input", () => {
@@ -2174,12 +2185,15 @@
     $("song-humanize").value = typeof songData.humanize === "number" ? songData.humanize : 0;
     $("song-swing").value = Number(songData.swing) || 0;
     $("song-swing").setAttribute("aria-valuetext", Number(songData.swing) ? `${Number(songData.swing)}% swing` : "Straight");
+    $("song-space").value = Number(songData.space) || 0;
+    $("song-space").setAttribute("aria-valuetext", Number(songData.space) ? `${Number(songData.space)}% space` : "Dry");
     $("song-notes").value = songData.private_notes || "";
     // The shared AudioContext (and its master GainNode) persists across
     // songs -- without this, opening song B right after playing song A
     // would leave the gain at A's last value until B's own playback
     // schedules its first step.
     Engine.setMasterVolume(getAudioCtx(), songData.master_volume);
+    Engine.setSpace(getAudioCtx(), songData.space);
     $("song-preview-name").textContent = $("song-name").value || "Song name";
     // songData was just reassigned to a new object — the player has to be
     // rebuilt against it, since createPlayer captured the old reference.
@@ -2221,6 +2235,7 @@
     songData.master_volume = Number($("song-master-volume").value) / 100;
     songData.humanize = Number($("song-humanize").value) || 0;
     songData.swing = Number($("song-swing").value) || 0;
+    songData.space = Number($("song-space").value) || 0;
     songData.private_notes = $("song-notes").value;
     const gen = openGeneration;
     const id = currentSongId;
@@ -2319,6 +2334,7 @@
       `Master volume: ${Math.round((typeof songData.master_volume === "number" ? songData.master_volume : 1) * 100)}%`,
       `Humanize: ${typeof songData.humanize === "number" ? songData.humanize : 0}%`,
       `Swing: ${typeof songData.swing === "number" ? songData.swing : 0}%`,
+      `Space: ${typeof songData.space === "number" ? songData.space : 0}%`,
       `Page background sync: ${songData.page_sync ? "on" : "off"}`,
       ...(clipTotal ? [`Master clipping events this session: ${clipTotal}`] : []),
       "",

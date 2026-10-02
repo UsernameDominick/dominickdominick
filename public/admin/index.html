@@ -1962,6 +1962,7 @@
               </select>
               <label class="song-tempo-label" title="Adds a small random timing nudge to each drum hit and melody note, independently, so playback feels less mechanically quantized. 0 = perfectly on-grid.">Humanize<input type="range" id="song-humanize" min="0" max="100" value="0"></label>
               <label class="song-tempo-label" title="Delays every second sixteenth note to give the groove a bounce. 0 = straight, about 67 = triplet feel.">Swing<input type="range" id="song-swing" min="0" max="100" value="0" aria-valuetext="Straight"></label>
+              <label class="song-tempo-label" title="Adds a room-like reverb tail to the whole mix. 0 = dry, no reverb at all.">Space<input type="range" id="song-space" min="0" max="100" value="0" aria-valuetext="Dry"></label>
             </div>
           </div>
           <div class="sim-toolbar-group" data-group="look">
@@ -2114,7 +2115,7 @@
         <button id="close-song-audio" aria-label="Close Export audio dialog">×</button>
       </header>
       <div class="sim-checklist-body song-audio-body">
-        <p class="song-audio-help">Renders this song's loop to a mono WAV file, with its master volume, humanize and mutes applied. Every repeat is exactly one loop long, and notes still ringing at the end carry into the start of the next repeat, so the file loops without a click.</p>
+        <p class="song-audio-help">Renders this song's loop to a mono WAV file, with its master volume, humanize, space and mutes applied. Every repeat is exactly one loop long, and notes still ringing at the end carry into the start of the next repeat, so the file loops without a click.</p>
         <div class="song-audio-grid">
           <label>Sample rate
             <select id="song-audio-rate">
