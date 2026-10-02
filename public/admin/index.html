@@ -330,6 +330,7 @@
             <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="code" title="Code block">Code</button>
             <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="hr" title="Divider line (a paragraph of three dashes)">Divider</button>
             <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="image" title="Picture from the Media Library, written as ![alt](address &quot;caption&quot;)">Image…</button>
+            <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="embed" title="Embed a published simulation, a song or a 3D scan from your libraries, written as ::sim 148::">Embed…</button>
             <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="before-after" title="Before/after image comparison">Before/After</button>
             <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="callout" title="Callout (note/tip/warning/danger)">Callout</button>
             <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="diagram" title="Mermaid diagram (flowchart, sequence, etc.)">Diagram</button>
@@ -498,6 +499,7 @@
             <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="code" title="Code block">Code</button>
             <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="hr" title="Divider line (a paragraph of three dashes)">Divider</button>
             <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="image" title="Picture from the Media Library, written as ![alt](address &quot;caption&quot;)">Image…</button>
+            <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="embed" title="Embed a published simulation, a song or a 3D scan from your libraries, written as ::sim 148::">Embed…</button>
             <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="before-after" title="Before/after image comparison">Before/After</button>
             <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="callout" title="Callout (note/tip/warning/danger)">Callout</button>
             <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="diagram" title="Mermaid diagram (flowchart, sequence, etc.)">Diagram</button>
@@ -773,6 +775,34 @@
     </div>
   </div>
 
+  <div id="embed-picker-modal" class="modal" hidden role="dialog" aria-labelledby="embed-picker-title">
+    <div class="modal-inner embed-picker-inner">
+      <header>
+        <h1 id="embed-picker-title">Embed in the text</h1>
+        <button id="close-embed-picker" aria-label="Close Embed dialog">×</button>
+      </header>
+      <div class="embed-picker-body">
+        <label>What to embed
+          <select id="embed-picker-kind">
+            <option value="sim">Simulation</option>
+            <option value="song">Song</option>
+            <option value="scan">3D scan</option>
+          </select>
+        </label>
+        <label>Which one
+          <select id="embed-picker-item"></select>
+        </label>
+        <label id="embed-picker-desc-label">Describe it for people who can't see it (optional)
+          <input id="embed-picker-desc" maxlength="300" placeholder="e.g. A resistor limiting the current to an LED">
+        </label>
+        <p class="embed-picker-hint" id="embed-picker-hint"></p>
+        <div class="article-actions">
+          <button type="button" id="embed-picker-insert">Insert</button>
+          <button type="button" id="embed-picker-cancel">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
   <input type="text" id="md-image-pick" hidden tabindex="-1" aria-hidden="true">
   <div id="media-modal" class="modal" hidden role="dialog" aria-labelledby="media-modal-title">
     <div class="modal-inner media-modal-inner">

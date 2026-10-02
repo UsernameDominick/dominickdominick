@@ -99,6 +99,7 @@ import {
 import { handleAdminApi } from "./admin-api.js";
 import { notFoundLogPath, suggestNearest } from "./notfound.js";
 import { stripPictureLines } from "./pictures.js";
+import { stripEmbedLines } from "./embeds.js";
 import { visibleText, nowIso, cleanPageCss, pageCssKey } from "./text.js";
 import {
   capacitanceMicrofarads,
@@ -199,7 +200,7 @@ function indexJsonLd(name, path, items) {
 }
 
 function wordCount(md) {
-  const words = stripPictureLines(String(md || "")).replace(/```[\s\S]*?```/g, " ").match(/[\p{L}\p{N}'’-]+/gu);
+  const words = stripEmbedLines(stripPictureLines(String(md || ""))).replace(/```[\s\S]*?```/g, " ").match(/[\p{L}\p{N}'’-]+/gu);
   return words ? words.length : 0;
 }
 

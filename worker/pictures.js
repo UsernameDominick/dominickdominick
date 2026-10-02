@@ -41,7 +41,7 @@ export function paragraphPictures(paragraph) {
 
 // What the renderer would see as prose: fenced code is code, and the lines that open and close a callout (:::note … :::) are not
 // content, so the pictures inside a callout are found too.
-function proseOf(text) {
+export function proseOf(text) {
   return String(text || "")
     .replace(/\r\n?/g, "\n")
     .replace(/^```[^\n]*\n[\s\S]*?^```[ \t]*$/gm, "")

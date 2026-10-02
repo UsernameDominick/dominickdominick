@@ -5080,7 +5080,7 @@
 
   function updateWordCount() {
     // A picture line (![alt](address "caption")) holds no words of the article.
-    const text = el("article-body").value.replace(/^[ \t]*!\[[^\]\n]*\]\(\s*[^\s)]+(?:\s+(?:"[^"\n]*"|'[^'\n]*'))?\s*\)[ \t]*$/gm, "").trim();
+    const text = el("article-body").value.replace(/^[ \t]*::(?:sim|song|scan)\s+\d{1,9}(?:\s+"[^"\n]*")?\s*::[ \t]*$/gm, "").replace(/^[ \t]*!\[[^\]\n]*\]\(\s*[^\s)]+(?:\s+(?:"[^"\n]*"|'[^'\n]*'))?\s*\)[ \t]*$/gm, "").trim();
     const words = text ? text.split(/\s+/).length : 0;
     const mins = Math.max(1, Math.round(words / 200));
     const score = text ? fleschReadingEase(text) : null;
@@ -5562,6 +5562,60 @@
     textarea.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
+  // ---------- Embed a simulation, song or 3D scan into the text ----------
+  // Writes `::sim 148::` (or ::song / ::scan, with an optional "description") as a paragraph of its own after the selection.
+  let embedTarget = null;
+  const embedKind = el("embed-picker-kind");
+  const embedItem = el("embed-picker-item");
+  function embedChoices(kind) {
+    if (kind === "sim") return simulationOptions.map((s) => ({ id: s.id, label: simulationOptionLabel(s), live: !!s.is_published }));
+    if (kind === "song") return songOptions.map((s) => ({ id: s.id, label: s.name, live: true }));
+    return scanOptions.map((s) => ({ id: s.id, label: s.name, live: true }));
+  }
+  function fillEmbedItems() {
+    const kind = embedKind.value;
+    const choices = embedChoices(kind);
+    embedItem.innerHTML = choices.length
+      ? choices.map((c) => `<option value="${c.id}">${escapeHtml(c.label)}</option>`).join("")
+      : `<option value="">None in the library yet</option>`;
+    el("embed-picker-insert").disabled = !choices.length;
+    el("embed-picker-desc-label").hidden = kind === "song";
+    el("embed-picker-hint").textContent =
+      kind === "sim" ? "Only a published simulation shows to readers; a draft is simply left out until you publish it."
+      : kind === "song" ? "Readers get a Play button for the song."
+      : "Readers can orbit and zoom the scan.";
+  }
+  function openEmbedPicker(textarea) {
+    embedTarget = { textarea, at: textarea.selectionEnd };
+    el("embed-picker-desc").value = "";
+    fillEmbedItems();
+    el("embed-picker-modal").hidden = false;
+    embedKind.focus();
+  }
+  function closeEmbedPicker(refocus = true) {
+    el("embed-picker-modal").hidden = true;
+    const target = embedTarget;
+    embedTarget = null;
+    if (refocus && target) setTimeout(() => target.textarea.focus(), 0);
+  }
+  embedKind.addEventListener("change", fillEmbedItems);
+  el("close-embed-picker").addEventListener("click", () => closeEmbedPicker());
+  el("embed-picker-cancel").addEventListener("click", () => closeEmbedPicker());
+  el("embed-picker-insert").addEventListener("click", () => {
+    const target = embedTarget;
+    const id = Number(embedItem.value);
+    if (!target || !id) return;
+    const description = el("embed-picker-desc").value.replace(/"/g, "\u201d").replace(/\s+/g, " ").trim();
+    const line = `::${embedKind.value} ${id}${description && embedKind.value !== "song" ? ` "${description}"` : ""}::`;
+    insertParagraph(target.textarea, target.at, target.at, line);
+    const caret = target.textarea.selectionStart;
+    closeEmbedPicker(false);
+    setTimeout(() => {
+      target.textarea.focus();
+      target.textarea.setSelectionRange(caret, caret);
+    }, 0);
+  });
+
   // The picture button: the Media Library hands the chosen file's address to a hidden field; the picture goes into the text as
   // its own paragraph, `![alt](address "caption")`, with the library's alt text and caption offered as the defaults.
   let mdImageTarget = null;
@@ -5623,6 +5677,15 @@
         case "code":
           wrapSelection(textarea, "```\n", "\n```", "code here");
           break;
+        case "embed": {
+          const fences = (textarea.value.slice(0, textarea.selectionEnd).match(/^```/gm) || []).length;
+          if (fences % 2 === 1) {
+            alert("The cursor is inside a code block. Move it outside the block (or below its closing ```) and try again.");
+            return;
+          }
+          openEmbedPicker(textarea);
+          break;
+        }
         case "image": {
           // A picture inside a ``` block would just become code, so say so instead.
           const fences = (textarea.value.slice(0, textarea.selectionEnd).match(/^```/gm) || []).length;

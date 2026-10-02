@@ -7887,3 +7887,34 @@ button[data-tier="quiet"] { border-color: transparent; }
 @media (min-width: 861px) and (min-height: 861px) {
   .song-preview-fold > summary { display: none; }
 }
+
+/* ---- Embed picker (simulation / song / 3D scan into article or project text) ---- */
+.embed-picker-inner {
+  height: auto;
+  max-width: 520px;
+}
+.embed-picker-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px 20px;
+}
+.embed-picker-body label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+.embed-picker-body select,
+.embed-picker-body input {
+  width: 100%;
+}
+.embed-picker-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+.embed-picker-body .article-actions {
+  justify-content: flex-end;
+}

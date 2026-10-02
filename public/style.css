@@ -1615,6 +1615,11 @@ h6 { font-size: 0.9rem; }
   content: "— ";
 }
 
+/* A simulation, song or 3D scan placed into text with ::sim 148:: (and ::song / ::scan). */
+.body-embed {
+  margin: 1.6em 0;
+}
+
 /* A picture written into an article or project body with ![alt](address "caption"). */
 .body-figure {
   margin: 1.6em 0;

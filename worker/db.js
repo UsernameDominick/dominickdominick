@@ -2,6 +2,7 @@ import { toHex } from "./auth.js";
 import { visibleText, nowIso, pageCssKey } from "./text.js";
 import { suggestNearest } from "./notfound.js";
 import { bodyPictures, pictureUrl, markdownLinkTargets } from "./pictures.js";
+import { bodyEmbeds } from "./embeds.js";
 import { normalizeLegacySimulationWireIds, simulationDataError } from "./simulation-validation.js";
 
 export const RESERVED_SLUGS = new Set([
@@ -2194,6 +2195,27 @@ export async function findContentUsage(env, type, id) {
         usage.push({ type: "Project (Related)", title: p.title });
       }
     });
+    // Placed into text with ::sim 148:: (also ::song / ::scan): article and project bodies, project journal entries, and the text,
+    // quote, accordion and tabs blocks of pages.
+    const embedKind = { scan: "scan", simulation: "sim", song: "song" }[type];
+    const embeds = (text) => bodyEmbeds(text).some((e) => e.kind === embedKind && e.id === Number(id));
+    const [articles, journalRows] = await Promise.all([
+      listArticles(env),
+      env.DB.prepare("SELECT j.body AS body, pr.title AS title FROM journal_entries j JOIN projects pr ON pr.id = j.project_id WHERE pr.deleted_at IS NULL").all(),
+    ]);
+    for (const a of articles) if (embeds(a.body)) usage.push({ type: "Article (embedded in the text)", title: a.title });
+    for (const pr of projects) if (embeds(pr.body)) usage.push({ type: "Project (embedded in the text)", title: pr.title });
+    for (const j of journalRows.results || []) if (embeds(j.body)) usage.push({ type: "Project journal (embedded in the text)", title: j.title });
+    pages.forEach((p, i) => {
+      for (const b of pageBlocks[i]) {
+        const c = b.content || {};
+        const texts = [];
+        if (b.type === "text" || b.type === "quote") texts.push(c.text);
+        if (b.type === "accordion" && Array.isArray(c.items)) c.items.forEach((it) => it && texts.push(it.body));
+        if (b.type === "tabs" && Array.isArray(c.tabs)) c.tabs.forEach((it) => it && texts.push(it.body));
+        if (texts.some(embeds)) usage.push({ type: "Text on a page (embedded)", title: p.title });
+      }
+    });
   }
   return usage;
 }
@@ -3799,6 +3821,17 @@ function isCurrentlyPublished(item) {
 
 async function checkOneLink(env, rawUrl) {
   if (!rawUrl) return { ok: null, status: "Empty" };
+  // A song or scan placed into text with ::song 3:: / ::scan 2:: (it has no page of its own to link to).
+  const embedded = rawUrl.match(/^Embedded (song|scan) #(\d+)$/);
+  if (embedded) {
+    const row = embedded[1] === "song" ? await getSong(env, Number(embedded[2])) : await getScan(env, Number(embedded[2]));
+    return row ? { ok: true, status: "OK" } : { ok: false, status: "Not found (deleted?)" };
+  }
+  // A simulation's own page (also what ::sim 148:: is checked as): only a published one is public.
+  const simPage = rawUrl.split(/[?#]/)[0].match(/^\/simulation\/(\d+)$/);
+  if (simPage) {
+    return (await getPublishedSimulation(env, Number(simPage[1]))) ? { ok: true, status: "OK" } : { ok: false, status: "Not found or not published" };
+  }
   if (rawUrl.startsWith("/")) {
     // A file in the Media Library (a picture, a download): it has to exist, and a private upload is invisible to readers.
     const file = rawUrl.split(/[?#]/)[0].match(/^\/media\/((?:uploads|scans|audio|video|fonts)\/[A-Za-z0-9_.\-\/]+)$/);
@@ -3859,6 +3892,8 @@ async function gatherInternalLinks(env) {
   const projectJournals = await Promise.all(projects.map((p) => listJournalEntries(env, p.id)));
 
   const markdownLinks = (text) => markdownLinkTargets(text);
+  // Simulations, songs and scans placed into text (::sim 148::) are checked like links: do they still exist (and is a simulation published)?
+  const embedLinks = (text) => bodyEmbeds(text).map((e) => (e.kind === "sim" ? `/simulation/${e.id}` : `Embedded ${e.kind} #${e.id}`));
 
   const found = [];
   pages.forEach((p, i) => {
@@ -3871,15 +3906,15 @@ async function gatherInternalLinks(env) {
         for (const it of c.items) if (it && it.url) found.push({ url: it.url, source: `Page "${p.title}" — Links block` });
       }
       if (b.type === "text" && c.text) {
-        for (const url of markdownLinks(c.text)) found.push({ url, source: `Page "${p.title}" — Text block` });
+        for (const url of [...markdownLinks(c.text), ...embedLinks(c.text)]) found.push({ url, source: `Page "${p.title}" — Text block` });
       }
     }
   });
   for (const a of articles) {
-    for (const url of markdownLinks(a.body)) found.push({ url, source: `Article "${a.title}"` });
+    for (const url of [...markdownLinks(a.body), ...embedLinks(a.body)]) found.push({ url, source: `Article "${a.title}"` });
   }
   projects.forEach((p, i) => {
-    for (const url of markdownLinks(p.body)) found.push({ url, source: `Project "${p.title}"` });
+    for (const url of [...markdownLinks(p.body), ...embedLinks(p.body)]) found.push({ url, source: `Project "${p.title}"` });
     for (const key of ["github", "demo", "docs", "download"]) {
       if (p.links && p.links[key]) found.push({ url: p.links[key], source: `Project "${p.title}" — ${key} link` });
     }
@@ -3889,7 +3924,7 @@ async function gatherInternalLinks(env) {
       }
     }
     for (const j of projectJournals[i]) {
-      for (const url of markdownLinks(j.body)) found.push({ url, source: `Project "${p.title}" — journal entry "${j.title || j.entry_date}"` });
+      for (const url of [...markdownLinks(j.body), ...embedLinks(j.body)]) found.push({ url, source: `Project "${p.title}" — journal entry "${j.title || j.entry_date}"` });
     }
   });
   return { found, pages, articles, projects };

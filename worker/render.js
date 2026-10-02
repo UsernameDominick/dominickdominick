@@ -1,5 +1,6 @@
 import { listArticles, listProjects, getPublishedSimulation, getScan, getSong, getMediaMeta } from "./db.js";
 import { safeImageSrc, mediaKeyFor, paragraphPictures, bodyPictures, PICTURE_ONLY_LINE } from "./pictures.js";
+import { paragraphEmbed, bodyEmbeds, EMBED_ONLY_LINE, MAX_BODY_EMBEDS } from "./embeds.js";
 import { nowIso, visibleText } from "./text.js";
 import { renderSimulationSvg } from "./simulation-render.js";
 
@@ -336,19 +337,56 @@ export { safeImageSrc };
 // Looks up the Media Library rows for every picture in a text (or in several texts at once: a body and its journal entries),
 // one query for all of them and none when there are none, to hand to paragraphsHtml as `media`. Without it pictures still
 // render, just without stored sizes or the library's alt text; a failed lookup is the same, never a broken page.
+export const EMBEDS = Symbol("bodyEmbeds");
+let bodyEmbedSeq = 0;
+
 export async function loadBodyMedia(env, texts) {
+  const list = Array.isArray(texts) ? texts : [texts];
+  let rows = {};
   try {
     const keys = new Set();
-    for (const text of Array.isArray(texts) ? texts : [texts]) {
+    for (const text of list) {
       for (const picture of bodyPictures(text)) {
         if (picture.key) keys.add(picture.key);
         if (keys.size >= 50) break;
       }
     }
-    return keys.size ? await getMediaMeta(env, [...keys]) : {};
+    if (keys.size) rows = await getMediaMeta(env, [...keys]);
   } catch {
-    return {};
+    rows = {};
   }
+  // The simulations, songs and scans the texts embed (`::sim 148::`) travel on the same object, out of sight (a symbol key that
+  // isn't enumerable), so every place that already passes `media` along passes them too. A missing or unpublished item is null.
+  const embeds = new Map();
+  try {
+    const wanted = new Map();
+    for (const text of list) for (const e of bodyEmbeds(text)) wanted.set(`${e.kind}:${e.id}`, e);
+    await Promise.all(
+      [...wanted.entries()].slice(0, MAX_BODY_EMBEDS).map(async ([key, e]) => {
+        const load = e.kind === "sim" ? getPublishedSimulation : e.kind === "song" ? getSong : getScan;
+        embeds.set(key, (await load(env, e.id).catch(() => null)) || null);
+      })
+    );
+  } catch {
+    // embeds just don't show
+  }
+  Object.defineProperty(rows, EMBEDS, { value: embeds, enumerable: false });
+  return rows;
+}
+
+// An embedded item as it appears in text: the same markup as its block. An item that is missing or unpublished shows nothing
+// (like a broken block), and with no lookup done (a text that wasn't loaded with loadBodyMedia) the line stays as it was typed.
+function bodyEmbedHtml(embed, embeds) {
+  if (!embeds) return null;
+  const item = embeds.get(`${embed.kind}:${embed.id}`);
+  if (!item) return "";
+  const inner =
+    embed.kind === "sim"
+      ? simulationEmbedHtml(item, `sim-body-${++bodyEmbedSeq}`, embed.description)
+      : embed.kind === "song"
+      ? renderSongBlockHtml(item)
+      : modelViewerHtml(item, embed.description);
+  return `<div class="body-embed body-embed-${embed.kind}">${inner}</div>`;
 }
 
 function bodyFigureHtml(m, media) {
@@ -404,6 +442,11 @@ export function paragraphsHtml(text, { anchors = false, media = null } = {}) {
       }
       // A paragraph that is only "---" (or "***", "___") is a divider.
       if (/^(?:-{3,}|\*{3,}|_{3,})$/.test(trimmed)) return "<hr>";
+      const embed = paragraphEmbed(trimmed);
+      if (embed) {
+        const embedHtml = bodyEmbedHtml(embed, media && media[EMBEDS]);
+        if (embedHtml !== null) return embedHtml;
+      }
       const images = paragraphPictures(trimmed);
       if (images) {
         const figures = images.map((m) => bodyFigureHtml(m, media));
@@ -458,6 +501,7 @@ function stripMarkdown(text) {
     .replace(/^\s*(?:[-*+]|\d+[.)])\s+/gm, "")
     .replace(/^\s*>\s?/gm, "")
     .replace(PICTURE_ONLY_LINE, "") // a picture on its own line has no words
+    .replace(EMBED_ONLY_LINE, "") // nor does an embedded simulation, song or scan
     .replace(/!\[([^\]\n]*)\]\(\s*[^\s)]+(?:\s+"[^"\n]*")?\s*\)/g, "$1")
     .replace(/`([^`]+)`/g, "$1")
     .replace(/\*\*(.+?)\*\*/g, "$1")
@@ -1348,6 +1392,24 @@ export async function imgSizeAttrs(env, imgUrl) {
   return ` width="${row.width}" height="${row.height}"`;
 }
 
+// The interactive circuit shown by a Simulation block and by `::sim 148::` in a text: `uid` is the SVG's id (the power buttons point
+// at it, so it must be unique on the page).
+function simulationEmbedHtml(sim, uid, description) {
+  // The SVG itself is a visual circuit diagram with no inherent text equivalent — an interactive canvas like this needs someone
+  // to actually describe what it does, so this is opt-in per placement rather than derived from the simulation's (often terse) name.
+  const descId = description ? `${uid}-desc` : "";
+  const svg = renderSimulationSvg(sim.data).replace(
+    'class="sim-svg"',
+    `class="sim-svg" id="${esc(uid)}" role="img" aria-label="${esc(sim.name || "Circuit simulation")}"${descId ? ` aria-describedby="${esc(descId)}"` : ""}`
+  );
+  const descHtml = description ? `<p id="${esc(descId)}" class="sr-only">${esc(description)}</p>` : "";
+  return `<div class="sim-block-wrap">${descHtml}${svg}<div class="sim-block-actions"><button type="button" class="sim-power-btn" data-target="${esc(
+    uid
+  )}">Power on</button><button type="button" class="sim-power-btn sim-view-btn" aria-pressed="false" data-target="${esc(
+    uid
+  )}">Schematic view</button></div></div>`;
+}
+
 async function renderBlockInner(env, block, ctx) {
   const c = block.content || {};
   switch (block.type) {
@@ -1497,22 +1559,7 @@ async function renderBlockInner(env, block, ctx) {
       // skipped (see renderBlocks' null check) rather than showing an
       // "X not found" message and still reserving its grid space.
       if (!sim) return null;
-      const uid = `sim-${block.id}`;
-      // The SVG itself is a visual circuit diagram with no inherent text
-      // equivalent — an interactive canvas like this needs someone to
-      // actually describe what it does, so this is opt-in per placement
-      // rather than derived from the simulation's (often terse) name.
-      const descId = c.description ? `${uid}-desc` : "";
-      const svg = renderSimulationSvg(sim.data).replace(
-        'class="sim-svg"',
-        `class="sim-svg" id="${esc(uid)}" role="img" aria-label="${esc(sim.name || "Circuit simulation")}"${descId ? ` aria-describedby="${esc(descId)}"` : ""}`
-      );
-      const descHtml = c.description ? `<p id="${esc(descId)}" class="sr-only">${esc(c.description)}</p>` : "";
-      return `<div class="sim-block-wrap">${descHtml}${svg}<div class="sim-block-actions"><button type="button" class="sim-power-btn" data-target="${esc(
-        uid
-      )}">Power on</button><button type="button" class="sim-power-btn sim-view-btn" aria-pressed="false" data-target="${esc(
-        uid
-      )}">Schematic view</button></div></div>`;
+      return simulationEmbedHtml(sim, `sim-${block.id}`, c.description);
     }
     case "scan": {
       if (!c.scan_id) return `<p class="empty-hint">No 3D scan selected.</p>`;
