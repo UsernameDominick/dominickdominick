@@ -2028,7 +2028,10 @@ const FAVICON = faviconDataUri();
 // what's already in this module) since it exists for the case where
 // something has already gone wrong, possibly the DB itself. Inline
 // styles only, so it never depends on /style.css having loaded either.
-export function renderErrorPageHtml() {
+// `ref` is the short reference the failure was logged under (see worker/index.js): shown so a reader can quote it and the owner can
+// find that exact entry in Diagnostics, Error log. Only plain letters and digits are ever printed.
+export function renderErrorPageHtml(ref) {
+  const safeRef = /^[a-z0-9]{6,16}$/.test(String(ref || "")) ? String(ref) : "";
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2054,12 +2057,14 @@ export function renderErrorPageHtml() {
   p { color: #b6a9d1; line-height: 1.5; }
   a { color: #ff7a45; text-decoration: none; }
   a:hover { text-decoration: underline; }
+  .error-ref { font-size: 0.85rem; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: #f4eefc; }
 </style>
 </head>
 <body>
   <div class="error-box">
     <h1>Something went wrong</h1>
-    <p>An unexpected error occurred. It's been logged — try again in a moment, or head back to the homepage.</p>
+    <p>An unexpected error occurred. It's been logged — try again in a moment, or head back to the homepage.</p>${safeRef ? `\n    <p class="error-ref">Reference: <code>${safeRef}</code></p>` : ""}
     <p><a href="/">← Back to dominick.dominick</a></p>
   </div>
 </body>

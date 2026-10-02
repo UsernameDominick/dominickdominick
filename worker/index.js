@@ -1404,20 +1404,23 @@ export default {
       return withSecurityHeaders(response);
     } catch (err) {
       const path = new URL(request.url).pathname;
-      ctx.waitUntil(logError(env, { message: err.message, stack: err.stack, path }).catch(() => {}));
+      // A short reference, made here (not by the database, which may be what failed) and printed both on the error page and at the
+      // start of the logged message, so the owner can find exactly the entry a reader quotes (Diagnostics, Error log).
+      const ref = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
+      ctx.waitUntil(logError(env, { message: `[${ref}] ${err.message}`, stack: err.stack, path }).catch(() => {}));
       // API/admin routes should still get a plain error a client can parse
       // (JSON.parse would choke on the branded HTML page below); the
       // branded page is for a human hitting a broken public/admin page.
       if (path.startsWith("/api/")) {
         return withSecurityHeaders(
-          new Response("Something went wrong. Try again in a moment.", {
+          new Response(`Something went wrong. Try again in a moment. (Reference: ${ref})`, {
             status: 500,
             headers: { "Content-Type": "text/plain;charset=UTF-8" },
           })
         );
       }
       return withSecurityHeaders(
-        new Response(renderErrorPageHtml(), {
+        new Response(renderErrorPageHtml(ref), {
           status: 500,
           headers: { "Content-Type": "text/html;charset=UTF-8" },
         })
