@@ -1739,6 +1739,7 @@
               <button type="button" class="sim-quick" id="sim-warnings-btn" title="Problems the simulator found in this circuit, in plain words">No warnings</button><span id="sim-warnings-live" class="sim-sr-only" role="status" aria-live="polite"></span>
               <button type="button" id="sim-model-notes-btn" title="What the simulator assumes and can't do, and how each part in this circuit is modelled">Model notes</button>
               <button type="button" id="sim-checklist-btn" title="A step-by-step list of the parts and wires to build this circuit on a real breadboard, with checkboxes">Build checklist</button>
+              <button type="button" id="sim-sweep-btn" title="Chart what a reading does as one setting changes: a resistor from 100 Ω to 10 kΩ, a battery from 1 V to 12 V, a potentiometer from end to end">Sweep a setting…</button>
               <button type="button" id="sim-show-disconnected" title="Highlight every pin that has no wire attached">Show disconnected pins</button>
               <button type="button" id="sim-show-voltages" aria-pressed="false" title="Write the voltage at every part's pins on the canvas while Preview: power on is running. Voltages are measured from the power source's negative terminal.">Show voltages</button>
               <button type="button" id="sim-schematic-toggle" aria-pressed="false" title="Draw the parts as standard schematic symbols (zigzag resistors, diode triangles and so on) instead of pictures. Only changes how the canvas looks; your choice is remembered in this browser.">Schematic view</button>
@@ -2133,6 +2134,52 @@
     </div>
   </div>
 
+  <div id="sim-sweep-modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="sim-sweep-title">
+    <div class="modal-inner sim-checklist-inner sim-sweep-inner">
+      <header>
+        <h1 id="sim-sweep-title">Sweep a setting</h1>
+        <button id="close-sim-sweep" aria-label="Close Sweep dialog">×</button>
+      </header>
+      <div class="sim-checklist-body sim-sweep-body">
+        <p id="sim-sweep-empty" class="sim-checklist-empty" hidden></p>
+        <form id="sim-sweep-form" class="sim-sweep-form" onsubmit="return false">
+          <label class="sim-sweep-wide">Change
+            <select id="sim-sweep-target"></select>
+          </label>
+          <label><span>From <span class="sim-sweep-unit" id="sim-sweep-unit-from"></span></span>
+            <input type="number" id="sim-sweep-from" step="any" inputmode="decimal">
+          </label>
+          <label><span>To <span class="sim-sweep-unit" id="sim-sweep-unit-to"></span></span>
+            <input type="number" id="sim-sweep-to" step="any" inputmode="decimal">
+          </label>
+          <label>Steps
+            <input type="number" id="sim-sweep-steps" min="2" max="101" step="1" value="21" inputmode="numeric">
+          </label>
+          <label>Scale
+            <select id="sim-sweep-scale"><option value="linear">Even steps</option><option value="log">Ratio steps (log)</option></select>
+          </label>
+          <label class="sim-sweep-wide">Watch
+            <select id="sim-sweep-watch"></select>
+          </label>
+        </form>
+        <p id="sim-sweep-error" class="sim-sweep-error" role="alert" hidden></p>
+        <div id="sim-sweep-result" hidden>
+          <div id="sim-sweep-chart" class="sim-sweep-chart"></div>
+          <p id="sim-sweep-summary" class="sim-sweep-summary" role="status"></p>
+          <div class="sim-checklist-actions">
+            <button type="button" id="sim-sweep-copy">Copy as CSV</button>
+            <span id="sim-sweep-copied" class="sim-checklist-progress" role="status"></span>
+          </div>
+          <details class="sim-sweep-table">
+            <summary>Show the numbers</summary>
+            <table id="sim-sweep-table"></table>
+          </details>
+        </div>
+        <p class="sim-sweep-note">Each point is the whole circuit solved again with that one setting changed, using the same rules as Preview: power on. Nothing in the circuit is changed.</p>
+      </div>
+    </div>
+  </div>
+
   <div id="sim-model-modal" class="modal" hidden role="dialog" aria-labelledby="sim-model-title">
     <div class="modal-inner sim-checklist-inner">
       <header>
@@ -2403,6 +2450,7 @@
 <script src="/admin/sim-solver.js"></script>
   <script src="/admin/sim-schematic.js"></script>
 <script src="/admin/sim-components.js"></script>
+<script src="/admin/sim-sweep.js"></script>
 <script src="/admin/bulk-list.js"></script>
 <script src="/admin/simulation-builder.js"></script>
 <script src="/song-engine.js"></script>

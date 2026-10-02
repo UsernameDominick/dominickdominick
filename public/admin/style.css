@@ -7929,3 +7929,30 @@ button[data-tier="quiet"] { border-color: transparent; }
   stroke-width: 4px;
   stroke-linejoin: round;
 }
+
+/* ---- Simulation parameter sweep ---- */
+.sim-sweep-inner { max-width: 760px; }
+.sim-sweep-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--space-3, 12px); margin-bottom: var(--space-3, 12px); }
+.sim-sweep-form label { display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; color: var(--text-dim); min-width: 0; }
+.sim-sweep-form select, .sim-sweep-form input { width: 100%; min-width: 0; }
+.sim-sweep-form .sim-sweep-wide { grid-column: 1 / -1; }
+.sim-sweep-unit { font-weight: 400; }
+.sim-sweep-error { margin: 0 0 var(--space-3, 12px); color: var(--danger, #e5484d); font-size: 0.88rem; }
+.sim-sweep-chart { border: 1px solid var(--border); border-radius: 6px; background: var(--bg); padding: 4px; }
+.sim-sweep-chart svg { display: block; width: 100%; height: auto; }
+.sim-sweep-summary { margin: var(--space-3, 12px) 0; font-size: 0.88rem; line-height: 1.5; overflow-wrap: anywhere; }
+.sim-sweep-note { margin: var(--space-4, 16px) 0 0; font-size: 0.78rem; color: var(--text-dim); }
+.sim-sweep-table { margin-top: var(--space-2, 8px); font-size: 0.85rem; }
+.sim-sweep-table summary { cursor: pointer; }
+.sim-sweep-table table { border-collapse: collapse; margin-top: 8px; width: 100%; }
+.sim-sweep-table th, .sim-sweep-table td { text-align: left; padding: 3px 10px 3px 0; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+.sweep-grid { stroke: var(--border); stroke-width: 1; }
+.sweep-grid-x { stroke-dasharray: 2 4; }
+.sweep-axis { stroke: var(--text-dim); stroke-width: 1.5; }
+.sweep-tick { fill: var(--text-dim); font-size: 11px; }
+.sweep-label { fill: var(--text); font-size: 12px; }
+.sweep-line { stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.sweep-dot { fill: var(--accent); stroke: var(--bg); stroke-width: 1.5; }
+.sweep-now { stroke: var(--text-dim); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.sweep-now-text { fill: var(--text-dim); font-size: 11px; }
+.sim-sweep-form label[hidden], .sim-sweep-form[hidden], .sim-sweep-result[hidden] { display: none; }

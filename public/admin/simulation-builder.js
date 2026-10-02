@@ -1721,6 +1721,156 @@
     $("sim-model-notes-btn").focus();
   });
 
+  // ---------- Sweep a setting ----------
+  // Charts one reading while one setting of one part changes (sim-sweep.js solves the circuit at each step; nothing in the circuit is touched).
+  const sweep = { watchKey: "", result: null, names: null, phrase: "", timer: 0 };
+  const sweepTargetKey = (t) => `${t.compId}|${t.param.key}`;
+  function sweepTargets() {
+    return window.SimSweep.sweepable(simData);
+  }
+  function currentSweepTarget() {
+    const key = $("sim-sweep-target").value;
+    return sweepTargets().find((t) => sweepTargetKey(t) === key) || null;
+  }
+  // Fill the range, units and scale for the chosen setting (called when the setting changes, not on every edit).
+  function applySweepTarget(reset) {
+    const t = currentSweepTarget();
+    if (!t) return;
+    const param = t.param;
+    const scales = $("sim-sweep-scale");
+    [...scales.options].forEach((o) => (o.hidden = o.disabled = !param.scales.includes(o.value)));
+    scales.closest("label").hidden = param.scales.length < 2;
+    if (reset || !param.scales.includes(scales.value)) scales.value = param.scales[0];
+    $("sim-sweep-unit-from").textContent = $("sim-sweep-unit-to").textContent = `(${param.unit})`;
+    if (reset) {
+      const range = window.SimSweep.defaultRange(t.comp, param, scales.value);
+      $("sim-sweep-from").value = range.from;
+      $("sim-sweep-to").value = range.to;
+    }
+  }
+  function fillSweepWatch(names) {
+    const options = window.SimSweep.watchOptions(simData, names, (comp, pin) => checklistPinName(comp, pin));
+    const select = $("sim-sweep-watch");
+    const keep = options.some((o) => o.key === sweep.watchKey) ? sweep.watchKey : "";
+    select.innerHTML = "";
+    const groups = {};
+    options.forEach((o) => {
+      if (!groups[o.group]) {
+        groups[o.group] = document.createElement("optgroup");
+        groups[o.group].label = o.group;
+        select.appendChild(groups[o.group]);
+      }
+      const opt = document.createElement("option");
+      opt.value = o.key;
+      opt.textContent = o.label;
+      groups[o.group].appendChild(opt);
+    });
+    sweep.options = options;
+    // First choice: a current reading that has a figure today; otherwise the first thing on offer.
+    select.value = keep || (options.find((o) => o.kind === "reading" && o.field === "currentMa") || options[0] || {}).key || "";
+    sweep.watchKey = select.value;
+  }
+  function runSweep() {
+    const t = currentSweepTarget();
+    const watch = (sweep.options || []).find((o) => o.key === $("sim-sweep-watch").value);
+    const err = $("sim-sweep-error");
+    const out = $("sim-sweep-result");
+    if (!t || !watch) {
+      err.hidden = out.hidden = true;
+      return;
+    }
+    sweep.watchKey = watch.key;
+    const result = window.SimSweep.run(simData, {
+      compId: t.compId,
+      paramKey: t.param.key,
+      from: $("sim-sweep-from").value,
+      to: $("sim-sweep-to").value,
+      steps: $("sim-sweep-steps").value,
+      scale: $("sim-sweep-scale").value,
+      watch,
+    });
+    if (result.error) {
+      err.textContent = result.error;
+      err.hidden = false;
+      out.hidden = true;
+      sweep.result = null;
+      return;
+    }
+    err.hidden = true;
+    out.hidden = false;
+    sweep.result = result;
+    sweep.phrase = watch.phrase;
+    const S = window.SimSweep;
+    $("sim-sweep-chart").innerHTML = S.chartSvg(result, sweep.names, watch.phrase, { compact: $("sim-sweep-chart").clientWidth < 520 });
+    $("sim-sweep-summary").textContent = S.describe(result, sweep.names, watch.phrase);
+    $("sim-sweep-copied").textContent = "";
+    const rows = result.xs.map((x, i) => `<tr><td>${escapeXml(S.formatValue(x, result.param.unit))}</td><td>${result.ys[i] === null ? "no reading" : escapeXml(S.formatValue(result.ys[i], watch.unit))}</td></tr>`).join("");
+    $("sim-sweep-table").innerHTML = `<thead><tr><th scope="col">${escapeXml(result.param.label)}</th><th scope="col">${escapeXml(watch.phrase)}</th></tr></thead><tbody>${rows}</tbody>`;
+  }
+  function runSweepSoon() {
+    clearTimeout(sweep.timer);
+    sweep.timer = setTimeout(runSweep, 120);
+  }
+  $("sim-sweep-btn").addEventListener("click", () => {
+    $("sim-sweep-modal").hidden = false; // shown first: the chart is drawn to the width it has
+    const targets = sweepTargets();
+    const empty = $("sim-sweep-empty");
+    sweep.names = checklistPartNames();
+    const form = $("sim-sweep-form");
+    if (!targets.length) {
+      empty.textContent = "Add a resistor, potentiometer, battery or power supply to the circuit, then come back to see how a reading changes as it does.";
+      empty.hidden = false;
+      form.hidden = true;
+      $("sim-sweep-error").hidden = $("sim-sweep-result").hidden = true;
+    } else {
+      empty.hidden = true;
+      form.hidden = false;
+      const select = $("sim-sweep-target");
+      const previous = select.value;
+      select.innerHTML = "";
+      targets.forEach((t) => {
+        const opt = document.createElement("option");
+        opt.value = sweepTargetKey(t);
+        opt.textContent = `${sweep.names.get(t.compId) || t.comp.type}: ${t.param.label}`;
+        select.appendChild(opt);
+      });
+      const kept = targets.some((t) => sweepTargetKey(t) === previous);
+      if (kept) select.value = previous;
+      applySweepTarget(!kept);
+      fillSweepWatch(sweep.names);
+      runSweep();
+    }
+  });
+  $("sim-sweep-target").addEventListener("change", () => {
+    applySweepTarget(true);
+    runSweep();
+  });
+  $("sim-sweep-scale").addEventListener("change", () => {
+    const t = currentSweepTarget();
+    if (t) {
+      const range = window.SimSweep.defaultRange(t.comp, t.param, $("sim-sweep-scale").value);
+      $("sim-sweep-from").value = range.from;
+      $("sim-sweep-to").value = range.to;
+    }
+    runSweep();
+  });
+  $("sim-sweep-watch").addEventListener("change", runSweep);
+  ["sim-sweep-from", "sim-sweep-to", "sim-sweep-steps"].forEach((id) => $(id).addEventListener("input", runSweepSoon));
+  $("sim-sweep-copy").addEventListener("click", async () => {
+    if (!sweep.result) return;
+    try {
+      await navigator.clipboard.writeText(window.SimSweep.csv(sweep.result, sweep.names, sweep.phrase));
+      $("sim-sweep-copied").textContent = "Copied to the clipboard";
+    } catch (e) {
+      $("sim-sweep-copied").textContent = "Couldn't copy automatically; open Show the numbers and copy them by hand";
+    }
+  });
+  $("close-sim-sweep").addEventListener("click", () => {
+    clearTimeout(sweep.timer);
+    $("sim-sweep-modal").hidden = true;
+    $("sim-sweep-btn").focus();
+  });
+
   // ---------- Build checklist ----------
   // A plain-language list for building the circuit on real hardware: the parts to gather, then one step per wire
   // ("Connect R1 end 2 to LED1 anode"). Ticks live only in the open dialog (nothing is saved), and the whole list
