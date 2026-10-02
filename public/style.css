@@ -116,9 +116,7 @@
 }
 
 /* Smooth cross-page transitions where supported; a harmless no-op elsewhere */
-@view-transition {
-  navigation: auto;
-}
+
 
 * {
   box-sizing: border-box;
@@ -159,9 +157,7 @@ video {
   padding: 10px 16px;
   border-radius: 6px;
   text-decoration: none;
-  font-weight: 600;
-  transition: top 0.15s ease;
-}
+  font-weight: 600;}
 
 .skip-link:focus {
   top: 12px;
@@ -1051,9 +1047,7 @@ body {
   height: 3px;
   width: 0%;
   background: var(--accent);
-  z-index: 200;
-  transition: width 0.1s linear;
-}
+  z-index: 200;}
 
 .article-meta {
   display: flex;
@@ -1284,7 +1278,7 @@ h2[id], h3[id] {
   padding: 6px 14px;
   font-size: 0.95rem;
   cursor: pointer;
-  transition: border-color 0.2s ease, transform 0.15s ease;
+  transition: border-color 0.2s ease;
 }
 
 .reaction-btn:hover {
@@ -1825,7 +1819,7 @@ h6 { font-size: 0.9rem; }
   height: 30%;
   background: var(--border);
   border-radius: 2px;
-  transition: height 0.05s ease, background 0.05s ease;
+  transition: background 0.05s ease;
 }
 
 .song-embed-bar-active {
@@ -1853,7 +1847,7 @@ h6 { font-size: 0.9rem; }
   background: var(--accent);
   opacity: 0.5;
   transform: scale(1);
-  transition: transform 0.08s ease, opacity 0.08s ease;
+  transition: opacity 0.08s ease;
 }
 
 .song-embed-pulse-beat .song-embed-pulse-core {
@@ -1861,9 +1855,7 @@ h6 { font-size: 0.9rem; }
   opacity: 0.85;
 }
 
-.song-embed-pulse-hit .song-embed-pulse-core {
-  animation: song-pulse-hit 0.3s ease-out;
-}
+.song-embed-pulse-hit .song-embed-pulse-core {}
 
 /* color-mix() with `transparent` gives a translucent version of the
    CURRENT --accent -- a critic pass found the previous fixed
@@ -2303,7 +2295,7 @@ html.sim-schematic-pref .sim-svg .sim-art-schem { display: inline; }
   stroke: #444;
   stroke-width: 2.5;
   stroke-linecap: round;
-  transition: all 0.2s;
+  transition: fill 0.2s, stroke 0.2s;
 }
 .sim-comp .switch-pivot {
   fill: #333;
@@ -2510,9 +2502,7 @@ html.sim-schematic-pref .sim-svg .sim-art-schem { display: inline; }
 .sim-wire[data-animated="true"] {
   stroke-dasharray: 8 5;
 }
-.sim-svg.is-on .sim-wire[data-animated="true"] {
-  animation: sim-flow 0.7s linear infinite;
-}
+.sim-svg.is-on .sim-wire[data-animated="true"] {}
 @keyframes sim-flow {
   to {
     stroke-dashoffset: -26;
@@ -4023,3 +4013,34 @@ html.lightbox-open { overflow: hidden; }
   .lightbox-img { max-height: calc(100vh - 190px); max-height: calc(100dvh - 190px); }
 }
 @media print { .lightbox { display: none !important; } }
+
+/* Movement, kept in one place and only for visitors who haven't asked for less of it (tests/reduced-motion.test.mjs checks this). */
+@media (prefers-reduced-motion: no-preference) {
+  @view-transition {
+    navigation: auto;
+  }
+  .skip-link {
+    transition: top 0.15s ease;
+  }
+  .reading-progress {
+    transition: width 0.1s linear;
+  }
+  .reaction-btn {
+    transition: border-color 0.2s ease, transform 0.15s ease;
+  }
+  .song-embed-bar {
+    transition: height 0.05s ease, background 0.05s ease;
+  }
+  .song-embed-pulse-core {
+    transition: transform 0.08s ease, opacity 0.08s ease;
+  }
+  .song-embed-pulse-hit .song-embed-pulse-core {
+    animation: song-pulse-hit 0.3s ease-out;
+  }
+  .sim-comp .switch-lever {
+    transition: all 0.2s;
+  }
+  .sim-svg.is-on .sim-wire[data-animated="true"] {
+    animation: sim-flow 0.7s linear infinite;
+  }
+}
