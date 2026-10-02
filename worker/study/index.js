@@ -7,6 +7,7 @@
 // block (the default) opens straight away. The study page itself is never in the page's HTML, and the
 // password never leaves the server.
 import { checkRateLimit, recordRateLimitHit } from "../db.js";
+import { withBridge } from "./bridges.js";
 
 // Used when a Study block is set to ask for a password but has none of its own typed in.
 // An env var STUDY_PASSWORD, if set, replaces it.
@@ -87,7 +88,8 @@ export async function handleStudyUnlock(request, env) {
   const serve = async () => {
     const key = STUDY_LABS[content.lab] ? content.lab : DEFAULT_LAB;
     const html = env.__studyLabs && env.__studyLabs[key] != null ? env.__studyLabs[key] : await STUDY_LABS[key].load();
-    return new Response(html, {
+    // The study page goes out with its progress bridge (worker/study/bridges.js) so the popup can keep and restore a reader's place.
+    return new Response(withBridge(html, key), {
       status: 200,
       headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Robots-Tag": "noindex" },
     });
@@ -115,7 +117,7 @@ export function renderStudyBlock(content, blockId, esc) {
   const c = content || {};
   const label = String(c.label || "").trim().slice(0, 80) || "Open study";
   const lab = STUDY_LABS[c.lab] ? c.lab : DEFAULT_LAB;
-  return `<div class="study-block" data-study-block="${esc(blockId)}" data-study-title="${esc(STUDY_LABS[lab].label)}"><button type="button" class="btn study-open" aria-haspopup="dialog">${esc(label)}</button></div>`;
+  return `<div class="study-block" data-study-block="${esc(blockId)}" data-study-lab="${esc(lab)}" data-study-title="${esc(STUDY_LABS[lab].label)}"><button type="button" class="btn study-open" aria-haspopup="dialog">${esc(label)}</button></div>`;
 }
 
 // The tags a page needs when it has a Study block on it.

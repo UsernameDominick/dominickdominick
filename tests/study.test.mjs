@@ -1,8 +1,10 @@
 // The temporary Study block (worker/study/): the password check, the unlock route, and what a page shows.
 import fs from "node:fs";
+import vm from "node:vm";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { samePassword, expectedPassword, gatePassword, handleStudyUnlock, renderStudyBlock, studyPageTags, STUDY_LABS } from "../worker/study/index.js";
+import { withBridge, LAB_BRIDGES } from "../worker/study/bridges.js";
 
 let fail = 0;
 const ok = (c, m, extra) => { if (!c) fail++; console.log(`${c ? "PASS" : "FAIL"} — ${m}${extra !== undefined ? " " + JSON.stringify(extra) : ""}`); };
@@ -60,7 +62,8 @@ ok(gatePassword({ STUDY_PASSWORD: "envpw" }, { requirePassword: true }) === "env
 {
   const env = makeEnv({ blocks: { 7: row({ lab: "core1-lab", requirePassword: true }) } });
   const res = await call(env, { block: 7, password: " 123 " });
-  ok(res.status === 200 && (await res.text()) === "<!DOCTYPE html><title>LAB</title>", "the right password returns the study page");
+  const served = await res.text();
+  ok(res.status === 200 && served.startsWith("<!DOCTYPE html><title>LAB</title>") && served.includes('study: "ready"'), "the right password returns the study page, with its progress bridge added");
   ok(/^text\/html/.test(res.headers.get("Content-Type")) && res.headers.get("Cache-Control") === "no-store" && res.headers.get("X-Robots-Tag") === "noindex", "as HTML, never cached, never indexed");
   ok(hits(env).length === 0, "a right password does not count against the limit");
 }
@@ -156,12 +159,131 @@ for (const [label, content] of [["no settings", {}], ["a password typed but not 
   ok(!html.includes("topsecret") && !html.includes("123") && !html.includes("<x>"), "the password (the block's or the default) and any extra settings never reach the page");
   ok(html.includes("Open &lt;b&gt;lab&lt;/b&gt;") && !html.includes("<b>lab"), "the button text is escaped");
   ok(html.includes('data-study-title="A+ Core 1 Drill"'), "the popup's title comes from the study page's name");
+  ok(html.includes('data-study-lab="core1-lab"') && renderStudyBlock({ lab: "bad" }, 3, esc).includes('data-study-lab="core1-lab"'), "and it names the study page (progress is kept per study page), falling back to the one that exists");
   ok(renderStudyBlock({}, 3, esc).includes(">Open study<"), "no button text: a sensible default");
   ok(renderStudyBlock(null, 3, esc).includes("study-open") && renderStudyBlock({ label: "x".repeat(300) }, 3, esc).includes(">" + "x".repeat(80) + "<"), "missing content and very long text are handled");
   ok(renderStudyBlock({ lab: "bad" }, 3, esc).includes("A+ Core 1 Drill"), "an unknown study page name shows the default one's title");
 }
 ok(studyPageTags('<div class="study-block">').length === 2 && studyPageTags('<div class="study-block">').join("").includes("/study/study.js"), "a page with the block gets the script and the stylesheet");
 ok(studyPageTags("<p>hi</p>").length === 0 && studyPageTags("").length === 0 && studyPageTags(null).length === 0, "a page without it gets nothing");
+
+// ---- the progress bridge ----
+{
+  const bridge = LAB_BRIDGES["core1-lab"];
+  ok(typeof bridge === "string" && bridge.length > 500, "the study page has a bridge");
+  let syntax = true;
+  try { new vm.Script(bridge); } catch (e) { syntax = e.message; }
+  ok(syntax === true, "it is valid browser code", syntax);
+  ok(!/<\/script/i.test(bridge), "and cannot end its own script tag early");
+  const page = "<html><body><p>hi</p></body></html>";
+  const out = withBridge(page, "core1-lab");
+  ok(out.indexOf("<script>") > out.indexOf("<p>hi</p>") && out.indexOf("</script></body>") > 0 && out.endsWith("</html>"), "it goes in just before the end of the body");
+  ok(withBridge("<p>no body tag</p>", "core1-lab").endsWith("</script>"), "or at the end when there is no body tag");
+  const tricky = withBridge("<body>a</body><pre>&lt;/body&gt; </body></pre></body>", "core1-lab");
+  ok(tricky.lastIndexOf("<script>") > tricky.indexOf("</pre>") && tricky.endsWith("</body>"), "it goes before the LAST closing body tag");
+  ok(withBridge(page, "something-else") === page && withBridge(page, undefined) === page, "a study page without a bridge is sent unchanged");
+  ok(withBridge(null, "core1-lab").startsWith("<script>") && withBridge(undefined, "x") === "", "missing html does not crash");
+
+  // Run the bridge against a stand-in for the study page: its state object, render, and the window it lives in.
+  const makeState = () => ({
+    screen: "home", exam: "A", qtype: "mc", shuffle: true, timedMode: false, timeRemaining: 0, timerEnd: 0, timerHandle: null, autoAdvanceHandle: null,
+    queue: [], idx: 0, score: 0, results: [], sel: [], checked: false, gameHandle: null, gameTimerHandle: null, sessionActive: false, browseReturn: null,
+    labBoardId: null, labCols: {}, labTray: [], labLocked: {}, labDrag: null, labElapsed: 0, labStartMs: 0, labClockHandle: null, labDone: false,
+    lqId: null, lqItems: [], lqIdx: 0, lqHandle: null, labStats: {},
+  });
+  function run(state = makeState(), over = {}) {
+    const posted = [], timers = [], intervals = [], calls = { render: 0, resumeTimer: 0 }, handlers = {}, docHandlers = {};
+    const parent = { postMessage: (m) => posted.push(m) };
+    const win = { parent, addEventListener: (type, fn) => { handlers[type] = fn; } };
+    const doc = { documentElement: { style: {} }, hidden: false, addEventListener: (type, fn) => { docHandlers[type] = fn; } };
+    const ctx = vm.createContext({
+      window: win, parent, document: doc, state, JSON, Object, Array, Date, Number, String,
+      render: () => { calls.render++; },
+      canResume: () => state.sessionActive && state.queue.length > 0 && state.idx < state.queue.length,
+      resumeTimer: () => { calls.resumeTimer++; },
+      labCurBoard: () => (state.labBoardId === "known" ? {} : undefined),
+      labQuizDef: () => (state.lqId === "knownq" ? {} : undefined),
+      labTick: () => {}, labSyncElapsed: () => { state.labElapsed = 77; },
+      setTimeout: (fn) => { timers.push(fn); return timers.length; }, clearTimeout: () => {},
+      setInterval: (fn) => { intervals.push(fn); return intervals.length; },
+      ...over,
+    });
+    vm.runInContext(bridge, ctx);
+    const send = (data, source = parent) => handlers.message({ source, data });
+    return { state, posted, timers, intervals, calls, handlers, docHandlers, doc, ctx, send, parent };
+  }
+
+  let r = run();
+  ok(r.posted.length === 1 && r.posted[0].study === "ready", "the study page says it is ready when it loads");
+  r.ctx.render(); r.ctx.render();
+  ok(r.calls.render === 2 && r.timers.length === 2, "every redraw of the page schedules a save");
+  r.state.screen = "quiz"; r.state.score = 3; r.state.queue = [{ id: "A1", stem: "q" }]; r.state.timerHandle = 99; r.state.timerEnd = 12345; r.state.labDrag = { x: 1 }; r.state.labClockHandle = 5;
+  r.timers[1]();
+  const save = r.posted[r.posted.length - 1];
+  ok(save.study === "save" && save.state.screen === "quiz" && save.state.score === 3 && save.state.queue[0].id === "A1", "a save carries the page's progress", Object.keys(save.state).length);
+  ok(!("timerHandle" in save.state) && !("timerEnd" in save.state) && !("labDrag" in save.state) && !("labClockHandle" in save.state) && !("gameTimerHandle" in save.state), "but not clocks, timers or a drag in progress");
+  ok(save.state.labElapsed === 77, "a running stopwatch is brought up to date first");
+  r.state.queue[0].id = "CHANGED";
+  ok(save.state.queue[0].id === "A1", "and it is a copy, not the live state");
+  r.send({ study: "flush" });
+  ok(r.posted[r.posted.length - 1].study === "save", "a flush request saves at once");
+  r.docHandlers.visibilitychange(); r.doc.hidden = true; r.docHandlers.visibilitychange(); r.handlers.pagehide();
+  ok(r.posted.filter((m) => m.study === "save").length >= 4, "leaving the page or hiding the tab saves too");
+  r = run(Object.assign(makeState(), { huge: undefined }));
+  r.state.sel = ["x".repeat(2000000)]; r.ctx.render(); r.timers[0]();
+  ok(!r.posted.some((m) => m.study === "save"), "progress too big to keep is not sent");
+
+  // restoring
+  r = run();
+  r.send({ study: "restore", state: { screen: "browse", exam: "B", score: 4, idx: 2, sel: [1, 2], browseReturn: null, sessionActive: true, queue: [{ id: "Q1" }, { id: "Q2" }, { id: "Q3" }, { id: "Q4" }], labStats: { b1: { best: 30 } } } });
+  ok(r.state.screen === "browse" && r.state.exam === "B" && r.state.score === 4 && r.state.idx === 2 && r.state.sel.join() === "1,2" && r.state.queue.length === 4 && r.state.labStats.b1.best === 30, "restored progress is put back");
+  ok(r.calls.render === 1, "and the page redraws once");
+  r = run();
+  r.send({ study: "restore", state: { notAKey: 5, score: "lots", sel: "not a list", timedMode: 1, screen: 7, timerHandle: 123, labClockHandle: 9, labDrag: { a: 1 }, timerEnd: 5, queue: {} } });
+  ok(!("notAKey" in r.state) && r.state.score === 0 && Array.isArray(r.state.sel) && r.state.timedMode === false && r.state.screen === "home" && Array.isArray(r.state.queue), "unknown keys and values of the wrong kind are ignored", r.state.screen);
+  ok(r.state.timerHandle === null && r.state.labClockHandle === null && r.state.labDrag === null && r.state.timerEnd === 0, "a saved clock, timer or drag is never put back");
+  r = run(); r.send({ study: "restore", state: { screen: "game" } });
+  ok(r.state.screen === "home", "a run with lives and a clock opens at the start instead");
+  r = run(); r.send({ study: "restore", state: { screen: "quiz", sessionActive: false } });
+  ok(r.state.screen === "home", "a quiz screen with nothing to resume opens at the start");
+  r = run(); r.send({ study: "restore", state: { screen: "quiz", sessionActive: true, queue: [{ id: 1 }, { id: 2 }], idx: 1, timedMode: true, timeRemaining: 42 } });
+  ok(r.state.screen === "quiz" && r.calls.resumeTimer === 1, "a timed quiz comes back with its clock restarted");
+  r = run(); r.send({ study: "restore", state: { screen: "quiz", sessionActive: true, queue: [{ id: 1 }, { id: 2 }], idx: 1, timedMode: false } });
+  ok(r.state.screen === "quiz" && r.calls.resumeTimer === 0, "an untimed one does not start a clock");
+  r = run(); r.send({ study: "restore", state: { screen: "lab-board", labBoardId: "known", labElapsed: 30, labDone: false } });
+  ok(r.state.screen === "lab-board" && r.intervals.length === 1 && Date.now() - r.state.labStartMs >= 29000 && Date.now() - r.state.labStartMs < 40000, "a sort board comes back with its stopwatch at the same time");
+  r = run(); r.send({ study: "restore", state: { screen: "lab-board", labBoardId: "known", labElapsed: 30, labDone: true } });
+  ok(r.intervals.length === 0, "a finished board does not start a stopwatch");
+  r = run(); r.send({ study: "restore", state: { screen: "lab-board", labBoardId: "gone" } });
+  ok(r.state.screen === "lab", "a board that no longer exists falls back to the lab menu");
+  r = run(); r.send({ study: "restore", state: { screen: "lab-quiz", lqId: "gone" } });
+  ok(r.state.screen === "lab", "and so does a quick quiz that no longer exists");
+  for (const bad of [null, undefined, "x", 5, [], true]) { r = run(); r.send({ study: "restore", state: bad }); if (r.state.screen !== "home" || r.posted.some((m) => m.study === "corrupt")) ok(false, `restoring ${JSON.stringify(bad)} is harmless`); }
+  ok(true, "restoring nothing, or junk, changes nothing");
+  r = run(makeState(), { canResume: () => { throw new Error("boom"); } });
+  r.send({ study: "restore", state: { screen: "quiz" } });
+  ok(r.posted.some((m) => m.study === "corrupt"), "progress that breaks the page is reported so the popup can forget it");
+  r = run(); r.send({ study: "restore", state: { screen: "browse" } }, { other: true });
+  ok(r.state.screen === "home" && r.calls.render === 0, "messages from anywhere but the popup are ignored");
+  r = run(); r.send({ study: "flush" }, {}); r.send("text"); r.send(null); r.send({ nope: 1 });
+  ok(r.posted.length === 1, "and so are malformed ones");
+
+  r = run(); r.send({ study: "zoom", value: 1.5 });
+  ok(r.doc.documentElement.style.zoom === "1.5", "a size message resizes the page");
+  r = run(); for (const v of [0, 0.1, 9, "x", null, NaN]) r.send({ study: "zoom", value: v });
+  ok(r.doc.documentElement.style.zoom === undefined, "sizes outside a sane range are ignored");
+  // opened on its own (not inside a popup) the bridge does nothing at all
+  const w = { addEventListener() { throw new Error("should not listen"); } }; w.parent = w;
+  const original = function render() {};
+  const c = vm.createContext({ window: w, parent: w, document: { addEventListener() { throw new Error("should not listen"); }, documentElement: { style: {} } }, state: makeState(), render: original, JSON, Object, Array });
+  let quiet = true;
+  try { vm.runInContext(bridge, c); } catch (e) { quiet = e.message; }
+  ok(quiet === true && c.render === original, "opened on its own, outside a popup, the bridge does nothing");
+  const c2 = vm.createContext({ window: { parent: {}, addEventListener() {} }, parent: {}, document: { addEventListener() {}, documentElement: { style: {} } }, JSON, Object, Array });
+  let quiet2 = true;
+  try { vm.runInContext(bridge, c2); } catch (e) { quiet2 = e.message; }
+  ok(quiet2 === true, "and neither does it break a page that is missing the parts it needs");
+}
 
 // ---- the files ----
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
