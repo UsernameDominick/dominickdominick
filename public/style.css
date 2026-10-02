@@ -3897,3 +3897,8 @@ pre.has-line-numbers {
 .site-footer .footer-social { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px var(--space-4, 16px); margin: 0 0 var(--space-3, 12px); }
 .site-footer .footer-column, .site-footer .footer-column a, .site-footer .footer-social a { min-width: 0; overflow-wrap: anywhere; }
 .site-footer .footer-column { max-width: 100%; }
+
+/* Inside the admin's live preview pane the owner's edit pencil would load a second admin inside the frame. */
+.in-frame .edit-this-btn {
+  display: none;
+}

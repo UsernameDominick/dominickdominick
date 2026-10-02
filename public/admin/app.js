@@ -4565,25 +4565,70 @@
     });
   }
 
+  // The server tidies a slug when it saves ("QQ Weird Slug!" becomes "qq-weird-slug"); show what it kept, so the Preview link and the
+  // live preview use the real address. Left alone while the field has focus, so typing is never overwritten.
+  function adoptSavedSlug(inputId, response, sentSlug) {
+    const input = el(inputId);
+    // Not while the person is typing in it: unless it still holds exactly what was just saved (Enter in the field saves and keeps focus).
+    const untouched = document.activeElement !== input || input.value === sentSlug;
+    if (response && typeof response.slug === "string" && input.value !== response.slug && untouched) input.value = response.slug;
+  }
+
   // ---------- Live preview beside the editor ----------
   // A pane next to the article or project editor with the real public page in an iframe (the same ?preview=1 address the Preview
   // link opens, so drafts show for the signed-in owner). It shows the SAVED text and reloads, keeping the scroll position, a moment
   // after every save: the editor's own debounced autosave writes it, and the "Saved …" note the save paths already print is what
-  // triggers the reload, so manual saves, autosaves and merged saves all refresh it with no separate wiring.
+  // triggers the reload, so manual saves, autosaves and merged saves all refresh it with no separate wiring. Links clicked inside
+  // the preview open in a new tab (the pane stays on the item being edited), Ctrl/Cmd+S inside it saves the editor, and Escape
+  // closes the pane first.
   function setupLivePreview({ kind, modalId, previewUrl, statusId }) {
     const btn = el(`live-preview-${kind}-btn`);
     const pane = el(`live-preview-${kind}`);
     const frame = pane.querySelector("iframe");
+    const stage = pane.querySelector(".live-preview-stage");
+    const note = pane.querySelector(".live-preview-note");
+    const noteText = note.textContent;
     const modal = el(modalId);
     const inner = modal.querySelector(".modal-inner");
     let timer = null;
     let scrollTop = 0;
     const isOpen = () => !pane.hidden;
     const absolute = (url) => new URL(url, location.origin).href;
+    const currentHref = () => {
+      try {
+        return frame.contentWindow.location.href;
+      } catch {
+        return frame.src;
+      }
+    };
+    function setNote(state) {
+      note.classList.toggle("is-warning", state === "stale");
+      note.textContent =
+        state === "loading" ? "Updating…" : state === "stale" ? "Not updating: the last change wasn't saved (see the message under the editor)." : noteText;
+    }
+    // The page is laid out at its real width and scaled down to fit when the pane is narrower than a phone (390px).
+    function layout() {
+      if (!isOpen()) return;
+      const wrap = stage.parentElement;
+      if (pane.dataset.width === "phone") {
+        const scale = Math.min(1, Math.max(0.3, (wrap.clientWidth - 2) / 390));
+        stage.style.width = `${Math.round(390 * scale)}px`;
+        frame.style.width = "390px";
+        frame.style.height = `${Math.round(wrap.clientHeight / scale)}px`;
+        frame.style.transform = scale < 1 ? `scale(${scale})` : "";
+      } else {
+        stage.style.width = "100%";
+        frame.style.width = "100%";
+        frame.style.height = "100%";
+        frame.style.transform = "";
+      }
+    }
+    new ResizeObserver(layout).observe(stage.parentElement);
     function reload() {
       const url = previewUrl();
       if (!url) return close();
-      if (frame.src === absolute(url)) {
+      setNote("loading");
+      if (currentHref() === absolute(url)) {
         try {
           scrollTop = frame.contentWindow.scrollY || 0;
           frame.contentWindow.location.reload();
@@ -4596,26 +4641,64 @@
       }
     }
     frame.addEventListener("load", () => {
-      if (!scrollTop) return;
+      if (frame.getAttribute("src") === "about:blank") return;
+      if (!note.classList.contains("is-warning")) setNote("idle");
+      let doc;
       try {
-        frame.contentWindow.scrollTo({ top: scrollTop, behavior: "instant" });
-      } catch {}
+        doc = frame.contentDocument;
+        if (scrollTop) frame.contentWindow.scrollTo({ top: scrollTop, behavior: "instant" });
+      } catch {
+        return;
+      }
+      if (!doc) return;
+      // Same-page links (#anchors) work in the pane; anything else would strand it on another page, so it opens in a new tab.
+      doc.addEventListener(
+        "click",
+        (e) => {
+          const link = e.target.closest && e.target.closest("a[href]");
+          if (!link || e.defaultPrevented) return;
+          const here = new URL(frame.contentWindow.location.href);
+          const url = new URL(link.href, here);
+          if (!/^https?:$/.test(url.protocol)) return;
+          if (url.origin === here.origin && url.pathname === here.pathname && url.search === here.search) return;
+          e.preventDefault();
+          window.open(url.href, "_blank", "noopener");
+        },
+        true
+      );
+      doc.addEventListener("submit", (e) => e.preventDefault(), true);
+      doc.addEventListener("keydown", (e) => {
+        if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "s") {
+          e.preventDefault();
+          document.dispatchEvent(new KeyboardEvent("keydown", { key: "s", ctrlKey: e.ctrlKey, metaKey: e.metaKey, bubbles: true, cancelable: true }));
+        } else if (e.key === "Escape") {
+          close();
+        }
+      });
     });
     const refreshSoon = () => {
       if (!isOpen()) return;
       clearTimeout(timer);
       timer = setTimeout(reload, 150);
     };
+    // Resizing the dialog moves the toggle out from under a double-click; the second click would land on the backdrop and close it.
+    const shield = () => {
+      modal.dataset.lpShield = String(Date.now() + 500);
+    };
     function open() {
       if (!previewUrl()) return;
+      shield();
       pane.hidden = false;
       inner.classList.add("with-live-preview");
       btn.setAttribute("aria-pressed", "true");
+      note.classList.remove("is-warning");
+      layout();
       reload();
     }
     function close() {
       clearTimeout(timer);
       if (pane.hidden) return;
+      shield();
       const hadFocus = pane.contains(document.activeElement);
       pane.hidden = true;
       inner.classList.remove("with-live-preview");
@@ -4626,20 +4709,38 @@
     btn.addEventListener("click", () => (isOpen() ? close() : open()));
     pane.querySelector(".live-preview-close").addEventListener("click", close);
     pane.querySelector(".live-preview-refresh").addEventListener("click", reload);
+    pane.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        close();
+      }
+    });
     pane.querySelectorAll(".live-preview-width-btn").forEach((b) =>
       b.addEventListener("click", () => {
         pane.dataset.width = b.dataset.width;
         pane.querySelectorAll(".live-preview-width-btn").forEach((o) => o.setAttribute("aria-pressed", String(o === b)));
+        layout();
       })
     );
-    // A save prints "Saved …" (or "Merged and saved …") in the status line under the editor.
+    // A save prints "Saved …" (or "Merged and saved …") in the status line under the editor; a failed one says so instead.
     new MutationObserver(() => {
-      if (/^(Saved|Merged and saved)\b/.test(el(statusId).textContent.trim())) refreshSoon();
+      const text = el(statusId).textContent.trim();
+      if (/^(Saved|Merged and saved)\b/.test(text)) {
+        note.classList.remove("is-warning");
+        refreshSoon();
+      } else if (isOpen() && /^(Autosave failed|Changed elsewhere)/.test(text)) {
+        setNote("stale");
+      }
     }).observe(el(statusId), { childList: true, characterData: true, subtree: true });
     // Closing the dialog closes the pane (and puts the dialog back to its normal width).
     new MutationObserver(() => {
       if (modal.hidden) close();
     }).observe(modal, { attributes: true, attributeFilter: ["hidden"] });
+    // Too narrow for two columns (a rotated tablet, a resized window): the pane is not offered, so close it rather than leave it hidden.
+    window.matchMedia("(max-width: 860px)").addEventListener("change", (e) => {
+      if (e.matches) close();
+    });
     // Called whenever the open item changes: no address (a new, unsaved item) closes the pane and hides the button.
     return {
       sync() {
@@ -4651,13 +4752,11 @@
     };
   }
 
-  // Shows/hides the Preview and History controls, which only make sense
-  // once an article has been saved (so it has a slug and a real id).
   const articleLivePreview = setupLivePreview({
     kind: "article",
     modalId: "articles-modal",
     statusId: "article-autosave-status",
-    previewUrl: () => (currentArticleId && el("article-slug").value ? `/random/${el("article-slug").value}?preview=1` : null),
+    previewUrl: () => (currentArticleId && el("article-slug").value ? `/random/${encodeURIComponent(el("article-slug").value)}?preview=1` : null),
   });
   function updateArticleExtras() {
     articleLivePreview.sync();
@@ -5691,7 +5790,7 @@
     try {
       if (currentArticleId) {
         body.expected_version = currentArticleVersion;
-        await api(`/articles/${currentArticleId}`, { method: "PATCH", body: JSON.stringify(body) });
+        adoptSavedSlug("article-slug", await api(`/articles/${currentArticleId}`, { method: "PATCH", body: JSON.stringify(body) }), body.slug);
       } else {
         const res = await api("/articles", { method: "POST", body: JSON.stringify(body) });
         currentArticleId = res.id;
@@ -5740,12 +5839,13 @@
     if (!body.title) return;
     body.expected_version = currentArticleVersion;
     try {
-      await api(`/articles/${currentArticleId}`, { method: "PATCH", body: JSON.stringify(body) });
+      adoptSavedSlug("article-slug", await api(`/articles/${currentArticleId}`, { method: "PATCH", body: JSON.stringify(body) }), body.slug);
       unsavedDirty = false;
       clearDraft("article", currentArticleId);
       articles = await api("/articles");
       rebaseArticleVersion();
       renderArticlesList();
+      updateArticleExtras(); // a renamed slug changes the Preview link and the live preview address
       setAutosaveStatus("Saved " + new Date().toLocaleTimeString());
     } catch (err) {
       if (err.conflict) {
@@ -6122,7 +6222,7 @@
     kind: "project",
     modalId: "projects-modal",
     statusId: "project-autosave-status",
-    previewUrl: () => (currentProjectId && el("project-slug").value ? `/projects/${el("project-slug").value}?preview=1` : null),
+    previewUrl: () => (currentProjectId && el("project-slug").value ? `/projects/${encodeURIComponent(el("project-slug").value)}?preview=1` : null),
   });
   function updateProjectExtras() {
     projectLivePreview.sync();
@@ -6251,7 +6351,7 @@
     if (!body.title) return;
     body.expected_version = currentProjectVersion;
     try {
-      await api(`/projects/${currentProjectId}`, { method: "PATCH", body: JSON.stringify(body) });
+      adoptSavedSlug("project-slug", await api(`/projects/${currentProjectId}`, { method: "PATCH", body: JSON.stringify(body) }), body.slug);
       unsavedDirty = false;
       clearDraft("project", currentProjectId);
       projects = await api("/projects");
@@ -6261,6 +6361,7 @@
         projectBase = p;
       }
       renderProjectsList();
+      updateProjectExtras(); // a renamed slug changes the Preview link and the live preview address
       el("project-autosave-status").textContent = "Saved " + new Date().toLocaleTimeString();
     } catch (err) {
       if (err.conflict) {
@@ -6321,7 +6422,7 @@
     try {
       if (currentProjectId) {
         body.expected_version = currentProjectVersion;
-        await api(`/projects/${currentProjectId}`, { method: "PATCH", body: JSON.stringify(body) });
+        adoptSavedSlug("project-slug", await api(`/projects/${currentProjectId}`, { method: "PATCH", body: JSON.stringify(body) }), body.slug);
       } else {
         const res = await api("/projects", { method: "POST", body: JSON.stringify(body) });
         currentProjectId = res.id;
@@ -10656,6 +10757,7 @@
   document.querySelectorAll(".modal").forEach((modal) => {
     modal.addEventListener("click", (e) => {
       // the editor-help dialog closes itself; letting this run too would close the editor under it
+      if (Number(modal.dataset.lpShield) > Date.now()) return; // the live preview pane was just toggled: the dialog is resizing under the pointer
       if (e.target === modal && modal.id !== "editor-help-modal") closeTopModal();
     });
   });

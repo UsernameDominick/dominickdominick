@@ -1220,19 +1220,22 @@ code.color-field-value {
 .live-preview-pane[hidden] {
   display: none;
 }
-.modal-inner.with-live-preview {
-  max-width: min(1500px, 98vw);
-  width: min(98vw, calc(100vw - var(--admin-sidebar-width, 0px) - 24px));
-}
-.with-live-preview .articles-list-wrap {
-  display: none;
-}
-.with-live-preview .article-editor {
-  flex: 1 1 0;
-  min-width: 0;
-}
-.with-live-preview .live-preview-pane:not([hidden]) {
-  display: flex;
+/* Only where there is room for two columns; below that the pane and its button are not offered (and a pane left open is closed). */
+@media (min-width: 861px) {
+  .modal-inner.with-live-preview {
+    max-width: min(1500px, 98vw);
+    width: min(98vw, calc(100vw - var(--admin-sidebar-width, 0px) - 24px));
+  }
+  .with-live-preview .articles-list-wrap {
+    display: none;
+  }
+  .with-live-preview .article-editor {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .with-live-preview .live-preview-pane:not([hidden]) {
+    display: flex;
+  }
 }
 .live-preview-bar {
   display: flex;
@@ -1263,10 +1266,16 @@ code.color-field-value {
   border-bottom-right-radius: var(--control-radius);
 }
 .live-preview-width-btn[aria-pressed="true"],
-.live-preview-toggle[aria-pressed="true"] {
+.article-actions.editor-primary-actions > .live-preview-toggle[aria-pressed="true"] {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 16%, transparent);
   color: var(--text);
+}
+/* The toggle is a secondary button like New, not a second primary one beside Save. */
+.article-actions.editor-primary-actions > .live-preview-toggle {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
 }
 .live-preview-note {
   margin: 0;
@@ -1274,31 +1283,52 @@ code.color-field-value {
   font-size: 0.78rem;
   color: var(--text-dim);
 }
+.live-preview-note.is-warning {
+  color: var(--danger, #e5484d);
+}
 .live-preview-frame-wrap {
   flex: 1;
   min-height: 0;
   display: flex;
   justify-content: center;
-  overflow: auto;
-  padding: 0 0 8px;
+  overflow: hidden;
+  background: var(--bg);
 }
-.live-preview-frame-wrap iframe {
+/* The stage is as wide as the (possibly scaled-down) page; the frame inside is laid out at its real width and scaled to fit. */
+.live-preview-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.live-preview-stage iframe {
+  position: absolute;
+  left: 0;
+  top: 0;
   border: 0;
   width: 100%;
   height: 100%;
-  background: #fff;
+  transform-origin: 0 0;
+  background: var(--bg);
 }
-.live-preview-pane[data-width="phone"] iframe {
-  width: 390px;
-  max-width: 100%;
+.live-preview-pane[data-width="phone"] .live-preview-stage {
   border-left: 1px solid var(--border);
   border-right: 1px solid var(--border);
+  box-sizing: content-box;
 }
-/* Too narrow for two columns: the pane and its button are simply not offered (Preview ↗ still opens the page in a tab). */
 @media (max-width: 860px) {
   .live-preview-toggle,
   .live-preview-pane {
     display: none !important;
+  }
+}
+@media (forced-colors: active) {
+  .article-actions.editor-primary-actions > .live-preview-toggle {
+    border: 1px solid ButtonText;
+  }
+  .live-preview-width-btn[aria-pressed="true"],
+  .article-actions.editor-primary-actions > .live-preview-toggle[aria-pressed="true"] {
+    border: 2px solid Highlight;
+    outline: 1px solid Highlight;
   }
 }
 
