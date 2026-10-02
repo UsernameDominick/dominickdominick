@@ -647,17 +647,17 @@ async function renderProject(env, project, navItems, previewReason = null, isAdm
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
-async function renderSearch(env, query, navItems, ctx, { type = "", sort = "newest", page = 1 } = {}) {
+async function renderSearch(env, query, navItems, ctx, { type = "", sort = "relevance", page = 1 } = {}) {
   const { defaultOgImage, theme, footerText, customHead, emptySearchText } = await getSiteContext(env);
-  const { pages, articles, projects, totalCount } = query
+  const { pages, articles, projects, totalCount, terms } = query
     ? await publicSearch(env, query, { type, sort, page })
-    : { pages: [], articles: [], projects: [], totalCount: null };
+    : { pages: [], articles: [], projects: [], totalCount: null, terms: [] };
   if (query) {
     const count = pages.length + articles.length + projects.length;
     ctx.waitUntil(logEvent(env, { name: "search", path: "/search", detail: JSON.stringify({ q: query, count }) }).catch(() => {}));
   }
   const totalPages = totalCount != null ? Math.max(1, Math.ceil(totalCount / SEARCH_PAGE_SIZE)) : null;
-  const resultsHtml = renderSearchResultsHtml(query, pages, articles, projects, emptySearchText, { type, sort, page, totalPages, totalCount });
+  const resultsHtml = renderSearchResultsHtml(query, pages, articles, projects, emptySearchText, { type, sort, page, totalPages, totalCount, terms });
   // Flow layout, not a fixed grid-row span — a page of 10+ results (or a
   // second page's worth) can be taller than any span picked ahead of
   // time, and a fixed span let real content overflow into (and get
@@ -1550,7 +1550,8 @@ async function route(request, env, ctx) {
       const navItems = await listNavPages(env);
       const rawType = url.searchParams.get("type") || "";
       const type = ["page", "article", "project"].includes(rawType) ? rawType : "";
-      const sort = url.searchParams.get("sort") === "oldest" ? "oldest" : "newest";
+      const rawSort = url.searchParams.get("sort");
+      const sort = rawSort === "oldest" ? "oldest" : rawSort === "newest" ? "newest" : "relevance";
       const rawPage = Math.floor(Number(url.searchParams.get("page")));
       const page = Number.isFinite(rawPage) && rawPage > 0 ? Math.min(rawPage, 10000) : 1;
       return renderSearch(env, url.searchParams.get("q")?.trim() || "", navItems, ctx, { type, sort, page });

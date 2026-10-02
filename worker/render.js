@@ -553,7 +553,58 @@ export function excerpt(text, maxLen = 155) {
   return cut.slice(0, lastSpace > 0 ? lastSpace : maxLen).trim() + "…";
 }
 
-export function renderSearchResultsHtml(query, pages, articles, projects = [], customEmptyText = "", { type = "", sort = "newest", page = 1, totalPages = null, totalCount = null } = {}) {
+// Text with the searched words wrapped in <mark> (everything else escaped).
+function highlightHtml(text, terms) {
+  const t = String(text ?? "");
+  const words = (terms || []).filter(Boolean);
+  if (!words.length) return esc(t);
+  const re = new RegExp(
+    words
+      .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .sort((a, b) => b.length - a.length)
+      .join("|"),
+    "gi"
+  );
+  let out = "";
+  let last = 0;
+  let m;
+  while ((m = re.exec(t))) {
+    if (!m[0]) {
+      re.lastIndex++;
+      continue;
+    }
+    out += esc(t.slice(last, m.index)) + `<mark>${esc(m[0])}</mark>`;
+    last = m.index + m[0].length;
+  }
+  return out + esc(t.slice(last));
+}
+
+// A short stretch of a text around the first place the searched words appear (the start of the text when they aren't in it), with
+// the words highlighted and "…" where it was cut.
+function searchSnippetHtml(text, terms, max = 160) {
+  const flat = excerpt(text, 1e9);
+  if (!flat) return "";
+  const lower = flat.toLowerCase();
+  let at = -1;
+  for (const term of terms || []) {
+    const i = term ? lower.indexOf(term.toLowerCase()) : -1;
+    if (i !== -1 && (at === -1 || i < at)) at = i;
+  }
+  if (flat.length <= max) return highlightHtml(flat, terms);
+  let start = at === -1 ? 0 : Math.max(0, at - 50);
+  if (start > 0) {
+    const next = flat.indexOf(" ", start);
+    start = next === -1 || next > at ? start : next + 1;
+  }
+  let end = Math.min(flat.length, start + max);
+  if (end < flat.length) {
+    const prev = flat.lastIndexOf(" ", end);
+    if (prev > start + max / 2) end = prev;
+  }
+  return `${start > 0 ? "…" : ""}${highlightHtml(flat.slice(start, end).trim(), terms)}${end < flat.length ? "…" : ""}`;
+}
+
+export function renderSearchResultsHtml(query, pages, articles, projects = [], customEmptyText = "", { type = "", sort = "relevance", page = 1, totalPages = null, totalCount = null, terms = [] } = {}) {
   if (!query) {
     return `<p class="empty-hint">Enter a search term above to look through pages and posts.</p>`;
   }
@@ -564,21 +615,21 @@ export function renderSearchResultsHtml(query, pages, articles, projects = [], c
   // Switching type or sort always drops back to page 1 — a page number
   // that made sense for one filter combination usually doesn't for another.
   const typeLink = (value, label) =>
-    `<a href="/search?q=${encodeURIComponent(query)}${value ? `&type=${value}` : ""}${sort !== "newest" ? `&sort=${sort}` : ""}"${
+    `<a href="/search?q=${encodeURIComponent(query)}${value ? `&type=${value}` : ""}${sort !== "relevance" ? `&sort=${sort}` : ""}"${
       type === value ? ' class="is-active" aria-current="true"' : ""
     }>${label}</a>`;
   const sortLink = (value, label) =>
-    `<a href="/search?q=${encodeURIComponent(query)}${type ? `&type=${encodeURIComponent(type)}` : ""}${value !== "newest" ? `&sort=${value}` : ""}"${
+    `<a href="/search?q=${encodeURIComponent(query)}${type ? `&type=${encodeURIComponent(type)}` : ""}${value !== "relevance" ? `&sort=${value}` : ""}"${
       sort === value ? ' class="is-active" aria-current="true"' : ""
     }>${label}</a>`;
   const filterBarHtml = `<div class="search-filter-bar">
     <span class="search-filter-group" role="group" aria-label="Type">${typeLink("", "All")} ${typeLink("page", "Pages")} ${typeLink("project", "Projects")} ${typeLink("article", "Articles")}</span>
-    <span class="search-filter-group" role="group" aria-label="Sort">${sortLink("newest", "Newest first")} ${sortLink("oldest", "Oldest first")}</span>
+    <span class="search-filter-group" role="group" aria-label="Sort">${sortLink("relevance", "Best match")} ${sortLink("newest", "Newest first")} ${sortLink("oldest", "Oldest first")}</span>
   </div>`;
   // Only meaningful once narrowed to one type — with all three shown at
   // once there'd be three separate page counters on one screen.
   const pageLink = (value, label, cssClass = "") =>
-    `<a href="/search?q=${encodeURIComponent(query)}&type=${encodeURIComponent(type)}${sort !== "newest" ? `&sort=${sort}` : ""}${
+    `<a href="/search?q=${encodeURIComponent(query)}&type=${encodeURIComponent(type)}${sort !== "relevance" ? `&sort=${sort}` : ""}${
       value > 1 ? `&page=${value}` : ""
     }"${cssClass ? ` class="${cssClass}"` : ""}>${label}</a>`;
   const paginationHtml =
@@ -590,29 +641,30 @@ export function renderSearchResultsHtml(query, pages, articles, projects = [], c
   const total = totalCount != null ? totalCount : pages.length + articles.length + projects.length;
   if (!total) {
     const text = customEmptyText ? customEmptyText.replace("{query}", query) : `No results for "${query}".`;
-    return `${filterBarHtml}<p class="empty-hint">${esc(text)}</p>`;
+    const tip = terms.length > 1 ? `<p class="empty-hint">Every word has to appear. Try fewer or different words, or put a few in "quotes" to look for that exact phrase.</p>` : "";
+    return `${filterBarHtml}<p class="empty-hint">${esc(text)}</p>${tip}`;
   }
   const pageItems = pages
     .map(
       (p) =>
-        `<li><a href="${p.slug === "home" ? "/" : "/" + esc(p.slug)}">${esc(p.title)}</a>${
-          p.meta_description ? `<p>${esc(p.meta_description)}</p>` : ""
+        `<li><a href="${p.slug === "home" ? "/" : "/" + esc(p.slug)}">${highlightHtml(p.title, terms)}</a>${
+          p.meta_description ? `<p>${searchSnippetHtml(p.meta_description, terms)}</p>` : ""
         }</li>`
     )
     .join("");
   const articleItems = articles
     .map(
       (a) =>
-        `<li><a href="/random/${esc(a.slug)}">${esc(a.title)}</a><p>${esc(excerpt(a.body, 140))}</p></li>`
+        `<li><a href="/random/${esc(a.slug)}">${highlightHtml(a.title, terms)}</a><p>${searchSnippetHtml(a.body, terms)}</p></li>`
     )
     .join("");
   const projectItems = projects
-    .map(
-      (p) =>
-        `<li><a href="/projects/${esc(p.slug)}">${esc(p.title)}</a>${
-          p.summary ? `<p>${esc(p.summary)}</p>` : ""
-        }</li>`
-    )
+    .map((p) => {
+      // The summary reads best, unless the words were only found in the body: then show where.
+      const summaryHit = p.summary && terms.some((t) => p.summary.toLowerCase().includes(t.toLowerCase()));
+      const text = summaryHit || !p.body ? p.summary : p.body;
+      return `<li><a href="/projects/${esc(p.slug)}">${highlightHtml(p.title, terms)}</a>${text ? `<p>${searchSnippetHtml(text, terms)}</p>` : ""}</li>`;
+    })
     .join("");
   // Unfiltered "All" caps each category at 20 rows (see publicSearch()) so
   // the page doesn't render three full result sets at once — the count

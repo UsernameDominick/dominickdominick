@@ -3,6 +3,7 @@ import { visibleText, nowIso, pageCssKey } from "./text.js";
 import { suggestNearest } from "./notfound.js";
 import { bodyPictures, pictureUrl, markdownLinkTargets } from "./pictures.js";
 import { bodyEmbeds } from "./embeds.js";
+import { parseSearchTerms, searchSql, likePattern } from "./searchterms.js";
 import { normalizeLegacySimulationWireIds, simulationDataError } from "./simulation-validation.js";
 
 export const RESERVED_SLUGS = new Set([
@@ -2602,7 +2603,7 @@ export async function restoreArticleRevision(env, articleId, revisionId) {
 
 // ---------- Search ----------
 export async function search(env, q) {
-  const like = `%${escapeLike(q)}%`;
+  const like = likePattern(q);
   const [pages, articles, blocks, projects, simulations, songs, scans, sharedBlocks] = await Promise.all([
     env.DB
       .prepare(
@@ -2656,88 +2657,70 @@ export const SEARCH_PAGE_SIZE = 20;
 // with all three shown together there'd be three separate page counters on
 // one screen, more confusing than the flat top-20-each it falls back to;
 // pagination is really only useful once you've already narrowed to one type.
-export async function publicSearch(env, q, { type = "", sort = "newest", page = 1 } = {}) {
-  const like = `%${escapeLike(q)}%`;
-  const dateOrder = sort === "oldest" ? "ASC" : "DESC";
+export async function publicSearch(env, q, { type = "", sort = "relevance", page = 1 } = {}) {
+  // Every word has to be found (in any order, in the title, tags or text) and a "quoted phrase" counts as one; the best matches
+  // come first (title hits, then tags and summaries, then body text) unless a date order was asked for.
+  const terms = parseSearchTerms(q);
+  if (!terms.length) return { pages: [], articles: [], projects: [], totalCount: 0, terms };
+  const byDate = sort === "oldest" ? "ASC" : "DESC";
+  const relevance = sort === "relevance" || !["newest", "oldest"].includes(sort);
   const now = nowIso(env);
   const paginated = !!type;
   const limit = paginated ? SEARCH_PAGE_SIZE : 20;
   const offset = paginated ? (Math.max(1, page) - 1) * SEARCH_PAGE_SIZE : 0;
+  const pageSql = searchSql(terms, { title: 4, meta_description: 2 });
+  const articleSql = searchSql(terms, { title: 4, tags: 2, body: 1 });
+  const projectSql = searchSql(terms, { title: 4, summary: 2, tags: 2, body: 1 });
+  const live = `deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?) AND archived = 0`;
   const [pages, articles, projects, pageCount, articleCount, projectCount] = await Promise.all([
     !type || type === "page"
       ? env.DB
           .prepare(
-            `SELECT id, slug, title, meta_description FROM pages WHERE deleted_at IS NULL AND (title LIKE ? ESCAPE '\\' OR meta_description LIKE ? ESCAPE '\\') ORDER BY title LIMIT ? OFFSET ?`
+            `SELECT id, slug, title, meta_description FROM pages WHERE deleted_at IS NULL AND ${pageSql.where}
+             ORDER BY ${relevance ? `${pageSql.score} DESC, ` : ""}title LIMIT ? OFFSET ?`
           )
-          .bind(like, like, limit, offset)
+          .bind(...pageSql.whereBinds, ...(relevance ? pageSql.scoreBinds : []), limit, offset)
           .all()
       : { results: [] },
     !type || type === "article"
       ? env.DB
           .prepare(
-            `SELECT id, slug, title, body, tags, published_at FROM articles
-             WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?) AND archived = 0
-             AND (title LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\')
-             ORDER BY published_at ${dateOrder} LIMIT ? OFFSET ?`
+            `SELECT id, slug, title, body, tags, published_at FROM articles WHERE ${live} AND ${articleSql.where}
+             ORDER BY ${relevance ? `${articleSql.score} DESC, ` : ""}published_at ${relevance ? "DESC" : byDate} LIMIT ? OFFSET ?`
           )
-          .bind(now, now, like, like, like, limit, offset)
+          .bind(now, now, ...articleSql.whereBinds, ...(relevance ? articleSql.scoreBinds : []), limit, offset)
           .all()
       : { results: [] },
     !type || type === "project"
       ? env.DB
           .prepare(
-            `SELECT id, slug, title, summary, tags, published_at FROM projects
-             WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?) AND archived = 0
-             AND (title LIKE ? ESCAPE '\\' OR summary LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\')
-             ORDER BY published_at ${dateOrder} LIMIT ? OFFSET ?`
+            `SELECT id, slug, title, summary, body, tags, published_at FROM projects WHERE ${live} AND ${projectSql.where}
+             ORDER BY ${relevance ? `${projectSql.score} DESC, ` : ""}published_at ${relevance ? "DESC" : byDate} LIMIT ? OFFSET ?`
           )
-          .bind(now, now, like, like, like, like, limit, offset)
+          .bind(now, now, ...projectSql.whereBinds, ...(relevance ? projectSql.scoreBinds : []), limit, offset)
           .all()
       : { results: [] },
-    // Counted whenever a category is included at all, not just when
-    // paginated — the unfiltered "All" view used to skip these entirely
-    // and fall back to however many rows happened to come back from its
-    // own LIMIT 20, silently showing "20 results" (and rendering exactly
-    // 20 rows) even when there were genuinely more, with no indication
-    // anything was cut off. These are cheap COUNT(*) queries against the
-    // same WHERE clause the row query already uses.
+    // Counted whenever a category is included at all, not just when paginated — the unfiltered "All" view used to skip these and
+    // show however many rows came back from its own LIMIT, silently capped with no indication anything was cut off.
     !type || type === "page"
-      ? env.DB
-          .prepare(`SELECT COUNT(*) AS n FROM pages WHERE deleted_at IS NULL AND (title LIKE ? ESCAPE '\\' OR meta_description LIKE ? ESCAPE '\\')`)
-          .bind(like, like)
-          .first()
+      ? env.DB.prepare(`SELECT COUNT(*) AS n FROM pages WHERE deleted_at IS NULL AND ${pageSql.where}`).bind(...pageSql.whereBinds).first()
       : null,
     !type || type === "article"
-      ? env.DB
-          .prepare(
-            `SELECT COUNT(*) AS n FROM articles
-             WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?) AND archived = 0
-             AND (title LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\')`
-          )
-          .bind(now, now, like, like, like)
-          .first()
+      ? env.DB.prepare(`SELECT COUNT(*) AS n FROM articles WHERE ${live} AND ${articleSql.where}`).bind(now, now, ...articleSql.whereBinds).first()
       : null,
     !type || type === "project"
-      ? env.DB
-          .prepare(
-            `SELECT COUNT(*) AS n FROM projects
-             WHERE deleted_at IS NULL AND published_at IS NOT NULL AND published_at <= ? AND (expires_at IS NULL OR expires_at > ?) AND archived = 0
-             AND (title LIKE ? ESCAPE '\\' OR summary LIKE ? ESCAPE '\\' OR body LIKE ? ESCAPE '\\' OR tags LIKE ? ESCAPE '\\')`
-          )
-          .bind(now, now, like, like, like, like)
-          .first()
+      ? env.DB.prepare(`SELECT COUNT(*) AS n FROM projects WHERE ${live} AND ${projectSql.where}`).bind(now, now, ...projectSql.whereBinds).first()
       : null,
   ]);
-  // Filtered to one type: that type's own exact count (used for real
-  // pagination). Unfiltered: the true sum across all three, so "N
-  // results" is never just "however many rows fit under each category's
-  // 20-row display cap."
+  // Filtered to one type: that type's own exact count (used for real pagination). Unfiltered: the true sum across all three, so
+  // "N results" is never just "however many rows fit under each category's 20-row display cap."
   const totalCount = paginated ? pageCount?.n ?? articleCount?.n ?? projectCount?.n ?? null : (pageCount?.n || 0) + (articleCount?.n || 0) + (projectCount?.n || 0);
   return {
     pages: pages.results,
     articles: articles.results.map(parseArticleRow),
     projects: projects.results.map(parseProjectRow),
     totalCount,
+    terms,
   };
 }
 

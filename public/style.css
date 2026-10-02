@@ -3926,3 +3926,11 @@ pre.has-line-numbers {
     display: none;
   }
 }
+
+/* The searched words in a result's title and snippet. */
+.search-results mark {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 2px;
+}
