@@ -5317,6 +5317,8 @@
           throw new Error(body.error || "Overwrite failed");
         }
         await clearRecovery();
+        // The picture keeps its address, so replace this browser's cached copy of it before anything redraws.
+        if (window.refreshCachedMedia) await window.refreshCachedMedia(`/media/${originalKey}`);
         close();
         if (window.refreshMediaLibrary) window.refreshMediaLibrary();
       } catch (err) {

@@ -1500,6 +1500,16 @@
     });
   }
 
+  // A picture saved over keeps its address, so this browser still holds the old bytes (images are cached for a minute). Fetching
+  // the address afresh replaces that cached copy, so the library, the pages and the photo editor show the new picture at once.
+  window.refreshCachedMedia = async function (url) {
+    try {
+      await fetch(url, { cache: "reload", credentials: "same-origin" });
+    } catch (e) {
+      /* the next load will fetch it anyway */
+    }
+  };
+
   function blockLabel(type) {
     return { heading: "Heading", text: "Text", image: "Image", button: "Button", "project-card": "Project Card", "article-list": "Article List", "project-list": "Project List", video: "Video", quote: "Quote", gallery: "Gallery", "before-after": "Before / After", simulation: "Simulation", scan: "3D Scan", song: "Song", divider: "Divider", spacer: "Spacer", links: "Links", html: "HTML / Embed", changelog: "Changelog / Now", embed: "Generic Embed", accordion: "Accordion", tabs: "Tabs", study: "Study" }[type] || type;
   }
@@ -7364,6 +7374,7 @@
       const out = await canvas.convertToBlob({ type, quality: 0.92 });
       const res = await fetch(`/api/admin/media/${item.key}`, { method: "PUT", headers: { "Content-Type": type }, body: out, credentials: "same-origin" });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Couldn't save the smaller picture");
+      await window.refreshCachedMedia(`/media/${item.key}`);
       await loadMediaLibrary();
       if (mediaInfoKey === key) openMediaInfoModal(key);
     } catch (err) {
@@ -7470,6 +7481,7 @@
             if (!confirm("Restore this file version? The current file is archived first, so this can be undone too.")) return;
             try {
               await api(`/media-file-versions/${btn.dataset.id}/restore`, { method: "POST" });
+              await window.refreshCachedMedia(`/media/${mediaInfoKey}`);
               await loadMediaLibrary();
               el("media-info-file-versions-btn").click();
             } catch (err) {

@@ -1664,7 +1664,9 @@ async function route(request, env, ctx) {
       // files keep the existing short + revalidate behavior: the photo
       // editor can overwrite a file in place at the same URL, and a
       // year-long immutable cache would hide that change from readers.
-      headers.set("Cache-Control", isPrivateFile ? "private, no-store" : "public, max-age=300, must-revalidate");
+      // One minute, not five: a picture saved over in the photo editor keeps its address, and a reader's browser holds the old
+      // bytes for this long (the admin's own browser is refreshed straight away, see refreshCachedMedia in the admin).
+      headers.set("Cache-Control", isPrivateFile ? "private, no-store" : "public, max-age=60, must-revalidate");
       headers.set("ETag", obj.httpEtag);
       if (!isPrivateFile && request.headers.get("If-None-Match") === obj.httpEtag) {
         return new Response(null, { status: 304, headers });
