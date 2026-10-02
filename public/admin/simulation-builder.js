@@ -3095,6 +3095,28 @@
     }
   }
 
+  // Redraw the inspector and the canvas after a field changed, then put the keyboard focus back (replacing the inspector's HTML drops
+  // it). The redraw waits a tick so the focus can settle on whatever the person just tabbed to; that field gets the focus (and a
+  // select-all, so typing replaces the old value). If they are mid-click on an inspector button, replacing the inspector would swallow
+  // the click, so only the canvas is redrawn then.
+  function refreshInspectorKeepingFocus() {
+    setTimeout(() => {
+      const active = document.activeElement;
+      if (active && active.tagName === "BUTTON" && $("sim-inspector").contains(active)) {
+        renderBuilder();
+        return;
+      }
+      const activeId = active && $("sim-inspector").contains(active) ? active.id : "";
+      renderInspector();
+      renderBuilder();
+      const refocus = activeId && $(activeId);
+      if (refocus) {
+        refocus.focus();
+        if (typeof refocus.select === "function" && refocus.tagName === "INPUT" && refocus.type !== "checkbox") refocus.select();
+      }
+    }, 0);
+  }
+
   function renderInspector() {
     const box = $("sim-inspector");
     if (lockNoticeActive) {
@@ -3383,8 +3405,7 @@
           breadboardResizeNotice = removedWireCount
             ? `Removed ${removedWireCount} wire${removedWireCount === 1 ? "" : "s"} attached to columns outside the ${cols}-column board.`
             : "";
-          renderInspector();
-          renderBuilder();
+          refreshInspectorKeepingFocus();
         });
       }
       const breadboardSplitInput = $("sim-comp-breadboard-split");
@@ -3396,8 +3417,7 @@
           if (split) comp.splitRails = true;
           else delete comp.splitRails;
           breadboardResizeNotice = "";
-          renderInspector();
-          renderBuilder();
+          refreshInspectorKeepingFocus();
         });
       }
       const resistanceInput = $("sim-comp-resistance");
@@ -3405,8 +3425,7 @@
         resistanceInput.addEventListener("change", () => {
           pushHistory();
           comp.resistance = Math.max(1, Number(resistanceInput.value) || 220);
-          renderInspector();
-          renderBuilder();
+          refreshInspectorKeepingFocus();
         });
       }
       // Positive values are clamped to the field's minimum; a blank, zero or
@@ -3436,21 +3455,7 @@
               comp[field] = next;
             }
           }
-          setTimeout(() => {
-            const active = document.activeElement;
-            if (active && active.tagName === "BUTTON" && $("sim-inspector").contains(active)) {
-              renderBuilder();
-              return;
-            }
-            const activeId = active && active.id;
-            renderInspector();
-            renderBuilder();
-            const refocus = activeId && $(activeId);
-            if (refocus) {
-              refocus.focus();
-              if (typeof refocus.select === "function" && refocus.tagName === "INPUT") refocus.select();
-            }
-          }, 0);
+          refreshInspectorKeepingFocus();
         });
       });
       const gateSelect = $("sim-comp-gate");
@@ -3504,8 +3509,7 @@
         maxResistanceInput.addEventListener("change", () => {
           pushHistory();
           comp.maxResistance = Math.max(1, Number(maxResistanceInput.value) || 10000);
-          renderInspector();
-          renderBuilder();
+          refreshInspectorKeepingFocus();
         });
       }
       const wiperInput = $("sim-comp-wiper");
@@ -3531,7 +3535,7 @@
         });
         wiperInput.addEventListener("change", () => {
           wiperHistorySaved = false;
-          renderInspector();
+          refreshInspectorKeepingFocus();
         });
       }
       const voltageInput = $("sim-comp-voltage");
@@ -3539,8 +3543,7 @@
         voltageInput.addEventListener("change", () => {
           pushHistory();
           comp.voltage = Math.max(0.1, Number(voltageInput.value) || 9);
-          renderInspector();
-          renderBuilder();
+          refreshInspectorKeepingFocus();
         });
       }
       const internalResistanceInput = $("sim-comp-internal-resistance");
@@ -3548,8 +3551,7 @@
         internalResistanceInput.addEventListener("change", () => {
           pushHistory();
           comp.internalResistance = Math.max(0, Number(internalResistanceInput.value) || 0);
-          renderInspector();
-          renderBuilder();
+          refreshInspectorKeepingFocus();
         });
       }
       const outputVoltageInput = $("sim-comp-output-voltage");
@@ -3557,8 +3559,7 @@
         outputVoltageInput.addEventListener("change", () => {
           pushHistory();
           comp.outputVoltage = Number(outputVoltageInput.value);
-          renderInspector();
-          renderBuilder();
+          refreshInspectorKeepingFocus();
         });
       }
       const transistorTypeInput = $("sim-comp-transistor-type");
@@ -3578,8 +3579,7 @@
           pushHistory();
           const typedGain = Number(transistorGainInput.value);
           comp.gain = transistorGainInput.value.trim() !== "" && Number.isFinite(typedGain) ? Math.min(1000, Math.max(1, Math.round(typedGain))) : 100;
-          renderInspector();
-          renderBuilder();
+          refreshInspectorKeepingFocus();
         });
       }
       const ledColorInput = $("sim-comp-led-color");
@@ -3587,8 +3587,7 @@
         ledColorInput.addEventListener("change", () => {
           pushHistory();
           comp.color = ledColorInput.value;
-          renderInspector();
-          renderBuilder();
+          refreshInspectorKeepingFocus();
         });
       }
       const spdtPositionSelect = $("sim-comp-spdt-position");
@@ -3607,8 +3606,7 @@
         switchClosedInput.addEventListener("change", () => {
           pushHistory();
           comp.closed = switchClosedInput.checked;
-          renderInspector();
-          renderBuilder();
+          refreshInspectorKeepingFocus();
         });
       }
       const labelInput = $("sim-comp-label");
