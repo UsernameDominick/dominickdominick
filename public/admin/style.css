@@ -7957,3 +7957,4 @@ button[data-tier="quiet"] { border-color: transparent; }
 .sweep-now-text { fill: var(--text-dim); font-size: 11px; }
 .sim-sweep-form label[hidden], .sim-sweep-form[hidden], .sim-sweep-result[hidden] { display: none; }
 .song-generators { margin: 0 0 0.5rem; } .song-generators > summary { cursor: pointer; font-size: 0.85rem; color: var(--text-dim); margin-bottom: 0.4rem; }
+.song-file-status { font-size: 0.8rem; color: var(--text-dim); } .song-file-status:empty { display: none; } p.song-file-status { margin: 0 0 var(--space-2, 8px); }

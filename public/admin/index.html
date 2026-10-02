@@ -1838,7 +1838,10 @@
         <div class="sim-new-row">
           <button type="button" id="new-song-btn">New song</button>
           <select id="song-template-picker" aria-label="Template for a new song"><option value="">Blank</option></select>
+          <button type="button" id="song-import-btn" title="Add a song from a song file (made with Export song file). It becomes a new song; nothing existing is changed">Import song file…</button>
+          <input type="file" id="song-import-input" accept=".json,application/json" hidden>
         </div>
+        <p id="song-import-status" class="song-file-status" role="status"></p>
         <input type="search" id="song-search" placeholder="Search songs by name…">
         <div id="songs-list" class="redirects-list"></div>
       </div>
@@ -1947,6 +1950,9 @@
             <div class="song-group-controls">
               <button type="button" id="song-export-report" title="Download a plain-text summary of this song's settings and note counts">Export report</button>
               <button type="button" id="song-export-audio" title="Render the loop to a WAV file: choose the sample rate, bit depth and number of repeats">Export audio…</button>
+              <button type="button" id="song-export-midi" title="Download the loop as a MIDI file for a music program: drums on channel 10, melody on channel 1, one bar of 4/4 at this tempo with swing. Muted tracks are left out; humanize is not included">Export MIDI</button>
+              <button type="button" id="song-export-json" title="Download the whole song (every setting, drum step and melody note) as a file you can keep or import into any song list">Export song file</button>
+              <span id="song-file-status" class="song-file-status" role="status"></span>
               <button type="button" id="song-generate-cover-art" title="Render this song's waveform as a 1200x630 cover image and add it to the Media Library">Generate cover art</button>
               <button type="button" id="song-snapshot-mix" title="Save the current in-progress mix as a new, separate song -- lets you try a different direction without losing this exact version, even if it hasn't been saved yet">Snapshot mix</button>
             </div>
@@ -2465,6 +2471,7 @@
 <script src="/admin/simulation-builder.js"></script>
 <script src="/song-engine.js"></script>
 <script src="/admin/song-patterns.js"></script>
+<script src="/admin/song-files.js"></script>
 <script src="/admin/song-builder.js"></script>
 <script src="/admin/scan-builder.js"></script>
 </body>

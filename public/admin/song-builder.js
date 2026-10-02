@@ -2345,6 +2345,67 @@
     URL.revokeObjectURL(url);
   });
 
+  // ---------- Export MIDI and the song file; import a song file ----------
+  const fileStatus = (text) => {
+    $("song-file-status").textContent = text;
+  };
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+  const fileStem = () => (($("song-name").value.trim() || "Untitled song").replace(/[^a-z0-9-_]+/gi, "-").replace(/^-+|-+$/g, "") || "song");
+  $("song-export-midi").addEventListener("click", () => {
+    const out = window.SongFiles.buildMidi(songData, $("song-name").value.trim() || "Untitled song");
+    if (!out.bytes) {
+      fileStatus("Nothing to export: no unmuted drum track or melody has any notes.");
+      return;
+    }
+    downloadBlob(new Blob([out.bytes], { type: "audio/midi" }), `${fileStem()}.mid`);
+    fileStatus(`Exported ${out.notes} note${out.notes === 1 ? "" : "s"} as MIDI (one bar${Number(songData.swing) ? ", with swing" : ""}; muted tracks left out).`);
+  });
+  $("song-export-json").addEventListener("click", () => {
+    const text = window.SongFiles.exportJson($("song-name").value, songData);
+    downloadBlob(new Blob([text], { type: "application/json" }), `${fileStem()}.song.json`);
+    fileStatus("Exported the whole song as a file.");
+  });
+  $("song-import-btn").addEventListener("click", () => $("song-import-input").click());
+  $("song-import-input").addEventListener("change", async () => {
+    const input = $("song-import-input");
+    const file = input.files && input.files[0];
+    input.value = "";
+    const status = $("song-import-status");
+    if (!file) return;
+    if (file.size > 2000000) {
+      status.textContent = "That file is too big to be a song (over 2 MB).";
+      return;
+    }
+    let text;
+    try {
+      text = await file.text();
+    } catch {
+      status.textContent = "Couldn't read that file.";
+      return;
+    }
+    const parsed = window.SongFiles.parseImport(text);
+    if (parsed.error) {
+      status.textContent = parsed.error;
+      return;
+    }
+    try {
+      status.textContent = "Importing…";
+      const created = await window.adminApi("/songs", { method: "POST", body: JSON.stringify({ name: parsed.name, data: parsed.data }) });
+      await loadSongsList();
+      status.textContent = `Imported "${parsed.name}" as a new song.`;
+      await openBuilder(created.id);
+    } catch (e) {
+      status.textContent = `Couldn't import the song: ${e.message || e}`;
+    }
+  });
+
   // ---------- Export audio (WAV) ----------
   // Renders the loop offline (SongEngine.renderLoopAudio) and writes a mono
   // WAV: 16- or 24-bit integer PCM, or 32-bit float. Integer depths can be
