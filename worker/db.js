@@ -1,6 +1,7 @@
 import { toHex } from "./auth.js";
 import { visibleText, nowIso, pageCssKey } from "./text.js";
 import { suggestNearest } from "./notfound.js";
+import { bodyPictures, pictureUrl, markdownLinkTargets } from "./pictures.js";
 import { normalizeLegacySimulationWireIds, simulationDataError } from "./simulation-validation.js";
 
 export const RESERVED_SLUGS = new Set([
@@ -2041,12 +2042,13 @@ function findBeforeAfterUrls(body) {
 async function getMediaUsageMap(env) {
   const pages = await listPages(env);
   const pageBlocks = await Promise.all(pages.map((p) => listBlocks(env, p.id)));
-  const [articles, projects, defaultOg, topicMeta, scans] = await Promise.all([
+  const [articles, projects, defaultOg, topicMeta, scans, journalRows] = await Promise.all([
     listArticles(env),
     listProjects(env),
     getSetting(env, "default_og_image"),
     listTopicMeta(env),
     listScans(env),
+    env.DB.prepare("SELECT j.body AS body, pr.title AS title FROM journal_entries j JOIN projects pr ON pr.id = j.project_id WHERE pr.deleted_at IS NULL").all(),
   ]);
   const usage = new Map();
   const add = (url, type, title) => {
@@ -2066,16 +2068,25 @@ async function getMediaUsageMap(env) {
         add(c.afterUrl, "Before/after block", p.title);
       }
       if (style.backgroundImage) add(style.backgroundImage, "Block background", p.title);
+      // Pictures written into text (![alt](address)) in a text, quote, accordion or tabs block.
+      const texts = [];
+      if (b.type === "text" || b.type === "quote") texts.push(c.text);
+      if (b.type === "accordion" && Array.isArray(c.items)) c.items.forEach((it) => it && texts.push(it.body));
+      if (b.type === "tabs" && Array.isArray(c.tabs)) c.tabs.forEach((it) => it && texts.push(it.body));
+      for (const text of texts) bodyPictures(text).forEach((pic) => add(pictureUrl(pic), "Picture in text block", p.title));
     }
   });
   for (const a of articles) {
     add(a.og_image, "Article share image", a.title);
     findBeforeAfterUrls(a.body).forEach((u) => add(u, "Before/after in article body", a.title));
+    bodyPictures(a.body).forEach((pic) => add(pictureUrl(pic), "Picture in article body", a.title));
   }
   for (const pr of projects) {
     add(pr.og_image, "Project share image", pr.title);
     findBeforeAfterUrls(pr.body).forEach((u) => add(u, "Before/after in project body", pr.title));
+    bodyPictures(pr.body).forEach((pic) => add(pictureUrl(pic), "Picture in project body", pr.title));
   }
+  for (const j of journalRows.results || []) bodyPictures(j.body).forEach((pic) => add(pictureUrl(pic), "Picture in project journal", j.title));
   if (defaultOg) add(defaultOg, "Site default share image", null);
   for (const t of topicMeta) add(t.og_image, "Topic share image", t.tag);
   for (const s of scans) {
@@ -3789,6 +3800,16 @@ function isCurrentlyPublished(item) {
 async function checkOneLink(env, rawUrl) {
   if (!rawUrl) return { ok: null, status: "Empty" };
   if (rawUrl.startsWith("/")) {
+    // A file in the Media Library (a picture, a download): it has to exist, and a private upload is invisible to readers.
+    const file = rawUrl.split(/[?#]/)[0].match(/^\/media\/((?:uploads|scans|audio|video|fonts)\/[A-Za-z0-9_.\-\/]+)$/);
+    if (file) {
+      if (!(await env.MEDIA.head(file[1]))) return { ok: false, status: "Not found" };
+      if (file[1].startsWith("uploads/")) {
+        const meta = await env.DB.prepare("SELECT private FROM media WHERE key = ?").bind(file[1]).first();
+        if (meta && meta.private) return { ok: false, status: "Private file (readers can't see it)" };
+      }
+      return { ok: true, status: "OK" };
+    }
     if (rawUrl === "/" || (await getPageBySlug(env, rawUrl.replace(/^\/+/, "").replace(/\/+$/, "") || "home"))) {
       return { ok: true, status: "OK" };
     }
@@ -3837,7 +3858,7 @@ async function gatherInternalLinks(env) {
   const projects = await listProjects(env);
   const projectJournals = await Promise.all(projects.map((p) => listJournalEntries(env, p.id)));
 
-  const markdownLinks = (text) => [...(text || "").matchAll(/\[[^\]]+\]\(([^)]+)\)/g)].map((m) => m[1]);
+  const markdownLinks = (text) => markdownLinkTargets(text);
 
   const found = [];
   pages.forEach((p, i) => {
@@ -4250,24 +4271,22 @@ export async function getSeoReport(env) {
   // and the Media Library's default alt text (what gets inserted with an image).
   const weakAlt = [];
   const mediaAlt = await env.DB.prepare("SELECT key, alt_text FROM media WHERE alt_text IS NOT NULL AND TRIM(alt_text) != ''").all();
-  // Pictures written into article and project bodies, ![alt](address "caption"). An empty alt falls back to the Media Library's
-  // default for that file (as the page does), so it is only missing when the library has none either; a typed alt is judged
-  // like any other. The row points at the article or project, since there is no block to point at.
-  const bodyImage = /^!\[([^\]]*)\]\(\s*([^\s)]+)(?:\s+"[^"]*")?\s*\)$/;
+  // Pictures written into article and project bodies, ![alt](address "caption"), found the way the renderer finds them (code and
+  // anything that isn't a valid picture line don't count). An empty alt falls back to the Media Library's default for that file
+  // (as the page does), so it is only missing when the library has none either; a typed alt is judged like any other. The row
+  // points at the article or project and names the picture, since there is no block to point at.
   const libraryAlt = new Map((mediaAlt.results || []).map((r) => [r.key, r.alt_text]));
   for (const [items, base] of [[articles, "/random/"], [projects, "/projects/"]]) {
     for (const item of items) {
-      for (const line of String(item.body || "").split("\n")) {
-        const m = bodyImage.exec(line.trim());
-        if (!m) continue;
-        const key = (/^(?:https?:\/\/(?:www\.)?dominickdominick\.com)?\/media\/(uploads\/[A-Za-z0-9_.\-\/]+)$/.exec(m[2]) || [])[1];
-        const typed = cleanAlt(m[1]);
-        const alt = typed || (key ? cleanAlt(libraryAlt.get(key)) : "");
+      for (const pic of bodyPictures(item.body)) {
+        const typed = cleanAlt(pic.alt);
+        const alt = typed || (pic.key ? cleanAlt(libraryAlt.get(pic.key)) : "");
+        const picture = pic.key ? pic.key.split("/").pop() : pic.src.replace(/^https:\/\//, "").slice(0, 60);
         if (!alt) {
-          missingAlt.push({ title: item.title, slug: null, url: base + item.slug });
+          missingAlt.push({ title: item.title, slug: null, url: base + item.slug, picture });
         } else if (typed) {
           const found = altTextProblemDetail(typed);
-          if (found) weakAlt.push({ title: item.title, slug: null, where: "Picture in the text", inText: true, url: base + item.slug, alt: typed, reason: found.reason, long: found.long });
+          if (found) weakAlt.push({ title: item.title, slug: null, where: "Picture in the text", inText: true, picture, url: base + item.slug, alt: typed, reason: found.reason, long: found.long });
         }
       }
     }

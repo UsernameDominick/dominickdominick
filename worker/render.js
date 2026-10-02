@@ -1,4 +1,5 @@
 import { listArticles, listProjects, getPublishedSimulation, getScan, getSong, getMediaMeta } from "./db.js";
+import { safeImageSrc, mediaKeyFor, paragraphPictures, bodyPictures } from "./pictures.js";
 import { nowIso, visibleText } from "./text.js";
 import { renderSimulationSvg } from "./simulation-render.js";
 
@@ -227,9 +228,9 @@ function extractCallouts(text) {
   return { replaced, callouts };
 }
 
-function calloutHtml({ type, body }) {
+function calloutHtml({ type, body }, media = null) {
   const label = CALLOUT_TYPES[type] || "Note";
-  return `<div class="callout callout-${esc(type)}"><strong class="callout-label">${label}</strong>${paragraphsHtml(body)}</div>`;
+  return `<div class="callout callout-${esc(type)}"><strong class="callout-label">${label}</strong>${paragraphsHtml(body, { media })}</div>`;
 }
 
 export function slugifyHeading(text) {
@@ -327,54 +328,27 @@ export function footerHtml(footer, year = new Date().getUTCFullYear()) {
 }
 
 // ---------- Images in body text ----------
-// A paragraph (or run of lines) that is only `![alt text](/media/uploads/photo.jpg "Optional caption")` becomes a figure. The
-// address may be a Media Library path, any other path on this site, or an https address; anything else (javascript:, data:,
-// "//host") is not an image and the line stays as text. Alt text falls back to the Media Library's default for that file, and
-// the file's stored width and height go on the <img> so the page doesn't jump as it loads.
-const IMAGE_LINE = /^!\[([^\]]*)\]\(\s*([^\s)]+)(?:\s+"([^"]*)")?\s*\)$/;
+// A paragraph (or run of lines) that is only `![alt text](/media/uploads/photo.jpg "Optional caption")` becomes a figure; see
+// pictures.js for what counts as a picture. Alt text falls back to the Media Library's default for that file, and the file's stored
+// width and height go on the <img> so the page doesn't jump as it loads.
+export { safeImageSrc };
 
-export function safeImageSrc(url) {
-  const src = String(url ?? "").trim();
-  if (!src || /[\u0000-\u001f\u007f\\"'<>`]/.test(src)) return null;
-  if (src.startsWith("/")) return src.startsWith("//") ? null : src;
+// Looks up the Media Library rows for every picture in a text (or in several texts at once: a body and its journal entries),
+// one query for all of them and none when there are none, to hand to paragraphsHtml as `media`. Without it pictures still
+// render, just without stored sizes or the library's alt text; a failed lookup is the same, never a broken page.
+export async function loadBodyMedia(env, texts) {
   try {
-    const parsed = new URL(src);
-    return parsed.protocol === "https:" && parsed.hostname ? src : null;
+    const keys = new Set();
+    for (const text of Array.isArray(texts) ? texts : [texts]) {
+      for (const picture of bodyPictures(text)) {
+        if (picture.key) keys.add(picture.key);
+        if (keys.size >= 50) break;
+      }
+    }
+    return keys.size ? await getMediaMeta(env, [...keys]) : {};
   } catch {
-    return null;
+    return {};
   }
-}
-
-// The Media Library key behind an image address ("uploads/…"), for the site's own addresses only; null for anything else.
-function mediaKeyFor(src) {
-  try {
-    const url = new URL(src, "https://dominickdominick.com");
-    if (!["dominickdominick.com", "www.dominickdominick.com"].includes(url.hostname) || url.port || url.username || url.password) return null;
-    const match = url.pathname.match(/^\/media\/(uploads\/[A-Za-z0-9_.\-\/]+)$/);
-    return match ? match[1] : null;
-  } catch {
-    return null;
-  }
-}
-
-function bodyImageMatches(trimmed) {
-  const lines = trimmed.split("\n").map((l) => l.trim());
-  const found = lines.map((l) => IMAGE_LINE.exec(l));
-  return found.length && found.every(Boolean) ? found : null;
-}
-
-// Looks up the Media Library rows for every image in a body (one query, none when there are no images), to hand to
-// paragraphsHtml as `media`. Without it images still render, just without stored sizes or the library's alt text.
-export async function loadBodyMedia(env, text) {
-  const keys = new Set();
-  for (const line of String(text || "").split("\n")) {
-    const m = IMAGE_LINE.exec(line.trim());
-    const src = m && safeImageSrc(m[2]);
-    const key = src && mediaKeyFor(src);
-    if (key) keys.add(key);
-    if (keys.size >= 50) break;
-  }
-  return keys.size ? getMediaMeta(env, [...keys]) : {};
 }
 
 function bodyFigureHtml(m, media) {
@@ -403,7 +377,7 @@ export function paragraphsHtml(text, { anchors = false, media = null } = {}) {
     .map((p) => {
       const trimmed = p.trim();
       const calloutMatch = trimmed.match(CALLOUT_PLACEHOLDER);
-      if (calloutMatch) return calloutHtml(callouts[Number(calloutMatch[1])]);
+      if (calloutMatch) return calloutHtml(callouts[Number(calloutMatch[1])], media);
       const codeMatch = trimmed.match(CODE_PLACEHOLDER);
       if (codeMatch) {
         const { lang, code } = blocks[Number(codeMatch[1])];
@@ -430,7 +404,7 @@ export function paragraphsHtml(text, { anchors = false, media = null } = {}) {
       }
       // A paragraph that is only "---" (or "***", "___") is a divider.
       if (/^(?:-{3,}|\*{3,}|_{3,})$/.test(trimmed)) return "<hr>";
-      const images = bodyImageMatches(trimmed);
+      const images = paragraphPictures(trimmed);
       if (images) {
         const figures = images.map((m) => bodyFigureHtml(m, media));
         if (figures.every(Boolean)) return figures.join("");
@@ -483,12 +457,12 @@ function stripMarkdown(text) {
     // excerpts and meta descriptions as raw syntax ("- CSS `:has()`...").
     .replace(/^\s*(?:[-*+]|\d+[.)])\s+/gm, "")
     .replace(/^\s*>\s?/gm, "")
-    .replace(/^[ \t]*!\[[^\]]*\]\([^)]*\)[ \t]*$/gm, "") // a picture on its own line has no words
-    .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
+    .replace(/^[ \t]*!\[[^\]\n]*\]\([^\n]*\)[ \t]*$/gm, "") // a picture on its own line has no words
+    .replace(/!\[([^\]\n]*)\]\(\s*[^\s)]+(?:\s+"[^"\n]*")?\s*\)/g, "$1")
     .replace(/`([^`]+)`/g, "$1")
     .replace(/\*\*(.+?)\*\*/g, "$1")
     .replace(/\*(.+?)\*/g, "$1")
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+    .replace(/\[([^\]\n]+)\]\([^)\n]+\)/g, "$1"); // one line only: an unfinished link must not swallow the text below it
 }
 
 // A rough, standard estimate (200 words/minute) — good enough to give a
@@ -761,7 +735,7 @@ export function renderRelatedArticlesHtml(articles) {
 
 const JOURNAL_TYPE_LABELS = { log: "Log", test: "Test result", decision: "Decision", failed: "Failed attempt" };
 
-export function renderJournalHtml(entries) {
+export function renderJournalHtml(entries, media = null) {
   if (!entries || !entries.length) return "";
   const items = entries
     .map(
@@ -770,7 +744,7 @@ export function renderJournalHtml(entries) {
           JOURNAL_TYPE_LABELS[j.entry_type] || "Log"
         )}</span><time datetime="${esc(j.entry_date)}">${esc(j.entry_date)}</time></div>${
           j.title ? `<h3>${esc(j.title)}</h3>` : ""
-        }${paragraphsHtml(j.body || "")}</div>`
+        }${paragraphsHtml(j.body || "", { media })}</div>`
     )
     .join("\n");
   return `<div class="journal"><strong>Build journal</strong><div class="journal-timeline">${items}</div></div>`;
@@ -1422,13 +1396,15 @@ async function renderBlockInner(env, block, ctx) {
     case "accordion": {
       const items = Array.isArray(c.items) ? c.items.filter((it) => it && (it.title || it.body)) : [];
       if (!items.length) return `<p class="empty-hint">No items yet.</p>`;
+      const media = await loadBodyMedia(env, items.map((it) => it.body || ""));
       // <details>/<summary> is native, keyboard- and screen-reader-accessible
       // expand/collapse with zero JS needed.
       return `<div class="accordion">${items
         .map(
           (it) =>
             `<details class="accordion-item"><summary>${esc(it.title || "Untitled")}</summary><div class="accordion-body">${paragraphsHtml(
-              it.body || ""
+              it.body || "",
+              { media }
             )}</div></details>`
         )
         .join("")}</div>`;
@@ -1436,6 +1412,7 @@ async function renderBlockInner(env, block, ctx) {
     case "tabs": {
       const items = Array.isArray(c.tabs) ? c.tabs.filter((it) => it && (it.label || it.body)) : [];
       if (!items.length) return `<p class="empty-hint">No tabs yet.</p>`;
+      const media = await loadBodyMedia(env, items.map((it) => it.body || ""));
       const uid = `tabs-${block.id}`;
       const tabButtons = items
         .map(
@@ -1450,7 +1427,7 @@ async function renderBlockInner(env, block, ctx) {
           (it, i) =>
             `<div class="tab-panel${i === 0 ? " is-active" : ""}" role="tabpanel" id="${uid}-panel-${i}" aria-labelledby="${uid}-tab-${i}"${
               i === 0 ? "" : ' hidden'
-            }>${paragraphsHtml(it.body || "")}</div>`
+            }>${paragraphsHtml(it.body || "", { media })}</div>`
         )
         .join("");
       return `<div class="tabs-block" data-tabs-id="${uid}"><div class="tab-strip" role="tablist">${tabButtons}</div><div class="tab-panels">${panels}</div></div>`;
@@ -1478,7 +1455,7 @@ async function renderBlockInner(env, block, ctx) {
       )}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>`;
     }
     case "quote":
-      return `<blockquote class="block-quote${c.large ? " block-quote-large" : ""}">${paragraphsHtml(c.text)}${c.cite ? `<footer>${esc(c.cite)}</footer>` : ""}</blockquote>`;
+      return `<blockquote class="block-quote${c.large ? " block-quote-large" : ""}">${paragraphsHtml(c.text, { media: await loadBodyMedia(env, c.text) })}${c.cite ? `<footer>${esc(c.cite)}</footer>` : ""}</blockquote>`;
     case "embed":
       return genericEmbedHtml(c.url);
     case "gallery": {

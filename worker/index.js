@@ -98,6 +98,7 @@ import {
 } from "./render.js";
 import { handleAdminApi } from "./admin-api.js";
 import { notFoundLogPath, suggestNearest } from "./notfound.js";
+import { stripPictureLines } from "./pictures.js";
 import { visibleText, nowIso, cleanPageCss, pageCssKey } from "./text.js";
 import {
   capacitanceMicrofarads,
@@ -198,7 +199,7 @@ function indexJsonLd(name, path, items) {
 }
 
 function wordCount(md) {
-  const words = String(md || "").replace(/```[\s\S]*?```/g, " ").match(/[\p{L}\p{N}'’-]+/gu);
+  const words = stripPictureLines(String(md || "")).replace(/```[\s\S]*?```/g, " ").match(/[\p{L}\p{N}'’-]+/gu);
   return words ? words.length : 0;
 }
 
@@ -372,8 +373,10 @@ async function renderPage(env, page, url, request) {
 
 async function renderArticle(env, article, navItems, previewReason = null, isAdmin = false) {
   const description = excerpt(article.body) || article.title;
+  // The library rows for the body's pictures are fetched alongside the site context (loadBodyMedia never rejects).
+  const bodyMediaPending = loadBodyMedia(env, article.body);
   const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
-  const bodyMedia = await loadBodyMedia(env, article.body);
+  const bodyMedia = await bodyMediaPending;
   const mins = readingTime(article.body);
   const headings = extractHeadings(article.body);
   const tocHtml = tableOfContentsHtml(headings);
@@ -494,7 +497,6 @@ async function renderProject(env, project, navItems, previewReason = null, isAdm
   const summary = (project.summary || "").trim();
   const description = summary || excerpt(project.body) || project.title;
   const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
-  const bodyMedia = await loadBodyMedia(env, project.body);
   // The same Contents box articles have (it only appears with two or more headings), and Older / Newer links at the end.
   const projectTocHtml = tableOfContentsHtml(extractHeadings(project.body));
   const projectPrevNextHtml = renderPrevNextHtml("project", await getAdjacentPublished(env, "projects", project));
@@ -524,7 +526,8 @@ async function renderProject(env, project, navItems, previewReason = null, isAdm
   const reactionCounts = await getReactionCounts(env, "project", project.id);
   const reactionsHtml = renderReactionsHtml("project", project.id, reactionCounts);
   const journalEntries = await listJournalEntries(env, project.id, { order: "ASC" });
-  const journalHtml = renderJournalHtml(journalEntries);
+  const bodyMedia = await loadBodyMedia(env, [project.body, ...journalEntries.map((j) => j.body)]);
+  const journalHtml = renderJournalHtml(journalEntries, bodyMedia);
   const bomItems = await listBomItems(env, project.id);
   const bomHtml = renderBomHtml(bomItems);
   const downloads = Array.isArray(project.links && project.links.downloads) ? project.links.downloads : [];

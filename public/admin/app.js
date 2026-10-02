@@ -4723,7 +4723,10 @@
   // publish state — cross-linking to a still-draft companion piece is a
   // legitimate thing to do while writing both at once.
   function checkInternalLinks(text) {
-    const links = [...(text || "").matchAll(/\[([^\]]*)\]\(([^)]+)\)/g)].map((m) => ({ label: m[1] || m[2], url: m[2].trim() }));
+    // A picture (![alt](address "caption")) is not a link to a page, and a link's own title ("text") isn't part of its address.
+    const links = [...(text || "").matchAll(/\[([^\]]*)\]\(([^)]+)\)/g)]
+      .filter((m) => text[m.index - 1] !== "!")
+      .map((m) => ({ label: m[1] || m[2], url: m[2].trim().replace(/\s+"[^"]*"$/, "") }));
     const staticRoutes = new Set(["topics", "archive", "search", "saved", "history", "shuffle", "random", "projects", ""]);
     const warnings = [];
     for (const { label, url } of links) {
@@ -4871,7 +4874,8 @@
   });
 
   function updateWordCount() {
-    const text = el("article-body").value.trim();
+    // A picture line (![alt](address "caption")) holds no words of the article.
+    const text = el("article-body").value.replace(/^[ \t]*!\[[^\]\n]*\]\([^\n]*\)[ \t]*$/gm, "").trim();
     const words = text ? text.split(/\s+/).length : 0;
     const mins = Math.max(1, Math.round(words / 200));
     const score = text ? fleschReadingEase(text) : null;
@@ -5363,15 +5367,21 @@
     mdImageTarget = null;
     if (!url || !target) return;
     const item = mediaItems.find((m) => m.url === url) || {};
-    const altAnswer = prompt("Describe the picture for people who can't see it (alt text). Leave empty if it is purely decorative:", item.alt_text || "");
+    const altAnswer = prompt("Describe the picture for people who can't see it (alt text). Leave empty to use the Media Library's description of this file, if it has one:", item.alt_text || "");
     if (altAnswer === null) return;
     const captionAnswer = prompt("Caption under the picture (optional):", item.caption || "");
     if (captionAnswer === null) return;
     const alt = altAnswer.replace(/[\[\]\n]/g, " ").trim();
     const caption = captionAnswer.replace(/"/g, "\u201d").replace(/\s+/g, " ").trim();
     const address = url.replace(/[\s()]/g, (ch) => encodeURIComponent(ch));
-    const { textarea, start, end } = target;
-    insertParagraph(textarea, start, end, `![${alt}](${address}${caption ? ` "${caption}"` : ""})`);
+    const { textarea, at } = target;
+    insertParagraph(textarea, at, at, `![${alt}](${address}${caption ? ` "${caption}"` : ""})`);
+    // Closing the Media Library hands focus back to the Image… button a moment later; put it back in the text, at the new caret.
+    const caret = textarea.selectionStart;
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(caret, caret);
+    }, 0);
   });
 
   document.querySelectorAll(".md-toolbar-btn").forEach((btn) => {
@@ -5401,16 +5411,23 @@
           break;
         case "hr":
           // A divider is its own paragraph, so it goes on a blank-line-separated line of its own at the cursor.
-          insertParagraph(textarea, textarea.selectionStart, textarea.selectionEnd, "---");
+          insertParagraph(textarea, textarea.selectionEnd, textarea.selectionEnd, "---");
           break;
         case "code":
           wrapSelection(textarea, "```\n", "\n```", "code here");
           break;
-        case "image":
-          // Pick from the Media Library; the choice arrives on #md-image-pick (below) and is written in at this caret.
-          mdImageTarget = { textarea, start: textarea.selectionStart, end: textarea.selectionEnd };
+        case "image": {
+          // A picture inside a ``` block would just become code, so say so instead.
+          const fences = (textarea.value.slice(0, textarea.selectionEnd).match(/^```/gm) || []).length;
+          if (fences % 2 === 1) {
+            alert("The cursor is inside a code block. Move it outside the block (or below its closing ```) and try again.");
+            return;
+          }
+          // Pick from the Media Library; the choice arrives on #md-image-pick (below) and goes in after the selection (never over it).
+          mdImageTarget = { textarea, at: textarea.selectionEnd };
           openMediaModal("#md-image-pick");
           break;
+        }
         case "before-after": {
           const beforeUrl = prompt('"Before" image URL:', "");
           if (!beforeUrl) return;
@@ -8321,8 +8338,8 @@
   // Links in the overview only ever go to a same-site path or an http(s) address.
   const seoSafeHref = (u) => (/^\/(?![\/\\])[^\\\t\n\r]*$/.test(String(u)) || /^https?:\/\/[^\s\\]+$/i.test(String(u)) ? u : "#");
   const seoWeakAltStatus = (m) => {
-    const file = (m.url || "").split("/").pop();
-    const where = m.slug === null ? m.where : `${m.where}${file ? ` (${seoShort(file, 32)})` : ""}`;
+    const file = m.picture || (m.url || "").split("/").pop();
+    const where = m.slug === null && !m.inText ? m.where : `${m.where}${file ? ` (${seoShort(file, 32)})` : ""}`;
     return m.long
       ? `${where}: alt text is ${m.alt.length} characters; screen readers handle about 125 well, so consider moving the detail into a caption`
       : `${where}: the alt text "${seoShort(m.alt, 60)}" needs work. ${m.reason}. ${
@@ -8360,7 +8377,7 @@
         ...linkResults.filter((r) => r.ok === false).map((r) => ({ severity: 3, check: "Link Checker", title: r.source, url: r.url, status: `Broken link: ${r.status}` })),
         ...a11yIssues.map((i) => ({ severity: 3, check: "Accessibility", title: i.pageTitle, url: pagePath(i.pageSlug), status: i.issue })),
         ...healthData.emptyPages.map((p) => ({ severity: 3, check: "Content Health", title: p.title, url: pagePath(p.slug), status: "Empty page" })),
-        ...seoData.missingAlt.map((m) => ({ severity: 3, check: "SEO", title: m.title, url: m.url, status: "Missing alt text" })),
+        ...seoData.missingAlt.map((m) => ({ severity: 3, check: "SEO", title: m.title, url: m.url, status: m.picture ? `Missing alt text (${m.picture})` : "Missing alt text" })),
         ...integrityData.brokenBlockRefs.map((r) => ({
           severity: 3,
           check: "Content Integrity",
@@ -8470,7 +8487,7 @@
           (m) =>
             `<div class="link-check-row broken"><span class="link-check-url">${escapeHtml(m.title)}</span><span class="link-check-source">${escapeHtml(
               m.url
-            )}</span><span class="link-check-status">Missing alt text</span></div>`
+            )}</span><span class="link-check-status">${m.picture ? `Missing alt text (${escapeHtml(m.picture)})` : "Missing alt text"}</span></div>`
         ),
         ...missingOgImage.map(
           (m) =>

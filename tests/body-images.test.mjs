@@ -1,6 +1,7 @@
 // Pictures written into article and project bodies: ![alt](address "caption") becomes a figure, safely.
 import assert from "node:assert/strict";
-import { paragraphsHtml, loadBodyMedia, safeImageSrc, excerpt, readingTime } from "../worker/render.js";
+import { paragraphsHtml, loadBodyMedia, safeImageSrc, excerpt, readingTime, renderJournalHtml } from "../worker/render.js";
+import { bodyPictures, markdownLinkTargets, stripPictureLines, pictureUrl, mediaKeyFor } from "../worker/pictures.js";
 
 const media = {
   "uploads/board.jpg": { key: "uploads/board.jpg", alt_text: "A breadboard with a blinking LED", width: 1600, height: 900 },
@@ -100,5 +101,63 @@ queries.length = 0;
 await loadBodyMedia(env, Array.from({ length: 200 }, (_, i) => `![a](/media/uploads/p${i}.jpg)`).join("\n\n"));
 assert.equal(queries.length, 1);
 assert.ok(queries[0].keys.length <= 50);
+
+
+// ---- Everything that has to know about pictures agrees with the renderer (pictures.js) ----
+const sample = [
+  "Intro.",
+  "![One](/media/uploads/board.jpg \"Caption (with parens)\")",
+  "```",
+  "![in code](/media/uploads/code.jpg)",
+  "```",
+  ":::note",
+  "![In a callout](https://www.dominickdominick.com/media/uploads/noalt.png)",
+  ":::",
+  "![bad](javascript:alert(1))",
+  "![mixed](/media/uploads/a.jpg)\n![also bad](data:image/png;base64,AA)",
+  "![](https://example.com/x.png)",
+].join("\n\n");
+const found = bodyPictures(sample);
+assert.deepEqual(found.map((p) => p.alt), ["One", "In a callout", ""]);
+assert.deepEqual(found.map((p) => p.key), ["uploads/board.jpg", "uploads/noalt.png", null]);
+assert.equal(found[0].caption, "Caption (with parens)");
+assert.deepEqual(found.map(pictureUrl), ["/media/uploads/board.jpg", "/media/uploads/noalt.png", "https://example.com/x.png"]);
+assert.equal(mediaKeyFor("/media/scans/x.png"), null);
+// The usage list, report and renderer see the same pictures: what renders as a figure is exactly what bodyPictures returns.
+assert.equal((paragraphsHtml(sample).match(/<figure/g) || []).length, found.length);
+
+// Link checker targets: a picture's caption is not part of its address; empty alt still counts; ordinary links unchanged.
+assert.deepEqual(markdownLinkTargets('See [a](/x "t") and ![](/media/uploads/a.png "Cap (x)") and ![b](https://e.com/p.png) and [c](/y)'), ["/x", "/media/uploads/a.png", "https://e.com/p.png", "/y"]);
+assert.deepEqual(markdownLinkTargets("nothing here"), []);
+assert.deepEqual(markdownLinkTargets(null), []);
+
+// Word counts skip picture lines only.
+assert.equal(stripPictureLines('Words.\n\n![alt words here](/x.png "cap words")\n\nMore words.').replace(/\s+/g, " ").trim(), "Words. More words.");
+assert.equal(stripPictureLines("Inline ![alt](/x.png) stays"), "Inline ![alt](/x.png) stays");
+
+// Excerpts: captions with parentheses, unfinished picture lines and pathological input.
+assert.equal(excerpt('Before.\n\n![a](/x.png "cap (x)")\n\nAfter.'), "Before. After.");
+assert.equal(excerpt("Inline ![alt](/x.png \"cap (x)\") here"), "Inline alt here");
+assert.equal(excerpt("![alt](/x.png\n\nSecond paragraph survives (maybe)"), "![alt](/x.png Second paragraph survives (maybe)");
+assert.equal(excerpt("![sketch](draft\nImportant sentence (really)\n\nTail words here."), "![sketch](draft Important sentence (really) Tail words here.");
+{
+  const started = Date.now();
+  excerpt("![a](/x.png\n".repeat(6000));
+  assert.ok(Date.now() - started < 250, "unclosed picture lines must not make excerpts slow");
+}
+
+// Callouts and journal entries pass the library rows along too.
+assert.match(paragraphsHtml(":::note\n![](/media/uploads/board.jpg)\n:::", { media }), /alt="A breadboard with a blinking LED"[^>]*width="1600"/);
+assert.match(renderJournalHtml([{ entry_type: "log", entry_date: "2026-01-01", title: "t", body: "![](/media/uploads/board.jpg)" }], media), /alt="A breadboard with a blinking LED"[^>]*width="1600"/);
+assert.doesNotMatch(renderJournalHtml([{ entry_type: "log", entry_date: "2026-01-01", body: "![](/media/uploads/board.jpg)" }]), /width=/);
+
+// loadBodyMedia takes several texts at once and never throws.
+queries.length = 0;
+await loadBodyMedia(env, ["![a](/media/uploads/board.jpg)", "![b](/media/uploads/noalt.png)"]);
+assert.equal(queries.length, 1);
+assert.deepEqual(queries[0].keys.sort(), ["uploads/board.jpg", "uploads/noalt.png"]);
+const failing = { DB: { prepare: () => { throw new Error("D1 is down"); } } };
+assert.deepEqual(await loadBodyMedia(failing, "![a](/media/uploads/board.jpg)"), {});
+assert.deepEqual(await loadBodyMedia(failing, null), {});
 
 console.log("ALL PASS");
