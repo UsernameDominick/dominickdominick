@@ -3721,14 +3721,16 @@ pre.has-line-numbers {
 }
 
 @media print {
+  /* !important: the colours set in Site Settings (and the light theme) are defined on :root too, in a <style> that comes after this
+     stylesheet, so without it they would win at equal weight and a dark-themed site printed dark cards with black text. */
   :root {
-    --bg: #fff;
-    --bg-elevated: #fff;
-    --border: #ccc;
-    --text: #000;
-    --text-dim: #333;
-    --accent: #000;
-    --on-accent: #fff;
+    --bg: #fff !important;
+    --bg-elevated: #fff !important;
+    --border: #ccc !important;
+    --text: #000 !important;
+    --text-dim: #333 !important;
+    --accent: #000 !important;
+    --on-accent: #fff !important;
   }
 
   /* Set on the buttons themselves so nothing further up can turn the pill
