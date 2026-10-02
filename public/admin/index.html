@@ -1436,6 +1436,14 @@
               <button type="button" id="pe-filter-autolevels" title="Stretch the tones so the darkest shade becomes black and the lightest white (ignoring the extreme 0.5% of pixels at each end), across the whole active layer or only inside the selection">Auto levels</button>
               <label title="Stretch red, green and blue separately. This removes a colour cast but can shift colours; off keeps colours as they are">Per channel <input type="checkbox" id="pe-autolevels-channels"></label>
             </div>
+            <div class="pe-tool-group" id="pe-redact-group" role="group" aria-label="Redact the selection">
+              <span class="pe-group-label">Redact</span>
+              <label title="Pixelate: the size of each square block, in image pixels. Bigger blocks hide more">Block size <input type="range" id="pe-redact-size" min="4" max="96" value="24" aria-valuetext="24 pixels"></label>
+              <button type="button" id="pe-redact-pixelate" title="Replace the selected area with large flat blocks of its average colour. The detail is gone for good once saved">Pixelate selection</button>
+              <button type="button" id="pe-redact-blur" title="Blur the selected area heavily (strength follows the block size). A blur can sometimes be partly undone, so use a black box for anything sensitive">Blur selection</button>
+              <input type="color" id="pe-redact-color" value="#000000" aria-label="Black box colour" title="Colour of the box">
+              <button type="button" id="pe-redact-box" title="Cover the selected area with a solid, fully opaque box. This is the only method that cannot be reversed">Black box</button>
+            </div>
             <div class="pe-tool-group">
               <span class="pe-group-label">Brush</span>
               <button type="button" class="pe-tool" data-tool="paint" title="Paint with a colour; Hardness sets how soft the edge is">Paint</button>

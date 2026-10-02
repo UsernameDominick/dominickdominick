@@ -3165,6 +3165,97 @@
     cancelActiveDrag();
     setLayerNote(`Sharpened at ${amount}.`);
   }
+  // Redaction: hide whatever the selection covers. Pixelate averages square blocks (aligned to the selection's corner) and
+  // flattens each to one colour; Blur softens heavily; Black box paints an opaque rectangle of the chosen colour. All of them
+  // act on the active layer only, inside the selection, and are one Undo step. Pixelate and the box destroy the detail for
+  // good once the image is saved; a blur is weaker (it can sometimes be partly reversed), and the note says so.
+  function redactSelection(kind) {
+    if (isComparing() || layerBlocked()) return;
+    if (!hasSelection()) {
+      setLayerNote("Select the area to hide first (any selection tool), then choose Pixelate, Blur or Black box.");
+      return;
+    }
+    const size = Math.max(4, Math.min(96, Number($("pe-redact-size").value) || 24));
+    pushUndo();
+    const before = snapshotCanvas();
+    const w = canvas.width;
+    const h = canvas.height;
+    if (kind === "pixelate") {
+      const img = ctx.getImageData(0, 0, w, h);
+      const d = img.data;
+      const x0 = selBounds.x;
+      const y0 = selBounds.y;
+      const xEnd = Math.min(w, selBounds.x + selBounds.w);
+      const yEnd = Math.min(h, selBounds.y + selBounds.h);
+      for (let by = y0; by < yEnd; by += size) {
+        for (let bx = x0; bx < xEnd; bx += size) {
+          const bw = Math.min(size, xEnd - bx);
+          const bh = Math.min(size, yEnd - by);
+          let r = 0, g = 0, b = 0, a = 0;
+          for (let y = by; y < by + bh; y++) {
+            for (let x = bx; x < bx + bw; x++) {
+              const i = (y * w + x) * 4;
+              const al = d[i + 3];
+              r += d[i] * al;
+              g += d[i + 1] * al;
+              b += d[i + 2] * al;
+              a += al;
+            }
+          }
+          const n = bw * bh;
+          const avgA = a / n;
+          const cr = a ? r / a : 0;
+          const cg = a ? g / a : 0;
+          const cb = a ? b / a : 0;
+          for (let y = by; y < by + bh; y++) {
+            for (let x = bx; x < bx + bw; x++) {
+              const i = (y * w + x) * 4;
+              d[i] = cr;
+              d[i + 1] = cg;
+              d[i + 2] = cb;
+              d[i + 3] = avgA;
+            }
+          }
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+    } else if (kind === "blur") {
+      const copy = document.createElement("canvas");
+      copy.width = w;
+      copy.height = h;
+      copy.getContext("2d").drawImage(canvas, 0, 0);
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = "copy";
+      ctx.filter = `blur(${Math.max(2, size / 2).toFixed(1)}px)`;
+      ctx.drawImage(copy, 0, 0);
+      ctx.restore();
+      // The blur treats everything beyond the image's edge as transparent, which would fade the rim: keep each pixel's own opacity.
+      const blurred = ctx.getImageData(0, 0, w, h);
+      const original = copy.getContext("2d").getImageData(0, 0, w, h).data;
+      for (let i = 3; i < blurred.data.length; i += 4) blurred.data[i] = original[i];
+      ctx.putImageData(blurred, 0, 0);
+    } else {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = "source-over";
+      ctx.filter = "none";
+      ctx.fillStyle = $("pe-redact-color").value;
+      ctx.fillRect(0, 0, w, h);
+      ctx.restore();
+    }
+    blendThroughSelection(before, snapshotCanvas());
+    cancelActiveDrag();
+    setLayerNote(
+      kind === "pixelate"
+        ? `Pixelated the selection in ${size}px blocks. The detail is gone once you save.`
+        : kind === "blur"
+        ? "Blurred the selection. A blur can sometimes be partly reversed: use Black box for anything sensitive."
+        : "Covered the selection with a solid box. It cannot be reversed once saved."
+    );
+  }
   // Auto levels: one shared black and white point for all three channels (so colours don't shift), taken from the
   // brightness histogram of visible pixels with the extreme 0.5% at each end ignored, then every channel is stretched.
   function applyAutoLevels() {
@@ -3220,6 +3311,10 @@
     setLayerNote(`Auto levels stretched ${text} to 0-255${hasSelection() ? " (inside the selection; levels taken from the whole layer)" : ""}.`);
   }
   $("pe-filter-autolevels").addEventListener("click", applyAutoLevels);
+  $("pe-redact-pixelate").addEventListener("click", () => redactSelection("pixelate"));
+  $("pe-redact-blur").addEventListener("click", () => redactSelection("blur"));
+  $("pe-redact-box").addEventListener("click", () => redactSelection("box"));
+  $("pe-redact-size").addEventListener("input", () => $("pe-redact-size").setAttribute("aria-valuetext", `${$("pe-redact-size").value} pixels`));
   $("pe-filter-sharpen").addEventListener("click", () => applySharpen(Number($("pe-sharpen-amount").value) || 25));
   $("pe-sharpen-amount").addEventListener("input", () => $("pe-sharpen-amount").setAttribute("aria-valuetext", $("pe-sharpen-amount").value));
   $("pe-filter-grain").addEventListener("click", () => applyGrain(Number($("pe-grain-amount").value) || 15));
