@@ -4569,9 +4569,8 @@
   // live preview use the real address. Left alone while the field has focus, so typing is never overwritten.
   function adoptSavedSlug(inputId, response, sentSlug) {
     const input = el(inputId);
-    // Not while the person is typing in it: unless it still holds exactly what was just saved (Enter in the field saves and keeps focus).
-    const untouched = document.activeElement !== input || input.value === sentSlug;
-    if (response && typeof response.slug === "string" && input.value !== response.slug && untouched) input.value = response.slug;
+    // Only while the field still holds exactly what was saved: anything typed since (even after tabbing out) is the person's.
+    if (response && typeof response.slug === "string" && input.value === sentSlug && input.value !== response.slug) input.value = response.slug;
   }
 
   // ---------- Live preview beside the editor ----------
@@ -4666,11 +4665,24 @@
         },
         true
       );
-      doc.addEventListener("submit", (e) => e.preventDefault(), true);
-      doc.addEventListener("keydown", (e) => {
-        if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "s") {
+      // A form in the page (the search box) would navigate the frame: a GET form opens its result in a new tab instead.
+      doc.addEventListener(
+        "submit",
+        (e) => {
           e.preventDefault();
-          document.dispatchEvent(new KeyboardEvent("keydown", { key: "s", ctrlKey: e.ctrlKey, metaKey: e.metaKey, bubbles: true, cancelable: true }));
+          const form = e.target;
+          if (form && (form.method || "get").toLowerCase() === "get") {
+            const url = new URL(form.action, frame.contentWindow.location.href);
+            new FormData(form).forEach((value, key) => url.searchParams.set(key, String(value)));
+            window.open(url.href, "_blank", "noopener");
+          }
+        },
+        true
+      );
+      doc.addEventListener("keydown", (e) => {
+        if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "s") {
+          e.preventDefault();
+          if (!e.repeat) document.dispatchEvent(new KeyboardEvent("keydown", { key: "s", ctrlKey: e.ctrlKey, metaKey: e.metaKey, bubbles: true, cancelable: true }));
         } else if (e.key === "Escape") {
           close();
         }
@@ -5786,11 +5798,18 @@
     const body = buildArticleBody();
     if (!body.title) return alert("Title is required.");
     const isNewArticle = !currentArticleId;
+    const savedId = currentArticleId;
     articleSaveInFlight = true;
     try {
       if (currentArticleId) {
         body.expected_version = currentArticleVersion;
-        adoptSavedSlug("article-slug", await api(`/articles/${currentArticleId}`, { method: "PATCH", body: JSON.stringify(body) }), body.slug);
+        const res = await api(`/articles/${savedId}`, { method: "PATCH", body: JSON.stringify(body) });
+        if (currentArticleId !== savedId) {
+          articles = await api("/articles");
+          renderArticlesList();
+          return;
+        }
+        adoptSavedSlug("article-slug", res, body.slug);
       } else {
         const res = await api("/articles", { method: "POST", body: JSON.stringify(body) });
         currentArticleId = res.id;
@@ -5838,8 +5857,17 @@
     const body = buildArticleBody();
     if (!body.title) return;
     body.expected_version = currentArticleVersion;
+    const savedId = currentArticleId;
     try {
-      adoptSavedSlug("article-slug", await api(`/articles/${currentArticleId}`, { method: "PATCH", body: JSON.stringify(body) }), body.slug);
+      const res = await api(`/articles/${savedId}`, { method: "PATCH", body: JSON.stringify(body) });
+      if (currentArticleId !== savedId) {
+        // Another article was opened while this one saved: leave the form alone and just bring the list up to date.
+        clearDraft("article", savedId);
+        articles = await api("/articles");
+        renderArticlesList();
+        return;
+      }
+      adoptSavedSlug("article-slug", res, body.slug);
       unsavedDirty = false;
       clearDraft("article", currentArticleId);
       articles = await api("/articles");
@@ -6350,8 +6378,17 @@
     const body = buildProjectBody();
     if (!body.title) return;
     body.expected_version = currentProjectVersion;
+    const savedId = currentProjectId;
     try {
-      adoptSavedSlug("project-slug", await api(`/projects/${currentProjectId}`, { method: "PATCH", body: JSON.stringify(body) }), body.slug);
+      const res = await api(`/projects/${savedId}`, { method: "PATCH", body: JSON.stringify(body) });
+      if (currentProjectId !== savedId) {
+        // Another project was opened while this one saved: leave the form alone and just bring the list up to date.
+        clearDraft("project", savedId);
+        projects = await api("/projects");
+        renderProjectsList();
+        return;
+      }
+      adoptSavedSlug("project-slug", res, body.slug);
       unsavedDirty = false;
       clearDraft("project", currentProjectId);
       projects = await api("/projects");
@@ -6422,7 +6459,14 @@
     try {
       if (currentProjectId) {
         body.expected_version = currentProjectVersion;
-        adoptSavedSlug("project-slug", await api(`/projects/${currentProjectId}`, { method: "PATCH", body: JSON.stringify(body) }), body.slug);
+        const savedId = currentProjectId;
+        const res = await api(`/projects/${savedId}`, { method: "PATCH", body: JSON.stringify(body) });
+        if (currentProjectId !== savedId) {
+          projects = await api("/projects");
+          renderProjectsList();
+          return;
+        }
+        adoptSavedSlug("project-slug", res, body.slug);
       } else {
         const res = await api("/projects", { method: "POST", body: JSON.stringify(body) });
         currentProjectId = res.id;

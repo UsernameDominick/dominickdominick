@@ -1284,7 +1284,7 @@ code.color-field-value {
   color: var(--text-dim);
 }
 .live-preview-note.is-warning {
-  color: var(--danger, #e5484d);
+  color: var(--error-text);
 }
 .live-preview-frame-wrap {
   flex: 1;
