@@ -1677,9 +1677,19 @@ h6 { font-size: 0.9rem; }
   margin-top: 10px;
 }
 
-/* The Schematic view switch sits beside Power on as the quieter, outlined button; pressed, it fills in. */
+/* Power on and Schematic view sit side by side; the schematic switch is the quieter, outlined button and fills in when pressed. */
+.sim-block-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  align-self: flex-start;
+  margin-top: 10px;
+}
+.sim-block-actions .sim-power-btn {
+  margin-top: 0;
+}
 .sim-view-btn {
-  margin-left: 8px;
   background: transparent;
   color: var(--text);
   border-color: var(--border-strong, var(--border));
@@ -1688,6 +1698,13 @@ h6 { font-size: 0.9rem; }
   background: var(--accent);
   color: var(--on-accent);
   border-color: var(--accent);
+}
+@media (forced-colors: active) {
+  /* Fills are dropped in high-contrast mode, so the pressed state gets a shape cue like Power off's dashed outline. */
+  .sim-view-btn[aria-pressed="true"] {
+    border-style: dashed;
+    border-width: 2px;
+  }
 }
 
 .song-embed-bars {
@@ -2008,6 +2025,9 @@ h6 { font-size: 0.9rem; }
 .sim-svg .sim-art-schem { display: none; }
 .sim-svg.is-schematic .sim-art-real { display: none; }
 .sim-svg.is-schematic .sim-art-schem { display: inline; }
+/* The saved choice is applied by a one-line script in <head> (html.sim-schematic-pref), so the right view paints first. */
+html.sim-schematic-pref .sim-svg .sim-art-real { display: none; }
+html.sim-schematic-pref .sim-svg .sim-art-schem { display: inline; }
 .sim-comp .sch-line { fill: none; stroke: var(--text); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .sim-comp .sch-plate { stroke-width: 3; }
 .sim-comp .sch-fill { fill: var(--text); stroke: none; }
@@ -2018,9 +2038,12 @@ h6 { font-size: 0.9rem; }
 .sim-svg.is-on .sim-comp[data-powered="true"] .sch-fill,
 .sim-svg.is-on .sim-comp[data-powered="true"] .sch-dot { fill: var(--accent); }
 .sim-svg.is-on .sim-comp[data-powered="true"] .sch-led-body { fill: var(--led-on-color, var(--accent)); }
-.sim-comp.sim-damaged .sch-line { stroke: #b4452d; }
-.sim-comp.sim-damaged .sch-fill,
-.sim-comp.sim-damaged .sch-dot { fill: #b4452d; }
+/* Damage must show even while powered (a burnt part is always on a live loop), so these outrank the powered colours. */
+.sim-svg .sim-comp.sim-damaged .sch-line { stroke: #b4452d !important; }
+.sim-svg .sim-comp.sim-damaged .sch-fill,
+.sim-svg .sim-comp.sim-damaged .sch-dot { fill: #b4452d !important; }
+.sim-svg .sim-comp.sim-damaged .sch-led-body,
+.sim-svg .sim-comp.sim-damaged .sch-diode-body { fill: #2a1810 !important; }
 
 /* Transistor -- the arrow on the emitter leg points out of an NPN and into a PNP. */
 .sim-comp .transistor-lead {

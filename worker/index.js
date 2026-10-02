@@ -1016,7 +1016,7 @@ async function renderSimulationPage(env, sim, navItems) {
     <h1>${esc(sim.name)}</h1>
   </div>
   <div class="block" style="grid-column:1 / span 24;grid-row:3 / span 25;">
-    <div class="sim-block-wrap"><p id="${esc(descId)}" class="sr-only">${esc(topologyDescription)}</p>${svg}<button type="button" class="sim-power-btn" data-target="${esc(uid)}">Power on</button><button type="button" class="sim-power-btn sim-view-btn" aria-pressed="false" data-target="${esc(uid)}">Schematic view</button></div>
+    <div class="sim-block-wrap"><p id="${esc(descId)}" class="sr-only">${esc(topologyDescription)}</p>${svg}<div class="sim-block-actions"><button type="button" class="sim-power-btn" data-target="${esc(uid)}">Power on</button><button type="button" class="sim-power-btn sim-view-btn" aria-pressed="false" data-target="${esc(uid)}">Schematic view</button></div></div>
   </div>`;
   const html = renderShell({
     title: `${sim.name} · Dominick`,

@@ -11,6 +11,7 @@
     }
   };
   const apply = (on) => {
+    document.documentElement.classList.toggle("sim-schematic-pref", on);
     document.querySelectorAll(".sim-svg").forEach((svg) => svg.classList.toggle("is-schematic", on));
     document.querySelectorAll(".sim-view-btn").forEach((b) => {
       b.setAttribute("aria-pressed", String(on));

@@ -35,7 +35,7 @@
   // Schematic view: standard symbols instead of the pictorial art (a viewing choice, remembered per browser, not saved with the circuit).
   let schematicView = false;
   try {
-    schematicView = localStorage.getItem("sim-schematic") === "1";
+    schematicView = localStorage.getItem("sim-schematic-builder") === "1";
   } catch (e) {
     /* storage blocked: the pictorial view is fine */
   }
@@ -1884,7 +1884,7 @@
   $("sim-schematic-toggle").addEventListener("click", () => {
     schematicView = !schematicView;
     try {
-      localStorage.setItem("sim-schematic", schematicView ? "1" : "0");
+      localStorage.setItem("sim-schematic-builder", schematicView ? "1" : "0");
     } catch (e) {
       /* not remembered, still applied now */
     }
@@ -4180,6 +4180,15 @@
       // of filling it -- a critic-found bug that reproduced with the
       // mobile admin's own default zoom level, not just a manual-zoom
       // edge case.
+      // The picture is rasterised through an <img>, where the page's stylesheet does not apply, so every element would come out
+      // as default black fills. Copy the styling that matters onto the clone as inline styles first (the clone and the live
+      // svg are the same tree, so the elements pair up in order).
+      const styled = ["fill", "fill-opacity", "stroke", "stroke-width", "stroke-opacity", "stroke-linecap", "stroke-linejoin", "stroke-dasharray", "opacity", "font-family", "font-size", "font-weight", "text-anchor", "display", "visibility"];
+      const liveNodes = svg.querySelectorAll("*");
+      svgClone.querySelectorAll("*").forEach((node, i) => {
+        const computed = getComputedStyle(liveNodes[i]);
+        styled.forEach((prop) => node.style.setProperty(prop, computed.getPropertyValue(prop)));
+      });
       svgClone.querySelectorAll(".sim-lock-badge").forEach((node) => node.remove()); // editor-only marker
       // Both the pictorial art and the schematic symbol are in the DOM (CSS shows one); a standalone image has no CSS, so keep only the visible one.
       svgClone.querySelectorAll(svg.classList.contains("is-schematic") ? ".sim-art-real" : ".sim-art-schem").forEach((node) => node.remove());

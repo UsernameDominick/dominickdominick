@@ -1427,11 +1427,11 @@ async function renderBlockInner(env, block, ctx) {
         `class="sim-svg" id="${esc(uid)}" role="img" aria-label="${esc(sim.name || "Circuit simulation")}"${descId ? ` aria-describedby="${esc(descId)}"` : ""}`
       );
       const descHtml = c.description ? `<p id="${esc(descId)}" class="sr-only">${esc(c.description)}</p>` : "";
-      return `<div class="sim-block-wrap">${descHtml}${svg}<button type="button" class="sim-power-btn" data-target="${esc(
+      return `<div class="sim-block-wrap">${descHtml}${svg}<div class="sim-block-actions"><button type="button" class="sim-power-btn" data-target="${esc(
         uid
       )}">Power on</button><button type="button" class="sim-power-btn sim-view-btn" aria-pressed="false" data-target="${esc(
         uid
-      )}">Schematic view</button></div>`;
+      )}">Schematic view</button></div></div>`;
     }
     case "scan": {
       if (!c.scan_id) return `<p class="empty-hint">No 3D scan selected.</p>`;
@@ -2038,7 +2038,7 @@ export function renderShell({
 <head>
 <meta charset="UTF-8">
 <meta name="theme-color" id="theme-color-meta" content="${esc(themeColorDark)}" data-dark="${esc(themeColorDark)}">
-<script>(function(){try{var t=localStorage.getItem("theme");if(t!=="light"&&t!=="dark")t=window.matchMedia&&window.matchMedia("(prefers-color-scheme: light)").matches?"light":null;if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);if(t==="light"){var tc=document.getElementById("theme-color-meta");if(tc)tc.setAttribute("content","#fffaf5");}var m=localStorage.getItem("motion");if(m==="reduce")document.documentElement.setAttribute("data-motion","reduce");var fs=parseFloat(localStorage.getItem("fontScale"));if(fs)document.documentElement.style.setProperty("--font-scale",fs);}catch(e){}})();</script>
+<script>(function(){try{var t=localStorage.getItem("theme");if(t!=="light"&&t!=="dark")t=window.matchMedia&&window.matchMedia("(prefers-color-scheme: light)").matches?"light":null;if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);if(t==="light"){var tc=document.getElementById("theme-color-meta");if(tc)tc.setAttribute("content","#fffaf5");}if(localStorage.getItem("sim-schematic")==="1")document.documentElement.classList.add("sim-schematic-pref");var m=localStorage.getItem("motion");if(m==="reduce")document.documentElement.setAttribute("data-motion","reduce");var fs=parseFloat(localStorage.getItem("fontScale"));if(fs)document.documentElement.style.setProperty("--font-scale",fs);}catch(e){}})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(description)}">
