@@ -786,6 +786,7 @@
     wireStart = null;
     previewOn = false;
     showDisconnected = false;
+    showVoltages = false;
     showGhostWires = false;
     canvasSearchQuery = "";
     canvasSearchCurrent = null;
@@ -1333,6 +1334,8 @@
   // build, so this is an on-demand toggle rather than an always-on
   // overlay that would just be noisy for any circuit still in progress.
   let showDisconnected = false;
+  // "Show voltages": each part's pins are labelled with their voltage while the power preview is on.
+  let showVoltages = false;
   // Same reasoning for keeping this a toggle rather than always-on: most
   // wires are never actually hidden under anything, so a permanent
   // dashed duplicate over every single wire would just be visual clutter.
@@ -1392,8 +1395,24 @@
       .join("");
   }
 
+  // The voltage written beside each pin of each part (breadboards and parts with no known voltage have none).
+  function renderVoltageLabels(analysis) {
+    const labels = [];
+    simData.components.forEach((c) => {
+      if (c.type === "breadboard") return;
+      const def = window.getSimComponentDefinition(c);
+      if (!def) return;
+      def.pins.forEach((p) => {
+        const volts = analysis.nodeVoltage(window.simNodeId(c, p.id));
+        if (volts === undefined || labels.length >= 300) return;
+        labels.push(`<text class="sim-voltage-label" x="${c.x + p.x + 7}" y="${c.y + p.y - 7}">${escapeXml(window.simFormatVolts(volts))}</text>`);
+      });
+    });
+    return labels.length ? `<g class="sim-voltage-layer" pointer-events="none" aria-hidden="true">${labels.join("")}</g>` : "";
+  }
+
   function renderBuilder() {
-    const analysis = window.computeSimElectricalAnalysis(simData);
+    const analysis = window.computeSimElectricalAnalysis(simData, { voltages: showVoltages && previewOn });
     const { poweredComps, poweredWires } = window.computeSimPoweredSet(simData, analysis);
     updateWarningsBadge(analysis);
     // Selecting a wire highlights the whole wire-tied net it belongs to,
@@ -1446,7 +1465,7 @@
     const { width: canvasWidth, height: canvasHeight } = getSimulationCanvasBounds(simData.components);
     $("sim-builder-canvas").innerHTML = `<svg id="sim-builder-svg" viewBox="0 0 ${canvasWidth} ${canvasHeight}" xmlns="http://www.w3.org/2000/svg" class="sim-svg${
       previewOn ? " is-on" : ""
-    }${schematicView ? " is-schematic" : ""}">${window.SIM_DEFS_SVG}${wiresSvg}${compsSvg}${ghostWiresSvg}${pinsSvg}</svg>`;
+    }${schematicView ? " is-schematic" : ""}">${window.SIM_DEFS_SVG}${wiresSvg}${compsSvg}${ghostWiresSvg}${pinsSvg}${showVoltages && previewOn ? renderVoltageLabels(analysis) : ""}</svg>`;
     attachBuilderEvents();
     applyZoom();
     updateCanvasSearchCount();
@@ -1462,6 +1481,9 @@
     // button's DOM class on its own -- can't leave a stale "active" look
     // on a toggle that's actually back off.
     $("sim-show-ghost-wires").classList.toggle("is-active", showGhostWires);
+    $("sim-show-voltages").classList.toggle("is-active", showVoltages);
+    $("sim-show-voltages").setAttribute("aria-pressed", String(showVoltages));
+    $("sim-show-voltages").textContent = !showVoltages ? "Show voltages" : previewOn ? "Hide voltages" : "Voltages: power on to see";
     $("sim-schematic-toggle").classList.toggle("is-active", schematicView);
     $("sim-schematic-toggle").setAttribute("aria-pressed", String(schematicView));
     $("sim-continuity-test").classList.toggle("is-active", continuityMode);
@@ -1880,6 +1902,10 @@
     frame.contentWindow.print();
   });
 
+  $("sim-show-voltages").addEventListener("click", () => {
+    showVoltages = !showVoltages;
+    renderBuilder();
+  });
   $("sim-show-disconnected").addEventListener("click", () => {
     showDisconnected = !showDisconnected;
     renderBuilder();
@@ -4369,7 +4395,7 @@
   }
   simMoreBtn.addEventListener("click", () => setSimMore(!simBuilderInner.classList.contains("sim-more-open")));
   // Tools that act on the canvas close the panel so the result is in view; opening a simulation starts it closed.
-  ["sim-show-disconnected", "sim-show-ghost-wires", "sim-schematic-toggle", "sim-continuity-test", "sim-view-go", "sim-checkpoint-restore"].forEach((id) => {
+  ["sim-show-disconnected", "sim-show-voltages", "sim-show-ghost-wires", "sim-schematic-toggle", "sim-continuity-test", "sim-view-go", "sim-checkpoint-restore"].forEach((id) => {
     const el = $(id);
     if (el) el.addEventListener("click", () => setSimMore(false));
   });

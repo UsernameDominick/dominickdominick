@@ -1473,7 +1473,9 @@ const TRANSISTOR_WATTAGE_RATING = 0.625; // TO-92 package
 
   window.simFormatOhms = formatOhms;
 
-  window.computeSimElectricalAnalysis = function (data) {
+  // `options.voltages` also works out every node's voltage (what the builder's "Show voltages" draws); the result carries them as a
+  // non-enumerable `nodeVoltage(nodeId)` that returns volts from the source's negative terminal, or undefined where nothing is known.
+  window.computeSimElectricalAnalysis = function (data, options = {}) {
     const components = (data && data.components) || [];
     const { poweredNodes } = window.computeSimPoweredSet(data);
     const { adjacency, edgeInfo } = buildAnalysisGraph(data);
@@ -1510,8 +1512,9 @@ const TRANSISTOR_WATTAGE_RATING = 0.625; // TO-92 package
     // bypass that the one-path analysis below ignores. Non-enumerable, so loops over `results` never see it.
     let parallelFound = false;
     // Only voltmeters need node potentials, so nothing else pays for them.
-    const wantPotentials = components.some((c) => c.type === "voltmeter");
+    const wantPotentials = Boolean(options.voltages) || components.some((c) => c.type === "voltmeter");
     const potentialMaps = [];
+    let solvedNetwork = null;
     // Terminals of every source: the domains, plus each Power Supply's output
     // (a supply that is fed but whose own loop is unclosed has no domain yet).
     const supplyTerminals = [];
@@ -1731,6 +1734,7 @@ const TRANSISTOR_WATTAGE_RATING = 0.625; // TO-92 package
         },
         engage
       );
+      solvedNetwork = solved;
       if (solved) {
         solved.clear.forEach((id) => {
           if (results[id] && results[id].kind !== "voltmeter") delete results[id];
@@ -1743,6 +1747,16 @@ const TRANSISTOR_WATTAGE_RATING = 0.625; // TO-92 package
     if (components.some((c) => c.type === "ohmmeter")) Object.assign(results, ohmmeterReadings(components, (data && data.wires) || []));
 
     Object.defineProperty(results, "meta", { value: { parallel: parallelFound }, enumerable: false });
+    Object.defineProperty(results, "nodeVoltage", {
+      value: (node) => {
+        const fromNetwork = solvedNetwork && solvedNetwork.nodeVolts ? solvedNetwork.nodeVolts(node) : undefined;
+        if (Number.isFinite(fromNetwork)) return Math.abs(fromNetwork) < 1e-9 ? 0 : fromNetwork;
+        const hit = potentialMaps.find(({ reason, map }) => !reason && map.has(node));
+        const volts = hit ? hit.map.get(node) : undefined;
+        return Number.isFinite(volts) ? (Math.abs(volts) < 1e-9 ? 0 : volts) : undefined;
+      },
+      enumerable: false,
+    });
     return results;
   };
 })();

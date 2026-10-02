@@ -7918,3 +7918,14 @@ button[data-tier="quiet"] { border-color: transparent; }
 .embed-picker-body .article-actions {
   justify-content: flex-end;
 }
+
+/* "Show voltages" in the simulation builder: the number beside each pin. */
+.sim-voltage-label {
+  font-size: 20px;
+  font-weight: 700;
+  fill: var(--text);
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
