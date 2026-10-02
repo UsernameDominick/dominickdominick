@@ -5337,6 +5337,43 @@
   });
   el("close-writing-focus").addEventListener("click", closeWritingFocus);
 
+  // Puts `line` into the text as a paragraph of its own at the selection (replacing it): a blank line before unless one is
+  // already there, a blank line after unless the text already goes on after one, and the caret left at the start of what follows.
+  function insertParagraph(textarea, start, end, line) {
+    const before = textarea.value.slice(0, start);
+    const after = textarea.value.slice(end);
+    const lead = before.length === 0 || before.endsWith("\n\n") ? "" : before.endsWith("\n") ? "\n" : "\n\n";
+    const trail = after.length === 0 || !after.startsWith("\n") ? "\n\n" : after.startsWith("\n\n") ? "" : "\n";
+    const insert = `${lead}${line}${trail}`;
+    textarea.value = before + insert + after;
+    const caret = start + insert.length + (trail === "" ? 2 : 0);
+    textarea.focus();
+    textarea.setSelectionRange(caret, caret);
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  // The picture button: the Media Library hands the chosen file's address to a hidden field; the picture goes into the text as
+  // its own paragraph, `![alt](address "caption")`, with the library's alt text and caption offered as the defaults.
+  let mdImageTarget = null;
+  const mdImagePick = el("md-image-pick");
+  mdImagePick.addEventListener("change", () => {
+    const url = mdImagePick.value;
+    mdImagePick.value = "";
+    const target = mdImageTarget;
+    mdImageTarget = null;
+    if (!url || !target) return;
+    const item = mediaItems.find((m) => m.url === url) || {};
+    const altAnswer = prompt("Describe the picture for people who can't see it (alt text). Leave empty if it is purely decorative:", item.alt_text || "");
+    if (altAnswer === null) return;
+    const captionAnswer = prompt("Caption under the picture (optional):", item.caption || "");
+    if (captionAnswer === null) return;
+    const alt = altAnswer.replace(/[\[\]\n]/g, " ").trim();
+    const caption = captionAnswer.replace(/"/g, "\u201d").replace(/\s+/g, " ").trim();
+    const address = url.replace(/[\s()]/g, (ch) => encodeURIComponent(ch));
+    const { textarea, start, end } = target;
+    insertParagraph(textarea, start, end, `![${alt}](${address}${caption ? ` "${caption}"` : ""})`);
+  });
+
   document.querySelectorAll(".md-toolbar-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const textarea = el(btn.dataset.mdTarget || "article-body");
@@ -5362,20 +5399,17 @@
         case "inline-code":
           wrapSelection(textarea, "`", "`", "code");
           break;
-        case "hr": {
+        case "hr":
           // A divider is its own paragraph, so it goes on a blank-line-separated line of its own at the cursor.
-          const start = textarea.selectionStart;
-          const before = textarea.value.slice(0, start);
-          const lead = before.length === 0 || before.endsWith("\n\n") ? "" : before.endsWith("\n") ? "\n" : "\n\n";
-          const insert = `${lead}---\n\n`;
-          textarea.value = before + insert + textarea.value.slice(textarea.selectionEnd);
-          textarea.focus();
-          textarea.setSelectionRange(start + insert.length, start + insert.length);
-          textarea.dispatchEvent(new Event("input", { bubbles: true }));
+          insertParagraph(textarea, textarea.selectionStart, textarea.selectionEnd, "---");
           break;
-        }
         case "code":
           wrapSelection(textarea, "```\n", "\n```", "code here");
+          break;
+        case "image":
+          // Pick from the Media Library; the choice arrives on #md-image-pick (below) and is written in at this caret.
+          mdImageTarget = { textarea, start: textarea.selectionStart, end: textarea.selectionEnd };
+          openMediaModal("#md-image-pick");
           break;
         case "before-after": {
           const beforeUrl = prompt('"Before" image URL:', "");
@@ -8292,7 +8326,7 @@
     return m.long
       ? `${where}: alt text is ${m.alt.length} characters; screen readers handle about 125 well, so consider moving the detail into a caption`
       : `${where}: the alt text "${seoShort(m.alt, 60)}" needs work. ${m.reason}. ${
-          m.slug === null ? "Edit it in the Media Library, under the image's Details." : "Write a short description of what the image shows."
+          m.inText ? "Change the words in the square brackets of the picture line in the text." : m.slug === null ? "Edit it in the Media Library, under the image's Details." : "Write a short description of what the image shows."
         }`;
   };
   const seoLongTitleStatus = (m) =>

@@ -329,6 +329,7 @@
             <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="inline-code" title="Inline code: wraps the selected text in `backticks`"><code>`code`</code></button>
             <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="code" title="Code block">Code</button>
             <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="hr" title="Divider line (a paragraph of three dashes)">Divider</button>
+            <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="image" title="Picture from the Media Library, written as ![alt](address &quot;caption&quot;)">Image…</button>
             <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="before-after" title="Before/after image comparison">Before/After</button>
             <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="callout" title="Callout (note/tip/warning/danger)">Callout</button>
             <button type="button" class="md-toolbar-btn" data-md-target="article-body" data-md="diagram" title="Mermaid diagram (flowchart, sequence, etc.)">Diagram</button>
@@ -482,6 +483,7 @@
             <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="inline-code" title="Inline code: wraps the selected text in `backticks`"><code>`code`</code></button>
             <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="code" title="Code block">Code</button>
             <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="hr" title="Divider line (a paragraph of three dashes)">Divider</button>
+            <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="image" title="Picture from the Media Library, written as ![alt](address &quot;caption&quot;)">Image…</button>
             <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="before-after" title="Before/after image comparison">Before/After</button>
             <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="callout" title="Callout (note/tip/warning/danger)">Callout</button>
             <button type="button" class="md-toolbar-btn" data-md-target="project-body" data-md="diagram" title="Mermaid diagram (flowchart, sequence, etc.)">Diagram</button>
@@ -743,6 +745,7 @@
     </div>
   </div>
 
+  <input type="text" id="md-image-pick" hidden tabindex="-1" aria-hidden="true">
   <div id="media-modal" class="modal" hidden role="dialog" aria-labelledby="media-modal-title">
     <div class="modal-inner media-modal-inner">
       <header class="media-header">

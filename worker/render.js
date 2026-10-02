@@ -326,7 +326,71 @@ export function footerHtml(footer, year = new Date().getUTCFullYear()) {
   return `<footer class="site-footer">${colsHtml}${socialHtml}${body ? paragraphsHtml(body) : ""}</footer>`;
 }
 
-export function paragraphsHtml(text, { anchors = false } = {}) {
+// ---------- Images in body text ----------
+// A paragraph (or run of lines) that is only `![alt text](/media/uploads/photo.jpg "Optional caption")` becomes a figure. The
+// address may be a Media Library path, any other path on this site, or an https address; anything else (javascript:, data:,
+// "//host") is not an image and the line stays as text. Alt text falls back to the Media Library's default for that file, and
+// the file's stored width and height go on the <img> so the page doesn't jump as it loads.
+const IMAGE_LINE = /^!\[([^\]]*)\]\(\s*([^\s)]+)(?:\s+"([^"]*)")?\s*\)$/;
+
+export function safeImageSrc(url) {
+  const src = String(url ?? "").trim();
+  if (!src || /[\u0000-\u001f\u007f\\"'<>`]/.test(src)) return null;
+  if (src.startsWith("/")) return src.startsWith("//") ? null : src;
+  try {
+    const parsed = new URL(src);
+    return parsed.protocol === "https:" && parsed.hostname ? src : null;
+  } catch {
+    return null;
+  }
+}
+
+// The Media Library key behind an image address ("uploads/…"), for the site's own addresses only; null for anything else.
+function mediaKeyFor(src) {
+  try {
+    const url = new URL(src, "https://dominickdominick.com");
+    if (!["dominickdominick.com", "www.dominickdominick.com"].includes(url.hostname) || url.port || url.username || url.password) return null;
+    const match = url.pathname.match(/^\/media\/(uploads\/[A-Za-z0-9_.\-\/]+)$/);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+}
+
+function bodyImageMatches(trimmed) {
+  const lines = trimmed.split("\n").map((l) => l.trim());
+  const found = lines.map((l) => IMAGE_LINE.exec(l));
+  return found.length && found.every(Boolean) ? found : null;
+}
+
+// Looks up the Media Library rows for every image in a body (one query, none when there are no images), to hand to
+// paragraphsHtml as `media`. Without it images still render, just without stored sizes or the library's alt text.
+export async function loadBodyMedia(env, text) {
+  const keys = new Set();
+  for (const line of String(text || "").split("\n")) {
+    const m = IMAGE_LINE.exec(line.trim());
+    const src = m && safeImageSrc(m[2]);
+    const key = src && mediaKeyFor(src);
+    if (key) keys.add(key);
+    if (keys.size >= 50) break;
+  }
+  return keys.size ? getMediaMeta(env, [...keys]) : {};
+}
+
+function bodyFigureHtml(m, media) {
+  const src = safeImageSrc(m[2]);
+  if (!src) return null;
+  const key = mediaKeyFor(src);
+  const row = key && media && media[key];
+  const alt = m[1].trim() || (row && typeof row.alt_text === "string" ? row.alt_text.trim() : "");
+  const width = row && Number(row.width);
+  const height = row && Number(row.height);
+  const size = width > 0 && height > 0 ? ` width="${width}" height="${height}"` : "";
+  const caption = m[3] && m[3].trim() ? `<figcaption>${richText(esc(m[3].trim()))}</figcaption>` : "";
+  return `<figure class="image-figure body-figure"><img src="${esc(src)}" alt="${esc(alt)}" loading="lazy" decoding="async"${size}>${caption}</figure>`;
+}
+
+export function paragraphsHtml(text, { anchors = false, media = null } = {}) {
   const { cleaned, defs } = extractFootnotes(text);
   const { replaced: withoutCallouts, callouts } = extractCallouts(cleaned);
   const { replaced, blocks } = extractCodeBlocks(withoutCallouts);
@@ -366,6 +430,11 @@ export function paragraphsHtml(text, { anchors = false } = {}) {
       }
       // A paragraph that is only "---" (or "***", "___") is a divider.
       if (/^(?:-{3,}|\*{3,}|_{3,})$/.test(trimmed)) return "<hr>";
+      const images = bodyImageMatches(trimmed);
+      if (images) {
+        const figures = images.map((m) => bodyFigureHtml(m, media));
+        if (figures.every(Boolean)) return figures.join("");
+      }
       const table = tableMatch(trimmed);
       if (table) return tableHtml(table);
       const ba = beforeAfterMatch(trimmed);
@@ -414,6 +483,7 @@ function stripMarkdown(text) {
     // excerpts and meta descriptions as raw syntax ("- CSS `:has()`...").
     .replace(/^\s*(?:[-*+]|\d+[.)])\s+/gm, "")
     .replace(/^\s*>\s?/gm, "")
+    .replace(/^[ \t]*!\[[^\]]*\]\([^)]*\)[ \t]*$/gm, "") // a picture on its own line has no words
     .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
     .replace(/`([^`]+)`/g, "$1")
     .replace(/\*\*(.+?)\*\*/g, "$1")
@@ -1312,7 +1382,7 @@ async function renderBlockInner(env, block, ctx) {
       return `<h${lvl}>${esc(c.text)}</h${lvl}>`;
     }
     case "text":
-      return paragraphsHtml(c.text);
+      return paragraphsHtml(c.text, { media: await loadBodyMedia(env, c.text) });
     case "image": {
       // An unset image used to emit <img src=""> -- a broken-image icon.
       if (!c.url) return `<p class="empty-hint">No image chosen yet.</p>`;

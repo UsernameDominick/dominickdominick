@@ -4249,6 +4249,29 @@ export async function getSeoReport(env) {
   // Alt text that exists but doesn't describe anything: on page image blocks, gallery images
   // and the Media Library's default alt text (what gets inserted with an image).
   const weakAlt = [];
+  const mediaAlt = await env.DB.prepare("SELECT key, alt_text FROM media WHERE alt_text IS NOT NULL AND TRIM(alt_text) != ''").all();
+  // Pictures written into article and project bodies, ![alt](address "caption"). An empty alt falls back to the Media Library's
+  // default for that file (as the page does), so it is only missing when the library has none either; a typed alt is judged
+  // like any other. The row points at the article or project, since there is no block to point at.
+  const bodyImage = /^!\[([^\]]*)\]\(\s*([^\s)]+)(?:\s+"[^"]*")?\s*\)$/;
+  const libraryAlt = new Map((mediaAlt.results || []).map((r) => [r.key, r.alt_text]));
+  for (const [items, base] of [[articles, "/random/"], [projects, "/projects/"]]) {
+    for (const item of items) {
+      for (const line of String(item.body || "").split("\n")) {
+        const m = bodyImage.exec(line.trim());
+        if (!m) continue;
+        const key = (/^(?:https?:\/\/(?:www\.)?dominickdominick\.com)?\/media\/(uploads\/[A-Za-z0-9_.\-\/]+)$/.exec(m[2]) || [])[1];
+        const typed = cleanAlt(m[1]);
+        const alt = typed || (key ? cleanAlt(libraryAlt.get(key)) : "");
+        if (!alt) {
+          missingAlt.push({ title: item.title, slug: null, url: base + item.slug });
+        } else if (typed) {
+          const found = altTextProblemDetail(typed);
+          if (found) weakAlt.push({ title: item.title, slug: null, where: "Picture in the text", inText: true, url: base + item.slug, alt: typed, reason: found.reason, long: found.long });
+        }
+      }
+    }
+  }
   pages.forEach((p, i) => {
     for (const b of pageBlocks[i]) {
       const c = b.content || {};
@@ -4265,7 +4288,6 @@ export async function getSeoReport(env) {
       }
     }
   });
-  const mediaAlt = await env.DB.prepare("SELECT key, alt_text FROM media WHERE alt_text IS NOT NULL AND TRIM(alt_text) != ''").all();
   for (const row of mediaAlt.results || []) {
     const found = altTextProblemDetail(row.alt_text);
     if (found) weakAlt.push({ title: "Media Library", slug: null, where: "Media Library default alt text", url: `/media/${row.key}`, alt: cleanAlt(row.alt_text), reason: found.reason, long: found.long });
