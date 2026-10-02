@@ -7958,3 +7958,9 @@ button[data-tier="quiet"] { border-color: transparent; }
 .sim-sweep-form label[hidden], .sim-sweep-form[hidden], .sim-sweep-result[hidden] { display: none; }
 .song-generators { margin: 0 0 0.5rem; } .song-generators > summary { cursor: pointer; font-size: 0.85rem; color: var(--text-dim); margin-bottom: 0.4rem; }
 .song-file-status { font-size: 0.8rem; color: var(--text-dim); } .song-file-status:empty { display: none; } p.song-file-status { margin: 0 0 var(--space-2, 8px); }
+
+/* ---- Media Library: drop files to upload, load status ---- */
+.media-load-status { margin: 0 0 var(--space-2, 8px); font-size: 0.82rem; color: var(--text-dim); }
+.media-load-status:empty { display: none; }
+.media-modal-inner { position: relative; }
+.media-modal-inner.is-dropping::after { content: attr(data-drop-label); position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px; font-size: 1.1rem; font-weight: 600; color: var(--text); background: color-mix(in srgb, var(--bg) 82%, transparent); border: 3px dashed var(--accent); border-radius: inherit; pointer-events: none; }

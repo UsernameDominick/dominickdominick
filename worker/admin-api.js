@@ -1497,7 +1497,12 @@ async function routeAdminApi(request, env, url, ctx) {
   // /media — list uploaded files (enriched with folder/tags/alt text), for
   // the media library picker.
   if (path === "/media" && method === "GET") {
-    const listed = await env.MEDIA.list({ prefix: "uploads/", limit: 500 });
+    // One page of up to 500 files. The library asks for `?paged=1` and follows `next` (R2's own cursor) until there is none, so
+    // it is not limited to the first 500; without `paged` the reply stays a plain array of the first page, as it always was.
+    const paged = url.searchParams.has("paged");
+    const cursor = (url.searchParams.get("cursor") || "").slice(0, 2000);
+    const listed = await env.MEDIA.list({ prefix: "uploads/", limit: 500, ...(cursor ? { cursor } : {}) });
+    const next = listed.truncated && listed.cursor ? listed.cursor : null;
     const objects = listed.objects.sort((a, b) => new Date(b.uploaded) - new Date(a.uploaded));
     const [meta, usageMap, duplicateGroups] = await Promise.all([
       getMediaMeta(env, objects.map((o) => o.key)),
@@ -1532,7 +1537,7 @@ async function routeAdminApi(request, env, url, ctx) {
         usage: usage.map((u) => (u.title ? `${u.type}: ${u.title}` : u.type)),
       };
     });
-    return json(items);
+    return json(paged ? { items, next } : items);
   }
   if (path === "/media/folders" && method === "GET") {
     return json(await listMediaFolders(env));

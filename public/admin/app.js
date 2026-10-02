@@ -7020,6 +7020,29 @@
     return true;
   }
 
+  // File size on disk, in bands; an item with no recorded size only matches "any".
+  const MEDIA_FILE_SIZE_BANDS = { tiny: [0, 100 * 1024], small: [100 * 1024, 1024 * 1024], medium: [1024 * 1024, 5 * 1024 * 1024], huge: [5 * 1024 * 1024, Infinity] };
+  function mediaMatchesFileSize(item, band) {
+    const range = MEDIA_FILE_SIZE_BANDS[band];
+    if (!range) return true;
+    return Number.isFinite(item.size) && item.size >= range[0] && item.size < range[1];
+  }
+  // The library's order. Every order ends on the file's key, so two files that tie always come out the same way round.
+  function mediaSorter(sortBy) {
+    const time = (i) => Date.parse(i.uploaded) || 0;
+    const name = (i) => mediaFilename(i).toLowerCase();
+    const size = (i) => (Number.isFinite(i.size) ? i.size : 0);
+    const by = {
+      newest: (a, b) => time(b) - time(a),
+      oldest: (a, b) => time(a) - time(b),
+      name: (a, b) => name(a).localeCompare(name(b), undefined, { numeric: true }),
+      "name-desc": (a, b) => name(b).localeCompare(name(a), undefined, { numeric: true }),
+      "size-desc": (a, b) => size(b) - size(a),
+      "size-asc": (a, b) => size(a) - size(b),
+    }[sortBy] || ((a, b) => Date.parse(b.uploaded) - Date.parse(a.uploaded));
+    return (a, b) => by(a, b) || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
+  }
+
   function renderMediaGrid() {
     const folderFilter = el("media-folder-filter").value;
     const typeFilter = el("media-type-filter").value;
@@ -7028,11 +7051,14 @@
     const usageSearch = el("media-usage-filter").value.trim().toLowerCase();
     const unusedOnly = el("media-unused-filter").checked;
     const duplicatesOnly = el("media-duplicates-filter").checked;
+    const fileSizeFilter = el("media-filesize-filter").value;
+    const sortBy = el("media-sort").value;
     const filtered = mediaItems.filter((item) => {
       if (folderFilter === "__uncategorized__" && item.folder) return false;
       else if (folderFilter && folderFilter !== "__uncategorized__" && item.folder !== folderFilter) return false;
       if (typeFilter && mediaItemType(item) !== typeFilter) return false;
       if (!mediaMatchesSize(item, sizeFilter)) return false;
+      if (!mediaMatchesFileSize(item, fileSizeFilter)) return false;
       if (unusedOnly && item.used) return false;
       if (duplicatesOnly && !item.isDuplicate) return false;
       if (usageSearch && !(item.usage || []).some((u) => u.toLowerCase().includes(usageSearch))) return false;
@@ -7040,6 +7066,7 @@
       const filename = item.key.split("/").pop().toLowerCase();
       return filename.includes(search) || item.tags.some((t) => t.toLowerCase().includes(search));
     });
+    filtered.sort(mediaSorter(sortBy));
     lastFilteredMediaKeys = filtered.map((item) => item.key);
     // Bulk actions apply to what is selected, so a selection never outlives the filter
     // that showed it: anything no longer shown is dropped from it.
@@ -7305,8 +7332,8 @@
               await api(`/media-revisions/${btn.dataset.id}/restore`, { method: "POST" });
               const item = mediaItems.find((m) => m.key === mediaInfoKey);
               if (item) {
-                const fresh = await api("/media");
-                mediaItems = fresh;
+                const fresh = await fetchAllMedia();
+                if (fresh) mediaItems = fresh.items;
                 openMediaInfoModal(mediaInfoKey);
               }
               el("media-info-history-btn").click();
@@ -7447,8 +7474,37 @@
     }
   });
 
+  // Every file, fetched a page of up to 500 at a time (the first page is drawn as soon as it arrives). A newer load makes an older
+  // one stop, so a slow listing can never overwrite a fresher one. Pages are capped at 40 (20,000 files).
+  let mediaLoadToken = 0;
+  async function fetchAllMedia(onPage) {
+    const token = ++mediaLoadToken;
+    const all = [];
+    let cursor = null;
+    for (let page = 0; page < 40; page++) {
+      const reply = await api(`/media?paged=1${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`);
+      if (token !== mediaLoadToken) return null;
+      all.push(...reply.items);
+      cursor = reply.next;
+      if (onPage) onPage(all.slice(), Boolean(cursor));
+      if (!cursor) return { items: all, complete: true };
+    }
+    return { items: all, complete: false };
+  }
+
   async function loadMediaLibrary() {
-    mediaItems = await api("/media");
+    const status = el("media-load-status");
+    const result = await fetchAllMedia((items, more) => {
+      mediaItems = items;
+      status.textContent = more ? `Loading… ${items.length} files so far` : "";
+      if (more) renderMediaGrid(); // what has arrived so far is shown while the rest loads
+    }).catch((err) => {
+      status.textContent = "";
+      throw err;
+    });
+    if (!result) return; // a newer load took over
+    mediaItems = result.items;
+    status.textContent = result.complete ? "" : `Showing the first ${result.items.length} files (the library is too big to list in full here).`;
     selectedMediaKeys = new Set([...selectedMediaKeys].filter((k) => mediaItems.some((m) => m.key === k)));
     const folders = await api("/media/folders").catch(() => []);
     const currentFilter = el("media-folder-filter").value;
@@ -7467,6 +7523,8 @@
   el("media-folder-filter").addEventListener("change", renderMediaGrid);
   el("media-type-filter").addEventListener("change", renderMediaGrid);
   el("media-size-filter").addEventListener("change", renderMediaGrid);
+  el("media-filesize-filter").addEventListener("change", renderMediaGrid);
+  el("media-sort").addEventListener("change", renderMediaGrid);
   el("media-search").addEventListener("input", renderMediaGrid);
   el("media-usage-filter").addEventListener("input", renderMediaGrid);
 
@@ -7489,6 +7547,10 @@
     el("media-type-filter").value = f.type || "";
     el("media-size-filter").value = f.size || "";
     if (el("media-size-filter").value !== (f.size || "")) el("media-size-filter").value = ""; // a value this version doesn't know
+    el("media-filesize-filter").value = f.fileSize || "";
+    if (el("media-filesize-filter").value !== (f.fileSize || "")) el("media-filesize-filter").value = "";
+    el("media-sort").value = f.sort || "newest";
+    if (el("media-sort").value !== (f.sort || "newest")) el("media-sort").value = "newest";
     el("media-search").value = f.search || "";
     el("media-usage-filter").value = f.usage || "";
     el("media-unused-filter").checked = !!f.unused;
@@ -7503,6 +7565,8 @@
       folder: el("media-folder-filter").value,
       type: el("media-type-filter").value,
       size: el("media-size-filter").value,
+      fileSize: el("media-filesize-filter").value,
+      sort: el("media-sort").value,
       search: el("media-search").value,
       usage: el("media-usage-filter").value,
       unused: el("media-unused-filter").checked,
@@ -7565,9 +7629,12 @@
   mediaUploadInput.hidden = true;
   el("media-upload-btn").after(mediaUploadInput);
   el("media-upload-btn").addEventListener("click", () => mediaUploadInput.click());
-  mediaUploadInput.addEventListener("change", async () => {
-    const files = Array.from(mediaUploadInput.files);
-    if (!files.length) return;
+  // Uploads the given files one after another into the folder chosen under "Upload to", then reloads the library. Shared by the
+  // Upload files button and by dropping files on the library.
+  let mediaUploading = false;
+  async function uploadMediaFileList(files, note) {
+    if (!files.length || mediaUploading) return;
+    mediaUploading = true;
     const folder = el("media-upload-folder").value === "__new__" ? "" : el("media-upload-folder").value;
     const btn = el("media-upload-btn");
     const originalText = btn.textContent;
@@ -7580,6 +7647,7 @@
         if (duplicateOf) duplicateCount++;
       }
       await loadMediaLibrary();
+      if (note) el("media-load-status").textContent = note;
       if (duplicateCount) {
         alert(
           `${duplicateCount} of ${files.length} file(s) look identical to something already in the library — turn on "Possible duplicates" to compare.`
@@ -7588,11 +7656,57 @@
     } catch (err) {
       alert(err.message);
     } finally {
+      mediaUploading = false;
       btn.textContent = originalText;
       btn.disabled = false;
       mediaUploadInput.value = "";
     }
+  }
+  mediaUploadInput.addEventListener("change", () => uploadMediaFileList(Array.from(mediaUploadInput.files)));
+
+  // Drag files from the desktop onto the library to upload them. Only real file drags count (dragging a tile or text does nothing),
+  // anything that isn't an image type the Upload button accepts is skipped and said so, and nothing happens while an upload is running.
+  const MEDIA_DROP_TYPES = new Set(mediaUploadInput.accept.split(","));
+  const mediaDropZone = el("media-modal").querySelector(".modal-inner");
+  const draggingFiles = (e) => Array.from((e.dataTransfer && e.dataTransfer.types) || []).includes("Files");
+  let mediaDragDepth = 0;
+  function setMediaDropping(on) {
+    mediaDropZone.classList.toggle("is-dropping", on);
+    const folder = el("media-upload-folder");
+    const where = folder.value && folder.value !== "__new__" ? ` to “${folder.value}”` : "";
+    mediaDropZone.dataset.dropLabel = on ? `Drop images here to upload${where}` : "";
+  }
+  mediaDropZone.addEventListener("dragenter", (e) => {
+    if (!draggingFiles(e)) return;
+    e.preventDefault();
+    mediaDragDepth++;
+    setMediaDropping(true);
   });
+  mediaDropZone.addEventListener("dragover", (e) => {
+    if (!draggingFiles(e)) return;
+    e.preventDefault(); // without this the browser would refuse the drop
+    e.dataTransfer.dropEffect = mediaUploading ? "none" : "copy";
+  });
+  mediaDropZone.addEventListener("dragleave", (e) => {
+    if (!draggingFiles(e)) return;
+    mediaDragDepth = Math.max(0, mediaDragDepth - 1);
+    if (!mediaDragDepth) setMediaDropping(false);
+  });
+  mediaDropZone.addEventListener("drop", (e) => {
+    if (!draggingFiles(e)) return;
+    e.preventDefault();
+    mediaDragDepth = 0;
+    setMediaDropping(false);
+    if (mediaUploading) return;
+    const dropped = Array.from(e.dataTransfer.files || []);
+    const accepted = dropped.filter((f) => MEDIA_DROP_TYPES.has(f.type));
+    const skipped = dropped.length - accepted.length;
+    const note = skipped ? `${skipped} dropped file${skipped === 1 ? " was" : "s were"} skipped: only PNG, JPEG, WebP, GIF and SVG images can be uploaded here.` : "";
+    if (note) el("media-load-status").textContent = note;
+    if (accepted.length) uploadMediaFileList(accepted, note);
+  });
+  // A file dropped just outside the library must not make the browser open it in place of the admin.
+  ["dragover", "drop"].forEach((type) => window.addEventListener(type, (e) => draggingFiles(e) && e.preventDefault()));
 
   // ---------- New blank image ----------
   // Starts an image editing session from scratch instead of editing an

@@ -813,7 +813,7 @@
             <select id="media-upload-folder"><option value="">No folder</option></select>
           </label>
           <button type="button" id="media-new-blank-btn" class="media-secondary-btn" title="Start a new image from scratch in the Photo Editor, instead of editing an existing upload">New blank image</button>
-          <button type="button" id="media-upload-btn" class="media-primary-btn">Upload files</button>
+          <button type="button" id="media-upload-btn" class="media-primary-btn" title="Choose images to upload, or drag them from your computer onto this window">Upload files</button>
         </div>
         <button id="close-media" aria-label="Close Media Library dialog">×</button>
       </header>
@@ -847,6 +847,21 @@
             </optgroup>
             <option value="unknown">Size not recorded</option>
           </select>
+          <select id="media-filesize-filter" aria-label="File size" title="Filter by how big the file is on disk">
+            <option value="">Any file size</option>
+            <option value="tiny">Under 100 KB</option>
+            <option value="small">100 KB to 1 MB</option>
+            <option value="medium">1 to 5 MB</option>
+            <option value="huge">Over 5 MB</option>
+          </select>
+          <select id="media-sort" aria-label="Sort by" title="The order the files are shown in">
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="name">Name A to Z</option>
+            <option value="name-desc">Name Z to A</option>
+            <option value="size-desc">Largest first</option>
+            <option value="size-asc">Smallest first</option>
+          </select>
           <div class="media-saved-searches">
             <select id="media-saved-search-select" aria-label="Saved searches"><option value="">Saved searches…</option></select>
             <button type="button" id="media-save-search-btn" class="media-secondary-btn" title="Save the current filters under a name">Save</button>
@@ -854,6 +869,7 @@
           </div>
         </div>
       </div>
+      <p id="media-load-status" class="media-load-status" role="status"></p>
       <div class="media-selection-bar">
         <label class="media-select-all-label" title="Selects every file currently shown by the filters above, not the whole library"><input type="checkbox" id="media-select-all"> <span id="media-shown-count">Select all</span></label>
         <span id="media-selected-count" class="media-selected-count"></span>
