@@ -704,6 +704,7 @@
     if (isComparing()) return;
     const prev = undoStack.pop();
     if (!prev) return;
+    if (markerEntries.has(prev)) $("pe-marker-next").value = String(markerEntries.get(prev));
     redoStack.push(counterpartOf(prev));
     editVersion++;
     applyEntry(prev);
@@ -1660,7 +1661,9 @@
     // Changing tool abandons a shape still being drawn (the finished
     // selection itself stays).
     if (tool !== previousTool) selDraft = null;
-    $("pe-rect-radius-label").hidden = tool !== "rect";
+    $("pe-rect-radius-label").hidden = tool !== "rect" && tool !== "spotlight";
+    $("pe-marker-next-label").hidden = tool !== "marker";
+    $("pe-spotlight-dim-label").hidden = tool !== "spotlight";
     $("pe-text-font").hidden = tool !== "text";
     $("pe-apply-text-style").hidden = tool !== "text";
     $("pe-save-text-style").hidden = tool !== "text";
@@ -4169,7 +4172,89 @@
       octx.stroke();
     } else if (currentTool === "arrow") {
       drawArrow(octx, x0, y0, x1, y1, color, size);
+    } else if (currentTool === "highlight") {
+      paintHighlight(octx, x0, y0, x1, y1, color, size, false);
+    } else if (currentTool === "spotlight") {
+      paintSpotlight(octx, x0, y0, x1, y1, true);
     }
+  }
+
+  // A see-through marker stroke. On the picture it multiplies with what is underneath (so text under it stays dark and readable, the
+  // way a real highlighter works); the preview floats above the picture, so it just uses transparency.
+  function paintHighlight(target, x0, y0, x1, y1, color, size, multiply) {
+    target.save();
+    target.globalAlpha = 0.45;
+    if (multiply) target.globalCompositeOperation = "multiply";
+    target.strokeStyle = color;
+    target.lineWidth = Math.max(6, size * 3 + 6);
+    target.lineCap = "butt";
+    target.beginPath();
+    target.moveTo(x0, y0);
+    target.lineTo(x1, y1);
+    target.stroke();
+    target.restore();
+  }
+
+  // Dims the whole picture except the dragged box (an even-odd fill: the big rectangle minus the box).
+  function spotlightDim() {
+    return Math.max(10, Math.min(90, Number($("pe-spotlight-dim").value) || 60)) / 100;
+  }
+  function paintSpotlight(target, x0, y0, x1, y1, edge) {
+    const x = Math.min(x0, x1), y = Math.min(y0, y1), w = Math.abs(x1 - x0), h = Math.abs(y1 - y0);
+    target.save();
+    target.fillStyle = `rgba(0, 0, 0, ${spotlightDim()})`;
+    target.beginPath();
+    target.rect(0, 0, canvas.width, canvas.height);
+    const radius = rectRadius();
+    if (radius > 0 && typeof target.roundRect === "function") target.roundRect(x, y, w, h, radius);
+    else target.rect(x, y, w, h);
+    target.fill("evenodd");
+    target.restore();
+    if (!edge) return;
+    // A thin light edge so the box reads while it is being dragged (never painted into the picture).
+    target.save();
+    target.strokeStyle = "rgba(255, 255, 255, 0.85)";
+    target.lineWidth = Math.max(1, canvas.width * 0.002);
+    target.beginPath();
+    if (radius > 0 && typeof target.roundRect === "function") target.roundRect(x, y, w, h, radius);
+    else target.rect(x, y, w, h);
+    target.stroke();
+    target.restore();
+  }
+
+  // A numbered circle, for "step 1, step 2" screenshots: the annotation colour, its number in black or white (whichever reads),
+  // counting up with each click. Undo puts the counter back to the number that was undone.
+  const markerEntries = new WeakMap();
+  function markerTextColor(hex) {
+    const v = parseInt(String(hex).replace("#", "").padEnd(6, "0").slice(0, 6), 16);
+    const r = (v >> 16) & 255, g = (v >> 8) & 255, b = v & 255;
+    return 0.299 * r + 0.587 * g + 0.114 * b > 150 ? "#000" : "#fff";
+  }
+  function placeMarker(point) {
+    const n = Math.max(1, Math.min(99, Math.round(Number($("pe-marker-next").value) || 1)));
+    const radius = Math.max(12, annotateSize() * 3 + 8);
+    const color = annotateColor();
+    const ink = markerTextColor(color);
+    pushUndo();
+    markerEntries.set(undoStack[undoStack.length - 1], n);
+    withSelectionClip(() => {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.lineWidth = Math.max(2, radius * 0.12);
+      ctx.strokeStyle = ink === "#000" ? "#000" : "#fff";
+      ctx.stroke();
+      ctx.fillStyle = ink;
+      ctx.font = `bold ${Math.round(radius * (n >= 10 ? 1.0 : 1.2))}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(String(n), point.x, point.y + radius * 0.05);
+      ctx.restore();
+    });
+    invalidateOpenAdjustDrag();
+    $("pe-marker-next").value = String(Math.min(99, n + 1));
   }
 
   function commitAnnotation(x0, y0, x1, y1) {
@@ -4201,6 +4286,10 @@
       ctx.stroke();
     } else if (currentTool === "arrow") {
       drawArrow(ctx, x0, y0, x1, y1, color, size);
+    } else if (currentTool === "highlight") {
+      paintHighlight(ctx, x0, y0, x1, y1, color, size, true);
+    } else if (currentTool === "spotlight") {
+      paintSpotlight(ctx, x0, y0, x1, y1);
     }
   }
 
@@ -4451,7 +4540,7 @@
   const DEFAULT_TOOL_SHORTCUTS = {
     select: "v", pan: "h", "sel-rect": "m", "sel-ellipse": "o", "sel-lasso": "l", "sel-poly": "g",
     paint: "b", pencil: "n", erase: "e", blur: "r", pixelate: "x", dodge: "d", burn: "u",
-    rect: "q", circle: "c", line: "i", arrow: "a", text: "t", eyedropper: "k", bucket: "f", gradient: "j",
+    rect: "q", circle: "c", line: "i", arrow: "a", text: "t", eyedropper: "k", bucket: "f", gradient: "j", marker: "p", highlight: "y", spotlight: "z",
   };
   let toolShortcuts = { ...DEFAULT_TOOL_SHORTCUTS };
   try {
@@ -4618,7 +4707,7 @@
 
   // ---------- Pointer routing ----------
   const BRUSH_TOOLS = ["paint", "pencil", "erase", "blur", "pixelate", "dodge", "burn"];
-  const SHAPE_TOOLS = ["rect", "circle", "line", "arrow", "gradient"];
+  const SHAPE_TOOLS = ["rect", "circle", "line", "arrow", "gradient", "highlight", "spotlight"];
 
   // The pointer (finger, pen or mouse) that owns the current drag. A second
   // finger landing mid-stroke is ignored instead of starting a second stroke or
@@ -4649,7 +4738,7 @@
     // critic pass found this gap in the fix's symmetry after the first
     // round only guarded one direction.
     if (isComparing()) return;
-    if ((BRUSH_TOOLS.includes(currentTool) || SHAPE_TOOLS.includes(currentTool) || currentTool === "text" || currentTool === "bucket") && layerBlocked(["paint", "pencil", "erase"].includes(currentTool))) return;
+    if ((BRUSH_TOOLS.includes(currentTool) || SHAPE_TOOLS.includes(currentTool) || currentTool === "text" || currentTool === "bucket" || currentTool === "marker") && layerBlocked(["paint", "pencil", "erase"].includes(currentTool))) return;
     if (["blur", "pixelate", "dodge", "burn"].includes(currentTool) && layers.length > 1 && layerIsEmpty(canvas)) {
       setLayerNote(`"${activeLayer().name}" has nothing painted on it, so ${currentTool} has nothing to work on. These tools only read the active layer.`);
       return;
@@ -4680,6 +4769,10 @@
       dragging = false;
       dragStart = null;
       void placeText(p);
+    } else if (currentTool === "marker") {
+      dragging = false;
+      dragStart = null;
+      placeMarker(p);
     } else if (currentTool === "bucket") {
       dragging = false;
       dragStart = null;
@@ -4787,8 +4880,8 @@
       finalizeBrushStroke();
     } else if (SELECTION_TOOLS.includes(currentTool)) {
       if (currentTool !== "sel-poly") commitSelectionDraft();
-    } else if (currentTool === "gradient" && dragStart && Math.hypot(p.x - dragStart.x, p.y - dragStart.y) < 4) {
-      clearOverlay(); // a click without a drag has no direction
+    } else if ((currentTool === "gradient" || currentTool === "highlight" || currentTool === "spotlight") && dragStart && Math.hypot(p.x - dragStart.x, p.y - dragStart.y) < 4) {
+      clearOverlay(); // a click without a drag has no direction or size
     } else if (SHAPE_TOOLS.includes(currentTool) && dragStart) {
       gradientPreviewArgs = null;
       pushUndo();

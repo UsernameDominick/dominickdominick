@@ -1570,10 +1570,15 @@
               <button type="button" class="pe-tool" data-tool="line" title="Line">╱</button>
               <button type="button" class="pe-tool" data-tool="arrow" title="Arrow">↗</button>
               <button type="button" class="pe-tool" data-tool="text" title="Text">Text</button>
+              <button type="button" class="pe-tool" data-tool="marker" title="Step marker: click to drop a numbered circle in the annotation colour; the number counts up with each click">① Step</button>
+              <button type="button" class="pe-tool" data-tool="highlight" title="Highlighter: drag along text or across an area for a see-through marker stroke in the annotation colour; Size sets the thickness">Highlight</button>
+              <button type="button" class="pe-tool" data-tool="spotlight" title="Spotlight: drag a box to keep it bright and dim everything else, to draw the eye to one spot">Spotlight</button>
               <button type="button" class="pe-tool" data-tool="eyedropper" title="Pick a color from the image">💧</button>
               <input type="color" id="pe-annotate-color" value="#ff7a45" title="Annotation color">
               <label>Size <input type="range" id="pe-annotate-size" min="1" max="20" value="4"></label>
               <label id="pe-rect-radius-label" hidden>Corner radius <input type="range" id="pe-rect-radius" min="0" max="100" value="0"></label>
+              <label id="pe-marker-next-label" hidden>Next number <input type="number" id="pe-marker-next" min="1" max="99" step="1" value="1" inputmode="numeric"></label>
+              <label id="pe-spotlight-dim-label" hidden title="How dark everything outside the box becomes">Dim outside <input type="range" id="pe-spotlight-dim" min="10" max="90" value="60"></label>
               <select id="pe-text-font" title="Font for the Text tool" hidden>
                 <option value="sans-serif">Sans-serif</option>
                 <option value="custom">Site's custom font</option>
