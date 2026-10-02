@@ -288,6 +288,7 @@
     const covered = new Set();
     const clear = new Set(); // components inside a solved network: their one-path results are stale
     const voltsByGroup = new Map();
+    const islandByGroup = new Map();
     const rawNodesByGroup = new Map();
     parent.forEach((_, raw) => {
       const g = find(raw);
@@ -320,8 +321,10 @@
       if (!solved.ok) return declines.push(solved.reason);
       solvedAny = true;
       // Only nodes with a conducting path to a source have a meaningful voltage; a node joined to the network only through
-      // an "off" diode is left floating (the solver puts it at an arbitrary value), so meters on it say nothing.
-      const anchored = new Set();
+      // an "off" diode is left floating (the solver puts it at an arbitrary value), so meters on it say nothing. An island
+      // that carries its own source is fine on its own, but its voltage relative to another island is just as arbitrary, so
+      // each conducting island gets a label and a voltmeter only reads between two nodes of the same one.
+      const islandOf = new Map();
       {
         const reachAdj = new Map();
         const connect = (a, b) => {
@@ -333,20 +336,31 @@
         mine.forEach((e) => {
           if (e.kind !== "diode" || solved.on.get(e.id)) connect(e.a, e.b);
         });
-        const queue = mine.filter((e) => e.kind === "src").flatMap((e) => [e.a, e.b]);
-        queue.forEach((n) => anchored.add(n));
-        while (queue.length) {
-          const cur = queue.shift();
-          for (const n of reachAdj.get(cur) || []) {
-            if (!anchored.has(n)) {
-              anchored.add(n);
-              queue.push(n);
+        let label = 0;
+        mine
+          .filter((e) => e.kind === "src")
+          .flatMap((e) => [e.a, e.b])
+          .forEach((seed) => {
+            if (islandOf.has(seed)) return;
+            label++;
+            islandOf.set(seed, `${start}#${label}`);
+            const queue = [seed];
+            while (queue.length) {
+              const cur = queue.shift();
+              for (const n of reachAdj.get(cur) || []) {
+                if (!islandOf.has(n)) {
+                  islandOf.set(n, `${start}#${label}`);
+                  queue.push(n);
+                }
+              }
             }
-          }
-        }
+          });
       }
       network.forEach((g) => {
-        if (anchored.has(g)) voltsByGroup.set(g, solved.volts.get(g));
+        if (islandOf.has(g)) {
+          voltsByGroup.set(g, solved.volts.get(g));
+          islandByGroup.set(g, islandOf.get(g));
+        }
         (rawNodesByGroup.get(g) || []).forEach((raw) => covered.add(raw));
       });
       components.forEach((c) => {
@@ -397,7 +411,7 @@
       if (c.type !== "voltmeter") return;
       const pos = find(env.nodeId(c, "pos"));
       const neg = find(env.nodeId(c, "neg"));
-      if (!voltsByGroup.has(pos) || !voltsByGroup.has(neg)) return;
+      if (!voltsByGroup.has(pos) || !voltsByGroup.has(neg) || islandByGroup.get(pos) !== islandByGroup.get(neg)) return;
       const volts = voltsByGroup.get(pos) - voltsByGroup.get(neg);
       if (Number.isFinite(volts)) results[c.id] = { kind: "voltmeter", volts: Math.abs(volts) < 1e-9 ? 0 : volts, status: "normal", reason: null, dangerous: false };
     });
