@@ -12,6 +12,7 @@ import {
   listJournalEntries,
   listBomItems,
   getSetting,
+  getSettings,
   recordPageview,
   parseUserAgent,
   isBot,
@@ -204,50 +205,51 @@ function wordCount(md) {
   return words ? words.length : 0;
 }
 
-async function getTheme(env) {
-  const [accent, bg, font, text, border, headingFont, mobileBreakpoint, customFontName, customFontUrl, ...controls] = await Promise.all([
-    getSetting(env, "theme_accent"),
-    getSetting(env, "theme_bg"),
-    getSetting(env, "theme_font"),
-    getSetting(env, "theme_text"),
-    getSetting(env, "theme_border"),
-    getSetting(env, "theme_heading_font"),
-    getSetting(env, "mobile_breakpoint"),
-    getSetting(env, "custom_font_name"),
-    getSetting(env, "custom_font_url"),
-    ...CONTROL_SETTING_KEYS.map((key) => getSetting(env, key)),
-  ]);
+// Every setting the theme, footer and custom head are built from, read together (see getSettings): about 30 values that used to
+// be 30 separate queries on every page.
+const THEME_SETTING_KEYS = [
+  "theme_accent", "theme_bg", "theme_font", "theme_text", "theme_border", "theme_heading_font", "mobile_breakpoint",
+  "custom_font_name", "custom_font_url", ...CONTROL_SETTING_KEYS,
+];
+const SITE_CONTEXT_KEYS = [
+  ...THEME_SETTING_KEYS, "default_og_image", "site_footer", "site_footer_links", "custom_head", "empty_search_text", "empty_archive_text", "empty_topics_text",
+];
+
+function themeFrom(v) {
   return {
-    ...Object.fromEntries(CONTROL_SETTING_KEYS.map((key, i) => [key, controls[i] || null])),
-    accent: accent || null,
-    bg: bg || null,
-    font: font || null,
-    text: text || null,
-    border: border || null,
-    headingFont: headingFont || null,
-    mobileBreakpoint: Number(mobileBreakpoint) || 640,
-    customFontName: customFontName || null,
-    customFontUrl: customFontUrl || null,
+    ...Object.fromEntries(CONTROL_SETTING_KEYS.map((key) => [key, v[key] || null])),
+    accent: v.theme_accent || null,
+    bg: v.theme_bg || null,
+    font: v.theme_font || null,
+    text: v.theme_text || null,
+    border: v.theme_border || null,
+    headingFont: v.theme_heading_font || null,
+    mobileBreakpoint: Number(v.mobile_breakpoint) || 640,
+    customFontName: v.custom_font_name || null,
+    customFontUrl: v.custom_font_url || null,
   };
 }
 
-// Settings every rendered page/article needs, fetched together since
-// renderPage and renderArticle both want the exact same four.
+async function getTheme(env) {
+  return themeFrom(await getSettings(env, THEME_SETTING_KEYS));
+}
+
+// Settings every rendered page/article needs, fetched together since renderPage and renderArticle both want the exact same ones.
 async function getSiteContext(env) {
-  const [defaultOgImage, theme, footerPlain, footerLinksRaw, customHead, emptySearchText, emptyArchiveText, emptyTopicsText] = await Promise.all([
-    getSetting(env, "default_og_image"),
-    getTheme(env),
-    getSetting(env, "site_footer"),
-    getSetting(env, "site_footer_links"),
-    getSetting(env, "custom_head"),
-    getSetting(env, "empty_search_text"),
-    getSetting(env, "empty_archive_text"),
-    getSetting(env, "empty_topics_text"),
-  ]);
+  const v = await getSettings(env, SITE_CONTEXT_KEYS);
+  const footerPlain = v.site_footer;
   // The footer is plain text until a layout (link columns, social links) is saved, then { text, columns, social }.
-  const footerLinks = cleanFooterLinks(footerLinksRaw);
+  const footerLinks = cleanFooterLinks(v.site_footer_links);
   const footerText = footerLinks ? { text: footerPlain || "", ...footerLinks } : footerPlain;
-  return { defaultOgImage, theme, footerText, customHead, emptySearchText, emptyArchiveText, emptyTopicsText };
+  return {
+    defaultOgImage: v.default_og_image,
+    theme: themeFrom(v),
+    footerText,
+    customHead: v.custom_head,
+    emptySearchText: v.empty_search_text,
+    emptyArchiveText: v.empty_archive_text,
+    emptyTopicsText: v.empty_topics_text,
+  };
 }
 
 // A page's own "you already unlocked this" cookie — keyed to both the page
@@ -1418,7 +1420,12 @@ export default {
   async fetch(request, env, ctx) {
     try {
       const clock = await previewClock(request, env);
-      let response = await route(request, clock.env, ctx);
+      // A public page request reads its settings once and shares them (see getSettings); anything that could write a setting
+      // (the admin API, any non-GET) gets none, so it never reads a stale one back.
+      const { pathname } = new URL(request.url);
+      const readOnly = request.method === "GET" && !pathname.startsWith("/api/") && !pathname.startsWith("/admin");
+      const reqEnv = readOnly ? { ...clock.env, __settingsCache: new Map() } : clock.env;
+      let response = await route(request, reqEnv, ctx);
       if (clock.previewAt) response = await decoratePreviewResponse(response, clock.previewAt, new URL(request.url));
       if (clock.setCookie) {
         response = new Response(response.body, { status: response.status, statusText: response.statusText, headers: new Headers(response.headers) });
@@ -1487,8 +1494,12 @@ async function route(request, env, ctx) {
       return handleReact(request, env, ctx);
     }
 
-    if (!isMaintenanceExempt(path) && (await getSetting(env, "maintenance_mode")) === "1" && !(await isAuthenticated(request, env))) {
-      const message = (await getSetting(env, "maintenance_message")) || "We'll be back shortly.";
+    // The maintenance switch is read together with everything a page is about to need (one query for all of it, shared for the rest
+    // of the request); files and API calls only need the switch.
+    const pageSettings = env.__settingsCache && !/^\/(?:media|api|admin)(?:\/|$)/.test(path) ? SITE_CONTEXT_KEYS : [];
+    const { maintenance_mode: maintenanceMode, maintenance_message: maintenanceMessage } = await getSettings(env, ["maintenance_mode", "maintenance_message", ...pageSettings]);
+    if (!isMaintenanceExempt(path) && maintenanceMode === "1" && !(await isAuthenticated(request, env))) {
+      const message = maintenanceMessage || "We'll be back shortly.";
       return new Response(renderMaintenanceHtml(message), {
         status: 503,
         headers: { "Content-Type": "text/html;charset=UTF-8", "Retry-After": "3600" },

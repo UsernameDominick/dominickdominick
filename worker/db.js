@@ -2905,9 +2905,42 @@ export async function getValidPreviewLink(env, contentType, contentId, token) {
     .first();
 }
 
+// Settings are read a lot (a page needs about 30 of them for its theme, footer and custom head). A public page request carries
+// `env.__settingsCache` (a Map made for that one request, see worker/index.js): what was already read is not asked for again, and
+// getSettings() reads all the keys it is missing in one query. Requests that can write settings (the admin API) have no cache.
+export async function getSettings(env, keys) {
+  const cache = env.__settingsCache;
+  const wanted = [...new Set(keys)];
+  const out = {};
+  const missing = [];
+  for (const key of wanted) {
+    if (cache && cache.has(key)) out[key] = cache.get(key);
+    else missing.push(key);
+  }
+  // D1 allows 100 bound values per statement.
+  for (let i = 0; i < missing.length; i += 90) {
+    const batch = missing.slice(i, i + 90);
+    const { results } = await env.DB
+      .prepare(`SELECT key, value FROM settings WHERE key IN (${batch.map(() => "?").join(",")})`)
+      .bind(...batch)
+      .all();
+    const found = new Map(results.map((r) => [r.key, r.value]));
+    for (const key of batch) {
+      const value = found.has(key) ? found.get(key) : null;
+      out[key] = value;
+      if (cache) cache.set(key, value);
+    }
+  }
+  return out;
+}
+
 export async function getSetting(env, key) {
+  const cache = env.__settingsCache;
+  if (cache && cache.has(key)) return cache.get(key);
   const row = await env.DB.prepare("SELECT value FROM settings WHERE key = ?").bind(key).first();
-  return row ? row.value : null;
+  const value = row ? row.value : null;
+  if (cache) cache.set(key, value);
+  return value;
 }
 
 const LOGIN_WINDOW_MINUTES = 15;

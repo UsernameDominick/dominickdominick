@@ -1486,7 +1486,11 @@ async function renderBlockInner(env, block, ctx) {
     case "image": {
       // An unset image used to emit <img src=""> -- a broken-image icon.
       if (!c.url) return `<p class="empty-hint">No image chosen yet.</p>`;
-      const rawImg = `<img src="${esc(c.url)}" alt="${esc(c.alt)}" loading="lazy"${await imgSizeAttrs(env, c.url)} style="max-width:100%;border-radius:12px;">`;
+      // The first picture on a page is usually the first thing a reader sees: the browser fetches it at once, at high priority,
+      // instead of waiting to find out it is on screen (the checks run before any await, so this follows the page's block order).
+      const firstImage = !!ctx && !ctx.firstImageSeen;
+      if (ctx) ctx.firstImageSeen = true;
+      const rawImg = `<img src="${esc(c.url)}" alt="${esc(c.alt)}" ${firstImage ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"'}${await imgSizeAttrs(env, c.url)} style="max-width:100%;border-radius:12px;">`;
       const img = c.frame === "browser"
         ? `<div class="device-frame device-frame-browser"><div class="device-frame-bar"><span></span><span></span><span></span></div><div class="device-frame-body">${rawImg}</div></div>`
         : c.frame === "phone"
