@@ -1,19 +1,22 @@
 # Study (temporary)
 
-A password-protected study page that opens in a popup from a button on any page. It is here so a friend can use the
+A study page that opens in a popup from a button on any page (optionally behind a password). It is here so a friend can use the
 A+ Core 1 drill for now; it is meant to be taken out again.
 
 ## What it is
 
 - **Add it:** in the admin, open a page, then Add block > Embeds & interactive > **Study (locked)**. It shows as a button
-  ("Open study" unless you change the text). Pressing it asks for a password and, if that is right, opens the study page
-  in a popup. Esc, the x button, or a press outside closes it; opening it again keeps your place.
-- **Password:** **123** (not case sensitive). Set a different one per block in the block's settings; a blank box means
-  the default, which is the `DEFAULT_PASSWORD` line in `worker/study/index.js` (or the `STUDY_PASSWORD` variable, if the Worker has one).
-- **Not hidden in the page:** the page only contains the button. The password is checked by the Worker (`POST /api/study/unlock`,
-  8 wrong tries per 15 minutes per visitor) and the study page is only sent back when it is right. It is shown in a sandboxed frame
-  that cannot see this site's cookies, storage or pages. This keeps casual visitors out; it is not strong security (anyone who has
-  the password has the page, and the file is in this repository).
+  ("Open study" unless you change the text). Pressing it opens the study page in a popup (after asking for the password, if
+  the block is set to). Esc, the x button, or a press outside closes it; opening it again keeps your place.
+- **Password:** off by default. A Study block opens for anyone who presses its button. To lock one, tick **Ask for a password
+  before opening** in the block's settings; it then asks for the password typed in the box below the tick (not case sensitive),
+  or **123** if that is left blank (the `DEFAULT_PASSWORD` line in `worker/study/index.js`, or the `STUDY_PASSWORD` variable, if the
+  Worker has one). Typing a password but not ticking the box does nothing: the tick is what turns it on.
+- **Not hidden in the page:** the page only contains the button. The study page is asked for from the Worker
+  (`POST /api/study/unlock`) and is shown in a sandboxed frame that cannot see this site's cookies, storage or pages. A locked block
+  only hands it over for the right password (8 wrong tries per 15 minutes per visitor). This keeps casual visitors out; it is not
+  strong security (anyone who has the password has the page, and the file is in this repository). An unlocked block is open to
+  anyone who knows the page's address.
 
 ## Where things are
 

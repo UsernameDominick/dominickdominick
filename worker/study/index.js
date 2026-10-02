@@ -2,13 +2,14 @@
 // All of it lives in worker/study/ and public/study/; worker/study/README.md lists the few lines
 // elsewhere that point at it, and how to take it all out again.
 //
-// How it works: the "Study" block on a page renders only a button. Pressing it asks for a password,
-// the browser sends it here, and only if it matches does this return the study page (as text). The
-// study page itself is never in the page's HTML, and the password never leaves the server.
+// How it works: the "Study" block on a page renders only a button. Pressing it asks the Worker for the
+// study page. A block set to "Ask for a password" only gets it back when the password matches; any other
+// block (the default) opens straight away. The study page itself is never in the page's HTML, and the
+// password never leaves the server.
 import { checkRateLimit, recordRateLimitHit } from "../db.js";
 
-// Used when a Study block has no password of its own (set one in the block's settings to override it).
-// An env var STUDY_PASSWORD, if set, replaces it too.
+// Used when a Study block is set to ask for a password but has none of its own typed in.
+// An env var STUDY_PASSWORD, if set, replaces it.
 const DEFAULT_PASSWORD = "123";
 
 // The study pages that can be chosen in the block. `load` is only called after the password is right.
@@ -63,13 +64,16 @@ export function expectedPassword(env, content) {
   return own || (env && typeof env.STUDY_PASSWORD === "string" && env.STUDY_PASSWORD.trim()) || DEFAULT_PASSWORD;
 }
 
+// "" when the block opens without a password (the default: only a block with "Ask for a password" ticked has one).
+export function gatePassword(env, content) {
+  return content && content.requirePassword === true ? expectedPassword(env, content) : "";
+}
+
 // POST /api/study/unlock  { block: <block id>, password: "..." }
-// 200 with the study page as text/html, 401 wrong password, 404 no such block, 429 too many tries.
+// 200 with the study page as text/html, 401 wrong or missing password (`needsPassword` when none was given), 404 no such block,
+// 429 too many tries. A block that does not ask for a password answers 200 to anyone.
 export async function handleStudyUnlock(request, env) {
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
-  if (!(await checkRateLimit(env, "study", ip, { windowMinutes: 15, maxAttempts: 8 }))) {
-    return json({ error: "Too many tries. Wait a few minutes and try again." }, 429);
-  }
   let body = null;
   try {
     const text = await request.text();
@@ -79,17 +83,31 @@ export async function handleStudyUnlock(request, env) {
   }
   if (!body || typeof body !== "object" || Array.isArray(body)) return json({ error: "Bad request." }, 400);
   const content = await studyBlock(env, Number(body.block));
-  const right = content ? await samePassword(typeof body.password === "string" ? body.password.slice(0, 200) : "", expectedPassword(env, content)) : false;
-  if (!right) {
-    await recordRateLimitHit(env, "study", ip);
-    return content ? json({ error: "That password isn't right." }, 401) : json({ error: "Not found." }, 404);
+  const expected = content ? gatePassword(env, content) : null;
+  const serve = async () => {
+    const key = STUDY_LABS[content.lab] ? content.lab : DEFAULT_LAB;
+    const html = env.__studyLabs && env.__studyLabs[key] != null ? env.__studyLabs[key] : await STUDY_LABS[key].load();
+    return new Response(html, {
+      status: 200,
+      headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Robots-Tag": "noindex" },
+    });
+  };
+  if (content && expected === "") return serve();
+  if (!(await checkRateLimit(env, "study", ip, { windowMinutes: 15, maxAttempts: 8 }))) {
+    return json({ error: "Too many tries. Wait a few minutes and try again." }, 429);
   }
-  const key = STUDY_LABS[content.lab] ? content.lab : DEFAULT_LAB;
-  const html = env.__studyLabs && env.__studyLabs[key] != null ? env.__studyLabs[key] : await STUDY_LABS[key].load();
-  return new Response(html, {
-    status: 200,
-    headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Robots-Tag": "noindex" },
-  });
+  if (!content) {
+    await recordRateLimitHit(env, "study", ip);
+    return json({ error: "Not found." }, 404);
+  }
+  const given = typeof body.password === "string" ? body.password.slice(0, 200) : "";
+  // Asking before a password has been typed is not a guess, so it does not count against the limit.
+  if (!given.trim()) return json({ error: "Type the password first.", needsPassword: true }, 401);
+  if (!(await samePassword(given, expected))) {
+    await recordRateLimitHit(env, "study", ip);
+    return json({ error: "That password isn't right.", needsPassword: true }, 401);
+  }
+  return serve();
 }
 
 // The block as it appears on a page: just a button (the password and the study page are not in it).

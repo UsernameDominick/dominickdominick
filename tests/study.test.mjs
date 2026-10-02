@@ -2,7 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { samePassword, expectedPassword, handleStudyUnlock, renderStudyBlock, studyPageTags, STUDY_LABS } from "../worker/study/index.js";
+import { samePassword, expectedPassword, gatePassword, handleStudyUnlock, renderStudyBlock, studyPageTags, STUDY_LABS } from "../worker/study/index.js";
 
 let fail = 0;
 const ok = (c, m, extra) => { if (!c) fail++; console.log(`${c ? "PASS" : "FAIL"} — ${m}${extra !== undefined ? " " + JSON.stringify(extra) : ""}`); };
@@ -48,19 +48,27 @@ ok(expectedPassword({ STUDY_PASSWORD: "envpw" }, {}) === "envpw", "an STUDY_PASS
 ok(expectedPassword({ STUDY_PASSWORD: "envpw" }, { password: "mine" }) === "mine", "but not a block's own password");
 ok(expectedPassword(undefined, undefined) === "123", "nothing at all still works");
 
+// ---- whether a block asks at all ----
+ok(gatePassword({}, undefined) === "" && gatePassword({}, {}) === "" && gatePassword({}, { label: "x" }) === "", "no setting: no password is asked for");
+ok(gatePassword({}, { password: "mine" }) === "", "a password typed in but the box not ticked: still open (the tick is what turns it on)");
+ok(gatePassword({}, { requirePassword: "true" }) === "" && gatePassword({}, { requirePassword: 1 }) === "", "only a real true turns it on");
+ok(gatePassword({}, { requirePassword: true }) === "123", "ticked, no password typed: the default");
+ok(gatePassword({}, { requirePassword: true, password: " mine " }) === "mine", "ticked with a password: that one");
+ok(gatePassword({ STUDY_PASSWORD: "envpw" }, { requirePassword: true }) === "envpw" && gatePassword({ STUDY_PASSWORD: "envpw" }, {}) === "", "an STUDY_PASSWORD variable only matters when ticked");
+
 // ---- the route ----
 {
-  const env = makeEnv({ blocks: { 7: row({ lab: "core1-lab" }) } });
+  const env = makeEnv({ blocks: { 7: row({ lab: "core1-lab", requirePassword: true }) } });
   const res = await call(env, { block: 7, password: " 123 " });
   ok(res.status === 200 && (await res.text()) === "<!DOCTYPE html><title>LAB</title>", "the right password returns the study page");
   ok(/^text\/html/.test(res.headers.get("Content-Type")) && res.headers.get("Cache-Control") === "no-store" && res.headers.get("X-Robots-Tag") === "noindex", "as HTML, never cached, never indexed");
   ok(hits(env).length === 0, "a right password does not count against the limit");
 }
 {
-  const env = makeEnv({ blocks: { 7: row({}) } });
+  const env = makeEnv({ blocks: { 7: row({ requirePassword: true }) } });
   const res = await call(env, { block: 7, password: "nope" });
   const body = await res.json();
-  ok(res.status === 401 && /isn't right/.test(body.error) && !JSON.stringify(body).includes("123"), "a wrong password is a 401 that does not give the answer away", body);
+  ok(res.status === 401 && /isn't right/.test(body.error) && body.needsPassword === true && !JSON.stringify(body).includes("123"), "a wrong password is a 401 that does not give the answer away", body);
   ok(hits(env).length === 1 && hits(env)[0][2][0] === "study" && hits(env)[0][2][1] === "1.2.3.4", "and counts as one try for that visitor");
   ok(res.headers.get("Cache-Control") === "no-store", "errors are not cached either");
 }
@@ -75,28 +83,28 @@ for (const [label, id] of [["missing", 99], ["text", "abc"], ["negative", -3], [
   ok(res.status === 404, `a ${label} block id is a 404`, res.status);
 }
 {
-  const env = makeEnv({ blocks: { 7: { type: "text", content: "{}", shared_type: "study", shared_content: JSON.stringify({ password: "abc" }) } } });
+  const env = makeEnv({ blocks: { 7: { type: "text", content: "{}", shared_type: "study", shared_content: JSON.stringify({ password: "abc", requirePassword: true }) } } });
   ok((await call(env, { block: 7, password: "abc" })).status === 200, "a reusable (shared) Study block uses the shared content");
   ok((await call(env, { block: 7, password: "123" })).status === 401, "and its own password, not the default");
 }
 {
-  const env = makeEnv({ blocks: { 7: row({ password: "mine" }) } });
+  const env = makeEnv({ blocks: { 7: row({ password: "mine", requirePassword: true }) } });
   ok((await call(env, { block: 7, password: "mine" })).status === 200 && (await call(env, { block: 7, password: "123" })).status === 401, "with a password set on the block, the default no longer works");
 }
 {
-  const env = makeEnv({ blocks: { 7: row({ lab: "nope" }) } });
+  const env = makeEnv({ blocks: { 7: row({ lab: "nope", requirePassword: true }) } });
   ok((await call(env, { block: 7, password: "123" })).status === 200, "an unknown study page name falls back to the one that exists");
 }
 {
   const env = makeEnv({ blocks: { 7: { type: "study", content: "{not json", shared_type: null, shared_content: null } } });
-  ok((await call(env, { block: 7, password: "123" })).status === 200, "damaged block content still works with the default password");
+  ok((await call(env, { block: 7, password: "123" })).status === 200 && (await call(env, { block: 7 })).status === 200, "damaged block content still opens (it asks for nothing)");
 }
 {
-  const env = makeEnv({ blocks: { 7: row({}) }, used: 8 });
+  const env = makeEnv({ blocks: { 7: row({ requirePassword: true }) }, used: 8 });
   const res = await call(env, { block: 7, password: "123" });
   ok(res.status === 429 && /Too many/.test((await res.json()).error), "after 8 tries in the window even the right password is refused (429)");
-  ok(!env.log.some((l) => /FROM blocks/.test(l[1])) && hits(env).length === 0, "without looking anything up or recording more");
-  const env2 = makeEnv({ blocks: { 7: row({}) }, used: 7 });
+  ok(hits(env).length === 0, "without recording more");
+  const env2 = makeEnv({ blocks: { 7: row({ requirePassword: true }) }, used: 7 });
   ok((await call(env2, { block: 7, password: "123" })).status === 200, "the 8th try is still allowed");
   const win = env2.log.find((l) => l[0] === "all");
   ok(/-15 minutes/.test(win[1]) && win[2][0] === "study", "the window is 15 minutes, in its own bucket", win[1].match(/-\d+ minutes/));
@@ -107,14 +115,38 @@ for (const [label, opts] of [["not JSON", { raw: "not json" }], ["an array", { r
   ok(res.status === 400, `a request body that is ${label} is a 400`, res.status);
 }
 {
-  const env = makeEnv({ blocks: { 7: row({}) } });
+  const env = makeEnv({ blocks: { 7: row({ requirePassword: true }) } });
   for (const pw of [undefined, null, 5, {}, [], true]) {
     const res = await call(env, { block: 7, password: pw });
     if (res.status !== 401) ok(false, `a ${JSON.stringify(pw)} password is refused`, res.status);
   }
   ok(true, "a missing or non-text password is always refused");
-  const long = await call(makeEnv({ blocks: { 7: row({}) } }), { block: 7, password: "123" + "x".repeat(500) });
+  const long = await call(makeEnv({ blocks: { 7: row({ requirePassword: true }) } }), { block: 7, password: "123" + "x".repeat(500) });
   ok(long.status === 401, "a very long guess is refused, not matched on its first part");
+}
+
+// ---- a block that asks for nothing ----
+for (const [label, content] of [["no settings", {}], ["a password typed but not ticked", { password: "mine" }], ["ticked off", { requirePassword: false, password: "mine" }], ["a text 'true'", { requirePassword: "true" }]]) {
+  const env = makeEnv({ blocks: { 7: row(content) }, used: 99 });
+  for (const body of [{ block: 7 }, { block: 7, password: "" }, { block: 7, password: "anything" }, { block: 7, password: 5 }]) {
+    const res = await call(env, body);
+    if (res.status !== 200) ok(false, `${label}: ${JSON.stringify(body)} opens`, res.status);
+  }
+  ok((await (await call(env, { block: 7 })).text()).includes("LAB"), `${label}: opens for anyone, even from a visitor who is over the try limit`);
+  ok(hits(env).length === 0 && !env.log.some((l) => /rate_limits/.test(l[1])), `${label}: and never touches the try counter`);
+}
+{
+  const env = makeEnv({ blocks: { 7: row({ requirePassword: true }) } });
+  for (const body of [{ block: 7 }, { block: 7, password: "" }, { block: 7, password: "   " }]) {
+    const res = await call(env, body);
+    const j = await res.json();
+    ok(res.status === 401 && j.needsPassword === true && /Type the password/.test(j.error), `a block that asks, asked with no password (${JSON.stringify(body)}): 401 saying so`);
+  }
+  ok(hits(env).length === 0, "and an empty ask is not a guess, so it does not count against the limit");
+}
+{
+  const env = makeEnv({ blocks: { 7: row({}) } });
+  ok((await call(env, { block: 99 })).status === 404, "an open block's id is still needed: an unknown block is still a 404");
 }
 
 // ---- what a page shows ----

@@ -2192,8 +2192,8 @@
         scan: { content: { scan_id: null }, col_span: 24, row_span: 22 },
         video: { content: { url: "" }, col_span: 16, row_span: 12 },
         embed: { content: { url: "" }, col_span: 16, row_span: 12 },
-        // STUDY (temporary): a blank password means the site's default study password (worker/study/index.js).
-        study: { content: { label: "Open study", lab: "core1-lab", password: "" }, col_span: 8, row_span: 3 },
+        // STUDY (temporary): opens for anyone unless "Ask for a password" is ticked; a blank password then means the site's default (worker/study/index.js).
+        study: { content: { label: "Open study", lab: "core1-lab", requirePassword: false, password: "" }, col_span: 8, row_span: 3 },
         quote: { content: { text: "Quote text here.", cite: "" }, col_span: 16, row_span: 6 },
         gallery: { content: { images: [] }, col_span: 24, row_span: 12 },
         "before-after": { content: { beforeUrl: "", afterUrl: "", beforeLabel: "Before", afterLabel: "After" }, col_span: 16, row_span: 14 },
@@ -2346,7 +2346,8 @@
     study: [
       { key: "label", label: "Button text", type: "text" },
       { key: "lab", label: "Study page", type: "select", options: [["core1-lab", "A+ Core 1 Drill"]] },
-      { key: "password", label: "Password (blank = the site's default study password)", type: "text", noSpellcheck: true },
+      { key: "requirePassword", label: "Ask for a password before opening (off = anyone with the link can open it)", type: "checkbox" },
+      { key: "password", label: "Password, when it asks (blank = the site's default study password)", type: "text", noSpellcheck: true },
     ],
     quote: [
       { key: "text", label: "Quote text", type: "textarea" },
