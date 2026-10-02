@@ -1186,6 +1186,7 @@
             <textarea id="settings-webhook-url" rows="3" placeholder="https://...&#10;https://..."></textarea>
           </label>
           <label class="settings-checkbox-row"><input type="checkbox" id="settings-webhook-on-project-publish"> Also call them when a project is published</label>
+          <label class="settings-checkbox-row"><input type="checkbox" id="settings-webhook-on-backup-failure"> Also call them when the daily backup fails (a JSON message with event "backup_failed"; leave off if these are build hooks)</label>
           <h2>Webhook Deliveries</h2>
           <label style="margin-bottom:0;">Recent attempts to call the webhook URLs above. Failed ones can be retried with the exact same payload.</label>
           <button type="button" id="load-webhook-deliveries-btn">Refresh</button>

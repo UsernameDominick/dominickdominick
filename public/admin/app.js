@@ -8051,6 +8051,7 @@
     el("settings-custom-head").value = settings.custom_head || "";
     el("settings-webhook-url").value = settings.webhook_url || "";
     el("settings-webhook-on-project-publish").checked = settings.webhook_on_project_publish === "1";
+    el("settings-webhook-on-backup-failure").checked = settings.webhook_on_backup_failure === "1";
     el("settings-mobile-breakpoint").value = settings.mobile_breakpoint || "";
     el("settings-empty-search").value = settings.empty_search_text || "";
     el("settings-empty-archive").value = settings.empty_archive_text || "";
@@ -8107,6 +8108,7 @@
           custom_head: el("settings-custom-head").value,
           webhook_url: el("settings-webhook-url").value,
           webhook_on_project_publish: el("settings-webhook-on-project-publish").checked ? "1" : "",
+          webhook_on_backup_failure: el("settings-webhook-on-backup-failure").checked ? "1" : "",
           mobile_breakpoint: el("settings-mobile-breakpoint").value,
           empty_search_text: el("settings-empty-search").value,
           empty_archive_text: el("settings-empty-archive").value,

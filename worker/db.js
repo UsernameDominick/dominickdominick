@@ -3353,7 +3353,36 @@ async function writeVerifiedBackup(env, key) {
   if (readBackHash !== checksum) throw new Error("Backup file failed integrity check after writing (hash mismatch)");
 }
 
-export async function runScheduledBackup(env) {
+// Tells the configured webhook URLs that the daily backup failed, when the owner has asked for that (Site Settings, off by default: the
+// URLs may be build hooks that were never meant to receive anything but publish notices). One POST per URL (at most five, so a
+// failing day stays well inside the request budget), each logged like any other webhook delivery. Never throws: an alert that can't
+// be sent must not hide the backup failure it is about. Returns how many URLs were called.
+export async function alertBackupFailure(env, message, send = fetch) {
+  try {
+    if ((await getSetting(env, "webhook_on_backup_failure")) !== "1") return 0;
+    const urls = ((await getSetting(env, "webhook_url")) || "")
+      .split("\n")
+      .map((u) => u.trim())
+      .filter((u) => /^https?:\/\//i.test(u))
+      .slice(0, 5);
+    const payload = { event: "backup_failed", site: "dominickdominick.com", message: String(message || "Backup failed").slice(0, 300), at: new Date().toISOString() };
+    let called = 0;
+    for (const url of urls) {
+      try {
+        const res = await send(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        await logWebhookDelivery(env, { url, payload, status: res.ok ? "success" : "failed", status_code: res.status, error: res.ok ? null : `HTTP ${res.status}` });
+      } catch (err) {
+        await logWebhookDelivery(env, { url, payload, status: "failed", error: err && err.message ? err.message : "Request failed" }).catch(() => {});
+      }
+      called++;
+    }
+    return called;
+  } catch {
+    return 0;
+  }
+}
+
+export async function runScheduledBackup(env, { alert = false } = {}) {
   try {
     const key = `${BACKUP_PREFIX}${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
     await writeVerifiedBackup(env, key);
@@ -3367,6 +3396,7 @@ export async function runScheduledBackup(env) {
     return key;
   } catch (err) {
     await setSetting(env, "last_backup_error", err.message || "Backup failed");
+    if (alert) await alertBackupFailure(env, err.message || "Backup failed");
     throw err;
   }
 }

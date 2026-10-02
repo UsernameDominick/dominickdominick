@@ -237,6 +237,7 @@ const SETTINGS_KEYS = [
   "custom_head",
   "webhook_url",
   "webhook_on_project_publish",
+  "webhook_on_backup_failure",
   "mobile_breakpoint",
   "empty_search_text",
   "empty_archive_text",

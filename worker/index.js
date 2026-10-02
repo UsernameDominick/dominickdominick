@@ -1465,7 +1465,7 @@ export default {
     // settings for the UI status line; this also gets it into the same
     // error_log every other uncaught error already goes to.
     ctx.waitUntil(
-      runScheduledBackup(env).catch((err) => logError(env, { message: err.message, stack: err.stack, path: "scheduled:backup" }))
+      runScheduledBackup(env, { alert: true }).catch((err) => logError(env, { message: err.message, stack: err.stack, path: "scheduled:backup" }))
     );
     // Same daily cron also drives the scheduled Link Checker — an admin
     // otherwise only finds out a link went dead by opening the SEO
