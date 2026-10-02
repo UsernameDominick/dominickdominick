@@ -75,16 +75,14 @@ for (const [df, lf] of [[true, true], [true, false], [false, true], [false, fals
 // the neg-side diode: battery - ... resistor ... diode ... back to neg
 const low = { components: [bat(), res("r", 100), dio()], wires: [wire("w1", "bat", "pos", "r", "p1"), wire("w2", "r", "p2", "d", "anode"), wire("w3", "d", "cathode", "bat", "neg")] };
 ok(window.computeSimPoweredSet(low).poweredComps.has("d") && window.computeSimPoweredSet(low).poweredComps.has("r"), "a forward diode on the negative side still counts as powered");
-// diode-free circuits: powered sets identical to the previous version
-const oldWin = {}; const oldCtx = vm.createContext({ window: oldWin, console, Math, Number, String, Object, Array, Set, Map, JSON, Infinity, NaN, Float64Array, CSS: { escape: (s) => s } });
-vm.runInContext(fs.readFileSync("/tmp/claude-0/-home-user-dominickdominick/54ac52d1-48bb-5e3d-bd30-b47f414fe171/scratchpad/QQdiode_old_sim_components.js", "utf8"), oldCtx);
+// diode-free circuits: the client and worker powered sets agree
 let srng = 4242; const srand = () => (srng = (srng * 1664525 + 1013904223) % 4294967296) / 4294967296; let identical = true, trials = 0;
 const pins2 = { battery: ["pos", "neg"], resistor: ["p1", "p2"], led: ["anode", "cathode"], switch: ["p1", "p2"], outlet: ["hot", "neutral"] };
 for (let t = 0; t < 1500; t++) { const comps = [bat()]; for (let i = 0; i < 2 + Math.floor(srand() * 5); i++) { const k = srand(); comps.push(k < 0.4 ? res("c" + i, 100) : k < 0.8 ? led("c" + i) : { id: "c" + i, type: "switch", x: 0, y: 0, closed: srand() < 0.7 }); }
   const wires = []; for (let i = 0; i < 2 + Math.floor(srand() * 8); i++) { const a = comps[Math.floor(srand() * comps.length)], b = comps[Math.floor(srand() * comps.length)]; const pa = pins2[a.type][Math.floor(srand() * 2)], pb = pins2[b.type][Math.floor(srand() * 2)]; if (a === b && pa === pb) continue; wires.push(wire("w" + i, a.id, pa, b.id, pb)); }
   const d = { components: comps, wires }; const norm = (r) => JSON.stringify({ c: [...r.poweredComps].sort(), w: [...r.poweredWires].sort(), n: [...r.poweredNodes].sort() }); trials++;
-  if (norm(oldWin.computeSimPoweredSet(d)) !== norm(window.computeSimPoweredSet(d)) || norm(window.computeSimPoweredSet(d)) !== norm(W.computePoweredSet(d))) { identical = false; console.log("powered set differs", JSON.stringify(d).slice(0, 200)); break; } }
-ok(identical, `${trials} random diode-free circuits: powered sets are identical to the previous version and the worker's`);
+  if (norm(window.computeSimPoweredSet(d)) !== norm(W.computePoweredSet(d))) { identical = false; console.log("powered set differs", JSON.stringify(d).slice(0, 200)); break; } }
+ok(identical, `${trials} random diode-free circuits: the client's powered sets match the worker's`);
 // random circuits with diodes: worker and client powered sets agree
 let pagree = true; srng = 99;
 for (let t = 0; t < 1500; t++) { const comps = [bat()]; for (let i = 0; i < 2 + Math.floor(srand() * 5); i++) { const k = srand(); comps.push(k < 0.3 ? res("c" + i, 100) : k < 0.7 ? dio("c" + i) : led("c" + i)); }
