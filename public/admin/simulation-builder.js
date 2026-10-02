@@ -1501,11 +1501,17 @@
       if (r.dangerous) outletLoop = true;
       if (r.kind === "led") {
         if (r.status === "reversed") add("warning", `${n} is the wrong way round, so no current can flow through this loop. Swap its two legs.`);
-        else if (r.status === "blocked") add("warning", `${n} is blocked by a backwards LED in the same loop.`);
+        else if (r.status === "blocked") add("warning", `${n} is blocked by a backwards LED or diode in the same loop.`);
         else if (r.status === "burnt" && !r.dangerous) add("danger", `${n} would burn out: the current is far above a typical LED's 20 mA. Add or enlarge a series resistor.`);
         else if (r.status === "overdriven") add("warning", `${n} is overdriven: more than 1.5 times a typical LED's 20 mA.`);
         else if (r.status === "unlit-low-voltage") add("warning", `${n} gets too little voltage to light.`);
         else if (r.status === "dim") add("note", `${n} has almost no current (under 1 mA), so it will barely glow.`);
+      } else if (r.kind === "diode") {
+        if (r.status === "reversed") add("warning", `${n} is the wrong way round, so it blocks all current in this loop. Swap its two legs (current flows anode to cathode, the bar side).`);
+        else if (r.status === "blocked") add("warning", `${n} is blocked by a backwards diode or LED in the same loop.`);
+        else if (r.status === "burnt" && !r.dangerous) add("danger", `${n} would burn out: the current is far above a typical diode's 1 A rating. Add a series resistor.`);
+        else if (r.status === "overdriven") add("warning", `${n} is overdriven: more than 1.5 times a typical diode's 1 A rating.`);
+        else if (r.status === "off") add("warning", `${n} gets less than its 0.7 V forward voltage, so it isn't conducting.`);
       } else if (r.kind === "resistor" && r.status === "overheating") {
         add(
           "warning",
@@ -1543,7 +1549,7 @@
       parent.set(root(na), root(nb));
     }
     // (A voltmeter is meant to sit across a part, so only series parts are checked; an ammeter shorted out reads nothing useful.)
-    const BYPASSABLE = new Set(["resistor", "led", "capacitor", "inductor", "switch", "ammeter"]);
+    const BYPASSABLE = new Set(["resistor", "led", "diode", "capacitor", "inductor", "switch", "ammeter"]);
     const bypassed = [];
     for (const comp of simData.components) {
       if (!BYPASSABLE.has(comp.type)) continue;
@@ -1566,7 +1572,7 @@
       add("warning", "This circuit has a parallel branch or a bypass. The simulator follows one path from each source, so the figures and statuses may be incomplete or missing: a backwards LED, for one, is only flagged when it is on the only route.");
     }
     // Parts that can carry or show current but weren't analysed: not on the path the solver followed.
-    const analysable = new Set(["led", "resistor", "ammeter", "mcu_teensy"]);
+    const analysable = new Set(["led", "diode", "resistor", "ammeter", "mcu_teensy"]);
     const hasSource = simData.components.some((c) => {
       const d = window.getSimComponentDefinition(c);
       return d && d.isSource;
@@ -1629,7 +1635,7 @@
     "Each source is solved on its own as one series path. Parallel branches, bypasses and several sources in one circuit are beyond what it can vouch for. Only voltmeters flag this, with a dash (an ohmmeter solves its own network exactly instead); other parts still show figures worked out from that one path, and a part on a side branch gets no status at all.",
     "Wires, breadboard strips and meter probes are perfect conductors (zero resistance), and sources are ideal: they hold their voltage with no sag or current limit beyond the part's own settings.",
     "Capacitors count as open circuits and inductors as their winding resistance alone.",
-    "Part ratings are typical fixed values, not a real part's datasheet: LEDs 20 mA, resistors 0.25 W, the Teensy 1 W.",
+    "Part ratings are typical fixed values, not a real part's datasheet: LEDs 20 mA, diodes 1 A, resistors 0.25 W, the Teensy 1 W.",
     "Microcontroller pins and firmware are not simulated, and logic gates are diagram parts that document the truth table without being simulated.",
     "It is a learning aid, not a design tool: real parts have tolerances and limits it does not model.",
   ];
@@ -2031,7 +2037,7 @@
   // multiple of the hole grid (see SIM_COMPONENTS), so once the first leg
   // snaps to a hole, every other leg lands exactly on a real neighboring
   // hole too — not just one anchor pin dragging the rest along for show.
-  const SNAP_TO_BREADBOARD_TYPES = new Set(["led", "resistor", "switch", "potentiometer", "ammeter", "voltmeter", "ohmmeter", "capacitor", "inductor"]);
+  const SNAP_TO_BREADBOARD_TYPES = new Set(["led", "diode", "resistor", "switch", "potentiometer", "ammeter", "voltmeter", "ohmmeter", "capacitor", "inductor"]);
   const SNAP_THRESHOLD = 18; // magnetic pull radius while dragging
   const SNAP_EXACT_TOLERANCE = 4; // how close a non-anchor leg must land to also count as plugged in
   // Everything else just snaps to a light alignment grid while dragging.
@@ -2389,6 +2395,7 @@
     battery: { kind: "Electrical", text: "supplies a constant DC voltage, with an optional internal resistance." },
     breadboard: { kind: "Mechanical", text: "joins holes in column strips and power rails; nothing electrical of its own." },
     led: { kind: "Electrical", text: "lights only when wired the right way round; checked for current and burn-out against a typical 20 mA rating." },
+    diode: { kind: "Electrical", text: "conducts only anode to cathode (towards the bar) with a fixed 0.7 V drop and blocks the other way; checked for burn-out against a typical 1 A rating. The glow of powered parts doesn't follow a diode's blocking." },
     resistor: { kind: "Electrical", text: "limits current by Ohm's law; checked for overheating against a typical 0.25 W rating." },
     potentiometer: { kind: "Electrical", text: "acts as a two-terminal variable resistor set by its wiper." },
     capacitor: { kind: "Electrical (DC only)", text: "counts as an open circuit.", brief: true },
@@ -2410,7 +2417,7 @@
     sources: "more than one source (or a Power Supply output) is wired into this circuit, and the simulator solves each source on its own.",
     parallel: "this circuit has parallel branches or a bypass (a switch or wire across a part), and the simulator solves one series path per source, so it can't vouch for the voltage.",
     short: "this source is short-circuited, so no voltage is defined.",
-    ambiguous: "LEDs that aren't conducting (too little voltage, or backwards) share the voltage in a way the simulator can't work out.",
+    ambiguous: "LEDs or diodes that aren't conducting (too little voltage, or backwards) share the voltage in a way the simulator can't work out.",
     invalid: "the source's voltage isn't a usable number.",
   };
   // Why an ohmmeter shows a dash.
@@ -2910,6 +2917,18 @@
             blocked: "No current flows here: another LED in this loop is wired backwards.",
             dim: `Barely lit — only ${ma}mA is flowing. Try a smaller resistor.`,
             normal: `✓ ${ma}mA — a healthy, safe current.`,
+          };
+          electricalHtml = `<p class="sim-power-status ${info.status === "normal" ? "is-powered" : "is-danger"}">${messages[info.status] || ""}</p>`;
+        } else if (info.kind === "diode") {
+          const messages = {
+            burnt: info.dangerous
+              ? `🔥 Destroyed instantly — ${info.voltage}V mains straight across a diode. Route it through a Power Supply.`
+              : `🔥 Burnt out — ${ma}mA is far above a typical diode's 1A rating. Add a series resistor.`,
+            overdriven: `⚠ Overdriven at ${ma}mA — more than 1.5 times a typical diode's 1A rating.`,
+            off: "Not conducting: the loop's voltage is below the diode's 0.7V forward drop.",
+            reversed: "Blocking — a diode only conducts anode to cathode (towards the bar). Flip it around to let current through.",
+            blocked: "No current flows here: another diode or LED in this loop is wired backwards.",
+            normal: `✓ Conducting ${ma}mA with a 0.7V drop.`,
           };
           electricalHtml = `<p class="sim-power-status ${info.status === "normal" ? "is-powered" : "is-danger"}">${messages[info.status] || ""}</p>`;
         } else if (info.kind === "resistor") {

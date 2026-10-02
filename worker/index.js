@@ -951,6 +951,8 @@ function simulationTopologyDescription(data) {
         const color = LED_COLORS[component.color]?.onColor ? component.color : "red";
         return `${color} LED`;
       }
+      case "diode":
+        return "silicon diode, conducting from anode to cathode";
       case "switch":
         return component.closed === false ? "open switch" : "closed switch";
       case "voltmeter": {

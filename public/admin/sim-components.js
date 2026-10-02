@@ -78,6 +78,8 @@
     white: { label: "White", forwardVoltage: 3.0, onColor: "#fffbe8" },
   };
   const LED_RATED_MA = 20;
+  const DIODE_FORWARD_V = 0.7; // silicon
+  const DIODE_RATED_MA = 1000; // a 1N400x-style 1 A part
   const OUTLET_VOLTAGE = 120;
   const RESISTOR_WATTAGE_RATING = 0.25;
   const TEENSY_LOAD_OHMS = 300;
@@ -484,6 +486,21 @@
         return `<g style="--led-on-color:${window.LED_COLORS[color].onColor}"><line class="led-lead" x1="15" y1="26" x2="0" y2="40"/><line class="led-lead" x1="25" y1="26" x2="40" y2="40"/><ellipse class="led-flange" cx="20" cy="26" rx="10" ry="2.5"/><path class="led-bulb" d="M11,26 L11,10 A9,9 0 0 1 29,10 L29,26 Z"/><path class="led-shine" d="M15,14 A5,5 0 0 1 21,10"/></g>`;
       },
     },
+    // A plain silicon diode: conducts anode to cathode with a fixed 0.7 V drop and blocks the other way. It reuses the LED's
+    // polarity and path handling (see buildAnalysisGraph); only its drawing, rating and wording differ.
+    diode: {
+      label: "Diode",
+      keywords: "rectifier, one-way, silicon diode, 1N4001, blocks reverse current, forward voltage",
+      w: 40,
+      h: 40,
+      polarity: { pos: "anode", neg: "cathode" },
+      pins: [
+        { id: "anode", x: 0, y: 40, label: "Anode" },
+        { id: "cathode", x: 40, y: 40, label: "Cathode" },
+      ],
+      render: () =>
+        `<rect class="diode-hit" x="0" y="14" width="40" height="26" fill="transparent"/><path class="diode-lead" d="M0,40 L0,26 L10,26" fill="none"/><path class="diode-lead" d="M28,26 L40,26 L40,40" fill="none"/><polygon class="diode-body" points="10,16 10,36 28,26"/><line class="diode-bar" x1="28" y1="15" x2="28" y2="37"/>`,
+    },
     resistor: {
       label: "Resistor",
       keywords: "current limiting, ohms, resistance, color bands",
@@ -797,7 +814,7 @@
         def.passthrough.forEach(([a, b]) => link(nodeId(c, a), nodeId(c, b)));
       }
       if (c.type === "switch_spdt") link(nodeId(c, "com"), nodeId(c, spdtThrow(c)));
-      if (c.type === "led" && def.polarity && c.id !== excludeLedId) {
+      if ((c.type === "led" || c.type === "diode") && def.polarity && c.id !== excludeLedId) {
         link(nodeId(c, def.polarity.pos), nodeId(c, def.polarity.neg));
       }
     });
@@ -853,7 +870,7 @@
     components.forEach((c) => {
       const def = getSimComponentDefinition(c);
       if (!def) return;
-      if (c.type === "led" && def.polarity) {
+      if ((c.type === "led" || c.type === "diode") && def.polarity) {
         const posNode = nodeId(c, def.polarity.pos);
         const negNode = nodeId(c, def.polarity.neg);
         if (!poweredNodes.has(posNode) || !poweredNodes.has(negNode)) return;
@@ -931,13 +948,14 @@
         link(nodeId(c, "p1"), nodeId(c, "p2"), { compId: c.id, kind: "ammeter", resistance: 0 });
       } else if (c.type === "mcu_teensy") {
         link(nodeId(c, "vin"), nodeId(c, "gnd"), { compId: c.id, kind: "teensy", resistance: TEENSY_LOAD_OHMS });
-      } else if (c.type === "led" && def.polarity) {
+      } else if ((c.type === "led" || c.type === "diode") && def.polarity) {
         const color = window.LED_COLORS[c.color] ? c.color : "red";
         link(nodeId(c, def.polarity.pos), nodeId(c, def.polarity.neg), {
           compId: c.id,
           kind: "led",
+          device: c.type,
           resistance: 0,
-          forwardVoltage: window.LED_COLORS[color].forwardVoltage,
+          forwardVoltage: c.type === "diode" ? DIODE_FORWARD_V : window.LED_COLORS[color].forwardVoltage,
           posNode: nodeId(c, def.polarity.pos),
           negNode: nodeId(c, def.polarity.neg),
         });
@@ -1445,7 +1463,16 @@
 
       edges.forEach((info) => {
         if (!info.compId) return;
-        if (info.kind === "led") {
+        if (info.kind === "led" && info.device === "diode") {
+          let status = "normal";
+          if (domain.dangerous) status = "burnt";
+          else if (ledsBlock && reversedLedIds.has(info.compId)) status = "reversed";
+          else if (ledsBlock) status = "blocked";
+          else if (currentMa === Infinity || currentMa > DIODE_RATED_MA * 3) status = "burnt";
+          else if (currentMa > DIODE_RATED_MA * 1.5) status = "overdriven";
+          else if (netVoltage <= 0) status = "off";
+          results[info.compId] = { kind: "diode", currentMa, voltage: domain.voltage, status, dangerous: domain.dangerous };
+        } else if (info.kind === "led") {
           let status = "normal";
           if (domain.dangerous) status = "burnt";
           else if (ledsBlock && reversedLedIds.has(info.compId)) status = "reversed";
