@@ -4540,7 +4540,7 @@
   const DEFAULT_TOOL_SHORTCUTS = {
     select: "v", pan: "h", "sel-rect": "m", "sel-ellipse": "o", "sel-lasso": "l", "sel-poly": "g",
     paint: "b", pencil: "n", erase: "e", blur: "r", pixelate: "x", dodge: "d", burn: "u",
-    rect: "q", circle: "c", line: "i", arrow: "a", text: "t", eyedropper: "k", bucket: "f", gradient: "j", marker: "p", highlight: "y", spotlight: "z",
+    rect: "q", circle: "c", line: "i", arrow: "a", text: "t", eyedropper: "k", bucket: "f", gradient: "j", marker: "p", highlight: "y", spotlight: "s",
   };
   let toolShortcuts = { ...DEFAULT_TOOL_SHORTCUTS };
   try {
