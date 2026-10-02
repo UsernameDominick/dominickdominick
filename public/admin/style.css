@@ -7980,3 +7980,5 @@ button[data-tier="quiet"] { border-color: transparent; }
 .dash-week-pages li { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; border-bottom: 1px solid var(--border); }
 .dash-week-page { min-width: 0; overflow-wrap: anywhere; }
 .dash-week-n { font-variant-numeric: tabular-nums; color: var(--text-dim); }
+.dash-item-static { display: flex; justify-content: space-between; gap: 10px; padding: 6px 8px; cursor: default; font-size: 13.3333px; }
+.dash-top-articles .dash-item-meta { text-transform: none; }

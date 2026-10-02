@@ -69,6 +69,7 @@ import {
   revokePreviewLink,
   setSetting,
   getAnalytics,
+  getTopArticles,
   getRawAnalyticsEvents,
   exportAll,
   importAll,
@@ -2487,6 +2488,10 @@ async function routeAdminApi(request, env, url, ctx) {
   // server-side (unlike the breakdown CSV, which the client already has
   // the aggregated numbers for and builds itself) since raw rows aren't
   // otherwise sent to the browser.
+  if (path === "/analytics/top-articles" && method === "GET") {
+    const days = Math.min(Math.max(Number(url.searchParams.get("days")) || 7, 1), 90);
+    return json(await getTopArticles(env, days, Number(url.searchParams.get("limit")) || 5));
+  }
   if (path === "/analytics/export-raw" && method === "GET") {
     const days = Number(url.searchParams.get("days")) || 7;
     const filters = {

@@ -19,5 +19,9 @@ ok(D(3, 1, 1).text === "200% more than the day before (1)." , "a one-day range s
 ok(D("x", null, "y").trend === "none" && D(-5, -2, -1).trend === "none" && D(undefined, undefined, undefined).text.length > 0, "odd input is treated as zero, never NaN", D("x", null, "y"));
 ok(!/NaN|undefined|Infinity/.test(JSON.stringify([D(NaN, Infinity, NaN), D(1e9, 3, 90)])), "no NaN or Infinity in any sentence");
 
+const S = window.PeriodCompare.short;
+ok(S(125, 100) === "▲ 25%" && S(60, 100) === "▼ 40%" && S(5, 5) === "same" && S(7, 0) === "new" && S(0, 0) === "" && S(1001, 1000) === "same", "the short form for a list row", [S(125, 100), S(60, 100), S(5, 5), S(7, 0), S(0, 0), S(1001, 1000)]);
+ok(S(0, 4) === "▼ 100%" && S("x", null) === "" && !/NaN|undefined/.test(S(NaN, Infinity)), "falling to nothing is 100% down and odd input is zero", [S(0, 4), S(NaN, Infinity)]);
+
 console.log(fail ? `${fail} FAILED` : "ALL PASS");
 process.exit(fail ? 1 : 0);

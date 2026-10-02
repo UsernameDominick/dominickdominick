@@ -3813,7 +3813,7 @@
     const body = el("dashboard-body");
     el("dashboard-modal").hidden = false;
     body.innerHTML = "<p class='command-empty'>Loading…</p>";
-    const [arts, projs, notes, seo, week] = await Promise.allSettled([api("/articles"), api("/projects"), api("/notifications-summary"), api("/seo-report"), api("/analytics?days=7")]);
+    const [arts, projs, notes, seo, week, topArt] = await Promise.allSettled([api("/articles"), api("/projects"), api("/notifications-summary"), api("/seo-report"), api("/analytics?days=7"), api("/analytics/top-articles?days=7")]);
     const A = arts.status === "fulfilled" ? arts.value : [];
     const P = projs.status === "fulfilled" ? projs.value : [];
     // [text, panel button to open]; errors and webhooks live in Diagnostics, the rest in Site Health.
@@ -3845,6 +3845,21 @@
           : ""
       }<button type="button" class="dash-link" data-go="analytics-btn">Open Analytics</button></section>`;
     } else unavailable.push("this week's views");
+    // "Top articles": what people read this week, against the week before; a row opens that article's editor.
+    let topArticlesCard = "";
+    if (topArt.status === "fulfilled" && topArt.value.length) {
+      const rows = topArt.value
+        .map((a) => {
+          const trend = window.PeriodCompare.short(a.views, a.previous);
+          const label = escapeHtml(a.title || a.slug);
+          const meta = `${Number(a.views)} view${a.views === 1 ? "" : "s"}${trend ? ` · ${escapeHtml(trend)}` : ""}`;
+          return a.id
+            ? `<li><button type="button" class="dash-item" data-kind="article" data-id="${Number(a.id)}"><span class="dash-item-title">${label}</span><span class="dash-item-meta">${meta}</span></button></li>`
+            : `<li><span class="dash-item dash-item-static"><span class="dash-item-title">${label}</span><span class="dash-item-meta">${meta}</span></span></li>`;
+        })
+        .join("");
+      topArticlesCard = `<section class="dash-card dash-top-articles"><h2>Top articles this week</h2><ul class="dash-list">${rows}</ul><p class="dash-empty">Compared with the 7 days before. Views from you and from search crawlers are not counted.</p></section>`;
+    } else if (topArt.status !== "fulfilled") unavailable.push("top articles");
     const nowStr = new Date().toISOString();
     // Archived items are deliberately out of the way, so they stay off both lists.
     const all = [...A.map((r) => ({ k: "article", r })), ...P.map((r) => ({ k: "project", r }))].filter((x) => !x.r.archived);
@@ -3868,6 +3883,7 @@
     body.innerHTML = `
       <section class="dash-card dash-attention${flags.length ? " has-flags" : ""}"><h2>${flags.length ? "Needs attention" : unavailable.length ? "Couldn't check everything" : "All clear"}</h2>${attention}${unavailableNote}</section>
       ${weekCard}
+      ${topArticlesCard}
       <section class="dash-card"><h2>Recent edits</h2>${list(recent, "Nothing edited yet.", recent.length)}</section>
       <section class="dash-card"><h2>Drafts${draftsAll.length ? ` (${draftsAll.length})` : ""}</h2>${list(draftsAll.slice(0, 6), "No drafts waiting.", draftsAll.length)}</section>
       ${scheduled.length ? `<section class="dash-card"><h2>Scheduled (${scheduled.length})</h2>${list(scheduled.slice(0, 6), "", scheduled.length)}</section>` : ""}

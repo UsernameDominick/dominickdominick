@@ -17,5 +17,16 @@
       ? { text: `${pct}% more than ${span} (${prev}).`, trend: "up" }
       : { text: `${pct}% fewer than ${span} (${prev}).`, trend: "down" };
   }
-  window.PeriodCompare = { describe };
+  // A few characters for a list row: "▲ 25%", "▼ 40%", "new" (nothing the period before), "same" or "" (nothing at all).
+  function short(current, previous) {
+    const whole = (v) => (Number.isFinite(Number(v)) ? Math.max(0, Math.floor(Number(v))) : 0);
+    const cur = whole(current);
+    const prev = whole(previous);
+    if (!cur && !prev) return "";
+    if (!prev) return "new";
+    const pct = Math.round((Math.abs(cur - prev) / prev) * 100);
+    if (cur === prev || pct === 0) return "same";
+    return `${cur > prev ? "▲" : "▼"} ${pct}%`;
+  }
+  window.PeriodCompare = { describe, short };
 })();

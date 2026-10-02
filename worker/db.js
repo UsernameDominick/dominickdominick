@@ -3077,6 +3077,50 @@ export async function titlesForPaths(env, paths) {
   return out;
 }
 
+// The most-read articles in the last `days` days next to the days before them, for the Dashboard: [{ slug, id, title, views, previous }],
+// busiest first. One grouped query over two periods; titles and editor ids come from one small lookup. An article that no longer exists
+// keeps its address but has no id (the Dashboard shows it without a link).
+export async function getTopArticles(env, days = 7, limit = 5) {
+  const n = Math.max(1, Math.min(90, Math.floor(days) || 7));
+  const max = Math.max(1, Math.min(20, Math.floor(limit) || 5));
+  const { results } = await env.DB
+    .prepare(
+      `SELECT path,
+         SUM(CASE WHEN created_at > datetime('now', '-${n} days') THEN 1 ELSE 0 END) AS views,
+         SUM(CASE WHEN created_at <= datetime('now', '-${n} days') THEN 1 ELSE 0 END) AS previous
+       FROM pageviews
+       WHERE created_at > datetime('now', '-${2 * n} days') AND path LIKE '/random/%' AND path NOT LIKE '/random/%/%'
+       GROUP BY path HAVING views > 0 ORDER BY views DESC, path ASC LIMIT ?`
+    )
+    .bind(max)
+    .all();
+  const slugOf = (path) => {
+    try {
+      return decodeURIComponent(path.slice("/random/".length));
+    } catch {
+      return null;
+    }
+  };
+  const slugs = [...new Set(results.map((r) => slugOf(r.path)).filter(Boolean))];
+  const rows = new Map();
+  if (slugs.length) {
+    try {
+      const found = await env.DB
+        .prepare(`SELECT id, slug, title FROM articles WHERE slug IN (${slugs.map(() => "?").join(",")})`)
+        .bind(...slugs)
+        .all();
+      for (const a of found.results) rows.set(a.slug, a);
+    } catch {
+      // Titles are a nicety: without them the address is shown.
+    }
+  }
+  return results.map((r) => {
+    const slug = slugOf(r.path) || r.path;
+    const a = rows.get(slug);
+    return { slug, id: a ? a.id : null, title: a ? String(a.title).slice(0, 120) : null, views: r.views, previous: r.previous };
+  });
+}
+
 export async function getAnalytics(env, days = 7, filters = {}) {
   const since = `datetime('now', '-${Math.max(1, Math.floor(days))} days')`;
   const { sql: filterSql, binds: filterBinds } = buildPageviewFilter(filters);
