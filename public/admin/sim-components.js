@@ -1476,7 +1476,10 @@
       if (!path || path.length < 2) {
         if (wantPotentials) potentialMaps.push({ domain, ...collectNodePotentials(adjacency, edgeInfo, domain, null, otherTerminals(domain), 0, 0) });
         // No loop of its own, but another source is wired into the same network (cells in series, say): solve it as a whole.
-        if (domains.length > 1 && domains.some((d) => d !== domain && (reachFrom(domain.posNode).has(d.posNode) || reachFrom(domain.posNode).has(d.negNode)))) engage.add(domain.posNode);
+        if (domains.length > 1 && domains.some((d) => d !== domain && (reachFrom(domain.posNode).has(d.posNode) || reachFrom(domain.posNode).has(d.negNode)))) {
+          engage.add(domain.posNode);
+          parallelNodes.push(domain.posNode);
+        }
         return;
       }
       // The battery's own internal resistance (if set) is in series with
@@ -1502,7 +1505,8 @@
       // With a parallel branch or bypass the single path isn't the whole story, so a
       // backwards LED only stops the loop when the path is the only route.
       const onlyRoute = pathIsOnlyRoute(adjacency, edgeInfo, path);
-      if (!onlyRoute) parallelNodes.push(path[0]);
+      const multi = domains.length > 1 && domains.some((d) => d !== domain && (reachFrom(domain.posNode).has(d.posNode) || reachFrom(domain.posNode).has(d.negNode)));
+      if (!onlyRoute || multi) parallelNodes.push(path[0]);
       if (!onlyRoute || (domains.length > 1 && domains.some((d) => d !== domain && (reachFrom(domain.posNode).has(d.posNode) || reachFrom(domain.posNode).has(d.negNode))))) engage.add(path[0]);
       const ledsBlock = reversedLedIds.size > 0 && onlyRoute;
       const netVoltage = domain.voltage - totalForwardVoltage;
@@ -1612,7 +1616,12 @@
         },
         engage
       );
-      if (solved) Object.assign(results, solved.results);
+      if (solved) {
+        solved.clear.forEach((id) => {
+          if (results[id] && results[id].kind !== "voltmeter") delete results[id];
+        });
+        Object.assign(results, solved.results);
+      }
       parallelFound = parallelNodes.some((n) => !(solved && solved.covered.has(n)));
     } else parallelFound = parallelNodes.length > 0;
 

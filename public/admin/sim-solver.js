@@ -286,6 +286,7 @@
     const seen = new Set();
     const results = {};
     const covered = new Set();
+    const clear = new Set(); // components inside a solved network: their one-path results are stale
     const voltsByGroup = new Map();
     const rawNodesByGroup = new Map();
     parent.forEach((_, raw) => {
@@ -318,9 +319,39 @@
       const solved = solveNetwork(mine);
       if (!solved.ok) return declines.push(solved.reason);
       solvedAny = true;
+      // Only nodes with a conducting path to a source have a meaningful voltage; a node joined to the network only through
+      // an "off" diode is left floating (the solver puts it at an arbitrary value), so meters on it say nothing.
+      const anchored = new Set();
+      {
+        const reachAdj = new Map();
+        const connect = (a, b) => {
+          if (!reachAdj.has(a)) reachAdj.set(a, []);
+          if (!reachAdj.has(b)) reachAdj.set(b, []);
+          reachAdj.get(a).push(b);
+          reachAdj.get(b).push(a);
+        };
+        mine.forEach((e) => {
+          if (e.kind !== "diode" || solved.on.get(e.id)) connect(e.a, e.b);
+        });
+        const queue = mine.filter((e) => e.kind === "src").flatMap((e) => [e.a, e.b]);
+        queue.forEach((n) => anchored.add(n));
+        while (queue.length) {
+          const cur = queue.shift();
+          for (const n of reachAdj.get(cur) || []) {
+            if (!anchored.has(n)) {
+              anchored.add(n);
+              queue.push(n);
+            }
+          }
+        }
+      }
       network.forEach((g) => {
-        voltsByGroup.set(g, solved.volts.get(g));
+        if (anchored.has(g)) voltsByGroup.set(g, solved.volts.get(g));
         (rawNodesByGroup.get(g) || []).forEach((raw) => covered.add(raw));
+      });
+      components.forEach((c) => {
+        const def = env.getDef(c);
+        if (def && def.pins.some((p) => network.has(find(env.nodeId(c, p.id))))) clear.add(c.id);
       });
       // Turn the solution into part results.
       const degree = (g) => (adj.get(g) ? adj.get(g).size : 0);
@@ -354,9 +385,8 @@
             else if (!isDiode && ma < 1) status = "dim";
             else status = "normal";
           } else if (vd < -0.1) status = "reversed";
-          else if (vd > 0.1) status = isDiode ? "off" : "unlit-low-voltage";
           else if (degree(e.a) <= 1 || degree(e.b) <= 1) status = null; // dangling: nothing to say
-          else status = "blocked";
+          else status = isDiode ? "off" : "unlit-low-voltage"; // forward biased (or nearly) but below its drop
           if (status) results[c.id] = { kind: isDiode ? "diode" : "led", currentMa: ma, voltage: supplyVoltage, status, dangerous: false };
         }
       });
@@ -371,7 +401,7 @@
       const volts = voltsByGroup.get(pos) - voltsByGroup.get(neg);
       if (Number.isFinite(volts)) results[c.id] = { kind: "voltmeter", volts: Math.abs(volts) < 1e-9 ? 0 : volts, status: "normal", reason: null, dangerous: false };
     });
-    return { results, covered, nodeVolts: (raw) => voltsByGroup.get(find(raw)) };
+    return { results, covered, clear, nodeVolts: (raw) => voltsByGroup.get(find(raw)) };
   }
 
   root.SimSolver = { analyze, solveNetwork, MAX_NODES, lastDeclines: [] };

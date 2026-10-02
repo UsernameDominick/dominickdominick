@@ -1690,7 +1690,12 @@ export function computeCircuitAnalysis(data) {
       },
       engage
     );
-    if (solved) Object.assign(results, solved.results);
+    if (solved) {
+      solved.clear.forEach((id) => {
+        if (results[id] && results[id].kind !== "voltmeter") delete results[id];
+      });
+      Object.assign(results, solved.results);
+    }
   }
 
   if (components.some((c) => c.type === "ohmmeter")) Object.assign(results, ohmmeterReadings(components, (data && data.wires) || []));
