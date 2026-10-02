@@ -1734,12 +1734,14 @@ export async function getMissingPages(env, days = 30) {
 
 // The site's own public addresses with a readable name for each (published pages, articles and projects), for "did you mean"
 // suggestions. Drafts, scheduled, archived and expired items are left out, as they are everywhere else.
-export async function listLinkTargets(env) {
-  const [pages, articles, projects] = await Promise.all([
+export async function listLinkTargets(env, { publicOnly = false } = {}) {
+  const [allPages, articles, projects] = await Promise.all([
     listPages(env),
     listArticles(env, { publishedOnly: true }),
     listProjects(env, { publishedOnly: true }),
   ]);
+  // publicOnly (used for "did you mean" on a 404 page that anyone can see) leaves out password-protected pages.
+  const pages = publicOnly ? allPages.filter((p) => !p.password_hash) : allPages;
   return [
     ...pages.filter((p) => p.slug && p.slug !== "home").map((p) => ({ path: `/${p.slug}`, label: visibleText(p.title) || visibleText(p.nav_label) || p.slug })),
     ...articles.map((a) => ({ path: `/random/${a.slug}`, label: visibleText(a.title) || a.slug })),
@@ -2665,6 +2667,7 @@ export const SEARCH_PAGE_SIZE = 20;
 // with all three shown together there'd be three separate page counters on
 // one screen, more confusing than the flat top-20-each it falls back to;
 // pagination is really only useful once you've already narrowed to one type.
+// A password-protected page is left out: its title, link and description would otherwise be readable by anyone who searches.
 export async function publicSearch(env, q, { type = "", sort = "relevance", page = 1 } = {}) {
   // Every word has to be found (in any order, in the title, tags or text) and a "quoted phrase" counts as one; the best matches
   // come first (title hits, then tags and summaries, then body text) unless a date order was asked for.
@@ -2684,7 +2687,7 @@ export async function publicSearch(env, q, { type = "", sort = "relevance", page
     !type || type === "page"
       ? env.DB
           .prepare(
-            `SELECT id, slug, title, meta_description FROM pages WHERE deleted_at IS NULL AND ${pageSql.where}
+            `SELECT id, slug, title, meta_description FROM pages WHERE deleted_at IS NULL AND password_hash IS NULL AND ${pageSql.where}
              ORDER BY ${relevance ? `${pageSql.score} DESC, ` : ""}title LIMIT ? OFFSET ?`
           )
           .bind(...pageSql.whereBinds, ...(relevance ? pageSql.scoreBinds : []), limit, offset)
@@ -2711,7 +2714,7 @@ export async function publicSearch(env, q, { type = "", sort = "relevance", page
     // Counted whenever a category is included at all, not just when paginated — the unfiltered "All" view used to skip these and
     // show however many rows came back from its own LIMIT, silently capped with no indication anything was cut off.
     !type || type === "page"
-      ? env.DB.prepare(`SELECT COUNT(*) AS n FROM pages WHERE deleted_at IS NULL AND ${pageSql.where}`).bind(...pageSql.whereBinds).first()
+      ? env.DB.prepare(`SELECT COUNT(*) AS n FROM pages WHERE deleted_at IS NULL AND password_hash IS NULL AND ${pageSql.where}`).bind(...pageSql.whereBinds).first()
       : null,
     !type || type === "article"
       ? env.DB.prepare(`SELECT COUNT(*) AS n FROM articles WHERE ${live} AND ${articleSql.where}`).bind(now, now, ...articleSql.whereBinds).first()

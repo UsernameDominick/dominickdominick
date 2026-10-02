@@ -1038,6 +1038,12 @@ export function renderBreadcrumbHtml(items) {
 // Not shown for a shared preview-token link — there's no "mode" to turn
 // off there, and the visitor already knows it's a preview from how they
 // got the link in the first place.
+// On a password-protected page, for the signed-in owner only: they always see the real page (so editing never needs the password),
+// which is easy to mistake for the protection not working. Same look as the draft banner above.
+export function renderProtectedPageBannerHtml() {
+  return `<div class="preview-banner">This page is password protected. You're signed in, so you see it without the password; open it in a private window to see what visitors see.</div>`;
+}
+
 export function renderPreviewBannerHtml(reason) {
   if (!reason) return "";
   const toggle = reason === "cookie" ? `<button type="button" id="preview-mode-off-btn">Turn off preview mode</button>` : "";

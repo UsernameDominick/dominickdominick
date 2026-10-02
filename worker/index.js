@@ -93,6 +93,7 @@ import {
   renderTtsBarHtml,
   renderHeroVideoHtml,
   renderPreviewBannerHtml,
+  renderProtectedPageBannerHtml,
   renderBreadcrumbHtml,
   withCustomJsonLd,
   faviconSvg,
@@ -299,7 +300,8 @@ async function renderPage(env, page, url, request) {
     const bodyHtml = renderPagePasswordFormHtml(page, url.searchParams.get("error") === "1");
     const html = renderShell({
       title: page.title,
-      description: visibleText(page.meta_description),
+      // Not the page's own description: that belongs to the page, which this visitor has not unlocked.
+      description: "This page is password protected.",
       path: page.slug === "home" ? "/" : `/${page.slug}`,
       navItems,
       activeSlug: page.slug,
@@ -310,7 +312,7 @@ async function renderPage(env, page, url, request) {
       customHead,
       noindex: true,
     });
-    return new Response(html, { status: 401, headers: { "Content-Type": "text/html;charset=UTF-8" } });
+    return new Response(html, { status: 401, headers: { "Content-Type": "text/html;charset=UTF-8", "Cache-Control": "private, no-store" } });
   }
   const blocks = await listBlocks(env, page.id);
   // Page-specific CSS (Page settings). Checked again here so a value that somehow got in unchecked never reaches the page.
@@ -364,7 +366,7 @@ async function renderPage(env, page, url, request) {
     path: pagePath,
     navItems,
     activeSlug: page.slug,
-    bodyHtml,
+    bodyHtml: page.password_hash && isAdmin ? `${renderProtectedPageBannerHtml()}${bodyHtml}` : bodyHtml,
     jsonLd: withCustomJsonLd(jsonLd, page.custom_json_ld),
     ogImage: visibleText(page.og_image) || defaultOgImage || null,
     canonicalUrl: page.canonical_url || null,
@@ -376,7 +378,8 @@ async function renderPage(env, page, url, request) {
   // A page with address-gated blocks differs by query string, so it must never be
   // served from a shared cache to someone with another address.
   const gated = blocks.some((b) => b.style && (b.style.urlRule === "show" || b.style.urlRule === "hide"));
-  return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8", ...(gated ? { "Cache-Control": "private, no-store" } : {}) } });
+  // A password-protected page, once unlocked, is not kept by any shared cache either.
+  return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8", ...(gated || page.password_hash ? { "Cache-Control": "private, no-store" } : {}) } });
 }
 
 async function renderArticle(env, article, navItems, previewReason = null, isAdmin = false) {
@@ -891,7 +894,7 @@ async function renderNotFound(env, navItems, missingPath = null) {
     getSiteContext(env),
     listArticles(env, { publishedOnly: true, limit: 5 }),
     // A mistyped address usually has one obvious neighbour: offered first, before the generic lists.
-    missingPath ? listLinkTargets(env).then((targets) => suggestNearest(missingPath, targets)).catch(() => null) : null,
+    missingPath ? listLinkTargets(env, { publicOnly: true }).then((targets) => suggestNearest(missingPath, targets)).catch(() => null) : null,
   ]);
   const bodyHtml = `<div class="block">
     ${renderNotFoundHtml(navItems, recentArticles, suggestion)}
