@@ -7982,3 +7982,8 @@ button[data-tier="quiet"] { border-color: transparent; }
 .dash-week-n { font-variant-numeric: tabular-nums; color: var(--text-dim); }
 .dash-item-static { display: flex; justify-content: space-between; gap: 10px; padding: 6px 8px; cursor: default; font-size: 13.3333px; }
 .dash-top-articles .dash-item-meta { text-transform: none; }
+
+/* ---- Photo editor: histogram ---- */
+.pe-histogram summary { cursor: pointer; font-size: 0.8rem; color: var(--text-dim); }
+.pe-histogram canvas { display: block; width: 256px; max-width: 100%; height: 80px; margin-top: 6px; border: 1px solid var(--border); border-radius: 4px; }
+.pe-histogram-text { margin: 4px 0 0; font-size: 0.75rem; color: var(--text-dim); max-width: 256px; }

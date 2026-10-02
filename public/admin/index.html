@@ -1504,6 +1504,20 @@
               <label>Contrast <input type="range" id="pe-contrast" min="-100" max="100" value="0"></label>
               <label>Saturation <input type="range" id="pe-saturate" min="-100" max="100" value="0"></label>
             </div>
+            <div class="pe-tool-group" id="pe-color-group" role="group" aria-label="Colour and tone">
+              <span class="pe-group-label">Colour &amp; tone</span>
+              <label title="Warmer (orange) to the right, cooler (blue) to the left">Warmth <input type="range" id="pe-warmth" min="-100" max="100" value="0" aria-valuetext="0"></label>
+              <label title="Magenta to the right, green to the left">Tint <input type="range" id="pe-tint" min="-100" max="100" value="0" aria-valuetext="0"></label>
+              <label title="Turn every colour round the colour wheel, in degrees">Hue <input type="range" id="pe-hue" min="-180" max="180" value="0" aria-valuetext="0 degrees"></label>
+              <button type="button" id="pe-apply-color" title="Apply the warmth, tint and hue above to the whole active layer (or only inside the selection), then reset the sliders. One Undo step">Apply colour</button>
+              <label title="Right darkens the corners, left lightens them">Vignette <input type="range" id="pe-vignette" min="-100" max="100" value="40" aria-valuetext="40"></label>
+              <button type="button" id="pe-apply-vignette" title="Darken (or lighten) toward the corners across the whole active layer (or only inside the selection), by the amount set. One Undo step">Add vignette</button>
+            </div>
+            <details class="pe-tool-group pe-histogram" id="pe-histogram">
+              <summary>Histogram</summary>
+              <canvas id="pe-histogram-canvas" width="256" height="80" role="img" aria-label="Histogram of the picture's tones"></canvas>
+              <p id="pe-histogram-text" class="pe-histogram-text"></p>
+            </details>
             <div class="pe-tool-group">
               <span class="pe-group-label">Adjust presets</span>
               <select id="pe-apply-preset" title="Apply a saved brightness/contrast/saturation preset">
@@ -2486,6 +2500,7 @@
 
 <script src="/admin/period-compare.js"></script>
 <script src="/admin/app.js"></script>
+<script src="/admin/photo-color.js"></script>
 <script src="/admin/photo-editor.js"></script>
 <script src="/admin/sim-solver.js"></script>
   <script src="/admin/sim-schematic.js"></script>

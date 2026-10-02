@@ -3314,6 +3314,99 @@
     setLayerNote(`Auto levels stretched ${text} to 0-255${hasSelection() ? " (inside the selection; levels taken from the whole layer)" : ""}.`);
   }
   $("pe-filter-autolevels").addEventListener("click", applyAutoLevels);
+
+  // ---------- Colour & tone: warmth, tint, hue, vignette (maths in photo-color.js) ----------
+  const colorSliders = [["pe-warmth", ""], ["pe-tint", ""], ["pe-hue", " degrees"]];
+  colorSliders.forEach(([id, unit]) => $(id).addEventListener("input", () => $(id).setAttribute("aria-valuetext", `${$(id).value}${unit}`)));
+  $("pe-vignette").addEventListener("input", () => $("pe-vignette").setAttribute("aria-valuetext", $("pe-vignette").value));
+  // Both apply to the active layer, limited to the selection when there is one, as one Undo step, like Grain and Sharpen.
+  function applyPixelEdit(change) {
+    if (isComparing() || layerBlocked()) return false;
+    const w = canvas.width;
+    const h = canvas.height;
+    pushUndo();
+    const before = hasSelection() ? snapshotCanvas() : null;
+    const img = ctx.getImageData(0, 0, w, h);
+    change(img.data, w, h);
+    ctx.putImageData(img, 0, 0);
+    if (before) blendThroughSelection(before, snapshotCanvas());
+    cancelActiveDrag();
+    return true;
+  }
+  $("pe-apply-color").addEventListener("click", () => {
+    const opts = { warmth: Number($("pe-warmth").value), tint: Number($("pe-tint").value), hue: Number($("pe-hue").value) };
+    if (!opts.warmth && !opts.tint && !opts.hue) {
+      setLayerNote("Move Warmth, Tint or Hue first, then press Apply colour.");
+      return;
+    }
+    if (!applyPixelEdit((d) => window.PhotoColor.tweakPixels(d, opts))) return;
+    colorSliders.forEach(([id]) => { $(id).value = 0; $(id).setAttribute("aria-valuetext", id === "pe-hue" ? "0 degrees" : "0"); });
+    setLayerNote(`Applied warmth ${opts.warmth}, tint ${opts.tint}, hue ${opts.hue}°${hasSelection() ? " inside the selection" : ""}.`);
+    refreshHistogram();
+  });
+  $("pe-apply-vignette").addEventListener("click", () => {
+    const strength = Number($("pe-vignette").value);
+    if (!strength) {
+      setLayerNote("Set the Vignette amount away from 0 first.");
+      return;
+    }
+    if (!applyPixelEdit((d, w, h) => window.PhotoColor.vignettePixels(d, w, h, strength))) return;
+    setLayerNote(`${strength > 0 ? "Darkened" : "Lightened"} the corners (vignette ${strength})${hasSelection() ? " inside the selection" : ""}.`);
+    refreshHistogram();
+  });
+
+  // The histogram: how many pixels sit at each brightness, drawn from the whole picture as shown (every visible layer), shrunk first so
+  // a big picture costs little. It redraws twice a second while it is open, so it follows the Adjust sliders, brush strokes and Undo.
+  let histogramBusy = false;
+  function refreshHistogram() {
+    const det = $("pe-histogram");
+    if (!det.open || modal.hidden || histogramBusy) return;
+    histogramBusy = true;
+    try {
+      const src = flattenedCanvas();
+      const scale = Math.min(1, 256 / Math.max(src.width, src.height, 1));
+      const sw = Math.max(1, Math.round(src.width * scale));
+      const sh = Math.max(1, Math.round(src.height * scale));
+      const small = document.createElement("canvas");
+      small.width = sw;
+      small.height = sh;
+      const sctx = small.getContext("2d", { willReadFrequently: true });
+      sctx.drawImage(src, 0, 0, sw, sh);
+      const hist = window.PhotoColor.histogramOf(sctx.getImageData(0, 0, sw, sh).data);
+      const hc = $("pe-histogram-canvas");
+      const g = hc.getContext("2d");
+      g.clearRect(0, 0, hc.width, hc.height);
+      g.fillStyle = "rgba(128,128,128,0.18)";
+      g.fillRect(0, 0, hc.width, hc.height);
+      // Scale to the tallest bin that isn't one of the two ends, so a pile of pure black or white doesn't flatten everything else.
+      let peak = 1;
+      for (let i = 1; i < 255; i++) peak = Math.max(peak, hist.lum[i], hist.r[i], hist.g[i], hist.b[i]);
+      const y = (v) => hc.height - Math.min(1, v / peak) * (hc.height - 2);
+      const plot = (series, fill) => {
+        g.beginPath();
+        g.moveTo(0, hc.height);
+        for (let i = 0; i < 256; i++) g.lineTo(i, y(series[i]));
+        g.lineTo(255, hc.height);
+        g.closePath();
+        g.fillStyle = fill;
+        g.fill();
+      };
+      g.globalCompositeOperation = "source-over";
+      plot(hist.lum, "rgba(200,200,200,0.55)");
+      g.globalCompositeOperation = "lighter";
+      plot(hist.r, "rgba(255,40,40,0.32)");
+      plot(hist.g, "rgba(40,255,40,0.32)");
+      plot(hist.b, "rgba(60,90,255,0.32)");
+      g.globalCompositeOperation = "source-over";
+      const text = window.PhotoColor.describeHistogram(hist);
+      $("pe-histogram-text").textContent = text;
+      hc.setAttribute("aria-label", `Histogram of the picture's tones: ${text}`);
+    } finally {
+      histogramBusy = false;
+    }
+  }
+  $("pe-histogram").addEventListener("toggle", refreshHistogram);
+  setInterval(refreshHistogram, 500);
   $("pe-redact-pixelate").addEventListener("click", () => redactSelection("pixelate"));
   $("pe-redact-blur").addEventListener("click", () => redactSelection("blur"));
   $("pe-redact-box").addEventListener("click", () => redactSelection("box"));
