@@ -7956,3 +7956,4 @@ button[data-tier="quiet"] { border-color: transparent; }
 .sweep-now { stroke: var(--text-dim); stroke-width: 1.5; stroke-dasharray: 5 4; }
 .sweep-now-text { fill: var(--text-dim); font-size: 11px; }
 .sim-sweep-form label[hidden], .sim-sweep-form[hidden], .sim-sweep-result[hidden] { display: none; }
+.song-generators { margin: 0 0 0.5rem; } .song-generators > summary { cursor: pointer; font-size: 0.85rem; color: var(--text-dim); margin-bottom: 0.4rem; }

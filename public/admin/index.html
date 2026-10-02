@@ -1990,15 +1990,18 @@
           <button type="button" id="song-pattern-clear" class="song-track-toggle" title="Remove every hit (undoable)">Clear</button>
           <span id="song-pattern-status" class="sim-sr-only" role="status"></span>
         </div>
-        <div class="song-pattern-tools" role="group" aria-label="Pattern generators">
-          <label>Starter beat <select id="song-starter-beat"></select></label>
-          <button type="button" id="song-starter-apply" class="song-track-toggle" title="Replace the drums chosen under Apply to with this beat (undoable)">Use beat</button>
-          <label>Hits <input type="number" id="song-euclid-hits" min="0" max="16" step="1" value="5" inputmode="numeric" title="How many hits to spread evenly over the 16 steps"></label>
-          <label>Rotate <input type="number" id="song-euclid-rotate" min="0" max="15" step="1" value="0" inputmode="numeric" title="Move the pattern this many steps later"></label>
-          <button type="button" id="song-euclid-apply" class="song-track-toggle" title="Replace the drums chosen under Apply to with the hits spread as evenly as possible (a Euclidean rhythm, undoable)">Spread evenly</button>
-        </div>
         <div id="song-sequencer-ruler" class="song-ruler" aria-hidden="true"></div>
         <div id="song-sequencer" class="song-sequencer"></div>
+        <details class="song-generators" id="song-generators">
+          <summary>Starter beats and rhythm generator</summary>
+          <div class="song-pattern-tools" role="group" aria-label="Pattern generators">
+            <label>Starter beat <select id="song-starter-beat"></select></label>
+            <button type="button" id="song-starter-apply" class="song-track-toggle" title="Replace the drums chosen under Apply to with this beat (undoable)">Use beat</button>
+            <label>Hits <input type="number" id="song-euclid-hits" min="0" max="16" step="1" value="5" inputmode="numeric" title="How many hits to spread evenly over the 16 steps"></label>
+            <label>Rotate <input type="number" id="song-euclid-rotate" min="0" max="15" step="1" value="0" inputmode="numeric" title="Move the pattern this many steps later"></label>
+            <button type="button" id="song-euclid-apply" class="song-track-toggle" title="Replace the drums chosen under Apply to with the hits spread as evenly as possible (a Euclidean rhythm, undoable)">Spread evenly</button>
+          </div>
+        </details>
         <h2 class="song-section-heading">Melody (piano roll)
           <span class="song-transpose-controls">
             <button type="button" id="song-melody-mute" class="song-track-toggle" aria-pressed="false" aria-label="Mute melody" title="Mute the melody: silent in the preview and on the public page">Mute</button>
