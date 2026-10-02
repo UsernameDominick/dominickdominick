@@ -1871,6 +1871,8 @@
         </div>
       </header>
       <div class="song-builder-body">
+        <details class="song-preview-fold" id="song-preview-fold" open>
+        <summary>Preview and clipping history</summary>
         <h2 class="song-section-heading">Preview (as it appears on the page)</h2>
         <div class="song-embed" id="song-preview-embed">
           <div class="song-embed-header"><strong id="song-preview-name">Song name</strong><span class="song-preview-note">live preview — use Play above</span></div>
@@ -1885,6 +1887,7 @@
           <ul id="song-clip-list" class="song-clip-list" hidden></ul>
           <p id="song-clip-dropped" class="song-clip-note" hidden></p>
           <button type="button" id="song-clip-clear" disabled>Clear history</button>
+        </details>
         </details>
         <span id="song-clip-status" class="song-clip-status" role="status"></span>
         <div class="song-pattern-tools" role="group" aria-label="Step strength">

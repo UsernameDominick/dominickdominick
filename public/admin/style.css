@@ -7677,5 +7677,13 @@ button[data-tier="quiet"] { border-color: transparent; }
   .simulation-builder-inner:not(.sim-more-open) .song-toolbar .sim-toolbar-more { order: 7; }
   .simulation-builder-inner:not(.sim-more-open) .song-toolbar .song-autosave-status:not(:empty) { display: block; flex: 0 0 100%; order: 10; margin: 0; font-size: 0.78rem; text-align: center; }
   .simulation-builder-inner:not(.sim-more-open) .song-toolbar .simulation-name-input { flex: 1 1 0; min-width: 0; }
-  .song-toolbar .sim-quick { font-size: 0.9rem; }
+  .song-toolbar .sim-quick { font-size: 0.9rem; white-space: nowrap; }
+
+  /* Preview card + clipping history: one closed fold on a phone (the summary is hidden on desktop, where it is always open). */
+  .song-preview-fold { margin: 0 0 8px; }
+  .song-preview-fold > summary { cursor: pointer; min-height: 40px; display: flex; align-items: center; padding: 6px 10px; color: var(--text-dim); font-size: 0.9rem; border: 1px solid var(--border); border-radius: var(--control-radius); }
+  .song-preview-fold[open] > summary { margin-bottom: 8px; }
+}
+@media (min-width: 861px) {
+  .song-preview-fold > summary { display: none; }
 }

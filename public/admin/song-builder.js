@@ -2670,8 +2670,17 @@
       moreBtn.querySelector(".sim-more-caret").textContent = open ? "▴" : "▾";
     };
     moreBtn.addEventListener("click", () => setMore(!inner.classList.contains("sim-more-open")));
+    // The preview card and clipping history fold away on a phone so the drum grid is in reach; desktop always shows them.
+    const fold = $("song-preview-fold");
+    const wide = window.matchMedia("(min-width: 861px)");
+    wide.addEventListener("change", (e) => {
+      if (e.matches) fold.open = true;
+    });
     new MutationObserver(() => {
-      if (!$("song-builder-modal").hidden) setMore(false);
+      if (!$("song-builder-modal").hidden) {
+        setMore(false);
+        fold.open = wide.matches;
+      }
     }).observe($("song-builder-modal"), { attributes: true, attributeFilter: ["hidden"] });
   }
 })();
