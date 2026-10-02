@@ -1,4 +1,4 @@
-import { listArticles, listProjects, getSimulation, getScan, getSong, getMediaMeta } from "./db.js";
+import { listArticles, listProjects, getPublishedSimulation, getScan, getSong, getMediaMeta } from "./db.js";
 import { nowIso, visibleText } from "./text.js";
 import { renderSimulationSvg } from "./simulation-render.js";
 
@@ -1410,8 +1410,10 @@ async function renderBlockInner(env, block, ctx) {
     }
     case "simulation": {
       if (!c.simulation_id) return `<p class="empty-hint">No simulation selected.</p>`;
-      const sim = await getSimulation(env, c.simulation_id);
-      // A deleted simulation is a broken reference, not something a real
+      // Only the published snapshot is ever public: a draft simulation (never published, or unpublished since) stays
+      // hidden here exactly as it does on its own page and in a project's Related list.
+      const sim = await getPublishedSimulation(env, c.simulation_id);
+      // A deleted or unpublished simulation is a broken reference, not something a real
       // visitor should ever see an error about — the whole block is
       // skipped (see renderBlocks' null check) rather than showing an
       // "X not found" message and still reserving its grid space.
