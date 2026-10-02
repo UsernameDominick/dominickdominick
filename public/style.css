@@ -3989,3 +3989,37 @@ pre.has-line-numbers {
 .sim-about-part:hover {
   color: var(--accent);
 }
+
+/* Image viewer (public/lightbox.js): a picture opened larger. */
+img.lb-zoomable { cursor: zoom-in; }
+img.lb-zoomable:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+html.lightbox-open { overflow: hidden; }
+.lightbox {
+  position: fixed; inset: 0; width: 100vw; max-width: none; height: 100vh; height: 100dvh; max-height: none; margin: 0; padding: 0; border: 0;
+  background: rgba(0, 0, 0, 0.92); color: #fff; overflow: hidden;
+}
+.lightbox[open] { display: flex; align-items: center; justify-content: center; }
+.lightbox::backdrop { background: rgba(0, 0, 0, 0.92); }
+.lightbox-figure { margin: 0; max-width: min(96vw, 1600px); max-height: 100%; display: flex; flex-direction: column; align-items: center; padding: 56px 0 44px; box-sizing: border-box; }
+.lightbox-img { display: block; max-width: 100%; max-height: calc(100vh - 150px); max-height: calc(100dvh - 150px); width: auto; height: auto; object-fit: contain; border-radius: 6px; }
+.lightbox-caption { margin-top: 10px; max-width: 70ch; text-align: center; font-size: 0.95rem; line-height: 1.45; color: #e8e2f2; overflow-wrap: anywhere; }
+.lightbox-caption[hidden], .lightbox-count[hidden], .lightbox-nav[hidden] { display: none; }
+.lightbox-close, .lightbox-nav {
+  position: absolute; display: grid; place-items: center; min-width: 44px; min-height: 44px; padding: 0; border: 1px solid rgba(255, 255, 255, 0.35); border-radius: 50%;
+  background: rgba(20, 16, 30, 0.75); color: #fff; font-size: 1.7rem; line-height: 1; cursor: pointer;
+}
+.lightbox-close:hover, .lightbox-nav:hover { background: rgba(60, 50, 80, 0.9); }
+.lightbox-close:focus-visible, .lightbox-nav:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.lightbox-close { top: 12px; right: 12px; }
+.lightbox-nav { top: 50%; transform: translateY(-50%); }
+.lightbox-prev { left: 12px; }
+.lightbox-next { right: 12px; }
+.lightbox-count { position: absolute; left: 0; right: 0; bottom: 10px; margin: 0; text-align: center; font-size: 0.85rem; color: #d6cfe3; }
+@media (max-width: 640px) {
+  .lightbox-nav { top: auto; bottom: 8px; transform: none; }
+  .lightbox-prev { left: 12px; }
+  .lightbox-next { right: 12px; }
+  .lightbox-figure { padding: 56px 0 64px; }
+  .lightbox-img { max-height: calc(100vh - 190px); max-height: calc(100dvh - 190px); }
+}
+@media print { .lightbox { display: none !important; } }

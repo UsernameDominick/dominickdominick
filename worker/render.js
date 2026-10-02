@@ -1504,7 +1504,7 @@ async function renderBlockInner(env, block, ctx) {
       // instead of waiting to find out it is on screen (the checks run before any await, so this follows the page's block order).
       const firstImage = !!ctx && !ctx.firstImageSeen;
       if (ctx) ctx.firstImageSeen = true;
-      const rawImg = `<img src="${esc(c.url)}" alt="${esc(c.alt)}" ${firstImage ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"'}${await imgSizeAttrs(env, c.url)} style="max-width:100%;border-radius:12px;">`;
+      const rawImg = `<img class="block-image" src="${esc(c.url)}" alt="${esc(c.alt)}" ${firstImage ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"'}${await imgSizeAttrs(env, c.url)} style="max-width:100%;border-radius:12px;">`;
       const img = c.frame === "browser"
         ? `<div class="device-frame device-frame-browser"><div class="device-frame-bar"><span></span><span></span><span></span></div><div class="device-frame-body">${rawImg}</div></div>`
         : c.frame === "phone"
@@ -2102,6 +2102,8 @@ function pageScriptsHtml(bodyHtml) {
   if (html.includes("song-embed")) {
     tags.push('<script src="/song-engine.js" defer></script>', '<script src="/song-embed.js" defer></script>');
   }
+  // Pictures a reader can open larger: an image block, a gallery, or a picture written into the text.
+  if (/class="(?:block-image|gallery)"|body-figure|image-figure/.test(html)) tags.push('<script src="/lightbox.js" defer></script>');
   return tags.join("\n");
 }
 
