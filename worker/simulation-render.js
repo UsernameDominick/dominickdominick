@@ -1,4 +1,5 @@
 import "../public/admin/sim-solver.js"; // the general network solver (attaches globalThis.SimSolver); shared with the admin builder
+import "../public/admin/sim-schematic.js"; // schematic symbols (attaches globalThis.SimSchematic); shared with the admin builder
 
 // Component library for the simulation builder/renderer. This models real
 // breadboard topology (separate power rails vs. individually-wired terminal
@@ -814,6 +815,16 @@ export function validateComponentOrientations(data) {
   }
   return null;
 }
+
+// Every part with a schematic symbol (sim-schematic.js, shared with the admin builder) draws both versions; CSS shows the
+// pictorial art or the symbol depending on whether the circuit has the `is-schematic` class.
+Object.keys(globalThis.SimSchematic.symbols).forEach((type) => {
+  const def = SIM_COMPONENTS[type];
+  if (!def) return;
+  const pictorial = def.render;
+  const symbol = globalThis.SimSchematic.symbols[type];
+  def.render = (c) => `<g class="sim-art-real">${pictorial(c)}</g><g class="sim-art-schem">${symbol(c || {}, { ledOnColor: (LED_COLORS[c && c.color] || LED_COLORS.red).onColor })}</g>`;
+});
 
 export function getSimulationComponentDefinition(comp) {
   if (!comp || typeof comp !== "object" || Array.isArray(comp) || typeof comp.type !== "string" || !Object.hasOwn(SIM_COMPONENTS, comp.type)) return null;

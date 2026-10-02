@@ -1,5 +1,40 @@
+// ---------- Schematic view ----------
+// Swaps the pictorial parts for standard schematic symbols (both are drawn into the page; CSS shows one). The choice is
+// remembered in this browser and applies to every circuit on the page.
+(function () {
+  const KEY = "sim-schematic";
+  const read = () => {
+    try {
+      return localStorage.getItem(KEY) === "1";
+    } catch (e) {
+      return false;
+    }
+  };
+  const apply = (on) => {
+    document.querySelectorAll(".sim-svg").forEach((svg) => svg.classList.toggle("is-schematic", on));
+    document.querySelectorAll(".sim-view-btn").forEach((b) => {
+      b.setAttribute("aria-pressed", String(on));
+    });
+  };
+  document.addEventListener("DOMContentLoaded", () => {
+    if (read()) apply(true);
+  });
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest(".sim-view-btn");
+    if (!btn) return;
+    const on = btn.getAttribute("aria-pressed") !== "true";
+    try {
+      localStorage.setItem(KEY, on ? "1" : "0");
+    } catch (err) {
+      /* not remembered, still applied now */
+    }
+    apply(on);
+    if (window.trackEvent) window.trackEvent("sim_schematic_toggle", on ? "on" : "off");
+  });
+})();
+
 document.addEventListener("click", (e) => {
-  const btn = e.target.closest(".sim-power-btn");
+  const btn = e.target.closest(".sim-power-btn:not(.sim-view-btn)");
   if (!btn) return;
   const svg = document.getElementById(btn.dataset.target);
   if (!svg) return;

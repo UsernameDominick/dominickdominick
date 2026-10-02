@@ -776,6 +776,19 @@ const TRANSISTOR_WATTAGE_RATING = 0.625; // TO-92 package
     },
   };
 
+  // Every part with a schematic symbol (sim-schematic.js, shared with the public page) draws both versions; CSS shows the
+  // pictorial art or the symbol depending on whether the canvas has the `is-schematic` class.
+  if (window.SimSchematic) {
+    Object.keys(window.SimSchematic.symbols).forEach((type) => {
+      const def = window.SIM_COMPONENTS[type];
+      if (!def) return;
+      const pictorial = def.render;
+      const symbol = window.SimSchematic.symbols[type];
+      def.render = (c) =>
+        `<g class="sim-art-real">${pictorial(c)}</g><g class="sim-art-schem">${symbol(c || {}, { ledOnColor: window.LED_COLORS[c && c.color] ? window.LED_COLORS[c.color].onColor : window.LED_COLORS.red.onColor })}</g>`;
+    });
+  }
+
   function getSimComponentDefinition(comp) {
     if (
       !comp ||

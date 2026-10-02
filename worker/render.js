@@ -1429,7 +1429,9 @@ async function renderBlockInner(env, block, ctx) {
       const descHtml = c.description ? `<p id="${esc(descId)}" class="sr-only">${esc(c.description)}</p>` : "";
       return `<div class="sim-block-wrap">${descHtml}${svg}<button type="button" class="sim-power-btn" data-target="${esc(
         uid
-      )}">Power on</button></div>`;
+      )}">Power on</button><button type="button" class="sim-power-btn sim-view-btn" aria-pressed="false" data-target="${esc(
+        uid
+      )}">Schematic view</button></div>`;
     }
     case "scan": {
       if (!c.scan_id) return `<p class="empty-hint">No 3D scan selected.</p>`;

@@ -32,6 +32,13 @@
   // and future simData-mutating call site to remember to also clear this.
   let continuityLastProbe = null; // { compIdA, pinA, nodeA, compIdB, pinB, nodeB }
   let previewOn = false;
+  // Schematic view: standard symbols instead of the pictorial art (a viewing choice, remembered per browser, not saved with the circuit).
+  let schematicView = false;
+  try {
+    schematicView = localStorage.getItem("sim-schematic") === "1";
+  } catch (e) {
+    /* storage blocked: the pictorial view is fine */
+  }
   let localIdCounter = 1;
   let placeX = 20;
   let placeY = 20;
@@ -1430,7 +1437,7 @@
     const { width: canvasWidth, height: canvasHeight } = getSimulationCanvasBounds(simData.components);
     $("sim-builder-canvas").innerHTML = `<svg id="sim-builder-svg" viewBox="0 0 ${canvasWidth} ${canvasHeight}" xmlns="http://www.w3.org/2000/svg" class="sim-svg${
       previewOn ? " is-on" : ""
-    }">${window.SIM_DEFS_SVG}${wiresSvg}${compsSvg}${ghostWiresSvg}${pinsSvg}</svg>`;
+    }${schematicView ? " is-schematic" : ""}">${window.SIM_DEFS_SVG}${wiresSvg}${compsSvg}${ghostWiresSvg}${pinsSvg}</svg>`;
     attachBuilderEvents();
     applyZoom();
     updateCanvasSearchCount();
@@ -1446,6 +1453,8 @@
     // button's DOM class on its own -- can't leave a stale "active" look
     // on a toggle that's actually back off.
     $("sim-show-ghost-wires").classList.toggle("is-active", showGhostWires);
+    $("sim-schematic-toggle").classList.toggle("is-active", schematicView);
+    $("sim-schematic-toggle").setAttribute("aria-pressed", String(schematicView));
     $("sim-continuity-test").classList.toggle("is-active", continuityMode);
   }
 
@@ -1869,6 +1878,16 @@
 
   $("sim-show-ghost-wires").addEventListener("click", () => {
     showGhostWires = !showGhostWires;
+    renderBuilder();
+  });
+
+  $("sim-schematic-toggle").addEventListener("click", () => {
+    schematicView = !schematicView;
+    try {
+      localStorage.setItem("sim-schematic", schematicView ? "1" : "0");
+    } catch (e) {
+      /* not remembered, still applied now */
+    }
     renderBuilder();
   });
 
@@ -4162,6 +4181,8 @@
       // mobile admin's own default zoom level, not just a manual-zoom
       // edge case.
       svgClone.querySelectorAll(".sim-lock-badge").forEach((node) => node.remove()); // editor-only marker
+      // Both the pictorial art and the schematic symbol are in the DOM (CSS shows one); a standalone image has no CSS, so keep only the visible one.
+      svgClone.querySelectorAll(svg.classList.contains("is-schematic") ? ".sim-art-real" : ".sim-art-schem").forEach((node) => node.remove());
       svgClone.style.width = "";
       svgClone.style.height = "";
       svgClone.setAttribute("width", vb.width);
@@ -4330,7 +4351,7 @@
   }
   simMoreBtn.addEventListener("click", () => setSimMore(!simBuilderInner.classList.contains("sim-more-open")));
   // Tools that act on the canvas close the panel so the result is in view; opening a simulation starts it closed.
-  ["sim-show-disconnected", "sim-show-ghost-wires", "sim-continuity-test", "sim-view-go", "sim-checkpoint-restore"].forEach((id) => {
+  ["sim-show-disconnected", "sim-show-ghost-wires", "sim-schematic-toggle", "sim-continuity-test", "sim-view-go", "sim-checkpoint-restore"].forEach((id) => {
     const el = $(id);
     if (el) el.addEventListener("click", () => setSimMore(false));
   });

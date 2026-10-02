@@ -106,6 +106,9 @@ Worker secret, not stored in this repo). From there:
   nodes, or a wall outlet, which keeps the one-path mains rules) or the probes aren't
   both in it. A backwards LED or diode blocks its loop: no current flows and its
   inspector says so.
+  **Schematic view** (a button in the builder's Test & view group, and beside Power on on the
+  public page) redraws the parts as standard symbols (zigzag resistors, diode triangles, circle
+  meters) with the leads on the same pins; the choice is remembered per browser.
   Dragging an LED or resistor near a breadboard hole snaps it into place
   and plugs it in automatically, like a real breadboard.
   Select a part and press **R** (Shift+R the other way) to rotate it 90°, or **F** to flip it left to right

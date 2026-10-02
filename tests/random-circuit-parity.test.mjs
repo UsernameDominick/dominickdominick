@@ -4,6 +4,7 @@ import * as W from "../worker/simulation-render.js";
 const window = {};
 const ctx = vm.createContext({ window, console, Math, Number, String, Object, Array, Set, Map, JSON, Infinity, NaN, Float64Array, CSS: { escape: (s) => s } });
 vm.runInContext(fs.readFileSync(new URL("../public/admin/sim-solver.js", import.meta.url), "utf8"), ctx);
+vm.runInContext(fs.readFileSync(new URL("../public/admin/sim-schematic.js", import.meta.url), "utf8"), ctx);
 vm.runInContext(fs.readFileSync(new URL("../public/admin/sim-components.js", import.meta.url), "utf8"), ctx);
 let fail = 0;
 const ok = (c, m, extra) => { if (!c) fail++; console.log(`${c ? "PASS" : "FAIL"} — ${m}${extra !== undefined ? " " + JSON.stringify(extra) : ""}`); };
