@@ -1611,7 +1611,7 @@
     <div class="modal-inner simulation-builder-inner">
       <header class="sim-toolbar">
         <input id="simulation-name" class="simulation-name-input" placeholder="Simulation name">
-        <button type="button" id="sim-toolbar-more" class="sim-toolbar-more" aria-expanded="false" aria-controls="sim-toolbar-groups" title="Checkpoints, views, import and export, build checklist, model notes and more">More ▾</button>
+        <button type="button" id="sim-toolbar-more" class="sim-toolbar-more" aria-expanded="false" aria-controls="sim-toolbar-groups" title="Checkpoints, views, import and export, build checklist, model notes and more">More <span class="sim-more-caret" aria-hidden="true">▾</span></button>
         <div id="sim-toolbar-groups" class="sim-toolbar-groups">
           <div class="sim-toolbar-group" data-group="history">
             <span class="sim-toolbar-group-label">History</span>
@@ -1768,8 +1768,8 @@
       <span id="song-tab-status" class="song-tab-status" role="status"></span>
       <header class="sim-toolbar song-toolbar">
         <input id="song-name" class="simulation-name-input" placeholder="Song name">
-        <button type="button" id="song-toolbar-more" class="sim-toolbar-more" aria-expanded="false" title="Sound, player look, metronome, export and more">More ▾</button>
-        <div class="sim-toolbar-group sim-toolbar-group-save">
+        <button type="button" id="song-toolbar-more" class="sim-toolbar-more" aria-expanded="false" aria-controls="song-toolbar-groups song-save-group" title="Sound, player look, metronome, export and more">More <span class="sim-more-caret" aria-hidden="true">▾</span></button>
+        <div id="song-save-group" class="sim-toolbar-group sim-toolbar-group-save">
           <span class="sim-toolbar-group-label">Save</span>
           <div class="song-group-controls">
             <button type="button" class="sim-quick" id="save-song">Save</button>
@@ -1781,7 +1781,7 @@
           <button type="button" class="editor-help-btn" data-help="song" aria-label="Help for the Song builder" title="Tips and shortcuts for this editor">?</button>
           <button id="close-song-builder" aria-label="Close Song builder dialog">×</button>
         </span>
-        <div class="sim-toolbar-groups">
+        <div id="song-toolbar-groups" class="sim-toolbar-groups">
           <div class="sim-toolbar-group" data-group="history">
             <span class="sim-toolbar-group-label">Edit</span>
             <div class="sim-toolbar-group-buttons">

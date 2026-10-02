@@ -3638,8 +3638,10 @@ kbd {
 
 /* Desktop: name, Save and close share the top row; the tool groups get
    the full width underneath instead of being squeezed beside the name
-   field, which made Checkpoints and Test & view overflow their boxes. */
-@media (min-width: 641px) {
+   field, which made Checkpoints and Test & view overflow their boxes.
+   Only from 861px up: at phone and landscape-phone widths the quick bar
+   below lays the header out as wrapping flex rows instead. */
+@media (min-width: 861px) {
   .simulation-builder-inner header.sim-toolbar {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;
@@ -7605,8 +7607,8 @@ button[data-tier="quiet"] { border-color: transparent; }
   .simulation-builder-inner:not(.sim-more-open) .sim-toolbar-group-buttons,
   .simulation-builder-inner:not(.sim-more-open) .sim-toolbar-group-save { display: contents; }
   .simulation-builder-inner:not(.sim-more-open) .sim-toolbar-group-label { display: none; }
-  .simulation-builder-inner:not(.sim-more-open) .sim-toolbar-group-buttons > *:not(.sim-quick),
-  .simulation-builder-inner:not(.sim-more-open) .sim-toolbar-group-save .sim-toolbar-group-buttons > *:not(.sim-quick) { display: none; }
+  .simulation-builder-inner:not(.sim-more-open) .sim-toolbar-group-buttons > *:not(.sim-quick):not(.sim-sr-only),
+  .simulation-builder-inner:not(.sim-more-open) .sim-toolbar-group-save .sim-toolbar-group-buttons > *:not(.sim-quick):not(.sim-sr-only) { display: none; }
   .simulation-builder-inner:not(.sim-more-open) .sim-toolbar::before,
   .simulation-builder-inner:not(.sim-more-open) .sim-toolbar::after { content: ""; flex: 0 0 100%; height: 0; }
   .simulation-builder-inner:not(.sim-more-open) .sim-toolbar::before { order: 2; }
@@ -7621,6 +7623,9 @@ button[data-tier="quiet"] { border-color: transparent; }
   /* Readouts that only exist once something has happened still show. */
   .simulation-builder-inner:not(.sim-more-open) #sim-save-status:not(:empty),
   .simulation-builder-inner:not(.sim-more-open) #sim-continuity-result:not(:empty) { display: block; flex: 0 0 100%; order: 10; margin: 0; font-size: 0.78rem; text-align: center; }
+  /* Empty, they stay in the accessibility tree (a live region that is display:none never announces its first words). */
+  .simulation-builder-inner:not(.sim-more-open) #sim-save-status:empty,
+  .simulation-builder-inner:not(.sim-more-open) #sim-continuity-result:empty { display: block; position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
   .simulation-builder-inner:not(.sim-more-open) #sim-poster-row { display: none; }
 
   /* Expanded: the full grouped tools, directly under the name row, in compact two-column cards. */
@@ -7645,6 +7650,15 @@ button[data-tier="quiet"] { border-color: transparent; }
   .simulation-builder-inner .sim-inspector-panel { padding: 10px 12px 18px; }
   .sim-help-more { margin-top: 6px; font-size: 0.85rem; color: var(--text-dim); }
   .sim-help-more summary { cursor: pointer; padding: 6px 0; }
+
+  /* Small controls that were about 20-28px: close, help, zoom and the minimap toggle get a fingertip-sized hit area. */
+  .simulation-builder-inner header .editor-help-btn { min-width: 40px; height: 40px; }
+  .simulation-builder-inner header #close-simulation-builder,
+  .simulation-builder-inner header #close-song-builder { min-width: 40px; min-height: 40px; }
+  .sim-zoom-controls button { min-width: 40px; min-height: 40px; }
+  /* The minimap toggle sits on top of a small map, so it only grows to the 24px WCAG minimum (a bigger one hides the map). */
+  .sim-minimap-toggle { width: 24px; height: 24px; }
+  .sim-minimap-dock.is-collapsed .sim-minimap-toggle { width: auto; height: auto; min-height: 36px; }
 }
 .sim-help-more { margin-top: 6px; }
 .sim-help-more summary { cursor: pointer; color: var(--text-dim); font-size: 0.85rem; }

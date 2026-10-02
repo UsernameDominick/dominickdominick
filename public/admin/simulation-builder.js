@@ -1864,7 +1864,8 @@
     wireStart = null;
     continuityProbe = null;
     continuityLastProbe = null;
-    $("sim-continuity-result").textContent = "";
+    // The tool panel closes on a phone, so say what to do next where it stays visible.
+    $("sim-continuity-result").textContent = continuityMode ? "Continuity test: tap two pins." : "";
     $("sim-continuity-result").classList.remove("sim-continuity-yes", "sim-continuity-no");
     renderBuilder();
   });
@@ -2880,7 +2881,7 @@
     if (!selected) {
       box.innerHTML =
         "<p style='color:var(--text-dim);font-size:0.85rem;'>Click a part or a wire to edit it. Click a pin, then another pin, to wire them. Shift+click parts, or drag a box over empty canvas, to select several at once. With a part selected, press R to rotate it, Shift+R to rotate the other way, or F to flip it.</p>" +
-        "<details class='sim-help-more'><summary>How breadboards and power work</summary><p style='color:var(--text-dim);font-size:0.85rem;'>Breadboards are available in 15, 30, or 45 columns; older simulations default to 30. Each terminal column connects only its own five-hole group. The top rails and bottom rails aren't connected to each other either. Wire outlet → power supply → a rail → a column → resistor bridging to another column → LED → back to the other rail.</p>" +
+        "<details class='sim-help-more'" + (window.matchMedia("(min-width: 861px)").matches ? " open" : "") + "><summary>How breadboards and power work</summary><p style='color:var(--text-dim);font-size:0.85rem;'>Breadboards are available in 15, 30, or 45 columns; older simulations default to 30. Each terminal column connects only its own five-hole group. The top rails and bottom rails aren't connected to each other either. Wire outlet → power supply → a rail → a column → resistor bridging to another column → LED → back to the other rail.</p>" +
         "<p style='color:var(--text-dim);font-size:0.85rem;'>Power needs a complete loop, and the numbers matter now: too little resistance burns out an LED, no resistor at all is a dead short, and wiring straight to the Wall Outlet (120V) destroys anything downstream — it must go through a Power Supply first. A backwards LED won't light even on an otherwise-complete loop, same as a real one.</p></details>";
       return;
     }
@@ -4250,10 +4251,14 @@
   // Phone toolbar: the "More" button opens and closes the full grouped tools (CSS does the rest).
   const simBuilderInner = document.querySelector(".simulation-builder-inner");
   const simMoreBtn = $("sim-toolbar-more");
+  const simToolGroups = $("sim-toolbar-groups");
   function setSimMore(open) {
+    // Closing hides the button that had focus (display:none drops focus to the page); hand it to More instead.
+    const hadFocus = !open && simToolGroups.contains(document.activeElement);
     simBuilderInner.classList.toggle("sim-more-open", open);
     simMoreBtn.setAttribute("aria-expanded", String(open));
-    simMoreBtn.textContent = open ? "Hide extra tools ▴" : "More ▾";
+    simMoreBtn.querySelector(".sim-more-caret").textContent = open ? "▴" : "▾";
+    if (hadFocus && simMoreBtn.offsetParent) simMoreBtn.focus({ preventScroll: true });
   }
   simMoreBtn.addEventListener("click", () => setSimMore(!simBuilderInner.classList.contains("sim-more-open")));
   // Tools that act on the canvas close the panel so the result is in view; opening a simulation starts it closed.
@@ -4261,10 +4266,6 @@
     const el = $(id);
     if (el) el.addEventListener("click", () => setSimMore(false));
   });
-  // (capture: close the panel first so the jump to a match scrolls against the final layout)
-  $("sim-canvas-search").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") setSimMore(false);
-  }, true);
   window.addEventListener("sim-builder-opened", () => setSimMore(false));
 
   $("simulation-name").addEventListener("input", refreshSimSaveState);

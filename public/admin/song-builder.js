@@ -2667,7 +2667,7 @@
     const setMore = (open) => {
       inner.classList.toggle("sim-more-open", open);
       moreBtn.setAttribute("aria-expanded", String(open));
-      moreBtn.textContent = open ? "Hide extra tools ▴" : "More ▾";
+      moreBtn.querySelector(".sim-more-caret").textContent = open ? "▴" : "▾";
     };
     moreBtn.addEventListener("click", () => setMore(!inner.classList.contains("sim-more-open")));
     new MutationObserver(() => {
