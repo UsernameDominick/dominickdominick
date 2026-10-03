@@ -13,6 +13,7 @@
   var MIN_H = 240;
   var PROGRESS_KEY = "study-progress:v1:";
   var ZOOM_KEY = "study-zoom:v1";
+  var WEAK_KEY = "study-weak:v1:"; // what the reader has missed, for building a practice set (kept apart from saved progress)
   var phone = window.matchMedia ? window.matchMedia("(max-width: 640px)") : { matches: false };
   var DIRS = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
   var registry = []; // {frame, api} for every study page on this page, so messages can be matched to their popup
@@ -42,6 +43,24 @@
   function clearProgress(lab) {
     delete memory[lab];
     try { window.localStorage.removeItem(PROGRESS_KEY + lab); } catch (e) { /* nothing stored */ }
+  }
+  var weakMemory = {};
+  function loadWeak(lab) {
+    try {
+      var raw = window.localStorage.getItem(WEAK_KEY + lab);
+      if (raw) return JSON.parse(raw);
+    } catch (e) { /* fall through to memory */ }
+    return weakMemory[lab] || null;
+  }
+  // The page sends its whole history; only an object of the expected shape and size is kept.
+  function storeWeak(lab, data) {
+    if (!data || typeof data !== "object" || Array.isArray(data) || data.v !== 1 || !data.q || typeof data.q !== "object" || Array.isArray(data.q)) return false;
+    var text;
+    try { text = JSON.stringify(data); } catch (e) { return false; }
+    if (text.length > 900000) return false;
+    weakMemory[lab] = data;
+    try { window.localStorage.setItem(WEAK_KEY + lab, text); } catch (e) { /* kept for this visit */ }
+    return true;
   }
   function loadZoom() {
     try {
@@ -309,6 +328,7 @@
       message: function (d) {
         if (d.study === "ready") {
           try { frame.contentWindow.postMessage({ study: "restore", state: loadProgress(lab) }, "*"); } catch (e) { /* gone */ }
+          try { frame.contentWindow.postMessage({ study: "weak-restore", data: loadWeak(lab) }, "*"); } catch (e) { /* gone */ }
           lastZoom = 0;
           applyZoom();
         } else if (d.study === "save") {
@@ -320,6 +340,8 @@
               showSaved();
             }
           }
+        } else if (d.study === "weak-save") {
+          storeWeak(lab, d.data);
         } else if (d.study === "corrupt") {
           // Saved progress the study page could not use: forget it and start the page again.
           clearProgress(lab);

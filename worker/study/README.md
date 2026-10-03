@@ -48,3 +48,13 @@ with the words `STUDY (temporary)`; find them with `grep -rn "STUDY (temporary)"
 
 Existing Study blocks left on pages simply render nothing once the code is gone (an unknown block type is skipped), but it is tidier
 to delete them from the pages first.
+
+## Weak spots
+
+The lab's home screen has a **Your weak spots** panel. Every answer (exam questions, Hard Mode, Study Lab quiz questions) is
+remembered per question: times seen, times missed, and right answers in a row since the last miss. The panel lists the weakest
+areas (exam objectives, lab quizzes) and builds practice sets from what keeps getting missed; a question leaves the set after three
+right answers in a row. Nothing leaves the device: the popup keeps the history in this browser under `study-weak:v1:<lab>`
+(separately from saved progress, so "Start over" does not wipe it), and the lab page asks the popup to store and return it with the
+`weak-save` / `weak-restore` messages (see `worker/study/bridges.js`). "Clear my history" in the panel wipes it. The lab's frame is
+sandboxed and cannot show browser pop-up boxes, so that confirmation is drawn on the page.

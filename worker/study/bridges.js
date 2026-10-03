@@ -1,8 +1,8 @@
 // STUDY (temporary): small scripts added to a study page when it is sent, so the popup can keep a reader's progress.
 // A study page (a sandboxed frame that cannot reach this site's storage) tells the popup its progress as it changes and is given it
 // back the next time it opens. Each study page needs its own bridge because each keeps its progress in its own way.
-// Messages: the page sends {study:"ready"}, {study:"save", state}, {study:"corrupt"}; the popup sends {study:"restore", state},
-// {study:"flush"}, {study:"zoom", value}.
+// Messages: the page sends {study:"ready"}, {study:"save", state}, {study:"corrupt"}, {study:"weak-save", data}; the popup sends
+// {study:"restore", state}, {study:"weak-restore", data}, {study:"flush"}, {study:"zoom", value}.
 
 // A bridge is plain browser code in a string. It must not contain a closing script tag.
 const CORE1_LAB_BRIDGE = `
@@ -56,6 +56,9 @@ const CORE1_LAB_BRIDGE = `
     if (!d || typeof d !== "object") return;
     if (d.study === "restore") {
       try { restore(d.state); } catch (err) { parent.postMessage({ study: "corrupt" }, "*"); }
+    } else if (d.study === "weak-restore") {
+      // What this reader has missed before (kept by the popup, separately from saved progress); the page checks it before using it.
+      try { if (typeof weakRestore === "function") weakRestore(d.data); } catch (err) {}
     } else if (d.study === "flush") {
       save();
     } else if (d.study === "zoom") {

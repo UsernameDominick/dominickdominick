@@ -763,6 +763,16 @@ button {
 .resume-panel .browse-link { margin-top: 4px; padding: 8px; }
 .back-btn.resume-back { background: var(--amber); border-color: var(--amber); color: #241a05; font-weight: 800; }
 .lab-panel { border-color: rgba(176,126,232,0.4); }
+.weak-panel { border-color: rgba(232,163,61,0.45); }
+.weak-panel .panel-title { color: var(--amber); }
+.weak-areas { list-style: none; margin: 8px 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.weak-areas li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 10px; padding: 8px 10px; border: 1px solid var(--border-soft); border-radius: 10px; background: var(--panel-2); font-size: 13px; }
+.weak-area-name { font-weight: 700; }
+.weak-area-count { font-family: var(--mono); font-size: 11.5px; color: var(--text-dim); }
+.weak-panel .start-btn { margin-top: 8px; }
+.weak-clear { margin-top: 12px; }
+.weak-clear-ask { margin-top: 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; }
+.weak-clear-ask span { flex: 1 1 220px; }
 .lab-run-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0 10px; padding: 8px 10px; border: 1px solid rgba(176,126,232,0.4); border-radius: 10px; background: var(--panel); }
 .lab-run-pos { font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.08em; color: #b07ee8; font-weight: 800; }
 .lab-run-next { flex: 1; min-width: 120px; font-size: 12.5px; color: var(--text-dim); }
@@ -1041,6 +1051,7 @@ var state = {
   lqStreak: 0,
   lqBestStreak: 0,
   lqAutoNext: true,
+  lqWeak: [],         // the items of the current weak-spots lab quiz
   lqConfirm: false,   // quizzes: pick an answer, then lock it in with Submit (off = a click answers at once)
   lqHist: [],         // per question: {pick}; lets Previous show what was chosen and why it was right or wrong
   lqHandle: null,
@@ -1123,6 +1134,179 @@ function buildQueue(fromItems) {
 function findQuestion(type, exam, id) {
   const arr = type === 'mc' ? QUIZ_DATA.mc[exam] : QUIZ_DATA.pb[exam];
   return arr.find(q => q.id === id);
+}
+
+// ===== Weak spots =====
+// Every answer is remembered per question (how many times seen, missed, right in a row since the last miss, the last day), kept on this
+// device only, and used to build a practice set of what keeps getting missed. A question stops counting as weak after
+// WEAK_MASTERED_STREAK right answers in a row. The popup around this page stores the data (separately from saved progress, so starting
+// over does not wipe it); on its own the page just keeps it for the visit.
+const WEAK_MASTERED_STREAK = 3;
+const WEAK_MAX_ENTRIES = 6000;
+const WEAK_SET_SIZE = 25;
+const WEAK_KEY_RE = /^(mc|pb|lq):[A-Za-z0-9_.-]{1,40}:[A-Za-z0-9_.-]{1,40}$/;
+const WEAK = {v: 1, q: {}};
+let weakTimer = null;
+function weakHash(text) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  return (h >>> 0).toString(36);
+}
+function weakKeyMain(type, exam, id) { return type + ':' + exam + ':' + id; }
+// A lab quiz question has no id of its own and many share a prompt (every connector photo asks the same thing), so the key is made
+// from the prompt, the picture and the right answer together.
+function weakItemHash(item) {
+  return weakHash(String(item && item.p || '') + '|' + String(item && item.img || '') + '|' + String(item && item.o && item.o[item.a] || ''));
+}
+function weakKeyLq(quizId, item) { return 'lq:' + quizId + ':' + weakItemHash(item); }
+function weakRecord(key, correct) {
+  if (!WEAK_KEY_RE.test(key)) return;
+  let e = WEAK.q[key];
+  if (!e) {
+    if (Object.keys(WEAK.q).length >= WEAK_MAX_ENTRIES) return;
+    e = WEAK.q[key] = {s: 0, m: 0, c: 0, d: 0};
+  }
+  e.s++;
+  if (correct) e.c++; else { e.m++; e.c = 0; }
+  e.d = Math.floor(Date.now() / 86400000);
+  weakSaveSoon();
+}
+function weakPost() {
+  weakTimer = null;
+  if (window.parent === window) return;
+  try { window.parent.postMessage({study: 'weak-save', data: WEAK}, '*'); } catch (e) { /* not essential */ }
+}
+function weakSaveSoon() {
+  if (weakTimer) clearTimeout(weakTimer);
+  weakTimer = setTimeout(weakPost, 600);
+}
+// Only well-formed entries are accepted from outside (the popup's storage could hold anything).
+function weakClean(data) {
+  const out = {};
+  if (!data || typeof data !== 'object' || data.v !== 1 || !data.q || typeof data.q !== 'object' || Array.isArray(data.q)) return out;
+  let n = 0;
+  for (const k of Object.keys(data.q)) {
+    if (n >= WEAK_MAX_ENTRIES) break;
+    if (!WEAK_KEY_RE.test(k)) continue;
+    const e = data.q[k];
+    if (!e || typeof e !== 'object') continue;
+    const s = Math.floor(Number(e.s)), m = Math.floor(Number(e.m)), c = Math.floor(Number(e.c)), d = Math.floor(Number(e.d));
+    if (![s, m, c, d].every(Number.isFinite) || s < 1 || s > 100000 || m < 0 || m > s || c < 0 || c > s || d < 0) continue;
+    out[k] = {s: s, m: m, c: c, d: d};
+    n++;
+  }
+  return out;
+}
+function weakRestore(data) {
+  WEAK.q = weakClean(data);
+  if (state.screen === 'home') render();
+}
+function weakIsWeak(e) { return e.m > 0 && e.c < WEAK_MASTERED_STREAK; }
+function weakScore(e) { return e.m / e.s + (e.c === 0 ? 0.35 : 0) - e.c * 0.1; }
+function weakKeys(prefixRe) {
+  return Object.keys(WEAK.q)
+    .filter(k => prefixRe.test(k) && weakIsWeak(WEAK.q[k]))
+    .sort((a, b) => weakScore(WEAK.q[b]) - weakScore(WEAK.q[a]) || WEAK.q[b].d - WEAK.q[a].d);
+}
+// The exam questions (multiple choice and performance-based) that are still weak, weakest first.
+function weakMainItems(limit) {
+  const out = [];
+  for (const k of weakKeys(/^(mc|pb):/)) {
+    if (out.length >= limit) break;
+    const [type, exam, id] = k.split(':');
+    const list = QUIZ_DATA[type] && QUIZ_DATA[type][exam];
+    const q = Array.isArray(list) ? list.find(x => String(x.id) === id) : null;
+    if (q) out.push({type: type, exam: exam, id: q.id, domain: domainFromObjective(q.objective), data: q});
+  }
+  return out;
+}
+// The Study Lab quiz questions that are still weak, with the key they are tracked under.
+function weakLqItems(limit) {
+  const out = [];
+  for (const k of weakKeys(/^lq:/)) {
+    if (out.length >= limit) break;
+    const [, quizId, hash] = k.split(':');
+    const def = labData().quizzes.find(q => q.id === quizId);
+    const it = def && def.items.find(x => weakItemHash(x) === hash);
+    if (it) out.push(Object.assign({}, it, {_wk: k}));
+  }
+  return out;
+}
+function weakObjectiveLabel(obj) {
+  return String(obj).replace('220-1201, Objective ', '').replace('220-1201 - Section ', '').replace(' - ', ' ');
+}
+// The areas (exam objectives, lab quizzes) holding the most weak questions.
+function weakAreas() {
+  const map = {};
+  for (const k of Object.keys(WEAK.q)) {
+    const e = WEAK.q[k];
+    const [kind, a, b] = k.split(':');
+    let label = null;
+    if (kind === 'lq') {
+      const def = labData().quizzes.find(q => q.id === a);
+      if (def) label = 'Lab quiz: ' + def.title;
+    } else {
+      const list = QUIZ_DATA[kind] && QUIZ_DATA[kind][a];
+      const q = Array.isArray(list) ? list.find(x => String(x.id) === b) : null;
+      if (q) label = q.objective ? weakObjectiveLabel(q.objective) : 'Other';
+    }
+    if (!label) continue;
+    const r = map[label] || (map[label] = {label: label, s: 0, m: 0, weak: 0});
+    r.s += e.s; r.m += e.m;
+    if (weakIsWeak(e)) r.weak++;
+  }
+  return Object.values(map).filter(r => r.weak > 0).sort((x, y) => y.weak - x.weak || (y.m / y.s) - (x.m / x.s)).slice(0, 5);
+}
+function weakPanelHtml() {
+  const tracked = Object.keys(WEAK.q).length;
+  const mainN = weakKeys(/^(mc|pb):/).length;
+  const lqN = weakKeys(/^lq:/).length;
+  const areas = weakAreas();
+  const body = !tracked
+    ? '<p class="game-desc">Answer some questions and the ones you miss collect here, ready to practise.</p>'
+    : `<p class="game-desc">${tracked} question${tracked === 1 ? '' : 's'} tracked &middot; ${mainN + lqN} still weak. A question leaves this list after ${WEAK_MASTERED_STREAK} right answers in a row.</p>
+      ${areas.length ? `<ul class="weak-areas">${areas.map(a => `<li><span class="weak-area-name">${esc(a.label)}</span><span class="weak-area-count">${a.weak} weak &middot; missed ${a.m} of ${a.s} tries</span></li>`).join('')}</ul>` : ''}
+      ${mainN ? `<button class="start-btn" onclick="startWeakQuiz()">Practise my weak exam questions &middot; ${Math.min(mainN, WEAK_SET_SIZE)} of ${mainN} &rarr;</button>` : ''}
+      ${lqN ? `<button class="start-btn lab-start-btn" onclick="startWeakLq()">Practise my weak Study Lab questions &middot; ${Math.min(lqN, WEAK_SET_SIZE)} of ${lqN} &rarr;</button>` : ''}
+      ${!mainN && !lqN ? '<p class="hint">Nothing is weak right now. Keep going.</p>' : ''}
+      ${weakAskClear
+        ? `<div class="weak-clear-ask" role="group" aria-label="Confirm clearing your history"><span>Forget everything remembered about what you missed? This cannot be undone.</span>
+             <button class="opt-btn" onclick="weakClear(true)">Yes, clear it</button><button class="opt-btn" onclick="weakClear(false)">Cancel</button></div>`
+        : `<button class="opt-btn weak-clear" onclick="weakClear()">Clear my history</button>`}`;
+  return `<div class="panel weak-panel">
+      <div class="panel-title">YOUR WEAK SPOTS</div>
+      ${body}
+      <p class="hint">Kept on this device only. Nothing is sent anywhere.</p>
+    </div>`;
+}
+function startWeakQuiz() {
+  const items = weakMainItems(WEAK_SET_SIZE);
+  if (!items.length) return;
+  state.queue = state.shuffle ? shuffleArr(items) : items;
+  state.idx = 0;
+  state.score = 0;
+  state.results = [];
+  state.screen = 'quiz';
+  state.sessionActive = true;
+  state.browseReturn = null;
+  resetQuestionState();
+  if (state.timedMode) startTimer();
+  render();
+  scrollTop();
+}
+function startWeakLq() {
+  const items = weakLqItems(WEAK_SET_SIZE);
+  if (!items.length) return;
+  state.lqWeak = items;
+  lqBegin('__weak', items);
+}
+// The study page runs in a sandbox that blocks confirm() boxes, so the question is asked on the page itself.
+let weakAskClear = false;
+function weakClear(answer) {
+  if (answer === undefined) { weakAskClear = true; render(); return; }
+  weakAskClear = false;
+  if (answer === true) { WEAK.q = {}; weakPost(); }
+  render();
 }
 
 // ===== Home screen actions =====
@@ -1393,6 +1577,7 @@ function recordResult(correct) {
   const cur = currentQuestion();
   if (correct) state.score++;
   state.results.push({exam: cur.exam, id: cur.id, type: cur.type, domain: cur.domain, isCorrect: correct});
+  weakRecord(weakKeyMain(cur.type, cur.exam, cur.id), correct);
 }
 
 function nextQuestion() {
@@ -1529,6 +1714,8 @@ function renderHome() {
     <button class="start-btn" onclick="startQuiz()">Start &middot; ${poolCount()} question${poolCount()===1?'':'s'} &rarr;</button>
 
     <button class="browse-link" onclick="goBrowse()">Browse all questions &amp; answers &rarr;</button>
+
+    ${weakPanelHtml()}
 
     <div class="panel lab-panel">
       <div class="panel-title">STUDY LAB</div>
@@ -2036,6 +2223,7 @@ function gameResolve(timedOut) {
   state.gameChecked = true;
   state.gameLastCorrect = correct;
   state.gameAttempted++;
+  weakRecord(weakKeyMain('mc', 'H', cur.id), correct);
   if (correct) {
     state.gameCorrect++;
     state.gameStreak++;
@@ -2326,7 +2514,10 @@ function labData() {
   return (typeof QUIZ_DATA !== 'undefined' && QUIZ_DATA.lab) ? QUIZ_DATA.lab : {groups: [], boards: [], quizzes: []};
 }
 function labBoard(id) { return labData().boards.find(b => b.id === id); }
-function labQuizDef(id) { return labData().quizzes.find(q => q.id === id); }
+function labQuizDef(id) {
+  if (id === '__weak') return {id: '__weak', title: 'My weak spots', items: state.lqWeak || []};
+  return labData().quizzes.find(q => q.id === id);
+}
 function labCurBoard() { return labBoard(state.labBoardId); }
 function labColDef(b, colId) { return b.columns.find(c => c.id === colId); }
 function labTileDef(b, id) { return b.tiles.find(t => t.id === id); }
@@ -2885,6 +3076,7 @@ function lqLock(i) {
   state.lqPick = i;
   state.lqChecked = true;
   state.lqHist[state.lqIdx] = {pick: i};
+  weakRecord(cur.it._wk || weakKeyLq(state.lqId, cur.it), cur.opts[i].ok);
   const right = cur.opts[i].ok;
   if (right) {
     state.lqScore++; state.lqStreak++;
