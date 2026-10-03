@@ -574,3 +574,39 @@ document.addEventListener("DOMContentLoaded", function () {
     updateOverflowHints();
   });
 });
+
+// Footer "Share this page": shown only where it can do something. It opens the device's share sheet, or copies the page's address.
+document.addEventListener("DOMContentLoaded", function () {
+  var btn = document.querySelector("[data-share]");
+  if (!btn) return;
+  var canShare = typeof navigator.share === "function";
+  var canCopy = !!(navigator.clipboard && typeof navigator.clipboard.writeText === "function");
+  if (!canShare && !canCopy) return;
+  btn.hidden = false;
+  var note = document.querySelector(".footer-share-note");
+  function say(text) {
+    if (!note) return;
+    note.textContent = "";
+    setTimeout(function () {
+      note.textContent = text;
+    }, 20);
+  }
+  btn.addEventListener("click", function () {
+    var canonical = document.querySelector('link[rel="canonical"]');
+    var url = (canonical && canonical.href) || location.href.split("#")[0];
+    if (canShare) {
+      navigator.share({ title: document.title, url: url }).catch(function () {
+        /* the visitor closed the share sheet: nothing to report */
+      });
+    } else {
+      navigator.clipboard.writeText(url).then(
+        function () {
+          say("Link copied.");
+        },
+        function () {
+          say("Couldn't copy the link.");
+        }
+      );
+    }
+  });
+});
