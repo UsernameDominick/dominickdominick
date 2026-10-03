@@ -1625,6 +1625,25 @@ export async function listErrors(env, limit = 50) {
 // Lightweight named-event tracking alongside pageviews (link clicks, theme
 // toggles, etc.) — not tied to a visitor/session id, so it can only answer
 // "how often did X happen", not "how many people did X".
+// Analytics events older than this are removed by the daily run (the owner chose 180 days). Done in bounded slices so one run
+// can never hold the database for long; whatever is left over goes in the next day's run.
+export const EVENTS_KEEP_DAYS = 180;
+export async function pruneOldEvents(env, { days = EVENTS_KEEP_DAYS, batch = 5000, maxBatches = 20 } = {}) {
+  const keep = Math.max(30, Math.floor(Number(days)) || EVENTS_KEEP_DAYS); // never less than a month, whatever is passed in
+  let deleted = 0;
+  for (let i = 0; i < maxBatches; i++) {
+    const res = await env.DB
+      .prepare("DELETE FROM events WHERE id IN (SELECT id FROM events WHERE created_at < datetime('now', ?) LIMIT ?)")
+      .bind(`-${keep} days`, batch)
+      .run();
+    const changed = (res && res.meta && res.meta.changes) || 0;
+    deleted += changed;
+    if (changed < batch) break;
+  }
+  await setSetting(env, "last_events_prune", JSON.stringify({ at: new Date().toISOString(), deleted, keepDays: keep }));
+  return deleted;
+}
+
 export async function logEvent(env, { name, path, detail }) {
   await env.DB
     .prepare("INSERT INTO events (name, path, detail) VALUES (?, ?, ?)")

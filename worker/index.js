@@ -41,6 +41,7 @@ import {
   runScheduledBackup,
   runScheduledLinkCheck,
   runScheduledPostWebhooks,
+  pruneOldEvents,
   getTagCounts,
   getArchive,
   listArticlesPaged,
@@ -1481,6 +1482,10 @@ export default {
     // Dashboard and clicking "Check links" themselves.
     ctx.waitUntil(
       runScheduledLinkCheck(env).catch((err) => logError(env, { message: err.message, stack: err.stack, path: "scheduled:link-check" }))
+    );
+    // And it clears out analytics events older than the retention window (180 days).
+    ctx.waitUntil(
+      pruneOldEvents(env).catch((err) => logError(env, { message: err.message, stack: err.stack, path: "scheduled:events-prune" }))
     );
     // And it tells the publish webhooks about posts that were scheduled and have gone live since the last run.
     ctx.waitUntil(
