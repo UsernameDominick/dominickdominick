@@ -8036,3 +8036,15 @@ button[data-tier="quiet"] { border-color: transparent; }
   body.panel-sidebar-collapsed .admin-sidebar { width: 0; min-width: 0; border-right: 0; overflow: hidden; visibility: hidden; }
   body.panel-inspector-collapsed #inspector { display: none; }
 }
+
+/* Dialogs resize from their sides (dialog-resize.js); the native text-box corner grip inside dialogs is gone because it overlapped neighbouring controls. */
+.dialog-resizer { display: none; }
+.modal-inner textarea { resize: none; }
+@media (min-width: 861px) {
+  .modal-inner { position: relative; }
+  .dialog-resizer { display: block; position: absolute; top: 0; bottom: 0; width: 6px; z-index: 20; cursor: col-resize; touch-action: none; background: transparent; transition: background 0.15s; }
+  .dialog-resizer-left { left: 0; }
+  .dialog-resizer-right { right: 0; }
+  .dialog-resizer:hover, .dialog-resizer:focus-visible { background: color-mix(in srgb, var(--accent) 45%, transparent); }
+  .dialog-resizer:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+}
