@@ -8321,6 +8321,35 @@
     requestAnimationFrame(() => initialFocusInModal(el("photo-editor-modal")).focus());
   });
 
+  // ---------- Edit a file from the computer ----------
+  // A picture from the person's own computer (picked here, or pasted while the Library is open) goes straight into the Photo Editor,
+  // with nothing uploaded until they press Save as new.
+  function openPictureInEditor(file) {
+    if (!window.PhotoEditor) return;
+    const result = window.PhotoEditor.openFile(file);
+    if (result.error) {
+      el("media-load-status").textContent = result.error;
+      return;
+    }
+    el("media-load-status").textContent = "";
+  }
+  el("media-edit-file-btn").addEventListener("click", () => el("media-edit-file-input").click());
+  el("media-edit-file-input").addEventListener("change", () => {
+    const file = el("media-edit-file-input").files[0];
+    el("media-edit-file-input").value = "";
+    if (file) openPictureInEditor(file);
+  });
+  document.addEventListener("paste", (e) => {
+    if (el("media-modal").hidden || !el("photo-editor-modal").hidden) return;
+    const t = e.target;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    const items = e.clipboardData && e.clipboardData.files ? Array.from(e.clipboardData.files) : [];
+    const picture = items.find((f) => /^image\//.test(f.type));
+    if (!picture) return;
+    e.preventDefault();
+    openPictureInEditor(picture);
+  });
+
   el("media-bulk-delete-btn").addEventListener("click", async () => {
     if (!selectedMediaKeys.size) return;
     const ok = await confirmTyped(`Permanently delete ${selectedMediaKeys.size} file(s), along with their older versions and edit history? This can't be undone.`, { title: "Delete files" });

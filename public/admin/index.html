@@ -827,6 +827,8 @@
             <select id="media-upload-folder"><option value="">No folder</option></select>
           </label>
           <button type="button" id="media-new-blank-btn" class="media-secondary-btn" title="Start a new image from scratch in the Photo Editor, instead of editing an existing upload">New blank image</button>
+          <button type="button" id="media-edit-file-btn" class="media-secondary-btn" title="Open a picture from your computer in the Photo Editor without uploading it first (you can also paste a copied picture while this window is open)">Edit a file…</button>
+          <input type="file" id="media-edit-file-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden tabindex="-1" aria-hidden="true">
           <label class="media-shrink-label" title="Pictures over 3000 pixels on the longest side are made smaller when uploaded, so big phone and camera photos fit the 8 MB limit. Untick to keep full size."><input type="checkbox" id="media-shrink-big" checked> Shrink big photos</label>
           <button type="button" id="media-upload-btn" class="media-primary-btn" title="Choose images to upload, or drag them from your computer onto this window">Upload files</button>
         </div>
@@ -1550,7 +1552,7 @@
               <span class="pe-group-label">Canvas size</span>
               <label>Canvas W <input type="number" id="pe-canvas-width" min="1" max="2000" title="New canvas width in pixels -- doesn't scale the image content, just the canvas around it"></label>
               <label>Canvas H <input type="number" id="pe-canvas-height" min="1" max="2000" title="New canvas height in pixels -- doesn't scale the image content, just the canvas around it"></label>
-              <select id="pe-canvas-anchor" title="Which side the existing image content stays anchored to as the canvas grows or shrinks">
+              <select id="pe-canvas-anchor" aria-label="Canvas anchor" title="Which side the existing image content stays anchored to as the canvas grows or shrinks">
                 <option value="top-left">↖ Top-left</option>
                 <option value="top-center">↑ Top-center</option>
                 <option value="top-right">↗ Top-right</option>
@@ -1592,7 +1594,7 @@
             </details>
             <div class="pe-tool-group">
               <span class="pe-group-label">Adjust presets</span>
-              <select id="pe-apply-preset" title="Apply a saved brightness/contrast/saturation preset">
+              <select id="pe-apply-preset" aria-label="Adjust preset" title="Apply a saved brightness/contrast/saturation preset">
                 <option value="">Apply preset…</option>
               </select>
               <button type="button" id="pe-save-preset" title="Save the current brightness/contrast/saturation as a named preset">Save preset</button>
@@ -1643,7 +1645,7 @@
               <label title="Paint only: 100 is a crisp edge, lower values feather it">Hardness <input type="range" id="pe-brush-hardness" min="0" max="100" value="100"></label>
               <label title="How strongly each stroke applies -- lower it to build an effect up gradually over several passes instead of all at once">Opacity <input type="range" id="pe-brush-opacity" min="1" max="100" value="100"></label>
               <label title="While ON, holding the pointer still keeps building the effect up over time -- like a real airbrush -- instead of only applying where you move">Airbrush <input type="checkbox" id="pe-airbrush-mode"></label>
-              <select id="pe-apply-brush-preset" title="Apply a saved brush tool/size/opacity combo">
+              <select id="pe-apply-brush-preset" aria-label="Brush preset" title="Apply a saved brush tool/size/opacity combo">
                 <option value="">Apply brush preset…</option>
               </select>
               <button type="button" id="pe-save-brush-preset" title="Save the current brush tool, size, and opacity as a named preset">Save brush preset</button>
@@ -1660,7 +1662,7 @@
               <button type="button" class="pe-tool" data-tool="highlight" title="Highlighter: drag along text or across an area for a see-through marker stroke in the annotation colour; Size sets the thickness">Highlight</button>
               <button type="button" class="pe-tool" data-tool="spotlight" title="Spotlight: drag a box to keep it bright and dim everything else, to draw the eye to one spot">Spotlight</button>
               <button type="button" class="pe-tool" data-tool="eyedropper" title="Pick a color from the image">💧</button>
-              <input type="color" id="pe-annotate-color" value="#ff7a45" title="Annotation color">
+              <input type="color" id="pe-annotate-color" value="#ff7a45" aria-label="Annotation colour" title="Annotation color">
               <label>Size <input type="range" id="pe-annotate-size" min="1" max="20" value="4"></label>
               <label id="pe-rect-radius-label" hidden>Corner radius <input type="range" id="pe-rect-radius" min="0" max="100" value="0"></label>
               <label id="pe-marker-next-label" hidden>Next number <input type="number" id="pe-marker-next" min="1" max="99" step="1" value="1" inputmode="numeric"></label>
@@ -1682,7 +1684,7 @@
               <button type="button" id="pe-reset">Reset</button>
               <button type="button" id="pe-compare" title="Press and hold to see the original">Compare</button>
               <button type="button" id="pe-save-snapshot" title="Save the current state as a named snapshot you can jump straight back to later, unlike the linear Undo/Redo history">📌 Save snapshot</button>
-              <select id="pe-snapshot-select" title="Named snapshots saved this editing session" disabled><option value="">No snapshots yet</option></select>
+              <select id="pe-snapshot-select" aria-label="Named snapshots" title="Named snapshots saved this editing session" disabled><option value="">No snapshots yet</option></select>
               <button type="button" id="pe-restore-snapshot" title="Jump back to the selected named snapshot (your current state stays undoable afterward)">Restore</button>
               <button type="button" id="pe-delete-snapshot" title="Delete the selected named snapshot">Delete</button>
             </div>
@@ -1727,7 +1729,7 @@
             <option value="site-light">Site (light theme)</option>
             <option value="site-dark">Site (dark theme)</option>
           </select></label>
-          <select id="pe-export-format" title="Format for &quot;Save as new&quot; -- &quot;Overwrite original&quot; always keeps the original file's own format">
+          <select id="pe-export-format" aria-label="Format for Save as new and Download" title="Format for &quot;Save as new&quot; -- &quot;Overwrite original&quot; always keeps the original file's own format">
             <option value="image/png">PNG</option>
             <option value="image/jpeg">JPEG</option>
             <option value="image/webp">WebP</option>
@@ -1735,6 +1737,7 @@
           <label id="pe-export-quality-label" hidden>Quality <input type="range" id="pe-export-quality" min="1" max="100" value="85"></label>
           <span id="pe-export-size-estimate" class="pe-export-size-estimate" title="Estimated file size at the current format/quality"></span>
           <button type="button" id="pe-save-new">Save as new</button>
+          <button type="button" id="pe-download" title="Save the picture to your computer instead of the library, in the format and quality chosen. The editor stays open and nothing is uploaded">Download</button>
           <button type="button" id="pe-save-overwrite">Overwrite original</button>
         </div>
       </div>

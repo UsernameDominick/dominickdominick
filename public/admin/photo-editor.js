@@ -174,6 +174,7 @@
   }
 
   let originalKey = null;
+  let openedName = ""; // what the file was called, for the Download button's file name
   let undoStack = [];
   let redoStack = [];
   // Layers, bottom first: {id, name, color, visible, opacity, blend, canvas}. Every
@@ -5336,6 +5337,34 @@
     }, format, quality);
   });
 
+  // Download: the same export as Save as new (format and quality as chosen), but to this computer instead of the library. The editor
+  // stays open and nothing is uploaded, so it is also a way to take a copy of an in-progress edit.
+  const DOWNLOAD_EXT = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
+  function downloadFileName(format) {
+    const stem = (openedName || "image").replace(/\.[A-Za-z0-9]{1,5}$/, "").replace(/[\\/:*?"<>|\u0000-\u001f]+/g, "-").replace(/^[-. ]+|[-. ]+$/g, "").slice(0, 80) || "image";
+    return `${stem}-edited.${DOWNLOAD_EXT[format] || "png"}`;
+  }
+  $("pe-download").addEventListener("click", () => {
+    const format = $("pe-export-format").value;
+    const quality = format === "image/png" ? undefined : Number($("pe-export-quality").value) / 100;
+    exportBlob((blob) => {
+      if (!blob) {
+        setLayerNote("Couldn't make the file to download.");
+        return;
+      }
+      const name = downloadFileName(format);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      setLayerNote(`Downloaded ${name} (${formatBytesLite(blob.size)}).`);
+    }, format, quality);
+  });
+
   $("pe-save-overwrite").addEventListener("click", () => {
     if (!originalKey) {
       alert("This image wasn't opened from the Media Library, so there's nothing to overwrite. Use \"Save as new\" instead.");
@@ -5704,9 +5733,13 @@
     requestAnimationFrame(fitCanvasToViewport);
   }
 
+  const OPEN_FILE_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
+  const MAX_OPEN_FILE_BYTES = 30 * 1024 * 1024;
+
   window.PhotoEditor = {
-    open(url, key) {
+    open(url, key, opts = {}) {
       originalKey = key || null;
+      openedName = opts.name || (key ? String(key).split("/").pop() : "");
       const img = new Image();
       img.crossOrigin = "anonymous";
       img.onload = () => {
@@ -5722,19 +5755,40 @@
           w,
           h,
           () => ctx.drawImage(img, 0, 0, w, h),
-          originalKey
-            ? "Editing a library image — overwrite updates it everywhere it's used."
-            : "Editing an external image — only \"Save as new\" is available."
+          opts.hint ||
+            (originalKey
+              ? "Editing a library image — overwrite updates it everywhere it's used."
+              : "Editing an external image — only \"Save as new\" is available.")
         );
+        if (opts.revoke) URL.revokeObjectURL(url);
       };
-      img.onerror = () => alert("Couldn't load that image for editing (it may be from another site that blocks this).");
+      img.onerror = () => {
+        if (opts.revoke) URL.revokeObjectURL(url);
+        alert(opts.errorText || "Couldn't load that image for editing (it may be from another site that blocks this).");
+      };
       img.src = url;
+    },
+    // An image from the person's own computer (a file they picked or a picture they pasted). Nothing is uploaded until Save as new, and
+    // there is no original to overwrite. Returns { ok: true } or { error } so the caller can say why a file was turned away.
+    openFile(file) {
+      if (!file || !OPEN_FILE_TYPES.has(file.type)) return { error: "Only PNG, JPEG, WebP and GIF pictures can be opened in the Photo Editor." };
+      if (file.size > MAX_OPEN_FILE_BYTES) return { error: `That picture is over ${Math.round(MAX_OPEN_FILE_BYTES / (1024 * 1024))} MB, too big to edit here. Make it smaller first.` };
+      if (!file.size) return { error: "That file is empty." };
+      const name = (file.name || "pasted-image").replace(/[\u0000-\u001f]/g, "");
+      this.open(URL.createObjectURL(file), null, {
+        name,
+        revoke: true,
+        hint: `Editing "${name}" from your computer — nothing is uploaded until you press Save as new.`,
+        errorText: "Couldn't read that picture. It may be damaged.",
+      });
+      return { ok: true };
     },
     // A brand-new, fully transparent canvas has no source image to
     // compare against or overwrite. initEditorSession hides Overwrite while
     // originalKey is null, leaving only "Save as new".
     openBlank(width, height) {
       originalKey = null;
+      openedName = "";
       const w = Math.max(1, Math.min(MAX_DIMENSION, Number.isFinite(width) ? Math.round(width) : 1200));
       const h = Math.max(1, Math.min(MAX_DIMENSION, Number.isFinite(height) ? Math.round(height) : 630));
       initEditorSession(
