@@ -4549,6 +4549,39 @@
   });
   window.addEventListener("sim-builder-opened", () => setSimMore(false));
 
+  // Bigger screens: the parts list and the inspector can be hidden to give the canvas the whole window (remembered in this browser).
+  const simPanelToggles = [
+    { button: $("sim-toggle-palette"), cls: "sim-hide-palette", key: "p" },
+    { button: $("sim-toggle-inspector"), cls: "sim-hide-inspector", key: "i" },
+  ];
+  function simHiddenPanels() {
+    try {
+      return String(localStorage.getItem("sim-hidden-panels") || "");
+    } catch (e) {
+      return "";
+    }
+  }
+  function applySimPanels(hidden) {
+    simPanelToggles.forEach((t) => {
+      const off = hidden.includes(t.key);
+      simBuilderInner.classList.toggle(t.cls, off);
+      t.button.setAttribute("aria-pressed", String(!off));
+    });
+  }
+  simPanelToggles.forEach((t) => {
+    t.button.addEventListener("click", () => {
+      const was = simHiddenPanels();
+      const next = was.includes(t.key) ? was.replace(t.key, "") : was + t.key;
+      try {
+        localStorage.setItem("sim-hidden-panels", next);
+      } catch (e) {
+        /* it just will not be remembered */
+      }
+      applySimPanels(next);
+    });
+  });
+  applySimPanels(simHiddenPanels());
+
   $("simulation-name").addEventListener("input", refreshSimSaveState);
   $("sim-poster-url").addEventListener("input", refreshSimSaveState);
   $("sim-reset").addEventListener("click", resetSimToInitial);

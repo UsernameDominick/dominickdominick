@@ -8003,3 +8003,15 @@ button[data-tier="quiet"] { border-color: transparent; }
 .nav-row-page { flex-basis: 100%; font-size: 0.75rem; opacity: 0.65; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-editor-add, .nav-editor-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
 .nav-editor-subtitle { margin: 16px 0 4px; font-size: 1rem; }
+
+/* Simulation builder on a bigger screen: the canvas gets the whole window. The builder fills the screen, and the parts list and
+   inspector can be hidden (the tools stay on show; the short-screen quick bar is unchanged). Scoped to this builder: the song builder shares some of these class names. */
+.sim-panel-toggle { display: none; }
+@media (min-width: 861px) {
+  #simulation-builder-modal { padding: 0; }
+  #simulation-builder-modal .simulation-builder-inner { width: 100vw; height: 100vh; height: 100dvh; max-width: none; border: 0; border-radius: 0; }
+  #simulation-builder-modal .sim-panel-toggle { display: inline-flex; align-items: center; }
+  #simulation-builder-modal .sim-panel-toggle[aria-pressed="true"] { border-color: var(--accent); color: var(--text); }
+  #simulation-builder-modal .simulation-builder-inner.sim-hide-palette .sim-palette { display: none; }
+  #simulation-builder-modal .simulation-builder-inner.sim-hide-inspector .sim-inspector-panel { display: none; }
+}
