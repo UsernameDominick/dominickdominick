@@ -111,6 +111,7 @@ import { visibleText, nowIso, cleanPageCss, pageCssKey } from "./text.js";
 // STUDY (temporary): see worker/study/README.md.
 import { handleStudyUnlock } from "./study/index.js";
 import { parseByteRange } from "./range.js";
+import { SVG_CSP, isSvgContentType } from "./svg.js";
 import {
   capacitanceMicrofarads,
   computeCircuitAnalysis,
@@ -1318,7 +1319,12 @@ const SECURITY_HEADERS = {
 
 function withSecurityHeaders(response) {
   const headers = new Headers(response.headers);
-  for (const [k, v] of Object.entries(SECURITY_HEADERS)) headers.set(k, v);
+  // A route that already chose its own (stricter) policy keeps it.
+  const ownCsp = headers.get("Content-Security-Policy");
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) {
+    if (k.toLowerCase() === "content-security-policy" && ownCsp) continue;
+    headers.set(k, v);
+  }
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
@@ -1680,6 +1686,7 @@ async function route(request, env, ctx) {
       const headers = new Headers();
       obj.writeHttpMetadata(headers);
       headers.set("Accept-Ranges", "bytes");
+      if (isSvgContentType(headers.get("Content-Type"))) headers.set("Content-Security-Policy", SVG_CSP);
       // A private file is never cached by any shared cache (a CDN/proxy
       // in front of this worker, or a browser sharing a machine) and
       // never persisted client-side either -- otherwise a copy fetched

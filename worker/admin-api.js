@@ -280,15 +280,28 @@ function isBlockedRedirectPath(p) {
 // ever opened directly or framed. This is a best-effort text-level strip,
 // not a full XML-aware sanitizer, but it removes every known script vector
 // without needing a DOM/XML parser (unavailable in Workers).
-function sanitizeSvg(text) {
-  return text
-    .replace(/<script[\s\S]*?<\/script\s*>/gi, "")
-    .replace(/<foreignObject[\s\S]*?<\/foreignObject\s*>/gi, "")
-    .replace(/\son\w+\s*=\s*"[^"]*"/gi, "")
-    .replace(/\son\w+\s*=\s*'[^']*'/gi, "")
-    .replace(/\son\w+\s*=\s*[^\s"'>]+/gi, "")
-    .replace(/((?:xlink:)?href|src)\s*=\s*"\s*javascript:[^"]*"/gi, '$1="#"')
-    .replace(/((?:xlink:)?href|src)\s*=\s*'\s*javascript:[^']*'/gi, "$1='#'");
+export function sanitizeSvg(text) {
+  // Each pass can uncover what the one before hid (a tag split around another tag: <scr<script></script>ipt>), so the strip repeats
+  // until nothing changes. The served file also carries a locked-down policy (SVG_CSP in index.js), which is what really protects.
+  const steps = [
+    [/<script[\s\S]*?<\/script\s*>/gi, ""],
+    [/<script\b[^>]*\/?>/gi, ""],
+    [/<(?:foreignObject|iframe|object|embed)\b[\s\S]*?<\/(?:foreignObject|iframe|object|embed)\s*>/gi, ""],
+    [/<(?:foreignObject|iframe|object|embed)\b[^>]*\/?>/gi, ""],
+    [/<\/(?:script|foreignObject|iframe|object|embed)\s*>/gi, ""], // a closing tag left on its own by the cuts above
+    [/[\s\/]on\w+\s*=\s*"[^"]*"/gi, ""],
+    [/[\s\/]on\w+\s*=\s*'[^']*'/gi, ""],
+    [/[\s\/]on\w+\s*=\s*[^\s"'>]+/gi, ""],
+    [/((?:xlink:)?href|src)\s*=\s*"\s*(?:javascript|data\s*:\s*text\/html)[^"]*"/gi, '$1="#"'],
+    [/((?:xlink:)?href|src)\s*=\s*'\s*(?:javascript|data\s*:\s*text\/html)[^']*'/gi, "$1='#'"],
+  ];
+  let out = String(text);
+  for (let i = 0; i < 12; i++) {
+    const before = out;
+    for (const [re, replacement] of steps) out = out.replace(re, replacement);
+    if (out === before) break;
+  }
+  return out;
 }
 
 // Reads an image's pixel width/height straight from its file header --
