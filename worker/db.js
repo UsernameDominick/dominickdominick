@@ -2418,11 +2418,15 @@ export async function createSong(env, { name, data }) {
   return res.meta.last_row_id;
 }
 
+// data left out (undefined) renames the song and leaves what is in it alone.
 export async function updateSong(env, id, { name, data }) {
-  const res = await env.DB
-    .prepare("UPDATE songs SET name = ?, data = ?, updated_at = datetime('now') WHERE id = ?")
-    .bind(name, JSON.stringify(data || {}), id)
-    .run();
+  const res =
+    data === undefined
+      ? await env.DB.prepare("UPDATE songs SET name = ?, updated_at = datetime('now') WHERE id = ?").bind(name, id).run()
+      : await env.DB
+          .prepare("UPDATE songs SET name = ?, data = ?, updated_at = datetime('now') WHERE id = ?")
+          .bind(name, JSON.stringify(data || {}), id)
+          .run();
   return res.meta.changes > 0;
 }
 

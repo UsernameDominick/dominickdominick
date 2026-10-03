@@ -3,6 +3,10 @@ import { SIM_COMPONENTS, getSimulationComponentDefinition, getSimulationCanvasBo
 const MAX_MANUAL_WIRE_WAYPOINTS = 20;
 const MAX_SIMULATION_CHECKPOINTS = 20;
 const MAX_SIMULATION_VIEWS = 12;
+// Far above anything the builder canvas holds, well under the database's row size.
+export const MAX_SIMULATION_COMPONENTS = 1000;
+export const MAX_SIMULATION_WIRES = 5000;
+export const MAX_SIMULATION_BYTES = 1000000;
 
 function isSimulationRecordId(value) {
   return (
@@ -20,6 +24,9 @@ export function simulationDataError(data, requireCircuitArrays = false, allowChe
   const hasWires = Object.prototype.hasOwnProperty.call(data, "wires");
   if ((requireCircuitArrays || hasComponents) && !Array.isArray(data.components)) return "Simulation components must be an array.";
   if ((requireCircuitArrays || hasWires) && !Array.isArray(data.wires)) return "Simulation wires must be an array.";
+  if (Array.isArray(data.components) && data.components.length > MAX_SIMULATION_COMPONENTS) return `A simulation can hold up to ${MAX_SIMULATION_COMPONENTS} parts.`;
+  if (Array.isArray(data.wires) && data.wires.length > MAX_SIMULATION_WIRES) return `A simulation can hold up to ${MAX_SIMULATION_WIRES} wires.`;
+  if (JSON.stringify(data).length > MAX_SIMULATION_BYTES) return "This simulation is too large to save (over 1 MB of data).";
 
   const sizeError = validateBreadboardColumnSizes(data);
   if (sizeError) return sizeError;

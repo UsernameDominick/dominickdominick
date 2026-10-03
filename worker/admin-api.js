@@ -165,6 +165,7 @@ import { cleanBodyFields, cleanPageCss, pageCssKey } from "./text.js";
 import { cleanBrand, cleanNavBuiltin } from "./nav-settings.js";
 import { cleanRedirectStatus, cleanRedirectTarget } from "./redirects.js";
 import { cleanScanFields } from "./scans.js";
+import { cleanSongSave } from "./songs.js";
 import { outlineConfig, readOutline } from "./outline.js";
 import { cleanFooterLinks } from "./render.js";
 import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated, hmac, revokeAllSessions } from "./auth.js";
@@ -2350,10 +2351,10 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(await listSongs(env));
   }
   if (path === "/songs" && method === "POST") {
-    const body = await readJsonBody(request);
-    if (!body.name || !String(body.name).trim()) return json({ error: "Name is required" }, { status: 400 });
-    const id = await createSong(env, { name: body.name.trim(), data: body.data || {} });
-    log(ctx, env, "create", "song", body.name.trim());
+    const cleaned = cleanSongSave(await readJsonBody(request));
+    if (cleaned.error) return json({ error: cleaned.error }, { status: 400 });
+    const id = await createSong(env, { name: cleaned.name, data: cleaned.data });
+    log(ctx, env, "create", "song", cleaned.name);
     return json({ id });
   }
   const songDuplicateMatch = path.match(/^\/songs\/(\d+)\/duplicate$/);
@@ -2370,9 +2371,9 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(song);
   }
   if (songMatch && method === "PATCH") {
-    const body = await readJsonBody(request);
-    if (!body.name || !String(body.name).trim()) return json({ error: "Name is required" }, { status: 400 });
-    const updated = await updateSong(env, Number(songMatch[1]), { name: body.name.trim(), data: body.data || {} });
+    const cleaned = cleanSongSave(await readJsonBody(request), { edit: true });
+    if (cleaned.error) return json({ error: cleaned.error }, { status: 400 });
+    const updated = await updateSong(env, Number(songMatch[1]), { name: cleaned.name, data: cleaned.data });
     if (!updated) return json({ error: "Not found" }, { status: 404 });
     return json({ ok: true });
   }
