@@ -163,6 +163,7 @@ import {
 } from "./db.js";
 import { cleanBodyFields, cleanPageCss, pageCssKey } from "./text.js";
 import { cleanBrand, cleanNavBuiltin } from "./nav-settings.js";
+import { cleanRedirectStatus, cleanRedirectTarget } from "./redirects.js";
 import { outlineConfig, readOutline } from "./outline.js";
 import { cleanFooterLinks } from "./render.js";
 import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated, hmac, revokeAllSessions } from "./auth.js";
@@ -1955,8 +1956,12 @@ async function routeAdminApi(request, env, url, ctx) {
   if (path === "/redirects" && method === "POST") {
     const body = await readJsonBody(request);
     const from_path = normalizePath(body.from_path);
-    const to_path = String(body.to_path || "").trim();
-    if (!from_path || !to_path) return json({ error: "Both a from and to path are required" }, { status: 400 });
+    if (!from_path || !String(body.to_path || "").trim()) return json({ error: "Both a from and to path are required" }, { status: 400 });
+    const target = cleanRedirectTarget(body.to_path);
+    if (!target.ok) return json({ error: target.error }, { status: 400 });
+    const to_path = target.value;
+    const statusCheck = cleanRedirectStatus(body.status_code);
+    if (!statusCheck.ok) return json({ error: statusCheck.error }, { status: 400 });
     if (isBlockedRedirectPath(from_path)) {
       return json({ error: "That path is reserved and can't be redirected" }, { status: 400 });
     }
@@ -1964,7 +1969,7 @@ async function routeAdminApi(request, env, url, ctx) {
       return json({ error: "This would create a redirect loop" }, { status: 400 });
     }
     try {
-      const id = await createRedirect(env, { from_path, to_path, status_code: Number(body.status_code) || 301 });
+      const id = await createRedirect(env, { from_path, to_path, status_code: statusCheck.value });
       log(ctx, env, "create", "redirect", `${from_path} → ${to_path}`);
       return json({ id });
     } catch (err) {
@@ -1979,8 +1984,16 @@ async function routeAdminApi(request, env, url, ctx) {
     const body = await readJsonBody(request);
     const fields = {};
     if (body.from_path !== undefined) fields.from_path = normalizePath(body.from_path);
-    if (body.to_path !== undefined) fields.to_path = String(body.to_path).trim();
-    if (body.status_code !== undefined) fields.status_code = Number(body.status_code) || 301;
+    if (body.to_path !== undefined) {
+      const target = cleanRedirectTarget(body.to_path);
+      if (!target.ok) return json({ error: target.error }, { status: 400 });
+      fields.to_path = target.value;
+    }
+    if (body.status_code !== undefined) {
+      const statusCheck = cleanRedirectStatus(body.status_code);
+      if (!statusCheck.ok) return json({ error: statusCheck.error }, { status: 400 });
+      fields.status_code = statusCheck.value;
+    }
     if (fields.from_path && isBlockedRedirectPath(fields.from_path)) {
       return json({ error: "That path is reserved and can't be redirected" }, { status: 400 });
     }

@@ -112,6 +112,7 @@ import { visibleText, nowIso, cleanPageCss, pageCssKey } from "./text.js";
 // STUDY (temporary): see worker/study/README.md.
 import { handleStudyUnlock } from "./study/index.js";
 import { parseByteRange } from "./range.js";
+import { safeRedirectStatus } from "./redirects.js";
 import { SVG_CSP, isSvgContentType } from "./svg.js";
 import {
   capacitanceMicrofarads,
@@ -1735,7 +1736,7 @@ async function route(request, env, ctx) {
     // before page/article lookup so one can override a still-existing page.
     const redirect = await getRedirect(env, path);
     if (redirect) {
-      return Response.redirect(new URL(redirect.to_path, url.origin).toString(), redirect.status_code || 301);
+      return Response.redirect(new URL(redirect.to_path, url.origin).toString(), safeRedirectStatus(redirect.status_code));
     }
 
     // Individual article page: /random/:slug
