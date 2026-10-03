@@ -1,4 +1,4 @@
-// Colour and tone maths for the photo editor: warmth, tint, hue, vignette and the histogram. Pure (typed arrays in, typed arrays out),
+// Colour and tone maths for the photo editor: warmth, tint, hue, vignette, levels and the histogram. Pure (typed arrays in, typed arrays out),
 // so a node test can load it. Every function works on RGBA bytes (a Uint8ClampedArray from getImageData) and leaves fully
 // transparent pixels alone.
 (function () {
@@ -72,6 +72,46 @@
     return d;
   }
 
+  // Levels: the black point (0..254) becomes pure black, the white point (1..255) pure white, and gamma bends everything between (above 1
+  // brightens the midtones, below 1 darkens them; 1 leaves them straight). Returns the 256-entry lookup table. Out-of-range or odd inputs
+  // are pulled back into range, and the white point always stays above the black point.
+  function levelsLut(black = 0, gamma = 1, white = 255) {
+    let b = Math.round(Number(black));
+    b = Number.isFinite(b) ? Math.max(0, Math.min(254, b)) : 0;
+    let w = Math.round(Number(white));
+    w = Number.isFinite(w) ? Math.max(1, Math.min(255, w)) : 255;
+    if (w <= b) w = b + 1;
+    let g = Number(gamma);
+    g = Number.isFinite(g) && g > 0 ? Math.max(0.1, Math.min(10, g)) : 1;
+    const lut = new Uint8ClampedArray(256);
+    for (let i = 0; i < 256; i++) {
+      const t = Math.max(0, Math.min(1, (i - b) / (w - b)));
+      lut[i] = Math.round(255 * Math.pow(t, 1 / g));
+    }
+    return lut;
+  }
+
+  // The Midtones slider (-100..100) as a gamma: 0 is 1.00 (straight), 100 is 4 (much brighter), -100 is 0.25 (much darker).
+  function gammaFromSlider(v) {
+    const n = Math.max(-100, Math.min(100, Number(v) || 0));
+    return Math.pow(2, n / 50);
+  }
+
+  // Applies the same lookup to red, green and blue (so colours keep their balance), leaving transparent pixels alone.
+  function levelsPixels(d, { black = 0, gamma = 1, white = 255 } = {}) {
+    const lut = levelsLut(black, gamma, white);
+    let identity = true;
+    for (let i = 0; i < 256; i++) if (lut[i] !== i) { identity = false; break; }
+    if (identity) return d;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] === 0) continue;
+      d[i] = lut[d[i]];
+      d[i + 1] = lut[d[i + 1]];
+      d[i + 2] = lut[d[i + 2]];
+    }
+    return d;
+  }
+
   // Counts of each brightness level 0..255 for red, green, blue and overall brightness, weighted by opacity (faint antialiased rims count
   // for little), plus the weighted pixel total.
   function histogramOf(d) {
@@ -108,5 +148,5 @@
     return `${tone}; ${fmt(c.shadows)}% of the picture is pure shadow and ${fmt(c.highlights)}% pure highlight.`;
   }
 
-  window.PhotoColor = { tweakPixels, vignettePixels, histogramOf, clipping, describeHistogram, hueMatrix };
+  window.PhotoColor = { tweakPixels, vignettePixels, levelsLut, levelsPixels, gammaFromSlider, histogramOf, clipping, describeHistogram, hueMatrix };
 })();

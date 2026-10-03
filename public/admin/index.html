@@ -1578,6 +1578,13 @@
               <label title="Right darkens the corners, left lightens them">Vignette <input type="range" id="pe-vignette" min="-100" max="100" value="40" aria-valuetext="40"></label>
               <button type="button" id="pe-apply-vignette" title="Darken (or lighten) toward the corners across the whole active layer (or only inside the selection), by the amount set. One Undo step">Add vignette</button>
             </div>
+            <div class="pe-tool-group" id="pe-levels-group" role="group" aria-label="Levels">
+              <span class="pe-group-label">Levels</span>
+              <label title="Every tone at or below this level becomes pure black (the left marker on the histogram)">Black point <input type="range" id="pe-levels-black" min="0" max="254" value="0" aria-valuetext="0"></label>
+              <label title="Right brightens the in-between tones, left darkens them, without moving black or white">Midtones <input type="range" id="pe-levels-mid" min="-100" max="100" value="0" aria-valuetext="1.00 (unchanged)"></label>
+              <label title="Every tone at or above this level becomes pure white (the right marker on the histogram)">White point <input type="range" id="pe-levels-white" min="1" max="255" value="255" aria-valuetext="255"></label>
+              <button type="button" id="pe-apply-levels" title="Apply the black point, midtones and white point above to the whole active layer (or only inside the selection), then reset the sliders. One Undo step. Open the Histogram to see where the points sit">Apply levels</button>
+            </div>
             <details class="pe-tool-group pe-histogram" id="pe-histogram">
               <summary>Histogram</summary>
               <canvas id="pe-histogram-canvas" width="256" height="80" role="img" aria-label="Histogram of the picture's tones"></canvas>

@@ -3355,6 +3355,45 @@
     refreshHistogram();
   });
 
+  // Levels: black point, midtones and white point, applied to the active layer (or the selection) as one Undo step. The Histogram, when
+  // open, shows where the black and white points sit while the sliders are off their defaults.
+  const levelsDefaults = { black: 0, mid: 0, white: 255 };
+  const levelsState = () => ({ black: Number($("pe-levels-black").value), mid: Number($("pe-levels-mid").value), white: Number($("pe-levels-white").value) });
+  const levelsAtDefault = (v) => v.black === levelsDefaults.black && v.mid === levelsDefaults.mid && v.white === levelsDefaults.white;
+  function levelsMidText(mid) {
+    const g = window.PhotoColor.gammaFromSlider(mid);
+    return `${g.toFixed(2)}${mid === 0 ? " (unchanged)" : mid > 0 ? " (brighter)" : " (darker)"}`;
+  }
+  // The two points can not cross: pushing one past the other carries it along (one level apart at the closest).
+  $("pe-levels-black").addEventListener("input", () => {
+    if (Number($("pe-levels-black").value) >= Number($("pe-levels-white").value)) $("pe-levels-white").value = Number($("pe-levels-black").value) + 1;
+    $("pe-levels-black").setAttribute("aria-valuetext", $("pe-levels-black").value);
+    $("pe-levels-white").setAttribute("aria-valuetext", $("pe-levels-white").value);
+  });
+  $("pe-levels-white").addEventListener("input", () => {
+    if (Number($("pe-levels-white").value) <= Number($("pe-levels-black").value)) $("pe-levels-black").value = Number($("pe-levels-white").value) - 1;
+    $("pe-levels-white").setAttribute("aria-valuetext", $("pe-levels-white").value);
+    $("pe-levels-black").setAttribute("aria-valuetext", $("pe-levels-black").value);
+  });
+  $("pe-levels-mid").addEventListener("input", () => $("pe-levels-mid").setAttribute("aria-valuetext", levelsMidText(Number($("pe-levels-mid").value))));
+  $("pe-apply-levels").addEventListener("click", () => {
+    const v = levelsState();
+    if (levelsAtDefault(v)) {
+      setLayerNote("Move Black point, Midtones or White point first, then press Apply levels.");
+      return;
+    }
+    const gamma = window.PhotoColor.gammaFromSlider(v.mid);
+    if (!applyPixelEdit((d) => window.PhotoColor.levelsPixels(d, { black: v.black, gamma, white: v.white }))) return;
+    $("pe-levels-black").value = levelsDefaults.black;
+    $("pe-levels-mid").value = levelsDefaults.mid;
+    $("pe-levels-white").value = levelsDefaults.white;
+    $("pe-levels-black").setAttribute("aria-valuetext", "0");
+    $("pe-levels-mid").setAttribute("aria-valuetext", levelsMidText(0));
+    $("pe-levels-white").setAttribute("aria-valuetext", "255");
+    setLayerNote(`Applied levels: black ${v.black}, midtones ${gamma.toFixed(2)}, white ${v.white}${hasSelection() ? " inside the selection" : ""}.`);
+    refreshHistogram();
+  });
+
   // The histogram: how many pixels sit at each brightness, drawn from the whole picture as shown (every visible layer), shrunk first so
   // a big picture costs little. It redraws twice a second while it is open, so it follows the Adjust sliders, brush strokes and Undo.
   let histogramBusy = false;
@@ -3398,6 +3437,16 @@
       plot(hist.g, "rgba(40,255,40,0.32)");
       plot(hist.b, "rgba(60,90,255,0.32)");
       g.globalCompositeOperation = "source-over";
+      // The Levels points, drawn as a pair of lines (light and dark together, so they show on any background) once moved off the ends.
+      const lv = levelsState();
+      const mark = (x, a, b) => {
+        g.fillStyle = a;
+        g.fillRect(Math.max(0, x - 1), 0, 3, hc.height);
+        g.fillStyle = b;
+        g.fillRect(x, 0, 1, hc.height);
+      };
+      if (lv.black > levelsDefaults.black) mark(lv.black, "rgba(255,255,255,0.9)", "#000");
+      if (lv.white < levelsDefaults.white) mark(lv.white, "#000", "rgba(255,255,255,0.95)");
       const text = window.PhotoColor.describeHistogram(hist);
       $("pe-histogram-text").textContent = text;
       hc.setAttribute("aria-label", `Histogram of the picture's tones: ${text}`);

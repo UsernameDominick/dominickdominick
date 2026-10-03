@@ -93,5 +93,44 @@ const arr = (a) => Array.from(a);
   ok(/50% of the picture is pure shadow and 25% pure highlight/.test(C.describeHistogram(h)) && C.describeHistogram(null) === "Nothing to measure yet.", "and the clipping figures, with a fallback for nothing");
 }
 
+// levels
+{
+  const lut = C.levelsLut();
+  ok(arr(lut).every((v, i) => v === i), "default levels are the identity table");
+  const stretch = C.levelsLut(50, 1, 200);
+  ok(stretch[0] === 0 && stretch[50] === 0 && stretch[200] === 255 && stretch[255] === 255, "black point and below become 0, white point and above become 255", [stretch[50], stretch[200]]);
+  ok(stretch[125] === 128 || stretch[125] === 127, "and the middle of the range stays in the middle at gamma 1", stretch[125]);
+  const bright = C.levelsLut(0, 2, 255), dark = C.levelsLut(0, 0.5, 255);
+  ok(bright[128] > 128 && dark[128] < 128 && bright[0] === 0 && bright[255] === 255 && dark[0] === 0 && dark[255] === 255, "gamma above 1 brightens the midtones, below 1 darkens them, the ends stay put", [bright[128], dark[128]]);
+  ok(Math.abs(bright[64] - 255 * Math.pow(64 / 255, 0.5)) <= 0.5, "gamma 2 is the square root curve", bright[64]);
+  let mono = true;
+  for (const [b, g, w] of [[0, 1, 255], [30, 2.2, 220], [100, 0.4, 130], [254, 3, 255], [0, 9, 1]]) {
+    const t = C.levelsLut(b, g, w);
+    for (let i = 1; i < 256; i++) if (t[i] < t[i - 1]) mono = false;
+  }
+  ok(mono, "every table only ever goes up (no tone swaps order)");
+  const crossed = C.levelsLut(200, 1, 100);
+  ok(crossed[200] === 0 && crossed[201] === 255, "a white point at or below the black point is kept one level above it", [crossed[200], crossed[201]]);
+  ok(arr(C.levelsLut("x", "y", null)).every((v, i) => v === i) || C.levelsLut("x", "y", null)[255] === 255, "nonsense inputs fall back to safe values");
+  const wild = C.levelsLut(-50, -3, 999);
+  ok(wild[0] === 0 && wild[255] === 255 && !arr(wild).some((v) => !Number.isInteger(v) || v < 0 || v > 255), "out-of-range inputs are pulled back into range", [wild[0], wild[255]]);
+  ok(C.gammaFromSlider(0) === 1 && Math.abs(C.gammaFromSlider(100) - 4) < 1e-9 && Math.abs(C.gammaFromSlider(-100) - 0.25) < 1e-9 && C.gammaFromSlider(500) === 4 && C.gammaFromSlider("x") === 1, "the midtones slider maps 0 to 1, 100 to 4, -100 to 0.25 and clamps");
+
+  const d = px(50, 125, 200);
+  C.levelsPixels(d, { black: 50, gamma: 1, white: 200 });
+  ok(d[0] === 0 && d[2] === 255 && d[3] === 255 && (d[1] === 127 || d[1] === 128), "each channel goes through the table and opacity is untouched", arr(d));
+  const same = px(10, 120, 250);
+  C.levelsPixels(same, {}); C.levelsPixels(same);
+  ok(arr(same).join() === "10,120,250,255", "no change asked, no change made");
+  const clear = px(60, 60, 60, 0);
+  C.levelsPixels(clear, { black: 100 });
+  ok(arr(clear).join() === "60,60,60,0", "a transparent pixel is left alone");
+  const faint = px(60, 60, 60, 40);
+  C.levelsPixels(faint, { black: 100 });
+  ok(faint[0] === 0 && faint[3] === 40, "a faint pixel is changed but keeps its opacity", arr(faint));
+  const hist = C.histogramOf(C.levelsPixels(new Uint8ClampedArray([60, 60, 60, 255, 120, 120, 120, 255, 180, 180, 180, 255]), { black: 60, white: 180 }));
+  ok(hist.lum[0] === 1 && hist.lum[255] === 1, "stretching the range to the picture's own ends puts its darkest at 0 and lightest at 255", [hist.lum[0], hist.lum[255]]);
+}
+
 console.log(fail ? `${fail} FAILED` : "ALL PASS");
 process.exit(fail ? 1 : 0);
