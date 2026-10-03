@@ -165,6 +165,8 @@ import { cleanBodyFields, cleanPageCss, pageCssKey } from "./text.js";
 import { cleanBrand, cleanNavBuiltin } from "./nav-settings.js";
 import { cleanRedirectStatus, cleanRedirectTarget } from "./redirects.js";
 import { cleanScanFields } from "./scans.js";
+import FEATURES from "../features.json" with { type: "json" };
+import { REQUEST_MAX, REQUEST_PREFIX, cleanRequest, countByStatus, isRequestId, readRequestRow, requestKey } from "./features.js";
 import { SCRIPT_MAX, SCRIPT_PREFIX, cleanScript, isScriptId, readScriptRow, scriptKey } from "./scripts.js";
 import { cleanSongSave } from "./songs.js";
 import { outlineConfig, readOutline } from "./outline.js";
@@ -2725,6 +2727,40 @@ async function routeAdminApi(request, env, url, ctx) {
         log(ctx, env, "delete", "section", JSON.parse(row).name);
       } catch {}
     }
+    return json({ ok: true });
+  }
+
+  // /features — the Features board: what has been built (features.json, updated with each change) and the owner's own requests
+  // (one settings row each, so no schema change; see worker/features.js).
+  if (path === "/features" && method === "GET") {
+    const { results } = await env.DB.prepare("SELECT key, value FROM settings WHERE key LIKE ? ORDER BY key").bind(`${REQUEST_PREFIX}%`).all();
+    const requests = results.map(readRequestRow).filter(Boolean).sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+    return json({ updated: FEATURES.updated, items: FEATURES.items, counts: countByStatus(FEATURES.items), requests });
+  }
+  if (path === "/feature-requests" && method === "POST") {
+    const cleaned = cleanRequest(await readJsonBody(request));
+    if (!cleaned.ok) return json({ error: cleaned.error }, { status: 400 });
+    const count = await env.DB.prepare("SELECT COUNT(*) AS n FROM settings WHERE key LIKE ?").bind(`${REQUEST_PREFIX}%`).first();
+    if ((count?.n || 0) >= REQUEST_MAX) return json({ error: `You can keep up to ${REQUEST_MAX} requests; delete some that are finished.` }, { status: 400 });
+    const id = crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+    await setSetting(env, requestKey(id), JSON.stringify({ ...cleaned.value, status: "requested", created_at: new Date().toISOString() }));
+    return json({ id });
+  }
+  const requestMatch = path.match(/^\/feature-requests\/([a-f0-9]{12})$/);
+  if (requestMatch && isRequestId(requestMatch[1]) && method === "PATCH") {
+    const key = requestKey(requestMatch[1]);
+    const row = readRequestRow({ key, value: await getSetting(env, key) });
+    if (!row) return json({ error: "Request not found" }, { status: 404 });
+    const cleaned = cleanRequest(await readJsonBody(request), { partial: true });
+    if (!cleaned.ok) return json({ error: cleaned.error }, { status: 400 });
+    const { id, ...rest } = row;
+    await setSetting(env, key, JSON.stringify({ ...rest, ...cleaned.value }));
+    return json({ ok: true });
+  }
+  if (requestMatch && method === "DELETE") {
+    const key = requestKey(requestMatch[1]);
+    if (!(await getSetting(env, key))) return json({ error: "Request not found" }, { status: 404 });
+    await env.DB.prepare("DELETE FROM settings WHERE key = ?").bind(key).run();
     return json({ ok: true });
   }
 

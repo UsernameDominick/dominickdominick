@@ -10707,6 +10707,7 @@
       { label: "Open Projects", sub: "", run: () => { closeCommandPalette(); el("projects-btn").click(); } },
       { label: "Open Media Library", sub: "", run: () => { closeCommandPalette(); el("media-btn").click(); } },
       { label: "Open Redirects", sub: "", run: () => { closeCommandPalette(); el("redirects-btn").click(); } },
+      { label: "Open Features", sub: "What has been built, and your requests", run: () => { closeCommandPalette(); el("features-btn").click(); } },
       { label: "Open Scripts", sub: "Write and run scripts against the site", run: () => { closeCommandPalette(); el("scripts-btn").click(); } },
       { label: "Open Analytics", sub: "", run: () => { closeCommandPalette(); el("analytics-btn").click(); } },
       { label: "Open Simulations", sub: "", run: () => { closeCommandPalette(); el("simulations-btn").click(); } },

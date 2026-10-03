@@ -31,6 +31,9 @@ const { chromium } = require("./_pw.cjs");
   await p.fill('#inspector-style-fields [data-key="padding"]', "");
   await p.press('#inspector-style-fields [data-key="padding"]', "Tab");
   await p.waitForTimeout(600);
+  // the Text group can fold back up when the inspector redraws; open it before reaching for its clear button
+  await p.evaluate(() => { const g = document.querySelector('.style-group[data-group="text"]'); if (g) g.open = true; });
+  await p.waitForSelector('.style-group[data-group="text"] .clear-color', { state: "visible", timeout: 5000 });
   await p.click('.style-group[data-group="text"] .clear-color');
   await p.waitForTimeout(700);
   ok(!(await p.$('.style-group .style-group-count')), "reverted: no groups report values");

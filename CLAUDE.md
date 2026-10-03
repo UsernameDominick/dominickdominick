@@ -21,6 +21,7 @@ this file is what you need to work here quickly.
 | `public/*.js` | Scripts served to visitors (`nav.js`, `sim-player.js`, `song-engine.js`, `song-embed.js`…). |
 | `schema.sql`, `migrations/` | Database shape. `schema.sql` is the bootstrap; later columns live in numbered migrations. |
 | `tests/*.test.mjs` | Pure node tests (no server). `tests/e2e/` = browser tests. See Testing. |
+| `features.json` | The admin's **Features board** (what is built, in progress, planned, waiting on the owner). Keep it current, see below. |
 | `outline.md` | The owner's backlog/outline, shown read-only in the admin. Don't log work loops there. |
 
 ## Run it
@@ -89,6 +90,13 @@ node tests/e2e/run.mjs --live test_x  # one test against the dev server already 
 - **New stored list:** settings rows (rule 2) with routes like `/sections` or `/scripts` (cap the count and the size; validate in a small pure file).
 - **New block type / simulation part / song feature:** find the nearest existing one (`grep -n` for a sibling such as `lamp`, `buzzer`, `ties`) and follow it
   end to end: validation → admin UI → public render → CSS → tests.
+
+## Keeping the Features board current
+
+`features.json` is what the owner reads to see what has been added and what is done. In the same commit as any feature or fix the owner would
+care about, add or update its entry: `{"id", "area", "status", "title", "summary", "notes"}` with status `done`, `doing`, `planned`, `decision`
+(waiting on the owner: `notes` must say what the decision is) or `parked`, and bump `updated`. Plain language, no internal item numbers.
+`node tests/run.mjs features` checks the file. The owner's own requests live on the live site (they use "Copy open items" to paste them to you).
 
 ## Working with the owner
 

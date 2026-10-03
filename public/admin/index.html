@@ -62,6 +62,7 @@
           <button id="layers-btn">Layers</button>
           <button id="diagnostics-btn">Diagnostics</button>
           <button id="scripts-btn">Scripts</button>
+          <button id="features-btn">Features</button>
           <button id="seo-dashboard-btn">Site Health</button>
           <button id="topic-pages-btn">Topic Pages</button>
           <button id="analytics-btn">Analytics</button>
@@ -1034,6 +1035,41 @@
             </div>
           </div>
         </section>
+      </div>
+    </div>
+  </div>
+
+  <div id="features-modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="features-modal-title">
+    <div class="modal-inner features-modal-inner">
+      <header>
+        <h1 id="features-modal-title">Features</h1>
+        <button id="close-features" aria-label="Close Features dialog">×</button>
+      </header>
+      <div class="features-body">
+        <div class="fb-progress" role="img" aria-labelledby="features-progress-label"><span id="features-progress"></span></div>
+        <p id="features-progress-label" class="fb-progress-label"></p>
+        <div id="features-summary" class="fb-summary" role="group" aria-label="Filter by status"></div>
+        <section class="fb-requests-block" aria-labelledby="fb-requests-title">
+          <h2 id="fb-requests-title">Your requests</h2>
+          <form id="features-request-form" class="fb-request-form">
+            <label class="fb-sr-label" for="features-request-title">What do you want built?</label>
+            <input id="features-request-title" placeholder="What do you want built?" maxlength="120" autocomplete="off">
+            <label class="fb-sr-label" for="features-request-notes">Details (optional)</label>
+            <textarea id="features-request-notes" placeholder="Details (optional)" rows="2" maxlength="1000"></textarea>
+            <button type="submit">Add request</button>
+          </form>
+          <ul id="features-requests" class="fb-requests"></ul>
+        </section>
+        <div class="fb-tools">
+          <label class="fb-sr-label" for="features-search">Search features</label>
+          <input id="features-search" type="search" placeholder="Search features" autocomplete="off">
+          <label class="fb-sr-label" for="features-area">Filter by area</label>
+          <select id="features-area"><option value="">All areas</option></select>
+          <button id="features-copy" type="button" title="Copy what is open, as text to paste into the chat">Copy open items</button>
+        </div>
+        <p id="features-status" class="fb-status" role="status" aria-live="polite"></p>
+        <div id="features-groups"></div>
+        <p id="features-updated" class="fb-updated"></p>
       </div>
     </div>
   </div>
@@ -2693,6 +2729,7 @@
 <script src="/admin/script-runner.js"></script>
 <script src="/admin/script-editor.js"></script>
 <script src="/admin/script-templates.js"></script>
+<script src="/admin/features-board.js"></script>
 <script src="/admin/photo-color.js"></script>
 <script src="/admin/photo-editor.js"></script>
 <script src="/sim-buzzer.js"></script>
