@@ -393,11 +393,7 @@ export async function listBlocks(env, pageId) {
   const sharedIds = [...new Set(results.filter((b) => b.shared_block_id).map((b) => b.shared_block_id))];
   const sharedById = new Map();
   if (sharedIds.length) {
-    const placeholders = sharedIds.map(() => "?").join(",");
-    const { results: sharedRows } = await env.DB
-      .prepare(`SELECT * FROM shared_blocks WHERE id IN (${placeholders})`)
-      .bind(...sharedIds)
-      .all();
+    const sharedRows = await selectIn(env, (marks) => `SELECT * FROM shared_blocks WHERE id IN (${marks})`, sharedIds);
     sharedRows.forEach((s) => sharedById.set(s.id, s));
   }
   return results.map((b) => {
@@ -872,117 +868,84 @@ export function publishBodyTooShort(effectiveBody) {
   return !effectiveBody || effectiveBody.trim().length <= MIN_PUBLISH_BODY_LENGTH;
 }
 
+// D1 allows 100 bound values in one statement, so a long list of ids goes in chunks (90 leaves room for a value or two beside
+// the list). Reads gather the rows from every chunk; writes go in one db.batch, which is a single transaction.
+export const IN_CHUNK = 90;
+export function chunkList(list, size = IN_CHUNK) {
+  const out = [];
+  for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size));
+  return out;
+}
+async function selectIn(env, sqlFor, ids) {
+  const rows = [];
+  for (const part of chunkList(ids)) {
+    const { results } = await env.DB.prepare(sqlFor(part.map(() => "?").join(","))).bind(...part).all();
+    rows.push(...(results || []));
+  }
+  return rows;
+}
+async function updateIn(env, sqlFor, ids) {
+  const statements = chunkList(ids).map((part) => env.DB.prepare(sqlFor(part.map(() => "?").join(","))).bind(...part));
+  if (statements.length) await env.DB.batch(statements);
+}
+
 async function bulkAddTag(env, table, affectedIds, tag) {
-  const placeholders = affectedIds.map(() => "?").join(",");
-  const { results } = await env.DB.prepare(`SELECT id, tags FROM ${table} WHERE id IN (${placeholders})`).bind(...affectedIds).all();
-  const updates = results
+  const rows = await selectIn(env, (marks) => `SELECT id, tags FROM ${table} WHERE id IN (${marks})`, affectedIds);
+  const updates = rows
     .map((r) => {
       const tags = JSON.parse(r.tags || "[]");
       if (tags.includes(tag)) return null;
       return { id: r.id, tags: JSON.stringify([...tags, tag]) };
     })
     .filter(Boolean);
-  await Promise.all(
-    updates.map((u) =>
-      env.DB.prepare(`UPDATE ${table} SET tags = ?, updated_at = datetime('now'), version = version + 1 WHERE id = ?`).bind(u.tags, u.id).run()
-    )
+  const statements = updates.map((u) =>
+    env.DB.prepare(`UPDATE ${table} SET tags = ?, updated_at = datetime('now'), version = version + 1 WHERE id = ?`).bind(u.tags, u.id)
   );
+  for (let i = 0; i < statements.length; i += IN_CHUNK) await env.DB.batch(statements.slice(i, i + IN_CHUNK));
 }
 
-export async function bulkArticleAction(env, ids, action, opts = {}) {
-  const validIds = ids.map(Number).filter(Number.isFinite);
+// Shared by bulkArticleAction and bulkProjectAction (the two tables have the same columns for all of this).
+async function bulkContentAction(env, table, ids, action, opts) {
+  const validIds = [...new Set((Array.isArray(ids) ? ids : []).map(Number).filter((n) => Number.isSafeInteger(n) && n > 0))];
   if (!validIds.length) return { affected: 0, skippedLocked: 0 };
-  const placeholders = validIds.map(() => "?").join(",");
-  const lockedRows = await env.DB
-    .prepare(`SELECT id FROM articles WHERE id IN (${placeholders}) AND locked = 1`)
-    .bind(...validIds)
-    .all();
-  const skippedLocked = lockedRows.results.length;
-  const affectedIds = validIds.filter((id) => !lockedRows.results.some((r) => r.id === id));
+  const lockedRows = await selectIn(env, (marks) => `SELECT id FROM ${table} WHERE id IN (${marks}) AND locked = 1`, validIds);
+  const skippedLocked = lockedRows.length;
+  const lockedIds = new Set(lockedRows.map((r) => r.id));
+  const affectedIds = validIds.filter((id) => !lockedIds.has(id));
   if (!affectedIds.length) return { affected: 0, skippedLocked };
-  const affectedPlaceholders = affectedIds.map(() => "?").join(",");
   let skippedTooShort = 0;
   if (action === "publish") {
     // The single-item PUT/PATCH routes in admin-api.js reject publishing a
     // near-empty body — bulk "Publish" is just another way to set
     // published_at, so it needs the same floor, or it's a one-click way
     // around a check that exists specifically to stop that.
-    const rows = await env.DB
-      .prepare(`SELECT id, published_at, body FROM articles WHERE id IN (${affectedPlaceholders})`)
-      .bind(...affectedIds)
-      .all();
-    const toPublish = rows.results.filter((r) => r.published_at || !publishBodyTooShort(r.body)).map((r) => r.id);
+    const rows = await selectIn(env, (marks) => `SELECT id, published_at, body FROM ${table} WHERE id IN (${marks})`, affectedIds);
+    const toPublish = rows.filter((r) => r.published_at || !publishBodyTooShort(r.body)).map((r) => r.id);
     skippedTooShort = affectedIds.length - toPublish.length;
-    if (toPublish.length) {
-      const publishPlaceholders = toPublish.map(() => "?").join(",");
-      await env.DB
-        .prepare(`UPDATE articles SET published_at = COALESCE(published_at, datetime('now')), updated_at = datetime('now'), version = version + 1 WHERE id IN (${publishPlaceholders})`)
-        .bind(...toPublish)
-        .run();
-    }
+    await updateIn(
+      env,
+      (marks) => `UPDATE ${table} SET published_at = COALESCE(published_at, datetime('now')), updated_at = datetime('now'), version = version + 1 WHERE id IN (${marks})`,
+      toPublish
+    );
   } else if (action === "unpublish") {
-    await env.DB
-      .prepare(`UPDATE articles SET published_at = NULL, updated_at = datetime('now'), version = version + 1 WHERE id IN (${affectedPlaceholders})`)
-      .bind(...affectedIds)
-      .run();
+    await updateIn(env, (marks) => `UPDATE ${table} SET published_at = NULL, updated_at = datetime('now'), version = version + 1 WHERE id IN (${marks})`, affectedIds);
   } else if (action === "trash") {
-    await env.DB
-      .prepare(`UPDATE articles SET deleted_at = datetime('now'), version = version + 1 WHERE id IN (${affectedPlaceholders})`)
-      .bind(...affectedIds)
-      .run();
+    await updateIn(env, (marks) => `UPDATE ${table} SET deleted_at = datetime('now'), version = version + 1 WHERE id IN (${marks})`, affectedIds);
   } else if (action === "add-tag") {
     if (!opts.tag) throw new Error("Tag required");
-    await bulkAddTag(env, "articles", affectedIds, opts.tag);
+    await bulkAddTag(env, table, affectedIds, opts.tag);
   } else {
     throw new Error("Invalid bulk action");
   }
   return { affected: affectedIds.length - skippedTooShort, skippedLocked, skippedTooShort };
 }
 
-export async function bulkProjectAction(env, ids, action, opts = {}) {
-  const validIds = ids.map(Number).filter(Number.isFinite);
-  if (!validIds.length) return { affected: 0, skippedLocked: 0 };
-  const placeholders = validIds.map(() => "?").join(",");
-  const lockedRows = await env.DB
-    .prepare(`SELECT id FROM projects WHERE id IN (${placeholders}) AND locked = 1`)
-    .bind(...validIds)
-    .all();
-  const skippedLocked = lockedRows.results.length;
-  const affectedIds = validIds.filter((id) => !lockedRows.results.some((r) => r.id === id));
-  if (!affectedIds.length) return { affected: 0, skippedLocked };
-  const affectedPlaceholders = affectedIds.map(() => "?").join(",");
-  let skippedTooShort = 0;
-  if (action === "publish") {
-    const rows = await env.DB
-      .prepare(`SELECT id, published_at, body FROM projects WHERE id IN (${affectedPlaceholders})`)
-      .bind(...affectedIds)
-      .all();
-    const toPublish = rows.results.filter((r) => r.published_at || !publishBodyTooShort(r.body)).map((r) => r.id);
-    skippedTooShort = affectedIds.length - toPublish.length;
-    if (toPublish.length) {
-      const publishPlaceholders = toPublish.map(() => "?").join(",");
-      await env.DB
-        .prepare(`UPDATE projects SET published_at = COALESCE(published_at, datetime('now')), updated_at = datetime('now'), version = version + 1 WHERE id IN (${publishPlaceholders})`)
-        .bind(...toPublish)
-        .run();
-    }
-  } else if (action === "unpublish") {
-    await env.DB
-      .prepare(`UPDATE projects SET published_at = NULL, updated_at = datetime('now'), version = version + 1 WHERE id IN (${affectedPlaceholders})`)
-      .bind(...affectedIds)
-      .run();
-  } else if (action === "trash") {
-    await env.DB
-      .prepare(`UPDATE projects SET deleted_at = datetime('now'), version = version + 1 WHERE id IN (${affectedPlaceholders})`)
-      .bind(...affectedIds)
-      .run();
-  } else if (action === "add-tag") {
-    if (!opts.tag) throw new Error("Tag required");
-    await bulkAddTag(env, "projects", affectedIds, opts.tag);
-  } else {
-    throw new Error("Invalid bulk action");
-  }
-  return { affected: affectedIds.length - skippedTooShort, skippedLocked, skippedTooShort };
+export function bulkArticleAction(env, ids, action, opts = {}) {
+  return bulkContentAction(env, "articles", ids, action, opts);
+}
+
+export function bulkProjectAction(env, ids, action, opts = {}) {
+  return bulkContentAction(env, "projects", ids, action, opts);
 }
 
 // "Delete" moves an article to the trash rather than actually removing it
@@ -3125,10 +3088,7 @@ export async function titlesForPaths(env, paths) {
     const wanted = [...new Set([...byPath.values()].filter((v) => v !== null && v !== undefined))];
     if (!wanted.length) return;
     try {
-      const { results } = await env.DB
-        .prepare(`SELECT ${keyColumn} AS k, ${titleSql} AS title FROM ${table} WHERE ${keyColumn} IN (${wanted.map(() => "?").join(",")})`)
-        .bind(...wanted)
-        .all();
+      const results = await selectIn(env, (marks) => `SELECT ${keyColumn} AS k, ${titleSql} AS title FROM ${table} WHERE ${keyColumn} IN (${marks})`, wanted);
       const titles = new Map(results.map((r) => [r.k, r.title]));
       for (const [path, key] of byPath) if (titles.get(key)) out.set(path, String(titles.get(key)).slice(0, 80));
     } catch {
@@ -3172,11 +3132,8 @@ export async function getTopArticles(env, days = 7, limit = 5) {
   const rows = new Map();
   if (slugs.length) {
     try {
-      const found = await env.DB
-        .prepare(`SELECT id, slug, title FROM articles WHERE slug IN (${slugs.map(() => "?").join(",")})`)
-        .bind(...slugs)
-        .all();
-      for (const a of found.results) rows.set(a.slug, a);
+      const found = await selectIn(env, (marks) => `SELECT id, slug, title FROM articles WHERE slug IN (${marks})`, slugs);
+      for (const a of found) rows.set(a.slug, a);
     } catch {
       // Titles are a nicety: without them the address is shown.
     }
