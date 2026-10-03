@@ -213,6 +213,9 @@ return results;`;
   await p.setViewportSize({ width: 1440, height: 900 });
   // light theme
   await p.evaluate(() => document.documentElement.setAttribute("data-theme", "light"));
+  // buttons fade between theme colours for 0.15s; axe must measure the finished colours, not the middle of the fade
+  await p.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running"), null, { timeout: 3000 }).catch(() => {});
+  await p.waitForTimeout(250);
   const viol2 = await p.evaluate(async () => (await axe.run(document.getElementById("scripts-modal"), { resultTypes: ["violations"] })).violations.map((v) => v.id + ": " + v.nodes.slice(0, 2).map((n) => n.target.join(" ")).join(" ; ")));
   ok(viol2.length === 0, "axe: light theme clean", viol2);
   await p.screenshot({ path: require("os").tmpdir() + "/scripts_light.png" });

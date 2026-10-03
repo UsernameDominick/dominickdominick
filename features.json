@@ -103,6 +103,7 @@
     {"id": "faster-node-tests", "area": "Dev tools", "status": "done", "title": "Faster node tests", "summary": "About 6 s instead of 15 s, with name filters.", "date": "2026-10-03"},
     {"id": "browser-tests-in-the-repo", "area": "Dev tools", "status": "done", "title": "Browser tests in the repo", "summary": "58 Playwright tests, run in parallel on throwaway servers (about 3 minutes), reporting only new failures.", "date": "2026-10-03"},
     {"id": "claude-md", "area": "Dev tools", "status": "done", "title": "CLAUDE.md", "summary": "The site's layout, workflow and rules written down so every session starts fast.", "date": "2026-10-03"},
-    {"id": "fix-the-remaining-known-failing-browser-tests", "area": "Dev tools", "status": "todo", "title": "Fix the remaining known-failing browser tests", "kind": "bug", "summary": "Three left that fail before any change (media library, groups, bulk inspector) plus one half-fixed."}
+    {"id": "fix-the-remaining-known-failing-browser-tests", "area": "Dev tools", "status": "todo", "title": "Fix the remaining known-failing browser tests", "kind": "bug", "summary": "Three left that fail before any change (media library, groups, bulk inspector) plus one half-fixed."},
+    {"id": "share-picture-and-home-title", "area": "Site & content", "status": "todo", "title": "Pick a share picture and a fuller home page title", "kind": "decision", "summary": "Links to the site show no picture, and the home page's search title is just \"Dominick\".", "notes": "Two quick choices only you can make: upload a default share image in Settings > Sharing (1200 x 630 works best), and say if you want a longer home page title such as your name plus what the site is. I can write the title once you pick the wording."}
   ]
 }

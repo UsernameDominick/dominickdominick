@@ -106,6 +106,23 @@ const { chromium, axeSource } = require("./_pw.cjs");
     await p.close();
   }
 
+  // thin topic pages: one item and no introduction stays out of search results and the sitemap, a busier topic stays in
+  {
+    const index = await (await fetch(E2E_BASE + "/topics")).text();
+    const topics = [...index.matchAll(/href="\/topics\/([^"]+)">[^<]*<\/a> <span class="topic-count">(\d+)<\/span>/g)].map((m) => ({ tag: m[1], count: Number(m[2]) }));
+    const sitemap = await (await fetch(E2E_BASE + "/sitemap.xml")).text();
+    const lone = topics.find((t) => t.count === 1);
+    const busy = topics.find((t) => t.count >= 2);
+    ok(!!lone && !!busy, "the sample site has a one-item topic and a busier one to compare", topics);
+    if (lone && busy) {
+      const robots = async (t) => ((await (await fetch(E2E_BASE + "/topics/" + t.tag)).text()).match(/<meta name="robots" content="([^"]*)"/) || [])[1] || "";
+      ok(/noindex/.test(await robots(lone)), "a one-item topic page asks not to be indexed", lone);
+      ok(!sitemap.includes(`/topics/${lone.tag}</loc>`), "…and is left out of the sitemap");
+      ok(!/noindex/.test(await robots(busy)), "a topic with several items stays indexable", busy);
+      ok(sitemap.includes(`/topics/${busy.tag}</loc>`), "…and stays in the sitemap");
+    }
+  }
+
   // the "slow down" page
   {
     let res;

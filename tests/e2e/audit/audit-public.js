@@ -124,13 +124,16 @@ const add = (sev, area, page, vp, msg, extra) => findings.push({ sev, area, page
       const target = u.origin === E2E_BASE ? u.pathname + u.search : u.pathname + u.search; // the live domain's paths are checked on the local server
       if (!linkStatus.has(target)) { const r = await fetch(E2E_BASE + target, { redirect: "manual" }).catch(() => ({ status: 0 })); linkStatus.set(target, r.status); }
       const st = linkStatus.get(target);
-      if (st >= 400 || st === 0) add("high", "links", path, "", `broken internal link ${l.href} → ${st}`);
+      if (st === 429) add("info", "links", path, "", `link ${l.href} was rate limited while checking, not verified`);
+      else if (st >= 400 || st === 0) add("high", "links", path, "", `broken internal link ${l.href} → ${st}`);
       else if (st >= 300) add("low", "links", path, "", `internal link ${l.href} redirects (${st})`);
       if (/^https?:\/\/(www\.)?dominickdominick\.com/.test(l.href) && !/localhost/.test(E2E_BASE)) { /* absolute links to itself are fine live */ }
     }
-    if (consoleErrs.length) add("high", "console", path, "", `console errors: ${[...new Set(consoleErrs)].slice(0, 3).join(" | ")}`);
+    const missing = path.includes("does-not-exist"); // these pages are meant to answer 404, so the browser logs it
+    const realErrs = missing ? consoleErrs.filter((m) => !/status of 404/.test(m)) : consoleErrs;
+    if (realErrs.length) add("high", "console", path, "", `console errors: ${[...new Set(realErrs)].slice(0, 3).join(" | ")}`);
     if (failed.length) add("med", "network", path, "", `failed requests: ${[...new Set(failed)].slice(0, 3).join(" | ")}`);
-    const bad = sizes.filter((s) => s.status >= 400 && !/favicon/.test(s.url));
+    const bad = sizes.filter((s) => s.status >= 400 && !/favicon/.test(s.url) && !(missing && s.url === E2E_BASE + path));
     if (bad.length) add("med", "network", path, "", `error responses: ${bad.slice(0, 3).map((s) => s.status + " " + s.url).join(" | ")}`);
     const total = sizes.reduce((a, s) => a + s.len, 0);
     if (total > 1.5e6) add("low", "perf", path, "", `page weight ${(total / 1e6).toFixed(1)} MB`);
@@ -153,6 +156,9 @@ const add = (sev, area, page, vp, msg, extra) => findings.push({ sev, area, page
           if (!r.width || !r.height) continue;
           const cs = getComputedStyle(el);
           if (cs.position === "fixed" || cs.visibility === "hidden" || cs.display === "none") continue;
+          let scrolls = false;
+          for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) { const ox = getComputedStyle(p).overflowX; if ((ox === "auto" || ox === "scroll") && p.scrollWidth > p.clientWidth) { scrolls = true; break; } }
+          if (scrolls) continue;
           if (r.right > vw + 2 && !el.closest("pre,table,.code-block,[class*=scroll],[class*=marquee],svg,.sim-canvas,figure.table,.table-wrap,.topic-cloud,.hero")) over.push((el.tagName + "." + (el.className || "").toString().split(" ")[0]).slice(0, 50) + ` right=${Math.round(r.right)}`);
         }
         const small = [];
@@ -163,7 +169,7 @@ const add = (sev, area, page, vp, msg, extra) => findings.push({ sev, area, page
           if (!inline && (r.width < 24 || r.height < 24)) small.push((el.textContent || el.getAttribute("aria-label") || el.tagName).trim().slice(0, 30) + ` ${Math.round(r.width)}x${Math.round(r.height)}`);
         }
         const tiny = [...document.querySelectorAll("p,li,a,span,td,h1,h2,h3,label,button")].filter((e) => e.childNodes.length && [...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()) && parseFloat(getComputedStyle(e).fontSize) < 12 && e.offsetHeight).map((e) => (e.textContent || "").trim().slice(0, 30)).slice(0, 5);
-        const clipped = [...document.querySelectorAll("p,h1,h2,h3,li,a,button,span")].filter((e) => { const cs = getComputedStyle(e); return e.scrollWidth > e.clientWidth + 2 && cs.overflowX !== "visible" && cs.textOverflow !== "ellipsis" && e.clientWidth > 0 && !e.closest("pre,code"); }).map((e) => (e.textContent || "").trim().slice(0, 30)).slice(0, 3);
+        const clipped = [...document.querySelectorAll("p,h1,h2,h3,li,a,button,span")].filter((e) => { const cs = getComputedStyle(e); return e.scrollWidth > e.clientWidth + 2 && cs.overflowX !== "visible" && cs.textOverflow !== "ellipsis" && e.clientWidth > 4 && !e.closest("pre,code,.sr-only,.visually-hidden"); }).map((e) => (e.textContent || "").trim().slice(0, 30)).slice(0, 3);
         const doc = { sw: document.documentElement.scrollWidth, vw };
         return { over: over.slice(0, 5), small: small.slice(0, 40), tiny, clipped, doc, bodyH: document.body.scrollHeight };
       });
@@ -187,7 +193,8 @@ const add = (sev, area, page, vp, msg, extra) => findings.push({ sev, area, page
         let invisible = 0, stops = 0;
         for (let i = 0; i < 25; i++) {
           await pg.keyboard.press("Tab");
-          const f = await pg.evaluate(() => { const e = document.activeElement; if (!e || e === document.body) return null; const cs = getComputedStyle(e); const r = e.getBoundingClientRect(); const ring = (cs.outlineStyle !== "none" && parseFloat(cs.outlineWidth) > 0) || cs.boxShadow !== "none"; return { ring, vis: r.width > 0 && r.height > 0, name: (e.textContent || e.getAttribute("aria-label") || e.tagName).trim().slice(0, 25), off: r.bottom < 0 || r.top > innerHeight + 2000 }; });
+          const f = await pg.evaluate(() => { const e = document.activeElement; if (!e || e === document.body) return null; const cs = getComputedStyle(e); const r = e.getBoundingClientRect(); const drawn = (x) => { const c = getComputedStyle(x); return (c.outlineStyle !== "none" && parseFloat(c.outlineWidth) > 0) || c.boxShadow !== "none"; };
+            let ring = drawn(e); for (let a = e.parentElement; a && !ring && a !== document.body; a = a.parentElement) if (a.matches(":focus-within")) ring = drawn(a); return { ring, vis: r.width > 0 && r.height > 0, name: (e.textContent || e.getAttribute("aria-label") || e.tagName).trim().slice(0, 25), off: r.bottom < 0 || r.top > innerHeight + 2000 }; });
           if (!f) continue;
           stops++;
           if (f.vis && !f.ring) { invisible++; if (invisible <= 2) add("med", "a11y", path, vp, `keyboard focus shows no outline or ring on "${f.name}"`); }

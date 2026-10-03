@@ -4200,3 +4200,15 @@ main h2 > a:only-child { display: inline-block; padding-block: 2px; }
   .article-meta { column-gap: 14px; }
   .article-meta-sep { display: none; }
 }
+
+/* Long unbroken text (a pasted address, an enormous word) wraps inside its box. Without this it widened the whole page on a phone,
+   so the layout zoomed out and everything else shrank. Code blocks keep scrolling sideways: they do not wrap at all. */
+.canvas { overflow-wrap: break-word; }
+/* Flex items do not shrink below their longest word, so a long title in the trail has to be allowed to break anywhere. */
+.breadcrumbs > * { min-width: 0; overflow-wrap: anywhere; }
+/* Tags and topic chips are flex items too: a very long tag wraps inside the chip instead of stretching it past the screen. */
+.tags .tag, .topics-list > li, .topics-list a { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+/* Titles in lists wrap anywhere too: an inline-block link or a flex row cannot shrink below its longest word otherwise. */
+main h2 > a:only-child, .thought h2 a { max-width: 100%; overflow-wrap: anywhere; }
+.archive-list li > a { min-width: 0; overflow-wrap: anywhere; }
+.archive-list li > .topic-count { flex: none; }

@@ -16,11 +16,19 @@ function latestOf(dates) {
   return real.length ? real.reduce((a, b) => (b > a ? b : a)) : null;
 }
 
+// A topic page that lists a single thing and says nothing of its own repeats that thing's page, so it is kept out of search results and
+// out of the sitemap. One the owner has written an introduction for is real content and stays in.
+export const THIN_TOPIC_ITEMS = 2;
+export function topicIsThin({ count, description }) {
+  if (typeof description === "string" && description.trim()) return false;
+  return Number.isFinite(count) && count < THIN_TOPIC_ITEMS;
+}
+
 const changedAt = (item) => item.updated_at || item.published_at || item.created_at || null;
 
 // Everything the sitemap lists, once each. The index pages take the date of the newest thing they list (a reader's search engine then
 // knows when to look again), a topic page the newest thing carrying that tag, and a circuit its own last change.
-// data: { pages, articles, projects, simulations: [{ id, updated_at }], tagCounts: [{ tag }] }; options.isInSitemap(item, type).
+// data: { pages, articles, projects, simulations: [{ id, updated_at }], tagCounts: [{ tag, count?, description? }] }; options.isInSitemap(item, type).
 export function buildSitemapEntries(data, { isInSitemap, reservedSlugs }) {
   const pages = data.pages || [];
   const articles = data.articles || [];
@@ -40,7 +48,7 @@ export function buildSitemapEntries(data, { isInSitemap, reservedSlugs }) {
     { loc: "/archive", lastmod: latestOf([...articleDates, ...projectDates]) },
     { loc: "/random", lastmod: latestOf(articleDates) },
     { loc: "/projects", lastmod: latestOf(projectDates) },
-    ...tags.map((t) => ({ loc: `/topics/${encodeURIComponent(t.tag)}`, lastmod: latestOf(tagged(t.tag)) })),
+    ...tags.filter((t) => !topicIsThin(t)).map((t) => ({ loc: `/topics/${encodeURIComponent(t.tag)}`, lastmod: latestOf(tagged(t.tag)) })),
   ];
   // Each address once: /projects and /random were listed twice (as a page and as a built-in index), which search engines read as noise.
   const seen = new Set();

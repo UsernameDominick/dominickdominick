@@ -1,5 +1,5 @@
 // sitemap.xml: every address once, each with the date it last changed.
-import { buildSitemapEntries, sitemapXml, sitemapDate } from "../worker/sitemap.js";
+import { buildSitemapEntries, sitemapXml, sitemapDate, topicIsThin } from "../worker/sitemap.js";
 
 let fail = 0;
 const ok = (c, m, extra) => { if (!c) fail++; console.log(`${c ? "PASS" : "FAIL"} — ${m}${extra !== undefined ? " " + JSON.stringify(extra) : ""}`); };
@@ -41,6 +41,17 @@ ok(by["/archive"] === "2026-06-15" && by["/topics"] === "2026-06-15", "Archive a
 ok(by["/topics/x"] === "2026-06-15" && by["/topics/y"] === "2026-05-10" && by["/topics/z"] === "2026-06-15", "a topic page takes the newest item carrying that tag", [by["/topics/x"], by["/topics/y"], by["/topics/z"]]);
 ok(by["/topics/has%20space%20%26%20more"] === null, "a tag nothing carries has no date, and is percent-encoded in the address", Object.keys(by).filter((k) => k.startsWith("/topics/h")));
 ok(new Set(entries.map((e) => e.loc)).size === entries.length, "every address appears once");
+
+// thin topic pages: one item and no introduction of its own is left out, a written introduction or a second item keeps it in
+{
+  ok(topicIsThin({ count: 1, description: "" }) && topicIsThin({ count: 1 }) && topicIsThin({ count: 1, description: "   " }), "a topic with one item and no introduction is thin");
+  ok(!topicIsThin({ count: 2, description: "" }) && !topicIsThin({ count: 9 }), "two or more items is enough");
+  ok(!topicIsThin({ count: 1, description: "Notes on small CSS things." }), "an introduction the owner wrote makes a one-item topic real content");
+  ok(!topicIsThin({ tag: "x" }) && !topicIsThin({ count: "1" }), "no usable count never hides a topic");
+  const e = buildSitemapEntries({ tagCounts: [{ tag: "web", count: 5 }, { tag: "lone", count: 1 }, { tag: "lone-with-note", count: 1, description: "Hello" }] }, { isInSitemap: () => true, reservedSlugs: new Set() });
+  const locs = e.map((x) => x.loc);
+  ok(locs.includes("/topics/web") && locs.includes("/topics/lone-with-note") && !locs.includes("/topics/lone"), "the sitemap lists busy or introduced topics and skips the lone one", locs);
+}
 
 // damaged rows never throw
 {

@@ -1,4 +1,4 @@
-import { buildSitemapEntries, sitemapXml } from "./sitemap.js";
+import { buildSitemapEntries, sitemapXml, topicIsThin } from "./sitemap.js";
 import {
   getPageBySlug,
   listPages,
@@ -51,6 +51,7 @@ import {
   SEARCH_PAGE_SIZE,
   getContentByTag,
   getTopicMeta,
+  listTopicMeta,
   isInSitemap,
 } from "./db.js";
 import { isAuthenticated, parseCookies, hmac, timingSafeEqual } from "./auth.js";
@@ -896,8 +897,9 @@ async function renderTopicPage(env, tag, navItems) {
     // An arbitrary URL segment with nothing tagged under it is a thin,
     // unbounded set of URLs (every possible string 404s to this same
     // "Nothing tagged…" page) — never worth indexing, unlike a topic that
-    // actually has content.
-    noindex: isEmpty,
+    // actually has content. A topic with one item and no introduction of its
+    // own just repeats that item's page, so it is kept out too.
+    noindex: isEmpty || topicIsThin({ count: articles.length + projects.length, description: visibleText(topicMeta?.description) }),
     canvasClass: "canvas article-canvas",
   });
   return new Response(html, { status: isEmpty ? 404 : 200, headers: { "Content-Type": "text/html;charset=UTF-8" } });
@@ -1167,7 +1169,9 @@ async function renderSitemap(env) {
   const articles = (await listArticles(env, { publishedOnly: true })).filter((a) => !isNoindexed(noindex, "article", a.id));
   const projects = (await listProjects(env, { publishedOnly: true })).filter((p) => !isNoindexed(noindex, "project", p.id));
   const simulations = await listPublishedSimulations(env);
-  const tagCounts = await getTagCounts(env);
+  const [counts, topicNotes] = await Promise.all([getTagCounts(env), listTopicMeta(env)]);
+  const descriptions = new Map(topicNotes.map((m) => [m.tag, visibleText(m.description)]));
+  const tagCounts = counts.map((t) => ({ ...t, description: descriptions.get(t.tag) || "" }));
   const entries = buildSitemapEntries({ pages, articles, projects, simulations, tagCounts }, { isInSitemap, reservedSlugs: RESERVED_SLUGS });
   return new Response(sitemapXml(entries), { headers: { "Content-Type": "application/xml;charset=UTF-8" } });
 }
