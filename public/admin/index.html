@@ -241,6 +241,7 @@
               <button id="duplicate-page-btn">Duplicate</button>
               <button id="save-page-template-btn">Save as template</button>
               <button type="button" id="delete-page-template-btn" title="Delete the template currently selected in the picker above">Delete template</button>
+              <button type="button" id="fit-all-blocks-btn" title="Make every heading, text, quote, picture and button block as tall as its content, moving the blocks below down so nothing overlaps">Fit blocks to content</button>
               <button type="button" id="lock-page-btn" title="Locking protects this page from global find-replace — it doesn't affect editing it directly">Lock</button>
               <button type="button" id="favorite-page-btn" title="Pin to the top of the command palette">☆ Pin</button>
             </div>
@@ -251,6 +252,7 @@
       </aside>
 
       <main class="admin-canvas-wrap">
+        <div id="canvas-note" class="canvas-note" role="status" aria-live="polite" hidden></div>
         <div id="canvas" class="admin-canvas"></div>
       </main>
 
@@ -2563,6 +2565,7 @@
 
 <script src="/admin/period-compare.js"></script>
 <script src="/admin/image-fit.js"></script>
+<script src="/admin/block-fit.js"></script>
 <script src="/admin/app.js"></script>
 <script src="/admin/panels.js"></script>
 <script src="/admin/dialog-resize.js"></script>

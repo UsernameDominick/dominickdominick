@@ -7482,9 +7482,17 @@ button[data-tier="quiet"] { border-color: transparent; }
 
 /* ---- Canvas: miniature block previews ---- */
 .admin-block .block-preview { font-size: 0.85rem; color: var(--text); overflow: hidden; display: flex; flex-direction: column; gap: 4px; min-height: 0; }
-.pv-heading { font-size: 1.15rem; line-height: 1.2; overflow-wrap: anywhere; }
-.pv-text { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; color: var(--text-dim); line-height: 1.45; overflow-wrap: anywhere; }
-.pv-image { max-width: 100%; max-height: 90px; object-fit: contain; align-self: flex-start; border-radius: 4px; }
+/* The previews are drawn at the size they have on the public page (heading levels, body text, a picture at the block's width), so a
+   block that is too short visibly cuts its content off and "Fit" can measure it. Short blocks still switch to the compact looks below. */
+.pv-heading { font-size: 1.15rem; line-height: 1.2; overflow-wrap: anywhere; letter-spacing: -0.02em; }
+.pv-heading[data-level="1"] { font-size: 2rem; }
+.pv-heading[data-level="2"] { font-size: 1.6rem; }
+.pv-heading[data-level="3"] { font-size: 1.3rem; }
+.pv-heading[data-level="4"] { font-size: 1.1rem; }
+.pv-heading[data-level="5"] { font-size: 1rem; }
+.pv-heading[data-level="6"] { font-size: 0.9rem; }
+.pv-text { display: -webkit-box; -webkit-line-clamp: 999; -webkit-box-orient: vertical; overflow: hidden; color: var(--text); font-size: 1rem; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pv-image { max-width: 100%; width: 100%; height: auto; object-fit: contain; align-self: flex-start; border-radius: 4px; }
 .pv-button { align-self: flex-start; padding: 4px 12px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-weight: 600; font-size: 0.8rem; }
 .pv-card { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); overflow-wrap: anywhere; }
 .pv-card span { color: var(--text-dim); font-size: 0.78rem; }
@@ -7522,7 +7530,7 @@ button[data-tier="quiet"] { border-color: transparent; }
 .admin-block-compact .pv-heading { font-size: 0.95rem; }
 .admin-block-compact .pv-button { font-size: 0.72rem; padding: 2px 10px; }
 .admin-block-compact .pv-text { -webkit-line-clamp: 2; }
-.admin-block-compact .pv-image { max-height: 40px; }
+.admin-block-compact .pv-image { max-height: 40px; width: auto; }
 .admin-block-compact .pv-gallery img { width: 28px; height: 28px; }
 .admin-block-compact .pv-card span { display: none; }
 
@@ -7534,7 +7542,7 @@ button[data-tier="quiet"] { border-color: transparent; }
 .admin-block-xs .pv-text { -webkit-line-clamp: 1; line-height: 1.1; }
 .admin-block-xs .pv-quote, .admin-block-xs .pv-card { padding-top: 0; padding-bottom: 0; line-height: 1.1; }
 .admin-block-xs .pv-gallery img { width: 12px; height: 12px; }
-.admin-block-xs .pv-image { max-height: 12px; }
+.admin-block-xs .pv-image { max-height: 12px; width: auto; }
 .admin-block-xs .alt-text-warning { display: none; }
 
 /* ---- Page CSS panel ---- */
@@ -8069,3 +8077,13 @@ button[data-tier="quiet"] { border-color: transparent; }
 .outline-text { width: 100%; box-sizing: border-box; min-height: 52vh; resize: none; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.82rem; line-height: 1.5; tab-size: 2; white-space: pre-wrap; padding: 10px 12px; }
 .outline-meta { margin: 6px 0; font-size: 0.8rem; color: var(--text-dim); }
 .outline-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+
+/* Fit to content: the cut-off marker on a block shorter than its content, the note under the toolbar actions, the toolbar when it has to sit on a block. */
+.admin-block.block-overflows { border-color: var(--warning, #d9a441); border-style: dashed; }
+.block-fit-hint { position: absolute; z-index: 6; width: 52px; padding: 2px 0; text-align: center; font-size: 0.7rem; line-height: 1.4; min-height: 0; border-radius: 999px; border: 1px solid var(--warning, #d9a441); background: var(--bg-elevated); color: var(--text); cursor: pointer; box-shadow: var(--shadow-md, 0 2px 8px rgba(0, 0, 0, 0.25)); }
+.block-fit-hint:hover { background: var(--warning, #d9a441); color: #000; }
+.block-fit-hint:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.canvas-note { max-width: 1100px; margin: 0 auto 8px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-elevated); font-size: 0.85rem; }
+.canvas-note[hidden] { display: none; }
+.canvas-toolbar.is-inside { opacity: 0.96; }
+.admin-block-probe { overflow: visible; }

@@ -1525,7 +1525,183 @@
       div.style.width = style.width + "px";
       div.style.height = style.height + "px";
     });
+    scheduleOverflowMarks();
   }
+
+  // ---------- Fit blocks to their content ----------
+  // The public page grows its rows to fit whatever a block holds, but the canvas gives every block a fixed height, so a heading or a
+  // paragraph can sit cut off in the editor. These helpers measure what a block really needs (its preview at the block's own width),
+  // mark blocks that overflow, and fit one block or all of them, pushing the blocks below down so nothing overlaps (public/admin/block-fit.js).
+  const FIT_TYPES = new Set(["heading", "text", "quote", "image", "button", "project-card"]);
+  const imageDims = new Map(); // url -> {w, h} once loaded, "loading" or "bad" otherwise
+  let overflowTimer = null;
+  function imageSizeAttrs(url) {
+    const d = imageDims.get(url);
+    if (d && typeof d === "object") return ` width="${d.w}" height="${d.h}"`;
+    if (!imageDims.has(url)) loadImageDims(url);
+    return "";
+  }
+  function loadImageDims(url) {
+    return new Promise((resolve) => {
+      const known = imageDims.get(url);
+      if (known && typeof known === "object") return resolve(known);
+      if (known === "bad") return resolve(null);
+      const im = new Image();
+      imageDims.set(url, "loading");
+      im.onload = () => {
+        const d = { w: im.naturalWidth || 0, h: im.naturalHeight || 0 };
+        imageDims.set(url, d.w && d.h ? d : "bad");
+        scheduleOverflowMarks();
+        resolve(d.w && d.h ? d : null);
+      };
+      im.onerror = () => {
+        imageDims.set(url, "bad");
+        resolve(null);
+      };
+      im.src = url;
+    });
+  }
+  // How tall the block's preview needs to be at a given width, borders and label included; null when it cannot be known.
+  function measureBlockPx(b, widthPx) {
+    if (!FIT_TYPES.has(b.type)) return null;
+    if (b.type === "image") {
+      const url = b.content && b.content.url;
+      if (!url) return null;
+      const d = imageDims.get(url);
+      if (!d || typeof d !== "object") return null;
+    }
+    const probe = document.createElement("div");
+    probe.className = "admin-block admin-block-probe";
+    probe.setAttribute("aria-hidden", "true");
+    probe.style.cssText = `position:absolute;left:-99999px;top:0;visibility:hidden;pointer-events:none;height:auto;width:${Math.max(24, Math.round(widthPx))}px;`;
+    probe.innerHTML = `<div class="block-type-label"><span class="block-type-name">${blockLabel(b.type)}</span>${blockBadgesHtml(b)}</div><div class="block-preview">${blockPreview(b)}</div>`;
+    document.body.appendChild(probe);
+    const h = probe.getBoundingClientRect().height;
+    probe.remove();
+    return h;
+  }
+  function minRowsFor(b, colSpan) {
+    const { colW } = canvasMetrics();
+    const h = measureBlockPx({ ...b }, BlockFit.widthForCols(colSpan, colW));
+    return h === null ? null : BlockFit.rowsForHeight(h);
+  }
+  function scheduleOverflowMarks() {
+    clearTimeout(overflowTimer);
+    overflowTimer = setTimeout(markOverflows, 60);
+  }
+  function markOverflows() {
+    if (isMobile() || !canvas) return;
+    canvas.querySelectorAll(".block-fit-hint").forEach((n) => n.remove());
+    canvas.querySelectorAll(".admin-block").forEach((div) => {
+      const b = blocks.find((x) => x.id === Number(div.dataset.id));
+      let over = false;
+      if (b && FIT_TYPES.has(b.type) && !(b.style && b.style.hidden)) {
+        const need = measureBlockPx(b, div.offsetWidth);
+        over = need !== null && need > div.offsetHeight + 2;
+      }
+      div.classList.toggle("block-overflows", over);
+      if (!over) return;
+      // A sibling right after the block (not inside it: a button may not sit inside the block's own interactive element).
+      const hint = document.createElement("button");
+      hint.type = "button";
+      hint.className = "block-fit-hint";
+      hint.dataset.for = String(b.id);
+      hint.textContent = "Fit ⤓";
+      hint.title = "This block is shorter than its content. Make it tall enough.";
+      hint.setAttribute("aria-label", `${blockLabel(b.type)} block is cut off: fit it to its content`);
+      ["pointerdown", "mousedown", "click"].forEach((t) => hint.addEventListener(t, (e) => e.stopPropagation()));
+      hint.addEventListener("click", () => fitBlock(b.id));
+      const style = blockPixelStyle(b);
+      // In the block's top-right corner, so the middle of even a short block stays clickable. A block too narrow for it just keeps
+      // its dashed border and the toolbar's Fit button.
+      if (style.width < 110) return;
+      hint.style.left = style.left + style.width - 58 + "px";
+      hint.style.top = style.top + 3 + "px";
+      // The selected block's toolbar must stay directly after it (Tab order), so the hint goes after the toolbar when there is one.
+      const next = div.nextElementSibling;
+      (next && next.classList.contains("canvas-toolbar") ? next : div).after(hint);
+    });
+  }
+  let canvasNoteTimer = null;
+  function canvasNote(msg) {
+    let note = el("canvas-note");
+    if (!note) return;
+    note.textContent = msg;
+    note.hidden = !msg;
+    clearTimeout(canvasNoteTimer);
+    if (msg) canvasNoteTimer = setTimeout(() => ((note.hidden = true), (note.textContent = "")), 6000);
+  }
+  // Applies new sizes and positions in one go (one PATCH per changed block) and redraws.
+  async function applyLayoutChanges(changes) {
+    const jobs = [];
+    for (const ch of changes) {
+      const b = blocks.find((x) => x.id === ch.id);
+      if (!b) continue;
+      const patch = {};
+      for (const k of ["col_span", "row_span", "row"]) if (ch[k] !== undefined && ch[k] !== b[k]) patch[k] = ch[k];
+      if (!Object.keys(patch).length) continue;
+      jobs.push({ b, patch });
+    }
+    if (!jobs.length) return 0;
+    await Promise.all(jobs.map(({ b, patch }) => api(`/blocks/${b.id}`, { method: "PATCH", body: JSON.stringify(patch) })));
+    jobs.forEach(({ b, patch }) => Object.assign(b, patch));
+    renderCanvas();
+    return jobs.length;
+  }
+  // mode: "content" (keep the width, fit the height), "actual" (a picture at its own pixel size, as wide as the space beside it allows).
+  async function fitBlock(id, mode = "content") {
+    const b = blocks.find((x) => x.id === id);
+    if (!b) return;
+    if (isLayoutLocked(b)) return canvasNote(b.locked ? "Unlock this block before changing its size." : "Content-only mode keeps every size where it is.");
+    if (!FIT_TYPES.has(b.type)) return canvasNote(`A ${blockLabel(b.type)} block has no content size of its own: resize it by hand.`);
+    const { colW } = canvasMetrics();
+    let colSpan = b.col_span;
+    if (b.type === "image") {
+      if (!b.content || !b.content.url) return canvasNote("Choose a picture first.");
+      const d = await loadImageDims(b.content.url);
+      if (!d) return canvasNote("That picture could not be measured.");
+      if (mode === "actual") colSpan = BlockFit.maxSpanBeside(blocks, b, BlockFit.colsForWidth(d.w, colW));
+    }
+    const h = measureBlockPx({ ...b, col_span: colSpan }, BlockFit.widthForCols(colSpan, colW));
+    if (h === null) return canvasNote("Could not work out this block's size.");
+    const rows = BlockFit.rowsForHeight(h);
+    const next = blocks.map((x) => (x.id === b.id ? { ...x, col_span: colSpan, row_span: rows } : x));
+    const settle = BlockFit.settleDown(next, isLayoutLocked);
+    if (settle.blockedBy !== null) return canvasNote("A locked block is in the way. Unlock or move it first.");
+    try {
+      const changed = await applyLayoutChanges([{ id: b.id, col_span: colSpan, row_span: rows }, ...settle.moves]);
+      const moved = settle.moves.length;
+      const picture = b.type === "image" && mode === "actual" ? ` Shown at ${Math.round(BlockFit.shownScale(BlockFit.widthForCols(colSpan, colW), imageDims.get(b.content.url).w) * 100)}% of the picture's own size.` : "";
+      canvasNote(changed ? `Fitted to its content${moved ? `; ${moved} block${moved === 1 ? "" : "s"} below moved down` : ""}.${picture}` : `Already fits its content.${picture}`);
+    } catch (err) {
+      canvasNote(err.message || "Could not resize the block.");
+    }
+  }
+  async function fitAllBlocks() {
+    if (!currentPage) return;
+    const targets = blocks.filter((b) => FIT_TYPES.has(b.type) && !isLayoutLocked(b) && !(b.style && b.style.hidden));
+    await Promise.all(targets.filter((b) => b.type === "image" && b.content && b.content.url).map((b) => loadImageDims(b.content.url)));
+    const { colW } = canvasMetrics();
+    const sizes = new Map();
+    for (const b of targets) {
+      const h = measureBlockPx(b, BlockFit.widthForCols(b.col_span, colW));
+      if (h !== null) sizes.set(b.id, BlockFit.rowsForHeight(h));
+    }
+    const next = blocks.map((x) => (sizes.has(x.id) ? { ...x, row_span: sizes.get(x.id) } : x));
+    const settle = BlockFit.settleDown(next, isLayoutLocked);
+    if (settle.blockedBy !== null) return canvasNote("A locked block is in the way. Unlock or move it first.");
+    try {
+      const changes = [...sizes].map(([id, row_span]) => ({ id, row_span })).concat(settle.moves);
+      const merged = new Map();
+      changes.forEach((c) => merged.set(c.id, { ...(merged.get(c.id) || {}), ...c }));
+      const n = await applyLayoutChanges([...merged.values()]);
+      canvasNote(n ? `Fitted ${n} block${n === 1 ? "" : "s"} to their content.` : "Every block already fits its content.");
+    } catch (err) {
+      canvasNote(err.message || "Could not resize the blocks.");
+    }
+  }
+
+  el("fit-all-blocks-btn").addEventListener("click", fitAllBlocks);
 
   // A picture saved over keeps its address, so this browser still holds the old bytes (images are cached for a minute). Fetching
   // the address afresh replaces that cached copy, so the library, the pages and the photo editor show the new picture at once.
@@ -1569,11 +1745,11 @@
     const c = b.content || {};
     const imgs = (urls) => urls.filter(Boolean).slice(0, 4).map((u) => `<img src="${escapeHtml(u)}" alt="" loading="lazy">`).join("");
     switch (b.type) {
-      case "heading": return `<strong class="pv-heading">${escapeHtml(c.text || "(empty)")}</strong>`;
-      case "text": return `<span class="pv-text">${escapeHtml((c.text || "").slice(0, 160) || "(empty)")}</span>`;
+      case "heading": return `<strong class="pv-heading" data-level="${effectiveHeadingLevel(c)}">${escapeHtml(c.text || "(empty)")}</strong>`;
+      case "text": return `<span class="pv-text">${escapeHtml((c.text || "").slice(0, 3000) || "(empty)")}</span>`;
       case "image":
         return c.url
-          ? `<img class="pv-image" src="${escapeHtml(c.url)}" alt="">${
+          ? `<img class="pv-image" src="${escapeHtml(c.url)}" alt=""${imageSizeAttrs(c.url)}>${
               c.alt ? "" : `<span class="alt-text-warning" title="No alt text set — add one for accessibility and SEO">⚠ No alt text</span>`
             }`
           : "(no image url)";
@@ -1585,7 +1761,7 @@
       case "embed": return c.url ? `<span class="pv-media">${escapeHtml(c.url)}</span>` : "(no embed url)";
       // STUDY (temporary): never show the password here.
       case "study": return `<span class="pv-button">Study: ${escapeHtml(c.label || "Open study")} (locked)</span>`;
-      case "quote": return c.text ? `<span class="pv-quote">“${escapeHtml(c.text.slice(0, 100))}”</span>` : "(empty)";
+      case "quote": return c.text ? `<span class="pv-quote">“${escapeHtml(c.text.slice(0, 600))}”</span>` : "(empty)";
       case "gallery": return `<span class="pv-gallery">${imgs((c.images || []).map((i) => (typeof i === "string" ? i : i && i.url)))}</span>${(c.images || []).length} image(s)`;
       case "before-after": return c.beforeUrl && c.afterUrl ? `<span class="pv-gallery">${imgs([c.beforeUrl, c.afterUrl])}</span>Before/after comparison` : "(missing before or after image)";
       case "simulation": return c.simulation_id ? escapeHtml(simulationNameById(c.simulation_id) || `#${c.simulation_id}`) : "(choose a simulation)";
@@ -1780,13 +1956,38 @@
     canvas.style.minHeight = maxBottom + "px";
     renderGroupOutlines();
     renderCanvasToolbar();
+    scheduleOverflowMarks();
     if (!el("layers-modal").hidden) renderLayersList();
   }
 
   // A small toolbar floating above the single selected block. Each button just presses the matching
   // Inspector button, so lock checks, confirmations and saving stay in one place.
   function hideCanvasToolbar() {
-    canvas.querySelectorAll(".canvas-toolbar").forEach((n) => (n.hidden = true));
+    canvas.querySelectorAll(".canvas-toolbar, .block-fit-hint").forEach((n) => (n.hidden = true));
+  }
+  // Puts the toolbar where it covers no other block: above the selected block, else below it, else the same two spots lined up with
+  // its right edge, and only when every one of those is taken, inside the block's own top-right corner.
+  function placeToolbar(bar, b, style) {
+    const w = bar.offsetWidth;
+    const h = bar.offsetHeight || 32;
+    const others = blocks.filter((x) => x.id !== b.id).map(blockPixelStyle);
+    const hits = (c) => others.some((o) => c.left < o.left + o.width && o.left < c.left + w && c.top < o.top + o.height && o.top < c.top + h);
+    const maxLeft = Math.max(2, canvas.clientWidth - w - 2);
+    const clampLeft = (x) => Math.min(Math.max(2, x), maxLeft);
+    const leftEdge = clampLeft(style.left);
+    const rightEdge = clampLeft(style.left + style.width - w);
+    const gapPx = 4;
+    const candidates = [
+      { top: style.top - h - gapPx, left: leftEdge },
+      { top: style.top + style.height + gapPx, left: leftEdge },
+      { top: style.top - h - gapPx, left: rightEdge },
+      { top: style.top + style.height + gapPx, left: rightEdge },
+    ];
+    const free = candidates.find((c) => c.top >= 0 && !hits(c));
+    const spot = free || { top: style.top + 4, left: clampLeft(style.left + style.width - w - 4) };
+    bar.classList.toggle("is-inside", !free);
+    bar.style.top = Math.max(0, spot.top) + "px";
+    bar.style.left = spot.left + "px";
   }
   // After a toolbar action the canvas rebuilds; this remembers which button to put focus back on.
   let toolbarFocusIndex = null;
@@ -1830,13 +2031,30 @@
       });
       bar.appendChild(btn);
     });
+    // Fit to content (and, for a picture, its own pixel size), just before Delete.
+    const extras = [["Fit", "Make this block exactly as tall as its content", () => fitBlock(b.id, "content")]];
+    if (b.type === "image") extras.push(["Actual size", "Show the picture at its own pixel size, as wide as the space beside it allows", () => fitBlock(b.id, "actual")]);
+    const deleteBtn = bar.querySelector(".canvas-toolbar-danger");
+    extras.forEach(([label, title, run]) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = label;
+      btn.title = title;
+      btn.disabled = isLayoutLocked(b);
+      btn.addEventListener("mousedown", (e) => e.stopPropagation());
+      btn.addEventListener("pointerdown", (e) => e.stopPropagation());
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        run();
+      });
+      bar.insertBefore(btn, deleteBtn);
+    });
     // Right after the selected block in the DOM, so Tab reaches it without crossing every later block.
     const blockDiv = canvas.querySelector(`.admin-block[data-id="${b.id}"]`);
     if (blockDiv) blockDiv.after(bar);
     else canvas.appendChild(bar);
-    // Keep it inside the canvas: slide left when the block sits against the right edge.
-    const max = canvas.clientWidth - bar.offsetWidth - 2;
-    if (style.left > max) bar.style.left = Math.max(2, max) + "px";
+    placeToolbar(bar, b, style);
+    scheduleOverflowMarks();
     if (toolbarFocusIndex !== null) {
       const target = bar.querySelectorAll("button")[toolbarFocusIndex];
       toolbarFocusIndex = null;
@@ -2121,6 +2339,7 @@
       const startRowSpan = block.row_span;
       const { colW, rowH, gap } = canvasMetrics();
       handle.setPointerCapture(e.pointerId);
+      const floorByWidth = new Map(); // columns -> the fewest rows that still show the content at that width
 
       function onMove(ev) {
         const dx = ev.clientX - startX;
@@ -2128,7 +2347,13 @@
         const dCol = Math.round(dx / (colW + gap));
         const dRow = Math.round(dy / (rowH + gap));
         const newSpan = Math.min(Math.max(1, startSpan + dCol), COLS - block.col + 1);
-        const newRowSpan = Math.max(1, startRowSpan + dRow);
+        let newRowSpan = Math.max(1, startRowSpan + dRow);
+        // A block cannot be made shorter than what it holds at that width (a heading, a paragraph, a picture).
+        if (FIT_TYPES.has(block.type)) {
+          if (!floorByWidth.has(newSpan)) floorByWidth.set(newSpan, minRowsFor(block, newSpan));
+          const floor = floorByWidth.get(newSpan);
+          if (floor && newRowSpan < floor) newRowSpan = floor;
+        }
         if (newSpan !== block.col_span || newRowSpan !== block.row_span) {
           block.col_span = newSpan;
           block.row_span = newRowSpan;
@@ -10247,6 +10472,7 @@
       },
       { label: "Toggle Focus mode (hide the block palette)", sub: "", run: () => { closeCommandPalette(); el("focus-mode-btn").click(); } },
       { label: "Toggle Content-only mode (lock block positions)", sub: "", run: () => { closeCommandPalette(); el("content-only-mode-btn").click(); } },
+      { label: "Fit every block to its content", sub: "Page", run: () => { closeCommandPalette(); fitAllBlocks(); } },
       { label: "Toggle draft preview mode", sub: "", run: () => { closeCommandPalette(); el("draft-preview-mode-toggle").click(); } },
       { label: "Screen Preview", sub: "", run: () => { closeCommandPalette(); el("preview-btn").click(); } },
       { label: "Preview the site at a future date", sub: "", leads: true, keywords: ["preview at", "future", "scheduled", "as of a date", "time travel"], run: () => { closeCommandPalette(); el("preview-at-btn").click(); } },
