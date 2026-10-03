@@ -16,7 +16,7 @@ this file is what you need to work here quickly.
 | `worker/*.js` (small ones) | Pure helpers with a comment on line 1 saying what they decide (`redirects.js`, `scans.js`, `songs.js`, `scripts.js`, `track.js`, `text.js`…). New validation goes in a small file like these so a node test can load it. |
 | `public/admin/app.js` | The whole admin UI (pages, articles, projects, media, settings, dashboards, command palette). Find things by element id: `grep -n 'redirects-btn' public/admin/*`. |
 | `public/admin/index.html` | All admin markup, every dialog (`.modal`), sidebar buttons, script tags. |
-| `public/admin/*-builder.js`, `photo-editor.js`, `script-*.js` | The big self-contained tools (simulations, songs, scans, photo editor, Scripts window). |
+| `public/admin/*-builder.js`, `photo-editor.js`, `script-*.js`, `node-*.js` | The big self-contained tools (simulations, songs, scans, photo editor, Scripts window, and its Nodes editor: `node-defs.js` the node types, `node-compiler.js` graph → code, `node-editor.js` the canvas, `node-templates.js` starter graphs). |
 | `public/style.css` | Public stylesheet **and** the colour/spacing tokens the admin reuses. `public/admin/style.css` is admin-only. |
 | `public/*.js` | Scripts served to visitors (`nav.js`, `sim-player.js`, `song-engine.js`, `song-embed.js`…). |
 | `schema.sql`, `migrations/` | Database shape. `schema.sql` is the bootstrap; later columns live in numbered migrations. |
@@ -87,6 +87,9 @@ node tests/e2e/run.mjs --live test_x  # one test against the dev server already 
 - **New admin tool/dialog:** markup in `index.html` (sidebar button in a `.admin-sidebar-group`, modal near the others, script tags at the end),
   logic in `app.js` or its own `public/admin/<name>.js`, CSS appended to `public/admin/style.css` using existing tokens (`--bg`, `--bg-elevated`,
   `--border`, `--text-dim`, `--accent`, `--error-text`, `--success`, `--warning`), a command-palette entry (grep `Open Redirects`), a sidebar icon (`#<id> { --ico: … }`).
+- **New node type (Scripts window → Nodes):** add it to `NODES` in `public/admin/node-defs.js` (pins, props, and `emit` for a step or `expr` for a value). It
+  should call a `site.*` helper (add the helper in `script-runner.js` and `SDK_DOCS` in `script-editor.js` if it is new, and its route to `WRITABLE` in
+  `script-policy.js`). `tests/nodes.test.mjs` checks every definition; add a starter graph to `node-templates.js` when it makes a good example.
 - **New stored list:** settings rows (rule 2) with routes like `/sections` or `/scripts` (cap the count and the size; validate in a small pure file).
 - **New block type / simulation part / song feature:** find the nearest existing one (`grep -n` for a sibling such as `lamp`, `buzzer`, `ties`) and follow it
   end to end: validation → admin UI → public render → CSS → tests.

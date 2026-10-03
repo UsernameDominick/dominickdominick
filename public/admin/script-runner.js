@@ -26,7 +26,13 @@
         if (!p) return;
         pending.delete(d.id);
         if (d.ok) p.resolve(d.data);
-        else p.reject(Object.assign(new Error(d.error || "Request failed"), { status: d.status }));
+        else {
+          // The reply arrives with no trace of the script, so the error borrows the stack from where the call was made: that is
+          // what lets a failed request be traced back to its line in the script (and, for a graph, to its node).
+          const err = Object.assign(new Error(d.error || "Request failed"), { status: d.status });
+          if (p.where) err.stack = `Error: ${err.message}\n${p.where.split("\n").slice(1).join("\n")}`;
+          p.reject(err);
+        }
       };
       const plain = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
       const call = (method, path, body) =>
@@ -39,7 +45,7 @@
             return;
           }
           const id = nextId++;
-          pending.set(id, { resolve, reject });
+          pending.set(id, { resolve, reject, where: new Error().stack || "" });
           port.postMessage({ t: "call", id, method, path, body: sent });
         });
 
@@ -88,9 +94,63 @@
       const pages = resource("/pages", { duplicate: true });
       pages.blocks = (id) => call("GET", withId("/pages", id, "/blocks"));
       pages.addBlock = (id, body) => call("POST", withId("/pages", id, "/blocks"), body);
+      // A page's own CSS (the "Page CSS" box in the page settings).
+      pages.css = async (id) => {
+        const r = await call("GET", withId("/pages", id, "/css"));
+        return (r && r.css) || "";
+      };
+      pages.setCss = (id, css) => call("PUT", withId("/pages", id, "/css"), { css: String(css == null ? "" : css) });
       const blocks = {
         update: (id, body) => call("PATCH", withId("/blocks", id), body),
         remove: (id) => call("DELETE", withId("/blocks", id)),
+        // Change some style fields and keep the rest: a block's style is saved whole, so the block itself (from site.pages.blocks) is needed.
+        setStyle: (block, patch) => {
+          if (!block || typeof block !== "object") throw new Error("setStyle needs the block itself (from site.pages.blocks), not just its id.");
+          return call("PATCH", withId("/blocks", block), { style: { ...(block.style || {}), ...(patch || {}) } });
+        },
+      };
+
+      // Small CSS helpers: rule() lays out one rule, append() adds it to existing CSS unless it is already there.
+      const splitDeclarations = (text) => {
+        const out = [];
+        let cur = "";
+        let depth = 0;
+        let quote = "";
+        for (const ch of String(text == null ? "" : text)) {
+          if (quote) {
+            cur += ch;
+            if (ch === quote) quote = "";
+          } else if (ch === '"' || ch === "'") {
+            quote = ch;
+            cur += ch;
+          } else if (ch === "(") {
+            depth++;
+            cur += ch;
+          } else if (ch === ")") {
+            depth = Math.max(0, depth - 1);
+            cur += ch;
+          } else if ((ch === ";" || ch === "\n") && depth === 0) {
+            if (cur.trim()) out.push(cur.trim());
+            cur = "";
+          } else cur += ch;
+        }
+        if (cur.trim()) out.push(cur.trim());
+        return out;
+      };
+      const css = {
+        rule: (selector, declarations) => {
+          const list =
+            declarations && typeof declarations === "object"
+              ? Object.entries(declarations).map(([k, v]) => `${k}: ${v}`)
+              : splitDeclarations(declarations);
+          return `${String(selector == null ? "" : selector).trim()} {\n${list.map((d) => `  ${d.replace(/;+\s*$/, "")};`).join("\n")}\n}`;
+        },
+        append: (existing, rule) => {
+          const have = String(existing == null ? "" : existing).trim();
+          const add = String(rule == null ? "" : rule).trim();
+          if (!add || have.includes(add)) return have;
+          return have ? `${have}\n\n${add}` : add;
+        },
       };
       const articles = resource("/articles", { duplicate: true });
       articles.bulk = (body) => call("POST", "/articles/bulk", body);
@@ -139,6 +199,7 @@
         scans: resource("/scans", { single: true }),
         sharedBlocks: resource("/shared-blocks", { single: true }),
         settings,
+        css,
         media: { list: (query) => call("GET", "/media" + qs(query)) },
         search: (q) => call("GET", "/search" + qs({ q })),
         log: console.log,

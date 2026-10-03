@@ -2,7 +2,7 @@
 import fs from "node:fs";
 import vm from "node:vm";
 import { createRequire } from "node:module";
-import { cleanScript, readScriptRow, isScriptId, SCRIPT_CODE_MAX } from "../worker/scripts.js";
+import { cleanScript, cleanGraph, readScriptRow, isScriptId, SCRIPT_CODE_MAX } from "../worker/scripts.js";
 
 const require = createRequire(import.meta.url);
 const P = require("../public/admin/script-policy.js");
@@ -28,6 +28,31 @@ const ok = (c, m, extra) => { if (!c) fail++; console.log(`${c ? "PASS" : "FAIL"
   ok(row && row.id === "abcdef123456" && row.name === "n" && row.description === "", "a stored row reads back");
   ok(readScriptRow({ key: "admin_script:x", value: "{nope" }) === null && readScriptRow({ key: "other:x", value: "{}" }) === null, "broken or foreign rows are skipped");
   ok(isScriptId("abcdef123456") && !isScriptId("ABCDEF123456") && !isScriptId("abc"), "ids are 12 lowercase hex characters");
+}
+
+// ---- node graphs
+{
+  const good = { version: 1, nodes: [{ id: "n1", type: "start", x: 10.4, y: 20, values: {}, props: {} }, { id: "n2", type: "set-setting", x: 300, y: 20, values: { value: "#fff" }, props: { key: "theme_accent" } }], wires: [{ from: { node: "n1", pin: "then" }, to: { node: "n2", pin: "in" } }], view: { x: 1, y: 2, zoom: 1.5 } };
+  const g = cleanGraph(good);
+  ok(g.ok && g.value.nodes[0].x === 10 && g.value.view.zoom === 1.5, "a graph is accepted and its positions rounded", g.ok);
+  ok(cleanScript({ name: "n", code: "", graph: good }).value.graph.nodes.length === 2, "a script keeps its graph");
+  ok(cleanScript({ name: "n", code: "", graph: null }).value.graph === undefined && cleanScript({ name: "n", code: "" }).value.graph === undefined, "no graph, no graph field");
+  ok(!cleanScript({ name: "n", code: "", graph: 5 }).ok && !cleanGraph([]).ok && !cleanGraph({ nodes: {}, wires: [] }).ok, "something that is not a graph is refused");
+  ok(!cleanGraph({ ...good, nodes: [good.nodes[0], good.nodes[0]] }).ok, "a repeated node id is refused");
+  ok(!cleanGraph({ ...good, nodes: [{ ...good.nodes[0], id: "has space" }] }).ok && !cleanGraph({ ...good, nodes: [{ ...good.nodes[0], id: "a-b_C9" }], wires: [] }).ok === false, "node ids must be plain words");
+  ok(!cleanGraph({ ...good, nodes: [{ ...good.nodes[0], type: "Bad Type" }] }).ok, "node types must be plain words");
+  ok(!cleanGraph({ ...good, nodes: [{ ...good.nodes[0], x: "10" }] }).ok && !cleanGraph({ ...good, nodes: [{ ...good.nodes[0], y: 1e9 }] }).ok, "positions must be sensible numbers");
+  ok(!cleanGraph({ ...good, nodes: [{ ...good.nodes[0], values: { v: { a: 1 } } }] }).ok && !cleanGraph({ ...good, nodes: [{ ...good.nodes[0], props: [] }] }).ok, "values must be plain text, numbers or yes/no");
+  ok(!cleanGraph({ ...good, nodes: [{ ...good.nodes[0], values: { v: "x".repeat(20001) } }] }).ok, "a value is capped in length");
+  ok(!cleanGraph({ ...good, wires: [{ from: { node: "n1", pin: "then" }, to: { node: "ghost", pin: "in" } }] }).ok, "a wire to a missing node is refused");
+  ok(!cleanGraph({ ...good, wires: [{ from: { node: "n1", pin: "a b" }, to: { node: "n2", pin: "in" } }] }).ok, "pin ids must be plain words");
+  const many = { nodes: Array.from({ length: 301 }, (_, i) => ({ id: "n" + i, type: "start", x: 0, y: 0 })), wires: [] };
+  ok(!cleanGraph(many).ok, "300 nodes at most");
+  ok(!cleanGraph({ nodes: [], wires: Array.from({ length: 1001 }, () => ({})) }).ok, "1000 wires at most");
+  const row = readScriptRow({ key: "admin_script:abcdef123456", value: JSON.stringify({ name: "n", code: "c", graph: good }) });
+  ok(row.graph && row.graph.nodes.length === 2, "a stored graph reads back");
+  ok(readScriptRow({ key: "admin_script:abcdef123456", value: JSON.stringify({ name: "n", code: "c", graph: "junk" }) }).graph === null, "a damaged graph reads as none");
+  ok(cleanGraph({ ...good, view: { x: 1, y: 2, zoom: 9 } }).value.view.zoom === 1, "an out-of-range zoom is reset");
 }
 
 // ---- policy
@@ -129,7 +154,8 @@ async function runScript(code, { dry = true, answer } = {}) {
       if (m.t === "call") {
         sent.push(m);
         const data = answer ? answer(m) : { ok: true };
-        setTimeout(() => port.onmessage({ data: { id: m.id, ok: true, data } }), 0);
+        if (data && data.__error) setTimeout(() => port.onmessage({ data: { id: m.id, ok: false, error: data.__error, status: 400 } }), 0);
+        else setTimeout(() => port.onmessage({ data: { id: m.id, ok: true, data } }), 0);
       } else if (m.t === "log") logs.push(m);
       else if (m.t === "done") done = m;
     },
@@ -166,6 +192,10 @@ async function runScript(code, { dry = true, answer } = {}) {
   r = await runScript(`\nconst x = 1;\nthrow new Error("boom");\n`);
   const line = r.done.error.lines.map((n) => (n > r.offset ? n - r.offset : null)).find((n) => n !== null);
   ok(r.done && !r.done.ok && r.done.error.message === "boom" && line === 3, "an error reports the line in the script, not in the wrapper", { line, lines: r.done.error.lines, offset: r.offset });
+
+  r = await runScript(`\n\nawait site.articles.update(5, {});\n`, { answer: () => ({ __error: "The server said no" }) });
+  const failLine = r.done.error.lines.map((n) => (n > r.offset ? n - r.offset : null)).find((n) => n !== null);
+  ok(r.done && !r.done.ok && r.done.error.message === "The server said no" && failLine === 3, "a failed request is traced back to the line of the script that made it", { failLine, lines: r.done.error.lines, offset: r.offset });
 
   r = await runScript(`await site.each([1, 2, 3, 4, 5], async (n) => { await site.sleep(1); await site.post("/redirects", { n }); }, { concurrency: 2 });`);
   ok(r.done.ok && r.sent.length === 5, "site.each runs every item", r.sent.length);

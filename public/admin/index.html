@@ -991,6 +991,7 @@
         <aside class="scripts-side" aria-label="Saved scripts">
           <div class="scripts-side-actions">
             <button id="script-new" type="button">New script</button>
+            <button id="script-new-nodes" type="button">New node graph</button>
             <label class="scripts-sr" for="script-template">Start from a template</label>
             <select id="script-template"><option value="">Start from a template…</option></select>
           </div>
@@ -1008,7 +1009,15 @@
             <label class="scripts-sr" for="script-description">What this script does</label>
             <input id="script-description" placeholder="What it does (optional)" maxlength="300" autocomplete="off">
           </div>
-          <div id="script-editor" class="scripts-editor"></div>
+          <div id="script-modes" class="scripts-modes" hidden>
+            <div role="tablist" aria-label="How to view this script">
+              <button id="script-tab-nodes" type="button" role="tab" aria-selected="true" aria-controls="script-nodes">Nodes</button>
+              <button id="script-tab-code" type="button" role="tab" aria-selected="false" aria-controls="script-editor">Generated code</button>
+            </div>
+            <button id="script-detach" type="button" title="Turn it into a normal script you edit by hand">Edit as code…</button>
+          </div>
+          <div id="script-nodes" class="scripts-nodes" role="tabpanel" aria-labelledby="script-tab-nodes" hidden></div>
+          <div id="script-editor" class="scripts-editor" role="tabpanel"></div>
           <div class="scripts-toolbar">
             <button id="script-run" type="button">Preview</button>
             <button id="script-apply" type="button">Apply…</button>
@@ -2729,6 +2738,10 @@
 <script src="/admin/script-runner.js"></script>
 <script src="/admin/script-editor.js"></script>
 <script src="/admin/script-templates.js"></script>
+<script src="/admin/node-defs.js"></script>
+<script src="/admin/node-compiler.js"></script>
+<script src="/admin/node-editor.js"></script>
+<script src="/admin/node-templates.js"></script>
 <script src="/admin/features-board.js"></script>
 <script src="/admin/photo-color.js"></script>
 <script src="/admin/photo-editor.js"></script>

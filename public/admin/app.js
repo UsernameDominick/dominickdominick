@@ -11433,6 +11433,9 @@
   let scriptList = [];
   let scriptCurrent = { id: null, name: "", description: "" };
   let scriptEditor = null;
+  let nodeEditor = null; // the Nodes canvas, made the first time a node graph is opened
+  let scriptKind = "code"; // "nodes" when the script is a graph (its code is generated from it)
+  let nodeCompiled = null; // the last compile of the graph: { ok, code, lineNodes, problems }
   let scriptDirty = false;
   let scriptRunning = null; // { abort }
   let scriptPreview = null; // { code, writes, destructive } from the last successful preview of the code now in the editor
@@ -11456,13 +11459,13 @@
   }
 
   function renderScriptList() {
-    const rows = scriptList.map((s) => ({ id: s.id, name: s.name }));
-    if (scriptCurrent.id === null) rows.unshift({ id: null, name: scriptCurrent.name || "New script" });
+    const rows = scriptList.map((s) => ({ id: s.id, name: s.name, nodes: Boolean(s.graph) }));
+    if (scriptCurrent.id === null) rows.unshift({ id: null, name: scriptCurrent.name || (scriptKind === "nodes" ? "New node graph" : "New script"), nodes: scriptKind === "nodes" });
     el("scripts-list").innerHTML = rows
       .map((r) => {
         const current = r.id === scriptCurrent.id;
         const unsaved = current && scriptDirty;
-        return `<li><button type="button" data-script="${r.id === null ? "" : r.id}"${current ? ' aria-current="true"' : ""}>${escapeHtml(r.name)}${unsaved ? ' <span class="scripts-dot" title="Unsaved changes">●<span class="scripts-sr"> unsaved</span></span>' : ""}</button></li>`;
+        return `<li><button type="button" data-script="${r.id === null ? "" : r.id}"${current ? ' aria-current="true"' : ""}>${escapeHtml(r.name)}${r.nodes ? ' <span class="scripts-kind">nodes</span>' : ""}${unsaved ? ' <span class="scripts-dot" title="Unsaved changes">●<span class="scripts-sr"> unsaved</span></span>' : ""}</button></li>`;
       })
       .join("");
     el("script-delete").hidden = scriptCurrent.id === null;
@@ -11480,14 +11483,58 @@
     if (scriptEditor) scriptEditor.markError(null);
   }
 
-  function scriptOpenInEditor({ id, name, description, code }, dirty) {
+  // Nodes mode: the canvas is shown (or the generated code beside it) and the code is always what the graph compiles to.
+  function scriptShowKind(kind, tab = "nodes") {
+    scriptKind = kind;
+    const nodes = kind === "nodes";
+    el("script-modes").hidden = !nodes;
+    el("script-nodes").hidden = !nodes || tab !== "nodes";
+    el("script-editor").hidden = nodes && tab === "nodes";
+    el("script-tab-nodes").setAttribute("aria-selected", String(nodes && tab === "nodes"));
+    el("script-tab-code").setAttribute("aria-selected", String(nodes && tab === "code"));
+    scriptEditor.setReadOnly(nodes);
+    if (nodes && tab === "nodes" && nodeEditor) nodeEditor.relayout();
+    if (!nodes) scriptEditor.relayout();
+  }
+
+  function scriptEnsureNodeEditor() {
+    if (nodeEditor) return;
+    nodeEditor = window.NodeEditor.create(el("script-nodes"), {
+      label: "Node graph",
+      onChange: scriptGraphChanged,
+      onRun: () => el("script-run").click(),
+    });
+  }
+
+  // The graph changed: rebuild the code from it and show what is wrong, if anything.
+  function scriptGraphChanged(graph, meta) {
+    if (meta && meta.viewOnly) return;
+    nodeCompiled = window.NodeCompiler.compile(graph);
+    scriptEditor.setValue(nodeCompiled.code);
+    nodeEditor.setProblems(nodeCompiled.problems);
+    scriptPreview = null;
+    if (!scriptDirty) scriptMarkDirty(true);
+  }
+
+  function scriptOpenInEditor({ id, name, description, code, graph }, dirty) {
     scriptCurrent = { id, name, description };
     el("script-name").value = name;
     el("script-description").value = description || "";
-    scriptEditor.setValue(code);
     scriptPreview = null;
     scriptClearResults();
     scriptSetStatus("");
+    if (graph) {
+      scriptEnsureNodeEditor();
+      scriptShowKind("nodes");
+      nodeEditor.setGraph(graph);
+      nodeCompiled = window.NodeCompiler.compile(nodeEditor.getGraph());
+      scriptEditor.setValue(nodeCompiled.code);
+      nodeEditor.setProblems(nodeCompiled.problems);
+    } else {
+      nodeCompiled = null;
+      scriptShowKind("code");
+      scriptEditor.setValue(code);
+    }
     scriptMarkDirty(dirty);
   }
 
@@ -11495,6 +11542,13 @@
     if (!scriptConfirmDiscard()) return;
     const blank = window.ScriptTemplates.TEMPLATES[0];
     scriptOpenInEditor({ id: null, name: "", description: "", code: blank.code }, false);
+    el("script-name").focus();
+  }
+
+  function scriptNewNodes(template) {
+    if (!scriptConfirmDiscard()) return;
+    scriptOpenInEditor({ id: null, name: template ? template.name : "", description: template ? template.description : "", code: "", graph: template ? template.graph : window.NodeCompiler.newGraph() }, Boolean(template));
+    if (nodeEditor) nodeEditor.fit();
     el("script-name").focus();
   }
 
@@ -11509,7 +11563,9 @@
   }
 
   function scriptFields() {
-    return { name: el("script-name").value.trim(), description: el("script-description").value.trim(), code: scriptCodeNow() };
+    const f = { name: el("script-name").value.trim(), description: el("script-description").value.trim(), code: scriptCodeNow() };
+    if (scriptKind === "nodes" && nodeEditor) f.graph = nodeEditor.getGraph();
+    return f;
   }
 
   async function scriptSave() {
@@ -11591,6 +11647,17 @@
   // Runs the editor's code. dry = a preview (records changes, makes none). Resolves with the runner's result.
   async function scriptExecute(dry) {
     if (scriptRunning) return null;
+    if (scriptKind === "nodes" && nodeCompiled && !nodeCompiled.ok) {
+      scriptClearResults();
+      const first = nodeCompiled.problems.find((p) => p.level === "error");
+      scriptAppendOutput("error", `Fix the graph first: ${first ? first.text : "something is not connected properly"}`);
+      scriptSetStatus("The graph has problems, listed under the canvas.");
+      if (first && first.node && nodeEditor) {
+        scriptShowKind("nodes");
+        nodeEditor.highlightNode(first.node);
+      }
+      return null;
+    }
     const code = scriptCodeNow();
     scriptClearResults();
     let n = 0;
@@ -11619,6 +11686,15 @@
       const label = result.status === "timeout" ? "Stopped" : result.status === "aborted" ? "Stopped" : result.error && result.error.syntax ? "Syntax error" : "Error";
       scriptAppendOutput("error", `${label}${where}: ${result.error ? result.error.message : "The script failed."}`);
       if (result.error && result.error.line) scriptEditor.markError(result.error.line);
+      // In a node graph, say which node the error came from and show it.
+      const failing = scriptKind === "nodes" && result.error && result.error.line ? window.NodeCompiler.nodeAtLine(nodeCompiled, result.error.line) : null;
+      if (failing && nodeEditor) {
+        const g = nodeEditor.getGraph().nodes.find((n) => n.id === failing);
+        const def = g && window.NodeDefs.NODES[g.type];
+        scriptAppendOutput("error", `That came from the "${def ? def.title : failing}" node.`);
+        scriptShowKind("nodes");
+        nodeEditor.highlightNode(failing);
+      }
     }
     const reads = scriptPlural(result.reads, "read", "reads");
     const writes = scriptPlural(result.writes, "change", "changes");
@@ -11695,6 +11771,18 @@
       option.title = t.description;
       select.appendChild(option);
     }
+    if (window.NodeTemplates) {
+      const group = document.createElement("optgroup");
+      group.label = "Node graphs";
+      for (const t of window.NodeTemplates.TEMPLATES) {
+        const option = document.createElement("option");
+        option.value = `graph:${t.id}`;
+        option.textContent = t.name;
+        option.title = t.description;
+        group.appendChild(option);
+      }
+      select.appendChild(group);
+    }
     el("scripts-reference-list").innerHTML = window.ScriptEditor.SDK_DOCS.map(
       ([name, sig, info], i) => `<li><button type="button" data-doc="${i}"><code>${escapeHtml(name)}${escapeHtml(sig)}</code><span>${escapeHtml(info)}</span></button></li>`
     ).join("");
@@ -11718,6 +11806,20 @@
     el("scripts-modal").hidden = true;
   });
   el("script-new").addEventListener("click", scriptNew);
+  el("script-new-nodes").addEventListener("click", async () => {
+    if (!scriptEditor) return;
+    scriptNewNodes(null);
+  });
+  el("script-tab-nodes").addEventListener("click", () => scriptShowKind("nodes", "nodes"));
+  el("script-tab-code").addEventListener("click", () => scriptShowKind("nodes", "code"));
+  el("script-detach").addEventListener("click", () => {
+    if (!confirm("Turn this into a normal script? You will be able to edit the code by hand, but you can't go back to the nodes.")) return;
+    scriptShowKind("code");
+    nodeCompiled = null;
+    scriptMarkDirty(true);
+    scriptSetStatus("This is now a normal script.");
+    scriptEditor.focus();
+  });
   el("script-save").addEventListener("click", scriptSave);
   el("script-delete").addEventListener("click", scriptDelete);
   el("script-run").addEventListener("click", () => scriptExecute(true));
@@ -11743,8 +11845,14 @@
     scriptOpenInEditor(found, false);
   });
   el("script-template").addEventListener("change", (e) => {
-    const t = window.ScriptTemplates.TEMPLATES.find((x) => x.id === e.target.value);
+    const choice = e.target.value;
     e.target.value = "";
+    if (choice.startsWith("graph:")) {
+      const g = window.NodeTemplates.TEMPLATES.find((x) => `graph:${x.id}` === choice);
+      if (g) scriptNewNodes(g);
+      return;
+    }
+    const t = window.ScriptTemplates.TEMPLATES.find((x) => x.id === choice);
     if (!t || !scriptConfirmDiscard()) return;
     scriptOpenInEditor({ id: null, name: t.name, description: t.description, code: t.code }, true);
   });

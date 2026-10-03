@@ -31,7 +31,10 @@
     ["site.pages.duplicate", "(id)", "Copy a page"],
     ["site.pages.blocks", "(pageId)", "The blocks on a page"],
     ["site.pages.addBlock", "(pageId, block)", "Add a block to a page"],
+    ["site.pages.css", "(pageId)", "A page's own CSS, as text"],
+    ["site.pages.setCss", "(pageId, css)", "Replace a page's own CSS"],
     ["site.blocks.update", "(blockId, fields)", "Change a block"],
+    ["site.blocks.setStyle", "(block, { color: '#fff' })", "Change some of a block's style fields and keep the rest"],
     ["site.blocks.remove", "(blockId)", "Delete a block"],
     ["site.redirects.list", "()", "All redirects"],
     ["site.redirects.create", "({ from_path, to_path, status_code })", "Add a redirect"],
@@ -51,6 +54,8 @@
     ["site.settings.update", "(fields)", "Change some site settings"],
     ["site.media.list", "(query?)", "Media library entries"],
     ["site.search", "(text)", "Search the site's content"],
+    ["site.css.rule", "(selector, declarations)", "Lay out one CSS rule from 'color: red; margin: 0'"],
+    ["site.css.append", "(css, rule)", "Add a rule to some CSS unless it is already there"],
     ["site.each", "(items, fn, { concurrency }?)", "Run fn over a list a few at a time"],
     ["site.slugify", "(text)", "'Hello World!' → 'hello-world'"],
     ["site.sleep", "(ms)", "Wait a moment (up to 10 s)"],
@@ -481,6 +486,12 @@
           const y = mt.padTop + (errorLine - 1) * mt.line;
           if (y < ta.scrollTop || y > ta.scrollTop + ta.clientHeight - mt.line * 2) ta.scrollTop = Math.max(0, y - ta.clientHeight / 3);
         }
+      },
+      // The generated code of a node graph is shown, not edited.
+      setReadOnly(on) {
+        ta.readOnly = Boolean(on);
+        root.classList.toggle("is-readonly", Boolean(on));
+        root.querySelector(".ce-hint").textContent = on ? "Generated from the nodes: change the nodes to change this." : "Tab indents. Esc, then Tab, moves on. Ctrl+Enter runs a preview.";
       },
       relayout: render,
       destroy: () => root.remove(),
