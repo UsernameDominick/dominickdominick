@@ -102,6 +102,26 @@ ok(ctx60.notes.length === 1 && Math.abs(ctx60.notes[0].stop - ctx60.notes[0].sta
 d = song({ C4: [false, false, 0.5, 0.5, false, false, false, false, false, false, false, false, false, false, false, false] }, { C4: flags(3) });
 ok(play(d).length === 1, "a held note works with soft steps too");
 
+// ---- oddly shaped songs never throw ----
+for (const odd of [{ notes: [{ step: 0, note: "C4", length: 1 }], ties: { C4: [false, true] } }, { notes: { C4: "x" }, ties: { C4: flags(3) } }, { notes: { C4: row(2, 3) }, ties: [] }, { notes: { C4: row(2, 3) }, ties: { C4: null } }, { notes: { C4: row(2, 3) }, ties: 5 }]) {
+  let threw = null;
+  try { play({ tempo: 120, kit: "acoustic", tracks: {}, melody: { waveform: "sine", ...odd } }); } catch (e) { threw = String(e); }
+  ok(threw === null, "an old or damaged melody shape plays (or stays quiet) without throwing", threw || JSON.stringify(odd).slice(0, 60));
+}
+{
+  // The waveform preview (and the public embed's live render) seeds its noise from the song, which now looks at ties too.
+  class FakeOffline {
+    constructor(channels, length, rate) { Object.assign(this, makeCtx(rate)); this.length = length; }
+    async startRendering() { return { getChannelData: () => new Float32Array(this.length) }; }
+  }
+  window.OfflineAudioContext = FakeOffline;
+  for (const odd of [{ notes: [{ step: 0, note: "C4", length: 1 }], ties: { C4: flags(3) } }, { notes: { C4: row(2, 3) }, ties: { C4: flags(3) } }, { notes: { C4: row(2, 3) }, ties: 5 }, { notes: { C4: "x" }, ties: { C4: flags(3) } }]) {
+    let threw = null;
+    try { await E.renderWaveformPeaks({ tempo: 120, kit: "acoustic", tracks: { kick: row(0) }, melody: { waveform: "sine", ...odd } }, 16); } catch (e) { threw = String(e); }
+    ok(threw === null, "the waveform preview renders an old or damaged melody shape without throwing", threw || JSON.stringify(odd).slice(0, 60));
+  }
+}
+
 // ---- muted melody stays silent ----
 d = song({ C4: row(2, 3) }, { C4: flags(3) }); d.melody.muted = true;
 ok(play(d).length === 0, "a muted melody plays no held notes either");

@@ -399,7 +399,9 @@ function setMasterVolume(ctx, value) {
       ? { waveform: songData.melody.waveform || "sine", notes: Object.fromEntries(Object.keys(notes).sort().map((key) => [key, notes[key]])) }
       : null;
     // Held notes change the sound, so they feed the seed too; a song without any seeds exactly as it always did.
-    const heldKeys = melody ? Object.keys(notes).sort().filter((key) => notes[key].some((on, step) => on && isTiedContinuation(songData, key, step))) : [];
+    const heldKeys = melody && songData.melody.ties && typeof songData.melody.ties === "object"
+      ? Object.keys(notes).sort().filter((key) => Array.isArray(notes[key]) && notes[key].some((on, step) => on && isTiedContinuation(songData, key, step)))
+      : [];
     if (melody && heldKeys.length) melody.held = heldKeys.map((key) => [key, songData.melody.ties[key]]);
     const input = JSON.stringify({ tempo: songData.tempo || 120, kit: songData.kit || "acoustic", tracks, melody });
     let seed = 2166136261;
