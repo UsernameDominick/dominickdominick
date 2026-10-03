@@ -4078,3 +4078,6 @@ html.lightbox-open { overflow: hidden; }
   @keyframes vt-out-to-right { to { transform: translateX(100%); } }
   @keyframes vt-in-from-left { from { transform: translateX(-100%); } }
 }
+
+/* In-place page change (page-slide.js): the old and new content sit in one clipped stage and slide together. */
+.page-stage { position: relative; overflow-x: clip; }

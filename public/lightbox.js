@@ -145,6 +145,7 @@
     open(e.target);
   });
 
+  window.siteLightboxPrepare = prepare; // page-slide.js calls this after swapping a page in
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function () { prepare(); });
   else prepare();
 })();

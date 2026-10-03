@@ -115,6 +115,7 @@ document.addEventListener("input", function (e) {
       });
     }
   }
+  window.siteRenderHistory = renderHistoryPage;
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", renderHistoryPage);
   } else {
@@ -156,6 +157,7 @@ document.addEventListener("input", function (e) {
       location.reload();
     });
   }
+  window.siteWirePreviewOff = wire;
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", wire);
   } else {
@@ -351,8 +353,8 @@ document.addEventListener("input", function (e) {
   // This script tag sits before <main> in the document (see renderShell),
   // so the block content [data-animate] elements live in hasn't been
   // parsed yet when this runs synchronously — wait for the full document.
-  document.addEventListener("DOMContentLoaded", function () {
-    var targets = document.querySelectorAll("[data-animate]");
+  var initAnimate = function (root) {
+    var targets = (root || document).querySelectorAll("[data-animate]");
     if (!targets.length) return;
     // Checks both the OS-level setting and this site's own manual toggle
     // (data-motion="reduce", restored from localStorage before this script
@@ -398,7 +400,9 @@ document.addEventListener("input", function (e) {
       { threshold: 0.15 }
     );
     targets.forEach(function (el) { observer.observe(el); });
-  });
+  };
+  window.siteInitAnimate = initAnimate;
+  document.addEventListener("DOMContentLoaded", function () { initAnimate(document); });
 })();
 
 (function () {
@@ -508,9 +512,8 @@ document.addEventListener("input", function (e) {
 // prefers-reduced-motion setting and this site's own manual motion toggle
 // above. Re-synced on every click of that toggle, same as the CSS overrides
 // it already drives.
-document.addEventListener("DOMContentLoaded", function () {
-  var videos = document.querySelectorAll(".project-hero-video");
-  if (!videos.length) return;
+(function () {
+  var videos = [];
   var prefersReducedMotion = function () {
     return (
       document.documentElement.getAttribute("data-motion") === "reduce" ||
@@ -523,10 +526,27 @@ document.addEventListener("DOMContentLoaded", function () {
       else videos[i].play().catch(function () {});
     }
   };
-  sync();
-  var motionBtn = document.getElementById("motion-toggle");
-  if (motionBtn) motionBtn.addEventListener("click", sync);
-});
+  // Safe to call again after the page content is swapped in place (see page-slide.js): it re-reads the videos on the page.
+  var init = function (root) {
+    videos = [].slice.call((root || document).querySelectorAll(".project-hero-video"));
+    if (videos.length) sync();
+  };
+  window.siteInitHeroVideos = init;
+  document.addEventListener("DOMContentLoaded", function () {
+    init(document);
+    var motionBtn = document.getElementById("motion-toggle");
+    if (motionBtn) motionBtn.addEventListener("click", sync);
+  });
+})();
+
+// Everything a freshly swapped-in page needs that normally happens once at load; called by page-slide.js after it swaps the content.
+window.siteInitContent = function (root) {
+  if (window.siteInitAnimate) window.siteInitAnimate(root);
+  if (window.siteInitHeroVideos) window.siteInitHeroVideos(root);
+  if (window.siteRenderHistory) window.siteRenderHistory();
+  if (window.siteWirePreviewOff) window.siteWirePreviewOff();
+  if (window.siteLightboxPrepare) window.siteLightboxPrepare(root);
+};
 
 // .tabs (the persistent Articles/Projects/Topics nav pill) scrolls
 // internally as a backstop when too many tabs -- or a long custom
