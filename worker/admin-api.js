@@ -164,6 +164,7 @@ import {
 import { cleanBodyFields, cleanPageCss, pageCssKey } from "./text.js";
 import { cleanBrand, cleanNavBuiltin } from "./nav-settings.js";
 import { cleanRedirectStatus, cleanRedirectTarget } from "./redirects.js";
+import { cleanScanFields } from "./scans.js";
 import { outlineConfig, readOutline } from "./outline.js";
 import { cleanFooterLinks } from "./render.js";
 import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated, hmac, revokeAllSessions } from "./auth.js";
@@ -786,6 +787,19 @@ async function listUploadedMediaPage(bucket, cursor) {
     throw new Error("R2 returned a truncated media listing without a cursor");
   }
   return page;
+}
+
+// A model file that is new to a scan (create, or an edit that swaps it) has to exist in storage and belong to no other scan:
+// deleting a scan, or replacing its file, deletes the old file from storage.
+async function scanKeyProblem(env, fields, selfId, before) {
+  for (const col of ["glb_key", "usdz_key"]) {
+    const key = fields[col];
+    if (!key || (before && before[col] === key)) continue;
+    if (!(await env.MEDIA.head(key))) return "That model file was not found. Upload it again.";
+    const other = await env.DB.prepare("SELECT id FROM scans WHERE (glb_key = ? OR usdz_key = ?) AND id != ?").bind(key, key, selfId ?? -1).first();
+    if (other) return "That model file already belongs to another scan.";
+  }
+  return null;
 }
 
 async function routeAdminApi(request, env, url, ctx) {
@@ -1887,11 +1901,12 @@ async function routeAdminApi(request, env, url, ctx) {
   }
   if (path === "/scans" && method === "POST") {
     const body = await readJsonBody(request);
-    if (!body.name || !String(body.name).trim() || !body.glb_key) {
-      return json({ error: "Name and a GLB/GLTF file are required" }, { status: 400 });
-    }
-    const id = await createScan(env, { ...body, name: body.name.trim() });
-    log(ctx, env, "create", "scan", body.name.trim());
+    const cleaned = cleanScanFields(body);
+    if (cleaned.error) return json({ error: cleaned.error }, { status: 400 });
+    const keyProblem = await scanKeyProblem(env, cleaned.fields, null, null);
+    if (keyProblem) return json({ error: keyProblem }, { status: 400 });
+    const id = await createScan(env, cleaned.fields);
+    log(ctx, env, "create", "scan", cleaned.fields.name);
     return json({ id });
   }
   // /content-usage — the general "what uses this" check behind
@@ -1916,10 +1931,14 @@ async function routeAdminApi(request, env, url, ctx) {
     return json(scan);
   }
   if (scanMatch && method === "PATCH") {
-    const body = await readJsonBody(request);
-    if ("name" in body && !String(body.name).trim()) return json({ error: "Name is required" }, { status: 400 });
+    const sent = await readJsonBody(request);
     const id = Number(scanMatch[1]);
     const before = await getScan(env, id);
+    const cleaned = cleanScanFields(sent, { partial: true, keep: before || {} });
+    if (cleaned.error) return json({ error: cleaned.error }, { status: 400 });
+    const body = cleaned.fields;
+    const keyProblem = await scanKeyProblem(env, body, id, before);
+    if (keyProblem) return json({ error: keyProblem }, { status: 400 });
     await updateScan(env, id, body);
     // glb_key/usdz_key point at files dedicated to this scan (not shared
     // media-library references), so replacing one with a re-upload needs to
