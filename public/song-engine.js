@@ -192,6 +192,65 @@ function setMasterVolume(ctx, value) {
     gainParam.linearRampToValueAtTime(level, now + 0.03);
   }
 
+  // ---------- Echo (tempo-synced delay) ----------
+  // Like Space, a send off the master bus that a song with Echo at 0 never builds: master gain -> delay -> low-pass -> wet gain ->
+  // destination, with the low-pass fed back into the delay so each repeat is quieter and duller than the last. The delay is a dotted
+  // eighth (three sixteenth steps) of the song's tempo, which is what makes repeats land between the beats rather than on top of them.
+  const ECHO_STEPS = 3;
+  const ECHO_MAX_WET = 0.8;
+  const echoSends = new WeakMap();
+  function getEchoSend(ctx) {
+    let send = echoSends.get(ctx);
+    if (!send) {
+      const delay = ctx.createDelay(2);
+      const tone = ctx.createBiquadFilter();
+      tone.type = "lowpass";
+      tone.frequency.value = 3200;
+      const feedback = ctx.createGain();
+      feedback.gain.value = 0.4;
+      const wet = ctx.createGain();
+      wet.gain.value = 0;
+      getMasterGain(ctx).connect(delay);
+      delay.connect(tone);
+      tone.connect(wet);
+      tone.connect(feedback);
+      feedback.connect(delay);
+      wet.connect(ctx.destination);
+      const analyser = peakMeterAnalysers.get(ctx);
+      if (analyser) wet.connect(analyser);
+      send = { delay, feedback, wet };
+      echoSends.set(ctx, send);
+    }
+    return send;
+  }
+  function echoAmount(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) / 100 : 0;
+  }
+  // Echo is 0 to 100 (percent). More echo is both louder and longer-lasting (the feedback rises from 0.35 to 0.6). The delay time follows
+  // the tempo, so this is called with it every step as well as when the slider moves. `immediate` sets the levels outright, for an offline
+  // render that has to be right from its first sample.
+  function setEcho(ctx, value, tempo, immediate) {
+    const amount = echoAmount(value);
+    if (amount === 0 && !echoSends.has(ctx)) return;
+    const send = getEchoSend(ctx);
+    const wet = amount * ECHO_MAX_WET;
+    const feedback = 0.35 + amount * 0.25;
+    const time = Math.min(1.99, stepDurationFor(tempo) * ECHO_STEPS);
+    if (immediate) {
+      send.wet.gain.value = wet;
+      send.feedback.gain.value = feedback;
+      send.delay.delayTime.value = time;
+      return;
+    }
+    const now = ctx.currentTime;
+    send.wet.gain.cancelScheduledValues(now);
+    send.wet.gain.setValueAtTime(send.wet.gain.value, now);
+    send.wet.gain.linearRampToValueAtTime(wet, now + 0.03);
+    send.feedback.gain.setValueAtTime(feedback, now);
+    send.delay.delayTime.setValueAtTime(time, now);
+  }
+
   const KIT_PARAMS = {
     acoustic: { kickFreq: 150, kickDecay: 0.35, snareTone: 200, snareDecay: 0.18, hihatDecay: 0.06, clapDecay: 0.12, openhatDecay: 0.3, tomFreq: 120, tomDecay: 0.3, rimDecay: 0.035, crashDecay: 1.2 },
     electronic: { kickFreq: 90, kickDecay: 0.25, snareTone: 320, snareDecay: 0.12, hihatDecay: 0.04, clapDecay: 0.08, openhatDecay: 0.2, tomFreq: 160, tomDecay: 0.22, rimDecay: 0.025, crashDecay: 0.9 },
@@ -515,6 +574,7 @@ function setMasterVolume(ctx, value) {
     // re-application, not the only place the value gets applied).
     setMasterVolume(ctx, songData.master_volume);
     setSpace(ctx, songData.space);
+    setEcho(ctx, songData.echo, songData.tempo);
     const kit = songData.kit || "acoustic";
     if (songData.tracks) {
       Object.keys(songData.tracks).sort().forEach((track) => {
@@ -649,11 +709,11 @@ function setMasterVolume(ctx, value) {
     // The preview ignores humanize and uses a content-seeded noise stream:
     // repeated renders of the same song therefore show the same pattern,
     // while normal playback keeps fresh noise on each hit.
-    // The same goes for Space: a reverb tail would smear the pattern it is meant to show.
+    // The same goes for Space and Echo: a reverb tail or repeats would smear the pattern it is meant to show.
     const previewData =
-      songData.master_volume === 1 && !songData.humanize && !songData.space
+      songData.master_volume === 1 && !songData.humanize && !songData.space && !songData.echo
         ? songData
-        : Object.assign({}, songData, { master_volume: 1, humanize: 0, space: 0 });
+        : Object.assign({}, songData, { master_volume: 1, humanize: 0, space: 0, echo: 0 });
     const random = previewRandom(previewData);
     for (let step = 0; step < STEPS; step++) scheduleStep(ctx, previewData, step, step * stepDur, random);
     const buffer = await ctx.startRendering();
@@ -710,6 +770,7 @@ function setMasterVolume(ctx, value) {
     // start it at the right level so the whole render is at the song's volume.
     getMasterGain(ctx).gain.value = Number.isFinite(songData.master_volume) ? Math.max(0, Math.min(1, songData.master_volume)) : 1;
     setSpace(ctx, songData.space, true);
+    setEcho(ctx, songData.echo, songData.tempo, true);
     const stepSeconds = loopSamples / sampleRate / STEPS;
     for (let pass = 0; pass < 2; pass++) {
       const random = previewRandom(songData);
@@ -748,6 +809,7 @@ function setMasterVolume(ctx, value) {
     renderLoopAudio,
     setMasterVolume,
     setSpace,
+    setEcho,
     getPeakMeterAnalyser,
   };
 })();

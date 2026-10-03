@@ -163,6 +163,7 @@
       humanize: clampNum(src.humanize, 0, 100, 0),
       swing: clampNum(src.swing, 0, 100, 0),
       space: clampNum(src.space, 0, 100, 0),
+      echo: clampNum(src.echo, 0, 100, 0),
       private_notes: cleanText(src.private_notes, 20000),
       tracks: {},
       trackMeta: {},

@@ -278,10 +278,13 @@
     $("song-swing").setAttribute("aria-valuetext", Number(songData.swing) ? `${Number(songData.swing)}% swing` : "Straight");
     $("song-space").value = Number(songData.space) || 0;
     $("song-space").setAttribute("aria-valuetext", Number(songData.space) ? `${Number(songData.space)}% space` : "Dry");
+    $("song-echo").value = Number(songData.echo) || 0;
+    $("song-echo").setAttribute("aria-valuetext", Number(songData.echo) ? `${Number(songData.echo)}% echo` : "Dry");
     $("song-notes").value = songData.private_notes || "";
     applySongTheme($("song-preview-embed"), songData.theme);
     Engine.setMasterVolume(getAudioCtx(), songData.master_volume);
     Engine.setSpace(getAudioCtx(), songData.space);
+    Engine.setEcho(getAudioCtx(), songData.echo, songData.tempo);
     $("song-preview-name").textContent = state.name || "Song name";
     renderSequencer();
     renderPianoRoll();
@@ -725,6 +728,7 @@
   // straight into the same songData object the running player reads.
   $("song-tempo").addEventListener("input", () => {
     songData.tempo = Number($("song-tempo").value) || 120;
+    Engine.setEcho(getAudioCtx(), songData.echo, songData.tempo);
     renderRulers();
     refreshWaveformPreview();
     scheduleAutosave();
@@ -869,6 +873,14 @@
     $("song-space").setAttribute("aria-valuetext", songData.space ? `${songData.space}% space` : "Dry");
     // Applied straight away so a held note or a MIDI-keyboard preview hears it, not just the next step.
     Engine.setSpace(getAudioCtx(), songData.space);
+    Engine.setEcho(getAudioCtx(), songData.echo, songData.tempo);
+    scheduleAutosave();
+  });
+  $("song-echo").addEventListener("input", () => {
+    const amount = Number($("song-echo").value) || 0;
+    if (amount) songData.echo = amount; else delete songData.echo; // a song with no echo has no echo field, as before
+    $("song-echo").setAttribute("aria-valuetext", amount ? `${amount}% echo` : "Dry");
+    Engine.setEcho(getAudioCtx(), songData.echo, songData.tempo);
     scheduleAutosave();
   });
   $("song-notes").addEventListener("input", () => {
@@ -2435,6 +2447,8 @@
     $("song-swing").setAttribute("aria-valuetext", Number(songData.swing) ? `${Number(songData.swing)}% swing` : "Straight");
     $("song-space").value = Number(songData.space) || 0;
     $("song-space").setAttribute("aria-valuetext", Number(songData.space) ? `${Number(songData.space)}% space` : "Dry");
+    $("song-echo").value = Number(songData.echo) || 0;
+    $("song-echo").setAttribute("aria-valuetext", Number(songData.echo) ? `${Number(songData.echo)}% echo` : "Dry");
     $("song-notes").value = songData.private_notes || "";
     // The shared AudioContext (and its master GainNode) persists across
     // songs -- without this, opening song B right after playing song A
@@ -2442,6 +2456,7 @@
     // schedules its first step.
     Engine.setMasterVolume(getAudioCtx(), songData.master_volume);
     Engine.setSpace(getAudioCtx(), songData.space);
+    Engine.setEcho(getAudioCtx(), songData.echo, songData.tempo);
     $("song-preview-name").textContent = $("song-name").value || "Song name";
     // songData was just reassigned to a new object — the player has to be
     // rebuilt against it, since createPlayer captured the old reference.
@@ -2583,6 +2598,7 @@
       `Humanize: ${typeof songData.humanize === "number" ? songData.humanize : 0}%`,
       `Swing: ${typeof songData.swing === "number" ? songData.swing : 0}%`,
       `Space: ${typeof songData.space === "number" ? songData.space : 0}%`,
+      `Echo: ${Number(songData.echo) || 0}%`,
       `Page background sync: ${songData.page_sync ? "on" : "off"}`,
       ...(clipTotal ? [`Master clipping events this session: ${clipTotal}`] : []),
       "",
