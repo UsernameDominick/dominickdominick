@@ -10707,6 +10707,7 @@
       { label: "Open Projects", sub: "", run: () => { closeCommandPalette(); el("projects-btn").click(); } },
       { label: "Open Media Library", sub: "", run: () => { closeCommandPalette(); el("media-btn").click(); } },
       { label: "Open Redirects", sub: "", run: () => { closeCommandPalette(); el("redirects-btn").click(); } },
+      { label: "Open Scripts", sub: "Write and run scripts against the site", run: () => { closeCommandPalette(); el("scripts-btn").click(); } },
       { label: "Open Analytics", sub: "", run: () => { closeCommandPalette(); el("analytics-btn").click(); } },
       { label: "Open Simulations", sub: "", run: () => { closeCommandPalette(); el("simulations-btn").click(); } },
       { label: "Open Scans", sub: "", run: () => { closeCommandPalette(); el("scans-btn").click(); } },
@@ -11425,6 +11426,331 @@
     });
   });
 
+  // ---------- Scripts ----------
+  // A place to write small programs against the site's own admin API ("tag every article that mentions X", "add these 12 redirects").
+  // Code runs in a sandbox (public/admin/script-runner.js); a Preview run records what it would change, Apply makes the changes.
+  let scriptList = [];
+  let scriptCurrent = { id: null, name: "", description: "" };
+  let scriptEditor = null;
+  let scriptDirty = false;
+  let scriptRunning = null; // { abort }
+  let scriptPreview = null; // { code, writes, destructive } from the last successful preview of the code now in the editor
+  const SCRIPT_MAX_CHANGES_SHOWN = 300;
+
+  function scriptSetStatus(text) {
+    el("script-status").textContent = text;
+  }
+  function scriptSecs(ms) {
+    return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
+  }
+  function scriptPlural(n, one, many) {
+    return `${n} ${n === 1 ? one : many}`;
+  }
+  function scriptMarkDirty(on = true) {
+    scriptDirty = on;
+    renderScriptList();
+  }
+  function scriptCodeNow() {
+    return scriptEditor ? scriptEditor.getValue() : "";
+  }
+
+  function renderScriptList() {
+    const rows = scriptList.map((s) => ({ id: s.id, name: s.name }));
+    if (scriptCurrent.id === null) rows.unshift({ id: null, name: scriptCurrent.name || "New script" });
+    el("scripts-list").innerHTML = rows
+      .map((r) => {
+        const current = r.id === scriptCurrent.id;
+        const unsaved = current && scriptDirty;
+        return `<li><button type="button" data-script="${r.id === null ? "" : r.id}"${current ? ' aria-current="true"' : ""}>${escapeHtml(r.name)}${unsaved ? ' <span class="scripts-dot" title="Unsaved changes">●<span class="scripts-sr"> unsaved</span></span>' : ""}</button></li>`;
+      })
+      .join("");
+    el("script-delete").hidden = scriptCurrent.id === null;
+  }
+
+  function scriptConfirmDiscard() {
+    return !scriptDirty || confirm("Leave this script? Your unsaved changes will be lost.");
+  }
+
+  function scriptClearResults() {
+    el("script-output").textContent = "";
+    el("script-changes").innerHTML = "";
+    el("script-change-count").textContent = "";
+    el("script-confirm").hidden = true;
+    if (scriptEditor) scriptEditor.markError(null);
+  }
+
+  function scriptOpenInEditor({ id, name, description, code }, dirty) {
+    scriptCurrent = { id, name, description };
+    el("script-name").value = name;
+    el("script-description").value = description || "";
+    scriptEditor.setValue(code);
+    scriptPreview = null;
+    scriptClearResults();
+    scriptSetStatus("");
+    scriptMarkDirty(dirty);
+  }
+
+  function scriptNew() {
+    if (!scriptConfirmDiscard()) return;
+    const blank = window.ScriptTemplates.TEMPLATES[0];
+    scriptOpenInEditor({ id: null, name: "", description: "", code: blank.code }, false);
+    el("script-name").focus();
+  }
+
+  async function scriptsLoad() {
+    try {
+      scriptList = await api("/scripts");
+    } catch (err) {
+      scriptSetStatus(`Couldn't load scripts: ${err.message}`);
+      scriptList = [];
+    }
+    renderScriptList();
+  }
+
+  function scriptFields() {
+    return { name: el("script-name").value.trim(), description: el("script-description").value.trim(), code: scriptCodeNow() };
+  }
+
+  async function scriptSave() {
+    const f = scriptFields();
+    if (!f.name) {
+      scriptSetStatus("Give the script a name first.");
+      el("script-name").focus();
+      return false;
+    }
+    try {
+      if (scriptCurrent.id) {
+        await api(`/scripts/${scriptCurrent.id}`, { method: "PUT", body: JSON.stringify(f) });
+      } else {
+        const made = await api("/scripts", { method: "POST", body: JSON.stringify(f) });
+        scriptCurrent.id = made.id;
+      }
+      scriptCurrent.name = f.name;
+      scriptCurrent.description = f.description;
+      await scriptsLoad();
+      scriptMarkDirty(false);
+      scriptSetStatus("Saved.");
+      return true;
+    } catch (err) {
+      scriptSetStatus(`Couldn't save: ${err.message}`);
+      return false;
+    }
+  }
+
+  async function scriptDelete() {
+    if (!scriptCurrent.id) return;
+    if (!confirm(`Delete the script "${scriptCurrent.name}"? This can't be undone.`)) return;
+    try {
+      await api(`/scripts/${scriptCurrent.id}`, { method: "DELETE" });
+    } catch (err) {
+      scriptSetStatus(`Couldn't delete: ${err.message}`);
+      return;
+    }
+    await scriptsLoad();
+    scriptDirty = false;
+    scriptNew();
+    scriptSetStatus("Deleted.");
+  }
+
+  function scriptAppendOutput(level, text) {
+    const out = el("script-output");
+    const line = document.createElement("span");
+    line.className = `scripts-line scripts-line-${level}`;
+    line.textContent = text + "\n";
+    out.appendChild(line);
+    out.scrollTop = out.scrollHeight;
+  }
+
+  function scriptRenderChange(change, index) {
+    const list = el("script-changes");
+    if (index === SCRIPT_MAX_CHANGES_SHOWN) {
+      const more = document.createElement("li");
+      more.id = "script-changes-more";
+      list.appendChild(more);
+    }
+    if (index >= SCRIPT_MAX_CHANGES_SHOWN) {
+      el("script-changes-more").textContent = `…and ${index + 1 - SCRIPT_MAX_CHANGES_SHOWN} more`;
+      return;
+    }
+    const li = document.createElement("li");
+    if (change.destructive) li.className = "scripts-destructive";
+    li.textContent = (change.destructive ? "Permanent: " : "") + change.text;
+    list.appendChild(li);
+  }
+
+  function scriptRunningUi(on, label) {
+    el("script-run").disabled = on;
+    el("script-apply").disabled = on;
+    el("script-save").disabled = on;
+    el("script-stop").hidden = !on;
+    scriptEditor && (scriptEditor.el.dataset.running = on ? "true" : "false");
+    if (on) scriptSetStatus(label);
+  }
+
+  // Runs the editor's code. dry = a preview (records changes, makes none). Resolves with the runner's result.
+  async function scriptExecute(dry) {
+    if (scriptRunning) return null;
+    const code = scriptCodeNow();
+    scriptClearResults();
+    let n = 0;
+    scriptRunningUi(true, dry ? "Previewing…" : "Applying…");
+    const handle = window.ScriptRunner.run({
+      code,
+      dry,
+      call: (method, path, body) => api(path, { method, body: body === undefined ? undefined : JSON.stringify(body) }),
+      onLog: scriptAppendOutput,
+      onChange: (change) => {
+        scriptRenderChange(change, n++);
+        el("script-change-count").textContent = `(${n})`;
+      },
+    });
+    scriptRunning = handle;
+    const result = await handle.promise;
+    scriptRunning = null;
+    scriptRunningUi(false);
+    if (result.value !== undefined) scriptAppendOutput("result", `Returned: ${result.value}`);
+    if (result.status !== "ok") {
+      const where = result.error && result.error.line ? ` (line ${result.error.line})` : "";
+      const label = result.status === "timeout" ? "Stopped" : result.status === "aborted" ? "Stopped" : result.error && result.error.syntax ? "Syntax error" : "Error";
+      scriptAppendOutput("error", `${label}${where}: ${result.error ? result.error.message : "The script failed."}`);
+      if (result.error && result.error.line) scriptEditor.markError(result.error.line);
+    }
+    const reads = scriptPlural(result.reads, "read", "reads");
+    const writes = scriptPlural(result.writes, "change", "changes");
+    if (result.status === "ok") {
+      scriptSetStatus(dry ? `Preview finished in ${scriptSecs(result.ms)}: ${reads}, ${writes} would be made (nothing was changed).` : `Applied in ${scriptSecs(result.ms)}: ${writes} made.`);
+    } else {
+      scriptSetStatus(`${result.status === "error" ? "The script failed" : "Stopped"} after ${scriptSecs(result.ms)}; ${dry ? "nothing was changed." : `${writes} had been made.`}`);
+    }
+    if (result.status === "ok" && dry) {
+      scriptPreview = { code, writes: result.writes, destructive: result.changes.filter((c) => c.destructive).length };
+    }
+    return result;
+  }
+
+  async function scriptRefreshAfter(result) {
+    const touched = new Set(result.changes.map((c) => /^\w+ (\/[a-z-]*)/.exec(c.text)?.[1]).filter(Boolean));
+    try {
+      if (touched.has("/articles")) {
+        articles = await api("/articles");
+        renderArticlesList();
+      }
+      if (touched.has("/projects")) {
+        projects = await api("/projects");
+        renderProjectsList();
+      }
+      if (touched.has("/pages") || touched.has("/blocks")) await loadPages();
+      if (touched.has("/redirects") && !el("redirects-modal").hidden) await loadRedirects();
+    } catch (e) {
+      /* the lists refresh the next time they open */
+    }
+  }
+
+  async function scriptApply() {
+    if (scriptRunning) return;
+    if (!scriptPreview || scriptPreview.code !== scriptCodeNow()) {
+      const result = await scriptExecute(true);
+      if (!result || result.status !== "ok") return;
+    }
+    const { writes, destructive } = scriptPreview;
+    if (!writes) {
+      scriptSetStatus("This script doesn't change anything, so there's nothing to apply.");
+      return;
+    }
+    el("script-confirm-text").textContent = `Apply ${scriptPlural(writes, "change", "changes")} for real?${destructive ? ` ${scriptPlural(destructive, "of them is", "of them are")} permanent deletions that can't be undone.` : ""} The list below is what the preview recorded.`;
+    el("script-confirm").hidden = false;
+    el("script-confirm-go").focus();
+  }
+
+  async function scriptApplyConfirmed() {
+    el("script-confirm").hidden = true;
+    if (!scriptPreview || scriptPreview.code !== scriptCodeNow()) return scriptSetStatus("The script changed since the preview. Run Apply again.");
+    if (scriptPreview.destructive && !(await confirmTyped(`This will permanently delete ${scriptPlural(scriptPreview.destructive, "item", "items")}.`, { title: "Permanent deletion" }))) {
+      return scriptSetStatus("Cancelled. Nothing was changed.");
+    }
+    const result = await scriptExecute(false);
+    scriptPreview = null;
+    if (result && result.writes) await scriptRefreshAfter(result);
+  }
+
+  function scriptInitUi() {
+    scriptEditor = window.ScriptEditor.create(el("script-editor"), {
+      label: "Script code",
+      onChange: () => {
+        scriptPreview = null;
+        if (!scriptDirty) scriptMarkDirty(true);
+      },
+      onRun: () => el("script-run").click(),
+    });
+    const select = el("script-template");
+    for (const t of window.ScriptTemplates.TEMPLATES.slice(1)) {
+      const option = document.createElement("option");
+      option.value = t.id;
+      option.textContent = t.name;
+      option.title = t.description;
+      select.appendChild(option);
+    }
+    el("scripts-reference-list").innerHTML = window.ScriptEditor.SDK_DOCS.map(
+      ([name, sig, info], i) => `<li><button type="button" data-doc="${i}"><code>${escapeHtml(name)}${escapeHtml(sig)}</code><span>${escapeHtml(info)}</span></button></li>`
+    ).join("");
+  }
+
+  el("scripts-btn").addEventListener("click", async () => {
+    const modal = el("scripts-modal");
+    modalFocusReturn.set(modal, el("scripts-btn"));
+    modal.hidden = false;
+    if (!scriptEditor) {
+      scriptInitUi();
+      scriptNew();
+    }
+    await scriptsLoad();
+    scriptEditor.relayout();
+    scriptEditor.focus();
+  });
+  el("close-scripts").addEventListener("click", () => {
+    if (!scriptConfirmDiscard()) return;
+    if (scriptRunning) scriptRunning.abort();
+    el("scripts-modal").hidden = true;
+  });
+  el("script-new").addEventListener("click", scriptNew);
+  el("script-save").addEventListener("click", scriptSave);
+  el("script-delete").addEventListener("click", scriptDelete);
+  el("script-run").addEventListener("click", () => scriptExecute(true));
+  el("script-apply").addEventListener("click", scriptApply);
+  el("script-stop").addEventListener("click", () => scriptRunning && scriptRunning.abort());
+  el("script-confirm-go").addEventListener("click", scriptApplyConfirmed);
+  el("script-confirm-cancel").addEventListener("click", () => {
+    el("script-confirm").hidden = true;
+    scriptSetStatus("Cancelled. Nothing was changed.");
+  });
+  el("script-name").addEventListener("input", () => {
+    scriptCurrent.name = el("script-name").value.trim();
+    scriptMarkDirty(true);
+  });
+  el("script-description").addEventListener("input", () => scriptMarkDirty(true));
+  el("scripts-list").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-script]");
+    if (!btn) return;
+    const id = btn.dataset.script;
+    if (id === (scriptCurrent.id || "")) return;
+    const found = scriptList.find((s) => s.id === id);
+    if (!found || !scriptConfirmDiscard()) return;
+    scriptOpenInEditor(found, false);
+  });
+  el("script-template").addEventListener("change", (e) => {
+    const t = window.ScriptTemplates.TEMPLATES.find((x) => x.id === e.target.value);
+    e.target.value = "";
+    if (!t || !scriptConfirmDiscard()) return;
+    scriptOpenInEditor({ id: null, name: t.name, description: t.description, code: t.code }, true);
+  });
+  el("scripts-reference-list").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-doc]");
+    if (!btn) return;
+    const [name, sig] = window.ScriptEditor.SDK_DOCS[Number(btn.dataset.doc)];
+    scriptEditor.insert(sig ? `await ${name}${sig.replace(/\?/g, "")};` : name);
+    scriptEditor.focus();
+  });
+
   // ---------- Keyboard shortcuts ----------
   document.addEventListener("keydown", (e) => {
     const tag = document.activeElement && document.activeElement.tagName;
@@ -11464,6 +11790,7 @@
           "media-info-modal": "save-media-info",
           "topic-meta-edit-modal": "save-topic-meta",
           "keyframe-editor-modal": "save-keyframe-editor",
+          "scripts-modal": "script-save",
         }[top.id];
         const btn = saveButtonId && el(saveButtonId);
         if (btn && !btn.disabled) btn.click();

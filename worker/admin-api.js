@@ -165,6 +165,7 @@ import { cleanBodyFields, cleanPageCss, pageCssKey } from "./text.js";
 import { cleanBrand, cleanNavBuiltin } from "./nav-settings.js";
 import { cleanRedirectStatus, cleanRedirectTarget } from "./redirects.js";
 import { cleanScanFields } from "./scans.js";
+import { SCRIPT_MAX, SCRIPT_PREFIX, cleanScript, isScriptId, readScriptRow, scriptKey } from "./scripts.js";
 import { cleanSongSave } from "./songs.js";
 import { outlineConfig, readOutline } from "./outline.js";
 import { cleanFooterLinks } from "./render.js";
@@ -2724,6 +2725,41 @@ async function routeAdminApi(request, env, url, ctx) {
         log(ctx, env, "delete", "section", JSON.parse(row).name);
       } catch {}
     }
+    return json({ ok: true });
+  }
+
+  // /scripts — the owner's saved admin scripts (written and run in the Scripts window; see public/admin/script-runner.js).
+  // One settings row each, so saving two at once can't overwrite or reuse an id and no schema change is needed.
+  if (path === "/scripts" && method === "GET") {
+    const { results } = await env.DB.prepare("SELECT key, value FROM settings WHERE key LIKE ? ORDER BY key").bind(`${SCRIPT_PREFIX}%`).all();
+    return json(results.map(readScriptRow).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name)));
+  }
+  if (path === "/scripts" && method === "POST") {
+    const cleaned = cleanScript(await readJsonBody(request));
+    if (!cleaned.ok) return json({ error: cleaned.error }, { status: 400 });
+    const count = await env.DB.prepare("SELECT COUNT(*) AS n FROM settings WHERE key LIKE ?").bind(`${SCRIPT_PREFIX}%`).first();
+    if ((count?.n || 0) >= SCRIPT_MAX) return json({ error: `You can keep up to ${SCRIPT_MAX} scripts; delete one first.` }, { status: 400 });
+    const id = crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+    await setSetting(env, scriptKey(id), JSON.stringify({ ...cleaned.value, updated_at: new Date().toISOString() }));
+    log(ctx, env, "create", "script", cleaned.value.name);
+    return json({ id });
+  }
+  const scriptMatch = path.match(/^\/scripts\/([a-f0-9]{12})$/);
+  if (scriptMatch && isScriptId(scriptMatch[1]) && method === "PUT") {
+    const key = scriptKey(scriptMatch[1]);
+    if (!(await getSetting(env, key))) return json({ error: "Script not found" }, { status: 404 });
+    const cleaned = cleanScript(await readJsonBody(request));
+    if (!cleaned.ok) return json({ error: cleaned.error }, { status: 400 });
+    await setSetting(env, key, JSON.stringify({ ...cleaned.value, updated_at: new Date().toISOString() }));
+    log(ctx, env, "update", "script", cleaned.value.name);
+    return json({ ok: true });
+  }
+  if (scriptMatch && method === "DELETE") {
+    const key = scriptKey(scriptMatch[1]);
+    const row = await getSetting(env, key);
+    if (!row) return json({ error: "Script not found" }, { status: 404 });
+    await env.DB.prepare("DELETE FROM settings WHERE key = ?").bind(key).run();
+    log(ctx, env, "delete", "script", readScriptRow({ key, value: row })?.name || "script");
     return json({ ok: true });
   }
 
