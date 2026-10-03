@@ -2331,6 +2331,12 @@
             <label>Every <select id="song-arp-every" title="How many steps between notes"><option value="1">step</option><option value="2">2 steps</option><option value="4">4 steps</option></select></label>
             <button type="button" id="song-arp-apply" class="song-track-toggle" title="Replace the melody with this chord played one note at a time (undoable)">Arpeggiate</button>
           </div>
+          <div class="song-pattern-tools" role="group" aria-label="Chord progressions">
+            <label>Key <select id="song-prog-key" title="The key the progression is built in"></select></label>
+            <label>Progression <select id="song-prog-type"></select></label>
+            <label class="song-check-label"><input type="checkbox" id="song-prog-hold" checked> Hold each chord</label>
+            <button type="button" id="song-prog-stamp" class="song-track-toggle" title="Add every chord of the progression across the loop, keeping the rest of the melody (undoable). Held chords ring for their whole stretch.">Stamp progression</button>
+          </div>
           <p id="song-melody-tools-note" class="song-tools-note" role="status"></p>
         </details>
         <details class="panel-section song-notes-section">

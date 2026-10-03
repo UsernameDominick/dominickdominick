@@ -1763,6 +1763,7 @@
     else songData.scale = { root: $("song-scale-root").value, type };
     renderPianoRoll();
     const sc = activeScale();
+    if (sc) $("song-prog-key").value = sc.root; // chord progressions start in the key being highlighted
     $("song-scale-status").textContent = sc ? `Highlighting ${sc.root} ${$("song-scale-type").selectedOptions[0].textContent.toLowerCase()}: ${$("song-piano-roll").querySelectorAll(".song-row-scale").length} rows in scale.` : "Scale highlight off.";
     scheduleAutosave();
   }
@@ -2000,6 +2001,28 @@
     melodyEdit(
       () => MP.arpeggioMelody(PIANO_NOTES, c.names, $("song-arp-pattern").value, every, STEPS),
       `${chordWord()} arpeggio, ${$("song-arp-pattern").selectedOptions[0].textContent.toLowerCase()}, a note every ${every === 1 ? "step" : every + " steps"}${had ? ", replaced the melody. Undo brings it back" : ""}.${missingWord(c)}`
+    );
+  });
+
+  // Chord progressions: all the chords of a well-known sequence in a key, spread over the loop and (by default) held so they ring.
+  NOTE_NAMES.forEach((n) => $("song-prog-key").appendChild(new Option(n, n)));
+  $("song-prog-key").value = "C";
+  MP.PROGRESSIONS.forEach((p) => $("song-prog-type").appendChild(new Option(p.label, p.id)));
+  $("song-prog-stamp").addEventListener("click", () => {
+    const chords = MP.progressionChords(PIANO_NOTES, $("song-prog-key").value, $("song-prog-type").value);
+    if (!chords.length) return melodyToolsSay("That progression is not available in this key.");
+    const hold = $("song-prog-hold").checked;
+    const span = Math.floor(STEPS / chords.length);
+    const left = chords.reduce((n, c) => n + c.missing, 0);
+    let stamped = null;
+    const message = `${$("song-prog-type").selectedOptions[0].textContent.split(":")[0]} progression in ${$("song-prog-key").value}: ${chords.map((c) => c.label).join(", ")}, ${hold ? `each held for ${span} step${span === 1 ? "" : "s"}` : `struck on every ${span === 1 ? "step" : span + "th step"}`}.${left ? ` ${left} chord note${left === 1 ? " was" : "s were"} above the piano roll and left out.` : ""}`;
+    melodyEdit(
+      (notes) => {
+        stamped = MP.stampProgression(notes, songData.melody.ties || {}, chords, STEPS, { hold });
+        return stamped.notes;
+      },
+      message,
+      () => stamped.ties
     );
   });
 

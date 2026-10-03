@@ -7758,6 +7758,9 @@ button[data-tier="quiet"] { border-color: transparent; }
 .song-pattern-tools { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0 0 0.5rem; }
 .song-pattern-tools label { display: inline-flex; gap: 0.4rem; align-items: center; }
 .song-tools-hint { font-size: 0.8rem; color: var(--text-dim); }
+/* The progression names are long ("Canon: I – V – vi – iii – IV – I – IV – V"): the select shrinks to the row instead of widening it. */
+.song-pattern-tools label:has(#song-prog-type) { min-width: 0; max-width: 100%; }
+#song-prog-type { min-width: 0; max-width: 100%; text-overflow: ellipsis; }
 /* A held note: a bar bridges the gap to the note before it, so the two read as one long note. */
 .song-step-tied { position: relative; border-top-left-radius: 0; border-bottom-left-radius: 0; }
 .song-step-tied::before {

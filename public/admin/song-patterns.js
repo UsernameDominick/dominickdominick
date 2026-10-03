@@ -159,6 +159,72 @@
     return out;
   }
 
+  // ---- chord progressions ----
+  // A progression is a list of chords, each a semitone offset from the key's root plus a chord type from CHORDS, spread evenly over the
+  // loop (four chords get four steps each, eight chords two each).
+  const PROGRESSIONS = [
+    { id: "pop", label: "Pop: I – V – vi – IV", chords: [[0, "major"], [7, "major"], [9, "minor"], [5, "major"]] },
+    { id: "doowop", label: "Doo-wop: I – vi – IV – V", chords: [[0, "major"], [9, "minor"], [5, "major"], [7, "major"]] },
+    { id: "sensitive", label: "Sensitive: vi – IV – I – V", chords: [[9, "minor"], [5, "major"], [0, "major"], [7, "major"]] },
+    { id: "rock", label: "Rock: I – ♭VII – IV – I", chords: [[0, "major"], [10, "major"], [5, "major"], [0, "major"]] },
+    { id: "jazz", label: "Jazz: ii – V – I – I (sevenths)", chords: [[2, "min7"], [7, "dom7"], [0, "maj7"], [0, "maj7"]] },
+    { id: "minor", label: "Minor: i – ♭VI – ♭III – ♭VII", chords: [[0, "minor"], [8, "major"], [3, "major"], [10, "major"]] },
+    { id: "andalusian", label: "Andalusian: i – ♭VII – ♭VI – V", chords: [[0, "minor"], [10, "major"], [8, "major"], [7, "major"]] },
+    { id: "canon", label: "Canon: I – V – vi – iii – IV – I – IV – V", chords: [[0, "major"], [7, "major"], [9, "minor"], [4, "minor"], [5, "major"], [0, "major"], [5, "major"], [7, "major"]] },
+  ];
+  const CHORD_SUFFIX = { major: "", minor: "m", dim: "dim", sus4: "sus4", dom7: "7", maj7: "maj7", min7: "m7" };
+
+  // The chords of a progression in a key ("D" and "pop" give D, A, Bm, G), each placed as low on the piano roll as it fits. Returns
+  // [{ label, names, missing }], or [] for an unknown progression or key.
+  function progressionChords(allNames, keyRoot, progressionId) {
+    const prog = PROGRESSIONS.find((p) => p.id === progressionId);
+    const key = NOTE_NAMES.indexOf(keyRoot);
+    if (!prog || key < 0) return [];
+    const byValue = new Map((allNames || []).map((n) => [noteValue(n), n]).filter(([v]) => v !== null));
+    if (!byValue.size) return [];
+    const low = Math.min(...byValue.keys());
+    return prog.chords.map(([offset, type]) => {
+      const pitchClass = (key + offset) % 12;
+      const root = low + ((pitchClass - (low % 12) + 12) % 12); // the lowest note on the roll with this name
+      const names = [];
+      let missing = 0;
+      for (const interval of CHORDS[type].intervals) {
+        const found = byValue.get(root + interval);
+        if (found) names.push(found);
+        else missing++;
+      }
+      return { label: NOTE_NAMES[pitchClass] + (CHORD_SUFFIX[type] || ""), names, missing };
+    });
+  }
+
+  // The melody and its held notes with each chord switched on across its own stretch of steps, added to whatever is already there. With
+  // `hold` every chord note is on for the whole stretch and tied, so the chord rings; without it only the first step of the stretch is
+  // struck. A chord always starts fresh: the note is never tied to the end of the chord before it.
+  function stampProgression(notes, ties, chords, steps, { hold = true } = {}) {
+    const n = stepCount(steps);
+    const list = chords || [];
+    const span = Math.max(1, Math.floor(n / Math.max(1, list.length)));
+    const outNotes = {};
+    for (const name of Object.keys(notes || {})) outNotes[name] = rowOf(notes, name, n);
+    const outTies = {};
+    for (const name of Object.keys(ties || {})) outTies[name] = Array.from({ length: n }, (_, i) => Boolean(ties[name] && ties[name][i] === true));
+    list.forEach((chord, index) => {
+      const start = index * span;
+      if (start >= n) return;
+      const end = hold ? Math.min(n, start + span) : start + 1;
+      for (const name of chord.names || []) {
+        if (!outNotes[name]) continue;
+        outTies[name] = outTies[name] || new Array(n).fill(false);
+        outTies[name][start] = false;
+        for (let step = start; step < end; step++) {
+          outNotes[name][step] = true;
+          if (step > start) outTies[name][step] = true;
+        }
+      }
+    });
+    return { notes: outNotes, ties: cleanTies(outNotes, outTies, n) };
+  }
+
   // A fresh melody that plays the chord one note at a time, one note every `every` steps from the first step, over `steps` steps.
   // pattern: "up" (low to high), "down", or "updown" (up, then back down without repeating the top or bottom note).
   function arpeggioMelody(allNames, chord, pattern, every, steps) {
@@ -207,5 +273,5 @@
     return out;
   }
 
-  window.SongPatterns = { euclideanRow, STARTERS, starterRow, CHORDS, ARPEGGIO_PATTERNS, noteValue, rotateMelody, reverseMelody, cleanTies, hasTies, rotateTies, reverseTies, tieRepeats, chordNames, stampChord, arpeggioMelody, scalePool, randomMelody };
+  window.SongPatterns = { euclideanRow, STARTERS, starterRow, CHORDS, PROGRESSIONS, progressionChords, stampProgression, ARPEGGIO_PATTERNS, noteValue, rotateMelody, reverseMelody, cleanTies, hasTies, rotateTies, reverseTies, tieRepeats, chordNames, stampChord, arpeggioMelody, scalePool, randomMelody };
 })();
