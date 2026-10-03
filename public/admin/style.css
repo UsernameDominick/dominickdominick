@@ -8048,3 +8048,11 @@ button[data-tier="quiet"] { border-color: transparent; }
   .dialog-resizer:hover, .dialog-resizer:focus-visible { background: color-mix(in srgb, var(--accent) 45%, transparent); }
   .dialog-resizer:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 }
+
+/* Per-control reset (reset-defaults.js): a small button next to a slider or number box, shown only once it is off its default. */
+.reset-default { position: absolute; z-index: 5; box-sizing: border-box; width: 20px !important; min-width: 20px !important; max-width: 20px !important; height: 20px; min-height: 20px; padding: 0 !important; margin: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 0.85rem; line-height: 1; border-radius: 6px; background: transparent; color: var(--text-dim); border: 1px solid var(--border); cursor: pointer; }
+.reset-default[hidden] { display: none; }
+.reset-default:hover { color: var(--text); border-color: var(--accent); }
+.reset-default:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* Phones: no floating reset buttons (they sit in scrolling toolbars); double-clicking a slider or its label still resets it. */
+@media (max-width: 860px) { .reset-default { display: none !important; } }
