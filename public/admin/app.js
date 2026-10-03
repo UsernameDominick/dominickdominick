@@ -4250,8 +4250,12 @@
       return;
     }
     const when = escapeHtml(new Date(status.lastAt).toLocaleString());
+    // Links to other sites are checked a few at a time, so say how many are still waiting for their first check.
+    const waiting = status.notChecked
+      ? `<span class="settings-hint" style="display:block">${Number(status.notChecked)} link${status.notChecked === 1 ? "" : "s"} to other sites ${status.notChecked === 1 ? "hasn't" : "haven't"} been checked yet: each automatic check looks at ${Number(status.perRun) || 25} of them.</span>`
+      : "";
     if (!status.broken.length) {
-      statusEl.innerHTML = `<span class="contrast-pass">✓ Last automatic check ${when} — no broken links</span>`;
+      statusEl.innerHTML = `<span class="contrast-pass">✓ Last automatic check ${when} — no broken links</span>${waiting}`;
       return;
     }
     const rows = status.broken
@@ -4262,7 +4266,7 @@
           )}</span><span class="link-check-status">${escapeHtml(r.status)}</span></div>`
       )
       .join("");
-    statusEl.innerHTML = `<span class="contrast-fail">⚠ Last automatic check ${when} — ${status.broken.length} broken link(s) found</span>${rows}`;
+    statusEl.innerHTML = `<span class="contrast-fail">⚠ Last automatic check ${when} — ${status.broken.length} broken link(s) found</span>${waiting}${rows}`;
   }
 
   // ---------- Dashboard ----------

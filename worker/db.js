@@ -4346,22 +4346,82 @@ export async function checkLinks(env) {
 // storing just the broken subset (not a run history — same "latest only"
 // scope as the backup-failure status line) so the SEO Dashboard can show
 // "N broken links found" without anyone having to click "Check links" first.
-export async function runScheduledLinkCheck(env) {
-  const results = await checkLinks(env);
-  const broken = results.filter((r) => r.ok === false).map((r) => ({ url: r.url, source: r.source, status: r.status }));
-  await setSetting(env, "last_link_check_at", new Date().toISOString());
+// Other sites are only checked a few at a time, so a long list of outside links never runs into the platform's limit on outgoing
+// requests (which used to turn the links past the limit into false "Unreachable" reports). The daily run takes the next batch in
+// alphabetical order after where the last run stopped, and carries every earlier result forward, so each outside link is checked
+// every few days and a dead one stays reported until it is looked at again. Links to this site's own pages and files are cheap
+// and are all checked every run.
+export const LINK_CHECK_EXTERNAL_PER_RUN = 25;
+const LINK_STATE_MAX = 600;
+const isOutsideUrl = (u) => /^https?:\/\//i.test(u);
+
+// Which outside addresses to check this run: up to `limit` of them, starting just after `cursor` and wrapping round, and the
+// address to remember as the new cursor.
+export function pickExternalBatch(urls, cursor, limit = LINK_CHECK_EXTERNAL_PER_RUN) {
+  const sorted = [...new Set(urls || [])].sort();
+  if (!sorted.length) return { batch: [], next: "" };
+  let start = sorted.findIndex((u) => u > String(cursor || ""));
+  if (start < 0) start = 0;
+  const count = Math.min(Math.max(1, Math.floor(Number(limit)) || LINK_CHECK_EXTERNAL_PER_RUN), sorted.length);
+  const batch = Array.from({ length: count }, (_, i) => sorted[(start + i) % sorted.length]);
+  return { batch, next: batch[batch.length - 1] };
+}
+
+export async function runScheduledLinkCheck(env, { gather = gatherInternalLinks, check = checkOneLink, limit = LINK_CHECK_EXTERNAL_PER_RUN, now = new Date() } = {}) {
+  const { found } = await gather(env);
+  const unique = [...new Set(found.map((f) => f.url))];
+  const external = unique.filter(isOutsideUrl);
+  let state = {};
+  try {
+    const parsed = JSON.parse((await getSetting(env, "link_check_external_state")) || "{}");
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) state = parsed;
+  } catch {
+    state = {};
+  }
+  const { batch, next } = pickExternalBatch(external, await getSetting(env, "link_check_cursor"), limit);
+  const todo = [...unique.filter((u) => !isOutsideUrl(u)), ...batch];
+  const fresh = {};
+  await Promise.all(
+    todo.map(async (u) => {
+      fresh[u] = await check(env, u);
+    })
+  );
+  const stamp = now.toISOString();
+  // Results carried forward: only addresses still in use, this run's checks on top, the oldest dropped if the list is huge.
+  const keep = {};
+  for (const u of external) {
+    if (fresh[u]) keep[u] = { ok: fresh[u].ok, status: fresh[u].status, at: stamp };
+    else if (state[u] && typeof state[u] === "object") keep[u] = state[u];
+  }
+  const kept = Object.entries(keep).sort((a, b) => String(b[1].at || "").localeCompare(String(a[1].at || ""))).slice(0, LINK_STATE_MAX);
+  const resultFor = (u) => (isOutsideUrl(u) ? keep[u] || null : fresh[u] || null);
+  const broken = [];
+  for (const f of found) {
+    const r = resultFor(f.url);
+    if (r && r.ok === false) broken.push({ url: f.url, source: f.source, status: r.status, ...(isOutsideUrl(f.url) && r.at ? { checkedAt: r.at } : {}) });
+  }
+  const notChecked = external.filter((u) => !keep[u]).length;
+  await setSetting(env, "last_link_check_at", stamp);
   await setSetting(env, "last_link_check_broken", JSON.stringify(broken));
+  await setSetting(env, "last_link_check_unchecked", String(notChecked));
+  await setSetting(env, "link_check_cursor", next);
+  await setSetting(env, "link_check_external_state", JSON.stringify(Object.fromEntries(kept)));
+  return { checked: todo.length, outsideChecked: batch.length, outsideTotal: external.length, notChecked, broken: broken.length };
 }
 
 export async function getLinkCheckStatus(env) {
-  const [lastAt, brokenRaw] = await Promise.all([getSetting(env, "last_link_check_at"), getSetting(env, "last_link_check_broken")]);
+  const [lastAt, brokenRaw, unchecked] = await Promise.all([
+    getSetting(env, "last_link_check_at"),
+    getSetting(env, "last_link_check_broken"),
+    getSetting(env, "last_link_check_unchecked"),
+  ]);
   let broken = [];
   try {
     broken = JSON.parse(brokenRaw || "[]");
   } catch {
     broken = [];
   }
-  return { lastAt: lastAt || null, broken };
+  return { lastAt: lastAt || null, broken, notChecked: Math.max(0, Number(unchecked) || 0), perRun: LINK_CHECK_EXTERNAL_PER_RUN };
 }
 
 // Rolls up several already-separate status signals (backup failure, broken
