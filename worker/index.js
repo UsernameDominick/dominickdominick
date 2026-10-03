@@ -103,6 +103,7 @@ import {
   withCustomJsonLd,
   faviconSvg,
   renderErrorPageHtml,
+  renderSlowDownHtml,
   CONTROL_PRESETS,
 } from "./render.js";
 import { handleAdminApi } from "./admin-api.js";
@@ -1424,6 +1425,13 @@ async function decoratePreviewResponse(response, previewAt, url) {
 export default {
   async fetch(request, env, ctx) {
     try {
+      // "//random" and "/random//x" are the same page as "/random": send them to the one address so search engines see one copy.
+      {
+        const u = new URL(request.url);
+        if ((request.method === "GET" || request.method === "HEAD") && /\/{2,}/.test(u.pathname) && !u.pathname.startsWith("/api/") && !u.pathname.startsWith("/admin")) {
+          return Response.redirect(`${u.origin}${u.pathname.replace(/\/{2,}/g, "/")}${u.search}`, 301);
+        }
+      }
       const clock = await previewClock(request, env);
       // A public page request reads its settings once and shares them (see getSettings); anything that could write a setting
       // (the admin API, any non-GET) gets none, so it never reads a stale one back.
@@ -1538,7 +1546,7 @@ async function route(request, env, ctx) {
       if (!page || !page.password_hash) return Response.redirect(backTo, 303);
       const ip = request.headers.get("CF-Connecting-IP") || "unknown";
       const allowed = await checkRateLimit(env, "page-access", ip, { windowMinutes: 15, maxAttempts: 8 });
-      if (!allowed) return new Response("Too many attempts. Try again later.", { status: 429 });
+      if (!allowed) return new Response(renderSlowDownHtml("That password has been tried too many times from here.", 15), { status: 429, headers: { "Content-Type": "text/html;charset=UTF-8", "Retry-After": "900", "Cache-Control": "no-store" } });
       ctx.waitUntil(recordRateLimitHit(env, "page-access", ip).catch(() => {}));
       const form = await request.formData().catch(() => null);
       const candidate = form?.get("password") || "";
@@ -1577,7 +1585,7 @@ async function route(request, env, ctx) {
     if (path === "/search") {
       const ip = request.headers.get("CF-Connecting-IP") || "unknown";
       const allowed = await checkRateLimit(env, "search", ip, { windowMinutes: 1, maxAttempts: 20 });
-      if (!allowed) return new Response("Too many searches. Try again in a minute.", { status: 429 });
+      if (!allowed) return new Response(renderSlowDownHtml("That's a lot of searches in a short time.", 1), { status: 429, headers: { "Content-Type": "text/html;charset=UTF-8", "Retry-After": "60", "Cache-Control": "no-store" } });
       ctx.waitUntil(recordRateLimitHit(env, "search", ip).catch(() => {}));
       const navItems = await listNavPages(env);
       const rawType = url.searchParams.get("type") || "";
@@ -1738,7 +1746,7 @@ async function route(request, env, ctx) {
 
     if (path === "/robots.txt") {
       return new Response(
-        "User-agent: *\nAllow: /\nDisallow: /admin/\nDisallow: /api/\n\nSitemap: https://dominickdominick.com/sitemap.xml\n",
+        "User-agent: *\nAllow: /\nDisallow: /admin/\nDisallow: /api/\nDisallow: /shuffle\n\nSitemap: https://dominickdominick.com/sitemap.xml\n",
         { headers: { "Content-Type": "text/plain;charset=UTF-8" } }
       );
     }

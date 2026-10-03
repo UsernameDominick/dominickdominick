@@ -4182,3 +4182,21 @@ html.lightbox-open { overflow: hidden; }
 .site-footer .footer-share:focus-visible, .site-footer .footer-rss:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
 .site-footer .footer-share-note { min-height: 1em; color: var(--text-dim); font-family: var(--font-mono); font-size: 0.78rem; }
 .site-footer .footer-share-note:empty { display: none; }
+
+/* ---------- Quality pass: contrast, focus, touch targets, small screens ---------- */
+/* Search highlights keep full-contrast text whatever colour the snippet around them is. */
+.search-results mark { color: var(--text); }
+/* The "page not found" search box shrinks with the screen instead of pushing the page wider than a 320px phone. */
+.not-found-search input { min-width: 0; }
+/* A text box shows it has focus with a ring, not only a changed border colour. */
+.site-search input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Links and buttons that stand on their own are at least 24px tall (WCAG 2.5.8). */
+.site-footer .footer-extras a, .site-footer .footer-share { display: inline-flex; align-items: center; min-height: 24px; }
+.breadcrumbs a { display: inline-flex; align-items: center; min-height: 24px; }
+main h2 > a:only-child { display: inline-block; padding-block: 2px; }
+.heading-anchor { display: inline-block; min-width: 24px; text-align: center; }
+/* The dot between the date, update and reading time would be left hanging at the end of a line once they wrap, so small screens go without. */
+@media (max-width: 560px) {
+  .article-meta { column-gap: 14px; }
+  .article-meta-sep { display: none; }
+}

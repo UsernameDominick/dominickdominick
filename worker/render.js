@@ -2038,22 +2038,16 @@ function faviconDataUri(theme) {
 
 const FAVICON = faviconDataUri();
 
-// The top-level fetch() catch calls this directly — deliberately fully
-// self-contained (no DB reads for nav/theme/settings, no imports beyond
-// what's already in this module) since it exists for the case where
-// something has already gone wrong, possibly the DB itself. Inline
-// styles only, so it never depends on /style.css having loaded either.
-// `ref` is the short reference the failure was logged under (see worker/index.js): shown so a reader can quote it and the owner can
-// find that exact entry in Diagnostics, Error log. Only plain letters and digits are ever printed.
-export function renderErrorPageHtml(ref) {
-  const safeRef = /^[a-z0-9]{6,16}$/.test(String(ref || "")) ? String(ref) : "";
+// A small standalone page (no stylesheet, no scripts, no database) used for the error page and for "slow down" answers. Dark by default
+// like the site, and light for visitors whose system asks for it.
+function noticePageHtml({ title, heading, paragraphs, robots = "noindex" }) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Something went wrong · Dominick</title>
-<meta name="robots" content="noindex">
+<title>${title} · Dominick</title>
+<meta name="robots" content="${robots}">
 <link rel="icon" href="${FAVICON}">
 <style>
   html, body { margin: 0; height: 100%; }
@@ -2067,23 +2061,60 @@ export function renderErrorPageHtml(ref) {
     text-align: center;
     padding: 24px;
   }
-  .error-box { max-width: 480px; }
+  main { max-width: 480px; }
   h1 { font-size: 1.6rem; margin-bottom: 12px; }
   p { color: #b6a9d1; line-height: 1.5; }
   a { color: #ff7a45; text-decoration: none; }
   a:hover { text-decoration: underline; }
+  a:focus-visible { outline: 2px solid #ff7a45; outline-offset: 3px; }
   .error-ref { font-size: 0.85rem; }
   code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: #f4eefc; }
+  @media (prefers-color-scheme: light) {
+    body { background: #fffaf5; color: #241832; }
+    p { color: #6e5f82; }
+    a { color: #c1440e; }
+    a:focus-visible { outline-color: #c1440e; }
+    code { color: #241832; }
+  }
 </style>
 </head>
 <body>
-  <div class="error-box">
-    <h1>Something went wrong</h1>
-    <p>An unexpected error occurred. It's been logged — try again in a moment, or head back to the homepage.</p>${safeRef ? `\n    <p class="error-ref">Reference: <code>${safeRef}</code></p>` : ""}
-    <p><a href="/">← Back to dominick.dominick</a></p>
-  </div>
+  <main class="error-box">
+    <h1>${heading}</h1>
+${paragraphs.join("\n")}
+  </main>
 </body>
 </html>`;
+}
+
+// The top-level fetch() catch calls this directly — deliberately fully
+// self-contained (no DB reads for nav/theme/settings, no imports beyond
+// what's already in this module) since it exists for the case where
+// something has already gone wrong, possibly the DB itself. Inline
+// styles only, so it never depends on /style.css having loaded either.
+// `ref` is the short reference the failure was logged under (see worker/index.js): shown so a reader can quote it and the owner can
+// find that exact entry in Diagnostics, Error log. Only plain letters and digits are ever printed.
+export function renderErrorPageHtml(ref) {
+  const safeRef = /^[a-z0-9]{6,16}$/.test(String(ref || "")) ? String(ref) : "";
+  return noticePageHtml({
+    title: "Something went wrong",
+    heading: "Something went wrong",
+    paragraphs: [
+      `    <p>An unexpected error occurred. It's been logged — try again in a moment, or head back to the homepage.</p>${safeRef ? `\n    <p class="error-ref">Reference: <code>${safeRef}</code></p>` : ""}`,
+      '    <p><a href="/">← Back to dominick.dominick</a></p>',
+    ],
+  });
+}
+
+// "Too many tries": the page a visitor sees when the search or a page password has been used too often in a short while.
+// `what` is plain text written in the code, never from the request; `minutes` is how long to wait.
+export function renderSlowDownHtml(what, minutes) {
+  const wait = Math.max(1, Math.round(Number(minutes) || 1));
+  return noticePageHtml({
+    title: "Slow down a moment",
+    heading: "Slow down a moment",
+    paragraphs: [`    <p>${what} Please try again in about ${wait} minute${wait === 1 ? "" : "s"}.</p>`, '    <p><a href="/">← Back to dominick.dominick</a></p>'],
+  });
 }
 
 // Inline SVG icons for the header tools -- the previous Unicode glyphs
@@ -2407,7 +2438,7 @@ ${customHead || ""}
             ? `<a class="icon-link-btn edit-this-btn" href="${esc(editUrl)}" title="Edit this in the admin" aria-label="Edit this in the admin">✎</a>`
             : ""
         }
-        <a class="icon-link-btn" href="/shuffle" title="Surprise me: a random post or project" aria-label="Random project or article">${ICON.shuffle}</a>
+        <a class="icon-link-btn" href="/shuffle" rel="nofollow" title="Surprise me: a random post or project" aria-label="Random project or article">${ICON.shuffle}</a>
         <button type="button" id="motion-toggle" aria-label="Reduce motion" aria-pressed="false" title="Turn off entrance/hover animations">${ICON.pause}</button>
         <button type="button" id="font-size-toggle" aria-label="Change text size" title="Change text size"><span class="icon-text" aria-hidden="true">Aa</span></button>
         <button type="button" id="theme-toggle" aria-label="Switch light/dark theme" title="Switch light/dark theme">${ICON.sun}${ICON.moon}</button>
