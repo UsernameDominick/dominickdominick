@@ -42,7 +42,8 @@ node tests/e2e/run.mjs --live test_x  # one test against the dev server already 
 ```
 - The e2e runner starts its own throwaway servers on copies of the local D1/R2, so tests may create and delete freely and the dev
   database is untouched. It prints only **new** failures: tests that already failed are in `tests/e2e/known-failing.txt`
-  (fix one, delete its line). First time on a machine: `cd tests/e2e && npm install` (Playwright + axe-core).
+  (fix one, delete its line). A test that fails under load is retried once on its own and reported as "Flaky" if it then passes (`--no-retry` turns that off; keep it
+  in mind when a test only fails in the full run). First time on a machine: `cd tests/e2e && npm install` (Playwright + axe-core).
 - **Don't edit `worker/` or `public/` while a test run is going** (the servers reload mid-test and make false failures).
 - A new feature gets a node test (`tests/<name>.test.mjs`, must print `ALL PASS`; copy the style of a neighbour) for its pure logic,
   and a browser test (`tests/e2e/test_<name>.js`, copy a neighbour: it uses `E2E_BASE` and `ADMIN_STATE`) for the UI.
@@ -94,12 +95,20 @@ node tests/e2e/run.mjs --live test_x  # one test against the dev server already 
 - **New block type / simulation part / song feature:** find the nearest existing one (`grep -n` for a sibling such as `lamp`, `buzzer`, `ties`) and follow it
   end to end: validation → admin UI → public render → CSS → tests.
 
-## Keeping the Features board current
+## The board (features.json)
 
-`features.json` is what the owner reads to see what has been added and what is done. In the same commit as any feature or fix the owner would
-care about, add or update its entry: `{"id", "area", "status", "title", "summary", "notes"}` with status `done`, `doing`, `planned`, `decision`
-(waiting on the owner: `notes` must say what the decision is) or `parked`, and bump `updated`. Plain language, no internal item numbers.
-`node tests/run.mjs features` checks the file. The owner's own requests live on the live site (they use "Copy open items" to paste them to you).
+The admin's Features board is a kanban: **To do** on the left (the owner adds to it), **Working on now** and **Done** on the right. It is driven by
+`features.json`: `{"id", "area", "status", "kind", "title", "summary", "notes", "date"}` and a bumped `updated`. Status is `todo`, `doing`, `done` or
+`parked`; an open item needs a `kind`: `decision` (waiting on the owner: `notes` must say what to decide), `bug`, `attention`, `almost` or `idea`. Plain
+language, no internal item numbers. `node tests/run.mjs features` checks the file.
+
+**The loop:** pick something from `todo` (waiting-on-owner items can't be picked), set it `doing` and push so the owner sees it move; do the work; set it
+`done` with `"date": "<today>"` in the same commit as the work; pick the next. Keep two or three `doing` at most. New things you build that were never on
+the board get a `done` entry too.
+
+**The owner's own requests** are stored on the live site, which you can't read. They paste "Copy for Claude" output, which lists new requests with ids.
+To pick one up add an item with `"request": "<that 12-character id>"`, status `doing`, a `kind`, `"area": "Your requests"` and a note; the board
+shows the owner's title with your status. Finish it with `done` + `date`. (An entry whose request no longer exists just shows as a normal item.)
 
 ## Working with the owner
 

@@ -1055,29 +1055,51 @@
         <button id="close-features" aria-label="Close Features dialog">×</button>
       </header>
       <div class="features-body">
-        <div class="fb-progress" role="img" aria-labelledby="features-progress-label"><span id="features-progress"></span></div>
-        <p id="features-progress-label" class="fb-progress-label"></p>
-        <div id="features-summary" class="fb-summary" role="group" aria-label="Filter by status"></div>
-        <section class="fb-requests-block" aria-labelledby="fb-requests-title">
-          <h2 id="fb-requests-title">Your requests</h2>
-          <form id="features-request-form" class="fb-request-form">
-            <label class="fb-sr-label" for="features-request-title">What do you want built?</label>
-            <input id="features-request-title" placeholder="What do you want built?" maxlength="120" autocomplete="off">
-            <label class="fb-sr-label" for="features-request-notes">Details (optional)</label>
-            <textarea id="features-request-notes" placeholder="Details (optional)" rows="2" maxlength="1000"></textarea>
-            <button type="submit">Add request</button>
-          </form>
-          <ul id="features-requests" class="fb-requests"></ul>
-        </section>
-        <div class="fb-tools">
-          <label class="fb-sr-label" for="features-search">Search features</label>
-          <input id="features-search" type="search" placeholder="Search features" autocomplete="off">
-          <label class="fb-sr-label" for="features-area">Filter by area</label>
-          <select id="features-area"><option value="">All areas</option></select>
-          <button id="features-copy" type="button" title="Copy what is open, as text to paste into the chat">Copy open items</button>
+        <div class="fb-top">
+          <div class="fb-progress" role="img" aria-labelledby="features-progress-label"><span id="features-progress"></span></div>
+          <p id="features-progress-label" class="fb-progress-label"></p>
+          <div class="fb-tools">
+            <label class="fb-sr-label" for="features-search">Search the board</label>
+            <input id="features-search" type="search" placeholder="Search the board" autocomplete="off">
+            <label class="fb-sr-label" for="features-area">Filter by area</label>
+            <select id="features-area"><option value="">All areas</option></select>
+            <button id="features-copy" type="button" title="Copy what is open, as text to paste into the chat">Copy for Claude</button>
+          </div>
+          <p id="features-status" class="fb-status" role="status" aria-live="polite"></p>
         </div>
-        <p id="features-status" class="fb-status" role="status" aria-live="polite"></p>
-        <div id="features-groups"></div>
+        <div class="fb-columns">
+          <section class="fb-pane fb-left" aria-labelledby="fb-todo-title">
+            <h2 id="fb-todo-title">To do <span id="features-todo-count" class="fb-count"></span></h2>
+            <form id="features-request-form" class="fb-request-form">
+              <label class="fb-sr-label" for="features-request-title">What needs doing?</label>
+              <input id="features-request-title" placeholder="Add something: a bug, an idea, what needs attention" maxlength="120" autocomplete="off">
+              <label class="fb-sr-label" for="features-request-kind">What kind is it?</label>
+              <select id="features-request-kind"><option value="idea">Idea</option><option value="bug">Bug</option><option value="attention">Needs attention</option></select>
+              <label class="fb-sr-label" for="features-request-notes">Details (optional)</label>
+              <textarea id="features-request-notes" placeholder="Details (optional)" rows="2" maxlength="1000"></textarea>
+              <button type="submit">Add</button>
+            </form>
+            <div id="features-kinds" class="fb-kinds" role="group" aria-label="Filter by kind"></div>
+            <div class="fb-scroll">
+              <div id="features-todo" class="fb-groups"></div>
+              <details id="features-parked-wrap" class="fb-fold" hidden><summary>Parked <span id="features-parked-count" class="fb-count"></span></summary><ul id="features-parked" class="fb-list"></ul></details>
+              <details id="features-dropped-wrap" class="fb-fold" hidden><summary>Dropped <span id="features-dropped-count" class="fb-count"></span></summary><ul id="features-dropped" class="fb-list"></ul></details>
+            </div>
+          </section>
+          <div class="fb-right">
+            <section class="fb-pane fb-doing" aria-labelledby="fb-doing-title">
+              <h2 id="fb-doing-title">Working on now <span id="features-doing-count" class="fb-count"></span></h2>
+              <div class="fb-scroll"><ul id="features-doing" class="fb-list"></ul></div>
+            </section>
+            <section class="fb-pane fb-done" aria-labelledby="fb-done-title">
+              <h2 id="fb-done-title">Done <span id="features-done-count" class="fb-count"></span></h2>
+              <div class="fb-scroll">
+                <ul id="features-done" class="fb-list"></ul>
+                <button id="features-done-more" type="button" class="fb-more" aria-expanded="false"></button>
+              </div>
+            </section>
+          </div>
+        </div>
         <p id="features-updated" class="fb-updated"></p>
       </div>
     </div>

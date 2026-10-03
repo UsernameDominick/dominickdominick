@@ -1,51 +1,89 @@
-// The Features board: everything that has been built, what is still open, and the owner's own requests, in one dialog.
-// The list comes from features.json (kept up to date with each change, served by /api/admin/features); the requests are stored on the site.
+// The Features board: a to-do side you can add to (bugs, things that need attention, almost-done work, ideas, decisions waiting on you) and a
+// side with what is being worked on right now and what is done. The list comes from features.json (kept up to date with each change, served
+// by /api/admin/features); your own requests are stored on the site. When a request is picked up, features.json gets an entry with
+// `request` set to its id, and that entry's status and kind are what the board shows for it.
 (function () {
-  const LABELS = { done: "Done", doing: "In progress", planned: "Planned", decision: "Needs your decision", parked: "Parked" };
-  // What needs the owner first, then what is moving, then what is finished.
-  const ORDER = ["decision", "doing", "planned", "parked", "done"];
-  const REQUEST_LABELS = { requested: "Requested", done: "Done", dropped: "Dropped" };
+  const KIND_LABELS = { decision: "Needs your decision", bug: "Bug", attention: "Needs attention", almost: "Almost done", idea: "Idea" };
+  // What needs the owner first, then what is broken, then the rest.
+  const KIND_ORDER = ["decision", "bug", "attention", "almost", "idea"];
+  const REQUEST_KINDS = ["idea", "bug", "attention"];
+  const STATUS_LABELS = { todo: "To do", done: "Done", dropped: "Dropped" };
+  const DONE_SHOWN = 10;
 
   const lower = (v) => String(v == null ? "" : v).toLowerCase();
   const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const day = (iso) => String(iso || "").slice(0, 10);
 
-  // Items matching a status ("all" or one of LABELS), an area ("" for any) and words in the title, summary or notes.
-  function filterItems(items, { status = "all", area = "", q = "" } = {}) {
+  // Everything on the board as cards with one shape, sorted into lanes: todo, doing, done, parked, dropped.
+  // card: { key, id, source: "item"|"request", title, summary, notes, area, kind, status, date, mine, picked, requestId }
+  function buildBoard(data) {
+    const items = Array.isArray(data && data.items) ? data.items : [];
+    const requests = Array.isArray(data && data.requests) ? data.requests : [];
+    const byRequest = new Map(requests.map((r) => [r.id, r]));
+    const picked = new Map();
+    for (const it of items) if (it.request && byRequest.has(it.request)) picked.set(it.request, it);
+
+    const cards = [];
+    items.forEach((it, order) => {
+      if (it.request && byRequest.has(it.request)) return; // shown as the owner's request, in the lane this entry says
+      cards.push({ key: `i:${it.id}`, id: it.id, source: "item", title: it.title, summary: it.summary || "", notes: it.notes || "", area: it.area, kind: it.kind || null, status: it.status, date: it.date || "", mine: false, picked: false, order });
+    });
+    requests.forEach((r, order) => {
+      const mine = picked.get(r.id);
+      if (mine) {
+        cards.push({ key: `r:${r.id}`, id: r.id, source: "request", title: r.title, summary: mine.summary || "", notes: mine.notes || r.notes, area: mine.area || "Your requests", kind: mine.kind || r.kind, status: mine.status, date: mine.date || day(r.created_at), mine: true, picked: true, order: -1000 + order, requestId: r.id });
+      } else {
+        const status = r.status === "done" ? "done" : r.status === "dropped" ? "dropped" : "todo";
+        cards.push({ key: `r:${r.id}`, id: r.id, source: "request", title: r.title, summary: "", notes: r.notes, area: "Your requests", kind: r.kind, status, date: status === "done" ? day(r.created_at) : "", mine: true, picked: false, order: -1000 + order, requestId: r.id });
+      }
+    });
+
+    const kindRank = (c) => (KIND_ORDER.includes(c.kind) ? KIND_ORDER.indexOf(c.kind) : KIND_ORDER.length);
+    const lane = (status) => cards.filter((c) => c.status === status);
+    const board = { todo: lane("todo"), doing: lane("doing"), done: lane("done"), parked: lane("parked"), dropped: lane("dropped") };
+    board.todo.sort((a, b) => kindRank(a) - kindRank(b) || a.order - b.order);
+    board.doing.sort((a, b) => a.order - b.order);
+    // Newest first; the ones with no date keep the order they have in the file.
+    board.done.sort((a, b) => (a.date && b.date ? (a.date < b.date ? 1 : a.date > b.date ? -1 : 0) : a.date ? -1 : b.date ? 1 : 0) || a.order - b.order);
+    return board;
+  }
+
+  // Cards matching a kind ("all" or one of KIND_LABELS), an area ("" for any) and words in the title, summary, notes or area.
+  function filterCards(cards, { kind = "all", area = "", q = "" } = {}) {
     const words = lower(q).split(/\s+/).filter(Boolean);
-    return items.filter((it) => {
-      if (status !== "all" && it.status !== status) return false;
-      if (area && it.area !== area) return false;
+    return cards.filter((c) => {
+      if (kind !== "all" && c.kind !== kind) return false;
+      if (area && c.area !== area) return false;
       if (!words.length) return true;
-      const hay = lower(`${it.title} ${it.summary || ""} ${it.notes || ""} ${it.area}`);
+      const hay = lower(`${c.title} ${c.summary} ${c.notes} ${c.area} ${KIND_LABELS[c.kind] || ""}`);
       return words.every((w) => hay.includes(w));
     });
   }
 
-  function groupByStatus(items) {
-    return ORDER.map((status) => ({ status, label: LABELS[status], items: items.filter((it) => it.status === status) })).filter((g) => g.items.length);
+  function groupByKind(cards) {
+    return KIND_ORDER.map((kind) => ({ kind, label: KIND_LABELS[kind], cards: cards.filter((c) => c.kind === kind) })).filter((g) => g.cards.length);
   }
 
-  function areasOf(items) {
-    return [...new Set(items.map((it) => it.area))].sort();
-  }
+  const areasOf = (data) => [...new Set((data.items || []).map((it) => it.area))].sort();
 
-  // Plain text for pasting into a chat: the open items by status, then the owner's requests.
+  // Plain text to paste into the chat: what is open, and the owner's requests that have not been picked up yet (with their ids,
+  // so they can be tracked in features.json).
   function summaryText(data) {
-    const lines = [`Features (updated ${data.updated})`];
-    for (const g of groupByStatus(data.items)) {
-      if (g.status === "done") continue;
-      lines.push("", `${g.label}:`);
-      for (const it of g.items) lines.push(`- ${it.title} [${it.area}]${it.notes ? ` — ${it.notes}` : ""}`);
-    }
-    const open = (data.requests || []).filter((r) => r.status === "requested");
-    if (open.length) {
-      lines.push("", "My requests:");
-      for (const r of open) lines.push(`- ${r.title}${r.notes ? ` — ${r.notes.replace(/\s+/g, " ")}` : ""}`);
-    }
+    const board = buildBoard(data);
+    const lines = [`Board (updated ${data.updated})`];
+    const list = (label, cards, withId) => {
+      if (!cards.length) return;
+      lines.push("", `${label}:`);
+      for (const c of cards) lines.push(`- ${c.title}${c.mine ? ` [${c.kind}]` : ` [${c.area}]`}${c.notes ? ` — ${c.notes.replace(/\s+/g, " ")}` : ""}${withId && c.requestId ? ` (id: ${c.requestId})` : ""}`);
+    };
+    list("Working on now", board.doing, true);
+    const fresh = board.todo.filter((c) => c.mine && !c.picked);
+    list("My new requests, not picked up yet", fresh, true);
+    for (const g of groupByKind(board.todo.filter((c) => !(c.mine && !c.picked)))) list(g.label, g.cards, true);
     return lines.join("\n");
   }
 
-  const api = { filterItems, groupByStatus, areasOf, summaryText, LABELS, ORDER };
+  const api = { buildBoard, filterCards, groupByKind, areasOf, summaryText, KIND_LABELS, KIND_ORDER };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   if (typeof window === "undefined" || typeof document === "undefined") return;
   window.FeaturesBoard = api;
@@ -55,66 +93,74 @@
   const modal = $("features-modal");
   if (!modal) return;
   let data = null;
-  let filter = { status: "all", area: "", q: "" };
+  let filter = { kind: "all", area: "", q: "" };
+  let showAllDone = false;
   let opener = null;
 
-  function say(text) {
-    $("features-status").textContent = text;
-  }
+  const say = (text) => ($("features-status").textContent = text);
 
-  function renderSummary() {
-    const total = data.items.length;
-    const chips = [["all", "All", total], ...ORDER.map((s) => [s, LABELS[s], data.counts[s] || 0])];
-    $("features-summary").innerHTML = chips
-      .map(([key, label, n]) => `<button type="button" class="fb-chip fb-${key}" data-status="${key}" aria-pressed="${filter.status === key}"><b>${n}</b><span>${esc(label)}</span></button>`)
-      .join("");
-    const done = data.counts.done || 0;
-    $("features-progress").style.width = `${total ? Math.round((done / total) * 100) : 0}%`;
-    $("features-progress-label").textContent = `${done} of ${total} done`;
-  }
-
-  function renderList() {
-    const matches = filterItems(data.items, filter);
-    const searching = Boolean(filter.q.trim()) || filter.status !== "all" || Boolean(filter.area);
-    const groups = groupByStatus(matches);
-    $("features-groups").innerHTML = groups.length
-      ? groups
-          .map((g) => {
-            const cards = g.items
-              .map(
-                (it) =>
-                  `<li class="fb-card"><div class="fb-card-head"><span class="fb-title">${esc(it.title)}</span><span class="fb-area">${esc(it.area)}</span></div>${it.summary ? `<p class="fb-summary-text">${esc(it.summary)}</p>` : ""}${it.notes ? `<p class="fb-notes"><b>${it.status === "decision" ? "To decide:" : "Note:"}</b> ${esc(it.notes)}</p>` : ""}</li>`
-              )
-              .join("");
-            const head = `<span class="fb-badge fb-${g.status}">${esc(g.label)}</span> <span class="fb-count">${g.items.length}</span>`;
-            // The long finished list stays folded until you search or filter for it.
-            if (g.status === "done" && !searching) return `<details class="fb-group"><summary><h2>${head}</h2></summary><ul class="fb-list">${cards}</ul></details>`;
-            return `<section class="fb-group"><h2>${head}</h2><ul class="fb-list">${cards}</ul></section>`;
-          })
-          .join("")
-      : '<p class="fb-empty">Nothing matches that.</p>';
-  }
-
-  function renderRequests() {
-    const list = data.requests || [];
-    $("features-requests").innerHTML = list.length
-      ? list
-          .map(
-            (r) =>
-              `<li class="fb-request fb-request-${r.status}" data-id="${esc(r.id)}"><div class="fb-request-main"><span class="fb-title">${esc(r.title)}</span>${r.notes ? `<p class="fb-notes">${esc(r.notes)}</p>` : ""}</div><label class="fb-sr-label" for="fb-status-${esc(r.id)}">Status of ${esc(r.title)}</label><select id="fb-status-${esc(r.id)}" data-act="status">${Object.entries(REQUEST_LABELS).map(([k, v]) => `<option value="${k}"${r.status === k ? " selected" : ""}>${v}</option>`).join("")}</select><button type="button" data-act="delete" aria-label="Delete request ${esc(r.title)}">Delete</button></li>`
-          )
-          .join("")
-      : '<li class="fb-empty">Nothing yet. Add something you want built and it will show up here.</li>';
+  function cardHtml(c) {
+    const kind = c.kind && KIND_LABELS[c.kind] ? `<span class="fb-kind fb-kind-${c.kind}">${esc(KIND_LABELS[c.kind])}</span>` : "";
+    const notesLabel = c.kind === "decision" ? "To decide:" : "Note:";
+    const detail = c.summary ? `<p class="fb-text">${esc(c.summary)}</p>` : "";
+    const notes = c.notes ? `<p class="fb-notes">${c.source === "item" ? `<b>${notesLabel}</b> ` : ""}${esc(c.notes)}</p>` : "";
+    const when = c.status === "done" && c.date ? `<span class="fb-date">${esc(c.date)}</span>` : "";
+    let controls = "";
+    if (c.mine) {
+      if (c.picked) controls = `<p class="fb-picked">Picked up</p>`;
+      else {
+        const kinds = REQUEST_KINDS.map((k) => `<option value="${k}"${c.kind === k ? " selected" : ""}>${esc(KIND_LABELS[k])}</option>`).join("");
+        const statuses = Object.entries(STATUS_LABELS).map(([k, v]) => `<option value="${k}"${c.status === k ? " selected" : ""}>${v}</option>`).join("");
+        controls = `<div class="fb-controls"><select data-act="kind" aria-label="Kind of ${esc(c.title)}">${kinds}</select><select data-act="status" aria-label="Status of ${esc(c.title)}">${statuses}</select><button type="button" data-act="delete" aria-label="Delete request ${esc(c.title)}">Delete</button></div>`;
+      }
+    }
+    return `<li class="fb-card${c.mine ? " fb-mine" : ""}" data-key="${esc(c.key)}" data-id="${esc(c.requestId || "")}"><div class="fb-card-head"><span class="fb-title">${esc(c.title)}</span>${when}</div><div class="fb-tags">${kind}<span class="fb-area">${esc(c.mine ? "Yours" : c.area)}</span></div>${detail}${notes}${controls}</li>`;
   }
 
   function render() {
-    renderSummary();
-    renderList();
-    renderRequests();
-    $("features-updated").textContent = `The list below was last updated ${data.updated}.`;
+    const board = buildBoard(data);
+    const done = filterCards(board.done, filter);
+    const todo = filterCards(board.todo, filter);
+    const doing = filterCards(board.doing, { area: filter.area, q: filter.q });
+    const parked = filterCards(board.parked, { area: filter.area, q: filter.q, kind: "all" });
+    const dropped = filterCards(board.dropped, { q: filter.q });
+    const total = board.todo.length + board.doing.length + board.done.length;
+
+    $("features-progress").style.width = `${total ? Math.round((board.done.length / total) * 100) : 0}%`;
+    $("features-progress-label").textContent = `${board.done.length} of ${total} done · ${board.doing.length} in progress · ${board.todo.length} to do`;
+
+    // kind chips (left side)
+    const chips = [["all", "All", board.todo.length], ...KIND_ORDER.map((k) => [k, KIND_LABELS[k], board.todo.filter((c) => c.kind === k).length])];
+    $("features-kinds").innerHTML = chips.map(([k, label, n]) => `<button type="button" class="fb-chip" data-kind="${k}" aria-pressed="${filter.kind === k}"><b>${n}</b> ${esc(label)}</button>`).join("");
+
+    $("features-todo-count").textContent = String(todo.length);
+    $("features-todo").innerHTML = todo.length
+      ? groupByKind(todo)
+          .map((g) => `<section class="fb-group" aria-label="${esc(g.label)}"><h3>${esc(g.label)} <span class="fb-count">${g.cards.length}</span></h3><ul class="fb-list">${g.cards.map(cardHtml).join("")}</ul></section>`)
+          .join("")
+      : '<p class="fb-empty">Nothing here. Add something with the form above.</p>';
+    $("features-parked-wrap").hidden = !parked.length;
+    $("features-parked-count").textContent = String(parked.length);
+    $("features-parked").innerHTML = parked.map(cardHtml).join("");
+    $("features-dropped-wrap").hidden = !dropped.length;
+    $("features-dropped-count").textContent = String(dropped.length);
+    $("features-dropped").innerHTML = dropped.map(cardHtml).join("");
+
+    $("features-doing-count").textContent = String(doing.length);
+    $("features-doing").innerHTML = doing.length ? doing.map(cardHtml).join("") : '<li class="fb-empty">Nothing right now. Claude moves an item here when starting on it.</li>';
+
+    const searching = Boolean(filter.q.trim()) || Boolean(filter.area) || filter.kind !== "all";
+    const shown = searching || showAllDone ? done : done.slice(0, DONE_SHOWN);
+    $("features-done-count").textContent = String(done.length);
+    $("features-done").innerHTML = shown.length ? shown.map(cardHtml).join("") : '<li class="fb-empty">Nothing finished matches that.</li>';
+    const more = $("features-done-more");
+    more.hidden = searching || done.length <= DONE_SHOWN;
+    more.textContent = showAllDone ? "Show only the latest" : `Show all ${done.length}`;
+    more.setAttribute("aria-expanded", String(showAllDone));
+
+    $("features-updated").textContent = `Last updated ${data.updated}. Claude moves items between the sides; your own requests you can mark done or delete yourself.`;
     const area = $("features-area");
-    const keep = filter.area;
-    area.innerHTML = '<option value="">All areas</option>' + areasOf(data.items).map((a) => `<option value="${esc(a)}"${a === keep ? " selected" : ""}>${esc(a)}</option>`).join("");
+    area.innerHTML = '<option value="">All areas</option>' + areasOf(data).map((a) => `<option value="${esc(a)}"${a === filter.area ? " selected" : ""}>${esc(a)}</option>`).join("");
   }
 
   async function load() {
@@ -123,7 +169,7 @@
       render();
       say("");
     } catch (err) {
-      say(`Couldn't load the list: ${err.message}`);
+      say(`Couldn't load the board: ${err.message}`);
     }
   }
 
@@ -139,20 +185,23 @@
 
   $("features-btn").addEventListener("click", open);
   $("close-features").addEventListener("click", close);
-  $("features-summary").addEventListener("click", (e) => {
-    const b = e.target.closest("button[data-status]");
+  $("features-kinds").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-kind]");
     if (!b) return;
-    filter.status = filter.status === b.dataset.status ? "all" : b.dataset.status;
-    renderSummary();
-    renderList();
+    filter.kind = filter.kind === b.dataset.kind ? "all" : b.dataset.kind;
+    render();
   });
   $("features-search").addEventListener("input", (e) => {
     filter.q = e.target.value;
-    renderList();
+    render();
   });
   $("features-area").addEventListener("change", (e) => {
     filter.area = e.target.value;
-    renderList();
+    render();
+  });
+  $("features-done-more").addEventListener("click", () => {
+    showAllDone = !showAllDone;
+    render();
   });
   $("features-copy").addEventListener("click", async () => {
     if (!data) return;
@@ -160,44 +209,50 @@
       await navigator.clipboard.writeText(summaryText(data));
       say("Copied. Paste it into the chat.");
     } catch {
-      say("Couldn't copy from here. Select the list and copy it.");
+      say("Couldn't copy from here. Select the text and copy it.");
     }
   });
 
   $("features-request-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const title = $("features-request-title").value.trim();
-    if (!title) return say("Say what you want first.");
+    if (!title) return say("Say what it is first.");
     try {
-      await window.adminApi("/feature-requests", { method: "POST", body: JSON.stringify({ title, notes: $("features-request-notes").value }) });
+      await window.adminApi("/feature-requests", { method: "POST", body: JSON.stringify({ title, kind: $("features-request-kind").value, notes: $("features-request-notes").value }) });
       $("features-request-title").value = "";
       $("features-request-notes").value = "";
       await load();
-      say("Added.");
+      say("Added to To do.");
     } catch (err) {
       say(`Couldn't add that: ${err.message}`);
     }
   });
-  $("features-requests").addEventListener("change", async (e) => {
-    const li = e.target.closest("li[data-id]");
-    if (!li || e.target.dataset.act !== "status") return;
-    try {
-      await window.adminApi(`/feature-requests/${li.dataset.id}`, { method: "PATCH", body: JSON.stringify({ status: e.target.value }) });
-      await load();
-    } catch (err) {
-      say(`Couldn't update that: ${err.message}`);
-    }
-  });
-  $("features-requests").addEventListener("click", async (e) => {
-    const btn = e.target.closest('button[data-act="delete"]');
-    const li = btn && btn.closest("li[data-id]");
-    if (!li) return;
-    if (!confirm("Delete this request?")) return;
-    try {
-      await window.adminApi(`/feature-requests/${li.dataset.id}`, { method: "DELETE" });
-      await load();
-    } catch (err) {
-      say(`Couldn't delete that: ${err.message}`);
-    }
-  });
+
+  // The owner's own cards: change kind or status, or delete.
+  const requestLists = ["features-todo", "features-parked", "features-done", "features-doing", "features-dropped"].map($);
+  for (const list of requestLists) {
+    list.addEventListener("change", async (e) => {
+      const li = e.target.closest("li[data-id]");
+      const act = e.target.dataset.act;
+      if (!li || !li.dataset.id || (act !== "kind" && act !== "status")) return;
+      try {
+        await window.adminApi(`/feature-requests/${li.dataset.id}`, { method: "PATCH", body: JSON.stringify({ [act]: e.target.value }) });
+        await load();
+      } catch (err) {
+        say(`Couldn't update that: ${err.message}`);
+      }
+    });
+    list.addEventListener("click", async (e) => {
+      const btn = e.target.closest('button[data-act="delete"]');
+      const li = btn && btn.closest("li[data-id]");
+      if (!li || !li.dataset.id) return;
+      if (!confirm("Delete this request?")) return;
+      try {
+        await window.adminApi(`/feature-requests/${li.dataset.id}`, { method: "DELETE" });
+        await load();
+      } catch (err) {
+        say(`Couldn't delete that: ${err.message}`);
+      }
+    });
+  }
 })();

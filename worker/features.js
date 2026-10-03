@@ -1,7 +1,14 @@
 // The Features board: what has been built and what is still open (features.json, kept up to date with each change) plus the owner's own
 // requests (one settings row each, "feature_request:<id>"). Pure (no database access), so a node test can load it.
-export const FEATURE_STATUSES = ["done", "doing", "planned", "decision", "parked"];
-export const REQUEST_STATUSES = ["requested", "done", "dropped"];
+//
+// The board has two sides. Left: things still to do, each with a kind (a bug, something that needs attention, almost done, an idea, or
+// waiting on the owner). Right: what is being worked on right now, and what is done. An item moves by changing its status in features.json.
+// A request the owner adds on the live site can't be edited from here, so when it is picked up it gets an entry in features.json with
+// `request` set to its id; that entry's status and kind then win on the board.
+export const FEATURE_STATUSES = ["todo", "doing", "done", "parked"];
+export const FEATURE_KINDS = ["decision", "bug", "attention", "almost", "idea"];
+export const REQUEST_KINDS = ["idea", "bug", "attention"];
+export const REQUEST_STATUSES = ["todo", "done", "dropped"];
 export const REQUEST_PREFIX = "feature_request:";
 export const REQUEST_MAX = 100;
 export const REQUEST_TITLE_MAX = 120;
@@ -12,7 +19,7 @@ export const isRequestId = (id) => /^[a-f0-9]{12}$/.test(String(id));
 
 const oneLine = (v) => String(v == null ? "" : v).replace(/\s+/g, " ").trim();
 
-// A new request from the board's form. Returns { ok: true, value } or { ok: false, error }.
+// A request from the board's form. Returns { ok: true, value } or { ok: false, error }. partial: an edit that names only some fields.
 export function cleanRequest(body, { partial = false } = {}) {
   const b = body && typeof body === "object" ? body : {};
   const out = {};
@@ -27,8 +34,13 @@ export function cleanRequest(body, { partial = false } = {}) {
     if (notes.length > REQUEST_NOTES_MAX) return { ok: false, error: `Notes are limited to ${REQUEST_NOTES_MAX} characters.` };
     out.notes = notes;
   }
+  if (!partial || "kind" in b) {
+    const kind = b.kind === undefined ? "idea" : b.kind;
+    if (!REQUEST_KINDS.includes(kind)) return { ok: false, error: `Kind must be one of ${REQUEST_KINDS.join(", ")}.` };
+    out.kind = kind;
+  }
   if ("status" in b || !partial) {
-    const status = b.status === undefined ? "requested" : b.status;
+    const status = b.status === undefined ? "todo" : b.status;
     if (!REQUEST_STATUSES.includes(status)) return { ok: false, error: `Status must be one of ${REQUEST_STATUSES.join(", ")}.` };
     out.status = status;
   }
@@ -40,11 +52,14 @@ export function readRequestRow(row) {
   try {
     const v = JSON.parse(row.value);
     if (!v || typeof v.title !== "string") return null;
+    // Requests saved before the board had kinds were "requested"; they are plain to-dos now.
+    const status = v.status === "requested" ? "todo" : v.status;
     return {
       id: row.key.slice(REQUEST_PREFIX.length),
       title: v.title,
       notes: typeof v.notes === "string" ? v.notes : "",
-      status: REQUEST_STATUSES.includes(v.status) ? v.status : "requested",
+      kind: REQUEST_KINDS.includes(v.kind) ? v.kind : "idea",
+      status: REQUEST_STATUSES.includes(status) ? status : "todo",
       created_at: typeof v.created_at === "string" ? v.created_at : null,
     };
   } catch {
@@ -70,8 +85,12 @@ export function checkFeatures(doc) {
     if (!oneLine(it.title)) problems.push(`${where}: missing title`);
     if (!oneLine(it.area)) problems.push(`${where}: missing area`);
     if (!FEATURE_STATUSES.includes(it.status)) problems.push(`${where}: status must be one of ${FEATURE_STATUSES.join(", ")}`);
+    if (it.kind !== undefined && !FEATURE_KINDS.includes(it.kind)) problems.push(`${where}: kind must be one of ${FEATURE_KINDS.join(", ")}`);
+    if (it.status !== "done" && !FEATURE_KINDS.includes(it.kind)) problems.push(`${where}: an open item needs a kind (${FEATURE_KINDS.join(", ")})`);
     for (const k of ["summary", "notes"]) if (it[k] !== undefined && typeof it[k] !== "string") problems.push(`${where}: ${k} must be text`);
-    if (it.status === "decision" && !oneLine(it.notes)) problems.push(`${where}: an item waiting on a decision should say what the decision is (notes)`);
+    if (it.kind === "decision" && !oneLine(it.notes)) problems.push(`${where}: an item waiting on a decision should say what the decision is (notes)`);
+    if (it.request !== undefined && !isRequestId(it.request)) problems.push(`${where}: request must be the 12-character id of one of the owner's requests`);
+    if (it.date !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(String(it.date))) problems.push(`${where}: date must look like 2026-10-03`);
   }
   return problems;
 }

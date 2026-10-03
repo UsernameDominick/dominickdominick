@@ -60,6 +60,8 @@ const ok = (c, m, e) => { if (!c) f++; console.log(`${c ? "PASS" : "FAIL"}  ${m}
     await page.goto(`${BASE}/admin/`); await page.waitForSelector("#app:not([hidden])");
     await page.evaluate((id) => window.__testOpenPage && window.__testOpenPage(id), pageId);
     const sel = page.locator("#page-picker");
+    // The page list loads after the admin shows (later when several tests run at once): wait for this page to be in it before picking it.
+    await page.waitForFunction((id) => !!document.querySelector(`#page-picker option[value="${id}"]`), pageId, { timeout: 15000 }).catch(() => {});
     if (await sel.count()) { await sel.selectOption(String(pageId)).catch(() => {}); }
     await page.waitForSelector(".lock-badge", { timeout: 10000 }).catch(() => {}); // the canvas draws a moment after the page is picked (slower when several run at once)
     const badges = await page.$$eval(".lock-badge", (e) => e.map((x) => x.textContent));

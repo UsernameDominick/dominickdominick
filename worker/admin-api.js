@@ -2743,7 +2743,7 @@ async function routeAdminApi(request, env, url, ctx) {
     const count = await env.DB.prepare("SELECT COUNT(*) AS n FROM settings WHERE key LIKE ?").bind(`${REQUEST_PREFIX}%`).first();
     if ((count?.n || 0) >= REQUEST_MAX) return json({ error: `You can keep up to ${REQUEST_MAX} requests; delete some that are finished.` }, { status: 400 });
     const id = crypto.randomUUID().replace(/-/g, "").slice(0, 12);
-    await setSetting(env, requestKey(id), JSON.stringify({ ...cleaned.value, status: "requested", created_at: new Date().toISOString() }));
+    await setSetting(env, requestKey(id), JSON.stringify({ ...cleaned.value, status: "todo", created_at: new Date().toISOString() }));
     return json({ id });
   }
   const requestMatch = path.match(/^\/feature-requests\/([a-f0-9]{12})$/);

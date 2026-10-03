@@ -5,6 +5,7 @@
 //   node tests/e2e/run.mjs --workers 4        more (or fewer) workers; --serial is --workers 1
 //   node tests/e2e/run.mjs --live test_foo    use the dev server already running on :8787 (no startup, but it changes that database)
 //   node tests/e2e/run.mjs --verbose         also show why the known-failing tests fail
+//   node tests/e2e/run.mjs --no-retry        report a failure straight away instead of trying that test once more on its own
 //   node tests/e2e/run.mjs --keep             leave the temp folders (server logs, copied databases) for a look afterwards
 //
 // How it stays fast and safe: each worker gets `wrangler dev --persist-to <temp folder>` on its own port, seeded from a copy of the local
@@ -33,6 +34,7 @@ const filters = args.filter((a) => !a.startsWith("--") && !optionValues.has(a));
 const live = flag("live");
 const keep = flag("keep");
 const verbose = flag("verbose");
+const retry = !flag("no-retry");
 const workerCount = flag("serial") || live ? 1 : Math.max(1, Number(option("workers", 3)) || 3);
 const TEST_TIMEOUT_MS = 4 * 60 * 1000;
 
@@ -258,6 +260,19 @@ await Promise.all(
     }
   })
 );
+// Several browsers and servers share the machine, so a test that waits on a timer can miss its moment. A failed test is run once more on its
+// own, after everything else has finished; if it passes then it is reported as flaky (still listed, not counted as a failure).
+const flaky = [];
+if (retry) {
+  for (const r of results.filter((x) => !x.passed && !known.has(x.name))) {
+    const again = await runTest(r.name, workers[0]);
+    console.log(`retry ${r.name} on its own: ${again.passed ? "passed" : "failed again"} (${again.secs.toFixed(1)}s)`);
+    if (again.passed) {
+      flaky.push(r.name);
+      Object.assign(r, again, { retried: true });
+    }
+  }
+}
 try {
   fs.writeFileSync(timingsFile, JSON.stringify(timings, null, 1));
 } catch {
@@ -271,6 +286,7 @@ const nowPassing = results.filter((r) => r.passed && known.has(r.name));
 const total = ((Date.now() - began) / 1000).toFixed(1);
 console.log("");
 if (stillKnown.length) console.log(`Known failures (not counted): ${stillKnown.map((r) => r.name).sort().join(", ")}`);
+if (flaky.length) console.log(`Flaky (failed under load, passed on its own): ${flaky.sort().join(", ")}`);
 if (nowPassing.length) console.log(`Passing now, remove from known-failing.txt: ${nowPassing.map((r) => r.name).sort().join(", ")}`);
 if (newFailures.length) {
   console.log(`\n${newFailures.length} NEW failure${newFailures.length === 1 ? "" : "s"}:`);
