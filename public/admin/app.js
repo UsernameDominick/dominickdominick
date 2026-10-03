@@ -11598,7 +11598,11 @@
     const handle = window.ScriptRunner.run({
       code,
       dry,
-      call: (method, path, body) => api(path, { method, body: body === undefined ? undefined : JSON.stringify(body) }),
+      call: async (method, path, body) => {
+        // A settings save clears every setting it doesn't mention, so a script naming only a few is laid over the current ones first.
+        if (window.ScriptPolicy.isSettingsSave(method, path)) body = window.ScriptPolicy.mergeSettings(await api("/settings"), body);
+        return api(path, { method, body: body === undefined ? undefined : JSON.stringify(body) });
+      },
       onLog: scriptAppendOutput,
       onChange: (change) => {
         scriptRenderChange(change, n++);

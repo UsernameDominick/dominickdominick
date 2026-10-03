@@ -74,7 +74,19 @@
     return `${m} ${where}${keys}`;
   }
 
-  const api = { checkCall, describeCall, parsePath, METHODS };
+  // The site saves *every* setting on PUT /settings and clears any that the request leaves out, so a script that names only the ones
+  // it wants to change would wipe the rest. Before such a request is sent, it is laid over the settings as they are now.
+  function isSettingsSave(method, raw) {
+    const parsed = parsePath(raw);
+    return String(method || "").toUpperCase() === "PUT" && Boolean(parsed) && parsed.path === "/settings";
+  }
+  function mergeSettings(current, body) {
+    const out = { ...(current && typeof current === "object" ? current : {}) };
+    for (const [k, v] of Object.entries(body && typeof body === "object" ? body : {})) out[k] = v;
+    return out;
+  }
+
+  const api = { checkCall, describeCall, parsePath, isSettingsSave, mergeSettings, METHODS };
   if (typeof window !== "undefined") window.ScriptPolicy = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
 })();

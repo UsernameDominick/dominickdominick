@@ -51,6 +51,10 @@ const ok = (c, m, extra) => { if (!c) fail++; console.log(`${c ? "PASS" : "FAIL"
   }
   ok(!c("TRACE", "/articles").ok, "odd methods refused");
   ok(c("get", "/articles").ok, "method case does not matter");
+  ok(P.isSettingsSave("PUT", "/settings") && P.isSettingsSave("put", "/settings?x=1") && !P.isSettingsSave("GET", "/settings") && !P.isSettingsSave("PUT", "/pages/3/css") && !P.isSettingsSave("PUT", "//settings"), "a settings save is recognised");
+  const merged = P.mergeSettings({ theme_bg: "#000", theme_accent: "#f00", site_brand: "X" }, { theme_accent: "#0f0" });
+  ok(merged.theme_bg === "#000" && merged.site_brand === "X" && merged.theme_accent === "#0f0", "a settings save keeps what it does not mention", merged);
+  ok(P.mergeSettings(null, { a: 1 }).a === 1 && Object.keys(P.mergeSettings({ a: 1 }, null)).length === 1, "and copes with nothing on either side");
   ok(P.describeCall("PATCH", "/articles/5", { tags: ["a"], title: "t", expected_version: 3 }) === "PATCH /articles/5 (tags, title)", "a change is summarised by the fields it touches");
   ok(P.describeCall("DELETE", "/articles/5") === "DELETE /articles/5", "no fields, no brackets");
 }
