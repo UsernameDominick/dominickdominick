@@ -2,3 +2,17 @@
 # compete with / duplicate the real domain.
 https://dominickdominick.:subdomain.workers.dev/*
 	X-Robots-Tag: noindex
+
+# Files sent straight from the asset store (the admin page, scripts, the stylesheet) never pass through the Worker, so they do not get
+# the Worker's security headers. These are the ones that are safe for every static file: no MIME sniffing, no framing on other sites,
+# less referrer leakage, https only. (No page-wide CSP here: the admin uses inline scripts by design, and the Worker already sets the
+# site's CSP on every page it renders.)
+/*
+	X-Content-Type-Options: nosniff
+	X-Frame-Options: SAMEORIGIN
+	Referrer-Policy: strict-origin-when-cross-origin
+	Strict-Transport-Security: max-age=31536000; includeSubDomains
+
+# The admin shell is for one person: keep it out of search results even if something links to it.
+/admin/*
+	X-Robots-Tag: noindex, nofollow
