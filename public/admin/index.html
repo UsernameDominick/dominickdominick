@@ -92,6 +92,10 @@
         <h1 class="sim-sr-only">Site admin</h1>
         <button id="site-menu-btn" class="mobile-only" aria-label="Menu">☰</button>
         <button id="mobile-menu-btn" class="mobile-only" aria-label="Add block">+ Block</button>
+        <div class="panel-toggles" role="group" aria-label="Side panels">
+          <button type="button" id="sidebar-toggle-btn" aria-pressed="true" title="Show or hide the menu (Ctrl+B)">Menu</button>
+          <button type="button" id="inspector-toggle-btn" aria-pressed="true" title="Show or hide the block inspector">Inspector</button>
+        </div>
         <div class="admin-header-right" id="admin-header-right">
           <div class="admin-more-wrap">
             <button id="notifications-btn" aria-haspopup="true" aria-expanded="false" aria-controls="notifications-panel" title="Things that might need a look">🔔<span id="notifications-badge" class="notifications-badge" hidden>0</span></button>
@@ -2538,6 +2542,7 @@
 <script src="/admin/period-compare.js"></script>
 <script src="/admin/image-fit.js"></script>
 <script src="/admin/app.js"></script>
+<script src="/admin/panels.js"></script>
 <script src="/admin/photo-color.js"></script>
 <script src="/admin/photo-editor.js"></script>
 <script src="/admin/sim-solver.js"></script>
