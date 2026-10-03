@@ -33,7 +33,7 @@ const { chromium, request } = require("./_pw.cjs");
   ok(await p.evaluate(() => { const bar = document.querySelector(".canvas-toolbar"); return bar.previousElementSibling && bar.previousElementSibling.classList.contains("selected"); }), "toolbar sits right after the selected block in DOM order");
   await p.click(".canvas-toolbar button:has-text('Duplicate')"); await p.waitForTimeout(800);
   ok((await p.locator("#canvas .admin-block").count()) === 9, "Duplicate via toolbar adds a block");
-  await p.screenshot({ path: `${process.env.S}/canvas_preview.png` });
+  await p.screenshot({ path: `${require("os").tmpdir()}/canvas_preview.png` });
   await p.click(".canvas-toolbar button:has-text('Lock')"); await p.waitForTimeout(800);
   ok(await p.evaluate(() => document.activeElement && document.activeElement.closest(".canvas-toolbar") !== null && document.activeElement.textContent === "Unlock"), "focus returns to the toolbar button after Lock");
   ok(await p.evaluate(() => document.querySelector(".canvas-toolbar .canvas-toolbar-danger").disabled), "Delete disabled while locked");

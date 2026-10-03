@@ -18,12 +18,12 @@ const { chromium } = require("./_pw.cjs");
   await p.fill(".command-input", "zzqqxx"); await p.waitForTimeout(700);
   ok(/Nothing matches/.test(await p.textContent("#command-results")), "empty message");
   await p.fill(".command-input", "theme"); await p.waitForTimeout(400);
-  await p.screenshot({ path: `${process.env.S}/palette_groups.png` });
+  await p.screenshot({ path: `${require("os").tmpdir()}/palette_groups.png` });
   ok(errs.length === 0, `no errors ${errs}`);
   // login screen
   const c2 = await b.newContext({ viewport: { width: 390, height: 700 } }); const q = await c2.newPage();
   await q.goto((E2E_BASE + "/admin/")); await q.waitForSelector("#login-form", { state: "visible" });
   ok(!(await q.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)), "login no overflow 390");
-  await q.screenshot({ path: `${process.env.S}/login3.png` });
+  await q.screenshot({ path: `${require("os").tmpdir()}/login3.png` });
   await b.close(); process.exit(fail ? 1 : 0);
 })();

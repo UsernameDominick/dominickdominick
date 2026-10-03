@@ -7,3 +7,4 @@ node_modules/
 
 # Browser-test run timings (a scheduling hint only)
 tests/e2e/.timings.json
+tests/e2e/*.png

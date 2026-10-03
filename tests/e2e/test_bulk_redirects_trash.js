@@ -51,7 +51,7 @@ const { chromium, request } = require("./_pw.cjs");
     } else {
       await p.evaluate(() => document.getElementById("trash-btn").click()); await p.waitForSelector("#trash-pages-list .bulk-list-row-box");
       ok(!(await p.evaluate(() => document.getElementById("trash-modal").scrollWidth > innerWidth + 1)), `${w} trash no overflow`);
-      await p.screenshot({ path: `${process.env.S}/bulk_trash_${w}.png` });
+      await p.screenshot({ path: `${require("os").tmpdir()}/bulk_trash_${w}.png` });
     }
     ok(errs.length === 0, `${w} no errors ${errs}`);
     await ctx.close();

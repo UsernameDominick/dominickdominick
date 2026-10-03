@@ -38,7 +38,7 @@ const { chromium } = require("./_pw.cjs");
     ok(/Draft preview mode/.test(s2), `${w} preview strip adds`);
     await p.evaluate(() => document.getElementById("draft-preview-mode-toggle").click());
     ok(!(await p.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)), `${w} no overflow`);
-    await p.screenshot({ path: `${process.env.S}/admin3_${w}.png` });
+    await p.screenshot({ path: `${require("os").tmpdir()}/admin3_${w}.png` });
     ok(errs.length === 0, `${w} no page errors ${errs}`);
     await ctx.close();
   }

@@ -9,7 +9,7 @@ const { chromium } = require("./_pw.cjs");
     await p.evaluate(() => document.getElementById("trash-btn").click()); await p.waitForTimeout(700);
     const r = await p.evaluate(() => { const m = document.getElementById("trash-modal"); const c = document.getElementById("close-trash").getBoundingClientRect(); return { over: m.scrollWidth > innerWidth + 1, cw: Math.round(c.width), ch: Math.round(c.height), h1: getComputedStyle(m.querySelector("h1")).fontSize }; });
     ok(!r.over && r.cw >= 34 && r.ch >= 34, `${w} trash modal ${JSON.stringify(r)}`);
-    await p.screenshot({ path: `${process.env.S}/trash_${w}.png` });
+    await p.screenshot({ path: `${require("os").tmpdir()}/trash_${w}.png` });
     await p.keyboard.press("Escape");
   }
   await b.close(); process.exit(fail ? 1 : 0);

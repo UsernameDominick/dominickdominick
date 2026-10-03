@@ -12,7 +12,7 @@ const { chromium } = require("./_pw.cjs");
     const r = await p.evaluate(() => ({ cards: document.querySelectorAll(".dash-card").length, heads: [...document.querySelectorAll(".dash-card h2")].map((x) => x.textContent), items: document.querySelectorAll(".dash-item").length, over: document.getElementById("dashboard-modal").scrollWidth > innerWidth + 1 }));
     ok(r.cards >= 5 && /This week/.test(r.heads), `${w} the cards include This week: ${r.heads}`);
     ok(!r.over, `${w} no overflow`);
-    await p.screenshot({ path: `${process.env.S}/dash_${w}.png` });
+    await p.screenshot({ path: `${require("os").tmpdir()}/dash_${w}.png` });
     if (r.items) { await p.evaluate(() => document.querySelector(".dash-item").click()); await p.waitForTimeout(600); ok(await p.evaluate(() => document.getElementById("dashboard-modal").hidden), `${w} item closes dashboard`); }
     // palette
     await p.keyboard.press("Control+k"); await p.fill("#command-input", "dashboard"); await p.waitForTimeout(500);

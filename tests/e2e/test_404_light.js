@@ -11,7 +11,7 @@ const { chromium, request } = require("./_pw.cjs");
     ok(res.status() === 404, `${w} 404 status`);
     ok(await p.locator(".not-found-trace").count() === 1 && (await p.locator("h1").textContent()) === "Page not found", `${w} trace + h1`);
     ok(!(await p.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)), `${w} no overflow`);
-    await p.screenshot({ path: `${process.env.S}/404_${w}.png` });
+    await p.screenshot({ path: `${require("os").tmpdir()}/404_${w}.png` });
   }
   const p = await (await b.newContext({ viewport: { width: 1280, height: 800 } })).newPage();
   await p.addInitScript(() => { try { localStorage.setItem("theme", "light"); } catch (e) {} });
