@@ -20,6 +20,7 @@ export function songDataError(data) {
   if ("melody" in data) {
     if (!isPlainObject(data.melody)) return "The song's melody must be an object.";
     if ("notes" in data.melody && (!isPlainObject(data.melody.notes) || !allArrays(data.melody.notes))) return "The melody's notes must be lists of steps.";
+    if ("ties" in data.melody && (!isPlainObject(data.melody.ties) || !allArrays(data.melody.ties))) return "The melody's held notes must be lists of steps.";
   }
   return null;
 }

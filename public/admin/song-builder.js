@@ -1694,12 +1694,71 @@
       (n) => playAndMaybeRecordNote(n)
     );
     renderRuler("song-piano-roll");
+    setMelodyTies(songData.melody.ties || {});
+    paintTies();
     // Spoken cue for the highlight: "C4, root of the scale" / "D4, in scale".
     $("song-piano-roll").querySelectorAll(".song-row-scale").forEach((row) => {
       const label = row.querySelector(".song-track-label-playable");
       if (label) label.setAttribute("aria-label", label.getAttribute("aria-label").replace(", press", row.classList.contains("song-row-scale-root") ? ", root of the scale, press" : ", in scale, press"));
     });
   }
+
+  // ---------- Held notes (ties) ----------
+  // songData.melody.ties[note][step] === true joins that step to the same note one step earlier, so the two play as one longer note
+  // (the engine does the playing, see song-engine.js). Only meaningful with the note on at both steps, so every edit tidies them.
+  function setMelodyTies(ties) {
+    const clean = window.SongPatterns.cleanTies(songData.melody.notes, ties, STEPS);
+    if (window.SongPatterns.hasTies(clean)) songData.melody.ties = clean;
+    else delete songData.melody.ties;
+  }
+  function paintTies() {
+    const ties = songData.melody.ties || {};
+    $("song-piano-roll").querySelectorAll(".song-step[data-row]").forEach((cell) => {
+      const tied = Boolean(ties[cell.dataset.row] && ties[cell.dataset.row][Number(cell.dataset.step)] === true);
+      cell.classList.toggle("song-step-tied", tied);
+      if (tied) cell.setAttribute("aria-description", "Held: tied to the same note on the step before");
+      else cell.removeAttribute("aria-description");
+    });
+  }
+  let tieAnnounce = 0;
+  function tieSay(message) {
+    tieAnnounce++;
+    $("song-melody-tools-note").textContent = message + (tieAnnounce % 2 ? "" : " ");
+  }
+  // Shift+click (or Shift+Enter) on a note toggles its tie to the step before.
+  $("song-piano-roll").addEventListener(
+    "click",
+    (e) => {
+      if (!e.shiftKey) return;
+      const cell = e.target.closest && e.target.closest(".song-step[data-row]");
+      if (!cell) return;
+      e.stopPropagation();
+      e.preventDefault();
+      const name = cell.dataset.row;
+      const step = Number(cell.dataset.step);
+      const notes = songData.melody.notes;
+      if (step === 0 || !notes[name] || !notes[name][step] || !notes[name][step - 1]) {
+        tieSay(`${name} step ${step + 1} can't be tied: a tie joins a note to the same note on the step before, so turn both steps on first.`);
+        return;
+      }
+      const ties = songData.melody.ties ? JSON.parse(JSON.stringify(songData.melody.ties)) : {};
+      if (!ties[name]) ties[name] = new Array(STEPS).fill(false);
+      ties[name][step] = ties[name][step] !== true;
+      const nowTied = ties[name][step] === true;
+      setMelodyTies(ties);
+      paintTies();
+      tieSay(`${name} steps ${step} and ${step + 1} ${nowTied ? "tied: they play as one held note" : "untied"}.`);
+      refreshWaveformPreview();
+      scheduleAutosave();
+    },
+    true
+  );
+  // A plain click (which turns a step on or off) may leave a tie with nothing to join: tidy up after the step's own handler has run.
+  $("song-piano-roll").addEventListener("click", (e) => {
+    if (e.shiftKey || !(e.target.closest && e.target.closest(".song-step[data-row]"))) return;
+    setMelodyTies(songData.melody.ties || {});
+    paintTies();
+  });
 
   // Shifts every note in the melody up/down by `semitones` (positive =
   // up), re-keying each row to a different piano-roll row rather than
@@ -1739,7 +1798,15 @@
       );
       if (!ok) return;
     }
+    // Held notes travel with their notes (a tied note that was dropped takes its tie with it).
+    const oldTies = songData.melody.ties || {};
+    const newTies = {};
+    PIANO_NOTES.forEach((sourceName, sourceIndex) => {
+      const targetName = PIANO_NOTES[sourceIndex - semitones];
+      if (targetName && oldTies[sourceName]) newTies[targetName] = oldTies[sourceName];
+    });
     songData.melody.notes = newNotes;
+    setMelodyTies(newTies);
     renderPianoRoll();
     refreshWaveformPreview();
     scheduleAutosave();
@@ -1763,7 +1830,8 @@
     return PIANO_NOTES.some((n) => songData.melody.notes[n] && songData.melody.notes[n].some(Boolean));
   }
   // Runs one tool: fn gets the current notes and returns the new ones. A hidden piano roll is left alone so nothing changes out of sight.
-  function melodyEdit(fn, message) {
+  // tiesFn(oldTies, newNotes) says what happens to the held notes; leave it out and they are cleared (a melody made from scratch).
+  function melodyEdit(fn, message, tiesFn) {
     if (songData.melody.hidden === true) {
       melodyToolsSay("The melody is hidden. Show it first (the Show melody button in the piano roll), then try again.");
       return false;
@@ -1773,6 +1841,7 @@
       if (!next[n]) next[n] = new Array(STEPS).fill(false);
     });
     songData.melody.notes = next;
+    setMelodyTies(tiesFn ? tiesFn(songData.melody.ties || {}, next) : {});
     renderPianoRoll();
     refreshWaveformPreview();
     scheduleAutosave();
@@ -1781,19 +1850,28 @@
   }
   $("song-melody-shift-left").addEventListener("click", () => {
     if (!melodyHasNotes()) return melodyToolsSay("There are no melody notes to shift yet.");
-    melodyEdit((notes) => MP.rotateMelody(notes, -1, STEPS), "Melody shifted one step earlier.");
+    melodyEdit((notes) => MP.rotateMelody(notes, -1, STEPS), "Melody shifted one step earlier.", (ties) => MP.rotateTies(ties, -1, STEPS));
   });
   $("song-melody-shift-right").addEventListener("click", () => {
     if (!melodyHasNotes()) return melodyToolsSay("There are no melody notes to shift yet.");
-    melodyEdit((notes) => MP.rotateMelody(notes, 1, STEPS), "Melody shifted one step later.");
+    melodyEdit((notes) => MP.rotateMelody(notes, 1, STEPS), "Melody shifted one step later.", (ties) => MP.rotateTies(ties, 1, STEPS));
   });
   $("song-melody-reverse").addEventListener("click", () => {
     if (!melodyHasNotes()) return melodyToolsSay("There are no melody notes to reverse yet.");
-    melodyEdit((notes) => MP.reverseMelody(notes, STEPS), "Melody reversed.");
+    melodyEdit((notes) => MP.reverseMelody(notes, STEPS), "Melody reversed.", (ties) => MP.reverseTies(ties, STEPS));
   });
   $("song-melody-clear").addEventListener("click", () => {
     if (!melodyHasNotes()) return melodyToolsSay("The melody is already empty.");
     melodyEdit(() => ({}), "Melody cleared. Undo brings it back.");
+  });
+  $("song-melody-tie-repeats").addEventListener("click", () => {
+    const pairs = Object.values(MP.tieRepeats(songData.melody.notes, STEPS)).reduce((n, row) => n + row.filter(Boolean).length, 0);
+    if (!pairs) return melodyToolsSay("There are no repeated notes to tie: a note has to be on two steps in a row.");
+    melodyEdit((notes) => notes, `${pairs} repeated note${pairs === 1 ? "" : "s"} tied: each run plays as one held note.`, (ties, notes) => MP.tieRepeats(notes, STEPS));
+  });
+  $("song-melody-untie").addEventListener("click", () => {
+    if (!MP.hasTies(songData.melody.ties)) return melodyToolsSay("No notes are held yet.");
+    melodyEdit((notes) => notes, "All held notes untied: every note is struck again.", () => ({}));
   });
   $("song-melody-density").addEventListener("input", () => {
     $("song-melody-density").setAttribute("aria-valuetext", `${$("song-melody-density").value}% of steps`);
@@ -1813,7 +1891,7 @@
     if (!c.names.length) return melodyToolsSay("That chord does not fit in the piano roll. Pick a lower root.");
     const step = Math.max(1, Math.min(STEPS, Math.floor(Number($("song-chord-step").value)) || 1));
     $("song-chord-step").value = step;
-    melodyEdit((notes) => MP.stampChord(notes, c.names, step - 1, STEPS), `${chordWord()} chord added on step ${step}.${missingWord(c)}`);
+    melodyEdit((notes) => MP.stampChord(notes, c.names, step - 1, STEPS), `${chordWord()} chord added on step ${step}.${missingWord(c)}`, (ties) => ties);
   });
   $("song-arp-apply").addEventListener("click", () => {
     const c = chosenChord();

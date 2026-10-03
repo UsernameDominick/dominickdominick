@@ -137,5 +137,34 @@ ok(Object.keys(P.CHORDS).length === 7 && P.CHORDS.major.intervals.join() === "0,
   ok(walkIdx.every((v, i) => i === 0 || Math.abs(v - walkIdx[i - 1]) <= 2), "with every step filled, no leap is bigger than two scale notes", walkIdx);
 }
 
+
+// ---------- held notes (ties) ----------
+{
+  const flagsOf = (...on) => Array.from({ length: 16 }, (_, i) => on.includes(i));
+  const tiesText = (t) => Object.entries(t).map(([n, r]) => `${n}:${r.map((b, i) => (b ? i : -1)).filter((i) => i >= 0).join(",")}`).sort().join(" ");
+  const notes = withNotes({ C4: [2, 3, 4, 8], E4: [5, 6] });
+  // cleanTies keeps only ties that join two steps where the note is on
+  ok(tiesText(P.cleanTies(notes, { C4: flagsOf(3, 4, 5, 9) }, 16)) === "C4:3,4", "cleanTies drops flags whose note is off on either step", tiesText(P.cleanTies(notes, { C4: flagsOf(3, 4, 5, 9) }, 16)));
+  ok(tiesText(P.cleanTies(notes, { C4: flagsOf(0, 3), X9: flagsOf(3), E4: "junk" }, 16)) === "C4:3", "step 0, unknown notes and junk rows are dropped");
+  ok(Object.keys(P.cleanTies(notes, { C4: flagsOf(9) }, 16)).length === 0 && Object.keys(P.cleanTies(notes, null, 16)).length === 0, "nothing left means an empty result");
+  ok(P.hasTies({ C4: flagsOf(3) }) && !P.hasTies({ C4: flagsOf() }) && !P.hasTies({}) && !P.hasTies(null) && !P.hasTies(undefined), "hasTies");
+  // tieRepeats: every adjacent pair of the same note
+  ok(tiesText(P.tieRepeats(notes, 16)) === "C4:3,4 E4:6", "tieRepeats ties each note struck on two steps in a row", tiesText(P.tieRepeats(notes, 16)));
+  ok(Object.keys(P.tieRepeats(withNotes({ C4: [0, 2, 4] }), 16)).length === 0, "and nothing when no note repeats");
+  // rotate: ties travel with their notes, one across the loop end is dropped
+  const tied = { C4: flagsOf(3, 4), E4: flagsOf(6) };
+  ok(tiesText(P.rotateTies(tied, 1, 16)) === "C4:4,5 E4:7", "ties move a step later with the notes", tiesText(P.rotateTies(tied, 1, 16)));
+  ok(tiesText(P.rotateTies(tied, -1, 16)) === "C4:2,3 E4:5", "and a step earlier");
+  const edge = P.cleanTies(P.rotateMelody(withNotes({ C4: [14, 15] }), 1, 16), P.rotateTies({ C4: flagsOf(15) }, 1, 16), 16);
+  ok(Object.keys(edge).length === 0, "a tie that would straddle the end of the loop after a shift is dropped, not kept at step 0");
+  // reverse: the link between two steps stays between those two steps
+  const rev = P.reverseTies({ C4: flagsOf(3, 4) }, 16);
+  ok(tiesText(rev) === "C4:12,13", "reversing: ties between steps 2-3 and 3-4 become ties between 11-12 and 12-13 (flagged on the later step)", tiesText(rev));
+  const revNotes = P.reverseMelody(withNotes({ C4: [2, 3, 4] }), 16);
+  ok(tiesText(P.cleanTies(revNotes, rev, 16)) === "C4:12,13", "and they still join notes that are on, after the notes are reversed too");
+  ok(tiesText(P.reverseTies(P.reverseTies({ C4: flagsOf(3, 4, 9) }, 16), 16)) === "C4:3,4,9", "reversing twice is the original");
+  ok(tiesText(P.rotateTies(P.rotateTies({ C4: flagsOf(3, 4, 9) }, 5, 16), -5, 16)) === "C4:3,4,9", "shifting there and back is the original");
+}
+
 console.log(fail ? `${fail} FAILED` : "ALL PASS");
 process.exit(fail ? 1 : 0);

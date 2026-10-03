@@ -2158,6 +2158,11 @@
             <button type="button" id="song-melody-reverse" class="song-track-toggle" title="Play the melody backwards (undoable)">Reverse</button>
             <button type="button" id="song-melody-clear" class="song-track-toggle" title="Remove every melody note (undoable)">Clear melody</button>
           </div>
+          <div class="song-pattern-tools" role="group" aria-label="Held notes">
+            <button type="button" id="song-melody-tie-repeats" class="song-track-toggle" title="Tie every note that is on two steps in a row, so each run plays as one longer held note (undoable). To tie one pair by hand, Shift+click the second note.">Tie repeated notes</button>
+            <button type="button" id="song-melody-untie" class="song-track-toggle" title="Strike every note again: remove all ties (undoable)">Untie all</button>
+            <span class="song-tools-hint">Hold one note across steps: turn it on for two steps in a row, then Shift+click the second (or press Shift+Enter on it).</span>
+          </div>
           <div class="song-pattern-tools" role="group" aria-label="Random tune">
             <label>Busy <input type="range" id="song-melody-density" min="10" max="100" value="60" aria-valuetext="60% of steps" title="How many of the 16 steps get a note"></label>
             <button type="button" id="song-melody-random" class="song-track-toggle" title="Replace the melody with a random tune that stays inside the highlighted scale (C major pentatonic when no scale is highlighted). Undoable">Random tune in scale</button>

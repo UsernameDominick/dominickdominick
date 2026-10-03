@@ -321,6 +321,22 @@ function setMasterVolume(ctx, value) {
     return step % 2 === 1 ? (amount / 100) * 0.5 * stepDurationFor(songData.tempo) : 0;
   }
 
+  // Held notes: melody.ties[note][i] === true joins step i to the same note on step i - 1, so the two are one note held for both steps
+  // (no new attack on step i). A flag only counts when the note is on at both steps; anything else is ignored, so a stale flag can
+  // never change the sound. Nothing ties across the end of the loop.
+  function isTiedContinuation(songData, note, step) {
+    const melody = songData.melody;
+    const ties = melody && melody.ties && melody.ties[note];
+    const row = melody && melody.notes && melody.notes[note];
+    return Boolean(step > 0 && ties && row && ties[step] === true && row[step] && row[step - 1]);
+  }
+  // How many steps the note struck on `step` is held for (1 when it is not tied to anything after it).
+  function heldSteps(songData, note, step) {
+    let length = 1;
+    while (step + length < STEPS && isTiedContinuation(songData, note, step + length)) length++;
+    return length;
+  }
+
   function scheduleStep(ctx, songData, step, time, random = Math.random) {
     time += swingDelay(songData, step);
     // Read fresh every step, same as tempo/kit below, so a live volume-
@@ -351,9 +367,11 @@ function setMasterVolume(ctx, value) {
       const waveform = songData.melody.waveform || "sine";
       const duration = stepDurationFor(songData.tempo);
       Object.keys(songData.melody.notes).sort().forEach((note) => {
-        if (songData.melody.notes[note][step]) {
+        // A tied step carries on the note struck before it, which was given its full length when it started.
+        if (songData.melody.notes[note][step] && !isTiedContinuation(songData, note, step)) {
           const noteTime = Math.max(0, time + humanizeJitter(songData, random));
-          withVolume(ctx, volumeOf(songData.melody) * stepLevel(songData.melody.notes[note][step]), () => playMelodyNote(ctx, noteTime, noteToFreq(note), waveform, duration));
+          const length = duration * heldSteps(songData, note, step);
+          withVolume(ctx, volumeOf(songData.melody) * stepLevel(songData.melody.notes[note][step]), () => playMelodyNote(ctx, noteTime, noteToFreq(note), waveform, length));
         }
       });
     }
@@ -380,6 +398,9 @@ function setMasterVolume(ctx, value) {
     const melody = songData.melody
       ? { waveform: songData.melody.waveform || "sine", notes: Object.fromEntries(Object.keys(notes).sort().map((key) => [key, notes[key]])) }
       : null;
+    // Held notes change the sound, so they feed the seed too; a song without any seeds exactly as it always did.
+    const heldKeys = melody ? Object.keys(notes).sort().filter((key) => notes[key].some((on, step) => on && isTiedContinuation(songData, key, step))) : [];
+    if (melody && heldKeys.length) melody.held = heldKeys.map((key) => [key, songData.melody.ties[key]]);
     const input = JSON.stringify({ tempo: songData.tempo || 120, kit: songData.kit || "acoustic", tracks, melody });
     let seed = 2166136261;
     for (let i = 0; i < input.length; i++) seed = Math.imul(seed ^ input.charCodeAt(i), 16777619);
@@ -537,6 +558,8 @@ function setMasterVolume(ctx, value) {
     scheduleStep,
     isTrackMuted,
     isMelodyMuted,
+    isTiedContinuation,
+    heldSteps,
     stepHasAudibleDrumHit,
     swingDelay,
     playMelodyNote,

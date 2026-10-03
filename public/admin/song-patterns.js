@@ -79,6 +79,55 @@
     return out;
   }
 
+  // ---- held notes (ties) ----
+  // melody.ties is { "C4": [step flags...] }: a true at index i joins step i to the same note on step i - 1 (the two are one held note).
+  // A flag is only meaningful when the note is on at both steps and i is not the first step, so cleanTies drops the rest.
+  function cleanTies(notes, ties, steps) {
+    const n = stepCount(steps);
+    const out = {};
+    for (const name of Object.keys(ties || {})) {
+      const row = notes && notes[name];
+      if (!row || !Array.isArray(ties[name])) continue;
+      const flags = Array.from({ length: n }, (_, i) => i > 0 && ties[name][i] === true && Boolean(row[i]) && Boolean(row[i - 1]));
+      if (flags.some(Boolean)) out[name] = flags;
+    }
+    return out;
+  }
+  const hasTies = (ties) => Object.values(ties || {}).some((row) => Array.isArray(row) && row.some((v) => v === true));
+  // Ties after the notes were moved `by` steps later: they travel with their notes, and a tie that would straddle the end of the
+  // loop is dropped by cleanTies.
+  function rotateTies(ties, by, steps) {
+    const n = stepCount(steps);
+    const r = Math.floor(Number(by)) || 0;
+    const out = {};
+    for (const name of Object.keys(ties || {})) {
+      const row = Array.from({ length: n }, (_, i) => ties[name] && ties[name][i] === true);
+      out[name] = row.map((_, i) => row[(((i - r) % n) + n) % n]);
+    }
+    return out;
+  }
+  // Ties after the melody was played backwards: the link between steps i - 1 and i becomes the link between n - i - 1 and n - i.
+  function reverseTies(ties, steps) {
+    const n = stepCount(steps);
+    const out = {};
+    for (const name of Object.keys(ties || {})) {
+      const row = Array.from({ length: n }, (_, i) => ties[name] && ties[name][i] === true);
+      out[name] = Array.from({ length: n }, (_, i) => (i === 0 ? false : row[n - i]));
+    }
+    return out;
+  }
+  // Ties for every note that is struck on two steps in a row, so each such run becomes one held note.
+  function tieRepeats(notes, steps) {
+    const n = stepCount(steps);
+    const out = {};
+    for (const name of Object.keys(notes || {})) {
+      const row = rowOf(notes, name, n);
+      const flags = row.map((on, i) => i > 0 && Boolean(on) && Boolean(row[i - 1]));
+      if (flags.some(Boolean)) out[name] = flags;
+    }
+    return out;
+  }
+
   // The notes of a chord on `rootName`, lowest first, limited to the names the piano roll has. `missing` counts chord tones that would
   // sit outside the roll.
   function chordNames(rootName, type, allNames) {
@@ -154,5 +203,5 @@
     return out;
   }
 
-  window.SongPatterns = { euclideanRow, STARTERS, starterRow, CHORDS, ARPEGGIO_PATTERNS, noteValue, rotateMelody, reverseMelody, chordNames, stampChord, arpeggioMelody, scalePool, randomMelody };
+  window.SongPatterns = { euclideanRow, STARTERS, starterRow, CHORDS, ARPEGGIO_PATTERNS, noteValue, rotateMelody, reverseMelody, cleanTies, hasTies, rotateTies, reverseTies, tieRepeats, chordNames, stampChord, arpeggioMelody, scalePool, randomMelody };
 })();
