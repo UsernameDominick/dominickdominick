@@ -110,6 +110,7 @@ import { stripEmbedLines } from "./embeds.js";
 import { visibleText, nowIso, cleanPageCss, pageCssKey } from "./text.js";
 // STUDY (temporary): see worker/study/README.md.
 import { handleStudyUnlock } from "./study/index.js";
+import { parseByteRange } from "./range.js";
 import {
   capacitanceMicrofarads,
   computeCircuitAnalysis,
@@ -1657,10 +1658,28 @@ async function route(request, env, ctx) {
           return new Response("Not found", { status: 404 });
         }
       }
-      const obj = await env.MEDIA.get(mediaMatch[1]);
+      // A byte range (audio/video seeking, and Safari/iOS playing them at all) needs the file's size first.
+      const rangeHeader = request.headers.get("Range");
+      let range = { type: "none" };
+      let totalSize = null;
+      if (rangeHeader) {
+        const head = await env.MEDIA.head(mediaMatch[1]);
+        if (!head) return new Response("Not found", { status: 404 });
+        totalSize = head.size;
+        const ifRange = request.headers.get("If-Range");
+        if (!ifRange || ifRange === head.httpEtag) range = parseByteRange(rangeHeader, totalSize);
+        if (range.type === "unsatisfiable") {
+          return new Response(null, { status: 416, headers: { "Content-Range": `bytes */${totalSize}`, "Accept-Ranges": "bytes", "Cache-Control": "no-store" } });
+        }
+      }
+      const obj =
+        range.type === "range"
+          ? await env.MEDIA.get(mediaMatch[1], { range: { offset: range.start, length: range.end - range.start + 1 } })
+          : await env.MEDIA.get(mediaMatch[1]);
       if (!obj) return new Response("Not found", { status: 404 });
       const headers = new Headers();
       obj.writeHttpMetadata(headers);
+      headers.set("Accept-Ranges", "bytes");
       // A private file is never cached by any shared cache (a CDN/proxy
       // in front of this worker, or a browser sharing a machine) and
       // never persisted client-side either -- otherwise a copy fetched
@@ -1677,6 +1696,11 @@ async function route(request, env, ctx) {
       headers.set("ETag", obj.httpEtag);
       if (!isPrivateFile && request.headers.get("If-None-Match") === obj.httpEtag) {
         return new Response(null, { status: 304, headers });
+      }
+      if (range.type === "range") {
+        headers.set("Content-Range", `bytes ${range.start}-${range.end}/${totalSize}`);
+        headers.set("Content-Length", String(range.end - range.start + 1));
+        return new Response(obj.body, { status: 206, headers });
       }
       return new Response(obj.body, { headers });
     }
