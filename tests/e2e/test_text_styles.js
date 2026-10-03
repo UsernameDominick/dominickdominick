@@ -69,6 +69,9 @@ async function main() {
     el.dispatchEvent(new Event("input", { bubbles: true }));
   });
   await page.click("#pe-save-text-style");
+  // The style name is asked for in the editor's own small dialog (it used to be window.prompt).
+  await page.fill("#photo-editor-prompt-input", promptResponse);
+  await page.click('#photo-editor-prompt-form button[type="submit"]');
   await page.waitForTimeout(400);
 
   const saved = await (await api("/text-styles")).json();

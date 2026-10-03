@@ -4,6 +4,7 @@
 //   node tests/e2e/run.mjs prepublish song    only tests whose name contains one of the words
 //   node tests/e2e/run.mjs --workers 4        more (or fewer) workers; --serial is --workers 1
 //   node tests/e2e/run.mjs --live test_foo    use the dev server already running on :8787 (no startup, but it changes that database)
+//   node tests/e2e/run.mjs --verbose         also show why the known-failing tests fail
 //   node tests/e2e/run.mjs --keep             leave the temp folders (server logs, copied databases) for a look afterwards
 //
 // How it stays fast and safe: each worker gets `wrangler dev --persist-to <temp folder>` on its own port, seeded from a copy of the local
@@ -16,6 +17,8 @@ import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
+process.removeAllListeners("warning"); // node:sqlite is still flagged experimental; the notice is just noise here
+const { DatabaseSync } = await import("node:sqlite");
 
 const here = path.dirname(new URL(import.meta.url).pathname);
 const root = path.resolve(here, "../..");
@@ -29,6 +32,7 @@ const optionValues = new Set(["--workers"].flatMap((o) => (args.includes(o) ? [a
 const filters = args.filter((a) => !a.startsWith("--") && !optionValues.has(a));
 const live = flag("live");
 const keep = flag("keep");
+const verbose = flag("verbose");
 const workerCount = flag("serial") || live ? 1 : Math.max(1, Number(option("workers", 3)) || 3);
 const TEST_TIMEOUT_MS = 4 * 60 * 1000;
 
@@ -116,6 +120,30 @@ async function freePort(start) {
   throw new Error(`no free port from ${start}`);
 }
 
+// The local database is a scratch one that older sessions filled with test leftovers (hundreds of trashed pages, "QQ" sections...).
+// Every worker starts from a copy with that removed, so a test sees the same few real pages and articles no matter how much junk the
+// dev database has collected. Also clears rate-limit state, which would make sign-in and tracking tests depend on earlier runs.
+function tidySeed(stateDir) {
+  const dir = path.join(stateDir, "d1", "miniflare-D1DatabaseObject");
+  const file = fs.readdirSync(dir).find((f) => f.endsWith(".sqlite") && f !== "metadata.sqlite");
+  if (!file) return;
+  const db = new DatabaseSync(path.join(dir, file));
+  const run = (sql) => {
+    try {
+      db.exec(sql);
+    } catch {
+      /* a table this copy doesn't have */
+    }
+  };
+  for (const t of ["pages", "articles", "projects"]) run(`DELETE FROM ${t} WHERE deleted_at IS NOT NULL`);
+  run("DELETE FROM blocks WHERE page_id NOT IN (SELECT id FROM pages)");
+  run("DELETE FROM revisions WHERE kind = 'page' AND entity_id NOT IN (SELECT id FROM pages)");
+  run("DELETE FROM settings WHERE key LIKE 'page_section:%' AND value LIKE '%\"name\":\"QQ%'");
+  for (const [t, col] of [["articles", "title"], ["projects", "title"], ["songs", "name"], ["simulations", "name"]]) run(`DELETE FROM ${t} WHERE ${col} LIKE 'QQ%'`);
+  for (const t of ["login_attempts", "rate_limits"]) run(`DELETE FROM ${t}`);
+  db.close();
+}
+
 async function startWorker(i) {
   const dir = path.join(tmp, `w${i}`);
   const state = path.join(dir, "v3");
@@ -125,6 +153,7 @@ async function startWorker(i) {
     if (!fs.existsSync(path.join(seed, part))) throw new Error("There is no local database to copy (.wrangler/state). Run `wrangler dev` once and add some content first.");
     fs.cpSync(path.join(seed, part), path.join(state, part), { recursive: true });
   }
+  tidySeed(state);
   const port = await freePort(8800 + i * 10);
   const inspector = await freePort(9300 + i * 10);
   const log = fs.openSync(path.join(dir, "wrangler.log"), "w");
@@ -224,7 +253,7 @@ await Promise.all(
       results.push(r);
       const tag = r.passed ? "ok  " : known.has(name) ? "known" : "FAIL";
       console.log(`${tag.padEnd(5)} ${name} (${r.secs.toFixed(1)}s)`);
-      if (!r.passed && !known.has(name)) r.failLines.slice(0, 4).forEach((l) => console.log("        " + l.slice(0, 180)));
+      if (!r.passed && (verbose || !known.has(name))) (r.failLines.length ? r.failLines.slice(0, verbose ? 8 : 4) : r.tail).forEach((l) => console.log("        " + l.slice(0, 180)));
       timings[name] = Math.round(r.secs);
     }
   })

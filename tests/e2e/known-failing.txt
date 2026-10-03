@@ -3,6 +3,6 @@
 # Fix the test (or the site) and delete the line; the runner says when a listed test starts passing.
 test_bulk_inspector_fix
 test_media_library
-test_inspector_groups
 test_groups
+# stale: the name prompt is now an in-page dialog; the first half is fixed, a later step still hits another dialog
 test_text_styles
