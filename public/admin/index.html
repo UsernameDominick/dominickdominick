@@ -1365,6 +1365,21 @@
     </div>
   </div>
 
+  <div id="prepublish-modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="prepublish-title">
+    <div class="modal-inner prepublish-inner">
+      <header>
+        <h1 id="prepublish-title">Before you publish</h1>
+        <button id="close-prepublish" aria-label="Go back and keep editing">×</button>
+      </header>
+      <p id="prepublish-intro" class="settings-hint"></p>
+      <ul id="prepublish-list" class="prepublish-list"></ul>
+      <div class="typed-confirm-actions">
+        <button type="button" id="prepublish-back">Go back and fix</button>
+        <button type="button" id="prepublish-go">Publish anyway</button>
+      </div>
+    </div>
+  </div>
+
   <div id="revisions-modal" class="modal" hidden role="dialog" aria-labelledby="revisions-modal-title">
     <div class="modal-inner revisions-modal-inner">
       <header>
@@ -2614,6 +2629,7 @@
 <script src="/admin/dialog-resize.js"></script>
 <script src="/admin/reset-defaults.js"></script>
 <script src="/admin/outline-viewer.js"></script>
+<script src="/admin/prepublish.js"></script>
 <script src="/admin/photo-color.js"></script>
 <script src="/admin/photo-editor.js"></script>
 <script src="/sim-buzzer.js"></script>

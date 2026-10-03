@@ -96,6 +96,43 @@
   el("typed-confirm-cancel").addEventListener("click", () => settleTypedConfirm(false));
   el("close-typed-confirm").addEventListener("click", () => settleTypedConfirm(false));
 
+  // ---------- Before you publish ----------
+  // Shown when a save would make an article live (a draft being published, or a new article created as published). It lists what is
+  // easy to fix now (long title, missing picture descriptions, broken internal links...) and never blocks: Publish anyway saves as asked.
+  let prePublishResolve = null;
+  function settlePrePublish(result) {
+    el("prepublish-modal").hidden = true;
+    const resolve = prePublishResolve;
+    prePublishResolve = null;
+    if (resolve) resolve(result);
+  }
+  function askPrePublish(issues) {
+    if (prePublishResolve) settlePrePublish(false);
+    return new Promise((resolve) => {
+      prePublishResolve = resolve;
+      const fixes = issues.filter((i) => i.level === "fix").length;
+      el("prepublish-intro").textContent = fixes
+        ? `${fixes} thing${fixes === 1 ? "" : "s"} worth fixing first${issues.length > fixes ? `, plus ${issues.length - fixes} small suggestion${issues.length - fixes === 1 ? "" : "s"}` : ""}. You can still publish as it is.`
+        : `${issues.length} small suggestion${issues.length === 1 ? "" : "s"}. You can still publish as it is.`;
+      el("prepublish-list").innerHTML = issues
+        .map((i) => `<li class="prepublish-${i.level}"><span class="prepublish-tag">${i.level === "fix" ? "Worth fixing" : "Suggestion"}</span> ${escapeHtml(i.text)}</li>`)
+        .join("");
+      const modal = el("prepublish-modal");
+      modalFocusReturn.set(modal, document.activeElement);
+      modal.hidden = false;
+      el("prepublish-back").focus();
+    });
+  }
+  el("prepublish-go").addEventListener("click", () => settlePrePublish(true));
+  el("prepublish-back").addEventListener("click", () => settlePrePublish(false));
+  el("close-prepublish").addEventListener("click", () => settlePrePublish(false));
+  el("prepublish-modal").addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      settlePrePublish(false);
+    }
+  });
+
   const canvas = el("canvas");
   const loginScreen = el("login-screen");
   const app = el("app");
@@ -6389,6 +6426,13 @@
     if (articleSaveInFlight) return;
     const body = buildArticleBody();
     if (!body.title) return alert("Title is required.");
+    // Going live (a draft being published, or a new article created as published) gets a look first; an article that is already live,
+    // or one being saved as a draft, saves straight away.
+    const goingLive = Boolean(body.published_at) && !(currentArticleId && articleBase && articleBase.published_at);
+    if (goingLive) {
+      const issues = window.PrePublish.check({ title: body.title, body: body.body, og_image: body.og_image, tags: body.tags, brokenLinks: checkInternalLinks(body.body) });
+      if (issues.length && !(await askPrePublish(issues))) return;
+    }
     const isNewArticle = !currentArticleId;
     const savedId = currentArticleId;
     articleSaveInFlight = true;
@@ -6449,6 +6493,10 @@
     const body = buildArticleBody();
     if (!body.title) return;
     body.expected_version = currentArticleVersion;
+    // A draft is never published by autosave: ticking Published only takes effect on an explicit Save (which shows the
+    // pre-publish checklist). The rest of the edit is still saved, as a draft.
+    const holdingBack = Boolean(body.published_at) && !(articleBase && articleBase.published_at);
+    if (holdingBack) body.published_at = null;
     const savedId = currentArticleId;
     try {
       const res = await api(`/articles/${savedId}`, { method: "PATCH", body: JSON.stringify(body) });
@@ -6466,7 +6514,7 @@
       rebaseArticleVersion();
       renderArticlesList();
       updateArticleExtras(); // a renamed slug changes the Preview link and the live preview address
-      setAutosaveStatus("Saved " + new Date().toLocaleTimeString());
+      setAutosaveStatus(holdingBack ? "Draft saved " + new Date().toLocaleTimeString() + " — press Save to publish" : "Saved " + new Date().toLocaleTimeString());
     } catch (err) {
       if (err.conflict) {
         renderConflictStatus("article-autosave-status", async () => {

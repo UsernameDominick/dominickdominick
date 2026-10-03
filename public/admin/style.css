@@ -8123,3 +8123,11 @@ button[data-tier="quiet"] { border-color: transparent; }
 .quick-edit-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .quick-edit-actions button { font-size: 0.8rem; padding: 6px 12px; }
 .quick-edit-status { min-height: 1em; margin-top: 6px; font-size: 0.75rem; color: var(--text-dim); }
+
+/* Before you publish: the list is easy to scan, the two kinds of item are told apart by a word as well as a colour. */
+.prepublish-inner { max-width: 560px; }
+.prepublish-list { list-style: none; margin: 0 0 1rem; padding: 0; display: grid; gap: 0.5rem; }
+.prepublish-list li { padding: 0.6rem 0.75rem; border: 1px solid var(--border); border-left-width: 4px; border-radius: 6px; font-size: 0.9rem; line-height: 1.4; }
+.prepublish-list li.prepublish-fix { border-left-color: var(--warn, #c77700); }
+.prepublish-list li.prepublish-tip { border-left-color: var(--text-dim); }
+.prepublish-tag { display: inline-block; margin-right: 0.4rem; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-dim); }
