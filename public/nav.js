@@ -128,15 +128,32 @@ document.addEventListener("input", function (e) {
   var wrap = document.querySelector(".tabs");
   if (!active || !wrap) return;
 
+  // On a narrow screen the row of tabs scrolls sideways. Bring this page's tab into view, centred where there is room, so the
+  // visitor never lands on a page whose own tab is cut off at the edge.
+  function reveal() {
+    var max = wrap.scrollWidth - wrap.clientWidth;
+    if (max <= 0) return;
+    var target = active.offsetLeft - (wrap.clientWidth - active.offsetWidth) / 2;
+    wrap.scrollLeft = Math.max(0, Math.min(max, target));
+  }
+
   function place() {
     var w = wrap.getBoundingClientRect();
     var t = active.getBoundingClientRect();
     wrap.style.setProperty("--indicator-width", t.width + "px");
-    wrap.style.setProperty("--indicator-x", (t.left - w.left) + "px");
+    // The marker scrolls with the tabs, so its place is measured from where the row starts, not from where it is scrolled to, and from
+    // where the marker rests with no shift (the row's border plus the marker's own left offset), so it lands exactly on the tab.
+    var marker = wrap.querySelector(".tab-indicator");
+    var rest = wrap.clientLeft + (marker ? parseFloat(getComputedStyle(marker).left) || 0 : 0);
+    wrap.style.setProperty("--indicator-x", (t.left - w.left + wrap.scrollLeft - rest) + "px");
   }
 
+  reveal();
   place();
-  window.addEventListener("resize", place);
+  window.addEventListener("resize", function () {
+    reveal();
+    place();
+  });
 })();
 
 // "Turn off preview mode" button inside the draft-preview banner (see

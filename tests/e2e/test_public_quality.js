@@ -71,6 +71,31 @@ const { chromium, axeSource } = require("./_pw.cjs");
     ok(ok200.status === 200, "/random itself is fine");
   }
 
+  // the feed
+  {
+    const feed = await fetch(E2E_BASE + "/rss.xml");
+    const xml = await feed.text();
+    const p = await desk.newPage();
+    const parsed = await p.evaluate((x) => { const d = new DOMParser().parseFromString(x, "application/xml"); return { err: !!d.querySelector("parsererror"), items: d.querySelectorAll("item").length, self: (d.getElementsByTagNameNS("http://www.w3.org/2005/Atom", "link")[0] || {}).getAttribute ? d.getElementsByTagNameNS("http://www.w3.org/2005/Atom", "link")[0].getAttribute("rel") : null, last: (d.querySelector("lastBuildDate") || {}).textContent }; }, xml);
+    ok(!parsed.err && parsed.items > 0, "the feed is well-formed XML with entries", parsed);
+    ok(parsed.self === "self" && !isNaN(Date.parse(parsed.last)), "it names its own address and when it last changed", parsed);
+    const tagged = await (await fetch(E2E_BASE + "/rss.xml?type=article")).text();
+    ok(/rel="self"/.test(tagged) && /rss\.xml\?type=article/.test(tagged), "a filtered feed names its own filtered address");
+    await p.close();
+  }
+
+  // the tab for the page you are on is in view on a phone
+  {
+    const p = await phone.newPage();
+    const tabs = (await (await fetch(E2E_BASE + "/")).text()).match(/class="tab[^"]*" href="([^"]+)"/g) || [];
+    const last = tabs.map((t) => /href="([^"]+)"/.exec(t)[1]).pop();
+    await p.goto(E2E_BASE + last, { waitUntil: "networkidle" });
+    const fit = await p.evaluate(() => { const w = document.querySelector(".tabs").getBoundingClientRect(); const t = document.querySelector(".tab.is-active"); if (!t) return null; const r = t.getBoundingClientRect(); return { left: r.left - w.left, right: w.right - r.right, ind: document.querySelector(".tab-indicator").getBoundingClientRect(), tab: r }; });
+    ok(fit && fit.left >= -1 && fit.right >= -1, `the current page's tab (${last}) is fully inside the tab row on a phone`, fit);
+    ok(fit && Math.abs(fit.ind.left - fit.tab.left) < 3 && Math.abs(fit.ind.width - fit.tab.width) < 3, "and the highlight sits exactly on it", fit && { ind: fit.ind.left, tab: fit.tab.left });
+    await p.close();
+  }
+
   // robots and the shuffle link
   {
     const robots = await (await fetch(E2E_BASE + "/robots.txt")).text();

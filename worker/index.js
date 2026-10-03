@@ -1137,14 +1137,23 @@ async function renderRss(env, { type, tag } = {}) {
   </item>`
     )
     .join("\n");
+  // The feed's own address (readers use it to spot duplicates) and when it last changed: the newest entry, or now when there are none.
+  const query = new URLSearchParams();
+  if (type) query.set("type", type);
+  if (tag) query.set("tag", tag);
+  const selfUrl = `https://dominickdominick.com/rss.xml${query.toString() ? `?${query}` : ""}`;
+  const newest = entries.length ? new Date(entries[0].date) : null;
+  const lastBuild = (newest && !isNaN(newest.getTime()) ? newest : new Date()).toUTCString();
   const titleSuffix = [type ? (type === "project" ? "Projects" : "Articles") : null, tag ? `"${xmlEsc(tag)}"` : null].filter(Boolean).join(" — ");
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0">
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
 <channel>
   <title>Dominick${titleSuffix ? " — " + titleSuffix : ""}</title>
   <link>https://dominickdominick.com/archive</link>
+  <atom:link href="${xmlEsc(selfUrl)}" rel="self" type="application/rss+xml"/>
   <description>Notes, projects, and half-formed ideas from Dominick.</description>
   <language>en</language>
+  <lastBuildDate>${lastBuild}</lastBuildDate>
 ${items}
 </channel>
 </rss>`;
