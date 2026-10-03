@@ -40,6 +40,7 @@ import {
   getValidPreviewLink,
   runScheduledBackup,
   runScheduledLinkCheck,
+  runScheduledPostWebhooks,
   getTagCounts,
   getArchive,
   listArticlesPaged,
@@ -1466,6 +1467,10 @@ export default {
     // Dashboard and clicking "Check links" themselves.
     ctx.waitUntil(
       runScheduledLinkCheck(env).catch((err) => logError(env, { message: err.message, stack: err.stack, path: "scheduled:link-check" }))
+    );
+    // And it tells the publish webhooks about posts that were scheduled and have gone live since the last run.
+    ctx.waitUntil(
+      runScheduledPostWebhooks(env).catch((err) => logError(env, { message: err.message, stack: err.stack, path: "scheduled:post-webhooks" }))
     );
   },
 };

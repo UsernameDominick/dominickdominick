@@ -94,6 +94,7 @@ import {
   checkLinks,
   getLinkCheckStatus,
   runScheduledLinkCheck,
+  publishWebhookPayload,
   getSeoReport,
   checkAccessibility,
   getOrphanContent,
@@ -732,14 +733,7 @@ async function maybeFireWebhook(env, ctx, { wasPublished, article, contentType =
   const rawUrls = await getSetting(env, "webhook_url");
   const webhookUrls = (rawUrls || "").split("\n").map((u) => u.trim()).filter(Boolean);
   if (!webhookUrls.length) return;
-  const path = contentType === "project" ? "projects" : "random";
-  const payload = {
-    contentType,
-    title: article.title,
-    slug: article.slug,
-    url: `https://dominickdominick.com/${path}/${article.slug}`,
-    published_at: article.published_at,
-  };
+  const payload = publishWebhookPayload(contentType, article);
   for (const webhookUrl of webhookUrls) {
     ctx.waitUntil(deliverWebhook(env, webhookUrl, payload));
   }

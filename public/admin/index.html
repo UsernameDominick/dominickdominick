@@ -1223,7 +1223,7 @@
             <textarea id="settings-custom-head" rows="3" placeholder="&lt;script&gt;...&lt;/script&gt;"></textarea>
           </label>
           <h2>Webhooks</h2>
-          <label>Webhook URLs (one per line)<br>Each one gets its own POST when an article is published. Blank = off.
+          <label>Webhook URLs (one per line)<br>Each one gets its own POST when an article is published; one scheduled for later is sent by the daily run (08:00 UTC) after its time has passed. Blank = off.
             <textarea id="settings-webhook-url" rows="3" placeholder="https://...&#10;https://..."></textarea>
           </label>
           <label class="settings-checkbox-row"><input type="checkbox" id="settings-webhook-on-project-publish"> Also call them when a project is published</label>

@@ -3475,6 +3475,121 @@ export async function alertBackupFailure(env, message, send = fetch) {
   }
 }
 
+// ---------- Scheduled posts and the publish webhook ----------
+// Saving something already live fires the publish webhook on the spot (maybeFireWebhook in admin-api.js). Something scheduled for later
+// has nothing to fire it when its time comes, so the daily cron looks back over what has gone live since the last look and tells the
+// webhook URLs about each. The marker starts at "now", so turning this on never announces posts that were already out.
+export const SCHEDULED_WEBHOOK_MARKER = "webhook_scheduled_last_sweep";
+export const SCHEDULED_WEBHOOK_CAP = 10;
+const SCHEDULED_WEBHOOK_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Stored dates come in two shapes (ISO with a T from the editors, "YYYY-MM-DD HH:MM:SS" from SQL's datetime('now')); both are UTC.
+export function stampMs(value) {
+  const text = String(value == null ? "" : value).trim();
+  const m = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})(:\d{2}(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/i.exec(text);
+  if (!m) return null;
+  const ms = Date.parse(`${m[1]}T${m[2]}${m[3] || ":00"}${m[4] ? (/^z$/i.test(m[4]) ? "Z" : m[4].replace(/^([+-]\d{2})(\d{2})$/, "$1:$2")) : "Z"}`);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+// The body every publish webhook sends, whether it fires at save time or from the cron.
+export function publishWebhookPayload(contentType, item) {
+  const path = contentType === "project" ? "projects" : "random";
+  return {
+    contentType,
+    title: item.title,
+    slug: item.slug,
+    url: `https://dominickdominick.com/${path}/${item.slug}`,
+    published_at: item.published_at,
+  };
+}
+
+// Items whose publish time falls after afterMs and no later than upToMs, oldest first, leaving out any that skip() says were already
+// announced. At most cap are due now; the rest wait for the next sweep.
+export function duePublishes(items, afterMs, upToMs, cap = SCHEDULED_WEBHOOK_CAP, skip = () => false) {
+  const live = [];
+  for (const item of items || []) {
+    const t = stampMs(item && item.published_at);
+    if (t !== null && t > afterMs && t <= upToMs && !skip(item)) live.push({ item, t });
+  }
+  live.sort((a, b) => a.t - b.t);
+  return { due: live.slice(0, cap), deferred: Math.max(0, live.length - cap) };
+}
+
+export async function runScheduledPostWebhooks(env, { send = fetch, now = Date.now() } = {}) {
+  const last = stampMs(await getSetting(env, SCHEDULED_WEBHOOK_MARKER));
+  if (last === null) {
+    await setSetting(env, SCHEDULED_WEBHOOK_MARKER, new Date(now).toISOString());
+    return { initialised: true, posts: 0, deliveries: 0, deferred: 0 };
+  }
+  const afterMs = Math.max(last, now - SCHEDULED_WEBHOOK_LOOKBACK_MS);
+  const urls = ((await getSetting(env, "webhook_url")) || "")
+    .split("\n")
+    .map((u) => u.trim())
+    .filter((u) => /^https?:\/\//i.test(u));
+  if (!urls.length) {
+    // Nobody to tell; move on so a URL added later does not announce the past.
+    await setSetting(env, SCHEDULED_WEBHOOK_MARKER, new Date(now).toISOString());
+    return { initialised: false, posts: 0, deliveries: 0, deferred: 0 };
+  }
+  const kinds = ["article"];
+  if (await getSetting(env, "webhook_on_project_publish")) kinds.push("project");
+  const floorDay = new Date(afterMs - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const nowIso = new Date(now).toISOString();
+  const candidates = [];
+  for (const kind of kinds) {
+    const table = kind === "project" ? "projects" : "articles";
+    const { results } = await env.DB
+      .prepare(
+        `SELECT title, slug, published_at FROM ${table}
+         WHERE deleted_at IS NULL AND archived = 0 AND published_at IS NOT NULL AND published_at >= ? AND (expires_at IS NULL OR expires_at > ?)
+         ORDER BY published_at LIMIT 100`
+      )
+      .bind(floorDay, nowIso)
+      .all();
+    for (const row of results || []) candidates.push({ ...row, kind });
+  }
+  // Already announced at save time (or by an earlier sweep that died before it moved the marker): the delivery history says so.
+  // Compared by moment, not by spelling: the save-time payload carries the date as typed, the table may hold the same moment differently.
+  const sentKey = (url, p) => `${url}|${p.contentType}|${p.slug}|${stampMs(p.published_at) ?? p.published_at}`;
+  const sent = new Set();
+  const { results: history } = await env.DB.prepare("SELECT url, payload FROM webhook_deliveries ORDER BY id DESC LIMIT 200").all();
+  for (const row of history || []) {
+    try {
+      const p = JSON.parse(row.payload);
+      sent.add(sentKey(row.url, p));
+    } catch {
+      /* not a publish notice */
+    }
+  }
+  const { due, deferred } = duePublishes(candidates, afterMs, now, SCHEDULED_WEBHOOK_CAP, (item) => {
+    const payload = publishWebhookPayload(item.kind, item);
+    return urls.every((url) => sent.has(sentKey(url, payload)));
+  });
+  let posts = 0;
+  let deliveries = 0;
+  for (const { item } of due) {
+    const payload = publishWebhookPayload(item.kind, item);
+    let announced = false;
+    for (const url of urls) {
+      if (sent.has(sentKey(url, payload))) continue;
+      try {
+        const res = await send(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        await logWebhookDelivery(env, { url, payload, status: res.ok ? "success" : "failed", status_code: res.status, error: res.ok ? null : `HTTP ${res.status}` });
+      } catch (err) {
+        await logWebhookDelivery(env, { url, payload, status: "failed", error: err && err.message ? err.message : "Request failed" }).catch(() => {});
+      }
+      deliveries++;
+      announced = true;
+    }
+    if (announced) posts++;
+  }
+  // Over the cap, the marker stops at the last post handled so the rest go out on the next sweep.
+  const moveTo = deferred ? due[due.length - 1].t - 1 : now;
+  await setSetting(env, SCHEDULED_WEBHOOK_MARKER, new Date(moveTo).toISOString());
+  return { initialised: false, posts, deliveries, deferred };
+}
+
 export async function runScheduledBackup(env, { alert = false } = {}) {
   try {
     const key = `${BACKUP_PREFIX}${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
