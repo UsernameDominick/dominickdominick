@@ -1,0 +1,8 @@
+# Browser tests that already failed before the change being tested, one name per line (with or without .js).
+# The runner reports only failures that are NOT listed here, so a red run always means "something you did".
+# Fix the test (or the site) and delete the line; the runner says when a listed test starts passing.
+test_bulk_inspector_fix
+test_media_library
+test_inspector_groups
+test_groups
+test_text_styles

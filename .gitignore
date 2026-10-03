@@ -4,3 +4,6 @@ node_modules/
 
 # Screenshots written by local browser tests
 *_shot.png
+
+# Browser-test run timings (a scheduling hint only)
+tests/e2e/.timings.json

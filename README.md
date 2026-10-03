@@ -174,13 +174,19 @@ wrangler dev --local
 ## Tests
 
 ```bash
-node tests/run.mjs
+node tests/run.mjs                 # pure checks, no server or browser (Node 22), ~6 s
+node tests/e2e/run.mjs             # browser tests, in parallel (first time: cd tests/e2e && npm install)
 ```
 
-This runs the pure checks with no server or browser (Node 22): the circuit solver (analytic cases, thousands of random
-networks checked for consistency) and that the simulation analysis gives identical results in the admin builder and on the
-public page. GitHub Actions runs it on every push (`.github/workflows/tests.yml`). The Playwright scripts that drive the
-admin UI are not in the repo; they run by hand against `wrangler dev`.
+`tests/run.mjs` covers the circuit solver (analytic cases, thousands of random networks checked for consistency), that the
+simulation analysis gives identical results in the admin builder and on the public page, and the helpers the admin shares. Add
+words to run only matching files (`node tests/run.mjs song sim`). GitHub Actions runs it on every push
+(`.github/workflows/tests.yml`).
+
+`tests/e2e/run.mjs` drives the admin and public pages with Playwright. It starts a few throwaway `wrangler dev` servers, each on its
+own copy of the local database, so tests can create and delete freely and your local data is never touched. It reports only new
+failures; tests that already failed are listed in `tests/e2e/known-failing.txt`. See the header of `tests/e2e/run.mjs` for the
+options (`--workers`, `--live`, `--keep`). `CLAUDE.md` has the rest of the working notes.
 
 ## Viewing the outline in the admin
 

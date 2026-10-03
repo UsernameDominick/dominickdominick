@@ -1,0 +1,55 @@
+const E2E_BASE = process.env.E2E_BASE || "http://localhost:8787";
+const { chromium } = require("./_pw.cjs");
+(async () => {
+  const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
+  const ctx = await b.newContext({ storageState: process.env.ADMIN_STATE, viewport: { width: 1440, height: 900 } });
+  const p = await ctx.newPage();
+  const errs = []; p.on("pageerror", (e) => errs.push(String(e)));
+  let promptAnswer = null; const dialogs = [];
+  p.on("dialog", (d) => { dialogs.push(d.message()); d.type() === "prompt" ? d.accept(promptAnswer ?? "") : d.accept(); });
+  let fails = 0; const ok = (c, m) => { console.log((c ? "PASS" : "FAIL") + " — " + m); if (!c) fails++; };
+  await p.goto((E2E_BASE + "/admin/"), { waitUntil: "networkidle" });
+  await p.waitForSelector("#app:not([hidden])");
+  await p.evaluate(() => document.getElementById("media-btn").click());
+  await p.waitForTimeout(1000);
+  const count = () => p.evaluate(() => document.querySelectorAll("#media-grid .media-item").length);
+  const total = await count();
+  ok(total >= 20, `grid shows seeded files (${total})`);
+  ok(await p.isHidden("#media-bulk-actions"), "bulk actions hidden with nothing selected");
+  await p.click('label.filter-chip:has(#media-duplicates-filter)');
+  const dupes = await count();
+  ok(dupes < total, `Duplicates chip filters (${dupes})`);
+  ok(await p.evaluate(() => document.getElementById("media-duplicates-filter").checked), "chip toggles its checkbox");
+  await p.click('label.filter-chip:has(#media-duplicates-filter)');
+  await p.selectOption("#media-folder-filter", "builds");
+  const builds = await count();
+  ok(builds > 0 && builds < total, `folder filter (${builds})`);
+  await p.check("#media-select-all");
+  ok(await p.isVisible("#media-bulk-actions"), "bulk actions appear after select all");
+  ok((await p.textContent("#media-selected-count")) === `${builds} selected`, "count matches shown");
+  await p.click("#media-bulk-clear-btn");
+  ok(await p.isHidden("#media-bulk-actions"), "Clear empties selection");
+  // bulk move one file to a new folder, then back
+  await p.selectOption("#media-folder-filter", "");
+  const firstKey = await p.getAttribute("#media-grid .media-item >> nth=0", "data-key");
+  await p.evaluate(() => document.querySelector("#media-grid .media-select-checkbox").click());
+  promptAnswer = "zz-test-folder";
+  await p.click("#media-bulk-move-btn");
+  await p.waitForTimeout(900);
+  const moved = await p.evaluate((k) => document.querySelector(`#media-grid .media-item[data-key="${k}"] .media-meta-sub`).textContent, firstKey);
+  ok(moved.includes("zz-test-folder"), "bulk move applied: " + moved);
+  await p.evaluate((k) => { const cb = document.querySelector(`#media-grid .media-item[data-key="${k}"] .media-select-checkbox`); if (!cb.checked) cb.click(); }, firstKey);
+  promptAnswer = "";
+  await p.click("#media-bulk-move-btn");
+  await p.waitForTimeout(900);
+  await p.click("#media-bulk-clear-btn").catch(() => {});
+  // tile click opens details when browsing
+  await p.evaluate(() => document.querySelector("#media-grid .media-meta").click());
+  await p.waitForTimeout(500);
+  ok(await p.evaluate(() => [...document.querySelectorAll(".modal:not([hidden])")].some((m) => /info|detail/i.test(m.id))), "tile click opens details modal");
+  ok(errs.length === 0, "no page errors " + errs.join(";"));
+  // maintenance tools in settings
+  ok(await p.evaluate(() => !!document.querySelector('.settings-panel[data-panel="tools"] #media-scan-duplicates-btn')), "maintenance tools live in Settings > Tools");
+  console.log(fails ? `${fails} FAILED` : "ALL PASS");
+  await b.close();
+})();
