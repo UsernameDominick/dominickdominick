@@ -73,7 +73,7 @@
         <div class="admin-sidebar-group">
           <h3>View</h3>
           <a id="admin-view-live" href="/" target="_blank" class="admin-view-live">View live ↗</a>
-          <button id="draft-preview-mode-toggle" aria-pressed="false" title="While on, browsing the live site (in this browser) shows draft/expired articles and projects too, following normal navigation instead of needing ?preview=1 on every link">Preview mode: Off</button>
+          <button id="draft-preview-mode-toggle" aria-pressed="false" title="Draft preview: while on, this browser shows your draft and expired articles and projects on the live site as you click around, instead of needing ?preview=1 on every link. Only you see them (while signed in); visitors are not affected.">Draft preview: Off</button>
           <button id="preview-btn" title="Preview this page at different screen widths">Screen Preview</button>
           <button id="preview-at-btn" title="See the public site as it will look on a future date: scheduled items live, expired ones gone. Only you see it.">Preview at a date…</button>
           <button id="focus-mode-btn" aria-pressed="false" title="Hide the block palette for more canvas room">Focus</button>
@@ -192,7 +192,9 @@
             </label>
             <label>Canonical URL override (optional — blank = auto)<input id="page-canonical-url" type="text" spellcheck="false" placeholder="https://..."></label>
             <label title="Added alongside this page's auto-generated structured data, not instead of it. Must be valid JSON — one object, e.g. a FAQPage or HowTo schema.org type.">Custom structured data (JSON-LD, optional)<textarea id="page-custom-json-ld" rows="3" spellcheck="false" placeholder='{"@context":"https://schema.org","@type":"FAQPage",...}'></textarea></label>
-            <label><input type="checkbox" id="page-sitemap-exclude"> Exclude from sitemap.xml</label>
+            <label title="Only leaves this page out of the sitemap file search engines read. The page stays live, and search engines can still find it through links."><input type="checkbox" id="page-sitemap-exclude"> Leave out of sitemap.xml</label>
+            <label title="Adds a tag asking search engines not to list this page in their results. The page still opens for anyone with the link, and it is also left out of the sitemap."><input type="checkbox" id="page-noindex"> Ask search engines not to list this page (noindex)</label>
+            <p class="settings-hint">Leaving a page out of the sitemap does not hide it from search engines; use "noindex" for that.</p>
             <div class="og-preview-label">Share preview</div>
             <div class="og-preview" id="og-preview-page">
               <div class="og-preview-img" id="og-preview-page-img"></div>
@@ -365,7 +367,8 @@
             <div class="article-flags-row">
               <label><input type="checkbox" id="article-featured"> Featured</label>
               <label><input type="checkbox" id="article-pinned"> Pinned to top</label>
-              <label><input type="checkbox" id="article-sitemap-exclude"> Exclude from sitemap.xml</label>
+              <label title="Only leaves this article out of the sitemap file search engines read. It stays live, and search engines can still find it through links."><input type="checkbox" id="article-sitemap-exclude"> Leave out of sitemap.xml</label>
+              <label title="Adds a tag asking search engines not to list this article in their results. It still opens for anyone with the link, and it is also left out of the sitemap."><input type="checkbox" id="article-noindex"> Ask search engines not to list this article (noindex)</label>
               <label title="Stays published and reachable at its URL, but drops out of every listing, tag page, related-content pick, and RSS feed"><input type="checkbox" id="article-archived"> Archived</label>
             </div>
           </details>
@@ -526,7 +529,8 @@
               <label class="project-featured-label"><input type="checkbox" id="project-featured"> Featured</label>
               <label class="project-featured-label" title="Lower numbers lead the featured-projects list; blank falls back to newest-first">Featured order<input type="number" id="project-featured-order" style="width:70px;"></label>
               <label class="project-featured-label" title="Used by a Project List block set to 'Manual order' — lower numbers come first; blank falls back to newest-first">Sort order<input type="number" id="project-sort-order" style="width:70px;"></label>
-              <label class="project-featured-label"><input type="checkbox" id="project-sitemap-exclude"> Exclude from sitemap.xml</label>
+              <label class="project-featured-label" title="Only leaves this project out of the sitemap file search engines read. It stays live, and search engines can still find it through links."><input type="checkbox" id="project-sitemap-exclude"> Leave out of sitemap.xml</label>
+              <label class="project-featured-label" title="Adds a tag asking search engines not to list this project in their results. It still opens for anyone with the link, and it is also left out of the sitemap."><input type="checkbox" id="project-noindex"> Ask search engines not to list this project (noindex)</label>
               <label class="project-featured-label" title="Stays published and reachable at its URL, but drops out of every listing, tag page, related-content pick, and RSS feed — separate from the free-text Status field above"><input type="checkbox" id="project-archived"> Archived (hide from listings)</label>
             </div>
             <div class="project-links-row">
@@ -2354,7 +2358,7 @@
         <h3 class="health-reports-label">Individual reports</h3>
         <details class="panel-section health-report">
           <summary>Sitemap Exclusions</summary>
-          <p class="settings-hint">Pages, articles, and projects currently excluded from sitemap.xml (still fully live at their URL — just not listed for search engines).</p>
+          <p class="settings-hint">Pages, articles, and projects currently left out of sitemap.xml (still fully live at their address, and search engines can still find them through links; use "noindex" on the item to ask them not to list it).</p>
           <div id="sitemap-exclusions-list" class="link-check-results"></div>
         </details>
         <details class="panel-section health-report">

@@ -452,6 +452,7 @@
     });
   }
 
+  let noindexItems = { page: [], article: [], project: [] };
   async function api(path, opts = {}) {
     const res = await fetch("/api/admin" + path, {
       ...opts,
@@ -467,6 +468,18 @@
       err.status = res.status;
       err.conflict = !!body.conflict;
       throw err;
+    }
+    // A saved page, article or project that carried the noindex box: remember the new state for the editors' checkboxes.
+    const noindexSave = /^\/(pages|articles|projects)\/(\d+)$/.exec(path);
+    if (noindexSave && opts.method === "PATCH" && typeof opts.body === "string" && opts.body.includes('"noindex"')) {
+      try {
+        const type = { pages: "page", articles: "article", projects: "project" }[noindexSave[1]];
+        const id = Number(noindexSave[2]);
+        const on = JSON.parse(opts.body).noindex === true;
+        noindexItems[type] = (noindexItems[type] || []).filter((n) => n !== id).concat(on ? [id] : []);
+      } catch (e) {
+        /* the next page load reads it from the server */
+      }
     }
     return res.status === 204 ? null : res.json();
   }
@@ -995,6 +1008,15 @@
     if (localStorage.getItem("admin-focus-mode") === "1") applyFocusMode(true);
   } catch (e) {}
 
+  // Which pages, articles and projects are marked noindex (kept in one setting on the server, read back for the checkboxes).
+  async function loadNoindexItems() {
+    try {
+      noindexItems = await api("/noindex");
+    } catch (e) {
+      /* the boxes simply start unticked */
+    }
+  }
+  const isNoindex = (type, id) => !!(noindexItems[type] && noindexItems[type].includes(Number(id)));
   // ---------- Whole-site draft-preview mode ----------
   // Sets a plain (non-httpOnly, non-secret) cookie the public worker reads
   // in worker/index.js — it grants nothing on its own, since every check
@@ -1014,7 +1036,7 @@
     strip.hidden = !msgs.length;
   }
   function applyPreviewModeButton(on) {
-    el("draft-preview-mode-toggle").textContent = "Preview mode: " + (on ? "On" : "Off");
+    el("draft-preview-mode-toggle").textContent = "Draft preview: " + (on ? "On" : "Off");
     el("draft-preview-mode-toggle").setAttribute("aria-pressed", on ? "true" : "false");
     refreshStatusStrip();
   }
@@ -1064,6 +1086,7 @@
   // ---------- Pages ----------
   async function loadPages() {
     pages = await api("/pages");
+    await loadNoindexItems();
     const picker = el("page-picker");
     picker.innerHTML = pages
       .map((p) => `<option value="${p.id}">${escapeHtml(p.title || p.slug)}</option>`)
@@ -1106,6 +1129,7 @@
     el("page-custom-json-ld").value = currentPage.custom_json_ld || "";
     loadPageCss();
     el("page-sitemap-exclude").checked = !!currentPage.sitemap_exclude;
+    el("page-noindex").checked = isNoindex("page", currentPage.id);
     el("page-nav-admin-only").checked = !!currentPage.nav_admin_only;
     el("page-password-input").value = "";
     el("page-password-status-text").textContent = currentPage.password_hash ? "protected" : "not protected";
@@ -1124,7 +1148,7 @@
   // Page settings have no server-side autosave at all (only the explicit
   // Save button), so this local snapshot is the *only* safety net between
   // typing and clicking Save — a bigger gap than articles have.
-  const PAGE_DRAFT_FIELD_IDS = ["page-title", "page-meta", "page-nav-label", "page-nav-order", "page-nav-parent", "page-og-image", "page-canonical-url", "page-custom-json-ld", "page-sitemap-exclude", "page-nav-admin-only"];
+  const PAGE_DRAFT_FIELD_IDS = ["page-title", "page-meta", "page-nav-label", "page-nav-order", "page-nav-parent", "page-og-image", "page-canonical-url", "page-custom-json-ld", "page-sitemap-exclude", "page-nav-admin-only", "page-noindex"];
   function capturePageRawFields() {
     const out = {};
     for (const id of PAGE_DRAFT_FIELD_IDS) {
@@ -1190,7 +1214,7 @@
       snapshotPageDraft();
     })
   );
-  ["page-sitemap-exclude", "page-nav-parent", "page-nav-admin-only"].forEach((id) =>
+  ["page-sitemap-exclude", "page-nav-parent", "page-nav-admin-only", "page-noindex"].forEach((id) =>
     el(id).addEventListener("change", () => {
       unsavedDirty = true;
       el("page-save-status").textContent = "Unsaved changes…";
@@ -1215,6 +1239,7 @@
           custom_json_ld: el("page-custom-json-ld").value.trim() || null,
           sitemap_exclude: el("page-sitemap-exclude").checked,
           nav_admin_only: el("page-nav-admin-only").checked,
+          noindex: el("page-noindex").checked,
           expected_version: currentPage.version,
         }),
       });
@@ -4563,6 +4588,7 @@
     el("article-featured").checked = !!article.featured;
     el("article-pinned").checked = !!article.pinned;
     el("article-sitemap-exclude").checked = !!article.sitemap_exclude;
+    el("article-noindex").checked = isNoindex("article", article.id);
     el("article-archived").checked = !!article.archived;
     el("article-og-image").value = article.og_image || "";
     el("article-canonical-url").value = article.canonical_url || "";
@@ -4592,7 +4618,7 @@
   // turning this back into a save payload when the restored draft is saved.
   const ARTICLE_DRAFT_FIELD_IDS = [
     "article-title", "article-slug", "article-tags", "article-series", "article-series-order",
-    "article-co-authors", "article-featured", "article-pinned", "article-sitemap-exclude", "article-archived", "article-og-image", "article-canonical-url", "article-custom-json-ld", "article-correction-note", "article-private-notes", "article-body", "article-published", "article-publish-at",
+    "article-co-authors", "article-featured", "article-pinned", "article-sitemap-exclude", "article-noindex", "article-archived", "article-og-image", "article-canonical-url", "article-custom-json-ld", "article-correction-note", "article-private-notes", "article-body", "article-published", "article-publish-at",
     "article-expires-at",
   ];
   function captureArticleRawFields() {
@@ -5863,6 +5889,7 @@
     el("article-featured").checked = false;
     el("article-pinned").checked = false;
     el("article-sitemap-exclude").checked = false;
+    el("article-noindex").checked = false;
     el("article-archived").checked = false;
     el("article-og-image").value = "";
     el("article-canonical-url").value = "";
@@ -5922,6 +5949,7 @@
       featured: el("article-featured").checked,
       pinned: el("article-pinned").checked,
       sitemap_exclude: el("article-sitemap-exclude").checked,
+      noindex: el("article-noindex").checked,
       archived: el("article-archived").checked,
       related_override: getMultiSelectValues(el("article-related-override")),
       og_image: el("article-og-image").value || null,
@@ -6059,7 +6087,7 @@
   ["article-title", "article-tags", "article-series", "article-co-authors", "article-og-image", "article-canonical-url", "article-custom-json-ld", "article-correction-note", "article-private-notes", "article-body"].forEach((id) =>
     el(id).addEventListener("input", scheduleAutosave)
   );
-  ["article-slug", "article-published", "article-publish-at", "article-expires-at", "article-series-order", "article-featured", "article-pinned", "article-sitemap-exclude", "article-archived", "article-related-override"].forEach((id) =>
+  ["article-slug", "article-published", "article-publish-at", "article-expires-at", "article-series-order", "article-featured", "article-pinned", "article-sitemap-exclude", "article-noindex", "article-archived", "article-related-override"].forEach((id) =>
     el(id).addEventListener("change", scheduleAutosave)
   );
 
@@ -6312,6 +6340,7 @@
     el("project-status").value = project.status || "";
     el("project-featured").checked = !!project.featured;
     el("project-sitemap-exclude").checked = !!project.sitemap_exclude;
+    el("project-noindex").checked = isNoindex("project", project.id);
     el("project-archived").checked = !!project.archived;
     el("project-featured-order").value = project.featured_order ?? "";
     el("project-sort-order").value = project.sort_order ?? "";
@@ -6370,6 +6399,7 @@
     el("project-status").value = "";
     el("project-featured").checked = false;
     el("project-sitemap-exclude").checked = false;
+    el("project-noindex").checked = false;
     el("project-archived").checked = false;
     el("project-featured-order").value = "";
     el("project-sort-order").value = "";
@@ -6459,6 +6489,7 @@
       status: el("project-status").value.trim() || null,
       featured: el("project-featured").checked,
       sitemap_exclude: el("project-sitemap-exclude").checked,
+      noindex: el("project-noindex").checked,
       archived: el("project-archived").checked,
       featured_order: el("project-featured-order").value === "" ? null : Number(el("project-featured-order").value),
       sort_order: el("project-sort-order").value === "" ? null : Number(el("project-sort-order").value),
@@ -6492,7 +6523,7 @@
   // getMultiSelectValues/setMultiSelectValues, not .value).
   const PROJECT_DRAFT_FIELD_IDS = [
     "project-title", "project-slug", "project-summary", "project-tags", "project-tech-stack", "project-status",
-    "project-featured", "project-sitemap-exclude", "project-archived", "project-featured-order", "project-sort-order",
+    "project-featured", "project-sitemap-exclude", "project-noindex", "project-archived", "project-featured-order", "project-sort-order",
     "project-link-github", "project-link-demo", "project-link-docs", "project-link-download", "project-downloads",
     "project-og-image", "project-canonical-url", "project-custom-json-ld", "project-correction-note", "project-private-notes",
     "project-body", "project-published", "project-publish-at", "project-expires-at",

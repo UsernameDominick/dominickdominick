@@ -19,6 +19,9 @@ import {
   isBot,
   getRedirect,
   listLinkTargets,
+  parseNoindexItems,
+  getNoindexItems,
+  isNoindexed,
   publicSearch,
   getRelatedArticles,
   getProjectsLinkingToArticle,
@@ -218,7 +221,7 @@ const THEME_SETTING_KEYS = [
   "custom_font_name", "custom_font_url", ...CONTROL_SETTING_KEYS,
 ];
 const SITE_CONTEXT_KEYS = [
-  ...THEME_SETTING_KEYS, "default_og_image", "site_footer", "site_footer_links", "custom_head", "empty_search_text", "empty_archive_text", "empty_topics_text",
+  ...THEME_SETTING_KEYS, "default_og_image", "site_footer", "site_footer_links", "custom_head", "empty_search_text", "empty_archive_text", "empty_topics_text", "noindex_items",
 ];
 
 function themeFrom(v) {
@@ -255,6 +258,7 @@ async function getSiteContext(env) {
     emptySearchText: v.empty_search_text,
     emptyArchiveText: v.empty_archive_text,
     emptyTopicsText: v.empty_topics_text,
+    noindexItems: parseNoindexItems(v.noindex_items),
   };
 }
 
@@ -290,7 +294,7 @@ function renderPagePasswordFormHtml(page, wrongPassword) {
 
 async function renderPage(env, page, url, request) {
   const [navItems, siteContext] = await Promise.all([listNavPages(env), getSiteContext(env)]);
-  const { defaultOgImage, theme, footerText, customHead } = siteContext;
+  const { defaultOgImage, theme, footerText, customHead, noindexItems } = siteContext;
   // An authenticated admin always sees the real content — same bypass
   // maintenance mode and preview mode already use — so previewing/editing
   // a password-protected page never means also knowing its password.
@@ -373,6 +377,7 @@ async function renderPage(env, page, url, request) {
     theme,
     footerText,
     customHead: `${customHead || ""}${pageCssTag}`,
+    noindex: isNoindexed(noindexItems, "page", page.id),
     editUrl: isAdmin ? `/admin/?edit=page:${page.id}` : null,
   });
   // A page with address-gated blocks differs by query string, so it must never be
@@ -386,7 +391,7 @@ async function renderArticle(env, article, navItems, previewReason = null, isAdm
   const description = excerpt(article.body) || article.title;
   // The library rows for the body's pictures are fetched alongside the site context (loadBodyMedia never rejects).
   const bodyMediaPending = loadBodyMedia(env, article.body);
-  const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
+  const { defaultOgImage, theme, footerText, customHead, noindexItems } = await getSiteContext(env);
   const bodyMedia = await bodyMediaPending;
   const mins = readingTime(article.body);
   const headings = extractHeadings(article.body);
@@ -498,7 +503,7 @@ async function renderArticle(env, article, navItems, previewReason = null, isAdm
     // ?preview=1/preview-token link — a draft or expired article being
     // previewed is never something to let a search engine index, even if
     // the link leaks.
-    noindex: !!previewReason,
+    noindex: !!previewReason || isNoindexed(noindexItems, "article", article.id),
     editUrl: isAdmin ? `/admin/?edit=article:${article.id}` : null,
   });
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
@@ -507,7 +512,7 @@ async function renderArticle(env, article, navItems, previewReason = null, isAdm
 async function renderProject(env, project, navItems, previewReason = null, isAdmin = false) {
   const summary = (project.summary || "").trim();
   const description = summary || excerpt(project.body) || project.title;
-  const { defaultOgImage, theme, footerText, customHead } = await getSiteContext(env);
+  const { defaultOgImage, theme, footerText, customHead, noindexItems } = await getSiteContext(env);
   // The same Contents box articles have (it only appears with two or more headings), and Older / Newer links at the end.
   const projectTocHtml = tableOfContentsHtml(extractHeadings(project.body));
   const projectPrevNextHtml = renderPrevNextHtml("project", await getAdjacentPublished(env, "projects", project));
@@ -651,7 +656,7 @@ async function renderProject(env, project, navItems, previewReason = null, isAdm
     footerText,
     customHead,
     canvasClass: "canvas article-canvas",
-    noindex: !!previewReason,
+    noindex: !!previewReason || isNoindexed(noindexItems, "project", project.id),
     editUrl: isAdmin ? `/admin/?edit=project:${project.id}` : null,
   });
   return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
@@ -1130,9 +1135,11 @@ ${items}
 }
 
 async function renderSitemap(env) {
-  const pages = await listPages(env);
-  const articles = await listArticles(env, { publishedOnly: true });
-  const projects = await listProjects(env, { publishedOnly: true });
+  // Anything marked noindex is also left out of the sitemap: listing a page there while telling search engines not to list it is contradictory.
+  const noindex = await getNoindexItems(env);
+  const pages = (await listPages(env)).filter((p) => !isNoindexed(noindex, "page", p.id));
+  const articles = (await listArticles(env, { publishedOnly: true })).filter((a) => !isNoindexed(noindex, "article", a.id));
+  const projects = (await listProjects(env, { publishedOnly: true })).filter((p) => !isNoindexed(noindex, "project", p.id));
   const simulations = await listPublishedSimulations(env);
   const tagCounts = await getTagCounts(env);
   const entries = buildSitemapEntries({ pages, articles, projects, simulations, tagCounts }, { isInSitemap, reservedSlugs: RESERVED_SLUGS });

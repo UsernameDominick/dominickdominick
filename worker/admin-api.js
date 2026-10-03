@@ -5,6 +5,8 @@ import {
   updatePage,
   setPagePassword,
   getNavAdminOnlyIds,
+  getNoindexItems,
+  setNoindexItem,
   setNavAdminOnly,
   deletePage,
   restorePage,
@@ -819,6 +821,10 @@ async function routeAdminApi(request, env, url, ctx) {
   if (!authed) return json({ error: "Unauthorized" }, { status: 401 });
 
   // /pages
+  // Which pages, articles and projects are marked noindex, for the editors' checkboxes.
+  if (path === "/noindex" && method === "GET") {
+    return json(await getNoindexItems(env));
+  }
   if (path === "/pages" && method === "GET") {
     const adminOnly = new Set(await getNavAdminOnlyIds(env));
     return json((await listPages(env)).map((p) => ({ ...p, nav_admin_only: adminOnly.has(p.id) })));
@@ -861,6 +867,10 @@ async function routeAdminApi(request, env, url, ctx) {
     const id = Number(pageMatch[1]);
     const conflict = await checkConflict(env, "pages", id, body.expected_version);
     if (conflict) return conflict;
+    if ("noindex" in body) {
+      await setNoindexItem(env, "page", id, body.noindex === true);
+      delete body.noindex;
+    }
     if (body.slug) {
       body.slug = slugify(body.slug);
       if (RESERVED_SLUGS.has(body.slug)) {
@@ -1122,6 +1132,10 @@ async function routeAdminApi(request, env, url, ctx) {
     const id = Number(articleMatch[1]);
     const conflict = await checkConflict(env, "articles", id, body.expected_version);
     if (conflict) return conflict;
+    if ("noindex" in body) {
+      await setNoindexItem(env, "article", id, body.noindex === true);
+      delete body.noindex;
+    }
     if (body.slug) {
       body.slug = slugify(body.slug);
       if (await slugExists(env, "articles", body.slug, id)) {
@@ -1272,6 +1286,10 @@ async function routeAdminApi(request, env, url, ctx) {
     const id = Number(projectMatch[1]);
     const conflict = await checkConflict(env, "projects", id, body.expected_version);
     if (conflict) return conflict;
+    if ("noindex" in body) {
+      await setNoindexItem(env, "project", id, body.noindex === true);
+      delete body.noindex;
+    }
     if (body.slug) {
       body.slug = slugify(body.slug);
       if (await slugExists(env, "projects", body.slug, id)) {

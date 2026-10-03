@@ -76,6 +76,38 @@ export async function setNavAdminOnly(env, pageId, on) {
   await setSetting(env, NAV_ADMIN_ONLY_KEY, JSON.stringify(ids.sort((a, b) => a - b)));
 }
 
+// Pages, articles and projects the owner has asked search engines not to list ("noindex"), kept as {page:[ids], article:[ids],
+// project:[ids]} in one setting so it needs no new column. Unlike leaving something out of the sitemap, this adds a robots noindex tag.
+const NOINDEX_KEY = "noindex_items";
+export const NOINDEX_TYPES = ["page", "article", "project"];
+export function parseNoindexItems(raw) {
+  let data = {};
+  try {
+    data = JSON.parse(raw || "{}");
+  } catch {
+    data = {};
+  }
+  const out = {};
+  for (const type of NOINDEX_TYPES) {
+    const list = data && Array.isArray(data[type]) ? data[type] : [];
+    out[type] = [...new Set(list.map(Number).filter((n) => Number.isInteger(n) && n > 0))].sort((a, b) => a - b);
+  }
+  return out;
+}
+export const isNoindexed = (items, type, id) => !!(items && Array.isArray(items[type]) && items[type].includes(Number(id)));
+export async function getNoindexItems(env) {
+  return parseNoindexItems(await getSetting(env, NOINDEX_KEY));
+}
+export async function setNoindexItem(env, type, id, on) {
+  if (!NOINDEX_TYPES.includes(type)) return;
+  const items = await getNoindexItems(env);
+  items[type] = items[type].filter((n) => n !== Number(id));
+  if (on) items[type].push(Number(id));
+  items[type].sort((a, b) => a - b);
+  const empty = NOINDEX_TYPES.every((t) => !items[t].length);
+  await setSetting(env, NOINDEX_KEY, empty ? "" : JSON.stringify(items));
+}
+
 // `env.__isAdmin` is set per request by the worker; an admin-only link is left out for everyone else, along with anything nested
 // under it (a child must not pop up at the top level just because its parent is hidden). The site name and the overrides for the
 // built-in links ride in the same query (one row always comes back, so they are read even when no page has a nav label) and the
