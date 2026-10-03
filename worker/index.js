@@ -113,6 +113,7 @@ import { visibleText, nowIso, cleanPageCss, pageCssKey } from "./text.js";
 import { handleStudyUnlock } from "./study/index.js";
 import { parseByteRange } from "./range.js";
 import { safeRedirectStatus } from "./redirects.js";
+import { cleanTrackName, cleanTrackPath } from "./track.js";
 import { SVG_CSP, isSvgContentType } from "./svg.js";
 import {
   capacitanceMicrofarads,
@@ -1250,9 +1251,11 @@ async function handleTrackEvent(request, env, ctx) {
   // Public, unauthenticated input stored in D1 -- capped so a script can't
   // fill the events table with arbitrarily large strings.
   const clip = (v, max) => (v == null || v === "" ? null : String(v).slice(0, max));
-  const name = String(body.name || "").trim().slice(0, 64);
+  const name = cleanTrackName(body.name);
   if (!name) return new Response(null, { status: 400 });
-  ctx.waitUntil(logEvent(env, { name, path: clip(body.path, 300), detail: clip(body.detail, 500) }).catch(() => {}));
+  // Crawlers get the same answer as everyone else but are not counted.
+  if (isBot(request.headers.get("User-Agent"))) return new Response(null, { status: 204 });
+  ctx.waitUntil(logEvent(env, { name, path: cleanTrackPath(body.path), detail: clip(body.detail, 500) }).catch(() => {}));
   return new Response(null, { status: 204 });
 }
 
