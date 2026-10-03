@@ -1001,6 +1001,7 @@
       </header>
       <div class="settings-tabs" role="tablist">
         <button type="button" class="settings-tab is-active" data-panel="appearance" role="tab" aria-selected="true">Appearance</button>
+        <button type="button" class="settings-tab" data-panel="headerfooter" role="tab" aria-selected="false">Header &amp; footer</button>
         <button type="button" class="settings-tab" data-panel="sharing" role="tab" aria-selected="false">Sharing &amp; SEO</button>
         <button type="button" class="settings-tab" data-panel="integrations" role="tab" aria-selected="false">Integrations</button>
         <button type="button" class="settings-tab" data-panel="maintenance" role="tab" aria-selected="false">Maintenance</button>
@@ -1146,6 +1147,30 @@
           <label>Mobile/desktop breakpoint (px)<br>Where a block's "Desktop only"/"Mobile only" visibility switches over. Default 640.
             <input id="settings-mobile-breakpoint" type="number" min="320" max="1200" placeholder="640">
           </label>
+          </section>
+        </div>
+        <div class="settings-panel" data-panel="headerfooter" hidden>
+          <section class="settings-group">
+            <h2>Site name</h2>
+          <label>Shown at the top left of every page. Blank = dominick.dominick. Each dot is drawn in the accent colour.
+            <input id="settings-brand" type="text" maxlength="40" placeholder="dominick.dominick" autocomplete="off">
+          </label>
+          </section>
+          <section class="settings-group">
+            <h2>Navigation</h2>
+          <p class="settings-hint">The links in the bar at the top, in order. Move a link with the arrows, nest it under another one (one level of dropdown), rename it, hide it from visitors, or take it out of the bar. Pages that are not in the bar are listed under "Add a page".</p>
+          <div id="nav-editor" class="nav-editor"></div>
+          <div class="nav-editor-add">
+            <label>Add a page to the bar <select id="nav-add-select"><option value="">Choose a page…</option></select></label>
+            <button type="button" id="nav-add-btn">Add</button>
+          </div>
+          <div class="nav-editor-actions">
+            <button type="button" id="nav-save-btn" class="btn">Save navigation</button>
+            <span id="nav-save-status" class="settings-hint" role="status"></span>
+          </div>
+          <h3 class="nav-editor-subtitle">Built-in links</h3>
+          <p class="settings-hint">These follow your own links above. A page of your own with the same address (for example /projects) takes the place of the built-in one. Saved with the Save button at the bottom.</p>
+          <div id="nav-builtin-editor" class="nav-editor"></div>
           </section>
           <section class="settings-group">
             <h2>Footer</h2>

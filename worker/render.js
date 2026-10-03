@@ -2125,6 +2125,13 @@ function pageScriptsHtml(bodyHtml) {
   return tags.join("\n");
 }
 
+// The name at the top left: "dominick.dominick" unless the owner set one (Site settings > Header & footer), with each dot in the accent colour.
+function brandHtml(brand) {
+  const name = String(brand || "").trim();
+  if (!name) return `dominick<span class="accent">.</span>dominick`;
+  return esc(name).replace(/\./g, '<span class="accent">.</span>');
+}
+
 export function renderShell({
   title,
   description,
@@ -2374,7 +2381,7 @@ ${customHead || ""}
   ${simDefsHolder(bodyHtml)}<a class="skip-link" href="#main-content">Skip to content</a>
   <div class="page">
     <header class="topbar">
-      <a class="brand" href="/">dominick<span class="accent">.</span>dominick</a>
+      <a class="brand" href="/">${brandHtml(navItems.brand)}</a>
       ${
         navItems.length
           ? `<nav class="tabs" aria-label="Sections">

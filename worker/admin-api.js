@@ -156,6 +156,7 @@ import {
   plausibleDims,
 } from "./db.js";
 import { cleanBodyFields, cleanPageCss, pageCssKey } from "./text.js";
+import { cleanBrand, cleanNavBuiltin } from "./nav-settings.js";
 import { cleanFooterLinks } from "./render.js";
 import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated, hmac, revokeAllSessions } from "./auth.js";
 import { normalizeLegacySimulationWireIds, simulationDataError } from "./simulation-validation.js";
@@ -237,6 +238,8 @@ const SETTINGS_KEYS = [
   "theme_heading_font",
   "site_footer",
   "site_footer_links",
+  "site_brand",
+  "nav_builtin",
   "custom_head",
   "webhook_url",
   "webhook_on_project_publish",
@@ -2558,6 +2561,9 @@ async function routeAdminApi(request, env, url, ctx) {
     // Values are truncated (some, like custom_head, can be long HTML) and
     // a key with no actual change is left out entirely.
     // The footer layout is stored normalised, so what is saved is exactly what the site will render.
+    // The site name and the built-in nav links are cleaned to the same shape the page shell reads (worker/nav-settings.js).
+    if ("site_brand" in body) body.site_brand = cleanBrand(body.site_brand);
+    if ("nav_builtin" in body) body.nav_builtin = cleanNavBuiltin(body.nav_builtin);
     if (body.site_footer_links) {
       const cleaned = cleanFooterLinks(body.site_footer_links);
       body.site_footer_links = cleaned ? JSON.stringify(cleaned) : "";

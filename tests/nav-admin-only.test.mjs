@@ -21,7 +21,10 @@ function makeEnv(settings = {}, extra = {}) {
         bind(...a) { stmt.args = a; return stmt; },
         async all() {
           log.push(sql);
-          if (/FROM pages WHERE nav_label/.test(sql)) return { results: pages.map((p) => ({ ...p, admin_only_ids: settings.nav_admin_only ?? null })) };
+          if (/LEFT JOIN pages p/.test(sql)) {
+            const meta = { admin_only_ids: settings.nav_admin_only ?? null, brand: settings.site_brand ?? null, builtin: settings.nav_builtin ?? null };
+            return { results: pages.length ? pages.map((p) => ({ ...p, ...meta })) : [{ id: null, slug: null, nav_label: null, nav_parent_id: null, ...meta }] };
+          }
           return { results: [] };
         },
         async first() {

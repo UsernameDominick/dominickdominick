@@ -3,6 +3,7 @@ import { visibleText, nowIso, pageCssKey } from "./text.js";
 import { suggestNearest } from "./notfound.js";
 import { bodyPictures, pictureUrl, markdownLinkTargets } from "./pictures.js";
 import { bodyEmbeds } from "./embeds.js";
+import { cleanBrand, parseNavBuiltin, builtinNavItems } from "./nav-settings.js";
 import { parseSearchTerms, searchSql, likePattern } from "./searchterms.js";
 import { normalizeLegacySimulationWireIds, simulationDataError } from "./simulation-validation.js";
 
@@ -51,19 +52,8 @@ export async function listTrashedPages(env) {
 // also be a parent (enforced both here and at save time in admin-api.js),
 // so there's no cycle or multi-level case to guard against when building
 // the tree: every child's parent is guaranteed to already be top-level.
-// Articles/Projects/Topics aren't rows in the pages table — there was no
-// page a nav_label could even attach to for them — so with zero nav_label
-// pages configured (the actual state until an admin sets one up), the site
-// had no persistent navigation at all: no way to reach any content from
-// any page. These three are prepended unconditionally as a baseline
-// alongside whatever custom nav_label pages exist, rather than being the
-// only way to get a working nav — an admin who does configure their own
-// pages just gets them appended after these, not instead of them.
-const BASELINE_NAV_ITEMS = [
-  { slug: "random", nav_label: "Articles", nav_parent_id: null, children: [] },
-  { slug: "projects", nav_label: "Projects", nav_parent_id: null, children: [] },
-  { slug: "topics", nav_label: "Topics", nav_parent_id: null, children: [] },
-];
+// Articles/Projects/Topics aren't rows in the pages table (see worker/nav-settings.js): they are built-in links that follow the
+// owner's own nav pages, so the site always has navigation to reach its content.
 
 // Pages whose nav link only the signed-in owner sees (for trying a page out before it is announced). Kept as a list of page ids
 // in one setting, so it needs no new column; the page itself stays reachable by its address.
@@ -87,21 +77,26 @@ export async function setNavAdminOnly(env, pageId, on) {
 }
 
 // `env.__isAdmin` is set per request by the worker; an admin-only link is left out for everyone else, along with anything nested
-// under it (a child must not pop up at the top level just because its parent is hidden).
+// under it (a child must not pop up at the top level just because its parent is hidden). The site name and the overrides for the
+// built-in links ride in the same query (one row always comes back, so they are read even when no page has a nav label) and the
+// returned list carries the site name as `.brand` for the page shell.
 export async function listNavPages(env) {
   const { results: navRows } = await env.DB
     .prepare(
-      `SELECT id, slug, nav_label, nav_parent_id, (SELECT value FROM settings WHERE key = '${NAV_ADMIN_ONLY_KEY}') AS admin_only_ids
-       FROM pages WHERE nav_label IS NOT NULL AND deleted_at IS NULL ORDER BY nav_order ASC, id ASC`
+      `SELECT p.id, p.slug, p.nav_label, p.nav_parent_id, s.admin_only_ids, s.brand, s.builtin
+       FROM (SELECT (SELECT value FROM settings WHERE key = '${NAV_ADMIN_ONLY_KEY}') AS admin_only_ids,
+                    (SELECT value FROM settings WHERE key = 'site_brand') AS brand,
+                    (SELECT value FROM settings WHERE key = 'nav_builtin') AS builtin) s
+       LEFT JOIN pages p ON p.nav_label IS NOT NULL AND p.deleted_at IS NULL
+       ORDER BY p.nav_order ASC, p.id ASC`
     )
     .all();
+  const first = navRows[0] || {};
+  const adminOnly = new Set(parseNavAdminOnly(first.admin_only_ids));
   // A label of only spaces or invisible characters is an unnamed link: treated as no label.
-  const labelled = navRows.filter((p) => visibleText(p.nav_label));
-  const adminOnly = new Set(parseNavAdminOnly(labelled.length ? labelled[0].admin_only_ids : null));
-  labelled.forEach((p) => {
-    delete p.admin_only_ids;
-    if (adminOnly.has(p.id)) p.admin_only = true;
-  });
+  const labelled = navRows
+    .filter((p) => p.id != null && visibleText(p.nav_label))
+    .map(({ id, slug, nav_label, nav_parent_id }) => ({ id, slug, nav_label, nav_parent_id, ...(adminOnly.has(id) ? { admin_only: true } : {}) }));
   const results = env.__isAdmin ? labelled : labelled.filter((p) => !adminOnly.has(p.id) && !adminOnly.has(p.nav_parent_id));
   // A child whose parent was dropped above (blank label) is shown at top level rather than lost.
   const shownIds = new Set(results.map((p) => p.id));
@@ -109,15 +104,13 @@ export async function listNavPages(env) {
   for (const p of topLevel) {
     p.children = results.filter((c) => c.nav_parent_id === p.id);
   }
-  // Baseline items used to be prepended unconditionally, so a site that
-  // also had its own "projects"/"random" nav pages (the live site does)
-  // showed "Articles · Projects · Topics · Home · Projects · Random" --
-  // duplicate entries, Home stuck in the middle, and two items lit up as
-  // active at once. The admin's own nav pages now come first in their
-  // chosen order, and a baseline item is only added if no nav page
-  // already links to the same place (the admin's label wins).
+  // The built-in links (Articles, Projects, Topics) follow the owner's own nav pages, and one is left out when a nav page already
+  // links to the same place (the admin's label wins, and a hidden page does not bring it back). They can be renamed or hidden
+  // under Site settings > Header & footer.
   const taken = new Set(labelled.map((p) => p.slug));
-  return [...topLevel, ...BASELINE_NAV_ITEMS.filter((item) => !taken.has(item.slug))];
+  const nav = [...topLevel, ...builtinNavItems(parseNavBuiltin(first.builtin), taken)];
+  nav.brand = cleanBrand(first.brand);
+  return nav;
 }
 
 export async function createPage(env, { slug, title, meta_description, nav_label, nav_order, og_image, canonical_url, custom_json_ld }) {

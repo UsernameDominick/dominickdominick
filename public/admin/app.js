@@ -8163,6 +8163,9 @@
     el("settings-heading-font").value = settings.theme_heading_font || "";
     el("settings-footer").value = settings.site_footer || "";
     loadFooterEditor(settings.site_footer_links);
+    el("settings-brand").value = settings.site_brand || "";
+    loadNavBuiltinEditor(settings.nav_builtin);
+    loadNavEditor().catch((err) => { el("nav-save-status").textContent = "Couldn't load the pages: " + err.message; });
     el("settings-custom-head").value = settings.custom_head || "";
     el("settings-webhook-url").value = settings.webhook_url || "";
     el("settings-webhook-on-project-publish").checked = settings.webhook_on_project_publish === "1";
@@ -8220,6 +8223,8 @@
           theme_heading_font: el("settings-heading-font").value,
           site_footer: el("settings-footer").value,
           site_footer_links: footerLayoutJson(),
+          site_brand: el("settings-brand").value,
+          nav_builtin: navBuiltinJson(),
           custom_head: el("settings-custom-head").value,
           webhook_url: el("settings-webhook-url").value,
           webhook_on_project_publish: el("settings-webhook-on-project-publish").checked ? "1" : "",
@@ -8241,6 +8246,179 @@
       alert(err.message);
     }
   });
+
+  // ---------- Header & footer: the navigation bar and the built-in links ----------
+  // The bar is the pages that have a nav label, in nav_order; a page nested under another shows in its dropdown. Everything is edited
+  // here in one list and written back page by page (the per-page Nav fields edit the same data).
+  const BUILTIN_NAV_LINKS = [
+    { slug: "random", label: "Articles" },
+    { slug: "projects", label: "Projects" },
+    { slug: "topics", label: "Topics" },
+  ];
+  let navAllPages = [];
+  let navRows = []; // the bar: {id, label, parentId, adminOnly}, top-level and nested rows in their order
+  function navHasLabel(p) {
+    return !!(p.nav_label && String(p.nav_label).replace(/[\u200b-\u200d\ufeff\s]/g, ""));
+  }
+  function navDisplayRows() {
+    const top = navRows.filter((r) => !r.parentId);
+    const out = [];
+    top.forEach((r) => {
+      out.push(r);
+      navRows.filter((c) => c.parentId === r.id).forEach((c) => out.push(c));
+    });
+    return out;
+  }
+  function renderNavEditor() {
+    const box = el("nav-editor");
+    const rows = navDisplayRows();
+    if (!rows.length) {
+      box.innerHTML = '<p class="settings-hint">No pages of your own are in the bar yet; only the built-in links below show. Add one with "Add a page".</p>';
+    } else {
+      box.innerHTML = rows
+        .map((r) => {
+          const page = navAllPages.find((p) => p.id === r.id) || {};
+          const hasKids = navRows.some((c) => c.parentId === r.id);
+          const parents = navRows.filter((o) => !o.parentId && o.id !== r.id);
+          const parentSelect = hasKids
+            ? ""
+            : `<select data-field="parent" aria-label="Nested under, for ${escapeHtml(r.label)}"><option value="">Top level</option>${parents
+                .map((o) => `<option value="${o.id}"${r.parentId === o.id ? " selected" : ""}>Under: ${escapeHtml(o.label)}</option>`)
+                .join("")}</select>`;
+          return `<div class="nav-row${r.parentId ? " is-child" : ""}" data-id="${r.id}">
+            <span class="nav-row-move"><button type="button" data-act="up" aria-label="Move ${escapeHtml(r.label)} up" title="Move up">↑</button><button type="button" data-act="down" aria-label="Move ${escapeHtml(r.label)} down" title="Move down">↓</button></span>
+            <input type="text" data-field="label" value="${escapeHtml(r.label)}" maxlength="60" aria-label="Link text for the page ${escapeHtml(page.title || page.slug || "")}">
+            ${parentSelect}
+            <label class="nav-row-admin" title="Visitors will not see this link; you will, marked admin."><input type="checkbox" data-field="admin"${r.adminOnly ? " checked" : ""}> Only me</label>
+            <button type="button" data-act="remove" aria-label="Take ${escapeHtml(r.label)} out of the bar">Remove</button>
+            <span class="nav-row-page">/${escapeHtml(page.slug === "home" ? "" : page.slug || "")}</span>
+          </div>`;
+        })
+        .join("");
+    }
+    const inBar = new Set(navRows.map((r) => r.id));
+    const options = navAllPages.filter((p) => !inBar.has(p.id)).map((p) => `<option value="${p.id}">${escapeHtml(p.title || p.slug)} (/${escapeHtml(p.slug === "home" ? "" : p.slug)})</option>`);
+    el("nav-add-select").innerHTML = `<option value="">Choose a page…</option>${options.join("")}`;
+  }
+  async function loadNavEditor() {
+    navAllPages = await api("/pages");
+    const inBar = navAllPages.filter(navHasLabel).sort((a, b) => (a.nav_order == null ? 1e9 : a.nav_order) - (b.nav_order == null ? 1e9 : b.nav_order) || a.id - b.id);
+    const ids = new Set(inBar.map((p) => p.id));
+    navRows = inBar.map((p) => ({ id: p.id, label: p.nav_label, parentId: p.nav_parent_id && ids.has(p.nav_parent_id) ? p.nav_parent_id : null, adminOnly: !!p.nav_admin_only }));
+    el("nav-save-status").textContent = "";
+    renderNavEditor();
+  }
+  function moveNavRow(id, by) {
+    const row = navRows.find((r) => r.id === id);
+    if (!row) return;
+    const group = navRows.filter((r) => r.parentId === row.parentId);
+    const at = group.indexOf(row);
+    const other = group[at + by];
+    if (!other) return;
+    const i = navRows.indexOf(row);
+    const j = navRows.indexOf(other);
+    navRows[i] = other;
+    navRows[j] = row;
+    renderNavEditor();
+    const moved = el("nav-editor").querySelector(`.nav-row[data-id="${id}"] [data-act="${by < 0 ? "up" : "down"}"]`);
+    if (moved) moved.focus();
+  }
+  el("nav-editor").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-act]");
+    if (!btn) return;
+    const id = Number(btn.closest(".nav-row").dataset.id);
+    if (btn.dataset.act === "up") moveNavRow(id, -1);
+    else if (btn.dataset.act === "down") moveNavRow(id, 1);
+    else if (btn.dataset.act === "remove") {
+      navRows = navRows.filter((r) => r.id !== id).map((r) => (r.parentId === id ? { ...r, parentId: null } : r));
+      renderNavEditor();
+      el("nav-save-status").textContent = "Not saved yet.";
+      el("nav-add-select").focus();
+    }
+  });
+  el("nav-editor").addEventListener("input", (e) => {
+    const row = navRows.find((r) => r.id === Number(e.target.closest(".nav-row").dataset.id));
+    if (!row) return;
+    if (e.target.dataset.field === "label") row.label = e.target.value;
+    else if (e.target.dataset.field === "admin") row.adminOnly = e.target.checked;
+    el("nav-save-status").textContent = "Not saved yet.";
+  });
+  el("nav-editor").addEventListener("change", (e) => {
+    if (e.target.dataset.field !== "parent") return;
+    const id = Number(e.target.closest(".nav-row").dataset.id);
+    const row = navRows.find((r) => r.id === id);
+    if (!row) return;
+    row.parentId = e.target.value ? Number(e.target.value) : null;
+    el("nav-save-status").textContent = "Not saved yet.";
+    renderNavEditor();
+    const again = el("nav-editor").querySelector(`.nav-row[data-id="${id}"] [data-field="parent"]`);
+    if (again) again.focus();
+  });
+  el("nav-add-btn").addEventListener("click", () => {
+    const id = Number(el("nav-add-select").value);
+    const page = navAllPages.find((p) => p.id === id);
+    if (!page) return;
+    navRows.push({ id, label: page.title || page.slug, parentId: null, adminOnly: false });
+    renderNavEditor();
+    el("nav-save-status").textContent = "Not saved yet.";
+    const added = el("nav-editor").querySelector(`.nav-row[data-id="${id}"] [data-field="label"]`);
+    if (added) added.focus();
+  });
+  el("nav-save-btn").addEventListener("click", async () => {
+    const status = el("nav-save-status");
+    const rows = navDisplayRows();
+    const wanted = new Map(rows.map((r, i) => [r.id, { nav_label: r.label.trim() || null, nav_order: (i + 1) * 10, nav_parent_id: r.parentId || null, nav_admin_only: !!r.adminOnly }]));
+    const changes = [];
+    for (const p of navAllPages) {
+      const want = wanted.get(p.id) || { nav_label: null, nav_order: p.nav_order == null ? null : p.nav_order, nav_parent_id: null, nav_admin_only: false };
+      const body = {};
+      if ((p.nav_label || null) !== want.nav_label) body.nav_label = want.nav_label;
+      if (wanted.has(p.id) && p.nav_order !== want.nav_order) body.nav_order = want.nav_order;
+      if ((p.nav_parent_id || null) !== want.nav_parent_id) body.nav_parent_id = want.nav_parent_id;
+      if (!!p.nav_admin_only !== want.nav_admin_only) body.nav_admin_only = want.nav_admin_only;
+      if (Object.keys(body).length) changes.push({ id: p.id, body });
+    }
+    if (!changes.length) {
+      status.textContent = "Nothing to save.";
+      return;
+    }
+    // Un-nesting goes first, so a page is never nested under one that is itself still nested.
+    changes.sort((a, b) => (a.body.nav_parent_id === null ? 0 : 1) - (b.body.nav_parent_id === null ? 0 : 1));
+    status.textContent = "Saving…";
+    try {
+      for (const c of changes) await api(`/pages/${c.id}`, { method: "PATCH", body: JSON.stringify(c.body) });
+      await loadPages();
+      await loadNavEditor();
+      status.textContent = "Saved " + new Date().toLocaleTimeString();
+    } catch (err) {
+      status.textContent = "Couldn't save: " + err.message;
+      alert(err.message);
+    }
+  });
+  function loadNavBuiltinEditor(raw) {
+    let data = {};
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch (e) {}
+    el("nav-builtin-editor").innerHTML = BUILTIN_NAV_LINKS.map((b) => {
+      const o = (data && data[b.slug]) || {};
+      return `<div class="nav-row" data-builtin="${b.slug}">
+        <input type="text" data-field="label" value="${escapeHtml(o.label || "")}" placeholder="${escapeHtml(b.label)}" maxlength="40" aria-label="Link text for the built-in ${escapeHtml(b.label)} link">
+        <label class="nav-row-admin"><input type="checkbox" data-field="hidden"${o.hidden ? " checked" : ""}> Leave out of the bar</label>
+        <span class="nav-row-page">/${escapeHtml(b.slug === "random" ? "random (Articles)" : b.slug)}</span>
+      </div>`;
+    }).join("");
+  }
+  function navBuiltinJson() {
+    const out = {};
+    el("nav-builtin-editor").querySelectorAll(".nav-row").forEach((row) => {
+      const slug = row.dataset.builtin;
+      const label = row.querySelector('[data-field="label"]').value.trim();
+      const hidden = row.querySelector('[data-field="hidden"]').checked;
+      if (label || hidden) out[slug] = { ...(label ? { label } : {}), ...(hidden ? { hidden: true } : {}) };
+    });
+    return Object.keys(out).length ? JSON.stringify(out) : "";
+  }
 
   // ---------- Footer layout (link columns + social links) ----------
   // Edited as "Label | url" lines; the server normalises and drops anything that isn't a site path or http(s)/mailto/tel link.
@@ -9927,7 +10105,10 @@
       field: "settings-mobile-breakpoint",
       keywords: ["breakpoint", "mobile", "responsive", "spacing", "screen width", "homepage spacing"],
     },
-    { label: "Site footer text", tab: "appearance", field: "settings-footer", keywords: ["footer", "copyright"] },
+    { label: "Site name (top left of every page)", tab: "headerfooter", field: "settings-brand", keywords: ["site name", "brand", "logo", "header", "title", "dominick.dominick"] },
+    { label: "Navigation links (the bar at the top)", tab: "headerfooter", field: "nav-add-select", keywords: ["nav", "navigation", "menu", "links", "header", "order", "dropdown", "hide", "admin only", "articles", "projects", "topics"] },
+    { label: "Site footer text", tab: "headerfooter", field: "settings-footer", keywords: ["footer", "copyright"] },
+    { label: "Footer link columns", tab: "headerfooter", field: "settings-footer-col-title-1", keywords: ["footer", "links", "columns", "social"] },
     { label: "Default share image", tab: "sharing", field: "settings-og-image", keywords: ["og:image", "og image", "share image", "social preview", "thumbnail", "twitter card", "meta image"] },
     { label: "Search empty-state message", tab: "sharing", field: "settings-empty-search", keywords: ["search", "no results", "empty state"] },
     { label: "Archive empty-state message", tab: "sharing", field: "settings-empty-archive", keywords: ["archive", "empty state", "nothing published"] },
