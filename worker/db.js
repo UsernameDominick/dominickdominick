@@ -1821,8 +1821,17 @@ export async function checkRateLimit(env, bucket, ip, { windowMinutes = 1, maxAt
   return (results[0]?.n || 0) < maxAttempts;
 }
 
-export async function recordRateLimitHit(env, bucket, ip) {
+// Old rows are swept now and then rather than on every hit: the delete filters on attempted_at alone, so it cannot use the
+// (bucket, ip, attempted_at) index and scans the table. The window itself is still enforced by checkRateLimit, so rows
+// that linger a little longer than a day change nothing.
+export const RATE_LIMIT_PRUNE_ODDS = 50;
+export function shouldPruneRateLimits(roll = Math.random()) {
+  return roll < 1 / RATE_LIMIT_PRUNE_ODDS;
+}
+
+export async function recordRateLimitHit(env, bucket, ip, roll) {
   await env.DB.prepare("INSERT INTO rate_limits (bucket, ip) VALUES (?, ?)").bind(bucket, ip).run();
+  if (!shouldPruneRateLimits(roll)) return;
   await env.DB
     .prepare(`DELETE FROM rate_limits WHERE attempted_at < datetime('now', '-1 day')`)
     .run()
