@@ -1270,32 +1270,22 @@
         </div>
         <div class="settings-panel" data-panel="outline" hidden>
           <h2>Project outline</h2>
-          <p class="settings-hint">This edits <code>outline.md</code> in the GitHub repo itself: Save makes a commit, and what you write here is what gets read next time the outline is opened on the dev side. Cite a page, article or project below to drop a link to it into the text.</p>
+          <p class="settings-hint">A read-only copy of <code>outline.md</code> from the GitHub repo. It cannot be edited here: to change it, tell Claude what to change or edit the file on GitHub, then press Reload.</p>
           <div id="outline-status" class="outline-status" role="status" aria-live="polite">Open this tab to load the outline.</div>
-          <div id="outline-conflict" class="outline-conflict" hidden>
-            <p>The outline changed on GitHub after you opened it (probably a commit from the dev side). Your text is still in the box.</p>
-            <button type="button" id="outline-conflict-reload">Load the latest (drops my edits)</button>
-            <button type="button" id="outline-conflict-overwrite" class="danger">Save mine over it anyway</button>
-            <button type="button" id="outline-conflict-download">Download my version first</button>
-          </div>
           <div class="outline-tools">
             <label>Jump to section
               <select id="outline-headings" aria-label="Jump to a section of the outline"><option value="">Sections…</option></select>
             </label>
-            <label>Cite a page, article or project
-              <input type="search" id="outline-link-filter" placeholder="Type to filter…" autocomplete="off" aria-label="Filter pages, articles and projects">
+            <label>Find
+              <input type="search" id="outline-find" placeholder="Search the outline…" autocomplete="off" aria-label="Find text in the outline">
             </label>
-            <select id="outline-link-select" aria-label="Page, article or project to cite"><option value="">Nothing loaded yet</option></select>
-            <button type="button" id="outline-link-insert">Insert link</button>
+            <button type="button" id="outline-find-next" disabled>Next match</button>
           </div>
-          <textarea id="outline-text" class="outline-text" spellcheck="false" aria-label="Project outline (markdown)" disabled></textarea>
+          <textarea id="outline-text" class="outline-text" readonly spellcheck="false" aria-readonly="true" aria-label="Project outline (markdown), read-only" disabled></textarea>
           <div class="outline-meta" id="outline-meta"></div>
-          <label>Commit message (optional)
-            <input type="text" id="outline-message" maxlength="120" placeholder="Outline edited from the admin console" autocomplete="off">
-          </label>
           <div class="outline-actions">
-            <button type="button" id="outline-save" disabled>Save to GitHub</button>
-            <button type="button" id="outline-reload" disabled>Reload from GitHub</button>
+            <button type="button" id="outline-reload" disabled>Reload</button>
+            <button type="button" id="outline-copy" disabled>Copy all</button>
             <button type="button" id="outline-download" disabled>Download .md</button>
           </div>
         </div>
@@ -2577,7 +2567,7 @@
 <script src="/admin/panels.js"></script>
 <script src="/admin/dialog-resize.js"></script>
 <script src="/admin/reset-defaults.js"></script>
-<script src="/admin/outline-editor.js"></script>
+<script src="/admin/outline-viewer.js"></script>
 <script src="/admin/photo-color.js"></script>
 <script src="/admin/photo-editor.js"></script>
 <script src="/admin/sim-solver.js"></script>

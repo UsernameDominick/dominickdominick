@@ -8057,18 +8057,15 @@ button[data-tier="quiet"] { border-color: transparent; }
 /* Phones: no floating reset buttons (they sit in scrolling toolbars); double-clicking a slider or its label still resets it. */
 @media (max-width: 860px) { .reset-default { display: none !important; } }
 
-/* Site settings > Outline: edits outline.md in the GitHub repo (outline-editor.js). */
+/* Site settings > Outline: a read-only view of outline.md from the GitHub repo (outline-viewer.js). */
 .outline-status { margin: 8px 0; font-size: 0.9rem; color: var(--text-dim); }
 .outline-status.is-error { color: var(--error-bg, #d64545); }
 .outline-status.is-ok { color: var(--success, #4caf7a); }
-.outline-conflict { margin: 8px 0; padding: 10px 12px; border: 1px solid var(--error-bg, #d64545); border-radius: 10px; }
-.outline-conflict[hidden] { display: none; }
-.outline-conflict p { margin: 0 0 8px; }
-.outline-conflict button { margin: 4px 6px 0 0; }
 .outline-tools { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; margin: 8px 0; }
 .outline-tools label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; flex: 1 1 200px; min-width: 0; }
 .outline-tools select, .outline-tools input { min-width: 0; max-width: 100%; }
 .outline-tools > select { flex: 1 1 220px; }
+.outline-text:disabled { opacity: 0.7; }
 .outline-text { width: 100%; box-sizing: border-box; min-height: 52vh; resize: none; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.82rem; line-height: 1.5; tab-size: 2; white-space: pre-wrap; padding: 10px 12px; }
 .outline-meta { margin: 6px 0; font-size: 0.8rem; color: var(--text-dim); }
 .outline-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
