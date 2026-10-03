@@ -47,6 +47,9 @@ node tests/e2e/run.mjs --live test_x  # one test against the dev server already 
 - **Don't edit `worker/` or `public/` while a test run is going** (the servers reload mid-test and make false failures).
 - A new feature gets a node test (`tests/<name>.test.mjs`, must print `ALL PASS`; copy the style of a neighbour) for its pure logic,
   and a browser test (`tests/e2e/test_<name>.js`, copy a neighbour: it uses `E2E_BASE` and `ADMIN_STATE`) for the UI.
+- Two by-hand audits (not tests, run them after a UI change and read the report): `node tests/e2e/audit/audit-public.js` (every public page: SEO, axe, overflow, links, weight) and
+  `node tests/e2e/audit/audit-admin.js` (every admin tool, its tabs and editors, dialogs and dropdowns: axe, overflow, tap targets, focus, Esc; `--only articles-btn` for one tool).
+  Both need `wrangler dev` running on :8787 and only open and close things. Expect 0 high / 0 medium; the admin one cannot reach the CDN or GitHub in a sandbox, which it ignores.
 - A browser test that adds an admin dialog should also run axe (see `test_scripts_e2e.js`) in dark and light, and check a 390 px width.
 - Test data is synthetic (prefix titles with `QQ`). If you must use `--live`, clean up what you made.
 - Before saying a failure is "not mine": check it on the previous commit (`git stash`/checkout, run that one test, restore).

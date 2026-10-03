@@ -97,15 +97,17 @@
   --text: #241832;
   --text-dim: #6e5f82;
   /* Same orange-coral hue as the dark theme's --accent, darkened for
-     legibility on a light background — verified 4.94:1 against --bg. */
-  --accent: #c1440e;
+     legibility on a light background — verified 5.39:1 against --bg and
+     4.83:1 against --bg-elevated (the old #c1440e was 4.94:1 on --bg but only
+     4.42:1 on --bg-elevated, which is where buttons, tabs and badges sit). */
+  --accent: #b83f0d;
   --accent-secondary: #6d28d9;
   --accent-gradient: linear-gradient(135deg, var(--accent), var(--accent-secondary));
   /* --accent-dim is also text-only (see :root above) — verified 6.07:1
      against --bg. */
   --accent-dim: #8a5232;
   /* This theme's darker --accent needs light text on top instead of dark —
-     verified 5.12:1 against --accent and 7.10:1 against --accent-secondary. */
+     verified 5.59:1 against --accent and 7.10:1 against --accent-secondary. */
   --on-accent: #ffffff;
   --error-text: #c62828;
   /* --error-bg is intentionally not overridden here — #c62828 above already
@@ -1901,12 +1903,9 @@ h6 { font-size: 0.9rem; }
   --accent: #39ff8f;
 }
 :root[data-theme="light"] .song-embed.song-theme-sunset {
-  /* Same hue as the site's own light-mode --accent (#c1440e, verified
-     4.94:1 against --bg), darkened slightly further since this embed
-     sits on --bg-elevated (#f7ede0), a touch darker than --bg itself --
-     reusing #c1440e as-is only measured 4.42:1 here, just under the
-     4.5:1 threshold the rest of this file's accent tokens clear.
-     Verified 5.54:1 against --bg-elevated. */
+  /* Same hue as the site's own light-mode --accent (#b83f0d), darkened
+     slightly further since this embed sits on --bg-elevated (#f7ede0), a
+     touch darker than --bg itself. Verified 5.54:1 against --bg-elevated. */
   --accent: #a83a0c;
 }
 :root[data-theme="light"] .song-embed.song-theme-ocean {

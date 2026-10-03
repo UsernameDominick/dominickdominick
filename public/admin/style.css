@@ -8091,7 +8091,7 @@ button[data-tier="quiet"] { border-color: transparent; }
 
 /* Site settings > Outline: a read-only view of outline.md from the GitHub repo (outline-viewer.js). */
 .outline-status { margin: 8px 0; font-size: 0.9rem; color: var(--text-dim); }
-.outline-status.is-error { color: var(--error-bg, #d64545); }
+.outline-status.is-error { color: var(--error-text); }
 .outline-status.is-ok { color: var(--success, #4caf7a); }
 .outline-tools { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; margin: 8px 0; }
 .outline-tools label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; flex: 1 1 200px; min-width: 0; }
@@ -8391,4 +8391,24 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 @media (forced-colors: active) {
   .ne-node, .ne-pin { border-color: CanvasText; }
   .ne-wire { stroke: CanvasText; }
+}
+
+/* Phones and touch screens: tap targets of at least 24px (WCAG 2.5.8), and an image-address field that is not squeezed away by the
+   buttons beside it. The node editor's own checkboxes (.ne-control) are canvas controls and keep their size. */
+@media (max-width: 700px), (pointer: coarse) {
+  input[type="checkbox"]:not(.ne-control) { width: 24px; height: 24px; border-radius: 6px; }
+  input[type="checkbox"]:not(.ne-control):checked::after { left: 7px; top: 2px; width: 6px; height: 12px; }
+  input[type="checkbox"]:not(.ne-control):indeterminate::after { left: 4px; top: 10px; width: 14px; }
+  .media-item .media-info { min-width: 24px; min-height: 24px; }
+  .fb-chip { min-height: 28px; }
+  .view-simulation-link { display: inline-flex; align-items: center; min-height: 24px; }
+  #motion-audition-scrub { min-height: 24px; }
+  .preview-link { display: inline-flex; align-items: center; min-height: 24px; }
+  .song-track-color { width: 24px; height: 24px; }
+  #song-builder-modal :is(select, button, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"])), #song-builder-modal summary, #song-builder-modal input[type="range"] { min-height: 24px; }
+  .song-tab .song-tab-close { min-width: 24px; min-height: 24px; display: inline-flex; align-items: center; justify-content: center; }
+}
+@media (max-width: 700px) {
+  .input-with-upload { flex-wrap: wrap; }
+  .input-with-upload input { flex: 1 1 100%; min-width: 0; }
 }

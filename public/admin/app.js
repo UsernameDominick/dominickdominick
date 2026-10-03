@@ -4118,6 +4118,10 @@
         const nodeLabel = (node) => (node.textContent || node.getAttribute("aria-label") || node.getAttribute("placeholder") || "").trim().slice(0, 40) || node.tagName.toLowerCase();
         const isRenderedVisible = (style, rect) => style.visibility !== "hidden" && parseFloat(style.opacity) > 0 && rect.width > 0 && rect.height > 0;
         const styleSnapshot = (cs) => `${cs.outlineStyle}|${cs.outlineWidth}|${cs.boxShadow}|${cs.borderColor}|${cs.borderWidth}|${cs.color}|${cs.backgroundColor}`;
+        // Focusing things inside the frame moves the browser's focus out of this page, and blurring them leaves it on <body>: the
+        // Diagnostics window's own heading lost focus a moment after it opened. The loop below is synchronous, so nothing can move focus
+        // while it runs, and putting it back straight afterwards is safe.
+        const focusBeforeScan = document.activeElement;
         doc.querySelectorAll("a[href], button, input, select, textarea").forEach((node) => {
           if (node.disabled) return; // can never receive focus in the first place — nothing to check
           const restingRect = node.getBoundingClientRect();
@@ -4167,6 +4171,7 @@
             });
           }
         });
+        if (focusBeforeScan && focusBeforeScan !== document.body && document.body.contains(focusBeforeScan)) focusBeforeScan.focus({ preventScroll: true });
         // native `loading="lazy"` images never actually fetch inside this
         // off-screen iframe (it's nowhere near any viewport, so the
         // browser's own lazy-load heuristic just skips them forever) — so
@@ -12363,11 +12368,28 @@
   // around every individual open/close call site — since several modals
   // (Songs, Simulations builders) already run their own cleanup in a
   // dedicated close handler that a second wrapper risks double-firing.
+  //
+  // Some dialogs hand over to another instead of stacking (the Simulations,
+  // Songs and Scans lists hide themselves while their builder is open, and
+  // show themselves again when it closes). A dialog that is hidden in the
+  // same moment another one opens is not being closed, so it keeps the
+  // button it will have to return to; and a builder that hands back to a
+  // list that is already waiting just lets go of its own target. Without
+  // this the list forgot where it came from, and closing it dropped focus
+  // on the page body.
+  let dialogsOpenBefore = new Set();
   new MutationObserver((mutations) => {
+    const dialogsOpenNow = new Set(document.querySelectorAll(OPEN_DIALOG_SELECTOR));
+    const openedNow = [...dialogsOpenNow].filter((d) => !dialogsOpenBefore.has(d));
     for (const m of mutations) {
       const modal = m.target;
       if (!(modal instanceof HTMLElement) || !modal.matches(DIALOG_SELECTOR)) continue;
       if (modal.hidden) {
+        const others = openedNow.filter((d) => d !== modal);
+        if (others.length) {
+          if (others.some((d) => modalFocusReturn.has(d))) modalFocusReturn.delete(modal); // handing back to the dialog that was waiting
+          continue; // (otherwise handing over to a new one: keep the return target for when this one comes back)
+        }
         const restore = modalFocusReturn.get(modal);
         modalFocusReturn.delete(modal);
         if (restore && document.body.contains(restore)) restore.focus();
@@ -12375,9 +12397,42 @@
         const active = document.activeElement;
         modalFocusReturn.set(modal, active);
         if (!modal.contains(active)) initialFocusInModal(modal).focus();
+      } else if (!modal.contains(document.activeElement)) {
+        initialFocusInModal(modal).focus(); // shown again after a hand-over, with the focus left outside it
       }
     }
+    dialogsOpenBefore = dialogsOpenNow;
   }).observe(document.body, { attributes: true, attributeFilter: ["hidden"], subtree: true });
+
+  // A result list that scrolls has to be reachable from the keyboard, or someone who cannot use a mouse can never read the rest of it. It
+  // becomes a focusable, named region only while it really overflows and has nothing focusable inside already (so empty and short
+  // lists do not add tab stops).
+  function syncScrollRegion(box) {
+    const overflows = box.scrollHeight > box.clientHeight + 1;
+    const hasFocusable = !!box.querySelector("a[href], button, input, select, textarea, [tabindex]");
+    if (overflows && !hasFocusable) {
+      box.tabIndex = 0;
+      box.setAttribute("role", "region");
+      if (!box.dataset.scrollLabel) {
+        let heading = box.previousElementSibling;
+        while (heading && !/^H[1-6]$/.test(heading.tagName)) heading = heading.previousElementSibling;
+        box.dataset.scrollLabel = heading ? heading.textContent.trim() : "Results";
+      }
+      box.setAttribute("aria-label", box.dataset.scrollLabel);
+    } else if (box.dataset.scrollLabel) {
+      box.removeAttribute("tabindex");
+      box.removeAttribute("role");
+      box.removeAttribute("aria-label");
+      delete box.dataset.scrollLabel;
+    }
+  }
+  if (typeof ResizeObserver === "function") {
+    const watchScrollRegion = (box) => {
+      new ResizeObserver(() => syncScrollRegion(box)).observe(box);
+      new MutationObserver(() => syncScrollRegion(box)).observe(box, { childList: true, subtree: true });
+    };
+    document.querySelectorAll(".link-check-results").forEach(watchScrollRegion);
+  }
 
   // Crash/failed-save monitoring — previously only the worker's own
   // uncaught-exception handler ever wrote to error_log; a JS error inside
