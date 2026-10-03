@@ -182,6 +182,20 @@ networks checked for consistency) and that the simulation analysis gives identic
 public page. GitHub Actions runs it on every push (`.github/workflows/tests.yml`). The Playwright scripts that drive the
 admin UI are not in the repo; they run by hand against `wrangler dev`.
 
+## Editing the outline from the admin
+
+Site settings > **Outline** edits `outline.md` in this GitHub repo: it loads the file, and Save makes one commit. It needs a GitHub
+token, stored once as a Worker secret (nothing else is stored on the site):
+
+1. On GitHub, make a **fine-grained personal access token** limited to this one repository with **Contents: Read and write**.
+2. `npx wrangler secret put GITHUB_TOKEN` and paste it (use the Cloudflare dashboard's Variables and secrets for the preview too).
+
+Optional variables (defaults in brackets): `GITHUB_REPO` (`UsernameDominick/dominickdominick`), `OUTLINE_PATH` (`outline.md`),
+`OUTLINE_BRANCH` (`production`). The default branch is the preview branch on purpose: a save to `main` would start a live deploy.
+If the file changed on GitHub after you opened it, the save is refused and the editor offers to load the latest, save over it, or
+download your version first. Without a token the tab just says it is not set up. The code is `worker/outline.js` (GitHub side),
+the `/outline` routes in `worker/admin-api.js`, and `public/admin/outline-editor.js`.
+
 ## Deploying
 
 `production` is the pre-release integration branch for active work and

@@ -6,6 +6,8 @@ import {
   setPagePassword,
   getNavAdminOnlyIds,
   getNoindexItems,
+  checkRateLimit,
+  recordRateLimitHit,
   setNoindexItem,
   setNavAdminOnly,
   deletePage,
@@ -159,6 +161,7 @@ import {
 } from "./db.js";
 import { cleanBodyFields, cleanPageCss, pageCssKey } from "./text.js";
 import { cleanBrand, cleanNavBuiltin } from "./nav-settings.js";
+import { outlineConfig, readOutline, writeOutline } from "./outline.js";
 import { cleanFooterLinks } from "./render.js";
 import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated, hmac, revokeAllSessions } from "./auth.js";
 import { normalizeLegacySimulationWireIds, simulationDataError } from "./simulation-validation.js";
@@ -824,6 +827,31 @@ async function routeAdminApi(request, env, url, ctx) {
   // Which pages, articles and projects are marked noindex, for the editors' checkboxes.
   if (path === "/noindex" && method === "GET") {
     return json(await getNoindexItems(env));
+  }
+  // The project outline (outline.md), read from and saved to the GitHub repo: see worker/outline.js for the setup.
+  if (path === "/outline" && method === "GET") {
+    const cfg = outlineConfig(env);
+    const base = { configured: cfg.configured, repo: cfg.repo, branch: cfg.branch, path: cfg.path };
+    if (!cfg.configured) return json({ ...base, error: "Not set up yet: store a GitHub token as the GITHUB_TOKEN secret." });
+    const out = await readOutline(env);
+    if (!out.ok) return json({ ...base, error: out.error }, { status: out.status === 404 ? 404 : 502 });
+    return json({ ...base, text: out.text, sha: out.sha, size: out.size });
+  }
+  if (path === "/outline" && method === "PUT") {
+    const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+    if (!(await checkRateLimit(env, "outline", ip, { windowMinutes: 1, maxAttempts: 20 }))) {
+      return json({ error: "Too many saves in a row. Wait a minute." }, { status: 429 });
+    }
+    const body = await readJsonBody(request);
+    if (!body || typeof body !== "object" || Array.isArray(body)) throw new BadRequestError("Send an object with text and sha.");
+    await recordRateLimitHit(env, "outline", ip);
+    const result = await writeOutline(env, { text: body.text, sha: body.sha, message: body.message });
+    if (result.ok) {
+      log(ctx, env, "outline_save", "outline", outlineConfig(env).path, "Saved to GitHub");
+      return json({ ok: true, sha: result.sha || null });
+    }
+    if (result.conflict) return json({ error: result.error, conflict: true, sha: result.sha }, { status: 409 });
+    return json({ error: result.error, configured: result.configured }, { status: result.status === 400 || result.status === 413 || result.status === 503 ? result.status : 502 });
   }
   if (path === "/pages" && method === "GET") {
     const adminOnly = new Set(await getNavAdminOnlyIds(env));
