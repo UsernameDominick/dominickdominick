@@ -4055,3 +4055,26 @@ html.lightbox-open { overflow: hidden; }
 
 /* A nav link only the signed-in owner can see (set on the page, Nav settings): marked so it is not mistaken for a public one. */
 .tab.is-admin-only::after, .tab-dropdown a[data-admin-only]::after { content: " · admin"; font-size: 0.7em; opacity: 0.7; }
+
+/* Page-to-page slide (see the "pageswap" handler at the end of nav.js): moving to a nav tab on the right slides the page left, to the
+   left slides it right. The header and footer stay put, only the page content moves, clipped to its own box. No script runs on the new
+   page and browsers without view transitions just load it normally. Off for reduced motion, both the OS setting and the site's toggle. */
+@media (prefers-reduced-motion: no-preference) {
+  @view-transition { navigation: auto; }
+  /* Named only while a transition is running: a named element becomes a containing block for fixed-position children (the article
+     reading-progress bar lives inside main), so it must not stay named the rest of the time. */
+  html:not([data-motion="reduce"]):active-view-transition .topbar { view-transition-name: site-topbar; }
+  html:not([data-motion="reduce"]):active-view-transition main#main-content { view-transition-name: page-content; }
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+  ::view-transition-old(page-content), ::view-transition-new(page-content) { animation: none; }
+  ::view-transition-group(page-content) { overflow: clip; animation-duration: 0.42s; animation-timing-function: cubic-bezier(0.22, 0.8, 0.28, 1); }
+  ::view-transition-old(page-content), ::view-transition-new(page-content) { animation-duration: 0.42s; animation-timing-function: cubic-bezier(0.22, 0.8, 0.28, 1); animation-fill-mode: both; mix-blend-mode: normal; }
+  :root:active-view-transition-type(nav-forward)::view-transition-old(page-content) { animation-name: vt-out-to-left; }
+  :root:active-view-transition-type(nav-forward)::view-transition-new(page-content) { animation-name: vt-in-from-right; }
+  :root:active-view-transition-type(nav-back)::view-transition-old(page-content) { animation-name: vt-out-to-right; }
+  :root:active-view-transition-type(nav-back)::view-transition-new(page-content) { animation-name: vt-in-from-left; }
+  @keyframes vt-out-to-left { to { transform: translateX(-100%); } }
+  @keyframes vt-in-from-right { from { transform: translateX(100%); } }
+  @keyframes vt-out-to-right { to { transform: translateX(100%); } }
+  @keyframes vt-in-from-left { from { transform: translateX(-100%); } }
+}

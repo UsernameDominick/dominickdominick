@@ -2315,6 +2315,8 @@ ${ogImage ? `<meta name="twitter:image" content="${esc(absoluteUrl(ogImage))}">
 <link rel="alternate" type="application/rss+xml" title="Dominick — RSS feed" href="/rss.xml">
 
 <link rel="stylesheet" href="/style.css">
+<link rel="expect" href="#main-content" blocking="render">
+<script src="/page-slide.js"></script>
 ${themeStyle}
 ${breakpointStyle}
 ${pageScriptsHtml(bodyHtml)}
