@@ -767,6 +767,11 @@ button {
 .lab-run-pos { font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.08em; color: #b07ee8; font-weight: 800; }
 .lab-run-next { flex: 1; min-width: 120px; font-size: 12.5px; color: var(--text-dim); }
 .lab-run-go { border-color: #b07ee8; }
+.lab-run-select { max-width: 100%; min-width: 0; flex: 1 1 200px; background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 8px; font: inherit; font-size: 13px; }
+.lab-run-start { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin-top: 12px; }
+.lab-run-start .lab-start-btn { margin-top: 0; flex: 1 1 220px; }
+.lab-run-from { display: flex; flex-direction: column; gap: 4px; flex: 2 1 260px; font-size: 12px; color: var(--text-dim); }
+.choice.picked { border-color: var(--amber); box-shadow: 0 0 0 2px var(--amber); }
 .lab-panel .panel-title { color: #b07ee8; }
 .start-btn.lab-start-btn { background: linear-gradient(135deg, #b07ee8, #9566d6); color: #fff; box-shadow: 0 8px 24px -8px rgba(176,126,232,0.55); margin-top: 12px; }
 
@@ -1036,6 +1041,8 @@ var state = {
   lqStreak: 0,
   lqBestStreak: 0,
   lqAutoNext: true,
+  lqConfirm: false,   // quizzes: pick an answer, then lock it in with Submit (off = a click answers at once)
+  lqHist: [],         // per question: {pick}; lets Previous show what was chosen and why it was right or wrong
   lqHandle: null,
 };
 
@@ -2381,8 +2388,8 @@ function labRunList() {
   const data = labData();
   const out = [];
   data.groups.forEach(g => {
-    data.quizzes.filter(q => q.group === g.id).forEach(q => out.push({kind: 'quiz', id: q.id, title: q.title}));
-    data.boards.filter(b => b.group === g.id).forEach(b => out.push({kind: 'board', id: b.id, title: b.title}));
+    data.quizzes.filter(q => q.group === g.id).forEach(q => out.push({kind: 'quiz', id: q.id, title: q.title, group: g.title}));
+    data.boards.filter(b => b.group === g.id).forEach(b => out.push({kind: 'board', id: b.id, title: b.title, group: g.title}));
   });
   return out;
 }
@@ -2394,12 +2401,36 @@ function labRunOpen(i) {
   if (it.kind === 'board') labStartBoard(it.id); else lqStart(it.id);
   scrollTop();
 }
-function labRunStart() {
+function labRunStart(from) {
   clearLabTimers();
   const list = labRunList();
   if (!list.length) return;
-  state.labRun = {list: list, i: 0};
-  labRunOpen(0);
+  const at = Math.max(0, Math.min(list.length - 1, parseInt(from, 10) || 0));
+  state.labRun = {list: list, i: at};
+  labRunOpen(at);
+}
+function labRunPrev() {
+  const r = state.labRun;
+  if (!r || r.i === 0) return;
+  clearLabTimers();
+  labRunOpen(r.i - 1);
+}
+function labRunJump(v) {
+  if (!state.labRun) return;
+  clearLabTimers();
+  labRunOpen(Math.max(0, Math.min(state.labRun.list.length - 1, parseInt(v, 10) || 0)));
+}
+// A dropdown of every lab, grouped like the menu and numbered, so you can start (or jump) anywhere.
+function labRunSelectHtml(selected, id, onchange, label) {
+  const list = state.labRun ? state.labRun.list : labRunList();
+  let html = '';
+  let group = null;
+  list.forEach((it, idx) => {
+    if (it.group !== group) { if (group !== null) html += '</optgroup>'; html += '<optgroup label="' + esc(it.group) + '">'; group = it.group; }
+    html += '<option value="' + idx + '"' + (idx === selected ? ' selected' : '') + '>' + (idx + 1) + '. ' + esc(it.title) + '</option>';
+  });
+  if (group !== null) html += '</optgroup>';
+  return '<select class="lab-run-select" id="' + id + '" aria-label="' + label + '"' + (onchange ? ' onchange="' + onchange + '"' : '') + '>' + html + '</select>';
 }
 // Next lab (after finishing one) and Skip (before finishing) are the same move; after the last lab it returns to the menu.
 function labRunNext() {
@@ -2416,6 +2447,8 @@ function labRunBarHtml(done) {
   const label = done ? (last ? 'Finish' : 'Next lab &rarr;') : (last ? 'Skip &amp; finish' : 'Skip &rarr;');
   return `<div class="lab-run-bar" role="group" aria-label="Continuous mode">
     <span class="lab-run-pos">CONTINUOUS &middot; ${r.i + 1} of ${r.list.length}</span>
+    <button class="opt-btn" onclick="labRunPrev()" ${r.i === 0 ? 'disabled' : ''}>&larr; Back</button>
+    ${labRunSelectHtml(r.i, 'lab-run-jump', 'labRunJump(this.value)', 'Jump to a lab')}
     <span class="lab-run-next">${nxt ? 'Next: ' + esc(nxt.title) : 'This is the last one'}</span>
     <button class="opt-btn lab-run-go" onclick="labRunNext()">${label}</button>
     <button class="opt-btn" onclick="labBack()">Stop</button>
@@ -2456,7 +2489,10 @@ function renderLab() {
       <button class="back-btn" onclick="goHome()">&larr; Home</button>
       <span class="browse-title">Study Lab</span>
     </div>
-    <button class="start-btn lab-start-btn" onclick="labRunStart()">&#9654; Play every lab in order</button>
+    <div class="lab-run-start">
+      <label class="lab-run-from">Start from ${labRunSelectHtml(0, 'lab-run-from', '', 'Start the continuous run from')}</label>
+      <button class="start-btn lab-start-btn" onclick="labRunStart(document.getElementById('lab-run-from').value)">&#9654; Play every lab in order</button>
+    </div>
     <div class="hint" style="margin-top:12px">Continuous mode goes through every lab below, top to bottom, with a Skip button for the ones you already know. Tap a tile, then tap the column or row where it belongs (on a computer you can also drag). Fill every slot, then Submit: right tiles lock in, wrong ones bounce back to the tray. The stopwatch runs from the moment a board opens. Nothing is saved &mdash; closing the page clears best times.</div>
     ${groups}
   </div>`;
@@ -2820,19 +2856,35 @@ function lqBegin(id, items) {
     opts: shuffleArr(it.o.map((text, i) => ({text: text, ok: i === it.a})))
   }));
   state.lqIdx = 0; state.lqScore = 0; state.lqPick = null; state.lqChecked = false;
-  state.lqMissed = []; state.lqStreak = 0; state.lqBestStreak = 0;
+  state.lqMissed = []; state.lqStreak = 0; state.lqBestStreak = 0; state.lqHist = [];
   state.screen = 'lab-quiz';
   render(); scrollTop();
 }
 
 function lqToggleAuto() { state.lqAutoNext = !state.lqAutoNext; if (!state.lqAutoNext) clearLq(); render(); }
 
+function lqToggleConfirm() {
+  state.lqConfirm = !state.lqConfirm;
+  if (!state.lqChecked) state.lqPick = null;
+  render();
+}
 function lqPickOpt(i) {
   if (state.lqChecked) return;
   const cur = state.lqItems[state.lqIdx];
   if (!cur || !cur.opts[i]) return;
+  if (state.lqConfirm) { state.lqPick = i; render(); return; }   // only select; Submit locks it in
+  lqLock(i);
+}
+function lqSubmit() {
+  if (state.lqChecked || state.lqPick === null) return;
+  lqLock(state.lqPick);
+}
+function lqLock(i) {
+  const cur = state.lqItems[state.lqIdx];
+  if (state.lqChecked || !cur || !cur.opts[i]) return;
   state.lqPick = i;
   state.lqChecked = true;
+  state.lqHist[state.lqIdx] = {pick: i};
   const right = cur.opts[i].ok;
   if (right) {
     state.lqScore++; state.lqStreak++;
@@ -2852,7 +2904,9 @@ function lqNext() {
   clearLq();
   if (state.screen !== 'lab-quiz') return;
   if (state.lqIdx < state.lqItems.length - 1) {
-    state.lqIdx++; state.lqPick = null; state.lqChecked = false;
+    state.lqIdx++;
+    const h = state.lqHist[state.lqIdx];
+    state.lqPick = h ? h.pick : null; state.lqChecked = !!h;
     render(); scrollTop();
   } else {
     state.screen = 'lab-quiz-over';
@@ -2860,6 +2914,25 @@ function lqNext() {
   }
 }
 
+// Go back to an earlier question (it shows what you picked and the explanation; answers are locked, so scores never change).
+function lqPrev() {
+  clearLq();
+  if (state.screen !== 'lab-quiz' || state.lqIdx === 0) return;
+  state.lqIdx--;
+  const h = state.lqHist[state.lqIdx];
+  state.lqPick = h ? h.pick : null; state.lqChecked = !!h;
+  render(); scrollTop();
+}
+// From the results screen: back into the questions, on the last one, to read through what was missed.
+function lqReview() {
+  clearLq();
+  if (!state.lqItems.length) return;
+  state.lqIdx = state.lqItems.length - 1;
+  const h = state.lqHist[state.lqIdx];
+  state.lqPick = h ? h.pick : null; state.lqChecked = !!h;
+  state.screen = 'lab-quiz';
+  render(); scrollTop();
+}
 function lqRetryMissed() { lqBegin(state.lqId, state.lqMissed.slice()); }
 function lqAgain() { lqStart(state.lqId); }
 
@@ -2874,7 +2947,8 @@ function renderLabQuiz() {
   const opts = cur.opts.map((o, i) => {
     let cls = '';
     if (state.lqChecked) cls = o.ok ? 'good' : (state.lqPick === i ? 'bad' : 'muted');
-    return `<button class="choice ${cls}" ${state.lqChecked ? 'disabled' : ''} onclick="lqPickOpt(${i})">
+    else if (state.lqConfirm && state.lqPick === i) cls = 'picked';
+    return `<button class="choice ${cls}" ${state.lqChecked ? 'disabled' : ''} ${!state.lqChecked && state.lqConfirm ? 'aria-pressed="' + (state.lqPick === i) + '"' : ''} onclick="lqPickOpt(${i})">
       <span class="choice-letter">${'ABCD'[i]}</span><span class="choice-text">${esc(o.text)}</span>
       ${state.lqChecked && o.ok ? '<span class="choice-icon">✓</span>' : ''}${state.lqChecked && cls === 'bad' ? '<span class="choice-icon">✗</span>' : ''}
     </button>`;
@@ -2886,11 +2960,13 @@ function renderLabQuiz() {
          <p>${esc(it.w || '')}</p>
        </div>
        <button class="next-btn" onclick="lqNext()">${state.lqIdx === n - 1 ? 'See results →' : 'Next →'}</button>`
-    : '';
+    : (state.lqConfirm ? `<button class="next-btn" ${state.lqPick === null ? 'disabled' : ''} onclick="lqSubmit()">Submit answer</button>` : '');
   return `<div class="screen lab-quiz">
     <div class="quiz-nav">
       <button class="nav-btn" onclick="labBack()">&larr; Lab</button>
+      <button class="nav-btn" onclick="lqPrev()" ${state.lqIdx === 0 ? 'disabled' : ''}>&larr; Previous question</button>
       <label class="lq-auto"><input type="checkbox" ${state.lqAutoNext ? 'checked' : ''} onchange="lqToggleAuto()"> auto-next on correct</label>
+      <label class="lq-auto"><input type="checkbox" ${state.lqConfirm ? 'checked' : ''} onchange="lqToggleConfirm()"> lock in with Submit</label>
     </div>
     ${labRunBarHtml(false)}
     <div class="quiz-header">
@@ -2926,6 +3002,7 @@ function renderLabQuizOver() {
       <div class="score-pct">${pct}% &middot; best streak ${state.lqBestStreak}</div>
     </div>
     <div class="result-actions">
+      <button class="opt-btn" onclick="lqReview()">Review questions</button>
       ${state.lqMissed.length ? `<button class="opt-btn" onclick="lqRetryMissed()">Retry ${state.lqMissed.length} missed</button>` : ''}
       <button class="opt-btn" onclick="lqAgain()">Play again</button>
       <button class="opt-btn" onclick="labBack()">Back to Lab</button>
