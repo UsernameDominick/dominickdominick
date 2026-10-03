@@ -81,7 +81,7 @@ Worker secret, not stored in this repo). From there:
   renaming or deleting a page or post so old links don't just 404
 - "Simulations" is a small builder for wiring-accurate circuit/AV
   diagrams — drag parts (wall outlet, power supply, breadboard, LED,
-  resistor, lamp, diode, transistor, capacitor, inductor, switch, SPDT switch, logic gate, ammeter, voltmeter, ohmmeter, battery, a Teensy-style
+  resistor, lamp, buzzer, diode, transistor, capacitor, inductor, switch, SPDT switch, logic gate, ammeter, voltmeter, ohmmeter, battery, a Teensy-style
   microcontroller, a TV/display) onto a canvas and click one pin then
   another to wire them. Logic gates are static diagram symbols (AND, OR,
   NAND, NOR, XOR, XNOR, NOT, buffer) with an editable truth table for

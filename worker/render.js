@@ -2111,6 +2111,7 @@ function simDefsHolder(bodyHtml) {
 function pageScriptsHtml(bodyHtml) {
   const html = String(bodyHtml || "");
   const tags = [];
+  if (html.includes("sim-comp-buzzer")) tags.push('<script src="/sim-buzzer.js" defer></script>');
   if (html.includes("sim-power-btn") || html.includes('class="sim-')) tags.push('<script src="/sim-player.js" defer></script>');
   if (/reading-progress|copy-link-btn|read-aloud-btn|save-for-later-btn|class="reactions|saved-items-list|<pre>/.test(html)) {
     tags.push('<script src="/article-extras.js" defer></script>');

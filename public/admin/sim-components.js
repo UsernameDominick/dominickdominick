@@ -97,6 +97,12 @@ const TRANSISTOR_WATTAGE_RATING = 0.625; // TO-92 package
   // Hand-mirrored in worker/simulation-render.js.
   const LAMP_RATED_WATTS = 0.5;
   const LAMP_DEFAULT_OHMS = 180;
+  // A small buzzer, drawn as a plain load too: it sounds once it is given enough voltage (BUZZER_MIN_VOLTS) and is damaged by much
+  // more power than its rating. 250 ohms sounds from 3 V up and is happy on a 9 V battery (0.32 W). Unlike a real active buzzer it
+  // has no polarity: it sounds whichever way round it is wired. Hand-mirrored in worker/simulation-render.js.
+  const BUZZER_RATED_WATTS = 0.5;
+  const BUZZER_DEFAULT_OHMS = 250;
+  const BUZZER_MIN_VOLTS = 2.5;
 
   const DIGIT_COLORS = ["black", "brown", "red", "orange", "yellow", "green", "blue", "violet", "gray", "white"];
   const BAND_HEX = {
@@ -154,6 +160,16 @@ const TRANSISTOR_WATTAGE_RATING = 0.625; // TO-92 package
     const value = Number(c && c.resistance);
     return Number.isFinite(value) && value > 0 ? Math.max(1, Math.min(value, 1e9)) : LAMP_DEFAULT_OHMS;
   }
+  function buzzerOhms(c) {
+    const value = Number(c && c.resistance);
+    return Number.isFinite(value) && value > 0 ? Math.max(1, Math.min(value, 1e9)) : BUZZER_DEFAULT_OHMS;
+  }
+  // A buzzer reads "off" with no current, "quiet" under BUZZER_MIN_VOLTS, "buzzing" from there up, and keeps a damaged status as given.
+  function buzzerStatus(status, currentMa, ohms) {
+    if (status !== "normal") return status;
+    if (!(currentMa > 0)) return "off";
+    return (currentMa / 1000) * ohms < BUZZER_MIN_VOLTS ? "quiet" : "buzzing";
+  }
   // Picks the largest unit whose value still rounds to at least 1, so 999.999µF
   // reads 1mF rather than 1000µF.
   function formatScaled(base, units) {
@@ -184,6 +200,9 @@ const TRANSISTOR_WATTAGE_RATING = 0.625; // TO-92 package
   window.simInductorWindingOhms = inductorWindingOhms;
   window.simLampOhms = lampOhms;
   window.SIM_LAMP_RATED_WATTS = LAMP_RATED_WATTS;
+  window.simBuzzerOhms = buzzerOhms;
+  window.SIM_BUZZER_RATED_WATTS = BUZZER_RATED_WATTS;
+  window.SIM_BUZZER_MIN_VOLTS = BUZZER_MIN_VOLTS;
 
   // ----- Logic gates: static diagram parts (no signal simulation) -----
   // A gate is drawn with its standard symbol and carries a truth table for the
@@ -552,6 +571,22 @@ const TRANSISTOR_WATTAGE_RATING = 0.625; // TO-92 package
       ],
       render: () =>
         `<rect class="lamp-hit" x="0" y="0" width="40" height="40" fill="transparent"/><line class="lamp-lead" x1="15" y1="28" x2="0" y2="40"/><line class="lamp-lead" x1="25" y1="28" x2="40" y2="40"/><circle class="lamp-glass" cx="20" cy="15" r="13"/><path class="lamp-filament" d="M15,27 L16,19 L18.5,14 L20,19 L21.5,14 L24,19 L25,27" fill="none"/><rect class="lamp-base" x="14" y="26" width="12" height="5" rx="1.5"/>`,
+    },
+    // A small buzzer: two leads one hole-spacing apart (like the lamp), no polarity. A resistance in the analysis (see buzzerOhms),
+    // reported with the same current and power figures as a resistor; it sounds once it gets enough voltage, and the arcs beside it
+    // show that. The sound itself only ever plays when someone clicks it (public/sim-buzzer.js).
+    buzzer: {
+      label: "Buzzer",
+      keywords: "beeper, piezo, alarm, speaker, sound, noise, tone, sounder",
+      w: 40,
+      h: 40,
+      passthrough: [["p1", "p2"]],
+      pins: [
+        { id: "p1", x: 0, y: 40, label: "Lead 1" },
+        { id: "p2", x: 40, y: 40, label: "Lead 2" },
+      ],
+      render: () =>
+        `<rect class="buzzer-hit" x="0" y="0" width="40" height="40" fill="transparent"/><line class="buzzer-lead" x1="15" y1="28" x2="0" y2="40"/><line class="buzzer-lead" x1="25" y1="28" x2="40" y2="40"/><circle class="buzzer-body" cx="20" cy="18" r="11"/><circle class="buzzer-hole" cx="20" cy="18" r="3.2"/><path class="buzzer-wave buzzer-wave-1" d="M33,13 q4,5 0,10" fill="none"/><path class="buzzer-wave buzzer-wave-2" d="M37,9 q6,9 0,18" fill="none"/>`,
     },
     // A bipolar transistor (NPN by default, PNP via `polarity`): the base-emitter junction drops 0.7 V when it conducts, and the
     // collector then carries `gain` times the base current until the part saturates (0.2 V collector-emitter). It is solved
@@ -1084,6 +1119,8 @@ const TRANSISTOR_WATTAGE_RATING = 0.625; // TO-92 package
         link(nodeId(c, "p1"), nodeId(c, "p2"), { compId: c.id, kind: "resistor", resistance: inductorWindingOhms(c) });
       } else if (c.type === "lamp") {
         link(nodeId(c, "p1"), nodeId(c, "p2"), { compId: c.id, kind: "resistor", resistance: lampOhms(c), lamp: true });
+      } else if (c.type === "buzzer") {
+        link(nodeId(c, "p1"), nodeId(c, "p2"), { compId: c.id, kind: "resistor", resistance: buzzerOhms(c), buzzer: true });
       } else if (c.type === "switch") {
         if (isSwitchClosed(c)) link(nodeId(c, "p1"), nodeId(c, "p2"), { compId: c.id, kind: "wire", resistance: 0 });
       } else if (c.type === "switch_spdt") {
@@ -1360,6 +1397,7 @@ const TRANSISTOR_WATTAGE_RATING = 0.625; // TO-92 package
         resist(nodeId(c, "p1"), nodeId(c, "p2"), Math.max(1, Math.round(maxR * (wiperPct / 100))));
       } else if (c.type === "inductor") resist(nodeId(c, "p1"), nodeId(c, "p2"), inductorWindingOhms(c));
       else if (c.type === "lamp") resist(nodeId(c, "p1"), nodeId(c, "p2"), lampOhms(c));
+      else if (c.type === "buzzer") resist(nodeId(c, "p1"), nodeId(c, "p2"), buzzerOhms(c));
       else if (c.type === "switch") {
         if (isSwitchClosed(c)) join(nodeId(c, "p1"), nodeId(c, "p2"));
       } else if (c.type === "switch_spdt") join(nodeId(c, "com"), nodeId(c, spdtThrow(c)));
@@ -1695,9 +1733,11 @@ const TRANSISTOR_WATTAGE_RATING = 0.625; // TO-92 package
         } else if (info.kind === "resistor") {
           const amps = currentMa === Infinity ? 0 : currentMa / 1000;
           const watts = amps * amps * info.resistance;
-          const status = domain.dangerous ? "burnt" : watts > (info.lamp ? LAMP_RATED_WATTS : RESISTOR_WATTAGE_RATING) ? "overheating" : "normal";
+          const status = domain.dangerous ? "burnt" : watts > (info.lamp ? LAMP_RATED_WATTS : info.buzzer ? BUZZER_RATED_WATTS : RESISTOR_WATTAGE_RATING) ? "overheating" : "normal";
           results[info.compId] = info.lamp
             ? { kind: "resistor", lamp: true, currentMa, watts, status: lampStatus(status, currentMa, watts), dangerous: domain.dangerous }
+            : info.buzzer
+            ? { kind: "resistor", buzzer: true, currentMa, watts, volts: amps * info.resistance, status: buzzerStatus(status, currentMa, info.resistance), dangerous: domain.dangerous }
             : { kind: "resistor", currentMa, watts, status, dangerous: domain.dangerous };
         } else if (info.kind === "teensy") {
           // Same P=I^2*R math as the resistor branch above, using the
@@ -1767,9 +1807,10 @@ const TRANSISTOR_WATTAGE_RATING = 0.625; // TO-92 package
           validWire: validWireEndpoints,
           inductorOhms: inductorWindingOhms,
           lampOhms,
+          buzzerOhms,
           forwardVoltage: (c) => (c.type === "diode" ? DIODE_FORWARD_V : window.LED_COLORS[window.LED_COLORS[c.color] ? c.color : "red"].forwardVoltage),
           supplyActive: (c) => poweredNodes.has(nodeId(c, "in_hot")) && poweredNodes.has(nodeId(c, "in_neutral")),
-          limits: { ledMa: LED_RATED_MA, diodeMa: DIODE_RATED_MA, transistorMa: TRANSISTOR_RATED_MA, transistorBaseMa: TRANSISTOR_BASE_RATED_MA, transistorWatts: TRANSISTOR_WATTAGE_RATING, resistorWatts: RESISTOR_WATTAGE_RATING, lampWatts: LAMP_RATED_WATTS, teensyWatts: TEENSY_WATTAGE_RATING, teensyOhms: TEENSY_LOAD_OHMS },
+          limits: { ledMa: LED_RATED_MA, diodeMa: DIODE_RATED_MA, transistorMa: TRANSISTOR_RATED_MA, transistorBaseMa: TRANSISTOR_BASE_RATED_MA, transistorWatts: TRANSISTOR_WATTAGE_RATING, resistorWatts: RESISTOR_WATTAGE_RATING, lampWatts: LAMP_RATED_WATTS, buzzerWatts: BUZZER_RATED_WATTS, buzzerMinVolts: BUZZER_MIN_VOLTS, teensyWatts: TEENSY_WATTAGE_RATING, teensyOhms: TEENSY_LOAD_OHMS },
         },
         engage
       );

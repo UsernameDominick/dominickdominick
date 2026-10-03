@@ -77,6 +77,10 @@
     lamp: () =>
       `${hit(40, 40)}${line("M0,40 L0,22 L8,22")}${line("M32,22 L40,22 L40,40")}<circle class="sch-line sch-lamp-body" cx="20" cy="22" r="12"/>${line("M11.5,13.5 L28.5,30.5")}${line("M28.5,13.5 L11.5,30.5")}`,
 
+    // The buzzer: a circle marked BZ (its usual reference letters), leads out to its two pins.
+    buzzer: () =>
+      `${hit(40, 40)}${line("M0,40 L0,22 L8,22")}${line("M32,22 L40,22 L40,40")}<circle class="sch-line sch-buzzer-body" cx="20" cy="22" r="12"/>${text(20, 25.5, 9, "BZ")}`,
+
     transistor: (c) => {
       const pnp = c && c.polarity === "pnp";
       const arrow = pnp ? "25.7,45.6 22.8,39.8 29.1,41.6" : "28.7,48.4 35,50.2 32.1,44.4";

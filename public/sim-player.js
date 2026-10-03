@@ -102,6 +102,37 @@ document.addEventListener("click", (e) => {
   });
 })();
 
+// ---------- Buzzers ----------
+// A buzzer that the powered circuit is driving (data-sounding="true", set when the page was built) makes its sound when it is clicked,
+// tapped, or given Enter or Space, and a second press stops it. Nothing ever plays on its own, and switching the power off ends it.
+(function () {
+  function drivenNow(part) {
+    const svg = part.closest(".sim-svg");
+    return part.dataset.sounding === "true" && !!svg && svg.classList.contains("is-on");
+  }
+  function press(part) {
+    if (!window.SimBuzzer) return;
+    if (!drivenNow(part)) {
+      window.SimBuzzer.stop();
+      return;
+    }
+    const on = window.SimBuzzer.toggle(1200);
+    if (on && window.trackEvent) window.trackEvent("sim_buzzer_play");
+  }
+  document.addEventListener("click", (e) => {
+    const part = e.target.closest && e.target.closest(".sim-comp-buzzer");
+    if (part) press(part);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const part = e.target.closest && e.target.closest(".sim-comp-buzzer");
+    if (part && e.target === part) press(part);
+  });
+  document.addEventListener("sim-power-changed", () => {
+    if (window.SimBuzzer) window.SimBuzzer.stop();
+  });
+})();
+
 // ---------- Deep links to a specific component ----------
 // A URL hash of #sim-<blockId>-comp-<componentId> scrolls to and briefly
 // highlights that exact part -- both ids already exist and are already

@@ -3,7 +3,7 @@
 // can't vouch for a circuit -- parallel branches, a switch or wire across a part, or several sources in one circuit --
 // and it solves the whole network at once:
 //   - nodes are joined by wires, closed switches and SPDT throws (ideal, 0 ohm);
-//   - resistors, potentiometers, inductor windings, lamps and the Teensy's load are resistances;
+//   - resistors, potentiometers, inductor windings, lamps, buzzers and the Teensy's load are resistances;
 //   - batteries and an active power supply are ideal voltage sources (a battery's internal resistance in series);
 //   - an ammeter is a zero-volt link whose current is reported;
 //   - LEDs and diodes are one-way parts with a fixed forward voltage: each is either off (open) or on (a source of
@@ -245,8 +245,8 @@
 
   // ---- building the network from a circuit ------------------------------------------------------------------------
   // env supplies what only the caller knows: getDef(comp), nodeId(comp, pin), isSwitchClosed(comp), spdtThrow(comp),
-  // validWire(wire), inductorOhms(comp), lampOhms(comp), forwardVoltage(comp) (LEDs/diodes), supplyActive(comp) (power supplies),
-  // limits { ledMa, diodeMa, resistorWatts, lampWatts, teensyWatts, teensyOhms }.
+  // validWire(wire), inductorOhms(comp), lampOhms(comp), buzzerOhms(comp), forwardVoltage(comp) (LEDs/diodes), supplyActive(comp) (power supplies),
+  // limits { ledMa, diodeMa, resistorWatts, lampWatts, buzzerWatts, buzzerMinVolts, teensyWatts, teensyOhms }.
   // engageNodes: nodes (raw node ids) of the networks the caller wants solved. Returns null when nothing was solved,
   // else { results, covered: Set of raw node ids that were solved, nodeVolts(rawNode) -> volts | undefined }.
   function analyze(data, env, engageNodes) {
@@ -329,6 +329,8 @@
         resistor(node(c, "p1"), node(c, "p2"), env.inductorOhms(c));
       } else if (c.type === "lamp") {
         resistor(node(c, "p1"), node(c, "p2"), env.lampOhms(c));
+      } else if (c.type === "buzzer") {
+        resistor(node(c, "p1"), node(c, "p2"), env.buzzerOhms(c));
       } else if (c.type === "mcu_teensy") {
         resistor(node(c, "vin"), node(c, "gnd"), env.limits.teensyOhms);
       } else if (c.type === "ammeter") {
@@ -510,6 +512,12 @@
             const rated = L.lampWatts || 0.5;
             const status = watts > rated ? "overheating" : !(amps > 0) ? "off" : watts < rated * 0.1 ? "dim" : "normal";
             results[c.id] = { kind: "resistor", lamp: true, currentMa: amps * 1000, watts, status, dangerous: false };
+          } else if (c.type === "buzzer") {
+            // Off with no current, too quiet under the minimum voltage, buzzing above it, overheating past its rating.
+            const watts = amps * amps * e.r;
+            const volts = amps * e.r;
+            const status = watts > (L.buzzerWatts || 0.5) ? "overheating" : !(amps > 0) ? "off" : volts < (L.buzzerMinVolts || 2.5) ? "quiet" : "buzzing";
+            results[c.id] = { kind: "resistor", buzzer: true, currentMa: amps * 1000, watts, volts, status, dangerous: false };
           } else {
             const watts = amps * amps * e.r;
             results[c.id] = { kind: "resistor", currentMa: amps * 1000, watts, status: watts > L.resistorWatts ? "overheating" : "normal", dangerous: false };

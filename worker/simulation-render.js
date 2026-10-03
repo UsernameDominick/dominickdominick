@@ -115,6 +115,12 @@ export const TEENSY_WATTAGE_RATING = 1;
 // damaged by much more than that. 180 ohms is a 9 V, 0.45 W bulb, so it lights fully from the builder's default battery.
 export const LAMP_RATED_WATTS = 0.5;
 export const LAMP_DEFAULT_OHMS = 180;
+// A small buzzer, drawn as a plain load too: it sounds once it is given enough voltage (BUZZER_MIN_VOLTS) and is damaged by much
+// more power than its rating. 250 ohms sounds from 3 V up and is happy on a 9 V battery (0.32 W). Unlike a real active buzzer it
+// has no polarity: it sounds whichever way round it is wired.
+export const BUZZER_RATED_WATTS = 0.5;
+export const BUZZER_DEFAULT_OHMS = 250;
+export const BUZZER_MIN_VOLTS = 2.5;
 
 const DIGIT_COLORS = ["black", "brown", "red", "orange", "yellow", "green", "blue", "violet", "gray", "white"];
 const BAND_HEX = {
@@ -225,6 +231,10 @@ export function inductorWindingOhms(c) {
 export function lampOhms(c) {
   const value = Number(c && c.resistance);
   return Number.isFinite(value) && value > 0 ? Math.max(1, Math.min(value, 1e9)) : LAMP_DEFAULT_OHMS;
+}
+export function buzzerOhms(c) {
+  const value = Number(c && c.resistance);
+  return Number.isFinite(value) && value > 0 ? Math.max(1, Math.min(value, 1e9)) : BUZZER_DEFAULT_OHMS;
 }
 // Picks the largest unit whose value still rounds to at least 1, so 999.999µF
 // reads 1mF rather than 1000µF.
@@ -472,6 +482,21 @@ export const SIM_COMPONENTS = {
     ],
     render: () =>
       `<rect class="lamp-hit" x="0" y="0" width="40" height="40" fill="transparent"/><line class="lamp-lead" x1="15" y1="28" x2="0" y2="40"/><line class="lamp-lead" x1="25" y1="28" x2="40" y2="40"/><circle class="lamp-glass" cx="20" cy="15" r="13"/><path class="lamp-filament" d="M15,27 L16,19 L18.5,14 L20,19 L21.5,14 L24,19 L25,27" fill="none"/><rect class="lamp-base" x="14" y="26" width="12" height="5" rx="1.5"/>`,
+  },
+  // A small buzzer: two leads one hole-spacing apart (like the lamp), no polarity. A resistance in the analysis (see buzzerOhms),
+  // reported with the same current and power figures as a resistor; it sounds once it gets enough voltage, and the arcs beside it
+  // show that. The sound itself only ever plays when someone clicks it (public/sim-buzzer.js).
+  buzzer: {
+    label: "Buzzer",
+    w: 40,
+    h: 40,
+    passthrough: [["p1", "p2"]],
+    pins: [
+      { id: "p1", x: 0, y: 40, label: "Lead 1" },
+      { id: "p2", x: 40, y: 40, label: "Lead 2" },
+    ],
+    render: () =>
+      `<rect class="buzzer-hit" x="0" y="0" width="40" height="40" fill="transparent"/><line class="buzzer-lead" x1="15" y1="28" x2="0" y2="40"/><line class="buzzer-lead" x1="25" y1="28" x2="40" y2="40"/><circle class="buzzer-body" cx="20" cy="18" r="11"/><circle class="buzzer-hole" cx="20" cy="18" r="3.2"/><path class="buzzer-wave buzzer-wave-1" d="M33,13 q4,5 0,10" fill="none"/><path class="buzzer-wave buzzer-wave-2" d="M37,9 q6,9 0,18" fill="none"/>`,
   },
   // A bipolar transistor (NPN by default, PNP via `polarity`): the base-emitter junction drops 0.7 V when it conducts, and the
   // collector then carries `gain` times the base current until the part saturates (0.2 V collector-emitter). It is solved
@@ -1160,6 +1185,8 @@ function buildAnalysisGraph(data) {
       link(nodeId(c, "p1"), nodeId(c, "p2"), { compId: c.id, kind: "resistor", resistance: inductorWindingOhms(c) });
     } else if (c.type === "lamp") {
       link(nodeId(c, "p1"), nodeId(c, "p2"), { compId: c.id, kind: "resistor", resistance: lampOhms(c), lamp: true });
+    } else if (c.type === "buzzer") {
+      link(nodeId(c, "p1"), nodeId(c, "p2"), { compId: c.id, kind: "resistor", resistance: buzzerOhms(c), buzzer: true });
     } else if (c.type === "switch") {
       if (isSwitchClosed(c)) link(nodeId(c, "p1"), nodeId(c, "p2"), { compId: c.id, kind: "wire", resistance: 0 });
     } else if (c.type === "switch_spdt") {
@@ -1441,6 +1468,7 @@ function ohmmeterReadings(components, wires) {
       resist(nodeId(c, "p1"), nodeId(c, "p2"), Math.max(1, Math.round(maxR * (wiperPct / 100))));
     } else if (c.type === "inductor") resist(nodeId(c, "p1"), nodeId(c, "p2"), inductorWindingOhms(c));
     else if (c.type === "lamp") resist(nodeId(c, "p1"), nodeId(c, "p2"), lampOhms(c));
+    else if (c.type === "buzzer") resist(nodeId(c, "p1"), nodeId(c, "p2"), buzzerOhms(c));
     else if (c.type === "switch") {
       if (isSwitchClosed(c)) join(nodeId(c, "p1"), nodeId(c, "p2"));
     } else if (c.type === "switch_spdt") join(nodeId(c, "com"), nodeId(c, spdtThrow(c)));
@@ -1751,9 +1779,11 @@ export function computeCircuitAnalysis(data) {
       } else if (info.kind === "resistor") {
         const amps = currentMa === Infinity ? 0 : currentMa / 1000;
         const watts = amps * amps * info.resistance;
-        const status = domain.dangerous ? "burnt" : watts > (info.lamp ? LAMP_RATED_WATTS : RESISTOR_WATTAGE_RATING) ? "overheating" : "normal";
+        const status = domain.dangerous ? "burnt" : watts > (info.lamp ? LAMP_RATED_WATTS : info.buzzer ? BUZZER_RATED_WATTS : RESISTOR_WATTAGE_RATING) ? "overheating" : "normal";
         results[info.compId] = info.lamp
           ? { kind: "resistor", lamp: true, currentMa, watts, status: lampStatus(status, currentMa, watts), dangerous: domain.dangerous }
+          : info.buzzer
+          ? { kind: "resistor", buzzer: true, currentMa, watts, volts: amps * info.resistance, status: buzzerStatus(status, currentMa, info.resistance), dangerous: domain.dangerous }
           : { kind: "resistor", currentMa, watts, status, dangerous: domain.dangerous };
       } else if (info.kind === "teensy") {
         // Same P=I^2*R math as the resistor branch above, using the
@@ -1823,9 +1853,10 @@ export function computeCircuitAnalysis(data) {
         validWire: (w) => Boolean(w && w.from && w.to),
         inductorOhms: inductorWindingOhms,
         lampOhms,
+        buzzerOhms,
         forwardVoltage: (c) => (c.type === "diode" ? DIODE_FORWARD_V : LED_COLORS[LED_COLORS[c.color] ? c.color : "red"].forwardVoltage),
         supplyActive: (c) => poweredNodes.has(nodeId(c, "in_hot")) && poweredNodes.has(nodeId(c, "in_neutral")),
-        limits: { ledMa: LED_RATED_MA, diodeMa: DIODE_RATED_MA, transistorMa: TRANSISTOR_RATED_MA, transistorBaseMa: TRANSISTOR_BASE_RATED_MA, transistorWatts: TRANSISTOR_WATTAGE_RATING, resistorWatts: RESISTOR_WATTAGE_RATING, lampWatts: LAMP_RATED_WATTS, teensyWatts: TEENSY_WATTAGE_RATING, teensyOhms: TEENSY_LOAD_OHMS },
+        limits: { ledMa: LED_RATED_MA, diodeMa: DIODE_RATED_MA, transistorMa: TRANSISTOR_RATED_MA, transistorBaseMa: TRANSISTOR_BASE_RATED_MA, transistorWatts: TRANSISTOR_WATTAGE_RATING, resistorWatts: RESISTOR_WATTAGE_RATING, lampWatts: LAMP_RATED_WATTS, buzzerWatts: BUZZER_RATED_WATTS, buzzerMinVolts: BUZZER_MIN_VOLTS, teensyWatts: TEENSY_WATTAGE_RATING, teensyOhms: TEENSY_LOAD_OHMS },
       },
       engage
     );
@@ -1870,6 +1901,13 @@ function lampStatus(status, currentMa, watts) {
   return watts < LAMP_RATED_WATTS * 0.1 ? "dim" : "normal";
 }
 
+// A buzzer reads "off" with no current, "quiet" under BUZZER_MIN_VOLTS, "buzzing" from there up, and keeps a damaged status as given.
+function buzzerStatus(status, currentMa, ohms) {
+  if (status !== "normal") return status;
+  if (!(currentMa > 0)) return "off";
+  return (currentMa / 1000) * ohms < BUZZER_MIN_VOLTS ? "quiet" : "buzzing";
+}
+
 // The glow comes from the topology (a closed loop through the part); where the network solver found that a part passes no
 // current (a reversed or under-driven LED or diode on a side branch, a cut-off transistor) it must not glow.
 const NOT_CONDUCTING = new Set(["reversed", "blocked", "unlit-low-voltage", "off", "idle"]);
@@ -1907,6 +1945,8 @@ const STATUS_WORDS = {
   saturated: "Switched on",
   active: "Amplifying",
   cutoff: "Off",
+  buzzing: "Buzzing",
+  quiet: "Too quiet",
 };
 function formatCurrent(ma) {
   if (ma === Infinity) return "no limit";
@@ -1943,6 +1983,8 @@ function staticDetail(comp) {
       return spaced(formatInductance(inductanceMillihenries(comp)));
     case "lamp":
       return spaced(formatOhms(lampOhms(comp)));
+    case "buzzer":
+      return spaced(formatOhms(buzzerOhms(comp)));
     case "battery":
       return `${num(comp.voltage, 9)} V battery`;
     case "power_supply":
@@ -2082,9 +2124,10 @@ function renderComponentSvg(comp, poweredComps, analysis) {
     : "";
   const lit = glows(comp, poweredComps, info);
   const lampStyle = comp.type === "lamp" && lit ? ` style="--lamp-level:${lampLevel(info)}"` : "";
+  const soundingAttr = comp.type === "buzzer" ? ` data-sounding="${info && info.buzzer === true && info.status === "buzzing" ? "true" : "false"}"` : "";
   return `<g class="sim-comp sim-comp-${escXml(comp.type)}${statusClass}" data-id="${escXml(comp.id)}" data-powered="${
     lit ? "true" : "false"
-  }"${lampStyle}${readoutAttrs} transform="translate(${comp.x},${comp.y})">${titleSvg}${def.render(comp)}${readingSvg && def.overlay ? def.overlay(readingSvg) : readingSvg}</g>`;
+  }"${lampStyle}${soundingAttr}${readoutAttrs} transform="translate(${comp.x},${comp.y})">${titleSvg}${def.render(comp)}${readingSvg && def.overlay ? def.overlay(readingSvg) : readingSvg}</g>`;
 }
 
 // Optional presentation-only route bends; electrical connectivity still uses wire.from/to.

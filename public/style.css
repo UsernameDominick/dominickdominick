@@ -2193,6 +2193,48 @@ html.sim-schematic-pref .sim-svg .sim-art-schem { display: inline; }
   fill-opacity: 1 !important;
 }
 
+/* Buzzer -- a black round sounder. While it is being driven hard enough to sound, two arcs beside it pulse; under reduced motion they
+   just stay on. The sound itself only plays when someone clicks the part. */
+.sim-comp .buzzer-lead {
+  stroke: var(--text-dim);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.sim-comp .buzzer-body {
+  fill: #2b2d31;
+  stroke: #111;
+  stroke-width: 1.2;
+}
+.sim-comp .buzzer-hole {
+  fill: #0d0e10;
+  stroke: #555;
+  stroke-width: 0.8;
+}
+.sim-comp .buzzer-wave {
+  stroke: var(--accent);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  opacity: 0;
+}
+.sim-svg.is-on .sim-comp[data-sounding="true"] .buzzer-wave {
+  opacity: 0.85;
+}
+@keyframes sim-buzzer-pulse {
+  from { opacity: 0.25; }
+  to { opacity: 0.95; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-motion="reduce"]) .sim-svg.is-on .sim-comp[data-sounding="true"] .buzzer-wave {
+    animation: sim-buzzer-pulse 0.5s ease-in-out infinite alternate;
+  }
+  html:not([data-motion="reduce"]) .sim-svg.is-on .sim-comp[data-sounding="true"] .buzzer-wave-2 {
+    animation-delay: 0.25s;
+  }
+}
+.sim-svg .sim-comp.sim-damaged .buzzer-body { fill: #2a1810; }
+.sim-svg .sim-comp.sim-damaged .buzzer-wave { opacity: 0 !important; animation: none !important; }
+.sim-comp[data-sounding="true"] { cursor: pointer; }
+
 /* Transistor -- the arrow on the emitter leg points out of an NPN and into a PNP. */
 .sim-comp .transistor-lead {
   stroke: var(--text-dim);

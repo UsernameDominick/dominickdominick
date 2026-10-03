@@ -125,6 +125,7 @@ import {
   getSimulationComponentDefinition,
   inductanceMillihenries,
   lampOhms,
+  buzzerOhms,
   inductorWindingOhms,
   LED_COLORS,
   LOGIC_GATES,
@@ -163,7 +164,7 @@ function hasPreviewModeCookie(request) {
 // "node.js" (extension "js") or a page slug starting with "admin" (prefix
 // match, not an exact one) fully rendered its real content instead of the
 // maintenance page. An explicit allowlist can't have that failure mode.
-const MAINTENANCE_EXEMPT_FILES = new Set(["/nav.js", "/sim-player.js", "/song-embed.js", "/song-engine.js", "/style.css", "/favicon.ico"]);
+const MAINTENANCE_EXEMPT_FILES = new Set(["/nav.js", "/sim-player.js", "/sim-buzzer.js", "/song-embed.js", "/song-engine.js", "/style.css", "/favicon.ico"]);
 function isMaintenanceExempt(path) {
   return path === "/admin" || path.startsWith("/admin/") || path.startsWith("/media/") || MAINTENANCE_EXEMPT_FILES.has(path);
 }
@@ -986,6 +987,10 @@ function simulationTopologyDescription(data) {
       case "inductor": {
         const windingOhms = Number(inductorWindingOhms(component).toFixed(2));
         return `${formatInductance(inductanceMillihenries(component))}, ${windingOhms} ${windingOhms === 1 ? "ohm" : "ohms"} winding resistance`;
+      }
+      case "buzzer": {
+        const ohms = Number(buzzerOhms(component).toFixed(2));
+        return `${ohms} ${ohms === 1 ? "ohm" : "ohms"}, sounds once it gets about 2.5 V (click it on the page to hear it)`;
       }
       case "lamp": {
         const ohms = Number(lampOhms(component).toFixed(2));
