@@ -124,6 +124,7 @@ import {
   formatInductance,
   getSimulationComponentDefinition,
   inductanceMillihenries,
+  lampOhms,
   inductorWindingOhms,
   LED_COLORS,
   LOGIC_GATES,
@@ -985,6 +986,10 @@ function simulationTopologyDescription(data) {
       case "inductor": {
         const windingOhms = Number(inductorWindingOhms(component).toFixed(2));
         return `${formatInductance(inductanceMillihenries(component))}, ${windingOhms} ${windingOhms === 1 ? "ohm" : "ohms"} winding resistance`;
+      }
+      case "lamp": {
+        const ohms = Number(lampOhms(component).toFixed(2));
+        return `${ohms} ${ohms === 1 ? "ohm" : "ohms"}, glows with the power it is given`;
       }
       case "breadboard":
         return `${getSimulationComponentDefinition(component)?.cols || 30} columns${component.splitRails === true ? ", power rails split in the middle into left and right halves" : ""}`;

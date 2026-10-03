@@ -925,7 +925,18 @@
   // current (a reversed or under-driven LED or diode on a side branch, a cut-off transistor) it must not glow.
   const NOT_CONDUCTING = new Set(["reversed", "blocked", "unlit-low-voltage", "off", "idle"]);
   function solvedNotConducting(info) {
-    return Boolean(info) && (info.kind === "led" || info.kind === "diode" || info.kind === "transistor") && NOT_CONDUCTING.has(info.status);
+    return Boolean(info) && (info.kind === "led" || info.kind === "diode" || info.kind === "transistor" || info.lamp === true) && NOT_CONDUCTING.has(info.status);
+  }
+  // Whether a part shows as powered (glowing, for the LED and the lamp). A lamp needs a result of its own, which only exists when a
+  // closed loop carries current through it: a lamp with one lead on a live rail and the other dangling must stay dark.
+  function glows(comp, poweredComps, info) {
+    if (comp.type === "lamp") return Boolean(info && info.lamp === true && !NOT_CONDUCTING.has(info.status));
+    return poweredComps.has(comp.id) && !solvedNotConducting(info);
+  }
+  // How brightly a glowing lamp shines (0.2 to 1): its power against its rating, never fully dark while it is on.
+  function lampLevel(info) {
+    const ratio = Number(info && info.watts) / window.SIM_LAMP_RATED_WATTS;
+    return (Number.isFinite(ratio) ? Math.max(0.2, Math.min(1, ratio)) : 1).toFixed(2);
   }
 
   function renderComponentSvg(comp, poweredComps, analysis) {
@@ -976,7 +987,7 @@
       searchMatch ? " sim-search-match" : ""
     }${comp.locked === true ? " sim-locked" : ""}" data-id="${escapeXml(
       comp.id
-    )}" data-powered="${poweredComps.has(comp.id) && !solvedNotConducting(info) ? "true" : "false"}" transform="translate(${comp.x},${
+    )}" data-powered="${glows(comp, poweredComps, info) ? "true" : "false"}"${comp.type === "lamp" && glows(comp, poweredComps, info) ? ` style="--lamp-level:${lampLevel(info)}"` : ""} transform="translate(${comp.x},${
       comp.y
     })">${titleSvg}${def.render(comp)}${readingSvg && def.overlay ? def.overlay(readingSvg) : readingSvg}${sel ? `<rect class="sim-select-box" x="-4" y="-4" width="${def.w + 8}" height="${def.h + 8}" />` : ""}${
       searchMatch ? `<rect class="sim-search-match-box${comp.id === canvasSearchCurrent ? " is-current" : ""}" x="-6" y="-6" width="${def.w + 12}" height="${def.h + 12}" />` : ""
@@ -1575,6 +1586,8 @@
           "warning",
           comp.type === "inductor"
             ? `${n} would run hot: ${r.watts.toFixed(2)} W in its winding (the check uses the same rough 0.25 W limit as a resistor).`
+            : comp.type === "lamp"
+            ? `${n} would burn out: it is given ${r.watts.toFixed(2)} W against a typical 0.5 W rating. Add a resistor in series or use a lower voltage.`
             : `${n} would overheat: it dissipates ${r.watts.toFixed(2)} W against a typical 0.25 W rating.`
         );
       } else if (r.kind === "teensy" && r.status === "overheating") {
@@ -1607,7 +1620,7 @@
       parent.set(root(na), root(nb));
     }
     // (A voltmeter is meant to sit across a part, so only series parts are checked; an ammeter shorted out reads nothing useful.)
-    const BYPASSABLE = new Set(["resistor", "led", "diode", "capacitor", "inductor", "switch", "ammeter"]);
+    const BYPASSABLE = new Set(["resistor", "lamp", "led", "diode", "capacitor", "inductor", "switch", "ammeter"]);
     const bypassed = [];
     for (const comp of simData.components) {
       if (!BYPASSABLE.has(comp.type)) continue;
@@ -1630,7 +1643,7 @@
       add("warning", "This circuit has a parallel branch or a bypass that the simulator couldn't solve as a whole network (a dead short, two sources that contradict each other, more than 200 nodes, or diodes and transistors with no consistent on/off state, such as a transistor wired upside down), so it follows one path from each source: the figures and statuses may be incomplete or missing, and a backwards LED or diode is only flagged when it is on the only route.");
     }
     // Parts that can carry or show current but weren't analysed: not on the path the solver followed.
-    const analysable = new Set(["led", "diode", "transistor", "resistor", "ammeter", "mcu_teensy"]);
+    const analysable = new Set(["led", "diode", "transistor", "resistor", "lamp", "ammeter", "mcu_teensy"]);
     const hasSource = simData.components.some((c) => {
       const d = window.getSimComponentDefinition(c);
       return d && d.isSource;
@@ -1693,7 +1706,7 @@
     "A plain series loop is solved as one path from its source. A circuit with parallel branches, a bypass or several sources is solved as a whole network instead (every node voltage and branch current, with LEDs and diodes each either off or conducting at their forward voltage). If it can't be (a dead short, two sources that contradict each other, a network over 200 nodes, or a wall outlet, which keeps the one-path mains rules), it falls back to one path with a warning, and voltmeters show a dash.",
     "Wires, breadboard strips and meter probes are perfect conductors (zero resistance), and sources are ideal: they hold their voltage with no sag or current limit beyond the part's own settings.",
     "Capacitors count as open circuits and inductors as their winding resistance alone.",
-    "Part ratings are typical fixed values, not a real part's datasheet: LEDs 20 mA, diodes 1 A, transistors 200 mA collector / 50 mA base / 0.625 W, resistors 0.25 W, the Teensy 1 W.",
+    "Part ratings are typical fixed values, not a real part's datasheet: LEDs 20 mA, diodes 1 A, transistors 200 mA collector / 50 mA base / 0.625 W, resistors 0.25 W, lamps 0.5 W, the Teensy 1 W.",
     "Microcontroller pins and firmware are not simulated, and logic gates are diagram parts that document the truth table without being simulated.",
     "It is a learning aid, not a design tool: real parts have tolerances and limits it does not model.",
   ];
@@ -1959,6 +1972,7 @@
     const specOf = (c) => {
       switch (c.type) {
         case "resistor": return `${Math.max(1, Number(c.resistance) || 220)} ohms`;
+        case "lamp": return `${window.simLampOhms(c)} ohms, about 0.5 W`;
         case "potentiometer": return `${Math.max(1, Number(c.maxResistance) || 10000)} ohms`;
         case "led": return `${window.LED_COLORS[c.color] ? c.color : "red"}`;
         case "battery": return `${Number(c.voltage) || 9} V`;
@@ -2275,7 +2289,7 @@
   // multiple of the hole grid (see SIM_COMPONENTS), so once the first leg
   // snaps to a hole, every other leg lands exactly on a real neighboring
   // hole too — not just one anchor pin dragging the rest along for show.
-  const SNAP_TO_BREADBOARD_TYPES = new Set(["led", "diode", "resistor", "switch", "potentiometer", "ammeter", "voltmeter", "ohmmeter", "capacitor", "inductor"]);
+  const SNAP_TO_BREADBOARD_TYPES = new Set(["led", "diode", "lamp", "resistor", "switch", "potentiometer", "ammeter", "voltmeter", "ohmmeter", "capacitor", "inductor"]);
   const SNAP_THRESHOLD = 18; // magnetic pull radius while dragging
   const SNAP_EXACT_TOLERANCE = 4; // how close a non-anchor leg must land to also count as plugged in
   // Everything else just snaps to a light alignment grid while dragging.
@@ -2606,6 +2620,7 @@
   const DEFAULT_CONTENT_BY_TYPE = {
     breadboard: { cols: 30 },
     resistor: { resistance: 220 },
+    lamp: { resistance: 180 },
     battery: { voltage: 9 },
     power_supply: { outputVoltage: 5 },
     led: { color: "red" },
@@ -2636,6 +2651,7 @@
     transistor: { kind: "Electrical", text: "a bipolar transistor (NPN, or PNP in the inspector): once the base-emitter junction gets 0.7 V the collector carries the gain (default 100) times the base current, until the collector-emitter voltage falls to 0.2 V and it saturates like a closed switch; with less than 0.7 V on the base it is off. Solved together with the rest of the circuit (several transistors, parallel branches), checked against typical 200 mA collector, 50 mA base and 0.625 W ratings. It has no leakage, no temperature drift and no reverse-active region, and a circuit that would need one is left unsolved with a warning." },
     diode: { kind: "Electrical", text: "conducts only anode to cathode (towards the bar) with a fixed 0.7 V drop and blocks the other way; checked for burn-out against a typical 1 A rating. In a circuit with parallel branches or several sources the whole network is solved, so a backwards diode blocks just its own branch; the glow of powered parts only follows a diode's blocking in a simple loop." },
     resistor: { kind: "Electrical", text: "limits current by Ohm's law; checked for overheating against a typical 0.25 W rating." },
+    lamp: { kind: "Electrical", text: "a small incandescent bulb: a resistance (180 ohms by default, a 9 V bulb) that glows with the power it is given and burns out well above a typical 0.5 W rating." },
     potentiometer: { kind: "Electrical", text: "acts as a two-terminal variable resistor set by its wiper." },
     capacitor: { kind: "Electrical (DC only)", text: "counts as an open circuit.", brief: true },
     inductor: { kind: "Electrical (DC only)", text: "counts as its winding resistance alone.", brief: true },
@@ -3225,6 +3241,8 @@
               ? `🔥 Overheating — dissipating ${info.watts.toFixed(2)}W, more than this potentiometer can safely handle.`
               : comp.type === "inductor"
               ? `🔥 Overheating — dissipating ${info.watts.toFixed(2)}W in its winding, more than a small inductor can handle. Add a resistor to limit the current.`
+              : comp.type === "lamp"
+              ? `🔥 Burning out — ${info.watts.toFixed(2)}W is well over the 0.5W a small bulb can take. Add a resistor in series or use a lower voltage.`
               : `🔥 Overheating — dissipating ${info.watts.toFixed(2)}W, more than a typical 1/4W resistor can handle.`;
           if (info.dangerous) {
             electricalHtml = `<p class="sim-power-status is-danger">🔥 Charred instantly — this loop is running straight off 120V mains.</p>`;
@@ -3232,6 +3250,9 @@
             electricalHtml = `<p class="sim-power-status is-danger">${overheatMsg}</p>`;
           } else if (info.currentMa === 0) {
             electricalHtml = `<p class="sim-power-status">No current flows through it in this loop (something else in the loop is blocking it).</p>`;
+          } else if (comp.type === "lamp") {
+            const level = Math.round(Math.min(1, info.watts / window.SIM_LAMP_RATED_WATTS) * 100);
+            electricalHtml = `<p class="sim-power-status is-powered">✓ Lit at about ${level}% — ${ma}mA flowing, ${info.watts.toFixed(2)}W of its 0.5W rating.</p>`;
           } else {
             electricalHtml = `<p class="sim-power-status is-powered">✓ ${ma}mA flowing, dissipating ${info.watts.toFixed(2)}W — well within its rating.</p>`;
           }
@@ -3284,6 +3305,8 @@
         </label>${breadboardResizeNotice ? `<p role="status" style="color:var(--text-dim);font-size:0.8rem;">${breadboardResizeNotice}</p>` : ""}`;
       } else if (comp.type === "resistor") {
         extraFieldsHtml = `<label title="How much the resistor limits current flow through it -- higher values let less current through. A common LED current-limiting resistor is 220-330 ohms.">Resistance (ohms)<input id="sim-comp-resistance" type="number" min="1" value="${Number(comp.resistance) || 220}"></label>`;
+      } else if (comp.type === "lamp") {
+        extraFieldsHtml = `<label title="The bulb's resistance when lit. Together with the voltage it sets how much power it gets: power = voltage squared over resistance. 180 ohms is a 9 V, 0.45 W bulb; a lower value is a brighter, hungrier bulb.">Resistance (ohms)<input id="sim-comp-resistance" type="number" min="1" value="${window.simLampOhms(comp)}"></label>`;
       } else if (comp.type === "potentiometer") {
         const potState = getPotentiometerElectricalState(comp);
         extraFieldsHtml = `<label title="The potentiometer's full end-to-end resistance -- the Wiper position below sets what fraction of that range is actually in the circuit right now, the same way turning a real knob does.">Max resistance (ohms)<input id="sim-comp-max-resistance" type="number" min="1" value="${potState.maxResistance}"></label>
@@ -3424,7 +3447,7 @@
       if (resistanceInput) {
         resistanceInput.addEventListener("change", () => {
           pushHistory();
-          comp.resistance = Math.max(1, Number(resistanceInput.value) || 220);
+          comp.resistance = Math.max(1, Number(resistanceInput.value) || (comp.type === "lamp" ? 180 : 220));
           refreshInspectorKeepingFocus();
         });
       }

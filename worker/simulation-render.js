@@ -111,6 +111,10 @@ export const TEENSY_LOAD_OHMS = 300; // stand-in for a running board's own draw
 // same way an overheating resistor does, not just a bigger harmless
 // number.
 export const TEENSY_WATTAGE_RATING = 1;
+// A small incandescent lamp, drawn as a plain load: it glows in proportion to the power it is given (against its rating), and is
+// damaged by much more than that. 180 ohms is a 9 V, 0.45 W bulb, so it lights fully from the builder's default battery.
+export const LAMP_RATED_WATTS = 0.5;
+export const LAMP_DEFAULT_OHMS = 180;
 
 const DIGIT_COLORS = ["black", "brown", "red", "orange", "yellow", "green", "blue", "violet", "gray", "white"];
 const BAND_HEX = {
@@ -217,6 +221,10 @@ export function inductanceMillihenries(c) {
 export function inductorWindingOhms(c) {
   const value = Number(c && c.dcResistance);
   return Number.isFinite(value) && value > 0 ? Math.max(0.01, Math.min(value, 1e9)) : 1;
+}
+export function lampOhms(c) {
+  const value = Number(c && c.resistance);
+  return Number.isFinite(value) && value > 0 ? Math.max(1, Math.min(value, 1e9)) : LAMP_DEFAULT_OHMS;
 }
 // Picks the largest unit whose value still rounds to at least 1, so 999.999µF
 // reads 1mF rather than 1000µF.
@@ -449,6 +457,21 @@ export const SIM_COMPONENTS = {
     ],
     render: () =>
       `<rect class="diode-hit" x="0" y="14" width="40" height="26" fill="transparent"/><path class="diode-lead" d="M0,40 L0,26 L10,26" fill="none"/><path class="diode-lead" d="M28,26 L40,26 L40,40" fill="none"/><polygon class="diode-body" points="10,16 10,36 28,26"/><line class="diode-bar" x1="28" y1="15" x2="28" y2="37"/>`,
+  },
+  // A small incandescent lamp: two leads one hole-spacing apart (like the LED), no polarity. It is a resistance in the analysis
+  // (see lampOhms), reported with the same current and power figures as a resistor; it glows with the power it is given and is
+  // damaged by a lot more than its rating (LAMP_RATED_WATTS).
+  lamp: {
+    label: "Lamp",
+    w: 40,
+    h: 40,
+    passthrough: [["p1", "p2"]],
+    pins: [
+      { id: "p1", x: 0, y: 40, label: "Lead 1" },
+      { id: "p2", x: 40, y: 40, label: "Lead 2" },
+    ],
+    render: () =>
+      `<rect class="lamp-hit" x="0" y="0" width="40" height="40" fill="transparent"/><line class="lamp-lead" x1="15" y1="28" x2="0" y2="40"/><line class="lamp-lead" x1="25" y1="28" x2="40" y2="40"/><circle class="lamp-glass" cx="20" cy="15" r="13"/><path class="lamp-filament" d="M15,27 L16,19 L18.5,14 L20,19 L21.5,14 L24,19 L25,27" fill="none"/><rect class="lamp-base" x="14" y="26" width="12" height="5" rx="1.5"/>`,
   },
   // A bipolar transistor (NPN by default, PNP via `polarity`): the base-emitter junction drops 0.7 V when it conducts, and the
   // collector then carries `gain` times the base current until the part saturates (0.2 V collector-emitter). It is solved
@@ -1135,6 +1158,8 @@ function buildAnalysisGraph(data) {
       link(nodeId(c, "p1"), nodeId(c, "p2"), { compId: c.id, kind: "resistor", resistance: Math.max(1, Math.round(maxR * (wiperPct / 100))) });
     } else if (c.type === "inductor") {
       link(nodeId(c, "p1"), nodeId(c, "p2"), { compId: c.id, kind: "resistor", resistance: inductorWindingOhms(c) });
+    } else if (c.type === "lamp") {
+      link(nodeId(c, "p1"), nodeId(c, "p2"), { compId: c.id, kind: "resistor", resistance: lampOhms(c), lamp: true });
     } else if (c.type === "switch") {
       if (isSwitchClosed(c)) link(nodeId(c, "p1"), nodeId(c, "p2"), { compId: c.id, kind: "wire", resistance: 0 });
     } else if (c.type === "switch_spdt") {
@@ -1415,6 +1440,7 @@ function ohmmeterReadings(components, wires) {
       const wiperPct = Math.max(0, Math.min(100, Number.isFinite(rawWiper) ? rawWiper : 50));
       resist(nodeId(c, "p1"), nodeId(c, "p2"), Math.max(1, Math.round(maxR * (wiperPct / 100))));
     } else if (c.type === "inductor") resist(nodeId(c, "p1"), nodeId(c, "p2"), inductorWindingOhms(c));
+    else if (c.type === "lamp") resist(nodeId(c, "p1"), nodeId(c, "p2"), lampOhms(c));
     else if (c.type === "switch") {
       if (isSwitchClosed(c)) join(nodeId(c, "p1"), nodeId(c, "p2"));
     } else if (c.type === "switch_spdt") join(nodeId(c, "com"), nodeId(c, spdtThrow(c)));
@@ -1725,8 +1751,10 @@ export function computeCircuitAnalysis(data) {
       } else if (info.kind === "resistor") {
         const amps = currentMa === Infinity ? 0 : currentMa / 1000;
         const watts = amps * amps * info.resistance;
-        const status = domain.dangerous ? "burnt" : watts > RESISTOR_WATTAGE_RATING ? "overheating" : "normal";
-        results[info.compId] = { kind: "resistor", currentMa, watts, status, dangerous: domain.dangerous };
+        const status = domain.dangerous ? "burnt" : watts > (info.lamp ? LAMP_RATED_WATTS : RESISTOR_WATTAGE_RATING) ? "overheating" : "normal";
+        results[info.compId] = info.lamp
+          ? { kind: "resistor", lamp: true, currentMa, watts, status: lampStatus(status, currentMa, watts), dangerous: domain.dangerous }
+          : { kind: "resistor", currentMa, watts, status, dangerous: domain.dangerous };
       } else if (info.kind === "teensy") {
         // Same P=I^2*R math as the resistor branch above, using the
         // teensy's OWN fixed load (TEENSY_LOAD_OHMS), not domain.voltage
@@ -1794,9 +1822,10 @@ export function computeCircuitAnalysis(data) {
         spdtThrow,
         validWire: (w) => Boolean(w && w.from && w.to),
         inductorOhms: inductorWindingOhms,
+        lampOhms,
         forwardVoltage: (c) => (c.type === "diode" ? DIODE_FORWARD_V : LED_COLORS[LED_COLORS[c.color] ? c.color : "red"].forwardVoltage),
         supplyActive: (c) => poweredNodes.has(nodeId(c, "in_hot")) && poweredNodes.has(nodeId(c, "in_neutral")),
-        limits: { ledMa: LED_RATED_MA, diodeMa: DIODE_RATED_MA, transistorMa: TRANSISTOR_RATED_MA, transistorBaseMa: TRANSISTOR_BASE_RATED_MA, transistorWatts: TRANSISTOR_WATTAGE_RATING, resistorWatts: RESISTOR_WATTAGE_RATING, teensyWatts: TEENSY_WATTAGE_RATING, teensyOhms: TEENSY_LOAD_OHMS },
+        limits: { ledMa: LED_RATED_MA, diodeMa: DIODE_RATED_MA, transistorMa: TRANSISTOR_RATED_MA, transistorBaseMa: TRANSISTOR_BASE_RATED_MA, transistorWatts: TRANSISTOR_WATTAGE_RATING, resistorWatts: RESISTOR_WATTAGE_RATING, lampWatts: LAMP_RATED_WATTS, teensyWatts: TEENSY_WATTAGE_RATING, teensyOhms: TEENSY_LOAD_OHMS },
       },
       engage
     );
@@ -1834,11 +1863,29 @@ function pinPosition(comp, pinId) {
   return { x: comp.x + pin.x, y: comp.y + pin.y };
 }
 
+// A lamp reads "off" with no current, "dim" at under a tenth of its rating, and otherwise keeps the status it was given.
+function lampStatus(status, currentMa, watts) {
+  if (status !== "normal") return status;
+  if (!(currentMa > 0)) return "off";
+  return watts < LAMP_RATED_WATTS * 0.1 ? "dim" : "normal";
+}
+
 // The glow comes from the topology (a closed loop through the part); where the network solver found that a part passes no
 // current (a reversed or under-driven LED or diode on a side branch, a cut-off transistor) it must not glow.
 const NOT_CONDUCTING = new Set(["reversed", "blocked", "unlit-low-voltage", "off", "idle"]);
 function solvedNotConducting(info) {
-  return Boolean(info) && (info.kind === "led" || info.kind === "diode" || info.kind === "transistor") && NOT_CONDUCTING.has(info.status);
+  return Boolean(info) && (info.kind === "led" || info.kind === "diode" || info.kind === "transistor" || info.lamp === true) && NOT_CONDUCTING.has(info.status);
+}
+// Whether a part shows as powered (glowing, for the LED and the lamp). A lamp needs a result of its own, which only exists when a
+// closed loop carries current through it: a lamp with one lead on a live rail and the other dangling must stay dark.
+function glows(comp, poweredComps, info) {
+  if (comp.type === "lamp") return Boolean(info && info.lamp === true && !NOT_CONDUCTING.has(info.status));
+  return poweredComps.has(comp.id) && !solvedNotConducting(info);
+}
+// How brightly a glowing lamp shines (0.2 to 1): its power against its rating, never fully dark while it is on.
+function lampLevel(info) {
+  const ratio = Number(info && info.watts) / LAMP_RATED_WATTS;
+  return (Number.isFinite(ratio) ? Math.max(0.2, Math.min(1, ratio)) : 1).toFixed(2);
 }
 
 // ---------- What a visitor can read off a part ----------
@@ -1894,6 +1941,8 @@ function staticDetail(comp) {
       return spaced(formatCapacitance(capacitanceMicrofarads(comp)));
     case "inductor":
       return spaced(formatInductance(inductanceMillihenries(comp)));
+    case "lamp":
+      return spaced(formatOhms(lampOhms(comp)));
     case "battery":
       return `${num(comp.voltage, 9)} V battery`;
     case "power_supply":
@@ -2031,9 +2080,11 @@ function renderComponentSvg(comp, poweredComps, analysis) {
         `${readout.name}${readout.value ? `, ${readout.value}` : ""}. Show its readings`
       )}"`
     : "";
+  const lit = glows(comp, poweredComps, info);
+  const lampStyle = comp.type === "lamp" && lit ? ` style="--lamp-level:${lampLevel(info)}"` : "";
   return `<g class="sim-comp sim-comp-${escXml(comp.type)}${statusClass}" data-id="${escXml(comp.id)}" data-powered="${
-    poweredComps.has(comp.id) && !solvedNotConducting(info) ? "true" : "false"
-  }"${readoutAttrs} transform="translate(${comp.x},${comp.y})">${titleSvg}${def.render(comp)}${readingSvg && def.overlay ? def.overlay(readingSvg) : readingSvg}</g>`;
+    lit ? "true" : "false"
+  }"${lampStyle}${readoutAttrs} transform="translate(${comp.x},${comp.y})">${titleSvg}${def.render(comp)}${readingSvg && def.overlay ? def.overlay(readingSvg) : readingSvg}</g>`;
 }
 
 // Optional presentation-only route bends; electrical connectivity still uses wire.from/to.

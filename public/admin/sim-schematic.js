@@ -73,6 +73,10 @@
     diode: () =>
       `${hit(40, 40)}${line("M0,40 L0,28 L12,28")}${line("M28,28 L40,28 L40,40")}<polygon class="sch-line sch-diode-body" points="12,18 12,38 28,28"/>${line("M28,18 L28,38", "sch-plate")}`,
 
+    // The lamp: a circle with a cross through it (the standard symbol), leads out to its two pins.
+    lamp: () =>
+      `${hit(40, 40)}${line("M0,40 L0,22 L8,22")}${line("M32,22 L40,22 L40,40")}<circle class="sch-line sch-lamp-body" cx="20" cy="22" r="12"/>${line("M11.5,13.5 L28.5,30.5")}${line("M28.5,13.5 L11.5,30.5")}`,
+
     transistor: (c) => {
       const pnp = c && c.polarity === "pnp";
       const arrow = pnp ? "25.7,45.6 22.8,39.8 29.1,41.6" : "28.7,48.4 35,50.2 32.1,44.4";

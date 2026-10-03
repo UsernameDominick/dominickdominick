@@ -2143,6 +2143,56 @@ html.sim-schematic-pref .sim-svg .sim-art-schem { display: inline; }
 .sim-svg .sim-comp.sim-damaged .sch-led-body,
 .sim-svg .sim-comp.sim-damaged .sch-diode-body { fill: #2a1810 !important; }
 
+/* Lamp -- a glass bulb with a filament. It glows warm while current flows, as bright as the --lamp-level set on the part (its power
+   against its rating), and goes dark and scorched when it is driven far past that. */
+.sim-comp .lamp-lead {
+  stroke: var(--text-dim);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.sim-comp .lamp-glass {
+  fill: rgba(190, 210, 230, 0.22);
+  stroke: #6b7580;
+  stroke-width: 1.2;
+  transition: fill 0.3s, filter 0.3s, opacity 0.3s;
+}
+.sim-comp .lamp-filament {
+  stroke: #555;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.sim-comp .lamp-base {
+  fill: #8a8f96;
+  stroke: #444;
+  stroke-width: 1;
+}
+.sim-svg.is-on .sim-comp[data-powered="true"] .lamp-glass {
+  fill: #ffd34e;
+  opacity: var(--lamp-level, 1);
+  filter: url(#sim-glow);
+}
+.sim-svg.is-on .sim-comp[data-powered="true"] .lamp-filament {
+  stroke: #fff6cf;
+}
+.sim-svg .sim-comp.sim-damaged[data-powered="true"] .lamp-glass {
+  fill: #2a1810 !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+.sim-svg .sim-comp.sim-damaged .lamp-filament {
+  stroke: #b4452d !important;
+  stroke-dasharray: 3 4;
+}
+.sim-svg.is-on .sim-comp[data-powered="true"] .sch-lamp-body {
+  fill: #ffd34e;
+  fill-opacity: var(--lamp-level, 1);
+}
+.sim-svg .sim-comp.sim-damaged .sch-lamp-body {
+  fill: #2a1810 !important;
+  fill-opacity: 1 !important;
+}
+
 /* Transistor -- the arrow on the emitter leg points out of an NPN and into a PNP. */
 .sim-comp .transistor-lead {
   stroke: var(--text-dim);
