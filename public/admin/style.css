@@ -945,6 +945,7 @@ code.color-field-value {
   flex: 1;
   overflow: auto;
   padding: 24px;
+  position: relative;
 }
 
 .admin-canvas {
@@ -8087,3 +8088,17 @@ button[data-tier="quiet"] { border-color: transparent; }
 .canvas-note[hidden] { display: none; }
 .canvas-toolbar.is-inside { opacity: 0.96; }
 .admin-block-probe { overflow: visible; }
+
+/* Quick edit: the small panel beside a selected block (opened from the toolbar's Edit or a double-click). */
+.quick-edit { position: absolute; z-index: 40; width: min(360px, calc(100% - 24px)); box-sizing: border-box; padding: 12px; background: var(--bg-elevated); border: 1px solid var(--accent); border-radius: 12px; box-shadow: var(--shadow-md, 0 8px 24px rgba(0, 0, 0, 0.3)); }
+.quick-edit[hidden] { display: none; }
+.quick-edit-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.quick-edit-close { background: transparent; border: none; font-size: 1.3rem; line-height: 1; padding: 2px 8px; color: var(--text-dim); cursor: pointer; }
+.quick-edit-close:hover { color: var(--text); }
+.quick-edit-fields label { display: block; font-size: 0.8rem; margin: 0 0 8px; }
+.quick-edit-fields input[type="text"], .quick-edit-fields textarea, .quick-edit-fields select { width: 100%; box-sizing: border-box; }
+.quick-edit-fields textarea { min-height: 96px; resize: none; }
+.quick-edit-none { margin: 0 0 8px; font-size: 0.85rem; color: var(--text-dim); }
+.quick-edit-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.quick-edit-actions button { font-size: 0.8rem; padding: 6px 12px; }
+.quick-edit-status { min-height: 1em; margin-top: 6px; font-size: 0.75rem; color: var(--text-dim); }

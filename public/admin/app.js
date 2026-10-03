@@ -1526,6 +1526,7 @@
       div.style.height = style.height + "px";
     });
     scheduleOverflowMarks();
+    syncQuickEdit();
   }
 
   // ---------- Fit blocks to their content ----------
@@ -1699,6 +1700,148 @@
     } catch (err) {
       canvasNote(err.message || "Could not resize the blocks.");
     }
+  }
+
+  // ---------- Quick edit ----------
+  // The toolbar's Edit button (or a double-click on a block) opens a small panel beside the block with its main fields, so a heading,
+  // paragraph, picture or button can be changed without going to the Inspector. It uses the Inspector's own field definitions and the
+  // same save, so both always agree. The panel lives outside the canvas, which is redrawn after every save.
+  let quickEditId = null;
+  const QUICK_FIELD_TYPES = new Set(["text", "textarea", "select", "image-url", "checkbox"]);
+  const QUICK_FIELD_LIMIT = 4;
+  function quickFieldsFor(type) {
+    return (FIELD_DEFS[type] || []).filter((f) => QUICK_FIELD_TYPES.has(f.type)).slice(0, QUICK_FIELD_LIMIT);
+  }
+  function quickEditEl() {
+    let box = el("quick-edit");
+    if (box) return box;
+    box = document.createElement("div");
+    box.id = "quick-edit";
+    box.className = "quick-edit";
+    box.setAttribute("role", "dialog");
+    box.setAttribute("aria-modal", "false");
+    box.hidden = true;
+    box.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        closeQuickEdit(true);
+      }
+    });
+    // Presses inside the panel must not start a drag or clear the selection underneath.
+    ["pointerdown", "mousedown"].forEach((t) => box.addEventListener(t, (e) => e.stopPropagation()));
+    canvas.parentNode.appendChild(box);
+    return box;
+  }
+  function closeQuickEdit(returnFocus) {
+    const box = el("quick-edit");
+    const id = quickEditId;
+    quickEditId = null;
+    if (box) {
+      box.hidden = true;
+      box.innerHTML = "";
+    }
+    if (returnFocus && id !== null) {
+      const target = canvas.querySelector(`.canvas-toolbar button`) || canvas.querySelector(`.admin-block[data-id="${id}"]`);
+      if (target) target.focus();
+    }
+  }
+  function positionQuickEdit() {
+    const box = el("quick-edit");
+    if (!box || box.hidden || quickEditId === null) return;
+    const b = blocks.find((x) => x.id === quickEditId);
+    if (!b) return closeQuickEdit(false);
+    const style = blockPixelStyle(b);
+    const w = box.offsetWidth;
+    const cLeft = canvas.offsetLeft;
+    const cTop = canvas.offsetTop;
+    const rightSide = style.left + style.width + 12;
+    const leftSide = style.left - 12 - w;
+    let left;
+    let top;
+    if (rightSide + w <= canvas.clientWidth) {
+      left = rightSide;
+      top = style.top;
+    } else if (leftSide >= 0) {
+      left = leftSide;
+      top = style.top;
+    } else {
+      // No room at either side: under the block, and under its toolbar when that sits there.
+      const bar = canvas.querySelector(".canvas-toolbar");
+      const barBottom = bar && !bar.hidden && parseFloat(bar.style.top) >= style.top ? parseFloat(bar.style.top) + bar.offsetHeight : 0;
+      left = Math.max(0, Math.min(style.left, canvas.clientWidth - w));
+      top = Math.max(style.top + style.height, barBottom) + 8;
+    }
+    box.style.left = cLeft + left + "px";
+    box.style.top = cTop + top + "px";
+  }
+  function syncQuickEdit() {
+    if (quickEditId === null) return;
+    if (isMobile() || selectedBlockId !== quickEditId || contentOnlyMode || multiSelectedIds.size > 0 || !blocks.some((x) => x.id === quickEditId)) return closeQuickEdit(false);
+    positionQuickEdit();
+  }
+  function openQuickEdit(id) {
+    if (isMobile()) return;
+    const b = blocks.find((x) => x.id === id);
+    if (!b) return;
+    if (selectedBlockId !== id) {
+      selectedBlockId = id;
+      multiSelectedIds.clear();
+      renderCanvas();
+      renderInspector();
+    }
+    const fields = quickFieldsFor(b.type);
+    const box = quickEditEl();
+    quickEditId = id;
+    const idPrefix = `qe-${id}`;
+    const titleId = `quick-edit-title-${id}`;
+    box.setAttribute("aria-labelledby", titleId);
+    const fieldsHtml = fields
+      .map((f) => fieldHtml(f.type === "textarea" && f.key === "text" ? { ...f, label: "Text" } : f, b.content[f.key], idPrefix))
+      .join("");
+    box.innerHTML = `<div class="quick-edit-head"><strong id="${titleId}">Edit ${escapeHtml(blockLabel(b.type))}</strong><button type="button" class="quick-edit-close" aria-label="Close quick edit">×</button></div>
+      <div class="quick-edit-fields">${fieldsHtml || `<p class="quick-edit-none">${escapeHtml(blockLabel(b.type))} has no quick fields. Use the Inspector for its settings.</p>`}</div>
+      <div class="quick-edit-actions">${FIT_TYPES.has(b.type) ? '<button type="button" class="quick-edit-fit">Fit to content</button>' : ""}<button type="button" class="quick-edit-more">More settings</button><button type="button" class="quick-edit-done">Done</button></div>
+      <div class="quick-edit-status" role="status" aria-live="polite"></div>`;
+    box.hidden = false;
+    const fieldsBox = box.querySelector(".quick-edit-fields");
+    fieldsBox.querySelectorAll(".upload-trigger").forEach(wireUploadButton);
+    fieldsBox.querySelectorAll(".browse-trigger").forEach(wireBrowseButton);
+    fieldsBox.querySelectorAll(".image-url-source-badge").forEach(wireImageUrlSourceBadge);
+    const status = box.querySelector(".quick-edit-status");
+    fieldsBox.querySelectorAll("[data-key]:not(button)").forEach((input) => {
+      // While typing, only the block's own preview is redrawn (no save); the change is saved when the field is left.
+      input.addEventListener("input", () => {
+        if (input.type === "checkbox" || input.tagName === "SELECT") return;
+        b.content[input.dataset.key] = fieldValue(input);
+        const pv = canvas.querySelector(`.admin-block[data-id="${b.id}"] .block-preview`);
+        if (pv) pv.innerHTML = blockPreview(b);
+        scheduleOverflowMarks();
+        status.textContent = "Unsaved";
+      });
+      input.addEventListener("change", async () => {
+        b.content[input.dataset.key] = fieldValue(input);
+        status.textContent = "Saving…";
+        await saveBlockStyleAndContent(b);
+        renderInspector();
+        status.textContent = "Saved";
+        positionQuickEdit();
+      });
+    });
+    box.querySelector(".quick-edit-close").addEventListener("click", () => closeQuickEdit(true));
+    box.querySelector(".quick-edit-done").addEventListener("click", () => closeQuickEdit(true));
+    const fit = box.querySelector(".quick-edit-fit");
+    if (fit) fit.addEventListener("click", () => fitBlock(b.id, "content"));
+    box.querySelector(".quick-edit-more").addEventListener("click", () => {
+      const inspector = el("inspector");
+      inspector.hidden = false;
+      if (isMobile()) openDrawer(inspector);
+      const first = el("inspector-fields").querySelector("input, textarea, select");
+      if (first) first.focus();
+    });
+    positionQuickEdit();
+    const first = fieldsBox.querySelector("input:not([type=checkbox]), textarea, select") || box.querySelector(".quick-edit-done");
+    if (first) first.focus();
+    box.scrollIntoView({ block: "nearest", inline: "nearest" });
   }
 
   el("fit-all-blocks-btn").addEventListener("click", fitAllBlocks);
@@ -1957,6 +2100,7 @@
     renderGroupOutlines();
     renderCanvasToolbar();
     scheduleOverflowMarks();
+    syncQuickEdit();
     if (!el("layers-modal").hidden) renderLayersList();
   }
 
@@ -1990,7 +2134,7 @@
     bar.style.left = spot.left + "px";
   }
   // After a toolbar action the canvas rebuilds; this remembers which button to put focus back on.
-  let toolbarFocusIndex = null;
+  let toolbarFocusAction = null; // the data-action of the toolbar button to focus after the redraw (positions shift as buttons come and go)
   function renderCanvasToolbar() {
     canvas.querySelectorAll(".canvas-toolbar").forEach((n) => n.remove());
     if (contentOnlyMode || multiSelectedIds.size > 1 || selectedBlockId === null) return;
@@ -2009,10 +2153,11 @@
       ["duplicate-block-btn", "Duplicate"],
       ["lock-block-btn", b.locked ? "Unlock" : "Lock"],
       ["delete-block-btn", "Delete"],
-    ].forEach(([id, label], idx) => {
+    ].forEach(([id, label]) => {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.textContent = label;
+      btn.dataset.action = id;
       if (id === "delete-block-btn") {
         btn.className = "canvas-toolbar-danger";
         if (b.locked) {
@@ -2025,12 +2170,26 @@
       btn.addEventListener("pointerdown", (e) => e.stopPropagation());
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
-        toolbarFocusIndex = id === "delete-block-btn" ? null : idx;
-        if (toolbarFocusIndex !== null) setTimeout(() => (toolbarFocusIndex = null), 3000);
+        toolbarFocusAction = id === "delete-block-btn" ? null : id;
+        if (toolbarFocusAction !== null) setTimeout(() => (toolbarFocusAction = null), 3000);
         el(id).click();
       });
       bar.appendChild(btn);
     });
+    // Edit opens the quick editor beside the block (first in the bar); Fit sits just before Delete.
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.textContent = "Edit";
+    editBtn.dataset.action = "edit";
+    editBtn.title = "Edit this block's main fields right here";
+    editBtn.setAttribute("aria-haspopup", "dialog");
+    editBtn.addEventListener("mousedown", (e) => e.stopPropagation());
+    editBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
+    editBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openQuickEdit(b.id);
+    });
+    bar.insertBefore(editBtn, bar.firstChild);
     // Fit to content (and, for a picture, its own pixel size), just before Delete.
     const extras = [["Fit", "Make this block exactly as tall as its content", () => fitBlock(b.id, "content")]];
     if (b.type === "image") extras.push(["Actual size", "Show the picture at its own pixel size, as wide as the space beside it allows", () => fitBlock(b.id, "actual")]);
@@ -2055,9 +2214,9 @@
     else canvas.appendChild(bar);
     placeToolbar(bar, b, style);
     scheduleOverflowMarks();
-    if (toolbarFocusIndex !== null) {
-      const target = bar.querySelectorAll("button")[toolbarFocusIndex];
-      toolbarFocusIndex = null;
+    if (toolbarFocusAction !== null) {
+      const target = bar.querySelector(`button[data-action="${toolbarFocusAction}"]`);
+      toolbarFocusAction = null;
       if (target && !target.disabled) target.focus();
     }
   }
@@ -2072,6 +2231,7 @@
   // (which doesn't map to a single column anyway). Desktop editing is
   // completely unaffected; this only changes how <=860px renders/behaves.
   function renderCanvasMobile() {
+    closeQuickEdit(false);
     canvas.classList.add("admin-canvas-mobile-stack");
     canvas.innerHTML = "";
     canvas.classList.remove("isolation-mode", "content-only-mode");
@@ -2218,6 +2378,12 @@
       // replacement or a keyboard user's Tab position silently resets to
       // the top of the canvas every time they select a block.
       canvas.querySelector(`.admin-block[data-id="${block.id}"]`)?.focus();
+    });
+    // Double-clicking a block opens the quick editor for it.
+    div.addEventListener("dblclick", (e) => {
+      if (e.target.classList.contains("resize-handle") || contentOnlyMode) return;
+      e.preventDefault();
+      openQuickEdit(block.id);
     });
     div.addEventListener("pointerdown", (e) => {
       if (e.target.classList.contains("resize-handle")) return;
