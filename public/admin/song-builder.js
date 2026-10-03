@@ -260,6 +260,7 @@
     $("song-tempo").value = songData.tempo || 120;
     $("song-kit").value = songData.kit || "acoustic";
     $("song-waveform").value = songData.melody.waveform || "sine";
+    syncVoiceControl();
     $("song-visualization").value = songData.visualization || "bars";
     $("song-theme").value = SONG_THEME_CLASSES.has(songData.theme) ? songData.theme : "default";
     $("song-page-sync").checked = !!songData.page_sync;
@@ -758,6 +759,21 @@
     refreshWaveformPreview();
     scheduleAutosave();
   });
+  // The melody sound (instrument) brings its own oscillator, so the plain waveform select only applies while it is "Basic".
+  function syncVoiceControl() {
+    const voice = Engine.melodyVoiceOf(songData);
+    $("song-voice").value = voice;
+    $("song-waveform").disabled = !!voice;
+    $("song-waveform").title = voice ? `Not used while the melody sound is ${Engine.MELODY_VOICES[voice].label}: it brings its own waveform. Choose Basic to use this again.` : "Melody instrument waveform";
+  }
+  $("song-voice").addEventListener("change", () => {
+    const voice = $("song-voice").value;
+    if (voice) songData.melody.voice = voice;
+    else delete songData.melody.voice;
+    syncVoiceControl();
+    refreshWaveformPreview();
+    scheduleAutosave();
+  });
   // Invalidates an async normalize scan if any song edit happens while it
   // renders, so a stale scan cannot overwrite newer work.
   let songEditGeneration = 0;
@@ -1198,7 +1214,9 @@
     const ctx = getAudioCtx();
     const waveform = $("song-waveform").value;
     const duration = 60 / (songData.tempo || 120) / 4;
-    Engine.withVolume(ctx, Engine.volumeOf(songData.melody), () => Engine.playMelodyNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), waveform, duration));
+    const voice = Engine.melodyVoiceOf(songData);
+    Engine.withVolume(ctx, Engine.volumeOf(songData.melody), () =>
+      voice ? Engine.playVoicedNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), voice, duration) : Engine.playMelodyNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), waveform, duration));
     if (!songData.melody.notes[noteName]) return; // outside the 2-octave piano roll range — preview only
     if (player.isPlaying() && !isCountingIn() && $("song-record").checked) {
       const step = player.currentStep();
@@ -2336,6 +2354,7 @@
     $("song-tempo").value = songData.tempo || 120;
     $("song-kit").value = songData.kit || "acoustic";
     $("song-waveform").value = songData.melody.waveform || "sine";
+    syncVoiceControl();
     $("song-visualization").value = songData.visualization || "bars";
     $("song-theme").value = SONG_THEME_CLASSES.has(songData.theme) ? songData.theme : "default";
     applySongTheme($("song-preview-embed"), songData.theme);
@@ -2487,7 +2506,7 @@
       `Song: ${name}`,
       `Tempo: ${songData.tempo} BPM`,
       `Drum kit: ${songData.kit}`,
-      `Melody waveform: ${songData.melody.waveform}${songData.melody.muted === true ? " (muted)" : ""}${reportVolume(songData.melody)}`,
+      `Melody sound: ${Engine.melodyVoiceOf(songData) ? Engine.MELODY_VOICES[Engine.melodyVoiceOf(songData)].label : `Basic, ${songData.melody.waveform} waveform`}${songData.melody.muted === true ? " (muted)" : ""}${reportVolume(songData.melody)}`,
       `Visualization: ${songData.visualization}`,
       `Theme: ${songData.theme}`,
       `Master volume: ${Math.round((typeof songData.master_volume === "number" ? songData.master_volume : 1) * 100)}%`,

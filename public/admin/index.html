@@ -2178,6 +2178,14 @@
               <option value="sawtooth">Sawtooth</option>
               <option value="triangle">Triangle</option>
               </select>
+              <select id="song-voice" title="Melody sound: a ready-made instrument that shapes each note (attack, release, filter). Basic uses the waveform on its left." aria-label="Melody sound">
+              <option value="">Basic (waveform)</option>
+              <option value="pluck">Pluck</option>
+              <option value="lead">Lead</option>
+              <option value="pad">Pad</option>
+              <option value="bass">Bass</option>
+              <option value="bell">Bell</option>
+              </select>
               <label class="song-tempo-label" title="Adds a small random timing nudge to each drum hit and melody note, independently, so playback feels less mechanically quantized. 0 = perfectly on-grid.">Humanize<input type="range" id="song-humanize" min="0" max="100" value="0"></label>
               <label class="song-tempo-label" title="Delays every second sixteenth note to give the groove a bounce. 0 = straight, about 67 = triplet feel.">Swing<input type="range" id="song-swing" min="0" max="100" value="0" aria-valuetext="Straight"></label>
               <label class="song-tempo-label" title="Adds a room-like reverb tail to the whole mix. 0 = dry, no reverb at all.">Space<input type="range" id="song-space" min="0" max="100" value="0" aria-valuetext="Dry"></label>

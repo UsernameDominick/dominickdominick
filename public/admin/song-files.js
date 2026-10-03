@@ -11,6 +11,7 @@
   });
   const KITS = ["acoustic", "electronic", "808"];
   const WAVEFORMS = ["sine", "square", "sawtooth", "triangle"];
+  const MELODY_VOICES = ["pluck", "lead", "pad", "bass", "bell"]; // the instruments in song-engine.js (a test keeps the two lists equal)
   const VISUALIZATIONS = ["bars", "waveform", "pulse"];
   const THEMES = ["default", "sunset", "ocean", "mono", "neon"];
   const SCALE_TYPES = ["major", "minor", "majpent", "minpent", "blues"];
@@ -102,11 +103,16 @@
         const num = noteNumber(noteName);
         const lane = data.melody.notes[noteName];
         if (num === null || !Array.isArray(lane)) continue;
+        const ties = data.melody.ties && data.melody.ties[noteName];
+        // a step tied to the one before it (and the note on at both) carries that note on instead of striking it again
+        const tied = (step) => Boolean(step > 0 && ties && ties[step] === true && lane[step] && lane[step - 1]);
         for (let step = 0; step < STEPS; step++) {
-          if (!lane[step]) continue;
+          if (!lane[step] || tied(step)) continue;
+          let held = 1;
+          while (step + held < STEPS && tied(step + held)) held++;
           const tick = step * STEP_TICKS + delay(step);
           melodyEvents.push({ tick, order: 1, bytes: [0x90, num, velocity(level(lane[step]), vol)] });
-          melodyEvents.push({ tick: tick + STEP_TICKS, order: 0, bytes: [0x80, num, 0] });
+          melodyEvents.push({ tick: tick + STEP_TICKS * held, order: 0, bytes: [0x80, num, 0] });
           notes++;
         }
       }
@@ -176,8 +182,20 @@
     if (melody.muted === true) song.melody.muted = true;
     if (melody.hidden === true) song.melody.hidden = true;
     if (melody.volume !== undefined && melody.volume !== null && melody.volume !== "") song.melody.volume = clampNum(melody.volume, 0, 1, 1);
+    if (MELODY_VOICES.includes(melody.voice)) song.melody.voice = melody.voice;
     const notes = melody.notes && typeof melody.notes === "object" ? melody.notes : {};
     PIANO_NOTES.forEach((n) => (song.melody.notes[n] = cleanLane(notes[n])));
+    // Held notes: a tie only counts where the note is on at that step and the one before, so a stale flag can't survive the clean-up.
+    if (melody.ties && typeof melody.ties === "object") {
+      const ties = {};
+      PIANO_NOTES.forEach((n) => {
+        const lane = melody.ties[n];
+        if (!Array.isArray(lane)) return;
+        const row = Array.from({ length: STEPS }, (_, i) => lane[i] === true && i > 0 && Boolean(song.melody.notes[n][i]) && Boolean(song.melody.notes[n][i - 1]));
+        if (row.some(Boolean)) ties[n] = row;
+      });
+      if (Object.keys(ties).length) song.melody.ties = ties;
+    }
     if (src.scale && typeof src.scale === "object" && SCALE_TYPES.includes(src.scale.type) && NOTE_NAMES.includes(src.scale.root)) song.scale = { root: src.scale.root, type: src.scale.type };
     return song;
   }
@@ -214,5 +232,5 @@
     return { name: name || "Imported song", data: cleanSong(data) };
   }
 
-  window.SongFiles = { buildMidi, noteNumber, exportJson, parseImport, cleanSong, PPQ, STEP_TICKS, FORMAT, VERSION };
+  window.SongFiles = { MELODY_VOICES, buildMidi, noteNumber, exportJson, parseImport, cleanSong, PPQ, STEP_TICKS, FORMAT, VERSION };
 })();

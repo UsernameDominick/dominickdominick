@@ -83,6 +83,20 @@ ok(F.noteNumber("H4") === null && F.noteNumber("") === null && F.noteNumber("C99
   ok(Math.min(...ons(drums).map((e) => e.vel)) === 100 && ons(drums).every((e) => e.vel <= 127), "a full-strength hit has velocity 100");
 }
 
+// held (tied) notes are one long note in the file, not several short ones
+{
+  const held = readMidi(F.buildMidi(song({ melody: { waveform: "sine", notes: { C4: lane("xxx.x..........."), E4: lane("x...............") }, ties: { C4: lane(".xx.............") } } }), "x").bytes);
+  const mel = held.tracks[2];
+  const c4 = mel.events.filter((e) => e.note === 60).map((e) => `${e.kind === 0x90 ? "on" : "off"}@${e.tick}`);
+  ok(c4.join() === "on@0,off@360,on@480,off@600", "C4 held across steps 1-3 is one note from tick 0 to 360, then a separate one-step note at step 5", c4);
+  const e4 = mel.events.filter((e) => e.note === 64).map((e) => `${e.kind === 0x90 ? "on" : "off"}@${e.tick}`);
+  ok(e4.join() === "on@0,off@120", "an untied note is still one step long", e4);
+  const flagOnly = readMidi(F.buildMidi(song({ melody: { waveform: "sine", notes: { C4: lane("x.x.............") }, ties: { C4: lane("..x.............") } } }), "x").bytes);
+  const f = flagOnly.tracks[2].events.filter((e) => e.kind === 0x90).map((e) => e.tick);
+  ok(f.join() === "0,240", "a tie flag with no note on the step before is ignored (both notes are struck)", f);
+  ok(F.buildMidi(song({ melody: { waveform: "sine", notes: { C4: lane("xxxx............") }, ties: { C4: lane(".xxx............") } } }), "x").notes === 1 + 6 && true, "a held note counts once in the note total (6 drum hits plus 1)", F.buildMidi(song({ melody: { waveform: "sine", notes: { C4: lane("xxxx............") }, ties: { C4: lane(".xxx............") } } }), "x").notes);
+}
+
 // tempo, swing, strength, volume, muting
 {
   const m = readMidi(F.buildMidi(song({ tempo: 90 }), "x").bytes);

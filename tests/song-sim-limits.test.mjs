@@ -26,6 +26,10 @@ assert.equal(songDataError({ melody: { notes: { C4: [true, true] }, ties: { C4: 
 assert.match(songDataError({ melody: { ties: [] } }), /held notes/);
 assert.match(songDataError({ melody: { ties: { C4: "x" } } }), /held notes/);
 assert.match(songDataError({ melody: { ties: "x" } }), /held notes/);
+assert.equal(songDataError({ melody: { voice: "pluck" } }), null, "a melody sound is accepted");
+assert.match(songDataError({ melody: { voice: 5 } }), /melody's sound/);
+assert.match(songDataError({ melody: { voice: { a: 1 } } }), /melody's sound/);
+assert.match(songDataError({ melody: { voice: "x".repeat(25) } }), /melody's sound/);
 assert.match(songDataError({ private_notes: 5 }), /private notes/);
 assert.match(songDataError({ private_notes: "x".repeat(20001) }), /private notes/);
 assert.match(songDataError({ filler: "x".repeat(MAX_SONG_BYTES) }), /too large/);

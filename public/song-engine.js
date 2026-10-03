@@ -282,6 +282,89 @@ function setMasterVolume(ctx, value) {
     osc.stop(time + duration);
   }
 
+  // ---------- Melody instruments ----------
+  // A song with no melody.voice plays exactly as it always has (playMelodyNote, the waveform select). A named voice shapes the
+  // note instead: attack/decay/sustain/release, an optional low-pass sweep, a detuned twin, a sub-octave, an inharmonic partial
+  // and a slow vibrato. sustain 0 makes a struck sound (pluck, bell) that rings for `decay` whatever the note length; anything
+  // higher is held for the note's length (ties lengthen it) and then released. Each voice brings its own oscillator type.
+  const MELODY_VOICES = {
+    pluck: { label: "Pluck", wave: "sawtooth", attack: 0.002, decay: 0.28, sustain: 0, release: 0, cutoff: 5200, cutoffEnd: 600, filterTime: 0.22, q: 3, level: 0.8 },
+    lead: { label: "Lead", wave: "square", attack: 0.012, decay: 0.12, sustain: 0.65, release: 0.09, cutoff: 3600, q: 1, detune: 8, vibrato: { cents: 14, rate: 5.5, delay: 0.18 }, level: 0.55 },
+    pad: { label: "Pad", wave: "sawtooth", attack: 0.28, decay: 0.3, sustain: 0.75, release: 0.55, cutoff: 1500, q: 0.7, detune: 11, level: 0.5 },
+    bass: { label: "Bass", wave: "sawtooth", attack: 0.005, decay: 0.14, sustain: 0.7, release: 0.06, cutoff: 900, cutoffEnd: 420, filterTime: 0.2, q: 2, sub: 0.7, level: 0.7 },
+    bell: { label: "Bell", wave: "sine", attack: 0.002, decay: 1.4, sustain: 0, release: 0, partial: { ratio: 2.76, level: 0.4 }, level: 0.9 },
+  };
+  const MELODY_VOICE_PEAK = 0.25; // the same loudness the plain waveform note starts at
+
+  function playVoicedNote(ctx, time, freq, voiceName, duration) {
+    const v = MELODY_VOICES[voiceName];
+    const end = time + duration;
+    const peak = MELODY_VOICE_PEAK * (v.level || 1);
+    const envelope = ctx.createGain();
+    const g = envelope.gain;
+    const attackEnd = time + v.attack;
+    g.setValueAtTime(0.0001, time);
+    g.linearRampToValueAtTime(peak, attackEnd);
+    let stopAt;
+    if (v.sustain > 0) {
+      const held = Math.max(0.0001, peak * v.sustain);
+      g.exponentialRampToValueAtTime(held, attackEnd + v.decay);
+      const gate = Math.max(end, attackEnd + v.decay); // never cut into the decay, even for a one-step note
+      g.setValueAtTime(held, gate);
+      g.exponentialRampToValueAtTime(0.0001, gate + v.release);
+      stopAt = gate + v.release + 0.02;
+    } else {
+      g.exponentialRampToValueAtTime(0.0001, attackEnd + v.decay);
+      stopAt = attackEnd + v.decay + 0.02;
+    }
+    let tone = envelope;
+    if (v.cutoff) {
+      const filter = ctx.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.Q.value = v.q || 1;
+      filter.frequency.setValueAtTime(v.cutoff, time);
+      if (v.cutoffEnd) filter.frequency.exponentialRampToValueAtTime(v.cutoffEnd, time + (v.filterTime || v.decay));
+      filter.connect(envelope);
+      tone = filter;
+    }
+    envelope.connect(voiceOut(ctx));
+    const oscillator = (type, hz, level, cents) => {
+      const osc = ctx.createOscillator();
+      osc.type = type;
+      osc.frequency.value = hz;
+      if (cents) osc.detune.value = cents;
+      const mix = ctx.createGain();
+      mix.gain.value = level;
+      osc.connect(mix).connect(tone);
+      osc.start(time);
+      osc.stop(stopAt);
+      return osc;
+    };
+    const twin = v.detune ? 0.5 : 1;
+    const main = oscillator(v.wave, freq, twin);
+    const voices = [main];
+    if (v.detune) voices.push(oscillator(v.wave, freq, twin, v.detune), oscillator(v.wave, freq, twin * 0.6, -v.detune));
+    if (v.sub) oscillator("sine", freq / 2, v.sub);
+    if (v.partial) oscillator("sine", freq * v.partial.ratio, v.partial.level);
+    if (v.vibrato) {
+      const lfo = ctx.createOscillator();
+      const depth = ctx.createGain();
+      lfo.frequency.value = v.vibrato.rate;
+      depth.gain.setValueAtTime(0, time);
+      depth.gain.linearRampToValueAtTime(v.vibrato.cents, time + v.vibrato.delay + 0.25);
+      lfo.connect(depth);
+      voices.forEach((o) => depth.connect(o.detune));
+      lfo.start(time);
+      lfo.stop(stopAt);
+    }
+  }
+
+  // The name of the voice a song's melody uses, or "" for the plain waveform note (an unknown name is "" too, so stale data stays safe).
+  function melodyVoiceOf(songData) {
+    const name = songData && songData.melody && songData.melody.voice;
+    return typeof name === "string" && Object.prototype.hasOwnProperty.call(MELODY_VOICES, name) ? name : "";
+  }
+
   function stepDurationFor(tempo) {
     return 60 / (tempo || 120) / 4; // 16th notes
   }
@@ -365,13 +448,15 @@ function setMasterVolume(ctx, value) {
     }
     if (songData.melody && !isMelodyMuted(songData)) {
       const waveform = songData.melody.waveform || "sine";
+      const voice = melodyVoiceOf(songData);
       const duration = stepDurationFor(songData.tempo);
       Object.keys(songData.melody.notes).sort().forEach((note) => {
         // A tied step carries on the note struck before it, which was given its full length when it started.
         if (songData.melody.notes[note][step] && !isTiedContinuation(songData, note, step)) {
           const noteTime = Math.max(0, time + humanizeJitter(songData, random));
           const length = duration * heldSteps(songData, note, step);
-          withVolume(ctx, volumeOf(songData.melody) * stepLevel(songData.melody.notes[note][step]), () => playMelodyNote(ctx, noteTime, noteToFreq(note), waveform, length));
+          withVolume(ctx, volumeOf(songData.melody) * stepLevel(songData.melody.notes[note][step]), () =>
+            voice ? playVoicedNote(ctx, noteTime, noteToFreq(note), voice, length) : playMelodyNote(ctx, noteTime, noteToFreq(note), waveform, length));
         }
       });
     }
@@ -565,6 +650,9 @@ function setMasterVolume(ctx, value) {
     stepHasAudibleDrumHit,
     swingDelay,
     playMelodyNote,
+    playVoicedNote,
+    melodyVoiceOf,
+    MELODY_VOICES,
     withVolume,
     stepLevel,
     volumeOf,

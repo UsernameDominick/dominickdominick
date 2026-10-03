@@ -3,6 +3,7 @@
 export const MAX_SONG_NAME = 200;
 export const MAX_SONG_BYTES = 1000000;
 const MAX_PRIVATE_NOTES = 20000;
+const MAX_VOICE_NAME = 24;
 
 const isPlainObject = (v) => !!v && typeof v === "object" && !Array.isArray(v);
 const allArrays = (obj) => Object.values(obj).every(Array.isArray);
@@ -21,6 +22,7 @@ export function songDataError(data) {
     if (!isPlainObject(data.melody)) return "The song's melody must be an object.";
     if ("notes" in data.melody && (!isPlainObject(data.melody.notes) || !allArrays(data.melody.notes))) return "The melody's notes must be lists of steps.";
     if ("ties" in data.melody && (!isPlainObject(data.melody.ties) || !allArrays(data.melody.ties))) return "The melody's held notes must be lists of steps.";
+    if ("voice" in data.melody && (typeof data.melody.voice !== "string" || data.melody.voice.length > MAX_VOICE_NAME)) return "The melody's sound must be a short name.";
   }
   return null;
 }
