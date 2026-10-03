@@ -2,8 +2,10 @@
 // safely). Pure (no DOM), so a node test can load it.
 (function () {
   const STEPS = 16;
-  const DRUMS = ["kick", "snare", "hihat", "clap"];
-  const DEFAULT_COLORS = { kick: "#ff7a45", snare: "#ffd166", hihat: "#4ecdc4", clap: "#c9a5ff" };
+  const CORE_DRUMS = ["kick", "snare", "hihat", "clap"]; // every song has these rows
+  const EXTRA_DRUMS = ["openhat", "rim", "tom", "crash"]; // a song only has these once they were added (see song-builder.js)
+  const DRUMS = [...CORE_DRUMS, ...EXTRA_DRUMS];
+  const DEFAULT_COLORS = { kick: "#ff7a45", snare: "#ffd166", hihat: "#4ecdc4", clap: "#c9a5ff", openhat: "#7bdff2", rim: "#f4a261", tom: "#e76f51", crash: "#b8e986" };
   const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
   const PIANO_NOTES = [];
   [4, 3].forEach((octave) => {
@@ -23,7 +25,7 @@
 
   const PPQ = 480; // ticks per quarter note; a step is a sixteenth
   const STEP_TICKS = PPQ / 4;
-  const GM_DRUMS = { kick: 36, snare: 38, hihat: 42, clap: 39 }; // General MIDI percussion map, played on channel 10
+  const GM_DRUMS = { kick: 36, snare: 38, hihat: 42, clap: 39, openhat: 46, rim: 37, tom: 47, crash: 49 }; // General MIDI percussion map, played on channel 10
 
   // "C4" -> 60 (the usual convention where C4 is middle C); null for anything that isn't a note name.
   function noteNumber(name) {
@@ -169,6 +171,7 @@
     const meta = src.trackMeta && typeof src.trackMeta === "object" ? src.trackMeta : {};
     const tracks = src.tracks && typeof src.tracks === "object" ? src.tracks : {};
     DRUMS.forEach((t) => {
+      if (EXTRA_DRUMS.includes(t) && !Array.isArray(tracks[t])) return; // an extra row the file doesn't have stays absent
       song.tracks[t] = cleanLane(tracks[t]);
       const m = meta[t] && typeof meta[t] === "object" ? meta[t] : {};
       const entry = { color: /^#[0-9a-f]{6}$/i.test(m.color) ? m.color : DEFAULT_COLORS[t], note: cleanText(m.note, 200) };
@@ -232,5 +235,5 @@
     return { name: name || "Imported song", data: cleanSong(data) };
   }
 
-  window.SongFiles = { MELODY_VOICES, buildMidi, noteNumber, exportJson, parseImport, cleanSong, PPQ, STEP_TICKS, FORMAT, VERSION };
+  window.SongFiles = { MELODY_VOICES, CORE_DRUMS, EXTRA_DRUMS, GM_DRUMS, buildMidi, noteNumber, exportJson, parseImport, cleanSong, PPQ, STEP_TICKS, FORMAT, VERSION };
 })();

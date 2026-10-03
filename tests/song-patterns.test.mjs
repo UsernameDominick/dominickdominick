@@ -36,7 +36,9 @@ ok(P.euclideanRow("x", "y", "z").length === 16 && P.euclideanRow(99, 16, 0).filt
 
 // starter beats
 ok(P.STARTERS.length >= 6 && new Set(P.STARTERS.map((b) => b.id)).size === P.STARTERS.length, "there are several starter beats with distinct ids", P.STARTERS.map((b) => b.id));
-ok(P.STARTERS.every((b) => Object.entries(b.rows).every(([track, r]) => ["kick", "snare", "hihat", "clap"].includes(track) && /^[x.]{16}$/.test(r))), "every beat names real drum rows, 16 steps each");
+ok(P.STARTERS.every((b) => Object.entries(b.rows).every(([track, r]) => ["kick", "snare", "hihat", "clap", "openhat", "rim", "tom", "crash"].includes(track) && /^[x.]{16}$/.test(r))), "every beat names real drum rows, 16 steps each");
+ok(["disco", "bossa", "tom-groove"].every((id) => P.STARTERS.some((b) => b.id === id)), "the beats that use the extra drum voices are in the menu");
+ok(P.starterRow("disco", "openhat", 16).join() === P.starterRow("disco", "openhat", 16).join() && P.starterRow("disco", "openhat", 16).filter(Boolean).length === 4 && P.starterRow("bossa", "rim", 16).filter(Boolean).length === 5, "an extra voice's row of a beat reads back like any other");
 ok(P.STARTERS.every((b) => b.rows.kick), "every starter beat has a kick");
 ok(text(P.starterRow("four-floor", "kick", 16)) === "x...x...x...x..." && text(P.starterRow("rock", "snare", 16)) === "....x.......x...", "a row comes out as booleans, as written");
 ok(P.starterRow("rock", "clap", 16).every((b) => b === false) && P.starterRow("nope", "kick", 16).every((b) => b === false), "a row the beat doesn't list, or an unknown beat, is empty");

@@ -98,5 +98,79 @@ for (const [name, want] of Object.entries(shape)) {
   ok(JSON.stringify(roundTrip.data.melody) === JSON.stringify(kept.melody), "export then import keeps the voice and the held notes exactly");
 }
 
+// ---- the extra drum voices ----
+{
+  const drums = (tracks, extra = {}) => ({ tempo: 120, kit: "acoustic", master_volume: 1, tracks, melody: { waveform: "sine", notes: {} }, ...extra });
+  const hit = (name, step = 0) => ({ [name]: Array.from({ length: 16 }, (_, i) => i === step) });
+  const all = ["kick", "snare", "hihat", "clap", "openhat", "rim", "tom", "crash"];
+  ok(JSON.stringify([...E.DRUM_VOICES].sort()) === JSON.stringify([...all].sort()), "the engine plays exactly the eight drum voices", E.DRUM_VOICES);
+  ok(JSON.stringify([...F.CORE_DRUMS, ...F.EXTRA_DRUMS].sort()) === JSON.stringify([...all].sort()), "the file helper knows the same eight", [F.CORE_DRUMS, F.EXTRA_DRUMS]);
+  ok(all.every((d) => Number.isInteger(F.GM_DRUMS[d]) && F.GM_DRUMS[d] >= 27 && F.GM_DRUMS[d] <= 87), "every voice has a General MIDI percussion note");
+  ok(new Set(all.map((d) => F.GM_DRUMS[d])).size === 8, "and no two share one");
+
+  // what each new voice builds, in every kit
+  for (const kit of ["acoustic", "electronic", "808"]) {
+    const make = (name) => { const ctx = makeCtx(); E.scheduleStep(ctx, drums(hit(name), { kit }), 0, 0, () => 0.5); return ctx; };
+    const open = make("openhat"), tom = make("tom"), rim = make("rim"), crash = make("crash");
+    ok(count(open, "source") === 1 && count(open, "filter") === 1 && count(tom, "osc") === 1 && count(rim, "osc") === 2 && count(rim, "source") === 1 && count(crash, "source") === 2 && count(crash, "filter") === 2, `${kit}: open hat is noise, tom one oscillator, rim two tones and a click, crash two noise layers`, { open: count(open, "source"), tom: count(tom, "osc"), rim: [count(rim, "osc"), count(rim, "source")], crash: count(crash, "source") });
+  }
+  // the open hat rings longer than the closed one, the crash longer still
+  const lengthOf = (name) => { const ctx = makeCtx(); E.scheduleStep(ctx, drums(hit(name)), 0, 0, () => 0.5); return Math.max(...ctx.nodes.filter((n) => n.kind === "gain").flatMap((n) => n.gain.calls.filter((c) => c.kind === "exp").map((c) => c.t))); };
+  ok(lengthOf("hihat") < lengthOf("openhat") && lengthOf("openhat") < lengthOf("crash"), "decay lengths run closed hat < open hat < crash", [lengthOf("hihat"), lengthOf("openhat"), lengthOf("crash")]);
+
+  // a song without the extra rows never touches them, and a muted extra is silent
+  const core = makeCtx(); E.scheduleStep(core, drums({ kick: Array(16).fill(true) }), 0, 0, () => 0.5);
+  ok(count(core, "source") === 0 && count(core, "osc") === 1, "a song with only the core rows plays only those");
+  const muted = makeCtx(); E.scheduleStep(muted, drums(hit("crash"), { trackMeta: { crash: { muted: true } } }), 0, 0, () => 0.5);
+  ok(muted.nodes.filter((n) => n.kind === "source" || n.kind === "osc").length === 0, "a muted extra drum is silent");
+  const unknown = makeCtx(); E.scheduleStep(unknown, drums({ cowbell: Array(16).fill(true) }), 0, 0, () => 0.5);
+  ok(unknown.nodes.filter((n) => n.kind === "source" || n.kind === "osc").length === 0, "a row the engine has no voice for makes no sound");
+
+  // choke: a closed hat (or the next open hat) cuts a ringing open hat; nothing before it starts or after it has died
+  const chokeCalls = (ctx) => ctx.nodes.flatMap((n) => n.gain.calls.filter((c) => c.kind === "target"));
+  const run = (rows, steps) => { const ctx = makeCtx(); const data = drums(rows); for (const step of steps) E.scheduleStep(ctx, data, step, step * STEP, () => 0.5); return ctx; };
+  const both = { openhat: Array.from({ length: 16 }, (_, i) => i === 0), hihat: Array.from({ length: 16 }, (_, i) => i === 1) };
+  const cut = chokeCalls(run(both, [0, 1]));
+  ok(cut.length === 1 && Math.abs(cut[0].t - STEP) < 1e-9 && cut[0].v < 0.001, "a closed hat one step after an open hat cuts it at that moment", cut);
+  const late = { openhat: Array.from({ length: 16 }, (_, i) => i === 0), hihat: Array.from({ length: 16 }, (_, i) => i === 8) };
+  ok(chokeCalls(run(late, [0, 8])).length === 0, "a closed hat after the open hat has died away cuts nothing", chokeCalls(run(late, [0, 8])));
+  const before = { hihat: Array.from({ length: 16 }, (_, i) => i === 0), openhat: Array.from({ length: 16 }, (_, i) => i === 1) };
+  ok(chokeCalls(run(before, [0, 1])).length === 0, "a closed hat before the open one cuts nothing");
+  const twice = { openhat: Array.from({ length: 16 }, (_, i) => i === 0 || i === 1) };
+  ok(chokeCalls(run(twice, [0, 1])).length === 1, "an open hat struck again cuts the one still ringing");
+  const same = { openhat: Array.from({ length: 16 }, (_, i) => i === 0), hihat: Array.from({ length: 16 }, (_, i) => i === 0) };
+  ok(chokeCalls(run(same, [0])).length === 0, "an open and a closed hat on the same step both sound (no choke)");
+  // each audio context keeps its own open hat
+  const a = makeCtx(), c2 = makeCtx();
+  E.scheduleStep(a, drums({ openhat: Array(16).fill(true) }), 0, 0, () => 0.5);
+  E.scheduleStep(c2, drums({ hihat: Array(16).fill(true) }), 0, STEP, () => 0.5);
+  ok(chokeCalls(c2).length === 0, "a hat in one audio context never cuts an open hat in another");
+
+  // offline renders accept the new rows
+  const peaks = await E.renderWaveformPeaks(drums({ openhat: Array(16).fill(true), tom: Array(16).fill(true), rim: Array(16).fill(true), crash: hit("crash").crash }), 40);
+  ok(peaks.length === 40, "the waveform preview renders a song that uses the extra drums");
+}
+
+// ---- file helper: MIDI notes and the import cleaner ----
+{
+  const lane16 = (str) => Array.from(str, (c) => c === "x");
+  const song = { tempo: 120, tracks: { kick: lane16("x..............."), openhat: lane16("..x............."), rim: lane16("....x..........."), tom: lane16("......x........."), crash: lane16("x...............") }, trackMeta: {}, melody: { notes: {} } };
+  const midi = F.buildMidi(song, "x");
+  ok(midi.notes === 5, "every extra drum's hits are counted in the MIDI file", midi.notes);
+  const bytes = Array.from(midi.bytes);
+  const hasNote = (n) => bytes.some((v, i) => v === 0x99 && bytes[i + 1] === n);
+  ok(hasNote(36) && hasNote(46) && hasNote(37) && hasNote(47) && hasNote(49), "they are written as General MIDI 46 (open hat), 37 (rim), 47 (tom) and 49 (crash) on channel 10");
+  const none = F.buildMidi({ tempo: 120, tracks: { kick: lane16("x...............") }, trackMeta: {}, melody: { notes: {} } }, "x");
+  ok(none.notes === 1, "a song without extra rows writes none");
+
+  const cleaned = F.cleanSong({ tracks: { kick: lane16("x"), crash: lane16("x"), bogus: lane16("x") }, trackMeta: { crash: { color: "#112233", muted: true }, kick: {} } });
+  ok(Object.keys(cleaned.tracks).sort().join() === "clap,crash,hihat,kick,snare", "import keeps the core rows, an extra row the file has, and nothing else", Object.keys(cleaned.tracks));
+  ok(cleaned.trackMeta.crash.color === "#112233" && cleaned.trackMeta.crash.muted === true && !cleaned.trackMeta.tom, "an extra row keeps its colour and mute, an absent one gets no settings");
+  ok(Object.keys(F.cleanSong({}).tracks).sort().join() === "clap,hihat,kick,snare", "a song file with no rows gets exactly the four core ones");
+  const full = F.cleanSong({ tracks: { openhat: lane16("x..x"), rim: lane16("x"), tom: lane16("x"), crash: lane16("x") } });
+  const round = F.parseImport(F.exportJson("T", full));
+  ok(JSON.stringify(round.data.tracks) === JSON.stringify(full.tracks) && JSON.stringify(round.data.trackMeta) === JSON.stringify(full.trackMeta), "export then import keeps all eight rows exactly");
+}
+
 console.log(fail ? `${fail} FAILED` : "ALL PASS");
 process.exit(fail ? 1 : 0);

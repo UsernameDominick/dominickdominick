@@ -2264,6 +2264,11 @@
         </div>
         <div id="song-sequencer-ruler" class="song-ruler" aria-hidden="true"></div>
         <div id="song-sequencer" class="song-sequencer"></div>
+        <div class="song-pattern-tools song-add-drum" id="song-add-drum-row" role="group" aria-label="Add a drum sound">
+          <label>More drum sounds <select id="song-add-drum"></select></label>
+          <button type="button" id="song-add-drum-btn" class="song-track-toggle" title="Add this drum as a new row in the grid (undoable). Remove it later with the × on its row.">Add row</button>
+          <span id="song-drum-status" class="sim-sr-only" role="status"></span>
+        </div>
         <details class="song-generators" id="song-generators">
           <summary>Starter beats and rhythm generator</summary>
           <div class="song-pattern-tools" role="group" aria-label="Pattern generators">

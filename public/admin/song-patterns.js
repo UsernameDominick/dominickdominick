@@ -20,6 +20,10 @@
     { id: "trap", label: "Trap", rows: { kick: "x.....x...x.....", snare: "........x.......", clap: "........x.......", hihat: "xxxxxxxxxxxxxxxx" } },
     { id: "dembow", label: "Reggaeton dembow", rows: { kick: "x...x...x...x...", snare: "...x..x....x..x.", hihat: "x.x.x.x.x.x.x.x." } },
     { id: "breakbeat", label: "Breakbeat", rows: { kick: "x.x.......x.x...", snare: "....x..x.x..x...", hihat: "x.x.x.x.x.x.x.x." } },
+    // These use the extra drum voices; applying one to all drums adds the rows it needs.
+    { id: "disco", label: "Disco (open hats)", rows: { kick: "x...x...x...x...", clap: "....x.......x...", hihat: "x.x.x.x.x.x.x.x.", openhat: "..x...x...x...x." } },
+    { id: "bossa", label: "Bossa nova (rim clave)", rows: { kick: "x..x..x...x..x..", rim: "x..x..x...x..x..", hihat: "x.x.x.x.x.x.x.x." } },
+    { id: "tom-groove", label: "Tom groove", rows: { kick: "x.......x.......", snare: "....x.......x...", tom: "..x..x....x.x...", hihat: "x.x.x.x.x.x.x.x.", crash: "x..............." } },
   ];
 
   // One row of a starter beat as booleans (all false for a row the beat doesn't list or an unknown beat), resized to `steps`.

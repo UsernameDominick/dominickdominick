@@ -4,12 +4,16 @@
   const $ = (id) => document.getElementById(id);
 
   const Engine = window.SongEngine;
-  const TRACKS = ["kick", "snare", "hihat", "clap"];
-  const TRACK_LABELS = { kick: "Kick", snare: "Snare", hihat: "Hi-Hat", clap: "Clap" };
+  // Every song has the four core drum rows. The extra voices (open hat, rim, tom, crash) are added to a song from the menu under the
+  // grid, so a song that never asked for them has exactly the rows it always had. TRACK_ORDER is the order rows are shown in.
+  const CORE_TRACKS = ["kick", "snare", "hihat", "clap"];
+  const EXTRA_TRACKS = ["openhat", "rim", "tom", "crash"];
+  const TRACK_ORDER = ["kick", "snare", "hihat", "openhat", "clap", "rim", "tom", "crash"];
+  const TRACK_LABELS = { kick: "Kick", snare: "Snare", hihat: "Hi-Hat", openhat: "Open Hat", clap: "Clap", rim: "Rim", tom: "Tom", crash: "Crash" };
   // Distinct default swatch per track so a freshly-created song's grid
   // already reads as 4 differentiable lanes at a glance, rather than every
   // track sharing the same accent color until an admin manually picks one.
-  const DEFAULT_TRACK_COLORS = { kick: "#ff7a45", snare: "#ffd166", hihat: "#4ecdc4", clap: "#c9a5ff" };
+  const DEFAULT_TRACK_COLORS = { kick: "#ff7a45", snare: "#ffd166", hihat: "#4ecdc4", clap: "#c9a5ff", openhat: "#7bdff2", rim: "#f4a261", tom: "#e76f51", crash: "#b8e986" };
   const STEPS = Engine.STEPS;
 
   // Piano roll: 2 octaves (C3-B4), highest pitch first — the usual
@@ -53,11 +57,11 @@
       // embed's data-song attribute, the same "never shown publicly"
       // guarantee articles/projects give their own private_notes column.
       private_notes: "",
-      tracks: TRACKS.reduce((acc, t) => {
+      tracks: CORE_TRACKS.reduce((acc, t) => {
         acc[t] = new Array(STEPS).fill(false);
         return acc;
       }, {}),
-      trackMeta: TRACKS.reduce((acc, t) => {
+      trackMeta: CORE_TRACKS.reduce((acc, t) => {
         acc[t] = { color: DEFAULT_TRACK_COLORS[t], note: "" };
         return acc;
       }, {}),
@@ -74,6 +78,10 @@
   let songs = [];
   let currentSongId = null;
   let songData = defaultSongData();
+  // The drum rows the open song has, in display order: the core four, plus each extra voice that was added to it.
+  function trackList() {
+    return TRACK_ORDER.filter((t) => CORE_TRACKS.includes(t) || (songData.tracks && Array.isArray(songData.tracks[t])));
+  }
 
   // ---------- Autosave ----------
   // Songs previously had zero autosave/crash-recovery wiring at all,
@@ -797,7 +805,7 @@
   // Drum pattern tools: shift (wraps), randomize or clear one drum row or all of them.
   const patternRows = () => {
     const t = $("song-pattern-target").value;
-    return t === "all" ? TRACKS.filter((k) => songData.trackMeta[k].hidden !== true) : TRACKS.filter((k) => k === t);
+    return t === "all" ? trackList().filter((k) => songData.trackMeta[k].hidden !== true) : trackList().filter((k) => k === t);
   };
   const patternWord = () => ($("song-pattern-target").value === "all" ? "all drums" : TRACK_LABELS[$("song-pattern-target").value]);
   let patternAnnounce = 0;
@@ -807,18 +815,20 @@
       songData.tracks[k] = fn(row, k);
     }
     renderSequencer();
-    const skipped = $("song-pattern-target").value === "all" ? TRACKS.length - patternRows().length : 0;
+    const skipped = $("song-pattern-target").value === "all" ? trackList().length - patternRows().length : 0;
     patternAnnounce++;
     $("song-pattern-status").textContent = `${message} (${patternWord()}${skipped ? `, ${skipped} hidden row${skipped > 1 ? "s" : ""} skipped` : ""}).${patternAnnounce % 2 ? "" : " "}`;
     scheduleAutosave();
     refreshWaveformPreview();
   }
+  // How full a randomized row is: busy hats, sparse kicks, and the extra voices kept light so a random beat still breathes.
+  const DRUM_RANDOM_DENSITY = { hihat: 0.5, kick: 0.25, openhat: 0.15, rim: 0.15, tom: 0.12, crash: 0.04 };
   const shiftRow = (row, by) => row.map((_, i) => row[(i - by + STEPS) % STEPS]);
   $("song-pattern-shift-left").addEventListener("click", () => patternEdit((r) => shiftRow(r, -1), "Shifted one step earlier"));
   $("song-pattern-shift-right").addEventListener("click", () => patternEdit((r) => shiftRow(r, 1), "Shifted one step later"));
   $("song-pattern-clear").addEventListener("click", () => patternEdit((r) => r.map(() => false), "Cleared"));
   $("song-pattern-random").addEventListener("click", () =>
-    patternEdit((r, k) => r.map((_, i) => Math.random() < (k === "hihat" ? 0.5 : k === "kick" ? 0.25 : 0.2) || (k === "kick" && i % 4 === 0 && Math.random() < 0.7)), "Randomized, all hits at full strength"));
+    patternEdit((r, k) => r.map((_, i) => Math.random() < (DRUM_RANDOM_DENSITY[k] ?? 0.2) || (k === "kick" && i % 4 === 0 && Math.random() < 0.7)), "Randomized, all hits at full strength"));
   // Starter beats and Euclidean rhythms replace the rows chosen under "Apply to" (hidden rows are skipped, as for Randomize).
   const starterSelect = $("song-starter-beat");
   window.SongPatterns.STARTERS.forEach((b) => {
@@ -835,6 +845,12 @@
   };
   $("song-starter-apply").addEventListener("click", () => {
     const beat = window.SongPatterns.STARTERS.find((b) => b.id === starterSelect.value);
+    // A beat that uses an extra drum (an open hat, a rim click) brings its row along if the song doesn't have it yet.
+    if (beat && $("song-pattern-target").value === "all") {
+      const needed = Object.keys(beat.rows).filter((t) => EXTRA_TRACKS.includes(t) && !trackList().includes(t));
+      needed.forEach(addDrumRow);
+      if (needed.length) renderSequencer();
+    }
     patternEdit((r, k) => window.SongPatterns.starterRow(starterSelect.value, k, STEPS), `Replaced with the ${beat ? beat.label : "starter"} beat`);
   });
   $("song-euclid-apply").addEventListener("click", () => {
@@ -901,7 +917,7 @@
       if (pushSongUndoState(historyBefore)) songEditGeneration++;
       scheduleAutosave();
       const unsavedNote = currentSongId ? "" : " (Save the song to keep this.)";
-      const mutedParts = [...TRACKS.filter((t) => Engine.isTrackMuted(songData, t)).map((t) => TRACK_LABELS[t]), ...(Engine.isMelodyMuted(songData) ? ["Melody"] : [])];
+      const mutedParts = [...trackList().filter((t) => Engine.isTrackMuted(songData, t)).map((t) => TRACK_LABELS[t]), ...(Engine.isMelodyMuted(songData) ? ["Melody"] : [])];
       const mutedNote = mutedParts.length ? ` Muted parts (${mutedParts.join(", ")}) weren't counted, so unmuting them later can clip.` : "";
       alert(`Peak was ${Math.round(peakAmp * 100)}% of full scale. Master volume set to ${newVolumePercent}% to avoid clipping.${mutedNote}${unsavedNote}`);
     } catch (err) {
@@ -1375,10 +1391,14 @@
           ? `<button type="button" class="song-track-toggle song-track-mute" data-row="${key}" aria-pressed="${muted}" aria-label="Mute ${label}" title="Mute ${label}: silent in the preview and on the public page">M</button>` +
             `<button type="button" class="song-track-toggle song-track-hide" data-row="${key}" aria-pressed="${hidden}" aria-label="Hide ${label} row" title="Hide ${label} row: collapses it here in the editor, but it still plays unless muted">${hidden ? SONG_EYE_OFF_ICON : SONG_EYE_ICON}</button>`
           : "";
+        // An added drum row has a × at its far end (not beside Mute and Hide, which would push its steps out of line with the rows above).
+        const removeHtml = containerId === "song-sequencer" && EXTRA_TRACKS.includes(key)
+          ? `<button type="button" class="song-track-toggle song-track-remove" data-row="${key}" aria-label="Remove ${label} row" title="Remove the ${label} row from this song (undoable)">×</button>`
+          : "";
         if (hidden) {
           return `<div class="song-track-row song-track-row-hidden${muted ? " song-track-row-muted" : ""}"${rowStyle}><span class="song-track-label">${label}</span>${toggleHtml}<span class="song-track-hidden-note">Hidden, ${
             muted ? "muted" : "still plays"
-          }${reportVolume(meta)}</span></div>`;
+          }${reportVolume(meta)}</span>${removeHtml}</div>`;
         }
         const metaHtml = meta
           ? `<input type="color" class="song-track-color" data-row="${key}" value="${escapeXml(meta.color)}" title="${label} color" aria-label="${label} color">` +
@@ -1420,7 +1440,7 @@
             `<button type="button" class="song-step${getOn(key, i) ? " song-step-on" : ""}${
               i % 4 === 0 ? " song-step-beat" : ""
             }" data-row="${key}" data-step="${i}"${stepLevelAttrs(getOn(key, i))} aria-label="${label} step ${i + 1}${stepLevelSpoken(getOn(key, i))}"></button>`
-        ).join("")}</div></div>`;
+        ).join("")}</div>${removeHtml}</div>`;
       })
       .join("");
     if (onLabelClick) {
@@ -1596,7 +1616,7 @@
   function renderSequencer() {
     renderStepGrid(
       "song-sequencer",
-      TRACKS,
+      trackList(),
       (t) => TRACK_LABELS[t],
       (t, i) => songData.tracks[t][i],
       (t, i, v) => (songData.tracks[t][i] = v),
@@ -1615,6 +1635,55 @@
       }
     );
     renderRuler("song-sequencer");
+    $("song-sequencer").querySelectorAll(".song-track-remove").forEach((btn) => btn.addEventListener("click", () => removeDrumRow(btn.dataset.row)));
+    syncAddDrumControl();
+    syncPatternTargets();
+  }
+
+  // ---------- Extra drum voices ----------
+  // The menu under the grid lists the voices this song doesn't have yet; each added row is an ordinary row (mute, hide, volume, note,
+  // colour, patterns, stems) and the × on it takes it out again. Both are single undo steps like every other edit.
+  function addDrumRow(t) {
+    songData.tracks[t] = new Array(STEPS).fill(false);
+    songData.trackMeta[t] = { color: DEFAULT_TRACK_COLORS[t], note: "" };
+  }
+  function syncAddDrumControl() {
+    const missing = TRACK_ORDER.filter((t) => EXTRA_TRACKS.includes(t) && !trackList().includes(t));
+    const select = $("song-add-drum");
+    const chosen = select.value;
+    select.innerHTML = missing.map((t) => `<option value="${t}">${TRACK_LABELS[t]}</option>`).join("");
+    if (missing.includes(chosen)) select.value = chosen;
+    $("song-add-drum-row").hidden = missing.length === 0;
+  }
+  // "Apply to" lists the rows the song has, and keeps the choice while it still exists.
+  function syncPatternTargets() {
+    const select = $("song-pattern-target");
+    const chosen = select.value;
+    select.innerHTML = `<option value="all">All drums</option>` + trackList().map((t) => `<option value="${t}">${TRACK_LABELS[t]}</option>`).join("");
+    select.value = chosen === "all" || trackList().includes(chosen) ? chosen : "all";
+  }
+  $("song-add-drum-btn").addEventListener("click", () => {
+    const t = $("song-add-drum").value;
+    if (!EXTRA_TRACKS.includes(t) || trackList().includes(t)) return;
+    addDrumRow(t);
+    renderSequencer();
+    const first = $("song-sequencer").querySelector(`.song-step[data-row="${t}"]`);
+    if (first) first.focus();
+    $("song-drum-status").textContent = `${TRACK_LABELS[t]} row added.`;
+    scheduleAutosave();
+  });
+  function removeDrumRow(t) {
+    if (!EXTRA_TRACKS.includes(t) || !trackList().includes(t)) return;
+    const hits = (songData.tracks[t] || []).filter(Boolean).length;
+    if (hits && !confirm(`Remove the ${TRACK_LABELS[t]} row and its ${hits} hit${hits === 1 ? "" : "s"}? Undo brings it back.`)) return;
+    delete songData.tracks[t];
+    delete songData.trackMeta[t];
+    renderSequencer();
+    $("song-add-drum").value = t;
+    $("song-add-drum").focus();
+    $("song-drum-status").textContent = `${TRACK_LABELS[t]} row removed.`;
+    refreshWaveformPreview();
+    scheduleAutosave();
   }
 
   function updateMelodyToggles() {
@@ -2061,7 +2130,8 @@
   function backfillSongData(data) {
     // A row whose tracks object lacks (or mangles) a lane must still open.
     if (!data.tracks || typeof data.tracks !== "object") data.tracks = {};
-    TRACKS.forEach((t) => {
+    // The core rows always exist; an extra voice is only tidied up if the song has it (and never invented).
+    [...CORE_TRACKS, ...EXTRA_TRACKS.filter((t) => Array.isArray(data.tracks[t]))].forEach((t) => {
       const lane = Array.isArray(data.tracks[t]) ? data.tracks[t] : [];
       data.tracks[t] = Array.from({ length: STEPS }, (_, i) => (lane[i] === undefined ? false : lane[i]));
     });
@@ -2071,7 +2141,7 @@
       if (!data.melody.notes[n]) data.melody.notes[n] = new Array(STEPS).fill(false);
     });
     if (!data.trackMeta) data.trackMeta = defaultSongData().trackMeta;
-    TRACKS.forEach((t) => {
+    [...CORE_TRACKS, ...EXTRA_TRACKS.filter((t) => Array.isArray(data.tracks[t]))].forEach((t) => {
       if (!data.trackMeta[t]) data.trackMeta[t] = { color: DEFAULT_TRACK_COLORS[t], note: "" };
     });
     if (data.private_notes == null) data.private_notes = "";
@@ -2517,7 +2587,7 @@
       ...(clipTotal ? [`Master clipping events this session: ${clipTotal}`] : []),
       "",
       "Drum tracks (steps hit / total):",
-      ...TRACKS.map((t) => `  ${TRACK_LABELS[t]}: ${songData.tracks[t].filter(Boolean).length} / ${STEPS}${songData.trackMeta[t].muted === true ? " (muted)" : ""}${reportVolume(songData.trackMeta[t])}`),
+      ...trackList().map((t) => `  ${TRACK_LABELS[t]}: ${songData.tracks[t].filter(Boolean).length} / ${STEPS}${songData.trackMeta[t].muted === true ? " (muted)" : ""}${reportVolume(songData.trackMeta[t])}`),
       "",
       "Melody notes used:",
     ];
@@ -2745,12 +2815,12 @@
     const copyFor = (solo) => {
       const copy = JSON.parse(JSON.stringify(songData));
       copy.trackMeta = copy.trackMeta || {};
-      TRACKS.forEach((t) => { copy.trackMeta[t] = { ...(copy.trackMeta[t] || {}), muted: t !== solo }; });
+      trackList().forEach((t) => { copy.trackMeta[t] = { ...(copy.trackMeta[t] || {}), muted: t !== solo }; });
       copy.melody = copy.melody || { waveform: "sine", notes: {} };
       copy.melody.muted = solo !== "melody";
       return copy;
     };
-    TRACKS.forEach((t) => {
+    trackList().forEach((t) => {
       const hits = (songData.tracks && songData.tracks[t] || []).some(Boolean);
       if (hits && !(songData.trackMeta && songData.trackMeta[t] && songData.trackMeta[t].muted === true)) jobs.push({ id: t, label: TRACK_LABELS[t], data: copyFor(t) });
     });

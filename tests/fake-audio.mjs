@@ -9,6 +9,7 @@ export function makeParam(initial = 0) {
   p.setValueAtTime = rec("set");
   p.linearRampToValueAtTime = rec("lin");
   p.exponentialRampToValueAtTime = rec("exp");
+  p.setTargetAtTime = (v, t, tc) => { p.calls.push({ kind: "target", v, t, tc }); return p; };
   p.cancelScheduledValues = () => p;
   return p;
 }

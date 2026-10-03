@@ -193,9 +193,9 @@ function setMasterVolume(ctx, value) {
   }
 
   const KIT_PARAMS = {
-    acoustic: { kickFreq: 150, kickDecay: 0.35, snareTone: 200, snareDecay: 0.18, hihatDecay: 0.06, clapDecay: 0.12 },
-    electronic: { kickFreq: 90, kickDecay: 0.25, snareTone: 320, snareDecay: 0.12, hihatDecay: 0.04, clapDecay: 0.08 },
-    "808": { kickFreq: 55, kickDecay: 0.55, snareTone: 180, snareDecay: 0.22, hihatDecay: 0.08, clapDecay: 0.15 },
+    acoustic: { kickFreq: 150, kickDecay: 0.35, snareTone: 200, snareDecay: 0.18, hihatDecay: 0.06, clapDecay: 0.12, openhatDecay: 0.3, tomFreq: 120, tomDecay: 0.3, rimDecay: 0.035, crashDecay: 1.2 },
+    electronic: { kickFreq: 90, kickDecay: 0.25, snareTone: 320, snareDecay: 0.12, hihatDecay: 0.04, clapDecay: 0.08, openhatDecay: 0.2, tomFreq: 160, tomDecay: 0.22, rimDecay: 0.025, crashDecay: 0.9 },
+    "808": { kickFreq: 55, kickDecay: 0.55, snareTone: 180, snareDecay: 0.22, hihatDecay: 0.08, clapDecay: 0.15, openhatDecay: 0.4, tomFreq: 90, tomDecay: 0.5, rimDecay: 0.03, crashDecay: 1.5 },
   };
 
   function playKick(ctx, time, kit) {
@@ -237,6 +237,7 @@ function setMasterVolume(ctx, value) {
   }
 
   function playHihat(ctx, time, kit, random = Math.random) {
+    chokeOpenHat(ctx, time); // a closed hat steps on a ringing open one
     const p = KIT_PARAMS[kit] || KIT_PARAMS.acoustic;
     const noise = ctx.createBufferSource();
     noise.buffer = noiseBuffer(ctx, p.hihatDecay, random);
@@ -268,7 +269,92 @@ function setMasterVolume(ctx, value) {
     });
   }
 
-  const PLAYERS = { kick: playKick, snare: playSnare, hihat: playHihat, clap: playClap };
+  // ---------- Extra drum voices: open hat, tom, rim, crash ----------
+  // A song only has these once they were added to it (the four above are always there), so older songs are untouched.
+  // The open hat rings through a gain of its own so a closed hat (or the next open hat) can cut it off cleanly without disturbing its
+  // decay curve; one per audio context is remembered, the way the master bus is.
+  const openHats = new WeakMap();
+  function chokeOpenHat(ctx, time) {
+    const open = openHats.get(ctx);
+    if (!open || time <= open.from || time >= open.until) return;
+    open.choke.setTargetAtTime(0.0001, time, 0.004);
+    open.until = time;
+  }
+  function playOpenHat(ctx, time, kit, random = Math.random) {
+    chokeOpenHat(ctx, time);
+    const p = KIT_PARAMS[kit] || KIT_PARAMS.acoustic;
+    const noise = ctx.createBufferSource();
+    noise.buffer = noiseBuffer(ctx, p.openhatDecay, random);
+    const filter = ctx.createBiquadFilter();
+    filter.type = "highpass";
+    filter.frequency.value = 6500;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.35, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + p.openhatDecay);
+    const choke = ctx.createGain();
+    noise.connect(filter).connect(gain).connect(choke).connect(voiceOut(ctx));
+    noise.start(time);
+    openHats.set(ctx, { choke: choke.gain, from: time, until: time + p.openhatDecay });
+  }
+
+  function playTom(ctx, time, kit) {
+    const p = KIT_PARAMS[kit] || KIT_PARAMS.acoustic;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(p.tomFreq * 1.9, time);
+    osc.frequency.exponentialRampToValueAtTime(p.tomFreq, time + 0.07);
+    gain.gain.setValueAtTime(0.9, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + p.tomDecay);
+    osc.connect(gain).connect(voiceOut(ctx));
+    osc.start(time);
+    osc.stop(time + p.tomDecay + 0.05);
+  }
+
+  // A short, dry click: two pitched tones and a burst of band-passed noise, over in a few hundredths of a second.
+  function playRim(ctx, time, kit, random = Math.random) {
+    const p = KIT_PARAMS[kit] || KIT_PARAMS.acoustic;
+    [[1750, 0.35], [480, 0.45]].forEach(([freq, level]) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(level, time);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + p.rimDecay);
+      osc.connect(gain).connect(voiceOut(ctx));
+      osc.start(time);
+      osc.stop(time + p.rimDecay + 0.02);
+    });
+    const noise = ctx.createBufferSource();
+    noise.buffer = noiseBuffer(ctx, p.rimDecay, random);
+    const filter = ctx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.value = 3200;
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.3, time);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, time + p.rimDecay);
+    noise.connect(filter).connect(noiseGain).connect(voiceOut(ctx));
+    noise.start(time);
+  }
+
+  // Two layers of noise at different brightness shimmer against each other and die away slowly.
+  function playCrash(ctx, time, kit, random = Math.random) {
+    const p = KIT_PARAMS[kit] || KIT_PARAMS.acoustic;
+    [[4500, 0.22, 1], [9000, 0.16, 0.7]].forEach(([cutoff, level, length]) => {
+      const noise = ctx.createBufferSource();
+      noise.buffer = noiseBuffer(ctx, p.crashDecay * length, random);
+      const filter = ctx.createBiquadFilter();
+      filter.type = "highpass";
+      filter.frequency.value = cutoff;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(level, time);
+      gain.gain.exponentialRampToValueAtTime(0.001, time + p.crashDecay * length);
+      noise.connect(filter).connect(gain).connect(voiceOut(ctx));
+      noise.start(time);
+    });
+  }
+
+  const PLAYERS = { kick: playKick, snare: playSnare, hihat: playHihat, clap: playClap, openhat: playOpenHat, tom: playTom, rim: playRim, crash: playCrash };
 
   function playMelodyNote(ctx, time, freq, waveform, duration) {
     const osc = ctx.createOscillator();
@@ -649,6 +735,7 @@ function setMasterVolume(ctx, value) {
     heldSteps,
     stepHasAudibleDrumHit,
     swingDelay,
+    DRUM_VOICES: Object.keys(PLAYERS),
     playMelodyNote,
     playVoicedNote,
     melodyVoiceOf,
