@@ -910,6 +910,12 @@
   }
 
   // ---------- Auth ----------
+  // The message sits in a role="alert" paragraph, so a screen reader announces it as soon as it appears.
+  function showLoginError(message) {
+    el("login-error").textContent = message || "";
+    if (message) el("password").setAttribute("aria-invalid", "true");
+    else el("password").removeAttribute("aria-invalid");
+  }
   el("login-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const password = el("password").value;
@@ -920,13 +926,16 @@
         body: JSON.stringify({ password }),
       });
       if (!res.ok) {
-        el("login-error").hidden = false;
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 429 && data.error) showLoginError(data.error);
+        else if (res.status === 401) showLoginError("Wrong password.");
+        else showLoginError(`Couldn't sign in (error ${res.status}). Try again in a moment.`);
         return;
       }
-      el("login-error").hidden = true;
+      showLoginError("");
       await boot();
     } catch (err) {
-      el("login-error").hidden = false;
+      showLoginError("Couldn't reach the server. Check your connection and try again.");
     }
   });
 
@@ -8592,6 +8601,7 @@
     el("settings-webhook-url").value = settings.webhook_url || "";
     el("settings-webhook-on-project-publish").checked = settings.webhook_on_project_publish === "1";
     el("settings-webhook-on-backup-failure").checked = settings.webhook_on_backup_failure === "1";
+    el("settings-webhook-on-login-failures").checked = settings.webhook_on_login_failures === "1";
     el("settings-mobile-breakpoint").value = settings.mobile_breakpoint || "";
     el("settings-empty-search").value = settings.empty_search_text || "";
     el("settings-empty-archive").value = settings.empty_archive_text || "";
@@ -8651,6 +8661,7 @@
           webhook_url: el("settings-webhook-url").value,
           webhook_on_project_publish: el("settings-webhook-on-project-publish").checked ? "1" : "",
           webhook_on_backup_failure: el("settings-webhook-on-backup-failure").checked ? "1" : "",
+          webhook_on_login_failures: el("settings-webhook-on-login-failures").checked ? "1" : "",
           mobile_breakpoint: el("settings-mobile-breakpoint").value,
           empty_search_text: el("settings-empty-search").value,
           empty_archive_text: el("settings-empty-archive").value,

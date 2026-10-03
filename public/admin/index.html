@@ -15,9 +15,9 @@
     <form id="login-form" class="login-form">
       <h1>Admin</h1>
       <p class="login-sub">dominickdominick.com</p>
-      <input type="password" id="password" placeholder="Password" autofocus required>
+      <input type="password" id="password" placeholder="Password" aria-label="Password" autocomplete="current-password" aria-describedby="login-error" autofocus required>
       <button type="submit">Log in</button>
-      <p id="login-error" class="login-error" hidden>Wrong password.</p>
+      <p id="login-error" class="login-error" role="alert"></p>
     </form>
   </div>
 
@@ -1228,6 +1228,7 @@
           </label>
           <label class="settings-checkbox-row"><input type="checkbox" id="settings-webhook-on-project-publish"> Also call them when a project is published</label>
           <label class="settings-checkbox-row"><input type="checkbox" id="settings-webhook-on-backup-failure"> Also call them when the daily backup fails (a JSON message with event "backup_failed"; leave off if these are build hooks)</label>
+          <label class="settings-checkbox-row"><input type="checkbox" id="settings-webhook-on-login-failures"> Also call them after 5 wrong passwords in 15 minutes from one connection (a JSON message with event "login_failures", no address in it; leave off if these are build hooks)</label>
           <h2>Webhook Deliveries</h2>
           <label style="margin-bottom:0;">Recent attempts to call the webhook URLs above. Failed ones can be retried with the exact same payload.</label>
           <button type="button" id="load-webhook-deliveries-btn">Refresh</button>

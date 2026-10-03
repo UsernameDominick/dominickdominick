@@ -2983,18 +2983,43 @@ export async function getSetting(env, key) {
 
 const LOGIN_WINDOW_MINUTES = 15;
 const LOGIN_MAX_ATTEMPTS = 8;
+// With the owner's opt-in, the webhook URLs hear about it when one connection gets this many wrong passwords inside the window.
+export const LOGIN_ALERT_AFTER = 5;
+
+// How long until a connection with these failed-attempt times (SQL UTC strings) may try again: the failures that count are the ones
+// still inside the window, and it may try once enough of the oldest have aged out to drop below the limit. 0 means it may try now.
+export function loginRetrySeconds(attemptTimes, nowMs, { windowMinutes = LOGIN_WINDOW_MINUTES, max = LOGIN_MAX_ATTEMPTS } = {}) {
+  const windowMs = windowMinutes * 60 * 1000;
+  const recent = (attemptTimes || [])
+    .map(stampMs)
+    .filter((t) => t !== null && t > nowMs - windowMs)
+    .sort((a, b) => a - b);
+  if (recent.length < max) return 0;
+  const frees = recent[recent.length - max] + windowMs;
+  return Math.max(1, Math.ceil((frees - nowMs) / 1000));
+}
+
+export function loginLockoutMessage(seconds) {
+  const minutes = Math.max(1, Math.ceil(seconds / 60));
+  return `Too many wrong passwords. Try again in about ${minutes} minute${minutes === 1 ? "" : "s"}.`;
+}
+
+// { allowed, retryAfterSeconds } for this connection.
+export async function getLoginLockout(env, ip, nowMs = Date.now()) {
+  const { results } = await env.DB
+    .prepare(`SELECT attempted_at FROM login_attempts WHERE ip = ? AND attempted_at > datetime('now', '-${LOGIN_WINDOW_MINUTES} minutes') ORDER BY attempted_at`)
+    .bind(ip)
+    .all();
+  const retryAfterSeconds = loginRetrySeconds((results || []).map((r) => r.attempted_at), nowMs);
+  return { allowed: retryAfterSeconds === 0, retryAfterSeconds };
+}
 
 // Returns true if this IP is currently allowed to attempt a login.
 export async function checkLoginRateLimit(env, ip) {
-  const { results } = await env.DB
-    .prepare(
-      `SELECT COUNT(*) AS n FROM login_attempts WHERE ip = ? AND attempted_at > datetime('now', '-${LOGIN_WINDOW_MINUTES} minutes')`
-    )
-    .bind(ip)
-    .all();
-  return (results[0]?.n || 0) < LOGIN_MAX_ATTEMPTS;
+  return (await getLoginLockout(env, ip)).allowed;
 }
 
+// Only wrong passwords are recorded: signing in correctly several times in a row must never lock the owner out.
 export async function recordLoginAttempt(env, ip) {
   await env.DB.prepare("INSERT INTO login_attempts (ip) VALUES (?)").bind(ip).run();
   // Best-effort cleanup so the table doesn't grow forever; cheap since it's indexed.
@@ -3002,6 +3027,12 @@ export async function recordLoginAttempt(env, ip) {
     .prepare(`DELETE FROM login_attempts WHERE attempted_at < datetime('now', '-1 day')`)
     .run()
     .catch(() => {});
+  const row = await env.DB
+    .prepare(`SELECT COUNT(*) AS n FROM login_attempts WHERE ip = ? AND attempted_at > datetime('now', '-${LOGIN_WINDOW_MINUTES} minutes')`)
+    .bind(ip)
+    .first()
+    .catch(() => null);
+  return row ? row.n || 0 : 0;
 }
 
 export async function recordPageview(env, { path, referrer, country, device, browser, region, city }) {
@@ -3446,19 +3477,18 @@ async function writeVerifiedBackup(env, key) {
   if (readBackHash !== checksum) throw new Error("Backup file failed integrity check after writing (hash mismatch)");
 }
 
-// Tells the configured webhook URLs that the daily backup failed, when the owner has asked for that (Site Settings, off by default: the
-// URLs may be build hooks that were never meant to receive anything but publish notices). One POST per URL (at most five, so a
+// Tells the configured webhook URLs about something that went wrong, when the owner has asked for that (Site Settings, off by default:
+// the URLs may be build hooks that were never meant to receive anything but publish notices). One POST per URL (at most five, so a
 // failing day stays well inside the request budget), each logged like any other webhook delivery. Never throws: an alert that can't
-// be sent must not hide the backup failure it is about. Returns how many URLs were called.
-export async function alertBackupFailure(env, message, send = fetch) {
+// be sent must not hide the problem it is about. Returns how many URLs were called.
+async function postWebhookAlert(env, flagKey, payload, send) {
   try {
-    if ((await getSetting(env, "webhook_on_backup_failure")) !== "1") return 0;
+    if ((await getSetting(env, flagKey)) !== "1") return 0;
     const urls = ((await getSetting(env, "webhook_url")) || "")
       .split("\n")
       .map((u) => u.trim())
       .filter((u) => /^https?:\/\//i.test(u))
       .slice(0, 5);
-    const payload = { event: "backup_failed", site: "dominickdominick.com", message: String(message || "Backup failed").slice(0, 300), at: new Date().toISOString() };
     let called = 0;
     for (const url of urls) {
       try {
@@ -3473,6 +3503,25 @@ export async function alertBackupFailure(env, message, send = fetch) {
   } catch {
     return 0;
   }
+}
+
+export function alertBackupFailure(env, message, send = fetch) {
+  return postWebhookAlert(
+    env,
+    "webhook_on_backup_failure",
+    { event: "backup_failed", site: "dominickdominick.com", message: String(message || "Backup failed").slice(0, 300), at: new Date().toISOString() },
+    send
+  );
+}
+
+// No address in the message: these URLs can be third-party services, and who is guessing is not theirs to know.
+export function alertLoginFailures(env, count, send = fetch) {
+  return postWebhookAlert(
+    env,
+    "webhook_on_login_failures",
+    { event: "login_failures", site: "dominickdominick.com", count: Number(count) || 0, window_minutes: LOGIN_WINDOW_MINUTES, at: new Date().toISOString() },
+    send
+  );
 }
 
 // ---------- Scheduled posts and the publish webhook ----------

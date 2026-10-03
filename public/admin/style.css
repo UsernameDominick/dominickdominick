@@ -185,6 +185,9 @@ input[type="text"], input[type="search"], input[type="number"], input[type="url"
   color: var(--error-text);
   font-size: 0.85rem;
 }
+.login-error:empty {
+  display: none;
+}
 
 /* App shell */
 .admin-app {

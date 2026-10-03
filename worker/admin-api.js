@@ -62,8 +62,11 @@ import {
   restoreScheduledBackup,
   runFindReplace,
   slugExists,
-  checkLoginRateLimit,
+  getLoginLockout,
+  loginLockoutMessage,
   recordLoginAttempt,
+  alertLoginFailures,
+  LOGIN_ALERT_AFTER,
   getSetting,
   logWebhookDelivery,
   listWebhookDeliveries,
@@ -248,6 +251,7 @@ const SETTINGS_KEYS = [
   "webhook_url",
   "webhook_on_project_publish",
   "webhook_on_backup_failure",
+  "webhook_on_login_failures",
   "mobile_breakpoint",
   "empty_search_text",
   "empty_archive_text",
@@ -789,14 +793,19 @@ async function routeAdminApi(request, env, url, ctx) {
 
   if (path === "/login" && method === "POST") {
     const ip = request.headers.get("CF-Connecting-IP") || "unknown";
-    const allowed = await checkLoginRateLimit(env, ip);
-    if (!allowed) {
-      return json({ error: "Too many attempts. Try again in a few minutes." }, { status: 429 });
+    const lockout = await getLoginLockout(env, ip);
+    if (!lockout.allowed) {
+      return json(
+        { error: loginLockoutMessage(lockout.retryAfterSeconds), retryAfter: lockout.retryAfterSeconds },
+        { status: 429, headers: { "Retry-After": String(lockout.retryAfterSeconds) } }
+      );
     }
     const body = await readJsonBody(request);
-    await recordLoginAttempt(env, ip);
     const ok = await checkPassword(env, body.password);
     if (!ok) {
+      // Only wrong passwords count against the limit.
+      const failures = await recordLoginAttempt(env, ip);
+      if (failures === LOGIN_ALERT_AFTER) ctx.waitUntil(alertLoginFailures(env, failures));
       log(ctx, env, "login_failed", "session", "Failed login attempt", ip);
       return json({ error: "Wrong password" }, { status: 401 });
     }
