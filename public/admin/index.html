@@ -2148,6 +2148,29 @@
         </h2>
         <div id="song-piano-roll-ruler" class="song-ruler" aria-hidden="true"></div>
         <div id="song-piano-roll" class="song-sequencer song-piano-roll"></div>
+        <details class="song-generators" id="song-melody-tools">
+          <summary>Melody tools: shift, reverse, random tune, chords and arpeggios</summary>
+          <div class="song-pattern-tools" role="group" aria-label="Move the melody">
+            <button type="button" id="song-melody-shift-left" class="song-track-toggle" title="Move every note one step earlier; the first step wraps to the end">◀ Shift</button>
+            <button type="button" id="song-melody-shift-right" class="song-track-toggle" title="Move every note one step later; the last step wraps to the start">Shift ▶</button>
+            <button type="button" id="song-melody-reverse" class="song-track-toggle" title="Play the melody backwards (undoable)">Reverse</button>
+            <button type="button" id="song-melody-clear" class="song-track-toggle" title="Remove every melody note (undoable)">Clear melody</button>
+          </div>
+          <div class="song-pattern-tools" role="group" aria-label="Random tune">
+            <label>Busy <input type="range" id="song-melody-density" min="10" max="100" value="60" aria-valuetext="60% of steps" title="How many of the 16 steps get a note"></label>
+            <button type="button" id="song-melody-random" class="song-track-toggle" title="Replace the melody with a random tune that stays inside the highlighted scale (C major pentatonic when no scale is highlighted). Undoable">Random tune in scale</button>
+          </div>
+          <div class="song-pattern-tools" role="group" aria-label="Chords and arpeggios">
+            <label>Root <select id="song-chord-root" title="The lowest note of the chord"></select></label>
+            <label>Chord <select id="song-chord-type"></select></label>
+            <label>Step <input type="number" id="song-chord-step" min="1" max="16" step="1" value="1" inputmode="numeric" title="Which of the 16 steps gets the chord"></label>
+            <button type="button" id="song-chord-stamp" class="song-track-toggle" title="Add the chord's notes on that step, keeping everything else (undoable)">Stamp chord</button>
+            <label>Pattern <select id="song-arp-pattern"></select></label>
+            <label>Every <select id="song-arp-every" title="How many steps between notes"><option value="1">step</option><option value="2">2 steps</option><option value="4">4 steps</option></select></label>
+            <button type="button" id="song-arp-apply" class="song-track-toggle" title="Replace the melody with this chord played one note at a time (undoable)">Arpeggiate</button>
+          </div>
+          <p id="song-melody-tools-note" class="song-tools-note" role="status"></p>
+        </details>
         <details class="panel-section song-notes-section">
           <summary>Production notes</summary>
           <label>Private notes (never shown publicly — mix references, arrangement ideas, todos)<textarea id="song-notes" rows="3" placeholder="e.g. Kick could use more low end. Try humanize 15% next pass."></textarea></label>

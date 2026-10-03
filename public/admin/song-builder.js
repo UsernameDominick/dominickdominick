@@ -1745,6 +1745,87 @@
     scheduleAutosave();
   }
 
+  // ---------- Melody tools: shift, reverse, clear, random tune, chord stamp and arpeggio (maths in song-patterns.js) ----------
+  // Every button here changes songData synchronously inside its click, so the song's own Undo (which watches clicks) covers each one.
+  const MP = window.SongPatterns;
+  const ROLL_LOW_TO_HIGH = [...PIANO_NOTES].reverse();
+  const chordRoot = $("song-chord-root");
+  ROLL_LOW_TO_HIGH.forEach((n) => chordRoot.appendChild(new Option(n, n)));
+  chordRoot.value = "C4";
+  Object.entries(MP.CHORDS).forEach(([id, c]) => $("song-chord-type").appendChild(new Option(c.label, id)));
+  Object.entries(MP.ARPEGGIO_PATTERNS).forEach(([id, label]) => $("song-arp-pattern").appendChild(new Option(label, id)));
+  let melodyToolsAnnounce = 0;
+  function melodyToolsSay(message) {
+    melodyToolsAnnounce++;
+    $("song-melody-tools-note").textContent = message + (melodyToolsAnnounce % 2 ? "" : " ");
+  }
+  function melodyHasNotes() {
+    return PIANO_NOTES.some((n) => songData.melody.notes[n] && songData.melody.notes[n].some(Boolean));
+  }
+  // Runs one tool: fn gets the current notes and returns the new ones. A hidden piano roll is left alone so nothing changes out of sight.
+  function melodyEdit(fn, message) {
+    if (songData.melody.hidden === true) {
+      melodyToolsSay("The melody is hidden. Show it first (the Show melody button in the piano roll), then try again.");
+      return false;
+    }
+    const next = fn(songData.melody.notes);
+    PIANO_NOTES.forEach((n) => {
+      if (!next[n]) next[n] = new Array(STEPS).fill(false);
+    });
+    songData.melody.notes = next;
+    renderPianoRoll();
+    refreshWaveformPreview();
+    scheduleAutosave();
+    melodyToolsSay(message);
+    return true;
+  }
+  $("song-melody-shift-left").addEventListener("click", () => {
+    if (!melodyHasNotes()) return melodyToolsSay("There are no melody notes to shift yet.");
+    melodyEdit((notes) => MP.rotateMelody(notes, -1, STEPS), "Melody shifted one step earlier.");
+  });
+  $("song-melody-shift-right").addEventListener("click", () => {
+    if (!melodyHasNotes()) return melodyToolsSay("There are no melody notes to shift yet.");
+    melodyEdit((notes) => MP.rotateMelody(notes, 1, STEPS), "Melody shifted one step later.");
+  });
+  $("song-melody-reverse").addEventListener("click", () => {
+    if (!melodyHasNotes()) return melodyToolsSay("There are no melody notes to reverse yet.");
+    melodyEdit((notes) => MP.reverseMelody(notes, STEPS), "Melody reversed.");
+  });
+  $("song-melody-clear").addEventListener("click", () => {
+    if (!melodyHasNotes()) return melodyToolsSay("The melody is already empty.");
+    melodyEdit(() => ({}), "Melody cleared. Undo brings it back.");
+  });
+  $("song-melody-density").addEventListener("input", () => {
+    $("song-melody-density").setAttribute("aria-valuetext", `${$("song-melody-density").value}% of steps`);
+  });
+  $("song-melody-random").addEventListener("click", () => {
+    const sc = activeScale();
+    const pool = sc ? MP.scalePool(PIANO_NOTES, sc.root, SCALES[sc.type]) : MP.scalePool(PIANO_NOTES, "C", SCALES.majpent);
+    const label = sc ? `${sc.root} ${$("song-scale-type").selectedOptions[0].textContent.toLowerCase()}` : "C major pentatonic (no scale is highlighted)";
+    const had = melodyHasNotes();
+    melodyEdit(() => MP.randomMelody(PIANO_NOTES, pool, STEPS, { density: Number($("song-melody-density").value) / 100 }), `A random tune in ${label}${had ? " replaced the melody. Undo brings it back" : ""}.`);
+  });
+  const chosenChord = () => MP.chordNames($("song-chord-root").value, $("song-chord-type").value, PIANO_NOTES);
+  const chordWord = () => `${$("song-chord-root").value} ${$("song-chord-type").selectedOptions[0].textContent.toLowerCase()}`;
+  const missingWord = (c) => (c.missing ? ` ${c.missing} chord note${c.missing === 1 ? " was" : "s were"} above the piano roll and left out.` : "");
+  $("song-chord-stamp").addEventListener("click", () => {
+    const c = chosenChord();
+    if (!c.names.length) return melodyToolsSay("That chord does not fit in the piano roll. Pick a lower root.");
+    const step = Math.max(1, Math.min(STEPS, Math.floor(Number($("song-chord-step").value)) || 1));
+    $("song-chord-step").value = step;
+    melodyEdit((notes) => MP.stampChord(notes, c.names, step - 1, STEPS), `${chordWord()} chord added on step ${step}.${missingWord(c)}`);
+  });
+  $("song-arp-apply").addEventListener("click", () => {
+    const c = chosenChord();
+    if (!c.names.length) return melodyToolsSay("That chord does not fit in the piano roll. Pick a lower root.");
+    const every = Number($("song-arp-every").value) || 1;
+    const had = melodyHasNotes();
+    melodyEdit(
+      () => MP.arpeggioMelody(PIANO_NOTES, c.names, $("song-arp-pattern").value, every, STEPS),
+      `${chordWord()} arpeggio, ${$("song-arp-pattern").selectedOptions[0].textContent.toLowerCase()}, a note every ${every === 1 ? "step" : every + " steps"}${had ? ", replaced the melody. Undo brings it back" : ""}.${missingWord(c)}`
+    );
+  });
+
   // ---------- List modal ----------
   async function loadSongsList() {
     songs = await window.adminApi("/songs");

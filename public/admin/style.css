@@ -7755,6 +7755,7 @@ button[data-tier="quiet"] { border-color: transparent; }
 #song-tap-tempo { touch-action: manipulation; }
 .song-pattern-tools { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0 0 0.5rem; }
 .song-pattern-tools label { display: inline-flex; gap: 0.4rem; align-items: center; }
+.song-tools-note { margin: 0 0 0.5rem; font-size: 0.8rem; color: var(--text-dim); min-height: 1.2em; }
 @media (pointer: coarse) { .song-pattern-tools .song-track-toggle, .song-pattern-tools select { min-height: 40px; } }
 
 /* Selection group: desktop shows the folded controls inline; phones show a disclosure

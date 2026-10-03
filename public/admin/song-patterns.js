@@ -1,4 +1,5 @@
-// Drum pattern helpers for the song builder: Euclidean rhythms and starter beats. Pure (no DOM), so a node test can load it.
+// Pattern helpers for the song builder: Euclidean rhythms and starter beats for the drums, and shift, reverse, chord, arpeggio and random
+// tools for the melody. Pure (no DOM), so a node test can load it.
 (function () {
   // Spread `hits` hits as evenly as possible over `steps` steps (the "Euclidean" rhythm: 3 in 8 is x..x..x.), then turn it `rotate`
   // steps later. Returns an array of booleans.
@@ -29,5 +30,129 @@
     return Array.from({ length: n }, (_, i) => text[i % 16] === "x" && i < 16);
   }
 
-  window.SongPatterns = { euclideanRow, STARTERS, starterRow };
+
+  // ---------- Melody tools ----------
+  // The melody is { "C4": [step values...], ... }, one row per piano roll note. Every function here returns a fresh object and leaves
+  // its input alone; step values (true, or whatever the row holds) are carried across unchanged by the tools that only move notes.
+  const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+  const CHORDS = {
+    major: { label: "Major", intervals: [0, 4, 7] },
+    minor: { label: "Minor", intervals: [0, 3, 7] },
+    dim: { label: "Diminished", intervals: [0, 3, 6] },
+    sus4: { label: "Suspended 4th", intervals: [0, 5, 7] },
+    dom7: { label: "Dominant 7th", intervals: [0, 4, 7, 10] },
+    maj7: { label: "Major 7th", intervals: [0, 4, 7, 11] },
+    min7: { label: "Minor 7th", intervals: [0, 3, 7, 10] },
+  };
+  const ARPEGGIO_PATTERNS = { up: "Up", down: "Down", updown: "Up and down" };
+
+  // A note's height as one number (C0 is 0), or null for something that is not a note name.
+  function noteValue(name) {
+    const m = /^([A-G]#?)(\d+)$/.exec(String(name));
+    return m ? Number(m[2]) * 12 + NOTE_NAMES.indexOf(m[1]) : null;
+  }
+  const stepCount = (steps) => Math.max(1, Math.floor(Number(steps)) || 16);
+  const emptyMelody = (allNames, steps) => {
+    const out = {};
+    allNames.forEach((n) => (out[n] = new Array(steps).fill(false)));
+    return out;
+  };
+  const rowOf = (notes, name, steps) => Array.from({ length: steps }, (_, i) => (notes && notes[name] ? notes[name][i] || false : false));
+
+  // Every note moved `by` steps later (negative: earlier); what falls off one end wraps to the other.
+  function rotateMelody(notes, by, steps) {
+    const n = stepCount(steps);
+    const r = Math.floor(Number(by)) || 0;
+    const out = {};
+    for (const name of Object.keys(notes || {})) {
+      const row = rowOf(notes, name, n);
+      out[name] = row.map((_, i) => row[(((i - r) % n) + n) % n]);
+    }
+    return out;
+  }
+
+  // The melody played backwards: the last step becomes the first.
+  function reverseMelody(notes, steps) {
+    const n = stepCount(steps);
+    const out = {};
+    for (const name of Object.keys(notes || {})) out[name] = rowOf(notes, name, n).reverse();
+    return out;
+  }
+
+  // The notes of a chord on `rootName`, lowest first, limited to the names the piano roll has. `missing` counts chord tones that would
+  // sit outside the roll.
+  function chordNames(rootName, type, allNames) {
+    const chord = CHORDS[type];
+    const root = noteValue(rootName);
+    if (!chord || root === null) return { names: [], missing: 0 };
+    const byValue = new Map((allNames || []).map((n) => [noteValue(n), n]));
+    const names = [];
+    let missing = 0;
+    for (const interval of chord.intervals) {
+      const found = byValue.get(root + interval);
+      if (found) names.push(found);
+      else missing++;
+    }
+    return { names, missing };
+  }
+
+  // The same melody with the chord's notes switched on at one step (counting from 0).
+  function stampChord(notes, names, step, steps) {
+    const n = stepCount(steps);
+    const s = Math.floor(Number(step));
+    const out = {};
+    for (const name of Object.keys(notes || {})) out[name] = rowOf(notes, name, n);
+    if (Number.isInteger(s) && s >= 0 && s < n) for (const name of names || []) if (out[name]) out[name][s] = true;
+    return out;
+  }
+
+  // A fresh melody that plays the chord one note at a time, one note every `every` steps from the first step, over `steps` steps.
+  // pattern: "up" (low to high), "down", or "updown" (up, then back down without repeating the top or bottom note).
+  function arpeggioMelody(allNames, chord, pattern, every, steps) {
+    const n = stepCount(steps);
+    const gap = Math.max(1, Math.floor(Number(every)) || 1);
+    const ascending = [...(chord || [])].sort((a, b) => noteValue(a) - noteValue(b));
+    const out = emptyMelody(allNames, n);
+    if (!ascending.length) return out;
+    let cycle = ascending;
+    if (pattern === "down") cycle = [...ascending].reverse();
+    else if (pattern === "updown" && ascending.length > 2) cycle = [...ascending, ...ascending.slice(1, -1).reverse()];
+    for (let step = 0, k = 0; step < n; step += gap, k++) {
+      const name = cycle[k % cycle.length];
+      if (out[name]) out[name][step] = true;
+    }
+    return out;
+  }
+
+  // The piano roll notes that belong to a scale (a root name like "D" and semitone offsets from it), lowest first.
+  function scalePool(allNames, rootName, intervals) {
+    const root = NOTE_NAMES.indexOf(rootName);
+    if (root < 0 || !Array.isArray(intervals) || !intervals.length) return [];
+    return (allNames || [])
+      .filter((name) => {
+        const v = noteValue(name);
+        return v !== null && intervals.includes(((v % 12) - root + 12) % 12);
+      })
+      .sort((a, b) => noteValue(a) - noteValue(b));
+  }
+
+  // A fresh melody of one note at a time wandering through `pool` (lowest first): each step is a rest or a note, and a note usually sits
+  // within two scale notes of the one before, so it sounds like a tune and not like noise. `rng` returns 0 up to 1 (Math.random).
+  function randomMelody(allNames, pool, steps, { density = 0.6, rng = Math.random } = {}) {
+    const n = stepCount(steps);
+    const out = emptyMelody(allNames, n);
+    const notes = (pool || []).filter((name) => out[name]);
+    if (!notes.length) return out;
+    const chance = Math.max(0, Math.min(1, Number(density)));
+    const move = [-2, -1, -1, 0, 1, 1, 2];
+    let at = Math.floor(rng() * notes.length) % notes.length;
+    for (let step = 0; step < n; step++) {
+      if (rng() >= chance) continue;
+      out[notes[at]][step] = true;
+      at = Math.max(0, Math.min(notes.length - 1, at + move[Math.floor(rng() * move.length) % move.length]));
+    }
+    return out;
+  }
+
+  window.SongPatterns = { euclideanRow, STARTERS, starterRow, CHORDS, ARPEGGIO_PATTERNS, noteValue, rotateMelody, reverseMelody, chordNames, stampChord, arpeggioMelody, scalePool, randomMelody };
 })();

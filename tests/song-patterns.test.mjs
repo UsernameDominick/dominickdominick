@@ -3,7 +3,7 @@ import fs from "node:fs";
 import vm from "node:vm";
 
 const window = {};
-vm.runInContext(fs.readFileSync(new URL("../public/admin/song-patterns.js", import.meta.url), "utf8"), vm.createContext({ window, Math, Number, Array }));
+vm.runInContext(fs.readFileSync(new URL("../public/admin/song-patterns.js", import.meta.url), "utf8"), vm.createContext({ window, Math, Number, Array, Map, Object, String }));
 const P = window.SongPatterns;
 let fail = 0;
 const ok = (c, m, extra) => { if (!c) fail++; console.log(`${c ? "PASS" : "FAIL"} — ${m}${extra !== undefined ? " " + JSON.stringify(extra) : ""}`); };
@@ -42,6 +42,100 @@ ok(text(P.starterRow("four-floor", "kick", 16)) === "x...x...x...x..." && text(P
 ok(P.starterRow("rock", "clap", 16).every((b) => b === false) && P.starterRow("nope", "kick", 16).every((b) => b === false), "a row the beat doesn't list, or an unknown beat, is empty");
 ok(P.starterRow("rock", "kick", 16).every((b) => typeof b === "boolean"), "values are true booleans, as the song's own rows hold");
 ok(P.starterRow("rock", "kick", 8).length === 8 && P.starterRow("rock", "kick", 32).length === 32 && P.starterRow("rock", "kick", 32).slice(16).every((b) => !b), "a different step count is padded with rests or cut short");
+
+
+// ---------- melody tools ----------
+// The piano roll's own order: octave 4 from B down to C, then octave 3 (so higher notes come first).
+const NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const ALL = [];
+[4, 3].forEach((o) => { for (let i = 11; i >= 0; i--) ALL.push(NAMES[i] + o); });
+const blank = () => Object.fromEntries(ALL.map((n) => [n, new Array(16).fill(false)]));
+const withNotes = (spec) => { const m = blank(); for (const [n, steps] of Object.entries(spec)) steps.forEach((s) => (m[n][s] = true)); return m; };
+const used = (m) => Object.entries(m).filter(([, r]) => r.some(Boolean)).map(([n, r]) => `${n}:${r.map((b, i) => (b ? i : -1)).filter((i) => i >= 0).join(",")}`).join(" ");
+// a small seeded random source, so the "random" tools are repeatable here
+const seeded = (seed) => () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
+
+ok(P.noteValue("C0") === 0 && P.noteValue("C4") === 48 && P.noteValue("B3") === 47 && P.noteValue("C#4") === 49 && P.noteValue("H4") === null && P.noteValue("") === null, "noteValue puts every note on one scale");
+ok(Object.keys(P.CHORDS).length === 7 && P.CHORDS.major.intervals.join() === "0,4,7" && P.CHORDS.min7.intervals.join() === "0,3,7,10", "seven chord types with their intervals");
+
+// shift
+{
+  const m = withNotes({ C4: [0, 4], E4: [15] });
+  const untouched = used(m);
+  ok(used(P.rotateMelody(m, 1, 16)) === "E4:0 C4:1,5" || used(P.rotateMelody(m, 1, 16)) === "C4:1,5 E4:0", "shift one step later moves every note and wraps the last step to the first", used(P.rotateMelody(m, 1, 16)));
+  ok(used(P.rotateMelody(m, -1, 16)).includes("C4:3,15") && used(P.rotateMelody(m, -1, 16)).includes("E4:14"), "shift one step earlier wraps the first step to the end", used(P.rotateMelody(m, -1, 16)));
+  ok(used(P.rotateMelody(m, 16, 16)) === used(m) && used(P.rotateMelody(m, 0, 16)) === used(m), "a full turn or none leaves it as it was");
+  let back = m; for (let i = 0; i < 16; i++) back = P.rotateMelody(back, 1, 16);
+  ok(used(back) === used(m), "sixteen single shifts come all the way round");
+  ok(used(m) === untouched, "the original is untouched");
+  const rows = P.rotateMelody(m, 3, 16);
+  ok(Object.keys(rows).length === ALL.length && Object.values(rows).every((r) => r.length === 16), "every row is kept at 16 steps");
+  const strong = { C4: [0.5, false, false, false] };
+  ok(P.rotateMelody(strong, 1, 4).C4[1] === 0.5, "a step value that is not just true is carried across");
+}
+// reverse
+{
+  const m = withNotes({ C4: [0, 1], D4: [3], E4: [15] });
+  const r = P.reverseMelody(m, 16);
+  ok(used(r).includes("C4:14,15") && used(r).includes("D4:12") && used(r).includes("E4:0"), "reverse turns the step order round", used(r));
+  ok(used(P.reverseMelody(r, 16)) === used(m), "reversing twice is the original");
+}
+// chords
+{
+  let c = P.chordNames("C4", "major", ALL);
+  ok(c.names.join() === "C4,E4,G4" && c.missing === 0, "C major from C4 is C4 E4 G4, lowest first", c);
+  c = P.chordNames("A3", "minor", ALL);
+  ok(c.names.join() === "A3,C4,E4", "A minor from A3 reaches up into the next octave", c.names);
+  c = P.chordNames("G4", "dom7", ALL);
+  ok(c.names.join() === "G4,B4" && c.missing === 2, "tones above the top of the roll are left out and counted", c);
+  c = P.chordNames("C#3", "maj7", ALL);
+  ok(c.names.join() === "C#3,F3,G#3,C4", "a major 7th on C#3", c.names);
+  ok(P.chordNames("C4", "nope", ALL).names.length === 0 && P.chordNames("Z9", "major", ALL).names.length === 0, "an unknown chord or root gives nothing");
+  const stamped = P.stampChord(blank(), ["C4", "E4", "G4"], 5, 16);
+  ok(used(stamped) === "G4:5 E4:5 C4:5", "stamping puts the chord on one step", used(stamped));
+  const both = P.stampChord(stamped, ["D4"], 6, 16);
+  ok(used(both).includes("D4:6") && used(both).includes("C4:5"), "stamping adds to what is there");
+  ok(used(P.stampChord(blank(), ["C4"], 16, 16)) === "" && used(P.stampChord(blank(), ["C4"], -1, 16)) === "" && used(P.stampChord(blank(), ["NOPE"], 0, 16)) === "", "a step or note that does not exist changes nothing");
+}
+// arpeggio
+{
+  const chord = ["G4", "C4", "E4"];
+  const seq = (m, steps) => Array.from({ length: steps }, (_, i) => ALL.find((n) => m[n][i]) || ".").join(" ");
+  ok(seq(P.arpeggioMelody(ALL, chord, "up", 1, 8), 8) === "C4 E4 G4 C4 E4 G4 C4 E4", "up: low to high, over and over, one note a step", seq(P.arpeggioMelody(ALL, chord, "up", 1, 8), 8));
+  ok(seq(P.arpeggioMelody(ALL, chord, "down", 1, 6), 6) === "G4 E4 C4 G4 E4 C4", "down: high to low");
+  ok(seq(P.arpeggioMelody(ALL, ["C4", "E4", "G4", "B4"], "updown", 1, 8), 8) === "C4 E4 G4 B4 G4 E4 C4 E4", "up and down: no repeated top or bottom note", seq(P.arpeggioMelody(ALL, ["C4", "E4", "G4", "B4"], "updown", 1, 8), 8));
+  ok(seq(P.arpeggioMelody(ALL, chord, "up", 2, 8), 8) === "C4 . E4 . G4 . C4 .", "every 2 steps leaves a rest between", seq(P.arpeggioMelody(ALL, chord, "up", 2, 8), 8));
+  ok(seq(P.arpeggioMelody(ALL, chord, "up", 4, 16), 16).split(" ").filter((x) => x !== ".").length === 4, "every 4 steps over 16 gives four notes");
+  ok(seq(P.arpeggioMelody(ALL, ["C4"], "updown", 1, 4), 4) === "C4 C4 C4 C4", "a single note just repeats");
+  ok(used(P.arpeggioMelody(ALL, [], "up", 1, 16)) === "", "no chord, no notes");
+  ok(Object.keys(P.arpeggioMelody(ALL, chord, "up", 1, 16)).length === ALL.length, "every piano roll row exists in the result");
+}
+// scale pool and random melody
+{
+  const pool = P.scalePool(ALL, "C", [0, 2, 4, 5, 7, 9, 11]);
+  ok(pool.length === 14 && pool[0] === "C3" && pool[pool.length - 1] === "B4" && !pool.some((n) => n.includes("#")), "C major in the two-octave roll: the 14 white keys, lowest first", pool);
+  const pent = P.scalePool(ALL, "A", [0, 3, 5, 7, 10]);
+  ok(pent.join() === "A3,C4,D4,E4,G4,A4,C3,D3,E3,G3".split(",").sort((a, b) => P.noteValue(a) - P.noteValue(b)).join(), "A minor pentatonic", pent);
+  ok(P.scalePool(ALL, "Q", [0]).length === 0 && P.scalePool(ALL, "C", []).length === 0, "a bad key or no intervals gives an empty pool");
+  const rnd = P.randomMelody(ALL, pool, 16, { density: 0.7, rng: seeded(7) });
+  const placed = [];
+  for (let i = 0; i < 16; i++) { const here = ALL.filter((n) => rnd[n][i]); if (here.length > 1) placed.push("chord at " + i); if (here.length === 1) placed.push(here[0]); }
+  ok(!placed.some((x) => x.startsWith("chord")), "one note at a time", placed);
+  ok(placed.length > 4 && placed.length < 16, "a mix of notes and rests", placed.length);
+  ok(placed.every((n) => pool.includes(n)), "every note is in the scale", placed);
+  const idx = placed.map((n) => pool.indexOf(n));
+  ok(idx.every((v, i) => i === 0 || Math.abs(v - idx[i - 1]) <= 2 * (placed.length)), "notes sit within the pool");
+  const again = P.randomMelody(ALL, pool, 16, { density: 0.7, rng: seeded(7) });
+  ok(used(again) === used(rnd), "the same random source gives the same melody");
+  ok(used(P.randomMelody(ALL, pool, 16, { density: 0, rng: seeded(3) })) === "", "density 0 is silence");
+  const full = P.randomMelody(ALL, pool, 16, { density: 1, rng: seeded(3) });
+  ok(Array.from({ length: 16 }, (_, i) => ALL.filter((n) => full[n][i]).length).every((c) => c === 1), "density 1 puts a note on every step");
+  ok(used(P.randomMelody(ALL, [], 16, { rng: seeded(1) })) === "" && used(P.randomMelody(ALL, ["X9"], 16, { rng: seeded(1) })) === "", "an empty pool gives silence");
+  // a walk stays close: with the pool's steps counted, consecutive notes are never more than 2 apart from the walk, though rests let it drift only by the walk itself
+  const walk = P.randomMelody(ALL, pool, 16, { density: 1, rng: seeded(11) });
+  const walkIdx = Array.from({ length: 16 }, (_, i) => pool.findIndex((n) => walk[n][i]));
+  ok(walkIdx.every((v, i) => i === 0 || Math.abs(v - walkIdx[i - 1]) <= 2), "with every step filled, no leap is bigger than two scale notes", walkIdx);
+}
 
 console.log(fail ? `${fail} FAILED` : "ALL PASS");
 process.exit(fail ? 1 : 0);
