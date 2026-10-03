@@ -763,6 +763,10 @@ button {
 .resume-panel .browse-link { margin-top: 4px; padding: 8px; }
 .back-btn.resume-back { background: var(--amber); border-color: var(--amber); color: #241a05; font-weight: 800; }
 .lab-panel { border-color: rgba(176,126,232,0.4); }
+.lab-run-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0 10px; padding: 8px 10px; border: 1px solid rgba(176,126,232,0.4); border-radius: 10px; background: var(--panel); }
+.lab-run-pos { font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.08em; color: #b07ee8; font-weight: 800; }
+.lab-run-next { flex: 1; min-width: 120px; font-size: 12.5px; color: var(--text-dim); }
+.lab-run-go { border-color: #b07ee8; }
 .lab-panel .panel-title { color: #b07ee8; }
 .start-btn.lab-start-btn { background: linear-gradient(135deg, #b07ee8, #9566d6); color: #fff; box-shadow: 0 8px 24px -8px rgba(176,126,232,0.55); margin-top: 12px; }
 
@@ -1018,6 +1022,7 @@ var state = {
   labRevealed: false,
   labMsg: '',
   labStats: {},       // boardId -> {best, bestFirst}; lives only until the page is closed
+  labRun: null,       // continuous mode: {list, i} while every lab is being played in order
   labTrayScroll: 0,
   labColOrder: [],    // column order for this play (rows boards can be shuffled)
   // --- Study Lab: quick quizzes ---
@@ -2359,14 +2364,62 @@ document.addEventListener('visibilitychange', () => {
 // ---------- navigation ----------
 function openLab() {
   clearAutoAdvance(); stopTimer(); clearGameTimers();
+  state.labRun = null;
   state.screen = 'lab';
   render(); scrollTop();
 }
 function labBack() {
   clearLabTimers();
+  state.labRun = null;
   state.labSel = null; state.labDrag = null;
   state.screen = 'lab';
   render(); scrollTop();
+}
+
+// ---------- continuous mode: every lab in menu order, with Skip ----------
+function labRunList() {
+  const data = labData();
+  const out = [];
+  data.groups.forEach(g => {
+    data.quizzes.filter(q => q.group === g.id).forEach(q => out.push({kind: 'quiz', id: q.id, title: q.title}));
+    data.boards.filter(b => b.group === g.id).forEach(b => out.push({kind: 'board', id: b.id, title: b.title}));
+  });
+  return out;
+}
+function labRunOpen(i) {
+  const r = state.labRun;
+  if (!r || !r.list[i]) return;
+  r.i = i;
+  const it = r.list[i];
+  if (it.kind === 'board') labStartBoard(it.id); else lqStart(it.id);
+  scrollTop();
+}
+function labRunStart() {
+  clearLabTimers();
+  const list = labRunList();
+  if (!list.length) return;
+  state.labRun = {list: list, i: 0};
+  labRunOpen(0);
+}
+// Next lab (after finishing one) and Skip (before finishing) are the same move; after the last lab it returns to the menu.
+function labRunNext() {
+  const r = state.labRun;
+  if (!r) return;
+  clearLabTimers();
+  if (r.i + 1 < r.list.length) labRunOpen(r.i + 1); else labBack();
+}
+function labRunBarHtml(done) {
+  const r = state.labRun;
+  if (!r) return '';
+  const last = r.i === r.list.length - 1;
+  const nxt = last ? null : r.list[r.i + 1];
+  const label = done ? (last ? 'Finish' : 'Next lab &rarr;') : (last ? 'Skip &amp; finish' : 'Skip &rarr;');
+  return `<div class="lab-run-bar" role="group" aria-label="Continuous mode">
+    <span class="lab-run-pos">CONTINUOUS &middot; ${r.i + 1} of ${r.list.length}</span>
+    <span class="lab-run-next">${nxt ? 'Next: ' + esc(nxt.title) : 'This is the last one'}</span>
+    <button class="opt-btn lab-run-go" onclick="labRunNext()">${label}</button>
+    <button class="opt-btn" onclick="labBack()">Stop</button>
+  </div>`;
 }
 
 // ---------- menu ----------
@@ -2403,7 +2456,8 @@ function renderLab() {
       <button class="back-btn" onclick="goHome()">&larr; Home</button>
       <span class="browse-title">Study Lab</span>
     </div>
-    <div class="hint" style="margin-top:12px">Tap a tile, then tap the column or row where it belongs (on a computer you can also drag). Fill every slot, then Submit: right tiles lock in, wrong ones bounce back to the tray. The stopwatch runs from the moment a board opens. Nothing is saved &mdash; closing the page clears best times.</div>
+    <button class="start-btn lab-start-btn" onclick="labRunStart()">&#9654; Play every lab in order</button>
+    <div class="hint" style="margin-top:12px">Continuous mode goes through every lab below, top to bottom, with a Skip button for the ones you already know. Tap a tile, then tap the column or row where it belongs (on a computer you can also drag). Fill every slot, then Submit: right tiles lock in, wrong ones bounce back to the tray. The stopwatch runs from the moment a board opens. Nothing is saved &mdash; closing the page clears best times.</div>
     ${groups}
   </div>`;
 }
@@ -2729,6 +2783,7 @@ function renderLabBoard() {
       <div class="lab-title">${esc(b.title)}</div>
       <div class="lab-clock ${active ? '' : 'stopped'}" id="lab-clock" aria-label="Stopwatch">${formatClock(state.labElapsed)}</div>
     </div>
+    ${labRunBarHtml(!active)}
     ${b.blurb ? `<div class="lab-blurb">${esc(b.blurb)}${b.extra ? ' <span class="src-badge src-extra">EXTRA</span>' : ''}</div>` : ''}
     ${active ? '' : labResultHtml(b)}
     <div class="lab-cols ${rows ? 'lay-rows' : 'lay-cols'} n${order.length}">${cols}</div>
@@ -2837,6 +2892,7 @@ function renderLabQuiz() {
       <button class="nav-btn" onclick="labBack()">&larr; Lab</button>
       <label class="lq-auto"><input type="checkbox" ${state.lqAutoNext ? 'checked' : ''} onchange="lqToggleAuto()"> auto-next on correct</label>
     </div>
+    ${labRunBarHtml(false)}
     <div class="quiz-header">
       <div class="quiz-tag">${esc(def.title)} <span class="src-badge src-orig">ADDED</span></div>
       <div class="quiz-progress">Q ${state.lqIdx + 1} / ${n}</div>
@@ -2863,6 +2919,7 @@ function renderLabQuizOver() {
       }).join('')
     : '<div class="hint">No misses — clean run.</div>';
   return `<div class="screen lab-quiz-over">
+    ${labRunBarHtml(true)}
     <div class="score-hero">
       <div class="game-over-title">${esc(def ? def.title : 'Quiz')}</div>
       <div class="score-num">${state.lqScore}<span class="score-of">/${n}</span></div>

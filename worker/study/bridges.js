@@ -8,7 +8,7 @@
 const CORE1_LAB_BRIDGE = `
 (function () {
   if (window.parent === window || typeof state === "undefined" || typeof render !== "function") return;
-  var SKIP = { timerEnd: 1, labDrag: 1 };
+  var SKIP = { timerEnd: 1, labDrag: 1, labRun: 1 };
   function skip(k) { return SKIP[k] === 1 || /Handle$/.test(k); }
   var timer = null;
   function snapshot() {
