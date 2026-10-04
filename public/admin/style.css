@@ -8443,3 +8443,12 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 @media (pointer: coarse), (max-width: 700px) {
   .song-roll-parts select { height: 36px; }
 }
+
+/* Song order chips: move a bar one place earlier or later. */
+.song-order-move { border: 0; border-right: 1px solid var(--border); background: transparent; color: var(--text-dim); padding: 0.25rem 0.4rem; cursor: pointer; font-weight: 700; }
+.song-order-move + .song-order-letter + .song-order-move { border-right: 0; border-left: 1px solid var(--border); }
+.song-order-move:hover:not(:disabled) { color: var(--accent); }
+.song-order-move:disabled { opacity: 0.35; cursor: default; }
+@media (pointer: coarse), (max-width: 700px) {
+  .song-order-move, .song-order-remove { min-width: 28px; min-height: 28px; }
+}

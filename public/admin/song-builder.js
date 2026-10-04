@@ -1418,6 +1418,24 @@
     e.preventDefault();
     $("song-play").click();
   });
+  // [ and ] open the previous / next pattern, under the same rules as Space (nothing focused that wants the key, builder on top).
+  document.addEventListener("keydown", (e) => {
+    if ((e.key !== "[" && e.key !== "]") || e.repeat || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+    const modal = $("song-builder-modal");
+    if (modal.hidden) return;
+    const active = document.activeElement;
+    if (active && active !== document.body && !(active === modal)) {
+      if (!modal.contains(active) || active.matches('input, textarea, select, [contenteditable]') || active.isContentEditable) return;
+    }
+    const z = (m) => Number(getComputedStyle(m).zIndex) || 0;
+    if ([...document.querySelectorAll(".modal:not([hidden])")].some((m) => m !== modal && z(m) >= z(modal))) return;
+    const names = Engine.patternNames(songData);
+    if (names.length < 2) return;
+    const at = names.indexOf(editingPattern());
+    const next = names[(at + (e.key === "]" ? 1 : names.length - 1)) % names.length];
+    e.preventDefault();
+    if (openPattern(next)) afterPatternSwitch(`Editing pattern ${next}: ${partsSummary(next)}.`);
+  });
   document.addEventListener("keydown", finishSongHistoryEvent);
   $("song-record-label").hidden = false;
 
@@ -1900,9 +1918,10 @@
     $("song-order-tools").hidden = !several;
     const chain = chainList();
     $("song-order-list").innerHTML = chain
-      .map((n, i) => `<li class="song-order-chip"><span class="song-order-letter">${n}</span><button type="button" class="song-order-remove" data-index="${i}" aria-label="Remove ${n} at position ${i + 1} from the song order" title="Remove ${n} (position ${i + 1})">×</button></li>`)
+      .map((n, i) => `<li class="song-order-chip"><button type="button" class="song-order-move" data-index="${i}" data-dir="-1" aria-label="Move ${n} at position ${i + 1} earlier" title="Move ${n} one bar earlier"${i === 0 ? " disabled" : ""}>‹</button><span class="song-order-letter">${n}</span><button type="button" class="song-order-move" data-index="${i}" data-dir="1" aria-label="Move ${n} at position ${i + 1} later" title="Move ${n} one bar later"${i === chain.length - 1 ? " disabled" : ""}>›</button><button type="button" class="song-order-remove" data-index="${i}" aria-label="Remove ${n} at position ${i + 1} from the song order" title="Remove ${n} (position ${i + 1})">×</button></li>`)
       .join("");
     $("song-order-list").querySelectorAll(".song-order-remove").forEach((btn) => btn.addEventListener("click", () => removeFromOrder(Number(btn.dataset.index))));
+    $("song-order-list").querySelectorAll(".song-order-move").forEach((btn) => btn.addEventListener("click", () => moveInOrder(Number(btn.dataset.index), Number(btn.dataset.dir))));
     playingChip = -1;
     updatePreviewPosition();
     // With no order the song plays its first pattern on its own: say so, so an empty order is not a mystery.
@@ -1981,6 +2000,19 @@
     }
     const again = $("song-order-add").querySelector(`[data-pattern="${name}"]`);
     if (again && !again.disabled) again.focus();
+  }
+  // Swaps a bar of the song order with its neighbour (so a pattern can be put in the middle: add it, then move it). Focus stays on the
+  // moved bar's button for the same direction, or the other one once it reaches an end.
+  function moveInOrder(index, dir) {
+    const chain = chainList();
+    const target = index + dir;
+    if (index < 0 || index >= chain.length || target < 0 || target >= chain.length) return;
+    const next = chain.slice();
+    [next[index], next[target]] = [next[target], next[index]];
+    changeOrder(next, `${chain[index]} moved from position ${index + 1} to ${target + 1}.`);
+    const chip = $("song-order-list").querySelectorAll("li")[target];
+    const wanted = chip && chip.querySelector(`.song-order-move[data-dir="${dir}"]:not(:disabled)`);
+    (wanted || (chip && chip.querySelector(".song-order-move:not(:disabled)")) || $("song-order-add").querySelector("button")).focus();
   }
   function removeFromOrder(index) {
     const chain = chainList();
@@ -2524,8 +2556,11 @@
     } catch {
       songTemplates = [];
     }
+    const starters = window.SongStarters ? window.SongStarters.LIST : [];
     $("song-template-picker").innerHTML =
-      `<option value="">Blank</option>` + songTemplates.map((t) => `<option value="${t.id}">${escapeXml(t.name)}</option>`).join("");
+      `<option value="">Blank</option>` +
+      (starters.length ? `<optgroup label="Built-in starters">${starters.map((x) => `<option value="starter:${x.id}" title="${escapeXml(x.blurb)}">${escapeXml(x.name)}</option>`).join("")}</optgroup>` : "") +
+      (songTemplates.length ? `<optgroup label="Your templates">${songTemplates.map((t) => `<option value="${t.id}">${escapeXml(t.name)}</option>`).join("")}</optgroup>` : "");
   }
 
   // Mute/hide describe one song's working state, like private_notes; a new
@@ -2648,8 +2683,9 @@
   });
   $("song-search").addEventListener("input", renderSongsList);
   $("new-song-btn").addEventListener("click", () => {
-    const templateId = Number($("song-template-picker").value) || null;
-    openBuilder(null, templateId);
+    const choice = $("song-template-picker").value;
+    if (choice.startsWith("starter:")) openBuilder(null, null, choice.slice("starter:".length));
+    else openBuilder(null, Number(choice) || null);
   });
 
   // ---------- Tabs (songs open in this session) ----------
@@ -2854,7 +2890,7 @@
   let openRequestSeq = 0;
   let committedOpenSeq = 0;
   let pendingOpenId = null; // the song a not-yet-committed open is fetching
-  async function openBuilder(id, templateId) {
+  async function openBuilder(id, templateId, starterId) {
     if (!canLeaveSongBuilder(false)) return false;
     const dirtyGenAtAsk = songDirtyGeneration;
     // Clicking Edit on song A and then song B before A's GET resolves: only the
@@ -2898,6 +2934,11 @@
     if (id) {
       $("song-name").value = song.name;
       songData = backfillSongData(song.data && song.data.tracks ? song.data : defaultSongData());
+    } else if (starterId && window.SongStarters && window.SongStarters.build(starterId)) {
+      // A built-in starter: a whole little song, named for what it is (rename it before saving, or leave it).
+      const starter = window.SongStarters.LIST.find((x) => x.id === starterId);
+      $("song-name").value = starter.name;
+      songData = backfillSongData(window.SongStarters.build(starterId));
     } else if (templateId) {
       const t = songTemplates.find((x) => x.id === templateId);
       // A template is a fresh starting point, same as a blank song -- its
