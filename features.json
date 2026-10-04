@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-03",
+  "updated": "2026-10-04",
   "items": [
     {"id": "password-protected-pages", "area": "Site & content", "status": "done", "title": "Password-protected pages", "summary": "A page can be locked behind a password; search, 404 suggestions and the lock screen no longer leak its content."},
     {"id": "admin-only-nav-items", "area": "Site & content", "status": "done", "title": "Admin-only nav items", "summary": "Hide a nav link from visitors while you test it signed in."},
@@ -112,6 +112,7 @@
     {"id": "song-more-drum-sounds", "area": "Songs", "status": "done", "title": "More drum sounds", "summary": "Open hat, rim, tom and crash in all three kits, added from a menu under the grid and removed with the ×. A closed hat cuts a ringing open hat. Three new starter beats use them. They export to MIDI, stems and song files.", "date": "2026-10-03"},
     {"id": "song-echo", "area": "Songs", "status": "done", "title": "Echo", "summary": "A tempo-synced echo slider next to Space: repeats a dotted eighth later, each one quieter and duller. Off by default, in exports and on the public player.", "date": "2026-10-03"},
     {"id": "song-chord-progressions", "area": "Songs", "status": "done", "title": "Chord progressions", "summary": "Stamp a whole progression (pop, doo-wop, jazz, minor, Andalusian, canon and more) in any key across the loop, held so the chords ring, in one undo step. The key follows the highlighted scale.", "date": "2026-10-03"},
+    {"id": "song-midi-import", "area": "Songs", "status": "done", "title": "Import a MIDI file", "summary": "Songs list → Import MIDI…: drums land on the drum rows, the busiest other part becomes the melody (moved by octaves to fit, long notes tied), and each bar becomes a pattern with a song order. It makes a new song and tells you what could not be kept (tempo changes, other time signatures, unknown drums, extra parts, bars past 32). Export MIDI now writes the whole song order too.", "date": "2026-10-04"},
     {"id": "song-patterns-and-song-order", "area": "Songs", "status": "done", "title": "Patterns and song order", "summary": "Up to four patterns (A to D) per song, switched with buttons, copied or removed, and a song order (like A A B A C) that plays them one after another. Play can follow the order or loop the pattern you're editing. The public player, the waveform, audio and stem export and the MIDI file all cover the whole song. Old songs are untouched.", "date": "2026-10-04"}
   ]
 }

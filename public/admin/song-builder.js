@@ -2917,7 +2917,8 @@
       return;
     }
     downloadBlob(new Blob([out.bytes], { type: "audio/midi" }), `${fileStem()}.mid`);
-    fileStatus(`Exported ${out.notes} note${out.notes === 1 ? "" : "s"} as MIDI (one bar${Number(songData.swing) ? ", with swing" : ""}; muted tracks left out).`);
+    const bars = window.SongFiles.chainParts(songData).length;
+    fileStatus(`Exported ${out.notes} note${out.notes === 1 ? "" : "s"} as MIDI (${bars === 1 ? "one bar" : `${bars} bars, the song order`}${Number(songData.swing) ? ", with swing" : ""}; muted tracks left out).`);
   });
   $("song-export-json").addEventListener("click", () => {
     const text = window.SongFiles.exportJson($("song-name").value, songData);
@@ -2953,6 +2954,44 @@
       await loadSongsList();
       status.textContent = `Imported "${parsed.name}" as a new song.`;
       await openBuilder(created.id);
+    } catch (e) {
+      status.textContent = `Couldn't import the song: ${e.message || e}`;
+    }
+  });
+
+  // A MIDI file becomes a new song (see SongFiles.importMidi); what could not be kept is listed in the open builder.
+  $("song-import-midi-btn").addEventListener("click", () => $("song-import-midi-input").click());
+  $("song-import-midi-input").addEventListener("change", async () => {
+    const input = $("song-import-midi-input");
+    const file = input.files && input.files[0];
+    input.value = "";
+    const status = $("song-import-status");
+    if (!file) return;
+    if (file.size > 1000000) {
+      status.textContent = "That MIDI file is too big (over 1 MB).";
+      return;
+    }
+    let buffer;
+    try {
+      buffer = await file.arrayBuffer();
+    } catch {
+      status.textContent = "Couldn't read that file.";
+      return;
+    }
+    const result = window.SongFiles.importMidi(new Uint8Array(buffer));
+    if (result.error) {
+      status.textContent = result.error;
+      return;
+    }
+    const name = file.name.replace(/\.(midi?|MIDI?)$/i, "").replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 200) || "Imported MIDI";
+    const notes = result.info.messages.join(" ");
+    try {
+      status.textContent = "Importing…";
+      const created = await window.adminApi("/songs", { method: "POST", body: JSON.stringify({ name, data: result.song }) });
+      await loadSongsList();
+      status.textContent = `Imported "${name}" as a new song. ${notes}`;
+      await openBuilder(created.id);
+      fileStatus(`Imported from MIDI. ${notes}`);
     } catch (e) {
       status.textContent = `Couldn't import the song: ${e.message || e}`;
     }

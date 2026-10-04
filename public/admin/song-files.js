@@ -160,6 +160,276 @@
     return { bytes: new Uint8Array([...header, ...conductor, ...tracks.flat()]), notes };
   }
 
+  // ---- reading a MIDI file ----
+
+  const MAX_MIDI_BYTES = 1000000;
+  const MAX_MIDI_EVENTS = 200000;
+  // General MIDI percussion notes, as the song's drum rows. Anything else (ride, cowbell, congas...) has no sound here and is left out.
+  const GM_TO_ROW = { 35: "kick", 36: "kick", 37: "rim", 38: "snare", 40: "snare", 39: "clap", 42: "hihat", 44: "hihat", 46: "openhat", 41: "tom", 43: "tom", 45: "tom", 47: "tom", 48: "tom", 50: "tom", 49: "crash", 52: "crash", 55: "crash", 57: "crash" };
+
+  // Reads a Standard MIDI File (format 0 or 1, ticks per quarter note). Returns { ppq, tempos: [{tick, micros}], timeSig, tracks: [{ name,
+  // notes: [{ tick, length, note, vel, channel }] }] } or { error } in plain words. Nothing in the file can make it read past its own
+  // end, run for long, or build anything large: sizes and event counts are capped, and a damaged track just ends where it breaks.
+  function parseMidi(input) {
+    const bytes = input instanceof Uint8Array ? input : new Uint8Array(input || 0);
+    if (bytes.length < 14) return { error: "That isn't a MIDI file: it is too short." };
+    if (bytes.length > MAX_MIDI_BYTES) return { error: "That MIDI file is too big (over 1 MB)." };
+    const u16 = (i) => (bytes[i] << 8) | bytes[i + 1];
+    const u32 = (i) => ((bytes[i] << 24) | (bytes[i + 1] << 16) | (bytes[i + 2] << 8) | bytes[i + 3]) >>> 0;
+    const tag = (i) => String.fromCharCode(bytes[i], bytes[i + 1], bytes[i + 2], bytes[i + 3]);
+    if (tag(0) !== "MThd") return { error: "That isn't a MIDI file: it has no MIDI header." };
+    const headLen = u32(4);
+    if (headLen < 6 || 8 + headLen > bytes.length) return { error: "That MIDI file's header is damaged." };
+    const format = u16(8);
+    const ppq = u16(12);
+    if (format > 1) return { error: "Only MIDI file formats 0 and 1 can be imported (this one is format 2)." };
+    if (ppq & 0x8000) return { error: "This MIDI file uses SMPTE timing, which can't be imported." };
+    if (!ppq) return { error: "That MIDI file's header is damaged (no timing)." };
+    const tempos = [];
+    let timeSig = null;
+    const tracks = [];
+    let events = 0;
+    let at = 8 + headLen;
+    while (at + 8 <= bytes.length && tracks.length < 64) {
+      const type = tag(at);
+      const start = at + 8;
+      const end = Math.min(bytes.length, start + u32(at + 4));
+      at = start + u32(at + 4);
+      if (type !== "MTrk") continue;
+      let q = start;
+      let tick = 0;
+      let status = 0;
+      let name = "";
+      const open = new Map();
+      const notes = [];
+      const vlq = () => {
+        let v = 0;
+        for (let n = 0; n < 4; n++) {
+          if (q >= end) return null;
+          const b = bytes[q++];
+          v = (v << 7) | (b & 0x7f);
+          if (!(b & 0x80)) return v;
+        }
+        return null;
+      };
+      while (q < end) {
+        const delta = vlq();
+        if (delta === null) break;
+        tick += delta;
+        if (++events > MAX_MIDI_EVENTS) return { error: "That MIDI file has too many events to import." };
+        if (q >= end) break;
+        if (bytes[q] & 0x80) status = bytes[q++];
+        else if (!status) break; // a data byte with no status before it: the track is damaged from here
+        if (status === 0xff) {
+          const metaType = bytes[q++];
+          const len = vlq();
+          if (len === null || q + len > end) break;
+          if (metaType === 0x2f) break;
+          if (metaType === 0x51 && len === 3) tempos.push({ tick, micros: (bytes[q] << 16) | (bytes[q + 1] << 8) | bytes[q + 2] });
+          else if (metaType === 0x58 && len >= 2 && !timeSig) timeSig = { num: bytes[q], den: 2 ** Math.min(bytes[q + 1], 7) };
+          else if (metaType === 0x03) name = Array.from(bytes.subarray(q, q + len)).map((c) => (c >= 32 && c < 127 ? String.fromCharCode(c) : "")).join("").trim().slice(0, 60);
+          q += len;
+          status = 0;
+          continue;
+        }
+        if (status === 0xf0 || status === 0xf7) {
+          const len = vlq();
+          if (len === null) break;
+          q += len;
+          status = 0;
+          continue;
+        }
+        const kind = status & 0xf0;
+        const channel = status & 0x0f;
+        const need = kind === 0xc0 || kind === 0xd0 ? 1 : 2;
+        if (q + need > end) break;
+        const d1 = bytes[q] & 0x7f;
+        const d2 = need === 2 ? bytes[q + 1] & 0x7f : 0;
+        q += need;
+        const key = channel * 128 + d1;
+        if (kind === 0x90 && d2 > 0) {
+          const held = open.get(key);
+          if (held) held.length = tick - held.tick; // struck again before it ended: the first one ends here
+          const n = { tick, length: 0, note: d1, vel: d2, channel };
+          notes.push(n);
+          open.set(key, n);
+        } else if (kind === 0x80 || kind === 0x90) {
+          const held = open.get(key);
+          if (held) {
+            held.length = tick - held.tick;
+            open.delete(key);
+          }
+        }
+      }
+      for (const n of open.values()) n.length = Math.max(0, tick - n.tick); // never ended: held to the end of the track
+      tracks.push({ name, notes });
+    }
+    if (!tracks.length) return { error: "That MIDI file has no tracks in it." };
+    return { ppq, tempos, timeSig, tracks };
+  }
+
+  const STRONG_VELOCITY = 85;
+  const MEDIUM_VELOCITY = 55;
+  const strengthOf = (vel) => (vel >= STRONG_VELOCITY ? true : vel >= MEDIUM_VELOCITY ? 0.65 : 0.35);
+  const MAX_IMPORT_BARS = 32;
+
+  // Turns a parsed MIDI file into a song: tempo; drums (channel 10) onto the drum rows by General MIDI note; the busiest other part as
+  // the melody (folded by octaves into the piano roll, held notes tied); everything snapped to sixteenth notes, one bar of 16 steps each.
+  // Identical bars become one pattern, so a repeating file is a few patterns and a song order (up to four different bars, 32 bars). Returns
+  // { song, info } (song already cleaned, info.messages in plain words) or { error }.
+  function midiToSong(parsed) {
+    if (!parsed || !Array.isArray(parsed.tracks)) return { error: "There is nothing to import." };
+    const messages = [];
+    const stepTicks = parsed.ppq / 4;
+    const all = parsed.tracks.flatMap((t, ti) => t.notes.map((n) => Object.assign({ track: ti, trackName: t.name }, n)));
+    if (!all.length) return { error: "That MIDI file has no notes in it." };
+
+    // the parts: drums are channel 10, every other (track, channel) pair is a candidate melody
+    const drums = all.filter((n) => n.channel === 9);
+    const parts = new Map();
+    all.filter((n) => n.channel !== 9).forEach((n) => {
+      const key = `${n.track}:${n.channel}`;
+      if (!parts.has(key)) parts.set(key, { name: n.trackName || `channel ${n.channel + 1}`, notes: [] });
+      parts.get(key).notes.push(n);
+    });
+    const ranked = [...parts.values()].sort((a, b) => b.notes.length - a.notes.length);
+    const melody = ranked[0] || null;
+    if (ranked.length > 1) messages.push(`The melody is "${melody.name}", the busiest part. ${ranked.length - 1} other part${ranked.length === 2 ? " was" : "s were"} left out.`);
+
+    const barOf = (note) => Math.floor(Math.round(note.tick / stepTicks) / STEPS);
+    const used = [...drums, ...(melody ? melody.notes : [])];
+    let lastBar = 0;
+    let pastEnd = 0;
+    used.forEach((n) => { // (a loop, not Math.max(...list): a big file would overflow the call stack)
+      if (barOf(n) >= MAX_IMPORT_BARS) pastEnd++;
+      else lastBar = Math.max(lastBar, barOf(n));
+    });
+    if (pastEnd) messages.push(`Notes after bar ${MAX_IMPORT_BARS} (${pastEnd}) were left out.`);
+    const barCount = lastBar + 1;
+    const makeBar = () => ({ drums: {}, notes: {}, ties: {} });
+    const bars = Array.from({ length: barCount }, makeBar);
+    let offGrid = 0;
+    let skippedDrums = 0;
+    let folded = 0;
+    let drumHits = 0;
+    let melodyNotes = 0;
+    const snap = (note) => {
+      const exact = note.tick / stepTicks;
+      const step = Math.round(exact);
+      if (Math.abs(exact - step) > 0.25) offGrid++;
+      return step;
+    };
+    drums.forEach((n) => {
+      const row = GM_TO_ROW[n.note];
+      if (!row) { skippedDrums++; return; }
+      const step = snap(n);
+      const bar = bars[Math.floor(step / STEPS)];
+      if (!bar) return;
+      const lane = bar.drums[row] || (bar.drums[row] = new Array(STEPS).fill(0));
+      lane[step % STEPS] = Math.max(lane[step % STEPS], n.vel);
+      drumHits++;
+    });
+    const holds = [];
+    // a melody outside the piano roll moves as a whole by octaves (so it keeps its shape): to fit if its span allows, else to centre its
+    // middle note; any note still outside folds in
+    const pitches = (melody ? melody.notes : []).map((n) => n.note).sort((a, b) => a - b);
+    const low = pitches.length ? pitches[0] : 60;
+    const high = pitches.length ? pitches[pitches.length - 1] : 60;
+    let octaves = 0;
+    if (low < 48 || high > 71) {
+      const fits = [];
+      for (let k = -10; k <= 10; k++) if (low + 12 * k >= 48 && high + 12 * k <= 71) fits.push(k);
+      if (fits.length) octaves = fits.sort((a, b) => Math.abs(a) - Math.abs(b))[0];
+      else octaves = Math.round((59.5 - pitches[Math.floor(pitches.length / 2)]) / 12);
+    }
+    (melody ? melody.notes : []).forEach((n) => {
+      let note = n.note + octaves * 12;
+      if (note < 48 || note > 71) folded++;
+      while (note < 48) note += 12;
+      while (note > 71) note -= 12;
+      const name = NOTE_NAMES[note % 12] + (Math.floor(note / 12) - 1);
+      const step = snap(n);
+      const bar = bars[Math.floor(step / STEPS)];
+      if (!bar) return;
+      const lane = bar.notes[name] || (bar.notes[name] = new Array(STEPS).fill(0));
+      lane[step % STEPS] = Math.max(lane[step % STEPS], n.vel);
+      melodyNotes++;
+      holds.push({ bar, name, at: step % STEPS, length: Math.max(1, Math.round(n.length / stepTicks)) });
+    });
+    // a note held for several steps is one note tied across them, up to the end of its bar and never over another note struck there
+    holds.forEach(({ bar, name, at, length }) => {
+      const lane = bar.notes[name];
+      for (let k = 1; k < length && at + k < STEPS; k++) {
+        if (lane[at + k]) break;
+        lane[at + k] = lane[at];
+        (bar.ties[name] || (bar.ties[name] = new Array(STEPS).fill(false)))[at + k] = true;
+      }
+    });
+
+    // what each bar holds, as the song stores it
+    const partOf = (bar) => {
+      const part = { tracks: {}, notes: {}, ties: bar.ties };
+      Object.keys(bar.drums).forEach((row) => (part.tracks[row] = bar.drums[row].map((v) => (v ? strengthOf(v) : false))));
+      Object.keys(bar.notes).forEach((name) => (part.notes[name] = bar.notes[name].map((v) => (v ? strengthOf(v) : false))));
+      return part;
+    };
+    const parts4 = bars.map(partOf);
+    const unique = [];
+    const barPattern = parts4.map((part) => {
+      const key = JSON.stringify(part);
+      let i = unique.findIndex((u) => u.key === key);
+      if (i < 0) { unique.push({ key, part }); i = unique.length - 1; }
+      return i;
+    });
+    const kept = unique.slice(0, PATTERN_NAMES.length);
+    const order = barPattern.filter((i) => i < kept.length);
+    const leftOut = barPattern.length - order.length;
+    if (unique.length > 1 && unique.length <= PATTERN_NAMES.length) messages.push(`${barCount} bars with ${unique.length} different bars: they became patterns ${PATTERN_NAMES.slice(0, unique.length).join(", ")} and a song order.`);
+    else if (unique.length === 1 && barCount > 1) messages.push(`All ${barCount} bars are the same, so the song is that one pattern.`);
+    if (unique.length > PATTERN_NAMES.length) messages.push(`This file has ${unique.length} different bars. The first ${PATTERN_NAMES.length} became patterns A to D, and the ${leftOut} bars that are not one of them were left out.`);
+
+    // the song: the first pattern is the song's own parts, the rest go under patterns
+    const rowsUsed = new Set(CORE_DRUMS);
+    kept.forEach((u) => Object.keys(u.part.tracks).forEach((row) => rowsUsed.add(row)));
+    const rows = DRUMS.filter((row) => rowsUsed.has(row));
+    const lanes = (part) => Object.fromEntries(rows.map((row) => [row, part.tracks[row] || new Array(STEPS).fill(false)]));
+    const first = kept[0].part;
+    const song = {
+      tempo: 120,
+      tracks: lanes(first),
+      trackMeta: Object.fromEntries(rows.map((row) => [row, { color: DEFAULT_COLORS[row], note: "" }])),
+      melody: { waveform: "sine", notes: first.notes, ties: first.ties },
+    };
+    if (kept.length > 1) {
+      song.patterns = {};
+      kept.slice(1).forEach((u, i) => (song.patterns[PATTERN_NAMES[i + 1]] = { tracks: lanes(u.part), notes: u.part.notes, ties: u.part.ties }));
+      song.chain = order.slice(0, MAX_CHAIN).map((i) => PATTERN_NAMES[i]);
+    }
+
+    // tempo, signature and anything else that did not survive
+    const micros = parsed.tempos.length ? parsed.tempos[0].micros : 500000;
+    const bpm = micros > 0 ? 60000000 / micros : 120;
+    song.tempo = Math.round(Math.max(40, Math.min(240, bpm)));
+    if (bpm < 39.5 || bpm > 240.5) messages.push(`The file's tempo (${Math.round(bpm)} BPM) is outside 40 to 240, so it was set to ${song.tempo}.`);
+    if (new Set(parsed.tempos.map((t) => t.micros)).size > 1) messages.push("The file changes tempo; only the first tempo was used.");
+    if (parsed.timeSig && !(parsed.timeSig.num === 4 && parsed.timeSig.den === 4)) messages.push(`The file is in ${parsed.timeSig.num}/${parsed.timeSig.den}, but songs here are always bars of sixteen steps (4/4), so the bars won't line up with the music.`);
+    if (skippedDrums) messages.push(`${skippedDrums} drum note${skippedDrums === 1 ? " has" : "s have"} no matching sound here and ${skippedDrums === 1 ? "was" : "were"} left out.`);
+    if (octaves) messages.push(`The melody was moved ${Math.abs(octaves)} octave${Math.abs(octaves) === 1 ? "" : "s"} ${octaves > 0 ? "up" : "down"} to fit the piano roll (C3 to B4).`);
+    if (folded) messages.push(`${folded} melody note${folded === 1 ? " was" : "s were"} still outside the piano roll and moved by whole octaves to fit.`);
+    const total = drumHits + melodyNotes;
+    if (!total) return { error: "None of the notes in that MIDI file can be used here (no General MIDI drums this site has, and no melody)." };
+    if (offGrid && offGrid / Math.max(1, total) > 0.1) messages.push(`${offGrid} note${offGrid === 1 ? " was" : "s were"} off the sixteenth-note grid and snapped to the nearest step.`);
+    messages.unshift(`Read ${barCount} bar${barCount === 1 ? "" : "s"} at ${song.tempo} BPM: ${drumHits} drum hit${drumHits === 1 ? "" : "s"} and ${melodyNotes} melody note${melodyNotes === 1 ? "" : "s"}.`);
+    const cleaned = cleanSong(song);
+    return { song: cleaned, info: { bars: barCount, patterns: kept.length, uniqueBars: unique.length, leftOutBars: leftOut, drumHits, melodyNotes, skippedDrums, folded, offGrid, tempo: cleaned.tempo, melodyPart: melody ? melody.name : "", messages } };
+  }
+
+  // A MIDI file's bytes straight to a song: { song, info } or { error }.
+  function importMidi(bytes) {
+    const parsed = parseMidi(bytes);
+    return parsed.error ? parsed : midiToSong(parsed);
+  }
+
   // ---- JSON ----
 
   function cleanText(value, max) {
@@ -294,5 +564,5 @@
     return { name: name || "Imported song", data: cleanSong(data) };
   }
 
-  window.SongFiles = { PATTERN_NAMES, chainParts, MELODY_VOICES, CORE_DRUMS, EXTRA_DRUMS, GM_DRUMS, buildMidi, noteNumber, exportJson, parseImport, cleanSong, PPQ, STEP_TICKS, FORMAT, VERSION };
+  window.SongFiles = { parseMidi, midiToSong, importMidi, GM_TO_ROW, PATTERN_NAMES, chainParts, MELODY_VOICES, CORE_DRUMS, EXTRA_DRUMS, GM_DRUMS, buildMidi, noteNumber, exportJson, parseImport, cleanSong, PPQ, STEP_TICKS, FORMAT, VERSION };
 })();
