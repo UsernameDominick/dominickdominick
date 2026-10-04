@@ -1673,6 +1673,41 @@ h6 { font-size: 0.9rem; }
   overflow-wrap: anywhere;
 }
 
+/* A song with a song order counts its bars: "6 bars" at rest, "Bar 3 of 6" while playing, and a thin segment per bar (done, now, to come). */
+.song-embed-position {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin-top: 10px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.song-embed-position-strip {
+  display: flex;
+  flex: 1 1 120px;
+  gap: 2px;
+  min-width: 0;
+}
+
+.song-embed-position-strip > span {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--text-dim) 35%, transparent);
+}
+
+.song-embed-position-strip > .is-done {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.song-embed-position-strip > .is-now {
+  background: var(--accent);
+}
+
 /* Embed controls -- the song Play/Stop button, the simulation Power button and
    the 3D scan AR button -- share the site's primary button treatment (see
    .btn): filled with the accent, a glow (and, unless motion is reduced, a

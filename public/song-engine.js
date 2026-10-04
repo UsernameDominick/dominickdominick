@@ -604,6 +604,15 @@ function setMasterVolume(ctx, value) {
   function chainSteps(songData) {
     return chainOf(songData).length * STEPS;
   }
+  // What a song with a song order says about where it is: "Bar 3 of 6" (and "· Pattern B" with { pattern: true }) while bar `index` of the
+  // order sounds, "6 bars" when none does (index null), and null for a song that is one bar long (nothing to count).
+  function positionLabel(songData, index, { pattern = false } = {}) {
+    const chain = chainOf(songData);
+    if (chain.length < 2) return null;
+    if (index === null || index === undefined || !(index >= 0)) return `${chain.length} bars`;
+    const i = Math.min(chain.length - 1, Math.floor(index));
+    return `Bar ${i + 1} of ${chain.length}${pattern ? ` · Pattern ${chain[i]}` : ""}`;
+  }
   // The song as scheduleStep reads it while pattern `name` is playing: the same song with that pattern's parts in the usual places.
   function viewOf(songData, name) {
     if (isSinglePattern(songData) || name === editingName(songData)) return songData;
@@ -907,6 +916,7 @@ function setMasterVolume(ctx, value) {
     patternNames,
     chainOf,
     chainSteps,
+    positionLabel,
     chainPatterns,
     viewOf,
     maxExportLoops,

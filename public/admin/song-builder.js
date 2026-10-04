@@ -1780,6 +1780,28 @@
       if (i === index) li.setAttribute("aria-current", "step");
       else li.removeAttribute("aria-current");
     });
+    updatePreviewPosition();
+  }
+
+  // The preview's bar counter, as on the public player: "N bars" at rest, "Bar 3 of 6 · Pattern B" while the song order plays (and nothing at
+  // all for a song of one bar). One segment per bar in the strip.
+  function updatePreviewPosition() {
+    const row = $("song-preview-position");
+    const order = Engine.chainOf(songData);
+    const playing = playingChip >= 0 && playingChip < order.length ? playingChip : null;
+    const text = Engine.positionLabel(songData, playing, { pattern: true });
+    row.hidden = !text;
+    if (!text) return;
+    const strip = $("song-preview-position-strip");
+    if (strip.children.length !== order.length) {
+      strip.innerHTML = order.map(() => "<span></span>").join("");
+      $("song-preview-position-label").style.minWidth = Engine.positionLabel(songData, order.length - 1, { pattern: true }).length + "ch";
+    }
+    $("song-preview-position-label").textContent = text;
+    [...strip.children].forEach((seg, i) => {
+      seg.classList.toggle("is-now", i === playing);
+      seg.classList.toggle("is-done", playing !== null && i < playing);
+    });
   }
 
   function renderPatternControls() {
@@ -1805,6 +1827,7 @@
       .join("");
     $("song-order-list").querySelectorAll(".song-order-remove").forEach((btn) => btn.addEventListener("click", () => removeFromOrder(Number(btn.dataset.index))));
     playingChip = -1;
+    updatePreviewPosition();
     // With no order the song plays its first pattern on its own: say so, so an empty order is not a mystery.
     $("song-order-hint").hidden = chain.length > 0;
     $("song-order-hint").textContent = `Nothing in the order yet: the song plays pattern ${Engine.chainOf(songData)[0]} on its own. Add patterns with the + buttons.`;

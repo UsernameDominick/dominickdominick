@@ -53,6 +53,36 @@
     let player = null;
     let peaks = null;
 
+    // A song with a song order of several bars counts them: "6 bars" at rest, "Bar 3 of 6" while it plays, with one small segment per bar.
+    // (A one-bar song has nothing to count and gets no line.)
+    let positionLabel = null;
+    let positionSegments = [];
+    let shownBar; // undefined until the first showBar, so the first call (null, at rest) draws
+    if (window.SongEngine.positionLabel && window.SongEngine.positionLabel(songData, null)) {
+      const order = window.SongEngine.chainOf(songData);
+      const row = document.createElement("div");
+      row.className = "song-embed-position";
+      positionLabel = document.createElement("span");
+      positionLabel.className = "song-embed-position-label";
+      positionLabel.style.minWidth = window.SongEngine.positionLabel(songData, order.length - 1).length + "ch"; // the widest text, so the strip beside it never shifts
+      const strip = document.createElement("span");
+      strip.className = "song-embed-position-strip";
+      strip.setAttribute("aria-hidden", "true");
+      positionSegments = order.map(() => strip.appendChild(document.createElement("span")));
+      row.append(positionLabel, strip);
+      wrap.appendChild(row);
+    }
+    function showBar(index) {
+      if (!positionLabel || index === shownBar) return;
+      shownBar = index;
+      positionLabel.textContent = window.SongEngine.positionLabel(songData, index);
+      positionSegments.forEach((seg, i) => {
+        seg.classList.toggle("is-now", i === index);
+        seg.classList.toggle("is-done", index !== null && i < index);
+      });
+    }
+    showBar(null);
+
     function getCtx() {
       if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
       return ctx;
@@ -115,6 +145,7 @@
       const steps = window.SongEngine.STEPS;
       if (bars.length) bars.forEach((bar, i) => bar.classList.toggle("song-embed-bar-active", i === step));
       if (canvas) drawWaveform(((info ? info.chainIndex : 0) * steps + step) / ((info ? info.chainLength : 1) * steps));
+      if (info && info.chainLength > 1) showBar(info.chainIndex);
       const hitsTrack = window.SongEngine.stepHasAudibleDrumHit(info ? info.data : songData, step);
       if (pulse) {
         pulse.classList.toggle("song-embed-pulse-beat", hitsTrack);
@@ -143,6 +174,7 @@
       bars.forEach((bar) => bar.classList.remove("song-embed-bar-active"));
       if (pulse) pulse.classList.remove("song-embed-pulse-beat", "song-embed-pulse-hit");
       if (canvas) drawWaveform(0);
+      showBar(null);
       setPlayLabel(false);
       if (stopOther === stopByOther) stopOther = null;
     }
