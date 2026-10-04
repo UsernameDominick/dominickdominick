@@ -63,7 +63,7 @@
     {"id": "highlight-connected-breadboard-holes", "area": "Simulations", "status": "done", "title": "Highlight connected breadboard holes"},
     {"id": "schematic-view", "area": "Simulations", "status": "done", "title": "Schematic view", "summary": "Standard symbols; in the builder and on the public page."},
     {"id": "mobile-builder", "area": "Simulations", "status": "done", "title": "Mobile builder", "summary": "A quick bar and a More panel, with the canvas first."},
-    {"id": "logic-gate-truth-table-on-the-public-page", "area": "Simulations", "status": "todo", "title": "Logic-gate truth table on the public page", "kind": "idea", "summary": "Show a gate's truth table to readers.", "notes": "Next in line."},
+    {"id": "logic-gate-truth-table-on-the-public-page", "area": "Simulations", "status": "done", "title": "Logic-gate truth table on the public page", "summary": "A circuit with logic gates now shows a real truth table for each kind of gate: a Logic gates section on the circuit's own page, and a folded list under it wherever it is placed in an article or project. Identical gates share one table, custom tables are marked, and it reads on a phone and with a screen reader (the old hover text never did).", "date": "2026-10-04"},
     {"id": "relay-part", "area": "Simulations", "status": "todo", "title": "Relay part", "kind": "idea", "summary": "A coil that switches a contact."},
     {"id": "mute-and-hide-tracks", "area": "Songs", "status": "done", "title": "Mute and hide tracks"},
     {"id": "master-clipping-history", "area": "Songs", "status": "done", "title": "Master clipping history"},

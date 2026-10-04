@@ -4115,6 +4115,70 @@ pre.has-line-numbers {
   color: var(--accent);
 }
 
+/* Logic gate truth tables under a circuit: a heading section on the circuit's own page, a folded list under an embedded one. */
+.sim-truth {
+  margin-top: 20px;
+}
+.sim-truth h2 {
+  font-size: 1.05rem;
+  margin: 0 0 6px;
+}
+.sim-truth-fold > summary {
+  cursor: pointer;
+  font-size: 0.95rem;
+  color: var(--text-dim);
+}
+.sim-truth-note,
+.sim-truth-more {
+  margin: 6px 0 10px;
+  font-size: 0.88rem;
+  color: var(--text-dim);
+}
+.sim-truth-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.sim-truth-table {
+  border-collapse: collapse;
+  min-width: 9.5em;
+  font-variant-numeric: tabular-nums;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.sim-truth-table caption {
+  caption-side: top;
+  text-align: left;
+  max-width: 22em;
+  padding: 0 0 4px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.sim-truth-table th,
+.sim-truth-table td {
+  padding: 4px 12px;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+.sim-truth-table thead th {
+  font-size: 0.8rem;
+  color: var(--text);
+  background: color-mix(in srgb, var(--text-dim) 10%, var(--bg-elevated));
+}
+.sim-truth-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.sim-truth-out {
+  font-weight: 700;
+  border-left: 1px solid var(--border);
+}
+.sim-truth-out-1 {
+  color: var(--success);
+}
+
 /* Image viewer (public/lightbox.js): a picture opened larger. */
 img.lb-zoomable { cursor: zoom-in; }
 img.lb-zoomable:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }

@@ -318,6 +318,50 @@ export function logicGateTitle(comp) {
   const repeatsGate = [gateName, `${gateName} gate`, "logic gate"].includes(label.toLowerCase());
   return [repeatsGate ? "" : label, logicGateSummary(comp)].filter(Boolean).join(" \u2014 ");
 }
+// Each logic gate's truth table as real HTML tables, for the circuit's page (the drawing only holds them in hover titles, which a phone
+// or a screen reader never gets). Gates with the same symbol and the same table share one table that names them all; a long list stops
+// at MAX_TRUTH_TABLES, with the rest counted. `open` makes it a section with a heading (the circuit's own page); otherwise it is a
+// folded <details> under an embedded circuit. Returns "" for a circuit with no gates.
+const MAX_TRUTH_TABLES = 12;
+export function renderLogicGateTables(data, uid, { open = false } = {}) {
+  if (!data || !Array.isArray(data.components) || !data.components.some((c) => c && c.type === "logic_gate")) return ""; // the common case costs nothing
+  const safe = sanitizeSimulationRenderData(data);
+  const groups = new Map();
+  let gates = 0;
+  for (const comp of safe.components) {
+    if (!comp || comp.type !== "logic_gate") continue;
+    gates++;
+    const gate = resolveLogicGate(comp);
+    const truth = logicGateTruth(comp);
+    const key = `${gate}:${truth.join("")}`;
+    if (!groups.has(key)) groups.set(key, { gate, truth, custom: logicGateIsCustom(comp), count: 0, names: [] });
+    const group = groups.get(key);
+    group.count++;
+    const label = String(comp.label || "").trim().slice(0, 40);
+    if (label && group.names.length < 6 && !group.names.includes(label)) group.names.push(label);
+  }
+  if (!gates) return "";
+  const shown = [...groups.values()].slice(0, MAX_TRUTH_TABLES);
+  const hidden = groups.size - shown.length;
+  const tables = shown
+    .map(({ gate, truth, custom, count, names }) => {
+      const inputs = LOGIC_GATES[gate].inputs === 2 ? ["A", "B"] : ["A"];
+      const caption = `${LOGIC_GATES[gate].label} gate${count > 1 ? ` \u00d7 ${count}` : ""}${custom ? " (custom table)" : ""}${names.length ? `: ${names.join(", ")}` : ""}`;
+      const rows = logicGateRows(gate)
+        .map((bits, i) => `<tr>${bits.map((b) => `<td>${b}</td>`).join("")}<td class="sim-truth-out sim-truth-out-${truth[i]}">${truth[i]}</td></tr>`)
+        .join("");
+      return `<table class="sim-truth-table"><caption>${escXml(caption)}</caption><thead><tr>${inputs.map((n) => `<th scope="col">${n}</th>`).join("")}<th scope="col">Out</th></tr></thead><tbody>${rows}</tbody></table>`;
+    })
+    .join("");
+  const more = hidden > 0 ? `<p class="sim-truth-more">and ${hidden} more kind${hidden === 1 ? "" : "s"} of gate.</p>` : "";
+  const note = `<p class="sim-truth-note">Each gate is drawn to show what it does; its table lists the output for every combination of inputs (1 is high, 0 is low). The gates are not part of the live readings.</p>`;
+  const body = `${note}<div class="sim-truth-grid">${tables}</div>${more}`;
+  const id = escXml(uid);
+  return open
+    ? `<section class="sim-truth" aria-labelledby="${id}-truth-h"><h2 id="${id}-truth-h">Logic gates</h2>${body}</section>`
+    : `<details class="sim-truth sim-truth-fold"><summary>Logic gate truth tables (${gates})</summary>${body}</details>`;
+}
+
 function logicGatePins(gate) {
   const out = { id: "out", x: 70, y: 25 };
   return LOGIC_GATES[gate].inputs === 2

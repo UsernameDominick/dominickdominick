@@ -2,7 +2,7 @@ import { listArticles, listProjects, getPublishedSimulation, getScan, getSong, g
 import { safeImageSrc, mediaKeyFor, paragraphPictures, bodyPictures, PICTURE_ONLY_LINE } from "./pictures.js";
 import { paragraphEmbed, bodyEmbeds, EMBED_ONLY_LINE, MAX_BODY_EMBEDS } from "./embeds.js";
 import { nowIso, visibleText } from "./text.js";
-import { renderSimulationSvg, SIM_DEFS_SVG, describeSimulation } from "./simulation-render.js";
+import { renderSimulationSvg, SIM_DEFS_SVG, describeSimulation, renderLogicGateTables } from "./simulation-render.js";
 // STUDY (temporary): see worker/study/README.md.
 import { renderStudyBlock, studyPageTags } from "./study/index.js";
 
@@ -1497,7 +1497,7 @@ export function simulationEmbedHtml(sim, uid, description, { about = false } = {
     uid
   )}" aria-describedby="${esc(uid)}">Power on</button><button type="button" class="sim-power-btn sim-view-btn" aria-pressed="false" data-target="${esc(
     uid
-  )}" aria-describedby="${esc(uid)}">Schematic view</button></div><p class="sim-readout" role="status" aria-live="polite" data-hint="Tap or press a part to see its readings.">Tap or press a part to see its readings.</p>${aboutHtml}</div>`;
+  )}" aria-describedby="${esc(uid)}">Schematic view</button></div><p class="sim-readout" role="status" aria-live="polite" data-hint="Tap or press a part to see its readings.">Tap or press a part to see its readings.</p>${aboutHtml}${renderLogicGateTables(sim.data, uid, { open: about })}</div>`;
 }
 
 async function renderBlockInner(env, block, ctx) {
