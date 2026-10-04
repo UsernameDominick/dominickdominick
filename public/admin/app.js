@@ -11283,6 +11283,13 @@
       data.topPaths
         .map((r) => `<div class="analytics-row"><span>${r.title ? `${escapeHtml(r.title)} <span class="analytics-path">${escapeHtml(r.path)}</span>` : escapeHtml(r.path)}</span><span>${r.n}</span></div>`)
         .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No data yet.</p>";
+    // Reading completion: of each article's and project's visits, how many were read to the end (hidden while a filter is on, because the
+    // reading events carry no device or referrer to filter by).
+    el("analytics-reads").innerHTML = !data.readCompletion
+      ? "<p style='color:var(--text-dim);font-size:0.85rem;'>Not shown while a filter is on.</p>"
+      : data.readCompletion
+          .map((r) => `<div class="analytics-row"><span>${r.title ? `${escapeHtml(r.title)} <span class="analytics-path">${escapeHtml(r.path)}</span>` : escapeHtml(r.path)}</span><span title="${r.reads} of ${r.views} visits read it to the end">${r.percent}% <span class="analytics-path">${r.reads} of ${r.views}</span></span></div>`)
+          .join("") || "<p style='color:var(--text-dim);font-size:0.85rem;'>No articles or projects were visited in this period.</p>";
     renderList("analytics-referrers", data.topReferrers, "referrer");
     renderList("analytics-countries", data.topCountries, "country");
     renderList("analytics-locations", data.topLocations, "location");

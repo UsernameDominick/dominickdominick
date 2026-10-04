@@ -245,4 +245,38 @@
       });
     }
   }
+
+  // Reading completion: "read_complete" is sent once per visit, when the reader has reached the end of the text and has stayed long
+  // enough for it to be believable that they read it: 40% of the time the length suggests at 200 words a minute (never under 10 or
+  // over 120 seconds), counting only the seconds the tab is visible. Nothing is stored in the browser. The Analytics window shows it as
+  // "read to the end", per article and project, next to the views.
+  (function () {
+    var content = document.getElementById("readable-content");
+    if (!content || !window.IntersectionObserver || !window.trackEvent) return;
+    var words = (content.textContent || "").trim().split(/\s+/).filter(Boolean).length;
+    var need = Math.min(120, Math.max(10, Math.round((words / 200) * 60 * 0.4)));
+    var end = content.lastElementChild || content;
+    var seen = false;
+    var seconds = 0;
+    var sent = false;
+    var timer = null;
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) seen = true;
+      });
+      check();
+    });
+    function check() {
+      if (sent || !seen || seconds < need) return;
+      sent = true;
+      clearInterval(timer);
+      observer.disconnect();
+      window.trackEvent("read_complete", String(seconds));
+    }
+    timer = setInterval(function () {
+      if (document.visibilityState === "visible") seconds++;
+      check();
+    }, 1000);
+    observer.observe(end);
+  })();
 })();

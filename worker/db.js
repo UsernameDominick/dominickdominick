@@ -3199,6 +3199,27 @@ export async function getTopArticles(env, days = 7, limit = 5) {
   });
 }
 
+// How many of the visits to each article and project went on to read it to the end: the page views of those addresses against the
+// "read_complete" events the page sends (see public/article-extras.js), most-visited first. Counts are per visit, so a share is never
+// more than 100%. Not filtered by device or referrer (the events carry neither), so the dashboard leaves it out while a filter is on.
+export async function getReadCompletion(env, days = 7) {
+  const d = Math.max(1, Math.floor(days));
+  const since = `datetime('now', '-${d} days')`;
+  const [views, reads] = await Promise.all([
+    env.DB
+      .prepare(`SELECT path, COUNT(*) AS views FROM pageviews WHERE created_at > ${since} AND (path LIKE '/random/%' OR path LIKE '/projects/%') GROUP BY path ORDER BY views DESC LIMIT 15`)
+      .all(),
+    env.DB.prepare(`SELECT path, COUNT(*) AS n FROM events WHERE name = 'read_complete' AND path IS NOT NULL AND created_at > ${since} GROUP BY path`).all(),
+  ]);
+  const readsByPath = new Map(reads.results.map((r) => [r.path, r.n]));
+  const rows = views.results.map((r) => {
+    const n = Math.min(r.views, readsByPath.get(r.path) || 0);
+    return { path: r.path, views: r.views, reads: n, percent: Math.round((n / r.views) * 100) };
+  });
+  const titles = await titlesForPaths(env, rows.map((r) => r.path));
+  return rows.map((r) => (titles.has(r.path) ? { ...r, title: titles.get(r.path) } : r));
+}
+
 export async function getAnalytics(env, days = 7, filters = {}) {
   const since = `datetime('now', '-${Math.max(1, Math.floor(days))} days')`;
   const { sql: filterSql, binds: filterBinds } = buildPageviewFilter(filters);
@@ -3218,6 +3239,7 @@ export async function getAnalytics(env, days = 7, filters = {}) {
     topOutboundLinks,
     topDownloads,
     missingPages,
+    readCompletion,
     periodRow,
   ] = await Promise.all([
     isFiltered
@@ -3298,6 +3320,7 @@ export async function getAnalytics(env, days = 7, filters = {}) {
     getTopEventUrls(env, "outbound_link", days),
     getTopEventUrls(env, "download", days),
     getMissingPages(env, days),
+    isFiltered ? Promise.resolve(null) : getReadCompletion(env, days),
     // Views in this range, and in the range of the same length just before it (for "up 12% on the week before").
     env.DB
       .prepare(
@@ -3332,6 +3355,7 @@ export async function getAnalytics(env, days = 7, filters = {}) {
     topOutboundLinks,
     topDownloads,
     missingPages,
+    readCompletion,
   };
 }
 

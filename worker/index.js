@@ -1280,6 +1280,8 @@ async function handleTrackEvent(request, env, ctx) {
   if (!name) return new Response(null, { status: 400 });
   // Crawlers get the same answer as everyone else but are not counted.
   if (isBot(request.headers.get("User-Agent"))) return new Response(null, { status: 204 });
+  // The owner reading their own pages is not a reader (page views skip them too), so it would only inflate "read to the end".
+  if (name === "read_complete" && (await isAuthenticated(request, env))) return new Response(null, { status: 204 });
   ctx.waitUntil(logEvent(env, { name, path: cleanTrackPath(body.path), detail: clip(body.detail, 500) }).catch(() => {}));
   return new Response(null, { status: 204 });
 }

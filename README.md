@@ -73,7 +73,10 @@ Worker secret, not stored in this repo). From there:
   kept, apart from the daily ones); if that copy can't be saved, nothing
   is replaced, and restoring the copy undoes the restore
 - Check "Analytics" for views/day, top pages, top referrers, top
-  countries — no third-party dashboard needed
+  countries — no third-party dashboard needed. "Read to the end" shows,
+  for each article and project, how many visits scrolled to the end and
+  stayed long enough to have read it (nothing is stored in the visitor's
+  browser; your own visits aren't counted)
 - Create new pages with "+ Page" — they get their own URL but aren't
   auto-added to the nav; add a Button block linking to them if you want
   them reachable from elsewhere
