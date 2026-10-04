@@ -192,10 +192,15 @@ function drive(songData, options, bars) {
     ["junk in the order and patterns", withGarbage],
     ["too long an order", multi({ chain: Array(40).fill("B") })],
     ["editing is not a pattern", multi({ editing: "Z", chain: ["B"] })],
+    ["a bass line in the open pattern and in B", multi({ bass: { notes: { C2: hits("x...") }, ties: {} }, patterns: { B: { ...a.patterns.B, bass: { notes: { G1: hits("..x.") }, ties: {} } } }, chain: ["A", "B", "A"] })],
+    ["a bass line in the song, none in B", multi({ bass: { voice: "pad", notes: { C2: hits("x...") } }, chain: ["A", "B"] })],
+    ["a bass line only in a stored pattern", multi({ patterns: { B: { ...a.patterns.B, bass: { notes: { C1: hits("x") } } } }, chain: ["B", "A"] })],
+    ["B open, with a bass line", { ...editingB, bass: { notes: { E1: hits("x...") }, ties: {} }, patterns: { A: { tracks: a.tracks, notes: a.melody.notes, ties: {}, bass: { notes: { A1: hits("..x.") }, ties: {} } } } }],
+    ["junk instead of a bass line", multi({ bass: "no", patterns: { B: { ...a.patterns.B, bass: 7 } } })],
   ];
   for (const [label, song] of cases) {
-    const want = JSON.stringify(E.chainPatterns(song).map((p) => ({ name: p.name, tracks: p.tracks, notes: p.notes, ties: p.ties })));
-    const got = JSON.stringify(F.chainParts(song).map((p) => ({ name: p.name, tracks: p.tracks, notes: p.notes, ties: p.ties })));
+    const want = JSON.stringify(E.chainPatterns(song).map((p) => ({ name: p.name, tracks: p.tracks, notes: p.notes, ties: p.ties, bass: p.bass })));
+    const got = JSON.stringify(F.chainParts(song).map((p) => ({ name: p.name, tracks: p.tracks, notes: p.notes, ties: p.ties, bass: p.bass })));
     ok(want === got, `file helper and engine agree on the song order: ${label}`, E.chainOf(song).join(""));
   }
 }

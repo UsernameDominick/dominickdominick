@@ -50,6 +50,20 @@ assert.equal(songDataError({ melody: { voice: "pluck" } }), null, "a melody soun
 assert.match(songDataError({ melody: { voice: 5 } }), /melody's sound/);
 assert.match(songDataError({ melody: { voice: { a: 1 } } }), /melody's sound/);
 assert.match(songDataError({ melody: { voice: "x".repeat(25) } }), /melody's sound/);
+// the bass line
+assert.equal(songDataError({ bass: { voice: "pad", volume: 0.5, notes: { C2: [true] }, ties: { C2: [false, true] } } }), null, "a bass line is accepted");
+assert.equal(songDataError({ bass: {} }), null, "an empty bass line is accepted");
+assert.match(songDataError({ bass: [] }), /bass line must be an object/);
+assert.match(songDataError({ bass: "x" }), /bass line must be an object/);
+assert.match(songDataError({ bass: { notes: [] } }), /bass line's notes/);
+assert.match(songDataError({ bass: { notes: { C2: "x" } } }), /bass line's notes/);
+assert.match(songDataError({ bass: { ties: { C2: 5 } } }), /bass line's held notes/);
+assert.match(songDataError({ bass: { voice: 5 } }), /bass line's sound/);
+assert.match(songDataError({ bass: { voice: "x".repeat(25) } }), /bass line's sound/);
+assert.equal(songDataError({ patterns: { B: { tracks: {}, bass: { notes: { C1: [true] }, ties: {} } } } }), null, "a pattern may carry a bass line");
+assert.match(songDataError({ patterns: { B: { bass: "x" } } }), /Pattern B's bass line must be an object/);
+assert.match(songDataError({ patterns: { B: { bass: { notes: { C1: "x" } } } } }), /Pattern B's bass notes/);
+assert.match(songDataError({ patterns: { C: { bass: { ties: [] } } } }), /Pattern C's bass held notes/);
 assert.match(songDataError({ private_notes: 5 }), /private notes/);
 assert.match(songDataError({ private_notes: "x".repeat(20001) }), /private notes/);
 assert.match(songDataError({ filler: "x".repeat(MAX_SONG_BYTES) }), /too large/);

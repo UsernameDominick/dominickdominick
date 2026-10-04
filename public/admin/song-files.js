@@ -11,6 +11,10 @@
   [4, 3].forEach((octave) => {
     for (let i = 11; i >= 0; i--) PIANO_NOTES.push(NOTE_NAMES[i] + octave);
   });
+  const BASS_NOTES = []; // the bass line's own roll: C1 to B2, highest first (a test keeps it equal to the engine's)
+  [2, 1].forEach((octave) => {
+    for (let i = 11; i >= 0; i--) BASS_NOTES.push(NOTE_NAMES[i] + octave);
+  });
   const KITS = ["acoustic", "electronic", "808"];
   const WAVEFORMS = ["sine", "square", "sawtooth", "triangle"];
   const MELODY_VOICES = ["pluck", "lead", "pad", "bass", "bell"]; // the instruments in song-engine.js (a test keeps the two lists equal)
@@ -28,6 +32,7 @@
 
   const PPQ = 480; // ticks per quarter note; a step is a sixteenth
   const STEP_TICKS = PPQ / 4;
+  const GM_BASS_PROGRAM = 33; // General MIDI "Electric Bass (finger)", zero-based
   const GM_DRUMS = { kick: 36, snare: 38, hihat: 42, clap: 39, openhat: 46, rim: 37, tom: 47, crash: 49 }; // General MIDI percussion map, played on channel 10
 
   // "C4" -> 60 (the usual convention where C4 is middle C); null for anything that isn't a note name.
@@ -69,17 +74,25 @@
   }
 
   // The patterns of a song and the song order, resolved the way song-engine.js does it (song-chain.test.mjs checks they agree): the open
-  // pattern (song.editing, default "A") is the song's own tracks and melody notes/ties, the others sit under song.patterns, and the order
-  // keeps only patterns that exist (cut to 32), or is just the first pattern the song has.
+  // pattern (song.editing, default "A") is the song's own tracks and melody notes/ties (and bass line), the others sit under song.patterns,
+  // and the order keeps only patterns that exist (cut to 32), or is just the first pattern the song has.
   function patternParts(song, name) {
     if (!PATTERN_NAMES.includes(name)) return null;
     const editing = PATTERN_NAMES.includes(song.editing) ? song.editing : "A";
     if (name === editing) {
       const melody = isObj(song.melody) ? song.melody : {};
-      return { tracks: isObj(song.tracks) ? song.tracks : {}, notes: isObj(melody.notes) ? melody.notes : {}, ties: isObj(melody.ties) ? melody.ties : {} };
+      const open = { tracks: isObj(song.tracks) ? song.tracks : {}, notes: isObj(melody.notes) ? melody.notes : {}, ties: isObj(melody.ties) ? melody.ties : {} };
+      if (isObj(song.bass)) open.bass = { notes: isObj(song.bass.notes) ? song.bass.notes : {}, ties: isObj(song.bass.ties) ? song.bass.ties : {} };
+      return open;
     }
     const other = isObj(song.patterns) && Object.prototype.hasOwnProperty.call(song.patterns, name) ? song.patterns[name] : null;
-    return isObj(other) ? { tracks: isObj(other.tracks) ? other.tracks : {}, notes: isObj(other.notes) ? other.notes : {}, ties: isObj(other.ties) ? other.ties : {} } : null;
+    if (!isObj(other)) return null;
+    const stored = { tracks: isObj(other.tracks) ? other.tracks : {}, notes: isObj(other.notes) ? other.notes : {}, ties: isObj(other.ties) ? other.ties : {} };
+    if (isObj(other.bass) || isObj(song.bass)) {
+      const bass = isObj(other.bass) ? other.bass : {};
+      stored.bass = { notes: isObj(bass.notes) ? bass.notes : {}, ties: isObj(bass.ties) ? bass.ties : {} };
+    }
+    return stored;
   }
   function chainParts(song) {
     const names = PATTERN_NAMES.filter((n) => patternParts(song, n));
@@ -149,6 +162,35 @@
       });
     }
     if (melodyEvents.length) tracks.push(trackBytes("Melody", melodyEvents));
+
+    // the bass line on channel 2 with the electric bass program, so a music program plays it as a bass
+    const bassEvents = [];
+    if (isObj(data.bass) && data.bass.muted !== true) {
+      const vol = volume(data.bass);
+      bars.forEach((bar, b) => {
+        if (!bar.bass) return;
+        for (const noteName of Object.keys(bar.bass.notes)) {
+          const num = noteNumber(noteName);
+          const lane = bar.bass.notes[noteName];
+          if (num === null || !Array.isArray(lane)) continue;
+          const ties = bar.bass.ties[noteName];
+          const tied = (step) => Boolean(step > 0 && ties && ties[step] === true && lane[step] && lane[step - 1]);
+          for (let step = 0; step < STEPS; step++) {
+            if (!lane[step] || tied(step)) continue;
+            let held = 1;
+            while (step + held < STEPS && tied(step + held)) held++;
+            const tick = (b * STEPS + step) * STEP_TICKS + delay(step);
+            bassEvents.push({ tick, order: 1, bytes: [0x91, num, velocity(level(lane[step]), vol)] });
+            bassEvents.push({ tick: tick + STEP_TICKS * held, order: 0, bytes: [0x81, num, 0] });
+            notes++;
+          }
+        }
+      });
+    }
+    if (bassEvents.length) {
+      bassEvents.push({ tick: 0, order: -1, bytes: [0xc1, GM_BASS_PROGRAM] });
+      tracks.push(trackBytes("Bass", bassEvents));
+    }
     if (!notes) return { bytes: null, notes: 0 };
 
     const micros = Math.round(60000000 / tempo);
@@ -273,10 +315,15 @@
   const strengthOf = (vel) => (vel >= STRONG_VELOCITY ? true : vel >= MEDIUM_VELOCITY ? 0.65 : 0.35);
   const MAX_IMPORT_BARS = 32;
 
-  // Turns a parsed MIDI file into a song: tempo; drums (channel 10) onto the drum rows by General MIDI note; the busiest other part as
-  // the melody (folded by octaves into the piano roll, held notes tied); everything snapped to sixteenth notes, one bar of 16 steps each.
-  // Identical bars become one pattern, so a repeating file is a few patterns and a song order (up to four different bars, 32 bars). Returns
-  // { song, info } (song already cleaned, info.messages in plain words) or { error }.
+  // Turns a parsed MIDI file into a song: tempo; drums (channel 10) onto the drum rows by General MIDI note; the busiest higher part as the
+  // melody and the busiest low part (named "bass", or mostly below C3) as the bass line, each moved by whole octaves into its piano roll
+  // (held notes tied); everything snapped to sixteenth notes, one bar of 16 steps each. Identical bars become one pattern, so a repeating
+  // file is a few patterns and a song order (up to four different bars, 32 bars). Returns { song, info } (song already cleaned,
+  // info.messages in plain words) or { error }.
+  const MELODY_LOW = 48; // the lowest note of the melody roll (C3); the bass roll is C1 (24) to B2 (47)
+  const BASS_LOW = 24;
+  const BASS_HIGH = 47;
+  const median = (list) => { const sorted = list.map((n) => n.note).sort((a, b) => a - b); return sorted[Math.floor(sorted.length / 2)]; };
   function midiToSong(parsed) {
     if (!parsed || !Array.isArray(parsed.tracks)) return { error: "There is nothing to import." };
     const messages = [];
@@ -284,7 +331,7 @@
     const all = parsed.tracks.flatMap((t, ti) => t.notes.map((n) => Object.assign({ track: ti, trackName: t.name }, n)));
     if (!all.length) return { error: "That MIDI file has no notes in it." };
 
-    // the parts: drums are channel 10, every other (track, channel) pair is a candidate melody
+    // the parts: drums are channel 10, every other (track, channel) pair is a candidate melody or bass line
     const drums = all.filter((n) => n.channel === 9);
     const parts = new Map();
     all.filter((n) => n.channel !== 9).forEach((n) => {
@@ -293,11 +340,17 @@
       parts.get(key).notes.push(n);
     });
     const ranked = [...parts.values()].sort((a, b) => b.notes.length - a.notes.length);
-    const melody = ranked[0] || null;
-    if (ranked.length > 1) messages.push(`The melody is "${melody.name}", the busiest part. ${ranked.length - 1} other part${ranked.length === 2 ? " was" : "s were"} left out.`);
+    const isLow = (part) => /bass/i.test(part.name) || median(part.notes) < MELODY_LOW;
+    const bassPart = ranked.find(isLow) || null;
+    const melody = ranked.find((part) => part !== bassPart) || null;
+    const leftOutParts = ranked.length - (melody ? 1 : 0) - (bassPart ? 1 : 0);
+    if (melody && bassPart) messages.push(`The melody is "${melody.name}" and the bass line is "${bassPart.name}".`);
+    else if (bassPart) messages.push(`The bass line is "${bassPart.name}": it sits below the melody's range, so it became the bass line.`);
+    else if (melody && ranked.length > 1) messages.push(`The melody is "${melody.name}", the busiest part.`);
+    if (leftOutParts) messages.push(`${leftOutParts} other part${leftOutParts === 1 ? " was" : "s were"} left out.`);
 
     const barOf = (note) => Math.floor(Math.round(note.tick / stepTicks) / STEPS);
-    const used = [...drums, ...(melody ? melody.notes : [])];
+    const used = [...drums, ...(melody ? melody.notes : []), ...(bassPart ? bassPart.notes : [])];
     let lastBar = 0;
     let pastEnd = 0;
     used.forEach((n) => { // (a loop, not Math.max(...list): a big file would overflow the call stack)
@@ -306,13 +359,14 @@
     });
     if (pastEnd) messages.push(`Notes after bar ${MAX_IMPORT_BARS} (${pastEnd}) were left out.`);
     const barCount = lastBar + 1;
-    const makeBar = () => ({ drums: {}, notes: {}, ties: {} });
+    const makeBar = () => ({ drums: {}, notes: {}, ties: {}, bassNotes: {}, bassTies: {} });
     const bars = Array.from({ length: barCount }, makeBar);
     let offGrid = 0;
     let skippedDrums = 0;
     let folded = 0;
     let drumHits = 0;
     let melodyNotes = 0;
+    let bassNotes = 0;
     const snap = (note) => {
       const exact = note.tick / stepTicks;
       const step = Math.round(exact);
@@ -329,48 +383,63 @@
       lane[step % STEPS] = Math.max(lane[step % STEPS], n.vel);
       drumHits++;
     });
-    const holds = [];
-    // a melody outside the piano roll moves as a whole by octaves (so it keeps its shape): to fit if its span allows, else to centre its
-    // middle note; any note still outside folds in
-    const pitches = (melody ? melody.notes : []).map((n) => n.note).sort((a, b) => a - b);
-    const low = pitches.length ? pitches[0] : 60;
-    const high = pitches.length ? pitches[pitches.length - 1] : 60;
-    let octaves = 0;
-    if (low < 48 || high > 71) {
-      const fits = [];
-      for (let k = -10; k <= 10; k++) if (low + 12 * k >= 48 && high + 12 * k <= 71) fits.push(k);
-      if (fits.length) octaves = fits.sort((a, b) => Math.abs(a) - Math.abs(b))[0];
-      else octaves = Math.round((59.5 - pitches[Math.floor(pitches.length / 2)]) / 12);
-    }
-    (melody ? melody.notes : []).forEach((n) => {
-      let note = n.note + octaves * 12;
-      if (note < 48 || note > 71) folded++;
-      while (note < 48) note += 12;
-      while (note > 71) note -= 12;
-      const name = NOTE_NAMES[note % 12] + (Math.floor(note / 12) - 1);
-      const step = snap(n);
-      const bar = bars[Math.floor(step / STEPS)];
-      if (!bar) return;
-      const lane = bar.notes[name] || (bar.notes[name] = new Array(STEPS).fill(0));
-      lane[step % STEPS] = Math.max(lane[step % STEPS], n.vel);
-      melodyNotes++;
-      holds.push({ bar, name, at: step % STEPS, length: Math.max(1, Math.round(n.length / stepTicks)) });
-    });
-    // a note held for several steps is one note tied across them, up to the end of its bar and never over another note struck there
-    holds.forEach(({ bar, name, at, length }) => {
-      const lane = bar.notes[name];
-      for (let k = 1; k < length && at + k < STEPS; k++) {
-        if (lane[at + k]) break;
-        lane[at + k] = lane[at];
-        (bar.ties[name] || (bar.ties[name] = new Array(STEPS).fill(false)))[at + k] = true;
+
+    // Places one pitched part into its roll ([low, high] in MIDI numbers): a part outside it moves as a whole by octaves (so it keeps its
+    // shape), to fit if its span allows, else to centre its middle note; any note still outside folds in. Returns what was done.
+    function placePart(part, low, high, key, tieKey) {
+      const result = { octaves: 0, folded: 0, count: 0 };
+      if (!part) return result;
+      let pitchLow = part.notes[0].note;
+      let pitchHigh = pitchLow;
+      part.notes.forEach((n) => { pitchLow = Math.min(pitchLow, n.note); pitchHigh = Math.max(pitchHigh, n.note); });
+      if (pitchLow < low || pitchHigh > high) {
+        const fits = [];
+        for (let k = -10; k <= 10; k++) if (pitchLow + 12 * k >= low && pitchHigh + 12 * k <= high) fits.push(k);
+        if (fits.length) result.octaves = fits.sort((a, b) => Math.abs(a) - Math.abs(b))[0];
+        else result.octaves = Math.round(((low + high) / 2 - median(part.notes)) / 12);
       }
-    });
+      const holds = [];
+      part.notes.forEach((n) => {
+        let note = n.note + result.octaves * 12;
+        if (note < low || note > high) result.folded++;
+        while (note < low) note += 12;
+        while (note > high) note -= 12;
+        const name = NOTE_NAMES[note % 12] + (Math.floor(note / 12) - 1);
+        const step = snap(n);
+        const bar = bars[Math.floor(step / STEPS)];
+        if (!bar) return;
+        const lane = bar[key][name] || (bar[key][name] = new Array(STEPS).fill(0));
+        lane[step % STEPS] = Math.max(lane[step % STEPS], n.vel);
+        result.count++;
+        holds.push({ bar, name, at: step % STEPS, length: Math.max(1, Math.round(n.length / stepTicks)) });
+      });
+      // a note held for several steps is one note tied across them, up to the end of its bar and never over another note struck there
+      holds.forEach(({ bar, name, at, length }) => {
+        const lane = bar[key][name];
+        for (let k = 1; k < length && at + k < STEPS; k++) {
+          if (lane[at + k]) break;
+          lane[at + k] = lane[at];
+          (bar[tieKey][name] || (bar[tieKey][name] = new Array(STEPS).fill(false)))[at + k] = true;
+        }
+      });
+      return result;
+    }
+    const melodyPlaced = placePart(melody, MELODY_LOW, 71, "notes", "ties");
+    const bassPlaced = placePart(bassPart, BASS_LOW, BASS_HIGH, "bassNotes", "bassTies");
+    melodyNotes = melodyPlaced.count;
+    bassNotes = bassPlaced.count;
+    folded = melodyPlaced.folded + bassPlaced.folded;
 
     // what each bar holds, as the song stores it
+    const hasBass = Boolean(bassPart);
     const partOf = (bar) => {
       const part = { tracks: {}, notes: {}, ties: bar.ties };
       Object.keys(bar.drums).forEach((row) => (part.tracks[row] = bar.drums[row].map((v) => (v ? strengthOf(v) : false))));
       Object.keys(bar.notes).forEach((name) => (part.notes[name] = bar.notes[name].map((v) => (v ? strengthOf(v) : false))));
+      if (hasBass) {
+        part.bass = { notes: {}, ties: bar.bassTies };
+        Object.keys(bar.bassNotes).forEach((name) => (part.bass.notes[name] = bar.bassNotes[name].map((v) => (v ? strengthOf(v) : false))));
+      }
       return part;
     };
     const parts4 = bars.map(partOf);
@@ -400,9 +469,14 @@
       trackMeta: Object.fromEntries(rows.map((row) => [row, { color: DEFAULT_COLORS[row], note: "" }])),
       melody: { waveform: "sine", notes: first.notes, ties: first.ties },
     };
+    if (hasBass) song.bass = { notes: first.bass.notes, ties: first.bass.ties };
     if (kept.length > 1) {
       song.patterns = {};
-      kept.slice(1).forEach((u, i) => (song.patterns[PATTERN_NAMES[i + 1]] = { tracks: lanes(u.part), notes: u.part.notes, ties: u.part.ties }));
+      kept.slice(1).forEach((u, i) => {
+        const pattern = { tracks: lanes(u.part), notes: u.part.notes, ties: u.part.ties };
+        if (hasBass) pattern.bass = { notes: u.part.bass.notes, ties: u.part.bass.ties };
+        song.patterns[PATTERN_NAMES[i + 1]] = pattern;
+      });
       song.chain = order.slice(0, MAX_CHAIN).map((i) => PATTERN_NAMES[i]);
     }
 
@@ -414,14 +488,18 @@
     if (new Set(parsed.tempos.map((t) => t.micros)).size > 1) messages.push("The file changes tempo; only the first tempo was used.");
     if (parsed.timeSig && !(parsed.timeSig.num === 4 && parsed.timeSig.den === 4)) messages.push(`The file is in ${parsed.timeSig.num}/${parsed.timeSig.den}, but songs here are always bars of sixteen steps (4/4), so the bars won't line up with the music.`);
     if (skippedDrums) messages.push(`${skippedDrums} drum note${skippedDrums === 1 ? " has" : "s have"} no matching sound here and ${skippedDrums === 1 ? "was" : "were"} left out.`);
-    if (octaves) messages.push(`The melody was moved ${Math.abs(octaves)} octave${Math.abs(octaves) === 1 ? "" : "s"} ${octaves > 0 ? "up" : "down"} to fit the piano roll (C3 to B4).`);
-    if (folded) messages.push(`${folded} melody note${folded === 1 ? " was" : "s were"} still outside the piano roll and moved by whole octaves to fit.`);
-    const total = drumHits + melodyNotes;
-    if (!total) return { error: "None of the notes in that MIDI file can be used here (no General MIDI drums this site has, and no melody)." };
+    for (const [placed, label, range] of [[melodyPlaced, "melody", "C3 to B4"], [bassPlaced, "bass", "C1 to B2"]]) {
+      if (placed.octaves) messages.push(`The ${label} was moved ${Math.abs(placed.octaves)} octave${Math.abs(placed.octaves) === 1 ? "" : "s"} ${placed.octaves > 0 ? "up" : "down"} to fit the ${label === "bass" ? "bass " : ""}piano roll (${range}).`);
+      if (placed.folded) messages.push(`${placed.folded} ${label} note${placed.folded === 1 ? " was" : "s were"} still outside the ${label === "bass" ? "bass " : ""}piano roll and moved by whole octaves to fit.`);
+    }
+    const total = drumHits + melodyNotes + bassNotes;
+    if (!total) return { error: "None of the notes in that MIDI file can be used here (no General MIDI drums this site has, and no melody or bass line)." };
     if (offGrid && offGrid / Math.max(1, total) > 0.1) messages.push(`${offGrid} note${offGrid === 1 ? " was" : "s were"} off the sixteenth-note grid and snapped to the nearest step.`);
-    messages.unshift(`Read ${barCount} bar${barCount === 1 ? "" : "s"} at ${song.tempo} BPM: ${drumHits} drum hit${drumHits === 1 ? "" : "s"} and ${melodyNotes} melody note${melodyNotes === 1 ? "" : "s"}.`);
+    const counted = [`${drumHits} drum hit${drumHits === 1 ? "" : "s"}`, `${melodyNotes} melody note${melodyNotes === 1 ? "" : "s"}`];
+    if (hasBass) counted.push(`${bassNotes} bass note${bassNotes === 1 ? "" : "s"}`);
+    messages.unshift(`Read ${barCount} bar${barCount === 1 ? "" : "s"} at ${song.tempo} BPM: ${counted.slice(0, -1).join(", ")} and ${counted[counted.length - 1]}.`);
     const cleaned = cleanSong(song);
-    return { song: cleaned, info: { bars: barCount, patterns: kept.length, uniqueBars: unique.length, leftOutBars: leftOut, drumHits, melodyNotes, skippedDrums, folded, offGrid, tempo: cleaned.tempo, melodyPart: melody ? melody.name : "", messages } };
+    return { song: cleaned, info: { bars: barCount, patterns: kept.length, uniqueBars: unique.length, leftOutBars: leftOut, drumHits, melodyNotes, bassNotes, skippedDrums, folded, offGrid, tempo: cleaned.tempo, melodyPart: melody ? melody.name : "", bassPart: bassPart ? bassPart.name : "", messages } };
   }
 
   // A MIDI file's bytes straight to a song: { song, info } or { error }.
@@ -447,10 +525,10 @@
     return false;
   }
   // The held notes of one pattern, or null when there are none: a tie only survives where the note is on at that step and the one before.
-  function cleanTieMap(rawTies, notes) {
+  function cleanTieMap(rawTies, notes, names = PIANO_NOTES) {
     if (!isObj(rawTies)) return null;
     const ties = {};
-    PIANO_NOTES.forEach((n) => {
+    names.forEach((n) => {
       const lane = rawTies[n];
       if (!Array.isArray(lane)) return;
       const row = Array.from({ length: STEPS }, (_, i) => lane[i] === true && i > 0 && Boolean(notes[n][i]) && Boolean(notes[n][i - 1]));
@@ -503,6 +581,21 @@
     // Held notes: a tie only counts where the note is on at that step and the one before, so a stale flag can't survive the clean-up.
     const ties = cleanTieMap(melody.ties, song.melody.notes);
     if (ties) song.melody.ties = ties;
+    // The bass line: its sound (a voice name, "bass" when absent), mix flags and the notes of its own C1 to B2 roll. Only a song that has one
+    // keeps one.
+    if (isObj(src.bass)) {
+      const bass = {};
+      if (MELODY_VOICES.includes(src.bass.voice)) bass.voice = src.bass.voice;
+      if (src.bass.muted === true) bass.muted = true;
+      if (src.bass.hidden === true) bass.hidden = true;
+      if (src.bass.volume !== undefined && src.bass.volume !== null && src.bass.volume !== "") bass.volume = clampNum(src.bass.volume, 0, 1, 1);
+      const bassNotes = isObj(src.bass.notes) ? src.bass.notes : {};
+      bass.notes = {};
+      BASS_NOTES.forEach((n) => (bass.notes[n] = cleanLane(bassNotes[n])));
+      const bassTies = cleanTieMap(src.bass.ties, bass.notes, BASS_NOTES);
+      if (bassTies) bass.ties = bassTies;
+      song.bass = bass;
+    }
     if (src.scale && typeof src.scale === "object" && SCALE_TYPES.includes(src.scale.type) && NOTE_NAMES.includes(src.scale.root)) song.scale = { root: src.scale.root, type: src.scale.type };
     // Patterns: which one is open (A is the default and is not written), the others, and the song order over them. Only the three parts a
     // pattern owns (drum hits, melody notes, held notes) are kept for them, over the rows this song has.
@@ -520,6 +613,13 @@
         PIANO_NOTES.forEach((note) => (cleaned.notes[note] = cleanLane(partNotes[note])));
         const heldNotes = cleanTieMap(part.ties, cleaned.notes);
         if (heldNotes) cleaned.ties = heldNotes;
+        if (isObj(part.bass)) {
+          const partBass = isObj(part.bass.notes) ? part.bass.notes : {};
+          cleaned.bass = { notes: {} };
+          BASS_NOTES.forEach((note) => (cleaned.bass.notes[note] = cleanLane(partBass[note])));
+          const bassHeld = cleanTieMap(part.bass.ties, cleaned.bass.notes, BASS_NOTES);
+          if (bassHeld) cleaned.bass.ties = bassHeld;
+        }
         patterns[n] = cleaned;
       });
       if (Object.keys(patterns).length) song.patterns = patterns;
@@ -564,5 +664,5 @@
     return { name: name || "Imported song", data: cleanSong(data) };
   }
 
-  window.SongFiles = { parseMidi, midiToSong, importMidi, GM_TO_ROW, PATTERN_NAMES, chainParts, MELODY_VOICES, CORE_DRUMS, EXTRA_DRUMS, GM_DRUMS, buildMidi, noteNumber, exportJson, parseImport, cleanSong, PPQ, STEP_TICKS, FORMAT, VERSION };
+  window.SongFiles = { parseMidi, midiToSong, importMidi, GM_TO_ROW, BASS_NOTES, PATTERN_NAMES, chainParts, MELODY_VOICES, CORE_DRUMS, EXTRA_DRUMS, GM_DRUMS, buildMidi, noteNumber, exportJson, parseImport, cleanSong, PPQ, STEP_TICKS, FORMAT, VERSION };
 })();

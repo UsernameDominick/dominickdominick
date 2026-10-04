@@ -155,8 +155,8 @@ const S = 120; // ticks per step at 480 per quarter
   const high = mel([84, 88, 91, 88]); // C6 E6 G6 E6: two octaves up
   ok(high.info.folded === 0 && high.song.melody.notes.C4[0] === true && high.song.melody.notes.E4[1] === true && high.song.melody.notes.G4[2] === true, "a melody two octaves too high moves down together", high.info);
   ok(high.info.messages.some((m) => /moved 2 octaves down/.test(m)), "…and says so", high.info.messages);
-  const low = mel([36, 40, 43]); // C2 E2 G2
-  ok(low.song.melody.notes.C3[0] === true && low.song.melody.notes.E3[1] === true && low.song.melody.notes.G3[2] === true && low.info.messages.some((m) => /1 octave up/.test(m)), "a low melody moves up an octave");
+  const low = mel([36, 40, 43]); // C2 E2 G2: below the melody roll, so it is the bass line
+  ok(low.song.bass && low.song.bass.notes.C2[0] === true && low.song.bass.notes.E2[1] === true && low.song.bass.notes.G2[2] === true && low.info.bassNotes === 3 && low.info.melodyNotes === 0, "a part below C3 becomes the bass line, at its own pitch", low.info);
   const inRange = mel([71, 48, 60]);
   ok(inRange.info.folded === 0 && !inRange.info.messages.some((m) => /octave/.test(m)) && inRange.song.melody.notes.B4[0] === true && inRange.song.melody.notes.C3[1] === true, "a melody that already fits is not moved");
   const wide = mel([30, 60, 100]); // wider than the roll: the middle note decides, the rest fold in
@@ -215,6 +215,51 @@ const S = 120; // ticks per step at 480 per quarter
     [S, 0xff, 0x7f, 2, 1, 2], on(S, 9, 38), off(S + 60, 9, 38),
   ])));
   ok(!r.error && r.info.drumHits === 2, "meta events, sysex, controllers, program and pitch changes do not get in the way", r.info);
+}
+
+// ---- the bass line ----
+{
+  const bassSong = song({
+    tempo: 100,
+    bass: { voice: "pluck", volume: 0.8, notes: { C2: lane("x.......x.......") , G1: lane("..x...x.........") , E2: lane("....xxx.........") }, ties: { E2: lane(".....xx.........") } },
+  });
+  const r = F.importMidi(F.buildMidi(bassSong, "Bassy").bytes);
+  ok(!r.error && r.song.bass && r.info.bassNotes === 5, "the builder's own bass track comes back (two C2, two G1 and the held E2 as one note)", r.info);
+  ok(hits(r.song.bass.notes.C2) === "1000000010000000" && hits(r.song.bass.notes.G1) === "0010001000000000", "bass notes land on the same steps and pitches", [hits(r.song.bass.notes.C2), hits(r.song.bass.notes.G1)]);
+  ok(hits(r.song.bass.notes.E2) === "0000111000000000" && r.song.bass.ties.E2.slice(4, 8).join() === "false,true,true,false", "a held bass note stays held: struck once, tied across the next two steps", r.song.bass.ties && r.song.bass.ties.E2);
+  ok(r.info.melodyPart === "Melody" && r.info.bassPart === "Bass" && r.info.messages.some((m) => /melody is "Melody" and the bass line is "Bass"/.test(m)), "both parts are named in the messages", r.info.messages);
+  ok(/3 melody notes and 5 bass notes/.test(r.info.messages[0]) && /14 drum hits/.test(r.info.messages[0]), "the summary counts drums, melody and bass", r.info.messages[0]);
+  ok(r.song.melody.notes.C4[0] === true && !r.song.melody.notes.C2, "the melody is not disturbed by the bass");
+  ok(JSON.stringify(F.cleanSong(r.song)) === JSON.stringify(r.song), "an imported song with a bass line is already clean");
+  // the bass stays in its own pattern, with patterns and a song order
+  const B1 = { tracks: { kick: lane("x......."), snare: lane("................") }, notes: {}, ties: {}, bass: { notes: { A1: lane("x...x...") }, ties: {} } };
+  const multi = song({ bass: { notes: { C2: lane("x...x...x...x...") }, ties: {} }, patterns: { B: B1 }, chain: ["A", "B", "B", "A"] });
+  const m = F.importMidi(F.buildMidi(multi, "x").bytes);
+  const parts = F.chainParts(m.song);
+  ok(m.info.bars === 4 && m.info.patterns === 2 && m.song.chain.join("") === "ABBA", "a bass line in two patterns makes the same two patterns", [m.info.bars, m.info.patterns, m.song.chain]);
+  ok(parts.map((p) => p.bass && hits(p.bass.notes.C2 || [])).join("|") === "1000100010001000|0000000000000000|0000000000000000|1000100010001000" && hits(parts[1].bass.notes.A1) === "1000100000000000", "each bar has its own bass notes, in order", parts.map((p) => p.bass && Object.keys(p.bass.notes).join()));
+  ok(m.song.patterns.B.bass && m.song.patterns.B.bass.notes.A1[4] === true, "pattern B stores its own bass");
+}
+{
+  const mel = (ev) => F.importMidi(file(track([tempoEvent(120), ...ev.flatMap(([n, ch, at, name]) => [on(at * S, ch, n), off(at * S + S, ch, n)])])));
+  // a low part with no name is the bass, a part named Bass is the bass even when it is high
+  const named = F.importMidi(file(track([tempoEvent(120), nameEvent("Bass"), on(0, 0, 72), off(S, 0, 72), on(S * 2, 0, 76), off(S * 3, 0, 76)]), track([nameEvent("Lead"), on(0, 1, 64), off(S, 1, 64)])));
+  ok(named.info.bassPart === "Bass" && named.info.melodyPart === "Lead" && named.song.bass.notes.C2[0] === true && named.song.bass.notes.E2[2] === true, "a part named Bass is the bass line however high it is: it is moved down into C1 to B2", named.info);
+  ok(named.info.messages.some((m) => /bass was moved \d+ octaves? down/.test(m)), "…and says so", named.info.messages);
+  const bassOnly = F.importMidi(file(track([tempoEvent(120), on(0, 0, 36), off(S, 0, 36), on(S * 4, 0, 43), off(S * 5, 0, 43)])));
+  ok(bassOnly.song.bass && bassOnly.info.melodyNotes === 0 && bassOnly.info.bassNotes === 2 && /bass line is "channel 1": it sits below the melody's range/.test(bassOnly.info.messages.join(" ")), "a file with only a low part is just a bass line, and says why", bassOnly.info.messages);
+  ok(!Object.values(bassOnly.song.melody.notes).some((l) => l.some(Boolean)), "…with an empty melody");
+  const highOnly = mel([[72, 0, 0], [76, 0, 2]]);
+  ok(highOnly.song.bass === undefined && highOnly.info.bassNotes === 0 && !/bass/i.test(highOnly.info.messages.join(" ")), "a file with no low part has no bass line, and does not mention one");
+  const three = F.importMidi(file(track([tempoEvent(120), nameEvent("Lead"), ...[0, 1, 2, 3].flatMap((i) => [on(i * S, 0, 62 + i), off(i * S + S, 0, 62 + i)])]), track([nameEvent("Pad"), on(0, 1, 64), off(S * 8, 1, 64)]), track([nameEvent("Sub bass"), ...[0, 4].flatMap((i) => [on(i * S, 2, 36), off(i * S + S, 2, 36)])])));
+  ok(three.info.melodyPart === "Lead" && three.info.bassPart === "Sub bass" && /1 other part was left out/.test(three.info.messages.join(" ")), "with a lead, a pad and a bass: lead and bass are used, the pad is counted as left out", three.info.messages);
+  // the busiest low part wins, strengths come over, and bass notes past the range are folded in
+  const strengths = F.importMidi(file(track([tempoEvent(120), on(0, 0, 36, 100), off(S, 0, 36), on(S * 2, 0, 36, 70), off(S * 3, 0, 36), on(S * 4, 0, 36, 30), off(S * 5, 0, 36)])));
+  ok(strengths.song.bass.notes.C2[0] === true && strengths.song.bass.notes.C2[2] === 0.65 && strengths.song.bass.notes.C2[4] === 0.35, "bass notes keep three strengths like every other part", strengths.song.bass.notes.C2.slice(0, 5));
+  const wide = F.importMidi(file(track([tempoEvent(120), ...[20, 40, 90].flatMap((n, i) => [on(i * S, 0, n), off(i * S + S, 0, n)])])));
+  ok(wide.song.bass && wide.info.folded >= 1 && Object.values(wide.song.bass.notes).filter((l) => l.some(Boolean)).length === 3, "a bass wider than its roll folds the notes that don't fit", wide.info);
+  const allDrums = F.importMidi(file(track([tempoEvent(120), on(0, 9, 36), off(60, 9, 36)])));
+  ok(allDrums.song.bass === undefined, "a drums-only file has no bass line");
 }
 
 // ---- damaged and hostile files ----

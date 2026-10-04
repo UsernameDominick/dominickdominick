@@ -35,7 +35,7 @@ function readMidi(bytes) {
       } else {
         if (b & 0x80) status = b; else p--;
         const kind = status & 0xf0, ch = status & 0x0f;
-        const d1 = bytes[p++], d2 = bytes[p++];
+        const d1 = bytes[p++], d2 = kind === 0xc0 || kind === 0xd0 ? 0 : bytes[p++];
         tr.events.push({ tick, kind, ch, note: d1, vel: d2 });
       }
     }
@@ -156,6 +156,55 @@ ok(F.noteNumber("H4") === null && F.noteNumber("") === null && F.noteNumber("C99
   ok(F.cleanSong(null).tracks.kick.length === 16 && F.cleanSong("x").melody.waveform === "sine", "even nothing at all becomes a valid empty song");
   const goodScale = F.cleanSong({ tracks: {}, scale: { root: "D", type: "blues" } });
   ok(goodScale.scale && goodScale.scale.root === "D" && goodScale.scale.type === "blues", "a real scale choice is kept");
+}
+
+// the bass line: its own track on channel 2 with the electric bass program, held notes as one long note, mutes and volume
+{
+  const withBass = song({
+    bass: { voice: "pad", volume: 0.5, notes: { C2: lane("x...x...........") , E1: lane("..xx............") }, ties: { E1: lane("...x............") } },
+  });
+  const out = F.buildMidi(withBass, "Bassy");
+  const m = readMidi(out.bytes);
+  const bass = m.tracks.find((t) => t.name === "Bass");
+  ok(m.ntracks === 4 && bass && m.tracks.map((t) => t.name).join() === "Bassy,Drums,Melody,Bass", "the bass line is its own track after drums and melody", m.tracks.map((t) => t.name));
+  ok(bass.events.every((e) => e.ch === 1), "on channel 2 (index 1)");
+  const program = bass.events.filter((e) => e.kind === 0xc0);
+  ok(program.length === 1 && program[0].note === 33 && program[0].tick === 0, "with the electric bass program (General MIDI 34, zero-based 33) at the very start", program);
+  const ons = bass.events.filter((e) => e.kind === 0x90);
+  ok(ons.map((e) => e.note + "@" + e.tick).join() === "36@0,28@240,36@480", "C2 (36) on steps 1 and 5 and E1 (28) on step 3, in time order", ons.map((e) => e.note + "@" + e.tick));
+  ok(ons.every((e) => e.vel === 50), "the bass volume (50%) scales every velocity", ons.map((e) => e.vel));
+  const e1 = bass.events.filter((e) => e.note === 28).map((e) => `${e.kind === 0x90 ? "on" : "off"}@${e.tick}`);
+  ok(e1.join() === "on@240,off@480", "a held E1 is one note: on at step 3, off after two steps", e1);
+  ok(out.notes === 12, "the note count includes the bass notes (6 drum hits, 3 melody notes, 3 bass notes)", out.notes);
+  const mutedBass = readMidi(F.buildMidi(song({ bass: { muted: true, notes: { C2: lane("x...............") } } }), "x").bytes);
+  ok(!mutedBass.tracks.some((t) => t.name === "Bass") && mutedBass.ntracks === 3, "a muted bass is left out with its track");
+  const emptyBass = readMidi(F.buildMidi(song({ bass: { notes: { C2: lane("................") } } }), "x").bytes);
+  ok(!emptyBass.tracks.some((t) => t.name === "Bass"), "an empty bass line writes no track");
+  const noBass = readMidi(F.buildMidi(song(), "x").bytes);
+  ok(noBass.ntracks === 3 && !noBass.tracks.some((t) => t.name === "Bass"), "a song without a bass line is the same three tracks as ever");
+  const multi = song({ bass: { notes: { C2: lane("x...............") }, ties: {} }, patterns: { B: { tracks: {}, notes: {}, ties: {}, bass: { notes: { G1: lane("x...............") }, ties: {} } } }, chain: ["A", "B"] });
+  const mm = readMidi(F.buildMidi(multi, "x").bytes).tracks.find((t) => t.name === "Bass");
+  const mOns = mm.events.filter((e) => e.kind === 0x90).map((e) => e.note + "@" + e.tick);
+  ok(mOns.join() === "36@0,31@1920", "with patterns each bar of the song order brings its own bass notes (C2 in bar 1, G1 in bar 2)", mOns);
+}
+
+// the cleaner and the bass line
+{
+  const hostileBass = { notes: { C2: [true, 0.5, "x"], Z9: [true], C4: [true], "<img>": [true] }, ties: { C2: [false, true, true], Q: [true] }, voice: "nope", muted: "yes", hidden: true, volume: 9, extra: "x" };
+  const c = F.cleanSong({ tracks: {}, melody: { notes: {} }, bass: hostileBass });
+  ok(c.bass && Object.keys(c.bass.notes).length === 24 && Object.keys(c.bass.notes).every((n) => F.BASS_NOTES.includes(n)), "the bass keeps only its own 24 rows, C1 to B2", Object.keys(c.bass.notes).length);
+  ok(c.bass.notes.C2[0] === true && c.bass.notes.C2[1] === 0.5 && c.bass.notes.C2[2] === false && !("C4" in c.bass.notes), "steps are checked like the melody's, and a melody-roll note has no row in the bass");
+  ok(c.bass.voice === undefined && c.bass.muted === undefined && c.bass.hidden === true && c.bass.volume === 1 && !("extra" in c.bass), "an unknown voice, a non-boolean mute and extra keys are dropped; volume is limited", c.bass);
+  ok(c.bass.ties && c.bass.ties.C2 && c.bass.ties.C2[1] === true && c.bass.ties.C2[2] === false && !c.bass.ties.Q, "a tie only survives where the note is on at that step and the one before", c.bass.ties);
+  ok(F.cleanSong({ tracks: {}, melody: { notes: {} }, bass: { voice: "lead", notes: {} } }).bass.voice === "lead", "a real voice name is kept");
+  ok(!("bass" in F.cleanSong({ tracks: {}, melody: { notes: {} } })) && !("bass" in F.cleanSong({ tracks: {}, melody: { notes: {} }, bass: "x" })) && !("bass" in F.cleanSong({ bass: [] })), "a song without a bass line (or with a bad one) gets none");
+  const patterned = F.cleanSong({ tracks: {}, melody: { notes: {} }, bass: { notes: { C2: [true] } }, patterns: { B: { tracks: {}, notes: {}, bass: { notes: { G1: [true, true], C4: [true] }, ties: { G1: [false, true] } } }, C: { tracks: {}, notes: {} } }, chain: ["A", "B", "C"] });
+  ok(patterned.patterns.B.bass && Object.keys(patterned.patterns.B.bass.notes).length === 24 && patterned.patterns.B.bass.notes.G1[1] === true && patterned.patterns.B.bass.ties.G1[1] === true, "a pattern's bass is cleaned over the same 24 rows, ties included");
+  ok(patterned.patterns.C.bass === undefined, "a pattern with no bass of its own stays without one");
+  ok(JSON.stringify(F.cleanSong(patterned)) === JSON.stringify(patterned), "cleaning a song with a bass line twice changes nothing");
+  ok(JSON.stringify(F.BASS_NOTES.slice(0, 3)) === JSON.stringify(["B2", "A#2", "A2"]) && F.BASS_NOTES[23] === "C1", "the bass roll order is B2 down to C1");
+  const imported = F.parseImport(F.exportJson("Bassline", patterned));
+  ok(imported.data.bass && imported.data.patterns.B.bass.notes.G1[0] === true, "a song file keeps the bass line through export and import");
 }
 
 console.log(fail ? `${fail} FAILED` : "ALL PASS");

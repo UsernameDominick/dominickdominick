@@ -22,6 +22,12 @@ function patternsError(data) {
       for (const key of ["tracks", "notes", "ties"]) {
         if (key in part && (!isPlainObject(part[key]) || !allArrays(part[key]))) return `Pattern ${name}'s ${key === "tracks" ? "drum tracks" : key === "notes" ? "melody notes" : "held notes"} must be lists of steps.`;
       }
+      if ("bass" in part) {
+        if (!isPlainObject(part.bass)) return `Pattern ${name}'s bass line must be an object.`;
+        for (const key of ["notes", "ties"]) {
+          if (key in part.bass && (!isPlainObject(part.bass[key]) || !allArrays(part.bass[key]))) return `Pattern ${name}'s bass ${key === "notes" ? "notes" : "held notes"} must be lists of steps.`;
+        }
+      }
     }
   }
   if ("chain" in data) {
@@ -50,6 +56,12 @@ export function songDataError(data) {
     if ("notes" in data.melody && (!isPlainObject(data.melody.notes) || !allArrays(data.melody.notes))) return "The melody's notes must be lists of steps.";
     if ("ties" in data.melody && (!isPlainObject(data.melody.ties) || !allArrays(data.melody.ties))) return "The melody's held notes must be lists of steps.";
     if ("voice" in data.melody && (typeof data.melody.voice !== "string" || data.melody.voice.length > MAX_VOICE_NAME)) return "The melody's sound must be a short name.";
+  }
+  if ("bass" in data) {
+    if (!isPlainObject(data.bass)) return "The song's bass line must be an object.";
+    if ("notes" in data.bass && (!isPlainObject(data.bass.notes) || !allArrays(data.bass.notes))) return "The bass line's notes must be lists of steps.";
+    if ("ties" in data.bass && (!isPlainObject(data.bass.ties) || !allArrays(data.bass.ties))) return "The bass line's held notes must be lists of steps.";
+    if ("voice" in data.bass && (typeof data.bass.voice !== "string" || data.bass.voice.length > MAX_VOICE_NAME)) return "The bass line's sound must be a short name.";
   }
   return null;
 }

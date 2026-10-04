@@ -510,6 +510,22 @@ function setMasterVolume(ctx, value) {
     return typeof name === "string" && Object.prototype.hasOwnProperty.call(MELODY_VOICES, name) ? name : "";
   }
 
+  // ---------- Bass line ----------
+  // A second melodic part, songData.bass: { notes, ties, voice, volume, muted, hidden } shaped like songData.melody but over a lower
+  // two-octave roll (C1 to B2, BASS_NOTES). Its sound is a named voice, "bass" unless the song picked another. A song without it plays
+  // exactly as it always did.
+  const BASS_NOTES = [];
+  [2, 1].forEach((octave) => {
+    for (let i = 11; i >= 0; i--) BASS_NOTES.push(NOTE_NAMES[i] + octave);
+  });
+  function bassVoiceOf(songData) {
+    const name = songData && songData.bass && songData.bass.voice;
+    return typeof name === "string" && Object.prototype.hasOwnProperty.call(MELODY_VOICES, name) ? name : "bass";
+  }
+  function isBassMuted(songData) {
+    return Boolean(songData.bass && songData.bass.muted === true);
+  }
+
   function stepDurationFor(tempo) {
     return 60 / (tempo || 120) / 4; // 16th notes
   }
@@ -552,16 +568,17 @@ function setMasterVolume(ctx, value) {
   // Held notes: melody.ties[note][i] === true joins step i to the same note on step i - 1, so the two are one note held for both steps
   // (no new attack on step i). A flag only counts when the note is on at both steps; anything else is ignored, so a stale flag can
   // never change the sound. Nothing ties across the end of the loop.
-  function isTiedContinuation(songData, note, step) {
-    const melody = songData.melody;
-    const ties = melody && melody.ties && melody.ties[note];
-    const row = melody && melody.notes && melody.notes[note];
+  // `part` is "melody" (the default) or "bass".
+  function isTiedContinuation(songData, note, step, part = "melody") {
+    const voice = songData[part];
+    const ties = voice && voice.ties && voice.ties[note];
+    const row = voice && voice.notes && voice.notes[note];
     return Boolean(step > 0 && ties && row && ties[step] === true && row[step] && row[step - 1]);
   }
   // How many steps the note struck on `step` is held for (1 when it is not tied to anything after it).
-  function heldSteps(songData, note, step) {
+  function heldSteps(songData, note, step, part = "melody") {
     let length = 1;
-    while (step + length < STEPS && isTiedContinuation(songData, note, step + length)) length++;
+    while (step + length < STEPS && isTiedContinuation(songData, note, step + length, part)) length++;
     return length;
   }
 
@@ -580,15 +597,24 @@ function setMasterVolume(ctx, value) {
   function editingName(songData) {
     return PATTERN_NAMES.includes(songData.editing) ? songData.editing : "A";
   }
-  // One pattern's parts, or null when the song has no such pattern.
+  // One pattern's parts, or null when the song has no such pattern. A pattern carries a bass line ({ notes, ties }, as "bass") only when the
+  // song has one.
   function patternData(songData, name) {
     if (!PATTERN_NAMES.includes(name)) return null;
     if (name === editingName(songData)) {
       const melody = isObj(songData.melody) ? songData.melody : {};
-      return { tracks: isObj(songData.tracks) ? songData.tracks : {}, notes: isObj(melody.notes) ? melody.notes : {}, ties: isObj(melody.ties) ? melody.ties : {} };
+      const open = { tracks: isObj(songData.tracks) ? songData.tracks : {}, notes: isObj(melody.notes) ? melody.notes : {}, ties: isObj(melody.ties) ? melody.ties : {} };
+      if (isObj(songData.bass)) open.bass = { notes: isObj(songData.bass.notes) ? songData.bass.notes : {}, ties: isObj(songData.bass.ties) ? songData.bass.ties : {} };
+      return open;
     }
     const other = isObj(songData.patterns) && Object.prototype.hasOwnProperty.call(songData.patterns, name) ? songData.patterns[name] : null;
-    return isObj(other) ? { tracks: isObj(other.tracks) ? other.tracks : {}, notes: isObj(other.notes) ? other.notes : {}, ties: isObj(other.ties) ? other.ties : {} } : null;
+    if (!isObj(other)) return null;
+    const stored = { tracks: isObj(other.tracks) ? other.tracks : {}, notes: isObj(other.notes) ? other.notes : {}, ties: isObj(other.ties) ? other.ties : {} };
+    if (isObj(other.bass) || isObj(songData.bass)) {
+      const bass = isObj(other.bass) ? other.bass : {};
+      stored.bass = { notes: isObj(bass.notes) ? bass.notes : {}, ties: isObj(bass.ties) ? bass.ties : {} };
+    }
+    return stored;
   }
   // The patterns the song has, in the order A to D.
   function patternNames(songData) {
@@ -618,7 +644,9 @@ function setMasterVolume(ctx, value) {
     if (isSinglePattern(songData) || name === editingName(songData)) return songData;
     const part = patternData(songData, name);
     if (!part) return songData;
-    return Object.assign({}, songData, { tracks: part.tracks, melody: Object.assign({}, isObj(songData.melody) ? songData.melody : {}, { notes: part.notes, ties: part.ties }) });
+    const view = Object.assign({}, songData, { tracks: part.tracks, melody: Object.assign({}, isObj(songData.melody) ? songData.melody : {}, { notes: part.notes, ties: part.ties }) });
+    if (part.bass) view.bass = Object.assign({}, isObj(songData.bass) ? songData.bass : {}, { notes: part.bass.notes, ties: part.bass.ties });
+    return view;
   }
   // The song order resolved to each pattern's parts, for exports that do not play the song (MIDI).
   function chainPatterns(songData) {
@@ -672,6 +700,18 @@ function setMasterVolume(ctx, value) {
         }
       });
     }
+    if (isObj(songData.bass) && isObj(songData.bass.notes) && !isBassMuted(songData)) {
+      const voice = bassVoiceOf(songData);
+      const duration = stepDurationFor(songData.tempo);
+      Object.keys(songData.bass.notes).sort().forEach((note) => {
+        const lane = songData.bass.notes[note];
+        if (Array.isArray(lane) && lane[step] && !isTiedContinuation(songData, note, step, "bass")) {
+          const noteTime = Math.max(0, time + humanizeJitter(songData, random));
+          const length = duration * heldSteps(songData, note, step, "bass");
+          withVolume(ctx, volumeOf(songData.bass) * stepLevel(lane[step]), () => playVoicedNote(ctx, noteTime, noteToFreq(note), voice, length));
+        }
+      });
+    }
   }
 
   // ---------- Scheduler ----------
@@ -700,7 +740,14 @@ function setMasterVolume(ctx, value) {
       ? Object.keys(notes).sort().filter((key) => Array.isArray(notes[key]) && notes[key].some((on, step) => on && isTiedContinuation(songData, key, step)))
       : [];
     if (melody && heldKeys.length) melody.held = heldKeys.map((key) => [key, songData.melody.ties[key]]);
-    return { tracks, melody };
+    const seed = { tracks, melody };
+    // A bass line feeds the seed only once it has a note, so a song without one seeds exactly as it always did.
+    if (isObj(songData.bass) && isObj(songData.bass.notes)) {
+      const bassNotes = songData.bass.notes;
+      const used = Object.keys(bassNotes).sort().filter((key) => Array.isArray(bassNotes[key]) && bassNotes[key].some(Boolean));
+      if (used.length) seed.bass = { voice: bassVoiceOf(songData), notes: used.map((key) => [key, bassNotes[key], isObj(songData.bass.ties) ? songData.bass.ties[key] || null : null]) };
+    }
+    return seed;
   }
   function previewRandom(songData) {
     // A one-pattern song seeds from exactly what it always did. A song with several seeds from every pattern and the song order, taken
@@ -903,6 +950,9 @@ function setMasterVolume(ctx, value) {
     scheduleStep,
     isTrackMuted,
     isMelodyMuted,
+    isBassMuted,
+    bassVoiceOf,
+    BASS_NOTES,
     isTiedContinuation,
     heldSteps,
     stepHasAudibleDrumHit,
