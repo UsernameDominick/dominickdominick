@@ -59,8 +59,10 @@ const { chromium, request } = require("./_pw.cjs");
   ok(afterDup.length === 3 && afterDup.filter((x) => x.style.group === gid).length === 2, "single duplicate does not join the original group");
   // ungroup releases both
   await p.waitForSelector("#canvas .admin-block");
-  const x0 = await p.locator("#canvas .admin-block").nth(0).boundingBox(); await p.mouse.click(x0.x + 15, x0.y + 20);
-  const x1 = await p.locator("#canvas .admin-block").nth(1).boundingBox(); await p.keyboard.down("Shift"); await p.mouse.click(x1.x + 15, x1.y + 20); await p.keyboard.up("Shift"); await p.waitForTimeout(300);
+  // (the duplicate above left its floating toolbar over the blocks: clear the selection and click the blocks low down, below it)
+  await p.keyboard.press("Escape"); await p.waitForTimeout(200);
+  const x0 = await p.locator("#canvas .admin-block").nth(0).boundingBox(); await p.mouse.click(x0.x + 15, x0.y + x0.height - 8);
+  const x1 = await p.locator("#canvas .admin-block").nth(1).boundingBox(); await p.keyboard.down("Shift"); await p.mouse.click(x1.x + 15, x1.y + x1.height - 8); await p.keyboard.up("Shift"); await p.waitForTimeout(300);
   await p.click("#bulk-ungroup-btn"); await p.waitForTimeout(900);
   ok((await blocksOf(pg2)).every((x) => !x.style.group), "Ungroup clears the group");
   // validation

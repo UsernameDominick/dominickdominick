@@ -16,7 +16,10 @@ const { chromium, request } = require("./_pw.cjs");
   const p = await (await b.newContext({ viewport: { width: 1280, height: 800 } })).newPage();
   await p.addInitScript(() => { try { localStorage.setItem("theme", "light"); } catch (e) {} });
   await p.goto((E2E_BASE + "/projects")); await p.evaluate(() => document.documentElement.setAttribute("data-theme", "light"));
-  await p.waitForTimeout(900); // colours ease between themes; measure once they have settled, not part-way
+  // colours ease between themes; measure once they have settled, not part-way (two equal readings in a row, so a slow, busy machine can't
+  // catch it mid-fade)
+  const reading = () => p.evaluate(() => { const e = document.querySelector(".tag"); if (!e) return "none"; const cs = getComputedStyle(e); return cs.color + "|" + cs.backgroundColor; });
+  let last = ""; for (let i = 0; i < 40; i++) { const now = await reading(); if (now === last) break; last = now; await p.waitForTimeout(300); }
   const t = await p.evaluate(() => { const e = document.querySelector(".tag"); if (!e) return null; const cs = getComputedStyle(e); return [cs.color, cs.backgroundColor]; });
   if (t) ok(ratio(t[0], t[1]) >= 4.5, `light tag contrast ${ratio(t[0], t[1]).toFixed(2)}`); else console.log("no tag on page, skipped");
   await b.close(); process.exit(fail ? 1 : 0);

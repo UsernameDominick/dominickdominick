@@ -1,3 +1,6 @@
+// Every line this test prints that says FAIL counts, so the exit code is honest (it used to print FAIL and still exit 0).
+let failedChecks = 0;
+{ const realLog = console.log; console.log = (...a) => { if (/\bFAIL\b/.test(a.map(String).join(" "))) failedChecks++; realLog(...a); }; }
 const E2E_BASE = process.env.E2E_BASE || "http://localhost:8787";
 const { chromium } = require("./_pw.cjs");
 const BASE = (E2E_BASE);
@@ -56,6 +59,8 @@ async function main() {
   console.log("bulk inspector no longer wipes customKeyframes across selected blocks (expect true):", bothUnaffected, bothUnaffected ? "PASS" : "FAIL");
 
   // Regression: normal bulk apply (a real field, e.g. hoverEffect) still works via a real change event.
+  // (the bulk inspector's groups are folded away by default now: open them so the field can be reached)
+  await page.evaluate(() => document.querySelectorAll("#bulk-inspector details").forEach((d) => { d.open = true; }));
   await page.selectOption('#bulk-inspector select[data-key="hoverEffect"]', "lift");
   await page.waitForTimeout(400);
   const afterHover = await api(`/pages/${pageId}/blocks`);
@@ -69,4 +74,4 @@ async function main() {
   const confirmGone = await fetch(`${BASE}/${slug}`);
   console.log("test page deleted (expect true):", confirmGone.status !== 200, confirmGone.status !== 200 ? "PASS" : "FAIL");
 }
-main().catch((e) => { console.error(e); process.exit(1); });
+main().then(() => { if (failedChecks) { console.error(`${failedChecks} check(s) printed FAIL`); process.exit(1); } }).catch((e) => { console.error(e); process.exit(1); });

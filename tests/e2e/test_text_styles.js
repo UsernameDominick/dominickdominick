@@ -1,3 +1,6 @@
+// Every line this test prints that says FAIL counts, so the exit code is honest.
+let failedChecks = 0;
+{ const realLog = console.log; console.log = (...a) => { if (/\bFAIL\b/.test(a.map(String).join(" "))) failedChecks++; realLog(...a); }; }
 const E2E_BASE = process.env.E2E_BASE || "http://localhost:8787";
 const { chromium } = require("./_pw.cjs");
 const BASE = (E2E_BASE);
@@ -100,7 +103,11 @@ async function main() {
     window.__origPrompt = window.prompt;
   });
   await page.click("#pe-canvas", { position: { x: 300, y: 200 }, force: true });
-  await page.waitForTimeout(200);
+  // Placing text asks what it should say, in the editor's own small dialog (it used to be window.prompt).
+  await page.waitForSelector("#photo-editor-prompt-modal:not([hidden])");
+  await page.fill("#photo-editor-prompt-input", "Hello");
+  await page.click('#photo-editor-prompt-form button[type="submit"]');
+  await page.waitForTimeout(300);
   const pixel = await page.evaluate(() => {
     const c = document.getElementById("pe-canvas");
     const cctx = c.getContext("2d");
@@ -131,4 +138,4 @@ async function main() {
 
   await browser.close();
 }
-main().catch((e) => { console.error(e); process.exit(1); });
+main().then(() => { if (failedChecks) { console.error(`${failedChecks} check(s) printed FAIL`); process.exit(1); } }).catch((e) => { console.error(e); process.exit(1); });
