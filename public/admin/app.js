@@ -10549,7 +10549,9 @@
     song: {
       title: "Song builder help",
       sections: [
-        ["Building", ["Drum tracks use the step sequencer; the melody uses the piano roll; both can be muted or hidden.", "Play / stop previews the loop. The melody can be transposed up or down."]],
+        ["Building", ["Drum tracks use the step sequencer; the piano roll shows the melody or, with the Bass button, a bass line of its own. Both can be muted or hidden.", "Play / stop previews the loop; Space does the same when nothing has focus. Shift+click a note to hold it across steps.", "Add fill, Starter beat and Spread evenly are under Starter beats and rhythm generator; Pump (next to Echo) makes the melody and bass dip on each kick."]],
+        ["Patterns and the song order", ["Up to four patterns (A to D) per song. [ and ] open the previous and next one; Copy here takes drums, melody or bass from another pattern.", "The song order plays patterns one after another; each bar has buttons to move it earlier or later."]],
+        ["Files", ["Export MIDI writes the whole song order; Import MIDI… (in the Songs list) turns a MIDI file into a new song, and says what it could not keep. The New song menu has built-in starter songs."]],
         ["Working on several songs", ["Open another song from the tab row. Switching autosaves a saved song; an unsaved draft asks before it is discarded."]],
         ["Publishing", ["Songs go onto a page with the Song block, and onto a project under Related songs."]],
         ["Faster", ["Ctrl+K has a Play / stop command while this builder is open."]],
@@ -10558,7 +10560,7 @@
     simulation: {
       title: "Simulation builder help",
       sections: [
-        ["Building a circuit", ["Add parts from the Add part list and connect their pins with wires; parts can be rotated and mirrored.", "Preview: power on runs the circuit; LEDs, meters and logic gates respond live."]],
+        ["Building a circuit", ["Add parts from the Add part list and connect their pins with wires; parts can be rotated and mirrored.", "Preview: power on runs the circuit; LEDs, meters and lamps respond live. Logic gates are drawn with their truth tables but are not simulated."]],
         ["Saving and publishing", ["Save keeps your draft private. Publish and Unpublish are in the Simulations list (open Simulations from the sidebar): Publish makes the current version public at /simulation/<id> and in the Simulation block, and Unpublish takes it down without losing the draft."]],
         ["Checkpoints", ["Checkpoints are named snapshots you can return to while experimenting."]],
       ],
