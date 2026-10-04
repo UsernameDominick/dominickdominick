@@ -34,6 +34,16 @@
     return Array.from({ length: n }, (_, i) => text[i % 16] === "x" && i < 16);
   }
 
+  // Drum fills: the end of a bar changed into a roll or a stop. `from` is the first step it touches (it runs to the last step), `clear`
+  // lists the rows emptied over that stretch ("all" for every row), and `rows` holds the hits to put there, one entry per step from `from`
+  // (true full, a number between 0 and 1 softer, false none). A row the song does not have yet (tom) is added by the builder.
+  const FILLS = [
+    { id: "snare-roll", label: "Snare roll (last beat)", from: 12, clear: ["kick", "hihat", "clap"], rows: { snare: [0.35, 0.5, 0.75, true] } },
+    { id: "snare-build", label: "Snare build (last half)", from: 8, clear: ["hihat", "clap"], rows: { snare: [false, false, 0.3, false, 0.45, 0.6, 0.8, true], kick: [true, false, false, false, false, false, false, false] } },
+    { id: "tom-run", label: "Tom run (adds a Tom row)", from: 12, clear: ["kick", "hihat", "clap"], rows: { snare: [true, false, false, false], tom: [false, 0.6, 0.8, true] } },
+    { id: "drive", label: "Kick and snare drive (last half)", from: 8, clear: ["hihat", "clap"], rows: { kick: [true, false, true, false, true, false, true, true], snare: [false, false, false, false, 0.5, 0.65, 0.8, true] } },
+    { id: "stop", label: "Drop out (last beat silent)", from: 12, clear: "all", rows: {} },
+  ];
 
   // ---------- Melody tools ----------
   // The melody is { "C4": [step values...], ... }, one row per piano roll note. Every function here returns a fresh object and leaves
@@ -296,5 +306,5 @@
     return { notes, ties };
   }
 
-  window.SongPatterns = { bassFromHits, euclideanRow, STARTERS, starterRow, CHORDS, PROGRESSIONS, progressionChords, stampProgression, ARPEGGIO_PATTERNS, noteValue, rotateMelody, reverseMelody, cleanTies, hasTies, rotateTies, reverseTies, tieRepeats, chordNames, stampChord, arpeggioMelody, scalePool, randomMelody };
+  window.SongPatterns = { FILLS, bassFromHits, euclideanRow, STARTERS, starterRow, CHORDS, PROGRESSIONS, progressionChords, stampProgression, ARPEGGIO_PATTERNS, noteValue, rotateMelody, reverseMelody, cleanTies, hasTies, rotateTies, reverseTies, tieRepeats, chordNames, stampChord, arpeggioMelody, scalePool, randomMelody };
 })();

@@ -207,5 +207,15 @@ ok(F.noteNumber("H4") === null && F.noteNumber("") === null && F.noteNumber("C99
   ok(imported.data.bass && imported.data.patterns.B.bass.notes.G1[0] === true, "a song file keeps the bass line through export and import");
 }
 
+// Pump (the music ducks on each kick) is optional and only written once above 0
+{
+  const withPump = F.cleanSong({ tracks: {}, melody: { notes: {} }, pump: 60 });
+  ok(withPump.pump === 60, "Pump is kept when it is above 0", withPump.pump);
+  ok(!("pump" in F.cleanSong({ tracks: {}, melody: { notes: {} } })) && !("pump" in F.cleanSong({ tracks: {}, melody: { notes: {} }, pump: 0 })) && !("pump" in F.cleanSong({ tracks: {}, melody: { notes: {} }, pump: -4 })) && !("pump" in F.cleanSong({ tracks: {}, melody: { notes: {} }, pump: "loud" })), "absent, 0, negative or junk Pump leaves no key (a song without it is stored as before)");
+  ok(F.cleanSong({ tracks: {}, melody: { notes: {} }, pump: 900 }).pump === 100 && F.cleanSong({ tracks: {}, melody: { notes: {} }, pump: "35" }).pump === 35, "it is limited to 100, and a number as text counts");
+  ok(JSON.stringify(F.cleanSong(withPump)) === JSON.stringify(withPump), "cleaning a song with Pump twice changes nothing");
+  ok(F.parseImport(F.exportJson("Pumped", withPump)).data.pump === 60, "a song file keeps Pump through export and import");
+}
+
 console.log(fail ? `${fail} FAILED` : "ALL PASS");
 process.exit(fail ? 1 : 0);

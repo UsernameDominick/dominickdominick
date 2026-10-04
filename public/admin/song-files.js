@@ -558,6 +558,9 @@
       trackMeta: {},
       melody: { waveform: "sine", notes: {} },
     };
+    // Pump (the music ducks on each kick) is optional: it is only written once it is above 0, so a song without it keeps its keys.
+    const pump = clampNum(src.pump, 0, 100, 0);
+    if (pump > 0) song.pump = pump;
     const meta = src.trackMeta && typeof src.trackMeta === "object" ? src.trackMeta : {};
     const tracks = src.tracks && typeof src.tracks === "object" ? src.tracks : {};
     DRUMS.forEach((t) => {

@@ -2192,6 +2192,7 @@
               <label class="song-tempo-label" title="Delays every second sixteenth note to give the groove a bounce. 0 = straight, about 67 = triplet feel.">Swing<input type="range" id="song-swing" min="0" max="100" value="0" aria-valuetext="Straight"></label>
               <label class="song-tempo-label" title="Adds a room-like reverb tail to the whole mix. 0 = dry, no reverb at all.">Space<input type="range" id="song-space" min="0" max="100" value="0" aria-valuetext="Dry"></label>
               <label class="song-tempo-label" title="Repeats the sound a dotted eighth later, each repeat quieter and duller, locked to the tempo. 0 = no echo at all.">Echo<input type="range" id="song-echo" min="0" max="100" value="0" aria-valuetext="Dry"></label>
+              <label class="song-tempo-label" title="Makes the melody and bass dip on every kick and swell back, like sidechain compression, so the groove pumps. 0 = off.">Pump<input type="range" id="song-pump" min="0" max="100" value="0" aria-valuetext="Off"></label>
             </div>
           </div>
           <div class="sim-toolbar-group" data-group="look">
@@ -2267,6 +2268,12 @@
             <button type="button" id="song-order-clear" class="song-track-toggle" title="Empty the song order (undoable). With no order the song plays its first pattern.">Clear order</button>
             <label class="song-play-order" title="On: Play runs the song order from the start and the public player plays it. Off: Play loops just the pattern you are editing."><input type="checkbox" id="song-play-order"> Play the song order</label>
           </div>
+          <div class="song-pattern-tools" id="song-copy-tools" role="group" aria-label="Copy part of another pattern" hidden>
+            <span class="song-pattern-label" id="song-copy-label">Copy into this pattern</span>
+            <label>the <select id="song-copy-what" title="Which part of the other pattern to take"><option value="drums">drums</option><option value="melody">melody</option><option value="bass">bass line</option><option value="all">everything</option></select></label>
+            <label>from pattern <select id="song-copy-from" title="The pattern to copy from"></select></label>
+            <button type="button" id="song-copy-apply" class="song-track-toggle" title="Replace that part of the open pattern with the other pattern's (undoable). The rest of the open pattern is left alone.">Copy here</button>
+          </div>
           <p id="song-arrangement-note" class="sim-sr-only" role="status"></p>
         </section>
         <div class="song-pattern-tools" role="group" aria-label="Step strength">
@@ -2301,6 +2308,10 @@
             <label>Hits <input type="number" id="song-euclid-hits" min="0" max="16" step="1" value="5" inputmode="numeric" title="How many hits to spread evenly over the 16 steps"></label>
             <label>Rotate <input type="number" id="song-euclid-rotate" min="0" max="15" step="1" value="0" inputmode="numeric" title="Move the pattern this many steps later"></label>
             <button type="button" id="song-euclid-apply" class="song-track-toggle" title="Replace the drums chosen under Apply to with the hits spread as evenly as possible (a Euclidean rhythm, undoable)">Spread evenly</button>
+          </div>
+          <div class="song-pattern-tools" role="group" aria-label="Drum fill">
+            <label>Fill <select id="song-fill-style" title="A fill changes the end of the bar into a roll or a stop. It touches the last steps of every row, whatever is chosen under Apply to."></select></label>
+            <button type="button" id="song-fill-apply" class="song-track-toggle" title="Change the end of this pattern's bar into the chosen fill (undoable). Rows the fill needs, like Tom, are added.">Add fill</button>
           </div>
         </details>
         <h2 class="song-section-heading"><span id="song-roll-title">Melody (piano roll)</span>

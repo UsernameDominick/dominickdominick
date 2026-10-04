@@ -319,6 +319,8 @@
     $("song-space").setAttribute("aria-valuetext", Number(songData.space) ? `${Number(songData.space)}% space` : "Dry");
     $("song-echo").value = Number(songData.echo) || 0;
     $("song-echo").setAttribute("aria-valuetext", Number(songData.echo) ? `${Number(songData.echo)}% echo` : "Dry");
+    $("song-pump").value = Number(songData.pump) || 0;
+    $("song-pump").setAttribute("aria-valuetext", Number(songData.pump) ? `${Number(songData.pump)}% pump` : "Off");
     $("song-notes").value = songData.private_notes || "";
     applySongTheme($("song-preview-embed"), songData.theme);
     Engine.setMasterVolume(getAudioCtx(), songData.master_volume);
@@ -901,6 +903,23 @@
     }
     patternEdit((r, k) => window.SongPatterns.starterRow(starterSelect.value, k, STEPS), `Replaced with the ${beat ? beat.label : "starter"} beat`);
   });
+  // Fills: the end of the bar becomes a roll or a stop (see SongPatterns.FILLS). They always touch the last steps of every row, whatever is
+  // chosen under "Apply to"; a row the fill needs (a tom) is added.
+  window.SongPatterns.FILLS.forEach((f) => $("song-fill-style").appendChild(new Option(f.label, f.id)));
+  $("song-fill-apply").addEventListener("click", () => {
+    const fill = window.SongPatterns.FILLS.find((f) => f.id === $("song-fill-style").value);
+    if (!fill) return;
+    Object.keys(fill.rows).filter((t) => EXTRA_TRACKS.includes(t) && !trackList().includes(t)).forEach(addDrumRow);
+    trackList().forEach((t) => {
+      if (fill.clear === "all" || fill.clear.includes(t)) for (let i = fill.from; i < STEPS; i++) songData.tracks[t][i] = false;
+    });
+    Object.entries(fill.rows).forEach(([t, levels]) => levels.forEach((level, k) => { songData.tracks[t][fill.from + k] = level; }));
+    renderSequencer();
+    patternAnnounce++;
+    $("song-pattern-status").textContent = `${fill.label.replace(/ \(.*$/, "")} added over steps ${fill.from + 1} to ${STEPS}.${patternAnnounce % 2 ? "" : " "}`;
+    scheduleAutosave();
+    refreshWaveformPreview();
+  });
   $("song-euclid-apply").addEventListener("click", () => {
     const hits = clampInt("song-euclid-hits", 0, STEPS);
     const rotate = clampInt("song-euclid-rotate", 0, STEPS - 1);
@@ -925,6 +944,13 @@
     if (amount) songData.echo = amount; else delete songData.echo; // a song with no echo has no echo field, as before
     $("song-echo").setAttribute("aria-valuetext", amount ? `${amount}% echo` : "Dry");
     Engine.setEcho(getAudioCtx(), songData.echo, songData.tempo);
+    scheduleAutosave();
+  });
+  $("song-pump").addEventListener("input", () => {
+    const amount = Number($("song-pump").value) || 0;
+    if (amount) songData.pump = amount; else delete songData.pump; // a song with no pump has no pump field
+    $("song-pump").setAttribute("aria-valuetext", amount ? `${amount}% pump` : "Off");
+    refreshWaveformPreview();
     scheduleAutosave();
   });
   $("song-notes").addEventListener("input", () => {
@@ -1810,33 +1836,33 @@
     if (songData.bass) parts.bass = { notes: songData.bass.notes, ties: songData.bass.ties || {} };
     return parts;
   };
-  // Puts one pattern's parts into the song's own fields, with every row and every piano roll note present.
-  function loadParts(part) {
+  // Puts one pattern's parts into the song's own fields, with every row and every roll note present. Split by part so a pattern's drums,
+  // melody or bass line can be taken on their own (Copy from another pattern).
+  const lane16 = (lane) => Array.from({ length: STEPS }, (_, i) => (Array.isArray(lane) && lane[i] !== undefined ? lane[i] : false));
+  function loadDrums(part) {
     const tracks = {};
-    trackList().forEach((t) => {
-      const lane = Array.isArray(part.tracks[t]) ? part.tracks[t] : [];
-      tracks[t] = Array.from({ length: STEPS }, (_, i) => (lane[i] === undefined ? false : lane[i]));
-    });
+    trackList().forEach((t) => (tracks[t] = lane16(part.tracks && part.tracks[t])));
     songData.tracks = tracks;
+  }
+  function loadMelody(part) {
     const notes = {};
-    PIANO_NOTES.forEach((n) => {
-      const lane = Array.isArray(part.notes[n]) ? part.notes[n] : [];
-      notes[n] = Array.from({ length: STEPS }, (_, i) => (lane[i] === undefined ? false : lane[i]));
-    });
+    PIANO_NOTES.forEach((n) => (notes[n] = lane16(part.notes && part.notes[n])));
     songData.melody.notes = notes;
     setPartTies(songData.melody, part.ties || {});
-    // The bass line follows the same pattern: the incoming pattern's notes (or none), over every bass roll note.
-    if (part.bass || songData.bass) {
-      const bass = ensureBass();
-      const incoming = part.bass && part.bass.notes ? part.bass.notes : {};
-      const bassNotes = {};
-      BASS_NOTES.forEach((n) => {
-        const lane = Array.isArray(incoming[n]) ? incoming[n] : [];
-        bassNotes[n] = Array.from({ length: STEPS }, (_, i) => (lane[i] === undefined ? false : lane[i]));
-      });
-      bass.notes = bassNotes;
-      setPartTies(bass, part.bass && part.bass.ties ? part.bass.ties : {});
-    }
+  }
+  // The bass line follows the same pattern: the incoming pattern's notes (or none), over every bass roll note.
+  function loadBass(part) {
+    if (!part.bass && !songData.bass) return;
+    const bass = ensureBass();
+    const bassNotes = {};
+    BASS_NOTES.forEach((n) => (bassNotes[n] = lane16(part.bass && part.bass.notes && part.bass.notes[n])));
+    bass.notes = bassNotes;
+    setPartTies(bass, part.bass && part.bass.ties ? part.bass.ties : {});
+  }
+  function loadParts(part) {
+    loadDrums(part);
+    loadMelody(part);
+    loadBass(part);
   }
   const copyParts = (part) => JSON.parse(JSON.stringify(part));
   // Makes `name` the open pattern: the one open now goes into the store, and `parts` (or the stored pattern of that name) becomes the song's
@@ -1935,6 +1961,12 @@
     $("song-order-summary").textContent = chain.length ? orderSummary().replace(/^Song order: [A-D ]+, /, "") : "";
     $("song-play-order").checked = playOrder;
     $("song-play-order").disabled = !several;
+    // Copy from another pattern: the other patterns, with the choice kept when it still exists.
+    $("song-copy-tools").hidden = !several;
+    const others = names.filter((n) => n !== open);
+    const picked = $("song-copy-from").value;
+    $("song-copy-from").innerHTML = others.map((n) => `<option value="${n}">${n}</option>`).join("");
+    if (others.includes(picked)) $("song-copy-from").value = picked;
   }
   // After the open pattern changed: redraw both grids (and the rows and menus around them) and the pattern buttons, and keep focus on
   // the pattern that was chosen.
@@ -1947,6 +1979,25 @@
     if (active) active.focus();
   }
 
+  // Copy one part (or everything) of another pattern into the open one. The other pattern is not changed.
+  $("song-copy-apply").addEventListener("click", () => {
+    const from = $("song-copy-from").value;
+    const what = $("song-copy-what").value;
+    const source = Engine.patternData(songData, from);
+    if (!source || from === editingPattern()) return;
+    const part = copyParts(source);
+    if (what === "drums" || what === "all") loadDrums(part);
+    if (what === "melody" || what === "all") loadMelody(part);
+    if (what === "bass" || what === "all") loadBass(part);
+    const words = { drums: "drums", melody: "melody", bass: "bass line", all: "drums, melody and bass line" };
+    renderSequencer();
+    renderPianoRoll();
+    renderPatternControls();
+    patternSay(`Pattern ${editingPattern()} now has pattern ${from}'s ${words[what]}. Undo brings the old one back.`);
+    refreshWaveformPreview();
+    scheduleAutosave();
+    $("song-copy-apply").focus();
+  });
   $("song-pattern-new").addEventListener("click", () => {
     const name = nextFreeName();
     if (!name) return;
@@ -2966,6 +3017,8 @@
     $("song-space").setAttribute("aria-valuetext", Number(songData.space) ? `${Number(songData.space)}% space` : "Dry");
     $("song-echo").value = Number(songData.echo) || 0;
     $("song-echo").setAttribute("aria-valuetext", Number(songData.echo) ? `${Number(songData.echo)}% echo` : "Dry");
+    $("song-pump").value = Number(songData.pump) || 0;
+    $("song-pump").setAttribute("aria-valuetext", Number(songData.pump) ? `${Number(songData.pump)}% pump` : "Off");
     $("song-notes").value = songData.private_notes || "";
     // The shared AudioContext (and its master GainNode) persists across
     // songs -- without this, opening song B right after playing song A
@@ -3124,6 +3177,7 @@
       `Swing: ${typeof songData.swing === "number" ? songData.swing : 0}%`,
       `Space: ${typeof songData.space === "number" ? songData.space : 0}%`,
       `Echo: ${Number(songData.echo) || 0}%`,
+      ...(Number(songData.pump) ? [`Pump: ${Number(songData.pump)}%`] : []),
       `Page background sync: ${songData.page_sync ? "on" : "off"}`,
       ...(clipTotal ? [`Master clipping events this session: ${clipTotal}`] : []),
       "",

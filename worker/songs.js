@@ -41,7 +41,7 @@ export function songDataError(data) {
   if (!isPlainObject(data)) return "Song data must be an object.";
   if (JSON.stringify(data).length > MAX_SONG_BYTES) return "This song is too large to save (over 1 MB of data).";
   if ("tempo" in data && data.tempo !== null && !Number.isFinite(data.tempo)) return "The tempo must be a number.";
-  for (const [key, word] of [["space", "Space"], ["echo", "Echo"]]) {
+  for (const [key, word] of [["space", "Space"], ["echo", "Echo"], ["pump", "Pump"]]) {
     if (key in data && data[key] !== null && !Number.isFinite(data[key])) return `${word} must be a number.`;
   }
   if ("private_notes" in data && (typeof data.private_notes !== "string" || data.private_notes.length > MAX_PRIVATE_NOTES)) {

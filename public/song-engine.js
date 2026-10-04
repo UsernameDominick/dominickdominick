@@ -92,8 +92,9 @@ window.SongEngine = (function () {
     // Per-track mix: while a voice is being scheduled its output goes through a gain node of that
   // track's volume instead of straight to the master bus.
   let voiceDest = null;
+  let busDest = null; // the music bus while the melody and bass are being scheduled with Pump on (see "Pump" below)
   function voiceOut(ctx) {
-    return voiceDest || getMasterGain(ctx);
+    return voiceDest || busDest || getMasterGain(ctx);
   }
   function volumeOf(meta) {
     const v = meta && Number(meta.volume);
@@ -107,7 +108,7 @@ window.SongEngine = (function () {
     if (volume >= 1) return fn();
     const gain = ctx.createGain();
     gain.gain.value = volume;
-    gain.connect(getMasterGain(ctx));
+    gain.connect(busDest || getMasterGain(ctx));
     voiceDest = gain;
     try {
       return fn();
@@ -190,6 +191,42 @@ function setMasterVolume(ctx, value) {
     gainParam.cancelScheduledValues(now);
     gainParam.setValueAtTime(gainParam.value, now);
     gainParam.linearRampToValueAtTime(level, now + 0.03);
+  }
+
+  // ---------- Pump (sidechain-style ducking) ----------
+  // A song with Pump above 0 sends its melody and bass line through one "music" gain that dips on every kick hit and swells back, the
+  // way sidechain compression makes a bass breathe with the kick. The music bus sits before the master gain, so the reverb and echo
+  // sends hear the pumping too. Pump 0 (or absent) builds nothing, so those songs sound and render exactly as before.
+  const PUMP_MAX_DIP = 0.85; // at Pump 100 the music falls to 15% on a kick
+  const musicBuses = new WeakMap();
+  function getMusicBus(ctx) {
+    let bus = musicBuses.get(ctx);
+    if (!bus) {
+      bus = ctx.createGain();
+      bus.connect(getMasterGain(ctx));
+      musicBuses.set(ctx, bus);
+    }
+    return bus;
+  }
+  function pumpAmount(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) / 100 : 0;
+  }
+  // The dip on a kick at `time`: down at once, then back up over about three steps (never more than a third of a second).
+  function duckMusic(ctx, time, amount, tempo) {
+    const gain = getMusicBus(ctx).gain;
+    const release = Math.min(0.35, stepDurationFor(tempo) * 3);
+    gain.setValueAtTime(1 - amount * PUMP_MAX_DIP, time);
+    gain.linearRampToValueAtTime(1, time + release);
+  }
+  function withMusicBus(ctx, amount, fn) {
+    if (!amount) return fn();
+    busDest = getMusicBus(ctx);
+    try {
+      return fn();
+    } finally {
+      busDest = null;
+    }
   }
 
   // ---------- Echo (tempo-synced delay) ----------
@@ -670,6 +707,7 @@ function setMasterVolume(ctx, value) {
     setSpace(ctx, songData.space);
     setEcho(ctx, songData.echo, songData.tempo);
     const kit = songData.kit || "acoustic";
+    const pump = pumpAmount(songData.pump);
     if (songData.tracks) {
       Object.keys(songData.tracks).sort().forEach((track) => {
         // Clamped to 0 rather than passed through raw -- a negative jitter
@@ -683,9 +721,15 @@ function setMasterVolume(ctx, value) {
         if (songData.tracks[track][step] && PLAYERS[track] && !isTrackMuted(songData, track)) {
           const hitTime = Math.max(0, time + humanizeJitter(songData, random));
           withVolume(ctx, volumeOf(songData.trackMeta && songData.trackMeta[track]) * stepLevel(songData.tracks[track][step]), () => PLAYERS[track](ctx, hitTime, kit, random));
+          if (pump && track === "kick") duckMusic(ctx, hitTime, pump, songData.tempo);
         }
       });
     }
+    withMusicBus(ctx, pump, () => scheduleMusic(ctx, songData, step, time, random));
+  }
+
+  // The melody and the bass line of one step (split out of scheduleStep so Pump can route them through the music bus).
+  function scheduleMusic(ctx, songData, step, time, random) {
     if (songData.melody && !isMelodyMuted(songData)) {
       const waveform = songData.melody.waveform || "sine";
       const voice = melodyVoiceOf(songData);

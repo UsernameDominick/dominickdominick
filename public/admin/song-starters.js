@@ -63,6 +63,7 @@
       private_notes: spec.notes || "",
     };
     if (spec.scale) song.scale = spec.scale;
+    if (spec.pump) song.pump = spec.pump;
     if (names.length > 1) {
       song.patterns = {};
       names.slice(1).forEach((n) => {
@@ -96,11 +97,11 @@
       id: "house",
       name: "Four on the floor",
       blurb: "A house groove at 124 BPM: kick on every beat, open hats on the off-beats, an off-beat bass and lead stabs, with a breakdown.",
-      tempo: 124, kit: "electronic", space: 15, theme: "neon",
+      tempo: 124, kit: "electronic", space: 15, pump: 55, theme: "neon",
       melodyVoice: "lead", melodyVolume: 0.65, bassVolume: 0.95,
       scale: { root: "A", type: "minpent" },
       chain: "AABBCDBB",
-      notes: "Eight bars: groove, groove, stabs, stabs, breakdown (no kick), a fill, stabs, stabs. The open hat row was added from the menu under the drums.",
+      notes: "Eight bars: groove, groove, stabs, stabs, breakdown (no kick), a fill, stabs, stabs. The open hat row was added from the menu under the drums. Pump makes the bass and stabs dip on every kick; turn it to 0 to hear the difference.",
       patterns: {
         A: { drums: { kick: "x...x...x...x...", clap: "....x.......x...", hihat: "g...g...g...g...", openhat: "..x...x...x...x." }, bass: { A1: "..x-..x-..x-..x-" } },
         B: { drums: { kick: "x...x...x...x...", clap: "....x.......x...", hihat: "g...g...g...g...", openhat: "..x...x...x...x." }, melody: { A3: "x..x..x.........", C4: "x..x..x.........", E4: "x..x..x........." }, bass: { A1: "..x-..x-........", F1: "..........x-..x-" } },

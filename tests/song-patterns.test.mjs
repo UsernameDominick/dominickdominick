@@ -188,5 +188,19 @@ ok(Object.keys(P.CHORDS).length === 7 && P.CHORDS.major.intervals.join() === "0,
   ok(JSON.stringify(P.cleanTies(r.notes, r.ties, 16)) === JSON.stringify(r.ties), "the ties are already what cleanTies would keep");
 }
 
+// ---- drum fills ----
+{
+  const rows = new Set(["kick", "snare", "hihat", "clap", "openhat", "rim", "tom", "crash"]);
+  ok(P.FILLS.length >= 5 && new Set(P.FILLS.map((f) => f.id)).size === P.FILLS.length && P.FILLS.every((f) => f.label), "there are at least five fills with unique ids and labels", P.FILLS.map((f) => f.id));
+  for (const f of P.FILLS) {
+    ok(Number.isInteger(f.from) && f.from >= 4 && f.from <= 15, `${f.id}: starts at a real step in the second half of the bar`, f.from);
+    ok(Object.keys(f.rows).every((r) => rows.has(r)) && Object.values(f.rows).every((lane) => lane.length === 16 - f.from && lane.every((v) => v === false || v === true || (typeof v === "number" && v > 0 && v < 1))), `${f.id}: every row is a drum row with one entry per step to the end of the bar`);
+    ok(f.clear === "all" || (Array.isArray(f.clear) && f.clear.every((r) => rows.has(r))), `${f.id}: what it clears is "all" or a list of drum rows`);
+  }
+  ok(P.FILLS.find((f) => f.id === "stop").clear === "all" && Object.keys(P.FILLS.find((f) => f.id === "stop").rows).length === 0, "the drop-out clears everything and adds nothing");
+  ok(P.FILLS.find((f) => f.id === "snare-roll").rows.snare.join() === "0.35,0.5,0.75,true", "a snare roll builds up to a full hit on the last step");
+  ok(Object.isFrozen(P.FILLS) === false && P.FILLS.every((f) => typeof f.label === "string"), "(fills are plain data the builder only reads)");
+}
+
 console.log(fail ? `${fail} FAILED` : "ALL PASS");
 process.exit(fail ? 1 : 0);
