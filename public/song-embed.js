@@ -109,10 +109,13 @@
       }
     }
 
-    function onStep(step) {
+    // info (from the player) says which pattern of a song with several is sounding and where it sits in the song order: the waveform's
+    // progress covers the whole song, and the pulse follows that pattern's own drums. A song with one pattern gets the same as ever.
+    function onStep(step, time, info) {
+      const steps = window.SongEngine.STEPS;
       if (bars.length) bars.forEach((bar, i) => bar.classList.toggle("song-embed-bar-active", i === step));
-      if (canvas) drawWaveform(step / window.SongEngine.STEPS);
-      const hitsTrack = window.SongEngine.stepHasAudibleDrumHit(songData, step);
+      if (canvas) drawWaveform(((info ? info.chainIndex : 0) * steps + step) / ((info ? info.chainLength : 1) * steps));
+      const hitsTrack = window.SongEngine.stepHasAudibleDrumHit(info ? info.data : songData, step);
       if (pulse) {
         pulse.classList.toggle("song-embed-pulse-beat", hitsTrack);
         if (hitsTrack) {

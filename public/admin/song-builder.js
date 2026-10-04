@@ -78,9 +78,10 @@
   let songs = [];
   let currentSongId = null;
   let songData = defaultSongData();
-  // The drum rows the open song has, in display order: the core four, plus each extra voice that was added to it.
+  // The drum rows the open song has, in display order: the core four, plus each extra voice that was added to it. A row belongs to the
+  // whole song (its colour, mute and volume are shared by every pattern), so it is found by its settings, not by one pattern's lanes.
   function trackList() {
-    return TRACK_ORDER.filter((t) => CORE_TRACKS.includes(t) || (songData.tracks && Array.isArray(songData.tracks[t])));
+    return TRACK_ORDER.filter((t) => CORE_TRACKS.includes(t) || (songData.trackMeta && songData.trackMeta[t]));
   }
 
   // ---------- Autosave ----------
@@ -196,8 +197,8 @@
   }
   function captureSongHistoryEvent(event) {
     if ($("song-builder-modal").hidden) return;
-    if (event.type === "click" && event.target && event.target.closest && event.target.closest("#song-tap-tempo")) {
-      songHistoryEvents.set(event, { skip: true });
+    if (event.type === "click" && event.target && event.target.closest && event.target.closest("#song-tap-tempo, [data-no-history]")) {
+      songHistoryEvents.set(event, { skip: true }); // tapping a tempo is grouped separately; switching pattern changes what you look at, not the music
       return;
     }
     if (event.type === "click" && songHistoryCommand(event.target)) {
@@ -288,6 +289,7 @@
     $("song-preview-name").textContent = state.name || "Song name";
     renderSequencer();
     renderPianoRoll();
+    renderPatternControls();
     updatePreviewVisibility();
     refreshWaveformPreview();
     songEditGeneration++;
@@ -587,20 +589,24 @@
     overlay.classList.add("song-page-sync-hit");
   }
 
-  function highlightStep(step, time) {
+  // info (from the player): which pattern is sounding and where it sits in the song order. The playhead is drawn on the grids only while the
+  // pattern being played is the one being edited, and the waveform's progress covers the whole song.
+  function highlightStep(step, time, info) {
     if (typeof time === "number") noteScheduledStep(step, time);
+    const visible = !info || info.pattern === editingPattern();
     document.querySelectorAll(".song-step").forEach((el) => {
-      el.classList.toggle("song-step-playing", Number(el.dataset.step) === step);
+      el.classList.toggle("song-step-playing", visible && Number(el.dataset.step) === step);
     });
+    if (info) markPlayingOrderChip(info.chainLength > 1 ? info.chainIndex : -1);
     $("song-preview-name").textContent = $("song-name").value || "Song name";
     const viz = songData.visualization || "bars";
-    const hits = Engine.stepHasAudibleDrumHit(songData, step);
+    const hits = Engine.stepHasAudibleDrumHit(info ? info.data : songData, step);
     if (viz === "bars") {
       $("song-preview-bars")
         .querySelectorAll(".song-embed-bar")
         .forEach((bar, i) => bar.classList.toggle("song-embed-bar-active", i === step));
     } else if (viz === "waveform") {
-      drawWaveformPreview(step / STEPS);
+      drawWaveformPreview(((info ? info.chainIndex : 0) * STEPS + step) / ((info ? info.chainLength : 1) * STEPS));
     } else if (viz === "pulse") {
       const pulseEl = $("song-preview-pulse");
       pulseEl.classList.toggle("song-embed-pulse-beat", hits);
@@ -716,8 +722,8 @@
     });
     countInOscs = [];
   }
-  const onPlayerStep = (step, time) => {
-    highlightStep(step, time);
+  const onPlayerStep = (step, time, info) => {
+    highlightStep(step, time, info);
     metroOnStep(step, time);
   };
 
@@ -1163,7 +1169,7 @@
   function startPlayback() {
     const beats = metroPrefs.countIn;
     if (!beats) {
-      player.start();
+      player.start(undefined, playOptions());
       startPeakMeter();
       $("song-play").textContent = "⏸ Stop";
       return;
@@ -1190,7 +1196,7 @@
           if (o) countInOscs.push(o);
         }
         const startAt = t0 + beats * beatSec;
-        player.start(startAt);
+        player.start(startAt, playOptions());
         startPeakMeter();
         countInTimer = setTimeout(() => {
           countInTimer = null;
@@ -1211,6 +1217,7 @@
       .querySelectorAll(".song-embed-bar")
       .forEach((bar) => bar.classList.remove("song-embed-bar-active"));
     $("song-preview-pulse").classList.remove("song-embed-pulse-beat", "song-embed-pulse-hit");
+    markPlayingOrderChip(-1);
     if (pageSyncOverlay) pageSyncOverlay.classList.remove("song-page-sync-hit");
     drawWaveformPreview(0);
     $("song-play").textContent = "▶ Play";
@@ -1246,7 +1253,7 @@
     Engine.withVolume(ctx, Engine.volumeOf(songData.melody), () =>
       voice ? Engine.playVoicedNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), voice, duration) : Engine.playMelodyNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), waveform, duration));
     if (!songData.melody.notes[noteName]) return; // outside the 2-octave piano roll range — preview only
-    if (player.isPlaying() && !isCountingIn() && $("song-record").checked) {
+    if (player.isPlaying() && !isCountingIn() && $("song-record").checked && player.currentPattern() === editingPattern()) {
       const step = player.currentStep();
       const wasRecorded = Boolean(songData.melody.notes[noteName][step]);
       if (!wasRecorded) songData.melody.notes[noteName][step] = true;
@@ -1267,7 +1274,7 @@
     const isNoteOn = status >> 4 === 9 && velocity > 0;
     if (!isNoteOn) return;
     const noteName = Engine.midiToNoteName(note);
-    const shouldRecord = player.isPlaying() && !isCountingIn() && $("song-record").checked && !!songData.melody.notes[noteName];
+    const shouldRecord = player.isPlaying() && !isCountingIn() && $("song-record").checked && player.currentPattern() === editingPattern() && !!songData.melody.notes[noteName];
     const historyBefore = shouldRecord ? captureSongHistoryState() : null;
     playAndMaybeRecordNote(noteName);
     if (historyBefore && pushSongUndoState(historyBefore)) songEditGeneration++;
@@ -1690,6 +1697,7 @@
     if (hits && !confirm(`Remove the ${TRACK_LABELS[t]} row and its ${hits} hit${hits === 1 ? "" : "s"}? Undo brings it back.`)) return;
     delete songData.tracks[t];
     delete songData.trackMeta[t];
+    Object.values(songData.patterns || {}).forEach((part) => part && part.tracks && delete part.tracks[t]);
     renderSequencer();
     $("song-add-drum").value = t;
     $("song-add-drum").focus();
@@ -1697,6 +1705,201 @@
     refreshWaveformPreview();
     scheduleAutosave();
   }
+
+
+  // ---------- Patterns and the song order ----------
+  // A song is one 16-step pattern unless it has more (A to D) and a song order that plays them one after another (the data layout is
+  // explained in song-engine.js). The pattern being edited is always the song's own tracks and melody notes, so every tool in this editor
+  // works on it unchanged; switching pattern swaps those parts with the stored ones. Switching is a view change, not an edit, so it is
+  // not an undo step; making, copying and removing patterns and editing the order are.
+  let playOrder = false; // Play follows the song order (true) or loops the pattern being edited (false); only matters with several patterns
+  let playingChip = -1;
+  const editingPattern = () => Engine.editingName(songData);
+  function playOptions() {
+    return Engine.isSinglePattern(songData) || playOrder ? undefined : { pattern: editingPattern() };
+  }
+  const emptyParts = () => ({ tracks: {}, notes: {}, ties: {} });
+  const partsCount = (part) => ({
+    hits: Object.values(part.tracks).reduce((n, lane) => n + (Array.isArray(lane) ? lane.filter(Boolean).length : 0), 0),
+    notes: Object.values(part.notes).reduce((n, lane) => n + (Array.isArray(lane) ? lane.filter(Boolean).length : 0), 0),
+  });
+  const partsSummary = (name) => {
+    const c = partsCount(Engine.patternData(songData, name));
+    return `${c.hits} drum hit${c.hits === 1 ? "" : "s"}, ${c.notes} melody note${c.notes === 1 ? "" : "s"}`;
+  };
+  // Puts one pattern's parts into the song's own fields, with every row and every piano roll note present.
+  function loadParts(part) {
+    const tracks = {};
+    trackList().forEach((t) => {
+      const lane = Array.isArray(part.tracks[t]) ? part.tracks[t] : [];
+      tracks[t] = Array.from({ length: STEPS }, (_, i) => (lane[i] === undefined ? false : lane[i]));
+    });
+    songData.tracks = tracks;
+    const notes = {};
+    PIANO_NOTES.forEach((n) => {
+      const lane = Array.isArray(part.notes[n]) ? part.notes[n] : [];
+      notes[n] = Array.from({ length: STEPS }, (_, i) => (lane[i] === undefined ? false : lane[i]));
+    });
+    songData.melody.notes = notes;
+    setMelodyTies(part.ties || {});
+  }
+  const copyParts = (part) => JSON.parse(JSON.stringify(part));
+  // Makes `name` the open pattern: the one open now goes into the store, and `parts` (or the stored pattern of that name) becomes the song's
+  // own. Returns false if there is no such pattern and none was given.
+  function openPattern(name, parts) {
+    const from = editingPattern();
+    if (name === from || !Engine.PATTERN_NAMES.includes(name)) return false;
+    const incoming = parts || (Engine.patternData(songData, name) ? copyParts(Engine.patternData(songData, name)) : null);
+    if (!incoming) return false;
+    const stored = songData.patterns && !Array.isArray(songData.patterns) && typeof songData.patterns === "object" ? songData.patterns : {};
+    stored[from] = { tracks: songData.tracks, notes: songData.melody.notes, ties: songData.melody.ties || {} };
+    delete stored[name];
+    songData.patterns = stored;
+    if (name === "A") delete songData.editing;
+    else songData.editing = name;
+    loadParts(incoming);
+    if (!Object.keys(songData.patterns).length) delete songData.patterns;
+    return true;
+  }
+  const nextFreeName = () => Engine.PATTERN_NAMES.find((n) => !Engine.patternData(songData, n)) || null;
+  const chainList = () => (Array.isArray(songData.chain) ? songData.chain.filter((n) => Engine.PATTERN_NAMES.includes(n)) : []);
+
+  const patternSay = (message) => { $("song-arrangement-note").textContent = message; };
+  const orderSummary = () => {
+    const chain = chainList();
+    if (!chain.length) return "No song order yet: the song plays its first pattern on its own.";
+    const seconds = (60 / (Number(songData.tempo) || 120) / 4) * STEPS * chain.length;
+    return `Song order: ${chain.join(" ")}, ${chain.length} bar${chain.length === 1 ? "" : "s"}, ${seconds.toFixed(1)} seconds at ${Number(songData.tempo) || 120} BPM.`;
+  };
+
+  function markPlayingOrderChip(index) {
+    if (index === playingChip) return;
+    playingChip = index;
+    $("song-order-list").querySelectorAll("li").forEach((li, i) => {
+      li.classList.toggle("song-order-playing", i === index);
+      if (i === index) li.setAttribute("aria-current", "step");
+      else li.removeAttribute("aria-current");
+    });
+  }
+
+  function renderPatternControls() {
+    const names = Engine.patternNames(songData);
+    const open = editingPattern();
+    $("song-pattern-buttons").innerHTML = names
+      .map((n) => `<button type="button" class="song-pattern-btn" data-no-history data-pattern="${n}" aria-pressed="${n === open}" title="Edit pattern ${n} (${partsSummary(n)})">${n}</button>`)
+      .join("");
+    $("song-pattern-buttons").querySelectorAll(".song-pattern-btn").forEach((btn) =>
+      btn.addEventListener("click", () => {
+        if (!openPattern(btn.dataset.pattern)) return;
+        afterPatternSwitch(`Editing pattern ${btn.dataset.pattern}: ${partsSummary(btn.dataset.pattern)}.`);
+      })
+    );
+    $("song-pattern-new").disabled = names.length >= Engine.PATTERN_NAMES.length;
+    $("song-pattern-duplicate").disabled = names.length >= Engine.PATTERN_NAMES.length;
+    $("song-pattern-remove").hidden = names.length < 2; // a song needs a pattern, so Remove only shows once there is a second one
+    const several = names.length > 1;
+    $("song-order-tools").hidden = !several;
+    const chain = chainList();
+    $("song-order-list").innerHTML = chain
+      .map((n, i) => `<li class="song-order-chip"><span class="song-order-letter">${n}</span><button type="button" class="song-order-remove" data-index="${i}" aria-label="Remove ${n} at position ${i + 1} from the song order" title="Remove ${n} (position ${i + 1})">×</button></li>`)
+      .join("");
+    $("song-order-list").querySelectorAll(".song-order-remove").forEach((btn) => btn.addEventListener("click", () => removeFromOrder(Number(btn.dataset.index))));
+    playingChip = -1;
+    // With no order the song plays its first pattern on its own: say so, so an empty order is not a mystery.
+    $("song-order-hint").hidden = chain.length > 0;
+    $("song-order-hint").textContent = `Nothing in the order yet: the song plays pattern ${Engine.chainOf(songData)[0]} on its own. Add patterns with the + buttons.`;
+    $("song-order-add").innerHTML = names
+      .map((n) => `<button type="button" class="song-track-toggle song-order-add-btn" data-pattern="${n}" aria-label="Add ${n} to the song order" title="Add pattern ${n} to the end of the song order (${chain.length} of ${Engine.MAX_CHAIN} bars used)"${chain.length >= Engine.MAX_CHAIN ? " disabled" : ""}>+ ${n}</button>`)
+      .join("");
+    $("song-order-add").querySelectorAll(".song-order-add-btn").forEach((btn) => btn.addEventListener("click", () => addToOrder(btn.dataset.pattern)));
+    $("song-order-clear").disabled = chain.length === 0;
+    $("song-order-summary").textContent = chain.length ? orderSummary().replace(/^Song order: [A-D ]+, /, "") : "";
+    $("song-play-order").checked = playOrder;
+    $("song-play-order").disabled = !several;
+  }
+  // After the open pattern changed: redraw both grids (and the rows and menus around them) and the pattern buttons, and keep focus on
+  // the pattern that was chosen.
+  function afterPatternSwitch(message) {
+    renderSequencer();
+    renderPianoRoll();
+    renderPatternControls();
+    patternSay(message);
+    const active = $("song-pattern-buttons").querySelector('[aria-pressed="true"]');
+    if (active) active.focus();
+  }
+
+  $("song-pattern-new").addEventListener("click", () => {
+    const name = nextFreeName();
+    if (!name) return;
+    openPattern(name, emptyParts());
+    afterPatternSwitch(`Pattern ${name} started, empty, and open for editing.`);
+  });
+  $("song-pattern-duplicate").addEventListener("click", () => {
+    const name = nextFreeName();
+    if (!name) return;
+    const from = editingPattern();
+    openPattern(name, copyParts({ tracks: songData.tracks, notes: songData.melody.notes, ties: songData.melody.ties || {} }));
+    afterPatternSwitch(`Pattern ${name} is a copy of ${from}, and is now open. Undo takes it back.`);
+    refreshWaveformPreview();
+    scheduleAutosave();
+  });
+  $("song-pattern-remove").addEventListener("click", () => {
+    const names = Engine.patternNames(songData);
+    if (names.length < 2) return;
+    const name = editingPattern();
+    const used = chainList().filter((n) => n === name).length;
+    const c = partsCount(Engine.patternData(songData, name));
+    if ((c.hits || c.notes || used) && !confirm(`Remove pattern ${name} (${partsSummary(name)})${used ? ` and its ${used} place${used === 1 ? "" : "s"} in the song order` : ""}? Undo brings it back.`)) return;
+    const next = names.find((n) => n !== name);
+    openPattern(next); // this stores the pattern being removed, which is then dropped
+    delete songData.patterns[name];
+    if (!Object.keys(songData.patterns).length) delete songData.patterns;
+    const chain = chainList().filter((n) => n !== name);
+    if (chain.length) songData.chain = chain;
+    else delete songData.chain;
+    afterPatternSwitch(`Pattern ${name} removed. Pattern ${next} is open.`);
+    refreshWaveformPreview();
+    scheduleAutosave();
+  });
+  function changeOrder(next, message) {
+    if (next.length) songData.chain = next;
+    else delete songData.chain;
+    renderPatternControls();
+    patternSay(`${message} ${orderSummary()}`);
+    refreshWaveformPreview();
+    scheduleAutosave();
+  }
+  function addToOrder(name) {
+    const chain = chainList();
+    if (chain.length >= Engine.MAX_CHAIN) return patternSay(`The song order is full (${Engine.MAX_CHAIN} bars).`);
+    const was = chain.length;
+    changeOrder([...chain, name], `${name} added.`);
+    if (was < 2 && chain.length + 1 >= 2 && !playOrder) {
+      playOrder = true; // the order now has something to play: Play follows it
+      $("song-play-order").checked = true;
+      patternSay(`${$("song-arrangement-note").textContent} Play now follows the song order.`);
+    }
+    const again = $("song-order-add").querySelector(`[data-pattern="${name}"]`);
+    if (again && !again.disabled) again.focus();
+  }
+  function removeFromOrder(index) {
+    const chain = chainList();
+    if (index < 0 || index >= chain.length) return;
+    const name = chain[index];
+    changeOrder(chain.filter((_, i) => i !== index), `${name} at position ${index + 1} removed.`);
+    const items = $("song-order-list").querySelectorAll(".song-order-remove");
+    (items[Math.min(index, items.length - 1)] || $("song-order-add").querySelector("button")).focus();
+  }
+  $("song-order-clear").addEventListener("click", () => {
+    if (!chainList().length) return;
+    changeOrder([], "Song order cleared.");
+    $("song-order-add").querySelector("button").focus();
+  });
+  $("song-play-order").addEventListener("change", () => {
+    playOrder = $("song-play-order").checked;
+    patternSay(playOrder ? "Play follows the song order." : `Play loops pattern ${editingPattern()}.`);
+    if (player.isPlaying()) patternSay(`${$("song-arrangement-note").textContent} Stop and play again to hear it.`);
+  });
 
   function updateMelodyToggles() {
     const muted = songData.melody.muted === true;
@@ -1878,19 +2081,35 @@
   // before applying if anything would actually be lost -- naming the
   // specific notes/steps, not just a count, so the admin can make an
   // informed choice while it's still reversible by just clicking Cancel.
+  // Transposing changes the key of the whole song, so it moves the notes of every pattern, not just the one open.
   function transposeMelody(semitones) {
-    const oldNotes = songData.melody.notes;
-    const newNotes = {};
-    PIANO_NOTES.forEach((n) => (newNotes[n] = new Array(STEPS).fill(false)));
+    const shiftNotes = (oldNotes, label, dropped) => {
+      const newNotes = {};
+      PIANO_NOTES.forEach((n) => (newNotes[n] = new Array(STEPS).fill(false)));
+      PIANO_NOTES.forEach((sourceName, sourceIndex) => {
+        const targetName = PIANO_NOTES[sourceIndex - semitones];
+        for (let step = 0; step < STEPS; step++) {
+          if (!oldNotes[sourceName] || !oldNotes[sourceName][step]) continue;
+          if (targetName) newNotes[targetName][step] = oldNotes[sourceName][step];
+          else dropped.push(`${sourceName} (step ${step + 1}${label})`);
+        }
+      });
+      return newNotes;
+    };
+    // Held notes travel with their notes (a tied note that was dropped takes its tie with it).
+    const shiftTies = (oldTies) => {
+      const newTies = {};
+      PIANO_NOTES.forEach((sourceName, sourceIndex) => {
+        const targetName = PIANO_NOTES[sourceIndex - semitones];
+        if (targetName && oldTies[sourceName]) newTies[targetName] = oldTies[sourceName];
+      });
+      return newTies;
+    };
     const dropped = [];
-    PIANO_NOTES.forEach((sourceName, sourceIndex) => {
-      const targetName = PIANO_NOTES[sourceIndex - semitones];
-      for (let step = 0; step < STEPS; step++) {
-        if (!oldNotes[sourceName][step]) continue;
-        if (targetName) newNotes[targetName][step] = oldNotes[sourceName][step];
-        else dropped.push(`${sourceName} (step ${step + 1})`);
-      }
-    });
+    const several = Engine.patternNames(songData).length > 1;
+    const openName = editingPattern();
+    const openNotes = shiftNotes(songData.melody.notes, several ? `, pattern ${openName}` : "", dropped);
+    const stored = Object.entries(songData.patterns || {}).filter(([, part]) => part && part.notes).map(([name, part]) => [name, part, shiftNotes(part.notes, `, pattern ${name}`, dropped)]);
     if (dropped.length) {
       const shown = dropped.slice(0, 8).join(", ") + (dropped.length > 8 ? `, and ${dropped.length - 8} more` : "");
       const ok = confirm(
@@ -1898,15 +2117,13 @@
       );
       if (!ok) return;
     }
-    // Held notes travel with their notes (a tied note that was dropped takes its tie with it).
-    const oldTies = songData.melody.ties || {};
-    const newTies = {};
-    PIANO_NOTES.forEach((sourceName, sourceIndex) => {
-      const targetName = PIANO_NOTES[sourceIndex - semitones];
-      if (targetName && oldTies[sourceName]) newTies[targetName] = oldTies[sourceName];
+    const openTies = shiftTies(songData.melody.ties || {});
+    stored.forEach(([, part, notes]) => {
+      part.notes = notes;
+      part.ties = shiftTies(part.ties || {});
     });
-    songData.melody.notes = newNotes;
-    setMelodyTies(newTies);
+    songData.melody.notes = openNotes;
+    setMelodyTies(openTies);
     renderPianoRoll();
     refreshWaveformPreview();
     scheduleAutosave();
@@ -2162,11 +2379,13 @@
   // before they existed) won't have -- shared by both the "open an existing
   // song" and "start from a template" paths so a stale template can't throw
   // on a missing key any more than a stale saved song already couldn't.
+  const isPlain = (v) => !!v && typeof v === "object" && !Array.isArray(v);
   function backfillSongData(data) {
     // A row whose tracks object lacks (or mangles) a lane must still open.
     if (!data.tracks || typeof data.tracks !== "object") data.tracks = {};
     // The core rows always exist; an extra voice is only tidied up if the song has it (and never invented).
-    [...CORE_TRACKS, ...EXTRA_TRACKS.filter((t) => Array.isArray(data.tracks[t]))].forEach((t) => {
+    const hasRow = (t) => Array.isArray(data.tracks[t]) || Boolean(data.trackMeta && data.trackMeta[t]) || Object.values(isPlain(data.patterns) ? data.patterns : {}).some((pt) => isPlain(pt) && isPlain(pt.tracks) && Array.isArray(pt.tracks[t]));
+    [...CORE_TRACKS, ...EXTRA_TRACKS.filter(hasRow)].forEach((t) => {
       const lane = Array.isArray(data.tracks[t]) ? data.tracks[t] : [];
       data.tracks[t] = Array.from({ length: STEPS }, (_, i) => (lane[i] === undefined ? false : lane[i]));
     });
@@ -2176,9 +2395,33 @@
       if (!data.melody.notes[n]) data.melody.notes[n] = new Array(STEPS).fill(false);
     });
     if (!data.trackMeta) data.trackMeta = defaultSongData().trackMeta;
-    [...CORE_TRACKS, ...EXTRA_TRACKS.filter((t) => Array.isArray(data.tracks[t]))].forEach((t) => {
+    [...CORE_TRACKS, ...EXTRA_TRACKS.filter(hasRow)].forEach((t) => {
       if (!data.trackMeta[t]) data.trackMeta[t] = { color: DEFAULT_TRACK_COLORS[t], note: "" };
     });
+    // Other patterns, if the song has them: every row and every piano roll note present, and nothing odd left in place of an object.
+    if (data.patterns !== undefined && !isPlain(data.patterns)) delete data.patterns;
+    if (isPlain(data.patterns)) {
+      Object.keys(data.patterns).forEach((name) => {
+        if (!Engine.PATTERN_NAMES.includes(name) || !isPlain(data.patterns[name])) { delete data.patterns[name]; return; }
+        const part = data.patterns[name];
+        const tracks = isPlain(part.tracks) ? part.tracks : {};
+        part.tracks = {};
+        [...CORE_TRACKS, ...EXTRA_TRACKS.filter((t) => data.trackMeta[t])].forEach((t) => {
+          const lane = Array.isArray(tracks[t]) ? tracks[t] : [];
+          part.tracks[t] = Array.from({ length: STEPS }, (_, i) => (lane[i] === undefined ? false : lane[i]));
+        });
+        const notes = isPlain(part.notes) ? part.notes : {};
+        part.notes = {};
+        PIANO_NOTES.forEach((n) => {
+          const lane = Array.isArray(notes[n]) ? notes[n] : [];
+          part.notes[n] = Array.from({ length: STEPS }, (_, i) => (lane[i] === undefined ? false : lane[i]));
+        });
+        if (!isPlain(part.ties)) part.ties = {};
+      });
+      if (!Object.keys(data.patterns).length) delete data.patterns;
+    }
+    if (data.editing !== undefined && !Engine.PATTERN_NAMES.includes(data.editing)) delete data.editing;
+    if (data.chain !== undefined && !Array.isArray(data.chain)) delete data.chain;
     if (data.private_notes == null) data.private_notes = "";
     return data;
   }
@@ -2488,8 +2731,11 @@
     $("song-builder-modal").hidden = false;
     resetSongHistory();
     resetClipHistory();
+    playOrder = chainList().length > 1;
     renderSequencer();
     renderPianoRoll();
+    renderPatternControls();
+    patternSay("");
     updatePreviewVisibility();
     refreshWaveformPreview();
     syncActiveTab();
@@ -2614,6 +2860,9 @@
       `Song: ${name}`,
       `Tempo: ${songData.tempo} BPM`,
       `Drum kit: ${songData.kit}`,
+      ...(Engine.isSinglePattern(songData)
+        ? []
+        : [`Patterns: ${Engine.patternNames(songData).join(", ")} (${editingPattern()} was open)`, `Song order: ${Engine.chainOf(songData).join(" ")} (${Engine.chainOf(songData).length} bar${Engine.chainOf(songData).length === 1 ? "" : "s"})`]),
       `Melody sound: ${Engine.melodyVoiceOf(songData) ? Engine.MELODY_VOICES[Engine.melodyVoiceOf(songData)].label : `Basic, ${songData.melody.waveform} waveform`}${songData.melody.muted === true ? " (muted)" : ""}${reportVolume(songData.melody)}`,
       `Visualization: ${songData.visualization}`,
       `Theme: ${songData.theme}`,
@@ -2859,12 +3108,13 @@
       copy.melody.muted = solo !== "melody";
       return copy;
     };
+    const playedPatterns = Engine.chainPatterns(songData);
     trackList().forEach((t) => {
-      const hits = (songData.tracks && songData.tracks[t] || []).some(Boolean);
+      const hits = playedPatterns.some((part) => (part.tracks[t] || []).some(Boolean));
       if (hits && !(songData.trackMeta && songData.trackMeta[t] && songData.trackMeta[t].muted === true)) jobs.push({ id: t, label: TRACK_LABELS[t], data: copyFor(t) });
     });
-    const notes = (songData.melody && songData.melody.notes) || {};
-    if (Object.keys(notes).some((n) => notes[n] && notes[n].some(Boolean)) && !(songData.melody && songData.melody.muted === true)) jobs.push({ id: "melody", label: "Melody", data: copyFor("melody") });
+    const anyMelody = playedPatterns.some((part) => Object.values(part.notes).some((lane) => Array.isArray(lane) && lane.some(Boolean)));
+    if (anyMelody && !(songData.melody && songData.melody.muted === true)) jobs.push({ id: "melody", label: "Melody", data: copyFor("melody") });
     return jobs;
   }
 
@@ -2881,8 +3131,9 @@
   function refreshAudioSummary() {
     const o = audioOptions();
     const tempo = Number(songData.tempo) || 120;
-    const loopSeconds = (60 / tempo / 4) * STEPS;
-    const seconds = loopSeconds * o.loops + o.tailSeconds;
+    const loopSeconds = (60 / tempo / 4) * Engine.chainSteps(songData);
+    const repeats = Math.min(o.loops, Engine.maxExportLoops(songData));
+    const seconds = loopSeconds * repeats + o.tailSeconds;
     const files = o.stems ? stemJobs().length : 1;
     const bytes = Math.round(seconds * o.sampleRate) * AUDIO_DEPTHS[o.depth].bytes * Math.max(1, files);
     const size = bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -2892,6 +3143,8 @@
         ? `${files} stem${files === 1 ? "" : "s"} of ${seconds.toFixed(2)} seconds at ${songData.tempo} BPM in one ZIP, about ${size}.`
         : "Nothing to export as stems: no unmuted track has any notes."
       : `${seconds.toFixed(2)} seconds at ${songData.tempo} BPM, about ${size}.`;
+    // A long song is repeated fewer times than the menu offers (five minutes of audio at most).
+    if (repeats < o.loops) $("song-audio-summary").textContent += ` Repeated ${repeats} time${repeats === 1 ? "" : "s"}, not ${o.loops}: the song is long.`;
     // Not while a render is running: Cancel is showing and Export must stay disabled.
     if ($("song-audio-cancel").hidden) $("song-audio-go").disabled = o.stems && !files;
   }

@@ -17,6 +17,9 @@
   const VISUALIZATIONS = ["bars", "waveform", "pulse"];
   const THEMES = ["default", "sunset", "ocean", "mono", "neon"];
   const SCALE_TYPES = ["major", "minor", "majpent", "minpent", "blues"];
+  const PATTERN_NAMES = ["A", "B", "C", "D"];
+  const MAX_CHAIN = 32;
+  const isObj = (v) => !!v && typeof v === "object" && !Array.isArray(v);
   const FORMAT = "dominick-song";
   const VERSION = 1;
   const MAX_FILE_CHARS = 2000000;
@@ -65,6 +68,25 @@
     return chunk("MTrk", out);
   }
 
+  // The patterns of a song and the song order, resolved the way song-engine.js does it (song-chain.test.mjs checks they agree): the open
+  // pattern (song.editing, default "A") is the song's own tracks and melody notes/ties, the others sit under song.patterns, and the order
+  // keeps only patterns that exist (cut to 32), or is just the first pattern the song has.
+  function patternParts(song, name) {
+    if (!PATTERN_NAMES.includes(name)) return null;
+    const editing = PATTERN_NAMES.includes(song.editing) ? song.editing : "A";
+    if (name === editing) {
+      const melody = isObj(song.melody) ? song.melody : {};
+      return { tracks: isObj(song.tracks) ? song.tracks : {}, notes: isObj(melody.notes) ? melody.notes : {}, ties: isObj(melody.ties) ? melody.ties : {} };
+    }
+    const other = isObj(song.patterns) && Object.prototype.hasOwnProperty.call(song.patterns, name) ? song.patterns[name] : null;
+    return isObj(other) ? { tracks: isObj(other.tracks) ? other.tracks : {}, notes: isObj(other.notes) ? other.notes : {}, ties: isObj(other.ties) ? other.ties : {} } : null;
+  }
+  function chainParts(song) {
+    const names = PATTERN_NAMES.filter((n) => patternParts(song, n));
+    const wanted = (Array.isArray(song.chain) ? song.chain : []).filter((n) => names.includes(n)).slice(0, MAX_CHAIN);
+    return (wanted.length ? wanted : names.slice(0, 1)).map((name) => Object.assign({ name }, patternParts(song, name)));
+  }
+
   const level = (v) => (typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 1);
   const volume = (meta) => {
     const v = meta && Number(meta.volume);
@@ -72,52 +94,59 @@
   };
   const velocity = (lvl, vol) => Math.max(1, Math.min(127, Math.round(100 * lvl * vol)));
 
-  // One loop of the song (16 steps, one bar of 4/4) as a format-1 MIDI file: a tempo track, the drums on channel 10 (General MIDI
-  // drum notes) and the melody on channel 1. Muted tracks are left out, a step's strength and a track's volume become velocity, and
-  // swing delays every second step the way the player does. Humanize is not written. Returns { bytes, notes } (null bytes if no note).
+  // The song as a format-1 MIDI file: a tempo track, the drums on channel 10 (General MIDI drum notes) and the melody on channel 1. A
+  // one-pattern song is one loop (16 steps, one bar of 4/4); a song with several patterns writes its whole song order, one bar after
+  // another. Muted tracks are left out, a step's strength and a track's volume become velocity, and swing delays every second step the
+  // way the player does. Humanize is not written. Returns { bytes, notes } (null bytes if no note).
   function buildMidi(song, name) {
     const data = song || {};
     const tempo = Math.max(40, Math.min(240, Number(data.tempo) || 120));
     const swing = Math.max(0, Math.min(100, Number(data.swing) || 0));
     const delay = (step) => (step % 2 === 1 ? Math.round((swing / 100) * 0.5 * STEP_TICKS) : 0);
+    const bars = chainParts(data);
     const tracks = [];
     let notes = 0;
 
     const drumEvents = [];
     DRUMS.forEach((t) => {
-      const lane = data.tracks && data.tracks[t];
-      if (!Array.isArray(lane) || (data.trackMeta && data.trackMeta[t] && data.trackMeta[t].muted === true)) return;
+      if (data.trackMeta && data.trackMeta[t] && data.trackMeta[t].muted === true) return;
       const vol = volume(data.trackMeta && data.trackMeta[t]);
-      for (let step = 0; step < STEPS; step++) {
-        if (!lane[step]) continue;
-        const tick = step * STEP_TICKS + delay(step);
-        drumEvents.push({ tick, order: 1, bytes: [0x99, GM_DRUMS[t], velocity(level(lane[step]), vol)] });
-        drumEvents.push({ tick: tick + STEP_TICKS / 2, order: 0, bytes: [0x89, GM_DRUMS[t], 0] });
-        notes++;
-      }
+      bars.forEach((bar, b) => {
+        const lane = bar.tracks[t];
+        if (!Array.isArray(lane)) return;
+        for (let step = 0; step < STEPS; step++) {
+          if (!lane[step]) continue;
+          const tick = (b * STEPS + step) * STEP_TICKS + delay(step);
+          drumEvents.push({ tick, order: 1, bytes: [0x99, GM_DRUMS[t], velocity(level(lane[step]), vol)] });
+          drumEvents.push({ tick: tick + STEP_TICKS / 2, order: 0, bytes: [0x89, GM_DRUMS[t], 0] });
+          notes++;
+        }
+      });
     });
     if (drumEvents.length) tracks.push(trackBytes("Drums", drumEvents));
 
     const melodyEvents = [];
-    if (data.melody && data.melody.notes && data.melody.muted !== true) {
+    if (data.melody && data.melody.muted !== true) {
       const vol = volume(data.melody);
-      for (const noteName of Object.keys(data.melody.notes)) {
-        const num = noteNumber(noteName);
-        const lane = data.melody.notes[noteName];
-        if (num === null || !Array.isArray(lane)) continue;
-        const ties = data.melody.ties && data.melody.ties[noteName];
-        // a step tied to the one before it (and the note on at both) carries that note on instead of striking it again
-        const tied = (step) => Boolean(step > 0 && ties && ties[step] === true && lane[step] && lane[step - 1]);
-        for (let step = 0; step < STEPS; step++) {
-          if (!lane[step] || tied(step)) continue;
-          let held = 1;
-          while (step + held < STEPS && tied(step + held)) held++;
-          const tick = step * STEP_TICKS + delay(step);
-          melodyEvents.push({ tick, order: 1, bytes: [0x90, num, velocity(level(lane[step]), vol)] });
-          melodyEvents.push({ tick: tick + STEP_TICKS * held, order: 0, bytes: [0x80, num, 0] });
-          notes++;
+      bars.forEach((bar, b) => {
+        for (const noteName of Object.keys(bar.notes)) {
+          const num = noteNumber(noteName);
+          const lane = bar.notes[noteName];
+          if (num === null || !Array.isArray(lane)) continue;
+          const ties = bar.ties[noteName];
+          // a step tied to the one before it (and the note on at both) carries that note on instead of striking it again
+          const tied = (step) => Boolean(step > 0 && ties && ties[step] === true && lane[step] && lane[step - 1]);
+          for (let step = 0; step < STEPS; step++) {
+            if (!lane[step] || tied(step)) continue;
+            let held = 1;
+            while (step + held < STEPS && tied(step + held)) held++;
+            const tick = (b * STEPS + step) * STEP_TICKS + delay(step);
+            melodyEvents.push({ tick, order: 1, bytes: [0x90, num, velocity(level(lane[step]), vol)] });
+            melodyEvents.push({ tick: tick + STEP_TICKS * held, order: 0, bytes: [0x80, num, 0] });
+            notes++;
+          }
         }
-      }
+      });
     }
     if (melodyEvents.length) tracks.push(trackBytes("Melody", melodyEvents));
     if (!notes) return { bytes: null, notes: 0 };
@@ -146,6 +175,18 @@
     if (v === true) return true;
     if (typeof v === "number" && Number.isFinite(v)) return v >= 1 ? true : v > 0 ? Math.max(0.01, Math.round(v * 100) / 100) : false;
     return false;
+  }
+  // The held notes of one pattern, or null when there are none: a tie only survives where the note is on at that step and the one before.
+  function cleanTieMap(rawTies, notes) {
+    if (!isObj(rawTies)) return null;
+    const ties = {};
+    PIANO_NOTES.forEach((n) => {
+      const lane = rawTies[n];
+      if (!Array.isArray(lane)) return;
+      const row = Array.from({ length: STEPS }, (_, i) => lane[i] === true && i > 0 && Boolean(notes[n][i]) && Boolean(notes[n][i - 1]));
+      if (row.some(Boolean)) ties[n] = row;
+    });
+    return Object.keys(ties).length ? ties : null;
   }
   const cleanLane = (lane) => Array.from({ length: STEPS }, (_, i) => cleanStep(Array.isArray(lane) ? lane[i] : false));
 
@@ -190,17 +231,34 @@
     const notes = melody.notes && typeof melody.notes === "object" ? melody.notes : {};
     PIANO_NOTES.forEach((n) => (song.melody.notes[n] = cleanLane(notes[n])));
     // Held notes: a tie only counts where the note is on at that step and the one before, so a stale flag can't survive the clean-up.
-    if (melody.ties && typeof melody.ties === "object") {
-      const ties = {};
-      PIANO_NOTES.forEach((n) => {
-        const lane = melody.ties[n];
-        if (!Array.isArray(lane)) return;
-        const row = Array.from({ length: STEPS }, (_, i) => lane[i] === true && i > 0 && Boolean(song.melody.notes[n][i]) && Boolean(song.melody.notes[n][i - 1]));
-        if (row.some(Boolean)) ties[n] = row;
-      });
-      if (Object.keys(ties).length) song.melody.ties = ties;
-    }
+    const ties = cleanTieMap(melody.ties, song.melody.notes);
+    if (ties) song.melody.ties = ties;
     if (src.scale && typeof src.scale === "object" && SCALE_TYPES.includes(src.scale.type) && NOTE_NAMES.includes(src.scale.root)) song.scale = { root: src.scale.root, type: src.scale.type };
+    // Patterns: which one is open (A is the default and is not written), the others, and the song order over them. Only the three parts a
+    // pattern owns (drum hits, melody notes, held notes) are kept for them, over the rows this song has.
+    const open = PATTERN_NAMES.includes(src.editing) ? src.editing : "A";
+    if (open !== "A") song.editing = open;
+    if (isObj(src.patterns)) {
+      const patterns = {};
+      PATTERN_NAMES.forEach((n) => {
+        const part = n !== open && Object.prototype.hasOwnProperty.call(src.patterns, n) ? src.patterns[n] : null;
+        if (!isObj(part)) return;
+        const partTracks = isObj(part.tracks) ? part.tracks : {};
+        const partNotes = isObj(part.notes) ? part.notes : {};
+        const cleaned = { tracks: {}, notes: {} };
+        Object.keys(song.tracks).forEach((row) => (cleaned.tracks[row] = cleanLane(partTracks[row])));
+        PIANO_NOTES.forEach((note) => (cleaned.notes[note] = cleanLane(partNotes[note])));
+        const heldNotes = cleanTieMap(part.ties, cleaned.notes);
+        if (heldNotes) cleaned.ties = heldNotes;
+        patterns[n] = cleaned;
+      });
+      if (Object.keys(patterns).length) song.patterns = patterns;
+    }
+    if (Array.isArray(src.chain)) {
+      const exists = new Set([open, ...Object.keys(song.patterns || {})]);
+      const chain = src.chain.filter((n) => typeof n === "string" && exists.has(n)).slice(0, MAX_CHAIN);
+      if (chain.length) song.chain = chain;
+    }
     return song;
   }
 
@@ -236,5 +294,5 @@
     return { name: name || "Imported song", data: cleanSong(data) };
   }
 
-  window.SongFiles = { MELODY_VOICES, CORE_DRUMS, EXTRA_DRUMS, GM_DRUMS, buildMidi, noteNumber, exportJson, parseImport, cleanSong, PPQ, STEP_TICKS, FORMAT, VERSION };
+  window.SongFiles = { PATTERN_NAMES, chainParts, MELODY_VOICES, CORE_DRUMS, EXTRA_DRUMS, GM_DRUMS, buildMidi, noteNumber, exportJson, parseImport, cleanSong, PPQ, STEP_TICKS, FORMAT, VERSION };
 })();

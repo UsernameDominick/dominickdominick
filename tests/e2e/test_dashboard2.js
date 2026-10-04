@@ -17,7 +17,7 @@ const { chromium } = require("./_pw.cjs");
   ] }));
   await p.goto((E2E_BASE + "/admin/")); await p.waitForSelector("#app:not([hidden])");
   await p.evaluate(() => document.getElementById("dashboard-btn").click()); await p.waitForSelector(".dash-card");
-  await p.waitForFunction(() => /Drafts \(\d+\)/.test(document.getElementById("dashboard-body").textContent)); // the cards fill in one by one: under load the first is there well before the last
+  await p.waitForFunction(() => /Drafts \(9\)/.test(document.getElementById("dashboard-body").textContent) && /and 3 more/.test(document.getElementById("dashboard-body").textContent), null, { timeout: 15000 }).catch(() => {}); // the cards fill in one by one, and the count can show a partial list first: wait for the whole thing (the assertions below say what is wrong if it never arrives)
   let t = await p.textContent("#dashboard-body");
   ok(!/All clear/.test(t) && /Couldn.t load: alerts, site health/.test(t), "failed health sources are not 'All clear'");
   ok(!/QQ archived/.test(t), "archived hidden");

@@ -8,6 +8,28 @@ const MAX_VOICE_NAME = 24;
 const isPlainObject = (v) => !!v && typeof v === "object" && !Array.isArray(v);
 const allArrays = (obj) => Object.values(obj).every(Array.isArray);
 
+// Patterns A to D and the song order. The pattern open in the builder is the song's own tracks and melody; the others live under
+// "patterns" as { tracks, notes, ties }. Returns an error message, or null (a song with none of these is fine).
+const PATTERN_NAMES = ["A", "B", "C", "D"];
+const MAX_CHAIN = 32;
+function patternsError(data) {
+  if ("editing" in data && !PATTERN_NAMES.includes(data.editing)) return "The open pattern must be A, B, C or D.";
+  if ("patterns" in data) {
+    if (!isPlainObject(data.patterns)) return "The song's patterns must be an object.";
+    for (const [name, part] of Object.entries(data.patterns)) {
+      if (!PATTERN_NAMES.includes(name)) return "A pattern must be named A, B, C or D.";
+      if (!isPlainObject(part)) return `Pattern ${name} must be an object.`;
+      for (const key of ["tracks", "notes", "ties"]) {
+        if (key in part && (!isPlainObject(part[key]) || !allArrays(part[key]))) return `Pattern ${name}'s ${key === "tracks" ? "drum tracks" : key === "notes" ? "melody notes" : "held notes"} must be lists of steps.`;
+      }
+    }
+  }
+  if ("chain" in data) {
+    if (!Array.isArray(data.chain) || data.chain.length > MAX_CHAIN || !data.chain.every((n) => PATTERN_NAMES.includes(n))) return `The song order must be a list of up to ${MAX_CHAIN} pattern letters (A to D).`;
+  }
+  return null;
+}
+
 // Returns an error message, or null when the data is acceptable.
 export function songDataError(data) {
   if (!isPlainObject(data)) return "Song data must be an object.";
@@ -19,6 +41,8 @@ export function songDataError(data) {
   if ("private_notes" in data && (typeof data.private_notes !== "string" || data.private_notes.length > MAX_PRIVATE_NOTES)) {
     return `The private notes must be text, up to ${MAX_PRIVATE_NOTES} characters.`;
   }
+  const patternError = patternsError(data);
+  if (patternError) return patternError;
   if ("tracks" in data && (!isPlainObject(data.tracks) || !allArrays(data.tracks))) return "The song's tracks must be lists of steps.";
   if ("trackMeta" in data && !isPlainObject(data.trackMeta)) return "The song's track settings must be an object.";
   if ("melody" in data) {

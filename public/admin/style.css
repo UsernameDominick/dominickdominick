@@ -7758,6 +7758,26 @@ button[data-tier="quiet"] { border-color: transparent; }
 .song-pattern-tools { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0 0 0.5rem; }
 .song-pattern-tools label { display: inline-flex; gap: 0.4rem; align-items: center; }
 .song-tools-hint { font-size: 0.8rem; color: var(--text-dim); }
+/* Patterns and the song order */
+.song-arrangement { margin: 0 0 0.25rem; }
+.song-pattern-row { margin-bottom: 0.25rem; }
+@media (max-width: 700px) { .song-hide-narrow { display: none; } }
+.song-pattern-label { font-size: 0.85rem; color: var(--text-dim); }
+.song-pattern-buttons { display: inline-flex; gap: 0.35rem; flex-wrap: wrap; }
+.song-pattern-btn {
+  min-width: 2.2rem; padding: 0.3rem 0.6rem; border-radius: 6px; font-weight: 700;
+  background: var(--bg-elevated); color: var(--text); border: 1px solid var(--border); cursor: pointer;
+}
+.song-pattern-btn[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.song-order-list { display: inline-flex; flex-wrap: wrap; gap: 0.3rem; margin: 0; padding: 0; list-style: none; }
+.song-order-chip { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-elevated); overflow: hidden; }
+.song-order-letter { padding: 0.25rem 0.5rem; font-weight: 700; }
+.song-order-remove { border: 0; border-left: 1px solid var(--border); background: transparent; color: var(--text-dim); padding: 0.25rem 0.4rem; cursor: pointer; }
+.song-order-remove:hover { color: var(--error-text); }
+.song-order-chip.song-order-playing { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 22%, var(--bg-elevated)); }
+.song-order-add { display: inline-flex; gap: 0.3rem; flex-wrap: wrap; }
+.song-play-order { display: inline-flex; gap: 0.4rem; align-items: center; }
+.song-order-tools[hidden] { display: none; }
 /* The progression names are long ("Canon: I – V – vi – iii – IV – I – IV – V"): the select shrinks to the row instead of widening it. */
 .song-pattern-tools label:has(#song-prog-type) { min-width: 0; max-width: 100%; }
 #song-prog-type { min-width: 0; max-width: 100%; text-overflow: ellipsis; }

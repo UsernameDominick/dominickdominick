@@ -49,10 +49,12 @@ class FakeOffline {
 }
 
 const sandbox = () => vm.createContext({ Math, Number, Object, Array, JSON, Float32Array, Promise, WeakMap, Set, Date, isFinite, parseFloat, String, console });
-export function loadEngine() {
+// extra: anything to put in the engine's global scope (a test passes its own setTimeout/clearTimeout to drive the player by hand)
+export function loadEngine(extra = {}) {
   const window = { OfflineAudioContext: FakeOffline };
   const context = sandbox();
   context.window = window;
+  Object.assign(context, extra);
   vm.runInContext(fs.readFileSync(new URL("../public/song-engine.js", import.meta.url), "utf8"), context);
   return window.SongEngine;
 }

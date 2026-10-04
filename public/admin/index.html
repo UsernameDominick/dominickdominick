@@ -2246,8 +2246,28 @@
         </details>
         </details>
         <span id="song-clip-status" class="song-clip-status" role="status"></span>
+        <section class="song-arrangement" id="song-arrangement" aria-labelledby="song-arrangement-heading">
+          <h2 class="sim-sr-only" id="song-arrangement-heading">Patterns and song order</h2>
+          <div class="song-pattern-tools song-pattern-row" role="group" aria-label="Pattern being edited">
+            <span class="song-pattern-label" id="song-pattern-label">Pattern</span>
+            <span id="song-pattern-buttons" class="song-pattern-buttons" role="group" aria-labelledby="song-pattern-label"></span>
+            <button type="button" id="song-pattern-new" class="song-track-toggle" data-no-history title="Start a new empty pattern (up to four, A to D)">+ New</button>
+            <button type="button" id="song-pattern-duplicate" class="song-track-toggle" title="Copy this pattern into a new one and open it, to make a variation (undoable)">Duplicate</button>
+            <button type="button" id="song-pattern-remove" class="song-track-toggle" title="Delete this pattern and take it out of the song order (undoable)">Remove</button>
+          </div>
+          <div class="song-pattern-tools song-order-tools" id="song-order-tools" role="group" aria-label="Song order" hidden>
+            <span class="song-pattern-label" id="song-order-label">Song order</span>
+            <ol id="song-order-list" class="song-order-list" aria-labelledby="song-order-label"></ol>
+            <span id="song-order-hint" class="song-tools-hint" hidden></span>
+            <span id="song-order-summary" class="song-tools-hint"></span>
+            <span id="song-order-add" class="song-order-add" role="group" aria-label="Add a pattern to the song order"></span>
+            <button type="button" id="song-order-clear" class="song-track-toggle" title="Empty the song order (undoable). With no order the song plays its first pattern.">Clear order</button>
+            <label class="song-play-order" title="On: Play runs the song order from the start and the public player plays it. Off: Play loops just the pattern you are editing."><input type="checkbox" id="song-play-order"> Play the song order</label>
+          </div>
+          <p id="song-arrangement-note" class="sim-sr-only" role="status"></p>
+        </section>
         <div class="song-pattern-tools" role="group" aria-label="Step strength">
-          <label>Step strength (drums and piano roll) <select id="song-step-level" title="How hard the next step you click is struck, in the drums and the piano roll. Clicking an empty step turns it on at this strength; clicking an on step of a different strength changes it; clicking one that matches turns it off.">
+          <label>Step strength<span class="song-hide-narrow"> (drums and piano roll)</span> <select id="song-step-level" title="How hard the next step you click is struck, in the drums and the piano roll. Clicking an empty step turns it on at this strength; clicking an on step of a different strength changes it; clicking one that matches turns it off.">
             <option value="full">Full</option>
             <option value="medium">Medium</option>
             <option value="soft">Soft (ghost note)</option>

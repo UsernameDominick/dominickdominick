@@ -83,6 +83,14 @@ node tests/e2e/run.mjs --live test_x  # one test against the dev server already 
 11. **Server validation in a small pure file, then called from the route** (see `worker/redirects.js`): keeps it testable and keeps `admin-api.js` readable.
 12. Page and article bodies need > 50 characters before they can be published (server check) — tests that publish need a real-length body.
 
+## Songs: how a song is stored
+
+A song is one JSON blob (`songs.data`). The sound is made by `public/song-engine.js` (shared by the admin builder, the public embed and the offline renders), the editor is `public/admin/song-builder.js`, and `public/admin/song-files.js` is the pure helper for MIDI, JSON import/export and import cleaning.
+- **A new song field has to be added in four places or it silently disappears:** the engine (`scheduleStep` or a send like `setSpace`), `worker/songs.js` (`songDataError`, validation), `song-files.js` (`cleanSong`, or import drops it), and `song-builder.js` (open, undo restore in `applySongHistoryState`, the control). Add the field to `tests/song-files.test.mjs`'s "exactly the builder's own keys" list only if it is written for every song; optional fields (voice, patterns, chain, editing) are written only when set, so old songs and their noise seed stay identical (`tests/song-chain.test.mjs` pins the seed values).
+- **Patterns:** the pattern being edited is always the song's own `tracks`, `melody.notes` and `melody.ties` (every editing tool works on it unchanged); `editing` names it (absent = "A") and `patterns` holds the others as `{tracks, notes, ties}`; `chain` is the song order (up to 32 letters). Mix, instrument, scale, tempo, echo and the rows themselves (`trackMeta`) are shared. Resolve patterns only through the engine's `patternData` / `chainOf` / `viewOf` (and `chainParts` in song-files.js, kept equal by a test), never by reading `songData.tracks` for "the song".
+- Drum rows: the four core rows always exist; open hat, rim, tom and crash exist once added (found by their `trackMeta` entry). Melody instruments are `melody.voice` (absent = the plain waveform note).
+- Test helpers: `tests/fake-audio.mjs` (recording Web Audio stand-in plus engine and song-files loaders). A browser test can see which pattern is sounding by wrapping `SongEngine.createPlayer` in an init script (see `tests/e2e/test_song_patterns.js`).
+
 ## Recipes
 
 - **New admin API route:** add an `if (path === "/thing" && method === …)` block in `routeAdminApi` (use `readJsonBody`, `json`, and

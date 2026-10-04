@@ -565,6 +565,63 @@ function setMasterVolume(ctx, value) {
     return length;
   }
 
+  // ---------- Patterns and the song order ----------
+  // A song is one pattern (drum hits, melody notes and held notes over 16 steps) unless it was given more, up to four named A to D, plus
+  // a song order (songData.chain) of up to 32 of them to play one after another. The pattern being edited lives in the song's own tracks
+  // and melody.notes/ties, exactly as it always has; songData.editing names it (absent means "A") and songData.patterns holds each other
+  // pattern as { tracks, notes, ties }. Everything else (mix, instrument, scale, tempo, echo...) is shared by every pattern. A song with
+  // no patterns, chain or editing is the one-pattern song it always was and takes the original code path everywhere.
+  const PATTERN_NAMES = ["A", "B", "C", "D"];
+  const MAX_CHAIN = 32;
+  const isObj = (v) => !!v && typeof v === "object" && !Array.isArray(v);
+  function isSinglePattern(songData) {
+    return !songData.patterns && !songData.chain && !songData.editing;
+  }
+  function editingName(songData) {
+    return PATTERN_NAMES.includes(songData.editing) ? songData.editing : "A";
+  }
+  // One pattern's parts, or null when the song has no such pattern.
+  function patternData(songData, name) {
+    if (!PATTERN_NAMES.includes(name)) return null;
+    if (name === editingName(songData)) {
+      const melody = isObj(songData.melody) ? songData.melody : {};
+      return { tracks: isObj(songData.tracks) ? songData.tracks : {}, notes: isObj(melody.notes) ? melody.notes : {}, ties: isObj(melody.ties) ? melody.ties : {} };
+    }
+    const other = isObj(songData.patterns) && Object.prototype.hasOwnProperty.call(songData.patterns, name) ? songData.patterns[name] : null;
+    return isObj(other) ? { tracks: isObj(other.tracks) ? other.tracks : {}, notes: isObj(other.notes) ? other.notes : {}, ties: isObj(other.ties) ? other.ties : {} } : null;
+  }
+  // The patterns the song has, in the order A to D.
+  function patternNames(songData) {
+    return PATTERN_NAMES.filter((name) => patternData(songData, name));
+  }
+  // What plays, in order: the song order with any pattern the song no longer has dropped (and cut to 32); with no usable order, just the
+  // first pattern the song has.
+  function chainOf(songData) {
+    const names = patternNames(songData);
+    const wanted = (Array.isArray(songData.chain) ? songData.chain : []).filter((name) => names.includes(name)).slice(0, MAX_CHAIN);
+    return wanted.length ? wanted : names.slice(0, 1);
+  }
+  function chainSteps(songData) {
+    return chainOf(songData).length * STEPS;
+  }
+  // The song as scheduleStep reads it while pattern `name` is playing: the same song with that pattern's parts in the usual places.
+  function viewOf(songData, name) {
+    if (isSinglePattern(songData) || name === editingName(songData)) return songData;
+    const part = patternData(songData, name);
+    if (!part) return songData;
+    return Object.assign({}, songData, { tracks: part.tracks, melody: Object.assign({}, isObj(songData.melody) ? songData.melody : {}, { notes: part.notes, ties: part.ties }) });
+  }
+  // The song order resolved to each pattern's parts, for exports that do not play the song (MIDI).
+  function chainPatterns(songData) {
+    return chainOf(songData).map((name) => Object.assign({ name }, patternData(songData, name)));
+  }
+  // Exports repeat the whole song, so a long one gets fewer repeats than the 16 the menu offers (five minutes of audio at most).
+  const MAX_EXPORT_SECONDS = 300;
+  function maxExportLoops(songData) {
+    const seconds = stepDurationFor(songData.tempo) * chainSteps(songData);
+    return Math.max(1, Math.min(16, Math.floor(MAX_EXPORT_SECONDS / seconds)));
+  }
+
   function scheduleStep(ctx, songData, step, time, random = Math.random) {
     time += swingDelay(songData, step);
     // Read fresh every step, same as tempo/kit below, so a live volume-
@@ -621,7 +678,7 @@ function setMasterVolume(ctx, value) {
   // A tiny seeded PRNG gives the waveform preview repeatable noise without
   // changing the live drums' per-hit randomness. Seed from musical content
   // only; cache metadata and preview-only controls must not change the sound.
-  function previewRandom(songData) {
+  function seedPart(songData) {
     const tracks = Object.fromEntries(
       Object.keys(songData.tracks || {}).sort().map((key) => [key, songData.tracks[key]])
     );
@@ -634,7 +691,16 @@ function setMasterVolume(ctx, value) {
       ? Object.keys(notes).sort().filter((key) => Array.isArray(notes[key]) && notes[key].some((on, step) => on && isTiedContinuation(songData, key, step)))
       : [];
     if (melody && heldKeys.length) melody.held = heldKeys.map((key) => [key, songData.melody.ties[key]]);
-    const input = JSON.stringify({ tempo: songData.tempo || 120, kit: songData.kit || "acoustic", tracks, melody });
+    return { tracks, melody };
+  }
+  function previewRandom(songData) {
+    // A one-pattern song seeds from exactly what it always did. A song with several seeds from every pattern and the song order, taken
+    // the same way whichever pattern happens to be open for editing, so the same music always gets the same noise.
+    const input = JSON.stringify(
+      isSinglePattern(songData)
+        ? Object.assign({ tempo: songData.tempo || 120, kit: songData.kit || "acoustic" }, seedPart(songData))
+        : { tempo: songData.tempo || 120, kit: songData.kit || "acoustic", chain: chainOf(songData), patterns: patternNames(songData).map((name) => [name, seedPart(viewOf(songData, name))]) }
+    );
     let seed = 2166136261;
     for (let i = 0; i < input.length; i++) seed = Math.imul(seed ^ input.charCodeAt(i), 16777619);
     let state = seed >>> 0 || 0x6d2b79f5;
@@ -651,19 +717,40 @@ function setMasterVolume(ctx, value) {
   // recording into the admin builder's grid while playing). onStep(step,
   // time), optional: called once per scheduled step for any UI sync
   // (highlighting a cell, animating a visualizer).
+  // `songData` is read fresh each step, so a caller can edit it while it plays. onStep(step, time, info) also gets
+  // info = { pattern, chainIndex, chainLength, data }: which pattern is sounding, where it sits in the song order, and the song as that
+  // pattern plays it (what stepHasAudibleDrumHit should look at).
   function createPlayer(getAudioCtx, songData, onStep) {
     let playing = false;
     let currentStep = 0;
+    let chainIndex = 0;
+    let playingPattern = "A";
+    let loopName = "";
     let nextStepTime = 0;
     let timer = null;
 
     function loop() {
       const ctx = getAudioCtx();
       while (nextStepTime < ctx.currentTime + SCHEDULE_AHEAD_S) {
-        scheduleStep(ctx, songData, currentStep, nextStepTime);
-        if (onStep) onStep(currentStep, nextStepTime + swingDelay(songData, currentStep)); // the time the step actually sounds
+        let name;
+        let length = 1;
+        if (isSinglePattern(songData)) {
+          name = "A";
+        } else if (loopName) {
+          name = patternData(songData, loopName) ? loopName : editingName(songData); // a pattern removed while looping falls back to the open one
+        } else {
+          const chain = chainOf(songData);
+          if (chainIndex >= chain.length) chainIndex = 0; // the order was shortened while playing
+          name = chain[chainIndex];
+          length = chain.length;
+        }
+        const view = viewOf(songData, name);
+        playingPattern = name;
+        scheduleStep(ctx, view, currentStep, nextStepTime);
+        if (onStep) onStep(currentStep, nextStepTime + swingDelay(songData, currentStep), { pattern: name, chainIndex, chainLength: length, data: view }); // the time the step actually sounds
         nextStepTime += stepDurationFor(songData.tempo);
         currentStep = (currentStep + 1) % STEPS;
+        if (currentStep === 0 && length > 1) chainIndex = (chainIndex + 1) % length;
       }
       timer = setTimeout(loop, LOOKAHEAD_MS);
     }
@@ -671,10 +758,13 @@ function setMasterVolume(ctx, value) {
     return {
       // atTime (optional, AudioContext seconds): begin on that moment of the audio clock instead of "now",
       // so a caller that has already scheduled something before the song (a count-in) can land exactly on it.
-      start(atTime) {
+      // options.pattern (optional): loop just that pattern instead of playing the song order.
+      start(atTime, options) {
         if (playing) return;
         playing = true;
         currentStep = 0;
+        chainIndex = 0;
+        loopName = options && typeof options.pattern === "string" ? options.pattern : "";
         const ctx = getAudioCtx();
         nextStepTime = Number.isFinite(atTime) && atTime > ctx.currentTime ? atTime : ctx.currentTime + 0.05;
         loop();
@@ -685,6 +775,8 @@ function setMasterVolume(ctx, value) {
       },
       isPlaying: () => playing,
       currentStep: () => currentStep,
+      currentPattern: () => playingPattern,
+      currentChainIndex: () => chainIndex,
     };
   }
 
@@ -696,7 +788,9 @@ function setMasterVolume(ctx, value) {
   // every frame.
   async function renderWaveformPeaks(songData, peakCount) {
     const stepDur = stepDurationFor(songData.tempo);
-    const duration = stepDur * STEPS;
+    // The whole song order, one pattern after another (a one-pattern song is one loop, as ever).
+    const chain = chainOf(songData);
+    const duration = stepDur * STEPS * chain.length;
     const sampleRate = 44100;
     const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     const ctx = new OfflineCtx(1, Math.ceil(sampleRate * duration), sampleRate);
@@ -715,7 +809,10 @@ function setMasterVolume(ctx, value) {
         ? songData
         : Object.assign({}, songData, { master_volume: 1, humanize: 0, space: 0, echo: 0 });
     const random = previewRandom(previewData);
-    for (let step = 0; step < STEPS; step++) scheduleStep(ctx, previewData, step, step * stepDur, random);
+    chain.forEach((name, bar) => {
+      const view = viewOf(previewData, name);
+      for (let step = 0; step < STEPS; step++) scheduleStep(ctx, view, step, (bar * STEPS + step) * stepDur, random);
+    });
     const buffer = await ctx.startRendering();
     const data = buffer.getChannelData(0);
     const count = peakCount || 200;
@@ -759,9 +856,11 @@ function setMasterVolume(ctx, value) {
   async function renderLoopAudio(songData, options = {}) {
     const rate = Number(options.sampleRate);
     const sampleRate = Number.isFinite(rate) && rate >= 8000 && rate <= 192000 ? Math.round(rate) : 44100;
-    const loops = Math.max(1, Math.min(16, Math.round(Number(options.loops)) || 1));
+    const chain = chainOf(songData);
+    const totalSteps = STEPS * chain.length;
+    const loops = Math.min(maxExportLoops(songData), Math.max(1, Math.min(16, Math.round(Number(options.loops)) || 1)));
     const tail = Math.max(0, Math.min(10, Number(options.tailSeconds) || 0));
-    const loopSamples = Math.max(1, Math.round(stepDurationFor(songData.tempo) * STEPS * sampleRate));
+    const loopSamples = Math.max(1, Math.round(stepDurationFor(songData.tempo) * totalSteps * sampleRate));
     const tailSamples = Math.round(tail * sampleRate);
     const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     const ctx = new OfflineCtx(1, loopSamples * 2 + tailSamples, sampleRate);
@@ -771,10 +870,13 @@ function setMasterVolume(ctx, value) {
     getMasterGain(ctx).gain.value = Number.isFinite(songData.master_volume) ? Math.max(0, Math.min(1, songData.master_volume)) : 1;
     setSpace(ctx, songData.space, true);
     setEcho(ctx, songData.echo, songData.tempo, true);
-    const stepSeconds = loopSamples / sampleRate / STEPS;
+    const stepSeconds = loopSamples / sampleRate / totalSteps;
     for (let pass = 0; pass < 2; pass++) {
       const random = previewRandom(songData);
-      for (let step = 0; step < STEPS; step++) scheduleStep(ctx, songData, step, (pass * STEPS + step) * stepSeconds, random);
+      chain.forEach((name, bar) => {
+        const view = viewOf(songData, name);
+        for (let step = 0; step < STEPS; step++) scheduleStep(ctx, view, step, (pass * totalSteps + bar * STEPS + step) * stepSeconds, random);
+      });
     }
     const rendered = (await ctx.startRendering()).getChannelData(0);
     const samples = new Float32Array(loopSamples * loops + tailSamples);
@@ -797,6 +899,18 @@ function setMasterVolume(ctx, value) {
     stepHasAudibleDrumHit,
     swingDelay,
     DRUM_VOICES: Object.keys(PLAYERS),
+    PATTERN_NAMES,
+    MAX_CHAIN,
+    isSinglePattern,
+    editingName,
+    patternData,
+    patternNames,
+    chainOf,
+    chainSteps,
+    chainPatterns,
+    viewOf,
+    maxExportLoops,
+    previewRandom,
     playMelodyNote,
     playVoicedNote,
     melodyVoiceOf,
