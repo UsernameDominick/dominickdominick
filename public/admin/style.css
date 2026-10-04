@@ -8436,3 +8436,10 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
   .input-with-upload { flex-wrap: wrap; }
   .input-with-upload input { flex: 1 1 100%; min-width: 0; }
 }
+
+/* The Melody / Bass switch above the piano roll, and the bass sound menu beside it. */
+.song-roll-parts select { font-size: 0.78rem; padding: 2px 4px; height: 28px; max-width: 9em; }
+.song-roll-parts select[hidden] { display: none; }
+@media (pointer: coarse), (max-width: 700px) {
+  .song-roll-parts select { height: 36px; }
+}

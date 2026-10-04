@@ -108,6 +108,21 @@ const { chromium, axeSource } = require("./_pw.cjs");
     await p.click("#close-song-builder");
     await p.waitForSelector("#song-builder-modal", { state: "hidden" });
 
+    // ---- a file with a bass track: the bass line comes in too, and is on the Bass tab
+    const withBass = await p.evaluate(({ A, original }) => Array.from(window.SongFiles.buildMidi({ ...original, bass: { notes: { C2: Array(16).fill(false).map((_, i) => i % 4 === 0), G1: Array(16).fill(false).map((_, i) => i === 10) }, ties: {} } }, "QQ with bass").bytes), { A: null, original });
+    await pick("QQ Bass groove.mid", withBass);
+    await p.waitForSelector("#song-builder-modal:not([hidden])", { timeout: 8000 });
+    await p.waitForTimeout(900);
+    const bassSong = await songsNamed("QQ Bass groove");
+    if (bassSong[0]) made.push(bassSong[0].id);
+    const bassNote = await p.textContent("#song-file-status");
+    ok(/and 10 bass notes/.test(bassNote) && /bass line is "Bass"/.test(bassNote), "a file with a Bass track says it read the bass line too", bassNote);
+    await p.click("#song-roll-bass");
+    const bassOn = await p.evaluate(() => { const out = {}; document.querySelectorAll("#song-piano-roll .song-steps").forEach((row) => { const on = [...row.children].map((x, i) => (x.classList.contains("song-step-on") ? i : -1)).filter((i) => i >= 0); if (on.length) out[row.dataset.row] = on.join(","); }); return JSON.stringify(out); });
+    ok(JSON.parse(bassOn).C2 === "0,4,8,12" && JSON.parse(bassOn).G1 === "10", "the bass notes are on the Bass tab at their own pitches", bassOn);
+    await p.click("#close-song-builder");
+    await p.waitForSelector("#song-builder-modal", { state: "hidden" });
+
     // ---- the import button in both themes, and on a phone
     await p.addScriptTag({ content: axeSource() });
     for (const theme of ["dark", "light"]) {

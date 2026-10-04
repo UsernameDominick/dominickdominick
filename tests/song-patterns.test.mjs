@@ -168,5 +168,25 @@ ok(Object.keys(P.CHORDS).length === 7 && P.CHORDS.major.intervals.join() === "0,
   ok(tiesText(P.rotateTies(P.rotateTies({ C4: flagsOf(3, 4, 9) }, 5, 16), -5, 16)) === "C4:3,4,9", "shifting there and back is the original");
 }
 
+// ---- a bass line that follows the kick ----
+{
+  const names = ["B2", "A#2", "A2", "G#2", "G2", "F#2", "F2", "E2", "D#2", "D2", "C#2", "C2"];
+  const hits = [true, false, false, false, true, false, false, false, true, false, false, false, true, false, false, false];
+  const r = P.bassFromHits(names, "C2", hits, 16);
+  ok(text(r.notes.C2) === "xxxxxxxxxxxxxxxx" && Object.keys(r.notes).length === 12, "four kicks a quarter apart: the root is held from each kick to the next (4 steps), filling the bar", text(r.notes.C2));
+  ok(r.ties.C2.map((v, i) => (v ? i : -1)).filter((i) => i >= 0).join() === "1,2,3,5,6,7,9,10,11,13,14,15", "every held step after a kick is tied to the one before it", r.ties.C2);
+  const sparse = P.bassFromHits(names, "G2", [true, false, false, false, false, false, false, false, true, false, false, false, false, false, false, false], 16);
+  ok(text(sparse.notes.G2) === "xxxx....xxxx...." && sparse.ties.G2.filter(Boolean).length === 6, "a hold stops after 4 steps even with a long gap", text(sparse.notes.G2));
+  const short = P.bassFromHits(names, "C2", [true, true, false, false], 4, 1);
+  ok(text(short.notes.C2) === "xx.." && !short.ties.C2, "with a hold of 1 each kick is just its own step", text(short.notes.C2));
+  const soft = P.bassFromHits(names, "C2", [0.5, false, true], 3);
+  ok(soft.notes.C2[0] === 0.5 && soft.notes.C2[1] === 0.5 && soft.notes.C2[2] === true, "a soft kick gives a soft bass note, and a hold keeps its strength", soft.notes.C2);
+  ok(text(P.bassFromHits(names, "C2", [], 16).notes.C2) === "................" && Object.keys(P.bassFromHits(names, "C2", [], 16).ties).length === 0, "no kicks, no bass");
+  ok(Object.keys(P.bassFromHits(names, "C4", hits, 16).ties).length === 0 && !P.bassFromHits(names, "C4", hits, 16).notes.C4 && !text(P.bassFromHits(names, "C4", hits, 16).notes.C2).includes("x"), "a root that is not on the roll gives an empty line, not a crash");
+  ok(P.bassFromHits(null, "C2", null, 16).notes && Object.keys(P.bassFromHits(null, "C2", null, 16).ties).length === 0, "missing arguments do not throw");
+  // the result is clean: ties only where the note is on at that step and the one before
+  ok(JSON.stringify(P.cleanTies(r.notes, r.ties, 16)) === JSON.stringify(r.ties), "the ties are already what cleanTies would keep");
+}
+
 console.log(fail ? `${fail} FAILED` : "ALL PASS");
 process.exit(fail ? 1 : 0);

@@ -39,6 +39,14 @@
     for (let i = 11; i >= 0; i--) PIANO_NOTES.push(NOTE_NAMES[i] + octave);
   });
 
+  // The bass line has its own lower roll (C1 to B2). songData.bass is created the first time it is needed and dropped at save time while it
+  // has nothing in it, so a song that never uses it is stored exactly as it always was.
+  const BASS_NOTES = Engine.BASS_NOTES;
+  const emptyLanes = (names) => names.reduce((acc, n) => {
+    acc[n] = new Array(STEPS).fill(false);
+    return acc;
+  }, {});
+
   function defaultSongData() {
     return {
       tempo: 120,
@@ -78,6 +86,36 @@
   let songs = [];
   let currentSongId = null;
   let songData = defaultSongData();
+  // Which part the piano roll shows and the melody tools work on: "melody", or "bass" (its own lower roll). Everything the roll and its
+  // tools touch goes through roll() / rollNotes(), so the same tools serve both parts.
+  let rollPart = "melody";
+  function ensureBass() {
+    if (!songData.bass || typeof songData.bass !== "object" || Array.isArray(songData.bass)) songData.bass = {};
+    if (!songData.bass.notes || typeof songData.bass.notes !== "object" || Array.isArray(songData.bass.notes)) songData.bass.notes = {};
+    BASS_NOTES.forEach((n) => {
+      if (!Array.isArray(songData.bass.notes[n])) songData.bass.notes[n] = new Array(STEPS).fill(false);
+    });
+    return songData.bass;
+  }
+  const isBassRoll = () => rollPart === "bass";
+  const roll = () => (isBassRoll() ? ensureBass() : songData.melody);
+  const rollNotes = () => (isBassRoll() ? BASS_NOTES : PIANO_NOTES);
+  const rollWord = () => (isBassRoll() ? "bass line" : "melody");
+  const rollWordCap = () => (isBassRoll() ? "Bass line" : "Melody");
+  // Drops a bass line with nothing in it (and every pattern's empty one) from a copy about to be saved.
+  function pruneBass(data) {
+    const hasNotes = (part) => part && part.notes && typeof part.notes === "object" && Object.values(part.notes).some((lane) => Array.isArray(lane) && lane.some(Boolean));
+    if (data.patterns && typeof data.patterns === "object") {
+      Object.values(data.patterns).forEach((part) => {
+        if (part && part.bass && !hasNotes(part.bass)) delete part.bass;
+      });
+    }
+    if (!data.bass) return data;
+    const anyPatternBass = data.patterns && typeof data.patterns === "object" && Object.values(data.patterns).some((part) => part && part.bass);
+    const customised = data.bass.voice !== undefined || data.bass.muted === true || data.bass.hidden === true || (data.bass.volume !== undefined && data.bass.volume !== 1);
+    if (!hasNotes(data.bass) && !anyPatternBass && !customised) delete data.bass;
+    return data;
+  }
   // The drum rows the open song has, in display order: the core four, plus each extra voice that was added to it. A row belongs to the
   // whole song (its colour, mute and volume are shared by every pattern), so it is found by its settings, not by one pattern's lanes.
   function trackList() {
@@ -354,7 +392,7 @@
     const gen = openGeneration;
     const id = currentSongId;
     const dirtyGen = songDirtyGeneration;
-    const data = JSON.parse(JSON.stringify(songData));
+    const data = pruneBass(JSON.parse(JSON.stringify(songData)));
     try {
       await refreshCachedWaveformPeaks(data);
       if (gen !== openGeneration || id !== currentSongId) return; // a different song opened while the peaks render was in flight -- this autosave is stale, let the next one (against the now-current song) handle it
@@ -1245,22 +1283,39 @@
   // the note immediately as a live preview, and — only while the sequencer
   // is playing and "Record" is checked — also write it into the piano roll
   // at whatever step is currently playing.
-  function playAndMaybeRecordNote(noteName) {
+  // The roll row a played note lands on: the note itself in the melody roll, and for the bass line the same note folded by octaves into
+  // C1 to B2 (so a keyboard played in the middle of its range still records a bass line).
+  function rowForNote(name) {
+    if (!isBassRoll()) return name;
+    const m = /^([A-G]#?)(\d)$/.exec(name);
+    if (!m) return name;
+    let number = NOTE_NAMES.indexOf(m[1]) + (Number(m[2]) + 1) * 12;
+    while (number < 24) number += 12;
+    while (number > 47) number -= 12;
+    return NOTE_NAMES[number % 12] + (Math.floor(number / 12) - 1);
+  }
+  function playAndMaybeRecordNote(requested) {
     const ctx = getAudioCtx();
-    const waveform = $("song-waveform").value;
+    const noteName = rowForNote(requested);
+    const part = roll();
     const duration = 60 / (songData.tempo || 120) / 4;
-    const voice = Engine.melodyVoiceOf(songData);
-    Engine.withVolume(ctx, Engine.volumeOf(songData.melody), () =>
-      voice ? Engine.playVoicedNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), voice, duration) : Engine.playMelodyNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), waveform, duration));
-    if (!songData.melody.notes[noteName]) return; // outside the 2-octave piano roll range — preview only
+    if (isBassRoll()) {
+      Engine.withVolume(ctx, Engine.volumeOf(part), () => Engine.playVoicedNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), Engine.bassVoiceOf(songData), duration));
+    } else {
+      const waveform = $("song-waveform").value;
+      const voice = Engine.melodyVoiceOf(songData);
+      Engine.withVolume(ctx, Engine.volumeOf(songData.melody), () =>
+        voice ? Engine.playVoicedNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), voice, duration) : Engine.playMelodyNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), waveform, duration));
+    }
+    if (!part.notes[noteName]) return; // outside the 2-octave piano roll range — preview only
     if (player.isPlaying() && !isCountingIn() && $("song-record").checked && player.currentPattern() === editingPattern()) {
       const step = player.currentStep();
-      const wasRecorded = Boolean(songData.melody.notes[noteName][step]);
-      if (!wasRecorded) songData.melody.notes[noteName][step] = true;
+      const wasRecorded = Boolean(part.notes[noteName][step]);
+      if (!wasRecorded) part.notes[noteName][step] = true;
       // Recording into a collapsed piano roll would write notes nobody can see.
-      const revealed = songData.melody.hidden === true;
+      const revealed = part.hidden === true;
       if (revealed) {
-        setFlag(songData.melody, "hidden", false);
+        setFlag(part, "hidden", false);
         renderPianoRoll();
       }
       const cell = document.querySelector(`.song-steps[data-row="${noteName}"] .song-step[data-step="${step}"]`);
@@ -1274,7 +1329,7 @@
     const isNoteOn = status >> 4 === 9 && velocity > 0;
     if (!isNoteOn) return;
     const noteName = Engine.midiToNoteName(note);
-    const shouldRecord = player.isPlaying() && !isCountingIn() && $("song-record").checked && player.currentPattern() === editingPattern() && !!songData.melody.notes[noteName];
+    const shouldRecord = player.isPlaying() && !isCountingIn() && $("song-record").checked && player.currentPattern() === editingPattern() && !!roll().notes[rowForNote(noteName)];
     const historyBefore = shouldRecord ? captureSongHistoryState() : null;
     playAndMaybeRecordNote(noteName);
     if (historyBefore && pushSongUndoState(historyBefore)) songEditGeneration++;
@@ -1551,6 +1606,8 @@
     const n = Number(v);
     return `${Math.round((Number.isFinite(n) && v != null ? Math.max(0, Math.min(1, n)) : 1) * 100)}%`;
   }
+  // Whether the open pattern's bass line has a note (a bass line with nothing in it is not saved and not reported).
+  const bassHasNotes = () => Boolean(songData.bass && songData.bass.notes && Object.values(songData.bass.notes).some((lane) => Array.isArray(lane) && lane.some(Boolean)));
   const reportVolume = (meta) => (Engine.volumeOf(meta) < 1 ? ` (volume ${Math.round(Engine.volumeOf(meta) * 100)}%)` : "");
   function setVolume(target, value) {
     if (value >= 1) delete target.volume;
@@ -1719,13 +1776,21 @@
     return Engine.isSinglePattern(songData) || playOrder ? undefined : { pattern: editingPattern() };
   }
   const emptyParts = () => ({ tracks: {}, notes: {}, ties: {} });
+  const countOn = (lanes) => Object.values(lanes).reduce((n, lane) => n + (Array.isArray(lane) ? lane.filter(Boolean).length : 0), 0);
   const partsCount = (part) => ({
-    hits: Object.values(part.tracks).reduce((n, lane) => n + (Array.isArray(lane) ? lane.filter(Boolean).length : 0), 0),
-    notes: Object.values(part.notes).reduce((n, lane) => n + (Array.isArray(lane) ? lane.filter(Boolean).length : 0), 0),
+    hits: countOn(part.tracks),
+    notes: countOn(part.notes),
+    bass: part.bass ? countOn(part.bass.notes) : 0,
   });
   const partsSummary = (name) => {
     const c = partsCount(Engine.patternData(songData, name));
-    return `${c.hits} drum hit${c.hits === 1 ? "" : "s"}, ${c.notes} melody note${c.notes === 1 ? "" : "s"}`;
+    return `${c.hits} drum hit${c.hits === 1 ? "" : "s"}, ${c.notes} melody note${c.notes === 1 ? "" : "s"}${c.bass ? `, ${c.bass} bass note${c.bass === 1 ? "" : "s"}` : ""}`;
+  };
+  // The open pattern's parts as the song stores them in patterns: its own tracks, melody and (when the song has one) bass line.
+  const openParts = () => {
+    const parts = { tracks: songData.tracks, notes: songData.melody.notes, ties: songData.melody.ties || {} };
+    if (songData.bass) parts.bass = { notes: songData.bass.notes, ties: songData.bass.ties || {} };
+    return parts;
   };
   // Puts one pattern's parts into the song's own fields, with every row and every piano roll note present.
   function loadParts(part) {
@@ -1741,7 +1806,19 @@
       notes[n] = Array.from({ length: STEPS }, (_, i) => (lane[i] === undefined ? false : lane[i]));
     });
     songData.melody.notes = notes;
-    setMelodyTies(part.ties || {});
+    setPartTies(songData.melody, part.ties || {});
+    // The bass line follows the same pattern: the incoming pattern's notes (or none), over every bass roll note.
+    if (part.bass || songData.bass) {
+      const bass = ensureBass();
+      const incoming = part.bass && part.bass.notes ? part.bass.notes : {};
+      const bassNotes = {};
+      BASS_NOTES.forEach((n) => {
+        const lane = Array.isArray(incoming[n]) ? incoming[n] : [];
+        bassNotes[n] = Array.from({ length: STEPS }, (_, i) => (lane[i] === undefined ? false : lane[i]));
+      });
+      bass.notes = bassNotes;
+      setPartTies(bass, part.bass && part.bass.ties ? part.bass.ties : {});
+    }
   }
   const copyParts = (part) => JSON.parse(JSON.stringify(part));
   // Makes `name` the open pattern: the one open now goes into the store, and `parts` (or the stored pattern of that name) becomes the song's
@@ -1752,7 +1829,7 @@
     const incoming = parts || (Engine.patternData(songData, name) ? copyParts(Engine.patternData(songData, name)) : null);
     if (!incoming) return false;
     const stored = songData.patterns && !Array.isArray(songData.patterns) && typeof songData.patterns === "object" ? songData.patterns : {};
-    stored[from] = { tracks: songData.tracks, notes: songData.melody.notes, ties: songData.melody.ties || {} };
+    stored[from] = openParts();
     delete stored[name];
     songData.patterns = stored;
     if (name === "A") delete songData.editing;
@@ -1861,7 +1938,7 @@
     const name = nextFreeName();
     if (!name) return;
     const from = editingPattern();
-    openPattern(name, copyParts({ tracks: songData.tracks, notes: songData.melody.notes, ties: songData.melody.ties || {} }));
+    openPattern(name, copyParts(openParts()));
     afterPatternSwitch(`Pattern ${name} is a copy of ${from}, and is now open. Undo takes it back.`);
     refreshWaveformPreview();
     scheduleAutosave();
@@ -1872,7 +1949,7 @@
     const name = editingPattern();
     const used = chainList().filter((n) => n === name).length;
     const c = partsCount(Engine.patternData(songData, name));
-    if ((c.hits || c.notes || used) && !confirm(`Remove pattern ${name} (${partsSummary(name)})${used ? ` and its ${used} place${used === 1 ? "" : "s"} in the song order` : ""}? Undo brings it back.`)) return;
+    if ((c.hits || c.notes || c.bass || used) && !confirm(`Remove pattern ${name} (${partsSummary(name)})${used ? ` and its ${used} place${used === 1 ? "" : "s"} in the song order` : ""}? Undo brings it back.`)) return;
     const next = names.find((n) => n !== name);
     openPattern(next); // this stores the pattern being removed, which is then dropped
     delete songData.patterns[name];
@@ -1925,9 +2002,11 @@
   });
 
   function updateMelodyToggles() {
-    const muted = songData.melody.muted === true;
-    const hidden = songData.melody.hidden === true;
-    const melodyVolume = Number.isFinite(Number(songData.melody.volume)) && songData.melody.volume != null ? Math.max(0, Math.min(1, Number(songData.melody.volume))) : 1;
+    const part = roll();
+    const word = rollWord();
+    const muted = part.muted === true;
+    const hidden = part.hidden === true;
+    const melodyVolume = Number.isFinite(Number(part.volume)) && part.volume != null ? Math.max(0, Math.min(1, Number(part.volume))) : 1;
     $("song-melody-volume").value = Math.round(melodyVolume * 100);
     $("song-melody-volume").setAttribute("aria-valuetext", volumeText(melodyVolume));
     $("song-melody-mute").setAttribute("aria-pressed", String(muted));
@@ -1935,26 +2014,32 @@
     $("song-melody-mute").textContent = muted ? "Muted" : "Mute";
     $("song-melody-hide").textContent = hidden ? "Hidden" : "Hide";
     // The accessible name always contains the visible word (WCAG 2.5.3).
-    $("song-melody-mute").setAttribute("aria-label", muted ? "Muted melody" : "Mute melody");
-    $("song-melody-hide").setAttribute("aria-label", hidden ? "Hidden melody piano roll" : "Hide melody piano roll");
+    $("song-melody-mute").setAttribute("aria-label", muted ? `Muted ${word}` : `Mute ${word}`);
+    $("song-melody-hide").setAttribute("aria-label", hidden ? `Hidden ${word} piano roll` : `Hide ${word} piano roll`);
+    $("song-melody-mute").title = `Mute the ${word}: silent in the preview and on the public page`;
+    $("song-melody-hide").title = `Hide the piano roll here in the editor; the ${word} still plays unless muted`;
+    $("song-melody-volume").setAttribute("aria-label", `${rollWordCap()} volume`);
+    $("song-melody-volume").title = `${rollWordCap()} volume`;
   }
 
   function setMelodyFlag(field) {
-    setFlag(songData.melody, field, songData.melody[field] !== true);
+    const part = roll();
+    setFlag(part, field, part[field] !== true);
     updateMelodyToggles();
     if (field === "hidden") {
       renderPianoRoll();
       const toggle = $("song-piano-roll").querySelector(".song-melody-show") || $("song-melody-hide");
       toggle.focus();
     } else {
-      if (songData.melody.hidden === true) renderPianoRoll();
+      if (part.hidden === true) renderPianoRoll();
       refreshWaveformPreview();
     }
     scheduleAutosave();
   }
   $("song-melody-volume").addEventListener("input", () => {
-    setVolume(songData.melody, Number($("song-melody-volume").value) / 100);
-    $("song-melody-volume").setAttribute("aria-valuetext", volumeText(songData.melody.volume ?? 1));
+    const part = roll();
+    setVolume(part, Number($("song-melody-volume").value) / 100);
+    $("song-melody-volume").setAttribute("aria-valuetext", volumeText(part.volume ?? 1));
     refreshWaveformPreview();
     scheduleAutosave();
   });
@@ -1998,29 +2083,32 @@
 
   function renderPianoRoll() {
     syncScaleControls();
+    syncRollPart();
     updateMelodyToggles();
-    if (songData.melody.hidden === true) {
+    const part = roll();
+    const word = rollWord();
+    if (part.hidden === true) {
       $("song-piano-roll").innerHTML =
-        `<div class="song-track-row song-track-row-hidden${songData.melody.muted === true ? " song-track-row-muted" : ""}">` +
-        `<span class="song-track-hidden-note">Melody hidden, ${songData.melody.muted === true ? "muted" : "still plays"}</span>` +
-        `<button type="button" class="song-melody-show">Show melody</button></div>`;
+        `<div class="song-track-row song-track-row-hidden${part.muted === true ? " song-track-row-muted" : ""}">` +
+        `<span class="song-track-hidden-note">${rollWordCap()} hidden, ${part.muted === true ? "muted" : "still plays"}</span>` +
+        `<button type="button" class="song-melody-show">Show ${word}</button></div>`;
       $("song-piano-roll").querySelector(".song-melody-show").addEventListener("click", () => setMelodyFlag("hidden"));
       renderRuler("song-piano-roll");
       return;
     }
     renderStepGrid(
       "song-piano-roll",
-      PIANO_NOTES,
+      rollNotes(),
       (n) => n,
-      (n, i) => songData.melody.notes[n][i],
-      (n, i, v) => (songData.melody.notes[n][i] = v),
+      (n, i) => part.notes[n][i],
+      (n, i, v) => (part.notes[n][i] = v),
       (n) => (n.includes("#") ? " song-row-black-key" : "") + scaleRowClass(n),
       undefined,
       undefined,
       (n) => playAndMaybeRecordNote(n)
     );
     renderRuler("song-piano-roll");
-    setMelodyTies(songData.melody.ties || {});
+    setMelodyTies(part.ties || {});
     paintTies();
     // Spoken cue for the highlight: "C4, root of the scale" / "D4, in scale".
     $("song-piano-roll").querySelectorAll(".song-row-scale").forEach((row) => {
@@ -2029,16 +2117,59 @@
     });
   }
 
+  // The Melody / Bass switch above the roll: which part the roll shows and the tools below it work on. Switching is a view change, not an
+  // edit (no undo step). The heading, the tool labels, the bass sound menu and the chord root list follow the part.
+  function syncRollPart() {
+    const bass = isBassRoll();
+    $("song-roll-melody").setAttribute("aria-pressed", String(!bass));
+    $("song-roll-bass").setAttribute("aria-pressed", String(bass));
+    $("song-roll-title").textContent = bass ? "Bass line (piano roll, C1 to B2)" : "Melody (piano roll)";
+    $("song-bass-voice").hidden = !bass;
+    $("song-bass-follow").hidden = !bass;
+    if (bass) $("song-bass-voice").value = bassVoiceName();
+    $("song-melody-tools-summary").textContent = bass ? "Bass tools: shift, reverse, random bass line, chords and arpeggios" : "Melody tools: shift, reverse, random tune, chords and arpeggios";
+    $("song-melody-clear").textContent = bass ? "Clear bass line" : "Clear melody";
+    $("song-melody-clear").title = bass ? "Remove every bass note (undoable)" : "Remove every melody note (undoable)";
+    $("song-melody-random").textContent = bass ? "Random bass line in scale" : "Random tune in scale";
+    $("song-prog-stamp").textContent = bass ? "Stamp chord roots" : "Stamp progression";
+    $("song-prog-stamp").title = bass
+      ? "Add the root note of every chord of the progression across the loop, keeping the rest of the bass line (undoable). Held roots ring for their whole stretch."
+      : "Add every chord of the progression across the loop, keeping the rest of the melody (undoable). Held chords ring for their whole stretch.";
+    fillChordRoots();
+  }
+  const bassVoiceName = () => Engine.bassVoiceOf(songData);
+  function setRollPart(part) {
+    if (part === rollPart) return;
+    rollPart = part;
+    if (part === "bass") ensureBass();
+    renderPianoRoll();
+    melodyToolsSay(part === "bass" ? "Editing the bass line. Its notes are an octave or two below the melody, C1 to B2." : "Editing the melody.");
+    const active = $(part === "bass" ? "song-roll-bass" : "song-roll-melody");
+    active.focus();
+  }
+  $("song-roll-melody").addEventListener("click", () => setRollPart("melody"));
+  $("song-roll-bass").addEventListener("click", () => setRollPart("bass"));
+  // The bass sound: the engine's "bass" voice unless another is chosen (stored only when it is not the default).
+  $("song-bass-voice").addEventListener("change", () => {
+    const bass = ensureBass();
+    const voice = $("song-bass-voice").value;
+    if (voice === "bass") delete bass.voice;
+    else bass.voice = voice;
+    refreshWaveformPreview();
+    scheduleAutosave();
+  });
+
   // ---------- Held notes (ties) ----------
   // songData.melody.ties[note][step] === true joins that step to the same note one step earlier, so the two play as one longer note
   // (the engine does the playing, see song-engine.js). Only meaningful with the note on at both steps, so every edit tidies them.
-  function setMelodyTies(ties) {
-    const clean = window.SongPatterns.cleanTies(songData.melody.notes, ties, STEPS);
-    if (window.SongPatterns.hasTies(clean)) songData.melody.ties = clean;
-    else delete songData.melody.ties;
+  function setPartTies(part, ties) {
+    const clean = window.SongPatterns.cleanTies(part.notes, ties, STEPS);
+    if (window.SongPatterns.hasTies(clean)) part.ties = clean;
+    else delete part.ties;
   }
+  const setMelodyTies = (ties) => setPartTies(roll(), ties); // the part the roll is showing
   function paintTies() {
-    const ties = songData.melody.ties || {};
+    const ties = roll().ties || {};
     $("song-piano-roll").querySelectorAll(".song-step[data-row]").forEach((cell) => {
       const tied = Boolean(ties[cell.dataset.row] && ties[cell.dataset.row][Number(cell.dataset.step)] === true);
       cell.classList.toggle("song-step-tied", tied);
@@ -2062,12 +2193,12 @@
       e.preventDefault();
       const name = cell.dataset.row;
       const step = Number(cell.dataset.step);
-      const notes = songData.melody.notes;
+      const notes = roll().notes;
       if (step === 0 || !notes[name] || !notes[name][step] || !notes[name][step - 1]) {
         tieSay(`${name} step ${step + 1} can't be tied: a tie joins a note to the same note on the step before, so turn both steps on first.`);
         return;
       }
-      const ties = songData.melody.ties ? JSON.parse(JSON.stringify(songData.melody.ties)) : {};
+      const ties = roll().ties ? JSON.parse(JSON.stringify(roll().ties)) : {};
       if (!ties[name]) ties[name] = new Array(STEPS).fill(false);
       ties[name][step] = ties[name][step] !== true;
       const nowTied = ties[name][step] === true;
@@ -2082,7 +2213,7 @@
   // A plain click (which turns a step on or off) may leave a tie with nothing to join: tidy up after the step's own handler has run.
   $("song-piano-roll").addEventListener("click", (e) => {
     if (e.shiftKey || !(e.target.closest && e.target.closest(".song-step[data-row]"))) return;
-    setMelodyTies(songData.melody.ties || {});
+    setMelodyTies(roll().ties || {});
     paintTies();
   });
 
@@ -2106,11 +2237,12 @@
   // informed choice while it's still reversible by just clicking Cancel.
   // Transposing changes the key of the whole song, so it moves the notes of every pattern, not just the one open.
   function transposeMelody(semitones) {
+    const names = rollNotes();
     const shiftNotes = (oldNotes, label, dropped) => {
       const newNotes = {};
-      PIANO_NOTES.forEach((n) => (newNotes[n] = new Array(STEPS).fill(false)));
-      PIANO_NOTES.forEach((sourceName, sourceIndex) => {
-        const targetName = PIANO_NOTES[sourceIndex - semitones];
+      names.forEach((n) => (newNotes[n] = new Array(STEPS).fill(false)));
+      names.forEach((sourceName, sourceIndex) => {
+        const targetName = names[sourceIndex - semitones];
         for (let step = 0; step < STEPS; step++) {
           if (!oldNotes[sourceName] || !oldNotes[sourceName][step]) continue;
           if (targetName) newNotes[targetName][step] = oldNotes[sourceName][step];
@@ -2122,8 +2254,8 @@
     // Held notes travel with their notes (a tied note that was dropped takes its tie with it).
     const shiftTies = (oldTies) => {
       const newTies = {};
-      PIANO_NOTES.forEach((sourceName, sourceIndex) => {
-        const targetName = PIANO_NOTES[sourceIndex - semitones];
+      names.forEach((sourceName, sourceIndex) => {
+        const targetName = names[sourceIndex - semitones];
         if (targetName && oldTies[sourceName]) newTies[targetName] = oldTies[sourceName];
       });
       return newTies;
@@ -2131,8 +2263,11 @@
     const dropped = [];
     const several = Engine.patternNames(songData).length > 1;
     const openName = editingPattern();
-    const openNotes = shiftNotes(songData.melody.notes, several ? `, pattern ${openName}` : "", dropped);
-    const stored = Object.entries(songData.patterns || {}).filter(([, part]) => part && part.notes).map(([name, part]) => [name, part, shiftNotes(part.notes, `, pattern ${name}`, dropped)]);
+    const open = roll();
+    const openNotes = shiftNotes(open.notes, several ? `, pattern ${openName}` : "", dropped);
+    // each other pattern's notes for this part (a melody sits in the pattern itself, a bass line under its "bass")
+    const slotOf = (part) => (isBassRoll() ? part && part.bass : part);
+    const stored = Object.entries(songData.patterns || {}).map(([name, part]) => [name, slotOf(part)]).filter(([, slot]) => slot && slot.notes).map(([name, slot]) => [name, slot, shiftNotes(slot.notes, `, pattern ${name}`, dropped)]);
     if (dropped.length) {
       const shown = dropped.slice(0, 8).join(", ") + (dropped.length > 8 ? `, and ${dropped.length - 8} more` : "");
       const ok = confirm(
@@ -2140,12 +2275,12 @@
       );
       if (!ok) return;
     }
-    const openTies = shiftTies(songData.melody.ties || {});
-    stored.forEach(([, part, notes]) => {
-      part.notes = notes;
-      part.ties = shiftTies(part.ties || {});
+    const openTies = shiftTies(open.ties || {});
+    stored.forEach(([, slot, notes]) => {
+      slot.notes = notes;
+      slot.ties = shiftTies(slot.ties || {});
     });
-    songData.melody.notes = openNotes;
+    open.notes = openNotes;
     setMelodyTies(openTies);
     renderPianoRoll();
     refreshWaveformPreview();
@@ -2155,10 +2290,16 @@
   // ---------- Melody tools: shift, reverse, clear, random tune, chord stamp and arpeggio (maths in song-patterns.js) ----------
   // Every button here changes songData synchronously inside its click, so the song's own Undo (which watches clicks) covers each one.
   const MP = window.SongPatterns;
-  const ROLL_LOW_TO_HIGH = [...PIANO_NOTES].reverse();
   const chordRoot = $("song-chord-root");
-  ROLL_LOW_TO_HIGH.forEach((n) => chordRoot.appendChild(new Option(n, n)));
-  chordRoot.value = "C4";
+  // The chord root menu lists the notes of the part being edited, lowest first, keeping the chosen root when the new roll has it.
+  function fillChordRoots() {
+    const names = [...rollNotes()].reverse();
+    if (chordRoot.options.length === names.length && chordRoot.options[0].value === names[0]) return;
+    chordRoot.innerHTML = "";
+    names.forEach((n) => chordRoot.appendChild(new Option(n, n)));
+    chordRoot.value = isBassRoll() ? "C2" : "C4";
+  }
+  fillChordRoots();
   Object.entries(MP.CHORDS).forEach(([id, c]) => $("song-chord-type").appendChild(new Option(c.label, id)));
   Object.entries(MP.ARPEGGIO_PATTERNS).forEach(([id, label]) => $("song-arp-pattern").appendChild(new Option(label, id)));
   let melodyToolsAnnounce = 0;
@@ -2167,21 +2308,23 @@
     $("song-melody-tools-note").textContent = message + (melodyToolsAnnounce % 2 ? "" : " ");
   }
   function melodyHasNotes() {
-    return PIANO_NOTES.some((n) => songData.melody.notes[n] && songData.melody.notes[n].some(Boolean));
+    const notes = roll().notes;
+    return rollNotes().some((n) => notes[n] && notes[n].some(Boolean));
   }
   // Runs one tool: fn gets the current notes and returns the new ones. A hidden piano roll is left alone so nothing changes out of sight.
   // tiesFn(oldTies, newNotes) says what happens to the held notes; leave it out and they are cleared (a melody made from scratch).
   function melodyEdit(fn, message, tiesFn) {
-    if (songData.melody.hidden === true) {
-      melodyToolsSay("The melody is hidden. Show it first (the Show melody button in the piano roll), then try again.");
+    const part = roll();
+    if (part.hidden === true) {
+      melodyToolsSay(`The ${rollWord()} is hidden. Show it first (the Show ${rollWord()} button in the piano roll), then try again.`);
       return false;
     }
-    const next = fn(songData.melody.notes);
-    PIANO_NOTES.forEach((n) => {
+    const next = fn(part.notes);
+    rollNotes().forEach((n) => {
       if (!next[n]) next[n] = new Array(STEPS).fill(false);
     });
-    songData.melody.notes = next;
-    setMelodyTies(tiesFn ? tiesFn(songData.melody.ties || {}, next) : {});
+    part.notes = next;
+    setMelodyTies(tiesFn ? tiesFn(part.ties || {}, next) : {});
     renderPianoRoll();
     refreshWaveformPreview();
     scheduleAutosave();
@@ -2189,28 +2332,28 @@
     return true;
   }
   $("song-melody-shift-left").addEventListener("click", () => {
-    if (!melodyHasNotes()) return melodyToolsSay("There are no melody notes to shift yet.");
-    melodyEdit((notes) => MP.rotateMelody(notes, -1, STEPS), "Melody shifted one step earlier.", (ties) => MP.rotateTies(ties, -1, STEPS));
+    if (!melodyHasNotes()) return melodyToolsSay(`There are no ${rollWord()} notes to shift yet.`);
+    melodyEdit((notes) => MP.rotateMelody(notes, -1, STEPS), `${rollWordCap()} shifted one step earlier.`, (ties) => MP.rotateTies(ties, -1, STEPS));
   });
   $("song-melody-shift-right").addEventListener("click", () => {
-    if (!melodyHasNotes()) return melodyToolsSay("There are no melody notes to shift yet.");
-    melodyEdit((notes) => MP.rotateMelody(notes, 1, STEPS), "Melody shifted one step later.", (ties) => MP.rotateTies(ties, 1, STEPS));
+    if (!melodyHasNotes()) return melodyToolsSay(`There are no ${rollWord()} notes to shift yet.`);
+    melodyEdit((notes) => MP.rotateMelody(notes, 1, STEPS), `${rollWordCap()} shifted one step later.`, (ties) => MP.rotateTies(ties, 1, STEPS));
   });
   $("song-melody-reverse").addEventListener("click", () => {
-    if (!melodyHasNotes()) return melodyToolsSay("There are no melody notes to reverse yet.");
-    melodyEdit((notes) => MP.reverseMelody(notes, STEPS), "Melody reversed.", (ties) => MP.reverseTies(ties, STEPS));
+    if (!melodyHasNotes()) return melodyToolsSay(`There are no ${rollWord()} notes to reverse yet.`);
+    melodyEdit((notes) => MP.reverseMelody(notes, STEPS), `${rollWordCap()} reversed.`, (ties) => MP.reverseTies(ties, STEPS));
   });
   $("song-melody-clear").addEventListener("click", () => {
-    if (!melodyHasNotes()) return melodyToolsSay("The melody is already empty.");
-    melodyEdit(() => ({}), "Melody cleared. Undo brings it back.");
+    if (!melodyHasNotes()) return melodyToolsSay(`The ${rollWord()} is already empty.`);
+    melodyEdit(() => ({}), `${rollWordCap()} cleared. Undo brings it back.`);
   });
   $("song-melody-tie-repeats").addEventListener("click", () => {
-    const pairs = Object.values(MP.tieRepeats(songData.melody.notes, STEPS)).reduce((n, row) => n + row.filter(Boolean).length, 0);
+    const pairs = Object.values(MP.tieRepeats(roll().notes, STEPS)).reduce((n, row) => n + row.filter(Boolean).length, 0);
     if (!pairs) return melodyToolsSay("There are no repeated notes to tie: a note has to be on two steps in a row.");
     melodyEdit((notes) => notes, `${pairs} repeated note${pairs === 1 ? "" : "s"} tied: each run plays as one held note.`, (ties, notes) => MP.tieRepeats(notes, STEPS));
   });
   $("song-melody-untie").addEventListener("click", () => {
-    if (!MP.hasTies(songData.melody.ties)) return melodyToolsSay("No notes are held yet.");
+    if (!MP.hasTies(roll().ties)) return melodyToolsSay("No notes are held yet.");
     melodyEdit((notes) => notes, "All held notes untied: every note is struck again.", () => ({}));
   });
   $("song-melody-density").addEventListener("input", () => {
@@ -2218,12 +2361,29 @@
   });
   $("song-melody-random").addEventListener("click", () => {
     const sc = activeScale();
-    const pool = sc ? MP.scalePool(PIANO_NOTES, sc.root, SCALES[sc.type]) : MP.scalePool(PIANO_NOTES, "C", SCALES.majpent);
+    const pool = sc ? MP.scalePool(rollNotes(), sc.root, SCALES[sc.type]) : MP.scalePool(rollNotes(), "C", SCALES.majpent);
     const label = sc ? `${sc.root} ${$("song-scale-type").selectedOptions[0].textContent.toLowerCase()}` : "C major pentatonic (no scale is highlighted)";
     const had = melodyHasNotes();
-    melodyEdit(() => MP.randomMelody(PIANO_NOTES, pool, STEPS, { density: Number($("song-melody-density").value) / 100 }), `A random tune in ${label}${had ? " replaced the melody. Undo brings it back" : ""}.`);
+    melodyEdit(() => MP.randomMelody(rollNotes(), pool, STEPS, { density: Number($("song-melody-density").value) / 100 }), `A random ${isBassRoll() ? "bass line" : "tune"} in ${label}${had ? ` replaced the ${rollWord()}. Undo brings it back` : ""}.`);
   });
-  const chosenChord = () => MP.chordNames($("song-chord-root").value, $("song-chord-type").value, PIANO_NOTES);
+  // Bass only: a note on the root at every kick hit of the open pattern, held until the next one (see SongPatterns.bassFromHits).
+  $("song-bass-follow").addEventListener("click", () => {
+    const hits = songData.tracks && songData.tracks.kick;
+    if (!Array.isArray(hits) || !hits.some(Boolean)) return melodyToolsSay("The kick has no hits in this pattern. Add some in the drums first, then the bass can follow it.");
+    const sc = activeScale();
+    const root = sc ? sc.root : "C";
+    const had = melodyHasNotes();
+    let made = null;
+    melodyEdit(
+      () => {
+        made = MP.bassFromHits(rollNotes(), `${root}2`, hits, STEPS);
+        return made.notes;
+      },
+      `Bass on every kick, on ${root}${had ? ", replacing the bass line. Undo brings it back" : ""}.`,
+      () => made.ties
+    );
+  });
+  const chosenChord = () => MP.chordNames($("song-chord-root").value, $("song-chord-type").value, rollNotes());
   const chordWord = () => `${$("song-chord-root").value} ${$("song-chord-type").selectedOptions[0].textContent.toLowerCase()}`;
   const missingWord = (c) => (c.missing ? ` ${c.missing} chord note${c.missing === 1 ? " was" : "s were"} above the piano roll and left out.` : "");
   $("song-chord-stamp").addEventListener("click", () => {
@@ -2239,26 +2399,28 @@
     const every = Number($("song-arp-every").value) || 1;
     const had = melodyHasNotes();
     melodyEdit(
-      () => MP.arpeggioMelody(PIANO_NOTES, c.names, $("song-arp-pattern").value, every, STEPS),
-      `${chordWord()} arpeggio, ${$("song-arp-pattern").selectedOptions[0].textContent.toLowerCase()}, a note every ${every === 1 ? "step" : every + " steps"}${had ? ", replaced the melody. Undo brings it back" : ""}.${missingWord(c)}`
+      () => MP.arpeggioMelody(rollNotes(), c.names, $("song-arp-pattern").value, every, STEPS),
+      `${chordWord()} arpeggio, ${$("song-arp-pattern").selectedOptions[0].textContent.toLowerCase()}, a note every ${every === 1 ? "step" : every + " steps"}${had ? `, replaced the ${rollWord()}. Undo brings it back` : ""}.${missingWord(c)}`
     );
   });
 
-  // Chord progressions: all the chords of a well-known sequence in a key, spread over the loop and (by default) held so they ring.
+  // Chord progressions: all the chords of a well-known sequence in a key, spread over the loop and (by default) held so they ring. On the
+  // bass line only each chord's root is stamped, which is what a bass plays under a progression.
   NOTE_NAMES.forEach((n) => $("song-prog-key").appendChild(new Option(n, n)));
   $("song-prog-key").value = "C";
   MP.PROGRESSIONS.forEach((p) => $("song-prog-type").appendChild(new Option(p.label, p.id)));
   $("song-prog-stamp").addEventListener("click", () => {
-    const chords = MP.progressionChords(PIANO_NOTES, $("song-prog-key").value, $("song-prog-type").value);
+    let chords = MP.progressionChords(rollNotes(), $("song-prog-key").value, $("song-prog-type").value);
     if (!chords.length) return melodyToolsSay("That progression is not available in this key.");
+    if (isBassRoll()) chords = chords.map((c) => ({ label: c.label, names: c.names.slice(0, 1), missing: 0 }));
     const hold = $("song-prog-hold").checked;
     const span = Math.floor(STEPS / chords.length);
     const left = chords.reduce((n, c) => n + c.missing, 0);
     let stamped = null;
-    const message = `${$("song-prog-type").selectedOptions[0].textContent.split(":")[0]} progression in ${$("song-prog-key").value}: ${chords.map((c) => c.label).join(", ")}, ${hold ? `each held for ${span} step${span === 1 ? "" : "s"}` : `struck on every ${span === 1 ? "step" : span + "th step"}`}.${left ? ` ${left} chord note${left === 1 ? " was" : "s were"} above the piano roll and left out.` : ""}`;
+    const message = `${$("song-prog-type").selectedOptions[0].textContent.split(":")[0]} progression${isBassRoll() ? " (chord roots)" : ""} in ${$("song-prog-key").value}: ${chords.map((c) => c.label).join(", ")}, ${hold ? `each held for ${span} step${span === 1 ? "" : "s"}` : `struck on every ${span === 1 ? "step" : span + "th step"}`}.${left ? ` ${left} chord note${left === 1 ? " was" : "s were"} above the piano roll and left out.` : ""}`;
     melodyEdit(
       (notes) => {
-        stamped = MP.stampProgression(notes, songData.melody.ties || {}, chords, STEPS, { hold });
+        stamped = MP.stampProgression(notes, roll().ties || {}, chords, STEPS, { hold });
         return stamped.notes;
       },
       message,
@@ -2378,7 +2540,11 @@
       delete clean.melody.muted;
       delete clean.melody.hidden;
     }
-    return clean;
+    if (clean.bass) {
+      delete clean.bass.muted;
+      delete clean.bass.hidden;
+    }
+    return pruneBass(clean);
   }
 
   $("save-song-template-btn").addEventListener("click", async () => {
@@ -2417,6 +2583,17 @@
     PIANO_NOTES.forEach((n) => {
       if (!data.melody.notes[n]) data.melody.notes[n] = new Array(STEPS).fill(false);
     });
+    // A bass line, if the song has one: every bass roll note present, nothing odd left in place of an object.
+    if (data.bass !== undefined && !isPlain(data.bass)) delete data.bass;
+    if (isPlain(data.bass)) {
+      const bassNotes = isPlain(data.bass.notes) ? data.bass.notes : {};
+      data.bass.notes = {};
+      BASS_NOTES.forEach((n) => {
+        const lane = Array.isArray(bassNotes[n]) ? bassNotes[n] : [];
+        data.bass.notes[n] = Array.from({ length: STEPS }, (_, i) => (lane[i] === undefined ? false : lane[i]));
+      });
+      if (data.bass.ties !== undefined && !isPlain(data.bass.ties)) delete data.bass.ties;
+    }
     if (!data.trackMeta) data.trackMeta = defaultSongData().trackMeta;
     [...CORE_TRACKS, ...EXTRA_TRACKS.filter(hasRow)].forEach((t) => {
       if (!data.trackMeta[t]) data.trackMeta[t] = { color: DEFAULT_TRACK_COLORS[t], note: "" };
@@ -2440,6 +2617,16 @@
           part.notes[n] = Array.from({ length: STEPS }, (_, i) => (lane[i] === undefined ? false : lane[i]));
         });
         if (!isPlain(part.ties)) part.ties = {};
+        if (part.bass !== undefined && !isPlain(part.bass)) delete part.bass;
+        if (isPlain(part.bass)) {
+          const bassNotes = isPlain(part.bass.notes) ? part.bass.notes : {};
+          part.bass.notes = {};
+          BASS_NOTES.forEach((n) => {
+            const lane = Array.isArray(bassNotes[n]) ? bassNotes[n] : [];
+            part.bass.notes[n] = Array.from({ length: STEPS }, (_, i) => (lane[i] === undefined ? false : lane[i]));
+          });
+          if (!isPlain(part.bass.ties)) part.bass.ties = {};
+        }
       });
       if (!Object.keys(data.patterns).length) delete data.patterns;
     }
@@ -2755,6 +2942,7 @@
     resetSongHistory();
     resetClipHistory();
     playOrder = chainList().length > 1;
+    rollPart = "melody"; // every song opens on its melody
     renderSequencer();
     renderPianoRoll();
     renderPatternControls();
@@ -2795,7 +2983,7 @@
     const gen = openGeneration;
     const id = currentSongId;
     const dirtyGen = songDirtyGeneration;
-    const data = JSON.parse(JSON.stringify(songData));
+    const data = pruneBass(JSON.parse(JSON.stringify(songData)));
     const saveButton = $("save-song");
     const wasDisabled = saveButton.disabled;
     const pendingAutosave = autosavePromise;
@@ -2887,6 +3075,7 @@
         ? []
         : [`Patterns: ${Engine.patternNames(songData).join(", ")} (${editingPattern()} was open)`, `Song order: ${Engine.chainOf(songData).join(" ")} (${Engine.chainOf(songData).length} bar${Engine.chainOf(songData).length === 1 ? "" : "s"})`]),
       `Melody sound: ${Engine.melodyVoiceOf(songData) ? Engine.MELODY_VOICES[Engine.melodyVoiceOf(songData)].label : `Basic, ${songData.melody.waveform} waveform`}${songData.melody.muted === true ? " (muted)" : ""}${reportVolume(songData.melody)}`,
+      ...(bassHasNotes() ? [`Bass sound: ${Engine.MELODY_VOICES[Engine.bassVoiceOf(songData)].label}${songData.bass.muted === true ? " (muted)" : ""}${reportVolume(songData.bass)}`] : []),
       `Visualization: ${songData.visualization}`,
       `Theme: ${songData.theme}`,
       `Master volume: ${Math.round((typeof songData.master_volume === "number" ? songData.master_volume : 1) * 100)}%`,
@@ -2907,6 +3096,10 @@
       usedNotes.forEach((n) => lines.push(`  ${n}: ${songData.melody.notes[n].filter(Boolean).length} / ${STEPS}`));
     } else {
       lines.push("  (none)");
+    }
+    if (bassHasNotes()) {
+      lines.push("", "Bass notes used:");
+      BASS_NOTES.filter((n) => songData.bass.notes[n] && songData.bass.notes[n].some(Boolean)).forEach((n) => lines.push(`  ${n}: ${songData.bass.notes[n].filter(Boolean).length} / ${STEPS}`));
     }
     if (songData.private_notes && songData.private_notes.trim()) {
       lines.push("", "Notes:", songData.private_notes.trim());
@@ -2936,7 +3129,7 @@
   $("song-export-midi").addEventListener("click", () => {
     const out = window.SongFiles.buildMidi(songData, $("song-name").value.trim() || "Untitled song");
     if (!out.bytes) {
-      fileStatus("Nothing to export: no unmuted drum track or melody has any notes.");
+      fileStatus("Nothing to export: no unmuted drum track, melody or bass line has any notes.");
       return;
     }
     downloadBlob(new Blob([out.bytes], { type: "audio/midi" }), `${fileStem()}.mid`);
@@ -3156,7 +3349,7 @@
     return new Blob([...parts, ...central, end.buffer], { type: "application/zip" });
   }
 
-  // One copy of the song per stem, with every other track and the melody muted
+  // One copy of the song per stem, with every other track, the melody and the bass line muted
   // (a muted track in the song itself is left out). Stems are rendered on their
   // own, so noise-based drums and humanize timing are not sample-identical to
   // the same track inside the full mix.
@@ -3168,6 +3361,7 @@
       trackList().forEach((t) => { copy.trackMeta[t] = { ...(copy.trackMeta[t] || {}), muted: t !== solo }; });
       copy.melody = copy.melody || { waveform: "sine", notes: {} };
       copy.melody.muted = solo !== "melody";
+      if (copy.bass) copy.bass.muted = solo !== "bass";
       return copy;
     };
     const playedPatterns = Engine.chainPatterns(songData);
@@ -3177,6 +3371,8 @@
     });
     const anyMelody = playedPatterns.some((part) => Object.values(part.notes).some((lane) => Array.isArray(lane) && lane.some(Boolean)));
     if (anyMelody && !(songData.melody && songData.melody.muted === true)) jobs.push({ id: "melody", label: "Melody", data: copyFor("melody") });
+    const anyBass = playedPatterns.some((part) => part.bass && Object.values(part.bass.notes).some((lane) => Array.isArray(lane) && lane.some(Boolean)));
+    if (anyBass && !(songData.bass && songData.bass.muted === true)) jobs.push({ id: "bass", label: "Bass", data: copyFor("bass") });
     return jobs;
   }
 

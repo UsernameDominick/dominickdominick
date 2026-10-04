@@ -273,5 +273,28 @@
     return out;
   }
 
-  window.SongPatterns = { euclideanRow, STARTERS, starterRow, CHORDS, PROGRESSIONS, progressionChords, stampProgression, ARPEGGIO_PATTERNS, noteValue, rotateMelody, reverseMelody, cleanTies, hasTies, rotateTies, reverseTies, tieRepeats, chordNames, stampChord, arpeggioMelody, scalePool, randomMelody };
+  // A bass line that follows a drum row (usually the kick): a note on `rootName` at every hit, held until the next hit but for at most
+  // `maxHold` steps, so the bass pumps with the drums. Returns { notes, ties } over `allNames`, both empty when the root is not on the roll.
+  function bassFromHits(allNames, rootName, hits, steps, maxHold = 4) {
+    const n = stepCount(steps);
+    const notes = emptyMelody(allNames || [], n);
+    const ties = {};
+    if (!notes[rootName]) return { notes, ties };
+    const level = (v) => (v === true ? true : typeof v === "number" && v > 0 ? v : false);
+    const at = [];
+    for (let i = 0; i < n; i++) if (level(hits && hits[i])) at.push(i);
+    const longest = Math.max(1, Math.floor(Number(maxHold)) || 1);
+    at.forEach((start, k) => {
+      const next = k + 1 < at.length ? at[k + 1] : n;
+      const end = Math.min(next, start + longest); // exclusive
+      notes[rootName][start] = level(hits[start]);
+      for (let i = start + 1; i < end; i++) {
+        notes[rootName][i] = notes[rootName][start];
+        (ties[rootName] || (ties[rootName] = new Array(n).fill(false)))[i] = true;
+      }
+    });
+    return { notes, ties };
+  }
+
+  window.SongPatterns = { bassFromHits, euclideanRow, STARTERS, starterRow, CHORDS, PROGRESSIONS, progressionChords, stampProgression, ARPEGGIO_PATTERNS, noteValue, rotateMelody, reverseMelody, cleanTies, hasTies, rotateTies, reverseTies, tieRepeats, chordNames, stampChord, arpeggioMelody, scalePool, randomMelody };
 })();

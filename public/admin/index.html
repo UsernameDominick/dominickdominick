@@ -2219,7 +2219,7 @@
             <div class="song-group-controls">
               <button type="button" id="song-export-report" title="Download a plain-text summary of this song's settings and note counts">Export report</button>
               <button type="button" id="song-export-audio" title="Render the loop to a WAV file: choose the sample rate, bit depth and number of repeats">Export audio…</button>
-              <button type="button" id="song-export-midi" title="Download the song as a MIDI file for a music program: drums on channel 10, melody on channel 1, 4/4 at this tempo with swing. One bar per pattern in the song order. Muted tracks are left out; humanize is not included">Export MIDI</button>
+              <button type="button" id="song-export-midi" title="Download the song as a MIDI file for a music program: drums on channel 10, melody on channel 1, bass line on channel 2, 4/4 at this tempo with swing. One bar per pattern in the song order. Muted tracks are left out; humanize is not included">Export MIDI</button>
               <button type="button" id="song-export-json" title="Download the whole song (every setting, drum step and melody note) as a file you can keep or import into any song list">Export song file</button>
               <span id="song-file-status" class="song-file-status" role="status"></span>
               <button type="button" id="song-generate-cover-art" title="Render this song's waveform as a 1200x630 cover image and add it to the Media Library">Generate cover art</button>
@@ -2303,7 +2303,14 @@
             <button type="button" id="song-euclid-apply" class="song-track-toggle" title="Replace the drums chosen under Apply to with the hits spread as evenly as possible (a Euclidean rhythm, undoable)">Spread evenly</button>
           </div>
         </details>
-        <h2 class="song-section-heading">Melody (piano roll)
+        <h2 class="song-section-heading"><span id="song-roll-title">Melody (piano roll)</span>
+          <span class="song-transpose-controls song-roll-parts" role="group" aria-label="Part shown in the piano roll">
+            <button type="button" id="song-roll-melody" class="song-track-toggle" data-no-history aria-pressed="true" title="Edit the melody in the piano roll">Melody</button>
+            <button type="button" id="song-roll-bass" class="song-track-toggle" data-no-history aria-pressed="false" title="Edit the bass line: a second part with its own lower piano roll (C1 to B2), sound, volume and mute">Bass</button>
+            <select id="song-bass-voice" aria-label="Bass sound" title="The bass line's sound: Bass is the default; the others are the same instruments the melody can use" hidden>
+              <option value="bass">Bass</option><option value="pluck">Pluck</option><option value="lead">Lead</option><option value="pad">Pad</option><option value="bell">Bell</option>
+            </select>
+          </span>
           <span class="song-transpose-controls">
             <button type="button" id="song-melody-mute" class="song-track-toggle" aria-pressed="false" aria-label="Mute melody" title="Mute the melody: silent in the preview and on the public page">Mute</button>
             <button type="button" id="song-melody-hide" class="song-track-toggle" aria-pressed="false" aria-label="Hide melody piano roll" title="Hide the piano roll here in the editor; the melody still plays unless muted">Hide</button>
@@ -2329,12 +2336,13 @@
         <div id="song-piano-roll-ruler" class="song-ruler" aria-hidden="true"></div>
         <div id="song-piano-roll" class="song-sequencer song-piano-roll"></div>
         <details class="song-generators" id="song-melody-tools">
-          <summary>Melody tools: shift, reverse, random tune, chords and arpeggios</summary>
+          <summary id="song-melody-tools-summary">Melody tools: shift, reverse, random tune, chords and arpeggios</summary>
           <div class="song-pattern-tools" role="group" aria-label="Move the melody">
             <button type="button" id="song-melody-shift-left" class="song-track-toggle" title="Move every note one step earlier; the first step wraps to the end">◀ Shift</button>
             <button type="button" id="song-melody-shift-right" class="song-track-toggle" title="Move every note one step later; the last step wraps to the start">Shift ▶</button>
             <button type="button" id="song-melody-reverse" class="song-track-toggle" title="Play the melody backwards (undoable)">Reverse</button>
             <button type="button" id="song-melody-clear" class="song-track-toggle" title="Remove every melody note (undoable)">Clear melody</button>
+            <button type="button" id="song-bass-follow" class="song-track-toggle" title="Put a bass note on every kick hit of this pattern, on the highlighted scale's root (C when none is highlighted), held until the next kick. Replaces the bass line (undoable)" hidden>Follow the kick</button>
           </div>
           <div class="song-pattern-tools" role="group" aria-label="Held notes">
             <button type="button" id="song-melody-tie-repeats" class="song-track-toggle" title="Tie every note that is on two steps in a row, so each run plays as one longer held note (undoable). To tie one pair by hand, Shift+click the second note.">Tie repeated notes</button>
@@ -2436,7 +2444,7 @@
           </label>
         </div>
         <label class="song-audio-dither"><input type="checkbox" id="song-audio-dither" checked> Dither when reducing to 16 or 24 bits <span class="sim-lock-hint">(adds a whisper of noise that hides rounding distortion; float needs none)</span></label>
-        <label class="song-audio-dither"><input type="checkbox" id="song-audio-stems"> Export each track as its own file (stems, in one ZIP) <span class="sim-lock-hint">(kick, snare, hi-hat, clap and melody that have notes and aren't muted; each at its mixed volume)</span></label>
+        <label class="song-audio-dither"><input type="checkbox" id="song-audio-stems"> Export each track as its own file (stems, in one ZIP) <span class="sim-lock-hint">(each drum row, the melody and the bass line that have notes and aren't muted; each at its mixed volume)</span></label>
         <p id="song-audio-summary" class="song-audio-summary" aria-live="polite"></p>
         <div class="song-audio-actions">
           <button type="button" id="song-audio-go">Export WAV</button>

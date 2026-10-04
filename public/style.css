@@ -112,7 +112,8 @@
   --error-text: #c62828;
   /* --error-bg is intentionally not overridden here — #c62828 above already
      verifies at 5.62:1 against white regardless of page theme. */
-  --success: #1f7a3f;
+  /* Darkened from #1f7a3f, which was 4.39:1 on the admin toolbar's cream and so failed for the "Saved" pill; this is 5.1:1. */
+  --success: #1a6e38;
   --warning: #8a5a1f;
   --info: #2f5fc7;
 }
