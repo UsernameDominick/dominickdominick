@@ -92,7 +92,7 @@ window.SongEngine = (function () {
     // Per-track mix: while a voice is being scheduled its output goes through a gain node of that
   // track's volume instead of straight to the master bus.
   let voiceDest = null;
-  let busDest = null; // the music bus while the melody and bass are being scheduled with Pump on (see "Pump" below)
+  let busDest = null; // the music bus while the melody and the other melodic parts are being scheduled with Pump on (see "Pump" below)
   function voiceOut(ctx) {
     return voiceDest || busDest || getMasterGain(ctx);
   }
@@ -547,21 +547,30 @@ function setMasterVolume(ctx, value) {
     return typeof name === "string" && Object.prototype.hasOwnProperty.call(MELODY_VOICES, name) ? name : "";
   }
 
-  // ---------- Bass line ----------
-  // A second melodic part, songData.bass: { notes, ties, voice, volume, muted, hidden } shaped like songData.melody but over a lower
-  // two-octave roll (C1 to B2, BASS_NOTES). Its sound is a named voice, "bass" unless the song picked another. A song without it plays
-  // exactly as it always did.
-  const BASS_NOTES = [];
-  [2, 1].forEach((octave) => {
-    for (let i = 11; i >= 0; i--) BASS_NOTES.push(NOTE_NAMES[i] + octave);
+  // ---------- Melodic parts: bass, chords, lead ----------
+  // Three more melodic parts besides the melody, each songData[key] = { notes, ties, voice, volume, muted, hidden } shaped like
+  // songData.melody but over a two-octave roll of its own (BASS C1 to B2, CHORDS C3 to B4, LEAD C4 to B5, highest note first). Its sound
+  // is a named voice, a default per part unless the song picked another. A song without a part plays exactly as it always did.
+  const PART_KEYS = ["bass", "chords", "lead"];
+  const PART_OCTAVES = { bass: [1, 2], chords: [3, 4], lead: [4, 5] };
+  const PART_VOICES = { bass: "bass", chords: "pad", lead: "lead" };
+  const PART_NOTES = {};
+  PART_KEYS.forEach((key) => {
+    PART_NOTES[key] = [];
+    for (let octave = PART_OCTAVES[key][1]; octave >= PART_OCTAVES[key][0]; octave--) {
+      for (let i = 11; i >= 0; i--) PART_NOTES[key].push(NOTE_NAMES[i] + octave);
+    }
   });
-  function bassVoiceOf(songData) {
-    const name = songData && songData.bass && songData.bass.voice;
-    return typeof name === "string" && Object.prototype.hasOwnProperty.call(MELODY_VOICES, name) ? name : "bass";
+  const BASS_NOTES = PART_NOTES.bass;
+  function partVoiceOf(songData, key) {
+    const name = songData && songData[key] && songData[key].voice;
+    return typeof name === "string" && Object.prototype.hasOwnProperty.call(MELODY_VOICES, name) ? name : PART_VOICES[key];
   }
-  function isBassMuted(songData) {
-    return Boolean(songData.bass && songData.bass.muted === true);
+  function isPartMuted(songData, key) {
+    return Boolean(songData[key] && songData[key].muted === true);
   }
+  const bassVoiceOf = (songData) => partVoiceOf(songData, "bass");
+  const isBassMuted = (songData) => isPartMuted(songData, "bass");
 
   function stepDurationFor(tempo) {
     return 60 / (tempo || 120) / 4; // 16th notes
@@ -605,7 +614,7 @@ function setMasterVolume(ctx, value) {
   // Held notes: melody.ties[note][i] === true joins step i to the same note on step i - 1, so the two are one note held for both steps
   // (no new attack on step i). A flag only counts when the note is on at both steps; anything else is ignored, so a stale flag can
   // never change the sound. Nothing ties across the end of the loop.
-  // `part` is "melody" (the default) or "bass".
+  // `part` is "melody" (the default), "bass", "chords" or "lead".
   function isTiedContinuation(songData, note, step, part = "melody") {
     const voice = songData[part];
     const ties = voice && voice.ties && voice.ties[note];
@@ -634,23 +643,27 @@ function setMasterVolume(ctx, value) {
   function editingName(songData) {
     return PATTERN_NAMES.includes(songData.editing) ? songData.editing : "A";
   }
-  // One pattern's parts, or null when the song has no such pattern. A pattern carries a bass line ({ notes, ties }, as "bass") only when the
-  // song has one.
+  // One pattern's parts, or null when the song has no such pattern. A pattern carries a part ({ notes, ties }, as "bass", "chords" or "lead")
+  // only when the song has that part.
   function patternData(songData, name) {
     if (!PATTERN_NAMES.includes(name)) return null;
     if (name === editingName(songData)) {
       const melody = isObj(songData.melody) ? songData.melody : {};
       const open = { tracks: isObj(songData.tracks) ? songData.tracks : {}, notes: isObj(melody.notes) ? melody.notes : {}, ties: isObj(melody.ties) ? melody.ties : {} };
-      if (isObj(songData.bass)) open.bass = { notes: isObj(songData.bass.notes) ? songData.bass.notes : {}, ties: isObj(songData.bass.ties) ? songData.bass.ties : {} };
+      PART_KEYS.forEach((key) => {
+        if (isObj(songData[key])) open[key] = { notes: isObj(songData[key].notes) ? songData[key].notes : {}, ties: isObj(songData[key].ties) ? songData[key].ties : {} };
+      });
       return open;
     }
     const other = isObj(songData.patterns) && Object.prototype.hasOwnProperty.call(songData.patterns, name) ? songData.patterns[name] : null;
     if (!isObj(other)) return null;
     const stored = { tracks: isObj(other.tracks) ? other.tracks : {}, notes: isObj(other.notes) ? other.notes : {}, ties: isObj(other.ties) ? other.ties : {} };
-    if (isObj(other.bass) || isObj(songData.bass)) {
-      const bass = isObj(other.bass) ? other.bass : {};
-      stored.bass = { notes: isObj(bass.notes) ? bass.notes : {}, ties: isObj(bass.ties) ? bass.ties : {} };
-    }
+    PART_KEYS.forEach((key) => {
+      if (isObj(other[key]) || isObj(songData[key])) {
+        const part = isObj(other[key]) ? other[key] : {};
+        stored[key] = { notes: isObj(part.notes) ? part.notes : {}, ties: isObj(part.ties) ? part.ties : {} };
+      }
+    });
     return stored;
   }
   // The patterns the song has, in the order A to D.
@@ -682,7 +695,9 @@ function setMasterVolume(ctx, value) {
     const part = patternData(songData, name);
     if (!part) return songData;
     const view = Object.assign({}, songData, { tracks: part.tracks, melody: Object.assign({}, isObj(songData.melody) ? songData.melody : {}, { notes: part.notes, ties: part.ties }) });
-    if (part.bass) view.bass = Object.assign({}, isObj(songData.bass) ? songData.bass : {}, { notes: part.bass.notes, ties: part.bass.ties });
+    PART_KEYS.forEach((key) => {
+      if (part[key]) view[key] = Object.assign({}, isObj(songData[key]) ? songData[key] : {}, { notes: part[key].notes, ties: part[key].ties });
+    });
     return view;
   }
   // The song order resolved to each pattern's parts, for exports that do not play the song (MIDI).
@@ -728,7 +743,7 @@ function setMasterVolume(ctx, value) {
     withMusicBus(ctx, pump, () => scheduleMusic(ctx, songData, step, time, random));
   }
 
-  // The melody and the bass line of one step (split out of scheduleStep so Pump can route them through the music bus).
+  // The melody and the other melodic parts of one step (split out of scheduleStep so Pump can route them through the music bus).
   function scheduleMusic(ctx, songData, step, time, random) {
     if (songData.melody && !isMelodyMuted(songData)) {
       const waveform = songData.melody.waveform || "sine";
@@ -744,18 +759,19 @@ function setMasterVolume(ctx, value) {
         }
       });
     }
-    if (isObj(songData.bass) && isObj(songData.bass.notes) && !isBassMuted(songData)) {
-      const voice = bassVoiceOf(songData);
+    PART_KEYS.forEach((key) => {
+      if (!(isObj(songData[key]) && isObj(songData[key].notes)) || isPartMuted(songData, key)) return;
+      const voice = partVoiceOf(songData, key);
       const duration = stepDurationFor(songData.tempo);
-      Object.keys(songData.bass.notes).sort().forEach((note) => {
-        const lane = songData.bass.notes[note];
-        if (Array.isArray(lane) && lane[step] && !isTiedContinuation(songData, note, step, "bass")) {
+      Object.keys(songData[key].notes).sort().forEach((note) => {
+        const lane = songData[key].notes[note];
+        if (Array.isArray(lane) && lane[step] && !isTiedContinuation(songData, note, step, key)) {
           const noteTime = Math.max(0, time + humanizeJitter(songData, random));
-          const length = duration * heldSteps(songData, note, step, "bass");
-          withVolume(ctx, volumeOf(songData.bass) * stepLevel(lane[step]), () => playVoicedNote(ctx, noteTime, noteToFreq(note), voice, length));
+          const length = duration * heldSteps(songData, note, step, key);
+          withVolume(ctx, volumeOf(songData[key]) * stepLevel(lane[step]), () => playVoicedNote(ctx, noteTime, noteToFreq(note), voice, length));
         }
       });
-    }
+    });
   }
 
   // ---------- Scheduler ----------
@@ -785,12 +801,13 @@ function setMasterVolume(ctx, value) {
       : [];
     if (melody && heldKeys.length) melody.held = heldKeys.map((key) => [key, songData.melody.ties[key]]);
     const seed = { tracks, melody };
-    // A bass line feeds the seed only once it has a note, so a song without one seeds exactly as it always did.
-    if (isObj(songData.bass) && isObj(songData.bass.notes)) {
-      const bassNotes = songData.bass.notes;
-      const used = Object.keys(bassNotes).sort().filter((key) => Array.isArray(bassNotes[key]) && bassNotes[key].some(Boolean));
-      if (used.length) seed.bass = { voice: bassVoiceOf(songData), notes: used.map((key) => [key, bassNotes[key], isObj(songData.bass.ties) ? songData.bass.ties[key] || null : null]) };
-    }
+    // A bass line, chords or lead feed the seed only once they have a note, so a song without them seeds exactly as it always did.
+    PART_KEYS.forEach((part) => {
+      if (!(isObj(songData[part]) && isObj(songData[part].notes))) return;
+      const partNotes = songData[part].notes;
+      const used = Object.keys(partNotes).sort().filter((key) => Array.isArray(partNotes[key]) && partNotes[key].some(Boolean));
+      if (used.length) seed[part] = { voice: partVoiceOf(songData, part), notes: used.map((key) => [key, partNotes[key], isObj(songData[part].ties) ? songData[part].ties[key] || null : null]) };
+    });
     return seed;
   }
   function previewRandom(songData) {
@@ -998,6 +1015,11 @@ function setMasterVolume(ctx, value) {
     isBassMuted,
     bassVoiceOf,
     BASS_NOTES,
+    PART_KEYS,
+    PART_NOTES,
+    PART_OCTAVES,
+    partVoiceOf,
+    isPartMuted,
     isTiedContinuation,
     heldSteps,
     stepHasAudibleDrumHit,

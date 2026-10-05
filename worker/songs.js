@@ -11,6 +11,10 @@ const allArrays = (obj) => Object.values(obj).every(Array.isArray);
 // Patterns A to D and the song order. The pattern open in the builder is the song's own tracks and melody; the others live under
 // "patterns" as { tracks, notes, ties }. Returns an error message, or null (a song with none of these is fine).
 const PATTERN_NAMES = ["A", "B", "C", "D"];
+// The melodic parts besides the melody: each is { notes, ties, voice, volume, muted, hidden } over a roll of its own (public/song-engine.js).
+const PART_KEYS = ["bass", "chords", "lead"];
+const PART_WORDS = { bass: "bass line", chords: "chords", lead: "lead" };
+const PART_SHORT = { bass: "bass", chords: "chords", lead: "lead" };
 const MAX_CHAIN = 32;
 function patternsError(data) {
   if ("editing" in data && !PATTERN_NAMES.includes(data.editing)) return "The open pattern must be A, B, C or D.";
@@ -22,10 +26,12 @@ function patternsError(data) {
       for (const key of ["tracks", "notes", "ties"]) {
         if (key in part && (!isPlainObject(part[key]) || !allArrays(part[key]))) return `Pattern ${name}'s ${key === "tracks" ? "drum tracks" : key === "notes" ? "melody notes" : "held notes"} must be lists of steps.`;
       }
-      if ("bass" in part) {
-        if (!isPlainObject(part.bass)) return `Pattern ${name}'s bass line must be an object.`;
+      for (const partKey of PART_KEYS) {
+        if (!(partKey in part)) continue;
+        const word = PART_WORDS[partKey];
+        if (!isPlainObject(part[partKey])) return `Pattern ${name}'s ${word} must be an object.`;
         for (const key of ["notes", "ties"]) {
-          if (key in part.bass && (!isPlainObject(part.bass[key]) || !allArrays(part.bass[key]))) return `Pattern ${name}'s bass ${key === "notes" ? "notes" : "held notes"} must be lists of steps.`;
+          if (key in part[partKey] && (!isPlainObject(part[partKey][key]) || !allArrays(part[partKey][key]))) return `Pattern ${name}'s ${PART_SHORT[partKey]} ${key === "notes" ? "notes" : "held notes"} must be lists of steps.`;
         }
       }
     }
@@ -57,11 +63,14 @@ export function songDataError(data) {
     if ("ties" in data.melody && (!isPlainObject(data.melody.ties) || !allArrays(data.melody.ties))) return "The melody's held notes must be lists of steps.";
     if ("voice" in data.melody && (typeof data.melody.voice !== "string" || data.melody.voice.length > MAX_VOICE_NAME)) return "The melody's sound must be a short name.";
   }
-  if ("bass" in data) {
-    if (!isPlainObject(data.bass)) return "The song's bass line must be an object.";
-    if ("notes" in data.bass && (!isPlainObject(data.bass.notes) || !allArrays(data.bass.notes))) return "The bass line's notes must be lists of steps.";
-    if ("ties" in data.bass && (!isPlainObject(data.bass.ties) || !allArrays(data.bass.ties))) return "The bass line's held notes must be lists of steps.";
-    if ("voice" in data.bass && (typeof data.bass.voice !== "string" || data.bass.voice.length > MAX_VOICE_NAME)) return "The bass line's sound must be a short name.";
+  for (const partKey of PART_KEYS) {
+    if (!(partKey in data)) continue;
+    const part = data[partKey];
+    const word = PART_WORDS[partKey];
+    if (!isPlainObject(part)) return `The song's ${word} must be an object.`;
+    if ("notes" in part && (!isPlainObject(part.notes) || !allArrays(part.notes))) return `The ${word}'s notes must be lists of steps.`;
+    if ("ties" in part && (!isPlainObject(part.ties) || !allArrays(part.ties))) return `The ${word}'s held notes must be lists of steps.`;
+    if ("voice" in part && (typeof part.voice !== "string" || part.voice.length > MAX_VOICE_NAME)) return `The ${word}'s sound must be a short name.`;
   }
   return null;
 }

@@ -8454,8 +8454,8 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 }
 
 /* ---------- Song builder: Studio layout (song-studio.js) ----------
-   Phone first, top to bottom: the stack of layer cards, the open layer, the play controls, the piano keys. The classic header and body
-   stay in the page (hidden) because the studio drives them. */
+   Phone first, top to bottom: five track cards stacked on top of each other (the open one in front), the open track, the play controls,
+   and the piano keys at the bottom. The classic header and body stay in the page (hidden) because the studio drives them. */
 #song-builder-modal.song-studio-on .song-toolbar,
 #song-builder-modal.song-studio-on .song-builder-body { display: none; }
 #song-builder-modal.song-studio-on:not(.studio-multi-tabs) #song-tabs { display: none; }
@@ -8465,12 +8465,12 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 }
 
 .song-studio {
-  --layer-1: #ff7a45;
-  --layer-2: #f5c542;
-  --layer-3: #3ecf8e;
-  --layer-4: #4aa3ff;
-  --layer-5: #b388ff;
-  --on-layer: #111;
+  --track-1: #ff7a45;
+  --track-2: #4aa3ff;
+  --track-3: #3ecf8e;
+  --track-4: #b388ff;
+  --track-5: #ff6fae;
+  --on-track: #111;
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
@@ -8484,12 +8484,12 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
   overflow-y: auto;
 }
 :root[data-theme="light"] .song-studio {
-  --layer-1: #c2410c;
-  --layer-2: #8a6500;
-  --layer-3: #0f7a55;
-  --layer-4: #1d5fc2;
-  --layer-5: #6d35c9;
-  --on-layer: #fff;
+  --track-1: #c2410c;
+  --track-2: #1d5fc2;
+  --track-3: #0f7a55;
+  --track-4: #6d35c9;
+  --track-5: #b0245f;
+  --on-track: #fff;
 }
 
 /* the bar at the top */
@@ -8500,65 +8500,56 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 }
 .studio-status { flex: 0 1 auto; max-width: 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.78rem; color: var(--text-dim); }
 .studio-status:empty { display: none; }
-.studio-btn { flex: 0 0 auto; min-height: 42px; padding: 0 14px; font-size: 0.9rem; }
-.studio-btn-primary { position: relative; background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 600; }
+.studio-btn { flex: 0 0 auto; min-height: 42px; padding: 0 12px; font-size: 0.85rem; }
+.studio-btn-primary { position: relative; padding: 0 14px; background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-size: 0.9rem; font-weight: 600; }
 .studio-btn-primary:hover { color: var(--on-accent); border-color: var(--accent); filter: brightness(1.08); }
 .studio-btn-primary[data-state="dirty"]::after { content: ""; position: absolute; top: 6px; right: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--on-accent); }
 .studio-icon { flex: 0 0 auto; width: 42px; height: 42px; padding: 0; font-size: 1.1rem; }
-.studio-btn:not(.studio-btn-primary) { padding: 0 12px; font-size: 0.85rem; }
 
-/* the stack of layer cards (3): the open layer in front, its neighbours tucked behind it */
-.studio-stack { position: relative; flex: 0 0 auto; height: 132px; overflow: hidden; touch-action: pan-y; user-select: none; }
+/* the track cards (3): stacked on top of each other, each showing its top strip, the open one in front. Scroll, or tap one. */
+.studio-stack {
+  --F: 76px;
+  --s: 24px;
+  position: relative; flex: 0 0 auto; height: calc(var(--F) + 4 * var(--s) + 5px);
+  overflow: hidden; touch-action: none; user-select: none;
+}
 .studio-stack:focus { outline: none; }
 .studio-card {
-  position: absolute; top: 14px; bottom: 6px; left: 8%; right: 8%;
-  transform: translateX(calc(var(--d, 0) * 13% + var(--drag, 0px))) translateY(calc(var(--ad, 0) * -6px)) scale(calc(1 - var(--ad, 0) * 0.06));
-  z-index: calc(10 - var(--ad, 0));
-  opacity: calc(1 - var(--ad, 0) * 0.18);
+  position: absolute; left: 3px; right: 3px; top: 3px; height: var(--F);
+  transform: translateY(calc(var(--k1, 0) * var(--s) + var(--k2, 0) * var(--F)));
+  z-index: var(--z, 1);
 }
-.studio-card[data-pos="gone"] { visibility: hidden; opacity: 0; pointer-events: none; }
+.studio-card[data-pos="front"] { transform: translateY(calc(var(--k1, 0) * var(--s) + var(--drag, 0px))); }
 .studio-card-main {
-  position: absolute; inset: 0;
-  display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; column-gap: 10px; row-gap: 5px; align-items: center;
-  padding: 10px 12px 9px; text-align: left; color: var(--text);
-  background: var(--bg-elevated); border: 1px solid var(--border); border-top: 3px solid var(--layer-color); border-radius: 14px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+  position: absolute; inset: 0; display: flex; flex-direction: column; padding: 0; overflow: hidden; text-align: left; color: var(--text);
+  background: var(--bg-elevated); border: 1px solid var(--border); border-top: 3px solid var(--track-color); border-radius: 12px;
+  box-shadow: 0 -3px 10px rgba(0, 0, 0, 0.22);
 }
-.studio-card-main:hover { color: var(--text); border-color: var(--border); border-top-color: var(--layer-color); }
-.studio-card[data-pos="front"] .studio-card-main { box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35), 0 0 0 2px var(--layer-color); }
-/* A card behind the front one shows only its edge: a coloured top and its number, on the side it peeks from. */
-.studio-card:not([data-pos="front"]) .studio-card-main { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); }
-.studio-card:not([data-pos="front"]) .studio-card-main > *:not(.studio-badge) { visibility: hidden; }
-.studio-card:not([data-pos="front"]) .studio-badge { position: absolute; top: 8px; width: 22px; height: 22px; font-size: 0.75rem; }
-.studio-card[data-side="left"] .studio-badge { left: 4px; }
-.studio-card[data-side="right"] .studio-badge { right: 4px; }
+.studio-card-main:hover { color: var(--text); border-color: var(--border); border-top-color: var(--track-color); background: color-mix(in srgb, var(--track-color) 8%, var(--bg-elevated)); }
+.studio-card[data-pos="front"] .studio-card-main { box-shadow: 0 8px 22px rgba(0, 0, 0, 0.4), 0 0 0 2px var(--track-color); background: var(--bg-elevated); }
+.studio-card-head { flex: 0 0 auto; height: calc(var(--s) - 3px); display: flex; align-items: center; gap: 8px; padding: 0 10px; }
 .studio-badge {
   width: 26px; height: 26px; border-radius: 50%; flex: 0 0 auto;
   display: inline-flex; align-items: center; justify-content: center;
-  background: var(--layer-color, var(--accent)); color: var(--on-layer); font-size: 0.85rem; font-weight: 700;
+  background: var(--track-color, var(--accent)); color: var(--on-track); font-size: 0.85rem; font-weight: 700;
 }
-.studio-card-name { font-size: 1rem; font-weight: 650; padding-right: 64px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.studio-card-head .studio-badge { width: 17px; height: 17px; font-size: 0.68rem; }
+.studio-card-name { flex: 1 1 auto; min-width: 0; font-size: 0.92rem; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.studio-card-count { flex: 0 0 auto; font-size: 0.72rem; color: var(--text-dim); }
+.studio-card[data-pos="front"] .studio-card-count { display: none; }
+.studio-card-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 4px; padding: 0 10px 8px; }
 .studio-dots {
-  grid-column: 1 / -1; width: 100%; height: 100%; min-height: 24px; max-height: 44px;
-  fill: var(--layer-color); background: color-mix(in srgb, var(--text) 6%, transparent); border-radius: 6px;
+  flex: 1 1 auto; min-height: 18px; width: 100%;
+  fill: var(--track-color); background: color-mix(in srgb, var(--text) 6%, transparent); border-radius: 6px;
 }
-.studio-card-meta { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 8px; font-size: 0.76rem; color: var(--text-dim); }
+.studio-card-meta { flex: 0 0 auto; display: flex; justify-content: space-between; gap: 8px; font-size: 0.74rem; color: var(--text-dim); }
 .studio-card-sound { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.studio-card-mute { position: absolute; top: 11px; right: 10px; z-index: 1; min-height: 28px; padding: 2px 11px; font-size: 0.75rem; border-radius: 14px; background: var(--bg); }
-.studio-card-mute[aria-pressed="true"], #studio-mute[aria-pressed="true"], .studio-mini[aria-pressed="true"] { background: var(--warning); border-color: var(--warning); color: var(--on-accent); }
+.studio-card-main[data-muted="true"] .studio-card-name, .studio-card-main[data-muted="true"] .studio-dots { opacity: 0.5; }
 
-.studio-pager { flex: 0 0 auto; display: flex; justify-content: center; gap: 10px; margin-top: -2px; }
-.studio-dot {
-  min-width: 30px; height: 26px; padding: 0; border-radius: 13px; font-size: 0.78rem; font-weight: 700;
-  color: var(--text-dim); background: transparent; border: 1px solid var(--border);
-}
-.studio-dot:hover { color: var(--text); border-color: var(--layer-color); }
-.studio-dot[aria-pressed="true"] { color: var(--on-layer); background: var(--layer-color); border-color: var(--layer-color); }
-
-/* the open layer (4) */
+/* the open track (4) */
 .studio-detail {
   flex: 1 1 auto; min-height: 300px; display: flex; flex-direction: column; gap: 8px; overflow-x: hidden; overflow-y: auto;
-  padding: 10px 12px 12px; background: var(--bg-elevated); border: 1px solid var(--border); border-top: 3px solid var(--layer-color, var(--accent)); border-radius: 14px;
+  padding: 10px 12px 12px; background: var(--bg-elevated); border: 1px solid var(--border); border-top: 3px solid var(--track-color, var(--accent)); border-radius: 14px;
 }
 .studio-detail-head { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; }
 .studio-detail-title { flex: 1 1 auto; min-width: 0; }
@@ -8572,7 +8563,8 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 .studio-small { width: 34px; height: 34px; }
 .studio-small svg { width: 17px; height: 17px; }
 .studio-pill { flex: 0 0 auto; min-height: 34px; padding: 0 14px; border-radius: 17px; font-size: 0.85rem; }
-.studio-round[aria-pressed="true"], .studio-pill[aria-pressed="true"]:not(#studio-mute), .studio-pat[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+#studio-mute[aria-pressed="true"], .studio-mini[aria-pressed="true"] { background: var(--warning); border-color: var(--warning); color: var(--on-accent); }
+.studio-round[aria-pressed="true"], .studio-pat[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .studio-patterns { display: inline-flex; gap: 4px; flex: 0 0 auto; }
 .studio-patterns:empty { display: none; }
 .studio-pat { min-width: 32px; min-height: 32px; padding: 0 8px; border-radius: 16px; }
@@ -8582,21 +8574,16 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
   padding: 8px; background: var(--bg); border-radius: 10px;
 }
 .studio-grid { flex: 1 1 auto; display: flex; flex-direction: column; gap: 3px; }
-/* A drum layer has few rows, so they grow to fill the card; a melodic layer has many and scrolls. */
-.studio-grid[data-kind="drums"] { justify-content: center; }
-.studio-grid[data-kind="drums"] .studio-row { flex: 1 1 var(--cell-h); max-height: 76px; }
-.studio-grid[data-kind="drums"] .studio-beat { grid-template-rows: minmax(var(--cell-h), 1fr); }
-.studio-grid[data-kind="drums"] .studio-cell { height: auto; min-height: var(--cell-h); }
-.studio-grid[data-kind="drums"] { --cell-h: 38px; --lab: 42px; }
-.studio-grid[data-kind="bass"], .studio-grid[data-kind="melody"] { --cell-h: 24px; --lab: 32px; }
-.studio-row { display: grid; grid-template-columns: var(--lab) repeat(4, minmax(0, 1fr)); gap: 6px; align-items: stretch; }
-/* A note roll keeps a finger-sized cell and scrolls sideways when the screen is narrower than its sixteen steps; its note names stay put. */
-.studio-grid[data-kind="bass"] .studio-row, .studio-grid[data-kind="melody"] .studio-row { grid-template-columns: var(--lab) repeat(4, minmax(118px, 1fr)); }
-.studio-grid[data-kind="bass"] .studio-row-label, .studio-grid[data-kind="melody"] .studio-row-label { position: sticky; left: 0; z-index: 1; background: var(--bg); }
-.studio-row-label { align-self: center; padding: 0; font-size: 0.72rem; text-align: left; color: var(--text-dim); background: none; border: 0; border-radius: 4px; }
-.studio-row-key { cursor: pointer; }
+.studio-grid[data-kind="drums"] { --cell-h: 32px; --lab: 40px; }
+.studio-grid[data-kind="notes"] { --cell-h: 24px; --lab: 32px; }
+/* A grid keeps finger-sized cells and scrolls sideways when the screen is narrower than its sixteen steps; its names stay put. */
+.studio-row { display: grid; grid-template-columns: var(--lab) repeat(4, minmax(112px, 1fr)); gap: 6px; align-items: stretch; flex: 0 0 auto; }
+.studio-row-label {
+  position: sticky; left: 0; z-index: 1; align-self: center; padding: 0; font-size: 0.72rem; text-align: left;
+  color: var(--text-dim); background: var(--bg); border: 0; border-radius: 4px;
+}
+.studio-row-key { color: var(--text); cursor: pointer; }
 .studio-row-key:hover { color: var(--text); }
-.studio-row-key { color: var(--text); }
 .studio-row-black .studio-row-label { color: var(--text-dim); }
 .studio-beat { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; }
 .studio-cell {
@@ -8607,28 +8594,31 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 .studio-beat-alt .studio-cell { background: color-mix(in srgb, var(--text) 14%, transparent); }
 .studio-row-black .studio-cell { background: color-mix(in srgb, var(--text) 5%, transparent); }
 .studio-row-black .studio-beat-alt .studio-cell { background: color-mix(in srgb, var(--text) 9%, transparent); }
-.studio-cell.on, .studio-cell.on:hover { background: var(--layer-color); box-shadow: 0 0 10px -2px var(--layer-color); }
+.studio-cell.on, .studio-cell.on:hover { background: var(--track-color); box-shadow: 0 0 10px -2px var(--track-color); }
 .studio-cell.on[style*="--lv"] { opacity: calc(0.45 + var(--lv) * 0.55); }
 .studio-cell.tied { margin-left: -2px; border-top-left-radius: 0; border-bottom-left-radius: 0; }
-.studio-cell.now:not(.on) { background: color-mix(in srgb, var(--layer-color) 30%, transparent); }
+.studio-cell.now:not(.on) { background: color-mix(in srgb, var(--track-color) 30%, transparent); }
 .studio-cell.now.on { filter: brightness(1.3); }
 .studio-cell:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.studio-hint { flex: 0 0 auto; margin: 0; font-size: 0.74rem; color: var(--text-dim); }
+.studio-hint, .studio-note { flex: 0 0 auto; margin: 0; font-size: 0.74rem; color: var(--text-dim); }
+.studio-note { color: var(--text); }
 
-.studio-edit { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 14px; }
+.studio-edit { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; }
 .studio-edit:empty { display: none; }
-.studio-foot { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; }
+.studio-foot { flex: 0 0 auto; display: flex; align-items: flex-start; gap: 10px; }
 .studio-vol-inline { flex: 1 1 auto; display: flex; align-items: center; gap: 10px; font-size: 0.78rem; color: var(--text-dim); }
 .studio-vol-inline input { flex: 1 1 auto; min-width: 0; width: 100%; }
 .studio-field { display: flex; flex-direction: column; gap: 3px; flex: 1 1 130px; min-width: 0; font-size: 0.74rem; color: var(--text-dim); }
 .studio-field-wide { flex-basis: 100%; }
+.studio-field-small { flex: 0 0 76px; }
 .studio-field select { min-height: 40px; width: 100%; font-size: 1rem; }
-.studio-field input[type="range"] { width: 100%; min-height: 28px; }
 .studio-wave-field { display: contents; }
 .studio-add { display: flex; gap: 6px; }
 .studio-add select { flex: 1 1 auto; }
 .studio-mini { flex: 0 0 auto; min-height: 36px; padding: 0 12px; font-size: 0.8rem; }
+.studio-action { align-self: flex-end; }
 .studio-link { margin-left: auto; flex: 0 0 auto; padding: 6px 4px; font-size: 0.8rem; color: var(--text-dim); background: none; border: 0; text-decoration: underline; }
+.studio-mix { flex: 1 1 auto; min-width: 0; font-size: 0.85rem; }
 .studio-mix summary { cursor: pointer; padding: 4px 0; }
 .studio-mix-row { display: grid; grid-template-columns: 64px auto minmax(0, 1fr); gap: 8px; align-items: center; margin-top: 6px; }
 
@@ -8643,7 +8633,7 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 }
 .studio-play:hover { color: var(--on-accent); filter: brightness(1.08); }
 .studio-play svg { width: 26px; height: 26px; fill: currentColor; }
-.studio-rec { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px; border-radius: 20px; flex: 0 0 auto; }
+.studio-pill.studio-rec { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px; border-radius: 20px; }
 .studio-rec svg { width: 14px; height: 14px; fill: var(--error-text); }
 .studio-rec[aria-pressed="true"] { background: var(--error-text); border-color: var(--error-text); color: var(--on-accent); }
 .studio-rec[aria-pressed="true"] svg { fill: currentColor; }
@@ -8652,8 +8642,9 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 .studio-vol input { flex: 1 1 auto; width: 100%; min-width: 0; }
 .studio-bpm { display: flex; align-items: baseline; gap: 4px; flex: 0 0 auto; font-size: 0.7rem; color: var(--text-dim); }
 .studio-bpm input { width: 58px; min-height: 40px; padding: 0 4px; font-size: 1rem; text-align: center; }
+.studio-toggle[aria-pressed="true"], .studio-pill[aria-pressed="true"]:not(#studio-mute) { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 
-/* the piano keys (1): a keyboard you scroll sideways, or pads for a drum layer */
+/* the piano keys (1): they stay at the bottom, a keyboard you scroll sideways, or pads on the drums */
 .studio-keys-scroll { flex: 0 0 auto; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: thin; background: #1b1b1f; border-radius: 12px; }
 .studio-keys { position: relative; height: 128px; min-width: max(100%, calc(var(--whites, 14) * 46px)); user-select: none; touch-action: pan-x; }
 .studio-key { position: absolute; top: 0; padding: 0; border: 1px solid #3b3b44; cursor: pointer; font: inherit; }
@@ -8664,42 +8655,45 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 .studio-key-white:hover { color: #333; border-color: #3b3b44; }
 .studio-key-black { z-index: 1; height: 60%; background: linear-gradient(#34343b, #0e0e10); border-color: #000; border-radius: 0 0 6px 6px; }
 .studio-key-black:hover { border-color: #000; }
-.studio-key.lit.studio-key-white, .studio-key.down.studio-key-white { background: linear-gradient(color-mix(in srgb, var(--layer-color) 30%, #fff), var(--layer-color)); }
-.studio-key.lit.studio-key-black, .studio-key.down.studio-key-black { background: linear-gradient(var(--layer-color), color-mix(in srgb, var(--layer-color) 50%, #000)); }
-.studio-pads { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 10px; padding: 10px; min-width: 100%; }
-.studio-pad { border-radius: 12px; border: 1px solid #3b3b44; background: #2a2a31; color: #f3f3f5; font-size: 0.95rem; font-weight: 600; }
+.studio-key.lit.studio-key-white, .studio-key.down.studio-key-white { background: linear-gradient(color-mix(in srgb, var(--track-color) 30%, #fff), var(--track-color)); }
+.studio-key.lit.studio-key-black, .studio-key.down.studio-key-black { background: linear-gradient(var(--track-color), color-mix(in srgb, var(--track-color) 50%, #000)); }
+.studio-pads { display: grid; grid-template-columns: repeat(auto-fit, minmax(76px, 1fr)); gap: 8px; padding: 8px; min-width: 100%; }
+.studio-pad { border-radius: 12px; border: 1px solid #3b3b44; background: #2a2a31; color: #f3f3f5; font-size: 0.9rem; font-weight: 600; }
 .studio-pad:hover { color: #f3f3f5; border-color: #55555f; }
-.studio-pad.lit, .studio-pad.down { background: var(--layer-color); border-color: var(--layer-color); color: var(--on-layer); }
+.studio-pad.lit, .studio-pad.down { background: var(--track-color); border-color: var(--track-color); color: var(--on-track); }
 .studio-key:focus-visible, .studio-pad:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
 
+@media (min-width: 641px) {
+  .studio-stack { --F: 84px; --s: 26px; }
+  .studio-grid[data-kind="drums"] { --cell-h: 34px; }
+  .studio-grid[data-kind="notes"] { --cell-h: 26px; }
+  .studio-keys { height: 128px; }
+}
 @media (max-width: 640px) {
-  /* Drums on a phone: two lines of eight steps for each sound, so every step is a finger-sized target. */
-  .studio-grid[data-kind="drums"] .studio-row { grid-template-columns: var(--lab) repeat(2, minmax(0, 1fr)); row-gap: 3px; max-height: none; }
-  .studio-grid[data-kind="drums"] .studio-row-label { grid-row: span 2; }
   .song-studio { gap: 8px; padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px)); }
-  .studio-help, .studio-status { display: none; }
-  .studio-stack { height: 116px; }
+  .studio-status { display: none; }
   .studio-detail { padding: 8px 10px 10px; }
-  .studio-keys { height: 116px; }
+  .studio-keys { height: 104px; }
 }
 @media (max-width: 480px) {
   .studio-controls { gap: 6px; padding: 6px 8px; }
   .studio-play { width: 48px; height: 48px; }
   .studio-controls .studio-round { width: 38px; height: 38px; }
-  .studio-rec { padding: 0 10px; }
+  .studio-pill.studio-rec { padding: 0 10px; }
   .studio-bpm { flex-direction: column; align-items: center; gap: 0; }
   .studio-bpm input { width: 52px; min-height: 34px; }
   .studio-vol { min-width: 52px; }
   .studio-vol svg { display: none; }
+  .studio-help { display: none; }
 }
 @media (max-height: 560px) {
-  .studio-stack { height: 84px; }
+  .studio-stack { --F: 64px; --s: 24px; }
   .studio-keys { height: 84px; }
   .studio-hint { display: none; }
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .studio-card { transition: transform 0.38s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.28s ease; }
+  .studio-card { transition: transform 0.38s cubic-bezier(0.2, 0.8, 0.2, 1); }
   .studio-dragging .studio-card { transition: none; }
   .studio-card.hit .studio-card-main { animation: studio-hit 0.24s ease-out; }
   .studio-detail-in { animation: studio-slide 0.28s ease-out; }
@@ -8710,19 +8704,19 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
   .studio-key, .studio-pad { transition: background 0.08s, transform 0.08s; }
   .studio-key.down, .studio-pad.down { transform: translateY(2px); }
 }
-@keyframes studio-hit { from { box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35), 0 0 0 2px var(--layer-color), 0 0 0 0 color-mix(in srgb, var(--layer-color) 70%, transparent); } to { box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35), 0 0 0 2px var(--layer-color), 0 0 0 12px transparent; } }
+@keyframes studio-hit { from { background: color-mix(in srgb, var(--track-color) 28%, var(--bg-elevated)); } to { background: var(--bg-elevated); } }
 @keyframes studio-slide { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes studio-pop { 0% { transform: scale(0.6); } 70% { transform: scale(1.12); } 100% { transform: scale(1); } }
 @keyframes studio-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); } 100% { box-shadow: 0 0 0 14px transparent; } }
+
 /* The phone rule that gives every song control a 24px floor has an id in it, so the studio's own (larger) sizes need the same weight. */
 #song-builder-modal #song-studio .studio-name,
 #song-builder-modal #song-studio .studio-btn { min-height: 42px; }
-#song-builder-modal #song-studio .studio-card-mute { min-height: 28px; }
 #song-builder-modal #song-studio .studio-pill { min-height: 34px; }
 #song-builder-modal #song-studio .studio-pat { min-height: 32px; }
 #song-builder-modal #song-studio .studio-field select { min-height: 40px; }
 #song-builder-modal #song-studio .studio-mini { min-height: 36px; }
-#song-builder-modal #song-studio .studio-rec { min-height: 40px; }
+#song-builder-modal #song-studio .studio-pill.studio-rec { min-height: 40px; }
 #song-builder-modal #song-studio .studio-bpm input { min-height: 40px; }
 @media (max-width: 480px) {
   #song-builder-modal #song-studio .studio-bpm input { min-height: 34px; }

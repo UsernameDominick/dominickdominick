@@ -53,9 +53,12 @@
     for (let i = 11; i >= 0; i--) PIANO_NOTES.push(NOTE_NAMES[i] + octave);
   });
 
-  // The bass line has its own lower roll (C1 to B2). songData.bass is created the first time it is needed and dropped at save time while it
-  // has nothing in it, so a song that never uses it is stored exactly as it always was.
+  // The bass line, the chords and the lead each have a two-octave roll of their own (C1 to B2, C3 to B4, C4 to B5). songData.bass, .chords
+  // and .lead are created the first time one is needed and dropped at save time while it has nothing in it, so a song that never uses
+  // them is stored exactly as it always was.
   const BASS_NOTES = Engine.BASS_NOTES;
+  const PART_KEYS = Engine.PART_KEYS;
+  const PART_NOTES = Engine.PART_NOTES;
   const emptyLanes = (names) => names.reduce((acc, n) => {
     acc[n] = new Array(STEPS).fill(false);
     return acc;
@@ -100,34 +103,39 @@
   let songs = [];
   let currentSongId = null;
   let songData = defaultSongData();
-  // Which part the piano roll shows and the melody tools work on: "melody", or "bass" (its own lower roll). Everything the roll and its
-  // tools touch goes through roll() / rollNotes(), so the same tools serve both parts.
+  // Which part the piano roll shows and the melody tools work on: "melody", or "bass", "chords" or "lead" (each its own roll). Everything the
+  // roll and its tools touch goes through roll() / rollNotes(), so the same tools serve every part.
   let rollPart = "melody";
-  function ensureBass() {
-    if (!songData.bass || typeof songData.bass !== "object" || Array.isArray(songData.bass)) songData.bass = {};
-    if (!songData.bass.notes || typeof songData.bass.notes !== "object" || Array.isArray(songData.bass.notes)) songData.bass.notes = {};
-    BASS_NOTES.forEach((n) => {
-      if (!Array.isArray(songData.bass.notes[n])) songData.bass.notes[n] = new Array(STEPS).fill(false);
+  function ensurePart(key) {
+    if (!songData[key] || typeof songData[key] !== "object" || Array.isArray(songData[key])) songData[key] = {};
+    if (!songData[key].notes || typeof songData[key].notes !== "object" || Array.isArray(songData[key].notes)) songData[key].notes = {};
+    PART_NOTES[key].forEach((n) => {
+      if (!Array.isArray(songData[key].notes[n])) songData[key].notes[n] = new Array(STEPS).fill(false);
     });
-    return songData.bass;
+    return songData[key];
   }
+  const ensureBass = () => ensurePart("bass");
   const isBassRoll = () => rollPart === "bass";
-  const roll = () => (isBassRoll() ? ensureBass() : songData.melody);
-  const rollNotes = () => (isBassRoll() ? BASS_NOTES : PIANO_NOTES);
-  const rollWord = () => (isBassRoll() ? "bass line" : "melody");
-  const rollWordCap = () => (isBassRoll() ? "Bass line" : "Melody");
-  // Drops a bass line with nothing in it (and every pattern's empty one) from a copy about to be saved.
-  function pruneBass(data) {
+  const isPartRoll = () => rollPart !== "melody";
+  const roll = () => (isPartRoll() ? ensurePart(rollPart) : songData.melody);
+  const rollNotes = () => (isPartRoll() ? PART_NOTES[rollPart] : PIANO_NOTES);
+  const PART_WORDS = { melody: "melody", bass: "bass line", chords: "chords", lead: "lead" };
+  const rollWord = () => PART_WORDS[rollPart];
+  const rollWordCap = () => PART_WORDS[rollPart].charAt(0).toUpperCase() + PART_WORDS[rollPart].slice(1);
+  // Drops a part with nothing in it (and every pattern's empty one) from a copy about to be saved, so a song that never used it is unchanged.
+  function pruneParts(data) {
     const hasNotes = (part) => part && part.notes && typeof part.notes === "object" && Object.values(part.notes).some((lane) => Array.isArray(lane) && lane.some(Boolean));
-    if (data.patterns && typeof data.patterns === "object") {
-      Object.values(data.patterns).forEach((part) => {
-        if (part && part.bass && !hasNotes(part.bass)) delete part.bass;
-      });
-    }
-    if (!data.bass) return data;
-    const anyPatternBass = data.patterns && typeof data.patterns === "object" && Object.values(data.patterns).some((part) => part && part.bass);
-    const customised = data.bass.voice !== undefined || data.bass.muted === true || data.bass.hidden === true || (data.bass.volume !== undefined && data.bass.volume !== 1);
-    if (!hasNotes(data.bass) && !anyPatternBass && !customised) delete data.bass;
+    PART_KEYS.forEach((key) => {
+      if (data.patterns && typeof data.patterns === "object") {
+        Object.values(data.patterns).forEach((part) => {
+          if (part && part[key] && !hasNotes(part[key])) delete part[key];
+        });
+      }
+      if (!data[key]) return;
+      const anyPattern = data.patterns && typeof data.patterns === "object" && Object.values(data.patterns).some((part) => part && part[key]);
+      const customised = data[key].voice !== undefined || data[key].muted === true || data[key].hidden === true || (data[key].volume !== undefined && data[key].volume !== 1);
+      if (!hasNotes(data[key]) && !anyPattern && !customised) delete data[key];
+    });
     return data;
   }
   // The drum rows the open song has, in display order: the core four, plus each extra voice that was added to it. A row belongs to the
@@ -409,7 +417,7 @@
     const gen = openGeneration;
     const id = currentSongId;
     const dirtyGen = songDirtyGeneration;
-    const data = pruneBass(JSON.parse(JSON.stringify(songData)));
+    const data = pruneParts(JSON.parse(JSON.stringify(songData)));
     try {
       await refreshCachedWaveformPeaks(data);
       if (gen !== openGeneration || id !== currentSongId) return; // a different song opened while the peaks render was in flight -- this autosave is stale, let the next one (against the now-current song) handle it
@@ -1364,7 +1372,7 @@
     if (!songData.tracks || !songData.tracks[row]) return;
     const ctx = getAudioCtx();
     const meta = Object.assign({}, songData.trackMeta && songData.trackMeta[row], { muted: false });
-    const one = Object.assign({}, songData, { tracks: { [row]: [true] }, trackMeta: { [row]: meta }, melody: { notes: {} }, bass: undefined });
+    const one = Object.assign({}, songData, { tracks: { [row]: [true] }, trackMeta: { [row]: meta }, melody: { notes: {} }, bass: undefined, chords: undefined, lead: undefined });
     Engine.scheduleStep(ctx, one, 0, ctx.currentTime);
     if (!player.isPlaying() || isCountingIn() || !$("song-record").checked || player.currentPattern() !== editingPattern()) return;
     const step = player.currentStep();
@@ -1373,14 +1381,14 @@
     if (cell) cell.click();
   }
   function playAndMaybeRecordNote(requested) {
-    if (window.SongStudio && window.SongStudio.drumLayerOpen()) return; // notes would land in a part that is not on screen
+    if (window.SongStudio && window.SongStudio.drumTrackOpen()) return; // notes would land in a part that is not on screen
     if (window.SongStudio) window.SongStudio.played(requested);
     const ctx = getAudioCtx();
     const noteName = rowForNote(requested);
     const part = roll();
     const duration = 60 / (songData.tempo || 120) / 4;
-    if (isBassRoll()) {
-      Engine.withVolume(ctx, Engine.volumeOf(part), () => Engine.playVoicedNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), Engine.bassVoiceOf(songData), duration));
+    if (isPartRoll()) {
+      Engine.withVolume(ctx, Engine.volumeOf(part), () => Engine.playVoicedNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), Engine.partVoiceOf(songData, rollPart), duration));
     } else {
       const waveform = $("song-waveform").value;
       const voice = Engine.melodyVoiceOf(songData);
@@ -1481,7 +1489,7 @@
     const key = e.key.toLowerCase();
     if (!(key in KEYBOARD_NOTE_MAP)) return;
     e.preventDefault();
-    playAndMaybeRecordNote(KEYBOARD_NOTE_MAP[key] + KEYBOARD_NOTE_OCTAVE[key]);
+    playAndMaybeRecordNote(KEYBOARD_NOTE_MAP[key] + (KEYBOARD_NOTE_OCTAVE[key] + (rollPart === "lead" ? 1 : 0)));
   });
   // Space plays and stops, the way it does in a music program. It only counts when no control has the focus (on a button, a step or a
   // field, Space already means "press this"), and only while the song builder is the dialog on top.
@@ -1706,7 +1714,8 @@
     return `${Math.round((Number.isFinite(n) && v != null ? Math.max(0, Math.min(1, n)) : 1) * 100)}%`;
   }
   // Whether the open pattern's bass line has a note (a bass line with nothing in it is not saved and not reported).
-  const bassHasNotes = () => Boolean(songData.bass && songData.bass.notes && Object.values(songData.bass.notes).some((lane) => Array.isArray(lane) && lane.some(Boolean)));
+  const partHasNotes = (key) => Boolean(songData[key] && songData[key].notes && Object.values(songData[key].notes).some((lane) => Array.isArray(lane) && lane.some(Boolean)));
+  const bassHasNotes = () => partHasNotes("bass");
   const reportVolume = (meta) => (Engine.volumeOf(meta) < 1 ? ` (volume ${Math.round(Engine.volumeOf(meta) * 100)}%)` : "");
   function setVolume(target, value) {
     if (value >= 1) delete target.volume;
@@ -1880,15 +1889,20 @@
     hits: countOn(part.tracks),
     notes: countOn(part.notes),
     bass: part.bass ? countOn(part.bass.notes) : 0,
+    chords: part.chords ? countOn(part.chords.notes) : 0,
+    lead: part.lead ? countOn(part.lead.notes) : 0,
   });
   const partsSummary = (name) => {
     const c = partsCount(Engine.patternData(songData, name));
-    return `${c.hits} drum hit${c.hits === 1 ? "" : "s"}, ${c.notes} melody note${c.notes === 1 ? "" : "s"}${c.bass ? `, ${c.bass} bass note${c.bass === 1 ? "" : "s"}` : ""}`;
+    const more = [["bass", "bass note"], ["chords", "chord note"], ["lead", "lead note"]].filter(([key]) => c[key]).map(([key, word]) => `, ${c[key]} ${word}${c[key] === 1 ? "" : "s"}`).join("");
+    return `${c.hits} drum hit${c.hits === 1 ? "" : "s"}, ${c.notes} melody note${c.notes === 1 ? "" : "s"}${more}`;
   };
-  // The open pattern's parts as the song stores them in patterns: its own tracks, melody and (when the song has one) bass line.
+  // The open pattern's parts as the song stores them in patterns: its own tracks and melody, and each of the bass, chords and lead the song has.
   const openParts = () => {
     const parts = { tracks: songData.tracks, notes: songData.melody.notes, ties: songData.melody.ties || {} };
-    if (songData.bass) parts.bass = { notes: songData.bass.notes, ties: songData.bass.ties || {} };
+    PART_KEYS.forEach((key) => {
+      if (songData[key]) parts[key] = { notes: songData[key].notes, ties: songData[key].ties || {} };
+    });
     return parts;
   };
   // Puts one pattern's parts into the song's own fields, with every row and every roll note present. Split by part so a pattern's drums,
@@ -1905,19 +1919,19 @@
     songData.melody.notes = notes;
     setPartTies(songData.melody, part.ties || {});
   }
-  // The bass line follows the same pattern: the incoming pattern's notes (or none), over every bass roll note.
-  function loadBass(part) {
-    if (!part.bass && !songData.bass) return;
-    const bass = ensureBass();
-    const bassNotes = {};
-    BASS_NOTES.forEach((n) => (bassNotes[n] = lane16(part.bass && part.bass.notes && part.bass.notes[n])));
-    bass.notes = bassNotes;
-    setPartTies(bass, part.bass && part.bass.ties ? part.bass.ties : {});
+  // The bass, the chords and the lead follow the same pattern: the incoming pattern's notes (or none), over every note of the part's roll.
+  function loadPart(key, part) {
+    if (!part[key] && !songData[key]) return;
+    const target = ensurePart(key);
+    const lanes = {};
+    PART_NOTES[key].forEach((n) => (lanes[n] = lane16(part[key] && part[key].notes && part[key].notes[n])));
+    target.notes = lanes;
+    setPartTies(target, part[key] && part[key].ties ? part[key].ties : {});
   }
   function loadParts(part) {
     loadDrums(part);
     loadMelody(part);
-    loadBass(part);
+    PART_KEYS.forEach((key) => loadPart(key, part));
   }
   const copyParts = (part) => JSON.parse(JSON.stringify(part));
   // Makes `name` the open pattern: the one open now goes into the store, and `parts` (or the stored pattern of that name) becomes the song's
@@ -2043,8 +2057,10 @@
     const part = copyParts(source);
     if (what === "drums" || what === "all") loadDrums(part);
     if (what === "melody" || what === "all") loadMelody(part);
-    if (what === "bass" || what === "all") loadBass(part);
-    const words = { drums: "drums", melody: "melody", bass: "bass line", all: "drums, melody and bass line" };
+    PART_KEYS.forEach((key) => {
+      if (what === key || what === "all") loadPart(key, part);
+    });
+    const words = { drums: "drums", melody: "melody", bass: "bass line", chords: "chords", lead: "lead", all: "everything" };
     renderSequencer();
     renderPianoRoll();
     renderPatternControls();
@@ -2074,7 +2090,7 @@
     const name = editingPattern();
     const used = chainList().filter((n) => n === name).length;
     const c = partsCount(Engine.patternData(songData, name));
-    if ((c.hits || c.notes || c.bass || used) && !confirm(`Remove pattern ${name} (${partsSummary(name)})${used ? ` and its ${used} place${used === 1 ? "" : "s"} in the song order` : ""}? Undo brings it back.`)) return;
+    if ((c.hits || c.notes || c.bass || c.chords || c.lead || used) && !confirm(`Remove pattern ${name} (${partsSummary(name)})${used ? ` and its ${used} place${used === 1 ? "" : "s"} in the song order` : ""}? Undo brings it back.`)) return;
     const next = names.find((n) => n !== name);
     openPattern(next); // this stores the pattern being removed, which is then dropped
     delete songData.patterns[name];
@@ -2257,42 +2273,64 @@
 
   // The Melody / Bass switch above the roll: which part the roll shows and the tools below it work on. Switching is a view change, not an
   // edit (no undo step). The heading, the tool labels, the bass sound menu and the chord root list follow the part.
+  // The chord root list starts on a sensible note for each part.
+  const ROLL_RANGES = { melody: "", bass: "C1 to B2", chords: "C3 to B4", lead: "C4 to B5" };
+  const TOOL_NAMES = { melody: "Melody", bass: "Bass", chords: "Chords", lead: "Lead" };
+  const DEFAULT_ROOTS = { melody: "C4", bass: "C2", chords: "C3", lead: "C5" };
   function syncRollPart() {
     const bass = isBassRoll();
-    $("song-roll-melody").setAttribute("aria-pressed", String(!bass));
-    $("song-roll-bass").setAttribute("aria-pressed", String(bass));
-    $("song-roll-title").textContent = bass ? "Bass line (piano roll, C1 to B2)" : "Melody (piano roll)";
+    const part = rollPart;
+    ["melody", "bass", "chords", "lead"].forEach((key) => $("song-roll-" + key).setAttribute("aria-pressed", String(key === part)));
+    $("song-roll-title").textContent = part === "melody" ? "Melody (piano roll)" : `${rollWordCap()} (piano roll, ${ROLL_RANGES[part]})`;
     $("song-bass-voice").hidden = !bass;
+    $("song-part-voice").hidden = part !== "chords" && part !== "lead";
     $("song-bass-follow").hidden = !bass;
     if (bass) $("song-bass-voice").value = bassVoiceName();
-    $("song-melody-tools-summary").textContent = bass ? "Bass tools: shift, reverse, random bass line, chords and arpeggios" : "Melody tools: shift, reverse, random tune, chords and arpeggios";
-    $("song-melody-clear").textContent = bass ? "Clear bass line" : "Clear melody";
-    $("song-melody-clear").title = bass ? "Remove every bass note (undoable)" : "Remove every melody note (undoable)";
-    $("song-melody-random").textContent = bass ? "Random bass line in scale" : "Random tune in scale";
+    if (part === "chords" || part === "lead") $("song-part-voice").value = Engine.partVoiceOf(songData, part);
+    const word = rollWord();
+    const tune = part === "melody" ? "tune" : part === "bass" ? "bass line" : word;
+    $("song-melody-tools-summary").textContent = `${TOOL_NAMES[part]} tools: shift, reverse, random ${tune}, chords and arpeggios`;
+    $("song-melody-clear").textContent = part === "melody" ? "Clear melody" : `Clear ${word}`;
+    $("song-melody-clear").title = `Remove every ${part === "bass" ? "bass" : word} note (undoable)`;
+    $("song-melody-random").textContent = `Random ${tune} in scale`;
     $("song-prog-stamp").textContent = bass ? "Stamp chord roots" : "Stamp progression";
     $("song-prog-stamp").title = bass
       ? "Add the root note of every chord of the progression across the loop, keeping the rest of the bass line (undoable). Held roots ring for their whole stretch."
-      : "Add every chord of the progression across the loop, keeping the rest of the melody (undoable). Held chords ring for their whole stretch.";
+      : `Add every chord of the progression across the loop, keeping the rest of the ${word} (undoable). Held chords ring for their whole stretch.`;
     fillChordRoots();
   }
   const bassVoiceName = () => Engine.bassVoiceOf(songData);
+  const ROLL_NOTICES = {
+    melody: "Editing the melody.",
+    bass: "Editing the bass line. Its notes are an octave or two below the melody, C1 to B2.",
+    chords: "Editing the chords. Its roll is C3 to B4, and its sound is a pad unless you choose another.",
+    lead: "Editing the lead. Its roll is C4 to B5, an octave above the melody's, and its sound is a lead synth unless you choose another.",
+  };
   function setRollPart(part) {
     if (part === rollPart) return;
     rollPart = part;
-    if (part === "bass") ensureBass();
+    if (part !== "melody") ensurePart(part);
     renderPianoRoll();
-    melodyToolsSay(part === "bass" ? "Editing the bass line. Its notes are an octave or two below the melody, C1 to B2." : "Editing the melody.");
-    const active = $(part === "bass" ? "song-roll-bass" : "song-roll-melody");
-    active.focus();
+    melodyToolsSay(ROLL_NOTICES[part]);
+    $("song-roll-" + part).focus();
   }
-  $("song-roll-melody").addEventListener("click", () => setRollPart("melody"));
-  $("song-roll-bass").addEventListener("click", () => setRollPart("bass"));
+  ["melody", "bass", "chords", "lead"].forEach((key) => $("song-roll-" + key).addEventListener("click", () => setRollPart(key)));
   // The bass sound: the engine's "bass" voice unless another is chosen (stored only when it is not the default).
   $("song-bass-voice").addEventListener("change", () => {
     const bass = ensureBass();
     const voice = $("song-bass-voice").value;
     if (voice === "bass") delete bass.voice;
     else bass.voice = voice;
+    refreshWaveformPreview();
+    scheduleAutosave();
+  });
+  // The chords' and the lead's sound: each part's own default voice unless another is chosen (stored only when it is not the default).
+  $("song-part-voice").addEventListener("change", () => {
+    if (rollPart !== "chords" && rollPart !== "lead") return;
+    const target = ensurePart(rollPart);
+    const voice = $("song-part-voice").value;
+    if (voice === Engine.partVoiceOf({}, rollPart)) delete target.voice;
+    else target.voice = voice;
     refreshWaveformPreview();
     scheduleAutosave();
   });
@@ -2403,8 +2441,8 @@
     const openName = editingPattern();
     const open = roll();
     const openNotes = shiftNotes(open.notes, several ? `, pattern ${openName}` : "", dropped);
-    // each other pattern's notes for this part (a melody sits in the pattern itself, a bass line under its "bass")
-    const slotOf = (part) => (isBassRoll() ? part && part.bass : part);
+    // each other pattern's notes for this part (a melody sits in the pattern itself, the others under their own name: "bass", "chords", "lead")
+    const slotOf = (part) => (isPartRoll() ? part && part[rollPart] : part);
     const stored = Object.entries(songData.patterns || {}).map(([name, part]) => [name, slotOf(part)]).filter(([, slot]) => slot && slot.notes).map(([name, slot]) => [name, slot, shiftNotes(slot.notes, `, pattern ${name}`, dropped)]);
     if (dropped.length) {
       const shown = dropped.slice(0, 8).join(", ") + (dropped.length > 8 ? `, and ${dropped.length - 8} more` : "");
@@ -2430,12 +2468,14 @@
   const MP = window.SongPatterns;
   const chordRoot = $("song-chord-root");
   // The chord root menu lists the notes of the part being edited, lowest first, keeping the chosen root when the new roll has it.
+  let rootsFor = "";
   function fillChordRoots() {
+    if (rootsFor === rollPart) return;
+    rootsFor = rollPart;
     const names = [...rollNotes()].reverse();
-    if (chordRoot.options.length === names.length && chordRoot.options[0].value === names[0]) return;
     chordRoot.innerHTML = "";
     names.forEach((n) => chordRoot.appendChild(new Option(n, n)));
-    chordRoot.value = isBassRoll() ? "C2" : "C4";
+    chordRoot.value = DEFAULT_ROOTS[rollPart];
   }
   fillChordRoots();
   Object.entries(MP.CHORDS).forEach(([id, c]) => $("song-chord-type").appendChild(new Option(c.label, id)));
@@ -2502,7 +2542,7 @@
     const pool = sc ? MP.scalePool(rollNotes(), sc.root, SCALES[sc.type]) : MP.scalePool(rollNotes(), "C", SCALES.majpent);
     const label = sc ? `${sc.root} ${$("song-scale-type").selectedOptions[0].textContent.toLowerCase()}` : "C major pentatonic (no scale is highlighted)";
     const had = melodyHasNotes();
-    melodyEdit(() => MP.randomMelody(rollNotes(), pool, STEPS, { density: Number($("song-melody-density").value) / 100 }), `A random ${isBassRoll() ? "bass line" : "tune"} in ${label}${had ? ` replaced the ${rollWord()}. Undo brings it back` : ""}.`);
+    melodyEdit(() => MP.randomMelody(rollNotes(), pool, STEPS, { density: Number($("song-melody-density").value) / 100 }), `A random ${rollPart === "melody" ? "tune" : rollWord()} in ${label}${had ? ` replaced the ${rollWord()}. Undo brings it back` : ""}.`);
   });
   // Bass only: a note on the root at every kick hit of the open pattern, held until the next one (see SongPatterns.bassFromHits).
   $("song-bass-follow").addEventListener("click", () => {
@@ -2681,11 +2721,13 @@
       delete clean.melody.muted;
       delete clean.melody.hidden;
     }
-    if (clean.bass) {
-      delete clean.bass.muted;
-      delete clean.bass.hidden;
-    }
-    return pruneBass(clean);
+    PART_KEYS.forEach((key) => {
+      if (clean[key]) {
+        delete clean[key].muted;
+        delete clean[key].hidden;
+      }
+    });
+    return pruneParts(clean);
   }
 
   $("save-song-template-btn").addEventListener("click", async () => {
@@ -2724,17 +2766,18 @@
     PIANO_NOTES.forEach((n) => {
       if (!data.melody.notes[n]) data.melody.notes[n] = new Array(STEPS).fill(false);
     });
-    // A bass line, if the song has one: every bass roll note present, nothing odd left in place of an object.
-    if (data.bass !== undefined && !isPlain(data.bass)) delete data.bass;
-    if (isPlain(data.bass)) {
-      const bassNotes = isPlain(data.bass.notes) ? data.bass.notes : {};
-      data.bass.notes = {};
-      BASS_NOTES.forEach((n) => {
-        const lane = Array.isArray(bassNotes[n]) ? bassNotes[n] : [];
-        data.bass.notes[n] = Array.from({ length: STEPS }, (_, i) => (lane[i] === undefined ? false : lane[i]));
+    // The bass, chords and lead, for a song that has them: every note of the part's roll present, nothing odd left in place of an object.
+    PART_KEYS.forEach((key) => {
+      if (data[key] !== undefined && !isPlain(data[key])) delete data[key];
+      if (!isPlain(data[key])) return;
+      const partNotes = isPlain(data[key].notes) ? data[key].notes : {};
+      data[key].notes = {};
+      PART_NOTES[key].forEach((n) => {
+        const lane = Array.isArray(partNotes[n]) ? partNotes[n] : [];
+        data[key].notes[n] = Array.from({ length: STEPS }, (_, i) => (lane[i] === undefined ? false : lane[i]));
       });
-      if (data.bass.ties !== undefined && !isPlain(data.bass.ties)) delete data.bass.ties;
-    }
+      if (data[key].ties !== undefined && !isPlain(data[key].ties)) delete data[key].ties;
+    });
     if (!data.trackMeta) data.trackMeta = defaultSongData().trackMeta;
     [...CORE_TRACKS, ...EXTRA_TRACKS.filter(hasRow)].forEach((t) => {
       if (!data.trackMeta[t]) data.trackMeta[t] = { color: DEFAULT_TRACK_COLORS[t], note: "" };
@@ -2758,16 +2801,17 @@
           part.notes[n] = Array.from({ length: STEPS }, (_, i) => (lane[i] === undefined ? false : lane[i]));
         });
         if (!isPlain(part.ties)) part.ties = {};
-        if (part.bass !== undefined && !isPlain(part.bass)) delete part.bass;
-        if (isPlain(part.bass)) {
-          const bassNotes = isPlain(part.bass.notes) ? part.bass.notes : {};
-          part.bass.notes = {};
-          BASS_NOTES.forEach((n) => {
-            const lane = Array.isArray(bassNotes[n]) ? bassNotes[n] : [];
-            part.bass.notes[n] = Array.from({ length: STEPS }, (_, i) => (lane[i] === undefined ? false : lane[i]));
+        PART_KEYS.forEach((key) => {
+          if (part[key] !== undefined && !isPlain(part[key])) delete part[key];
+          if (!isPlain(part[key])) return;
+          const lanes = isPlain(part[key].notes) ? part[key].notes : {};
+          part[key].notes = {};
+          PART_NOTES[key].forEach((n) => {
+            const lane = Array.isArray(lanes[n]) ? lanes[n] : [];
+            part[key].notes[n] = Array.from({ length: STEPS }, (_, i) => (lane[i] === undefined ? false : lane[i]));
           });
-          if (!isPlain(part.bass.ties)) part.bass.ties = {};
-        }
+          if (!isPlain(part[key].ties)) part[key].ties = {};
+        });
       });
       if (!Object.keys(data.patterns).length) delete data.patterns;
     }
@@ -3133,7 +3177,7 @@
     const gen = openGeneration;
     const id = currentSongId;
     const dirtyGen = songDirtyGeneration;
-    const data = pruneBass(JSON.parse(JSON.stringify(songData)));
+    const data = pruneParts(JSON.parse(JSON.stringify(songData)));
     const saveButton = $("save-song");
     const wasDisabled = saveButton.disabled;
     const pendingAutosave = autosavePromise;
@@ -3215,6 +3259,7 @@
   // A plain-text summary of this song's current in-memory settings and
   // note counts -- reads songData directly, so it reflects any unsaved
   // edits still in the builder, not just what's persisted.
+  const REPORT_NAMES = { bass: "Bass", chords: "Chords", lead: "Lead" };
   $("song-export-report").addEventListener("click", () => {
     const name = $("song-name").value.trim() || "Untitled song";
     const lines = [
@@ -3225,7 +3270,7 @@
         ? []
         : [`Patterns: ${Engine.patternNames(songData).join(", ")} (${editingPattern()} was open)`, `Song order: ${Engine.chainOf(songData).join(" ")} (${Engine.chainOf(songData).length} bar${Engine.chainOf(songData).length === 1 ? "" : "s"})`]),
       `Melody sound: ${Engine.melodyVoiceOf(songData) ? Engine.MELODY_VOICES[Engine.melodyVoiceOf(songData)].label : `Basic, ${songData.melody.waveform} waveform`}${songData.melody.muted === true ? " (muted)" : ""}${reportVolume(songData.melody)}`,
-      ...(bassHasNotes() ? [`Bass sound: ${Engine.MELODY_VOICES[Engine.bassVoiceOf(songData)].label}${songData.bass.muted === true ? " (muted)" : ""}${reportVolume(songData.bass)}`] : []),
+      ...PART_KEYS.filter(partHasNotes).map((key) => `${REPORT_NAMES[key]} sound: ${Engine.MELODY_VOICES[Engine.partVoiceOf(songData, key)].label}${songData[key].muted === true ? " (muted)" : ""}${reportVolume(songData[key])}`),
       `Visualization: ${songData.visualization}`,
       `Theme: ${songData.theme}`,
       `Master volume: ${Math.round((typeof songData.master_volume === "number" ? songData.master_volume : 1) * 100)}%`,
@@ -3248,10 +3293,10 @@
     } else {
       lines.push("  (none)");
     }
-    if (bassHasNotes()) {
-      lines.push("", "Bass notes used:");
-      BASS_NOTES.filter((n) => songData.bass.notes[n] && songData.bass.notes[n].some(Boolean)).forEach((n) => lines.push(`  ${n}: ${songData.bass.notes[n].filter(Boolean).length} / ${STEPS}`));
-    }
+    PART_KEYS.filter(partHasNotes).forEach((key) => {
+      lines.push("", `${REPORT_NAMES[key]} notes used:`);
+      PART_NOTES[key].filter((n) => songData[key].notes[n] && songData[key].notes[n].some(Boolean)).forEach((n) => lines.push(`  ${n}: ${songData[key].notes[n].filter(Boolean).length} / ${STEPS}`));
+    });
     if (songData.private_notes && songData.private_notes.trim()) {
       lines.push("", "Notes:", songData.private_notes.trim());
     }
@@ -3280,7 +3325,7 @@
   $("song-export-midi").addEventListener("click", () => {
     const out = window.SongFiles.buildMidi(songData, $("song-name").value.trim() || "Untitled song");
     if (!out.bytes) {
-      fileStatus("Nothing to export: no unmuted drum track, melody or bass line has any notes.");
+      fileStatus("Nothing to export: no unmuted drum track, melody, bass, chords or lead has any notes.");
       return;
     }
     downloadBlob(new Blob([out.bytes], { type: "audio/midi" }), `${fileStem()}.mid`);
@@ -3500,7 +3545,7 @@
     return new Blob([...parts, ...central, end.buffer], { type: "application/zip" });
   }
 
-  // One copy of the song per stem, with every other track, the melody and the bass line muted
+  // One copy of the song per stem, with every other track, the melody, the bass, the chords and the lead muted
   // (a muted track in the song itself is left out). Stems are rendered on their
   // own, so noise-based drums and humanize timing are not sample-identical to
   // the same track inside the full mix.
@@ -3512,7 +3557,9 @@
       trackList().forEach((t) => { copy.trackMeta[t] = { ...(copy.trackMeta[t] || {}), muted: t !== solo }; });
       copy.melody = copy.melody || { waveform: "sine", notes: {} };
       copy.melody.muted = solo !== "melody";
-      if (copy.bass) copy.bass.muted = solo !== "bass";
+      PART_KEYS.forEach((key) => {
+        if (copy[key]) copy[key].muted = solo !== key;
+      });
       return copy;
     };
     const playedPatterns = Engine.chainPatterns(songData);
@@ -3522,8 +3569,11 @@
     });
     const anyMelody = playedPatterns.some((part) => Object.values(part.notes).some((lane) => Array.isArray(lane) && lane.some(Boolean)));
     if (anyMelody && !(songData.melody && songData.melody.muted === true)) jobs.push({ id: "melody", label: "Melody", data: copyFor("melody") });
-    const anyBass = playedPatterns.some((part) => part.bass && Object.values(part.bass.notes).some((lane) => Array.isArray(lane) && lane.some(Boolean)));
-    if (anyBass && !(songData.bass && songData.bass.muted === true)) jobs.push({ id: "bass", label: "Bass", data: copyFor("bass") });
+    const STEM_LABELS = { bass: "Bass", chords: "Chords", lead: "Lead" };
+    PART_KEYS.forEach((key) => {
+      const any = playedPatterns.some((part) => part[key] && Object.values(part[key].notes).some((lane) => Array.isArray(lane) && lane.some(Boolean)));
+      if (any && !(songData[key] && songData[key].muted === true)) jobs.push({ id: key, label: STEM_LABELS[key], data: copyFor(key) });
+    });
     return jobs;
   }
 

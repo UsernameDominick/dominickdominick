@@ -2123,7 +2123,7 @@
           <span class="sim-toolbar-group-label">Save</span>
           <div class="song-group-controls">
             <button type="button" class="sim-quick" id="save-song">Save</button>
-            <button type="button" id="song-view-toggle" data-no-history title="Back to the simple Studio layout: five layers, one open at a time, and the piano keys">Studio view</button>
+            <button type="button" id="song-view-toggle" data-no-history title="Back to the simple Studio layout: five tracks stacked on top of each other, one open at a time, and the piano keys">Studio view</button>
             <button type="button" id="save-song-template-btn" title="Save this song as a reusable starting point">Save as template</button>
             <span id="song-autosave-status" class="song-autosave-status"></span>
           </div>
@@ -2244,9 +2244,8 @@
           <button type="button" id="studio-help" class="studio-icon studio-help" aria-label="Help for the Song builder" title="Tips and shortcuts">?</button>
           <button type="button" id="studio-close" class="studio-icon" aria-label="Close the Song builder" title="Close">×</button>
         </div>
-        <div id="studio-stack" class="studio-stack" role="group" aria-roledescription="carousel" aria-label="Layers 1 to 5. Swipe, or tap a card, to choose the layer to edit." tabindex="-1" autofocus></div>
-        <div id="studio-pager" class="studio-pager" role="group" aria-label="Layers"></div>
-        <section id="studio-detail" class="studio-detail" aria-label="Layer being edited"></section>
+        <div id="studio-stack" class="studio-stack" role="group" aria-label="Tracks 1 to 5: Drums, Bass, Chords, Melody and Lead. Scroll through them or tap one to edit it." tabindex="-1" autofocus></div>
+        <section id="studio-detail" class="studio-detail" aria-label="Track being edited"></section>
         <p id="studio-live" class="sim-sr-only" role="status"></p>
         <div class="studio-controls" role="group" aria-label="Playback controls">
           <button type="button" id="studio-play" class="studio-play" data-no-history aria-label="Play" title="Play or pause (Space)">
@@ -2315,7 +2314,7 @@
           </div>
           <div class="song-pattern-tools" id="song-copy-tools" role="group" aria-label="Copy part of another pattern" hidden>
             <span class="song-pattern-label" id="song-copy-label">Copy into this pattern</span>
-            <label>the <select id="song-copy-what" title="Which part of the other pattern to take"><option value="drums">drums</option><option value="melody">melody</option><option value="bass">bass line</option><option value="all">everything</option></select></label>
+            <label>the <select id="song-copy-what" title="Which part of the other pattern to take"><option value="drums">drums</option><option value="melody">melody</option><option value="bass">bass line</option><option value="chords">chords</option><option value="lead">lead</option><option value="all">everything</option></select></label>
             <label>from pattern <select id="song-copy-from" title="The pattern to copy from"></select></label>
             <button type="button" id="song-copy-apply" class="song-track-toggle" title="Replace that part of the open pattern with the other pattern's (undoable). The rest of the open pattern is left alone.">Copy here</button>
           </div>
@@ -2363,8 +2362,13 @@
           <span class="song-transpose-controls song-roll-parts" role="group" aria-label="Part shown in the piano roll">
             <button type="button" id="song-roll-melody" class="song-track-toggle" data-no-history aria-pressed="true" title="Edit the melody in the piano roll">Melody</button>
             <button type="button" id="song-roll-bass" class="song-track-toggle" data-no-history aria-pressed="false" title="Edit the bass line: a second part with its own lower piano roll (C1 to B2), sound, volume and mute">Bass</button>
+            <button type="button" id="song-roll-chords" class="song-track-toggle" data-no-history aria-pressed="false" title="Edit the chords: a part with its own piano roll (C3 to B4), sound, volume and mute">Chords</button>
+            <button type="button" id="song-roll-lead" class="song-track-toggle" data-no-history aria-pressed="false" title="Edit the lead: a part with its own higher piano roll (C4 to B5), sound, volume and mute">Lead</button>
             <select id="song-bass-voice" aria-label="Bass sound" title="The bass line's sound: Bass is the default; the others are the same instruments the melody can use" hidden>
               <option value="bass">Bass</option><option value="pluck">Pluck</option><option value="lead">Lead</option><option value="pad">Pad</option><option value="bell">Bell</option>
+            </select>
+            <select id="song-part-voice" aria-label="Sound" title="This part's sound: Pad for the chords and Lead for the lead are the defaults; the others are the same instruments the melody can use" hidden>
+              <option value="pad">Pad</option><option value="lead">Lead</option><option value="pluck">Pluck</option><option value="bass">Bass</option><option value="bell">Bell</option>
             </select>
           </span>
           <span class="song-transpose-controls">

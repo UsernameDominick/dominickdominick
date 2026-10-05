@@ -15,6 +15,8 @@ const { chromium } = require("./_pw.cjs");
     { id: 3, title: "QQ sched", updated_at: "2026-09-03 10:00:00", published_at: future },
     ...Array.from({ length: 8 }, (_, i) => ({ id: 10 + i, title: "QQ more " + i, updated_at: "2026-08-0" + (i + 1) + " 10:00:00", published_at: null })),
   ] }));
+  // Projects count towards the drafts too, so they are fixed here as well: a draft project another test left on the same server must not change the count.
+  await p.route("**/api/admin/projects", (r) => r.request().method() !== "GET" ? r.continue() : r.fulfill({ json: [] }));
   await p.goto((E2E_BASE + "/admin/")); await p.waitForSelector("#app:not([hidden])");
   await p.evaluate(() => document.getElementById("dashboard-btn").click()); await p.waitForSelector(".dash-card");
   await p.waitForFunction(() => /Drafts \(9\)/.test(document.getElementById("dashboard-body").textContent) && /and 3 more/.test(document.getElementById("dashboard-body").textContent), null, { timeout: 15000 }).catch(() => {}); // the cards fill in one by one, and the count can show a partial list first: wait for the whole thing (the assertions below say what is wrong if it never arrives)
