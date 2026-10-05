@@ -1680,6 +1680,25 @@ async function route(request, env, ctx) {
       return renderSavedPage(env, navItems);
     }
 
+    // The Hidden Notes page: only the signed-in owner gets it. Anyone else gets exactly the answer for an address that does not exist.
+    if (path === "/hidden-notes" && env.__isAdmin) {
+      const navItems = await listNavPages(env);
+      const { theme, footerText, customHead } = await getSiteContext(env);
+      const html = renderShell({
+        title: "Hidden Notes",
+        description: "",
+        path,
+        navItems,
+        activeSlug: "hidden-notes",
+        bodyHtml: `<link rel="stylesheet" href="/hidden-notes.css"><div class="block" style="grid-column:1 / span 24;grid-row:1 / span 30;"><h1>Hidden Notes</h1><div id="hn-root" class="hn-root"><p class="hn-loading">Loading…</p><noscript><p>This page needs JavaScript: your notes are sealed and opened in the browser.</p></noscript></div></div><script src="/hidden-notes.js" defer></script>`,
+        theme,
+        footerText,
+        customHead,
+        noindex: true,
+      });
+      return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8", "Cache-Control": "no-store, private" } });
+    }
+
     const simulationMatch = path.match(/^\/simulation\/(\d+)$/);
     if (simulationMatch) {
       const sim = await getPublishedSimulation(env, Number(simulationMatch[1]));

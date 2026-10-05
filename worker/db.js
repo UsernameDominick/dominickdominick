@@ -1,3 +1,4 @@
+import { HIDDEN_NOTE_PREFIX, HIDDEN_META_KEY, isHiddenNotesKey } from "./hidden-notes.js";
 import { toHex } from "./auth.js";
 import { visibleText, nowIso, pageCssKey } from "./text.js";
 import { suggestNearest } from "./notfound.js";
@@ -141,6 +142,8 @@ export async function listNavPages(env) {
   // under Site settings > Header & footer.
   const taken = new Set(labelled.map((p) => p.slug));
   const nav = [...topLevel, ...builtinNavItems(parseNavBuiltin(first.builtin), taken)];
+  // The Hidden Notes tab exists only for the signed-in owner: it is added to the list here, per request, and for nobody else.
+  if (env.__isAdmin) nav.push({ id: -1, slug: "hidden-notes", nav_label: "Hidden Notes", admin_only: true, children: [] });
   nav.brand = cleanBrand(first.brand);
   return nav;
 }
@@ -3452,7 +3455,7 @@ export async function exportAll(env) {
     env.DB.prepare("SELECT * FROM pages ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM blocks ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM articles ORDER BY id").all(),
-    env.DB.prepare("SELECT * FROM settings ORDER BY key").all(),
+    env.DB.prepare("SELECT * FROM settings WHERE substr(key, 1, 11) <> 'hidden_note' ORDER BY key").all(), // the Hidden Notes vault is never in a backup
     env.DB.prepare("SELECT * FROM redirects ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM templates ORDER BY id").all(),
     env.DB.prepare("SELECT * FROM media ORDER BY key").all(),
@@ -3924,7 +3927,7 @@ export async function importAll(env, data) {
     env.DB.prepare("DELETE FROM shared_blocks"),
     env.DB.prepare("DELETE FROM pages"),
     env.DB.prepare("DELETE FROM articles"),
-    env.DB.prepare("DELETE FROM settings"),
+    env.DB.prepare("DELETE FROM settings WHERE substr(key, 1, 11) <> 'hidden_note'"), // a restore leaves the Hidden Notes vault alone
     env.DB.prepare("DELETE FROM redirects"),
     env.DB.prepare("DELETE FROM templates"),
     env.DB.prepare("DELETE FROM media"),
@@ -4055,6 +4058,7 @@ export async function importAll(env, data) {
   }
 
   for (const s of settings) {
+    if (isHiddenNotesKey(s.key)) continue; // a backup never carries the vault, and one that somehow does must not overwrite it
     stmts.push(env.DB.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").bind(s.key, s.value));
   }
 
@@ -4912,4 +4916,65 @@ export async function checkAccessibility(env) {
     }
   });
   return issues;
+}
+
+
+// ---------- Hidden Notes vault (sealed in the browser; see hidden-notes.js) ----------
+export async function getHiddenVault(env) {
+  const [{ results }, metaRow] = await Promise.all([
+    env.DB.prepare("SELECT key, value FROM settings WHERE substr(key, 1, 12) = ? ORDER BY key").bind(HIDDEN_NOTE_PREFIX).all(),
+    env.DB.prepare("SELECT value FROM settings WHERE key = ?").bind(HIDDEN_META_KEY).first(),
+  ]);
+  let meta = null;
+  try { meta = metaRow ? JSON.parse(metaRow.value) : null; } catch { meta = null; }
+  const notes = results.flatMap((r) => {
+    try {
+      const v = JSON.parse(r.value);
+      return [{ id: r.key.slice(HIDDEN_NOTE_PREFIX.length), blob: v.blob, created_at: v.created_at, updated_at: v.updated_at }];
+    } catch {
+      return [];
+    }
+  });
+  return { meta, notes };
+}
+export async function countHiddenNotes(env) {
+  const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM settings WHERE substr(key, 1, 12) = ?").bind(HIDDEN_NOTE_PREFIX).first();
+  return row ? row.n : 0;
+}
+export async function getHiddenNoteRow(env, id) {
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE key = ?").bind(HIDDEN_NOTE_PREFIX + id).first();
+  try { return row ? JSON.parse(row.value) : null; } catch { return null; }
+}
+export async function putHiddenNote(env, id, blob, createdAt) {
+  const now = new Date().toISOString();
+  await env.DB
+    .prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+    .bind(HIDDEN_NOTE_PREFIX + id, JSON.stringify({ blob, created_at: createdAt || now, updated_at: now }))
+    .run();
+  return { id, created_at: createdAt || now, updated_at: now };
+}
+export async function deleteHiddenNote(env, id) {
+  await env.DB.prepare("DELETE FROM settings WHERE key = ?").bind(HIDDEN_NOTE_PREFIX + id).run();
+}
+export async function setHiddenMeta(env, meta) {
+  await setSetting(env, HIDDEN_META_KEY, JSON.stringify(meta));
+}
+// Replaces the whole vault in one batch (a new passphrase re-seals every note; an import brings a copy in).
+export async function replaceHiddenVault(env, meta, notes) {
+  const now = new Date().toISOString();
+  const stmts = [env.DB.prepare("DELETE FROM settings WHERE substr(key, 1, 12) = ?").bind(HIDDEN_NOTE_PREFIX)];
+  for (const n of notes) {
+    const id = n.id || crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+    const created = n.created_at || now;
+    stmts.push(
+      env.DB.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").bind(HIDDEN_NOTE_PREFIX + id, JSON.stringify({ blob: n.blob, created_at: created, updated_at: n.updated_at || created }))
+    );
+  }
+  stmts.push(
+    env.DB.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(HIDDEN_META_KEY, JSON.stringify(meta))
+  );
+  await env.DB.batch(stmts);
+}
+export async function eraseHiddenVault(env) {
+  await env.DB.prepare("DELETE FROM settings WHERE substr(key, 1, 11) = 'hidden_note'").run();
 }

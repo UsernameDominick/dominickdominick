@@ -160,7 +160,16 @@ import {
   publishBodyTooShort,
   sha256Hex,
   plausibleDims,
+  getHiddenVault,
+  countHiddenNotes,
+  getHiddenNoteRow,
+  putHiddenNote,
+  deleteHiddenNote,
+  setHiddenMeta,
+  replaceHiddenVault,
+  eraseHiddenVault,
 } from "./db.js";
+import { cleanHiddenBlob, cleanHiddenMeta, cleanHiddenVault, MAX_HIDDEN_NOTES } from "./hidden-notes.js";
 import { cleanBodyFields, cleanPageCss, pageCssKey } from "./text.js";
 import { cleanBrand, cleanNavBuiltin } from "./nav-settings.js";
 import { cleanRedirectStatus, cleanRedirectTarget } from "./redirects.js";
@@ -2562,6 +2571,56 @@ async function routeAdminApi(request, env, url, ctx) {
   }
 
   // /analytics
+  // ---- Hidden Notes: a vault of notes sealed in the owner's browser. The server stores and returns sealed blobs only (hidden-notes.js).
+  // None of this is in a backup, and the activity log never names a note (there is nothing readable to name).
+  if (path === "/hidden-notes" && method === "GET") {
+    return json(await getHiddenVault(env), { headers: { "Cache-Control": "no-store" } });
+  }
+  if (path === "/hidden-notes/setup" && method === "POST") {
+    const meta = cleanHiddenMeta((await readJsonBody(request)).meta);
+    if (!meta) return json({ error: "The vault settings are not valid." }, { status: 400 });
+    if ((await getHiddenVault(env)).meta) return json({ error: "The vault is already set up." }, { status: 409 });
+    await setHiddenMeta(env, meta);
+    log(ctx, env, "create", "hidden notes", "vault");
+    return json({ ok: true });
+  }
+  if (path === "/hidden-notes" && method === "POST") {
+    const blob = cleanHiddenBlob((await readJsonBody(request)).blob);
+    if (!blob) return json({ error: "That is not a sealed note." }, { status: 400 });
+    if (!(await getHiddenVault(env)).meta) return json({ error: "Set the vault up first." }, { status: 409 });
+    if ((await countHiddenNotes(env)) >= MAX_HIDDEN_NOTES) return json({ error: `A vault holds up to ${MAX_HIDDEN_NOTES} notes.` }, { status: 400 });
+    const id = crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+    const saved = await putHiddenNote(env, id, blob);
+    log(ctx, env, "create", "hidden note", "(sealed)");
+    return json(saved);
+  }
+  const hiddenNoteMatch = path.match(/^\/hidden-notes\/([a-f0-9]{12})$/);
+  if (hiddenNoteMatch && method === "PUT") {
+    const blob = cleanHiddenBlob((await readJsonBody(request)).blob);
+    if (!blob) return json({ error: "That is not a sealed note." }, { status: 400 });
+    const existing = await getHiddenNoteRow(env, hiddenNoteMatch[1]);
+    if (!existing) return json({ error: "Not found" }, { status: 404 });
+    return json(await putHiddenNote(env, hiddenNoteMatch[1], blob, existing.created_at));
+  }
+  if (hiddenNoteMatch && method === "DELETE") {
+    await deleteHiddenNote(env, hiddenNoteMatch[1]);
+    log(ctx, env, "delete", "hidden note", "(sealed)");
+    return json({ ok: true });
+  }
+  if (path === "/hidden-notes/replace" && method === "POST") {
+    const cleaned = cleanHiddenVault(await readJsonBody(request));
+    if (cleaned.error) return json({ error: cleaned.error }, { status: 400 });
+    await replaceHiddenVault(env, cleaned.meta, cleaned.notes);
+    log(ctx, env, "update", "hidden notes", "vault");
+    return json(await getHiddenVault(env));
+  }
+  if (path === "/hidden-notes/erase" && method === "POST") {
+    if ((await readJsonBody(request)).confirm !== "ERASE") return json({ error: "Type ERASE to confirm." }, { status: 400 });
+    await eraseHiddenVault(env);
+    log(ctx, env, "delete", "hidden notes", "vault");
+    return json({ ok: true });
+  }
+
   if (path === "/analytics" && method === "GET") {
     const days = Number(url.searchParams.get("days")) || 7;
     const filters = {
