@@ -4,6 +4,9 @@
   const $ = (id) => document.getElementById(id);
 
   const Engine = window.SongEngine;
+  // The Studio layout (song-studio.js) reads the open song through this and is told when the editor was rebuilt.
+  window.SongStudioHost = { song: () => songData };
+  const notifyStudio = () => { if (window.SongStudio) window.SongStudio.refresh(); };
   // Every song has the four core drum rows. The extra voices (open hat, rim, tom, crash) are added to a song from the menu under the
   // grid, so a song that never asked for them has exactly the rows it always had. TRACK_ORDER is the order rows are shown in.
   const CORE_TRACKS = ["kick", "snare", "hihat", "clap"];
@@ -332,6 +335,7 @@
     renderPatternControls();
     updatePreviewVisibility();
     refreshWaveformPreview();
+    notifyStudio();
     songEditGeneration++;
     scheduleAutosave();
   }
@@ -3041,6 +3045,7 @@
     renderPianoRoll();
     renderPatternControls();
     patternSay("");
+    notifyStudio();
     updatePreviewVisibility();
     refreshWaveformPreview();
     syncActiveTab();

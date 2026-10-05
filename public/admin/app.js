@@ -10549,6 +10549,7 @@
     song: {
       title: "Song builder help",
       sections: [
+        ["Studio and Classic view", ["The Studio layout has five fixed layers: Kick, Snare and clap, Hats and perc, Bass and Melody. Click a card (or use the arrow keys) to edit that layer; the card under them shows its sound, volume and mute. Scroll the roll, click the keys to play (with Rec on while it plays, notes are recorded), and use Tools for the full toolbar and every extra tool. Classic view is the full editor; it is the same song either way."]],
         ["Building", ["Drum tracks use the step sequencer; the piano roll shows the melody or, with the Bass button, a bass line of its own. Both can be muted or hidden.", "Play / stop previews the loop; Space does the same when nothing has focus. Shift+click a note to hold it across steps.", "Add fill, Starter beat and Spread evenly are under Starter beats and rhythm generator; Pump (next to Echo) makes the melody and bass dip on each kick."]],
         ["Patterns and the song order", ["Up to four patterns (A to D) per song. [ and ] open the previous and next one; Copy here takes drums, melody or bass from another pattern.", "The song order plays patterns one after another; each bar has buttons to move it earlier or later."]],
         ["Files", ["Export MIDI writes the whole song order; Import MIDI… (in the Songs list) turns a MIDI file into a new song, and says what it could not keep. The New song menu has built-in starter songs."]],

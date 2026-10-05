@@ -93,6 +93,10 @@ A song is one JSON blob (`songs.data`). The sound is made by `public/song-engine
 - Drum rows: the four core rows always exist; open hat, rim, tom and crash exist once added (found by their `trackMeta` entry). Melody instruments are `melody.voice` (absent = the plain waveform note).
 - Test helpers: `tests/fake-audio.mjs` (recording Web Audio stand-in plus engine and song-files loaders). A browser test can see which pattern is sounding by wrapping `SongEngine.createPlayer` in an init script (see `tests/e2e/test_song_patterns.js`).
 
+## Song Studio view
+
+`public/admin/song-studio.js` is the default Song layout (the "Classic view" button in the song header switches back; the choice is `localStorage.songView`). It stores nothing: the five layers are a fixed grouping of the song's own data (1 Kick, 2 Snare/clap/rim, 3 Hat/open hat/tom/crash, 4 `bass`, 5 `melody`) and every control proxies a classic control (`#song-voice`, `#song-melody-volume`, `.song-track-mute[data-row]`, `#song-play`…), so undo, autosave and the saved song behave as before. The builder's roll and drum grid are **moved** into the studio (same ids) and moved back in Classic view; never give a studio element a `data-layer`/`data-pattern` ancestor attribute that a delegated handler could match by accident. New song fields need no change here. The e2e runner seeds `songView=classic` so older song tests keep driving the classic editor; `tests/e2e/test_song_studio.js` switches to studio itself.
+
 ## Hidden Notes
 
 `/hidden-notes` (owner only; anyone else gets the normal 404) is a vault of notes sealed in the browser (`public/hidden-notes.js`, PBKDF2 then AES-GCM). The server (`worker/hidden-notes.js`, `/api/admin/hidden-notes*`) only stores sealed blobs in `hidden_note:*` settings rows plus `hidden_notes_meta`. Those rows are excluded from `exportAll`, skipped on import, and left alone by a restore (`isHiddenNotesKey`). Never log a note's content, never render it server-side, and keep it out of any new export or search.

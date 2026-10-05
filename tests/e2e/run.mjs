@@ -188,6 +188,10 @@ async function signIn(base, file) {
   if (res.status() !== 200) throw new Error(`sign-in failed on ${base} (HTTP ${res.status()})`);
   await ctx.storageState({ path: file });
   await ctx.dispose();
+  // The older song tests drive the classic editor; the Studio layout has its own test, which switches view itself.
+  const state = JSON.parse(fs.readFileSync(file, "utf8"));
+  state.origins = [{ origin: base, localStorage: [{ name: "songView", value: "classic" }] }];
+  fs.writeFileSync(file, JSON.stringify(state));
 }
 
 // ---- running
