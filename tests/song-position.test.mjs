@@ -18,9 +18,9 @@ ok(E.positionLabel(song(["A", "B", "A", "C", "B", "B"]), 3, { pattern: true }) =
 ok(E.positionLabel(song(["A", "B"]), 99) === "Bar 2 of 2", "an index past the end stops at the last bar");
 ok(E.positionLabel(song(["A", "B"]), 1.9) === "Bar 2 of 2" && E.positionLabel(song(["A", "B"]), 0.5) === "Bar 1 of 2", "a fraction rounds down");
 ok(E.positionLabel(song(["A", "Z", "B"]), null) === "2 bars", "a pattern letter the song doesn't have is not counted (the same way it isn't played)");
-ok(E.positionLabel(song(Array(32).fill("A")), 31) === "Bar 32 of 32" && E.positionLabel(song(Array(40).fill("B")), null) === "32 bars", "the order is cut at 32 bars, like the player");
+ok(E.positionLabel(song(Array(64).fill("A")), 63) === "Bar 64 of 64" && E.positionLabel(song(Array(80).fill("B")), null) === "64 bars", "the order is cut at 64 bars, like the player");
 ok(E.positionLabel(song(["A", "B"], { editing: "B", tracks: part("..x.").tracks, patterns: { A: part("x...") } }), 0, { pattern: true }) === "Bar 1 of 2 · Pattern A", "it follows the open pattern swap (the open one is the song's own parts)");
-ok(E.positionLabel(song(["A", "B"]), 0).length <= E.positionLabel(song(Array(32).fill("A")), 31).length, "the widest text (the last bar of a long song) is at least as long as any other");
+ok(E.positionLabel(song(["A", "B"]), 0).length <= E.positionLabel(song(Array(64).fill("A")), 63).length, "the widest text (the last bar of a long song) is at least as long as any other");
 
 console.log(fail ? `${fail} FAILED` : "ALL PASS");
 process.exit(fail ? 1 : 0);

@@ -59,7 +59,7 @@
     let positionSegments = [];
     let shownBar; // undefined until the first showBar, so the first call (null, at rest) draws
     if (window.SongEngine.positionLabel && window.SongEngine.positionLabel(songData, null)) {
-      const order = window.SongEngine.chainOf(songData);
+      const order = Array.from({ length: window.SongEngine.songBars(songData) });
       const row = document.createElement("div");
       row.className = "song-embed-position";
       positionLabel = document.createElement("span");

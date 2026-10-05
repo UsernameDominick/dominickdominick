@@ -106,18 +106,18 @@ const S = 120; // ticks per step at 480 per quarter
   ok(gap.info.bars === 3 && gap.info.patterns === 2 && gap.song.chain.join("") === "ABA", "a silent bar between two hits is its own pattern", gap.song.chain);
 }
 
-// more than four different bars, and more than 32 bars
+// more than sixteen different bars, and more than 64 bars
 {
   const ev = [tempoEvent(100)];
-  for (let bar = 0; bar < 6; bar++) { ev.push(on(bar * S * 16 + bar * S, 9, 36), off(bar * S * 16 + bar * S + 60, 9, 36)); }
+  for (let bar = 0; bar < 20; bar++) { ev.push(on(bar * S * 16 + (bar % 16) * S, 9, 36), off(bar * S * 16 + (bar % 16) * S + 60, 9, 36)); if (bar >= 16) ev.push(on(bar * S * 16, 9, 38), off(bar * S * 16 + 60, 9, 38)); }
   const r = F.importMidi(file(track(ev)));
-  ok(r.info.bars === 6 && r.info.patterns === 4 && r.info.uniqueBars === 6 && r.info.leftOutBars === 2, "six different bars: the first four are patterns, two bars are left out", r.info);
-  ok(r.song.chain.join("") === "ABCD" && /first 4 became patterns A to D/.test(r.info.messages.join(" ")), "the song order only lists the bars that were kept", r.song.chain);
+  ok(r.info.bars === 20 && r.info.patterns === 16 && r.info.uniqueBars === 20 && r.info.leftOutBars === 4, "twenty different bars: the first sixteen are patterns, four bars are left out", r.info);
+  ok(r.song.chain.join("") === "ABCDEFGHIJKLMNOP" && /first 16 became patterns A to P/.test(r.info.messages.join(" ")), "the song order only lists the bars that were kept", r.song.chain);
 
   const long = [tempoEvent(120)];
-  for (let bar = 0; bar < 40; bar++) long.push(on(bar * S * 16, 9, 36), off(bar * S * 16 + 60, 9, 36));
+  for (let bar = 0; bar < 80; bar++) long.push(on(bar * S * 16, 9, 36), off(bar * S * 16 + 60, 9, 36));
   const r2 = F.importMidi(file(track(long)));
-  ok(r2.info.bars === 32 && /Notes after bar 32 \(8\)/.test(r2.info.messages.join(" ")), "a 40-bar file stops at bar 32 and says how much was left out", r2.info.messages);
+  ok(r2.info.bars === 64 && /Notes after bar 64 \(16\)/.test(r2.info.messages.join(" ")), "an 80-bar file stops at bar 64 and says how much was left out", r2.info.messages);
 }
 
 // ---- reading the file ----
@@ -306,7 +306,7 @@ const S = 120; // ticks per step at 480 per quarter
   ok(/no notes/.test(err(new U8([...mthd(1, 1, 480), ...tag("MTrk"), ...be32(4), 0, 60, 100, 0])) || ""), "data bytes before any status stop the track");
   ok(/no tracks/.test(err(new U8([...mthd(1, 1, 480), ...tag("JUNK"), ...be32(4), 1, 2, 3, 4])) || ""), "chunks that are not tracks are skipped");
   const huge = F.importMidi(file(track([on(0xfffffff, 9, 36), off(0xfffffff + 1, 9, 36), on(0, 9, 38), off(60, 9, 38)])));
-  ok(!huge.error && huge.info.bars === 1 && /Notes after bar 32 \(1\)/.test(huge.info.messages.join(" ")), "a note an absurd distance into the file is left out, not allocated", huge.error || huge.info.messages);
+  ok(!huge.error && huge.info.bars === 1 && /Notes after bar 64 \(1\)/.test(huge.info.messages.join(" ")), "a note an absurd distance into the file is left out, not allocated", huge.error || huge.info.messages);
 
   // too many events
   const many = []; for (let i = 0; i < 110000; i++) many.push(on(i, 0, 60), off(i, 0, 60));
@@ -318,7 +318,7 @@ const S = 120; // ticks per step at 480 per quarter
   const dense = []; for (let i = 0; i < 90000; i++) dense.push(on((i % 4000) * 16, 0, 48 + (i % 24)), off((i % 4000) * 16 + 1, 0, 48 + (i % 24)));
   const t1 = Date.now();
   const rDense = F.importMidi(file(track(dense)));
-  ok(!rDense.error && rDense.info.bars === 32 && Date.now() - t1 < 3000, "90,000 notes (just under the limits) import without trouble", rDense.error || Date.now() - t1);
+  ok(!rDense.error && rDense.info.bars >= 32 && rDense.info.bars <= 64 && Date.now() - t1 < 3000, "90,000 notes (just under the limits) import without trouble", rDense.error || Date.now() - t1);
   // 64 tracks is the most it reads
   const tracks = Array.from({ length: 70 }, () => track([on(0, 0, 60), off(S, 0, 60)]));
   const parsed = F.parseMidi(file(...tracks));

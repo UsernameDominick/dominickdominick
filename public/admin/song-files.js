@@ -28,8 +28,24 @@
   const VISUALIZATIONS = ["bars", "waveform", "pulse"];
   const THEMES = ["default", "sunset", "ocean", "mono", "neon"];
   const SCALE_TYPES = ["major", "minor", "majpent", "minpent", "blues"];
-  const PATTERN_NAMES = ["A", "B", "C", "D"];
-  const MAX_CHAIN = 32;
+  const PATTERN_NAMES = "ABCDEFGHIJKLMNOP".split("");
+  const MAX_BARS = 64;
+  const MAX_CHAIN = MAX_BARS;
+  const LANE_KEYS = ["drums", "bass", "chords", "melody", "lead"];
+  // A track's own sound tweaks, kept in step with SongEngine.cleanSynth (the ranges are the engine's).
+  const SYNTH_WAVES = ["sine", "square", "sawtooth", "triangle"];
+  const SYNTH_RANGES = { attack: [0.001, 2], decay: [0.02, 3], sustain: [0, 1], release: [0, 3], cutoff: [120, 12000], detune: [0, 40], vibrato: [0, 60] };
+  function cleanSynth(raw) {
+    if (!isObj(raw)) return null;
+    const out = {};
+    if (SYNTH_WAVES.includes(raw.wave)) out.wave = raw.wave;
+    Object.keys(SYNTH_RANGES).forEach((key) => {
+      const n = Number(raw[key]);
+      if (raw[key] === undefined || raw[key] === null || raw[key] === "" || !Number.isFinite(n)) return;
+      out[key] = Math.round(Math.max(SYNTH_RANGES[key][0], Math.min(SYNTH_RANGES[key][1], n)) * 1000) / 1000;
+    });
+    return Object.keys(out).length ? out : null;
+  }
   const isObj = (v) => !!v && typeof v === "object" && !Array.isArray(v);
   const FORMAT = "dominick-song";
   const VERSION = 1;
@@ -86,7 +102,7 @@
 
   // The patterns of a song and the song order, resolved the way song-engine.js does it (song-chain.test.mjs checks they agree): the open
   // pattern (song.editing, default "A") is the song's own tracks and melody notes/ties (and bass, chords and lead), the others sit under song.patterns,
-  // and the order keeps only patterns that exist (cut to 32), or is just the first pattern the song has.
+  // and the order keeps only patterns that exist (cut to 64), or is just the first pattern the song has.
   function patternParts(song, name) {
     if (!PATTERN_NAMES.includes(name)) return null;
     const editing = PATTERN_NAMES.includes(song.editing) ? song.editing : "A";
@@ -109,10 +125,51 @@
     });
     return stored;
   }
+  // The bars of the song, each with the parts that sound in it (kept equal to SongEngine.chainPatterns by song-chain.test.mjs): the song order
+  // plays all the tracks together, unless the song gives a track a lane of its own (song.lanes), and song.bars sets how long the song is.
   function chainParts(song) {
     const names = PATTERN_NAMES.filter((n) => patternParts(song, n));
     const wanted = (Array.isArray(song.chain) ? song.chain : []).filter((n) => names.includes(n)).slice(0, MAX_CHAIN);
-    return (wanted.length ? wanted : names.slice(0, 1)).map((name) => Object.assign({ name }, patternParts(song, name)));
+    const chain = wanted.length ? wanted : names.slice(0, 1);
+    if (!chain.length) return [];
+    const lanes = isObj(song.lanes) && LANE_KEYS.some((k) => isObj(song.lanes[k])) ? song.lanes : null;
+    const orderOf = (key) => (lanes && isObj(lanes[key]) ? (Array.isArray(lanes[key].order) ? lanes[key].order : []).filter((n) => names.includes(n)).slice(0, MAX_BARS) : chain);
+    const loops = (key) => !(lanes && isObj(lanes[key]) && lanes[key].loop === false);
+    let total;
+    if (Number.isInteger(song.bars) && song.bars >= 1) total = Math.min(MAX_BARS, song.bars);
+    else {
+      total = chain.length;
+      if (lanes) LANE_KEYS.forEach((k) => { if (isObj(lanes[k])) total = Math.max(total, orderOf(k).length); });
+      total = Math.min(MAX_BARS, Math.max(1, total));
+    }
+    const at = (key, bar) => {
+      const order = orderOf(key);
+      if (!order.length) return null;
+      if (loops(key)) return order[bar % order.length];
+      return bar < order.length ? order[bar] : null;
+    };
+    const bars = [];
+    for (let bar = 0; bar < total; bar++) {
+      const name = chain[bar % chain.length];
+      if (!lanes) {
+        bars.push(Object.assign({ name }, patternParts(song, name)));
+        continue;
+      }
+      const pick = (key) => {
+        const n = at(key, bar);
+        return n ? patternParts(song, n) : null;
+      };
+      const drums = pick("drums");
+      const melody = pick("melody");
+      const out = { name, tracks: drums ? drums.tracks : {}, notes: melody ? melody.notes : {}, ties: melody ? melody.ties : {} };
+      PART_KEYS.forEach((key) => {
+        if (!isObj(song[key])) return;
+        const part = pick(key);
+        out[key] = { notes: part && part[key] ? part[key].notes : {}, ties: part && part[key] ? part[key].ties : {} };
+      });
+      bars.push(out);
+    }
+    return bars;
   }
 
   const level = (v) => (typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 1);
@@ -333,12 +390,12 @@
   const STRONG_VELOCITY = 85;
   const MEDIUM_VELOCITY = 55;
   const strengthOf = (vel) => (vel >= STRONG_VELOCITY ? true : vel >= MEDIUM_VELOCITY ? 0.65 : 0.35);
-  const MAX_IMPORT_BARS = 32;
+  const MAX_IMPORT_BARS = MAX_BARS;
 
   // Turns a parsed MIDI file into a song: tempo; drums (channel 10) onto the drum rows by General MIDI note; the busiest higher part as the
   // melody and the busiest low part (named "bass", or mostly below C3) as the bass line, each moved by whole octaves into its piano roll
   // (held notes tied); everything snapped to sixteenth notes, one bar of 16 steps each. Identical bars become one pattern, so a repeating
-  // file is a few patterns and a song order (up to four different bars, 32 bars). Returns { song, info } (song already cleaned,
+  // file is a few patterns and a song order (up to sixteen different bars, 64 bars). Returns { song, info } (song already cleaned,
   // info.messages in plain words) or { error }.
   const MELODY_LOW = 48; // the lowest note of the melody roll (C3); the bass roll is C1 (24) to B2 (47)
   const BASS_LOW = 24;
@@ -488,7 +545,7 @@
     const leftOut = barPattern.length - order.length;
     if (unique.length > 1 && unique.length <= PATTERN_NAMES.length) messages.push(`${barCount} bars with ${unique.length} different bars: they became patterns ${PATTERN_NAMES.slice(0, unique.length).join(", ")} and a song order.`);
     else if (unique.length === 1 && barCount > 1) messages.push(`All ${barCount} bars are the same, so the song is that one pattern.`);
-    if (unique.length > PATTERN_NAMES.length) messages.push(`This file has ${unique.length} different bars. The first ${PATTERN_NAMES.length} became patterns A to D, and the ${leftOut} bars that are not one of them were left out.`);
+    if (unique.length > PATTERN_NAMES.length) messages.push(`This file has ${unique.length} different bars. The first ${PATTERN_NAMES.length} became patterns ${PATTERN_NAMES[0]} to ${PATTERN_NAMES[PATTERN_NAMES.length - 1]}, and the ${leftOut} bars that are not one of them were left out.`);
 
     // the song: the first pattern is the song's own parts, the rest go under patterns
     const rowsUsed = new Set(CORE_DRUMS);
@@ -618,6 +675,8 @@
     if (melody.hidden === true) song.melody.hidden = true;
     if (melody.volume !== undefined && melody.volume !== null && melody.volume !== "") song.melody.volume = clampNum(melody.volume, 0, 1, 1);
     if (MELODY_VOICES.includes(melody.voice)) song.melody.voice = melody.voice;
+    const melodySynth = cleanSynth(melody.synth);
+    if (melodySynth) song.melody.synth = melodySynth;
     const notes = melody.notes && typeof melody.notes === "object" ? melody.notes : {};
     PIANO_NOTES.forEach((n) => (song.melody.notes[n] = cleanLane(notes[n])));
     // Held notes: a tie only counts where the note is on at that step and the one before, so a stale flag can't survive the clean-up.
@@ -630,6 +689,8 @@
       const raw = src[key];
       const part = {};
       if (MELODY_VOICES.includes(raw.voice)) part.voice = raw.voice;
+      const partSynth = cleanSynth(raw.synth);
+      if (partSynth) part.synth = partSynth;
       if (raw.muted === true) part.muted = true;
       if (raw.hidden === true) part.hidden = true;
       if (raw.volume !== undefined && raw.volume !== null && raw.volume !== "") part.volume = clampNum(raw.volume, 0, 1, 1);
@@ -674,6 +735,19 @@
       const chain = src.chain.filter((n) => typeof n === "string" && exists.has(n)).slice(0, MAX_CHAIN);
       if (chain.length) song.chain = chain;
     }
+    // How long the song is, and the tracks that play a run of patterns of their own (a lane keeps only patterns the song has).
+    if (Number.isInteger(src.bars) && src.bars >= 1) song.bars = Math.min(MAX_BARS, src.bars);
+    if (isObj(src.lanes)) {
+      const exists = new Set([open, ...Object.keys(song.patterns || {})]);
+      const lanes = {};
+      LANE_KEYS.forEach((key) => {
+        const lane = src.lanes[key];
+        if (!isObj(lane) || !Array.isArray(lane.order)) return;
+        const order = lane.order.filter((n) => typeof n === "string" && exists.has(n)).slice(0, MAX_BARS);
+        lanes[key] = lane.loop === false ? { order, loop: false } : { order };
+      });
+      if (Object.keys(lanes).length) song.lanes = lanes;
+    }
     return song;
   }
 
@@ -709,5 +783,5 @@
     return { name: name || "Imported song", data: cleanSong(data) };
   }
 
-  window.SongFiles = { parseMidi, midiToSong, importMidi, GM_TO_ROW, BASS_NOTES, PART_KEYS, PART_NOTES, PART_OCTAVES, PATTERN_NAMES, chainParts, MELODY_VOICES, CORE_DRUMS, EXTRA_DRUMS, GM_DRUMS, buildMidi, noteNumber, exportJson, parseImport, cleanSong, PPQ, STEP_TICKS, FORMAT, VERSION };
+  window.SongFiles = { parseMidi, midiToSong, importMidi, GM_TO_ROW, BASS_NOTES, PART_KEYS, PART_NOTES, PART_OCTAVES, PATTERN_NAMES, LANE_KEYS, MAX_BARS, cleanSynth, chainParts, MELODY_VOICES, CORE_DRUMS, EXTRA_DRUMS, GM_DRUMS, buildMidi, noteNumber, exportJson, parseImport, cleanSong, PPQ, STEP_TICKS, FORMAT, VERSION };
 })();

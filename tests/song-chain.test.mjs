@@ -60,7 +60,7 @@ const multi = (extra = {}) => ({
   ok(E.chainOf({ ...s, chain: ["A", "A", "B", "A"] }).join("") === "AABA", "the song order is what was set");
   ok(E.chainOf({ ...s, chain: ["A", "C", "B", "Z", "constructor", 5] }).join("") === "AB", "patterns the song does not have, and junk, are dropped from the order");
   ok(E.chainOf({ ...s, chain: [] }).join("") === "A" && E.chainOf({ ...s, chain: "AB" }).join("") === "A" && E.chainOf({ ...s, chain: ["C"] }).join("") === "A", "no usable order plays the first pattern the song has");
-  ok(E.chainOf({ ...s, chain: Array(40).fill("A") }).length === 32 && E.MAX_CHAIN === 32, "the order is cut to 32");
+  ok(E.chainOf({ ...s, chain: Array(80).fill("A") }).length === 64 && E.MAX_CHAIN === 64, "the order is cut to 64");
   const noA = { ...s, editing: "B", tracks: s.patterns.B.tracks, melody: { notes: s.patterns.B.notes }, patterns: {} };
   ok(E.patternNames(noA).join() === "B" && E.chainOf(noA).join() === "B", "a song whose only pattern is B plays B");
   ok(E.chainSteps({ ...s, chain: ["A", "B", "B"] }) === 48, "three bars are 48 steps");
@@ -260,18 +260,18 @@ function drive(songData, options, bars) {
   };
   const c = F.cleanSong(full);
   ok(c.editing === "B", "the open pattern is kept (B)", c.editing);
-  ok(Object.keys(c.patterns).join() === "A,C", "the other patterns are kept in order, and the open one, an unknown letter and an inherited one are dropped", Object.keys(c.patterns));
+  ok(Object.keys(c.patterns).join() === "A,C,E", "the other patterns are kept in order, and the open one, an unknown letter and an inherited one are dropped", Object.keys(c.patterns));
   ok(Object.keys(c.patterns.A.tracks).sort().join() === "clap,hihat,kick,snare,tom" && !c.patterns.A.tracks.cowbell, "a pattern has a lane for each row the song has, and none for a row it doesn't", Object.keys(c.patterns.A.tracks));
   ok(c.patterns.A.tracks.kick.filter(Boolean).length === 4 && c.patterns.A.notes.E4.filter(Boolean).length === 2 && c.patterns.A.ties.E4[1] === true, "its hits, notes and held notes are cleaned and kept", c.patterns.A.ties);
   ok(c.patterns.C.ties.C4[1] === true && Object.keys(c.patterns.C.notes).length === 24 && !c.patterns.C.notes.Z9, "notes off the roll are dropped and the roll is filled in", Object.keys(c.patterns.C.notes).length);
-  ok(c.chain.join("") === "ABCA", "the order keeps real patterns only (A, B open, C; D and E don't exist) in the order given", c.chain);
+  ok(c.chain.join("") === "ABCEA", "the order keeps real patterns only (A, B open, C and E; D doesn't exist) in the order given", c.chain);
   const round = F.parseImport(F.exportJson("T", c));
   ok(JSON.stringify(round.data) === JSON.stringify(c), "export then import gives exactly the same song");
   const plain = F.cleanSong({ tempo: 90 });
   ok(plain.editing === undefined && plain.patterns === undefined && plain.chain === undefined && !("editing" in plain) && !("patterns" in plain) && !("chain" in plain), "a one-pattern song gets none of the three fields");
   ok(F.cleanSong({ editing: "A", patterns: { A: patternOf("x") } }).editing === undefined && F.cleanSong({ editing: "A", patterns: { A: patternOf("x") } }).patterns === undefined, "editing A is the default (not written), and a stored A while A is open is dropped");
   ok(F.cleanSong({ chain: ["A"], patterns: {} }).chain.join() === "A" && F.cleanSong({ chain: ["B"] }).chain === undefined, "an order of the one pattern is kept; one naming a pattern that doesn't exist is dropped");
-  ok(F.cleanSong({ chain: Array(50).fill("A") }).chain.length === 32, "a very long order is cut to 32");
+  ok(F.cleanSong({ chain: Array(80).fill("A") }).chain.length === 64, "a very long order is cut to 64");
   ok(F.cleanSong({ patterns: "no", chain: "AB", editing: { a: 1 } }).patterns === undefined, "wrong types are ignored");
 }
 

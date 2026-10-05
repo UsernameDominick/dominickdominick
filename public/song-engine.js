@@ -478,8 +478,40 @@ function setMasterVolume(ctx, value) {
   };
   const MELODY_VOICE_PEAK = 0.25; // the same loudness the plain waveform note starts at
 
-  function playVoicedNote(ctx, time, freq, voiceName, duration) {
-    const v = MELODY_VOICES[voiceName];
+  // A track's own tweaks to its sound (songData[part].synth): any of these, each inside its range. Anything else is dropped, so stale or
+  // hostile data can never reach the audio graph.
+  const SYNTH_WAVES = ["sine", "square", "sawtooth", "triangle"];
+  const SYNTH_RANGES = { attack: [0.001, 2], decay: [0.02, 3], sustain: [0, 1], release: [0, 3], cutoff: [120, 12000], detune: [0, 40], vibrato: [0, 60] };
+  function cleanSynth(raw) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+    const out = {};
+    if (SYNTH_WAVES.includes(raw.wave)) out.wave = raw.wave;
+    Object.keys(SYNTH_RANGES).forEach((key) => {
+      const n = Number(raw[key]);
+      if (raw[key] === undefined || raw[key] === null || raw[key] === "" || !Number.isFinite(n)) return;
+      const [lo, hi] = SYNTH_RANGES[key];
+      out[key] = Math.round(Math.max(lo, Math.min(hi, n)) * 1000) / 1000;
+    });
+    return Object.keys(out).length ? out : null;
+  }
+  // A named voice with a track's tweaks laid over it.
+  function shapedVoice(voiceName, synth) {
+    const base = MELODY_VOICES[voiceName];
+    const t = cleanSynth(synth);
+    if (!t) return base;
+    const v = Object.assign({}, base);
+    if (t.wave) v.wave = t.wave;
+    ["attack", "decay", "sustain", "release", "detune"].forEach((key) => { if (t[key] !== undefined) v[key] = t[key]; });
+    if (t.cutoff !== undefined) {
+      if (v.cutoffEnd && v.cutoff) v.cutoffEnd = Math.max(80, (v.cutoffEnd * t.cutoff) / v.cutoff);
+      v.cutoff = t.cutoff;
+    }
+    if (t.vibrato !== undefined) v.vibrato = t.vibrato > 0 ? { cents: t.vibrato, rate: (base.vibrato && base.vibrato.rate) || 5.5, delay: base.vibrato ? base.vibrato.delay : 0.18 } : undefined;
+    return v;
+  }
+
+  function playVoicedNote(ctx, time, freq, voiceName, duration, synth) {
+    const v = shapedVoice(voiceName, synth);
     const end = time + duration;
     const peak = MELODY_VOICE_PEAK * (v.level || 1);
     const envelope = ctx.createGain();
@@ -634,11 +666,16 @@ function setMasterVolume(ctx, value) {
   // and melody.notes/ties, exactly as it always has; songData.editing names it (absent means "A") and songData.patterns holds each other
   // pattern as { tracks, notes, ties }. Everything else (mix, instrument, scale, tempo, echo...) is shared by every pattern. A song with
   // no patterns, chain or editing is the one-pattern song it always was and takes the original code path everywhere.
-  const PATTERN_NAMES = ["A", "B", "C", "D"];
-  const MAX_CHAIN = 32;
+  const PATTERN_NAMES = "ABCDEFGHIJKLMNOP".split("");
+  const MAX_BARS = 64;
+  const MAX_CHAIN = MAX_BARS;
+  // Each of the five Studio tracks can play its own run of patterns (a "lane"): songData.lanes[track] = { order: ["A", "B"], loop: false }.
+  // A lane shorter than the song loops until the song ends unless its loop is off; a track with no lane follows the song order. A song
+  // with no lanes and no bar count is the song it always was.
+  const LANE_KEYS = ["drums", "bass", "chords", "melody", "lead"];
   const isObj = (v) => !!v && typeof v === "object" && !Array.isArray(v);
   function isSinglePattern(songData) {
-    return !songData.patterns && !songData.chain && !songData.editing;
+    return !songData.patterns && !songData.chain && !songData.editing && !songData.lanes && !songData.bars;
   }
   function editingName(songData) {
     return PATTERN_NAMES.includes(songData.editing) ? songData.editing : "A";
@@ -677,17 +714,46 @@ function setMasterVolume(ctx, value) {
     const wanted = (Array.isArray(songData.chain) ? songData.chain : []).filter((name) => names.includes(name)).slice(0, MAX_CHAIN);
     return wanted.length ? wanted : names.slice(0, 1);
   }
+  function hasLanes(songData) {
+    return isObj(songData.lanes) && LANE_KEYS.some((key) => isObj(songData.lanes[key]));
+  }
+  // The patterns one track plays, in order: its lane (pattern letters the song no longer has dropped), or the song order when it has none.
+  function laneOrder(songData, key) {
+    if (!hasLanes(songData) || !isObj(songData.lanes[key])) return chainOf(songData);
+    const names = patternNames(songData);
+    const order = Array.isArray(songData.lanes[key].order) ? songData.lanes[key].order : [];
+    return order.filter((name) => names.includes(name)).slice(0, MAX_BARS);
+  }
+  function laneLoops(songData, key) {
+    return !(hasLanes(songData) && isObj(songData.lanes[key]) && songData.lanes[key].loop === false);
+  }
+  // The pattern a track plays in bar `bar` (0 is the first), or null when it is silent there (an empty lane, or a lane that does not loop
+  // and has ended).
+  function patternAtBar(songData, key, bar) {
+    const order = laneOrder(songData, key);
+    if (!order.length) return null;
+    if (laneLoops(songData, key)) return order[bar % order.length];
+    return bar < order.length ? order[bar] : null;
+  }
+  // How many bars the song is: the number it was given, else as many as its longest run of patterns.
+  function songBars(songData) {
+    if (Number.isInteger(songData.bars) && songData.bars >= 1) return Math.min(MAX_BARS, songData.bars);
+    let bars = chainOf(songData).length;
+    if (hasLanes(songData)) LANE_KEYS.forEach((key) => { if (isObj(songData.lanes[key])) bars = Math.max(bars, laneOrder(songData, key).length); });
+    return Math.min(MAX_BARS, Math.max(1, bars));
+  }
   function chainSteps(songData) {
-    return chainOf(songData).length * STEPS;
+    return songBars(songData) * STEPS;
   }
   // What a song with a song order says about where it is: "Bar 3 of 6" (and "· Pattern B" with { pattern: true }) while bar `index` of the
   // order sounds, "6 bars" when none does (index null), and null for a song that is one bar long (nothing to count).
   function positionLabel(songData, index, { pattern = false } = {}) {
     const chain = chainOf(songData);
-    if (chain.length < 2) return null;
-    if (index === null || index === undefined || !(index >= 0)) return `${chain.length} bars`;
-    const i = Math.min(chain.length - 1, Math.floor(index));
-    return `Bar ${i + 1} of ${chain.length}${pattern ? ` · Pattern ${chain[i]}` : ""}`;
+    const total = songBars(songData);
+    if (total < 2) return null;
+    if (index === null || index === undefined || !(index >= 0)) return `${total} bars`;
+    const i = Math.min(total - 1, Math.floor(index));
+    return `Bar ${i + 1} of ${total}${pattern && chain.length ? ` · Pattern ${chain[i % chain.length]}` : ""}`;
   }
   // The song as scheduleStep reads it while pattern `name` is playing: the same song with that pattern's parts in the usual places.
   function viewOf(songData, name) {
@@ -700,9 +766,40 @@ function setMasterVolume(ctx, value) {
     });
     return view;
   }
-  // The song order resolved to each pattern's parts, for exports that do not play the song (MIDI).
+  // The song as it sounds in bar `bar`: each track's own pattern from its lane, or the song order's pattern for all of them when the song
+  // has no lanes (then it is exactly viewOf).
+  function barView(songData, bar) {
+    if (!hasLanes(songData)) {
+      const chain = chainOf(songData);
+      return viewOf(songData, chain[bar % chain.length]);
+    }
+    const pick = (key) => {
+      const name = patternAtBar(songData, key, bar);
+      return name ? patternData(songData, name) : null;
+    };
+    const view = Object.assign({}, songData);
+    const drums = pick("drums");
+    view.tracks = drums ? drums.tracks : {};
+    const melody = pick("melody");
+    view.melody = Object.assign({}, isObj(songData.melody) ? songData.melody : {}, { notes: melody ? melody.notes : {}, ties: melody ? melody.ties : {} });
+    PART_KEYS.forEach((key) => {
+      if (!isObj(songData[key])) return;
+      const part = pick(key);
+      view[key] = Object.assign({}, songData[key], { notes: part && part[key] ? part[key].notes : {}, ties: part && part[key] ? part[key].ties : {} });
+    });
+    return view;
+  }
+  // The song's bars resolved to their parts, for exports that do not play the song (MIDI).
   function chainPatterns(songData) {
-    return chainOf(songData).map((name) => Object.assign({ name }, patternData(songData, name)));
+    const bars = [];
+    for (let bar = 0; bar < songBars(songData); bar++) {
+      const view = barView(songData, bar);
+      const chain = chainOf(songData);
+      const out = { name: chain[bar % chain.length], tracks: isObj(view.tracks) ? view.tracks : {}, notes: isObj(view.melody.notes) ? view.melody.notes : {}, ties: isObj(view.melody.ties) ? view.melody.ties : {} };
+      PART_KEYS.forEach((key) => { if (isObj(view[key])) out[key] = { notes: isObj(view[key].notes) ? view[key].notes : {}, ties: isObj(view[key].ties) ? view[key].ties : {} }; });
+      bars.push(out);
+    }
+    return bars;
   }
   // Exports repeat the whole song, so a long one gets fewer repeats than the 16 the menu offers (five minutes of audio at most).
   const MAX_EXPORT_SECONDS = 300;
@@ -755,7 +852,7 @@ function setMasterVolume(ctx, value) {
           const noteTime = Math.max(0, time + humanizeJitter(songData, random));
           const length = duration * heldSteps(songData, note, step);
           withVolume(ctx, volumeOf(songData.melody) * stepLevel(songData.melody.notes[note][step]), () =>
-            voice ? playVoicedNote(ctx, noteTime, noteToFreq(note), voice, length) : playMelodyNote(ctx, noteTime, noteToFreq(note), waveform, length));
+            voice ? playVoicedNote(ctx, noteTime, noteToFreq(note), voice, length, songData.melody.synth) : playMelodyNote(ctx, noteTime, noteToFreq(note), waveform, length));
         }
       });
     }
@@ -768,7 +865,7 @@ function setMasterVolume(ctx, value) {
         if (Array.isArray(lane) && lane[step] && !isTiedContinuation(songData, note, step, key)) {
           const noteTime = Math.max(0, time + humanizeJitter(songData, random));
           const length = duration * heldSteps(songData, note, step, key);
-          withVolume(ctx, volumeOf(songData[key]) * stepLevel(lane[step]), () => playVoicedNote(ctx, noteTime, noteToFreq(note), voice, length));
+          withVolume(ctx, volumeOf(songData[key]) * stepLevel(lane[step]), () => playVoicedNote(ctx, noteTime, noteToFreq(note), voice, length, songData[key].synth));
         }
       });
     });
@@ -842,6 +939,7 @@ function setMasterVolume(ctx, value) {
     let currentStep = 0;
     let chainIndex = 0;
     let playingPattern = "A";
+    let playingLanes = {};
     let loopName = "";
     let nextStepTime = 0;
     let timer = null;
@@ -851,20 +949,26 @@ function setMasterVolume(ctx, value) {
       while (nextStepTime < ctx.currentTime + SCHEDULE_AHEAD_S) {
         let name;
         let length = 1;
+        let view;
+        let lanes = {};
         if (isSinglePattern(songData)) {
           name = "A";
+          view = viewOf(songData, name);
         } else if (loopName) {
           name = patternData(songData, loopName) ? loopName : editingName(songData); // a pattern removed while looping falls back to the open one
+          view = viewOf(songData, name);
         } else {
           const chain = chainOf(songData);
-          if (chainIndex >= chain.length) chainIndex = 0; // the order was shortened while playing
-          name = chain[chainIndex];
-          length = chain.length;
+          length = songBars(songData);
+          if (chainIndex >= length) chainIndex = 0; // the song was shortened while playing
+          name = chain[chainIndex % chain.length];
+          view = barView(songData, chainIndex);
+          LANE_KEYS.forEach((key) => { lanes[key] = patternAtBar(songData, key, chainIndex); });
         }
-        const view = viewOf(songData, name);
         playingPattern = name;
+        playingLanes = lanes;
         scheduleStep(ctx, view, currentStep, nextStepTime);
-        if (onStep) onStep(currentStep, nextStepTime + swingDelay(songData, currentStep), { pattern: name, chainIndex, chainLength: length, data: view }); // the time the step actually sounds
+        if (onStep) onStep(currentStep, nextStepTime + swingDelay(songData, currentStep), { pattern: name, patterns: lanes, chainIndex, chainLength: length, data: view }); // the time the step actually sounds
         nextStepTime += stepDurationFor(songData.tempo);
         currentStep = (currentStep + 1) % STEPS;
         if (currentStep === 0 && length > 1) chainIndex = (chainIndex + 1) % length;
@@ -894,6 +998,8 @@ function setMasterVolume(ctx, value) {
       isPlaying: () => playing,
       currentStep: () => currentStep,
       currentPattern: () => playingPattern,
+      // The pattern one track is playing now (null when it is silent in this bar).
+      currentPatternFor: (key) => (Object.prototype.hasOwnProperty.call(playingLanes, key) ? playingLanes[key] : playingPattern),
       currentChainIndex: () => chainIndex,
     };
   }
@@ -907,8 +1013,8 @@ function setMasterVolume(ctx, value) {
   async function renderWaveformPeaks(songData, peakCount) {
     const stepDur = stepDurationFor(songData.tempo);
     // The whole song order, one pattern after another (a one-pattern song is one loop, as ever).
-    const chain = chainOf(songData);
-    const duration = stepDur * STEPS * chain.length;
+    const bars = songBars(songData);
+    const duration = stepDur * STEPS * bars;
     const sampleRate = 44100;
     const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
     const ctx = new OfflineCtx(1, Math.ceil(sampleRate * duration), sampleRate);
@@ -927,10 +1033,10 @@ function setMasterVolume(ctx, value) {
         ? songData
         : Object.assign({}, songData, { master_volume: 1, humanize: 0, space: 0, echo: 0 });
     const random = previewRandom(previewData);
-    chain.forEach((name, bar) => {
-      const view = viewOf(previewData, name);
+    for (let bar = 0; bar < bars; bar++) {
+      const view = barView(previewData, bar);
       for (let step = 0; step < STEPS; step++) scheduleStep(ctx, view, step, (bar * STEPS + step) * stepDur, random);
-    });
+    }
     const buffer = await ctx.startRendering();
     const data = buffer.getChannelData(0);
     const count = peakCount || 200;
@@ -974,8 +1080,8 @@ function setMasterVolume(ctx, value) {
   async function renderLoopAudio(songData, options = {}) {
     const rate = Number(options.sampleRate);
     const sampleRate = Number.isFinite(rate) && rate >= 8000 && rate <= 192000 ? Math.round(rate) : 44100;
-    const chain = chainOf(songData);
-    const totalSteps = STEPS * chain.length;
+    const bars = songBars(songData);
+    const totalSteps = STEPS * bars;
     const loops = Math.min(maxExportLoops(songData), Math.max(1, Math.min(16, Math.round(Number(options.loops)) || 1)));
     const tail = Math.max(0, Math.min(10, Number(options.tailSeconds) || 0));
     const loopSamples = Math.max(1, Math.round(stepDurationFor(songData.tempo) * totalSteps * sampleRate));
@@ -991,10 +1097,10 @@ function setMasterVolume(ctx, value) {
     const stepSeconds = loopSamples / sampleRate / totalSteps;
     for (let pass = 0; pass < 2; pass++) {
       const random = previewRandom(songData);
-      chain.forEach((name, bar) => {
-        const view = viewOf(songData, name);
+      for (let bar = 0; bar < bars; bar++) {
+        const view = barView(songData, bar);
         for (let step = 0; step < STEPS; step++) scheduleStep(ctx, view, step, (pass * totalSteps + bar * STEPS + step) * stepSeconds, random);
-      });
+      }
     }
     const rendered = (await ctx.startRendering()).getChannelData(0);
     const samples = new Float32Array(loopSamples * loops + tailSamples);
@@ -1032,6 +1138,14 @@ function setMasterVolume(ctx, value) {
     patternData,
     patternNames,
     chainOf,
+    LANE_KEYS,
+    MAX_BARS,
+    hasLanes,
+    laneOrder,
+    laneLoops,
+    patternAtBar,
+    songBars,
+    barView,
     chainSteps,
     positionLabel,
     chainPatterns,
@@ -1040,6 +1154,9 @@ function setMasterVolume(ctx, value) {
     previewRandom,
     playMelodyNote,
     playVoicedNote,
+    cleanSynth,
+    SYNTH_WAVES,
+    SYNTH_RANGES,
     melodyVoiceOf,
     MELODY_VOICES,
     withVolume,
