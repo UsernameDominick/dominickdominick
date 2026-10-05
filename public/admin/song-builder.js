@@ -4,9 +4,20 @@
   const $ = (id) => document.getElementById(id);
 
   const Engine = window.SongEngine;
-  // The Studio layout (song-studio.js) reads the open song through this and is told when the editor was rebuilt.
-  window.SongStudioHost = { song: () => songData };
-  const notifyStudio = () => { if (window.SongStudio) window.SongStudio.refresh(); };
+  // The Studio layout (song-studio.js) reads the open song and drives playback through this, and is told when the editor was rebuilt,
+  // when a step is about to sound and when playback stopped.
+  window.SongStudioHost = {
+    song: () => songData,
+    playing: () => player.isPlaying() || isCountingIn(),
+    paused: () => resumeFrom !== null && !(player.isPlaying() || isCountingIn()),
+    pause: () => pausePlayback(),
+    stop: () => stopPlayback(),
+    forget: () => { resumeFrom = null; },
+    now: () => getAudioCtx().currentTime,
+    note: (name) => playAndMaybeRecordNote(name),
+    hit: (row) => auditDrumHit(row),
+  };
+  const notifyStudio = (opened) => { if (window.SongStudio) window.SongStudio.refresh({ opened: opened === true }); };
   // Every song has the four core drum rows. The extra voices (open hat, rim, tom, crash) are added to a song from the menu under the
   // grid, so a song that never asked for them has exactly the rows it always had. TRACK_ORDER is the order rows are shown in.
   const CORE_TRACKS = ["kick", "snare", "hihat", "clap"];
@@ -636,7 +647,8 @@
   // info (from the player): which pattern is sounding and where it sits in the song order. The playhead is drawn on the grids only while the
   // pattern being played is the one being edited, and the waveform's progress covers the whole song.
   function highlightStep(step, time, info) {
-    if (typeof time === "number") noteScheduledStep(step, time);
+    if (typeof time === "number") noteScheduledStep(step, time, info && info.chainIndex);
+    if (window.SongStudio) window.SongStudio.step(step, time, info);
     const visible = !info || info.pattern === editingPattern();
     document.querySelectorAll(".song-step").forEach((el) => {
       el.classList.toggle("song-step-playing", visible && Number(el.dataset.step) === step);
@@ -1054,8 +1066,8 @@
   // clip frame is the latest scheduled step whose time has already passed.
   let scheduledSteps = [];
 
-  function noteScheduledStep(step, time) {
-    scheduledSteps.push({ step, time });
+  function noteScheduledStep(step, time, chainIndex) {
+    scheduledSteps.push({ step, time, chainIndex: chainIndex || 0 });
     if (scheduledSteps.length > 32) scheduledSteps.shift();
   }
 
@@ -1234,10 +1246,30 @@
     }, PEAK_METER_DRAIN_MS);
   }
 
+  // Where a paused song carries on from (null: from the top). Only the Studio's Pause sets it; every ordinary stop clears it.
+  let resumeFrom = null;
+  function startOptions() {
+    const options = Object.assign({}, playOptions(), resumeFrom || {});
+    resumeFrom = null;
+    return options;
+  }
+  function pausePlayback() {
+    if (!player.isPlaying() && !isCountingIn()) return false;
+    let from = null;
+    if (player.isPlaying() && !isCountingIn()) {
+      const now = getAudioCtx().currentTime;
+      let heard = null;
+      for (const entry of scheduledSteps) if (entry.time <= now) heard = entry;
+      if (heard) from = { step: heard.step, chainIndex: heard.chainIndex };
+    }
+    stopPlayback();
+    resumeFrom = from;
+    return true;
+  }
   function startPlayback() {
     const beats = metroPrefs.countIn;
     if (!beats) {
-      player.start(undefined, playOptions());
+      player.start(undefined, startOptions());
       startPeakMeter();
       $("song-play").textContent = "⏸ Stop";
       return;
@@ -1264,7 +1296,7 @@
           if (o) countInOscs.push(o);
         }
         const startAt = t0 + beats * beatSec;
-        player.start(startAt, playOptions());
+        player.start(startAt, startOptions());
         startPeakMeter();
         countInTimer = setTimeout(() => {
           countInTimer = null;
@@ -1278,7 +1310,9 @@
 
   function stopPlayback() {
     cancelCountIn();
+    resumeFrom = null;
     player.stop();
+    if (window.SongStudio) window.SongStudio.stopped();
     stopPeakMeter();
     document.querySelectorAll(".song-step").forEach((el) => el.classList.remove("song-step-playing"));
     $("song-preview-bars")
@@ -1324,7 +1358,23 @@
     while (number > 47) number -= 12;
     return NOTE_NAMES[number % 12] + (Math.floor(number / 12) - 1);
   }
+  // A drum pad (the Studio's keys on a drum layer): it sounds the drum, and while recording it also turns that step on in the open
+  // pattern through the grid's own click, so undo, autosave and the preview behave as for a hand-placed step.
+  function auditDrumHit(row) {
+    if (!songData.tracks || !songData.tracks[row]) return;
+    const ctx = getAudioCtx();
+    const meta = Object.assign({}, songData.trackMeta && songData.trackMeta[row], { muted: false });
+    const one = Object.assign({}, songData, { tracks: { [row]: [true] }, trackMeta: { [row]: meta }, melody: { notes: {} }, bass: undefined });
+    Engine.scheduleStep(ctx, one, 0, ctx.currentTime);
+    if (!player.isPlaying() || isCountingIn() || !$("song-record").checked || player.currentPattern() !== editingPattern()) return;
+    const step = player.currentStep();
+    if (songData.tracks[row][step]) return;
+    const cell = $("song-sequencer").querySelector(`.song-step[data-row="${row}"][data-step="${step}"]`);
+    if (cell) cell.click();
+  }
   function playAndMaybeRecordNote(requested) {
+    if (window.SongStudio && window.SongStudio.drumLayerOpen()) return; // notes would land in a part that is not on screen
+    if (window.SongStudio) window.SongStudio.played(requested);
     const ctx = getAudioCtx();
     const noteName = rowForNote(requested);
     const part = roll();
@@ -1446,7 +1496,8 @@
     const z = (m) => Number(getComputedStyle(m).zIndex) || 0;
     if ([...document.querySelectorAll(".modal:not([hidden])")].some((m) => m !== modal && z(m) >= z(modal))) return;
     e.preventDefault();
-    $("song-play").click();
+    if (window.SongStudio && window.SongStudio.active()) window.SongStudio.toggle(); // the Studio pauses and carries on; the classic Play stops
+    else $("song-play").click();
   });
   // [ and ] open the previous / next pattern, under the same rules as Space (nothing focused that wants the key, builder on top).
   document.addEventListener("keydown", (e) => {
@@ -3045,7 +3096,7 @@
     renderPianoRoll();
     renderPatternControls();
     patternSay("");
-    notifyStudio();
+    notifyStudio(true);
     updatePreviewVisibility();
     refreshWaveformPreview();
     syncActiveTab();

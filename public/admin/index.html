@@ -2123,7 +2123,7 @@
           <span class="sim-toolbar-group-label">Save</span>
           <div class="song-group-controls">
             <button type="button" class="sim-quick" id="save-song">Save</button>
-            <button type="button" id="song-view-toggle" data-no-history aria-pressed="true" title="Switch between the simple Studio layout and the full classic editor">Classic view</button>
+            <button type="button" id="song-view-toggle" data-no-history title="Back to the simple Studio layout: five layers, one open at a time, and the piano keys">Studio view</button>
             <button type="button" id="save-song-template-btn" title="Save this song as a reusable starting point">Save as template</button>
             <span id="song-autosave-status" class="song-autosave-status"></span>
           </div>
@@ -2236,24 +2236,42 @@
         </div>
       </header>
       <section id="song-studio" class="song-studio" hidden aria-label="Song studio">
-        <div id="studio-cards" class="studio-cards" role="group" aria-label="Layers 1 to 5. Choose the layer to edit."></div>
-        <div id="studio-detail" class="studio-detail" aria-live="polite"></div>
-        <div id="studio-roll" class="studio-roll"><div id="studio-roll-scroll" class="studio-roll-scroll" tabindex="-1"></div></div>
-        <div class="studio-deck">
-          <div class="studio-transport" role="group" aria-label="Playback controls">
-            <button type="button" id="studio-play" class="studio-play" aria-label="Play">▶</button>
-            <button type="button" id="studio-rec" class="studio-toggle studio-rec" aria-pressed="false" title="Record: notes you play on the keys or your keyboard land on the step that is playing">● Rec</button>
-            <button type="button" id="studio-metro" class="studio-toggle" aria-pressed="false" title="A click on every beat while it plays (heard only here)">Metronome</button>
-            <button type="button" id="studio-undo" class="studio-toggle" title="Undo the last change (Ctrl+Z)">Undo</button>
-            <button type="button" id="studio-redo" class="studio-toggle" title="Redo (Ctrl+Shift+Z)">Redo</button>
-            <label class="studio-slider" title="Master volume">Volume <input type="range" id="studio-volume" min="0" max="100" value="100" aria-label="Master volume"></label>
-            <label class="studio-slider studio-bpm" title="Tempo">BPM <input type="number" id="studio-bpm" min="40" max="240" value="120" aria-label="Tempo in beats per minute"></label>
-            <span id="studio-patterns" class="studio-patterns" role="group" aria-label="Pattern being edited"></span>
-            <button type="button" id="studio-tools" class="studio-toggle" aria-pressed="false" aria-controls="song-toolbar-groups" title="Show the full toolbar: sound, export, MIDI and more">Tools</button>
-          </div>
-          <div class="studio-keys-scroll">
-            <div id="studio-keys" class="studio-keys" role="group" aria-label="Piano keys. Click or tap to play; with Rec on while it plays they are recorded."></div>
-          </div>
+        <div class="studio-top">
+          <input id="studio-name" class="studio-name" type="text" maxlength="120" placeholder="Song name" aria-label="Song name">
+          <span id="studio-status" class="studio-status" role="status"></span>
+          <button type="button" id="studio-save" class="studio-btn studio-btn-primary" title="Save the song">Save</button>
+          <button type="button" id="studio-full" class="studio-btn" data-no-history title="The full editor: every tool, the song order, export and more">Full editor</button>
+          <button type="button" id="studio-help" class="studio-icon studio-help" aria-label="Help for the Song builder" title="Tips and shortcuts">?</button>
+          <button type="button" id="studio-close" class="studio-icon" aria-label="Close the Song builder" title="Close">×</button>
+        </div>
+        <div id="studio-stack" class="studio-stack" role="group" aria-roledescription="carousel" aria-label="Layers 1 to 5. Swipe, or tap a card, to choose the layer to edit." tabindex="-1" autofocus></div>
+        <div id="studio-pager" class="studio-pager" role="group" aria-label="Layers"></div>
+        <section id="studio-detail" class="studio-detail" aria-label="Layer being edited"></section>
+        <p id="studio-live" class="sim-sr-only" role="status"></p>
+        <div class="studio-controls" role="group" aria-label="Playback controls">
+          <button type="button" id="studio-play" class="studio-play" data-no-history aria-label="Play" title="Play or pause (Space)">
+            <svg class="studio-ico-play" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5.5v13l11-6.5z"/></svg>
+            <svg class="studio-ico-pause" viewBox="0 0 24 24" aria-hidden="true" focusable="false" hidden><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
+          </button>
+          <button type="button" id="studio-stop" class="studio-round" data-no-history aria-label="Stop and go back to the start" title="Stop (back to the start)" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7h10v10H7z"/></svg>
+          </button>
+          <button type="button" id="studio-rec" class="studio-pill studio-rec" data-no-history aria-pressed="false" title="Record: notes you play on the keys land on the step that is playing">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="6"/></svg><span>Rec</span>
+          </button>
+          <button type="button" id="studio-metro" class="studio-round" data-no-history aria-pressed="false" aria-label="Metronome" title="Metronome: a click on every beat (heard only here)">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9.5 3h5l3.2 17H6.3zM12 17l4-9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>
+          </button>
+          <label class="studio-vol" title="Volume">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 9.5v5h3.5l4.5 3.5v-12L7.5 9.5z"/><path d="M15.5 9a4 4 0 010 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <input type="range" id="studio-volume" min="0" max="100" value="100" data-no-reset aria-label="Master volume">
+          </label>
+          <label class="studio-bpm" title="Tempo in beats per minute">
+            <input type="number" id="studio-bpm" min="40" max="240" value="120" data-no-reset inputmode="numeric" aria-label="Tempo in beats per minute"><span aria-hidden="true">BPM</span>
+          </label>
+        </div>
+        <div id="studio-keys-scroll" class="studio-keys-scroll">
+          <div id="studio-keys" class="studio-keys" role="group" aria-label="Piano keys"></div>
         </div>
       </section>
       <div class="song-builder-body">

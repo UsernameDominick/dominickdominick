@@ -859,11 +859,12 @@ function setMasterVolume(ctx, value) {
       // atTime (optional, AudioContext seconds): begin on that moment of the audio clock instead of "now",
       // so a caller that has already scheduled something before the song (a count-in) can land exactly on it.
       // options.pattern (optional): loop just that pattern instead of playing the song order.
+      // options.step and options.chainIndex (optional): carry on from there instead of the top (a paused song resumes where it stopped).
       start(atTime, options) {
         if (playing) return;
         playing = true;
-        currentStep = 0;
-        chainIndex = 0;
+        currentStep = options && Number.isInteger(options.step) && options.step >= 0 && options.step < STEPS ? options.step : 0;
+        chainIndex = options && Number.isInteger(options.chainIndex) && options.chainIndex >= 0 ? options.chainIndex : 0;
         loopName = options && typeof options.pattern === "string" ? options.pattern : "";
         const ctx = getAudioCtx();
         nextStepTime = Number.isFinite(atTime) && atTime > ctx.currentTime ? atTime : ctx.currentTime + 0.05;
