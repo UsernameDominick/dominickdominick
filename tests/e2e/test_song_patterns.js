@@ -85,7 +85,14 @@ const { chromium, axeSource } = require("./_pw.cjs");
     await p.click("#song-pattern-new");
     ok((await buttons()) === "ABC*" && (await kick()) === "" && (await melody()) === "", "New starts an empty pattern C and opens it", [await buttons(), await kick()]);
     await p.click("#song-pattern-new");
-    ok((await buttons()) === "ABCD*" && !(await enabled("#song-pattern-new")) && !(await enabled("#song-pattern-duplicate")), "four patterns is the most: New and Duplicate switch off", await buttons());
+    ok((await buttons()) === "ABCD*" && (await enabled("#song-pattern-new")) && (await enabled("#song-pattern-duplicate")), "a fourth pattern is not the limit any more", await buttons());
+    for (let i = 0; i < 12; i++) await p.click("#song-pattern-new");
+    ok((await buttons()) === "ABCDEFGHIJKLMNOP*" && !(await enabled("#song-pattern-new")) && !(await enabled("#song-pattern-duplicate")), "sixteen patterns is the most: New and Duplicate switch off", await buttons());
+    for (const letter of "PONMLKJIHGFE") {
+      await p.click(`#song-pattern-buttons [data-pattern="${letter}"]`);
+      await p.click("#song-pattern-remove");
+    }
+    ok((await buttons()).replace("*", "") === "ABCD", "and the extra ones can be removed again", await buttons());
     await p.click('#song-pattern-buttons [data-pattern="B"]');
 
     // ---- the song order
@@ -193,14 +200,14 @@ const { chromium, axeSource } = require("./_pw.cjs");
     await p.setViewportSize({ width: 1440, height: 1100 });
     await p.waitForTimeout(300);
     const before = (await chips()).length;
-    for (let i = 0; i < 32 - before; i++) await p.click('#song-order-add [data-pattern="A"]');
-    ok((await chips()).length === 32 && !(await enabled('#song-order-add [data-pattern="A"]')), "the order stops at 32 bars (the + buttons switch off)", (await chips()).length);
+    for (let i = 0; i < 64 - before; i++) await p.click('#song-order-add [data-pattern="A"]');
+    ok((await chips()).length === 64 && !(await enabled('#song-order-add [data-pattern="A"]')), "the order stops at 64 bars (the + buttons switch off)", (await chips()).length);
     await p.fill("#song-tempo", "120");
     await p.evaluate(() => document.getElementById("song-export-audio").click());
     await p.waitForSelector("#song-audio-modal:not([hidden])");
     await p.selectOption("#song-audio-loops", "8");
     const longText = await p.textContent("#song-audio-summary");
-    ok(/Repeated 4 times, not 8: the song is long/.test(longText), "a 32-bar song at 120 BPM is a 64 s loop, so five minutes allow 4 repeats, not 8", longText);
+    ok(/Repeated 2 times, not 8: the song is long/.test(longText), "a 64-bar song at 120 BPM is a 128 s loop, so five minutes allow 2 repeats, not 8", longText);
   } finally {
     if (projectId) await api("DELETE", "/projects/" + projectId);
     await api("DELETE", "/songs/" + id);

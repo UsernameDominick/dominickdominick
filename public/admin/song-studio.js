@@ -1,10 +1,12 @@
-// The Song builder's Studio layout, built for a phone first. Top to bottom: five track cards stacked on top of each other (Drums, Bass,
-// Chords, Melody, Lead; scroll through them or tap one), the open track's expanded card (its steps and its sound), the play controls, and
-// a piano keyboard that stays at the bottom.
+// The Song builder: the Studio, the one way to make a song, built for a phone first. Top to bottom: five track cards stacked on top of each
+// other (Drums, Bass, Chords, Melody, Lead; scroll through them or tap one), the open track's expanded card (a bar strip, a step grid or a
+// roll, a few quick buttons), the play controls and a piano keyboard that stays at the bottom. Everything else the builder can do sits in the
+// Tools sheet: the sound of the open track, its tools, the song's settings, the patterns, and sharing and export.
 //
-// It is a view over the classic editor, not a second editor. The classic editor stays in the page (hidden) and every control here drives
-// the matching classic control or clicks the matching classic step, so undo, autosave, recording, ties and the saved song are exactly
-// what they always were. The five tracks are not stored; they are the song's own drum rows, bass, chords, melody and lead.
+// It is a view over the builder's own editor, not a second editor. That editor stays in the page (hidden) and every control here drives the
+// matching one or clicks the matching step, so undo, autosave, recording, ties and the saved song are exactly what they always were. The
+// five tracks are not stored; they are the song's own drum rows, bass, chords, melody and lead. The builder's own controls that the sheet
+// needs are moved into it, ids and all, so each keeps working as it did.
 (function () {
   const $ = (id) => document.getElementById(id);
   const modal = $("song-builder-modal");
@@ -14,7 +16,7 @@
   const host = () => window.SongStudioHost;
   const song = () => (host() ? host().song() : null);
 
-  // The order is fixed on purpose: track 1 to 5 always mean the same thing.
+  // The order is fixed on purpose: track 1 to 5 always mean the same thing, and each is the name of its lane in the song.
   const TRACKS = [
     { id: "drums", n: 1, name: "Drums", kind: "drums" },
     { id: "bass", n: 2, name: "Bass", kind: "notes", part: "bass" },
@@ -25,9 +27,9 @@
   const DRUM_ORDER = ["kick", "snare", "hihat", "openhat", "clap", "rim", "tom", "crash"];
   const ROW_LABELS = { kick: "Kick", snare: "Snare", hihat: "Hi-hat", openhat: "Open hat", clap: "Clap", rim: "Rim", tom: "Tom", crash: "Crash" };
   const ROW_SHORT = { kick: "Kick", snare: "Snare", hihat: "Hat", openhat: "Open", clap: "Clap", rim: "Rim", tom: "Tom", crash: "Crash" };
-  // Semitones above C0: every melodic roll is two octaves, the same as the classic editor's (melody C3 to B4, bass C1 to B2, chords C3 to
-  // B4, lead C4 to B5).
+  // Semitones above C0: every melodic roll is two octaves, the same as the builder's (melody C3 to B4, bass C1 to B2, chords C3 to B4, lead C4 to B5).
   const RANGE = { melody: [36, 59], bass: [12, 35], chords: [36, 59], lead: [48, 71] };
+  const HEAR = { melody: "C4", bass: "C2", chords: "C4", lead: "C5" }; // the note played to hear a change of sound
   const NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
   const STEPS = 16;
 
@@ -41,14 +43,27 @@
   const trackOf = (id) => TRACKS.find((t) => t.id === id) || TRACKS[0];
   const trackIndex = () => TRACKS.findIndex((t) => t.id === trackId);
   const unitOf = (track, n) => (track.kind === "drums" ? "hit" : "note") + (n === 1 ? "" : "s");
+  const lsGet = (key, fallback) => {
+    try {
+      return localStorage.getItem(key) || fallback;
+    } catch {
+      return fallback;
+    }
+  };
+  const lsSet = (key, value) => {
+    try {
+      localStorage.setItem(key, value);
+    } catch {
+      /* not saved */
+    }
+  };
 
-  let view = "studio";
-  try {
-    if (localStorage.getItem("songView") === "classic") view = "classic";
-  } catch {
-    /* no storage: studio */
-  }
+  // The old editor on its own (no Studio) is not offered to anyone; the older browser tests still drive it through this switch.
+  const legacy = lsGet("songView", "studio") === "classic";
   let trackId = "drums";
+  let mode = lsGet("songGridMode", window.matchMedia && window.matchMedia("(min-width: 641px)").matches ? "roll" : "steps"); // how the notes of a track are drawn
+  let soundRow = "kick"; // the drum sound whose volume the sound sheet shows
+  const barPick = {}; // the bar being edited in each track
 
   // ---------- reading the song ----------
   const meta = (s, row) => (s.trackMeta && s.trackMeta[row]) || {};
@@ -92,6 +107,18 @@
     const part = partOf(s, track);
     return Object.keys(part.notes || {}).filter((n) => (part.notes[n] || []).some(hit)).map(semis);
   };
+  // The scale the song highlights, as a set of the pitch classes (0 to 11) that belong to it, and whether notes snap to it.
+  function scaleSet() {
+    const sc = host() && host().scale ? host().scale() : null;
+    if (!sc) return null;
+    const root = NAMES.indexOf(sc.root);
+    return { snap: sc.snap, has: (n) => sc.degrees.includes((((n % 12) - root) + 12) % 12), type: sc.type, root: sc.root };
+  }
+  // The row a tap lands on: with snapping on, the nearest note of the scale.
+  function snapRow(row) {
+    const sc = scaleSet();
+    return sc && sc.snap && host().snap ? host().snap(row) : row;
+  }
 
   // ---------- the stack of track cards (3): stacked on top of each other, the open one in front ----------
   const stackEl = $("studio-stack");
@@ -241,12 +268,12 @@
   const say = (text) => {
     live.textContent = text;
   };
-  // The real roll shows one melodic part at a time, and the studio reads and clicks it, so keep it on the track's part.
+  // The builder's roll shows one melodic part at a time, and the studio reads and clicks it, so keep it on the track's part.
   function syncRoll() {
     const track = trackOf(trackId);
     if (track.kind === "notes") $("song-roll-" + track.part).click();
   }
-  // A row or roll hidden in the classic editor has no steps to click, so open it (a view setting only).
+  // A row or roll hidden in the builder has no steps to click, so open it (a view setting only).
   function openHidden(track) {
     const s = song();
     if (track.kind === "drums") {
@@ -260,10 +287,20 @@
       $("song-melody-hide").click();
     }
   }
+  // Every track plays its own pattern in each bar; show the one for the bar being edited.
+  function showBar(track) {
+    const arr = host().arr;
+    if (!arr) return;
+    const bars = arr.info(track.id).bars;
+    const bar = Math.max(0, Math.min(bars - 1, barPick[track.id] || 0));
+    barPick[track.id] = bar;
+    arr.openBar(track.id, bar);
+  }
   function selectTrack(id, opts) {
     const track = trackOf(id);
     const changed = track.id !== trackId;
     trackId = track.id;
+    showBar(track);
     syncRoll();
     openHidden(track);
     detailSig = "";
@@ -281,79 +318,58 @@
   // ---------- the expanded card (4) ----------
   const detailEl = $("studio-detail");
   let detailSig = "";
-  const field = (label, control, extra) => `<label class="studio-field${extra ? " studio-field-" + extra : ""}"><span>${label}</span>${control}</label>`;
-  const patternButtons = () => Array.from($("song-pattern-buttons").querySelectorAll("[data-pattern]"));
-  const addableRows = (s) => ["openhat", "rim", "tom", "crash"].filter((r) => !(s.tracks && s.tracks[r]));
-  function detailHtml(track, s, info) {
-    const rows = info.rows;
-    let controls = "";
-    let volume = "";
-    const volumeField = `<label class="studio-vol-inline"><span>Volume</span><input type="range" id="studio-track-vol" class="studio-vol-input" min="0" max="100" aria-label="${esc(track.name)} volume"></label>`;
-    if (track.kind === "drums") {
-      controls += field("Drum kit", `<select id="studio-kit" data-src="song-kit" aria-label="Drum kit, for every drum sound"></select>`);
-      const addable = addableRows(s);
-      if (addable.length) {
-        controls += field(
-          "Add a sound",
-          `<span class="studio-add"><select id="studio-add" aria-label="Drum sound to add">${addable.map((r) => `<option value="${r}">${ROW_LABELS[r]}</option>`).join("")}</select><button type="button" id="studio-add-btn" class="studio-mini">Add</button></span>`
-        );
-      }
-      // The mix sits in the bottom row beside Clear track, so the steps keep the room.
-      volume = `<details class="studio-mix"><summary>Volume and mute for each sound</summary>${rows
-        .map(
-          (r) =>
-            `<div class="studio-mix-row"><span>${ROW_LABELS[r]}</span>` +
-            `<button type="button" class="studio-mini" data-row-mute="${r}" aria-pressed="false" aria-label="Mute ${ROW_LABELS[r]}">Mute</button>` +
-            `<input type="range" class="studio-vol-input" data-row-vol="${r}" min="0" max="100" aria-label="${ROW_LABELS[r]} volume"></div>`
-        )
-        .join("")}</details>`;
-    } else {
-      const voiceSource = { melody: "song-voice", bass: "song-bass-voice", chords: "song-part-voice", lead: "song-part-voice" }[track.part];
-      const soundLabel = track.part === "melody" ? "Piano sound" : `${track.name} sound`;
-      controls += field(soundLabel, `<select id="studio-voice" data-src="${voiceSource}" aria-label="${soundLabel}"></select>`);
-      if (track.part === "melody") controls += `<span id="studio-wave-field" class="studio-wave-field">${field("Wave", `<select id="studio-wave" data-src="song-waveform" aria-label="Wave for the basic sound"></select>`)}</span>`;
-      if (track.part === "bass") controls += `<button type="button" id="studio-follow" class="studio-mini studio-action" title="Put a bass note on every kick hit of this pattern">Follow the kick</button>`;
-      if (track.part === "chords") {
-        controls +=
-          field("Progression", `<select id="studio-prog-type" data-src="song-prog-type" aria-label="Chord progression"></select>`) +
-          field("Key", `<select id="studio-prog-key" data-src="song-prog-key" aria-label="Key of the progression"></select>`, "small") +
-          `<button type="button" id="studio-prog-stamp" class="studio-mini studio-action" title="Fill the loop with this chord progression (undoable)">Fill</button>`;
-      }
-      volume = volumeField;
-    }
+  const icon = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${d}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const ICON_UNDO = "M9 7L4 12l5 5M4 12h10a6 6 0 010 8";
+  const ICON_REDO = "M15 7l5 5-5 5M20 12H10a6 6 0 000 8";
+  function detailHtml(track) {
     const hint =
       track.kind === "drums"
         ? "Tap a step to place a hit. With Rec on, press a pad while it plays."
-        : track.part === "chords"
-          ? "Tap notes to build chords, or fill the loop with a progression. Hold a note to tie it. With Rec on, play the keys while it plays."
+        : mode === "roll"
+          ? "Tap to place a note, drag along empty steps to draw a held note, drag over notes to erase. With Rec on, play the keys while it plays."
           : "Tap to place notes; hold a note to tie it to the one before. With Rec on, play the keys while it plays.";
+    const modeSwitch =
+      track.kind === "notes"
+        ? `<span class="studio-modes" role="group" aria-label="How the notes are drawn"><button type="button" class="studio-mode" data-act="mode" data-mode="steps" data-no-history aria-pressed="${mode === "steps"}" title="Big steps you tap, scrolling a little">Steps</button><button type="button" class="studio-mode" data-act="mode" data-mode="roll" data-no-history aria-pressed="${mode === "roll"}" title="A piano roll: every note in view, drag to draw">Roll</button></span>`
+        : "";
     return (
       `<div class="studio-detail-head">` +
       `<span class="studio-badge" aria-hidden="true">${track.n}</span>` +
       `<div class="studio-detail-title"><h2>${esc(track.name)}</h2><p id="studio-sub" class="studio-detail-sub"></p></div>` +
-      `<span id="studio-patterns" class="studio-patterns" role="group" aria-label="Pattern being edited"></span>` +
-      `<button type="button" id="studio-undo" class="studio-round studio-small" data-no-history aria-label="Undo" title="Undo (Ctrl+Z)"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 7L4 12l5 5M4 12h10a6 6 0 010 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>` +
-      `<button type="button" id="studio-redo" class="studio-round studio-small" data-no-history aria-label="Redo" title="Redo (Ctrl+Shift+Z)"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 7l5 5-5 5M20 12H10a6 6 0 000 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>` +
-      `<button type="button" id="studio-mute" class="studio-pill" aria-pressed="false">Mute</button>` +
+      `<button type="button" class="studio-mini" data-act="sound" data-no-history title="Change the sound: the instrument, how it starts and ends, how bright it is">Sound</button>` +
+      `<button type="button" class="studio-mini" data-act="tools" data-no-history title="Tools for this track: starter beats, fills, shift, reverse, random, chords and more">Tools</button>` +
       `</div>` +
-      `<div id="studio-grid-scroll" class="studio-grid-scroll"><div id="studio-grid" class="studio-grid" data-kind="${track.kind}" role="group" aria-label="${esc(track.name)} steps"></div></div>` +
+      `<div class="studio-barbar" role="group" aria-label="Bars of this track">` +
+      `<div id="studio-bars" class="studio-bars" role="group" aria-label="Choose the bar to edit"></div>` +
+      `<button type="button" id="studio-loop" class="studio-mini studio-loop" data-act="loop" aria-pressed="true" title="Loop: this track plays again from its first bar when it reaches its last, until the song ends">↻ Loop</button>` +
+      `<button type="button" class="studio-mini" data-act="bar-add" title="Add a new empty bar to the end of this track">+ Bar</button>` +
+      `<span class="studio-popwrap"><button type="button" id="studio-bars-menu-btn" class="studio-mini studio-dots-btn" data-act="bars-menu" data-no-history aria-haspopup="true" aria-expanded="false" aria-controls="studio-bars-menu" aria-label="More for the bars" title="More: make a bar different, remove a bar, the length of the song">⋯</button>` +
+      `<div id="studio-bars-menu" class="studio-pop studio-pop-menu" role="group" aria-label="Bars"></div></span>` +
+      `</div>` +
+      `<div class="studio-modebar">${modeSwitch}<span class="studio-modebar-end">` +
+      `<button type="button" id="studio-undo" class="studio-round studio-small" data-no-history aria-label="Undo" title="Undo (Ctrl+Z)">${icon(ICON_UNDO)}</button>` +
+      `<button type="button" id="studio-redo" class="studio-round studio-small" data-no-history aria-label="Redo" title="Redo (Ctrl+Shift+Z)">${icon(ICON_REDO)}</button>` +
+      `<button type="button" id="studio-mute" class="studio-pill" aria-pressed="false">Mute</button>` +
+      `<button type="button" class="studio-mini studio-link" id="studio-clear" data-act="clear" title="Remove everything in this track's bar (undoable)">Clear</button>` +
+      `</span></div>` +
+      `<div id="studio-grid-scroll" class="studio-grid-scroll"><div id="studio-grid" class="studio-grid" data-kind="${track.kind}" data-mode="${track.kind === "drums" ? "steps" : mode}" role="group" aria-label="${esc(track.name)} steps"></div>` +
+      `<div id="studio-silent" class="studio-silent" hidden><p></p><button type="button" class="studio-mini" data-act="bar-add">Add a bar here</button></div></div>` +
       `<p id="studio-hint" class="studio-hint">${hint}</p>` +
-      `<p id="studio-note" class="studio-note" role="status" hidden></p>` +
-      `<div class="studio-edit">${controls}</div>` +
-      `<div class="studio-foot">${volume}<button type="button" id="studio-clear" class="studio-link" title="Remove everything in this track (undoable)">Clear track</button></div>`
+      `<p id="studio-note" class="studio-note" role="status" hidden></p>`
     );
   }
   function renderDetail(s) {
     const track = trackOf(trackId);
     const info = trackInfo(s, track);
-    const sig = [track.id, info.rows.join(), track.kind === "drums" ? addableRows(s).join() : ""].join("|");
+    const sig = [track.id, info.rows.join(), mode].join("|");
     if (sig !== detailSig) {
       detailSig = sig;
       detailEl.style.setProperty("--track-color", `var(--track-${track.n})`);
-      detailEl.innerHTML = detailHtml(track, s, info);
+      detailEl.innerHTML = detailHtml(track);
       gridSig = "";
+      barsSig = "";
     }
-    // Values are updated in place, so a slider being dragged is never rebuilt under the finger.
+    // Values are updated in place, so nothing is rebuilt under a finger.
     $("studio-sub").textContent = `${info.count} ${unitOf(track, info.count)} · ${info.sound}`;
     $("studio-hint").hidden = info.count > 0; // the how-to only shows while the track is empty
     const mute = $("studio-mute");
@@ -362,25 +378,9 @@
     mute.setAttribute("aria-label", `${info.muted ? "Unmute" : "Mute"} track ${track.n}, ${track.name}`);
     $("studio-undo").disabled = $("song-undo").disabled;
     $("studio-redo").disabled = $("song-redo").disabled;
-    detailEl.querySelectorAll("select[data-src]").forEach((sel) => {
-      const src = $(sel.dataset.src);
-      if (sel.dataset.filled !== src.innerHTML) {
-        sel.innerHTML = src.innerHTML;
-        sel.dataset.filled = src.innerHTML;
-      }
-      if (sel.value !== src.value) sel.value = src.value;
-    });
-    const wave = $("studio-wave-field");
-    if (wave) wave.hidden = Boolean(Engine.melodyVoiceOf(s));
-    const tv = $("studio-track-vol");
-    if (tv && document.activeElement !== tv) tv.value = Math.round(Engine.volumeOf(partOf(s, track)) * 100);
-    detailEl.querySelectorAll("[data-row-vol]").forEach((r) => {
-      if (document.activeElement !== r) r.value = Math.round(Engine.volumeOf(meta(s, r.dataset.rowVol)) * 100);
-    });
-    detailEl.querySelectorAll("[data-row-mute]").forEach((b) => b.setAttribute("aria-pressed", String(meta(s, b.dataset.rowMute).muted === true)));
-    syncPatterns();
+    renderBars();
   }
-  // What the classic editor said about the last thing a tool did ("Bass on every kick…", "The kick has no hits…") is worth showing here.
+  // What the builder said about the last thing a tool did ("Bass on every kick…", "The kick has no hits…") is worth showing here.
   function showToolNote() {
     const text = $("song-melody-tools-note").textContent.trim();
     const el = $("studio-note");
@@ -388,67 +388,156 @@
     el.textContent = text;
     el.hidden = !text;
   }
-  function syncPatterns() {
-    const box = $("studio-patterns");
-    if (!box) return;
-    const real = patternButtons();
-    const sig = real.map((b) => b.dataset.pattern + b.getAttribute("aria-pressed")).join();
-    if (box.dataset.sig === sig) return;
-    box.dataset.sig = sig;
-    box.innerHTML =
-      real.length > 1
-        ? real.map((b) => `<button type="button" class="studio-pat" data-no-history data-pat="${b.dataset.pattern}" aria-pressed="${b.getAttribute("aria-pressed")}" aria-label="Pattern ${b.dataset.pattern}">${b.dataset.pattern}</button>`).join("")
-        : "";
+
+  // ---------- the bars of the open track ----------
+  // One chip per bar of the song: its number, the pattern the track plays in it (a bar a looping track repeats is dimmed, a bar it is
+  // silent in is empty). A tap opens that bar. Loop, + Bar and the menu are on the same row.
+  let barsSig = "";
+  let playingBar = -1;
+  function renderBars() {
+    const arr = host().arr;
+    const box = $("studio-bars");
+    if (!arr || !box) return;
+    const key = trackOf(trackId).id;
+    const info = arr.info(key);
+    const sel = Math.max(0, Math.min(info.bars - 1, barPick[key] || 0));
+    const sig = JSON.stringify([info.cells.map((c) => [c.name, c.repeat]), info.open, info.loops, info.own, sel, info.free]);
+    const loop = $("studio-loop");
+    loop.setAttribute("aria-pressed", String(info.loops));
+    loop.classList.toggle("is-off", !info.loops);
+    if (sig !== barsSig) {
+      barsSig = sig;
+      box.innerHTML = info.cells
+        .map((c) => {
+          const word = c.name ? `pattern ${c.name}${c.repeat ? ", repeated from the loop" : ""}` : "silent";
+          return `<button type="button" class="studio-bar${c.name === info.open ? " is-open" : ""}${c.repeat ? " is-repeat" : ""}${c.name ? "" : " is-empty"}${c.bar === sel ? " is-sel" : ""}" data-no-history data-act="bar" data-bar="${c.bar}" aria-pressed="${c.bar === sel}" aria-label="Bar ${c.bar + 1}, ${word}"><b>${c.bar + 1}</b><i>${c.name || "–"}</i></button>`;
+        })
+        .join("");
+      const open = box.querySelector(".is-sel");
+      if (open && open.scrollIntoView) open.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
+    markPlayingBar(playingBar);
+    const silent = $("studio-silent");
+    const here = info.cells[sel];
+    if (silent) {
+      silent.hidden = Boolean(here && here.name);
+      silent.querySelector("p").textContent = `This track is silent in bar ${sel + 1}${info.loops ? "" : " (it does not loop)"}.`;
+    }
   }
-  detailEl.addEventListener("change", (e) => {
-    const t = e.target;
-    if (t.matches && t.matches("select[data-src]")) {
-      const src = $(t.dataset.src);
-      src.value = t.value;
-      fire(src, "change");
-      refresh();
+  function markPlayingBar(bar) {
+    playingBar = bar;
+    const box = $("studio-bars");
+    if (!box) return;
+    box.querySelectorAll(".studio-bar").forEach((b) => b.classList.toggle("is-now", Number(b.dataset.bar) === bar));
+  }
+  function barsMenuHtml() {
+    const arr = host().arr;
+    const key = trackOf(trackId).id;
+    const info = arr.info(key);
+    const sel = barPick[key] || 0;
+    const here = info.cells[sel];
+    return (
+      `<button type="button" class="studio-menu-item" data-act="bar-differ"${here && here.name ? "" : " disabled"}>Make bar ${sel + 1} different<small>A copy of what this track plays there, so it can change on its own</small></button>` +
+      `<button type="button" class="studio-menu-item" data-act="bar-remove"${here && here.name && !here.repeat ? "" : " disabled"}>Remove bar ${sel + 1} from this track<small>The bars after it move up</small></button>` +
+      `<button type="button" class="studio-menu-item" data-act="lane-follow"${info.own ? "" : " disabled"}>Follow the song order again<small>Drop this track's own bars</small></button>` +
+      `<div class="studio-menu-len"><span id="studio-len-label">Song length</span><button type="button" class="studio-mini" data-act="bars-less" aria-label="One bar shorter">−</button><output id="studio-len">${info.bars}</output><button type="button" class="studio-mini" data-act="bars-more" aria-label="One bar longer">+</button>` +
+      `<button type="button" class="studio-mini" data-act="bars-auto"${info.auto ? " disabled" : ""} title="Let the song be as long as the music in it">Auto</button></div>`
+    );
+  }
+
+  // ---------- popovers (volume, metronome, the bars menu) ----------
+  let openPop = null;
+  function closePop() {
+    if (!openPop) return;
+    openPop.panel.classList.remove("is-open");
+    openPop.button.setAttribute("aria-expanded", "false");
+    openPop = null;
+  }
+  function togglePop(button, panel) {
+    if (openPop && openPop.panel === panel) return closePop();
+    closePop();
+    panel.classList.add("is-open");
+    button.setAttribute("aria-expanded", "true");
+    openPop = { button, panel };
+    const field = panel.querySelector("input, select, button:not([disabled])");
+    if (field) field.focus();
+  }
+  document.addEventListener("pointerdown", (e) => {
+    if (openPop && !openPop.panel.contains(e.target) && !openPop.button.contains(e.target)) closePop();
+  });
+  studio.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && openPop) {
+      e.stopPropagation();
+      const b = openPop.button;
+      closePop();
+      b.focus();
     }
   });
-  detailEl.addEventListener("input", (e) => {
-    const t = e.target;
-    if (t.id === "studio-track-vol") {
-      $("song-melody-volume").value = t.value;
-      fire($("song-melody-volume"), "input");
-    } else if (t.dataset && t.dataset.rowVol) {
-      const real = $("song-sequencer").querySelector(`.song-track-volume[data-row="${t.dataset.rowVol}"]`);
-      if (real) {
-        real.value = t.value;
-        fire(real, "input");
-      }
-    }
-  });
+
   detailEl.addEventListener("click", (e) => {
     const t = e.target.closest && e.target.closest("button");
     if (!t || t.classList.contains("studio-cell") || t.dataset.play) return;
     const track = trackOf(trackId);
+    const arr = host().arr;
+    const act = t.dataset.act;
     if (t.id === "studio-mute") toggleMute(track);
     else if (t.id === "studio-undo") $("song-undo").click();
     else if (t.id === "studio-redo") $("song-redo").click();
-    else if (t.dataset.pat) {
-      const real = $("song-pattern-buttons").querySelector(`[data-pattern="${t.dataset.pat}"]`);
-      if (real) real.click();
+    else if (act === "mode") {
+      mode = t.dataset.mode;
+      lsSet("songGridMode", mode);
       detailSig = "";
       gridSig = "";
+    } else if (act === "sound") openSheet("sound");
+    else if (act === "tools") openSheet("tools");
+    else if (act === "bar") {
+      barPick[track.id] = Number(t.dataset.bar);
+      followPaused = host().playing();
+      if (!arr.openBar(track.id, barPick[track.id])) say(`Bar ${barPick[track.id] + 1} is silent for ${track.name}`);
+      else say(`Bar ${barPick[track.id] + 1}`);
+      gridSig = "";
       keysSig = "";
-      syncRoll();
-    } else if (t.dataset.rowMute) {
-      const real = $("song-sequencer").querySelector(`.song-track-mute[data-row="${t.dataset.rowMute}"]`);
-      if (real) real.click();
-    } else if (t.id === "studio-add-btn") {
-      $("song-add-drum").value = $("studio-add").value;
-      $("song-add-drum-btn").click();
-    } else if (t.id === "studio-follow") {
-      $("song-bass-follow").click();
-      detailEl.dataset.note = "1";
-    } else if (t.id === "studio-prog-stamp") {
-      $("song-prog-stamp").click();
-      detailEl.dataset.note = "1";
-    } else if (t.id === "studio-clear") {
+      barsSig = "";
+    } else if (act === "bar-add") {
+      const name = arr.addBar(track.id);
+      if (!name) say("There is no room for another bar: all sixteen patterns are used.");
+      else barPick[track.id] = Math.max(0, arr.info(track.id).length - 1);
+      gridSig = "";
+      barsSig = "";
+    } else if (act === "bar-differ") {
+      const name = arr.differ(track.id, barPick[track.id] || 0);
+      say(name ? `Bar ${(barPick[track.id] || 0) + 1} is now its own pattern, ${name}.` : "There is no room for another pattern: all sixteen are used.");
+      closePop();
+      gridSig = "";
+      barsSig = "";
+    } else if (act === "bar-remove") {
+      const bar = barPick[track.id] || 0;
+      arr.removeBar(track.id, bar);
+      barPick[track.id] = Math.max(0, bar - 1);
+      showBar(track);
+      closePop();
+      gridSig = "";
+      barsSig = "";
+    } else if (act === "lane-follow") {
+      arr.follow(track.id);
+      closePop();
+      barsSig = "";
+    } else if (act === "loop") {
+      arr.setLoop(track.id, !arr.info(track.id).loops);
+      say(arr.info(track.id).loops ? `${track.name} loops until the song ends` : `${track.name} plays once and then stops`);
+      barsSig = "";
+    } else if (act === "bars-menu") {
+      $("studio-bars-menu").innerHTML = barsMenuHtml();
+      togglePop(t, $("studio-bars-menu"));
+      return;
+    } else if (act === "bars-less" || act === "bars-more" || act === "bars-auto") {
+      const info = arr.info(track.id);
+      arr.setBars(act === "bars-auto" ? null : Math.max(1, Math.min(Engine.MAX_BARS, info.bars + (act === "bars-more" ? 1 : -1))));
+      $("studio-bars-menu").innerHTML = barsMenuHtml();
+      const again = $("studio-bars-menu").querySelector(`[data-act="${act}"]:not([disabled])`) || $("studio-bars-menu").querySelector("button:not([disabled])");
+      if (again) again.focus(); // the menu was rebuilt, so keep the focus on it
+      barsSig = "";
+    } else if (act === "clear") {
       if (track.kind === "drums") {
         const target = $("song-pattern-target");
         const keep = target.value;
@@ -464,14 +553,10 @@
       return;
     }
     refresh();
-    if (detailEl.dataset.note) {
-      delete detailEl.dataset.note;
-      showToolNote();
-    }
   });
 
   // ---------- the steps inside the expanded card ----------
-  // The cells here only mirror the song. A tap clicks the matching step of the classic editor, which does the real work (step strength,
+  // The cells here only mirror the song. A tap clicks the matching step of the builder's editor, which does the real work (step strength,
   // undo, autosave, the preview), and then the mirror is painted again from the song.
   let gridSig = "";
   let gridCells = [];
@@ -486,7 +571,8 @@
   };
   function buildGrid(track, s) {
     const rows = track.kind === "drums" ? drumRows(s) : melodicRows(track);
-    const sig = track.id + "|" + rows.join();
+    const sc = scaleSet();
+    const sig = track.id + "|" + mode + "|" + rows.join() + "|" + (sc ? sc.root + sc.type + sc.snap : "");
     if (sig === gridSig) return;
     gridSig = sig;
     const grid = $("studio-grid");
@@ -494,6 +580,7 @@
       .map((row) => {
         const label = track.kind === "drums" ? ROW_SHORT[row] : row;
         const full = track.kind === "drums" ? ROW_LABELS[row] : row;
+        const off = track.kind === "notes" && sc && !sc.has(semis(row));
         let groups = "";
         for (let g = 0; g < 4; g++) {
           let cells = "";
@@ -503,7 +590,7 @@
           groups += `<span class="studio-beat${g % 2 ? " studio-beat-alt" : ""}">${cells}</span>`;
         }
         const tag = track.kind === "drums" ? `<span class="studio-row-label">${label}</span>` : `<button type="button" class="studio-row-label studio-row-key" data-play="${row}" tabindex="-1" aria-label="Play ${row}">${label}</button>`;
-        return `<div class="studio-row${row.includes("#") ? " studio-row-black" : ""}" data-row="${row}">${tag}${groups}</div>`;
+        return `<div class="studio-row${row.includes("#") ? " studio-row-black" : ""}${off ? " studio-row-off" : ""}" data-row="${row}">${tag}${groups}</div>`;
       })
       .join("");
     gridCells = Array.from(grid.querySelectorAll(".studio-cell"));
@@ -555,42 +642,134 @@
     const top = row.getBoundingClientRect().top - scroll.getBoundingClientRect().top + scroll.scrollTop;
     scroll.scrollTo({ top: Math.max(0, top - scroll.clientHeight / 2 + row.offsetHeight / 2), behavior: smooth ? "smooth" : "auto" });
   }
-  function realStep(cell) {
+  // The builder's own step for a cell. With scale snapping on, a note tapped outside the scale lands on the nearest row of it.
+  function realStep(cell, row) {
     const track = trackOf(trackId);
     const root = track.kind === "drums" ? $("song-sequencer") : $("song-piano-roll");
-    return root.querySelector(`.song-step[data-row="${cell.dataset.row}"][data-step="${cell.dataset.step}"]`);
+    return root.querySelector(`.song-step[data-row="${row || cell.dataset.row}"][data-step="${cell.dataset.step}"]`);
+  }
+  function clickStep(row, step, shift) {
+    const track = trackOf(trackId);
+    const target = track.kind === "drums" ? row : snapRow(row);
+    const real = realStep({ dataset: { step } }, target);
+    if (!real) return null;
+    real.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, shiftKey: Boolean(shift) }));
+    return target;
   }
   function tapCell(cell, shift) {
-    const real = realStep(cell);
-    if (!real) return;
-    real.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, shiftKey: Boolean(shift) }));
+    const target = clickStep(cell.dataset.row, cell.dataset.step, shift);
+    if (!target) return;
     refresh();
-    if (!shift) say(`${cell.getAttribute("aria-label")}: ${cell.classList.contains("on") ? "on" : "off"}`);
+    if (!shift) {
+      const now = cellAt[target + ":" + cell.dataset.step] || cell;
+      say(`${now.getAttribute("aria-label")}: ${now.classList.contains("on") ? "on" : "off"}`);
+    }
   }
-  // A long press on a note ties it to the one before (the classic editor's Shift+click).
+  // A long press on a note ties it to the one before (the builder's Shift+click).
   let hold = null;
   detailEl.addEventListener("pointerdown", (e) => {
     const cell = e.target.closest && e.target.closest(".studio-cell");
     if (!cell || trackOf(trackId).kind === "drums") return;
+    if (mode === "roll") return startPaint(e, cell);
     hold = {
       cell,
       fired: false,
+      at: performance.now(),
       timer: setTimeout(() => {
         hold.fired = true;
         tapCell(cell, true);
       }, 520),
     };
   });
-  const endHold = () => {
-    if (hold) clearTimeout(hold.timer);
+  // Letting go counts as the long press if it was held long enough, even when a busy page had not run the timer yet.
+  const endHold = (e) => {
+    if (!hold) return;
+    clearTimeout(hold.timer);
+    if (!hold.fired && e && e.type === "pointerup" && performance.now() - hold.at >= 520) {
+      hold.fired = true;
+      tapCell(hold.cell, true);
+    }
   };
   detailEl.addEventListener("pointerup", endHold);
   detailEl.addEventListener("pointercancel", endHold);
   detailEl.addEventListener("pointerleave", endHold);
+
+  // The roll: press a note and drag along its row to hold it for as long as you drag, press on an empty step and drag to draw, or press on a
+  // note and drag across others to erase them. The whole drag is one undo step. A plain tap is the usual click.
+  let paint = null;
+  let paintDone = false;
+  function stepUnder(x, y) {
+    const el = document.elementFromPoint(x, y);
+    const cell = el && el.closest ? el.closest(".studio-cell") : null;
+    return cell && detailEl.contains(cell) ? cell : null;
+  }
+  function startPaint(e, cell) {
+    if (e.button > 0) return;
+    paint = { id: e.pointerId, row: cell.dataset.row, from: Number(cell.dataset.step), last: Number(cell.dataset.step), x: e.clientX, y: e.clientY, moved: false, erase: cell.classList.contains("on"), grouped: false };
+  }
+  detailEl.addEventListener("pointermove", (e) => {
+    if (!paint || e.pointerId !== paint.id) return;
+    if (!paint.moved && Math.abs(e.clientX - paint.x) < 7) return;
+    const cell = stepUnder(e.clientX, e.clientY);
+    if (!cell) return;
+    if (!paint.moved) {
+      paint.moved = true;
+      paint.grouped = true;
+      host().group(true);
+      try {
+        detailEl.setPointerCapture(e.pointerId);
+      } catch {
+        /* not capturable */
+      }
+      // the step pressed is the start: a new note is begun on it, or the note on it is the first one erased
+      const start = cellAt[paint.row + ":" + paint.from];
+      if (start && start.classList.contains("on") === paint.erase) clickStep(paint.row, paint.from, false);
+    }
+    const step = Number(cell.dataset.step);
+    if (step === paint.last) return;
+    const dir = step > paint.last ? 1 : -1;
+    for (let s = paint.last + dir; dir > 0 ? s <= step : s >= step; s += dir) {
+      const c = cellAt[paint.row + ":" + s];
+      if (!c) continue;
+      const on = c.classList.contains("on");
+      if (paint.erase) {
+        if (on) clickStep(paint.row, s, false);
+      } else if (dir > 0) {
+        if (!on) clickStep(paint.row, s, false);
+        refreshCell(c);
+        clickStep(paint.row, s, true); // hold it to the step before
+      }
+      refreshCell(cellAt[paint.row + ":" + s]);
+    }
+    paint.last = step;
+    paintGrid(song(), trackOf(trackId));
+  });
+  function refreshCell(c) {
+    if (c) paintGrid(song(), trackOf(trackId));
+  }
+  function endPaint(e) {
+    if (!paint || e.pointerId !== paint.id) return;
+    const was = paint;
+    paint = null;
+    if (was.grouped) {
+      host().group(false);
+      paintDone = true;
+      setTimeout(() => (paintDone = false), 60);
+      refresh();
+    }
+  }
+  detailEl.addEventListener("pointerup", endPaint);
+  detailEl.addEventListener("pointercancel", endPaint);
+  detailEl.addEventListener("lostpointercapture", endPaint);
+  window.addEventListener("pointerup", endPaint, true);
   detailEl.addEventListener("click", (e) => {
     const cell = e.target.closest && e.target.closest(".studio-cell");
     const key = e.target.closest && e.target.closest("[data-play]");
     if (cell) {
+      if (paintDone) {
+        e.preventDefault();
+        return;
+      }
       if (hold && hold.fired) {
         hold = null;
         return;
@@ -630,7 +809,8 @@
   function renderKeys(s) {
     const track = trackOf(trackId);
     const rows = track.kind === "drums" ? drumRows(s) : null;
-    const sig = track.id + "|" + (rows ? rows.join() : "");
+    const sc = scaleSet();
+    const sig = track.id + "|" + (rows ? rows.join() : "") + "|" + (sc ? sc.root + sc.type : "");
     if (sig === keysSig) return;
     keysSig = sig;
     lit.clear();
@@ -653,11 +833,12 @@
     keysEl.style.setProperty("--whites", String(whiteCount));
     keysEl.innerHTML = all
       .map((n) => {
+        const off = sc && !sc.has(semis(n)) ? " out" : "";
         if (!n.includes("#")) {
           whites++;
-          return `<button type="button" class="studio-key studio-key-white" data-key="${n}" aria-label="Play ${n}" style="left:${(whites * step).toFixed(3)}%;width:${step.toFixed(3)}%"><span aria-hidden="true">${/^C\d$/.test(n) ? n : ""}</span></button>`;
+          return `<button type="button" class="studio-key studio-key-white${off}" data-key="${n}" aria-label="Play ${n}" style="left:${(whites * step).toFixed(3)}%;width:${step.toFixed(3)}%"><span aria-hidden="true">${/^C\d$/.test(n) ? n : ""}</span></button>`;
         }
-        return `<button type="button" class="studio-key studio-key-black" data-key="${n}" aria-label="Play ${n.replace("#", " sharp")}" style="left:${((whites + 1) * step - step * 0.32).toFixed(3)}%;width:${(step * 0.64).toFixed(3)}%"></button>`;
+        return `<button type="button" class="studio-key studio-key-black${off}" data-key="${n}" aria-label="Play ${n.replace("#", " sharp")}" style="left:${((whites + 1) * step - step * 0.32).toFixed(3)}%;width:${(step * 0.64).toFixed(3)}%"></button>`;
       })
       .join("");
     centerKeys(false);
@@ -682,7 +863,7 @@
     const h = host();
     if (!h) return;
     h.note(name);
-    flash(keysEl.querySelector(`[data-key="${name}"]`));
+    flash(keysEl.querySelector(`[data-key="${snapRow(name)}"]`) || keysEl.querySelector(`[data-key="${name}"]`));
     refresh();
   }
   // A mouse or pen plays on press (so it feels like an instrument); the click that follows is skipped. A finger plays on the click, which
@@ -712,6 +893,7 @@
 
   // ---------- playing: the playhead, the keys and the cards light up with the music ----------
   let pending = [];
+  let followPaused = false; // tapping a bar while it plays stops the editor following the music until it plays again
   const lit = new Set();
   function setLit(names) {
     lit.forEach((n) => {
@@ -747,7 +929,26 @@
     if (!s) return;
     const data = info ? info.data : s;
     const track = trackOf(trackId);
-    const here = !info || info.pattern === Engine.editingName(s);
+    // The editor follows the music from bar to bar: when the open track moves on to another bar, that bar opens (its pattern, if it differs).
+    if (info && info.patterns && !followPaused && lastBar !== info.chainIndex && host().arr) {
+      const want = info.patterns[track.id];
+      barPick[track.id] = info.chainIndex;
+      if (want && want !== Engine.editingName(s)) {
+        host().arr.openBar(track.id, info.chainIndex);
+        gridSig = "";
+        keysSig = "";
+        syncRoll();
+        refresh();
+      }
+      barsSig = "";
+      renderBars();
+    }
+    if (info) {
+      lastBar = info.chainIndex;
+      markPlayingBar(info.chainIndex);
+    }
+    const open = info && info.patterns && info.patterns[track.id] !== undefined ? info.patterns[track.id] : info ? info.pattern : null;
+    const here = !info || open === Engine.editingName(s);
     if (lastCol !== -1 && colCells[lastCol]) colCells[lastCol].forEach((c) => c.classList.remove("now"));
     lastCol = -1;
     if (here && colCells[step]) {
@@ -774,11 +975,15 @@
       el.classList.add("hit");
     });
   }
+  let lastBar = -1;
   function clearPlay() {
     pending.forEach(clearTimeout);
     pending = [];
     if (lastCol !== -1 && colCells[lastCol]) colCells[lastCol].forEach((c) => c.classList.remove("now"));
     lastCol = -1;
+    lastBar = -1;
+    followPaused = false;
+    markPlayingBar(-1);
     setLit(new Set());
     stackEl.querySelectorAll(".hit").forEach((el) => el.classList.remove("hit"));
   }
@@ -788,7 +993,10 @@
   function togglePlay() {
     const h = host();
     if (h.playing()) h.pause();
-    else $("song-play").click(); // plays (or carries on after a pause, with the count-in if one is set)
+    else {
+      followPaused = false;
+      $("song-play").click(); // plays (or carries on after a pause, with the count-in if one is set)
+    }
     syncTransport();
   }
   playBtn.addEventListener("click", togglePlay);
@@ -802,13 +1010,29 @@
     fire(box, "change");
     syncTransport();
   });
-  $("studio-metro").addEventListener("click", () => {
+  $("studio-metro").addEventListener("click", (e) => togglePop(e.currentTarget, $("studio-pop-metro")));
+  $("studio-metro-on").addEventListener("change", () => {
     $("song-metronome-on").click();
     syncTransport();
+  });
+  $("studio-metro-vol").addEventListener("input", (e) => {
+    $("song-metronome-volume").value = e.target.value;
+    fire($("song-metronome-volume"), "input");
+    $("studio-metro-out").textContent = e.target.value;
+  });
+  $("studio-count-in").addEventListener("change", (e) => {
+    $("song-count-in").value = e.target.value;
+    fire($("song-count-in"), "change");
+  });
+  // The volume button opens its slider on a phone; on a wide screen the slider is simply there.
+  const wide = window.matchMedia ? window.matchMedia("(min-width: 641px)") : { matches: true };
+  $("studio-volume-btn").addEventListener("click", (e) => {
+    if (!wide.matches) togglePop(e.currentTarget, $("studio-pop-volume"));
   });
   $("studio-volume").addEventListener("input", (e) => {
     $("song-master-volume").value = e.target.value;
     fire($("song-master-volume"), "input");
+    $("studio-volume-out").textContent = e.target.value;
   });
   $("studio-bpm").addEventListener("input", (e) => {
     $("song-tempo").value = e.target.value;
@@ -829,8 +1053,18 @@
     playBtn.classList.toggle("studio-playing", playing);
     $("studio-stop").disabled = !playing && !paused;
     $("studio-rec").setAttribute("aria-pressed", String($("song-record").checked));
-    $("studio-metro").setAttribute("aria-pressed", String($("song-metronome-on").checked));
-    if (document.activeElement !== $("studio-volume")) $("studio-volume").value = $("song-master-volume").value;
+    const metro = $("song-metronome-on").checked;
+    $("studio-metro").setAttribute("aria-pressed", String(metro));
+    $("studio-metro-on").checked = metro;
+    if (document.activeElement !== $("studio-volume")) {
+      $("studio-volume").value = $("song-master-volume").value;
+      $("studio-volume-out").textContent = $("song-master-volume").value;
+    }
+    if (document.activeElement !== $("studio-metro-vol")) {
+      $("studio-metro-vol").value = $("song-metronome-volume").value;
+      $("studio-metro-out").textContent = $("song-metronome-volume").value;
+    }
+    if (document.activeElement !== $("studio-count-in")) $("studio-count-in").value = $("song-count-in").value;
     if (document.activeElement !== $("studio-bpm")) $("studio-bpm").value = $("song-tempo").value;
   }
 
@@ -846,8 +1080,7 @@
     if (real) real.click();
   });
   $("studio-close").addEventListener("click", () => $("close-song-builder").click());
-  $("studio-full").addEventListener("click", () => setView("classic", true));
-  $("song-view-toggle").addEventListener("click", () => setView("studio", true));
+  $("studio-midi").addEventListener("click", () => $("song-midi-connect").click());
   function syncTop() {
     if (document.activeElement !== nameEl) nameEl.value = $("song-name").value;
     const text = $("song-autosave-status").textContent.trim();
@@ -856,21 +1089,446 @@
     $("studio-save").dataset.state = /unsaved/i.test(text) ? "dirty" : /saved/i.test(text) ? "saved" : "";
     // The row of open-song tabs only matters when there are several.
     modal.classList.toggle("studio-multi-tabs", $("song-tabs").querySelectorAll(".song-tab").length > 1);
+    // MIDI: the button shows once the browser can do it, and says what is connected.
+    const midi = $("song-midi-connect");
+    const mb = $("studio-midi");
+    mb.hidden = midi.hidden;
+    const connected = midi.disabled;
+    mb.dataset.state = connected ? "on" : "";
+    mb.setAttribute("aria-pressed", String(connected));
+    mb.textContent = connected && /\d/.test(midi.textContent) ? "MIDI ✓" : "MIDI";
+    mb.title = connected ? midi.title || "MIDI connected" : "Connect a MIDI keyboard or pad controller: its notes play and, with Rec on, record";
+    if (midi.textContent.includes("No MIDI")) mb.title = "No MIDI device found. Plug one in and it is picked up.";
   }
 
-  // ---------- keeping the layout in step with the editor ----------
+  // ---------- the tools sheet ----------
+  // The builder's own controls, moved here (ids and all) so each keeps working as it always did; only the ones with no Studio version.
+  const sheet = $("studio-sheet");
+  const sheetTabs = sheet.querySelector(".studio-sheet-tabs");
+  const sheetBody = sheet.querySelector(".studio-sheet-body");
+  const PANES = [
+    { id: "sound", label: "Sound" },
+    { id: "tools", label: "Track" },
+    { id: "song", label: "Song" },
+    { id: "arrange", label: "Patterns" },
+    { id: "share", label: "Share and export" },
+  ];
+  const panes = {};
+  let sheetTab = "song";
+  let sheetBuilt = false;
+  const section = (title, hint) => {
+    const el = document.createElement("section");
+    el.className = "studio-section";
+    el.innerHTML = `<h3>${esc(title)}</h3>${hint ? `<p class="studio-section-hint">${esc(hint)}</p>` : ""}`;
+    return el;
+  };
+  const row = (...nodes) => {
+    const el = document.createElement("div");
+    el.className = "studio-section-row";
+    nodes.filter(Boolean).forEach((n) => el.append(n));
+    return el;
+  };
+  const labelOf = (id) => ($(id) ? $(id).closest("label") || $(id) : null);
+  function buildSheet() {
+    if (sheetBuilt) return;
+    sheetBuilt = true;
+    PANES.forEach((p, i) => {
+      const tab = document.createElement("button");
+      tab.type = "button";
+      tab.className = "studio-sheet-tab";
+      tab.dataset.pane = p.id;
+      tab.dataset.noHistory = "";
+      tab.id = "studio-tab-" + p.id;
+      tab.setAttribute("role", "tab");
+      tab.setAttribute("aria-controls", "studio-pane-" + p.id);
+      tab.textContent = p.label;
+      sheetTabs.append(tab);
+      const pane = document.createElement("div");
+      pane.className = "studio-pane";
+      pane.id = "studio-pane-" + p.id;
+      pane.setAttribute("role", "tabpanel");
+      pane.setAttribute("aria-labelledby", tab.id);
+      pane.hidden = i !== 0;
+      sheetBody.append(pane);
+      panes[p.id] = pane;
+    });
+
+    // Song: tempo, length, feel, the scale, the mix, notes.
+    const feel = section("Tempo and feel", "Swing, humanize, space, echo and pump shape the whole song.");
+    const lenField = document.createElement("label");
+    lenField.className = "studio-song-length";
+    lenField.innerHTML = `Length in bars <input type="number" id="studio-song-bars" min="1" max="${Engine.MAX_BARS}" step="1" inputmode="numeric" data-no-reset placeholder="Auto" aria-describedby="studio-song-bars-hint"><span id="studio-song-bars-hint" class="studio-section-hint">Empty: the song is as long as the music in it. A number: it loops after that many bars.</span>`;
+    feel.append(
+      row(labelOf("song-tempo"), $("song-tap-tempo"), $("song-tap-status")),
+      row(lenField),
+      row(labelOf("song-humanize"), labelOf("song-swing"), labelOf("song-space"), labelOf("song-echo"), labelOf("song-pump"))
+    );
+    const metroSec = section("Metronome");
+    metroSec.append(row($("song-metronome-sound"), labelOf("song-metronome-accent")));
+    const mix = section("Mix", "A level for the whole song. Normalize sets a safe volume from one pass of the real sound.");
+    mix.append(row($("song-normalize-peak")), row(document.querySelector(".song-meter-group")));
+    const notes = section("Notes and templates");
+    notes.append(row(document.querySelector(".song-notes-section")), row($("save-song-template-btn")));
+    panes.song.append(feel, metroSec, mix, notes);
+
+    // Patterns: the builder's own arrangement section (patterns, song order, copy).
+    const arrange = section("Patterns and song order", "Every pattern holds one bar for each track. The song order plays patterns one after another. A track's own bars (the strip under its name) can differ from it.");
+    arrange.append(row($("song-arrangement")));
+    panes.arrange.append(arrange);
+
+    // Track tools: for the drums, or for the notes of the open track.
+    const toolsDrums = document.createElement("div");
+    toolsDrums.id = "studio-tools-drums";
+    const dt = section("Drum tools", "These work on the bar being edited. Apply to chooses which sounds they change.");
+    dt.append(row(document.querySelector('[aria-label="Drum pattern tools"]')), row($("song-generators")));
+    toolsDrums.append(dt);
+    const toolsNotes = document.createElement("div");
+    toolsNotes.id = "studio-tools-notes";
+    const nt = section("Notes", "These work on the bar being edited, for the open track.");
+    const scaleSec = section("Scale", "Mark the notes of a key in the roll and on the keys. With snapping on, notes you play or tap move to the nearest note of the scale; off, every note is free.");
+    const snap = document.createElement("label");
+    snap.className = "studio-check";
+    snap.innerHTML = `<input type="checkbox" id="studio-snap"> Snap notes to the scale`;
+    scaleSec.append(row($("song-scale-root"), $("song-scale-type"), snap));
+    const tr = document.querySelector("#song-transpose-octave-down");
+    nt.append(row(tr ? tr.closest(".song-transpose-controls") : null), row($("song-melody-tools")));
+    toolsNotes.append(scaleSec, nt);
+    const strength = section("Step strength", "How hard the next step you place is struck, in the drums and the roll. Click a step again to change its strength.");
+    strength.append(row($("song-step-level").closest(".song-pattern-tools")));
+    panes.tools.append(strength, toolsDrums, toolsNotes);
+    if ($("song-melody-tools")) $("song-melody-tools").open = true;
+
+    // Share: how the song looks on the page, the preview, files and export.
+    const look = section("On the page", "How the song's player looks where you put it.");
+    look.append(row($("song-visualization"), $("song-theme"), labelOf("song-page-sync")));
+    const prev = section("Preview");
+    prev.append(row($("song-preview-fold")), row($("song-clip-status")));
+    const exp = section("Export", "Files and renders of this song.");
+    exp.append(row($("song-export-report"), $("song-export-audio"), $("song-export-midi"), $("song-export-json")), row($("song-file-status")), row($("song-generate-cover-art"), $("song-snapshot-mix")));
+    panes.share.append(look, prev, exp);
+
+    // Everything else stays in the builder, hidden: the selects the Sound tab drives, the roll's own buttons, the rows and the grids.
+    sheetTabs.addEventListener("click", (e) => {
+      const tab = e.target.closest && e.target.closest(".studio-sheet-tab");
+      if (tab) showPane(tab.dataset.pane);
+    });
+    sheetTabs.addEventListener("keydown", (e) => {
+      const ids = PANES.map((p) => p.id);
+      const at = ids.indexOf(sheetTab);
+      let to = null;
+      if (e.key === "ArrowRight") to = ids[(at + 1) % ids.length];
+      else if (e.key === "ArrowLeft") to = ids[(at + ids.length - 1) % ids.length];
+      if (!to) return;
+      e.preventDefault();
+      showPane(to);
+      const tab = $("studio-tab-" + to);
+      if (tab) tab.focus();
+    });
+    sheetBody.addEventListener("change", (e) => {
+      if (e.target.id === "studio-snap") {
+        host().setSnap(e.target.checked);
+        gridSig = "";
+        keysSig = "";
+        refresh();
+      } else if (e.target.id === "studio-song-bars") {
+        host().arr.setBars(e.target.value === "" ? null : Number(e.target.value));
+        refresh();
+      }
+    });
+  }
+  function showPane(id) {
+    sheetTab = id;
+    PANES.forEach((p) => {
+      const on = p.id === id;
+      panes[p.id].hidden = !on;
+      const tab = $("studio-tab-" + p.id);
+      tab.setAttribute("aria-selected", String(on));
+      tab.tabIndex = on ? 0 : -1;
+      tab.classList.toggle("is-active", on);
+    });
+    $("studio-sheet-title").textContent = PANES.find((p) => p.id === id).label;
+    syncSheet();
+  }
+  let sheetReturn = null;
+  function openSheet(id) {
+    buildSheet();
+    sheetReturn = document.activeElement;
+    closePop();
+    sheet.hidden = false;
+    studio.classList.add("studio-sheet-on");
+    showPane(id || sheetTab);
+    const first = panes[sheetTab].querySelector("select, input, button");
+    const close = $("close-studio-sheet");
+    (first || close).focus();
+  }
+  function closeSheet() {
+    if (sheet.hidden) return;
+    sheet.hidden = true;
+    studio.classList.remove("studio-sheet-on");
+    if (sheetReturn && document.contains(sheetReturn) && sheetReturn.focus) sheetReturn.focus();
+    sheetReturn = null;
+    refresh();
+  }
+  $("studio-tools").addEventListener("click", () => (sheet.hidden ? openSheet() : closeSheet()));
+  $("studio-sheet-help").addEventListener("click", () => $("studio-help").click());
+  $("close-studio-sheet").addEventListener("click", closeSheet);
+  sheet.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      closeSheet();
+    }
+  });
+  // What the open sheet shows about the song and the open track, kept current.
+  function syncSheet() {
+    if (sheet.hidden || !sheetBuilt) return;
+    const s = song();
+    const track = trackOf(trackId);
+    $("studio-tools-drums").hidden = track.kind !== "drums";
+    $("studio-tools-notes").hidden = track.kind === "drums";
+    const sc = scaleSet();
+    const snap = $("studio-snap");
+    if (snap) {
+      snap.checked = Boolean(sc && sc.snap);
+      snap.disabled = !sc;
+      snap.title = sc ? "" : "Choose a scale first";
+    }
+    const bars = $("studio-song-bars");
+    if (bars && document.activeElement !== bars) bars.value = s.bars ? String(s.bars) : "";
+    if (sheetTab === "sound") renderSound();
+    $("studio-sheet-title").textContent = panes[sheetTab] ? (sheetTab === "sound" || sheetTab === "tools" ? `${track.name} ${sheetTab === "sound" ? "sound" : "tools"}` : PANES.find((p) => p.id === sheetTab).label) : "Tools";
+  }
+
+  // ---------- the Sound tab: the instrument and its shape, or the kit and each drum sound ----------
+  // sustain, attack and the rest are the named sound's own values until a track tweaks one (then it is saved with the song).
+  const KNOBS = [
+    { key: "attack", label: "Attack", min: 0.001, max: 2, log: true, unit: "s", hint: "How slowly the note fades in" },
+    { key: "decay", label: "Decay", min: 0.02, max: 3, log: true, unit: "s", hint: "How long it takes to settle" },
+    { key: "sustain", label: "Sustain", min: 0, max: 1, unit: "%", hint: "How loud it stays while held; 0 is a struck note that just rings out" },
+    { key: "release", label: "Release", min: 0, max: 3, unit: "s", sqrt: true, hint: "How long it rings after the note ends" },
+    { key: "cutoff", label: "Brightness", min: 120, max: 12000, log: true, unit: "Hz", hint: "A low-pass filter: lower is darker" },
+    { key: "detune", label: "Thickness", min: 0, max: 40, unit: "cents", hint: "Extra copies slightly out of tune, for width" },
+    { key: "vibrato", label: "Vibrato", min: 0, max: 60, unit: "cents", hint: "A slow wobble in the pitch" },
+  ];
+  const fromSlider = (k, t) => (k.log ? k.min * Math.pow(k.max / k.min, t) : k.sqrt ? k.min + (k.max - k.min) * t * t : k.min + (k.max - k.min) * t);
+  const toSlider = (k, v) => (k.log ? Math.log(Math.max(k.min, v) / k.min) / Math.log(k.max / k.min) : k.sqrt ? Math.sqrt(Math.max(0, (v - k.min) / (k.max - k.min))) : (v - k.min) / (k.max - k.min));
+  const fmt = (k, v) => (k.unit === "%" ? `${Math.round(v * 100)}%` : k.unit === "Hz" ? `${Math.round(v)} Hz` : k.unit === "s" ? `${v < 0.1 ? v.toFixed(3) : v.toFixed(2)} s` : `${Math.round(v)} ${k.unit}`);
+  // The value a knob shows: the track's tweak, else what the named sound has.
+  function knobValue(k, voice, synth) {
+    if (synth[k.key] !== undefined) return synth[k.key];
+    const v = (voice && Engine.MELODY_VOICES[voice]) || {};
+    if (k.key === "vibrato") return v.vibrato ? v.vibrato.cents : 0;
+    if (k.key === "cutoff") return v.cutoff || k.max;
+    return v[k.key] !== undefined ? v[k.key] : k.min;
+  }
+  let soundSig = "";
+  function renderSound() {
+    const pane = panes.sound;
+    const s = song();
+    const track = trackOf(trackId);
+    const rows = drumRows(s);
+    if (track.kind === "drums" && !rows.includes(soundRow)) soundRow = rows[0];
+    const sig = [track.id, rows.join(), track.kind === "drums" ? soundRow : ""].join("|");
+    if (sig !== soundSig) {
+      soundSig = sig;
+      pane.innerHTML = track.kind === "drums" ? drumSoundHtml(rows) : noteSoundHtml(track);
+      pane.querySelectorAll("select[data-src]").forEach((sel) => (sel.dataset.filled = ""));
+    }
+    pane.querySelectorAll("select[data-src]").forEach((sel) => {
+      const src = $(sel.dataset.src);
+      if (sel.dataset.filled !== src.innerHTML) {
+        sel.innerHTML = src.innerHTML;
+        sel.dataset.filled = src.innerHTML;
+      }
+      if (sel.value !== src.value) sel.value = src.value;
+    });
+    if (track.kind === "drums") {
+      pane.querySelectorAll("[data-sound]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.sound === soundRow)));
+      const vol = pane.querySelector("#studio-sound-vol");
+      if (vol && document.activeElement !== vol) vol.value = Math.round(Engine.volumeOf(meta(s, soundRow)) * 100);
+      const mute = pane.querySelector("#studio-sound-mute");
+      if (mute) {
+        mute.setAttribute("aria-pressed", String(meta(s, soundRow).muted === true));
+        mute.textContent = meta(s, soundRow).muted === true ? `${ROW_LABELS[soundRow]} is muted` : `Mute ${ROW_LABELS[soundRow]}`;
+      }
+      const realColor = $("song-sequencer").querySelector(`.song-track-color[data-row="${soundRow}"]`);
+      const color = pane.querySelector("#studio-sound-color");
+      if (color && realColor && document.activeElement !== color) color.value = realColor.value;
+      const realNote = $("song-sequencer").querySelector(`.song-track-note[data-row="${soundRow}"]`);
+      const note = pane.querySelector("#studio-sound-note");
+      if (note && realNote && document.activeElement !== note) note.value = realNote.value;
+      const remove = pane.querySelector("#studio-sound-remove");
+      if (remove) remove.hidden = !["openhat", "rim", "tom", "crash"].includes(soundRow); // the four core sounds stay
+      const add = pane.querySelector("#studio-add");
+      const left = ["openhat", "rim", "tom", "crash"].filter((r) => !(s.tracks && s.tracks[r]));
+      if (add && add.options.length !== left.length) add.innerHTML = left.map((r) => `<option value="${r}">${ROW_LABELS[r]}</option>`).join("");
+      const addBtn = pane.querySelector("#studio-add-btn");
+      if (addBtn) addBtn.disabled = !left.length;
+      return;
+    }
+    const part = partOf(s, track);
+    const synth = host().synth(track.id);
+    const voice = voiceOf(s, track);
+    const basic = !voice;
+    pane.querySelectorAll("[data-knob]").forEach((input) => {
+      const k = KNOBS.find((x) => x.key === input.dataset.knob);
+      const value = knobValue(k, voice, synth);
+      if (document.activeElement !== input) input.value = String(Math.round(toSlider(k, value) * 1000));
+      input.disabled = basic;
+      const out = pane.querySelector(`[data-out="${k.key}"]`);
+      if (out) {
+        out.textContent = fmt(k, value);
+        out.classList.toggle("is-tweaked", synth[k.key] !== undefined);
+      }
+    });
+    const wave = pane.querySelector("#studio-synth-wave");
+    if (wave) wave.value = track.part === "melody" && basic ? (s.melody && s.melody.waveform) || "sine" : synth.wave || (voice && Engine.MELODY_VOICES[voice].wave) || "sine";
+    const vol = pane.querySelector("#studio-sound-vol");
+    if (vol && document.activeElement !== vol) vol.value = Math.round(Engine.volumeOf(part) * 100);
+    const reset = pane.querySelector("#studio-synth-reset");
+    if (reset) reset.disabled = !Object.keys(synth).length;
+    const note = pane.querySelector("#studio-synth-note");
+    if (note) note.hidden = !basic;
+  }
+  function noteSoundHtml(track) {
+    const source = { melody: "song-voice", bass: "song-bass-voice", chords: "song-part-voice", lead: "song-part-voice" }[track.part];
+    const knobs = KNOBS.map(
+      (k) =>
+        `<label class="studio-knob" title="${esc(k.hint)}"><span class="studio-knob-name">${k.label}</span><output data-out="${k.key}"></output>` +
+        `<input type="range" min="0" max="1000" step="1" data-knob="${k.key}" data-no-reset aria-label="${k.label}: ${esc(k.hint)}"></label>`
+    ).join("");
+    const waves = Engine.SYNTH_WAVES.map((w) => `<option value="${w}">${w.charAt(0).toUpperCase() + w.slice(1)}</option>`).join("");
+    return (
+      `<section class="studio-section"><h3>${esc(track.name)} sound</h3>` +
+      `<div class="studio-section-row"><label class="studio-field">Instrument<select id="studio-voice" data-src="${source}" aria-label="${esc(track.name)} instrument"></select></label>` +
+      `<label class="studio-field">Wave<select id="studio-synth-wave" aria-label="Wave shape">${waves}</select></label></div>` +
+      `<p id="studio-synth-note" class="studio-section-hint">Basic is a plain wave. Pick an instrument to shape how it starts, rings and sounds.</p>` +
+      `<div class="studio-knobs">${knobs}</div>` +
+      `<div class="studio-section-row"><button type="button" id="studio-synth-reset" class="studio-mini" data-no-history title="Back to the instrument's own settings">Reset the sound</button>` +
+      `<button type="button" class="studio-mini" data-hear data-no-history>Hear it</button></div></section>` +
+      `<section class="studio-section"><h3>Level</h3><label class="studio-vol-inline"><span>Volume</span><input type="range" id="studio-sound-vol" min="0" max="100" data-no-reset aria-label="${esc(track.name)} volume"></label>` +
+      `<button type="button" class="studio-mini" data-mute-track data-no-history>Mute ${esc(track.name)}</button></section>`
+    );
+  }
+  function drumSoundHtml(rows) {
+    const chips = rows.map((r) => `<button type="button" class="studio-chip" data-sound="${r}" data-no-history aria-pressed="false">${ROW_LABELS[r]}</button>`).join("");
+    return (
+      `<section class="studio-section"><h3>Drum kit</h3><div class="studio-section-row"><label class="studio-field">Kit for every drum sound<select id="studio-kit" data-src="song-kit" aria-label="Drum kit"></select></label></div></section>` +
+      `<section class="studio-section"><h3>Each sound</h3><p class="studio-section-hint">Pick a sound, then set its volume or mute it.</p>` +
+      `<div class="studio-chips" role="group" aria-label="Drum sound">${chips}</div>` +
+      `<div class="studio-section-row"><label class="studio-vol-inline"><span>Volume</span><input type="range" id="studio-sound-vol" min="0" max="100" data-no-reset aria-label="Volume of the chosen drum sound"></label></div>` +
+      `<div class="studio-section-row"><button type="button" id="studio-sound-mute" class="studio-mini" aria-pressed="false" data-no-history>Mute</button><button type="button" class="studio-mini" data-hear-drum data-no-history>Hear it</button><button type="button" id="studio-sound-remove" class="studio-mini" data-no-history title="Take this sound out of the song (undoable)">Remove this sound</button></div>` +
+      `<div class="studio-section-row"><label class="studio-field studio-field-small">Colour<input type="color" id="studio-sound-color" aria-label="Colour of the chosen drum sound"></label><label class="studio-field">Note<input type="text" id="studio-sound-note" maxlength="60" placeholder="A note about this sound" aria-label="Note about the chosen drum sound"></label></div></section>` +
+      `<section class="studio-section"><h3>Add a sound</h3><div class="studio-section-row"><label class="studio-field">Sound<select id="studio-add" aria-label="Drum sound to add"></select></label><button type="button" id="studio-add-btn" class="studio-mini" data-no-history>Add</button></div></section>`
+    );
+  }
+  sheetBody.addEventListener("change", (e) => {
+    const t = e.target;
+    if (t.matches && t.matches("select[data-src]")) {
+      const src = $(t.dataset.src);
+      src.value = t.value;
+      fire(src, "change");
+      soundSig = "";
+      refresh();
+      if (trackOf(trackId).kind === "notes") host().hear(trackId, HEAR[trackOf(trackId).part]);
+    } else if (t.id === "studio-synth-wave") {
+      const track = trackOf(trackId);
+      if (track.part === "melody" && !voiceOf(song(), track)) {
+        $("song-waveform").value = t.value;
+        fire($("song-waveform"), "change");
+      } else host().setSynth(trackId, { wave: t.value });
+      refresh();
+      host().hear(trackId, HEAR[track.part]);
+    } else if (t.dataset && t.dataset.knob) {
+      host().hear(trackId, HEAR[trackOf(trackId).part]);
+    }
+  });
+  sheetBody.addEventListener("input", (e) => {
+    const t = e.target;
+    if (t.dataset && t.dataset.knob) {
+      const k = KNOBS.find((x) => x.key === t.dataset.knob);
+      const raw = fromSlider(k, Number(t.value) / 1000);
+      host().setSynth(trackId, { [k.key]: Math.round(raw * 1000) / 1000 });
+      const out = panes.sound.querySelector(`[data-out="${k.key}"]`);
+      if (out) {
+        out.textContent = fmt(k, raw);
+        out.classList.add("is-tweaked");
+      }
+      panes.sound.querySelector("#studio-synth-reset").disabled = false;
+    } else if (t.id === "studio-sound-color" || t.id === "studio-sound-note") {
+      const real = $("song-sequencer").querySelector(`.song-track-${t.id === "studio-sound-color" ? "color" : "note"}[data-row="${soundRow}"]`);
+      if (real) {
+        real.value = t.value;
+        fire(real, "input");
+      }
+    } else if (t.id === "studio-sound-vol") {
+      const track = trackOf(trackId);
+      if (track.kind === "drums") {
+        const real = $("song-sequencer").querySelector(`.song-track-volume[data-row="${soundRow}"]`);
+        if (real) {
+          real.value = t.value;
+          fire(real, "input");
+        }
+      } else {
+        $("song-melody-volume").value = t.value;
+        fire($("song-melody-volume"), "input");
+      }
+    }
+  });
+  sheetBody.addEventListener("click", (e) => {
+    const t = e.target.closest && e.target.closest("button");
+    if (!t) return;
+    const track = trackOf(trackId);
+    if (t.dataset.sound) {
+      soundRow = t.dataset.sound;
+      host().hearDrum(soundRow);
+    } else if (t.id === "studio-sound-mute") {
+      const real = $("song-sequencer").querySelector(`.song-track-mute[data-row="${soundRow}"]`);
+      if (real) real.click();
+    } else if (t.id === "studio-sound-remove") {
+      const real = $("song-sequencer").querySelector(`.song-track-remove[data-row="${soundRow}"]`);
+      if (real) real.click();
+      soundRow = "kick";
+      soundSig = "";
+      gridSig = "";
+      keysSig = "";
+    } else if (t.hasAttribute("data-hear-drum")) host().hearDrum(soundRow);
+    else if (t.hasAttribute("data-hear")) host().hear(trackId, HEAR[track.part]);
+    else if (t.hasAttribute("data-mute-track")) toggleMute(track);
+    else if (t.id === "studio-synth-reset") {
+      host().setSynth(trackId, { wave: null, attack: null, decay: null, sustain: null, release: null, cutoff: null, detune: null, vibrato: null });
+      host().hear(trackId, HEAR[track.part]);
+    } else if (t.id === "studio-add-btn") {
+      $("song-add-drum").value = $("studio-add").value;
+      $("song-add-drum-btn").click();
+      soundSig = "";
+    } else return;
+    refresh();
+  });
+  // The tools the sheet moved in from the builder do their work through the builder; the studio just shows what they said.
+  sheetBody.addEventListener("click", () => {
+    setTimeout(() => {
+      gridSig = gridSig; // eslint-disable-line no-self-assign
+      refresh();
+      showToolNote();
+    }, 0);
+  });
+
+  // ---------- keeping the layout in step with the builder ----------
   function refresh(opts) {
-    if (view !== "studio" || modal.hidden) return;
+    if (legacy || modal.hidden) return;
     const h = host();
     const s = song();
     if (!h || !s) return;
     if (opts && opts.opened) {
       trackId = firstTrackWithContent(s);
+      Object.keys(barPick).forEach((k) => delete barPick[k]);
       clearPlay();
+      closeSheet();
     }
     if (opts && (opts.opened || opts.rebuild)) {
-      detailSig = gridSig = keysSig = "";
+      detailSig = gridSig = keysSig = barsSig = soundSig = "";
       Object.keys(cardSigs).forEach((k) => delete cardSigs[k]);
+      showBar(trackOf(trackId));
       syncRoll();
       openHidden(trackOf(trackId));
     }
@@ -882,6 +1540,7 @@
     renderKeys(s);
     syncTransport();
     syncTop();
+    syncSheet();
   }
   let queued = 0;
   const later = () => {
@@ -890,39 +1549,26 @@
   };
   ["click", "input", "change", "keyup"].forEach((t) => modal.addEventListener(t, later));
   setInterval(() => {
-    if (view === "studio" && !modal.hidden) refresh();
+    if (!legacy && !modal.hidden) refresh();
   }, 700);
 
-  function setView(next, save) {
-    view = next;
-    if (save) {
-      try {
-        localStorage.setItem("songView", next);
-      } catch {
-        /* not saved */
-      }
-    }
-    const on = view === "studio";
-    modal.classList.toggle("song-studio-on", on);
-    studio.hidden = !on;
-    if (on) {
-      refresh({ rebuild: true });
-    } else {
-      clearPlay();
-      if (host()) host().forget();
-      modal.classList.remove("studio-multi-tabs");
-      // The classic rulers measure the grids, which had no size while the studio was showing.
-      window.dispatchEvent(new Event("resize"));
-    }
+  if (legacy) {
+    modal.classList.remove("song-studio-on");
+    studio.hidden = true;
+  } else {
+    modal.classList.add("song-studio-on");
+    studio.hidden = false;
+    buildSheet();
+    refresh({ rebuild: true });
   }
 
   window.SongStudio = {
     refresh(opts) {
       refresh(opts);
     },
-    // Called by the editor a little before a step sounds (time is on the audio clock); the lights follow the sound, not the scheduling.
+    // Called by the builder a little before a step sounds (time is on the audio clock); the lights follow the sound, not the scheduling.
     step(step, time, info) {
-      if (view !== "studio" || modal.hidden) return;
+      if (legacy || modal.hidden) return;
       const wait = typeof time === "number" && host() ? Math.max(0, (time - host().now()) * 1000) : 0;
       if (wait < 16) {
         paintStep(step, info);
@@ -935,13 +1581,13 @@
       pending.push(id);
     },
     stopped() {
-      if (view !== "studio") return;
+      if (legacy) return;
       clearPlay();
       if (host()) syncTransport();
     },
     // A note played from the computer keyboard or a MIDI device: show it on the keys.
     played(requested) {
-      if (view !== "studio") return;
+      if (legacy) return;
       const track = trackOf(trackId);
       if (track.kind === "drums") return;
       let n = semis(requested);
@@ -952,13 +1598,13 @@
       flash(keysEl.querySelector(`[data-key="${noteName(n)}"]`));
       later();
     },
-    active: () => view === "studio" && !modal.hidden,
+    active: () => !legacy && !modal.hidden,
     toggle: togglePlay,
-    drumTrackOpen: () => view === "studio" && trackOf(trackId).kind === "drums",
-    setView,
-    view: () => view,
+    drumTrackOpen: () => !legacy && trackOf(trackId).kind === "drums",
+    // The lane (track) the open card edits, or null.
+    openLane: () => (legacy ? null : trackOf(trackId).id),
     select: selectTrack,
+    openSheet,
     tracks: TRACKS,
   };
-  setView(view, false);
 })();

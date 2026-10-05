@@ -178,6 +178,7 @@ import FEATURES from "../features.json" with { type: "json" };
 import { REQUEST_MAX, REQUEST_PREFIX, cleanRequest, countByStatus, isRequestId, readRequestRow, requestKey } from "./features.js";
 import { SCRIPT_MAX, SCRIPT_PREFIX, cleanScript, isScriptId, readScriptRow, scriptKey } from "./scripts.js";
 import { cleanSongSave } from "./songs.js";
+import { cleanSongDefaults } from "./song-defaults.js";
 import { outlineConfig, readOutline } from "./outline.js";
 import { cleanFooterLinks } from "./render.js";
 import { checkPassword, createSessionCookie, clearSessionCookie, isAuthenticated, hmac, revokeAllSessions } from "./auth.js";
@@ -283,6 +284,10 @@ const SETTINGS_KEYS = [
   "card_shape",
   "space_scale",
   "shadow_strength",
+  // What a new song starts with (worker/song-defaults.js).
+  "song_default_tempo",
+  "song_default_bars",
+  "song_default_kit",
 ];
 
 // Paths a redirect could otherwise break by intercepting a system route.
@@ -2700,6 +2705,7 @@ async function routeAdminApi(request, env, url, ctx) {
     // a key with no actual change is left out entirely.
     // The footer layout is stored normalised, so what is saved is exactly what the site will render.
     // The site name and the built-in nav links are cleaned to the same shape the page shell reads (worker/nav-settings.js).
+    cleanSongDefaults(body);
     if ("site_brand" in body) body.site_brand = cleanBrand(body.site_brand);
     if ("nav_builtin" in body) body.nav_builtin = cleanNavBuiltin(body.nav_builtin);
     if (body.site_footer_links) {

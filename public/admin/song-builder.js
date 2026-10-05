@@ -16,6 +16,56 @@
     now: () => getAudioCtx().currentTime,
     note: (name) => playAndMaybeRecordNote(name),
     hit: (row) => auditDrumHit(row),
+    // One undo step for everything done between group(true) and group(false).
+    group: (on) => {
+      if (on) {
+        flushSongHistoryInputGroup();
+        historyGroup = { before: captureSongHistoryState() };
+        // A drag that never reports its end (the page lost the pointer) must not leave undo switched off.
+        clearTimeout(historyGroupTimer);
+        historyGroupTimer = setTimeout(() => window.SongStudioHost.group(false), 10000);
+      } else if (historyGroup) {
+        clearTimeout(historyGroupTimer);
+        const group = historyGroup;
+        historyGroup = null;
+        songEditGeneration++;
+        pushSongUndoState(group.before);
+      }
+    },
+    // The scale the song highlights ({ root, type, snap, degrees }), or null. With snap on, notes played or tapped in move to the nearest note
+    // of it; with it off (the default) the keys are free.
+    scale: () => {
+      const sc = activeScale();
+      return sc ? { root: sc.root, type: sc.type, snap: sc.snap === true, degrees: SCALES[sc.type].slice() } : null;
+    },
+    setSnap: (on) => {
+      const sc = activeScale();
+      if (!sc) return;
+      if (on) sc.snap = true;
+      else delete sc.snap;
+      scheduleAutosave();
+    },
+    snap: (name) => snapToScale(name, (candidate) => Boolean(roll().notes[rowForNote(candidate)])),
+    // A track's own sound tweaks (wave, attack, decay, sustain, release, cutoff, detune, vibrato). A null value takes a tweak back to the sound's own.
+    synth: (id) => {
+      const part = id === "melody" ? songData.melody : songData[id];
+      return part && part.synth ? Object.assign({}, part.synth) : {};
+    },
+    setSynth: (id, patch) => {
+      const part = id === "melody" ? songData.melody : ensurePart(id);
+      const next = Object.assign({}, part.synth || {});
+      Object.keys(patch).forEach((key) => {
+        if (patch[key] === null || patch[key] === undefined) delete next[key];
+        else next[key] = patch[key];
+      });
+      const clean = Engine.cleanSynth(next);
+      if (clean) part.synth = clean;
+      else delete part.synth;
+      scheduleAutosave();
+    },
+    // Plays a note of a track (never records it), with the track's sound as it is now.
+    hear: (id, name) => hearNote(id, name),
+    hearDrum: (row) => soundDrum(row),
   };
   const notifyStudio = (opened) => { if (window.SongStudio) window.SongStudio.refresh({ opened: opened === true }); };
   // Every song has the four core drum rows. The extra voices (open hat, rim, tom, crash) are added to a song from the menu under the
@@ -133,7 +183,7 @@
       }
       if (!data[key]) return;
       const anyPattern = data.patterns && typeof data.patterns === "object" && Object.values(data.patterns).some((part) => part && part[key]);
-      const customised = data[key].voice !== undefined || data[key].muted === true || data[key].hidden === true || (data[key].volume !== undefined && data[key].volume !== 1);
+      const customised = data[key].voice !== undefined || data[key].synth !== undefined || data[key].muted === true || data[key].hidden === true || (data[key].volume !== undefined && data[key].volume !== 1);
       if (!hasNotes(data[key]) && !anyPattern && !customised) delete data[key];
     });
     return data;
@@ -230,6 +280,8 @@
     pushSongUndoState(group.before);
   }
   function resetSongHistory() {
+    historyGroup = null;
+    clearTimeout(historyGroupTimer);
     clearTimeout(songHistoryInputTimer);
     songHistoryInputTimer = null;
     songHistoryInputGroup = null;
@@ -285,11 +337,16 @@
       type: event.type,
     });
   }
+  // While a group is open (a drag across many steps in the Studio) the events inside it make no undo steps of their own: the whole drag is
+  // one, pushed when the group ends.
+  let historyGroup = null;
+  let historyGroupTimer = 0;
   function finishSongHistoryEvent(event) {
     const pending = songHistoryEvents.get(event);
     if (!pending) return;
     songHistoryEvents.delete(event);
     if (pending.skip) return;
+    if (historyGroup) return;
     if (pending.shortcut) {
       if (pending.generation !== openGeneration || $("song-builder-modal").hidden) return;
       event.preventDefault();
@@ -655,8 +712,9 @@
   // info (from the player): which pattern is sounding and where it sits in the song order. The playhead is drawn on the grids only while the
   // pattern being played is the one being edited, and the waveform's progress covers the whole song.
   function highlightStep(step, time, info) {
-    if (typeof time === "number") noteScheduledStep(step, time, info && info.chainIndex);
+    if (typeof time === "number") noteScheduledStep(step, time, info && info.chainIndex, info);
     if (window.SongStudio) window.SongStudio.step(step, time, info);
+    if (info && window.SongStudio && window.SongStudio.active() && $("song-record").checked) extendLaneForRecording(window.SongStudio.openLane(), step, info);
     const visible = !info || info.pattern === editingPattern();
     document.querySelectorAll(".song-step").forEach((el) => {
       el.classList.toggle("song-step-playing", visible && Number(el.dataset.step) === step);
@@ -1074,8 +1132,8 @@
   // clip frame is the latest scheduled step whose time has already passed.
   let scheduledSteps = [];
 
-  function noteScheduledStep(step, time, chainIndex) {
-    scheduledSteps.push({ step, time, chainIndex: chainIndex || 0 });
+  function noteScheduledStep(step, time, chainIndex, info) {
+    scheduledSteps.push({ step, time, chainIndex: chainIndex || 0, pattern: info ? info.pattern : undefined, patterns: info ? info.patterns : undefined });
     if (scheduledSteps.length > 32) scheduledSteps.shift();
   }
 
@@ -1366,22 +1424,71 @@
     while (number > 47) number -= 12;
     return NOTE_NAMES[number % 12] + (Math.floor(number / 12) - 1);
   }
-  // A drum pad (the Studio's keys on a drum layer): it sounds the drum, and while recording it also turns that step on in the open
-  // pattern through the grid's own click, so undo, autosave and the preview behave as for a hand-placed step.
-  function auditDrumHit(row) {
-    if (!songData.tracks || !songData.tracks[row]) return;
+  // Where a hit played now lands while recording: the step that is sounding at this moment and the pattern the track plays in this bar (the
+  // heard step, not the one scheduled a moment ahead). null when the track is silent in this bar.
+  function recordingSpot(trackKey) {
+    if (!player.isPlaying() || isCountingIn() || !$("song-record").checked) return null;
+    const now = getAudioCtx().currentTime;
+    let heard = null;
+    for (const entry of scheduledSteps) if (entry.time <= now) heard = entry;
+    const step = heard ? heard.step : player.currentStep();
+    let pattern;
+    if (heard && heard.patterns && Object.prototype.hasOwnProperty.call(heard.patterns, trackKey)) pattern = heard.patterns[trackKey];
+    else pattern = heard && heard.pattern ? heard.pattern : player.currentPattern();
+    return pattern ? { step, pattern } : null;
+  }
+  // The stored (not open) pattern `name`, with the lane `lanes` ({ row or note: steps }) of the part made if it is not there yet.
+  function storedLane(name, key, rowName) {
+    const stored = songData.patterns && songData.patterns[name];
+    if (!stored || typeof stored !== "object") return null;
+    let holder = stored;
+    let lanes;
+    if (key === "drums") {
+      if (!stored.tracks) stored.tracks = {};
+      lanes = stored.tracks;
+    } else if (key === "melody") {
+      if (!stored.notes) stored.notes = {};
+      lanes = stored.notes;
+    } else {
+      if (!stored[key]) stored[key] = { notes: {}, ties: {} };
+      if (!stored[key].notes) stored[key].notes = {};
+      holder = stored[key];
+      lanes = holder.notes;
+    }
+    if (!Array.isArray(lanes[rowName])) lanes[rowName] = new Array(STEPS).fill(false);
+    return lanes[rowName];
+  }
+  // A drum pad (the Studio's keys on a drum layer): it sounds the drum, and while recording it also turns that step on in the pattern the
+  // drums play in this bar through the grid's own click, so undo, autosave and the preview behave as for a hand-placed step.
+  // A drum row's sound on its own, for the ear.
+  function soundDrum(row) {
+    if (!songData.tracks || !songData.tracks[row]) return false;
     const ctx = getAudioCtx();
     const meta = Object.assign({}, songData.trackMeta && songData.trackMeta[row], { muted: false });
     const one = Object.assign({}, songData, { tracks: { [row]: [true] }, trackMeta: { [row]: meta }, melody: { notes: {} }, bass: undefined, chords: undefined, lead: undefined });
     Engine.scheduleStep(ctx, one, 0, ctx.currentTime);
-    if (!player.isPlaying() || isCountingIn() || !$("song-record").checked || player.currentPattern() !== editingPattern()) return;
-    const step = player.currentStep();
-    if (songData.tracks[row][step]) return;
-    const cell = $("song-sequencer").querySelector(`.song-step[data-row="${row}"][data-step="${step}"]`);
+    return true;
+  }
+  function auditDrumHit(row) {
+    if (!soundDrum(row)) return;
+    const spot = recordingSpot("drums");
+    if (!spot) return;
+    if (spot.pattern !== editingPattern()) {
+      const lane = storedLane(spot.pattern, "drums", row);
+      if (lane && !lane[spot.step]) {
+        lane[spot.step] = true;
+        refreshWaveformPreview();
+        scheduleAutosave();
+      }
+      return;
+    }
+    if (songData.tracks[row][spot.step]) return;
+    const cell = $("song-sequencer").querySelector(`.song-step[data-row="${row}"][data-step="${spot.step}"]`);
     if (cell) cell.click();
   }
   function playAndMaybeRecordNote(requested) {
     if (window.SongStudio && window.SongStudio.drumTrackOpen()) return; // notes would land in a part that is not on screen
+    requested = snapToScale(requested, (candidate) => Boolean(roll().notes[rowForNote(candidate)]));
     if (window.SongStudio) window.SongStudio.played(requested);
     const ctx = getAudioCtx();
     const noteName = rowForNote(requested);
@@ -1396,8 +1503,16 @@
         voice ? Engine.playVoicedNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), voice, duration) : Engine.playMelodyNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), waveform, duration));
     }
     if (!part.notes[noteName]) return; // outside the 2-octave piano roll range — preview only
-    if (player.isPlaying() && !isCountingIn() && $("song-record").checked && player.currentPattern() === editingPattern()) {
-      const step = player.currentStep();
+    const spot = recordingSpot(rollPart);
+    if (spot && spot.pattern !== editingPattern()) {
+      const lane = storedLane(spot.pattern, rollPart, noteName);
+      if (lane && !lane[spot.step]) {
+        lane[spot.step] = true;
+        refreshWaveformPreview();
+        scheduleAutosave();
+      }
+    } else if (spot) {
+      const step = spot.step;
       const wasRecorded = Boolean(part.notes[noteName][step]);
       if (!wasRecorded) part.notes[noteName][step] = true;
       // Recording into a collapsed piano roll would write notes nobody can see.
@@ -1412,12 +1527,27 @@
     }
   }
 
+  // A note of a track played for the ear only (a slider released in the Studio's sound settings), with the track's sound as it is now.
+  function hearNote(id, name) {
+    const ctx = getAudioCtx();
+    const duration = 60 / (songData.tempo || 120) / 4;
+    const part = id === "melody" ? songData.melody : songData[id];
+    const voice = id === "melody" ? Engine.melodyVoiceOf(songData) : Engine.partVoiceOf(songData, id);
+    const volume = Engine.volumeOf(part);
+    Engine.withVolume(ctx, volume, () => (voice ? Engine.playVoicedNote(ctx, ctx.currentTime, Engine.noteToFreq(name), voice, duration * 2, part && part.synth) : Engine.playMelodyNote(ctx, ctx.currentTime, Engine.noteToFreq(name), $("song-waveform").value, duration * 2)));
+  }
   function handleMidiMessage(msg) {
     const [status, note, velocity] = msg.data;
     const isNoteOn = status >> 4 === 9 && velocity > 0;
     if (!isNoteOn) return;
+    // Drum pads (channel 10, or any note while the Studio has the drums open): General MIDI drum notes play and record the matching row.
+    if (window.SongStudio && window.SongStudio.drumTrackOpen()) {
+      const row = window.SongFiles && window.SongFiles.GM_TO_ROW[note];
+      if (row) auditDrumHit(row);
+      return;
+    }
     const noteName = Engine.midiToNoteName(note);
-    const shouldRecord = player.isPlaying() && !isCountingIn() && $("song-record").checked && player.currentPattern() === editingPattern() && !!roll().notes[rowForNote(noteName)];
+    const shouldRecord = Boolean(recordingSpot(rollPart)) && !!roll().notes[rowForNote(snapToScale(noteName, (candidate) => Boolean(roll().notes[rowForNote(candidate)])))];
     const historyBefore = shouldRecord ? captureSongHistoryState() : null;
     playAndMaybeRecordNote(noteName);
     if (historyBefore && pushSongUndoState(historyBefore)) songEditGeneration++;
@@ -1459,6 +1589,12 @@
         alert("Couldn't access MIDI devices: " + err.message);
       }
     });
+    // Already allowed on an earlier visit: connect without asking again, so a keyboard just works when the builder opens.
+    if (navigator.permissions && navigator.permissions.query) {
+      navigator.permissions.query({ name: "midi" }).then((state) => {
+        if (state.state === "granted" && !$("song-midi-connect").disabled) $("song-midi-connect").click();
+      }).catch(() => {});
+    }
   }
 
   // ---------- Computer-keyboard note entry ----------
@@ -2048,6 +2184,133 @@
     if (active) active.focus();
   }
 
+  // ---------- Arrangement for the Studio: how long the song is, a lane of patterns for each track, loop on or off ----------
+  // A track with no lane of its own follows the song order. The first change to a track's arrangement gives it a lane that starts as that
+  // order, so nothing moves until the change itself. Each pattern holds a part for every track, so tracks never share notes even when a lane
+  // names the same letter: a bar only differs once a track's lane names another pattern for it.
+  function ownLane(key) {
+    if (!songData.lanes || typeof songData.lanes !== "object" || Array.isArray(songData.lanes)) songData.lanes = {};
+    if (!songData.lanes[key] || !Array.isArray(songData.lanes[key].order)) songData.lanes[key] = { order: Engine.laneOrder(songData, key).slice() };
+    songData.lanes[key].order = songData.lanes[key].order.filter((n) => Engine.patternData(songData, n));
+    return songData.lanes[key];
+  }
+  const partOnly = (parts, key) => {
+    const out = emptyParts();
+    if (key === "drums") out.tracks = parts.tracks || {};
+    else if (key === "melody") { out.notes = parts.notes || {}; out.ties = parts.ties || {}; }
+    else if (parts[key]) out[key] = parts[key];
+    return out;
+  };
+  const arrChanged = () => {
+    renderPatternControls();
+    refreshWaveformPreview();
+    scheduleAutosave();
+  };
+  const arrReopen = () => {
+    renderSequencer();
+    renderPianoRoll();
+    renderPatternControls();
+  };
+  const arr = {
+    info(key) {
+      const bars = Engine.songBars(songData);
+      const order = Engine.laneOrder(songData, key);
+      const loops = Engine.laneLoops(songData, key);
+      const cells = [];
+      for (let bar = 0; bar < bars; bar++) {
+        const name = !order.length ? null : loops ? order[bar % order.length] : bar < order.length ? order[bar] : null;
+        cells.push({ bar, name, repeat: Boolean(name) && bar >= order.length });
+      }
+      return { bars, length: order.length, auto: !songData.bars, own: Boolean(songData.lanes && songData.lanes[key]), loops, cells, open: editingPattern(), free: Engine.PATTERN_NAMES.length - Engine.patternNames(songData).length };
+    },
+    // Shows the pattern a track plays in a bar in the editor; false when the track is silent there.
+    openBar(key, bar) {
+      const name = Engine.patternAtBar(songData, key, bar);
+      if (!name) return false;
+      if (name !== editingPattern()) {
+        openPattern(name);
+        arrReopen();
+      }
+      return true;
+    },
+    // A new empty bar at the end of the track's lane, opened.
+    addBar(key) {
+      const name = nextFreeName();
+      if (!name || Engine.laneOrder(songData, key).length >= Engine.MAX_BARS) return null;
+      const lane = ownLane(key);
+      openPattern(name, emptyParts());
+      lane.order.push(name);
+      if (songData.bars && songData.bars < lane.order.length) songData.bars = lane.order.length;
+      arrReopen();
+      arrChanged();
+      return name;
+    },
+    // Makes one bar of a track its own (a copy of what the track plays there, in a new pattern), so a looped bar can change on its own.
+    differ(key, bar) {
+      const current = Engine.patternAtBar(songData, key, bar);
+      if (!current) return null;
+      const name = nextFreeName();
+      if (!name) return null;
+      const lane = ownLane(key);
+      const base = lane.order.length;
+      if (!base) return null;
+      // Spell out the loop over the whole song first, so every bar keeps playing what it played before the one that is changed.
+      const full = Math.min(Engine.MAX_BARS, Math.max(Engine.songBars(songData), bar + 1));
+      while (lane.order.length < full) lane.order.push(lane.order[lane.order.length % base]);
+      const copy = partOnly(copyParts(Engine.patternData(songData, current)), key);
+      openPattern(name, copy);
+      lane.order[bar] = name;
+      arrReopen();
+      arrChanged();
+      return name;
+    },
+    removeBar(key, bar) {
+      if (bar < 0 || bar >= Engine.laneOrder(songData, key).length) return false;
+      const lane = ownLane(key);
+      lane.order.splice(bar, 1);
+      arrReopen();
+      arrChanged();
+      return true;
+    },
+    setLoop(key, loops) {
+      const lane = ownLane(key);
+      if (loops) delete lane.loop;
+      else lane.loop = false;
+      arrChanged();
+    },
+    // Back to following the song order.
+    follow(key) {
+      if (!songData.lanes || !songData.lanes[key]) return;
+      delete songData.lanes[key];
+      if (!Object.keys(songData.lanes).length) delete songData.lanes;
+      arrChanged();
+    },
+    setBars(n) {
+      const value = Math.floor(Number(n));
+      if (Number.isFinite(value) && value >= 1) songData.bars = Math.min(Engine.MAX_BARS, value);
+      else delete songData.bars;
+      arrChanged();
+    },
+  };
+  Object.assign(window.SongStudioHost, { arr });
+  // While recording on a track whose lane does not loop (and the song's length is not fixed), the song grows with the take: a new empty
+  // bar is added just before the track runs out, so the music carries on instead of wrapping round.
+  function extendLaneForRecording(key, step, info) {
+    if (!key || songData.bars || !songData.lanes || !songData.lanes[key] || songData.lanes[key].loop !== false) return;
+    const lane = ownLane(key);
+    const need = Math.min(Engine.MAX_BARS, step === STEPS - 1 ? info.chainIndex + 2 : info.chainIndex + 1);
+    let grew = false;
+    while (lane.order.length < need) {
+      const name = nextFreeName();
+      if (!name) break;
+      if (!songData.patterns || typeof songData.patterns !== "object") songData.patterns = {};
+      songData.patterns[name] = emptyParts();
+      lane.order.push(name);
+      grew = true;
+    }
+    if (grew) arrChanged();
+  }
+
   // Copy one part (or everything) of another pattern into the open one. The other pattern is not changed.
   $("song-copy-apply").addEventListener("click", () => {
     const from = $("song-copy-from").value;
@@ -2098,6 +2361,7 @@
     const chain = chainList().filter((n) => n !== name);
     if (chain.length) songData.chain = chain;
     else delete songData.chain;
+    if (songData.lanes) Object.keys(songData.lanes).forEach((k) => { songData.lanes[k].order = songData.lanes[k].order.filter((n) => n !== name); });
     afterPatternSwitch(`Pattern ${name} removed. Pattern ${next} is open.`);
     refreshWaveformPreview();
     scheduleAutosave();
@@ -2222,10 +2486,28 @@
     $("song-scale-type").value = sc ? sc.type : "off";
     $("song-scale-root").value = sc ? sc.root : "C";
   }
+  // The nearest note of the highlighted scale to a note name (the lower one when two are as near), when snapping is on; else the note itself.
+  function snapToScale(name, within) {
+    const sc = activeScale();
+    const m = /^([A-G]#?)(\d)$/.exec(name);
+    if (!sc || sc.snap !== true || !m) return name;
+    const set = SCALES[sc.type];
+    const root = NOTE_NAMES.indexOf(sc.root);
+    const number = NOTE_NAMES.indexOf(m[1]) + Number(m[2]) * 12;
+    const inScale = (n) => set.includes((((n % 12) - root) + 12) % 12);
+    for (let d = 0; d <= 12; d++) {
+      for (const n of [number - d, number + d]) {
+        const candidate = NOTE_NAMES[n % 12] + Math.floor(n / 12);
+        if (inScale(n) && (!within || within(candidate))) return candidate;
+      }
+    }
+    return name;
+  }
   function onScaleChange() {
     const type = $("song-scale-type").value;
+    const snap = songData.scale && songData.scale.snap === true;
     if (type === "off") delete songData.scale;
-    else songData.scale = { root: $("song-scale-root").value, type };
+    else songData.scale = Object.assign({ root: $("song-scale-root").value, type }, snap ? { snap: true } : {});
     renderPianoRoll();
     const sc = activeScale();
     if (sc) $("song-prog-key").value = sc.root; // chord progressions start in the key being highlighted
@@ -2817,6 +3099,17 @@
     }
     if (data.editing !== undefined && !Engine.PATTERN_NAMES.includes(data.editing)) delete data.editing;
     if (data.chain !== undefined && !Array.isArray(data.chain)) delete data.chain;
+    if (data.bars !== undefined && !(Number.isInteger(data.bars) && data.bars >= 1)) delete data.bars;
+    if (data.bars > Engine.MAX_BARS) data.bars = Engine.MAX_BARS;
+    if (data.lanes !== undefined && !isPlain(data.lanes)) delete data.lanes;
+    if (isPlain(data.lanes)) {
+      Object.keys(data.lanes).forEach((key) => {
+        if (!Engine.LANE_KEYS.includes(key) || !isPlain(data.lanes[key]) || !Array.isArray(data.lanes[key].order)) { delete data.lanes[key]; return; }
+        data.lanes[key].order = data.lanes[key].order.filter((n) => Engine.PATTERN_NAMES.includes(n)).slice(0, Engine.MAX_BARS);
+        if (data.lanes[key].loop !== false) delete data.lanes[key].loop;
+      });
+      if (!Object.keys(data.lanes).length) delete data.lanes;
+    }
     if (data.private_notes == null) data.private_notes = "";
     return data;
   }
@@ -3040,6 +3333,26 @@
   let openRequestSeq = 0;
   let committedOpenSeq = 0;
   let pendingOpenId = null; // the song a not-yet-committed open is fetching
+  // What a new blank song starts with, from Site Settings > Songs (tempo, length, drum kit). A failed read just leaves the built-in defaults.
+  async function fetchSongDefaults() {
+    try {
+      return await window.adminApi("/settings");
+    } catch {
+      return null;
+    }
+  }
+  function applySongDefaults(data, settings) {
+    if (!settings) return;
+    try {
+      const tempo = Number(settings.song_default_tempo);
+      if (Number.isInteger(tempo) && tempo >= 40 && tempo <= 240) data.tempo = tempo;
+      const bars = Number(settings.song_default_bars);
+      if (Number.isInteger(bars) && bars >= 1 && bars <= Engine.MAX_BARS) data.bars = bars;
+      if (["acoustic", "electronic", "808"].includes(settings.song_default_kit)) data.kit = settings.song_default_kit;
+    } catch {
+      /* built-in defaults */
+    }
+  }
   async function openBuilder(id, templateId, starterId) {
     if (!canLeaveSongBuilder(false)) return false;
     const dirtyGenAtAsk = songDirtyGeneration;
@@ -3048,6 +3361,9 @@
     const mySeq = ++openRequestSeq;
     pendingOpenId = id;
     let song = null;
+    let defaults = null;
+    if (!id && !starterId && !templateId) defaults = await fetchSongDefaults(); // read with the other request, before this open is committed
+    if (!id && mySeq !== openRequestSeq) return false;
     if (id) {
       try {
         song = await window.adminApi(`/songs/${id}`);
@@ -3099,6 +3415,7 @@
     } else {
       $("song-name").value = "New song";
       songData = defaultSongData();
+      applySongDefaults(songData, defaults);
     }
     $("song-tempo").value = songData.tempo || 120;
     $("song-kit").value = songData.kit || "acoustic";
@@ -3134,7 +3451,8 @@
     $("song-builder-modal").hidden = false;
     resetSongHistory();
     resetClipHistory();
-    playOrder = chainList().length > 1;
+    // Play follows the song when it has several bars (a song order, a bar count or a track with bars of its own); the Studio always plays the song.
+    playOrder = chainList().length > 1 || Boolean(songData.bars) || Engine.hasLanes(songData) || Boolean(window.SongStudio && window.SongStudio.active && window.SongStudio.active());
     rollPart = "melody"; // every song opens on its melody
     renderSequencer();
     renderPianoRoll();

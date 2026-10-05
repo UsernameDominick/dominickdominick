@@ -969,6 +969,7 @@ function setMasterVolume(ctx, value) {
         playingLanes = lanes;
         scheduleStep(ctx, view, currentStep, nextStepTime);
         if (onStep) onStep(currentStep, nextStepTime + swingDelay(songData, currentStep), { pattern: name, patterns: lanes, chainIndex, chainLength: length, data: view }); // the time the step actually sounds
+        if (!isSinglePattern(songData) && !loopName) length = songBars(songData); // the editor may have lengthened the song while recording
         nextStepTime += stepDurationFor(songData.tempo);
         currentStep = (currentStep + 1) % STEPS;
         if (currentStep === 0 && length > 1) chainIndex = (chainIndex + 1) % length;

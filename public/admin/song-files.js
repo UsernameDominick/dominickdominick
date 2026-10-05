@@ -701,7 +701,7 @@
       if (partTies) part.ties = partTies;
       song[key] = part;
     });
-    if (src.scale && typeof src.scale === "object" && SCALE_TYPES.includes(src.scale.type) && NOTE_NAMES.includes(src.scale.root)) song.scale = { root: src.scale.root, type: src.scale.type };
+    if (src.scale && typeof src.scale === "object" && SCALE_TYPES.includes(src.scale.type) && NOTE_NAMES.includes(src.scale.root)) song.scale = Object.assign({ root: src.scale.root, type: src.scale.type }, src.scale.snap === true ? { snap: true } : {});
     // Patterns: which one is open (A is the default and is not written), the others, and the song order over them. Only the parts a
     // pattern owns (drum hits, melody notes, held notes, and the bass, chords and lead) are kept for them, over the rows this song has.
     const open = PATTERN_NAMES.includes(src.editing) ? src.editing : "A";

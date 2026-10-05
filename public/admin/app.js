@@ -8692,6 +8692,9 @@
     el("settings-empty-search").value = settings.empty_search_text || "";
     el("settings-empty-archive").value = settings.empty_archive_text || "";
     el("settings-empty-topics").value = settings.empty_topics_text || "";
+    el("settings-song-tempo").value = settings.song_default_tempo || "";
+    el("settings-song-bars").value = settings.song_default_bars || "";
+    el("settings-song-kit").value = settings.song_default_kit || "";
     el("settings-maintenance-mode").checked = settings.maintenance_mode === "1";
     el("settings-maintenance-message").value = settings.maintenance_message || "";
     el("settings-custom-font-name").value = settings.custom_font_name || "";
@@ -8752,6 +8755,9 @@
           empty_search_text: el("settings-empty-search").value,
           empty_archive_text: el("settings-empty-archive").value,
           empty_topics_text: el("settings-empty-topics").value,
+          song_default_tempo: el("settings-song-tempo").value,
+          song_default_bars: el("settings-song-bars").value,
+          song_default_kit: el("settings-song-kit").value,
           maintenance_mode: el("settings-maintenance-mode").checked ? "1" : "",
           maintenance_message: el("settings-maintenance-message").value,
           custom_font_name: el("settings-custom-font-name").value,
@@ -10549,9 +10555,11 @@
     song: {
       title: "Song builder help",
       sections: [
-        ["Studio and the full editor", ["The Studio has five fixed tracks, always in this order: 1 Drums, 2 Bass, 3 Chords, 4 Melody, 5 Lead. They are stacked on top of each other at the top: scroll through them (swipe, mouse wheel or the arrow keys) or tap one to pick it. The card below shows the open track's steps, its sound, volume and mute (Drums is one track with every drum sound as a row). Tap a step to place a hit or a note, and hold a note to tie it to the one before.", "The bar under it has Play and Pause (Pause carries on from where it stopped; Stop goes back to the start), Rec, the metronome, volume and BPM. The piano at the bottom stays where it is, scrolls sideways and lights up as the music plays; with Rec on while it plays, the keys (or the pads, on Drums) record into the open track on the step that is playing, and the keys on your computer keyboard work too.", "Full editor opens every tool: the song order, generators, export and the rest. It is the same song either way, and Studio view brings you back."]],
-        ["Building", ["Drum tracks use the step sequencer; the piano roll shows the melody or, with the Bass, Chords and Lead buttons, a part of its own with its own two octaves and sound. Every part can be muted or hidden.", "Play / stop previews the loop; Space does the same when nothing has focus. Shift+click a note to hold it across steps.", "Add fill, Starter beat and Spread evenly are under Starter beats and rhythm generator; Pump (next to Echo) makes the music dip on each kick."]],
-        ["Patterns and the song order", ["Up to four patterns (A to D) per song. [ and ] open the previous and next one; Copy here takes drums, melody, bass, chords or lead from another pattern.", "The song order plays patterns one after another; each bar has buttons to move it earlier or later."]],
+        ["The Studio", ["Five fixed tracks, always in this order: 1 Drums, 2 Bass, 3 Chords, 4 Melody, 5 Lead. They are stacked at the top: scroll through them (swipe, mouse wheel or the arrow keys) or tap one to pick it. The card under them is the open track. Drums is one track with every drum sound as a row.", "Notes can be drawn as Steps (big squares you tap; hold one to tie it to the one before) or as a Roll (every note in view: tap to place, drag along a row to hold a note, drag over notes to erase; a whole drag is one Undo). Sound opens the instrument and how it starts, rings and sounds; Tools opens the starter beats, fills, shift, reverse, random tunes, chords and scales for the open track.", "The bar under the controls has Play and Pause (Pause carries on from where it stopped; Stop goes back to the start), Rec, a volume button and a metronome button (each opens a small slider), and the BPM. The piano at the bottom stays put, scrolls sideways and lights up as the music plays; with Rec on while it plays, the keys (or the pads, on Drums), a MIDI keyboard and the computer keyboard record into the open track on the step that is playing."]],
+        ["Bars, loops and recording", ["Every track has its own strip of bars. A track follows the song order until you change it. + Bar adds a new empty bar; the \u22EF menu makes a bar different from the ones it repeats, removes a bar, and sets the length of the song (or lets it grow as you record).", "Loop on: the track plays again from its first bar until the song ends, so a two-bar drum beat carries on under everything else. Loop off: it plays once and stops. With Loop off and Rec on, the song grows as you play, a bar at a time, while the other tracks keep looping underneath.", "Tap a bar to edit it; while it plays, the editor follows the music from bar to bar."]],
+        ["Tools sheet", ["Tools (top right) holds the song's settings (tempo, tap tempo, length, swing, humanize, space, echo, pump, metronome sound, notes, templates), the patterns and song order, and the player look, preview and every export. The scale marks the notes of a key; turn on Snap to the scale and notes you play or tap move to the nearest note of it. Off, every note is free."]],
+        ["Making the music", ["Space plays and pauses when nothing has focus. Undo and redo are the arrows on the track card (or Ctrl+Z and Ctrl+Shift+Z); the Step strength menu in Tools decides how hard the next step you place is struck.", "On Drums, Tools has Starter beats, Spread evenly and Add fill; Shift, Randomize and Clear change the sounds chosen under Apply to. Pump (Tools, Song) makes all the music dip on each kick.", "A track\u2019s Sound can be shaped beyond the instrument: attack, decay, sustain, release, brightness, thickness and vibrato. Reset the sound takes every tweak back to the instrument\u2019s own."]],
+        ["Patterns and the song order", ["Up to sixteen patterns (A to P) per song. [ and ] open the previous and next one; Copy here takes drums, melody, bass, chords or lead from another pattern.", "The song order plays patterns one after another (up to 64 bars); each bar has buttons to move it earlier or later. A track\u2019s own bars, set on its strip in the Studio, can differ from it."]],
         ["Files", ["Export MIDI writes the whole song order (bass, chords and lead on tracks of their own); Import MIDI… (in the Songs list) turns a MIDI file into a new song, and says what it could not keep. The New song menu has built-in starter songs."]],
         ["Working on several songs", ["Open another song from the tab row. Switching autosaves a saved song; an unsaved draft asks before it is discarded."]],
         ["Publishing", ["Songs go onto a page with the Song block, and onto a project under Related songs."]],
@@ -10638,6 +10646,9 @@
     { label: "Custom <head> code", tab: "integrations", field: "settings-custom-head", keywords: ["head", "script", "analytics", "verification", "meta tag"] },
     { label: "Webhook URLs", tab: "integrations", field: "settings-webhook-url", keywords: ["webhook", "integration", "publish notification"] },
     { label: "Webhook deliveries", tab: "integrations", field: "load-webhook-deliveries-btn", keywords: ["webhook", "delivery", "retry"] },
+    { label: "Default song tempo", tab: "songs", field: "settings-song-tempo", keywords: ["song", "tempo", "bpm", "default", "music"] },
+    { label: "Default song length", tab: "songs", field: "settings-song-bars", keywords: ["song", "bars", "length", "default", "music"] },
+    { label: "Default song drum kit", tab: "songs", field: "settings-song-kit", keywords: ["song", "kit", "drums", "default", "music"] },
     { label: "Maintenance mode", tab: "maintenance", field: "settings-maintenance-mode", keywords: ["maintenance", "down", "offline", "turn off", "shut down", "take down", "site down", "disable site"] },
     { label: "Maintenance message", tab: "maintenance", field: "settings-maintenance-message", keywords: ["maintenance", "message"] },
     { label: "Find & Replace", tab: "tools", field: "find-replace-find", keywords: ["find", "replace", "search and replace"] },

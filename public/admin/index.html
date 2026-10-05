@@ -1149,6 +1149,7 @@
         <button type="button" class="settings-tab" data-panel="headerfooter" role="tab" aria-selected="false">Header &amp; footer</button>
         <button type="button" class="settings-tab" data-panel="sharing" role="tab" aria-selected="false">Sharing &amp; SEO</button>
         <button type="button" class="settings-tab" data-panel="integrations" role="tab" aria-selected="false">Integrations</button>
+        <button type="button" class="settings-tab" data-panel="songs" role="tab" aria-selected="false">Songs</button>
         <button type="button" class="settings-tab" data-panel="maintenance" role="tab" aria-selected="false">Maintenance</button>
         <button type="button" class="settings-tab" data-panel="tools" role="tab" aria-selected="false">Tools</button>
         <button type="button" class="settings-tab" data-panel="logs" role="tab" aria-selected="false">Logs</button>
@@ -1368,6 +1369,28 @@
           <label style="margin-bottom:0;">Recent attempts to call the webhook URLs above. Failed ones can be retried with the exact same payload.</label>
           <button type="button" id="load-webhook-deliveries-btn">Refresh</button>
           <div id="webhook-deliveries-list" class="link-check-results"></div>
+        </div>
+        <div class="settings-panel" data-panel="songs" hidden>
+          <section class="settings-group">
+            <h2>Song settings</h2>
+            <p class="settings-hint">What a new song starts with. Songs you already have are not changed, and you can still change all of this inside a song.</p>
+            <label>Default tempo (BPM)
+              <input id="settings-song-tempo" type="number" min="40" max="240" step="1" inputmode="numeric" placeholder="120" data-no-reset>
+            </label>
+            <p class="settings-hint">A whole number from 40 to 240. Leave it empty for 120.</p>
+            <label>Default length (bars)
+              <input id="settings-song-bars" type="number" min="1" max="64" step="1" inputmode="numeric" placeholder="Grows as you record" data-no-reset>
+            </label>
+            <p class="settings-hint">A whole number from 1 to 64. Leave it empty and a song is as long as the music in it.</p>
+            <label>Default drum kit
+              <select id="settings-song-kit">
+                <option value="">Acoustic (built in)</option>
+                <option value="acoustic">Acoustic</option>
+                <option value="electronic">Electronic</option>
+                <option value="808">808</option>
+              </select>
+            </label>
+          </section>
         </div>
         <div class="settings-panel" data-panel="maintenance" hidden>
           <h2>Maintenance mode</h2>
@@ -2123,7 +2146,6 @@
           <span class="sim-toolbar-group-label">Save</span>
           <div class="song-group-controls">
             <button type="button" class="sim-quick" id="save-song">Save</button>
-            <button type="button" id="song-view-toggle" data-no-history title="Back to the simple Studio layout: five tracks stacked on top of each other, one open at a time, and the piano keys">Studio view</button>
             <button type="button" id="save-song-template-btn" title="Save this song as a reusable starting point">Save as template</button>
             <span id="song-autosave-status" class="song-autosave-status"></span>
           </div>
@@ -2240,7 +2262,8 @@
           <input id="studio-name" class="studio-name" type="text" maxlength="120" placeholder="Song name" aria-label="Song name">
           <span id="studio-status" class="studio-status" role="status"></span>
           <button type="button" id="studio-save" class="studio-btn studio-btn-primary" title="Save the song">Save</button>
-          <button type="button" id="studio-full" class="studio-btn" data-no-history title="The full editor: every tool, the song order, export and more">Full editor</button>
+          <button type="button" id="studio-midi" class="studio-btn studio-midi" data-no-history hidden title="Connect a MIDI keyboard or pad controller: its notes play and, with Rec on, record">MIDI</button>
+          <button type="button" id="studio-tools" class="studio-btn" data-no-history aria-haspopup="dialog" title="Song settings, tempo, bars, patterns, generators, export and everything else">Tools</button>
           <button type="button" id="studio-help" class="studio-icon studio-help" aria-label="Help for the Song builder" title="Tips and shortcuts">?</button>
           <button type="button" id="studio-close" class="studio-icon" aria-label="Close the Song builder" title="Close">×</button>
         </div>
@@ -2258,13 +2281,24 @@
           <button type="button" id="studio-rec" class="studio-pill studio-rec" data-no-history aria-pressed="false" title="Record: notes you play on the keys land on the step that is playing">
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="6"/></svg><span>Rec</span>
           </button>
-          <button type="button" id="studio-metro" class="studio-round" data-no-history aria-pressed="false" aria-label="Metronome" title="Metronome: a click on every beat (heard only here)">
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9.5 3h5l3.2 17H6.3zM12 17l4-9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>
-          </button>
-          <label class="studio-vol" title="Volume">
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 9.5v5h3.5l4.5 3.5v-12L7.5 9.5z"/><path d="M15.5 9a4 4 0 010 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-            <input type="range" id="studio-volume" min="0" max="100" value="100" data-no-reset aria-label="Master volume">
-          </label>
+          <span class="studio-popwrap">
+            <button type="button" id="studio-volume-btn" class="studio-round" data-no-history aria-haspopup="true" aria-expanded="false" aria-controls="studio-pop-volume" aria-label="Volume" title="Volume">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 9.5v5h3.5l4.5 3.5v-12L7.5 9.5z"/><path d="M15.5 9a4 4 0 010 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
+            <div id="studio-pop-volume" class="studio-pop" role="group" aria-label="Master volume">
+              <label><span class="studio-pop-title">Volume</span> <output id="studio-volume-out">100</output><input type="range" id="studio-volume" min="0" max="100" value="100" data-no-reset aria-label="Master volume"></label>
+            </div>
+          </span>
+          <span class="studio-popwrap">
+            <button type="button" id="studio-metro" class="studio-round" data-no-history aria-haspopup="true" aria-expanded="false" aria-controls="studio-pop-metro" aria-pressed="false" aria-label="Metronome" title="Metronome: a click on every beat (heard only here)">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9.5 3h5l3.2 17H6.3zM12 17l4-9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>
+            </button>
+            <div id="studio-pop-metro" class="studio-pop" role="group" aria-label="Metronome">
+              <label class="studio-pop-check"><input type="checkbox" id="studio-metro-on"> Click on every beat</label>
+              <label>Click volume <output id="studio-metro-out">60</output><input type="range" id="studio-metro-vol" min="0" max="100" value="60" data-no-reset aria-label="Metronome volume"></label>
+              <label>Count in <select id="studio-count-in" aria-label="Count-in before playback"><option value="0">No count-in</option><option value="2">2 beats</option><option value="4">4 beats</option><option value="8">8 beats</option></select></label>
+            </div>
+          </span>
           <label class="studio-bpm" title="Tempo in beats per minute">
             <input type="number" id="studio-bpm" min="40" max="240" value="120" data-no-reset inputmode="numeric" aria-label="Tempo in beats per minute"><span aria-hidden="true">BPM</span>
           </label>
@@ -2272,6 +2306,16 @@
         <div id="studio-keys-scroll" class="studio-keys-scroll">
           <div id="studio-keys" class="studio-keys" role="group" aria-label="Piano keys"></div>
         </div>
+        <div id="studio-sheet" class="studio-sheet" role="dialog" aria-modal="false" aria-labelledby="studio-sheet-title" hidden>
+          <div class="studio-sheet-head">
+            <h2 id="studio-sheet-title">Tools</h2>
+            <div class="studio-sheet-tabs" role="tablist" aria-label="Song tools"></div>
+            <button type="button" id="studio-sheet-help" class="studio-icon" data-no-history aria-label="Help for the Song builder" title="Tips and shortcuts">?</button>
+            <button type="button" id="close-studio-sheet" class="studio-icon" data-no-history aria-label="Close the tools" title="Close (Esc)">×</button>
+          </div>
+          <div class="studio-sheet-body"></div>
+        </div>
+        <div id="studio-holder" class="studio-holder" hidden></div>
       </section>
       <div class="song-builder-body">
         <details class="song-preview-fold" id="song-preview-fold" open>
@@ -2299,7 +2343,7 @@
           <div class="song-pattern-tools song-pattern-row" role="group" aria-label="Pattern being edited">
             <span class="song-pattern-label" id="song-pattern-label">Pattern</span>
             <span id="song-pattern-buttons" class="song-pattern-buttons" role="group" aria-labelledby="song-pattern-label"></span>
-            <button type="button" id="song-pattern-new" class="song-track-toggle" data-no-history title="Start a new empty pattern (up to four, A to D)">+ New</button>
+            <button type="button" id="song-pattern-new" class="song-track-toggle" data-no-history title="Start a new empty pattern (up to sixteen, A to P)">+ New</button>
             <button type="button" id="song-pattern-duplicate" class="song-track-toggle" title="Copy this pattern into a new one and open it, to make a variation (undoable)">Duplicate</button>
             <button type="button" id="song-pattern-remove" class="song-track-toggle" title="Delete this pattern and take it out of the song order (undoable)">Remove</button>
           </div>

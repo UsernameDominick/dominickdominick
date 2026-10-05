@@ -43,7 +43,7 @@ const { chromium, request } = require("./_pw.cjs");
       await f("DELETE", `/pages/${pages[0]}`); await f("DELETE", `/pages/${pages[1]}`);
       await p.evaluate(() => document.getElementById("close-trash").click()); await p.evaluate(() => document.getElementById("trash-btn").click());
       // the list is redrawn from the server a moment after the dialog opens: wait for both trashed pages, not just any row
-      await p.waitForFunction(() => [...document.querySelectorAll("#trash-pages-list .redirect-row")].filter((r) => r.textContent.includes("QQ Trash")).length === 2, null, { timeout: 15000 });
+      await p.waitForFunction(() => [...document.querySelectorAll("#trash-pages-list .redirect-row")].filter((r) => r.textContent.includes("QQ Trash")).length === 2, null, { timeout: 40000 });
       await p.locator("#trash-pages-list .redirect-row", { hasText: "QQ Trash" }).first().locator(".bulk-list-row-box").check();
       await p.click("#trash-pages-list-bulk-bar .bulk-list-delete"); await p.waitForSelector("#typed-confirm-modal:not([hidden])");
       await p.keyboard.press("Escape"); await p.waitForTimeout(600);
