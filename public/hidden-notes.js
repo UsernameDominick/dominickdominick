@@ -202,13 +202,16 @@
   function persist(n) {
     chain = chain.then(function () {
       if (!key) return;
+      // What this save carries. Typing that lands while it is on its way leaves the note dirty, so a lock right afterwards still saves it.
+      var title = n.title;
+      var body = n.body;
       return blobOf(n).then(function (blob) {
         if (n.id) return api("/hidden-notes/" + n.id, { method: "PUT", body: JSON.stringify({ blob: blob }) });
         return api("/hidden-notes", { method: "POST", body: JSON.stringify({ blob: blob }) }).then(function (r) { n.id = r.id; return r; });
       }).then(function (r) {
         n.created_at = r.created_at;
         n.updated_at = r.updated_at;
-        dirty = false;
+        if (n.title === title && n.body === body) dirty = false;
         if (ui.status) say(ui.status, "Saved " + when(r.updated_at).slice(11));
         renderList();
       });

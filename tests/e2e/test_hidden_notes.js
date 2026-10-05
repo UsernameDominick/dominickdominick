@@ -87,6 +87,21 @@ const PASS2 = "another long passphrase!";
     await p.click("text=Delete note");
     await p.waitForFunction(() => document.querySelectorAll(".hn-item").length === 1);
     ok(((await (await admin.get(`${BASE}/api/admin/hidden-notes`)).json()).notes || []).length === 1, "deleting removes it for good");
+    // typing straight after "New note", while its first save is still on its way, must not be lost by a quick Lock
+    await p.route("**/api/admin/hidden-notes", async (route) => { if (route.request().method() === "POST") await new Promise((r) => setTimeout(r, 1500)); await route.continue(); });
+    await p.click("text=New note");
+    await p.fill("#hn-title", "Quick one");
+    await p.fill("#hn-body", "typed while the first save was still on its way");
+    await p.click("text=Lock");
+    await p.waitForSelector("#hn-pass");
+    await p.unroute("**/api/admin/hidden-notes");
+    await p.fill("#hn-pass", PASS1); await p.click("#hn-root button[type=submit]");
+    await p.waitForSelector(".hn-layout");
+    ok((await p.textContent(".hn-list")).includes("Quick one"), "a note typed while its first save was still on its way survives a quick Lock");
+    await p.locator(".hn-item", { hasText: "Quick one" }).click();
+    ok((await p.inputValue("#hn-body")).startsWith("typed while the first save"), "with its text");
+    await p.click("text=Delete note");
+    await p.waitForFunction(() => document.querySelectorAll(".hn-item").length === 1);
 
     // ---- backups
     const backup = await (await admin.get(`${BASE}/api/admin/export`)).text();
