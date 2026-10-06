@@ -29,8 +29,17 @@
 .studio-native .shelf-lede { margin: 0; max-width: 56ch; color: var(--text-dim); }
 .studio-native .shelf-new { flex: 0 0 auto; }
 .studio-native .shelf-new #new-song-btn { min-height: 48px; padding: 0 22px; font-size: 1rem; }
-.studio-native .shelf-starters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 18px 0 0; }
+/* The starters are one row that scrolls sideways, running to the edges of the shelf (its own padding keeps the first chip in line). */
+.studio-native .shelf-starters {
+  --shelf-pad: 24px;
+  display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; margin: 14px calc(-1 * var(--shelf-pad)) 0; padding: 4px var(--shelf-pad);
+  overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; scroll-padding-inline: var(--shelf-pad);
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.studio-native .shelf-starters::-webkit-scrollbar { display: none; }
 .studio-native .shelf-starters:empty { display: none; }
+.studio-native .shelf-starters > * { flex: 0 0 auto; white-space: nowrap; }
+.studio-native .shelf-chip, .studio-native .shelf-starters-label { scroll-snap-align: start; }
 .studio-native .shelf-starters-label { font-size: 0.85rem; color: var(--text-dim); margin-right: 2px; }
 .studio-native .shelf-chip {
   min-height: 36px; padding: 0 14px; font: inherit; font-size: 0.85rem; font-weight: 600; color: var(--text); cursor: pointer;
@@ -84,6 +93,7 @@
 :root[data-theme="light"] .studio-native .studio-shelf { --track-1: #c2410c; --track-2: #1d5fc2; --track-3: #0f7a55; --track-4: #6d35c9; --track-5: #b0245f; }
 @media (max-width: 640px) {
   .studio-native .studio-shelf { padding: 18px 16px 28px; }
+  .studio-native .shelf-starters { --shelf-pad: 16px; }
   .studio-native .shelf-new { width: 100%; }
   .studio-native .shelf-new #new-song-btn { width: 100%; }
   .studio-native .shelf-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
