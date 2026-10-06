@@ -355,11 +355,14 @@ body {
   text-transform: uppercase;
 }
 
-.tab.is-active {
+.tab.is-active, .tab-finder[aria-expanded="true"] {
   color: var(--text);
 }
+/* While the finder is open, Search is the lit stop and the page's own tab steps back. */
+.tabs:has(.tab-finder[aria-expanded="true"]) .tab.is-active:not(.tab-finder) { color: var(--text-dim); }
+.tabs:has(.tab-finder[aria-expanded="true"]) .tab.is-active:not(.tab-finder) .tab-ico { color: inherit; filter: none; }
 
-.tab.is-active .tab-ico {
+.tab.is-active .tab-ico, .tab-finder[aria-expanded="true"] .tab-ico {
   color: var(--accent);
   filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 55%, transparent));
 }
@@ -4541,11 +4544,12 @@ body:has(.studio-canvas) .site-footer { display: none; }
 
 /* ---- The finder (like a Mac's Spotlight) ---- */
 html.finder-on { overflow: hidden; }
-.site-finder { position: fixed; inset: 0; z-index: 1000; display: flex; justify-content: center; align-items: flex-start; padding: 12vh 16px 16px; }
+/* It opens under the nav (nav.js sets --finder-top to where the header ends), so the nav stays in view and can still be tapped. */
+.site-finder { position: fixed; top: var(--finder-top, 0px); left: 0; right: 0; bottom: 0; z-index: 1000; display: flex; justify-content: center; align-items: flex-start; padding: 12px 16px 16px; }
 .site-finder[hidden] { display: none; }
 .finder-backdrop { position: absolute; inset: 0; background: color-mix(in srgb, #000 40%, transparent); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
 .finder-panel {
-  position: relative; display: flex; flex-direction: column; width: min(640px, 100%); max-height: min(72vh, 580px); overflow: hidden;
+  position: relative; display: flex; flex-direction: column; width: min(640px, 100%); max-height: min(calc(100dvh - var(--finder-top, 0px) - 28px), 580px); overflow: hidden;
   background: color-mix(in srgb, var(--bg-elevated) 88%, transparent); -webkit-backdrop-filter: blur(28px) saturate(1.6); backdrop-filter: blur(28px) saturate(1.6);
   border: 1px solid color-mix(in srgb, var(--text) 14%, transparent); border-radius: 16px; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
 }
@@ -4591,8 +4595,8 @@ html.finder-on { overflow: hidden; }
 }
 .finder-foot kbd { margin-right: 4px; padding: 0 5px; font: inherit; border: 1px solid color-mix(in srgb, var(--text) 22%, transparent); border-radius: 4px; }
 @media (max-width: 640px) {
-  .site-finder { padding: 10px; }
-  .finder-panel { max-height: calc(100dvh - 20px); }
+  .site-finder { padding: 8px 10px 10px; }
+  .finder-panel { max-height: calc(100dvh - var(--finder-top, 0px) - 18px); }
   .finder-foot { display: none; }
   #site-finder .finder-item { min-height: 44px; }
 }

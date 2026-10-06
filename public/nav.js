@@ -141,7 +141,8 @@ document.addEventListener("input", function (e) {
   // The needle of the dial rests under this page's tab and turns to whichever tab the pointer or the keyboard is on, then back.
   function place(target) {
     var w = wrap.getBoundingClientRect();
-    var t = (target || wrap.querySelector(".tab.is-active") || active).getBoundingClientRect(); // the active tab changes when a page slides in
+    // the active tab changes when a page slides in, and Search counts as the current stop while the finder is open
+    var t = (target || wrap.querySelector('.tab-finder[aria-expanded="true"]') || wrap.querySelector(".tab.is-active") || active).getBoundingClientRect();
     wrap.style.setProperty("--indicator-width", t.width + "px");
     // The marker scrolls with the tabs, so its place is measured from where the row starts, not from where it is scrolled to, and from
     // where the marker rests with no shift (the row's border plus the marker's own left offset), so it lands exactly on the tab.
@@ -425,12 +426,20 @@ document.addEventListener("input", function (e) {
       .catch(function () {});
   }
 
+  // The finder opens under the nav, which stays in view and can still be tapped: its top is wherever the header ends.
+  function placeFinder() {
+    var bar = document.querySelector(".topbar");
+    var top = bar ? Math.max(0, Math.round(bar.getBoundingClientRect().bottom)) : 0;
+    finder.style.setProperty("--finder-top", top + "px");
+  }
   function open() {
     if (!finder.hidden) return;
     lastFocus = document.activeElement;
+    placeFinder();
     finder.hidden = false;
     document.documentElement.classList.add("finder-on");
     if (openBtn) openBtn.setAttribute("aria-expanded", "true");
+    if (window.siteLayoutNav) window.siteLayoutNav(); // the needle turns to Search while it is open
     filter();
     if (input.value.trim()) fetchSuggestions(input.value.trim());
     input.focus();
@@ -441,10 +450,17 @@ document.addEventListener("input", function (e) {
     finder.hidden = true;
     document.documentElement.classList.remove("finder-on");
     if (openBtn) openBtn.setAttribute("aria-expanded", "false");
+    if (window.siteLayoutNav) window.siteLayoutNav();
     if (lastFocus && document.contains(lastFocus) && lastFocus.focus) lastFocus.focus();
   }
   window.siteFinder = { open: open, close: close };
-  if (openBtn) openBtn.addEventListener("click", open);
+  // Search in the nav opens it and, pressed again, closes it; another tab closes it on the way to its page.
+  if (openBtn) openBtn.addEventListener("click", function () { if (finder.hidden) open(); else close(); });
+  window.addEventListener("resize", function () { if (!finder.hidden) placeFinder(); });
+  document.addEventListener("site:leave", close);
+  document.addEventListener("click", function (e) {
+    if (!finder.hidden && e.target.closest && e.target.closest(".tabs a")) close();
+  }, true);
   finder.addEventListener("click", function (e) {
     if (e.target.closest("[data-finder-close]")) close();
   });

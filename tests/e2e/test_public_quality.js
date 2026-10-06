@@ -47,6 +47,8 @@ const { chromium, axeSource } = require("./_pw.cjs");
     await p.keyboard.press("Enter");
     await p.waitForTimeout(200);
     ok((await p.evaluate(() => document.activeElement.id)) === "finder-input" && (await p.isVisible("#site-finder")), "it opens the finder with the focus in its box");
+    const under = await p.evaluate(() => { const nav = document.querySelector(".topbar").getBoundingClientRect(); const pn = document.querySelector(".finder-panel").getBoundingClientRect(); const s = document.getElementById("finder-open").getBoundingClientRect(); return { panelTop: pn.top, navBottom: nav.bottom, navOnTop: !!document.elementFromPoint(s.left + s.width / 2, s.top + s.height / 2).closest("#finder-open") }; });
+    ok(under.panelTop >= under.navBottom && under.navOnTop, "it opens under the nav, which stays in view and can be pressed", under);
     await p.keyboard.type("dark");
     await p.waitForTimeout(150);
     const shown = await p.evaluate(() => [...document.querySelectorAll("#finder-list .finder-item")].filter((e) => e.offsetParent).map((e) => e.id || e.textContent.trim()));
