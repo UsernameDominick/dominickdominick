@@ -197,6 +197,8 @@ const { fanify } = require("./_fan.cjs");
     await open(m2);
     const fit = await m2.evaluate(() => ({ over: document.documentElement.scrollWidth - window.innerWidth, small: [...document.querySelectorAll("#studio-play, #studio-rec, #studio-fan-btn")].map((e) => Math.round(e.getBoundingClientRect().height)).filter((h) => h < 36) }));
     ok(fit.over <= 1 && fit.small.length === 0, "on a phone the controls fit the screen and stay finger-sized", fit);
+    const clash = await m2.evaluate(() => { const r = (id) => document.getElementById(id).getBoundingClientRect(); const a = r("studio-fan-btn"), b = r("studio-bpm"), c = r("studio-rec"); const hit = (x, y) => x.left < y.right && y.left < x.right && x.top < y.bottom && y.top < x.bottom; return hit(a, b) || hit(a, c) || a.left < c.right - 1; });
+    ok(!clash, "the ⋯ sits just right of Rec and covers neither Rec nor the tempo");
     await m2.tap("#studio-fan-btn");
     await m2.waitForTimeout(300);
     const lefts = await m2.evaluate(() => [...document.querySelectorAll("#studio-fan .studio-fan-item")].map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right), Math.round(r.height)]; }));

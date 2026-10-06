@@ -9285,3 +9285,6 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 }
 @keyframes studio-strip-in { from { opacity: 0; transform: translateY(6px) scale(0.85); } to { opacity: 1; transform: none; } }
 @media (max-width: 400px) { .studio-controls > .studio-hub > .studio-fan { gap: 3px; padding: 6px; } }
+/* The ⋯ sits in the hub right beside Rec (it used to be pinned by position, which the row over the bar changed). */
+.studio-controls > .studio-hub { display: flex; align-items: center; gap: 8px; padding-right: 0; }
+.studio-controls > .studio-hub > .studio-fan-toggle { position: static; right: auto; bottom: auto; flex: 0 0 auto; }
