@@ -1726,7 +1726,7 @@ function renderHome() {
     <div class="panel game-panel">
       <div class="panel-title">STUDY GAME</div>
       <p class="game-desc">Survival mode &mdash; ${(QUIZ_DATA.mc.H||[]).length} Hard Mode questions, ${GAME_STARTING_LIVES} lives, ${GAME_QUESTION_SECONDS}s per question. Miss too many and it's game over.</p>
-      <button class="start-btn game-start-btn" onclick="startGame()">\u{1F3AE} Play Study Game</button>
+      <button class="start-btn game-start-btn" onclick="startGame()">Play Study Game</button>
     </div>
   </div>`;
 }
@@ -2276,7 +2276,7 @@ function renderGame() {
   const checked = state.gameChecked;
   const timerCls = state.gameTimeRemaining <= 8 ? 'urgent' : '';
   const hearts = Array.from({length: GAME_STARTING_LIVES}, (_, i) =>
-    `<span class="heart ${i < state.gameLives ? 'alive' : 'lost'}">\u2665</span>`).join('');
+    `<span class="heart ${i < state.gameLives ? 'alive' : 'lost'}"><svg viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true"><path fill="currentColor" d="M12 21s-8.5-5.2-8.5-11.4A4.8 4.8 0 0 1 12 6.7a4.8 4.8 0 0 1 8.5 2.9C20.5 15.8 12 21 12 21z"/></svg></span>`).join('');
 
   const choiceHtml = choices.map(c => {
     let cls = '';
@@ -2297,11 +2297,11 @@ function renderGame() {
   return `<div class="screen game">
     <div class="game-hud">
       <div class="game-hud-row">
-        <span class="hearts">${hearts}</span>
+        <span class="hearts" role="img" aria-label="${state.gameLives} ${state.gameLives === 1 ? 'life' : 'lives'} left">${hearts}</span>
         <span class="game-timer ${timerCls}" id="game-timer">${state.gameTimeRemaining}s</span>
       </div>
       <div class="game-hud-row">
-        <span class="streak">\u{1F525} Streak: ${state.gameStreak} <span class="best-streak">(best ${state.gameBestStreak})</span></span>
+        <span class="streak">Streak: ${state.gameStreak} <span class="best-streak">(best ${state.gameBestStreak})</span></span>
         <span class="game-score">${state.gameCorrect}/${state.gameAttempted}</span>
       </div>
     </div>
@@ -2322,7 +2322,7 @@ function renderGameOver() {
 
   return `<div class="screen game-over">
     <div class="score-hero">
-      <div class="game-over-title">${cleared ? '\u{1F3C6} Cleared the pool!' : '\u{1F480} Game Over'}</div>
+      <div class="game-over-title">${cleared ? 'Cleared the pool!' : 'Game Over'}</div>
       <div class="score-num">${state.gameCorrect}<span class="score-of">/${state.gameAttempted}</span></div>
       <div class="score-pct">Best streak: ${state.gameBestStreak}</div>
     </div>
@@ -2682,7 +2682,7 @@ function renderLab() {
     </div>
     <div class="lab-run-start">
       <label class="lab-run-from">Start from ${labRunSelectHtml(0, 'lab-run-from', '', 'Start the continuous run from')}</label>
-      <button class="start-btn lab-start-btn" onclick="labRunStart(document.getElementById('lab-run-from').value)">&#9654; Play every lab in order</button>
+      <button class="start-btn lab-start-btn" onclick="labRunStart(document.getElementById('lab-run-from').value)">Play every lab in order</button>
     </div>
     <div class="hint" style="margin-top:12px">Continuous mode goes through every lab below, top to bottom, with a Skip button for the ones you already know. Tap a tile, then tap the column or row where it belongs (on a computer you can also drag). Fill every slot, then Submit: right tiles lock in, wrong ones bounce back to the tray. The stopwatch runs from the moment a board opens. Nothing is saved &mdash; closing the page clears best times.</div>
     ${groups}
@@ -2965,7 +2965,7 @@ function labResultHtml(b) {
     : '<p class="lab-result-line">Perfect first try — nothing bounced back.</p>';
   return `<div class="lab-result good">
     <div class="lab-result-title">✓ Board cleared</div>
-    <div class="lab-result-stats"><span>⏱ ${formatClock(state.labElapsed)}</span><span>${state.labAttempts} submit${state.labAttempts === 1 ? '' : 's'}</span><span>first try ${f.right}/${f.total}</span></div>
+    <div class="lab-result-stats"><span>Time ${formatClock(state.labElapsed)}</span><span>${state.labAttempts} submit${state.labAttempts === 1 ? '' : 's'}</span><span>first try ${f.right}/${f.total}</span></div>
     ${missedHtml}
     <div class="lab-result-actions"><button class="opt-btn" onclick="labRestart()">Play again</button><button class="opt-btn" onclick="labBack()">Back to Lab</button></div>
   </div>`;
@@ -3183,7 +3183,7 @@ function renderLabQuizOver() {
   const missedHtml = state.lqMissed.length
     ? state.lqMissed.map(it => {
         const correct = it.o[it.a];
-        return `<div class="game-missed-item">${it.img ? '<span class="lq-missed-photo">🖼</span> ' : ''}${esc(it.p)} <strong class="lq-answer">${esc(correct)}</strong>${it.w ? `<div class="lq-why">${esc(it.w)}</div>` : ''}</div>`;
+        return `<div class="game-missed-item">${it.img ? '<span class="lq-missed-photo">Photo:</span> ' : ''}${esc(it.p)} <strong class="lq-answer">${esc(correct)}</strong>${it.w ? `<div class="lq-why">${esc(it.w)}</div>` : ''}</div>`;
       }).join('')
     : '<div class="hint">No misses — clean run.</div>';
   return `<div class="screen lab-quiz-over">

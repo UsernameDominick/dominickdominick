@@ -61,7 +61,7 @@
         </div>
         <div class="admin-sidebar-group">
           <h3>View</h3>
-          <a id="admin-view-live" href="/" target="_blank" class="admin-view-live">View live ↗</a>
+          <a id="admin-view-live" href="/" target="_blank" class="admin-view-live">View live</a>
           <button id="draft-preview-mode-toggle" aria-pressed="false" title="Draft preview: while on, this browser shows your draft and expired articles and projects on the live site as you click around, instead of needing ?preview=1 on every link. Only you see them (while signed in); visitors are not affected.">Draft preview: Off</button>
           <button id="preview-btn" title="Preview this page at different screen widths">Screen Preview</button>
           <button id="preview-at-btn" title="See the public site as it will look on a future date: scheduled items live, expired ones gone. Only you see it.">Preview at a date…</button>
@@ -105,7 +105,7 @@
         </div>
         <div class="admin-header-right" id="admin-header-right">
           <div class="admin-more-wrap">
-            <button id="notifications-btn" aria-haspopup="true" aria-expanded="false" aria-controls="notifications-panel" title="Things that might need a look">🔔<span id="notifications-badge" class="notifications-badge" hidden>0</span></button>
+            <button id="notifications-btn" aria-haspopup="true" aria-expanded="false" aria-controls="notifications-panel" title="Things that might need a look" aria-label="Notifications"><svg class="ui-icon" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg><span id="notifications-badge" class="notifications-badge" hidden>0</span></button>
             <div class="admin-more-panel" id="notifications-panel">
               <div id="notifications-list" class="notifications-list"></div>
             </div>
@@ -447,7 +447,7 @@
           </details>
           <div class="article-actions editor-primary-actions">
             <button type="button" id="live-preview-article-btn" class="live-preview-toggle" aria-pressed="false" aria-controls="live-preview-article" title="Show the article beside the editor as readers see it" hidden>Live preview</button>
-            <a id="preview-article-link" href="#" target="_blank" class="preview-link" hidden>Preview ↗</a>
+            <a id="preview-article-link" href="#" target="_blank" class="preview-link" hidden>Preview</a>
             <select id="article-template-picker" aria-label="Template for a new article" title="Fill a new article's body from a saved template">
               <option value="">Start blank</option>
             </select>
@@ -670,7 +670,7 @@
           </details>
           <div class="article-actions editor-primary-actions">
             <button type="button" id="live-preview-project-btn" class="live-preview-toggle" aria-pressed="false" aria-controls="live-preview-project" title="Show the project beside the editor as readers see it" hidden>Live preview</button>
-            <a id="preview-project-link" href="#" target="_blank" class="preview-link" hidden>Preview ↗</a>
+            <a id="preview-project-link" href="#" target="_blank" class="preview-link" hidden>Preview</a>
             <select id="project-template-picker" aria-label="Template for a new project" title="Fill a new project's body/summary/tech-stack/status from a saved template">
               <option value="">Start blank</option>
             </select>
@@ -1595,7 +1595,7 @@
                 <option value="center">Centre lines</option>
                 <option value="all">All guides</option>
               </select>
-              <button type="button" class="pe-tool" data-tool="pan" aria-label="Pan tool" title="Drag to move around a zoomed image. Also: hold Space, or drag with the middle mouse button.">✋ Pan</button>
+              <button type="button" class="pe-tool" data-tool="pan" aria-label="Pan tool" title="Drag to move around a zoomed image. Also: hold Space, or drag with the middle mouse button.">Pan</button>
             </div>
             <div class="pe-tool-group pe-layers-group" id="pe-layers-group" role="group" aria-label="Layers">
               <span class="pe-group-label">Layers</span>
@@ -1678,7 +1678,7 @@
               <span class="pe-group-label">Selection</span>
               <button type="button" class="pe-tool" data-tool="sel-rect" aria-label="Rectangle selection tool" title="Drag a rectangular selection. Hold Shift to add to the current selection, Alt to subtract from it (or pick a Mode).">▭ Rect</button>
               <button type="button" class="pe-tool" data-tool="sel-ellipse" aria-label="Ellipse selection tool" title="Drag an elliptical selection. Hold Shift to add to the current selection, Alt to subtract from it (or pick a Mode).">◯ Ellipse</button>
-              <button type="button" class="pe-tool" data-tool="sel-lasso" aria-label="Freehand lasso selection tool" title="Draw a freehand selection. Hold Shift to add, Alt to subtract (or pick a Mode).">➰ Lasso</button>
+              <button type="button" class="pe-tool" data-tool="sel-lasso" aria-label="Freehand lasso selection tool" title="Draw a freehand selection. Hold Shift to add, Alt to subtract (or pick a Mode).">Lasso</button>
               <button type="button" class="pe-tool" data-tool="sel-poly" aria-label="Polygon selection tool" title="Click to place corners; double-click, press Enter, or click the first corner to close it. Backspace removes the last corner, Escape cancels. Hold Shift when you start to add, Alt to subtract (or pick a Mode).">⬠ Polygon</button>
               <label title="How the next shape combines with the current selection. Shift and Alt still add and subtract for one shape.">Mode <select id="pe-sel-mode" aria-label="Selection mode">
                 <option value="replace">New selection</option>
@@ -1742,15 +1742,15 @@
               <label>Canvas W <input type="number" id="pe-canvas-width" min="1" max="2000" title="New canvas width in pixels -- doesn't scale the image content, just the canvas around it"></label>
               <label>Canvas H <input type="number" id="pe-canvas-height" min="1" max="2000" title="New canvas height in pixels -- doesn't scale the image content, just the canvas around it"></label>
               <select id="pe-canvas-anchor" aria-label="Canvas anchor" title="Which side the existing image content stays anchored to as the canvas grows or shrinks">
-                <option value="top-left">↖ Top-left</option>
+                <option value="top-left">Top-left</option>
                 <option value="top-center">↑ Top-center</option>
-                <option value="top-right">↗ Top-right</option>
+                <option value="top-right">Top-right</option>
                 <option value="middle-left">← Middle-left</option>
                 <option value="center" selected>• Center</option>
                 <option value="middle-right">→ Middle-right</option>
-                <option value="bottom-left">↙ Bottom-left</option>
+                <option value="bottom-left">Bottom-left</option>
                 <option value="bottom-center">↓ Bottom-center</option>
-                <option value="bottom-right">↘ Bottom-right</option>
+                <option value="bottom-right">Bottom-right</option>
               </select>
               <button type="button" id="pe-apply-canvas-resize" title="Resize the canvas itself without scaling the image -- growing adds transparent space, shrinking crops away edges, both anchored to the side picked above">Resize canvas</button>
             </div>
@@ -1845,12 +1845,12 @@
               <button type="button" class="pe-tool" data-tool="rect" title="Rectangle">▭</button>
               <button type="button" class="pe-tool" data-tool="circle" title="Circle">◯</button>
               <button type="button" class="pe-tool" data-tool="line" title="Line">╱</button>
-              <button type="button" class="pe-tool" data-tool="arrow" title="Arrow">↗</button>
+              <button type="button" class="pe-tool" data-tool="arrow" title="Arrow" aria-label="Arrow"><svg class="ui-icon" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 18 18 6"/><path d="M9 6h9v9"/></svg></button>
               <button type="button" class="pe-tool" data-tool="text" title="Text">Text</button>
               <button type="button" class="pe-tool" data-tool="marker" title="Step marker: click to drop a numbered circle in the annotation colour; the number counts up with each click">① Step</button>
               <button type="button" class="pe-tool" data-tool="highlight" title="Highlighter: drag along text or across an area for a see-through marker stroke in the annotation colour; Size sets the thickness">Highlight</button>
               <button type="button" class="pe-tool" data-tool="spotlight" title="Spotlight: drag a box to keep it bright and dim everything else, to draw the eye to one spot">Spotlight</button>
-              <button type="button" class="pe-tool" data-tool="eyedropper" title="Pick a color from the image">💧</button>
+              <button type="button" class="pe-tool" data-tool="eyedropper" title="Pick a color from the image" aria-label="Eyedropper"><svg class="ui-icon" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m14.5 4.5 5 5"/><path d="M17 7 7.5 16.5 5 19l-1-1 2.5-2.5L16 6"/><path d="m13 5 6 6"/></svg></button>
               <input type="color" id="pe-annotate-color" value="#ff7a45" aria-label="Annotation colour" title="Annotation color">
               <label>Size <input type="range" id="pe-annotate-size" min="1" max="20" value="4"></label>
               <label id="pe-rect-radius-label" hidden>Corner radius <input type="range" id="pe-rect-radius" min="0" max="100" value="0"></label>
@@ -1872,7 +1872,7 @@
               <button type="button" id="pe-redo" title="Redo (Ctrl+Shift+Z)">Redo</button>
               <button type="button" id="pe-reset">Reset</button>
               <button type="button" id="pe-compare" title="Press and hold to see the original">Compare</button>
-              <button type="button" id="pe-save-snapshot" title="Save the current state as a named snapshot you can jump straight back to later, unlike the linear Undo/Redo history">📌 Save snapshot</button>
+              <button type="button" id="pe-save-snapshot" title="Save the current state as a named snapshot you can jump straight back to later, unlike the linear Undo/Redo history">Save snapshot</button>
               <select id="pe-snapshot-select" aria-label="Named snapshots" title="Named snapshots saved this editing session" disabled><option value="">No snapshots yet</option></select>
               <button type="button" id="pe-restore-snapshot" title="Jump back to the selected named snapshot (your current state stays undoable afterward)">Restore</button>
               <button type="button" id="pe-delete-snapshot" title="Delete the selected named snapshot">Delete</button>
@@ -1906,8 +1906,8 @@
           <span id="pe-hint" class="pe-hint"></span>
           <span id="pe-memory" class="pe-memory"></span>
           <span id="pe-autosave-status" class="pe-autosave-status" role="status" title="Copies of your edits are kept in this browser for 7 days, or until you save, discard or log out."></span>
-          <span id="pe-limits-info" class="pe-limits-info" tabindex="0">ℹ️ Limits</span>
-          <button type="button" id="pe-shortcuts-btn" aria-expanded="false" aria-controls="pe-shortcuts-panel" title="See and change the one-key tool shortcuts">⌨ Keys</button>
+          <span id="pe-limits-info" class="pe-limits-info" tabindex="0">Limits</span>
+          <button type="button" id="pe-shortcuts-btn" aria-expanded="false" aria-controls="pe-shortcuts-panel" title="See and change the one-key tool shortcuts">Keys</button>
           <div id="pe-shortcuts-panel" class="pe-shortcuts-panel" role="group" aria-label="Tool shortcuts" hidden><div class="pe-shortcuts-head"><strong>Tool shortcuts</strong><button type="button" id="pe-shortcuts-reset">Reset all</button></div><p id="pe-shortcuts-msg" class="pe-shortcuts-msg" role="status"></p><div id="pe-shortcut-grid" class="pe-shortcut-grid"></div></div>
           <button type="button" id="pe-view-rotate" title="Rotate the on-screen VIEW only -- doesn't touch the image's actual pixels, unlike the Rotate tool above">↻ View: 0°</button>
           <label>Preview against<select id="pe-bg-preview" title="Change the background behind the canvas to check how transparent areas will look against different page backgrounds">
@@ -2185,7 +2185,7 @@
           <div class="sim-toolbar-group" data-group="transport">
             <span class="sim-toolbar-group-label">Transport</span>
             <div class="song-group-controls">
-              <button type="button" class="sim-quick" id="song-play" title="Play or stop (the Space bar does it too, when no button or field has the focus)">▶ Play</button><span id="song-transport-live" class="sim-sr-only" role="status" aria-live="polite"></span>
+              <button type="button" class="sim-quick" id="song-play" title="Play or stop (the Space bar does it too, when no button or field has the focus)">Play</button><span id="song-transport-live" class="sim-sr-only" role="status" aria-live="polite"></span>
               <span class="song-metronome-group" role="group" aria-label="Metronome and count-in">
                 <label class="song-record-label" title="A click on every beat while the song plays (heard only here, never in the saved song or the public player)"><input type="checkbox" id="song-metronome-on"> Metronome</label>
                 <select id="song-metronome-sound" aria-label="Metronome sound" title="Metronome sound">
@@ -2208,8 +2208,8 @@
               <div id="song-rms-meter" class="song-peak-meter" title="Live master RMS (average loudness) while playing"><div id="song-rms-meter-fill" class="song-peak-meter-fill song-rms-meter-fill"></div></div>
               <canvas id="song-spectrum" class="song-spectrum" width="120" height="24" title="Live frequency spectrum of the master bus while playing"></canvas></span>
               <button type="button" id="song-normalize-peak" title="Scan the song's actual synthesized peak level and set master volume so overlapping drum/melody hits don't clip">Normalize to peak</button>
-              <button type="button" id="song-midi-connect" hidden>🎹 Connect MIDI</button>
-              <label class="song-record-label" id="song-record-label" hidden title="Also works with the ZXCVBNM/QWERTYU computer-keyboard note keys below, not just a connected MIDI device"><input type="checkbox" id="song-record">⏺ Record into piano roll</label>
+              <button type="button" id="song-midi-connect" hidden>Connect MIDI</button>
+              <label class="song-record-label" id="song-record-label" hidden title="Also works with the ZXCVBNM/QWERTYU computer-keyboard note keys below, not just a connected MIDI device"><input type="checkbox" id="song-record">Record into piano roll</label>
             </div>
           </div>
           <div class="sim-toolbar-group" data-group="sound">
@@ -2402,8 +2402,8 @@
         <h2 class="song-section-heading">Drums</h2>
         <div class="song-pattern-tools" role="group" aria-label="Drum pattern tools">
           <label>Apply to <select id="song-pattern-target"><option value="all">All drums</option><option value="kick">Kick</option><option value="snare">Snare</option><option value="hihat">Hi-Hat</option><option value="clap">Clap</option></select></label>
-          <button type="button" id="song-pattern-shift-left" class="song-track-toggle" title="Move every hit one step earlier; the first step wraps to the end">◀ Shift</button>
-          <button type="button" id="song-pattern-shift-right" class="song-track-toggle" title="Move every hit one step later; the last step wraps to the start">Shift ▶</button>
+          <button type="button" id="song-pattern-shift-left" class="song-track-toggle" title="Move every hit one step earlier; the first step wraps to the end">← Shift</button>
+          <button type="button" id="song-pattern-shift-right" class="song-track-toggle" title="Move every hit one step later; the last step wraps to the start">Shift →</button>
           <button type="button" id="song-pattern-random" class="song-track-toggle" title="Replace the pattern with a random one (undoable)">Randomize</button>
           <button type="button" id="song-pattern-clear" class="song-track-toggle" title="Remove every hit (undoable)">Clear</button>
           <span id="song-pattern-status" class="sim-sr-only" role="status"></span>
@@ -2465,8 +2465,8 @@
         <details class="song-generators" id="song-melody-tools">
           <summary id="song-melody-tools-summary">Melody tools: shift, reverse, random tune, chords and arpeggios</summary>
           <div class="song-pattern-tools" role="group" aria-label="Move the melody">
-            <button type="button" id="song-melody-shift-left" class="song-track-toggle" title="Move every note one step earlier; the first step wraps to the end">◀ Shift</button>
-            <button type="button" id="song-melody-shift-right" class="song-track-toggle" title="Move every note one step later; the last step wraps to the start">Shift ▶</button>
+            <button type="button" id="song-melody-shift-left" class="song-track-toggle" title="Move every note one step earlier; the first step wraps to the end">← Shift</button>
+            <button type="button" id="song-melody-shift-right" class="song-track-toggle" title="Move every note one step later; the last step wraps to the start">Shift →</button>
             <button type="button" id="song-melody-reverse" class="song-track-toggle" title="Play the melody backwards (undoable)">Reverse</button>
             <button type="button" id="song-melody-clear" class="song-track-toggle" title="Remove every melody note (undoable)">Clear melody</button>
             <button type="button" id="song-bass-follow" class="song-track-toggle" title="Put a bass note on every kick hit of this pattern, on the highlighted scale's root (C when none is highlighted), held until the next kick. Replaces the bass line (undoable)" hidden>Follow the kick</button>
@@ -2710,7 +2710,7 @@
       </div>
       <div class="preview-motion-row" title="Scrub or auto-play through the page's scroll-driven effects (parallax, scroll-timeline animations) without manually scrolling the preview">
         <span class="preview-motion-label">Motion audition</span>
-        <button type="button" id="motion-audition-play-btn">▶ Play</button>
+        <button type="button" id="motion-audition-play-btn">Play</button>
         <input type="range" id="motion-audition-scrub" min="0" max="1000" value="0" step="1" aria-label="Scroll position">
       </div>
       <div class="preview-body">
@@ -2848,7 +2848,7 @@
       </label>
       <div class="keyframe-preview-row">
         <div class="keyframe-preview-stage"><div id="keyframe-preview-box"></div></div>
-        <button type="button" id="keyframe-preview-play">▶ Preview</button>
+        <button type="button" id="keyframe-preview-play">Preview</button>
       </div>
       <div class="modal-actions">
         <button type="button" id="cancel-keyframe-editor">Cancel</button>

@@ -69,7 +69,7 @@ const { chromium, axeSource } = require("./_pw.cjs");
     ok(tied === "E27", "Shift+click ties two bass steps", tied);
     // tools act on the part shown
     await p.click("#song-melody-shift-right");
-    ok((await on()) === "C2:1,5 E2:7,8 G1:3", "Shift ▶ moves the bass line one step and leaves the melody alone", await on());
+    ok((await on()) === "C2:1,5 E2:7,8 G1:3", "Shift → moves the bass line one step and leaves the melody alone", await on());
     await p.click("#song-melody-shift-left");
     await p.click("#song-roll-melody");
     ok((await on()) === "G4:0", "…the melody did not move");

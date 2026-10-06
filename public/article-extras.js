@@ -56,10 +56,16 @@
       return;
     }
     var utterance = null;
+    // Only the words change; the speaker icon stays.
+    function setLabel(text) {
+      var label = btn.querySelector(".read-aloud-label");
+      if (label) label.textContent = text;
+      else btn.textContent = text;
+    }
     function stop() {
       window.speechSynthesis.cancel();
       utterance = null;
-      btn.textContent = btn.dataset.labelRead || "🔊 Read aloud";
+      setLabel(btn.dataset.labelRead || "Read aloud");
     }
     btn.addEventListener("click", function () {
       if (window.speechSynthesis.speaking) {
@@ -75,7 +81,7 @@
       utterance.onend = stop;
       utterance.onerror = stop;
       window.speechSynthesis.speak(utterance);
-      btn.textContent = btn.dataset.labelStop || "⏹ Stop reading";
+      setLabel(btn.dataset.labelStop || "Stop reading");
     });
     // Leaving the page mid-utterance shouldn't leave speech running.
     window.addEventListener("beforeunload", function () {

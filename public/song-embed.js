@@ -2,6 +2,10 @@
 // embed, created lazily on first Play click (browsers block audio until a
 // user gesture, so there's no point creating an AudioContext any earlier).
 (function () {
+  // The Play and Stop icons, the same drawings as worker/ui-icons.js (no symbol characters: a phone shows those as emoji).
+  var ICON = function (d) { return '<svg class="ui-icon" viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true" focusable="false">' + d + "</svg>"; };
+  var ICON_PLAY = ICON('<path d="M8 5v14l11-7z" fill="currentColor"/>');
+  var ICON_STOP = ICON('<rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor"/>');
   // One shared full-page overlay, lazily created — any playing song with
   // "page_sync" on flashes it, regardless of which block's visualization
   // is active. A single overlay avoids stacking one per embed on a page
@@ -161,15 +165,15 @@
       if (songData.page_sync && hitsTrack) flashPageSync();
     }
 
-    // The label names the action (so it isn't also aria-pressed); the glyph is
-    // decorative, with U+FE0E asking for the text (not emoji) form so it takes
-    // the button's colour. The accessible name carries the song's title, since
+    // The label names the action (so it isn't also aria-pressed); the icon is a
+    // drawing (worker/ui-icons.js), never a symbol character, which a phone would
+    // show as an emoji. The accessible name carries the song's title, since
     // several songs can share a page.
     const songTitle = (wrap.querySelector(".song-embed-header strong") || {}).textContent || "song";
     function setPlayLabel(playing) {
       btn.classList.toggle("is-active", playing);
       btn.setAttribute("aria-label", `${playing ? "Stop" : "Play"} ${songTitle}`);
-      btn.innerHTML = playing ? '<span aria-hidden="true">\u23F9\uFE0E</span> Stop' : '<span aria-hidden="true">\u25B6\uFE0E</span> Play';
+      btn.innerHTML = (playing ? ICON_STOP : ICON_PLAY) + (playing ? " Stop" : " Play");
     }
 
     function stopPlayback() {

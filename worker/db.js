@@ -2937,7 +2937,9 @@ export async function getArchive(env) {
   return [...byYear.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([year, items]) => ({ year, items }));
 }
 
-export const REACTION_EMOJI = ["👍", "💡", "❤️"];
+// The keys reactions are stored under (thumbs up, light bulb, heart). They are data only: the page draws an icon for each
+// (`renderReactionsHtml`), never the character.
+export const REACTION_EMOJI = ["\u{1F44D}", "\u{1F4A1}", "\u2764\uFE0F"]; // no-emoji: data
 
 export async function addReaction(env, contentType, contentId, emoji) {
   if (!REACTION_EMOJI.includes(emoji)) throw new Error("Invalid reaction");

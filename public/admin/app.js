@@ -246,8 +246,8 @@
     const badge = el("notifications-badge");
     badge.textContent = String(items.length);
     badge.hidden = items.length === 0;
-    // The button's own accessible name is otherwise just its emoji plus
-    // the badge's bare number ("🔔 3") — this gives it a real one instead.
+    // The button's own accessible name is otherwise just its icon plus
+    // the badge's bare number — this gives it a real one instead.
     notifBtn.setAttribute(
       "aria-label",
       items.length ? `Notifications, ${items.length} item${items.length === 1 ? "" : "s"} need attention` : "Notifications, nothing needs attention"
@@ -1933,14 +1933,14 @@
       case "image":
         return c.url
           ? `<img class="pv-image" src="${escapeHtml(c.url)}" alt=""${imageSizeAttrs(c.url)}>${
-              c.alt ? "" : `<span class="alt-text-warning" title="No alt text set — add one for accessibility and SEO">⚠ No alt text</span>`
+              c.alt ? "" : `<span class="alt-text-warning" title="No alt text set — add one for accessibility and SEO">No alt text</span>`
             }`
           : "(no image url)";
       case "button": return `<span class="pv-button">Button: ${escapeHtml(c.label || "(no label)")}</span>`;
       case "project-card": return `<span class="pv-card"><strong>${escapeHtml(c.title || "(untitled)")}</strong>${c.description ? `<span>${escapeHtml(String(c.description).slice(0, 90))}</span>` : ""}</span>`;
       case "article-list": return `<span class="pv-list">Shows latest ${c.limit || 10} posts</span>`;
       case "project-list": return `<span class="pv-list">Shows latest ${c.limit || 12} projects</span>`;
-      case "video": return c.url ? `<span class="pv-media">▶ ${escapeHtml(c.url)}</span>` : "(no video url)";
+      case "video": return c.url ? `<span class="pv-media">Video: ${escapeHtml(c.url)}</span>` : "(no video url)";
       case "embed": return c.url ? `<span class="pv-media">${escapeHtml(c.url)}</span>` : "(no embed url)";
       // STUDY (temporary): never show the password here.
       case "study": return `<span class="pv-button">Study: ${escapeHtml(c.label || "Open study")} (locked)</span>`;
@@ -4123,7 +4123,7 @@
     el("shared-blocks-list")
       .querySelectorAll(".usage-shared-block")
       .forEach((btn) => {
-        const extraInfo = btn.dataset.issues ? `⚠ ${btn.dataset.issues}` : "";
+        const extraInfo = btn.dataset.issues ? btn.dataset.issues : "";
         btn.addEventListener("click", () => window.showContentUsage("shared-block", btn.dataset.id, btn.dataset.name, extraInfo));
       });
 
@@ -4613,7 +4613,7 @@
           )}</span><span class="link-check-status">${escapeHtml(r.status)}</span></div>`
       )
       .join("");
-    statusEl.innerHTML = `<span class="contrast-fail">⚠ Last automatic check ${when} — ${status.broken.length} broken link(s) found</span>${waiting}${rows}`;
+    statusEl.innerHTML = `<span class="contrast-fail">Last automatic check ${when} — ${status.broken.length} broken link(s) found</span>${waiting}${rows}`;
   }
 
   // ---------- Dashboard ----------
@@ -4965,7 +4965,7 @@
   function stopMotionAudition() {
     if (motionAuditionRaf) cancelAnimationFrame(motionAuditionRaf);
     motionAuditionRaf = null;
-    el("motion-audition-play-btn").textContent = "▶ Play";
+    el("motion-audition-play-btn").textContent = "Play";
   }
   function scrubPreviewTo(fraction) {
     let win;
@@ -4999,7 +4999,7 @@
     }
     const durationMs = 6000;
     const start = performance.now();
-    el("motion-audition-play-btn").textContent = "⏸ Stop";
+    el("motion-audition-play-btn").textContent = "Stop";
     const step = (now) => {
       const t = Math.min(1, (now - start) / durationMs);
       el("motion-audition-scrub").value = String(Math.round(t * 1000));
@@ -5280,7 +5280,7 @@
     clearArticleForm();
   });
 
-  // ---------- Article ↔ project relationships (editable from either side) ----------
+  // ---------- Article and project relationships (editable from either side) ----------
   // Storage stays project-side (project.related_articles) — this just gives
   // the article editor a way to see and edit the same relationship, so it
   // doesn't only exist from the project's editor.
@@ -5940,7 +5940,7 @@
 
   function renderLinkWarnings(elId, text) {
     const warnings = checkInternalLinks(text);
-    el(elId).innerHTML = warnings.map((w) => `<span class="contrast-fail">⚠ ${escapeHtml(w)}</span>`).join("");
+    el(elId).innerHTML = warnings.map((w) => `<span class="contrast-fail">${escapeHtml(w)}</span>`).join("");
   }
 
   // ---------- Internal-link suggestions while writing ----------
@@ -6225,7 +6225,7 @@
         .forEach((p) => {
           p = p.trim().replace(/```/g, "``\u200b`"); // the renderer's fence match isn't line-anchored
           if (!p) return;
-          const bullet = p.match(/^[•·▪◦‣∙]\s*([\s\S]+)$/); // Word's typed-in bullets
+          const bullet = p.match(/^[•·\u25AA◦‣∙]\s*([\s\S]+)$/); // Word's typed-in bullets (no-emoji: data)
           if (bullet) {
             pushBlock(out, { text: `- ${bullet[1].replace(/\s*\n\s*/g, " ")}`, wordList: true });
             return;
@@ -8053,7 +8053,7 @@
             )}"><div class="media-thumb">${
               mediaItemType(item) === "image"
                 ? `<img src="${escapeHtml(item.url)}" loading="lazy" alt="${escapeHtml(item.alt_text || "")}">`
-                : `<span class="media-file-icon">${mediaItemType(item) === "audio" ? "♪" : "📄"}</span>`
+                : `<span class="media-file-icon">${mediaItemType(item) === "audio" ? "♪" : "File"}</span>`
             }<input type="checkbox" class="media-select-checkbox" aria-label="Select ${escapeHtml(mediaFilename(item))}" data-key="${escapeHtml(
               item.key
             )}"${selectedMediaKeys.has(item.key) ? " checked" : ""}><div class="media-tile-actions">${
@@ -10629,7 +10629,7 @@
             } else if (result.ok) {
               resultEl.innerHTML = `<span class="contrast-pass">✓ Verified intact</span>`;
             } else {
-              resultEl.innerHTML = `<span class="contrast-fail">⚠ Checksum mismatch — this file may be corrupted</span>`;
+              resultEl.innerHTML = `<span class="contrast-fail">Checksum mismatch — this file may be corrupted</span>`;
             }
           } catch (err) {
             resultEl.textContent = err.message;
@@ -10698,7 +10698,7 @@
       });
     const statusEl = el("scheduled-backup-status");
     if (status.lastError) {
-      statusEl.innerHTML = `<span class="contrast-fail">⚠ Last backup attempt failed: ${escapeHtml(status.lastError)}</span>`;
+      statusEl.innerHTML = `<span class="contrast-fail">Last backup attempt failed: ${escapeHtml(status.lastError)}</span>`;
     } else if (status.lastAt) {
       statusEl.innerHTML = `<span class="contrast-pass">✓ Last backup succeeded ${escapeHtml(new Date(status.lastAt).toLocaleString())}</span>`;
     } else {

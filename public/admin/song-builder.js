@@ -1394,7 +1394,7 @@
     if (!beats) {
       player.start(undefined, startOptions());
       startPeakMeter();
-      $("song-play").textContent = "⏸ Stop";
+      $("song-play").textContent = "Stop";
       return;
     }
     // Count-in: the clicks AND the song's first step are both placed on the audio clock, so the song starts exactly
@@ -1403,7 +1403,7 @@
     const token = ++countInToken;
     countInActive = true;
     const silent = metroPrefs.volume <= 0;
-    $("song-play").textContent = silent ? "⏸ Stop (counting in, click volume is 0…)" : "⏸ Stop (counting in…)";
+    $("song-play").textContent = silent ? "Stop (counting in, click volume is 0…)" : "Stop (counting in…)";
     const live = $("song-transport-live");
     if (live) live.textContent = `Counting in ${beats} beats`;
     const ctx = getAudioCtx();
@@ -1425,7 +1425,7 @@
           countInTimer = null;
           countInActive = false;
           countInOscs = [];
-          $("song-play").textContent = "⏸ Stop";
+          $("song-play").textContent = "Stop";
           if (live) live.textContent = "Playing";
         }, Math.max(0, (startAt - ctx.currentTime) * 1000));
       });
@@ -1445,7 +1445,7 @@
     markPlayingOrderChip(-1);
     if (pageSyncOverlay) pageSyncOverlay.classList.remove("song-page-sync-hit");
     drawWaveformPreview(0);
-    $("song-play").textContent = "▶ Play";
+    $("song-play").textContent = "Play";
   }
 
   $("song-play").addEventListener("click", () => {
@@ -1647,10 +1647,10 @@
           connected.forEach((input) => (input.onmidimessage = handleMidiMessage));
           const names = connected.map((i) => i.name || "Unnamed device");
           if (names.length === 0) {
-            $("song-midi-connect").textContent = "🎹 No MIDI devices found";
+            $("song-midi-connect").textContent = "No MIDI devices found";
             $("song-midi-connect").title = "Plug in a MIDI keyboard/controller — it'll be picked up automatically, no need to click again.";
           } else {
-            $("song-midi-connect").textContent = `🎹 ${names.length} MIDI device${names.length === 1 ? "" : "s"} connected`;
+            $("song-midi-connect").textContent = `${names.length} MIDI device${names.length === 1 ? "" : "s"} connected`;
             $("song-midi-connect").title = names.join(", ");
           }
         }

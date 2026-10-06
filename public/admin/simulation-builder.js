@@ -646,7 +646,7 @@
           (s) =>
             `<div class="simulation-row"><span>${escapeXml(s.name)}</span><small class="simulation-publication-status">${
               s.is_published ? "Published" : "Draft"
-            }</small>${s.is_published ? `<a href="/simulation/${s.id}" target="_blank" rel="noopener" class="view-simulation-link">View ↗</a>` : ""}<button type="button" class="publish-simulation" data-id="${
+            }</small>${s.is_published ? `<a href="/simulation/${s.id}" target="_blank" rel="noopener" class="view-simulation-link">View</a>` : ""}<button type="button" class="publish-simulation" data-id="${
               s.id
             }" aria-label="${s.is_published ? "Publish updates for" : "Publish"} ${escapeXml(s.name)}">${s.is_published ? "Publish updates" : "Publish"}</button>${s.is_published ? `<button type="button" class="unpublish-simulation" data-id="${s.id}" aria-label="Unpublish ${escapeXml(s.name)}">Unpublish</button>` : ""}<button type="button" class="usage-simulation" data-id="${
               s.id
@@ -3174,11 +3174,11 @@
       } else if (comp.type === "voltmeter" || comp.type === "ohmmeter") {
         statusLine = "Meter: reads without carrying any current";
       } else if (def.isSource) {
-        statusLine = "⚡ Power source";
+        statusLine = "Power source";
       } else if (comp.type === "transistor" && info) {
-        statusLine = info.region === "off" ? "Off: no collector current" : info.region === "saturated" ? "⚡ On: saturated like a closed switch" : "⚡ On: amplifying";
+        statusLine = info.region === "off" ? "Off: no collector current" : info.region === "saturated" ? "On: saturated like a closed switch" : "On: amplifying";
       } else if (isPowered) {
-        statusLine = "⚡ Part of a complete circuit";
+        statusLine = "Part of a complete circuit";
       } else if (comp.type === "diode" && info && info.status === "reversed") {
         statusLine = "Wired backwards: power stops at this diode";
 
@@ -3198,9 +3198,9 @@
         if (info.kind === "led") {
           const messages = {
             burnt: info.dangerous
-              ? `🔥 Destroyed instantly — ${info.voltage}V mains has no business touching an LED directly. Route it through a Power Supply.`
-              : `🔥 Burnt out — ${ma}mA is way more current than an LED can take (safe is under 30mA). Add a bigger resistor.`,
-            overdriven: `⚠ Overdriven at ${ma}mA — it'll be too bright and won't last (safe is under 30mA).`,
+              ? `Destroyed instantly — ${info.voltage}V mains has no business touching an LED directly. Route it through a Power Supply.`
+              : `Burnt out — ${ma}mA is way more current than an LED can take (safe is under 30mA). Add a bigger resistor.`,
+            overdriven: `Overdriven at ${ma}mA — it'll be too bright and won't last (safe is under 30mA).`,
             "unlit-low-voltage": "Not enough voltage in this loop to light it.",
             reversed: "No current flows — an LED only conducts one way. Flip it around so current runs anode to cathode.",
             blocked: "No current flows here: another LED in this loop is wired backwards.",
@@ -3213,9 +3213,9 @@
           const ib = Number.isFinite(info.baseMa) && info.baseMa < 10000 ? info.baseMa.toFixed(2) : "over 10,000";
           const icText = fmtMa(info.currentMa);
           const messages = {
-            burnt: `🔥 Burnt out — ${icText} through the collector and ${ib} mA into the base are far above a small transistor's 200 mA and 50 mA. Add or enlarge a resistor.`,
-            overdriven: `⚠ Overdriven at ${icText} collector / ${ib} mA base — over 1.5 times a small transistor's 200 mA and 50 mA.`,
-            overheating: `🔥 Running hot — dissipating ${info.watts.toFixed(2)} W against a typical 0.625 W rating.`,
+            burnt: `Burnt out — ${icText} through the collector and ${ib} mA into the base are far above a small transistor's 200 mA and 50 mA. Add or enlarge a resistor.`,
+            overdriven: `Overdriven at ${icText} collector / ${ib} mA base — over 1.5 times a small transistor's 200 mA and 50 mA.`,
+            overheating: `Running hot — dissipating ${info.watts.toFixed(2)} W against a typical 0.625 W rating.`,
             off: info.polarity === "pnp" ? "Off: the base is not at least 0.7 V below the emitter, so no collector current flows." : "Off: the base is not getting 0.7 V above the emitter, so no collector current flows.",
             active: `Amplifying: the collector carries ${icText}, ${(info.currentMa / Math.max(info.baseMa, 1e-9)).toFixed(0)} times the ${ib} mA base current; Vce is ${info.vce.toFixed(2)} V.`,
             saturated: `✓ Saturated: fully on like a closed switch. ${icText} flows, limited by the rest of the circuit (the gain would allow more); Vce is ${info.vce.toFixed(2)} V.`,
@@ -3224,9 +3224,9 @@
         } else if (info.kind === "diode") {
           const messages = {
             burnt: info.dangerous
-              ? `🔥 Destroyed instantly — ${info.voltage}V mains straight across a diode. Route it through a Power Supply.`
-              : `🔥 Burnt out — ${ma}mA is far above a typical diode's 1A rating. Add a series resistor.`,
-            overdriven: `⚠ Overdriven at ${ma}mA — more than 1.5 times a typical diode's 1A rating.`,
+              ? `Destroyed instantly — ${info.voltage}V mains straight across a diode. Route it through a Power Supply.`
+              : `Burnt out — ${ma}mA is far above a typical diode's 1A rating. Add a series resistor.`,
+            overdriven: `Overdriven at ${ma}mA — more than 1.5 times a typical diode's 1A rating.`,
             off: "Not conducting: the loop's voltage is below the diode's 0.7V forward drop.",
             reversed: "Blocking — a diode only conducts anode to cathode (towards the bar). Flip it around to let current through.",
             blocked: "No current flows here: another diode or LED in this loop is wired backwards.",
@@ -3245,16 +3245,16 @@
           // it "a typical 1/4W resistor" would be a wrong-part reference.
           const overheatMsg =
             comp.type === "potentiometer"
-              ? `🔥 Overheating — dissipating ${info.watts.toFixed(2)}W, more than this potentiometer can safely handle.`
+              ? `Overheating — dissipating ${info.watts.toFixed(2)}W, more than this potentiometer can safely handle.`
               : comp.type === "inductor"
-              ? `🔥 Overheating — dissipating ${info.watts.toFixed(2)}W in its winding, more than a small inductor can handle. Add a resistor to limit the current.`
+              ? `Overheating — dissipating ${info.watts.toFixed(2)}W in its winding, more than a small inductor can handle. Add a resistor to limit the current.`
               : comp.type === "lamp"
-              ? `🔥 Burning out — ${info.watts.toFixed(2)}W is well over the 0.5W a small bulb can take. Add a resistor in series or use a lower voltage.`
+              ? `Burning out — ${info.watts.toFixed(2)}W is well over the 0.5W a small bulb can take. Add a resistor in series or use a lower voltage.`
               : comp.type === "buzzer"
-              ? `🔥 Burning out — ${info.watts.toFixed(2)}W is well over the 0.5W a small buzzer can take. Add a resistor in series or use a lower voltage.`
-              : `🔥 Overheating — dissipating ${info.watts.toFixed(2)}W, more than a typical 1/4W resistor can handle.`;
+              ? `Burning out — ${info.watts.toFixed(2)}W is well over the 0.5W a small buzzer can take. Add a resistor in series or use a lower voltage.`
+              : `Overheating — dissipating ${info.watts.toFixed(2)}W, more than a typical 1/4W resistor can handle.`;
           if (info.dangerous) {
-            electricalHtml = `<p class="sim-power-status is-danger">🔥 Charred instantly — this loop is running straight off 120V mains.</p>`;
+            electricalHtml = `<p class="sim-power-status is-danger">Charred instantly — this loop is running straight off 120V mains.</p>`;
           } else if (info.status === "overheating") {
             electricalHtml = `<p class="sim-power-status is-danger">${overheatMsg}</p>`;
           } else if (info.currentMa === 0) {
@@ -3266,15 +3266,15 @@
             electricalHtml =
               info.status === "quiet"
                 ? `<p class="sim-power-status">Too quiet — it gets ${info.volts.toFixed(1)}V and needs about ${window.SIM_BUZZER_MIN_VOLTS}V to sound.</p>`
-                : `<p class="sim-power-status is-powered">🔊 Buzzing — ${ma}mA flowing, ${info.watts.toFixed(2)}W of its 0.5W rating.</p><button type="button" id="sim-buzzer-play" class="sim-buzzer-play">${window.SimBuzzer && window.SimBuzzer.playing() ? "Stop the sound" : "Hear it"}</button>`;
+                : `<p class="sim-power-status is-powered">Buzzing — ${ma}mA flowing, ${info.watts.toFixed(2)}W of its 0.5W rating.</p><button type="button" id="sim-buzzer-play" class="sim-buzzer-play">${window.SimBuzzer && window.SimBuzzer.playing() ? "Stop the sound" : "Hear it"}</button>`;
           } else {
             electricalHtml = `<p class="sim-power-status is-powered">✓ ${ma}mA flowing, dissipating ${info.watts.toFixed(2)}W — well within its rating.</p>`;
           }
         } else if (info.kind === "teensy") {
           if (info.dangerous) {
-            electricalHtml = `<p class="sim-power-status is-danger">🔥 Destroyed instantly — 120V mains directly to a microcontroller.</p>`;
+            electricalHtml = `<p class="sim-power-status is-danger">Destroyed instantly — 120V mains directly to a microcontroller.</p>`;
           } else if (info.status === "overheating") {
-            electricalHtml = `<p class="sim-power-status is-danger">🔥 Overheating — dissipating ${info.watts.toFixed(2)}W, more than a typical microcontroller board's power budget can handle.</p>`;
+            electricalHtml = `<p class="sim-power-status is-danger">Overheating — dissipating ${info.watts.toFixed(2)}W, more than a typical microcontroller board's power budget can handle.</p>`;
           } else {
             electricalHtml = `<p class="sim-power-status is-powered">Drawing ~${ma}mA at ${info.voltage}V — dissipating ${info.watts.toFixed(2)}W.</p>`;
           }
@@ -3282,7 +3282,7 @@
           electricalHtml =
             info.volts === null
               ? `<p class="sim-power-status">No reading — ${VOLTMETER_NO_READING[info.reason] || VOLTMETER_NO_READING.unwired}</p>`
-              : `<p class="sim-power-status is-powered">⚡ Reads ${window.simFormatVolts(info.volts)} from the + probe to the − probe.</p>`;
+              : `<p class="sim-power-status is-powered">Reads ${window.simFormatVolts(info.volts)} from the + probe to the − probe.</p>`;
         } else if (info.kind === "ohmmeter") {
           electricalHtml =
             info.status === "open"
@@ -3292,8 +3292,8 @@
               : `<p class="sim-power-status is-powered">Ω Reads ${window.simFormatOhms(info.ohms, info.status)} between the probes${info.ohms === 0 ? " (they are joined directly)" : ""}.</p>`;
         } else if (info.kind === "ammeter") {
           electricalHtml = info.dangerous
-            ? `<p class="sim-power-status is-danger">🔥 Destroyed instantly — 120V mains directly across this ammeter.</p>`
-            : `<p class="sim-power-status is-powered">⚡ ${ma}mA flowing through this ammeter.</p>`;
+            ? `<p class="sim-power-status is-danger">Destroyed instantly — 120V mains directly across this ammeter.</p>`
+            : `<p class="sim-power-status is-powered">${ma}mA flowing through this ammeter.</p>`;
         }
       }
 
@@ -3395,7 +3395,7 @@
         <label>Datasheet link (for your own reference -- admin only, not shown on the public embed)<input id="sim-comp-datasheet" type="url" placeholder="https://…" value="${escapeXml(comp.datasheetUrl || "")}"></label>
         <a id="sim-datasheet-link" class="sim-datasheet-link" href="${escapeXml(safeHref(comp.datasheetUrl || ""))}" target="_blank" rel="noopener noreferrer" ${
           comp.datasheetUrl ? "" : "hidden"
-        }>Open datasheet ↗</a>
+        }>Open datasheet</a>
         <label class="sim-lock-row"><input type="checkbox" id="sim-comp-locked"${comp.locked === true ? " checked" : ""}> Lock this part <span class="sim-lock-hint">(it can't be dragged, nudged, aligned, rotated or deleted until you unlock it; its settings and wires stay editable)</span></label>
         ${
           comp.type === "breadboard"
@@ -3837,7 +3837,7 @@
           </fieldset>`;
       box.innerHTML = `
         <p><strong>Wire</strong></p>
-        <p class="sim-power-status ${isPowered ? "is-powered" : ""}">${isPowered ? "⚡ Carries power" : "Not carrying power"}</p>
+        <p class="sim-power-status ${isPowered ? "is-powered" : ""}">${isPowered ? "Carries power" : "Not carrying power"}</p>
         <label>Style
           <select id="sim-wire-kind">
             <option value="wire" ${wire.kind === "wire" ? "selected" : ""}>Wire</option>

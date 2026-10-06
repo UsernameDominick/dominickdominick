@@ -82,6 +82,10 @@ node tests/e2e/run.mjs --live test_x  # one test against the dev server already 
 10. **Text from users or from scripts is data.** Escape with `escapeHtml` in admin templates; the public side goes through `worker/text.js` / `render.js` helpers.
 11. **Server validation in a small pure file, then called from the route** (see `worker/redirects.js`): keeps it testable and keeps `admin-api.js` readable.
 12. Page and article bodies need > 50 characters before they can be published (server check) — tests that publish need a real-length body.
+13. **No emoji anywhere on the site** (the owner's rule, public and admin, and in `outline.md` / `features.json`). That includes symbols phones draw as
+    emoji (play ▶, pause, stop, record, the north-east arrow, warning sign): use words, or a drawn icon from `worker/ui-icons.js` (`uiIcon(name)`;
+    `.ui-icon` in `public/style.css`). Plain text marks (✓ × ← → ♪ ©) are fine. `tests/no-emoji.test.mjs` fails on any, escapes included; a line
+    that only holds one as data (the stored reaction keys) is marked `// no-emoji: data` and uses an escape.
 
 ## Songs: how a song is stored
 

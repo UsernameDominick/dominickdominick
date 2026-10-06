@@ -2121,7 +2121,7 @@ code.color-field-value {
     overflow-wrap: break-word;
   }
 
-  /* Simulations/Songs/Scans/Reusable Blocks rows crammed "View ↗ /
+  /* Simulations/Songs/Scans/Reusable Blocks rows crammed "View /
      Duplicate / Edit / Delete" into one line, each button ~25px tall
      with as little as 10px between "Edit" and a destructive "Delete"
      right next to it — a real mis-tap hazard on a touchscreen. Wrapping

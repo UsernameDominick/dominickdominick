@@ -576,9 +576,9 @@ body {
      UA stylesheet gives form controls the browser's own UI font) — an
      <a> like .icon-link-btn does, with no rule needed. Without this, the
      three buttons here fell back to that default UI font instead of the
-     site's, and rendered some of their symbol glyphs (◐, ⏸) noticeably
-     smaller than the .icon-link-btn's ⇌ at the same declared font-size,
-     since glyph proportions for a given symbol vary by font. */
+     site's, and rendered some of their symbol glyphs noticeably smaller than the
+     .icon-link-btn's at the same declared font-size, since glyph
+     proportions for a given symbol vary by font. */
   font-family: inherit;
   line-height: 1;
   cursor: pointer;
@@ -877,7 +877,7 @@ body {
   }
 }
 
-/* Manual "reduce motion" override (the ⏸ button in the header) — mirrors
+/* Manual "reduce motion" override (the motion button in the finder) — mirrors
    exactly what the OS-driven media query above already does, just
    reachable without changing OS settings. Higher specificity than the
    plain selectors inside that block ([data-motion="reduce"] [data-animate]
@@ -4621,3 +4621,10 @@ html.finder-on { overflow: hidden; }
 /* The app pages (Studio, PicEditor…) while their script builds them, and the mount they fill. */
 .app-mount { position: relative; flex: 1 1 auto; min-height: 0; width: 100%; display: flex; flex-direction: column; }
 .app-mount > .studio-loading { margin: auto; padding: 32px; color: var(--text-dim); font-size: 0.95rem; }
+/* Drawn icons (worker/ui-icons.js): the site never shows emoji or symbol characters a phone would turn into emoji. */
+.ui-icon { display: inline-block; width: 1em; height: 1em; vertical-align: -0.14em; flex: none; }
+.read-aloud-btn { display: inline-flex; align-items: center; gap: 6px; }
+.reaction-emoji { display: inline-flex; align-items: center; }
+.reaction-emoji .ui-icon { width: 1.15em; height: 1.15em; }
+.btn-external-icon .ui-icon { margin-left: 4px; }
+.footnote-back .ui-icon { width: 0.9em; height: 0.9em; }

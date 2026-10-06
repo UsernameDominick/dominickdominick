@@ -121,6 +121,7 @@ import { cleanTrackName, cleanTrackPath } from "./track.js";
 import { SVG_CSP, isSvgContentType } from "./svg.js";
 import { trailingSlashTarget } from "./trailing-slash.js";
 import { appPageFor, appPageBody } from "./app-pages.js";
+import { uiIcon } from "./ui-icons.js";
 import {
   capacitanceMicrofarads,
   computeCircuitAnalysis,
@@ -540,7 +541,7 @@ async function renderProject(env, project, navItems, previewReason = null, isAdm
       (key, i) =>
         `<a class="btn${i ? " btn-secondary" : ""}" href="${esc(safeHref(project.links[key]))}" target="_blank" rel="noopener">${esc(
           key[0].toUpperCase() + key.slice(1)
-        )}<span class="btn-external-icon" aria-hidden="true">↗</span></a>`
+        )}<span class="btn-external-icon" aria-hidden="true">${uiIcon("external")}</span></a>`
     )
     .join("");
   const techStackHtml = project.tech_stack && project.tech_stack.length

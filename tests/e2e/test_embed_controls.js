@@ -66,7 +66,7 @@ const check = (label, ok, extra) => { if (!ok) failures++; console.log(`${ok ? "
       const btn = page.locator(".song-embed-play-btn").first();
       const firstName = await page.evaluate(() => document.querySelector(".song-embed-header strong").textContent);
       check(`[${scheme}] Play starts idle: no aria-pressed, not active, named for its song`, !(await btn.getAttribute("aria-pressed")) && !(await btn.evaluate((e) => e.classList.contains("is-active"))) && (await btn.getAttribute("aria-label")) === `Play ${firstName}`, await btn.getAttribute("aria-label"));
-      check(`[${scheme}] the glyph is decorative and asks for text presentation`, await btn.evaluate((e) => { const g = e.querySelector("span[aria-hidden='true']"); return !!g && g.textContent.includes("\uFE0E"); }));
+      check(`[${scheme}] the icon is a decorative drawing, not a symbol a phone shows as emoji`, await btn.evaluate((e) => { const g = e.querySelector("svg.ui-icon[aria-hidden='true']"); return !!g && !/\p{Extended_Pictographic}|\uFE0F|\uFE0E/u.test(e.textContent); }));
       await btn.click();
       await page.waitForTimeout(400);
       const playing = await styleOf(".song-embed-play-btn");

@@ -1,9 +1,10 @@
 import { APP_PAGES } from "./app-pages.js";
-import { listArticles, listProjects, getPublishedSimulation, getScan, getSong, getMediaMeta } from "./db.js";
+import { listArticles, listProjects, getPublishedSimulation, getScan, getSong, getMediaMeta, REACTION_EMOJI } from "./db.js";
 import { safeImageSrc, mediaKeyFor, paragraphPictures, bodyPictures, PICTURE_ONLY_LINE } from "./pictures.js";
 import { paragraphEmbed, bodyEmbeds, EMBED_ONLY_LINE, MAX_BODY_EMBEDS } from "./embeds.js";
 import { nowIso, visibleText } from "./text.js";
 import { navIconSvg } from "./nav-icons.js";
+import { uiIcon } from "./ui-icons.js";
 import { renderSimulationSvg, SIM_DEFS_SVG, describeSimulation, renderLogicGateTables } from "./simulation-render.js";
 // STUDY (temporary): see worker/study/README.md.
 import { renderStudyBlock, studyPageTags } from "./study/index.js";
@@ -144,7 +145,7 @@ function footnotesHtml(nums, defs) {
   if (!nums.size) return "";
   const items = [...nums.entries()]
     .sort((a, b) => a[1] - b[1])
-    .map(([label, n]) => `<li id="fn-${n}">${richText(esc(defs.get(label)))} <a href="#fnref-${n}" class="footnote-back">↩</a></li>`)
+    .map(([label, n]) => `<li id="fn-${n}">${richText(esc(defs.get(label)))} <a href="#fnref-${n}" class="footnote-back" aria-label="Back to the text">${uiIcon("back")}</a></li>`)
     .join("");
   return `<section class="footnotes"><hr><ol>${items}</ol></section>`;
 }
@@ -978,12 +979,16 @@ export function renderShareLinks(title, path) {
   </div>`;
 }
 
+// What each stored reaction key looks like on the page: a line icon and a name (no emoji on the site).
+const REACTION_LOOK = Object.fromEntries(REACTION_EMOJI.map((key, i) => [key, [["like", "Like"], ["idea", "Good idea"], ["love", "Love it"]][i]]));
+
 export function renderReactionsHtml(contentType, contentId, counts) {
   const buttons = Object.entries(counts)
-    .map(
-      ([emoji, count]) =>
-        `<button type="button" class="reaction-btn" data-emoji="${esc(emoji)}"><span class="reaction-emoji">${emoji}</span><span class="reaction-count">${count}</span></button>`
-    )
+    .filter(([key]) => REACTION_LOOK[key])
+    .map(([key, count]) => {
+      const [icon, name] = REACTION_LOOK[key];
+      return `<button type="button" class="reaction-btn" data-emoji="${esc(key)}" title="${name}"><span class="reaction-emoji">${uiIcon(icon)}<span class="sr-only">${name}</span></span><span class="reaction-count">${count}</span></button>`;
+    })
     .join("");
   return `<div class="reactions" data-content-type="${esc(contentType)}" data-content-id="${esc(String(contentId))}">${buttons}</div>`;
 }
@@ -997,7 +1002,7 @@ export function renderReactionsHtml(contentType, contentId, counts) {
 export function renderTtsBarHtml(audioUrl) {
   return `<div class="tts-bar">
     ${audioUrl ? `<audio controls preload="none" src="${esc(audioUrl)}">Your browser does not support audio playback.</audio>` : ""}
-    <button type="button" class="read-aloud-btn" data-label-read="🔊 Read aloud" data-label-stop="⏹ Stop reading" aria-label="Read this page aloud">🔊 Read aloud</button>
+    <button type="button" class="read-aloud-btn" data-label-read="Read aloud" data-label-stop="Stop reading" aria-label="Read this page aloud">${uiIcon("speaker")}<span class="read-aloud-label">Read aloud</span></button>
   </div>`;
 }
 
@@ -1357,7 +1362,7 @@ function genericEmbedHtml(rawUrl) {
     info.host
   )}" loading="lazy" style="height:${info.height}px" allow="autoplay; encrypted-media; fullscreen; clipboard-write" allowfullscreen></iframe><p class="embed-fallback"><a href="${esc(
     rawUrl
-  )}" target="_blank" rel="noopener">Open original ↗</a></p></div>`;
+  )}" target="_blank" rel="noopener">Open original ${uiIcon("external")}</a></p></div>`;
 }
 
 // A <model-viewer> element for an orbitable/zoomable 3D scan — GLB/GLTF,
@@ -1398,7 +1403,7 @@ export function renderSongBlockHtml(song) {
   // Source" by anyone, not just through the rendered page).
   const { private_notes, ...publicSongData } = song.data || {};
   return `<div class="song-embed${themeClass}" data-song="${esc(JSON.stringify(publicSongData))}">
-    <div class="song-embed-header"><strong>${esc(song.name)}</strong><button type="button" class="song-embed-play-btn" aria-label="Play ${esc(song.name)}"><span aria-hidden="true">▶&#xFE0E;</span> Play</button></div>
+    <div class="song-embed-header"><strong>${esc(song.name)}</strong><button type="button" class="song-embed-play-btn" aria-label="Play ${esc(song.name)}">${uiIcon("play")} Play</button></div>
     ${vizHtml}
   </div>`;
 }
@@ -1537,7 +1542,7 @@ async function renderBlockInner(env, block, ctx) {
       const variantClass = c.variant === "secondary" ? " btn-secondary" : c.variant === "link" ? " btn-link" : "";
       return `<a class="btn${variantClass}" href="${esc(safeHref(c.url))}"${c.external ? ' target="_blank" rel="noopener"' : ""}${
         c.trackEvent ? ` data-track-event="${esc(c.trackEvent)}"` : ""
-      }>${esc(c.label)}${c.external ? `<span class="btn-external-icon" aria-hidden="true">↗</span><span class="sr-only"> (opens in a new tab)</span>` : ""}</a>`;
+      }>${esc(c.label)}${c.external ? `<span class="btn-external-icon" aria-hidden="true">${uiIcon("external")}</span><span class="sr-only"> (opens in a new tab)</span>` : ""}</a>`;
     }
     case "divider":
       return `<hr>`;
@@ -2127,7 +2132,7 @@ export function renderSlowDownHtml(what, minutes) {
 }
 
 // Inline SVG icons for the header tools -- the previous Unicode glyphs
-// (⇌ ⏸ A ◐) were cryptic, and ◐ fell back to a broken half-glyph in
+// (swap, pause, letter and half-circle symbols) were cryptic, and the half circle fell back to a broken half-glyph in
 // common fonts. stroke="currentColor" so they follow the theme.
 const svgIcon = (cls, paths) =>
   `<svg class="icon ${cls}" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${paths}</svg>`;
