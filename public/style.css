@@ -4486,19 +4486,7 @@ body:has(.studio-canvas) .site-footer { display: none; }
   .topbar .site-search input { font-size: 16px; padding-top: 6px; padding-bottom: 6px; }
 }
 
-/* The Studio page fills the screen, so on a phone (or a phone on its side) the header is a single slim row: the dial and the theme. */
-@media (max-width: 640px), (max-height: 500px) {
-  body:has(.studio-canvas) .topbar { flex-wrap: nowrap; padding: 4px 10px 2px; gap: 6px; }
-  body:has(.studio-canvas) .topbar .brand,
-  body:has(.studio-canvas) .site-search,
-  body:has(.studio-canvas) .icon-link-btn,
-  body:has(.studio-canvas) #motion-toggle,
-  body:has(.studio-canvas) #font-size-toggle { display: none; }
-  body:has(.studio-canvas) .topbar .site-nav { order: 0; flex: 1 1 auto; min-width: 0; justify-content: flex-start; }
-  body:has(.studio-canvas) .topbar .topbar-tools { flex: 0 0 auto; order: 1; margin-left: 0; }
-  body:has(.studio-canvas) .tabs { padding-bottom: 7px; }
-  body:has(.studio-canvas) .tab { padding-top: 3px; padding-bottom: 3px; }
-}
+/* The Studio page has the same header as every other page, so the bar keeps its height from tab to tab. */
 
 /* ---- The rest of the site's buttons on the chunky tokens (they were still pills or thin outlines), all one weight and height ---- */
 .copy-link-btn, .share-link, .save-for-later-btn, .print-pdf-btn, .read-aloud-btn, .reaction-btn {
@@ -4627,9 +4615,5 @@ html.finder-on { overflow: hidden; }
   background-size: var(--tick-step, 60px) 9px, calc(var(--tick-step, 60px) / 6) 5px;
   background-position: var(--tick-x0, 0px) 100%, var(--tick-x0, 0px) 100%;
 }
-/* The needle is as tall as the ruler's long ticks, so it never reaches up into the tab's name (and a little shorter on the Studio's
-   slim phone header, which has less room under the names). */
+/* The needle is as tall as the ruler's long ticks, so it never reaches up into the tab's name. */
 .tab-indicator::after { height: 9px; box-shadow: 0 0 6px var(--accent); }
-@media (max-width: 640px), (max-height: 500px) {
-  body:has(.studio-canvas) .tab-indicator::after { height: 7px; }
-}

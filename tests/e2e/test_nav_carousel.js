@@ -50,9 +50,13 @@ const { chromium, request } = require("./_pw.cjs");
       return { isEven: t.classList.contains("is-even"), spread: Math.max(...gaps) - Math.min(...gaps), step, gap: gaps[0], left: r.left, right: innerWidth - r.right };
     });
     ok(even.isEven && even.spread < 1.5 && Math.abs(even.step - even.gap) < 1 && Math.abs(even.left - even.right) < 2, "on a phone the tabs and the ruler's long ticks are evenly spaced across the bar", even);
+    const barH = () => p.evaluate(() => Math.round(document.querySelector(".topbar").getBoundingClientRect().height * 10) / 10);
+    const startH = await barH();
     for (const href of tabs.filter((h) => h !== "/")) {
       await p.evaluate((h) => document.querySelector(`.tabs a.tab[href="${h}"]`).click(), href);
       await p.waitForFunction((h) => location.pathname === h && !document.querySelector(".page-stage"), href, { timeout: 15000 });
+      await p.waitForTimeout(150);
+      ok((await barH()) === startH, `the bar keeps its height on ${href}`, [await barH(), startH]);
       ok(await p.evaluate(() => window.__sameDocument === true), `${href} slides in without a page load`);
       ok((await p.evaluate(() => document.querySelector(".tab.is-active").getAttribute("href"))) === href, `and its tab is the active one`);
     }
