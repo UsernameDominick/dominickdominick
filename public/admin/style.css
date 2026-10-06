@@ -8836,3 +8836,16 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 @media (min-width: 641px) { .studio-pop-title { display: none; } #studio-pop-volume label { display: flex; } }
 .studio-grid[data-mode="roll"] .studio-row-label { height: 100%; display: flex; align-items: center; overflow: hidden; font-size: 0.55rem; letter-spacing: -0.02em; }
 @media (min-width: 641px) { .studio-grid[data-mode="roll"] .studio-row-label { font-size: 0.62rem; } }
+
+/* Phones: no double-tap zoom or text selection while placing notes, and finger-sized steps (the roll scrolls up and down instead of squeezing every note into a sliver). */
+#song-studio, #song-studio * { -webkit-tap-highlight-color: transparent; }
+#song-studio button, #song-studio .studio-grid-scroll, #song-studio .studio-cell { touch-action: manipulation; }
+#song-studio .studio-grid[data-mode="roll"], #song-studio .studio-grid[data-mode="roll"] .studio-cell { touch-action: pan-y; }
+#song-studio .studio-grid { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+@media (max-width: 640px) {
+  #song-builder-modal #song-studio .studio-grid[data-kind="notes"][data-mode="steps"] { --cell-h: 38px; }
+  #song-builder-modal #song-studio .studio-grid[data-kind="drums"] { --cell-h: 40px; }
+  #song-builder-modal #song-studio .studio-grid[data-mode="roll"] .studio-row { min-height: 26px; flex: 0 0 auto; }
+  #song-builder-modal #song-studio .studio-grid[data-mode="roll"] { --lab: 34px; gap: 2px; }
+  #song-builder-modal #song-studio .studio-grid[data-mode="roll"] .studio-row-label { font-size: 0.66rem; }
+}
