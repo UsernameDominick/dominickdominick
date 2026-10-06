@@ -4627,3 +4627,9 @@ html.finder-on { overflow: hidden; }
   background-size: var(--tick-step, 60px) 9px, calc(var(--tick-step, 60px) / 6) 5px;
   background-position: var(--tick-x0, 0px) 100%, var(--tick-x0, 0px) 100%;
 }
+/* The needle is as tall as the ruler's long ticks, so it never reaches up into the tab's name (and a little shorter on the Studio's
+   slim phone header, which has less room under the names). */
+.tab-indicator::after { height: 9px; box-shadow: 0 0 6px var(--accent); }
+@media (max-width: 640px), (max-height: 500px) {
+  body:has(.studio-canvas) .tab-indicator::after { height: 7px; }
+}
