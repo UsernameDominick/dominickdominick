@@ -14,6 +14,17 @@ export const APP_PAGES = [
     script: "/piceditor.js",
     loading: "Loading PicEditor…",
   },
+  {
+    path: "/simulations",
+    slug: "simulations",
+    title: "Simulations: build circuits in your browser · Dominick",
+    description: "Build circuits on a breadboard in your browser: batteries, LEDs, switches, resistors, meters, transistors and logic gates, and see what lights up. Nothing to install, and nothing leaves your device.",
+    h1: "Simulations: build circuits in your browser",
+    about: "A circuit builder with a breadboard, power supplies, LEDs, lamps, buzzers, switches, resistors, capacitors, meters, diodes, transistors and logic gates, a schematic view, a build checklist and sweeps. Circuits you build here are kept in your own browser and are never sent to the site.",
+    mountId: "simulations-mount",
+    script: "/simulations.js",
+    loading: "Loading Simulations…",
+  },
 ];
 
 export function appPageFor(path) {

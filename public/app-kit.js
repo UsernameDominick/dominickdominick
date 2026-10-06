@@ -132,9 +132,10 @@
       } catch (e) {
         throw fail("Bad request.");
       }
-      const p = new URL(path, "http://x").pathname;
+      const u = new URL(path, "http://x");
+      const p = u.pathname;
       for (const fn of apis) {
-        const out = await fn(p, method, body);
+        const out = await fn(p, method, body, u.searchParams);
         if (out !== undefined) return out;
       }
       if (before && before !== window.adminApi) return before(path, opts);
@@ -163,6 +164,28 @@
   }
   // A JSON answer in the shape fetch gives back.
   const jsonResponse = (data, status) => new Response(JSON.stringify(data), { status: status || 200, headers: { "Content-Type": "application/json" } });
+
+  // ---------- small dialogs inside an app ----------
+  // In the admin every dialog's "×" (an id starting close-) and Escape close it; an app's own smaller dialogs (a checklist, a sweep) get
+  // the same here. The app's main editor is not one of these: its × goes back to the shelf, which the app wires itself.
+  const subDialogs = [];
+  function wireSubDialogs(ids) {
+    ids.forEach((id) => {
+      const d = document.getElementById(id);
+      if (!d || subDialogs.includes(d)) return;
+      subDialogs.push(d);
+      const x = d.querySelector('header button[id^="close-"]');
+      if (x) x.addEventListener("click", () => { d.hidden = true; });
+    });
+  }
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const open = subDialogs.filter((d) => !d.hidden && document.contains(d) && d.offsetParent !== null);
+    if (!open.length) return;
+    e.preventDefault();
+    e.stopPropagation();
+    open[open.length - 1].hidden = true;
+  }, true);
 
   // ---------- the store ----------
   function readList(key) {
@@ -256,7 +279,7 @@
 
   // ---------- the page life ----------
   // app = { name, mountId, shellClass, loadingText, scripts, dialogs: [ids taken from the admin page], editor: () => the dialog that is
-  //         the editor, build(shell) after the scripts ran (makes the shelf), onLeave(), shown(editorOpen), park()/unpark() optional }
+  //         the editor, prepare(shell) before the scripts load, build(shell) after they ran (makes the shelf), onLeave(), shown(editorOpen), park()/unpark() optional }
   // The shelf shows whenever the editor is hidden.
   let parking = null;
   const apps = [];
@@ -283,6 +306,7 @@
       shell.appendChild(inner);
       mount.innerHTML = "";
       mount.appendChild(shell);
+      if (app.prepare) app.prepare(inner); // anything the tool's scripts look up as they load
       await loadScripts(app.scripts);
       await app.build(inner);
       new MutationObserver(() => app.shown(!editor().hidden)).observe(editor(), { attributes: true, attributeFilter: ["hidden"] });
@@ -347,5 +371,5 @@
   // page-slide.js / nav.js call this for every page that slides in.
   window.siteInitApps = (root) => apps.forEach((a) => a.init(root));
 
-  window.SiteAppKit = { esc, fail, scopeCss, adminParts, loadScripts, addApi, addFetch, jsonResponse, readList, writeList, nextId, now, cleanName, presetApi, fileStore, whenEdited, register };
+  window.SiteAppKit = { esc, fail, wireSubDialogs, scopeCss, adminParts, loadScripts, addApi, addFetch, jsonResponse, readList, writeList, nextId, now, cleanName, presetApi, fileStore, whenEdited, register };
 })();

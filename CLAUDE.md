@@ -139,7 +139,7 @@ The admin opens on the page itself. `page-first.js` puts the page chooser (`.adm
 - **The builder's markup lives in `public/admin/index.html`**: if that page is ever restructured, keep those ids (or move the markup to a shared file and load it from both). Something the builder looks up at start that is not inside those three dialogs has to be added to the shell in `boot`.
 - `tests/e2e/test_studio_page.js` covers it as a visitor (shelf, save, Songs, card play, copy/delete, slide away and back, a phone).
 
-## App pages (PicEditor, and next Simulations and Scans)
+## App pages (PicEditor, Simulations, and next Scans)
 
 Admin tools as pages every visitor can use, the same idea as the Studio, built on **`public/app-kit.js`** (`window.SiteAppKit`) with
 `public/app-kit.css`. Each one is an entry in `worker/app-pages.js` (`APP_PAGES`: path, nav slug, words, `mountId`, script; `index.js`
@@ -157,6 +157,15 @@ routes them, `render.js` adds `/app-kit.js` + the app script, `sitemap.js` lists
   answered by `addFetch`; its "Overwrite?" confirm is skipped. **Never hide `#photo-editor-modal` to park it**: hiding frees its layers and
   history, so PicEditor's `park` only sets `aria-modal="false"` (the editor's shortcuts listen only while it is `"true"`). The public CSP
   allows `blob:` images and fetches for these pages. `tests/e2e/test_piceditor_page.js` covers it.
+- **Simulations (`/simulations`, `public/simulations.js`):** the circuit builder (`#simulation-builder-modal` plus `#simulations-modal`, kept
+  hidden, and its five small dialogs, closed by the kit's `wireSubDialogs`). A hidden `#simulations-btn` is made in `prepare` (the builder
+  wires it as it loads). Circuits live in localStorage `simulations.circuits.v1` (templates `simulations.templates.v1`), answered on the
+  `/simulations` routes; publish is "not available here" and the share-image row is hidden. A card opens its circuit through the hidden
+  list's `.edit-simulation`; **Circuits** (the builder's ×) saves an unsaved circuit first. `tests/e2e/test_simulations_page.js` covers it.
+- **Several apps in one visit:** each registers its own `addApi` handler; the Studio's `adminApi` passes anything it does not answer (404)
+  on to the one before it, and its `/templates` only answers `kind=song`, so the Studio and the kit's apps can all be open in one visit.
+- On a phone the nav's stops share the width evenly while they all fit and keep their whole names (`min-width: max-content`) when they
+  don't, and then the strip scrolls.
 
 ## Hidden Notes
 

@@ -48,9 +48,13 @@ const { chromium, request } = require("./_pw.cjs");
       const mids = [...t.querySelectorAll(":scope > .tab, :scope > .tab-group")].map((s) => { const b = s.getBoundingClientRect(); return b.left + b.width / 2; });
       const gaps = mids.slice(1).map((m, i) => m - mids[i]);
       const step = parseFloat(getComputedStyle(t).getPropertyValue("--tick-step"));
-      return { isEven: t.classList.contains("is-even"), spread: Math.max(...gaps) - Math.min(...gaps), step, gap: gaps[0], left: r.left, right: innerWidth - r.right };
+      const fits = t.scrollWidth <= t.clientWidth + 1;
+      const cut = [...t.querySelectorAll(".tab-label")].filter((l) => l.scrollWidth > l.clientWidth + 1).length;
+      return { fits, cut, isEven: t.classList.contains("is-even"), spread: Math.max(...gaps) - Math.min(...gaps), step, gap: gaps[0], left: r.left, right: innerWidth - r.right };
     });
-    ok(even.isEven && even.spread < 1.5 && Math.abs(even.step - even.gap) < 1 && Math.abs(even.left - even.right) < 2, "on a phone the tabs and the ruler's long ticks are evenly spaced across the bar", even);
+    ok(even.cut === 0, "on a phone no tab's name is cut short", even);
+    if (even.fits) ok(even.isEven && even.spread < 1.5 && Math.abs(even.step - even.gap) < 1 && Math.abs(even.left - even.right) < 2, "and when they all fit, the tabs and the ruler's long ticks are evenly spaced across the bar", even);
+    else ok(!even.isEven, "and when they do not all fit, the strip scrolls (the ruler keeps its own spacing)", even);
     const barH = () => p.evaluate(() => Math.round(document.querySelector(".topbar").getBoundingClientRect().height * 10) / 10);
     const startH = await barH();
     for (const href of tabs.filter((h) => h !== "/")) {

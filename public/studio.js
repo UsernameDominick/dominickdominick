@@ -99,6 +99,9 @@
         return { id: copy.id };
       }
     }
+    // Templates of other kinds (a circuit's) belong to another app page: passed on (404) to whoever answers them.
+    const kind = new URL(path, "http://x").searchParams.get("kind") || (body && body.kind) || "song";
+    if (p === "/templates" && kind !== "song") throw fail("That is not available here.", 404);
     if (p === "/templates" && method === "GET") return read(TEMPLATES_KEY);
     if (p === "/templates" && method === "POST") {
       const list = read(TEMPLATES_KEY);
@@ -457,7 +460,16 @@
     songsBtn.tabIndex = -1;
     inner.appendChild(songsBtn);
     shell.appendChild(inner);
-    window.adminApi = api;
+    // Other app pages (public/app-kit.js) answer their own calls: anything that is not the Studio's goes on to them.
+    const before = window.adminApi;
+    window.adminApi = async (path, opts) => {
+      try {
+        return await api(path, opts);
+      } catch (err) {
+        if (err && err.status === 404 && before) return before(path, opts);
+        throw err;
+      }
+    };
     window.refreshSongOptions = function () {};
     window.showContentUsage = function () {};
     mount.innerHTML = "";
