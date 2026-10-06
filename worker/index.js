@@ -1341,7 +1341,7 @@ const SECURITY_HEADERS = {
     // The Generic Embed block is deliberately "any iframe-able link" —
     // restricting this to a fixed list of services would break that
     // feature, so it's scoped to https: rather than named origins.
-    "frame-src https:",
+    "frame-src 'self' https:",
     "object-src 'none'",
     "base-uri 'self'",
     "frame-ancestors 'self'",
@@ -1678,6 +1678,26 @@ async function route(request, env, ctx) {
     if (path === "/saved") {
       const navItems = await listNavPages(env);
       return renderSavedPage(env, navItems);
+    }
+
+    // The Studio: the song builder as a page of its own, open to everyone. It runs in a frame (/studio-app/) so its stylesheet and scripts cannot
+    // collide with the site's, and what a visitor makes stays in their own browser.
+    if (path === "/studio") {
+      const navItems = await listNavPages(env);
+      const { theme, footerText, customHead } = await getSiteContext(env);
+      const html = renderShell({
+        title: "Studio: make music in your browser",
+        description: "Make music in your browser: a step sequencer, a piano roll, forty instruments and fifteen drum kits. Nothing to install, and nothing leaves your device.",
+        path,
+        navItems,
+        activeSlug: "studio",
+        bodyHtml: `<h1 class="sr-only">Studio: make music in your browser</h1><p class="sr-only">A step sequencer, a piano roll, forty instruments and fifteen drum kits, with five tracks (drums, bass, chords, melody and lead), looping bars, MIDI keyboard input and song files you can save and share. Songs you make here are kept in your own browser and are never sent to the site.</p><iframe class="studio-frame" src="/studio-app/" title="Studio: make music in your browser" allow="midi"></iframe><noscript><p class="studio-noscript">The Studio needs JavaScript.</p></noscript>`,
+        theme,
+        footerText,
+        customHead,
+        canvasClass: "canvas studio-canvas",
+      });
+      return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
     }
 
     // The Hidden Notes page: only the signed-in owner gets it. Anyone else gets exactly the answer for an address that does not exist.

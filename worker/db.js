@@ -24,6 +24,8 @@ export const RESERVED_SLUGS = new Set([
   "random",
   "projects",
   "simulation",
+  "studio",
+  "studio-app",
   "favicon.ico",
 ]);
 

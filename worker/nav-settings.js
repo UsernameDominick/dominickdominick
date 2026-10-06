@@ -1,4 +1,4 @@
-// The site name in the header and the three built-in nav links (Articles, Projects, Topics), which were fixed in the code and are now
+// The site name in the header and the built-in nav links (Articles, Projects, Topics, Studio), which were fixed in the code and are now
 // editable under Site settings > Header & footer. Pure, so the worker, the admin API and the tests share one set of rules.
 
 // The built-in links, in the order they follow the owner's own nav pages. `slug` is where each one goes.
@@ -6,6 +6,7 @@ export const BUILTIN_NAV = [
   { slug: "random", label: "Articles" },
   { slug: "projects", label: "Projects" },
   { slug: "topics", label: "Topics" },
+  { slug: "studio", label: "Studio" },
 ];
 
 const clean = (s, max) => String(s == null ? "" : s).replace(/[\u0000-\u001f\u007f<>]/g, "").replace(/\s+/g, " ").trim().slice(0, max);

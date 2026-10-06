@@ -15,7 +15,7 @@ const { chromium, request } = require("./_pw.cjs");
   }
   const p = await (await b.newContext({ viewport: { width: 1280, height: 800 } })).newPage();
   await p.addInitScript(() => { try { localStorage.setItem("theme", "light"); } catch (e) {} });
-  await p.goto((E2E_BASE + "/projects")); await p.evaluate(() => document.documentElement.setAttribute("data-theme", "light"));
+  await p.goto((E2E_BASE + "/projects")); await p.addStyleTag({ content: "*, *::before, *::after { transition: none !important; }" }); await p.evaluate(() => document.documentElement.setAttribute("data-theme", "light"));
   // colours ease between themes; measure once they have settled, not part-way (two equal readings in a row, so a slow, busy machine can't
   // catch it mid-fade)
   const reading = () => p.evaluate(() => { const e = document.querySelector(".tag"); if (!e) return "none"; const cs = getComputedStyle(e); return cs.color + "|" + cs.backgroundColor; });

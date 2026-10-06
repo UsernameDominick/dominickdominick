@@ -1,4 +1,4 @@
-// The site name and the built-in nav links (Articles, Projects, Topics) are editable: the cleaning rules and how they reach the nav.
+// The site name and the built-in nav links (Articles, Projects, Topics, Studio) are editable: the cleaning rules and how they reach the nav.
 import { cleanBrand, cleanNavBuiltin, parseNavBuiltin, builtinNavItems, BUILTIN_NAV } from "../worker/nav-settings.js";
 import { listNavPages } from "../worker/db.js";
 import { renderShell } from "../worker/render.js";
@@ -27,12 +27,12 @@ ok(Object.keys(parseNavBuiltin(cleanNavBuiltin('{"random":{"label":"' + "z".repe
 // ---- the nav itself ----
 {
   const slugs = (items) => items.map((i) => i.slug).join();
-  ok(slugs(builtinNavItems({})) === "random,projects,topics" && builtinNavItems({})[0].nav_label === "Articles", "by default the three built-in links, as before");
+  ok(slugs(builtinNavItems({})) === "random,projects,topics,studio" && builtinNavItems({})[0].nav_label === "Articles", "by default the built-in links, as before (and the Studio)");
   ok(builtinNavItems({ random: { label: "Writing" } })[0].nav_label === "Writing", "one can be renamed");
-  ok(slugs(builtinNavItems({ projects: { hidden: true } })) === "random,topics", "one can be hidden");
-  ok(slugs(builtinNavItems({}, new Set(["projects"]))) === "random,topics", "one is skipped when a nav page already links there (as before)");
+  ok(slugs(builtinNavItems({ projects: { hidden: true } })) === "random,topics,studio", "one can be hidden");
+  ok(slugs(builtinNavItems({}, new Set(["projects"]))) === "random,topics,studio", "one is skipped when a nav page already links there (as before)");
   ok(builtinNavItems({}).every((i) => i.nav_parent_id === null && Array.isArray(i.children) && i.children.length === 0), "and they have the shape the nav renderer expects");
-  ok(BUILTIN_NAV.length === 3, "(three of them)");
+  ok(BUILTIN_NAV.length === 4, "(four of them)");
 }
 
 // ---- reaching the nav, through listNavPages and the page shell ----
@@ -58,13 +58,13 @@ function makeEnv(settings, pageRows, extra = {}) {
 const labels = (nav) => nav.map((n) => n.nav_label).join("|");
 {
   const nav = await listNavPages(makeEnv({}, []));
-  ok(labels(nav) === "Articles|Projects|Topics" && nav.brand === "", "with no pages and nothing set: the built-in links and the default name, as before", [labels(nav), nav.brand]);
+  ok(labels(nav) === "Articles|Projects|Topics|Studio" && nav.brand === "", "with no pages and nothing set: the built-in links and the default name, as before", [labels(nav), nav.brand]);
   const named = await listNavPages(makeEnv({ site_brand: " My Site. ", nav_builtin: '{"random":{"label":"Writing"},"topics":{"hidden":true}}' }, []));
-  ok(labels(named) === "Writing|Projects" && named.brand === "My Site.", "the site name and the overrides are read even when no page has a nav label", [labels(named), named.brand]);
+  ok(labels(named) === "Writing|Projects|Studio" && named.brand === "My Site.", "the site name and the overrides are read even when no page has a nav label", [labels(named), named.brand]);
   const mixed = await listNavPages(makeEnv({ nav_builtin: '{"projects":{"hidden":true}}' }, [{ id: 7, slug: "about", nav_label: "About", nav_parent_id: null }]));
-  ok(labels(mixed) === "About|Articles|Topics", "the owner's pages come first, then the built-in links that are left", labels(mixed));
+  ok(labels(mixed) === "About|Articles|Topics|Studio", "the owner's pages come first, then the built-in links that are left", labels(mixed));
   const covered = await listNavPages(makeEnv({}, [{ id: 8, slug: "projects", nav_label: "My work", nav_parent_id: null }]));
-  ok(labels(covered) === "My work|Articles|Topics", "a nav page that stands in for a built-in link still replaces it", labels(covered));
+  ok(labels(covered) === "My work|Articles|Topics|Studio", "a nav page that stands in for a built-in link still replaces it", labels(covered));
 }
 {
   const shell = (brand) => {

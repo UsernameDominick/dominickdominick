@@ -48,6 +48,7 @@ export function buildSitemapEntries(data, { isInSitemap, reservedSlugs }) {
     { loc: "/archive", lastmod: latestOf([...articleDates, ...projectDates]) },
     { loc: "/random", lastmod: latestOf(articleDates) },
     { loc: "/projects", lastmod: latestOf(projectDates) },
+    { loc: "/studio" },
     ...tags.filter((t) => !topicIsThin(t)).map((t) => ({ loc: `/topics/${encodeURIComponent(t.tag)}`, lastmod: latestOf(tagged(t.tag)) })),
   ];
   // Each address once: /projects and /random were listed twice (as a page and as a built-in index), which search engines read as noise.

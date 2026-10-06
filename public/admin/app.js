@@ -8779,6 +8779,7 @@
     { slug: "random", label: "Articles" },
     { slug: "projects", label: "Projects" },
     { slug: "topics", label: "Topics" },
+    { slug: "studio", label: "Studio" },
   ];
   let navAllPages = [];
   let navRows = []; // the bar: {id, label, parentId, adminOnly}, top-level and nested rows in their order

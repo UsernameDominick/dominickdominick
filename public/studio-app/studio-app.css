@@ -1,0 +1,13 @@
+/* The Studio as a page of its own: the song builder without the admin around it, filling whatever frame it is shown in. */
+html, body.studio-app-body { height: 100%; margin: 0; }
+body.studio-app-body { overflow: hidden; background: var(--bg); color: var(--text); }
+#studio-loading { position: fixed; inset: 0; display: grid; place-items: center; margin: 0; color: var(--text-dim); font-size: 0.95rem; }
+/* Things that only make sense for the site's owner. */
+#close-songs, .usage-song, #song-generate-cover-art, .editor-help-btn, #studio-sheet-help, #song-view-toggle, .bulk-bar, #song-toolbar-publish { display: none !important; }
+/* The list of songs is the way back from a song, so it cannot be closed to nothing. */
+#songs-modal .redirects-hint { max-width: 62ch; }
+/* Filling the frame instead of floating over a page. */
+#song-builder-modal, #songs-modal { background: var(--bg); }
+#song-builder-modal .modal-inner, #songs-modal .modal-inner { width: 100%; height: 100%; max-width: none; border: 0; border-radius: 0; }
+#studio-help { display: none !important; }
+html, body.studio-app-body, #song-builder-modal, #songs-modal { background: transparent; }

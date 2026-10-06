@@ -4327,3 +4327,10 @@ main h2 > a:only-child, .thought h2 a { max-width: 100%; overflow-wrap: anywhere
 @media (max-width: 640px) {
   .canvas { row-gap: 16px; } /* not the column gap: 23 gaps share the 24 columns, so it stays small */
 }
+
+/* The Studio page: the song builder fills everything between the header and the footer. */
+.canvas.studio-canvas { display: flex; max-width: none; padding: 0; gap: 0; }
+.studio-frame { flex: 1; width: 100%; min-height: 780px; border: 0; display: block; background: var(--bg); }
+.studio-noscript { padding: 32px; }
+@media (max-width: 640px) { .canvas.studio-canvas { padding: 0; } .studio-frame { min-height: 880px; } }
+.studio-frame:focus, .studio-frame:focus-visible, .studio-frame:focus-within { outline: 2px solid var(--accent); outline-offset: -2px; }

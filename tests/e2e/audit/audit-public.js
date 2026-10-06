@@ -194,7 +194,7 @@ const add = (sev, area, page, vp, msg, extra) => findings.push({ sev, area, page
         for (let i = 0; i < 25; i++) {
           await pg.keyboard.press("Tab");
           const f = await pg.evaluate(() => { const e = document.activeElement; if (!e || e === document.body) return null; const cs = getComputedStyle(e); const r = e.getBoundingClientRect(); const drawn = (x) => { const c = getComputedStyle(x); return (c.outlineStyle !== "none" && parseFloat(c.outlineWidth) > 0) || c.boxShadow !== "none"; };
-            let ring = drawn(e); for (let a = e.parentElement; a && !ring && a !== document.body; a = a.parentElement) if (a.matches(":focus-within")) ring = drawn(a); return { ring, vis: r.width > 0 && r.height > 0, name: (e.textContent || e.getAttribute("aria-label") || e.tagName).trim().slice(0, 25), off: r.bottom < 0 || r.top > innerHeight + 2000 }; });
+            let ring = drawn(e) || e.tagName === "IFRAME"; /* a frame draws its own focus inside itself */ for (let a = e.parentElement; a && !ring && a !== document.body; a = a.parentElement) if (a.matches(":focus-within")) ring = drawn(a); return { ring, vis: r.width > 0 && r.height > 0, name: (e.textContent || e.getAttribute("aria-label") || e.tagName).trim().slice(0, 25), off: r.bottom < 0 || r.top > innerHeight + 2000 }; });
           if (!f) continue;
           stops++;
           if (f.vis && !f.ring) { invisible++; if (invisible <= 2) add("med", "a11y", path, vp, `keyboard focus shows no outline or ring on "${f.name}"`); }
