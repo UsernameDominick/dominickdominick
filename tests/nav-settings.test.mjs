@@ -80,11 +80,9 @@ const labels = (nav) => nav.map((n) => n.nav_label).join("|");
     if (brand !== undefined) nav.brand = brand;
     return renderShell({ title: "T", description: "d", path: "/", navItems: nav, activeSlug: "x", bodyHtml: "<p>hi</p>", theme: {}, footerText: null, customHead: null });
   };
-  ok(shell(undefined).includes('<a class="brand" href="/">dominick<span class="accent">.</span>dominick</a>'), "the page header shows dominick.dominick by default");
-  ok(shell("").includes('dominick<span class="accent">.</span>dominick</a>'), "and when the name is blank");
-  ok(shell("My Site").includes('<a class="brand" href="/">My Site</a>'), "a chosen name replaces it");
-  ok(shell("my.name.here").includes('my<span class="accent">.</span>name<span class="accent">.</span>here'), "each dot keeps the accent colour");
-  ok(shell("<img src=x onerror=1>").includes("&lt;img") && !shell("<img src=x onerror=1>").includes('<img src=x'), "markup in the name is escaped, never run");
+  // The owner took the site name off the header: it is the nav dial alone, whatever the name is set to (and a name never reaches it).
+  ok(!shell(undefined).includes('class="brand"') && !shell("My Site").includes('class="brand"'), "the page header has no site name, set or not");
+  ok(!shell("<img src=x onerror=1>").includes("<img src=x"), "a name with markup in it never reaches the page as markup");
 }
 
 console.log(fail ? `\n${fail} FAILED` : "\nALL PASS");

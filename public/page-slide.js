@@ -107,10 +107,29 @@ window.addEventListener("pagereveal", function (e) {
     if (doc.getElementById("main-content").querySelector("script, model-viewer, .mermaid, .katex-block, pre code")) return false;
     return headSignature(doc) === currentSignature();
   }
+  // A page fetched once is kept for the whole visit and shown at once when its tab is tapped; one older than FRESH is fetched again in the
+  // background at the same time, so the next visit has the new copy (stale-while-revalidate). A failed refresh keeps the copy it had.
+  var FRESH = 30000;
   function fetchDoc(url) {
     var hit = cache[url];
-    if (hit && Date.now() - hit.at < 120000) return hit.promise;
-    var promise = fetch(url, { credentials: "same-origin", headers: { Accept: "text/html" } }).then(function (res) {
+    if (hit) {
+      if (Date.now() - hit.at > FRESH && !hit.refreshing) {
+        hit.refreshing = true;
+        hit.promise.then(function () {
+          return request(url).then(function (res) {
+            cache[url] = { at: Date.now(), promise: Promise.resolve(res) };
+          });
+        }).catch(function () { hit.refreshing = false; });
+      }
+      return hit.promise;
+    }
+    var promise = request(url);
+    cache[url] = { at: Date.now(), promise: promise };
+    promise.catch(function () { if (cache[url] && cache[url].promise === promise) delete cache[url]; });
+    return promise;
+  }
+  function request(url) {
+    return fetch(url, { credentials: "same-origin", headers: { Accept: "text/html" } }).then(function (res) {
       var type = res.headers.get("content-type") || "";
       if (!res.ok || type.indexOf("text/html") < 0) throw new Error("not a page");
       return res.text().then(function (text) {
@@ -119,9 +138,6 @@ window.addEventListener("pagereveal", function (e) {
         return { url: u, doc: new DOMParser().parseFromString(text, "text/html") };
       });
     });
-    cache[url] = { at: Date.now(), promise: promise };
-    promise.catch(function () { delete cache[url]; });
-    return promise;
   }
   function copyHead(doc) {
     document.title = doc.title;
@@ -229,6 +245,7 @@ window.addEventListener("pagereveal", function (e) {
         fresh.focus({ preventScroll: true });
         fresh.addEventListener("blur", function () { fresh.removeAttribute("tabindex"); }, { once: true });
         if (res.url.hash) { var t = document.getElementById(decodeURIComponent(res.url.hash.slice(1))); if (t) t.scrollIntoView(); }
+        (window.requestIdleCallback || function (f) { setTimeout(f, 800); })(function () { warmAll(); }); // refresh the copies that have gone stale
       };
       if (!animate) { finish(); return; }
       var w = stage.getBoundingClientRect().width;
@@ -283,10 +300,15 @@ window.addEventListener("pagereveal", function (e) {
     if (url && clean(url.pathname) !== clean(location.pathname)) fetchDoc(url.href).catch(function () {});
   };
   // And every page of the nav once the page has settled, so a tap slides at once even on a phone (no hover there to warm it).
+  // A page that holds the Studio has its script loaded early too: on a page without the Studio it only fetches the editor in the
+  // background (public/studio.js, warm), so opening the Studio tab does not wait for it.
   var warmAll = function () {
     [].forEach.call(document.querySelectorAll(".tabs a.tab"), function (a) {
       var url = eligible(a, { button: 0 });
-      if (url && clean(url.pathname) !== clean(location.pathname)) fetchDoc(url.href).catch(function () {});
+      if (!url || clean(url.pathname) === clean(location.pathname)) return;
+      fetchDoc(url.href).then(function (res) {
+        if (res.doc.querySelector('script[src="/studio.js"]') && swappable(res.doc)) loadScripts(res.doc).catch(function () {});
+      }).catch(function () {});
     });
   };
   if (navigator.connection && navigator.connection.saveData) warmAll = function () {};

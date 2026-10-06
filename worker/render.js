@@ -2222,12 +2222,6 @@ function finderHtml(navItems, { searchQuery = "", editUrl = null } = {}) {
       </div>
     </div>`;
 }
-function brandHtml(brand) {
-  const name = String(brand || "").trim();
-  if (!name) return `dominick<span class="accent">.</span>dominick`;
-  return esc(name).replace(/\./g, '<span class="accent">.</span>');
-}
-
 export function renderShell({
   title,
   description,
@@ -2479,7 +2473,6 @@ ${customHead || ""}
   ${simDefsHolder(bodyHtml)}<a class="skip-link" href="#main-content">Skip to content</a>
   <div class="page">
     <header class="topbar">
-      <a class="brand" href="/">${brandHtml(navItems.brand)}</a>
       ${
         navItems.length
           ? `<nav class="site-nav" aria-label="Sections"><div class="tabs">

@@ -4602,3 +4602,7 @@ html.finder-on { overflow: hidden; }
 }
 @keyframes finder-in { from { opacity: 0; transform: translateY(-8px) scale(0.98); } to { opacity: 1; transform: none; } }
 @keyframes finder-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---- The header is the dial alone (the owner's choice: no site name on the left), centred on every width. ---- */
+.topbar { justify-content: center; }
+.topbar .site-nav { margin-left: auto; margin-right: auto; }

@@ -406,24 +406,39 @@
       }, 1200);
     }).observe(status, { childList: true, characterData: true, subtree: true });
   }
+  // The editor's markup and its (scoped) stylesheet, fetched once. warm() asks for them early, while the visitor is still on another
+  // page (page-slide.js loads this file when it warms the nav's pages), so opening the Studio does not wait on the network.
+  let parts = null;
+  function getParts() {
+    const text = (url) => fetch(url, { credentials: "omit" }).then((r) => { if (!r.ok) throw new Error("The Studio could not be loaded."); return r.text(); });
+    if (!parts) {
+      parts = Promise.all([text("/admin/index.html"), text("/admin/style.css"), text("/studio.css")]).then(([page, css, own]) => ({ page, css: scopeCss(css), own }));
+      parts.catch(() => { parts = null; });
+    }
+    return parts;
+  }
+  function warm() {
+    if (shell || booting) return;
+    getParts().catch(() => {});
+    SCRIPTS.forEach((src) => {
+      if (document.querySelector(`link[rel="prefetch"][href="${src}"]`)) return;
+      const link = document.createElement("link");
+      link.rel = "prefetch";
+      link.as = "script";
+      link.href = src;
+      document.head.appendChild(link);
+    });
+  }
+
   async function boot(mount) {
     mount.innerHTML = `<p class="studio-loading" role="status">Loading the Studio…</p>`;
-    const [page, css] = await Promise.all([
-      fetch("/admin/index.html", { credentials: "omit" }).then((r) => { if (!r.ok) throw new Error("The Studio could not be loaded."); return r.text(); }),
-      fetch("/admin/style.css", { credentials: "omit" }).then((r) => { if (!r.ok) throw new Error("The Studio could not be loaded."); return r.text(); }),
-    ]);
+    const { page, css, own } = await getParts();
     const style = document.createElement("style");
     style.id = "studio-scoped-css";
     style.dataset.addedBy = "studio"; // page-slide.js leaves it out when it compares pages
-    style.textContent = scopeCss(css);
+    // The editor's styles, then the page's own (studio.css) after them, both in place before anything is shown: no unstyled flash.
+    style.textContent = css + "\n" + own;
     document.head.appendChild(style);
-    if (!document.querySelector('link[href="/studio.css"]')) {
-      const link = document.createElement("link");
-      link.rel = "stylesheet";
-      link.href = "/studio.css";
-      link.dataset.addedBy = "studio";
-      document.head.appendChild(link);
-    }
     const doc = new DOMParser().parseFromString(page, "text/html");
     doc.querySelectorAll("script").forEach((s) => s.remove());
     shell = document.createElement("div");
@@ -505,6 +520,11 @@
       mount.innerHTML = `<p class="studio-loading" role="alert">${esc(err && err.message ? err.message : "The Studio could not be loaded.")}</p>`;
     });
   };
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => window.siteInitStudio(document));
-  else window.siteInitStudio(document);
+  // On another page this file was only loaded to get ready: fetch the editor while the browser is idle.
+  const start = () => {
+    window.siteInitStudio(document);
+    if (!shell && !booting && !(navigator.connection && navigator.connection.saveData)) (window.requestIdleCallback || ((f) => setTimeout(f, 600)))(warm);
+  };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
+  else start();
 })();
