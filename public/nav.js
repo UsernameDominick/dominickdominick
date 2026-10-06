@@ -175,6 +175,23 @@ document.addEventListener("input", function (e) {
   // Styles that depend on the rest of the page (the Studio page's slim header) only apply once it has been read, so look again then.
   document.addEventListener("DOMContentLoaded", layout);
   window.addEventListener("load", layout); // and once the fonts are in, which can change the widths
+  // And whenever the strip or a stop changes size for any other reason (a page slid in with a slimmer header, a font arriving):
+  // the ticks and the needle are measured from the stops, so they are measured again.
+  var queued = 0;
+  function soon() {
+    if (queued) return;
+    queued = requestAnimationFrame(function () {
+      queued = 0;
+      ruler();
+      place();
+    });
+  }
+  if (typeof ResizeObserver === "function") {
+    var ro = new ResizeObserver(soon);
+    ro.observe(wrap);
+    [].forEach.call(wrap.querySelectorAll(":scope > .tab, :scope > .tab-group"), function (s) { ro.observe(s); });
+  }
+  document.addEventListener("site:arrive", function () { setTimeout(layout, 0); });
   window.siteLayoutNav = layout;
   var tabsList = [].slice.call(wrap.querySelectorAll(".tab"));
   tabsList.forEach(function (tab) {
