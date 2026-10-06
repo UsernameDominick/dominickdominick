@@ -1,0 +1,124 @@
+/* The app pages built on public/app-kit.js (PicEditor, Simulations, Scans): the page part. The admin's own stylesheet is added scoped to
+   .app-native by app-kit.js, and this file right after it in the same <style>. The shelf look is the Studio's (studio.css). */
+.app-mount { position: relative; flex: 1 1 auto; min-height: 0; width: 100%; display: flex; flex-direction: column; }
+.app-native { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.app-native .app-shell { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: transparent; color: var(--text); }
+/* Things only the site's owner has a use for. */
+.app-native :is(.editor-help-btn, .usage-song, .bulk-bar) { display: none !important; }
+/* The editor's "×" reads "Pictures" (or the app's word) and goes back to the shelf. */
+.app-native .app-back { width: auto !important; min-width: 0; padding: 0 14px !important; font-size: 0.85rem !important; font-weight: 600; }
+
+/* ---- PicEditor: the photo editor fills the page under the nav instead of floating; its small prompt still floats. ---- */
+.app-native #photo-editor-modal {
+  position: absolute; inset: 0; z-index: 1; display: flex; padding: 0; background: transparent; animation: none; backdrop-filter: none;
+}
+.app-native #photo-editor-modal[hidden] { display: none !important; }
+.app-native #photo-editor-modal > .modal-inner {
+  width: 100% !important; height: 100% !important; max-width: none !important; max-height: none !important;
+  margin: 0; border: 0; border-radius: 0; box-shadow: none; animation: none;
+}
+.app-native #photo-editor-prompt-modal { z-index: 1100; }
+.app-native .pic-drop-hint { margin: 10px 0 0; font-size: 0.82rem; color: var(--text-dim); }
+.app-native .pic-shelf.is-dropping { outline: 2px dashed var(--accent); outline-offset: -8px; border-radius: 16px; }
+.app-native .chip-size { margin-left: 4px; font-weight: 500; color: var(--text-dim); font-size: 0.78rem; }
+.app-native .pic-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.app-native .pic-thumb {
+  display: block; aspect-ratio: 4 / 3; margin: 0 0 8px; border-radius: 10px; overflow: hidden;
+  background: repeating-conic-gradient(color-mix(in srgb, var(--text) 8%, transparent) 0 25%, transparent 0 50%) 0 0 / 16px 16px;
+}
+.app-native .pic-thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.app-native .pic-card .shelf-name { padding-right: 0; }
+
+/* ---- the shelf: the visitor's songs ---- */
+.app-native .studio-shelf { flex: 1 1 auto; min-height: 0; overflow-y: auto; width: 100%; max-width: 1080px; margin: 0 auto; padding: 28px 24px 40px; }
+.app-native .studio-shelf[hidden] { display: none; }
+.app-native .shelf-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px 24px; }
+.app-native .shelf-head .shelf-title { margin: 0 0 6px; font-size: clamp(1.8rem, 4vw, 2.6rem); letter-spacing: -0.02em; }
+.app-native .shelf-lede { margin: 0; max-width: 56ch; color: var(--text-dim); }
+.app-native .shelf-new { flex: 0 0 auto; }
+.app-native .shelf-new #new-song-btn { min-height: 48px; padding: 0 22px; font-size: 1rem; }
+/* The starters are one row that scrolls sideways, running to the edges of the shelf (its own padding keeps the first chip in line). */
+.app-native .shelf-starters {
+  --shelf-pad: 24px;
+  display: flex; flex-wrap: nowrap; align-items: center; gap: 8px; margin: 14px calc(-1 * var(--shelf-pad)) 0; padding: 4px var(--shelf-pad);
+  overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; scroll-padding-inline: var(--shelf-pad);
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.app-native .shelf-starters::-webkit-scrollbar { display: none; }
+.app-native .shelf-starters:empty { display: none; }
+.app-native .shelf-starters > * { flex: 0 0 auto; white-space: nowrap; }
+.app-native .shelf-chip, .app-native .shelf-starters-label { scroll-snap-align: start; }
+.app-native .shelf-starters-label { font-size: 0.85rem; color: var(--text-dim); margin-right: 2px; }
+.app-native .shelf-chip {
+  min-height: 36px; padding: 0 14px; font: inherit; font-size: 0.85rem; font-weight: 600; color: var(--text); cursor: pointer;
+  background: transparent; border: min(var(--btn-border-width, 3px), 2px) solid color-mix(in srgb, var(--btn-ink, var(--text)) 55%, transparent); border-radius: 999px;
+}
+.app-native .shelf-chip:hover { border-color: var(--accent); color: var(--text); }
+.app-native .shelf-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 32px 0 12px; }
+.app-native .shelf-sub { margin: 0; font-size: 1.05rem; }
+.app-native .shelf-count { margin-left: 6px; font-size: 0.8rem; font-weight: 500; color: var(--text-dim); }
+.app-native .shelf-files { display: flex; flex-wrap: wrap; gap: 8px; }
+.app-native .shelf-files button {
+  min-height: 36px; padding: 0 12px; font: inherit; font-size: 0.82rem; font-weight: 600; color: var(--text); cursor: pointer;
+  background: transparent; border: min(var(--btn-border-width, 3px), 2px) solid color-mix(in srgb, var(--btn-ink, var(--text)) 55%, transparent); border-radius: var(--btn-radius, 12px);
+}
+.app-native .studio-shelf .song-file-status { margin: 0 0 8px; font-size: 0.85rem; color: var(--text-dim); }
+.app-native .studio-shelf .song-file-status:empty { display: none; }
+.app-native .shelf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+.app-native .shelf-empty { grid-column: 1 / -1; margin: 8px 0; padding: 28px; text-align: center; color: var(--text-dim); border: 2px dashed var(--border); border-radius: 16px; }
+.app-native .shelf-card {
+  position: relative; display: flex; flex-direction: column; min-width: 0; background: var(--bg-elevated);
+  border: 1px solid var(--border); border-radius: 16px; overflow: hidden;
+}
+.app-native .shelf-card:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.app-native .shelf-open {
+  display: flex; flex-direction: column; gap: 4px; padding: 14px 14px 10px; margin: 0; text-align: left; font: inherit; color: var(--text);
+  background: transparent; border: 0; border-radius: 0; box-shadow: none; filter: none; transform: none; min-height: 0; cursor: pointer;
+}
+.app-native .shelf-open:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.app-native .shelf-picture { display: flex; flex-direction: column; gap: 3px; margin: 0 0 8px; padding: 10px; border-radius: 10px; background: color-mix(in srgb, var(--text) 5%, transparent); }
+.app-native .shelf-row { display: grid; grid-template-columns: repeat(16, 1fr); gap: 2px; }
+.app-native .shelf-row i { height: 6px; border-radius: 2px; background: color-mix(in srgb, var(--text) 8%, transparent); }
+.app-native .shelf-row i.on { background: var(--c); }
+.app-native .shelf-name { font-weight: 650; font-size: 1rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 48px; }
+.app-native .shelf-when { font-size: 0.78rem; color: var(--text-dim); }
+.app-native .shelf-play {
+  position: absolute; right: 12px; bottom: 50px; z-index: 1; width: 44px; height: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
+  color: var(--on-accent); background: var(--accent); border: min(var(--btn-border-width, 3px), 2px) solid var(--btn-ink, transparent); border-radius: 50%;
+  box-shadow: var(--btn-shadow-sm, none); cursor: pointer;
+}
+.app-native .shelf-play svg { width: 20px; height: 20px; fill: currentColor; }
+.app-native .shelf-play .i-stop, .app-native .shelf-play[aria-pressed="true"] .i-play { display: none; }
+.app-native .shelf-play[aria-pressed="true"] .i-stop { display: inline; }
+.app-native .shelf-actions { display: flex; gap: 2px; padding: 0 8px 8px; }
+.app-native .shelf-actions button {
+  min-height: 32px; padding: 0 10px; font: inherit; font-size: 0.78rem; color: var(--text-dim); cursor: pointer;
+  background: transparent; border: 0; border-radius: 8px; box-shadow: none;
+}
+.app-native .shelf-actions button:hover { color: var(--text); background: color-mix(in srgb, var(--text) 8%, transparent); }
+.app-native .shelf-actions .shelf-delete:hover { color: var(--error-text); }
+.app-native .song-studio, .app-native .studio-shelf { --track-1: #ff7a45; --track-2: #4aa3ff; --track-3: #3ecf8e; --track-4: #b388ff; --track-5: #ff6fae; }
+:root[data-theme="light"] .app-native .studio-shelf { --track-1: #c2410c; --track-2: #1d5fc2; --track-3: #0f7a55; --track-4: #6d35c9; --track-5: #b0245f; }
+@media (max-width: 640px) {
+  .app-native .studio-shelf { padding: 18px 16px 28px; }
+  .app-native .shelf-starters { --shelf-pad: 16px; }
+  .app-native .shelf-new { width: 100%; }
+  .app-native .shelf-new #new-song-btn { width: 100%; }
+  .app-native .shelf-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .app-native .shelf-name { font-size: 0.9rem; padding-right: 0; }
+  .app-native .shelf-play { width: 40px; height: 40px; bottom: auto; top: 10px; right: 10px; }
+}
+@media (max-width: 360px) { .app-native .shelf-grid { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: no-preference) {
+  .app-native .shelf-card { transition: border-color 0.2s, transform 0.2s; }
+  .app-native .shelf-card:hover { transform: translateY(-2px); }
+  .app-native .shelf-play:active { transform: translateY(2px); box-shadow: none; }
+}
+/* The shelf's main button: the site's accent button (the admin's own button rule would otherwise win inside .app-native). */
+.app-native .shelf-new .btn-accent {
+  min-height: 48px; padding: 0 22px; font-size: 1rem; font-weight: 700; color: var(--on-accent, #fff); background: var(--accent);
+  border: min(var(--btn-border-width, 3px), 2px) solid var(--btn-ink, transparent); border-radius: var(--btn-radius, 12px); box-shadow: var(--btn-shadow-sm, none);
+}
+@media (max-width: 640px) { .app-native .shelf-new .btn-accent { width: 100%; } }
+/* A card's actions wrap rather than run off a narrow card. */
+.app-native .shelf-actions { flex-wrap: wrap; }

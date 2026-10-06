@@ -139,6 +139,25 @@ The admin opens on the page itself. `page-first.js` puts the page chooser (`.adm
 - **The builder's markup lives in `public/admin/index.html`**: if that page is ever restructured, keep those ids (or move the markup to a shared file and load it from both). Something the builder looks up at start that is not inside those three dialogs has to be added to the shell in `boot`.
 - `tests/e2e/test_studio_page.js` covers it as a visitor (shelf, save, Songs, card play, copy/delete, slide away and back, a phone).
 
+## App pages (PicEditor, and next Simulations and Scans)
+
+Admin tools as pages every visitor can use, the same idea as the Studio, built on **`public/app-kit.js`** (`window.SiteAppKit`) with
+`public/app-kit.css`. Each one is an entry in `worker/app-pages.js` (`APP_PAGES`: path, nav slug, words, `mountId`, script; `index.js`
+routes them, `render.js` adds `/app-kit.js` + the app script, `sitemap.js` lists them), a built-in nav link (`BUILTIN_NAV` in
+`worker/nav-settings.js` and `BUILTIN_NAV_LINKS` in app.js), a reserved slug (`db.js`), and its script in page-slide's `LOADABLE`.
+- **The kit:** fetches `/admin/index.html` and `/admin/style.css` once for all apps, adds the admin styles **scoped under `.app-native`** (body →
+  `.app-shell`) plus `app-kit.css` in one `<style id="app-kit-css" data-added-by>`, takes the app's dialogs out of the admin page, loads its
+  scripts once, and `register(app)` runs the page life (boot on the mount, park in `#app-parking` on `site:arrive`, place back on return,
+  `window.siteInitApps` called from `siteInitContent`, warm while idle on other pages). The editor's calls are answered in the browser:
+  `addApi(fn(path, method, body))` (chained, falls back to the Studio's), `addFetch` for `fetch("/api/admin/…")`, `presetApi(path, key)` for
+  named presets in localStorage, `fileStore(db)` for files in IndexedDB. Nothing is sent to the server.
+- **PicEditor (`/piceditor`, `public/piceditor.js`):** the photo editor (`#photo-editor-modal`, `#photo-editor-prompt-modal`, scripts
+  `photo-color.js` + `photo-editor.js`). Pictures live in IndexedDB `piceditor-pictures`. Save as new = `window.adminUploadBlob` (a new
+  picture); a saved picture opens as key `local-<id>` and the editor's Overwrite (relabelled **Save**) is its `PUT /api/admin/media/local-<id>`,
+  answered by `addFetch`; its "Overwrite?" confirm is skipped. **Never hide `#photo-editor-modal` to park it**: hiding frees its layers and
+  history, so PicEditor's `park` only sets `aria-modal="false"` (the editor's shortcuts listen only while it is `"true"`). The public CSP
+  allows `blob:` images and fetches for these pages. `tests/e2e/test_piceditor_page.js` covers it.
+
 ## Hidden Notes
 
 `/hidden-notes` (owner only; anyone else gets the normal 404) is a vault of notes sealed in the browser (`public/hidden-notes.js`, PBKDF2 then AES-GCM). The server (`worker/hidden-notes.js`, `/api/admin/hidden-notes*`) only stores sealed blobs in `hidden_note:*` settings rows plus `hidden_notes_meta`. Those rows are excluded from `exportAll`, skipped on import, and left alone by a restore (`isHiddenNotesKey`). Never log a note's content, never render it server-side, and keep it out of any new export or search.

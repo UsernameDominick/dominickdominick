@@ -26,6 +26,9 @@ export const RESERVED_SLUGS = new Set([
   "simulation",
   "studio",
   "studio-app",
+  "piceditor",
+  "simulations",
+  "scans",
   "favicon.ico",
 ]);
 

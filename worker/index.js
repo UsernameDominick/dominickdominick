@@ -120,6 +120,7 @@ import { safeRedirectStatus } from "./redirects.js";
 import { cleanTrackName, cleanTrackPath } from "./track.js";
 import { SVG_CSP, isSvgContentType } from "./svg.js";
 import { trailingSlashTarget } from "./trailing-slash.js";
+import { appPageFor, appPageBody } from "./app-pages.js";
 import {
   capacitanceMicrofarads,
   computeCircuitAnalysis,
@@ -1340,9 +1341,10 @@ const SECURITY_HEADERS = {
     // and glyph fonts from the same jsdelivr build as its JS module, which
     // script-src above already trusts.
     "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net",
-    "img-src 'self' data: https:",
+    // blob: the app pages (PicEditor, Scans) show and load what a visitor made from their own device or browser storage.
+    "img-src 'self' data: blob: https:",
     "font-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net data:",
-    "connect-src 'self' https://cdn.jsdelivr.net",
+    "connect-src 'self' blob: https://cdn.jsdelivr.net",
     "worker-src 'self' blob: https://cdn.jsdelivr.net",
     // The Generic Embed block is deliberately "any iframe-able link" —
     // restricting this to a fixed list of services would break that
@@ -1701,6 +1703,27 @@ async function route(request, env, ctx) {
         navItems,
         activeSlug: "studio",
         bodyHtml: `<h1 class="sr-only">Studio: make music in your browser</h1><p class="sr-only">A step sequencer, a piano roll, forty instruments and fifteen drum kits, with five tracks (drums, bass, chords, melody and lead), looping bars, MIDI keyboard input and song files you can save and share. Songs you make here are kept in your own browser and are never sent to the site.</p><div class="studio-mount" id="studio-mount"><p class="studio-loading" role="status">Loading the Studio…</p></div><noscript><p class="studio-noscript">The Studio needs JavaScript.</p></noscript>`,
+        theme,
+        footerText,
+        customHead,
+        canvasClass: "canvas studio-canvas",
+      });
+      return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
+    }
+
+    // The other app pages (PicEditor…): the same shape as the Studio, from worker/app-pages.js.
+    const appPage = appPageFor(path);
+    if (appPage) {
+      const navItems = await listNavPages(env);
+      const { theme, footerText, customHead } = await getSiteContext(env);
+      const esc = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      const html = renderShell({
+        title: appPage.title,
+        description: appPage.description,
+        path,
+        navItems,
+        activeSlug: appPage.slug,
+        bodyHtml: appPageBody(appPage, esc),
         theme,
         footerText,
         customHead,

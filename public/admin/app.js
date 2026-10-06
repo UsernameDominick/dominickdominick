@@ -9194,6 +9194,7 @@
     { slug: "projects", label: "Projects", hiddenByDefault: true },
     { slug: "topics", label: "Topics", hiddenByDefault: true },
     { slug: "studio", label: "Studio" },
+    { slug: "piceditor", label: "PicEditor" },
   ];
   let navAllPages = [];
   let navRows = []; // the bar: {id, label, parentId, adminOnly}, top-level and nested rows in their order

@@ -1,3 +1,4 @@
+import { APP_PAGES } from "./app-pages.js";
 import { listArticles, listProjects, getPublishedSimulation, getScan, getSong, getMediaMeta } from "./db.js";
 import { safeImageSrc, mediaKeyFor, paragraphPictures, bodyPictures, PICTURE_ONLY_LINE } from "./pictures.js";
 import { paragraphEmbed, bodyEmbeds, EMBED_ONLY_LINE, MAX_BODY_EMBEDS } from "./embeds.js";
@@ -2166,6 +2167,9 @@ function pageScriptsHtml(bodyHtml) {
   if (/class="(?:block-image|gallery)"|body-figure|image-figure/.test(html)) tags.push('<script src="/lightbox.js" defer></script>');
   // The Studio page (/studio): builds itself into its mount.
   if (html.includes('id="studio-mount"')) tags.push('<script src="/studio.js" defer></script>');
+  // The other app pages: the kit, then the app's own script (worker/app-pages.js).
+  const app = APP_PAGES.find((a) => html.includes(`id="${a.mountId}"`));
+  if (app) tags.push('<script src="/app-kit.js" defer></script>', `<script src="${app.script}" defer></script>`);
   // STUDY (temporary): the popup for a Study block.
   tags.push(...studyPageTags(html));
   return tags.join("\n");

@@ -34,7 +34,7 @@ const RULES = [
   ["topics", /topic|tag|categor|subject/],
   ["circuit", /circuit|sim|electr/],
   ["scans", /scan|3d|model/],
-  ["photos", /photo|gallery|image|picture/],
+  ["photos", /photo|gallery|image|picture|^pic/],
   ["contact", /contact|message|chat|mail|hello/],
   ["about", /about|bio|^me$|who/],
   ["resume", /resume|cv|experience/],

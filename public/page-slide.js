@@ -54,7 +54,7 @@ window.addEventListener("pagereveal", function (e) {
   var SAFE_SCRIPTS = { "/nav.js": 1, "/page-slide.js": 1, "/lightbox.js": 1 };
   // Scripts a swapped-in page may bring: loaded once (in order) the first time a page needs them, and set up for each page by
   // window.siteInitContent (song players, circuits, pictures), so these pages slide like the rest instead of loading from scratch.
-  var LOADABLE = { "/sim-buzzer.js": 1, "/sim-player.js": 1, "/song-engine.js": 1, "/song-embed.js": 1, "/lightbox.js": 1, "/studio.js": 1 };
+  var LOADABLE = { "/sim-buzzer.js": 1, "/sim-player.js": 1, "/song-engine.js": 1, "/song-embed.js": 1, "/lightbox.js": 1, "/studio.js": 1, "/app-kit.js": 1, "/piceditor.js": 1, "/simulations.js": 1, "/scans.js": 1 };
   var DURATION = 420;
   var EASE = "cubic-bezier(0.22, 0.8, 0.28, 1)";
   var cache = {}; // url -> {at, promise}
@@ -428,7 +428,7 @@ window.addEventListener("pagereveal", function (e) {
       fetchDoc(url.href).then(function (res) {
         if (!swappable(res.doc)) return;
         warmPictures(res);
-        if (res.doc.querySelector('script[src="/studio.js"]')) loadScripts(res.doc).catch(function () {});
+        if (res.doc.querySelector('script[src="/studio.js"], script[src="/app-kit.js"]')) loadScripts(res.doc).catch(function () {});
       }).catch(function () {});
     });
   };

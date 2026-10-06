@@ -1,4 +1,5 @@
 // sitemap.xml: which addresses are listed and when each last changed. Pure (no database, no Response) so a node test can feed it fixtures.
+import { APP_PAGES } from "./app-pages.js";
 
 // "2026-10-02" from a stored timestamp ("2026-10-02 08:30:00", "2026-10-02T08:30", "2026-10-02T08:30:00.000Z"), or null when the
 // value is missing or not a date (a damaged row must never take the whole sitemap down).
@@ -49,6 +50,7 @@ export function buildSitemapEntries(data, { isInSitemap, reservedSlugs }) {
     { loc: "/random", lastmod: latestOf(articleDates) },
     { loc: "/projects", lastmod: latestOf(projectDates) },
     { loc: "/studio" },
+    ...APP_PAGES.map((a) => ({ loc: a.path })),
     ...tags.filter((t) => !topicIsThin(t)).map((t) => ({ loc: `/topics/${encodeURIComponent(t.tag)}`, lastmod: latestOf(tagged(t.tag)) })),
   ];
   // Each address once: /projects and /random were listed twice (as a page and as a built-in index), which search engines read as noise.

@@ -728,6 +728,7 @@ window.siteInitContent = function (root) {
   if (window.siteInitSongs) window.siteInitSongs(root);
   if (window.siteInitSims) window.siteInitSims(root);
   if (window.siteInitStudio) window.siteInitStudio(root);
+  if (window.siteInitApps) window.siteInitApps(root); // PicEditor, Simulations, Scans (public/app-kit.js)
 };
 
 // .tabs (the persistent Articles/Projects/Topics nav pill) scrolls
