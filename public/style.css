@@ -4617,3 +4617,5 @@ html.finder-on { overflow: hidden; }
 }
 /* The needle is as tall as the ruler's long ticks, so it never reaches up into the tab's name. */
 .tab-indicator::after { height: 9px; box-shadow: 0 0 6px var(--accent); }
+/* After a slide the new page takes the focus (so a screen reader starts there); it is not something to press, so no focus ring. */
+#main-content:focus, #main-content:focus-visible { outline: none; }
