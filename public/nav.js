@@ -126,13 +126,12 @@ document.addEventListener("input", function (e) {
 (function () {
   var wrap = document.querySelector(".tabs");
   if (!wrap) return;
-  var active = wrap.querySelector(".tab.is-active");
 
   // On a narrow screen the row of tabs scrolls sideways. Bring this page's tab into view, centred where there is room, so the
   // visitor never lands on a page whose own tab is cut off at the edge.
   function reveal() {
     var max = wrap.scrollWidth - wrap.clientWidth;
-    var cur = wrap.querySelector(".tab.is-active") || active;
+    var cur = wrap.querySelector(".tab.is-active");
     if (max <= 0 || !cur) return;
     var target = cur.offsetLeft - (wrap.clientWidth - cur.offsetWidth) / 2;
     wrap.scrollLeft = Math.max(0, Math.min(max, target));
@@ -148,10 +147,9 @@ document.addEventListener("input", function (e) {
   function place(target) {
     // the active tab changes when a page slides in, and Search counts as the current stop while the finder is open
     var tab = target || wrap.querySelector('.tab-finder[aria-expanded="true"]') || wrap.querySelector(".tab.is-active");
-    if (!tab) {
-      wrap.style.setProperty("--indicator-width", "0px");
-      return;
-    }
+    // A page with no tab of its own (an article, a missing page) has no needle at all, not a stub of one left where it last was.
+    wrap.classList.toggle("no-needle", !tab);
+    if (!tab) return;
     var t = tab.getBoundingClientRect();
     wrap.style.setProperty("--indicator-width", t.width + "px");
     wrap.style.setProperty("--indicator-x", t.left - origin() + "px");

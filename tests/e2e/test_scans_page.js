@@ -92,6 +92,10 @@ function glb() {
     await mp.waitForTimeout(300);
     const over = await mp.evaluate(() => document.documentElement.scrollWidth - innerWidth);
     ok(shelfOver <= 0 && over <= 0, "on a phone nothing runs past the screen", [shelfOver, over]);
+    // no room for a side column on a phone: the model on top, the details under it, each as wide as the screen allows
+    const lay = await mp.evaluate(() => { const v = document.querySelector(".scan-editor-preview").getBoundingClientRect(); const f = document.querySelector(".scan-editor-fields").getBoundingClientRect(); return { previewTop: v.top, fieldsTop: f.top, previewW: v.width, fieldsW: f.width, vw: innerWidth, back: document.getElementById("close-scan-editor").getBoundingClientRect().height }; });
+    ok(lay.previewTop < lay.fieldsTop && lay.previewW >= lay.vw - 2 && lay.fieldsW >= lay.vw - 2, "on a phone the scan editor stacks: the model on top, the details below, both full width", lay);
+    ok(lay.back >= 30, "and the Scans button is big enough to tap", lay.back);
     ok(merrs.length === 0, "no page errors on a phone", merrs);
     await m.close();
 

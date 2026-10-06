@@ -22,6 +22,14 @@ A Cloudflare Worker + D1 site with a built-in visual page editor.
   through the Worker at `/media/:key` rather than R2's public dev URLs,
   which Cloudflare doesn't consider production-ready.
 
+## Tool pages for visitors
+
+Four of the admin's tools are also pages of the public site, built on one shared base (`public/app-kit.js`): **/studio** (the song
+builder), **/piceditor** (the photo editor), **/simulations** (the circuit builder) and **/scans** (the 3D scan viewer). Each opens on a
+shelf of what the visitor has made, with the editor opening in place under the nav. Everything a visitor makes is kept in their own
+browser (localStorage and IndexedDB) and is never sent to the site. They are links in the nav (Site Settings > Header & footer can hide
+any of them), listed in the sitemap, and the nav is a dial with a ruler whose ticks sit under each tab.
+
 ## Editing content
 
 Go to `/admin` and log in with the admin password (set as a Cloudflare

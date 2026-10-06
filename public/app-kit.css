@@ -6,7 +6,7 @@
 /* Things only the site's owner has a use for. */
 .app-native :is(.editor-help-btn, .usage-song, .bulk-bar) { display: none !important; }
 /* The editor's "×" reads "Pictures" (or the app's word) and goes back to the shelf. */
-.app-native .app-back { width: auto !important; min-width: 0; padding: 0 14px !important; font-size: 0.85rem !important; font-weight: 600; }
+.app-native .app-back { display: inline-flex; align-items: center; justify-content: center; width: auto !important; min-width: 0; min-height: 36px; padding: 0 14px !important; font-size: 0.85rem !important; font-weight: 600; }
 
 /* ---- PicEditor: the photo editor fills the page under the nav instead of floating; its small prompt still floats. ---- */
 .app-native #photo-editor-modal {
@@ -90,7 +90,8 @@
 .app-native .shelf-play svg { width: 20px; height: 20px; fill: currentColor; }
 .app-native .shelf-play .i-stop, .app-native .shelf-play[aria-pressed="true"] .i-play { display: none; }
 .app-native .shelf-play[aria-pressed="true"] .i-stop { display: inline; }
-.app-native .shelf-actions { display: flex; gap: 2px; padding: 0 8px 8px; }
+/* A card's actions wrap rather than run off a narrow card. */
+.app-native .shelf-actions { display: flex; flex-wrap: wrap; gap: 2px; padding: 0 8px 8px; }
 .app-native .shelf-actions button {
   min-height: 32px; padding: 0 10px; font: inherit; font-size: 0.78rem; color: var(--text-dim); cursor: pointer;
   background: transparent; border: 0; border-radius: 8px; box-shadow: none;
@@ -124,8 +125,6 @@
   .app-native .shelf-new .btn-accent:active { transform: translateY(var(--btn-press, 4px)); box-shadow: 0 1px 0 var(--btn-ink, transparent); }
 }
 @media (max-width: 640px) { .app-native .shelf-new .btn-accent { width: 100%; } }
-/* A card's actions wrap rather than run off a narrow card. */
-.app-native .shelf-actions { flex-wrap: wrap; }
 
 /* ---- Simulations: the circuit builder fills the page under the nav; its smaller dialogs still float. ---- */
 .app-native #simulation-builder-modal {

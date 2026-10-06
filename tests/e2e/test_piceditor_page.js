@@ -100,6 +100,8 @@ function png(w, h) {
     await mp.waitForTimeout(300);
     const over = await mp.evaluate(() => document.documentElement.scrollWidth - innerWidth);
     ok(shelfOver <= 0 && over <= 0, "on a phone nothing runs past the screen", [shelfOver, over]);
+    const backH = await mp.evaluate(() => document.getElementById("close-photo-editor").getBoundingClientRect().height);
+    ok(backH >= 30, "the Pictures button is big enough to tap", backH);
     ok(merrs.length === 0, "no page errors on a phone", merrs);
     await m.close();
 

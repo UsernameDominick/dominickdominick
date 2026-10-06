@@ -11,6 +11,15 @@ const BODY = "This is a synthetic QQ body that is comfortably longer than fifty 
   const api = async (m, p, body) => { const r = await admin.fetch(BASE + "/api/admin" + p, { method: m, headers: { "content-type": "application/json" }, data: body === undefined ? undefined : JSON.stringify(body) }); let j = null; try { j = await r.json(); } catch (e) {} return { s: r.status(), j }; };
   const made = { articles: [], projects: [], pages: [] };
   const get = async (ctx, path) => { const r = await ctx.fetch(BASE + path, { maxRedirects: 0 }); return { s: r.status(), h: r.headers(), t: await r.text() }; };
+  // /search is rate limited (429 with Retry-After) and a full run asks it often from one address: wait that out rather than fail.
+  const getSearch = async (ctx, path) => {
+    for (let i = 0; i < 3; i++) {
+      const r = await get(ctx, path);
+      if (r.s !== 429) return r;
+      await new Promise((done) => setTimeout(done, Math.min(65, Number(r.h["retry-after"]) || 30) * 1000));
+    }
+    return get(ctx, path);
+  };
   try {
     const sched = await api("POST", "/articles", { title: "QQ preview scheduled", slug: "qq-prev-sched", body: BODY, published: true, published_at: day(10) }); made.articles.push(sched.j.id);
     const expiring = await api("POST", "/articles", { title: "QQ preview expiring", slug: "qq-prev-exp", body: BODY, published: true, expires_at: day(10) }); made.articles.push(expiring.j.id);
@@ -34,7 +43,7 @@ const BODY = "This is a synthetic QQ body that is comfortably longer than fifty 
     r = await get(admin, `/random?preview_at=${when}`); ok(/qq-prev-sched/.test(r.t) && !/qq-prev-exp/.test(r.t), "preview +20d: the articles index lists/omits the right ones");
     r = await get(admin, `/rss.xml?preview_at=${when}`); ok(/qq-prev-sched/.test(r.t), "preview +20d: the RSS feed reflects it too");
     r = await get(admin, `/sitemap.xml?preview_at=${when}`); ok(/qq-prev-sched/.test(r.t), "preview +20d: so does the sitemap");
-    r = await get(admin, `/search?q=QQ+preview&preview_at=${when}`); ok(/qq-prev-sched/.test(r.t), "preview +20d: and search");
+    r = await getSearch(admin, `/search?q=QQ+preview&preview_at=${when}`); ok(/qq-prev-sched/.test(r.t), "preview +20d: and search");
     // banner placement and path safety
     await api("POST", `/pages/${pg.j.id}/blocks`, { type: "html", content: { html: '<script>var s="</body>";</script><p>QQ html block</p>' }, style: {}, col: 1, col_span: 12, row: 8, row_span: 2 });
     r = await get(admin, `/qq-prev-page?preview_at=${when}`);
@@ -51,16 +60,16 @@ const BODY = "This is a synthetic QQ body that is comfortably longer than fifty 
     const viewsAfter = (await api("GET", "/analytics")).j.allTime;
     ok(viewsAfter === viewsBefore, "preview visits are not counted as pageviews", [viewsBefore, viewsAfter]);
     // search-suggest follows the preview (cookie path)
-    r = await get(admin, `/api/search-suggest?q=QQ+preview+sched&preview_at=${when}`);
+    r = await getSearch(admin, `/api/search-suggest?q=QQ+preview+sched&preview_at=${when}`);
     ok(/qq-prev-sched|QQ preview scheduled/.test(r.t), "search suggestions follow the preview clock", r.t.slice(0, 120));
-    r = await get(anon, `/api/search-suggest?q=QQ+preview+sched&preview_at=${when}`);
+    r = await getSearch(anon, `/api/search-suggest?q=QQ+preview+sched&preview_at=${when}`);
     ok(!/QQ preview scheduled/.test(r.t), "…and never for an anonymous visitor");
     r = await get(admin, `/random/qq-prev-sched?preview_at=2026-02-30`); ok(r.s === 404 && !/preview-at-banner/.test(r.t), "an impossible calendar date (2026-02-30) is refused, not rolled over", r.s);
     // a page containing "İ" (two code units once lower-cased) still gets an intact banner
     await api("POST", `/pages/${pg.j.id}/blocks`, { type: "text", content: { text: "İstanbul İzmir İ İ İ İ İ" }, style: {}, col: 1, col_span: 12, row: 12, row_span: 2 });
     r = await get(admin, `/qq-prev-page?preview_at=${when}`);
     ok(/<\/body>\s*<\/html>\s*$/.test(r.t) && !/<\/bod</.test(r.t) && r.t.indexOf("preview-at-banner") < r.t.lastIndexOf("</body>"), "the banner is intact on a page containing İ");
-    r = await get(admin, `/search?q=QQ&preview_at=${when}`);
+    r = await getSearch(admin, `/search?q=QQ&preview_at=${when}`);
     ok(/href="\/search\?q=QQ&amp;preview_at=off"/.test(r.t), "the Exit link keeps the page's own query string", (r.t.match(/href="[^"]*preview_at=off"/) || [])[0]);
     // the admin prompt refuses what the server would refuse (no silent live-site tab)
     {

@@ -22,7 +22,7 @@ for (const key of ["path", "slug", "mountId", "script"]) {
 for (const page of APP_PAGES) {
   const name = page.slug;
   ok(page.path === "/" + page.slug && /^[a-z]+$/.test(page.slug), `${name}: its address is its slug`, page.path);
-  ok(page.title.length > 10 && page.title.length <= 80 && page.description.length >= 60 && page.description.length <= 200 && page.h1 && page.about && page.loading, `${name}: it has a title, a description and the words for search engines and screen readers`);
+  ok(page.title.length > 10 && page.title.length <= 80 && page.description.length >= 60 && page.description.length <= 155 && page.h1 && page.about && page.loading, `${name}: it has a title, a description and the words for search engines and screen readers`);
   ok(appPageFor(page.path) === page && appPageFor(page.path + "x") === null, `${name}: it is found by its address`);
   ok(BUILTIN_NAV.some((n) => n.slug === page.slug), `${name}: it has a built-in nav link`);
   ok(RESERVED_SLUGS.has(page.slug), `${name}: a page of the owner's cannot take its address`);

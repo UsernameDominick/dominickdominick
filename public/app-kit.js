@@ -384,5 +384,5 @@
   // page-slide.js / nav.js call this for every page that slides in.
   window.siteInitApps = (root) => apps.forEach((a) => a.init(root));
 
-  window.SiteAppKit = { esc, fail, wireSubDialogs, scopeCss, adminParts, loadScripts, addApi, addFetch, addMediaFetch, jsonResponse, readList, writeList, nextId, now, cleanName, presetApi, fileStore, whenEdited, register };
+  window.SiteAppKit = { esc, fail, wireSubDialogs, addApi, addFetch, addMediaFetch, jsonResponse, readList, writeList, nextId, now, cleanName, presetApi, fileStore, whenEdited, register };
 })();

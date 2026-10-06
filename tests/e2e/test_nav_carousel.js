@@ -119,7 +119,8 @@ const rulerOk = (r) => r.stops > 0 && r.majors === r.stops && r.stopOff <= 0.5 /
       const rp = await (await b.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })).newPage();
       await rp.goto(E2E_BASE + "/no-such-page-qq", { waitUntil: "networkidle" });
       const r = await rp.evaluate(rulerState);
-      ok(rulerOk(r) && r.needleWidth === 0, "a page that is not one of the tabs keeps the ruler and has no needle", r);
+      const needleShown = await rp.evaluate(() => getComputedStyle(document.querySelector(".tab-indicator")).display !== "none");
+      ok(rulerOk(r) && r.needleWidth === 0 && !needleShown, "a page that is not one of the tabs keeps the ruler and has no needle (not even a stub at the edge)", { r, needleShown });
       await rp.context().close();
     }
     {

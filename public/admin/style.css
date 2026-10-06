@@ -4365,6 +4365,28 @@ kbd {
 
 .scan-editor-preview .empty-hint {
   position: absolute;
+  max-width: 80%;
+  text-align: center;
+}
+
+/* A phone has no room for a side column: the model on top, the details below it, the whole editor scrolls. */
+@media (max-width: 720px) {
+  .scan-editor-body {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .scan-editor-preview {
+    order: -1;
+    flex: 0 0 min(48dvh, 400px);
+    min-height: 220px;
+  }
+  .scan-editor-fields {
+    width: auto;
+    flex-shrink: 0;
+    overflow: visible;
+    border-right: 0;
+    border-top: 1px solid var(--border);
+  }
 }
 
 .sim-palette, .sim-inspector-panel {
@@ -9384,4 +9406,9 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 @media (prefers-reduced-motion: no-preference) {
   .block-bar { transition: opacity 0.15s; }
   .bb-round:active, .bb-chip-main:active, .bb-pill:active { transform: scale(0.96); }
+}
+
+/* The layer rows are compact for a mouse; on a touch screen each part of a row is a fingertip tall (PicEditor on a phone). */
+@media (pointer: coarse) {
+  .pe-layer-row button { min-height: 32px; }
 }
