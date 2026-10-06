@@ -46,7 +46,7 @@
   --control-pad-x: 1.25em;
   --control-border-width: 1px;
   --card-radius: 14px;
-  --field-radius: 8px;
+  --field-radius: 12px;
   /* A touch brighter than before to match the new theme's higher
      saturation, while staying clearly distinct in hue from --accent
      (pure red vs. --accent's orange-coral) so the two are never
@@ -892,19 +892,21 @@ body {
   justify-content: center;
   gap: 0.45em;
   padding: var(--control-pad-y) var(--control-pad-x);
-  border-radius: var(--control-radius);
-  border: var(--control-border-width) solid var(--accent);
-  background: var(--accent);
-  color: var(--on-accent);
+  border-radius: var(--btn-radius);
+  border: var(--btn-border-width) solid var(--btn-ink);
+  background: var(--btn-fill);
+  color: var(--btn-ink);
+  box-shadow: var(--btn-shadow);
   font-size: 0.95rem;
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1.2;
   text-decoration: none;
   white-space: nowrap;
 }
 
 .btn:hover {
-  box-shadow: 0 6px 20px -8px var(--accent);
+  box-shadow: var(--btn-shadow);
+  filter: brightness(1.04);
 }
 
 /* The lift and the fades only run when motion isn't reduced (the OS setting
@@ -916,8 +918,10 @@ body {
   .btn:hover {
     transform: translateY(-1px);
   }
+  /* Pressed: it sinks onto its own shadow. */
   .btn:active {
-    transform: translateY(0);
+    transform: translateY(var(--btn-press, 4px));
+    box-shadow: 0 1px 0 var(--btn-ink);
   }
 }
 
@@ -928,11 +932,19 @@ body {
 
 .btn-secondary {
   background: transparent;
-  color: var(--text);
+  color: var(--btn-ink);
+  box-shadow: none;
 }
 
 .btn-secondary:hover {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
+  box-shadow: none;
+}
+
+/* The accent-filled one, for the single call to action on a page. */
+.btn-accent {
+  background: var(--accent);
+  color: var(--on-accent);
 }
 
 .btn-link {
@@ -4337,3 +4349,48 @@ body:has(.studio-canvas) { height: 100vh; height: 100dvh; overflow: hidden; }
 body:has(.studio-canvas) .site-footer { display: none; }
 .canvas.studio-canvas { min-height: 0; }
 .studio-frame:focus, .studio-frame:focus-visible, .studio-frame:focus-within { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* ---- The default look of every button and field ----
+   A thick ink outline, a flat fill and a hard shadow underneath that the button sinks into when pressed; fields are the same thick
+   outline on a transparent fill. Everything reads these tokens, so Site Settings > Buttons & controls can change them all at once.
+   :where() keeps this at zero specificity: a component that styles its own buttons (a nav tab, a chip, a grid cell) keeps its look. */
+:root {
+  --btn-ink: #f4eefc;
+  --btn-fill: var(--bg-elevated);
+  --btn-radius: 14px;
+  --btn-border-width: 3px;
+  --btn-shadow: 0 5px 0 var(--btn-ink);
+  --btn-shadow-sm: 0 3px 0 var(--btn-ink);
+  --field-border-width: 3px;
+}
+:root[data-theme="light"] {
+  --btn-ink: #0b0814;
+  --btn-fill: #ebe7e1;
+}
+:where(button, input[type="submit"], input[type="button"], input[type="reset"]) {
+  font-family: inherit;
+  font-weight: 700;
+  color: var(--btn-ink);
+  background: var(--btn-fill);
+  border: var(--btn-border-width) solid var(--btn-ink);
+  border-radius: var(--btn-radius);
+  padding: var(--control-pad-y) var(--control-pad-x);
+  cursor: pointer;
+}
+:where(button, input[type="submit"], input[type="button"], input[type="reset"]):disabled { opacity: 0.55; cursor: not-allowed; }
+:where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="submit"], [type="button"], [type="reset"], [type="hidden"]), textarea, select) {
+  font: inherit;
+  color: var(--text);
+  background: transparent;
+  border: var(--field-border-width) solid var(--btn-ink);
+  border-radius: var(--field-radius);
+  padding: 0.55em 0.8em;
+}
+/* A labelled field: the label sits in the outline, like a fieldset's legend.
+   <label class="field"><span class="field-label">Username</span><input ...></label> */
+.field { position: relative; display: block; margin-top: 0.7em; }
+.field > .field-label {
+  position: absolute; top: -0.72em; left: 0.9em; z-index: 1; padding: 0 0.4em; font-size: 0.8rem; font-weight: 600; line-height: 1.3;
+  color: var(--btn-ink); background: var(--field-notch-bg, var(--bg)); pointer-events: none;
+}
+.field > input, .field > textarea, .field > select { width: 100%; padding-top: 0.8em; }

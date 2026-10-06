@@ -20,7 +20,8 @@ const { chromium, request } = require("./_pw.cjs");
   // catch it mid-fade)
   const reading = () => p.evaluate(() => { const e = document.querySelector(".tag"); if (!e) return "none"; const cs = getComputedStyle(e); return cs.color + "|" + cs.backgroundColor; });
   let last = ""; for (let i = 0; i < 40; i++) { const now = await reading(); if (now === last) break; last = now; await p.waitForTimeout(300); }
-  const t = await p.evaluate(() => { const e = document.querySelector(".tag"); if (!e) return null; const cs = getComputedStyle(e); return [cs.color, cs.backgroundColor]; });
+  // computed colours can come back as rgb() or as color(srgb ...) (a mix): painting each onto a 1px canvas gives plain rgb either way
+  const t = await p.evaluate(() => { const e = document.querySelector(".tag"); if (!e) return null; const cs = getComputedStyle(e); const c = document.createElement("canvas"); c.width = c.height = 1; const g = c.getContext("2d", { willReadFrequently: true }); const rgb = (col) => { g.clearRect(0, 0, 1, 1); g.fillStyle = "#000"; g.fillStyle = col; g.fillRect(0, 0, 1, 1); const d = g.getImageData(0, 0, 1, 1).data; return `rgb(${d[0]}, ${d[1]}, ${d[2]})`; }; return [rgb(cs.color), rgb(cs.backgroundColor)]; });
   if (t) ok(ratio(t[0], t[1]) >= 4.5, `light tag contrast ${ratio(t[0], t[1]).toFixed(2)}`); else console.log("no tag on page, skipped");
   await b.close(); process.exit(fail ? 1 : 0);
 })();

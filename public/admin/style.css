@@ -107,21 +107,23 @@ input[type="checkbox"]:disabled {
   outline-offset: 1px;
 }
 
+/* The default button: an ink outline (two pixels here, where things are close together), a flat fill, rounded to the site's button shape. */
 button {
   font-family: inherit;
-  background: transparent;
-  color: var(--text-dim);
-  border: var(--control-border-width) solid var(--border);
-  border-radius: var(--control-radius);
+  background: var(--btn-fill);
+  color: var(--btn-ink);
+  border: min(var(--btn-border-width), 2px) solid var(--btn-ink);
+  border-radius: var(--btn-radius);
   padding: 6px 10px;
   font-size: 0.85rem;
+  font-weight: 600;
   cursor: pointer;
   transition: color 0.15s var(--ease-smooth), background-color 0.15s var(--ease-smooth), border-color 0.15s var(--ease-smooth);
 }
 
 button:hover {
-  color: var(--text);
-  border-color: var(--text-dim);
+  color: var(--btn-ink);
+  filter: brightness(1.06);
 }
 
 button:disabled {
@@ -8913,4 +8915,26 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
   #palette.is-picker-open #close-palette { display: grid; place-items: center; position: absolute; top: 6px; right: 6px; z-index: 2; width: 28px; height: 28px; padding: 0; font-size: 1.1rem; line-height: 1; background: transparent; color: var(--text-dim); border: 1px solid var(--border); border-radius: 50%; cursor: pointer; }
   #palette.is-picker-open #close-palette:hover { color: var(--text); border-color: var(--text-dim); }
   #palette.is-picker-open .panel-switch { margin-right: 36px; }
+}
+
+/* ---- Chunky buttons in the admin: the hard shadow under the buttons you press on purpose (bars, headers, dialogs and the Studio), and the
+   press that sinks into it. Cells, keys, chips and list rows keep to the flat outline above. ---- */
+.admin-header button, .admin-view-live, .modal-inner > header button, .canvas-toolbar button, .size-menu button, .quick-edit-actions button,
+.studio-btn, .studio-pill, .studio-round, .studio-mini, .login-form button, .settings-actions button, #save-settings {
+  box-shadow: var(--btn-shadow-sm);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .admin-header button:active, .modal-inner > header button:active, .canvas-toolbar button:active, .size-menu button:active, .quick-edit-actions button:active,
+  .studio-btn:active, .studio-pill:active, .studio-round:active, .studio-mini:active, .login-form button:active, #save-settings:active {
+    transform: translateY(2px);
+    box-shadow: 0 1px 0 var(--btn-ink);
+  }
+}
+.admin-header button, .admin-view-live { color: var(--btn-ink); background: var(--btn-fill); border: min(var(--btn-border-width), 2px) solid var(--btn-ink); border-radius: var(--btn-radius); }
+.admin-header button:hover, .admin-view-live:hover { color: var(--btn-ink); border-color: var(--btn-ink); filter: brightness(1.06); }
+.admin-header .page-add-btn, button[data-tier="primary"], .studio-btn-primary { background: var(--accent); color: var(--on-accent, #fff); border-color: var(--btn-ink); }
+.admin-header .page-add-btn:hover, button[data-tier="primary"]:hover, .studio-btn-primary:hover { color: var(--on-accent, #fff); border-color: var(--btn-ink); }
+/* Fields: the same outline. */
+:where(.admin-body) input[type="text"], :where(.admin-body) input[type="search"], :where(.admin-body) input[type="number"], :where(.admin-body) input[type="url"], :where(.admin-body) input[type="email"], :where(.admin-body) input[type="password"], :where(.admin-body) input[type="datetime-local"], :where(.admin-body) textarea, :where(.admin-body) select {
+  border: min(var(--field-border-width), 2px) solid var(--btn-ink);
 }

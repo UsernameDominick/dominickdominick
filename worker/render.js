@@ -1158,10 +1158,11 @@ function blockStyleAttr(style) {
 // own buttons and the live preview follow the same choice.
 export const CONTROL_PRESETS = {
   control_shape: {
-    pill: { "--control-radius": "999px" },
-    rounded: { "--control-radius": "12px" },
-    soft: { "--control-radius": "6px" },
-    square: { "--control-radius": "0px" },
+    chunky: { "--control-radius": "14px", "--btn-radius": "14px" },
+    pill: { "--control-radius": "999px", "--btn-radius": "999px" },
+    rounded: { "--control-radius": "12px", "--btn-radius": "12px" },
+    soft: { "--control-radius": "6px", "--btn-radius": "6px" },
+    square: { "--control-radius": "0px", "--btn-radius": "0px" },
   },
   control_size: {
     compact: { "--control-pad-y": "0.45em", "--control-pad-x": "0.95em" },
@@ -1169,13 +1170,15 @@ export const CONTROL_PRESETS = {
     roomy: { "--control-pad-y": "0.8em", "--control-pad-x": "1.6em" },
   },
   control_outline: {
-    thin: { "--control-border-width": "1px" },
-    bold: { "--control-border-width": "2px" },
+    chunky: { "--control-border-width": "1px", "--btn-border-width": "3px", "--btn-shadow": "0 5px 0 var(--btn-ink)", "--btn-shadow-sm": "0 3px 0 var(--btn-ink)" },
+    thin: { "--control-border-width": "1px", "--btn-border-width": "1px", "--btn-shadow": "none", "--btn-shadow-sm": "none" },
+    bold: { "--control-border-width": "2px", "--btn-border-width": "2px", "--btn-shadow": "none", "--btn-shadow-sm": "none" },
   },
   field_shape: {
-    rounded: { "--field-radius": "12px" },
-    soft: { "--field-radius": "8px" },
-    square: { "--field-radius": "2px" },
+    chunky: { "--field-radius": "12px", "--field-border-width": "3px" },
+    rounded: { "--field-radius": "12px", "--field-border-width": "1px" },
+    soft: { "--field-radius": "8px", "--field-border-width": "1px" },
+    square: { "--field-radius": "2px", "--field-border-width": "1px" },
   },
   card_shape: {
     round: { "--card-radius": "22px" },
