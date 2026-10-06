@@ -51,7 +51,7 @@ window.addEventListener("pagereveal", function (e) {
   var SAFE_SCRIPTS = { "/nav.js": 1, "/page-slide.js": 1, "/lightbox.js": 1 };
   // Scripts a swapped-in page may bring: loaded once (in order) the first time a page needs them, and set up for each page by
   // window.siteInitContent (song players, circuits, pictures), so these pages slide like the rest instead of loading from scratch.
-  var LOADABLE = { "/sim-buzzer.js": 1, "/sim-player.js": 1, "/song-engine.js": 1, "/song-embed.js": 1, "/lightbox.js": 1 };
+  var LOADABLE = { "/sim-buzzer.js": 1, "/sim-player.js": 1, "/song-engine.js": 1, "/song-embed.js": 1, "/lightbox.js": 1, "/studio.js": 1 };
   var DURATION = 420;
   var EASE = "cubic-bezier(0.22, 0.8, 0.28, 1)";
   var cache = {}; // url -> {at, promise}
@@ -79,8 +79,9 @@ window.addEventListener("pagereveal", function (e) {
   }
   function headSignature(doc) {
     var parts = [];
-    [].forEach.call(doc.head.querySelectorAll("style"), function (el) { parts.push("s:" + el.textContent); });
-    [].forEach.call(doc.head.querySelectorAll('link[rel="stylesheet"]'), function (el) {
+    // Tags a script added with data-added-by (the Studio's own styles) are not part of the page as served.
+    [].forEach.call(doc.head.querySelectorAll("style:not([data-added-by])"), function (el) { parts.push("s:" + el.textContent); });
+    [].forEach.call(doc.head.querySelectorAll('link[rel="stylesheet"]:not([data-added-by])'), function (el) {
       var h = el.getAttribute("href") || "";
       if (h.charAt(0) === "/" && h.charAt(1) !== "/") parts.push("l:" + h);
     });
@@ -189,6 +190,7 @@ window.addEventListener("pagereveal", function (e) {
       return loadScripts(res.doc).then(function () { return res; });
     }).then(function (res) {
       if (window.siteStopSongs) window.siteStopSongs();
+      document.dispatchEvent(new CustomEvent("site:leave")); // the Studio stops its sound (public/studio.js)
       copySimDefs(res.doc);
       var doc = res.doc;
       var oldMain = document.getElementById("main-content");
@@ -220,6 +222,8 @@ window.addEventListener("pagereveal", function (e) {
         done = true;
         busy = null;
         [].forEach.call(stage.getAnimations ? stage.getAnimations({ subtree: true }) : [], function (a) { a.cancel(); });
+        // Just before the old page goes: the Studio (public/studio.js) moves itself out of it, so it never leaves the document.
+        document.dispatchEvent(new CustomEvent("site:arrive", { detail: { old: oldMain } }));
         stage.replaceWith(fresh);
         fresh.setAttribute("tabindex", "-1");
         fresh.focus({ preventScroll: true });

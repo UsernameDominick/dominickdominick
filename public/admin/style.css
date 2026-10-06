@@ -9288,3 +9288,6 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 /* The ⋯ sits in the hub right beside Rec (it used to be pinned by position, which the row over the bar changed). */
 .studio-controls > .studio-hub { display: flex; align-items: center; gap: 8px; padding-right: 0; }
 .studio-controls > .studio-hub > .studio-fan-toggle { position: static; right: auto; bottom: auto; flex: 0 0 auto; }
+/* The tempo box is narrow on a phone: no spin arrows, so "120" is not cut to "1…" (the arrows and the keyboard still change it). */
+.studio-bpm input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
+.studio-bpm input[type="number"]::-webkit-inner-spin-button, .studio-bpm input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; appearance: none; margin: 0; }

@@ -2164,6 +2164,8 @@ function pageScriptsHtml(bodyHtml) {
   }
   // Pictures a reader can open larger: an image block, a gallery, or a picture written into the text.
   if (/class="(?:block-image|gallery)"|body-figure|image-figure/.test(html)) tags.push('<script src="/lightbox.js" defer></script>');
+  // The Studio page (/studio): builds itself into its mount.
+  if (html.includes('id="studio-mount"')) tags.push('<script src="/studio.js" defer></script>');
   // STUDY (temporary): the popup for a Study block.
   tags.push(...studyPageTags(html));
   return tags.join("\n");

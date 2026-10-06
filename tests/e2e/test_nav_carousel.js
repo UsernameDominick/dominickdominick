@@ -1,5 +1,5 @@
 // The nav: no Random (Articles) tab and no Hidden Notes tab; every tab of the dial slides in place, like a carousel, with no page load
-// (the Studio's frame and the song and circuit players come along); a page with a Study block stays out of the nav, the sitemap and search
+// (the Studio and the song and circuit players come along); a page with a Study block stays out of the nav, the sitemap and search
 // engines, is found through the site's search, and always asks for its password.
 const E2E_BASE = process.env.E2E_BASE || "http://localhost:8787";
 const { chromium, request } = require("./_pw.cjs");
@@ -49,7 +49,8 @@ const { chromium, request } = require("./_pw.cjs");
     if (tabs.includes("/studio")) {
       await p.evaluate(() => document.querySelector('.tabs a.tab[href="/studio"]').click());
       await p.waitForFunction(() => location.pathname === "/studio" && !document.querySelector(".page-stage"), null, { timeout: 15000 });
-      ok(await p.evaluate(() => !!document.querySelector(".studio-frame") && window.__sameDocument === true), "the Studio's frame comes along in the slide");
+      await p.waitForSelector("#studio-mount .studio-native", { timeout: 20000 });
+      ok(await p.evaluate(() => window.__sameDocument === true), "the Studio comes along in the slide");
     }
     await p.goBack();
     await p.waitForTimeout(800);

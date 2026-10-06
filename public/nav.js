@@ -678,6 +678,7 @@ window.siteInitContent = function (root) {
   if (window.siteLightboxPrepare) window.siteLightboxPrepare(root);
   if (window.siteInitSongs) window.siteInitSongs(root);
   if (window.siteInitSims) window.siteInitSims(root);
+  if (window.siteInitStudio) window.siteInitStudio(root);
 };
 
 // .tabs (the persistent Articles/Projects/Topics nav pill) scrolls
