@@ -8849,3 +8849,24 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
   #song-builder-modal #song-studio .studio-grid[data-mode="roll"] { --lab: 34px; gap: 2px; }
   #song-builder-modal #song-studio .studio-grid[data-mode="roll"] .studio-row-label { font-size: 0.66rem; }
 }
+
+/* Studio: the transport's extra buttons (record from the top, quantize, follow) and the folds of the sound editor */
+.studio-controls { flex-wrap: wrap; row-gap: 6px; }
+.studio-round svg[fill="none"], #studio-rec-top svg, #studio-quant-btn svg, #studio-follow svg { fill: none; }
+#studio-quant-btn.is-set { border-color: var(--accent); color: var(--accent); }
+.studio-pop-hint { margin: 0; font-size: 0.74rem; color: var(--text-dim); line-height: 1.35; }
+#studio-pop-quant { width: min(270px, 86vw); }
+.studio-fold { border-top: 1px solid var(--border); padding: 2px 0 4px; }
+.studio-fold:first-of-type { border-top: 0; }
+.studio-fold > summary { cursor: pointer; display: flex; align-items: baseline; gap: 8px; min-height: 40px; padding: 8px 2px; font-weight: 600; font-size: 0.9rem; list-style: none; }
+.studio-fold > summary::-webkit-details-marker { display: none; }
+.studio-fold > summary::before { content: "▸"; color: var(--text-dim); font-size: 0.8rem; width: 1em; transition: none; }
+.studio-fold[open] > summary::before { content: "▾"; }
+.studio-fold > summary small { font-weight: 400; color: var(--text-dim); font-size: 0.74rem; }
+.studio-fold > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.studio-field-wide { flex: 1 1 100%; margin-bottom: 8px; }
+.studio-quick { display: contents; }
+@media (max-width: 640px) {
+  .studio-quick { order: 5; flex: 1 1 100%; display: flex; align-items: center; justify-content: space-between; gap: 6px; padding-top: 2px; border-top: 1px solid var(--border); }
+  .studio-controls .studio-bpm { order: 4; margin-left: auto; }
+}

@@ -14,7 +14,8 @@ const PATTERN_NAMES = "ABCDEFGHIJKLMNOP".split("");
 const PATTERN_RANGE = "A to P";
 const MAX_BARS = 64;
 const LANE_KEYS = ["drums", "bass", "chords", "melody", "lead"];
-const SYNTH_KEYS = ["wave", "attack", "decay", "sustain", "release", "cutoff", "detune", "vibrato"];
+const SYNTH_KEYS = ["wave", "ftype", "attack", "decay", "sustain", "release", "cutoff", "detune", "vibrato", "res", "vrate", "sub", "noise", "drive", "tremolo", "trate", "fm", "fmratio", "sweep", "unison"];
+const DRUM_TWEAK_KEYS = ["tune", "decay", "tone"];
 // The melodic parts besides the melody: each is { notes, ties, voice, volume, muted, hidden } over a roll of its own (public/song-engine.js).
 const PART_KEYS = ["bass", "chords", "lead"];
 const PART_WORDS = { bass: "bass line", chords: "chords", lead: "lead" };
@@ -61,7 +62,7 @@ function synthError(synth, word) {
   if (!isPlainObject(synth)) return `The ${word}'s sound settings must be an object.`;
   for (const [key, value] of Object.entries(synth)) {
     if (!SYNTH_KEYS.includes(key)) return `The ${word}'s sound settings have an unknown setting.`;
-    if (key === "wave" ? typeof value !== "string" || value.length > MAX_VOICE_NAME : !Number.isFinite(value)) return `The ${word}'s sound settings are not valid (${key}).`;
+    if (key === "wave" || key === "ftype" ? typeof value !== "string" || value.length > MAX_VOICE_NAME : !Number.isFinite(value)) return `The ${word}'s sound settings are not valid (${key}).`;
   }
   return null;
 }
@@ -81,6 +82,12 @@ export function songDataError(data) {
   if (patternError) return patternError;
   if ("tracks" in data && (!isPlainObject(data.tracks) || !allArrays(data.tracks))) return "The song's tracks must be lists of steps.";
   if ("trackMeta" in data && !isPlainObject(data.trackMeta)) return "The song's track settings must be an object.";
+  if (isPlainObject(data.trackMeta)) {
+    for (const meta of Object.values(data.trackMeta)) {
+      if (!isPlainObject(meta)) continue;
+      for (const key of DRUM_TWEAK_KEYS) if (key in meta && !Number.isFinite(meta[key])) return `A drum sound's ${key} must be a number.`;
+    }
+  }
   if ("melody" in data) {
     if (!isPlainObject(data.melody)) return "The song's melody must be an object.";
     if ("notes" in data.melody && (!isPlainObject(data.melody.notes) || !allArrays(data.melody.notes))) return "The melody's notes must be lists of steps.";

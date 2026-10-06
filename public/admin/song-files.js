@@ -22,9 +22,9 @@
     }
   });
   const BASS_NOTES = PART_NOTES.bass;
-  const KITS = ["acoustic", "electronic", "808"];
+  const KITS = ["acoustic", "electronic", "808", "909", "house", "techno", "trap", "boombap", "lofi", "rock", "jazz", "dnb", "chip", "industrial", "soft"]; // the kits in song-engine.js (a test keeps the lists equal)
   const WAVEFORMS = ["sine", "square", "sawtooth", "triangle"];
-  const MELODY_VOICES = ["pluck", "lead", "pad", "bass", "bell"]; // the instruments in song-engine.js (a test keeps the two lists equal)
+  const MELODY_VOICES = ["pluck", "lead", "pad", "bass", "bell", "epiano", "fmkeys", "piano", "clav", "organ", "musicbox", "harp", "guitar", "kalimba", "marimba", "pizz", "stab", "subbass", "reese", "acid", "wobble", "finger", "pluckbass", "chipbass", "supersaw", "squarelead", "chip", "brass", "strings", "flute", "vox", "laser", "warmpad", "glasspad", "stringpad", "darkpad", "swell", "wind", "chime", "vibes", "glassbell"]; // the instruments in song-engine.js (a test keeps the two lists equal)
   const VISUALIZATIONS = ["bars", "waveform", "pulse"];
   const THEMES = ["default", "sunset", "ocean", "mono", "neon"];
   const SCALE_TYPES = ["major", "minor", "majpent", "minpent", "blues"];
@@ -34,15 +34,23 @@
   const LANE_KEYS = ["drums", "bass", "chords", "melody", "lead"];
   // A track's own sound tweaks, kept in step with SongEngine.cleanSynth (the ranges are the engine's).
   const SYNTH_WAVES = ["sine", "square", "sawtooth", "triangle"];
-  const SYNTH_RANGES = { attack: [0.001, 2], decay: [0.02, 3], sustain: [0, 1], release: [0, 3], cutoff: [120, 12000], detune: [0, 40], vibrato: [0, 60] };
+  const SYNTH_FILTERS = ["lowpass", "highpass", "bandpass"];
+  const SYNTH_RANGES = {
+    attack: [0.001, 2], decay: [0.02, 3], sustain: [0, 1], release: [0, 3], cutoff: [120, 12000], detune: [0, 40], vibrato: [0, 60],
+    res: [0.1, 18], vrate: [0.5, 12], sub: [0, 1], noise: [0, 1], drive: [0, 1], tremolo: [0, 1], trate: [0.5, 14], fm: [0, 1], fmratio: [0.5, 8],
+    sweep: [-1, 1], unison: [1, 7],
+  };
+  const DRUM_RANGES = { tune: [-12, 12], decay: [0.3, 3], tone: [-1, 1] }; // one drum sound's own tweaks, as in SongEngine.drumShape
   function cleanSynth(raw) {
     if (!isObj(raw)) return null;
     const out = {};
     if (SYNTH_WAVES.includes(raw.wave)) out.wave = raw.wave;
+    if (SYNTH_FILTERS.includes(raw.ftype)) out.ftype = raw.ftype;
     Object.keys(SYNTH_RANGES).forEach((key) => {
       const n = Number(raw[key]);
       if (raw[key] === undefined || raw[key] === null || raw[key] === "" || !Number.isFinite(n)) return;
-      out[key] = Math.round(Math.max(SYNTH_RANGES[key][0], Math.min(SYNTH_RANGES[key][1], n)) * 1000) / 1000;
+      const clamped = Math.max(SYNTH_RANGES[key][0], Math.min(SYNTH_RANGES[key][1], n));
+      out[key] = key === "unison" ? Math.round(clamped) : Math.round(clamped * 1000) / 1000;
     });
     return Object.keys(out).length ? out : null;
   }
@@ -667,6 +675,9 @@
       if (m.muted === true) entry.muted = true;
       if (m.hidden === true) entry.hidden = true;
       if (m.volume !== undefined && m.volume !== null && m.volume !== "") entry.volume = clampNum(m.volume, 0, 1, 1);
+      Object.keys(DRUM_RANGES).forEach((key) => {
+        if (m[key] !== undefined && m[key] !== null && m[key] !== "" && Number.isFinite(Number(m[key]))) entry[key] = clampNum(m[key], DRUM_RANGES[key][0], DRUM_RANGES[key][1], 0);
+      });
       song.trackMeta[t] = entry;
     });
     const melody = src.melody && typeof src.melody === "object" ? src.melody : {};
@@ -783,5 +794,5 @@
     return { name: name || "Imported song", data: cleanSong(data) };
   }
 
-  window.SongFiles = { parseMidi, midiToSong, importMidi, GM_TO_ROW, BASS_NOTES, PART_KEYS, PART_NOTES, PART_OCTAVES, PATTERN_NAMES, LANE_KEYS, MAX_BARS, cleanSynth, chainParts, MELODY_VOICES, CORE_DRUMS, EXTRA_DRUMS, GM_DRUMS, buildMidi, noteNumber, exportJson, parseImport, cleanSong, PPQ, STEP_TICKS, FORMAT, VERSION };
+  window.SongFiles = { parseMidi, midiToSong, importMidi, GM_TO_ROW, BASS_NOTES, PART_KEYS, PART_NOTES, PART_OCTAVES, PATTERN_NAMES, LANE_KEYS, MAX_BARS, cleanSynth, chainParts, MELODY_VOICES, KITS, CORE_DRUMS, EXTRA_DRUMS, GM_DRUMS, buildMidi, noteNumber, exportJson, parseImport, cleanSong, PPQ, STEP_TICKS, FORMAT, VERSION };
 })();

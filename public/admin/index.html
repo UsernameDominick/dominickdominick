@@ -1388,6 +1388,18 @@
                 <option value="acoustic">Acoustic</option>
                 <option value="electronic">Electronic</option>
                 <option value="808">808</option>
+                <option value="909">909</option>
+                <option value="house">House</option>
+                <option value="techno">Techno</option>
+                <option value="trap">Trap</option>
+                <option value="boombap">Boom bap</option>
+                <option value="lofi">Lo-fi</option>
+                <option value="rock">Rock</option>
+                <option value="jazz">Jazz</option>
+                <option value="dnb">Drum and bass</option>
+                <option value="chip">8-bit</option>
+                <option value="industrial">Industrial</option>
+                <option value="soft">Soft</option>
               </select>
             </label>
           </section>
@@ -2197,25 +2209,14 @@
             <div class="song-group-controls">
               <label class="song-tempo-label">BPM<input type="number" id="song-tempo" min="40" max="240" value="120"></label>
               <button type="button" id="song-tap-tempo" title="Tap this in time with a beat to set the BPM from your taps (needs two taps; a pause of two seconds starts over)">Tap tempo</button><span id="song-tap-status" class="sim-sr-only" role="status" aria-live="polite"></span>
-              <select id="song-kit" aria-label="Drum kit">
-              <option value="acoustic">Acoustic kit</option>
-              <option value="electronic">Electronic kit</option>
-              <option value="808">808 kit</option>
-              </select>
+              <select id="song-kit" aria-label="Drum kit"></select>
               <select id="song-waveform" title="Melody instrument waveform" aria-label="Melody instrument waveform">
               <option value="sine">Sine</option>
               <option value="square">Square</option>
               <option value="sawtooth">Sawtooth</option>
               <option value="triangle">Triangle</option>
               </select>
-              <select id="song-voice" title="Melody sound: a ready-made instrument that shapes each note (attack, release, filter). Basic uses the waveform on its left." aria-label="Melody sound">
-              <option value="">Basic (waveform)</option>
-              <option value="pluck">Pluck</option>
-              <option value="lead">Lead</option>
-              <option value="pad">Pad</option>
-              <option value="bass">Bass</option>
-              <option value="bell">Bell</option>
-              </select>
+              <select id="song-voice" title="Melody sound: a ready-made instrument that shapes each note (attack, release, filter). Basic uses the waveform on its left." aria-label="Melody sound"></select>
               <label class="song-tempo-label" title="Adds a small random timing nudge to each drum hit and melody note, independently, so playback feels less mechanically quantized. 0 = perfectly on-grid.">Humanize<input type="range" id="song-humanize" min="0" max="100" value="0"></label>
               <label class="song-tempo-label" title="Delays every second sixteenth note to give the groove a bounce. 0 = straight, about 67 = triplet feel.">Swing<input type="range" id="song-swing" min="0" max="100" value="0" aria-valuetext="Straight"></label>
               <label class="song-tempo-label" title="Adds a room-like reverb tail to the whole mix. 0 = dry, no reverb at all.">Space<input type="range" id="song-space" min="0" max="100" value="0" aria-valuetext="Dry"></label>
@@ -2278,9 +2279,13 @@
           <button type="button" id="studio-stop" class="studio-round" data-no-history aria-label="Stop and go back to the start" title="Stop (back to the start)" disabled>
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7h10v10H7z"/></svg>
           </button>
+          <button type="button" id="studio-rec-top" class="studio-round" data-no-history aria-pressed="false" aria-label="Start from the beginning every time I record" title="Record from the top: when on, recording always starts from the beginning of the song">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 5v14M19 6v12l-9-6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>
+          </button>
           <button type="button" id="studio-rec" class="studio-pill studio-rec" data-no-history aria-pressed="false" title="Record: notes you play on the keys land on the step that is playing">
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="6"/></svg><span>Rec</span>
           </button>
+          <div class="studio-quick">
           <span class="studio-popwrap">
             <button type="button" id="studio-volume-btn" class="studio-round" data-no-history aria-haspopup="true" aria-expanded="false" aria-controls="studio-pop-volume" aria-label="Volume" title="Volume">
               <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 9.5v5h3.5l4.5 3.5v-12L7.5 9.5z"/><path d="M15.5 9a4 4 0 010 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -2299,6 +2304,19 @@
               <label>Count in <select id="studio-count-in" aria-label="Count-in before playback"><option value="0">No count-in</option><option value="2">2 beats</option><option value="4">4 beats</option><option value="8">8 beats</option></select></label>
             </div>
           </span>
+          <span class="studio-popwrap">
+            <button type="button" id="studio-quant-btn" class="studio-round" data-no-history aria-haspopup="true" aria-expanded="false" aria-controls="studio-pop-quant" aria-label="Quantize" title="Quantize: where the notes you record land">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 18h16M6 18V9m4 9V5m4 13v-7m4 7V8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+            <div id="studio-pop-quant" class="studio-pop" role="group" aria-label="Quantize">
+              <label><span class="studio-pop-title">Quantize</span> <select id="studio-quant" aria-label="Where recorded notes land"><option value="1">Nearest step (1/16)</option><option value="2">Nearest 1/8</option><option value="4">Nearest beat (1/4)</option><option value="0">Off: the step that is sounding</option></select></label>
+              <p class="studio-pop-hint">A note you play a little early or late is moved to the nearest line of this grid while you record.</p>
+            </div>
+          </span>
+          <button type="button" id="studio-follow" class="studio-round" data-no-history aria-pressed="true" aria-label="Follow the music" title="Follow the music: the editor moves along with the song (bar to bar, and sideways in a wide roll). Turn off to stay where you are.">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
+          </div>
           <label class="studio-bpm" title="Tempo in beats per minute">
             <input type="number" id="studio-bpm" min="40" max="240" value="120" data-no-reset inputmode="numeric" aria-label="Tempo in beats per minute"><span aria-hidden="true">BPM</span>
           </label>
@@ -2408,12 +2426,8 @@
             <button type="button" id="song-roll-bass" class="song-track-toggle" data-no-history aria-pressed="false" title="Edit the bass line: a second part with its own lower piano roll (C1 to B2), sound, volume and mute">Bass</button>
             <button type="button" id="song-roll-chords" class="song-track-toggle" data-no-history aria-pressed="false" title="Edit the chords: a part with its own piano roll (C3 to B4), sound, volume and mute">Chords</button>
             <button type="button" id="song-roll-lead" class="song-track-toggle" data-no-history aria-pressed="false" title="Edit the lead: a part with its own higher piano roll (C4 to B5), sound, volume and mute">Lead</button>
-            <select id="song-bass-voice" aria-label="Bass sound" title="The bass line's sound: Bass is the default; the others are the same instruments the melody can use" hidden>
-              <option value="bass">Bass</option><option value="pluck">Pluck</option><option value="lead">Lead</option><option value="pad">Pad</option><option value="bell">Bell</option>
-            </select>
-            <select id="song-part-voice" aria-label="Sound" title="This part's sound: Pad for the chords and Lead for the lead are the defaults; the others are the same instruments the melody can use" hidden>
-              <option value="pad">Pad</option><option value="lead">Lead</option><option value="pluck">Pluck</option><option value="bass">Bass</option><option value="bell">Bell</option>
-            </select>
+            <select id="song-bass-voice" aria-label="Bass sound" title="The bass line's sound: Bass is the default; the others are the same instruments the melody can use" hidden></select>
+            <select id="song-part-voice" aria-label="Sound" title="This part's sound: Pad for the chords and Lead for the lead are the defaults; the others are the same instruments the melody can use" hidden></select>
           </span>
           <span class="song-transpose-controls">
             <button type="button" id="song-melody-mute" class="song-track-toggle" aria-pressed="false" aria-label="Mute melody" title="Mute the melody: silent in the preview and on the public page">Mute</button>

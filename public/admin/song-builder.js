@@ -4,6 +4,15 @@
   const $ = (id) => document.getElementById(id);
 
   const Engine = window.SongEngine;
+  // The instrument and kit menus come from the engine, so a new sound there shows up here without anything else to keep in step.
+  (function fillSoundMenus() {
+    const escape = (text) => String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+    const groups = Engine.VOICE_GROUPS.map((group) => `<optgroup label="${escape(group.label)}">${group.voices.map((name) => `<option value="${name}">${escape(Engine.MELODY_VOICES[name].label)}</option>`).join("")}</optgroup>`).join("");
+    $("song-voice").innerHTML = `<option value="">Basic (waveform)</option>${groups}`;
+    $("song-bass-voice").innerHTML = groups;
+    $("song-part-voice").innerHTML = groups;
+    $("song-kit").innerHTML = Engine.KITS.map((name) => `<option value="${name}">${escape(Engine.KIT_LABELS[name])} kit</option>`).join("");
+  })();
   // The Studio layout (song-studio.js) reads the open song and drives playback through this, and is told when the editor was rebuilt,
   // when a step is about to sound and when playback stopped.
   window.SongStudioHost = {
@@ -66,7 +75,39 @@
     // Plays a note of a track (never records it), with the track's sound as it is now.
     hear: (id, name) => hearNote(id, name),
     hearDrum: (row) => soundDrum(row),
+    // One drum sound's own tweaks (tune in semitones, decay as a multiplier, tone from -1 to 1). A null value takes a tweak back to the kit's.
+    drum: (row) => Engine.drumShape(songData.trackMeta && songData.trackMeta[row]),
+    setDrum: (row, patch) => {
+      const meta = songData.trackMeta && songData.trackMeta[row];
+      if (!meta) return;
+      Object.keys(patch).forEach((key) => {
+        if (!Engine.DRUM_RANGES[key]) return;
+        if (patch[key] === null || patch[key] === undefined) delete meta[key];
+        else meta[key] = Math.max(Engine.DRUM_RANGES[key][0], Math.min(Engine.DRUM_RANGES[key][1], Number(patch[key]) || 0));
+      });
+      scheduleAutosave();
+    },
+    // Where recorded notes land: 0 = on the step that is sounding, else the nearest 1, 2 or 4 steps.
+    quantize: () => quantizeSteps,
+    setQuantize: (n) => {
+      quantizeSteps = [0, 1, 2, 4].includes(Number(n)) ? Number(n) : 1;
+      try {
+        localStorage.setItem("songQuantize", String(quantizeSteps));
+      } catch {
+        /* a remembered choice is a nicety */
+      }
+    },
+    // Wake the sound up (a phone keeps it asleep until a touch), for the Studio's own buttons.
+    unlock: () => ensureAudio(),
   };
+  let quantizeSteps = (() => {
+    try {
+      const n = Number(localStorage.getItem("songQuantize"));
+      return localStorage.getItem("songQuantize") !== null && [0, 1, 2, 4].includes(n) ? n : 1;
+    } catch {
+      return 1;
+    }
+  })();
   const notifyStudio = (opened) => { if (window.SongStudio) window.SongStudio.refresh({ opened: opened === true }); };
   // Every song has the four core drum rows. The extra voices (open hat, rim, tom, crash) are added to a song from the menu under the
   // grid, so a song that never asked for them has exactly the rows it always had. TRACK_ORDER is the order rows are shown in.
@@ -573,6 +614,21 @@
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     return audioCtx;
   }
+  // A browser (a phone above all) keeps the sound asleep until a touch, and puts it back to sleep when the page is in the background or the
+  // phone rings. Everything that is about to make a sound wakes it first, from the tap that asked for it, so Play and Preview never go quiet.
+  function ensureAudio() {
+    const ctx = getAudioCtx();
+    if (ctx.state !== "running" && typeof ctx.resume === "function") {
+      try {
+        const woke = ctx.resume();
+        if (woke && typeof woke.catch === "function") woke.catch(() => {});
+      } catch {
+        /* the next tap tries again */
+      }
+    }
+    return ctx;
+  }
+  ["pointerdown", "keydown", "touchend"].forEach((type) => document.addEventListener(type, () => { if (audioCtx && audioCtx.state !== "running") ensureAudio(); }, true));
 
   // ---------- Live preview panel ----------
   // Mirrors exactly what the public Song block renders/does (same CSS
@@ -1334,6 +1390,7 @@
   }
   function startPlayback() {
     const beats = metroPrefs.countIn;
+    ensureAudio();
     if (!beats) {
       player.start(undefined, startOptions());
       startPeakMeter();
@@ -1350,7 +1407,7 @@
     const live = $("song-transport-live");
     if (live) live.textContent = `Counting in ${beats} beats`;
     const ctx = getAudioCtx();
-    Promise.resolve(ctx.state === "suspended" ? ctx.resume() : null)
+    Promise.resolve(ctx.state !== "running" ? ctx.resume() : null)
       .catch(() => {})
       .then(() => {
         if (token !== countInToken) return;
@@ -1431,10 +1488,26 @@
     const now = getAudioCtx().currentTime;
     let heard = null;
     for (const entry of scheduledSteps) if (entry.time <= now) heard = entry;
-    const step = heard ? heard.step : player.currentStep();
+    let step = heard ? heard.step : player.currentStep();
+    let at = heard;
+    // Quantize: a note played a little before the next step belongs to that step. Past the last step of a bar it belongs to the next bar's
+    // first step if that one is already scheduled, else it stays on the last grid line of this bar.
+    if (heard && quantizeSteps) {
+      const stepSeconds = Engine.stepDurationFor(songData.tempo);
+      const fraction = Math.max(0, Math.min(1, (now - heard.time) / stepSeconds));
+      const target = Math.round((heard.step + fraction) / quantizeSteps) * quantizeSteps;
+      if (target <= STEPS - 1) step = target;
+      else {
+        const next = scheduledSteps.find((entry) => entry.time > heard.time && entry.step === 0 && entry.time - now < stepSeconds * 2);
+        if (next) {
+          step = 0;
+          at = next;
+        } else step = Math.floor((STEPS - 1) / quantizeSteps) * quantizeSteps;
+      }
+    }
     let pattern;
-    if (heard && heard.patterns && Object.prototype.hasOwnProperty.call(heard.patterns, trackKey)) pattern = heard.patterns[trackKey];
-    else pattern = heard && heard.pattern ? heard.pattern : player.currentPattern();
+    if (at && at.patterns && Object.prototype.hasOwnProperty.call(at.patterns, trackKey)) pattern = at.patterns[trackKey];
+    else pattern = at && at.pattern ? at.pattern : player.currentPattern();
     return pattern ? { step, pattern } : null;
   }
   // The stored (not open) pattern `name`, with the lane `lanes` ({ row or note: steps }) of the part made if it is not there yet.
@@ -1463,7 +1536,7 @@
   // A drum row's sound on its own, for the ear.
   function soundDrum(row) {
     if (!songData.tracks || !songData.tracks[row]) return false;
-    const ctx = getAudioCtx();
+    const ctx = ensureAudio();
     const meta = Object.assign({}, songData.trackMeta && songData.trackMeta[row], { muted: false });
     const one = Object.assign({}, songData, { tracks: { [row]: [true] }, trackMeta: { [row]: meta }, melody: { notes: {} }, bass: undefined, chords: undefined, lead: undefined });
     Engine.scheduleStep(ctx, one, 0, ctx.currentTime);
@@ -1490,17 +1563,17 @@
     if (window.SongStudio && window.SongStudio.drumTrackOpen()) return; // notes would land in a part that is not on screen
     requested = snapToScale(requested, (candidate) => Boolean(roll().notes[rowForNote(candidate)]));
     if (window.SongStudio) window.SongStudio.played(requested);
-    const ctx = getAudioCtx();
+    const ctx = ensureAudio();
     const noteName = rowForNote(requested);
     const part = roll();
     const duration = 60 / (songData.tempo || 120) / 4;
     if (isPartRoll()) {
-      Engine.withVolume(ctx, Engine.volumeOf(part), () => Engine.playVoicedNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), Engine.partVoiceOf(songData, rollPart), duration));
+      Engine.withVolume(ctx, Engine.volumeOf(part), () => Engine.playVoicedNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), Engine.partVoiceOf(songData, rollPart), duration, part.synth));
     } else {
       const waveform = $("song-waveform").value;
       const voice = Engine.melodyVoiceOf(songData);
       Engine.withVolume(ctx, Engine.volumeOf(songData.melody), () =>
-        voice ? Engine.playVoicedNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), voice, duration) : Engine.playMelodyNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), waveform, duration));
+        voice ? Engine.playVoicedNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), voice, duration, songData.melody.synth) : Engine.playMelodyNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), waveform, duration));
     }
     if (!part.notes[noteName]) return; // outside the 2-octave piano roll range — preview only
     const spot = recordingSpot(rollPart);
@@ -1529,7 +1602,7 @@
 
   // A note of a track played for the ear only (a slider released in the Studio's sound settings), with the track's sound as it is now.
   function hearNote(id, name) {
-    const ctx = getAudioCtx();
+    const ctx = ensureAudio();
     const duration = 60 / (songData.tempo || 120) / 4;
     const part = id === "melody" ? songData.melody : songData[id];
     const voice = id === "melody" ? Engine.melodyVoiceOf(songData) : Engine.partVoiceOf(songData, id);
@@ -3348,7 +3421,7 @@
       if (Number.isInteger(tempo) && tempo >= 40 && tempo <= 240) data.tempo = tempo;
       const bars = Number(settings.song_default_bars);
       if (Number.isInteger(bars) && bars >= 1 && bars <= Engine.MAX_BARS) data.bars = bars;
-      if (["acoustic", "electronic", "808"].includes(settings.song_default_kit)) data.kit = settings.song_default_kit;
+      if (Engine.KITS.includes(settings.song_default_kit)) data.kit = settings.song_default_kit;
     } catch {
       /* built-in defaults */
     }

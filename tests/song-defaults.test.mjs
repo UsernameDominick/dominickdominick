@@ -8,7 +8,7 @@ for (const [value, want] of [["96", "96"], [" 140 ", "140"], [40, "40"], ["240",
   assert.equal(cleanSongDefault("song_default_tempo", value), want, `tempo ${JSON.stringify(value)}`);
 }
 for (const [value, want] of [["1", "1"], ["64", "64"], ["0", ""], ["65", ""], ["8.5", ""]]) assert.equal(cleanSongDefault("song_default_bars", value), want, `bars ${value}`);
-for (const [value, want] of [["acoustic", "acoustic"], ["808", "808"], ["electronic", "electronic"], ["", ""], ["trap", ""], [808, "808"], ["__proto__", ""]]) assert.equal(cleanSongDefault("song_default_kit", value), want, `kit ${value}`);
+for (const [value, want] of [["acoustic", "acoustic"], ["808", "808"], ["electronic", "electronic"], ["", ""], ["bogus", ""], [808, "808"], ["__proto__", ""]]) assert.equal(cleanSongDefault("song_default_kit", value), want, `kit ${value}`);
 assert.equal(cleanSongDefault("other", "5"), "");
 const body = { song_default_tempo: "9", song_default_bars: "8", song_default_kit: "nope", site_footer: "x" };
 cleanSongDefaults(body);

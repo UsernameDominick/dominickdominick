@@ -894,6 +894,23 @@
   // ---------- playing: the playhead, the keys and the cards light up with the music ----------
   let pending = [];
   let followPaused = false; // tapping a bar while it plays stops the editor following the music until it plays again
+  const pref = (key, fallback) => {
+    try {
+      const v = localStorage.getItem(key);
+      return v === null ? fallback : v;
+    } catch {
+      return fallback;
+    }
+  };
+  const setPref = (key, value) => {
+    try {
+      localStorage.setItem(key, value);
+    } catch {
+      /* a remembered choice is a nicety */
+    }
+  };
+  let followOn = pref("songFollow", "1") !== "0"; // the Follow button: off means the editor stays where it is while the song plays
+  let recTop = pref("songRecTop", "0") === "1"; // the button before Rec: recording always starts from the beginning
   const lit = new Set();
   function setLit(names) {
     lit.forEach((n) => {
@@ -930,7 +947,7 @@
     const data = info ? info.data : s;
     const track = trackOf(trackId);
     // The editor follows the music from bar to bar: when the open track moves on to another bar, that bar opens (its pattern, if it differs).
-    if (info && info.patterns && !followPaused && lastBar !== info.chainIndex && host().arr) {
+    if (info && info.patterns && followOn && !followPaused && lastBar !== info.chainIndex && host().arr) {
       const want = info.patterns[track.id];
       barPick[track.id] = info.chainIndex;
       if (want && want !== Engine.editingName(s)) {
@@ -954,7 +971,7 @@
     if (here && colCells[step]) {
       colCells[step].forEach((c) => c.classList.add("now"));
       lastCol = step;
-      followPlayhead(colCells[step][0]);
+      if (followOn) followPlayhead(colCells[step][0]);
     }
     const names = new Set();
     if (track.kind === "drums") {
@@ -995,6 +1012,8 @@
     if (h.playing()) h.pause();
     else {
       followPaused = false;
+      h.unlock();
+      if (recTop && $("song-record").checked) h.forget(); // armed to record: from the top, not from where it was paused
       $("song-play").click(); // plays (or carries on after a pause, with the count-in if one is set)
     }
     syncTransport();
@@ -1008,6 +1027,36 @@
     const box = $("song-record");
     box.checked = !box.checked;
     fire(box, "change");
+    // With "from the top" on, arming Rec starts the song again from the beginning (while it plays, or paused part-way).
+    if (box.checked && recTop) {
+      const h = host();
+      const wasPlaying = h.playing();
+      if (wasPlaying) h.stop();
+      h.forget();
+      if (wasPlaying) {
+        followPaused = false;
+        h.unlock();
+        $("song-play").click();
+      }
+    }
+    syncTransport();
+  });
+  $("studio-rec-top").addEventListener("click", () => {
+    recTop = !recTop;
+    setPref("songRecTop", recTop ? "1" : "0");
+    syncTransport();
+    $("studio-live").textContent = recTop ? "Recording will start from the beginning every time." : "Recording will start from where the song is.";
+  });
+  $("studio-follow").addEventListener("click", () => {
+    followOn = !followOn;
+    setPref("songFollow", followOn ? "1" : "0");
+    followPaused = false;
+    syncTransport();
+    $("studio-live").textContent = followOn ? "The editor follows the music." : "The editor stays where it is.";
+  });
+  $("studio-quant-btn").addEventListener("click", (e) => togglePop(e.currentTarget, $("studio-pop-quant")));
+  $("studio-quant").addEventListener("change", (e) => {
+    host().setQuantize(e.target.value);
     syncTransport();
   });
   $("studio-metro").addEventListener("click", (e) => togglePop(e.currentTarget, $("studio-pop-metro")));
@@ -1053,6 +1102,10 @@
     playBtn.classList.toggle("studio-playing", playing);
     $("studio-stop").disabled = !playing && !paused;
     $("studio-rec").setAttribute("aria-pressed", String($("song-record").checked));
+    $("studio-rec-top").setAttribute("aria-pressed", String(recTop));
+    $("studio-follow").setAttribute("aria-pressed", String(followOn));
+    if (document.activeElement !== $("studio-quant")) $("studio-quant").value = String(host().quantize());
+    $("studio-quant-btn").classList.toggle("is-set", host().quantize() !== 1);
     const metro = $("song-metronome-on").checked;
     $("studio-metro").setAttribute("aria-pressed", String(metro));
     $("studio-metro-on").checked = metro;
@@ -1305,20 +1358,70 @@
     { key: "decay", label: "Decay", min: 0.02, max: 3, log: true, unit: "s", hint: "How long it takes to settle" },
     { key: "sustain", label: "Sustain", min: 0, max: 1, unit: "%", hint: "How loud it stays while held; 0 is a struck note that just rings out" },
     { key: "release", label: "Release", min: 0, max: 3, unit: "s", sqrt: true, hint: "How long it rings after the note ends" },
-    { key: "cutoff", label: "Brightness", min: 120, max: 12000, log: true, unit: "Hz", hint: "A low-pass filter: lower is darker" },
-    { key: "detune", label: "Thickness", min: 0, max: 40, unit: "cents", hint: "Extra copies slightly out of tune, for width" },
+    { key: "cutoff", label: "Brightness", min: 120, max: 12000, log: true, unit: "Hz", hint: "The filter's cutoff: lower is darker" },
+    { key: "res", label: "Resonance", min: 0.1, max: 18, log: true, unit: "q", hint: "How sharply the filter rings at its cutoff: higher is more vocal or squelchy" },
+    { key: "sweep", label: "Filter sweep", min: -1, max: 1, unit: "sweep", hint: "Right: the filter closes over each note (a pluck). Left: it opens (a swell)" },
+    { key: "detune", label: "Thickness", min: 0, max: 40, unit: "cents", hint: "How far the stacked copies are tuned apart, for width" },
+    { key: "unison", label: "Voices", min: 1, max: 7, unit: "voices", int: true, hint: "How many copies of the sound are stacked" },
+    { key: "sub", label: "Sub", min: 0, max: 1, unit: "%", hint: "A pure tone an octave below, for weight" },
+    { key: "noise", label: "Noise", min: 0, max: 1, unit: "%", hint: "Breath or hiss mixed in, shaped by the filter" },
+    { key: "drive", label: "Drive", min: 0, max: 1, unit: "%", hint: "Gentle distortion that fattens and grits the sound" },
+    { key: "fm", label: "FM bite", min: 0, max: 1, unit: "%", hint: "A second tone bends this one, bright at the start and mellowing as it rings: electric pianos and bells" },
+    { key: "fmratio", label: "FM pitch", min: 0.5, max: 8, log: true, unit: "x", hint: "How high the bending tone is, as a multiple of the note: whole numbers are smooth, others are clangy" },
     { key: "vibrato", label: "Vibrato", min: 0, max: 60, unit: "cents", hint: "A slow wobble in the pitch" },
+    { key: "vrate", label: "Vibrato speed", min: 0.5, max: 12, log: true, unit: "Hz1", hint: "How fast the pitch wobbles" },
+    { key: "tremolo", label: "Tremolo", min: 0, max: 1, unit: "%", hint: "A wobble in the loudness" },
+    { key: "trate", label: "Tremolo speed", min: 0.5, max: 14, log: true, unit: "Hz1", hint: "How fast the loudness wobbles" },
+  ];
+  // How the knobs are grouped on the Sound tab.
+  const KNOB_GROUPS = [
+    { title: "Envelope", hint: "the shape of each note", keys: ["attack", "decay", "sustain", "release"], open: true },
+    { title: "Filter", hint: "brightness and bite", keys: ["cutoff", "res", "sweep"], filter: true, open: true },
+    { title: "Tone", hint: "width, weight and grit", keys: ["detune", "unison", "sub", "noise", "drive", "fm", "fmratio"] },
+    { title: "Movement", hint: "vibrato and tremolo", keys: ["vibrato", "vrate", "tremolo", "trate"] },
+  ];
+  const SYNTH_KEYS_ALL = ["wave", "ftype"].concat(KNOBS.map((k) => k.key));
+  const DRUM_KNOBS = [
+    { key: "tune", label: "Tune", min: -12, max: 12, unit: "st", def: 0, hint: "The pitch of this sound, in semitones" },
+    { key: "decay", label: "Length", min: 0.3, max: 3, log: true, unit: "len", def: 1, hint: "How long this sound rings, against the kit's own" },
+    { key: "tone", label: "Tone", min: -1, max: 1, unit: "tone", def: 0, hint: "Duller to the left, brighter to the right (on kicks and toms it is the punch of the pitch drop)" },
   ];
   const fromSlider = (k, t) => (k.log ? k.min * Math.pow(k.max / k.min, t) : k.sqrt ? k.min + (k.max - k.min) * t * t : k.min + (k.max - k.min) * t);
   const toSlider = (k, v) => (k.log ? Math.log(Math.max(k.min, v) / k.min) / Math.log(k.max / k.min) : k.sqrt ? Math.sqrt(Math.max(0, (v - k.min) / (k.max - k.min))) : (v - k.min) / (k.max - k.min));
-  const fmt = (k, v) => (k.unit === "%" ? `${Math.round(v * 100)}%` : k.unit === "Hz" ? `${Math.round(v)} Hz` : k.unit === "s" ? `${v < 0.1 ? v.toFixed(3) : v.toFixed(2)} s` : `${Math.round(v)} ${k.unit}`);
+  const signed = (n) => (n > 0 ? "+" : "") + n;
+  const fmt = (k, v) => {
+    switch (k.unit) {
+      case "%": return `${Math.round(v * 100)}%`;
+      case "Hz": return `${Math.round(v)} Hz`;
+      case "Hz1": return `${v.toFixed(1)} Hz`;
+      case "s": return `${v < 0.1 ? v.toFixed(3) : v.toFixed(2)} s`;
+      case "q": return v.toFixed(1);
+      case "x": return `${v.toFixed(2)}×`;
+      case "voices": return String(Math.round(v));
+      case "sweep": return `${signed(Math.round(v * 100))}%`;
+      case "st": return `${signed(Math.round(v * 10) / 10)} st`;
+      case "len": return `${Math.round(v * 100)}%`;
+      case "tone": return `${signed(Math.round(v * 100))}%`;
+      default: return `${Math.round(v)} ${k.unit}`;
+    }
+  };
   // The value a knob shows: the track's tweak, else what the named sound has.
   function knobValue(k, voice, synth) {
     if (synth[k.key] !== undefined) return synth[k.key];
     const v = (voice && Engine.MELODY_VOICES[voice]) || {};
-    if (k.key === "vibrato") return v.vibrato ? v.vibrato.cents : 0;
-    if (k.key === "cutoff") return v.cutoff || k.max;
-    return v[k.key] !== undefined ? v[k.key] : k.min;
+    switch (k.key) {
+      case "vibrato": return v.vibrato ? v.vibrato.cents : 0;
+      case "vrate": return v.vibrato ? v.vibrato.rate : 5.5;
+      case "tremolo": return v.tremolo ? v.tremolo.depth : 0;
+      case "trate": return v.tremolo ? v.tremolo.rate : 5;
+      case "fm": return v.fm ? v.fm.depth : 0;
+      case "fmratio": return v.fm ? v.fm.ratio : 1;
+      case "cutoff": return v.cutoff || k.max;
+      case "res": return v.q || 1;
+      case "unison": return v.unison || (v.detune ? 3 : 1);
+      case "sweep": return v.cutoffEnd && v.cutoff ? Math.max(-1, Math.min(1, -Math.log2(v.cutoffEnd / v.cutoff) / 4)) : 0;
+      default: return v[k.key] !== undefined ? v[k.key] : k.min;
+    }
   }
   let soundSig = "";
   function renderSound() {
@@ -1345,6 +1448,19 @@
       pane.querySelectorAll("[data-sound]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.sound === soundRow)));
       const vol = pane.querySelector("#studio-sound-vol");
       if (vol && document.activeElement !== vol) vol.value = Math.round(Engine.volumeOf(meta(s, soundRow)) * 100);
+      const shape = host().drum(soundRow);
+      pane.querySelectorAll("[data-dknob]").forEach((input) => {
+        const k = DRUM_KNOBS.find((x) => x.key === input.dataset.dknob);
+        const value = shape[k.key] !== undefined ? shape[k.key] : k.def;
+        if (document.activeElement !== input) input.value = String(Math.round(toSlider(k, value) * 1000));
+        const out = pane.querySelector(`[data-dout="${k.key}"]`);
+        if (out) {
+          out.textContent = fmt(k, value);
+          out.classList.toggle("is-tweaked", shape[k.key] !== undefined);
+        }
+      });
+      const resetDrum = pane.querySelector("#studio-sound-reset");
+      if (resetDrum) resetDrum.disabled = !Object.keys(shape).length;
       const mute = pane.querySelector("#studio-sound-mute");
       if (mute) {
         mute.setAttribute("aria-pressed", String(meta(s, soundRow).muted === true));
@@ -1369,6 +1485,8 @@
     const synth = host().synth(track.id);
     const voice = voiceOf(s, track);
     const basic = !voice;
+    const filterMenu = pane.querySelector("#studio-synth-ftype");
+    if (filterMenu) filterMenu.disabled = basic;
     pane.querySelectorAll("[data-knob]").forEach((input) => {
       const k = KNOBS.find((x) => x.key === input.dataset.knob);
       const value = knobValue(k, voice, synth);
@@ -1380,6 +1498,8 @@
         out.classList.toggle("is-tweaked", synth[k.key] !== undefined);
       }
     });
+    const ftype = pane.querySelector("#studio-synth-ftype");
+    if (ftype) ftype.value = synth.ftype || (voice && Engine.MELODY_VOICES[voice].ftype) || "lowpass";
     const wave = pane.querySelector("#studio-synth-wave");
     if (wave) wave.value = track.part === "melody" && basic ? (s.melody && s.melody.waveform) || "sine" : synth.wave || (voice && Engine.MELODY_VOICES[voice].wave) || "sine";
     const vol = pane.querySelector("#studio-sound-vol");
@@ -1391,20 +1511,27 @@
   }
   function noteSoundHtml(track) {
     const source = { melody: "song-voice", bass: "song-bass-voice", chords: "song-part-voice", lead: "song-part-voice" }[track.part];
-    const knobs = KNOBS.map(
-      (k) =>
-        `<label class="studio-knob" title="${esc(k.hint)}"><span class="studio-knob-name">${k.label}</span><output data-out="${k.key}"></output>` +
-        `<input type="range" min="0" max="1000" step="1" data-knob="${k.key}" data-no-reset aria-label="${k.label}: ${esc(k.hint)}"></label>`
-    ).join("");
+    const knob = (k) =>
+      `<label class="studio-knob" title="${esc(k.hint)}"><span class="studio-knob-name">${k.label}</span><output data-out="${k.key}"></output>` +
+      `<input type="range" min="0" max="1000" step="1" data-knob="${k.key}" data-no-reset aria-label="${k.label}: ${esc(k.hint)}"></label>`;
+    const folds = KNOB_GROUPS.map((g) => {
+      const filterType = g.filter
+        ? `<label class="studio-field studio-field-wide">Filter type<select id="studio-synth-ftype" aria-label="Filter type"><option value="lowpass">Low-pass (darken)</option><option value="highpass">High-pass (thin)</option><option value="bandpass">Band-pass (hollow)</option></select></label>`
+        : "";
+      return (
+        `<details class="studio-fold"${g.open ? " open" : ""}><summary>${g.title}<small>${g.hint}</small></summary>${filterType}` +
+        `<div class="studio-knobs">${g.keys.map((key) => knob(KNOBS.find((k) => k.key === key))).join("")}</div></details>`
+      );
+    }).join("");
     const waves = Engine.SYNTH_WAVES.map((w) => `<option value="${w}">${w.charAt(0).toUpperCase() + w.slice(1)}</option>`).join("");
     return (
       `<section class="studio-section"><h3>${esc(track.name)} sound</h3>` +
       `<div class="studio-section-row"><label class="studio-field">Instrument<select id="studio-voice" data-src="${source}" aria-label="${esc(track.name)} instrument"></select></label>` +
       `<label class="studio-field">Wave<select id="studio-synth-wave" aria-label="Wave shape">${waves}</select></label></div>` +
       `<p id="studio-synth-note" class="studio-section-hint">Basic is a plain wave. Pick an instrument to shape how it starts, rings and sounds.</p>` +
-      `<div class="studio-knobs">${knobs}</div>` +
-      `<div class="studio-section-row"><button type="button" id="studio-synth-reset" class="studio-mini" data-no-history title="Back to the instrument's own settings">Reset the sound</button>` +
-      `<button type="button" class="studio-mini" data-hear data-no-history>Hear it</button></div></section>` +
+      `<div class="studio-section-row"><button type="button" class="studio-mini" data-hear data-no-history>Preview</button>` +
+      `<button type="button" id="studio-synth-reset" class="studio-mini" data-no-history title="Back to the instrument's own settings">Reset the sound</button></div></section>` +
+      `<section class="studio-section studio-folds"><h3>Shape the sound</h3>${folds}</section>` +
       `<section class="studio-section"><h3>Level</h3><label class="studio-vol-inline"><span>Volume</span><input type="range" id="studio-sound-vol" min="0" max="100" data-no-reset aria-label="${esc(track.name)} volume"></label>` +
       `<button type="button" class="studio-mini" data-mute-track data-no-history>Mute ${esc(track.name)}</button></section>`
     );
@@ -1413,10 +1540,12 @@
     const chips = rows.map((r) => `<button type="button" class="studio-chip" data-sound="${r}" data-no-history aria-pressed="false">${ROW_LABELS[r]}</button>`).join("");
     return (
       `<section class="studio-section"><h3>Drum kit</h3><div class="studio-section-row"><label class="studio-field">Kit for every drum sound<select id="studio-kit" data-src="song-kit" aria-label="Drum kit"></select></label></div></section>` +
-      `<section class="studio-section"><h3>Each sound</h3><p class="studio-section-hint">Pick a sound, then set its volume or mute it.</p>` +
+      `<section class="studio-section"><h3>Each sound</h3><p class="studio-section-hint">Pick a sound, then set its volume, tune, length and tone, or mute it.</p>` +
       `<div class="studio-chips" role="group" aria-label="Drum sound">${chips}</div>` +
       `<div class="studio-section-row"><label class="studio-vol-inline"><span>Volume</span><input type="range" id="studio-sound-vol" min="0" max="100" data-no-reset aria-label="Volume of the chosen drum sound"></label></div>` +
-      `<div class="studio-section-row"><button type="button" id="studio-sound-mute" class="studio-mini" aria-pressed="false" data-no-history>Mute</button><button type="button" class="studio-mini" data-hear-drum data-no-history>Hear it</button><button type="button" id="studio-sound-remove" class="studio-mini" data-no-history title="Take this sound out of the song (undoable)">Remove this sound</button></div>` +
+      `<div class="studio-knobs">${DRUM_KNOBS.map((k) => `<label class="studio-knob" title="${esc(k.hint)}"><span class="studio-knob-name">${k.label}</span><output data-dout="${k.key}"></output><input type="range" min="0" max="1000" step="1" data-dknob="${k.key}" data-no-reset aria-label="${k.label} of the chosen drum sound: ${esc(k.hint)}"></label>`).join("")}</div>` +
+      `<div class="studio-section-row"><button type="button" id="studio-sound-reset" class="studio-mini" data-no-history title="Back to the kit's own tune, length and tone for this sound">Reset this sound</button></div>` +
+      `<div class="studio-section-row"><button type="button" id="studio-sound-mute" class="studio-mini" aria-pressed="false" data-no-history>Mute</button><button type="button" class="studio-mini" data-hear-drum data-no-history>Preview</button><button type="button" id="studio-sound-remove" class="studio-mini" data-no-history title="Take this sound out of the song (undoable)">Remove this sound</button></div>` +
       `<div class="studio-section-row"><label class="studio-field studio-field-small">Colour<input type="color" id="studio-sound-color" aria-label="Colour of the chosen drum sound"></label><label class="studio-field">Note<input type="text" id="studio-sound-note" maxlength="60" placeholder="A note about this sound" aria-label="Note about the chosen drum sound"></label></div></section>` +
       `<section class="studio-section"><h3>Add a sound</h3><div class="studio-section-row"><label class="studio-field">Sound<select id="studio-add" aria-label="Drum sound to add"></select></label><button type="button" id="studio-add-btn" class="studio-mini" data-no-history>Add</button></div></section>`
     );
@@ -1430,6 +1559,13 @@
       soundSig = "";
       refresh();
       if (trackOf(trackId).kind === "notes") host().hear(trackId, HEAR[trackOf(trackId).part]);
+      else host().hearDrum(soundRow);
+    } else if (t.id === "studio-synth-ftype") {
+      host().setSynth(trackId, { ftype: t.value });
+      refresh();
+      host().hear(trackId, HEAR[trackOf(trackId).part]);
+    } else if (t.dataset && t.dataset.dknob) {
+      host().hearDrum(soundRow);
     } else if (t.id === "studio-synth-wave") {
       const track = trackOf(trackId);
       if (track.part === "melody" && !voiceOf(song(), track)) {
@@ -1446,7 +1582,9 @@
     const t = e.target;
     if (t.dataset && t.dataset.knob) {
       const k = KNOBS.find((x) => x.key === t.dataset.knob);
-      const raw = fromSlider(k, Number(t.value) / 1000);
+      let raw = fromSlider(k, Number(t.value) / 1000);
+      if (k.int) raw = Math.round(raw);
+      else if (k.key === "sweep" && Math.abs(raw) < 0.03) raw = 0;
       host().setSynth(trackId, { [k.key]: Math.round(raw * 1000) / 1000 });
       const out = panes.sound.querySelector(`[data-out="${k.key}"]`);
       if (out) {
@@ -1454,6 +1592,20 @@
         out.classList.add("is-tweaked");
       }
       panes.sound.querySelector("#studio-synth-reset").disabled = false;
+    } else if (t.dataset && t.dataset.dknob) {
+      const k = DRUM_KNOBS.find((x) => x.key === t.dataset.dknob);
+      let raw = fromSlider(k, Number(t.value) / 1000);
+      if (k.key === "tune") raw = Math.round(raw * 10) / 10;
+      else if (Math.abs(raw - k.def) < (k.max - k.min) * 0.012) raw = k.def; // a notch at the kit's own value
+      raw = Math.round(raw * 1000) / 1000;
+      host().setDrum(soundRow, { [k.key]: raw === k.def ? null : raw });
+      const out = panes.sound.querySelector(`[data-dout="${k.key}"]`);
+      if (out) {
+        out.textContent = fmt(k, raw);
+        out.classList.toggle("is-tweaked", raw !== k.def);
+      }
+      const resetDrum = panes.sound.querySelector("#studio-sound-reset");
+      if (resetDrum) resetDrum.disabled = !Object.keys(host().drum(soundRow)).length;
     } else if (t.id === "studio-sound-color" || t.id === "studio-sound-note") {
       const real = $("song-sequencer").querySelector(`.song-track-${t.id === "studio-sound-color" ? "color" : "note"}[data-row="${soundRow}"]`);
       if (real) {
@@ -1491,11 +1643,16 @@
       soundSig = "";
       gridSig = "";
       keysSig = "";
+    } else if (t.id === "studio-sound-reset") {
+      host().setDrum(soundRow, { tune: null, decay: null, tone: null });
+      soundSig = "";
+      refresh();
+      host().hearDrum(soundRow);
     } else if (t.hasAttribute("data-hear-drum")) host().hearDrum(soundRow);
     else if (t.hasAttribute("data-hear")) host().hear(trackId, HEAR[track.part]);
     else if (t.hasAttribute("data-mute-track")) toggleMute(track);
     else if (t.id === "studio-synth-reset") {
-      host().setSynth(trackId, { wave: null, attack: null, decay: null, sustain: null, release: null, cutoff: null, detune: null, vibrato: null });
+      host().setSynth(trackId, Object.fromEntries(SYNTH_KEYS_ALL.map((key) => [key, null])));
       host().hear(trackId, HEAR[track.part]);
     } else if (t.id === "studio-add-btn") {
       $("song-add-drum").value = $("studio-add").value;

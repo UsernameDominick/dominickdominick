@@ -1,7 +1,7 @@
 // What a new song starts with, as the owner sets it in Site Settings (Songs): the tempo, the number of bars and the drum kit. Each is saved as
 // text, and "" means "the built-in default", so a value that is not a plain whole number in range (or a kit we do not have) is saved as "".
 export const SONG_DEFAULT_KEYS = ["song_default_tempo", "song_default_bars", "song_default_kit"];
-export const SONG_KITS = ["acoustic", "electronic", "808"];
+export const SONG_KITS = ["acoustic", "electronic", "808", "909", "house", "techno", "trap", "boombap", "lofi", "rock", "jazz", "dnb", "chip", "industrial", "soft"];
 
 const wholeNumber = (value, min, max) => {
   const text = String(value == null ? "" : value).trim();

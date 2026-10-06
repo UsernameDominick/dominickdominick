@@ -288,67 +288,165 @@ function setMasterVolume(ctx, value) {
     send.delay.delayTime.setValueAtTime(time, now);
   }
 
+  // Each kit is a set of numbers the drum voices read. A kit only names what differs from DEFAULT_KIT, which holds the numbers the
+  // first three kits always had, so those sound exactly as they did.
+  const DEFAULT_KIT = {
+    kickFreq: 150, kickDecay: 0.35, kickWave: "sine", kickDrop: 2.5, kickEnd: 0.5, kickClick: 0, kickDrive: 0,
+    snareTone: 200, snareDecay: 0.18, snareHP: 900, snareNoise: 0.7, snareBody: 0.5, snareWave: "triangle",
+    hihatDecay: 0.06, hihatHP: 7000, hihatLevel: 0.4,
+    clapDecay: 0.12, clapBP: 1200, clapLevel: 0.5,
+    openhatDecay: 0.3, openhatHP: 6500,
+    tomFreq: 120, tomDecay: 0.3, tomDrop: 1.9,
+    rimDecay: 0.035, rimTune: 1, crashDecay: 1.2, crashHP: 1,
+  };
+  const KIT_LABELS = {
+    acoustic: "Acoustic", electronic: "Electronic", "808": "808", "909": "909", house: "House", techno: "Techno", trap: "Trap", boombap: "Boom bap",
+    lofi: "Lo-fi", rock: "Rock", jazz: "Jazz", dnb: "Drum and bass", chip: "8-bit", industrial: "Industrial", soft: "Soft",
+  };
   const KIT_PARAMS = {
-    acoustic: { kickFreq: 150, kickDecay: 0.35, snareTone: 200, snareDecay: 0.18, hihatDecay: 0.06, clapDecay: 0.12, openhatDecay: 0.3, tomFreq: 120, tomDecay: 0.3, rimDecay: 0.035, crashDecay: 1.2 },
+    acoustic: {},
     electronic: { kickFreq: 90, kickDecay: 0.25, snareTone: 320, snareDecay: 0.12, hihatDecay: 0.04, clapDecay: 0.08, openhatDecay: 0.2, tomFreq: 160, tomDecay: 0.22, rimDecay: 0.025, crashDecay: 0.9 },
     "808": { kickFreq: 55, kickDecay: 0.55, snareTone: 180, snareDecay: 0.22, hihatDecay: 0.08, clapDecay: 0.15, openhatDecay: 0.4, tomFreq: 90, tomDecay: 0.5, rimDecay: 0.03, crashDecay: 1.5 },
+    "909": { kickFreq: 70, kickDecay: 0.3, kickClick: 0.5, kickDrive: 0.25, snareTone: 230, snareDecay: 0.2, snareHP: 1200, snareNoise: 0.85, hihatDecay: 0.05, hihatHP: 8000, clapDecay: 0.14, clapBP: 1500, openhatDecay: 0.35, tomFreq: 130, tomDecay: 0.28, crashDecay: 1.4 },
+    house: { kickFreq: 60, kickDecay: 0.28, kickClick: 0.35, snareTone: 210, snareDecay: 0.13, snareNoise: 0.5, snareBody: 0.35, hihatDecay: 0.05, hihatHP: 8500, hihatLevel: 0.34, clapDecay: 0.16, clapBP: 1400, clapLevel: 0.65, openhatDecay: 0.32, openhatHP: 7500 },
+    techno: { kickFreq: 52, kickDecay: 0.34, kickDrop: 3, kickClick: 0.3, kickDrive: 0.5, snareTone: 260, snareDecay: 0.1, snareHP: 1500, snareBody: 0.3, hihatDecay: 0.035, hihatHP: 9000, clapDecay: 0.1, clapBP: 1800, openhatDecay: 0.18, tomFreq: 140, tomDecay: 0.2, rimDecay: 0.02, crashDecay: 1 },
+    trap: { kickFreq: 42, kickDecay: 0.85, kickDrop: 2, kickEnd: 0.7, kickClick: 0.15, snareTone: 240, snareDecay: 0.14, snareHP: 1400, snareNoise: 0.8, snareBody: 0.25, hihatDecay: 0.03, hihatHP: 9500, hihatLevel: 0.36, clapDecay: 0.18, clapBP: 1300, openhatDecay: 0.22, openhatHP: 8500, tomFreq: 80, tomDecay: 0.6, crashDecay: 1.6 },
+    boombap: { kickFreq: 62, kickDecay: 0.32, kickClick: 0.2, kickDrive: 0.3, snareTone: 190, snareDecay: 0.2, snareHP: 700, snareNoise: 0.75, snareBody: 0.55, hihatDecay: 0.045, hihatHP: 6000, hihatLevel: 0.3, clapDecay: 0.14, clapBP: 1000, openhatDecay: 0.26, openhatHP: 5500, tomFreq: 100, tomDecay: 0.32, crashDecay: 1.1 },
+    lofi: { kickFreq: 72, kickDecay: 0.3, kickWave: "triangle", kickDrop: 2, snareTone: 170, snareDecay: 0.17, snareHP: 500, snareNoise: 0.45, snareBody: 0.55, hihatDecay: 0.05, hihatHP: 4500, hihatLevel: 0.26, clapDecay: 0.16, clapBP: 800, clapLevel: 0.4, openhatDecay: 0.24, openhatHP: 4200, tomFreq: 95, tomDecay: 0.3, rimDecay: 0.04, rimTune: 0.8, crashDecay: 1, crashHP: 0.6 },
+    rock: { kickFreq: 110, kickDecay: 0.4, kickClick: 0.45, snareTone: 180, snareDecay: 0.26, snareHP: 700, snareNoise: 0.85, snareBody: 0.6, hihatDecay: 0.07, hihatHP: 6500, hihatLevel: 0.42, clapDecay: 0.14, openhatDecay: 0.45, openhatHP: 6000, tomFreq: 100, tomDecay: 0.45, tomDrop: 1.5, crashDecay: 2, crashHP: 0.9 },
+    jazz: { kickFreq: 130, kickDecay: 0.22, kickWave: "triangle", kickDrop: 1.8, snareTone: 220, snareDecay: 0.22, snareHP: 450, snareNoise: 0.4, snareBody: 0.25, hihatDecay: 0.1, hihatHP: 5000, hihatLevel: 0.24, clapDecay: 0.1, clapBP: 900, clapLevel: 0.3, openhatDecay: 0.5, openhatHP: 4500, tomFreq: 110, tomDecay: 0.35, rimDecay: 0.05, rimTune: 0.9, crashDecay: 1.8, crashHP: 0.7 },
+    dnb: { kickFreq: 68, kickDecay: 0.22, kickClick: 0.4, snareTone: 300, snareDecay: 0.15, snareHP: 1600, snareNoise: 0.9, snareBody: 0.45, hihatDecay: 0.03, hihatHP: 9000, hihatLevel: 0.34, clapDecay: 0.09, openhatDecay: 0.2, openhatHP: 8000, tomFreq: 150, tomDecay: 0.2, crashDecay: 1.2 },
+    chip: { kickFreq: 100, kickDecay: 0.16, kickWave: "square", kickDrop: 3, kickEnd: 0.3, snareTone: 400, snareDecay: 0.1, snareHP: 3000, snareNoise: 0.6, snareBody: 0.35, snareWave: "square", hihatDecay: 0.025, hihatHP: 10000, hihatLevel: 0.3, clapDecay: 0.07, clapBP: 2500, openhatDecay: 0.14, openhatHP: 9000, tomFreq: 180, tomDecay: 0.14, rimDecay: 0.02, rimTune: 1.3, crashDecay: 0.6, crashHP: 1.2 },
+    industrial: { kickFreq: 50, kickDecay: 0.45, kickWave: "sine", kickDrop: 3.5, kickClick: 0.7, kickDrive: 0.9, snareTone: 150, snareDecay: 0.25, snareHP: 2000, snareNoise: 1, snareBody: 0.7, snareWave: "sawtooth", hihatDecay: 0.05, hihatHP: 6000, hihatLevel: 0.45, clapDecay: 0.2, clapBP: 2000, clapLevel: 0.6, openhatDecay: 0.35, tomFreq: 70, tomDecay: 0.5, tomDrop: 2.4, crashDecay: 2.2, crashHP: 0.8 },
+    soft: { kickFreq: 80, kickDecay: 0.26, kickWave: "triangle", kickDrop: 1.7, snareTone: 190, snareDecay: 0.16, snareHP: 600, snareNoise: 0.35, snareBody: 0.4, hihatDecay: 0.06, hihatHP: 5500, hihatLevel: 0.2, clapDecay: 0.1, clapBP: 900, clapLevel: 0.3, openhatDecay: 0.3, openhatHP: 5000, tomFreq: 105, tomDecay: 0.3, rimDecay: 0.04, rimTune: 0.9, crashDecay: 1.3, crashHP: 0.7 },
   };
+  const KITS = ["acoustic", "electronic", "808", "909", "house", "techno", "trap", "boombap", "lofi", "rock", "jazz", "dnb", "chip", "industrial", "soft"]; // the order of the menus (number-like names would otherwise sort first)
 
-  function playKick(ctx, time, kit) {
-    const p = KIT_PARAMS[kit] || KIT_PARAMS.acoustic;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(p.kickFreq * 2.5, time);
-    osc.frequency.exponentialRampToValueAtTime(p.kickFreq * 0.5, time + p.kickDecay);
-    gain.gain.setValueAtTime(1, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + p.kickDecay);
-    osc.connect(gain).connect(voiceOut(ctx));
-    osc.start(time);
-    osc.stop(time + p.kickDecay + 0.05);
+  // One drum sound's own tweaks (songData.trackMeta[row]): tune in semitones, decay as a multiplier of the kit's, tone from dull to bright
+  // (for the kick and the tom it is the punch of the pitch drop). Anything outside its range is pulled back inside; absent means "as the kit".
+  const DRUM_RANGES = { tune: [-12, 12], decay: [0.3, 3], tone: [-1, 1] };
+  function drumShape(meta) {
+    const out = {};
+    if (!meta || typeof meta !== "object") return out;
+    Object.keys(DRUM_RANGES).forEach((key) => {
+      const n = Number(meta[key]);
+      if (meta[key] === undefined || meta[key] === null || meta[key] === "" || !Number.isFinite(n)) return;
+      out[key] = Math.max(DRUM_RANGES[key][0], Math.min(DRUM_RANGES[key][1], n));
+    });
+    return out;
+  }
+  function kitParams(kit, shape) {
+    const p = Object.assign({}, DEFAULT_KIT, Object.prototype.hasOwnProperty.call(KIT_PARAMS, kit) ? KIT_PARAMS[kit] : KIT_PARAMS.acoustic);
+    if (!shape) return p;
+    const f = shape.tune ? Math.pow(2, shape.tune / 12) : 1;
+    const d = shape.decay || 1;
+    const t = shape.tone ? Math.pow(2, shape.tone * 1.5) : 1;
+    if (f !== 1) {
+      ["kickFreq", "snareTone", "tomFreq", "snareHP", "hihatHP", "openhatHP", "clapBP"].forEach((k) => (p[k] *= f));
+      p.rimTune *= f;
+      p.crashHP *= f;
+    }
+    if (d !== 1) ["kickDecay", "snareDecay", "hihatDecay", "clapDecay", "openhatDecay", "tomDecay", "rimDecay", "crashDecay"].forEach((k) => (p[k] *= d));
+    if (t !== 1) {
+      ["snareHP", "hihatHP", "openhatHP", "clapBP"].forEach((k) => (p[k] *= t));
+      p.crashHP *= t;
+      p.rimTune *= Math.sqrt(t);
+      p.kickDrop *= t;
+      p.tomDrop = 1 + (p.tomDrop - 1) * t;
+    }
+    return p;
+  }
+  // The tone of a hit in the kit's own terms: a soft saturation (a waveshaper) for the kicks that ask for drive.
+  const driveCurves = new Map();
+  function driveCurve(amount) {
+    const key = Math.round(amount * 20);
+    if (!driveCurves.has(key)) {
+      const k = 1 + key * 1.5;
+      const curve = new Float32Array(257);
+      for (let i = 0; i < 257; i++) {
+        const x = (i / 128) - 1;
+        curve[i] = Math.tanh(k * x) / Math.tanh(k);
+      }
+      driveCurves.set(key, curve);
+    }
+    return driveCurves.get(key);
   }
 
-  function playSnare(ctx, time, kit, random = Math.random) {
-    const p = KIT_PARAMS[kit] || KIT_PARAMS.acoustic;
+  function playKick(ctx, time, kit, random = Math.random, shape) {
+    const p = kitParams(kit, shape);
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = p.kickWave;
+    osc.frequency.setValueAtTime(p.kickFreq * p.kickDrop, time);
+    osc.frequency.exponentialRampToValueAtTime(p.kickFreq * p.kickEnd, time + p.kickDecay);
+    gain.gain.setValueAtTime(1, time);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + p.kickDecay);
+    let tail = gain;
+    if (p.kickDrive > 0) {
+      const shaper = ctx.createWaveShaper();
+      shaper.curve = driveCurve(p.kickDrive);
+      gain.connect(shaper);
+      tail = shaper;
+    }
+    osc.connect(gain);
+    tail.connect(voiceOut(ctx));
+    osc.start(time);
+    osc.stop(time + p.kickDecay + 0.05);
+    if (p.kickClick > 0) {
+      const click = ctx.createBufferSource();
+      click.buffer = noiseBuffer(ctx, 0.012, random);
+      const filter = ctx.createBiquadFilter();
+      filter.type = "highpass";
+      filter.frequency.value = 2500;
+      const clickGain = ctx.createGain();
+      clickGain.gain.setValueAtTime(p.kickClick * 0.6, time);
+      clickGain.gain.exponentialRampToValueAtTime(0.001, time + 0.012);
+      click.connect(filter).connect(clickGain).connect(voiceOut(ctx));
+      click.start(time);
+    }
+  }
+
+  function playSnare(ctx, time, kit, random = Math.random, shape) {
+    const p = kitParams(kit, shape);
     const noise = ctx.createBufferSource();
     noise.buffer = noiseBuffer(ctx, p.snareDecay, random);
     const noiseFilter = ctx.createBiquadFilter();
     noiseFilter.type = "highpass";
-    noiseFilter.frequency.value = 900;
+    noiseFilter.frequency.value = p.snareHP;
     const noiseGain = ctx.createGain();
-    noiseGain.gain.setValueAtTime(0.7, time);
+    noiseGain.gain.setValueAtTime(p.snareNoise, time);
     noiseGain.gain.exponentialRampToValueAtTime(0.001, time + p.snareDecay);
     noise.connect(noiseFilter).connect(noiseGain).connect(voiceOut(ctx));
     noise.start(time);
 
     const osc = ctx.createOscillator();
     const oscGain = ctx.createGain();
-    osc.type = "triangle";
+    osc.type = p.snareWave;
     osc.frequency.value = p.snareTone;
-    oscGain.gain.setValueAtTime(0.5, time);
+    oscGain.gain.setValueAtTime(p.snareBody, time);
     oscGain.gain.exponentialRampToValueAtTime(0.001, time + p.snareDecay * 0.8);
     osc.connect(oscGain).connect(voiceOut(ctx));
     osc.start(time);
     osc.stop(time + p.snareDecay + 0.05);
   }
 
-  function playHihat(ctx, time, kit, random = Math.random) {
+  function playHihat(ctx, time, kit, random = Math.random, shape) {
     chokeOpenHat(ctx, time); // a closed hat steps on a ringing open one
-    const p = KIT_PARAMS[kit] || KIT_PARAMS.acoustic;
+    const p = kitParams(kit, shape);
     const noise = ctx.createBufferSource();
     noise.buffer = noiseBuffer(ctx, p.hihatDecay, random);
     const filter = ctx.createBiquadFilter();
     filter.type = "highpass";
-    filter.frequency.value = 7000;
+    filter.frequency.value = p.hihatHP;
     const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.4, time);
+    gain.gain.setValueAtTime(p.hihatLevel, time);
     gain.gain.exponentialRampToValueAtTime(0.001, time + p.hihatDecay);
     noise.connect(filter).connect(gain).connect(voiceOut(ctx));
     noise.start(time);
   }
 
-  function playClap(ctx, time, kit, random = Math.random) {
-    const p = KIT_PARAMS[kit] || KIT_PARAMS.acoustic;
+  function playClap(ctx, time, kit, random = Math.random, shape) {
+    const p = kitParams(kit, shape);
     // Three quick, tightly-spaced bursts read as a "clap" rather than a
     // single noise hit — a cheap, standard trick for synthesizing claps.
     [0, 0.012, 0.024].forEach((offset) => {
@@ -356,9 +454,9 @@ function setMasterVolume(ctx, value) {
       noise.buffer = noiseBuffer(ctx, p.clapDecay, random);
       const filter = ctx.createBiquadFilter();
       filter.type = "bandpass";
-      filter.frequency.value = 1200;
+      filter.frequency.value = p.clapBP;
       const gain = ctx.createGain();
-      gain.gain.setValueAtTime(0.5, time + offset);
+      gain.gain.setValueAtTime(p.clapLevel, time + offset);
       gain.gain.exponentialRampToValueAtTime(0.001, time + offset + p.clapDecay);
       noise.connect(filter).connect(gain).connect(voiceOut(ctx));
       noise.start(time + offset);
@@ -376,14 +474,14 @@ function setMasterVolume(ctx, value) {
     open.choke.setTargetAtTime(0.0001, time, 0.004);
     open.until = time;
   }
-  function playOpenHat(ctx, time, kit, random = Math.random) {
+  function playOpenHat(ctx, time, kit, random = Math.random, shape) {
     chokeOpenHat(ctx, time);
-    const p = KIT_PARAMS[kit] || KIT_PARAMS.acoustic;
+    const p = kitParams(kit, shape);
     const noise = ctx.createBufferSource();
     noise.buffer = noiseBuffer(ctx, p.openhatDecay, random);
     const filter = ctx.createBiquadFilter();
     filter.type = "highpass";
-    filter.frequency.value = 6500;
+    filter.frequency.value = p.openhatHP;
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(0.35, time);
     gain.gain.exponentialRampToValueAtTime(0.001, time + p.openhatDecay);
@@ -393,12 +491,12 @@ function setMasterVolume(ctx, value) {
     openHats.set(ctx, { choke: choke.gain, from: time, until: time + p.openhatDecay });
   }
 
-  function playTom(ctx, time, kit) {
-    const p = KIT_PARAMS[kit] || KIT_PARAMS.acoustic;
+  function playTom(ctx, time, kit, random = Math.random, shape) {
+    const p = kitParams(kit, shape);
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = "sine";
-    osc.frequency.setValueAtTime(p.tomFreq * 1.9, time);
+    osc.frequency.setValueAtTime(p.tomFreq * p.tomDrop, time);
     osc.frequency.exponentialRampToValueAtTime(p.tomFreq, time + 0.07);
     gain.gain.setValueAtTime(0.9, time);
     gain.gain.exponentialRampToValueAtTime(0.001, time + p.tomDecay);
@@ -408,13 +506,13 @@ function setMasterVolume(ctx, value) {
   }
 
   // A short, dry click: two pitched tones and a burst of band-passed noise, over in a few hundredths of a second.
-  function playRim(ctx, time, kit, random = Math.random) {
-    const p = KIT_PARAMS[kit] || KIT_PARAMS.acoustic;
+  function playRim(ctx, time, kit, random = Math.random, shape) {
+    const p = kitParams(kit, shape);
     [[1750, 0.35], [480, 0.45]].forEach(([freq, level]) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = "triangle";
-      osc.frequency.value = freq;
+      osc.frequency.value = freq * p.rimTune;
       gain.gain.setValueAtTime(level, time);
       gain.gain.exponentialRampToValueAtTime(0.001, time + p.rimDecay);
       osc.connect(gain).connect(voiceOut(ctx));
@@ -425,7 +523,7 @@ function setMasterVolume(ctx, value) {
     noise.buffer = noiseBuffer(ctx, p.rimDecay, random);
     const filter = ctx.createBiquadFilter();
     filter.type = "bandpass";
-    filter.frequency.value = 3200;
+    filter.frequency.value = 3200 * p.rimTune;
     const noiseGain = ctx.createGain();
     noiseGain.gain.setValueAtTime(0.3, time);
     noiseGain.gain.exponentialRampToValueAtTime(0.001, time + p.rimDecay);
@@ -434,14 +532,14 @@ function setMasterVolume(ctx, value) {
   }
 
   // Two layers of noise at different brightness shimmer against each other and die away slowly.
-  function playCrash(ctx, time, kit, random = Math.random) {
-    const p = KIT_PARAMS[kit] || KIT_PARAMS.acoustic;
+  function playCrash(ctx, time, kit, random = Math.random, shape) {
+    const p = kitParams(kit, shape);
     [[4500, 0.22, 1], [9000, 0.16, 0.7]].forEach(([cutoff, level, length]) => {
       const noise = ctx.createBufferSource();
       noise.buffer = noiseBuffer(ctx, p.crashDecay * length, random);
       const filter = ctx.createBiquadFilter();
       filter.type = "highpass";
-      filter.frequency.value = cutoff;
+      filter.frequency.value = cutoff * p.crashHP;
       const gain = ctx.createGain();
       gain.gain.setValueAtTime(level, time);
       gain.gain.exponentialRampToValueAtTime(0.001, time + p.crashDecay * length);
@@ -470,27 +568,86 @@ function setMasterVolume(ctx, value) {
   // and a slow vibrato. sustain 0 makes a struck sound (pluck, bell) that rings for `decay` whatever the note length; anything
   // higher is held for the note's length (ties lengthen it) and then released. Each voice brings its own oscillator type.
   const MELODY_VOICES = {
+    // the first five are the originals: their numbers must not change (old songs sound as they did)
     pluck: { label: "Pluck", wave: "sawtooth", attack: 0.002, decay: 0.28, sustain: 0, release: 0, cutoff: 5200, cutoffEnd: 600, filterTime: 0.22, q: 3, level: 0.8 },
     lead: { label: "Lead", wave: "square", attack: 0.012, decay: 0.12, sustain: 0.65, release: 0.09, cutoff: 3600, q: 1, detune: 8, vibrato: { cents: 14, rate: 5.5, delay: 0.18 }, level: 0.55 },
     pad: { label: "Pad", wave: "sawtooth", attack: 0.28, decay: 0.3, sustain: 0.75, release: 0.55, cutoff: 1500, q: 0.7, detune: 11, level: 0.5 },
     bass: { label: "Bass", wave: "sawtooth", attack: 0.005, decay: 0.14, sustain: 0.7, release: 0.06, cutoff: 900, cutoffEnd: 420, filterTime: 0.2, q: 2, sub: 0.7, level: 0.7 },
     bell: { label: "Bell", wave: "sine", attack: 0.002, decay: 1.4, sustain: 0, release: 0, partial: { ratio: 2.76, level: 0.4 }, level: 0.9 },
+    // keys
+    epiano: { label: "Electric piano", wave: "sine", attack: 0.004, decay: 1.1, sustain: 0.2, release: 0.3, fm: { ratio: 1, depth: 0.22 }, tremolo: { depth: 0.18, rate: 4.6 }, level: 0.8 },
+    fmkeys: { label: "Bright keys", wave: "sine", attack: 0.003, decay: 0.7, sustain: 0.1, release: 0.2, fm: { ratio: 2, depth: 0.35 }, partial: { ratio: 4, level: 0.12 }, level: 0.75 },
+    piano: { label: "Piano", wave: "triangle", attack: 0.003, decay: 1.2, sustain: 0, release: 0, cutoff: 4200, cutoffEnd: 700, filterTime: 0.7, q: 0.8, partial: { ratio: 2, level: 0.35 }, level: 0.85 },
+    clav: { label: "Clav", wave: "sawtooth", attack: 0.002, decay: 0.26, sustain: 0, release: 0, cutoff: 3600, cutoffEnd: 700, filterTime: 0.16, q: 5, level: 0.75 },
+    organ: { label: "Organ", wave: "sine", attack: 0.012, decay: 0.05, sustain: 1, release: 0.06, sub: 0.45, partial: { ratio: 3, level: 0.3 }, vibrato: { cents: 7, rate: 6.4, delay: 0.1 }, level: 0.6 },
+    musicbox: { label: "Music box", wave: "sine", attack: 0.002, decay: 0.9, sustain: 0, release: 0, partial: { ratio: 4, level: 0.5 }, level: 0.8 },
+    // plucked and struck
+    harp: { label: "Harp", wave: "triangle", attack: 0.002, decay: 1.1, sustain: 0, release: 0, cutoff: 4800, cutoffEnd: 1200, filterTime: 0.5, q: 0.9, partial: { ratio: 2, level: 0.3 }, level: 0.85 },
+    guitar: { label: "Guitar", wave: "sawtooth", attack: 0.002, decay: 0.75, sustain: 0, release: 0, cutoff: 3400, cutoffEnd: 700, filterTime: 0.5, q: 1.5, level: 0.7 },
+    kalimba: { label: "Kalimba", wave: "sine", attack: 0.002, decay: 0.6, sustain: 0, release: 0, partial: { ratio: 5.4, level: 0.3 }, level: 0.9 },
+    marimba: { label: "Marimba", wave: "sine", attack: 0.002, decay: 0.5, sustain: 0, release: 0, partial: { ratio: 4, level: 0.5 }, cutoff: 3000, q: 0.7, level: 0.9 },
+    pizz: { label: "Pizzicato", wave: "square", attack: 0.002, decay: 0.22, sustain: 0, release: 0, cutoff: 2600, cutoffEnd: 500, filterTime: 0.15, q: 1.5, level: 0.6 },
+    stab: { label: "Synth stab", wave: "sawtooth", attack: 0.003, decay: 0.24, sustain: 0, release: 0, cutoff: 3600, cutoffEnd: 800, filterTime: 0.18, q: 2, unison: 3, detune: 14, level: 0.6 },
+    // bass
+    subbass: { label: "Sub bass", wave: "sine", attack: 0.01, decay: 0.1, sustain: 0.9, release: 0.08, level: 1 },
+    reese: { label: "Reese bass", wave: "sawtooth", attack: 0.01, decay: 0.2, sustain: 0.9, release: 0.1, cutoff: 750, q: 2, unison: 3, detune: 18, drive: 0.2, level: 0.6 },
+    acid: { label: "Acid bass", wave: "sawtooth", attack: 0.002, decay: 0.22, sustain: 0.45, release: 0.05, cutoff: 2400, cutoffEnd: 260, filterTime: 0.16, q: 12, level: 0.6 },
+    wobble: { label: "Wobble bass", wave: "sawtooth", attack: 0.005, decay: 0.2, sustain: 0.9, release: 0.08, cutoff: 700, q: 7, wobble: { rate: 3, cents: 2400 }, sub: 0.5, level: 0.6 },
+    finger: { label: "Finger bass", wave: "triangle", attack: 0.006, decay: 0.3, sustain: 0.55, release: 0.08, cutoff: 1500, cutoffEnd: 500, filterTime: 0.3, q: 1, sub: 0.4, level: 0.9 },
+    pluckbass: { label: "Pluck bass", wave: "sawtooth", attack: 0.002, decay: 0.28, sustain: 0, release: 0, cutoff: 1900, cutoffEnd: 300, filterTime: 0.22, q: 3, sub: 0.5, level: 0.75 },
+    chipbass: { label: "8-bit bass", wave: "square", attack: 0.002, decay: 0.08, sustain: 0.8, release: 0.03, cutoff: 1800, q: 0.7, level: 0.55 },
+    // leads
+    supersaw: { label: "Supersaw", wave: "sawtooth", attack: 0.012, decay: 0.15, sustain: 0.8, release: 0.15, cutoff: 6500, q: 0.8, unison: 5, detune: 22, level: 0.4 },
+    squarelead: { label: "Square lead", wave: "square", attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.08, cutoff: 5200, q: 1, vibrato: { cents: 10, rate: 5.8, delay: 0.25 }, level: 0.5 },
+    chip: { label: "8-bit lead", wave: "square", attack: 0.001, decay: 0.05, sustain: 0.75, release: 0.03, level: 0.45 },
+    brass: { label: "Brass", wave: "sawtooth", attack: 0.06, decay: 0.15, sustain: 0.8, release: 0.12, cutoff: 1200, cutoffEnd: 3400, filterTime: 0.14, q: 1.4, detune: 6, level: 0.55 },
+    strings: { label: "Strings", wave: "sawtooth", attack: 0.18, decay: 0.3, sustain: 0.85, release: 0.25, cutoff: 3200, q: 0.7, unison: 3, detune: 9, vibrato: { cents: 12, rate: 5.4, delay: 0.3 }, level: 0.5 },
+    flute: { label: "Flute", wave: "sine", attack: 0.08, decay: 0.1, sustain: 0.85, release: 0.12, noise: 0.12, cutoff: 4500, q: 0.8, vibrato: { cents: 11, rate: 5, delay: 0.3 }, level: 0.8 },
+    vox: { label: "Choir lead", wave: "sawtooth", attack: 0.14, decay: 0.2, sustain: 0.8, release: 0.25, noise: 0.04, ftype: "bandpass", cutoff: 1000, q: 2.2, vibrato: { cents: 14, rate: 5.2, delay: 0.25 }, level: 1 },
+    laser: { label: "Laser", wave: "sawtooth", attack: 0.001, decay: 0.22, sustain: 0, release: 0, cutoff: 6000, q: 4, slide: { cents: 2400, time: 0.14 }, level: 0.6 },
+    // pads
+    warmpad: { label: "Warm pad", wave: "triangle", attack: 0.5, decay: 0.4, sustain: 0.8, release: 0.9, cutoff: 1100, q: 0.7, unison: 3, detune: 9, level: 0.6 },
+    glasspad: { label: "Glass pad", wave: "sine", attack: 0.45, decay: 0.4, sustain: 0.8, release: 1, partial: { ratio: 2.005, level: 0.5 }, tremolo: { depth: 0.2, rate: 3.2 }, unison: 2, detune: 6, level: 0.6 },
+    stringpad: { label: "String pad", wave: "sawtooth", attack: 0.6, decay: 0.4, sustain: 0.85, release: 1, cutoff: 1900, q: 0.7, unison: 5, detune: 16, level: 0.4 },
+    darkpad: { label: "Dark pad", wave: "sawtooth", attack: 0.7, decay: 0.5, sustain: 0.8, release: 1.2, cutoff: 600, cutoffEnd: 900, filterTime: 0.8, q: 1.5, unison: 3, detune: 12, level: 0.5 },
+    swell: { label: "Swell", wave: "sawtooth", attack: 1.1, decay: 0.5, sustain: 0.8, release: 1.4, cutoff: 800, cutoffEnd: 2600, filterTime: 1.1, q: 1.2, unison: 3, detune: 10, level: 0.5 },
+    wind: { label: "Wind", wave: "sine", attack: 0.5, decay: 0.3, sustain: 0.9, release: 0.9, noise: 0.8, ftype: "bandpass", cutoff: 900, q: 3, tremolo: { depth: 0.3, rate: 0.7 }, level: 0.3 },
+    // bells and mallets
+    chime: { label: "Chime", wave: "sine", attack: 0.002, decay: 1.9, sustain: 0, release: 0, partial: { ratio: 3.01, level: 0.5 }, level: 0.8 },
+    vibes: { label: "Vibraphone", wave: "sine", attack: 0.003, decay: 1.6, sustain: 0, release: 0, partial: { ratio: 4, level: 0.2 }, tremolo: { depth: 0.45, rate: 5 }, level: 0.9 },
+    glassbell: { label: "Glass bell", wave: "sine", attack: 0.002, decay: 1.5, sustain: 0, release: 0, fm: { ratio: 3.5, depth: 0.45 }, level: 0.8 },
   };
+  // How the instruments are grouped in the menus.
+  const VOICE_GROUPS = [
+    { label: "Keys", voices: ["epiano", "fmkeys", "piano", "clav", "organ", "musicbox"] },
+    { label: "Plucked and struck", voices: ["pluck", "harp", "guitar", "kalimba", "marimba", "pizz", "stab"] },
+    { label: "Bass", voices: ["bass", "subbass", "reese", "acid", "wobble", "finger", "pluckbass", "chipbass"] },
+    { label: "Leads", voices: ["lead", "supersaw", "squarelead", "chip", "brass", "strings", "flute", "vox", "laser"] },
+    { label: "Pads", voices: ["pad", "warmpad", "glasspad", "stringpad", "darkpad", "swell", "wind"] },
+    { label: "Bells and mallets", voices: ["bell", "chime", "vibes", "glassbell"] },
+  ];
   const MELODY_VOICE_PEAK = 0.25; // the same loudness the plain waveform note starts at
 
   // A track's own tweaks to its sound (songData[part].synth): any of these, each inside its range. Anything else is dropped, so stale or
   // hostile data can never reach the audio graph.
   const SYNTH_WAVES = ["sine", "square", "sawtooth", "triangle"];
-  const SYNTH_RANGES = { attack: [0.001, 2], decay: [0.02, 3], sustain: [0, 1], release: [0, 3], cutoff: [120, 12000], detune: [0, 40], vibrato: [0, 60] };
+  const SYNTH_FILTERS = ["lowpass", "highpass", "bandpass"];
+  const SYNTH_RANGES = {
+    attack: [0.001, 2], decay: [0.02, 3], sustain: [0, 1], release: [0, 3], cutoff: [120, 12000], detune: [0, 40], vibrato: [0, 60],
+    res: [0.1, 18], vrate: [0.5, 12], sub: [0, 1], noise: [0, 1], drive: [0, 1], tremolo: [0, 1], trate: [0.5, 14], fm: [0, 1], fmratio: [0.5, 8],
+    sweep: [-1, 1], unison: [1, 7],
+  };
   function cleanSynth(raw) {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
     const out = {};
     if (SYNTH_WAVES.includes(raw.wave)) out.wave = raw.wave;
+    if (SYNTH_FILTERS.includes(raw.ftype)) out.ftype = raw.ftype;
     Object.keys(SYNTH_RANGES).forEach((key) => {
       const n = Number(raw[key]);
       if (raw[key] === undefined || raw[key] === null || raw[key] === "" || !Number.isFinite(n)) return;
       const [lo, hi] = SYNTH_RANGES[key];
-      out[key] = Math.round(Math.max(lo, Math.min(hi, n)) * 1000) / 1000;
+      const clamped = Math.max(lo, Math.min(hi, n));
+      out[key] = key === "unison" ? Math.round(clamped) : Math.round(clamped * 1000) / 1000;
     });
     return Object.keys(out).length ? out : null;
   }
@@ -502,15 +659,44 @@ function setMasterVolume(ctx, value) {
     const v = Object.assign({}, base);
     if (t.wave) v.wave = t.wave;
     ["attack", "decay", "sustain", "release", "detune"].forEach((key) => { if (t[key] !== undefined) v[key] = t[key]; });
+    if (t.ftype) v.ftype = t.ftype;
     if (t.cutoff !== undefined) {
       if (v.cutoffEnd && v.cutoff) v.cutoffEnd = Math.max(80, (v.cutoffEnd * t.cutoff) / v.cutoff);
       v.cutoff = t.cutoff;
     }
-    if (t.vibrato !== undefined) v.vibrato = t.vibrato > 0 ? { cents: t.vibrato, rate: (base.vibrato && base.vibrato.rate) || 5.5, delay: base.vibrato ? base.vibrato.delay : 0.18 } : undefined;
+    if (t.res !== undefined) v.q = t.res;
+    if ((t.res !== undefined || t.ftype) && !v.cutoff) v.cutoff = (t.ftype || "lowpass") === "lowpass" ? 12000 : 1200;
+    if (t.sweep !== undefined) {
+      if (t.sweep === 0) delete v.cutoffEnd;
+      else {
+        if (!v.cutoff) v.cutoff = 6000;
+        v.cutoffEnd = Math.max(80, Math.min(16000, v.cutoff * Math.pow(2, -t.sweep * 4)));
+        v.filterTime = v.filterTime || v.decay;
+      }
+    }
+    if (t.vibrato !== undefined || t.vrate !== undefined) {
+      const cents = t.vibrato !== undefined ? t.vibrato : base.vibrato ? base.vibrato.cents : 0;
+      const rate = t.vrate !== undefined ? t.vrate : (base.vibrato && base.vibrato.rate) || 5.5;
+      v.vibrato = cents > 0 ? { cents, rate, delay: base.vibrato ? base.vibrato.delay : 0.18 } : undefined;
+    }
+    if (t.sub !== undefined) v.sub = t.sub > 0 ? t.sub : undefined;
+    if (t.noise !== undefined) v.noise = t.noise > 0 ? t.noise : undefined;
+    if (t.drive !== undefined) v.drive = t.drive > 0 ? t.drive : undefined;
+    if (t.tremolo !== undefined || t.trate !== undefined) {
+      const depth = t.tremolo !== undefined ? t.tremolo : base.tremolo ? base.tremolo.depth : 0;
+      const rate = t.trate !== undefined ? t.trate : (base.tremolo && base.tremolo.rate) || 5;
+      v.tremolo = depth > 0 ? { depth, rate } : undefined;
+    }
+    if (t.fm !== undefined || t.fmratio !== undefined) {
+      const depth = t.fm !== undefined ? t.fm : base.fm ? base.fm.depth : 0;
+      const ratio = t.fmratio !== undefined ? t.fmratio : (base.fm && base.fm.ratio) || 1;
+      v.fm = depth > 0 ? { depth, ratio } : undefined;
+    }
+    if (t.unison !== undefined) v.unison = t.unison;
     return v;
   }
 
-  function playVoicedNote(ctx, time, freq, voiceName, duration, synth) {
+  function playVoicedNote(ctx, time, freq, voiceName, duration, synth, random = Math.random) {
     const v = shapedVoice(voiceName, synth);
     const end = time + duration;
     const peak = MELODY_VOICE_PEAK * (v.level || 1);
@@ -534,19 +720,48 @@ function setMasterVolume(ctx, value) {
     let tone = envelope;
     if (v.cutoff) {
       const filter = ctx.createBiquadFilter();
-      filter.type = "lowpass";
+      filter.type = v.ftype || "lowpass";
       filter.Q.value = v.q || 1;
       filter.frequency.setValueAtTime(v.cutoff, time);
       if (v.cutoffEnd) filter.frequency.exponentialRampToValueAtTime(v.cutoffEnd, time + (v.filterTime || v.decay));
       filter.connect(envelope);
       tone = filter;
+      if (v.wobble) {
+        const wob = ctx.createOscillator();
+        const wobDepth = ctx.createGain();
+        wob.frequency.value = v.wobble.rate;
+        wobDepth.gain.value = v.wobble.cents;
+        wob.connect(wobDepth).connect(filter.detune);
+        wob.start(time);
+        wob.stop(stopAt);
+      }
     }
-    envelope.connect(voiceOut(ctx));
+    if (v.drive) {
+      const shaper = ctx.createWaveShaper();
+      shaper.curve = driveCurve(v.drive);
+      shaper.connect(tone);
+      tone = shaper;
+    }
+    if (v.tremolo) {
+      const trem = ctx.createGain();
+      trem.gain.value = 1 - v.tremolo.depth / 2;
+      const lfo = ctx.createOscillator();
+      const lfoDepth = ctx.createGain();
+      lfo.frequency.value = v.tremolo.rate;
+      lfoDepth.gain.value = v.tremolo.depth / 2;
+      lfo.connect(lfoDepth).connect(trem.gain);
+      lfo.start(time);
+      lfo.stop(stopAt);
+      envelope.connect(trem).connect(voiceOut(ctx));
+    } else envelope.connect(voiceOut(ctx));
     const oscillator = (type, hz, level, cents) => {
       const osc = ctx.createOscillator();
       osc.type = type;
       osc.frequency.value = hz;
-      if (cents) osc.detune.value = cents;
+      if (v.slide) {
+        osc.detune.setValueAtTime((cents || 0) + v.slide.cents, time);
+        osc.detune.linearRampToValueAtTime(cents || 0, time + v.slide.time);
+      } else if (cents) osc.detune.value = cents;
       const mix = ctx.createGain();
       mix.gain.value = level;
       osc.connect(mix).connect(tone);
@@ -554,12 +769,43 @@ function setMasterVolume(ctx, value) {
       osc.stop(stopAt);
       return osc;
     };
-    const twin = v.detune ? 0.5 : 1;
-    const main = oscillator(v.wave, freq, twin);
-    const voices = [main];
-    if (v.detune) voices.push(oscillator(v.wave, freq, twin, v.detune), oscillator(v.wave, freq, twin * 0.6, -v.detune));
+    const voices = [];
+    if (v.unison) {
+      // n oscillators spread evenly across +/- detune cents
+      const n = v.unison;
+      for (let i = 0; i < n; i++) {
+        const pos = n > 1 ? (i / (n - 1)) * 2 - 1 : 0;
+        voices.push(oscillator(v.wave, freq, n > 1 ? 0.9 / Math.sqrt(n) : 1, pos * (v.detune || 0)));
+      }
+    } else {
+      const twin = v.detune ? 0.5 : 1;
+      voices.push(oscillator(v.wave, freq, twin));
+      if (v.detune) voices.push(oscillator(v.wave, freq, twin, v.detune), oscillator(v.wave, freq, twin * 0.6, -v.detune));
+    }
     if (v.sub) oscillator("sine", freq / 2, v.sub);
     if (v.partial) oscillator("sine", freq * v.partial.ratio, v.partial.level);
+    if (v.noise) {
+      const hiss = ctx.createBufferSource();
+      hiss.buffer = noiseBuffer(ctx, Math.max(0.05, stopAt - time), random);
+      const hissLevel = ctx.createGain();
+      hissLevel.gain.value = v.noise * 0.7;
+      hiss.connect(hissLevel).connect(tone);
+      hiss.start(time);
+    }
+    if (v.fm) {
+      // a sine modulator at a multiple of the note bends every oscillator's pitch; its depth falls away as the note decays, which is what gives
+      // electric pianos and bells their bright start
+      const mod = ctx.createOscillator();
+      const modDepth = ctx.createGain();
+      const deviation = freq * v.fm.ratio * v.fm.depth * 6;
+      mod.frequency.value = freq * v.fm.ratio;
+      modDepth.gain.setValueAtTime(deviation, time);
+      modDepth.gain.exponentialRampToValueAtTime(Math.max(0.001, deviation * 0.15), attackEnd + v.decay);
+      mod.connect(modDepth);
+      voices.forEach((o) => modDepth.connect(o.frequency));
+      mod.start(time);
+      mod.stop(stopAt);
+    }
     if (v.vibrato) {
       const lfo = ctx.createOscillator();
       const depth = ctx.createGain();
@@ -832,7 +1078,7 @@ function setMasterVolume(ctx, value) {
         // AND public embed both, since they share this exact code path).
         if (songData.tracks[track][step] && PLAYERS[track] && !isTrackMuted(songData, track)) {
           const hitTime = Math.max(0, time + humanizeJitter(songData, random));
-          withVolume(ctx, volumeOf(songData.trackMeta && songData.trackMeta[track]) * stepLevel(songData.tracks[track][step]), () => PLAYERS[track](ctx, hitTime, kit, random));
+          withVolume(ctx, volumeOf(songData.trackMeta && songData.trackMeta[track]) * stepLevel(songData.tracks[track][step]), () => PLAYERS[track](ctx, hitTime, kit, random, drumShape(songData.trackMeta && songData.trackMeta[track])));
           if (pump && track === "kick") duckMusic(ctx, hitTime, pump, songData.tempo);
         }
       });
@@ -852,7 +1098,7 @@ function setMasterVolume(ctx, value) {
           const noteTime = Math.max(0, time + humanizeJitter(songData, random));
           const length = duration * heldSteps(songData, note, step);
           withVolume(ctx, volumeOf(songData.melody) * stepLevel(songData.melody.notes[note][step]), () =>
-            voice ? playVoicedNote(ctx, noteTime, noteToFreq(note), voice, length, songData.melody.synth) : playMelodyNote(ctx, noteTime, noteToFreq(note), waveform, length));
+            voice ? playVoicedNote(ctx, noteTime, noteToFreq(note), voice, length, songData.melody.synth, random) : playMelodyNote(ctx, noteTime, noteToFreq(note), waveform, length));
         }
       });
     }
@@ -865,7 +1111,7 @@ function setMasterVolume(ctx, value) {
         if (Array.isArray(lane) && lane[step] && !isTiedContinuation(songData, note, step, key)) {
           const noteTime = Math.max(0, time + humanizeJitter(songData, random));
           const length = duration * heldSteps(songData, note, step, key);
-          withVolume(ctx, volumeOf(songData[key]) * stepLevel(lane[step]), () => playVoicedNote(ctx, noteTime, noteToFreq(note), voice, length, songData[key].synth));
+          withVolume(ctx, volumeOf(songData[key]) * stepLevel(lane[step]), () => playVoicedNote(ctx, noteTime, noteToFreq(note), voice, length, songData[key].synth, random));
         }
       });
     });
@@ -1131,7 +1377,12 @@ function setMasterVolume(ctx, value) {
     heldSteps,
     stepHasAudibleDrumHit,
     swingDelay,
+    stepDurationFor,
     DRUM_VOICES: Object.keys(PLAYERS),
+    KITS,
+    KIT_LABELS,
+    DRUM_RANGES,
+    drumShape,
     PATTERN_NAMES,
     MAX_CHAIN,
     isSinglePattern,
@@ -1157,6 +1408,8 @@ function setMasterVolume(ctx, value) {
     playVoicedNote,
     cleanSynth,
     SYNTH_WAVES,
+    SYNTH_FILTERS,
+    VOICE_GROUPS,
     SYNTH_RANGES,
     melodyVoiceOf,
     MELODY_VOICES,

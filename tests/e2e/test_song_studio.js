@@ -299,6 +299,7 @@ const { chromium, axeSource } = require("./_pw.cjs");
     await p.selectOption("#studio-voice", "bell");
     await settle(p);
     ok((await p.inputValue("#song-voice")) === "bell" && /Bell/.test(await sound(p, "melody")) && (await p.isEnabled('[data-knob="attack"]')), "the instrument drives the melody voice, shows on the card and unlocks the sliders");
+    await p.evaluate(() => document.querySelectorAll("#studio-sheet details.studio-fold").forEach((d) => (d.open = true)));
     const attackBefore = await text(p, '[data-out="attack"]');
     await p.fill('[data-knob="attack"]', "800");
     await p.fill('[data-knob="cutoff"]', "300");

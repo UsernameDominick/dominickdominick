@@ -28,6 +28,7 @@ export function makeCtx(rate = 44100) {
   ctx.createBufferSource = () => makeNode("source", ctx);
   ctx.createBiquadFilter = () => makeNode("filter", ctx);
   ctx.createAnalyser = () => makeNode("analyser", ctx);
+  ctx.createWaveShaper = () => makeNode("shaper", ctx);
   ctx.createConvolver = () => makeNode("convolver", ctx);
   ctx.createDelay = () => { const n = makeNode("delay", ctx); n.delayTime = makeParam(0); return n; };
   ctx.createBuffer = (channels, length, sampleRate) => {
@@ -48,7 +49,7 @@ class FakeOffline {
   async startRendering() { return { getChannelData: () => new Float32Array(this.length) }; }
 }
 
-const sandbox = () => vm.createContext({ Math, Number, Object, Array, JSON, Float32Array, Promise, WeakMap, Set, Date, isFinite, parseFloat, String, console });
+const sandbox = () => vm.createContext({ Math, Number, Object, Array, JSON, Float32Array, Promise, WeakMap, Map, Set, Date, isFinite, parseFloat, String, console });
 // extra: anything to put in the engine's global scope (a test passes its own setTimeout/clearTimeout to drive the player by hand)
 export function loadEngine(extra = {}) {
   const window = { OfflineAudioContext: FakeOffline };

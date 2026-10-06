@@ -34,7 +34,7 @@ const fs = require("fs");
     let s = await state();
     ok(s.voice === "" && s.wave === "square" && !s.waveDisabled, "an old song opens as Basic with its waveform in use", s);
     const options = await p.evaluate(() => [...document.querySelectorAll("#song-voice option")].map((o) => o.value));
-    ok(options.join() === ",pluck,lead,pad,bass,bell", "the select offers Basic and the five instruments", options);
+    ok(options[0] === "" && ["pluck", "lead", "pad", "bass", "bell"].every((v) => options.includes(v)) && options.length >= 42, "the select offers Basic first and then the instruments, the original five among them", options.length);
     ok(await p.evaluate(() => !!document.getElementById("song-voice").getAttribute("aria-label")), "the select has a name");
 
     await p.selectOption("#song-voice", "pluck");
