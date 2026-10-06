@@ -9196,6 +9196,7 @@
     { slug: "studio", label: "Studio" },
     { slug: "piceditor", label: "PicEditor" },
     { slug: "simulations", label: "Simulations" },
+    { slug: "scans", label: "Scans" },
   ];
   let navAllPages = [];
   let navRows = []; // the bar: {id, label, parentId, adminOnly}, top-level and nested rows in their order

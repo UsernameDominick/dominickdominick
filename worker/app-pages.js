@@ -25,6 +25,17 @@ export const APP_PAGES = [
     script: "/simulations.js",
     loading: "Loading Simulations…",
   },
+  {
+    path: "/scans",
+    slug: "scans",
+    title: "Scans: look at 3D scans in your browser · Dominick",
+    description: "Open a 3D scan or model (.glb or .gltf) in your browser, turn it around, pick the view it opens on and keep it. Nothing to install, and your files never leave your device.",
+    h1: "Scans: look at 3D scans in your browser",
+    about: "A 3D model viewer for scans from Polycam, a phone's LiDAR scanner or any 3D app: open a .glb or .gltf file (and a .usdz for iPhone AR), orbit and zoom, save the starting view, and keep your scans on a shelf. Files you open here are kept in your own browser and are never sent to the site.",
+    mountId: "scans-mount",
+    script: "/scans.js",
+    loading: "Loading Scans…",
+  },
 ];
 
 export function appPageFor(path) {

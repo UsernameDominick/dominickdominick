@@ -11,6 +11,7 @@ export const BUILTIN_NAV = [
   { slug: "studio", label: "Studio" },
   { slug: "piceditor", label: "PicEditor" },
   { slug: "simulations", label: "Simulations" },
+  { slug: "scans", label: "Scans" },
 ];
 
 const clean = (s, max) => String(s == null ? "" : s).replace(/[\u0000-\u001f\u007f<>]/g, "").replace(/\s+/g, " ").trim().slice(0, max);

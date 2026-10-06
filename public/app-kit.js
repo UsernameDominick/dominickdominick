@@ -145,15 +145,29 @@
     };
   }
   const fetchers = [];
+  const mediaFetchers = [];
+  let fetchInstalled = false;
+  function addMediaFetch(fn) {
+    mediaFetchers.push(fn);
+    addFetch(() => undefined);
+  }
   function addFetch(fn) {
-    if (!fetchers.length) {
+    if (!fetchInstalled) {
+      fetchInstalled = true;
       const real = window.fetch.bind(window);
       window.fetch = function (input, init) {
         const url = typeof input === "string" ? input : input && input.url;
         const u = url ? new URL(url, location.href) : null;
         if (u && u.origin === location.origin && u.pathname.indexOf("/api/admin/") === 0) {
           for (const fn of fetchers) {
-            const out = fn(u.pathname.slice("/api/admin".length), ((init && init.method) || "GET").toUpperCase(), init || {});
+            const out = fn(u.pathname.slice("/api/admin".length), ((init && init.method) || "GET").toUpperCase(), init || {}, u.searchParams);
+            if (out) return Promise.resolve(out);
+          }
+        }
+        // A file kept in this browser that a tool asks for by its site address (/media/local-…): a 3D viewer loading a model.
+        if (u && u.origin === location.origin && u.pathname.indexOf("/media/local-") === 0) {
+          for (const fn of mediaFetchers) {
+            const out = fn(decodeURIComponent(u.pathname.slice("/media/".length)));
             if (out) return Promise.resolve(out);
           }
         }
@@ -371,5 +385,5 @@
   // page-slide.js / nav.js call this for every page that slides in.
   window.siteInitApps = (root) => apps.forEach((a) => a.init(root));
 
-  window.SiteAppKit = { esc, fail, wireSubDialogs, scopeCss, adminParts, loadScripts, addApi, addFetch, jsonResponse, readList, writeList, nextId, now, cleanName, presetApi, fileStore, whenEdited, register };
+  window.SiteAppKit = { esc, fail, wireSubDialogs, scopeCss, adminParts, loadScripts, addApi, addFetch, addMediaFetch, jsonResponse, readList, writeList, nextId, now, cleanName, presetApi, fileStore, whenEdited, register };
 })();

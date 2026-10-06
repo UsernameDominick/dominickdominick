@@ -139,7 +139,7 @@ The admin opens on the page itself. `page-first.js` puts the page chooser (`.adm
 - **The builder's markup lives in `public/admin/index.html`**: if that page is ever restructured, keep those ids (or move the markup to a shared file and load it from both). Something the builder looks up at start that is not inside those three dialogs has to be added to the shell in `boot`.
 - `tests/e2e/test_studio_page.js` covers it as a visitor (shelf, save, Songs, card play, copy/delete, slide away and back, a phone).
 
-## App pages (PicEditor, Simulations, and next Scans)
+## App pages (PicEditor, Simulations, Scans)
 
 Admin tools as pages every visitor can use, the same idea as the Studio, built on **`public/app-kit.js`** (`window.SiteAppKit`) with
 `public/app-kit.css`. Each one is an entry in `worker/app-pages.js` (`APP_PAGES`: path, nav slug, words, `mountId`, script; `index.js`
@@ -149,7 +149,7 @@ routes them, `render.js` adds `/app-kit.js` + the app script, `sitemap.js` lists
   `.app-shell`) plus `app-kit.css` in one `<style id="app-kit-css" data-added-by>`, takes the app's dialogs out of the admin page, loads its
   scripts once, and `register(app)` runs the page life (boot on the mount, park in `#app-parking` on `site:arrive`, place back on return,
   `window.siteInitApps` called from `siteInitContent`, warm while idle on other pages). The editor's calls are answered in the browser:
-  `addApi(fn(path, method, body))` (chained, falls back to the Studio's), `addFetch` for `fetch("/api/admin/…")`, `presetApi(path, key)` for
+  `addApi(fn(path, method, body, query))` (chained, falls back to the Studio's), `addFetch` for `fetch("/api/admin/…")`, `addMediaFetch(fn(key))` for `/media/local-…` files, `presetApi(path, key)` for
   named presets in localStorage, `fileStore(db)` for files in IndexedDB. Nothing is sent to the server.
 - **PicEditor (`/piceditor`, `public/piceditor.js`):** the photo editor (`#photo-editor-modal`, `#photo-editor-prompt-modal`, scripts
   `photo-color.js` + `photo-editor.js`). Pictures live in IndexedDB `piceditor-pictures`. Save as new = `window.adminUploadBlob` (a new
@@ -162,6 +162,12 @@ routes them, `render.js` adds `/app-kit.js` + the app script, `sitemap.js` lists
   wires it as it loads). Circuits live in localStorage `simulations.circuits.v1` (templates `simulations.templates.v1`), answered on the
   `/simulations` routes; publish is "not available here" and the share-image row is hidden. A card opens its circuit through the hidden
   list's `.edit-simulation`; **Circuits** (the builder's ×) saves an unsaved circuit first. `tests/e2e/test_simulations_page.js` covers it.
+- **Scans (`/scans`, `public/scans.js`):** the 3D scan editor (`#scan-editor-modal`, `#scans-modal` kept hidden, hidden `#scans-btn` made in
+  `prepare`, which also adds the `<model-viewer>` module from jsdelivr). Model files live in IndexedDB `scans-files` (keys `local-scan-…`, from
+  the kit answering `POST /api/admin/scan-upload`), scan records in `scans-list` (with a thumbnail from the viewer at save); the files are
+  served back to the viewer through `addMediaFetch`. "Open a 3D model…" clicks the editor's New and hands the file to `#scan-glb-input`;
+  **Scans** (the editor's ×) saves an unsaved scan that has a model first. A sandbox can't reach the CDN, so `tests/e2e/test_scans_page.js`
+  checks the model by fetching the viewer's `src`, not by its picture.
 - **Several apps in one visit:** each registers its own `addApi` handler; the Studio's `adminApi` passes anything it does not answer (404)
   on to the one before it, and its `/templates` only answers `kind=song`, so the Studio and the kit's apps can all be open in one visit.
 - On a phone the nav's stops share the width evenly while they all fit and keep their whole names (`min-width: max-content`) when they
