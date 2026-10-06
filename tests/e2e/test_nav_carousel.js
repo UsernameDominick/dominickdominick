@@ -40,6 +40,16 @@ const { chromium, request } = require("./_pw.cjs");
     const errs = []; p.on("pageerror", (e) => errs.push(String(e)));
     await p.goto(E2E_BASE + "/", { waitUntil: "networkidle" });
     await p.evaluate(() => { window.__sameDocument = true; });
+    // on a phone the stops share the bar evenly, and the ruler has a long tick under the middle of each one
+    const even = await p.evaluate(() => {
+      const t = document.querySelector(".tabs");
+      const r = t.getBoundingClientRect();
+      const mids = [...t.querySelectorAll(":scope > .tab, :scope > .tab-group")].map((s) => { const b = s.getBoundingClientRect(); return b.left + b.width / 2; });
+      const gaps = mids.slice(1).map((m, i) => m - mids[i]);
+      const step = parseFloat(getComputedStyle(t).getPropertyValue("--tick-step"));
+      return { isEven: t.classList.contains("is-even"), spread: Math.max(...gaps) - Math.min(...gaps), step, gap: gaps[0], left: r.left, right: innerWidth - r.right };
+    });
+    ok(even.isEven && even.spread < 1.5 && Math.abs(even.step - even.gap) < 1 && Math.abs(even.left - even.right) < 2, "on a phone the tabs and the ruler's long ticks are evenly spaced across the bar", even);
     for (const href of tabs.filter((h) => h !== "/")) {
       await p.evaluate((h) => document.querySelector(`.tabs a.tab[href="${h}"]`).click(), href);
       await p.waitForFunction((h) => location.pathname === h && !document.querySelector(".page-stage"), href, { timeout: 15000 });

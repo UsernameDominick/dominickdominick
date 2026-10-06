@@ -4614,3 +4614,12 @@ html.finder-on { overflow: hidden; }
   .tabs > .tab, .tabs > .tab-group { flex: 1 0 0; } /* equal widths; a stop never gets narrower than its own content */
   .tabs > .tab-group > .tab { width: 100%; }
 }
+/* The even ruler (nav.js adds is-even when the stops share the bar evenly): a long tick under the middle of each stop, five short
+   ones evenly between, fixed in place. */
+.tabs.is-even {
+  background-image:
+    linear-gradient(90deg, var(--tick-major) 0 1px, transparent 1px),
+    linear-gradient(90deg, var(--tick) 0 1px, transparent 1px);
+  background-size: var(--tick-step, 60px) 9px, calc(var(--tick-step, 60px) / 6) 5px;
+  background-position: var(--tick-x0, 0px) 100%, var(--tick-x0, 0px) 100%;
+}

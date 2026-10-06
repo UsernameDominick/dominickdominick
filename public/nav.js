@@ -133,14 +133,15 @@ document.addEventListener("input", function (e) {
   function reveal() {
     var max = wrap.scrollWidth - wrap.clientWidth;
     if (max <= 0) return;
-    var target = active.offsetLeft - (wrap.clientWidth - active.offsetWidth) / 2;
+    var cur = wrap.querySelector(".tab.is-active") || active;
+    var target = cur.offsetLeft - (wrap.clientWidth - cur.offsetWidth) / 2;
     wrap.scrollLeft = Math.max(0, Math.min(max, target));
   }
 
   // The needle of the dial rests under this page's tab and turns to whichever tab the pointer or the keyboard is on, then back.
   function place(target) {
     var w = wrap.getBoundingClientRect();
-    var t = (target || active).getBoundingClientRect();
+    var t = (target || wrap.querySelector(".tab.is-active") || active).getBoundingClientRect(); // the active tab changes when a page slides in
     wrap.style.setProperty("--indicator-width", t.width + "px");
     // The marker scrolls with the tabs, so its place is measured from where the row starts, not from where it is scrolled to, and from
     // where the marker rests with no shift (the row's border plus the marker's own left offset), so it lands exactly on the tab.
@@ -149,17 +150,32 @@ document.addEventListener("input", function (e) {
     wrap.style.setProperty("--indicator-x", (t.left - w.left + wrap.scrollLeft - rest) + "px");
   }
 
-  reveal();
-  place();
-  window.addEventListener("resize", function () {
+  // When the stops share the bar evenly (a phone), the ruler is laid out from them: a long tick under the middle of every stop and
+  // five short ones evenly between, fixed in place. Otherwise it keeps its own spacing and drifts a little with the needle.
+  function ruler() {
+    var stops = [].slice.call(wrap.querySelectorAll(":scope > .tab, :scope > .tab-group"));
+    var w = wrap.getBoundingClientRect();
+    var boxes = stops.map(function (s) { return s.getBoundingClientRect(); });
+    var even = boxes.length > 1 && boxes.every(function (b) { return Math.abs(b.width - boxes[0].width) < 1.5; }) && wrap.scrollWidth <= wrap.clientWidth + 1;
+    wrap.classList.toggle("is-even", even);
+    if (!even) return;
+    var step = boxes[1].left - boxes[0].left;
+    var x0 = boxes[0].left + boxes[0].width / 2 - w.left - wrap.clientLeft;
+    wrap.style.setProperty("--tick-step", step + "px");
+    wrap.style.setProperty("--tick-x0", (x0 - 0.5) + "px");
+  }
+
+  function layout() {
     reveal();
+    ruler();
     place();
-  });
+  }
+  layout();
+  window.addEventListener("resize", layout);
   // Styles that depend on the rest of the page (the Studio page's slim header) only apply once it has been read, so look again then.
-  document.addEventListener("DOMContentLoaded", function () {
-    reveal();
-    place();
-  });
+  document.addEventListener("DOMContentLoaded", layout);
+  window.addEventListener("load", layout); // and once the fonts are in, which can change the widths
+  window.siteLayoutNav = layout;
   var tabsList = [].slice.call(wrap.querySelectorAll(".tab"));
   tabsList.forEach(function (tab) {
     tab.addEventListener("mouseenter", function () { place(tab); });
