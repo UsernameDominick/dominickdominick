@@ -8870,3 +8870,47 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
   .studio-quick { order: 5; flex: 1 1 100%; display: flex; align-items: center; justify-content: space-between; gap: 6px; padding-top: 2px; border-top: 1px solid var(--border); }
   .studio-controls .studio-bpm { order: 4; margin-left: auto; }
 }
+
+/* ---- The page first: the admin opens on the page, the block picker opens where you click ---- */
+@media (min-width: 861px) {
+  .admin-header { gap: 10px; flex-wrap: wrap; }
+  .admin-header .admin-sidebar-pages { flex-direction: row; align-items: center; flex-wrap: wrap; gap: 8px; padding: 0; }
+  .admin-header .admin-sidebar-pages select { width: auto; min-width: 150px; max-width: 240px; }
+  .admin-header .admin-sidebar-pages #page-template-picker { max-width: 150px; }
+  .page-actions { display: flex; gap: 8px; align-items: center; }
+  .admin-header .page-add-btn { background: var(--accent); color: var(--on-accent, #fff); border-color: var(--accent); font-weight: 600; }
+  .admin-header .page-add-btn:hover { color: var(--on-accent, #fff); border-color: var(--accent); filter: brightness(1.08); }
+  /* The block palette is the picker: out of the way until asked for, then a panel floating at the click. */
+  #palette { display: none; }
+  #palette.is-picker-open {
+    display: block; position: fixed; z-index: 70; width: 340px; max-height: min(70vh, 560px); overflow: hidden;
+    border: 1px solid var(--accent); border-radius: 12px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  }
+  #palette.is-picker-open .drawer-scroll-content { max-height: min(70vh, 560px); overflow-y: auto; }
+  #palette.is-picker-open .panel-resizer { display: none; }
+  .insert-ghost {
+    position: absolute; z-index: 2; pointer-events: none; display: grid; place-items: center; box-sizing: border-box;
+    border: 2px dashed var(--accent); border-radius: 8px; background: color-mix(in srgb, var(--accent) 10%, transparent);
+    color: var(--accent); font-size: 0.8rem; font-weight: 600; overflow: hidden;
+  }
+  .insert-ghost[hidden] { display: none; }
+  .admin-canvas:not(.admin-canvas-mobile-stack) { cursor: copy; }
+  .admin-canvas .admin-block, .admin-canvas .canvas-toolbar, .admin-canvas .size-menu { cursor: auto; }
+}
+@media (max-width: 860px) {
+  .page-actions { display: none; }
+  .insert-ghost { display: none; }
+}
+.size-menu {
+  position: absolute; z-index: 30; display: flex; flex-direction: column; gap: 4px; padding: 6px;
+  background: var(--bg-elevated); border: 1px solid var(--accent); border-radius: 8px; box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.3));
+}
+.size-menu-row { display: flex; gap: 4px; }
+.size-menu button { min-width: 36px; min-height: 30px; padding: 4px 10px; font-size: 0.8rem; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; }
+.size-menu button:hover { background: var(--bg); }
+.size-menu button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent, #fff); }
+@media (min-width: 861px) {
+  #palette.is-picker-open #close-palette { display: grid; place-items: center; position: absolute; top: 6px; right: 6px; z-index: 2; width: 28px; height: 28px; padding: 0; font-size: 1.1rem; line-height: 1; background: transparent; color: var(--text-dim); border: 1px solid var(--border); border-radius: 50%; cursor: pointer; }
+  #palette.is-picker-open #close-palette:hover { color: var(--text); border-color: var(--text-dim); }
+  #palette.is-picker-open .panel-switch { margin-right: 36px; }
+}

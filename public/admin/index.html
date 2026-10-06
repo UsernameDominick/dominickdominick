@@ -27,20 +27,7 @@
         <button id="close-site-menu" class="mobile-only close-drawer" aria-label="Close">×</button>
         <strong class="brand-label">dominick.dominick</strong>
       </div>
-      <div class="admin-sidebar-pages">
-        <select id="page-picker" aria-label="Page to edit"></select>
-        <button id="new-page-btn" title="New page">+ Page</button>
-        <select id="page-template-picker" aria-label="Template for the next new page" title="Start the next new page from a saved template">
-          <option value="">Blank page</option>
-        </select>
-        <div class="admin-more-wrap">
-          <button id="recent-items-btn" aria-haspopup="true" aria-expanded="false" aria-controls="recent-items-panel">Recent ▾</button>
-          <div class="admin-more-panel" id="recent-items-panel">
-            <div class="admin-more-group" id="recent-items-favorites"></div>
-            <div class="admin-more-group" id="recent-items-recent"></div>
-          </div>
-        </div>
-      </div>
+      <div id="sidebar-pages-slot"></div>
       <nav class="admin-sidebar-scroll">
         <div class="admin-sidebar-group">
           <h3>Content</h3>
@@ -94,8 +81,26 @@
         <h1 class="sim-sr-only">Site admin</h1>
         <button id="site-menu-btn" class="mobile-only" aria-label="Menu">☰</button>
         <button id="mobile-menu-btn" class="mobile-only" aria-label="Add block">+ Block</button>
+        <div class="admin-sidebar-pages">
+          <select id="page-picker" aria-label="Page to edit"></select>
+          <button id="new-page-btn" title="New page">+ Page</button>
+          <select id="page-template-picker" aria-label="Template for the next new page" title="Start the next new page from a saved template">
+            <option value="">Blank page</option>
+          </select>
+          <div class="admin-more-wrap">
+            <button id="recent-items-btn" aria-haspopup="true" aria-expanded="false" aria-controls="recent-items-panel">Recent ▾</button>
+            <div class="admin-more-panel" id="recent-items-panel">
+              <div class="admin-more-group" id="recent-items-favorites"></div>
+              <div class="admin-more-group" id="recent-items-recent"></div>
+            </div>
+          </div>
+        </div>
+        <div class="page-actions" role="group" aria-label="Edit this page">
+          <button type="button" id="add-block-btn" class="page-add-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="palette" title="Add a block to the page. Or click an empty spot on the page to add one right there.">+ Add</button>
+          <button type="button" id="page-settings-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="palette" title="This page's title, address, navigation and search settings">Page settings</button>
+        </div>
         <div class="panel-toggles" role="group" aria-label="Side panels">
-          <button type="button" id="sidebar-toggle-btn" aria-pressed="true" title="Show or hide the menu (Ctrl+B)">Menu</button>
+          <button type="button" id="sidebar-toggle-btn" aria-pressed="true" title="Show or hide the tools menu: articles, projects, media, songs, settings and the rest (Ctrl+B)">☰ Tools</button>
           <button type="button" id="inspector-toggle-btn" aria-pressed="true" title="Show or hide the block inspector">Inspector</button>
         </div>
         <div class="admin-header-right" id="admin-header-right">
@@ -2920,6 +2925,7 @@
 <script src="/admin/image-fit.js"></script>
 <script src="/admin/block-fit.js"></script>
 <script src="/admin/app.js"></script>
+<script src="/admin/page-first.js"></script>
 <script src="/admin/panels.js"></script>
 <script src="/admin/dialog-resize.js"></script>
 <script src="/admin/reset-defaults.js"></script>

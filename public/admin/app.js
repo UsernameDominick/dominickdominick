@@ -1685,7 +1685,7 @@
       const b = blocks.find((x) => x.id === ch.id);
       if (!b) continue;
       const patch = {};
-      for (const k of ["col_span", "row_span", "row"]) if (ch[k] !== undefined && ch[k] !== b[k]) patch[k] = ch[k];
+      for (const k of ["col", "col_span", "row_span", "row"]) if (ch[k] !== undefined && ch[k] !== b[k]) patch[k] = ch[k];
       if (!Object.keys(patch).length) continue;
       jobs.push({ b, patch });
     }
@@ -1877,13 +1877,7 @@
     box.querySelector(".quick-edit-done").addEventListener("click", () => closeQuickEdit(true));
     const fit = box.querySelector(".quick-edit-fit");
     if (fit) fit.addEventListener("click", () => fitBlock(b.id, "content"));
-    box.querySelector(".quick-edit-more").addEventListener("click", () => {
-      const inspector = el("inspector");
-      inspector.hidden = false;
-      if (isMobile()) openDrawer(inspector);
-      const first = el("inspector-fields").querySelector("input, textarea, select");
-      if (first) first.focus();
-    });
+    box.querySelector(".quick-edit-more").addEventListener("click", () => showInspectorPanel());
     positionQuickEdit();
     const first = fieldsBox.querySelector("input:not([type=checkbox]), textarea, select") || box.querySelector(".quick-edit-done");
     if (first) first.focus();
@@ -2179,6 +2173,74 @@
     bar.style.top = Math.max(0, spot.top) + "px";
     bar.style.left = spot.left + "px";
   }
+  function showInspectorPanel() {
+    if (window.AdminPanels && window.AdminPanels.show) window.AdminPanels.show("inspector");
+    const inspector = el("inspector");
+    inspector.hidden = false;
+    if (isMobile()) openDrawer(inspector);
+    const first = el("inspector-fields").querySelector("input, textarea, select");
+    if (first) first.focus();
+  }
+  // The width and position presets under a block's Size button. Only moves that leave room (nothing beside or below is in the way) go through.
+  const SIZE_PRESETS = [["¼", 6, "a quarter"], ["⅓", 8, "a third"], ["½", 12, "half"], ["⅔", 16, "two thirds"], ["Full", 24, "the full width"]];
+  function closeSizeMenu() {
+    canvas.querySelectorAll(".size-menu").forEach((n) => n.remove());
+  }
+  async function applySize(id, want, align) {
+    const b = blocks.find((x) => x.id === id);
+    if (!b || isLayoutLocked(b)) return;
+    let span = want == null ? b.col_span : Math.max(1, Math.min(BlockFit.COLS, want));
+    let col = b.col;
+    if (align === "left") col = 1;
+    else if (align === "center") col = Math.floor((BlockFit.COLS - span) / 2) + 1;
+    else if (align === "right") col = BlockFit.COLS - span + 1;
+    col = Math.max(1, Math.min(col, BlockFit.COLS - span + 1));
+    const trial = { ...b, col, col_span: span };
+    const clash = blocks.find((o) => o.id !== b.id && BlockFit.overlaps(trial, o));
+    if (clash) {
+      // A wider block that runs into the one beside it stops short of it; a move into an occupied place does not happen.
+      if (want != null && !align) {
+        span = BlockFit.maxSpanBeside(blocks, { ...b, col }, span);
+        if (span === b.col_span) return canvasNote("Something is beside this block, so it cannot be any wider.");
+      } else return canvasNote("Another block is already there.");
+    }
+    closeSizeMenu();
+    const changed = await applyLayoutChanges([{ id: b.id, col, col_span: span }]);
+    canvasNote(changed ? "" : "Already like that.");
+  }
+  function toggleSizeMenu(bar, b, btn) {
+    if (canvas.querySelector(".size-menu")) return closeSizeMenu();
+    const menu = document.createElement("div");
+    menu.className = "size-menu";
+    menu.setAttribute("role", "group");
+    menu.setAttribute("aria-label", "Block width and position");
+    const cur = b.col_span;
+    menu.innerHTML =
+      `<div class="size-menu-row" role="group" aria-label="Width">${SIZE_PRESETS.map(([label, span, word]) => `<button type="button" data-span="${span}" aria-label="${word}" aria-pressed="${cur === span}">${label}</button>`).join("")}</div>` +
+      `<div class="size-menu-row" role="group" aria-label="Position"><button type="button" data-align="left" aria-label="Align left">Left</button><button type="button" data-align="center" aria-label="Centre">Centre</button><button type="button" data-align="right" aria-label="Align right">Right</button></div>`;
+    ["mousedown", "pointerdown"].forEach((t) => menu.addEventListener(t, (e) => e.stopPropagation()));
+    menu.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const t = e.target.closest("button");
+      if (!t) return;
+      if (t.dataset.span) applySize(b.id, Number(t.dataset.span), null);
+      else if (t.dataset.align) applySize(b.id, null, t.dataset.align);
+    });
+    menu.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        closeSizeMenu();
+        btn.focus();
+      }
+    });
+    bar.after(menu);
+    const r = bar.getBoundingClientRect();
+    const cr = canvas.getBoundingClientRect();
+    menu.style.left = Math.max(2, r.left - cr.left) + "px";
+    menu.style.top = r.bottom - cr.top + 4 + "px";
+    const first = menu.querySelector("button");
+    if (first) first.focus();
+  }
   // After a toolbar action the canvas rebuilds; this remembers which button to put focus back on.
   let toolbarFocusAction = null; // the data-action of the toolbar button to focus after the redraw (positions shift as buttons come and go)
   function renderCanvasToolbar() {
@@ -2236,6 +2298,34 @@
       openQuickEdit(b.id);
     });
     bar.insertBefore(editBtn, bar.firstChild);
+    // Size: how wide the block is and where it sits across the page, in a click.
+    const sizeBtn = document.createElement("button");
+    sizeBtn.type = "button";
+    sizeBtn.textContent = "Size";
+    sizeBtn.dataset.action = "size";
+    sizeBtn.title = "Make this block a quarter, a third, half, two thirds or the full width, and put it left, centred or right";
+    sizeBtn.setAttribute("aria-haspopup", "true");
+    sizeBtn.disabled = isLayoutLocked(b);
+    sizeBtn.addEventListener("mousedown", (e) => e.stopPropagation());
+    sizeBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
+    sizeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleSizeMenu(bar, b, sizeBtn);
+    });
+    bar.insertBefore(sizeBtn, editBtn.nextSibling);
+    // Settings: every field of the block, in the inspector.
+    const settingsBtn = document.createElement("button");
+    settingsBtn.type = "button";
+    settingsBtn.textContent = "Settings";
+    settingsBtn.dataset.action = "settings";
+    settingsBtn.title = "Open every setting of this block: colours, spacing, animation, visibility and more";
+    settingsBtn.addEventListener("mousedown", (e) => e.stopPropagation());
+    settingsBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
+    settingsBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      showInspectorPanel();
+    });
+    bar.insertBefore(settingsBtn, bar.querySelector(".canvas-toolbar-danger"));
     // Fit to content (and, for a picture, its own pixel size), just before Delete.
     const extras = [["Fit", "Make this block exactly as tall as its content", () => fitBlock(b.id, "content")]];
     if (b.type === "image") extras.push(["Actual size", "Show the picture at its own pixel size, as wide as the space beside it allows", () => fitBlock(b.id, "actual")]);
@@ -2699,11 +2789,33 @@
       }[type] || { content: {}, col_span: 12, row_span: 4 };
 
       const maxRow = blocks.reduce((m, b) => Math.max(m, b.row + b.row_span), 1);
-      const body = { type, col: 1, row: maxRow, ...defaults };
+      // Opened by a click on an empty spot of the page: the block goes right there, no wider than the room beside it. Otherwise it goes
+      // at the bottom of the page, as it always did.
+      const spot = pendingInsert && !isMobile() ? pendingInsert : null;
+      let placed = { col: 1, row: maxRow, col_span: defaults.col_span };
+      if (spot) {
+        const col = Math.max(1, Math.min(BlockFit.COLS, spot.col));
+        const want = Math.max(1, Math.min(defaults.col_span, BlockFit.COLS - col + 1));
+        placed = { col, row: Math.max(1, spot.row), col_span: BlockFit.maxSpanBeside(blocks, { id: -1, col, row: spot.row, row_span: defaults.row_span }, want) };
+      }
+      const body = { type, ...defaults, ...placed };
+      closePicker();
       try {
-        await api(`/pages/${currentPage.id}/blocks`, { method: "POST", body: JSON.stringify(body) });
+        const made = await api(`/pages/${currentPage.id}/blocks`, { method: "POST", body: JSON.stringify(body) });
         await loadBlocks();
         if (isMobile()) closeDrawers();
+        if (made && made.id) {
+          // Whatever the new block now overlaps moves down below it, as the public page would grow, and the new block is selected.
+          const settle = BlockFit.settleDown(blocks, isLayoutLocked);
+          if (settle.blockedBy === null && settle.moves.length) await applyLayoutChanges(settle.moves);
+          if (blocks.some((b) => b.id === made.id)) {
+            selectedBlockId = made.id;
+            multiSelectedIds.clear();
+            renderCanvas();
+            renderInspector();
+            if (!isMobile() && quickFieldsFor(type).length) openQuickEdit(made.id);
+          }
+        }
       } catch (err) {
         alert(err.message);
       }
@@ -4812,6 +4924,104 @@
       });
       await loadBlocks();
     });
+  });
+
+  // ---------- Adding: click an empty spot of the page, pick a block ----------
+  // The block palette is a picker that opens where you click (or under + Add, which puts the block at the bottom). A faint box follows the
+  // pointer over empty space to show where a block would land.
+  let pendingInsert = null; // {col, row}: where the next block goes, or null for the bottom of the page
+  const paletteEl = el("palette");
+  function gridCellAt(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    const { colW, gap, rowH } = canvasMetrics();
+    const col = Math.max(1, Math.min(BlockFit.COLS, Math.floor((clientX - rect.left) / (colW + gap)) + 1));
+    const row = Math.max(1, Math.floor((clientY - rect.top) / (rowH + gap)) + 1);
+    return { col, row };
+  }
+  let pickerOpener = null;
+  function openPicker(opts = {}) {
+    if (!currentPage || isMobile()) return;
+    pendingInsert = opts.spot || null;
+    pickerOpener = opts.opener || null;
+    const tab = opts.tab === "page" ? "panel-tab-page" : "panel-tab-blocks";
+    el(tab).click();
+    paletteEl.classList.add("is-picker-open");
+    const w = paletteEl.offsetWidth || 340;
+    const h = Math.min(window.innerHeight * 0.7, 560);
+    let x = opts.x != null ? opts.x + 10 : 20;
+    let y = opts.y != null ? opts.y + 10 : 90;
+    x = Math.max(8, Math.min(x, window.innerWidth - w - 8));
+    y = Math.max(8, Math.min(y, window.innerHeight - h - 8));
+    paletteEl.style.left = x + "px";
+    paletteEl.style.top = y + "px";
+    [el("add-block-btn"), el("page-settings-btn")].forEach((b) => b && b.setAttribute("aria-expanded", String(b === pickerOpener)));
+    hideInsertGhost();
+    if (tab === "panel-tab-blocks") {
+      const search = el("palette-search");
+      search.value = "";
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+      search.focus();
+    }
+  }
+  function closePicker(returnFocus) {
+    const wasOpen = paletteEl.classList.contains("is-picker-open");
+    paletteEl.classList.remove("is-picker-open");
+    paletteEl.style.left = "";
+    paletteEl.style.top = "";
+    pendingInsert = null;
+    [el("add-block-btn"), el("page-settings-btn")].forEach((b) => b && b.setAttribute("aria-expanded", "false"));
+    if (wasOpen && returnFocus && pickerOpener) pickerOpener.focus();
+    pickerOpener = null;
+  }
+  el("close-palette").addEventListener("click", () => closePicker(true));
+  el("add-block-btn").addEventListener("click", () => {
+    if (paletteEl.classList.contains("is-picker-open") && pickerOpener === el("add-block-btn")) return closePicker(true);
+    const r = el("add-block-btn").getBoundingClientRect();
+    openPicker({ x: r.left - 10, y: r.bottom - 6, opener: el("add-block-btn"), tab: "blocks" });
+  });
+  el("page-settings-btn").addEventListener("click", () => {
+    if (paletteEl.classList.contains("is-picker-open") && pickerOpener === el("page-settings-btn")) return closePicker(true);
+    const r = el("page-settings-btn").getBoundingClientRect();
+    openPicker({ x: r.left - 10, y: r.bottom - 6, opener: el("page-settings-btn"), tab: "page" });
+  });
+  document.addEventListener("pointerdown", (e) => {
+    if (!paletteEl.classList.contains("is-picker-open")) return;
+    if (paletteEl.contains(e.target) || e.target.closest("#add-block-btn, #page-settings-btn")) return;
+    closePicker();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || !paletteEl.classList.contains("is-picker-open")) return;
+    e.stopPropagation();
+    closePicker(true);
+  }, true);
+  let insertGhost = null;
+  function hideInsertGhost() {
+    if (insertGhost) insertGhost.hidden = true;
+  }
+  function showInsertGhost(spot) {
+    if (!insertGhost || !insertGhost.isConnected) {
+      insertGhost = document.createElement("div");
+      insertGhost.className = "insert-ghost";
+      insertGhost.setAttribute("aria-hidden", "true");
+      insertGhost.innerHTML = "<span>+ Add here</span>";
+      canvas.appendChild(insertGhost);
+    }
+    const { colW, gap, rowH } = canvasMetrics();
+    const span = BlockFit.maxSpanBeside(blocks, { id: -1, col: spot.col, row: spot.row, row_span: 3 }, Math.min(8, BlockFit.COLS - spot.col + 1));
+    insertGhost.style.left = (spot.col - 1) * (colW + gap) + "px";
+    insertGhost.style.top = (spot.row - 1) * (rowH + gap) + "px";
+    insertGhost.style.width = BlockFit.widthForCols(span, colW) + "px";
+    insertGhost.style.height = BlockFit.heightForRows(3) + "px";
+    insertGhost.hidden = false;
+  }
+  canvas.addEventListener("pointermove", (e) => {
+    if (e.target !== canvas || isMobile() || contentOnlyMode || !currentPage || e.pointerType === "touch" || paletteEl.classList.contains("is-picker-open")) return hideInsertGhost();
+    showInsertGhost(gridCellAt(e.clientX, e.clientY));
+  });
+  canvas.addEventListener("pointerleave", hideInsertGhost);
+  canvas.addEventListener("click", (e) => {
+    if (e.target !== canvas || isMobile() || contentOnlyMode || !currentPage) return;
+    openPicker({ spot: gridCellAt(e.clientX, e.clientY), x: e.clientX, y: e.clientY, tab: "blocks" });
   });
 
   canvas.addEventListener("pointerdown", (e) => {

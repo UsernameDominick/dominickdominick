@@ -2,7 +2,7 @@
 // hide the menu and the inspector from the top bar (Ctrl/Cmd+B hides the menu). Sizes and choices are remembered in this browser.
 // The palette is hidden by the existing Focus button. Phones keep their slide-in drawers: none of this runs below 861px.
 (function () {
-  const KEY = "admin-panels:v1";
+  const KEY = "admin-panels:v2"; // v2: the admin opens on the page alone (menu and inspector tucked away) until a choice is made
   const PANELS = {
     sidebar: { id: "admin-sidebar", side: "right", def: 240, min: 180, max: 400, label: "menu" },
     palette: { id: "palette", side: "right", def: 240, min: 200, max: 480, label: "block palette" },
@@ -42,9 +42,10 @@
   const desktop = window.matchMedia("(min-width: 861px)");
   let state;
   try {
-    state = parseState(localStorage.getItem(KEY));
+    const stored = localStorage.getItem(KEY);
+    state = stored === null ? { w: {}, hidden: { sidebar: true, inspector: true } } : parseState(stored);
   } catch (e) {
-    state = { w: {}, hidden: {} };
+    state = { w: {}, hidden: { sidebar: true, inspector: true } };
   }
   const save = () => {
     try {
@@ -152,6 +153,8 @@
   }
 
   Object.keys(PANELS).forEach(makeHandle);
+  // For the page editor: bring a panel into view when something needs it (the block's settings).
+  api.show = (name) => { if (state.hidden[name]) toggleHidden(name, false); };
   const menuBtn = document.getElementById("sidebar-toggle-btn");
   if (menuBtn) menuBtn.addEventListener("click", () => toggleHidden("sidebar"));
   const insBtn = document.getElementById("inspector-toggle-btn");

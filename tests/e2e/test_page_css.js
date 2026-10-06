@@ -29,7 +29,7 @@ const { chromium, request } = require("./_pw.cjs");
   const errs = []; p.on("pageerror", (e) => errs.push(e.message)); p.on("dialog", (d) => d.accept());
   await p.goto((E2E_BASE + "/admin/")); await p.waitForSelector("#app:not([hidden])");
   await p.selectOption("#page-picker", String(pg.id)); await p.waitForTimeout(800);
-  await p.evaluate(() => document.getElementById("panel-tab-page").click());
+  await p.click("#page-settings-btn");
   await p.waitForTimeout(300);
   ok((await p.inputValue("#page-custom-css")).includes("rgb(1,2,3)"), "textarea loads the saved CSS");
   ok(await p.evaluate(() => document.getElementById("page-css-panel").open), "panel open when CSS exists");

@@ -43,7 +43,7 @@ const { chromium, request } = require("./_pw.cjs");
   const sec = secs.find((x) => x.name === "QQ Section");
   ok(sec && sec.blocks.length === 2 && sec.blocks.every((x) => !x.style.group) && Math.min(...sec.blocks.map((x) => x.row)) === 1, "section saved with 2 blocks, relative rows, no group id");
   await p.selectOption("#page-picker", String(pg2)); await p.waitForTimeout(800);
-  await p.evaluate(() => document.getElementById("panel-tab-page").click());
+  await p.click("#page-settings-btn");
   await p.evaluate(() => { document.getElementById("sections-panel").open = true; });
   await p.waitForSelector("#sections-list .insert-section");
   await p.locator("#sections-list .section-row", { hasText: "QQ Section" }).locator(".insert-section").click(); await p.waitForTimeout(1500);

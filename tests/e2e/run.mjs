@@ -190,7 +190,7 @@ async function signIn(base, file) {
   await ctx.dispose();
   // The older song tests drive the classic editor; the Studio layout has its own test, which switches view itself.
   const state = JSON.parse(fs.readFileSync(file, "utf8"));
-  state.origins = [{ origin: base, localStorage: [{ name: "songView", value: "classic" }] }];
+  state.origins = [{ origin: base, localStorage: [{ name: "songView", value: "classic" }, { name: "admin-panels:v2", value: JSON.stringify({ w: {}, hidden: {} }) }] }];
   fs.writeFileSync(file, JSON.stringify(state));
 }
 

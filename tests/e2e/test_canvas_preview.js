@@ -29,7 +29,7 @@ const { chromium, request } = require("./_pw.cjs");
   await p.mouse.click(bb.x + 30, bb.y + 30); await p.waitForTimeout(500);
   ok(await p.locator(".canvas-toolbar").count() === 1, "toolbar appears for selected block");
   const labels = await p.$$eval(".canvas-toolbar button", (x) => x.map((y) => y.textContent));
-  ok(labels.join() === "Edit,Copy,Duplicate,Lock,Fit,Delete", `toolbar buttons ${labels}`);
+  ok(labels.join() === "Edit,Size,Copy,Duplicate,Lock,Settings,Fit,Delete", `toolbar buttons ${labels}`);
   ok(await p.evaluate(() => { const bar = document.querySelector(".canvas-toolbar"); return bar.previousElementSibling && bar.previousElementSibling.classList.contains("selected"); }), "toolbar sits right after the selected block in DOM order");
   await p.click(".canvas-toolbar button:has-text('Duplicate')"); await p.waitForTimeout(800);
   ok((await p.locator("#canvas .admin-block").count()) === 9, "Duplicate via toolbar adds a block");
