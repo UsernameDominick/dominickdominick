@@ -9291,3 +9291,97 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 /* The tempo box is narrow on a phone: no spin arrows, so "120" is not cut to "1…" (the arrows and the keyboard still change it). */
 .studio-bpm input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
 .studio-bpm input[type="number"]::-webkit-inner-spin-button, .studio-bpm input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; appearance: none; margin: 0; }
+
+/* ---- The block bar: the selected block's controls as soft pills floating at the bottom of the editor (block-bar-model.js + app.js).
+   A + button, a chip per thing the block has set (× clears it), a dropdown pill for its main choice and a round accent Done. ---- */
+.block-bar {
+  --bb-pill: var(--bg-elevated);
+  --bb-ink: var(--text);
+  --bb-soft: color-mix(in srgb, var(--accent) 22%, transparent);
+  --bb-edge: color-mix(in srgb, var(--text) 8%, transparent);
+  --bb-lift: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 6px 18px rgba(0, 0, 0, 0.28), 0 1px 3px rgba(0, 0, 0, 0.2);
+  position: fixed; bottom: 16px; z-index: 60; transform: translateX(-50%); width: max-content;
+  display: flex; flex-direction: column; align-items: center; gap: 10px; pointer-events: none;
+}
+:root[data-theme="light"] .block-bar { --bb-pill: #fff; --bb-lift: 0 6px 18px rgba(30, 20, 60, 0.12), 0 1px 3px rgba(30, 20, 60, 0.08); }
+.block-bar[hidden] { display: none; }
+.block-bar.is-resting { opacity: 0.35; }
+.bb-row { display: flex; align-items: center; justify-content: center; gap: 10px; max-width: 100%; pointer-events: auto; }
+.bb-chips { display: flex; gap: 10px; min-width: 0; overflow-x: auto; scrollbar-width: none; padding: 6px 4px; margin: -6px -4px; }
+.bb-chips::-webkit-scrollbar { display: none; }
+.block-bar button { font: inherit; color: var(--bb-ink); cursor: pointer; box-shadow: none; filter: none; }
+.block-bar svg { width: 20px; height: 20px; flex: 0 0 auto; fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.bb-round {
+  width: 48px; height: 48px; min-height: 48px; padding: 0; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--bb-pill); border: 1px solid var(--bb-edge); border-radius: 50%; box-shadow: var(--bb-lift) !important;
+}
+.bb-round svg { width: 22px; height: 22px; }
+.bb-more svg { fill: var(--accent); stroke: none; }
+.bb-done { width: 52px; height: 52px; background: var(--accent); border-color: transparent; }
+.bb-done svg { stroke: var(--on-accent, #fff); stroke-width: 2.6; }
+.bb-chip {
+  display: inline-flex; align-items: center; flex: 0 0 auto; height: 48px; padding: 0 6px 0 4px; gap: 2px;
+  background: var(--bb-pill); border: 1px solid var(--bb-edge); border-radius: 999px; box-shadow: var(--bb-lift);
+}
+.bb-chip-main {
+  display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 10px 0 12px; border: 0 !important; border-radius: 999px;
+  background: transparent; font-size: 0.95rem; font-weight: 600; white-space: nowrap;
+}
+.bb-chip-main:hover:not(:disabled), .bb-round:hover, .bb-pill:hover { background: color-mix(in srgb, var(--accent) 8%, var(--bb-pill)); }
+.bb-chip-main:disabled { opacity: 0.55; cursor: not-allowed; }
+.bb-type .bb-chip-main svg { width: 22px; height: 22px; }
+.bb-swatch { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--bb-edge); flex: 0 0 auto; }
+.bb-x {
+  width: 30px; height: 30px; min-height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto;
+  border: 0 !important; border-radius: 50%; background: var(--bb-soft);
+}
+.bb-x svg { width: 14px; height: 14px; stroke-width: 2.6; }
+.bb-x:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 36%, transparent); }
+.bb-pill {
+  display: inline-flex; align-items: center; gap: 10px; height: 48px; min-height: 48px; padding: 0 14px 0 20px; flex: 0 1 auto; min-width: 0;
+  background: var(--bb-pill); border: 1px solid var(--bb-edge); border-radius: 999px; box-shadow: var(--bb-lift) !important; font-size: 1rem; font-weight: 600;
+}
+.bb-pill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.block-bar button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.bb-locked .bb-chip-main { color: var(--text-dim); }
+/* Room under the last block, so the bar never sits on it. */
+.admin-canvas-wrap:has(#block-bar:not([hidden])) { padding-bottom: 150px; }
+
+/* The popovers above the bar's buttons: the browser-menu look of the admin's other menus. */
+.bb-pop {
+  position: fixed; z-index: 61; min-width: 200px; max-width: min(340px, calc(100vw - 16px)); max-height: min(60vh, 460px); overflow: auto;
+  padding: 6px; background: var(--menu-bg, var(--bg-elevated)); border: 1px solid var(--menu-line, var(--border)); border-radius: 14px;
+  box-shadow: var(--menu-shadow, 0 10px 30px rgba(0, 0, 0, 0.3));
+}
+.bb-pop[hidden] { display: none; }
+.bb-pop-title { margin: 6px 10px 4px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-dim); }
+.bb-menu { display: flex; flex-direction: column; gap: 1px; }
+.bb-menu > button {
+  display: flex; align-items: center; width: 100%; min-height: 36px; padding: 6px 10px; text-align: left; border: 0; border-radius: 8px;
+  background: transparent; color: var(--text); font-size: 0.9rem; font-weight: 500; box-shadow: none;
+}
+.bb-menu > button:hover:not(:disabled), .bb-menu > button:focus-visible { background: var(--menu-hover, color-mix(in srgb, var(--accent) 12%, transparent)); }
+.bb-menu > button[aria-checked="true"]::after { content: "✓"; margin-left: auto; color: var(--accent); font-weight: 700; }
+.bb-menu > .bb-danger { color: var(--error-text); }
+.bb-menu > button:disabled { opacity: 0.45; cursor: not-allowed; }
+.bb-menu-all { border-top: 1px solid var(--menu-line, var(--border)) !important; border-radius: 0 0 8px 8px !important; margin-top: 4px; }
+.bb-pop .size-menu { position: static; display: flex; flex-direction: column; gap: 4px; padding: 0 4px 4px; background: none; border: 0; box-shadow: none; }
+.bb-field { padding: 2px 6px 6px; }
+.bb-field-body { display: flex; flex-direction: column; gap: 8px; }
+.bb-field-body label { display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; color: var(--text-dim); }
+.bb-field-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+.bb-field-clear { color: var(--error-text); }
+
+@media (max-width: 860px) {
+  .block-bar { bottom: max(10px, env(safe-area-inset-bottom)); gap: 8px; }
+  .bb-row { gap: 8px; }
+  .bb-chips { gap: 8px; }
+  .bb-round, .bb-chip, .bb-pill { height: 44px; min-height: 44px; }
+  .bb-round { width: 44px; }
+  .bb-done { width: 48px; height: 48px; }
+  .bb-chip-main { font-size: 0.88rem; padding: 0 8px 0 10px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .block-bar { transition: opacity 0.15s; }
+  .bb-round:active, .bb-chip-main:active, .bb-pill:active { transform: scale(0.96); }
+}

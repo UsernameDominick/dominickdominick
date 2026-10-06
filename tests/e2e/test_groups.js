@@ -54,7 +54,7 @@ const { chromium, request } = require("./_pw.cjs");
   await p.waitForSelector("#canvas .admin-block");
   const d0 = await p.locator("#canvas .admin-block").nth(0).boundingBox(); await p.mouse.click(d0.x + 15, d0.y + 20); await p.waitForTimeout(300);
   const gid = (await blocksOf(pg2))[0].style.group;
-  await p.click(".canvas-toolbar button:has-text('Duplicate')"); await p.waitForTimeout(1200);
+  await p.click('#block-bar [data-action="more"]'); await p.click('#bb-pop button[data-action="duplicate-block-btn"]'); await p.waitForTimeout(1200);
   const afterDup = await blocksOf(pg2);
   ok(afterDup.length === 3 && afterDup.filter((x) => x.style.group === gid).length === 2, "single duplicate does not join the original group");
   // ungroup releases both

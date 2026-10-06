@@ -1,6 +1,6 @@
 // The admin opens on the page itself: the page chooser and Add are in the top bar, the menu and the inspector are tucked away until asked for,
 // a click on an empty spot of the page opens the block picker right there and the block lands where you clicked (pushing what it overlaps
-// down), and a selected block's toolbar sets its width and position and opens its settings.
+// down), and a selected block's bar sets its width and position and opens its settings.
 const E2E_BASE = process.env.E2E_BASE || "http://localhost:8787";
 const { chromium, request } = require("./_pw.cjs");
 const fs = require("fs");
@@ -60,31 +60,31 @@ const fs = require("fs");
     const wantCol = Math.floor((at.x - box.x) / (colW + 8)) + 1;
     ok(q && Math.abs(q.left - (wantCol - 1) * (colW + 8)) < 2 && q.top > bottom, "the block lands in the column and row that was clicked", { q, wantCol });
     ok(q && q.left + q.w <= box.width + 1, "and never runs off the right edge", q);
-    ok(await vis(".canvas-toolbar") && await vis("#quick-edit, .quick-edit"), "it is selected, with its toolbar and its quick editor open");
-    const labels = await p.$$eval(".canvas-toolbar button", (x) => x.map((y) => y.textContent));
-    ok(labels.includes("Size") && labels.includes("Settings") && labels.includes("Edit"), "the toolbar has Edit, Size and Settings", labels);
+    ok(await vis("#block-bar") && await vis("#quick-edit, .quick-edit"), "it is selected, with its block bar and its quick editor open");
+    const labels = await p.$$eval("#block-bar [data-action]", (x) => x.map((y) => y.dataset.action));
+    ok(["edit", "size", "add", "more", "done"].every((a) => labels.includes(a)), "the bar has the block, its width, +, ⋯ and Done", labels);
     await p.click(".quick-edit-done");
 
     // Size: width presets and position
-    await p.click('.canvas-toolbar button[data-action="size"]');
+    await p.click('#block-bar [data-action="size"]');
     ok(await vis(".size-menu"), "Size opens the width and position choices");
     await p.click('.size-menu button[data-span="12"]');
     await p.waitForTimeout(600);
     let q2 = (await layout()).find((x) => x.t === "Quote");
     ok(Math.abs(q2.w - (12 * colW + 11 * 8)) < 2, "Half makes it twelve columns wide", q2);
-    await p.click('.canvas-toolbar button[data-action="size"]');
+    await p.click('#block-bar [data-action="size"]');
     await p.click('.size-menu button[data-align="right"]');
     await p.waitForTimeout(600);
     q2 = (await layout()).find((x) => x.t === "Quote");
     ok(Math.abs(q2.left - 12 * (colW + 8)) < 2, "Right puts it against the right edge", q2);
-    await p.click('.canvas-toolbar button[data-action="size"]');
+    await p.click('#block-bar [data-action="size"]');
     await p.click('.size-menu button[data-align="center"]');
     await p.waitForTimeout(600);
     q2 = (await layout()).find((x) => x.t === "Quote");
     ok(Math.abs(q2.left - 6 * (colW + 8)) < 2, "Centre puts it in the middle", q2);
 
     // Settings brings the inspector
-    await p.click('.canvas-toolbar button[data-action="settings"]');
+    await p.click('#block-bar [data-action="more"]'); await p.click('#bb-pop button[data-action="settings"]');
     await p.waitForTimeout(300);
     ok(await vis("#inspector") && (await p.getAttribute("#inspector-toggle-btn", "aria-pressed")) === "true", "Settings opens the inspector with this block's fields");
 

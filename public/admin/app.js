@@ -1664,13 +1664,11 @@
       hint.addEventListener("click", () => fitBlock(b.id));
       const style = blockPixelStyle(b);
       // In the block's top-right corner, so the middle of even a short block stays clickable. A block too narrow for it just keeps
-      // its dashed border and the toolbar's Fit button.
+      // its dashed border and the Fit in the block bar's ⋯ menu.
       if (style.width < 110) return;
       hint.style.left = style.left + style.width - 58 + "px";
       hint.style.top = style.top + 3 + "px";
-      // The selected block's toolbar must stay directly after it (Tab order), so the hint goes after the toolbar when there is one.
-      const next = div.nextElementSibling;
-      (next && next.classList.contains("canvas-toolbar") ? next : div).after(hint);
+      div.after(hint);
     });
   }
   let canvasNoteTimer = null;
@@ -1791,7 +1789,7 @@
       box.innerHTML = "";
     }
     if (returnFocus && id !== null) {
-      const target = canvas.querySelector(`.canvas-toolbar button`) || canvas.querySelector(`.admin-block[data-id="${id}"]`);
+      const target = document.querySelector('#block-bar:not([hidden]) [data-action="edit"]') || canvas.querySelector(`.admin-block[data-id="${id}"]`);
       if (target) target.focus();
     }
   }
@@ -1815,20 +1813,9 @@
       left = leftSide;
       top = style.top;
     } else {
-      // No room at either side: under the block, and under its toolbar when that sits there.
-      const bar = canvas.querySelector(".canvas-toolbar");
-      const barBottom = bar && !bar.hidden && parseFloat(bar.style.top) >= style.top ? parseFloat(bar.style.top) + bar.offsetHeight : 0;
+      // No room at either side: under the block.
       left = Math.max(0, Math.min(style.left, canvas.clientWidth - w));
-      top = Math.max(style.top + style.height, barBottom) + 8;
-    }
-    // Beside the block it starts level with the block's top, which is where the toolbar sits: slide it down below the toolbar then.
-    const tb = canvas.querySelector(".canvas-toolbar");
-    if (tb && !tb.hidden) {
-      const bl = parseFloat(tb.style.left) || 0;
-      const bt = parseFloat(tb.style.top) || 0;
-      const overlapX = left < bl + tb.offsetWidth && bl < left + w;
-      const overlapY = top < bt + tb.offsetHeight && bt < top + box.offsetHeight;
-      if (overlapX && overlapY) top = bt + tb.offsetHeight + 8;
+      top = style.top + style.height + 8;
     }
     box.style.left = cLeft + left + "px";
     box.style.top = cTop + top + "px";
@@ -2157,34 +2144,107 @@
     if (!el("layers-modal").hidden) renderLayersList();
   }
 
-  // A small toolbar floating above the single selected block. Each button just presses the matching
-  // Inspector button, so lock checks, confirmations and saving stay in one place.
-  function hideCanvasToolbar() {
-    canvas.querySelectorAll(".canvas-toolbar, .block-fit-hint").forEach((n) => (n.hidden = true));
+  // ---------- The block bar ----------
+  // The selected block's controls, as a pill bar floating at the bottom of the editor (the owner's sketch: a + button, a chip for each
+  // thing the block has set with a × to clear it, a dropdown pill for the block's main choice, and a round accent button to finish).
+  // The type chip opens the quick editor, the size chip the width and position choices, a style chip that one setting. Everything in
+  // the ⋯ menu presses the inspector's own buttons, so lock checks, confirmations and saving stay in one place. What it shows is worked
+  // out by block-bar-model.js. The popovers (`#bb-pop`) live outside the bar, which is rebuilt after every save.
+  const BB = window.BlockBarModel;
+  const SIZE_PRESETS = [["¼", 6, "a quarter"], ["⅓", 8, "a third"], ["½", 12, "half"], ["⅔", 16, "two thirds"], ["Full", 24, "the full width"]];
+  const BB_ICON = {
+    plus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
+    x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8l8 8M16 8l-8 8"/></svg>',
+    down: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>',
+    more: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/></svg>',
+    done: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    size: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16M7 9l-3 3 3 3M17 9l3 3-3 3"/></svg>',
+    lock: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="11" width="12" height="9" rx="2"/><path d="M9 11V8a3 3 0 0 1 6 0v3"/></svg>',
+  };
+  let bbPopFor = null; // what the open popover is for: "add", "size", "choice", "more" or "style:<key>"
+  let toolbarFocusAction = null; // the data-action of the bar button to focus after the redraw
+  function blockBarEl() {
+    let bar = el("block-bar");
+    if (bar) return bar;
+    bar = document.createElement("div");
+    bar.id = "block-bar";
+    bar.className = "block-bar";
+    bar.setAttribute("role", "toolbar");
+    bar.hidden = true;
+    // Presses on the bar must not start a drag or clear the selection underneath.
+    ["pointerdown", "mousedown"].forEach((t) => bar.addEventListener(t, (e) => e.stopPropagation()));
+    bar.addEventListener("click", onBlockBarClick);
+    canvas.parentNode.appendChild(bar);
+    return bar;
   }
-  // Puts the toolbar where it covers no other block: above the selected block, else below it, else the same two spots lined up with
-  // its right edge, and only when every one of those is taken, inside the block's own top-right corner.
-  function placeToolbar(bar, b, style) {
-    const w = bar.offsetWidth;
-    const h = bar.offsetHeight || 32;
-    const others = blocks.filter((x) => x.id !== b.id).map(blockPixelStyle);
-    const hits = (c) => others.some((o) => c.left < o.left + o.width && o.left < c.left + w && c.top < o.top + o.height && o.top < c.top + h);
-    const maxLeft = Math.max(2, canvas.clientWidth - w - 2);
-    const clampLeft = (x) => Math.min(Math.max(2, x), maxLeft);
-    const leftEdge = clampLeft(style.left);
-    const rightEdge = clampLeft(style.left + style.width - w);
-    const gapPx = 4;
-    const candidates = [
-      { top: style.top - h - gapPx, left: leftEdge },
-      { top: style.top + style.height + gapPx, left: leftEdge },
-      { top: style.top - h - gapPx, left: rightEdge },
-      { top: style.top + style.height + gapPx, left: rightEdge },
-    ];
-    const free = candidates.find((c) => c.top >= 0 && !hits(c));
-    const spot = free || { top: style.top + 4, left: clampLeft(style.left + style.width - w - 4) };
-    bar.classList.toggle("is-inside", !free);
-    bar.style.top = Math.max(0, spot.top) + "px";
-    bar.style.left = spot.left + "px";
+  function bbPopEl() {
+    let pop = el("bb-pop");
+    if (pop) return pop;
+    pop = document.createElement("div");
+    pop.id = "bb-pop";
+    pop.className = "bb-pop";
+    pop.hidden = true;
+    ["pointerdown", "mousedown"].forEach((t) => pop.addEventListener(t, (e) => e.stopPropagation()));
+    pop.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      closeBbPop(true);
+    });
+    canvas.parentNode.appendChild(pop);
+    return pop;
+  }
+  function closeBbPop(returnFocus) {
+    const pop = el("bb-pop");
+    const was = bbPopFor;
+    bbPopFor = null;
+    if (pop) {
+      pop.hidden = true;
+      pop.innerHTML = "";
+    }
+    const bar = el("block-bar");
+    if (bar) bar.querySelectorAll("[aria-expanded]").forEach((b) => b.setAttribute("aria-expanded", "false"));
+    if (returnFocus && was && bar && !bar.hidden) {
+      const opener = bbOpener(was);
+      (opener || bar.querySelector("button")).focus();
+    }
+  }
+  function closeSizeMenu() {
+    if (bbPopFor === "size") closeBbPop(false);
+  }
+  function bbOpener(what) {
+    const bar = el("block-bar");
+    if (!bar) return null;
+    if (what.startsWith("style:")) return bar.querySelector(`[data-action="style"][data-key="${what.slice(6)}"]`);
+    return bar.querySelector(`[data-action="${what}"]`);
+  }
+  // The popover sits above its button, inside the window.
+  function placeBbPop() {
+    const pop = el("bb-pop");
+    if (!pop || pop.hidden || !bbPopFor) return;
+    const opener = bbOpener(bbPopFor) || el("block-bar");
+    const r = opener.getBoundingClientRect();
+    const w = pop.offsetWidth;
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8));
+    pop.style.left = left + "px";
+    pop.style.bottom = Math.max(8, window.innerHeight - r.top + 8) + "px";
+  }
+  function openBbPop(what, html, wire) {
+    const pop = bbPopEl();
+    bbPopFor = what;
+    // A fresh inner box each time: listeners go on it, so they go away with it (on the popover itself they would pile up).
+    pop.innerHTML = `<div class="bb-pop-inner">${html}</div>`;
+    pop.hidden = false;
+    const opener = bbOpener(what);
+    if (opener) opener.setAttribute("aria-expanded", "true");
+    if (wire) wire(pop.firstElementChild);
+    placeBbPop();
+    const first = pop.querySelector("input:not([type=hidden]), select, textarea, button");
+    if (first) first.focus();
+  }
+  function hideCanvasToolbar() {
+    canvas.querySelectorAll(".block-fit-hint").forEach((n) => (n.hidden = true));
+    const bar = el("block-bar");
+    if (bar) bar.classList.add("is-resting");
   }
   function showInspectorPanel() {
     if (window.AdminPanels && window.AdminPanels.show) window.AdminPanels.show("inspector");
@@ -2193,11 +2253,6 @@
     if (isMobile()) openDrawer(inspector);
     const first = el("inspector-fields").querySelector("input, textarea, select");
     if (first) first.focus();
-  }
-  // The width and position presets under a block's Size button. Only moves that leave room (nothing beside or below is in the way) go through.
-  const SIZE_PRESETS = [["¼", 6, "a quarter"], ["⅓", 8, "a third"], ["½", 12, "half"], ["⅔", 16, "two thirds"], ["Full", 24, "the full width"]];
-  function closeSizeMenu() {
-    canvas.querySelectorAll(".size-menu").forEach((n) => n.remove());
   }
   async function applySize(id, want, align) {
     const b = blocks.find((x) => x.id === id);
@@ -2217,157 +2272,282 @@
       col = Math.max(1, Math.min(col, BlockFit.COLS - span + 1));
     }
     if (blocks.some((o) => o.id !== b.id && BlockFit.overlaps({ ...b, col, col_span: span }, o))) return canvasNote("Another block is in the way.");
-    closeSizeMenu();
     const changed = await applyLayoutChanges([{ id: b.id, col, col_span: span }]);
     canvasNote(changed ? "" : "Already like that.");
   }
-  function toggleSizeMenu(bar, b, btn) {
-    if (canvas.querySelector(".size-menu")) return closeSizeMenu();
-    const menu = document.createElement("div");
-    menu.className = "size-menu";
-    menu.setAttribute("role", "group");
-    menu.setAttribute("aria-label", "Block width and position");
-    const cur = b.col_span;
-    menu.innerHTML =
-      `<div class="size-menu-row" role="group" aria-label="Width">${SIZE_PRESETS.map(([label, span, word]) => `<button type="button" data-span="${span}" aria-label="${word}" aria-pressed="${cur === span}">${label}</button>`).join("")}</div>` +
-      `<div class="size-menu-row" role="group" aria-label="Position"><button type="button" data-align="left" aria-label="Align left">Left</button><button type="button" data-align="center" aria-label="Centre">Centre</button><button type="button" data-align="right" aria-label="Align right">Right</button></div>`;
-    ["mousedown", "pointerdown"].forEach((t) => menu.addEventListener(t, (e) => e.stopPropagation()));
-    menu.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const t = e.target.closest("button");
-      if (!t) return;
-      if (t.dataset.span) applySize(b.id, Number(t.dataset.span), null);
-      else if (t.dataset.align) applySize(b.id, null, t.dataset.align);
-    });
-    menu.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        closeSizeMenu();
-        btn.focus();
-      }
-    });
-    bar.after(menu);
-    const r = bar.getBoundingClientRect();
-    const cr = canvas.getBoundingClientRect();
-    menu.style.left = Math.max(2, r.left - cr.left) + "px";
-    menu.style.top = r.bottom - cr.top + 4 + "px";
-    const first = menu.querySelector("button");
-    if (first) first.focus();
+  function bbSelected() {
+    return selectedBlockId === null ? null : blocks.find((x) => x.id === selectedBlockId) || null;
   }
-  // After a toolbar action the canvas rebuilds; this remembers which button to put focus back on.
-  let toolbarFocusAction = null; // the data-action of the toolbar button to focus after the redraw (positions shift as buttons come and go)
+  function bbChip(action, label, text, opts = {}) {
+    const key = opts.key ? ` data-key="${escapeHtml(opts.key)}"` : "";
+    const swatch = opts.swatch ? `<i class="bb-swatch" style="background:${escapeHtml(opts.swatch)}"></i>` : "";
+    const icon = opts.icon || "";
+    const clear = opts.clear
+      ? `<button type="button" class="bb-x" data-clear="${escapeHtml(opts.clear)}" aria-label="${escapeHtml(opts.clearLabel || "Remove " + text)}" title="${escapeHtml(opts.clearLabel || "Remove")}"${opts.clearDisabled ? " disabled" : ""}>${BB_ICON.x}</button>`
+      : "";
+    return `<span class="bb-chip${opts.cls ? " " + opts.cls : ""}"><button type="button" class="bb-chip-main" data-action="${action}"${key} aria-label="${escapeHtml(label)}" aria-haspopup="${opts.dialog ? "dialog" : "true"}" aria-expanded="false"${opts.disabled ? " disabled" : ""}>${icon}${swatch}<span>${escapeHtml(text)}</span></button>${clear}</span>`;
+  }
   function renderCanvasToolbar() {
-    canvas.querySelectorAll(".canvas-toolbar").forEach((n) => n.remove());
-    if (contentOnlyMode || multiSelectedIds.size > 1 || selectedBlockId === null) return;
-    const b = blocks.find((x) => x.id === selectedBlockId);
-    if (!b) return;
-    const style = blockPixelStyle(b);
-    const bar = document.createElement("div");
-    bar.className = "canvas-toolbar";
-    bar.setAttribute("role", "toolbar");
-    bar.setAttribute("aria-label", `${blockLabel(b.type)} block actions`);
-    // Above the block when there's room; in the first row it would cover the block, so sit below instead.
-    bar.style.top = (style.top >= 40 ? style.top - 36 : style.top + style.height + 4) + "px";
-    bar.style.left = style.left + "px";
-    [
-      ["copy-block-btn", "Copy"],
-      ["duplicate-block-btn", "Duplicate"],
-      ["lock-block-btn", b.locked ? "Unlock" : "Lock"],
-      ["delete-block-btn", "Delete"],
-    ].forEach(([id, label]) => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.textContent = label;
-      btn.dataset.action = id;
-      if (id === "delete-block-btn") {
-        btn.className = "canvas-toolbar-danger";
-        if (b.locked) {
-          btn.disabled = true;
-          btn.title = "Unlock this block before deleting it";
-        }
-      }
-      // Keep the press from starting a drag or clearing the selection underneath.
-      btn.addEventListener("mousedown", (e) => e.stopPropagation());
-      btn.addEventListener("pointerdown", (e) => e.stopPropagation());
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        toolbarFocusAction = id === "delete-block-btn" ? null : id;
-        if (toolbarFocusAction !== null) setTimeout(() => (toolbarFocusAction = null), 3000);
-        el(id).click();
-      });
-      bar.appendChild(btn);
-    });
-    // Edit opens the quick editor beside the block (first in the bar); Fit sits just before Delete.
-    const editBtn = document.createElement("button");
-    editBtn.type = "button";
-    editBtn.textContent = "Edit";
-    editBtn.dataset.action = "edit";
-    editBtn.title = "Edit this block's main fields right here";
-    editBtn.setAttribute("aria-haspopup", "dialog");
-    editBtn.addEventListener("mousedown", (e) => e.stopPropagation());
-    editBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
-    editBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      openQuickEdit(b.id);
-    });
-    bar.insertBefore(editBtn, bar.firstChild);
-    // Size: how wide the block is and where it sits across the page, in a click.
-    const sizeBtn = document.createElement("button");
-    sizeBtn.type = "button";
-    sizeBtn.textContent = "Size";
-    sizeBtn.dataset.action = "size";
-    sizeBtn.title = "Make this block a quarter, a third, half, two thirds or the full width, and put it left, centred or right";
-    sizeBtn.setAttribute("aria-haspopup", "true");
-    sizeBtn.disabled = isLayoutLocked(b);
-    sizeBtn.addEventListener("mousedown", (e) => e.stopPropagation());
-    sizeBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
-    sizeBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      toggleSizeMenu(bar, b, sizeBtn);
-    });
-    bar.insertBefore(sizeBtn, editBtn.nextSibling);
-    // Settings: every field of the block, in the inspector.
-    const settingsBtn = document.createElement("button");
-    settingsBtn.type = "button";
-    settingsBtn.textContent = "Settings";
-    settingsBtn.dataset.action = "settings";
-    settingsBtn.title = "Open every setting of this block: colours, spacing, animation, visibility and more";
-    settingsBtn.addEventListener("mousedown", (e) => e.stopPropagation());
-    settingsBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
-    settingsBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      showInspectorPanel();
-    });
-    bar.insertBefore(settingsBtn, bar.querySelector(".canvas-toolbar-danger"));
-    // Fit to content (and, for a picture, its own pixel size), just before Delete.
-    const extras = [["Fit", "Make this block exactly as tall as its content", () => fitBlock(b.id, "content")]];
-    if (b.type === "image") extras.push(["Actual size", "Show the picture at its own pixel size, as wide as the space beside it allows", () => fitBlock(b.id, "actual")]);
-    const deleteBtn = bar.querySelector(".canvas-toolbar-danger");
-    extras.forEach(([label, title, run]) => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.textContent = label;
-      btn.title = title;
-      btn.disabled = isLayoutLocked(b);
-      btn.addEventListener("mousedown", (e) => e.stopPropagation());
-      btn.addEventListener("pointerdown", (e) => e.stopPropagation());
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        run();
-      });
-      bar.insertBefore(btn, deleteBtn);
-    });
-    // Right after the selected block in the DOM, so Tab reaches it without crossing every later block.
-    const blockDiv = canvas.querySelector(`.admin-block[data-id="${b.id}"]`);
-    if (blockDiv) blockDiv.after(bar);
-    else canvas.appendChild(bar);
-    placeToolbar(bar, b, style);
+    const b = bbSelected();
+    const bar = blockBarEl();
+    if (contentOnlyMode || multiSelectedIds.size > 1 || !b) {
+      bar.hidden = true;
+      closeBbPop(false);
+      return;
+    }
+    const typeIcon = (document.querySelector(`.palette-btn[data-type="${b.type}"] svg`) || {}).outerHTML || "";
+    const style = b.style || {};
+    const chips = [
+      bbChip("edit", `Edit this ${blockLabel(b.type).toLowerCase()}'s text and main fields`, blockLabel(b.type), { icon: typeIcon, cls: "bb-type", dialog: true }),
+      bbChip("size", "Width and position: " + BB.sizeLabel(b.col_span), BB.sizeLabel(b.col_span) === "Full" ? "Full width" : BB.sizeLabel(b.col_span) + " width", {
+        icon: BB_ICON.size,
+        disabled: isLayoutLocked(b),
+        clear: b.col_span !== 24 && !isLayoutLocked(b) ? "size" : "",
+        clearLabel: "Back to the full width",
+      }),
+    ];
+    if (b.locked) chips.push(bbChip("unlock", "Locked: press to unlock", "Locked", { icon: BB_ICON.lock, cls: "bb-locked", clear: "lock", clearLabel: "Unlock this block" }));
+    BB.chipsFor(style, STYLE_FIELDS).forEach((c) => chips.push(bbChip("style", `${c.text}: change it`, c.text, { key: c.key, swatch: c.swatch, clear: c.key, clearLabel: `Remove ${c.text}` })));
+    const choice = BB.mainChoice(FIELD_DEFS[b.type], b.content);
+    bar.setAttribute("aria-label", `${blockLabel(b.type)} block`);
+    bar.innerHTML = `<div class="bb-row bb-row-chips">
+        <button type="button" class="bb-round bb-add" data-action="add" aria-label="Add a setting" title="Add a setting" aria-haspopup="true" aria-expanded="false">${BB_ICON.plus}</button>
+        <div class="bb-chips">${chips.join("")}</div>
+      </div>
+      <div class="bb-row bb-row-main">
+        ${choice ? `<button type="button" class="bb-pill bb-choice" data-action="choice" aria-label="${escapeHtml(choice.label)}: ${escapeHtml(choice.text)}" aria-haspopup="true" aria-expanded="false"><span>${escapeHtml(choice.text)}</span>${BB_ICON.down}</button>` : ""}
+        <button type="button" class="bb-round bb-more" data-action="more" aria-label="More: copy, duplicate, lock, fit, delete" title="More" aria-haspopup="true" aria-expanded="false">${BB_ICON.more}</button>
+        <button type="button" class="bb-round bb-done" data-action="done" aria-label="Done with this block" title="Done">${BB_ICON.done}</button>
+      </div>`;
+    bar.hidden = false;
+    bar.classList.remove("is-resting");
+    placeBlockBar();
     scheduleOverflowMarks();
+    // A popover that was open stays open over the rebuilt bar (it is about the same block), unless its chip has gone.
+    if (bbPopFor) {
+      if (bbPopFor.startsWith("style:") && !BB.isSet(style[bbPopFor.slice(6)]) && !el("bb-pop").querySelector("[data-adding]")) closeBbPop(false);
+      else {
+        const opener = bbOpener(bbPopFor);
+        if (opener) opener.setAttribute("aria-expanded", "true");
+        placeBbPop();
+      }
+    }
     if (toolbarFocusAction !== null) {
       const target = bar.querySelector(`button[data-action="${toolbarFocusAction}"]`);
       toolbarFocusAction = null;
       if (target && !target.disabled) target.focus();
     }
+  }
+  // The bar floats centred over the editor's middle column, at the bottom of the window.
+  function placeBlockBar() {
+    const bar = el("block-bar");
+    if (!bar || bar.hidden) return;
+    const wrap = canvas.parentNode.getBoundingClientRect();
+    bar.style.left = wrap.left + wrap.width / 2 + "px";
+    bar.style.maxWidth = Math.max(280, wrap.width - 24) + "px";
+  }
+  window.addEventListener("resize", () => {
+    placeBlockBar();
+    placeBbPop();
+  });
+  if (typeof ResizeObserver === "function") new ResizeObserver(() => placeBlockBar()).observe(canvas.parentNode);
+  document.addEventListener("pointerdown", (e) => {
+    if (!bbPopFor) return;
+    if (e.target.closest("#bb-pop, #block-bar")) return;
+    closeBbPop(false);
+  });
+  function bbPress(id) {
+    toolbarFocusAction = null;
+    el(id).click();
+  }
+  async function bbSaveStyle(b, changes) {
+    b.style = { ...(b.style || {}) };
+    Object.keys(changes).forEach((k) => {
+      if (changes[k] === null || changes[k] === undefined || changes[k] === "" || changes[k] === false) delete b.style[k];
+      else b.style[k] = changes[k];
+    });
+    await saveBlockStyleAndContent(b);
+    renderInspector();
+  }
+  function onBlockBarClick(e) {
+    e.stopPropagation();
+    const b = bbSelected();
+    if (!b) return;
+    const clear = e.target.closest("[data-clear]");
+    if (clear) {
+      const what = clear.dataset.clear;
+      closeBbPop(false);
+      if (what === "size") return applySize(b.id, 24, null);
+      if (what === "lock") {
+        toolbarFocusAction = "add";
+        return el("lock-block-btn").click();
+      }
+      toolbarFocusAction = "add";
+      const changes = {};
+      BB.keysOf(what).forEach((k) => (changes[k] = null));
+      return bbSaveStyle(b, changes);
+    }
+    const btn = e.target.closest("button[data-action]");
+    if (!btn) return;
+    const action = btn.dataset.action;
+    const what = action === "style" ? "style:" + btn.dataset.key : action;
+    if (bbPopFor === what) return closeBbPop(true);
+    closeBbPop(false);
+    if (action === "done") {
+      closeQuickEdit(false);
+      selectedBlockId = null;
+      multiSelectedIds.clear();
+      renderCanvas();
+      renderInspector();
+      return;
+    }
+    if (action === "edit") return isMobile() ? showInspectorPanel() : openQuickEdit(b.id); // a phone has no room beside the block
+    if (action === "unlock") {
+      toolbarFocusAction = "add";
+      return el("lock-block-btn").click();
+    }
+    if (action === "size") return openSizePop(b);
+    if (action === "choice") return openChoicePop(b);
+    if (action === "more") return openMorePop(b);
+    if (action === "add") return openAddPop(b);
+    if (action === "style") return openStylePop(b, btn.dataset.key, false);
+  }
+  function openSizePop(b) {
+    const cur = b.col_span;
+    openBbPop(
+      "size",
+      `<div class="size-menu bb-menu" role="group" aria-label="Block width and position">
+        <p class="bb-pop-title">Width</p>
+        <div class="size-menu-row" role="group" aria-label="Width">${SIZE_PRESETS.map(([label, span, word]) => `<button type="button" data-span="${span}" aria-label="${word}" aria-pressed="${cur === span}">${label}</button>`).join("")}</div>
+        <p class="bb-pop-title">Position</p>
+        <div class="size-menu-row" role="group" aria-label="Position"><button type="button" data-align="left" aria-label="Align left">Left</button><button type="button" data-align="center" aria-label="Centre">Centre</button><button type="button" data-align="right" aria-label="Align right">Right</button></div>
+      </div>`,
+      (pop) =>
+        pop.addEventListener("click", (e) => {
+          const t = e.target.closest("button");
+          if (!t) return;
+          toolbarFocusAction = "size";
+          closeBbPop(false);
+          if (t.dataset.span) applySize(b.id, Number(t.dataset.span), null);
+          else if (t.dataset.align) applySize(b.id, null, t.dataset.align);
+        })
+    );
+  }
+  function openChoicePop(b) {
+    const choice = BB.mainChoice(FIELD_DEFS[b.type], b.content);
+    if (!choice) return;
+    openBbPop(
+      "choice",
+      `<div class="bb-menu" role="menu" aria-label="${escapeHtml(choice.label)}"><p class="bb-pop-title">${escapeHtml(choice.label)}</p>${choice.options
+        .map((o) => `<button type="button" role="menuitemradio" aria-checked="${o.value === choice.value}" data-value="${escapeHtml(o.value)}">${escapeHtml(o.text)}</button>`)
+        .join("")}</div>`,
+      (pop) =>
+        pop.addEventListener("click", async (e) => {
+          const t = e.target.closest("button[data-value]");
+          if (!t) return;
+          const f = FIELD_DEFS[b.type].find((x) => x.key === choice.key);
+          const raw = t.dataset.value;
+          b.content[choice.key] = f && f.numeric ? Number(raw) : typeof (f && f.options[0][0]) === "number" ? Number(raw) : raw;
+          closeBbPop(false);
+          toolbarFocusAction = "choice";
+          await saveBlockStyleAndContent(b);
+          renderInspector();
+        })
+    );
+  }
+  function openMorePop(b) {
+    const locked = isLayoutLocked(b);
+    const items = [
+      ["copy-block-btn", "Copy", ""],
+      ["duplicate-block-btn", "Duplicate", ""],
+      ["lock-block-btn", b.locked ? "Unlock" : "Lock", ""],
+      ["fit", "Fit to content", locked ? "disabled" : ""],
+    ];
+    if (b.type === "image") items.push(["actual", "Actual size", locked ? "disabled" : ""]);
+    items.push(["settings", "All settings…", ""]);
+    items.push(["delete-block-btn", "Delete", b.locked ? "disabled" : "", "bb-danger"]);
+    openBbPop(
+      "more",
+      `<div class="bb-menu" role="menu" aria-label="${escapeHtml(blockLabel(b.type))} block actions">${items
+        .map(([id, label, dis, cls]) => `<button type="button" role="menuitem" data-action="${id}"${cls ? ` class="${cls}"` : ""}${dis ? ' disabled title="Unlock this block first"' : ""}>${label}</button>`)
+        .join("")}</div>`,
+      (pop) =>
+        pop.addEventListener("click", (e) => {
+          const t = e.target.closest("button[data-action]");
+          if (!t || t.disabled) return;
+          const id = t.dataset.action;
+          closeBbPop(false);
+          if (id === "fit") return fitBlock(b.id, "content");
+          if (id === "actual") return fitBlock(b.id, "actual");
+          if (id === "settings") return showInspectorPanel();
+          toolbarFocusAction = id === "delete-block-btn" ? null : "more";
+          el(id).click();
+        })
+    );
+  }
+  function openAddPop(b) {
+    const list = BB.addable(b.style, STYLE_FIELDS);
+    openBbPop(
+      "add",
+      `<div class="bb-menu" role="menu" aria-label="Add a setting"><p class="bb-pop-title">Add to this block</p>${list
+        .map((x) => `<button type="button" role="menuitem" data-key="${escapeHtml(x.key)}">${escapeHtml(x.text)}</button>`)
+        .join("")}<button type="button" role="menuitem" data-key="" class="bb-menu-all">All settings…</button></div>`,
+      (pop) =>
+        pop.addEventListener("click", (e) => {
+          const t = e.target.closest("button[data-key]");
+          if (!t) return;
+          if (!t.dataset.key) {
+            closeBbPop(false);
+            return showInspectorPanel();
+          }
+          openStylePop(b, t.dataset.key, true);
+        })
+    );
+  }
+  // One setting (and the ones that ride on it) in a small panel above its chip; a change is saved at once.
+  function openStylePop(b, key, adding) {
+    const keys = BB.keysOf(key);
+    const fields = keys.map((k) => STYLE_FIELDS.find((f) => f.key === k)).filter(Boolean);
+    const name = BB.SHORT[key] || (fields[0] && fields[0].label) || key;
+    const style = b.style || {};
+    openBbPop(
+      adding ? "add" : "style:" + key,
+      `<div class="bb-field" role="dialog" aria-label="${escapeHtml(name)}"${adding ? " data-adding" : ""}>
+        <p class="bb-pop-title">${escapeHtml(name)}</p>
+        <div class="bb-field-body">${fields.map((f) => fieldHtml(f, style[f.key], "bb-" + b.id)).join("")}</div>
+        <div class="bb-field-actions">${BB.isSet(style[key]) ? '<button type="button" class="bb-field-clear">Remove</button>' : ""}<button type="button" class="bb-field-done">Done</button></div>
+      </div>`,
+      (pop) => {
+        const body = pop.querySelector(".bb-field-body");
+        body.querySelectorAll(".upload-trigger").forEach(wireUploadButton);
+        body.querySelectorAll(".browse-trigger").forEach(wireBrowseButton);
+        body.querySelectorAll(".image-url-source-badge").forEach(wireImageUrlSourceBadge);
+        body.querySelectorAll(".clear-color").forEach((btn) =>
+          btn.addEventListener("click", () => {
+            bbPopFor = "style:" + key;
+            bbSaveStyle(b, { [btn.dataset.key]: null });
+            closeBbPop(false);
+          })
+        );
+        body.querySelectorAll("[data-key]:not(button)").forEach((input) =>
+          input.addEventListener("change", async () => {
+            bbPopFor = "style:" + key; // once it has a value it has a chip: the panel now belongs to that chip
+            await bbSaveStyle(b, { [input.dataset.key]: fieldValue(input) });
+            placeBbPop();
+          })
+        );
+        const clear = pop.querySelector(".bb-field-clear");
+        if (clear)
+          clear.addEventListener("click", () => {
+            const changes = {};
+            keys.forEach((k) => (changes[k] = null));
+            closeBbPop(false);
+            toolbarFocusAction = "add";
+            bbSaveStyle(b, changes);
+          });
+        pop.querySelector(".bb-field-done").addEventListener("click", () => closeBbPop(true));
+      }
+    );
   }
 
   // The absolute-position 24-column grid is a faithful desktop editing
@@ -2407,8 +2587,7 @@
         selectedBlockId = b.id;
         multiSelectedIds.clear();
         renderCanvas();
-        renderInspector();
-        openDrawer(el("inspector"));
+        renderInspector(); // the block bar at the bottom shows up with the redraw; its ⋯ > All settings opens the inspector drawer
       };
       div.addEventListener("click", selectThisBlock);
       div.addEventListener("keydown", (e) => {
@@ -2428,6 +2607,7 @@
       });
       canvas.appendChild(div);
     });
+    renderCanvasToolbar();
     if (!el("layers-modal").hidden) renderLayersList();
   }
 
@@ -3423,7 +3603,7 @@
       return;
     }
     inspector.hidden = false;
-    if (isMobile()) openDrawer(inspector);
+    // On a phone a selected block gets the block bar; the inspector drawer only opens when asked for (the bar's ⋯ > All settings).
     el("block-save-status").textContent = "";
 
     if (!block.style) block.style = {};
