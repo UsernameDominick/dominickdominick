@@ -4609,13 +4609,11 @@ html.finder-on { overflow: hidden; }
 }
 /* The even ruler (nav.js adds is-even when the stops share the bar evenly): a long tick under the middle of each stop, five short
    ones evenly between, fixed in place. */
-.tabs.is-even {
-  background-image:
-    linear-gradient(90deg, var(--tick-major) 0 1px, transparent 1px),
-    linear-gradient(90deg, var(--tick) 0 1px, transparent 1px);
-  background-size: var(--tick-step, 60px) 9px, calc(var(--tick-step, 60px) / 6) 5px;
-  background-position: var(--tick-x0, 0px) 100%, var(--tick-x0, 0px) 100%;
-}
+.tabs.is-even { background-image: none; }
+.tab-ruler { position: absolute; left: 0; right: 0; bottom: 0; height: 9px; pointer-events: none; }
+.tab-ruler > i { position: absolute; bottom: 0; width: 1px; height: 5px; background: var(--tick); }
+.tab-ruler > i.is-major { height: 9px; background: var(--tick-major); }
+.tabs:not(.is-even) > .tab-ruler { display: none; }
 /* The needle is as tall as the ruler's long ticks, so it never reaches up into the tab's name. */
 .tab-indicator::after { height: 9px; box-shadow: 0 0 6px var(--accent); }
 /* After a slide the new page takes the focus (so a screen reader starts there); it is not something to press, so no focus ring. */

@@ -55,6 +55,24 @@ const { chromium, request } = require("./_pw.cjs");
     ok(even.cut === 0, "on a phone no tab's name is cut short", even);
     if (even.fits) ok(even.isEven && even.spread < 1.5 && Math.abs(even.step - even.gap) < 1 && Math.abs(even.left - even.right) < 2, "and when they all fit, the tabs and the ruler's long ticks are evenly spaced across the bar", even);
     else ok(!even.isEven, "and when they do not all fit, the strip scrolls (the ruler keeps its own spacing)", even);
+    {
+      // With three stops (the owner's own bar) on a 3x screen, each long tick sits exactly under its stop and the short ones keep one step.
+      const rp = await (await b.newContext({ viewport: { width: 393, height: 852 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true })).newPage();
+      await rp.goto(E2E_BASE + "/", { waitUntil: "networkidle" });
+      const r = await rp.evaluate(() => {
+        const t = document.querySelector(".tabs");
+        const stops = [...t.querySelectorAll(":scope > .tab, :scope > .tab-group")];
+        stops.forEach((s, i) => { if (i > 1 && i < stops.length - 1) s.remove(); });
+        window.siteLayoutNav();
+        const mids = [...t.querySelectorAll(":scope > .tab, :scope > .tab-group")].map((s) => { const x = s.getBoundingClientRect(); return x.left + x.width / 2; });
+        const marks = [...t.querySelectorAll(".tab-ruler > i")].map((i) => { const x = i.getBoundingClientRect(); return { c: x.left + x.width / 2, major: i.classList.contains("is-major") }; });
+        const majors = marks.filter((m) => m.major).map((m) => m.c);
+        const gaps = marks.slice(1).map((m, i) => m.c - marks[i].c);
+        return { even: t.classList.contains("is-even"), off: Math.max(...mids.map((m, i) => Math.abs(m - (majors[i] ?? -99)))), n: [mids.length, majors.length], spread: Math.max(...gaps) - Math.min(...gaps) };
+      });
+      ok(r.even && r.n[0] === r.n[1] && r.off < 0.5 && r.spread < 0.5, "with three stops each long tick is right under its stop and the short ticks are evenly spaced", r);
+      await rp.context().close();
+    }
     const barH = () => p.evaluate(() => Math.round(document.querySelector(".topbar").getBoundingClientRect().height * 10) / 10);
     const startH = await barH();
     for (const href of tabs.filter((h) => h !== "/")) {

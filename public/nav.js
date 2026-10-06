@@ -159,11 +159,31 @@ document.addEventListener("input", function (e) {
     var boxes = stops.map(function (s) { return s.getBoundingClientRect(); });
     var even = boxes.length > 1 && boxes.every(function (b) { return Math.abs(b.width - boxes[0].width) < 1.5; }) && wrap.scrollWidth <= wrap.clientWidth + 1;
     wrap.classList.toggle("is-even", even);
-    if (!even) return;
+    var marks = wrap.querySelector(":scope > .tab-ruler");
+    if (!even) { if (marks) marks.remove(); return; }
     var step = boxes[1].left - boxes[0].left;
     var x0 = boxes[0].left + boxes[0].width / 2 - w.left - wrap.clientLeft;
     wrap.style.setProperty("--tick-step", step + "px");
     wrap.style.setProperty("--tick-x0", (x0 - 0.5) + "px");
+    // Each tick is its own mark at a place snapped to the screen's pixels. A repeating background at these fractional sizes is
+    // rounded per tile by some browsers (Safari), so the long and short ticks drifted apart along the bar.
+    if (!marks) {
+      marks = document.createElement("span");
+      marks.className = "tab-ruler";
+      marks.setAttribute("aria-hidden", "true");
+      wrap.insertBefore(marks, wrap.firstChild);
+    }
+    var dpr = window.devicePixelRatio || 1;
+    var snap = function (x) { return Math.round(x * dpr) / dpr; };
+    var width = wrap.clientWidth;
+    var minor = step / 6;
+    var html = "";
+    for (var k = -Math.floor(x0 / minor); x0 + k * minor <= width; k++) {
+      var x = snap(x0 + k * minor - 0.5);
+      if (x < 0 || x > width - 1) continue;
+      html += '<i class="' + (k % 6 === 0 ? "is-major" : "") + '" style="left:' + x + 'px"></i>';
+    }
+    marks.innerHTML = html;
   }
 
   function layout() {
