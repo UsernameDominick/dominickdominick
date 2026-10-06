@@ -2170,9 +2170,7 @@ function pageScriptsHtml(bodyHtml) {
   }
   // Pictures a reader can open larger: an image block, a gallery, or a picture written into the text.
   if (/class="(?:block-image|gallery)"|body-figure|image-figure/.test(html)) tags.push('<script src="/lightbox.js" defer></script>');
-  // The Studio page (/studio): builds itself into its mount.
-  if (html.includes('id="studio-mount"')) tags.push('<script src="/studio.js" defer></script>');
-  // The other app pages: the kit, then the app's own script (worker/app-pages.js).
+  // The app pages (Studio, PicEditor, Simulations, Scans): the kit, then the app's own script (worker/app-pages.js).
   const app = APP_PAGES.find((a) => html.includes(`id="${a.mountId}"`));
   if (app) tags.push('<script src="/app-kit.js" defer></script>', `<script src="${app.script}" defer></script>`);
   // STUDY (temporary): the popup for a Study block.

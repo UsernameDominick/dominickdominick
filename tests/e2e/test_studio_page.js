@@ -88,7 +88,7 @@ const { chromium } = require("./_pw.cjs");
     await p.click(`.site-nav a[href="${home[1]}"]`);
     await p.waitForFunction(() => location.pathname === "/" && !document.querySelector("#studio-mount"), null, { timeout: 10000 });
     await p.waitForTimeout(400);
-    const parked = await p.evaluate(() => { const park = document.getElementById("studio-parking"); return !!(park && park.hidden && park.querySelector(".studio-native") && document.getElementById("song-builder-modal").hidden); });
+    const parked = await p.evaluate(() => { const park = document.getElementById("app-parking"); return !!(park && park.hidden && park.querySelector(".studio-native") && document.getElementById("song-builder-modal").hidden); });
     ok(parked, "on another tab the Studio is parked out of sight");
     await p.keyboard.press("Space");
     await p.waitForTimeout(300);

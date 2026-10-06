@@ -1,4 +1,4 @@
-// The kit the site's app pages are built on (PicEditor, Simulations, Scans): an admin tool, taken from the admin page, built into a
+// The kit the site's app pages are built on (the Studio, PicEditor, Simulations, Scans): an admin tool, taken from the admin page, built into a
 // page of the site instead of a dialog over the admin. It gives each app:
 // - the admin's stylesheet once, scoped under .app-native so it cannot touch the rest of the site, plus the app's own (app-kit.css);
 // - the admin markup (/admin/index.html, fetched once and shared) to take the tool's dialogs from;
@@ -7,7 +7,6 @@
 //   everything in this browser: nothing a visitor makes is sent to the site;
 // - a small store (localStorage lists for small things, IndexedDB for files);
 // - the page life: build once, park hidden when another tab slides in (page-slide.js), come back as it was.
-// The Studio (studio.js) came first and still has its own copy of these; new app pages use this.
 (function () {
   "use strict";
   if (window.SiteAppKit) return;

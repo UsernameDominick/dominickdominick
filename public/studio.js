@@ -1,165 +1,92 @@
-// The Studio as a real page of the site (/studio): no frame and nothing of the admin around it. The page holds an empty mount; this script
-// builds the Studio into it: the song editor's own markup (taken from the admin page: the builder, the list it keeps hidden and the audio
-// export dialog), its stylesheet scoped to the Studio so it cannot touch the rest of the site, and the song scripts. Its calls to the
-// server are answered here instead, from this browser's own storage (songs and templates), so nothing a visitor makes is sent anywhere.
-// The opening screen is a shelf of the visitor's songs (play one, open it, copy or delete it), New song and the starters; the editor opens
-// in place under the site's nav, and its Songs button comes back to the shelf.
-// When the visitor slides to another tab (page-slide.js), the Studio is parked, hidden, and put back as it was on the way back in.
+// The Studio (/studio): the song builder as a page of the site, for every visitor (built on public/app-kit.js, like PicEditor, Simulations
+// and Scans). The opening screen is a shelf of the visitor's own songs (kept in this browser, never sent to the site): New song and the
+// starters, Open a song file or MIDI, and a card per song (a little picture of its five tracks, a Play button right on the card, open,
+// Copy, Delete). The editor is the owner's song builder, opening in place under the site's nav; its Songs button comes back to the shelf,
+// saving first. The kit does the rest: the admin markup and styles, the scripts, answering the editor's calls, and parking while another
+// tab is shown.
 (function () {
   "use strict";
-  if (window.siteInitStudio) return;
+  if (!window.SiteAppKit || window.siteInitStudioApp) return;
+  window.siteInitStudioApp = true;
+  const K = window.SiteAppKit;
   const SONGS_KEY = "studio.songs.v1";
   const TEMPLATES_KEY = "studio.templates.v1";
   const MAX_SONGS = 200;
   const MAX_SONG_BYTES = 1000000;
-  const SCRIPTS = ["/dial.js", "/song-engine.js", "/admin/song-patterns.js", "/admin/song-files.js", "/admin/song-starters.js", "/admin/song-builder.js", "/admin/song-studio.js"];
   const $ = (id) => document.getElementById(id);
-  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  const esc = K.esc;
+  let shelf = null;
 
-  // ---------- the store: songs and templates in this browser ----------
-  const read = (key) => {
-    try {
-      const v = JSON.parse(localStorage.getItem(key) || "[]");
-      return Array.isArray(v) ? v : [];
-    } catch (e) {
-      return [];
-    }
-  };
-  const write = (key, list) => {
-    try {
-      localStorage.setItem(key, JSON.stringify(list));
-    } catch (e) {
-      throw new Error("This browser has no room left to keep songs. Delete a song, or save a song file first.");
-    }
-  };
-  const fail = (message, status) => {
-    const err = new Error(message);
-    err.status = status || 400;
-    return err;
-  };
-  const nextId = (list) => list.reduce((m, s) => Math.max(m, Number(s.id) || 0), 0) + 1;
-  const now = () => new Date().toISOString().replace("T", " ").slice(0, 19);
-  const cleanName = (name) => String(name == null ? "" : name).replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 120);
+  // ---------- the editor's calls, answered from this browser ----------
   const checkData = (data) => {
-    if (!data || typeof data !== "object" || Array.isArray(data)) throw fail("Song data must be an object.");
-    if (JSON.stringify(data).length > MAX_SONG_BYTES) throw fail("This song is too large to save (over 1 MB of data).");
+    if (!data || typeof data !== "object" || Array.isArray(data)) throw K.fail("Song data must be an object.");
+    if (JSON.stringify(data).length > MAX_SONG_BYTES) throw K.fail("This song is too large to save (over 1 MB of data).");
   };
-  async function api(path, opts) {
-    const method = ((opts && opts.method) || "GET").toUpperCase();
-    let body = null;
-    try {
-      body = opts && opts.body ? JSON.parse(opts.body) : null;
-    } catch (e) {
-      throw fail("Bad request.");
-    }
-    const p = new URL(path, "http://x").pathname;
-    if (p === "/songs" && method === "GET") return read(SONGS_KEY).map((s) => ({ id: s.id, name: s.name, updated_at: s.updated_at })).sort((a, b) => a.name.localeCompare(b.name));
+  const full = "This browser has no room left to keep songs. Delete a song, or save a song file first.";
+  K.addApi((p, method, body, query) => {
+    if (p === "/songs" && method === "GET") return K.readList(SONGS_KEY).map((s) => ({ id: s.id, name: s.name, updated_at: s.updated_at })).sort((a, b) => a.name.localeCompare(b.name));
     if (p === "/songs" && method === "POST") {
-      const songs = read(SONGS_KEY);
-      if (songs.length >= MAX_SONGS) throw fail("That is as many songs as this browser keeps. Delete one first.");
-      const name = cleanName(body && body.name);
-      if (!name) throw fail("Name is required");
+      const songs = K.readList(SONGS_KEY);
+      if (songs.length >= MAX_SONGS) throw K.fail("That is as many songs as this browser keeps. Delete one first.");
+      const name = K.cleanName(body && body.name);
+      if (!name) throw K.fail("Name is required");
       checkData(body.data);
-      const id = nextId(songs);
-      songs.push({ id, name, data: body.data, updated_at: now() });
-      write(SONGS_KEY, songs);
+      const id = K.nextId(songs);
+      songs.push({ id, name, data: body.data, updated_at: K.now() });
+      K.writeList(SONGS_KEY, songs, full);
       return { id };
     }
     const one = /^\/songs\/(\d+)(\/duplicate)?$/.exec(p);
     if (one) {
       const id = Number(one[1]);
-      const songs = read(SONGS_KEY);
+      const songs = K.readList(SONGS_KEY);
       const at = songs.findIndex((s) => s.id === id);
-      if (at < 0) throw fail("Song not found", 404);
+      if (at < 0) throw K.fail("Song not found", 404);
       if (!one[2] && method === "GET") return songs[at];
       if (!one[2] && method === "PATCH") {
         if (body && body.name !== undefined) {
-          const name = cleanName(body.name);
-          if (!name) throw fail("Name is required");
+          const name = K.cleanName(body.name);
+          if (!name) throw K.fail("Name is required");
           songs[at].name = name;
         }
         if (body && body.data !== undefined) {
           checkData(body.data);
           songs[at].data = body.data;
         }
-        songs[at].updated_at = now();
-        write(SONGS_KEY, songs);
+        songs[at].updated_at = K.now();
+        K.writeList(SONGS_KEY, songs, full);
         return songs[at];
       }
       if (!one[2] && method === "DELETE") {
         songs.splice(at, 1);
-        write(SONGS_KEY, songs);
+        K.writeList(SONGS_KEY, songs, full);
         return { ok: true };
       }
       if (one[2] && method === "POST") {
-        if (songs.length >= MAX_SONGS) throw fail("That is as many songs as this browser keeps. Delete one first.");
-        const copy = { id: nextId(songs), name: cleanName(songs[at].name + " (copy)"), data: JSON.parse(JSON.stringify(songs[at].data)), updated_at: now() };
+        if (songs.length >= MAX_SONGS) throw K.fail("That is as many songs as this browser keeps. Delete one first.");
+        const copy = { id: K.nextId(songs), name: K.cleanName(songs[at].name + " (copy)"), data: JSON.parse(JSON.stringify(songs[at].data)), updated_at: K.now() };
         songs.push(copy);
-        write(SONGS_KEY, songs);
+        K.writeList(SONGS_KEY, songs, full);
         return { id: copy.id };
       }
     }
-    // Templates of other kinds (a circuit's) belong to another app page: passed on (404) to whoever answers them.
-    const kind = new URL(path, "http://x").searchParams.get("kind") || (body && body.kind) || "song";
-    if (p === "/templates" && kind !== "song") throw fail("That is not available here.", 404);
-    if (p === "/templates" && method === "GET") return read(TEMPLATES_KEY);
-    if (p === "/templates" && method === "POST") {
-      const list = read(TEMPLATES_KEY);
-      const name = cleanName(body && body.name);
-      if (!name) throw fail("Name is required");
-      checkData(body.data);
-      list.push({ id: nextId(list), kind: "song", name, data: body.data });
-      write(TEMPLATES_KEY, list);
-      return { id: list[list.length - 1].id };
+    if (p === "/templates") {
+      // Templates of other kinds (a circuit's) belong to another app page.
+      const kind = (query && query.get("kind")) || (body && body.kind) || "song";
+      if (kind !== "song") return undefined;
+      if (method === "GET") return K.readList(TEMPLATES_KEY);
+      if (method === "POST") {
+        const list = K.readList(TEMPLATES_KEY);
+        const name = K.cleanName(body && body.name);
+        if (!name) throw K.fail("Name is required");
+        checkData(body.data);
+        list.push({ id: K.nextId(list), kind: "song", name, data: body.data });
+        K.writeList(TEMPLATES_KEY, list, full);
+        return { id: list[list.length - 1].id };
+      }
     }
-    if (p === "/content-usage") return [];
-    if (p === "/settings") return {};
-    throw fail("That is not available here.", 404);
-  }
-
-  // ---------- the editor's stylesheet, scoped to the Studio ----------
-  // Every selector of the admin stylesheet is put under .studio-native, so its rules for buttons, fields and dialogs only reach the Studio.
-  // `:root`/`html` rules keep their place and gain the scope after them; `body` means the Studio's own shell.
-  const SCOPE = ".studio-native";
-  function splitList(sel) {
-    const out = [];
-    let depth = 0;
-    let cur = "";
-    for (const ch of sel) {
-      if (ch === "(" || ch === "[") depth++;
-      else if (ch === ")" || ch === "]") depth--;
-      if (ch === "," && depth === 0) {
-        out.push(cur.trim());
-        cur = "";
-      } else cur += ch;
-    }
-    if (cur.trim()) out.push(cur.trim());
-    return out;
-  }
-  function scopeOne(sel) {
-    const m = /^((?::root|html)(?:\[[^\]]*\]|:[\w-]+(?:\([^)]*\))?|\.[\w-]+)*)(.*)$/.exec(sel);
-    if (m && m[1]) {
-      const rest = m[2].trim().replace(/^body(?=[\s.#:[>]|$)/, ".studio-shell");
-      return `${m[1]} ${SCOPE}${rest ? " " + rest : ""}`;
-    }
-    if (/^body(?=[\s.#:[>]|$)/.test(sel)) return `${SCOPE} ${sel.replace(/^body/, ".studio-shell")}`;
-    return `${SCOPE} ${sel}`;
-  }
-  function scopeRules(rules) {
-    let out = "";
-    for (const r of rules) {
-      if (r.type === 1) out += `${splitList(r.selectorText).map(scopeOne).join(", ")}{${r.style.cssText}}\n`;
-      else if (r.type === 4) out += `@media ${r.conditionText || r.media.mediaText}{${scopeRules(r.cssRules)}}\n`;
-      else if (r.type === 12) out += `@supports ${r.conditionText}{${scopeRules(r.cssRules)}}\n`;
-      else out += r.cssText + "\n"; // keyframes, font faces
-    }
-    return out;
-  }
-  function scopeCss(text) {
-    const sheet = new CSSStyleSheet();
-    sheet.replaceSync(text.replace(/@import[^;]+;/g, ""));
-    return scopeRules(sheet.cssRules);
-  }
+    return undefined;
+  });
 
   // ---------- the shelf: the visitor's songs ----------
   const TRACK_ROWS = [
@@ -190,21 +117,10 @@
     const rows = stepsOf(data);
     return TRACK_ROWS.map((t) => `<span class="shelf-row" style="--c:${t.color}">${(rows[t.key] || new Array(16).fill(false)).map((x) => `<i${x ? ' class="on"' : ""}></i>`).join("")}</span>`).join("");
   }
-  function whenEdited(stamp) {
-    const t = Date.parse(String(stamp || "").replace(" ", "T") + "Z");
-    if (!t) return "";
-    const mins = Math.round((Date.now() - t) / 60000);
-    if (mins < 1) return "Edited just now";
-    if (mins < 60) return `Edited ${mins} min ago`;
-    const hours = Math.round(mins / 60);
-    if (hours < 24) return `Edited ${hours} h ago`;
-    const days = Math.round(hours / 24);
-    return days < 30 ? `Edited ${days} day${days === 1 ? "" : "s"} ago` : `Edited ${new Date(t).toLocaleDateString()}`;
-  }
 
   // One song plays at a time, from its card; it stops when another starts, when a song is opened or when the visitor leaves the page.
   let audio = null;
-  let playing = null; // { id, player, btn }
+  let playing = null; // { id, player, btn, name }
   const ctx = () => {
     if (!audio) {
       const AC = window.AudioContext || window.webkitAudioContext;
@@ -225,11 +141,10 @@
     playing = null;
   }
 
-  let shelf = null;
-  async function renderShelf() {
+  function renderShelf() {
     if (!shelf) return;
     stopShelf();
-    const list = read(SONGS_KEY).slice().sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
+    const list = K.readList(SONGS_KEY).slice().sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
     const grid = shelf.querySelector(".shelf-grid");
     grid.innerHTML = list.length
       ? list
@@ -239,7 +154,7 @@
               <button type="button" class="shelf-open" data-act="open" aria-label="Open ${esc(s.name)}">
                 <span class="shelf-picture" aria-hidden="true">${cardPicture(s.data)}</span>
                 <span class="shelf-name">${esc(s.name)}</span>
-                <span class="shelf-when">${esc(whenEdited(s.updated_at))}</span>
+                <span class="shelf-when">${esc(K.whenEdited(s.updated_at))}</span>
               </button>
               <span class="shelf-actions"><button type="button" data-act="copy" aria-label="Make a copy of ${esc(s.name)}" title="Make a copy">Copy</button><button type="button" data-act="delete" class="shelf-delete" aria-label="Delete ${esc(s.name)}" title="Delete">Delete</button></span>
             </article>`
@@ -285,26 +200,31 @@
       const card = btn && btn.closest(".shelf-card");
       if (!card) return;
       const id = Number(card.dataset.id);
-      const song = read(SONGS_KEY).find((s) => s.id === id);
+      const song = K.readList(SONGS_KEY).find((s) => s.id === id);
       if (!song) return renderShelf();
       const act = btn.dataset.act;
-      if (act === "open") openSong(id);
-      else if (act === "play") {
-        const was = playing && playing.id === id;
-        stopShelf();
-        if (was || !window.SongEngine) return;
-        const player = window.SongEngine.createPlayer(ctx, song.data, () => {});
-        player.start();
-        playing = { id, player, btn, name: song.name };
-        btn.setAttribute("aria-pressed", "true");
-        btn.setAttribute("aria-label", `Stop ${song.name}`);
-      } else if (act === "copy") {
-        await api(`/songs/${id}/duplicate`, { method: "POST" });
-        renderShelf();
-      } else if (act === "delete") {
-        if (!window.confirm(`Delete "${song.name}" from this browser? This can't be undone.`)) return;
-        await api(`/songs/${id}`, { method: "DELETE" });
-        renderShelf();
+      try {
+        if (act === "open") openSong(id);
+        else if (act === "play") {
+          const was = playing && playing.id === id;
+          stopShelf();
+          if (was || !window.SongEngine) return;
+          const player = window.SongEngine.createPlayer(ctx, song.data, () => {});
+          player.start();
+          playing = { id, player, btn, name: song.name };
+          btn.setAttribute("aria-pressed", "true");
+          btn.setAttribute("aria-label", `Stop ${song.name}`);
+        } else if (act === "copy") {
+          await window.adminApi(`/songs/${id}/duplicate`, { method: "POST" });
+          renderShelf();
+        } else if (act === "delete") {
+          if (!window.confirm(`Delete "${song.name}" from this browser? This can't be undone.`)) return;
+          await window.adminApi(`/songs/${id}`, { method: "DELETE" });
+          renderShelf();
+        }
+      } catch (err) {
+        const status = $("song-import-status") || shelf.querySelector(".shelf-status");
+        if (status) status.textContent = err && err.message ? err.message : "That did not work.";
       }
     });
   }
@@ -343,9 +263,9 @@
 
   // "Songs" goes back to the shelf without asking: a song here costs nothing to keep, so whatever is unsaved (or still saving) is saved
   // first, and the editor closes once it is. Only a save that fails falls through to the editor's own "discard?" question.
-  function saveBeforeShelf() {
+  function saveBeforeShelf(inner) {
     let passing = false;
-    shell.addEventListener("click", (e) => {
+    inner.addEventListener("click", (e) => {
       const close = e.target.closest && e.target.closest("#studio-close");
       if (!close || passing) return;
       const status = () => (($("song-autosave-status") || {}).textContent || "").trim();
@@ -368,28 +288,6 @@
     }, true);
   }
 
-  // ---------- building it ----------
-  let shell = null; // .studio-native, kept for the whole visit (parked while another tab is shown)
-  let parking = null;
-  let booting = null;
-  let wasOpen = false;
-  const builder = () => $("song-builder-modal");
-  function showShelf(yes) {
-    if (shelf) shelf.hidden = !yes;
-    if (yes) renderShelf();
-  }
-  function loadScript(src) {
-    return new Promise((resolve, reject) => {
-      if (src === "/song-engine.js" && window.SongEngine) return resolve();
-      if (src === "/dial.js" && window.Dial) return resolve();
-      const s = document.createElement("script");
-      s.src = src;
-      s.async = false;
-      s.onload = resolve;
-      s.onerror = () => reject(new Error("Could not load " + src));
-      document.body.appendChild(s);
-    });
-  }
   // A new song is kept from its first change: the editor only autosaves a song that has been saved once, and a phone never asks "leave
   // this page?", so a beat made and then lost to a reload would be gone.
   function keepDrafts() {
@@ -409,134 +307,55 @@
       }, 1200);
     }).observe(status, { childList: true, characterData: true, subtree: true });
   }
-  // The editor's markup and its (scoped) stylesheet, fetched once. warm() asks for them early, while the visitor is still on another
-  // page (page-slide.js loads this file when it warms the nav's pages), so opening the Studio does not wait on the network.
-  let parts = null;
-  function getParts() {
-    const text = (url) => fetch(url, { credentials: "omit" }).then((r) => { if (!r.ok) throw new Error("The Studio could not be loaded."); return r.text(); });
-    if (!parts) {
-      parts = Promise.all([text("/admin/index.html"), text("/admin/style.css"), text("/studio.css")]).then(([page, css, own]) => ({ page, css: scopeCss(css), own }));
-      parts.catch(() => { parts = null; });
-    }
-    return parts;
-  }
-  function warm() {
-    if (shell || booting) return;
-    getParts().catch(() => {});
-    SCRIPTS.forEach((src) => {
-      if (document.querySelector(`link[rel="prefetch"][href="${src}"]`)) return;
-      const link = document.createElement("link");
-      link.rel = "prefetch";
-      link.as = "script";
-      link.href = src;
-      document.head.appendChild(link);
-    });
-  }
 
-  async function boot(mount) {
-    mount.innerHTML = `<p class="studio-loading" role="status">Loading the Studio…</p>`;
-    const { page, css, own } = await getParts();
-    const style = document.createElement("style");
-    style.id = "studio-scoped-css";
-    style.dataset.addedBy = "studio"; // page-slide.js leaves it out when it compares pages
-    // The editor's styles, then the page's own (studio.css) after them, both in place before anything is shown: no unstyled flash.
-    style.textContent = css + "\n" + own;
-    document.head.appendChild(style);
-    const doc = new DOMParser().parseFromString(page, "text/html");
-    doc.querySelectorAll("script").forEach((s) => s.remove());
-    shell = document.createElement("div");
-    shell.className = "studio-native";
-    const inner = document.createElement("div");
-    inner.className = "studio-shell admin-body studio-app-body";
-    // Only what the song editor uses: its editor, the list it keeps (hidden here), the audio export dialog and the button that opens the list.
-    ["song-builder-modal", "songs-modal", "song-audio-modal"].forEach((id) => {
-      const el = doc.getElementById(id);
-      if (el) inner.appendChild(document.importNode(el, true));
-    });
-    const songsBtn = document.createElement("button");
-    songsBtn.type = "button";
-    songsBtn.id = "songs-btn";
-    songsBtn.hidden = true;
-    songsBtn.tabIndex = -1;
-    inner.appendChild(songsBtn);
-    shell.appendChild(inner);
-    // Other app pages (public/app-kit.js) answer their own calls: anything that is not the Studio's goes on to them.
-    const before = window.adminApi;
-    window.adminApi = async (path, opts) => {
-      try {
-        return await api(path, opts);
-      } catch (err) {
-        if (err && err.status === 404 && before) return before(path, opts);
-        throw err;
+  K.register({
+    name: "studio",
+    mountId: "studio-mount",
+    shellClass: "studio-native",
+    loadingText: "Loading the Studio…",
+    scripts: ["/dial.js", "/song-engine.js", "/admin/song-patterns.js", "/admin/song-files.js", "/admin/song-starters.js", "/admin/song-builder.js", "/admin/song-studio.js"],
+    // The editor, the list it keeps (hidden here) and the audio export dialog.
+    dialogs: ["song-builder-modal", "songs-modal", "song-audio-modal"],
+    editor: () => $("song-builder-modal"),
+    // The editor listens to a button that opens its list, so it must be there before its scripts load; and a few calls it makes to the
+    // admin page have nothing to do here.
+    prepare(inner) {
+      const songsBtn = document.createElement("button");
+      songsBtn.type = "button";
+      songsBtn.id = "songs-btn";
+      songsBtn.hidden = true;
+      songsBtn.tabIndex = -1;
+      inner.appendChild(songsBtn);
+      window.refreshSongOptions = function () {};
+      window.showContentUsage = function () {};
+    },
+    build(inner) {
+      // The editor's "×" is the way back to the shelf here.
+      const close = $("studio-close");
+      if (close) {
+        close.textContent = "Songs";
+        close.classList.remove("studio-icon");
+        close.classList.add("studio-btn");
+        close.setAttribute("aria-label", "Your songs");
+        close.title = "Your songs: open, start or delete a song";
       }
-    };
-    window.refreshSongOptions = function () {};
-    window.showContentUsage = function () {};
-    mount.innerHTML = "";
-    mount.appendChild(shell);
-    for (const src of SCRIPTS) await loadScript(src);
-    // The editor's "×" is the way back to the shelf here.
-    const close = $("studio-close");
-    if (close) {
-      close.textContent = "Songs";
-      close.classList.remove("studio-icon");
-      close.classList.add("studio-btn");
-      close.setAttribute("aria-label", "Your songs");
-      close.title = "Your songs: open, start or delete a song";
-    }
-    shelf = buildShelf();
-    inner.prepend(shelf);
-    wireShelf();
-    keepDrafts();
-    saveBeforeShelf();
+      shelf = buildShelf();
+      inner.prepend(shelf);
+      wireShelf();
+      keepDrafts();
+      saveBeforeShelf(inner);
+      $("songs-btn").click(); // loads the editor's list and its starters
+    },
     // The shelf shows whenever the editor is closed.
-    new MutationObserver(() => showShelf(builder().hidden)).observe(builder(), { attributes: true, attributeFilter: ["hidden"] });
-    $("songs-btn").click(); // loads the editor's list and its starters
-    showShelf(true);
-  }
-  function place(mount) {
-    if (!shell) return;
-    mount.innerHTML = "";
-    mount.appendChild(shell);
-    if (wasOpen) builder().hidden = false;
-    wasOpen = false;
-    showShelf(builder().hidden);
-  }
-  // Leaving in place (page-slide.js): stop the sound; once the page has gone, park the Studio hidden so the editor's own shortcuts sleep.
-  document.addEventListener("site:leave", () => {
-    stopShelf();
-    if (!shell || !document.contains(shell)) return;
-    if (window.SongStudioHost && window.SongStudioHost.playing && window.SongStudioHost.playing()) window.SongStudioHost.stop();
+    shown(open) {
+      if (!shelf) return;
+      shelf.hidden = open;
+      if (!open) renderShelf();
+    },
+    // Leaving in place (page-slide.js): stop the sound.
+    onLeave() {
+      stopShelf();
+      if (window.SongStudioHost && window.SongStudioHost.playing && window.SongStudioHost.playing()) window.SongStudioHost.stop();
+    },
   });
-  document.addEventListener("site:arrive", (e) => {
-    const old = e.detail && e.detail.old;
-    if (!shell || !old || !old.contains(shell)) return;
-    if (!parking) {
-      parking = document.createElement("div");
-      parking.hidden = true;
-      parking.id = "studio-parking";
-      document.body.appendChild(parking);
-    }
-    wasOpen = !builder().hidden;
-    builder().hidden = true;
-    parking.appendChild(shell);
-  });
-
-  window.siteInitStudio = function (root) {
-    const mount = (root || document).querySelector("#studio-mount");
-    if (!mount) return;
-    if (shell) return place(mount);
-    if (!booting) booting = boot(mount).catch((err) => {
-      console.error(err);
-      booting = null;
-      mount.innerHTML = `<p class="studio-loading" role="alert">${esc(err && err.message ? err.message : "The Studio could not be loaded.")}</p>`;
-    });
-  };
-  // On another page this file was only loaded to get ready: fetch the editor while the browser is idle.
-  const start = () => {
-    window.siteInitStudio(document);
-    if (!shell && !booting && !(navigator.connection && navigator.connection.saveData)) (window.requestIdleCallback || ((f) => setTimeout(f, 600)))(warm);
-  };
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
-  else start();
 })();

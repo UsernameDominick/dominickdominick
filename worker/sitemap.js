@@ -49,7 +49,6 @@ export function buildSitemapEntries(data, { isInSitemap, reservedSlugs }) {
     { loc: "/archive", lastmod: latestOf([...articleDates, ...projectDates]) },
     { loc: "/random", lastmod: latestOf(articleDates) },
     { loc: "/projects", lastmod: latestOf(projectDates) },
-    { loc: "/studio" },
     ...APP_PAGES.map((a) => ({ loc: a.path })),
     ...tags.filter((t) => !topicIsThin(t)).map((t) => ({ loc: `/topics/${encodeURIComponent(t.tag)}`, lastmod: latestOf(tagged(t.tag)) })),
   ];

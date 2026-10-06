@@ -1,5 +1,5 @@
 /* The app pages built on public/app-kit.js (PicEditor, Simulations, Scans): the page part. The admin's own stylesheet is added scoped to
-   .app-native by app-kit.js, and this file right after it in the same <style>. The shelf look is the Studio's (studio.css). */
+   .app-native by app-kit.js, and this file right after it in the same <style>. The shelf look is the Studio's (its section is at the end). */
 .app-mount { position: relative; flex: 1 1 auto; min-height: 0; width: 100%; display: flex; flex-direction: column; }
 .app-native { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .app-native .app-shell { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: transparent; color: var(--text); }
@@ -117,7 +117,11 @@
 /* The shelf's main button: the site's accent button (the admin's own button rule would otherwise win inside .app-native). */
 .app-native .shelf-new .btn-accent {
   min-height: 48px; padding: 0 22px; font-size: 1rem; font-weight: 700; color: var(--on-accent, #fff); background: var(--accent);
-  border: min(var(--btn-border-width, 3px), 2px) solid var(--btn-ink, transparent); border-radius: var(--btn-radius, 12px); box-shadow: var(--btn-shadow-sm, none);
+  border: min(var(--btn-border-width, 3px), 2px) solid var(--btn-ink, transparent); border-radius: var(--btn-radius, 12px); box-shadow: var(--btn-shadow, none);
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* Pressed: it sinks onto its own shadow, like the site's other buttons (.btn:active). */
+  .app-native .shelf-new .btn-accent:active { transform: translateY(var(--btn-press, 4px)); box-shadow: 0 1px 0 var(--btn-ink, transparent); }
 }
 @media (max-width: 640px) { .app-native .shelf-new .btn-accent { width: 100%; } }
 /* A card's actions wrap rather than run off a narrow card. */
@@ -165,3 +169,17 @@
 .app-native .scan-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .app-native .scan-thumb-blank svg { width: 56px; height: 56px; fill: none; stroke: var(--accent); stroke-width: 1.4; stroke-linejoin: round; opacity: 0.8; }
 .app-native .scan-card .shelf-name { padding-right: 0; }
+
+/* ---- Studio: the song editor fills the page under the nav instead of floating; the audio export dialog still floats. ---- */
+.app-native #song-builder-modal, .app-native #songs-modal {
+  position: absolute; inset: 0; z-index: 1; display: flex; padding: 0; background: transparent; animation: none; backdrop-filter: none;
+}
+.app-native #song-builder-modal[hidden], .app-native #songs-modal { display: none !important; }
+.app-native #song-builder-modal .modal-inner {
+  /* !important: the editor's own phone rule makes it a full screen (100dvh), which here would run under the site's nav */
+  width: 100% !important; height: 100% !important; max-width: none !important; max-height: none !important; margin: 0; border: 0; border-radius: 0; box-shadow: none; background: transparent; animation: none;
+}
+.app-native .song-studio { max-width: 1280px; }
+.app-native #song-audio-modal { z-index: 1100; }
+/* More of what only the site's owner has a use for. */
+.app-native :is(#close-songs, #song-generate-cover-art, #studio-sheet-help, #song-view-toggle, #song-toolbar-publish, #studio-help) { display: none !important; }

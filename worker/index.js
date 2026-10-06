@@ -1692,27 +1692,8 @@ async function route(request, env, ctx) {
       return renderSavedPage(env, navItems);
     }
 
-    // The Studio: the song builder as a page of the site, open to everyone. The page holds a mount; public/studio.js builds the Studio into it
-    // (its own stylesheet scoped to it), and what a visitor makes stays in their own browser.
-    if (path === "/studio") {
-      const navItems = await listNavPages(env);
-      const { theme, footerText, customHead } = await getSiteContext(env);
-      const html = renderShell({
-        title: "Studio: make music in your browser · Dominick",
-        description: "Make music in your browser: a step sequencer, a piano roll, forty instruments and fifteen drum kits. Nothing to install, and nothing leaves your device.",
-        path,
-        navItems,
-        activeSlug: "studio",
-        bodyHtml: `<h1 class="sr-only">Studio: make music in your browser</h1><p class="sr-only">A step sequencer, a piano roll, forty instruments and fifteen drum kits, with five tracks (drums, bass, chords, melody and lead), looping bars, MIDI keyboard input and song files you can save and share. Songs you make here are kept in your own browser and are never sent to the site.</p><div class="studio-mount" id="studio-mount"><p class="studio-loading" role="status">Loading the Studio…</p></div><noscript><p class="studio-noscript">The Studio needs JavaScript.</p></noscript>`,
-        theme,
-        footerText,
-        customHead,
-        canvasClass: "canvas studio-canvas",
-      });
-      return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
-    }
-
-    // The other app pages (PicEditor…): the same shape as the Studio, from worker/app-pages.js.
+    // The app pages (the Studio, PicEditor, Simulations, Scans): from worker/app-pages.js. Each holds a mount that its script (on public/app-kit.js)
+    // builds the tool into, and what a visitor makes stays in their own browser.
     const appPage = appPageFor(path);
     if (appPage) {
       const navItems = await listNavPages(env);

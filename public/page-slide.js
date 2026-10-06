@@ -284,7 +284,7 @@ window.addEventListener("pagereveal", function (e) {
     }).then(function (res) {
       if (opts.handover) opts.handover();
       if (window.siteStopSongs) window.siteStopSongs();
-      document.dispatchEvent(new CustomEvent("site:leave")); // the Studio stops its sound (public/studio.js)
+      document.dispatchEvent(new CustomEvent("site:leave")); // the app pages stop their sound (public/app-kit.js)
       copySimDefs(res.doc);
       var doc = res.doc;
       var oldMain = document.getElementById("main-content");
@@ -322,7 +322,7 @@ window.addEventListener("pagereveal", function (e) {
         done = true;
         busy = null;
         [].forEach.call(stage.getAnimations ? stage.getAnimations({ subtree: true }) : [], function (a) { a.cancel(); });
-        // Just before the old page goes: the Studio (public/studio.js) moves itself out of it, so it never leaves the document.
+        // Just before the old page goes: an app page (public/app-kit.js) moves itself out of it, so it never leaves the document.
         document.dispatchEvent(new CustomEvent("site:arrive", { detail: { old: oldMain } }));
         stage.replaceWith(fresh);
         styles.done();
@@ -407,8 +407,8 @@ window.addEventListener("pagereveal", function (e) {
     if (url && clean(url.pathname) !== clean(location.pathname)) fetchDoc(url.href).catch(function () {});
   };
   // And every page of the nav once the page has settled, so a tap slides at once even on a phone (no hover there to warm it).
-  // A page that holds the Studio has its script loaded early too: on a page without the Studio it only fetches the editor in the
-  // background (public/studio.js, warm), so opening the Studio tab does not wait for it.
+  // A page that holds an app (the Studio, PicEditor, Simulations, Scans) has the kit and the app's script loaded early too: on a page
+  // without it, it only fetches the editor in the background (public/app-kit.js, warm), so opening that tab does not wait for it.
   // Its first pictures are fetched too, so a page does not slide in with empty boxes that fill in after.
   var warmedPictures = {};
   function warmPictures(res) {
@@ -428,7 +428,7 @@ window.addEventListener("pagereveal", function (e) {
       fetchDoc(url.href).then(function (res) {
         if (!swappable(res.doc)) return;
         warmPictures(res);
-        if (res.doc.querySelector('script[src="/studio.js"], script[src="/app-kit.js"]')) loadScripts(res.doc).catch(function () {});
+        if (res.doc.querySelector('script[src="/app-kit.js"]')) loadScripts(res.doc).catch(function () {});
       }).catch(function () {});
     });
   };
@@ -445,7 +445,7 @@ window.addEventListener("pagereveal", function (e) {
   document.addEventListener("touchstart", warm, { passive: true });
   // ---- A sideways swipe on the page (touch screens): the page follows the finger with the tab beside it coming in; let go past a quarter
   // of the screen (or flick) and it carries on there, otherwise it springs back. Not on things that use sideways drags themselves.
-  var SWIPE_OFF = 'input, textarea, select, [contenteditable], canvas, video, audio, iframe, model-viewer, .studio-native, .song-embed, .sim-embed, [class^="sim-"], .tabs, .site-finder, [data-no-swipe]';
+  var SWIPE_OFF = 'input, textarea, select, [contenteditable], canvas, video, audio, iframe, model-viewer, .app-native, .song-embed, .sim-embed, [class^="sim-"], .tabs, .site-finder, [data-no-swipe]';
   function scrollsSideways(el) {
     for (; el && el !== document.body; el = el.parentElement) {
       if (el.scrollWidth > el.clientWidth + 2) {
