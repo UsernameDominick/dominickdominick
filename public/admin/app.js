@@ -2946,8 +2946,7 @@
     study: [
       { key: "label", label: "Button text", type: "text" },
       { key: "lab", label: "Study page", type: "select", options: [["core1-lab", "A+ Core 1 Drill"]] },
-      { key: "requirePassword", label: "Ask for a password before opening (off = anyone with the link can open it)", type: "checkbox" },
-      { key: "password", label: "Password, when it asks (blank = the site's default study password)", type: "text", noSpellcheck: true },
+      { key: "password", label: "Password (it always asks; blank = the site's default study password). The page it is on stays out of the nav and search engines: it is found through the site's search.", type: "text", noSpellcheck: true },
     ],
     quote: [
       { key: "text", label: "Quote text", type: "textarea" },
@@ -9011,7 +9010,7 @@
   // The bar is the pages that have a nav label, in nav_order; a page nested under another shows in its dropdown. Everything is edited
   // here in one list and written back page by page (the per-page Nav fields edit the same data).
   const BUILTIN_NAV_LINKS = [
-    { slug: "random", label: "Articles" },
+    { slug: "random", label: "Articles", hiddenByDefault: true }, // left out unless switched back on (worker/nav-settings.js)
     { slug: "projects", label: "Projects" },
     { slug: "topics", label: "Topics" },
     { slug: "studio", label: "Studio" },
@@ -9165,7 +9164,7 @@
       const o = (data && data[b.slug]) || {};
       return `<div class="nav-row" data-builtin="${b.slug}">
         <input type="text" data-field="label" value="${escapeHtml(o.label || "")}" placeholder="${escapeHtml(b.label)}" maxlength="40" aria-label="Link text for the built-in ${escapeHtml(b.label)} link">
-        <label class="nav-row-admin"><input type="checkbox" data-field="hidden"${o.hidden ? " checked" : ""}> Leave out of the bar</label>
+        <label class="nav-row-admin"><input type="checkbox" data-field="hidden"${o.hidden === true || (b.hiddenByDefault && o.hidden !== false) ? " checked" : ""}> Leave out of the bar</label>
         <span class="nav-row-page">/${escapeHtml(b.slug === "random" ? "random (Articles)" : b.slug)}</span>
       </div>`;
     }).join("");
@@ -9176,7 +9175,10 @@
       const slug = row.dataset.builtin;
       const label = row.querySelector('[data-field="label"]').value.trim();
       const hidden = row.querySelector('[data-field="hidden"]').checked;
-      if (label || hidden) out[slug] = { ...(label ? { label } : {}), ...(hidden ? { hidden: true } : {}) };
+      const byDefault = BUILTIN_NAV_LINKS.some((b) => b.slug === slug && b.hiddenByDefault);
+      // A link that is out by default is written only when it is switched back on; any other only when it is left out.
+      const flag = byDefault ? (hidden ? {} : { hidden: false }) : hidden ? { hidden: true } : {};
+      if (label || Object.keys(flag).length) out[slug] = { ...(label ? { label } : {}), ...flag };
     });
     return Object.keys(out).length ? JSON.stringify(out) : "";
   }

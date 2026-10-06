@@ -2,6 +2,7 @@ import { buildSitemapEntries, sitemapXml, topicIsThin } from "./sitemap.js";
 import {
   getPageBySlug,
   listPages,
+  listStudyPageIds,
   RESERVED_SLUGS,
   listNavPages,
   listBlocks,
@@ -388,7 +389,8 @@ async function renderPage(env, page, url, request) {
     theme,
     footerText,
     customHead: `${customHead || ""}${pageCssTag}`,
-    noindex: isNoindexed(noindexItems, "page", page.id),
+    // A page with a Study block is found through the site's own search only (see listStudyPageIds).
+    noindex: isNoindexed(noindexItems, "page", page.id) || String(bodyHtml).includes('class="study-block"'),
     editUrl: isAdmin ? `/admin/?edit=page:${page.id}` : null,
   });
   // A page with address-gated blocks differs by query string, so it must never be
@@ -1168,7 +1170,8 @@ ${items}
 async function renderSitemap(env) {
   // Anything marked noindex is also left out of the sitemap: listing a page there while telling search engines not to list it is contradictory.
   const noindex = await getNoindexItems(env);
-  const pages = (await listPages(env)).filter((p) => !isNoindexed(noindex, "page", p.id));
+  const studyPages = await listStudyPageIds(env);
+  const pages = (await listPages(env)).filter((p) => !isNoindexed(noindex, "page", p.id) && !studyPages.has(p.id));
   const articles = (await listArticles(env, { publishedOnly: true })).filter((a) => !isNoindexed(noindex, "article", a.id));
   const projects = (await listProjects(env, { publishedOnly: true })).filter((p) => !isNoindexed(noindex, "project", p.id));
   const simulations = await listPublishedSimulations(env);

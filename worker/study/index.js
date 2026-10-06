@@ -65,14 +65,15 @@ export function expectedPassword(env, content) {
   return own || (env && typeof env.STUDY_PASSWORD === "string" && env.STUDY_PASSWORD.trim()) || DEFAULT_PASSWORD;
 }
 
-// "" when the block opens without a password (the default: only a block with "Ask for a password" ticked has one).
+// The password a block asks for. Every Study block asks now (the owner wants Study reached only through search and then its
+// password): the block's own, else the site's STUDY_PASSWORD, else the default. The old "Ask for a password" tick no longer matters.
 export function gatePassword(env, content) {
-  return content && content.requirePassword === true ? expectedPassword(env, content) : "";
+  return expectedPassword(env, content);
 }
 
 // POST /api/study/unlock  { block: <block id>, password: "..." }
 // 200 with the study page as text/html, 401 wrong or missing password (`needsPassword` when none was given), 404 no such block,
-// 429 too many tries. A block that does not ask for a password answers 200 to anyone.
+// 429 too many tries.
 export async function handleStudyUnlock(request, env) {
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
   let body = null;

@@ -49,6 +49,9 @@ window.addEventListener("pagereveal", function (e) {
 (function () {
   if (!window.fetch || !window.DOMParser || !window.history || !history.pushState) return;
   var SAFE_SCRIPTS = { "/nav.js": 1, "/page-slide.js": 1, "/lightbox.js": 1 };
+  // Scripts a swapped-in page may bring: loaded once (in order) the first time a page needs them, and set up for each page by
+  // window.siteInitContent (song players, circuits, pictures), so these pages slide like the rest instead of loading from scratch.
+  var LOADABLE = { "/sim-buzzer.js": 1, "/sim-player.js": 1, "/song-engine.js": 1, "/song-embed.js": 1, "/lightbox.js": 1 };
   var DURATION = 420;
   var EASE = "cubic-bezier(0.22, 0.8, 0.28, 1)";
   var cache = {}; // url -> {at, promise}
@@ -96,15 +99,16 @@ window.addEventListener("pagereveal", function (e) {
     if (doc.querySelector('meta[http-equiv="refresh" i]')) return false;
     var scripts = doc.querySelectorAll("script[src]");
     for (var i = 0; i < scripts.length; i++) {
-      var src = scripts[i].getAttribute("src") || "";
-      if (!SAFE_SCRIPTS[src.split("?")[0]]) return false;
+      var src = (scripts[i].getAttribute("src") || "").split("?")[0];
+      if (!SAFE_SCRIPTS[src] && !LOADABLE[src]) return false;
     }
-    if (doc.getElementById("main-content").querySelector("script, iframe, model-viewer, .mermaid, .katex-block, pre code")) return false;
+    // A frame (the Studio) loads itself, so it can come along; scripts inside the content, 3D models and code still need a real load.
+    if (doc.getElementById("main-content").querySelector("script, model-viewer, .mermaid, .katex-block, pre code")) return false;
     return headSignature(doc) === currentSignature();
   }
   function fetchDoc(url) {
     var hit = cache[url];
-    if (hit && Date.now() - hit.at < 30000) return hit.promise;
+    if (hit && Date.now() - hit.at < 120000) return hit.promise;
     var promise = fetch(url, { credentials: "same-origin", headers: { Accept: "text/html" } }).then(function (res) {
       var type = res.headers.get("content-type") || "";
       if (!res.ok || type.indexOf("text/html") < 0) throw new Error("not a page");
@@ -150,12 +154,42 @@ window.addEventListener("pagereveal", function (e) {
   function finishNow() {
     if (busy) busy.finish();
   }
+  var loadedScripts = {};
+  // A script is already here when any <script> on this page has it (this file runs in the <head>, so the page's own are checked late).
+  function present(src) {
+    return [].some.call(document.querySelectorAll("script[src]"), function (s) { return (s.getAttribute("src") || "").split("?")[0] === src; });
+  }
+  function loadScripts(doc) {
+    var chain = Promise.resolve();
+    [].forEach.call(doc.querySelectorAll("script[src]"), function (s) {
+      var src = (s.getAttribute("src") || "").split("?")[0];
+      if (!LOADABLE[src] || loadedScripts[src] || present(src)) return;
+      chain = chain.then(function () {
+        loadedScripts[src] = new Promise(function (resolve, reject) {
+          var el = document.createElement("script");
+          el.src = s.getAttribute("src");
+          el.onload = resolve;
+          el.onerror = function () { delete loadedScripts[src]; reject(new Error("script")); };
+          document.body.appendChild(el);
+        });
+        return loadedScripts[src];
+      });
+    });
+    return chain;
+  }
+  // The circuits' shared drawing definitions sit at the top of a page that has circuits; a page swapped in brings them if they are missing.
+  function copySimDefs(doc) {
+    var defs = doc.querySelector(".sim-defs-holder");
+    if (defs && !document.querySelector(".sim-defs-holder")) document.body.insertBefore(document.importNode(defs, true), document.body.firstChild);
+  }
   function go(url, dir, push) {
     finishNow();
     return fetchDoc(url.href).then(function (res) {
       if (!swappable(res.doc)) throw new Error("needs a full load");
-      return res;
+      return loadScripts(res.doc).then(function () { return res; });
     }).then(function (res) {
+      if (window.siteStopSongs) window.siteStopSongs();
+      copySimDefs(res.doc);
       var doc = res.doc;
       var oldMain = document.getElementById("main-content");
       var fresh = document.importNode(doc.getElementById("main-content"), true);
@@ -244,6 +278,17 @@ window.addEventListener("pagereveal", function (e) {
     var url = eligible(a, { button: 0 });
     if (url && clean(url.pathname) !== clean(location.pathname)) fetchDoc(url.href).catch(function () {});
   };
+  // And every page of the nav once the page has settled, so a tap slides at once even on a phone (no hover there to warm it).
+  var warmAll = function () {
+    [].forEach.call(document.querySelectorAll(".tabs a.tab"), function (a) {
+      var url = eligible(a, { button: 0 });
+      if (url && clean(url.pathname) !== clean(location.pathname)) fetchDoc(url.href).catch(function () {});
+    });
+  };
+  if (navigator.connection && navigator.connection.saveData) warmAll = function () {};
+  window.addEventListener("load", function () {
+    (window.requestIdleCallback || function (f) { setTimeout(f, 800); })(warmAll);
+  });
   document.addEventListener("pointerover", warm, { passive: true });
   document.addEventListener("focusin", warm);
   document.addEventListener("touchstart", warm, { passive: true });

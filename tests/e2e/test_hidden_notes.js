@@ -26,17 +26,20 @@ const PASS2 = "another long passphrase!";
     const mine = await admin.get(`${BASE}/hidden-notes`);
     const mineHtml = await mine.text();
     ok(mine.status() === 200 && /name="robots" content="noindex"/.test(mineHtml) && /no-store/.test(mine.headers()["cache-control"] || ""), "the owner gets the page, marked noindex and not cacheable", mine.headers()["cache-control"]);
-    ok(/href="\/hidden-notes"[^>]*>(?:(?!<\/a>)[\s\S])*Hidden Notes/.test(await (await admin.get(`${BASE}/`)).text()), "and the home page shows the owner the tab");
+    ok(/href="\/hidden-notes"[^>]*>(?:(?!<\/a>)[\s\S])*Hidden Notes/.test(await (await admin.get(`${BASE}/`)).text()), "and the home page offers the owner the page (in the finder)");
 
     // ---- the browser
     const ctx = await b.newContext({ storageState: process.env.ADMIN_STATE, viewport: { width: 1200, height: 900 }, acceptDownloads: true });
     const p = await ctx.newPage(); const errs = []; p.on("pageerror", (e) => errs.push(String(e)));
     p.on("dialog", (d) => (d.type() === "prompt" ? d.accept("ERASE") : d.accept()));
     await p.goto(BASE + "/", { waitUntil: "networkidle" });
-    await p.click('a.tab:has-text("Hidden Notes")');
+    // Hidden Notes is in the finder (Search at the end of the nav), not a tab
+    await p.click("#finder-open");
+    await p.fill("#finder-input", "hidden");
+    await p.click('#site-finder a.finder-item[href="/hidden-notes"]');
     await p.waitForURL("**/hidden-notes");
     await p.waitForSelector("#hn-pass");
-    ok(/Set up your vault/.test(await p.textContent("#hn-root")), "the tab opens the page, which asks for a passphrase to set the vault up");
+    ok(/Set up your vault/.test(await p.textContent("#hn-root")), "the finder opens the page, which asks for a passphrase to set the vault up");
     // setup validation
     await p.fill("#hn-pass", "short"); await p.fill("#hn-pass2", "short"); await p.click("#hn-root button[type=submit]");
     ok(/at least 10/.test(await p.textContent(".hn-msg")), "a short passphrase is refused");

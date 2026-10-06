@@ -2208,6 +2208,8 @@ function finderHtml(navItems, { searchQuery = "", editUrl = null } = {}) {
               ${editUrl ? row({ tag: "a", href: editUrl, cls: "edit-this-btn" }, "✎", "Edit this page", "Admin", "edit admin change this page") : ""}
               ${row({ tag: "a", href: "/shuffle", rel: "nofollow" }, ICON.shuffle, "Surprise me", "A random post or project", "random shuffle surprise lucky")}
               ${goRows}
+              ${pages.some((n) => n.slug === "random") ? "" : row({ tag: "a", href: "/random" }, navIconSvg("articles", "Articles"), "All articles", "Posts", "articles posts blog writing random read")}
+              ${navItems && navItems.owner ? row({ tag: "a", href: "/hidden-notes" }, navIconSvg("hidden-notes", "Hidden Notes"), "Hidden Notes", "Only you", "hidden notes private vault secret") : ""}
               ${row({ tag: "a", href: "/saved" }, navIconSvg("saved", "Saved"), "Saved for later", "In this browser", "saved bookmarks later")}
               ${row({ tag: "a", href: "/history" }, navIconSvg("history", "History"), "Reading history", "In this browser", "history read recent")}
             </div>

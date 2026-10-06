@@ -50,13 +50,10 @@ ok(expectedPassword({ STUDY_PASSWORD: "envpw" }, {}) === "envpw", "an STUDY_PASS
 ok(expectedPassword({ STUDY_PASSWORD: "envpw" }, { password: "mine" }) === "mine", "but not a block's own password");
 ok(expectedPassword(undefined, undefined) === "123", "nothing at all still works");
 
-// ---- whether a block asks at all ----
-ok(gatePassword({}, undefined) === "" && gatePassword({}, {}) === "" && gatePassword({}, { label: "x" }) === "", "no setting: no password is asked for");
-ok(gatePassword({}, { password: "mine" }) === "", "a password typed in but the box not ticked: still open (the tick is what turns it on)");
-ok(gatePassword({}, { requirePassword: "true" }) === "" && gatePassword({}, { requirePassword: 1 }) === "", "only a real true turns it on");
-ok(gatePassword({}, { requirePassword: true }) === "123", "ticked, no password typed: the default");
-ok(gatePassword({}, { requirePassword: true, password: " mine " }) === "mine", "ticked with a password: that one");
-ok(gatePassword({ STUDY_PASSWORD: "envpw" }, { requirePassword: true }) === "envpw" && gatePassword({ STUDY_PASSWORD: "envpw" }, {}) === "", "an STUDY_PASSWORD variable only matters when ticked");
+// ---- every block asks ----
+ok(gatePassword({}, undefined) === "123" && gatePassword({}, {}) === "123" && gatePassword({}, { requirePassword: false }) === "123", "every block asks: the default when nothing is set (the old tick no longer matters)");
+ok(gatePassword({}, { password: " mine " }) === "mine", "a block's own password is the one");
+ok(gatePassword({ STUDY_PASSWORD: "envpw" }, {}) === "envpw", "else the STUDY_PASSWORD variable");
 
 // ---- the route ----
 {
@@ -100,7 +97,7 @@ for (const [label, id] of [["missing", 99], ["text", "abc"], ["negative", -3], [
 }
 {
   const env = makeEnv({ blocks: { 7: { type: "study", content: "{not json", shared_type: null, shared_content: null } } });
-  ok((await call(env, { block: 7, password: "123" })).status === 200 && (await call(env, { block: 7 })).status === 200, "damaged block content still opens (it asks for nothing)");
+  ok((await call(env, { block: 7, password: "123" })).status === 200 && (await call(env, { block: 7 })).status === 401, "damaged block content still works, with the default password");
 }
 {
   const env = makeEnv({ blocks: { 7: row({ requirePassword: true }) }, used: 8 });
@@ -128,15 +125,11 @@ for (const [label, opts] of [["not JSON", { raw: "not json" }], ["an array", { r
   ok(long.status === 401, "a very long guess is refused, not matched on its first part");
 }
 
-// ---- a block that asks for nothing ----
-for (const [label, content] of [["no settings", {}], ["a password typed but not ticked", { password: "mine" }], ["ticked off", { requirePassword: false, password: "mine" }], ["a text 'true'", { requirePassword: "true" }]]) {
-  const env = makeEnv({ blocks: { 7: row(content) }, used: 99 });
-  for (const body of [{ block: 7 }, { block: 7, password: "" }, { block: 7, password: "anything" }, { block: 7, password: 5 }]) {
-    const res = await call(env, body);
-    if (res.status !== 200) ok(false, `${label}: ${JSON.stringify(body)} opens`, res.status);
-  }
-  ok((await (await call(env, { block: 7 })).text()).includes("LAB"), `${label}: opens for anyone, even from a visitor who is over the try limit`);
-  ok(hits(env).length === 0 && !env.log.some((l) => /rate_limits/.test(l[1])), `${label}: and never touches the try counter`);
+// ---- a block left without the tick still asks ----
+for (const [label, content] of [["no settings", {}], ["a password typed but not ticked", { password: "mine" }], ["ticked off", { requirePassword: false }]]) {
+  const env = makeEnv({ blocks: { 7: row(content) } });
+  ok((await call(env, { block: 7, password: "anything" })).status === 401, `${label}: a wrong password is refused`);
+  ok((await call(env, { block: 7, password: content.password || "123" })).status === 200, `${label}: its password opens it`);
 }
 {
   const env = makeEnv({ blocks: { 7: row({ requirePassword: true }) } });

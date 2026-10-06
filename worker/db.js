@@ -4,7 +4,7 @@ import { visibleText, nowIso, pageCssKey } from "./text.js";
 import { suggestNearest } from "./notfound.js";
 import { bodyPictures, pictureUrl, markdownLinkTargets } from "./pictures.js";
 import { bodyEmbeds } from "./embeds.js";
-import { cleanBrand, parseNavBuiltin, builtinNavItems } from "./nav-settings.js";
+import { builtinHidden, cleanBrand, parseNavBuiltin, builtinNavItems } from "./nav-settings.js";
 import { parseSearchTerms, searchSql, likePattern } from "./searchterms.js";
 import { normalizeLegacySimulationWireIds, simulationDataError } from "./simulation-validation.js";
 
@@ -123,6 +123,8 @@ export async function listNavPages(env) {
                     (SELECT value FROM settings WHERE key = 'site_brand') AS brand,
                     (SELECT value FROM settings WHERE key = 'nav_builtin') AS builtin) s
        LEFT JOIN pages p ON p.nav_label IS NOT NULL AND p.deleted_at IS NULL
+         AND NOT EXISTS (SELECT 1 FROM blocks b LEFT JOIN shared_blocks sb ON sb.id = b.shared_block_id
+                         WHERE b.page_id = p.id AND COALESCE(sb.type, b.type) = 'study')
        ORDER BY p.nav_order ASC, p.id ASC`
     )
     .all();
@@ -143,11 +145,25 @@ export async function listNavPages(env) {
   // links to the same place (the admin's label wins, and a hidden page does not bring it back). They can be renamed or hidden
   // under Site settings > Header & footer.
   const taken = new Set(labelled.map((p) => p.slug));
-  const nav = [...topLevel, ...builtinNavItems(parseNavBuiltin(first.builtin), taken)];
-  // The Hidden Notes tab exists only for the signed-in owner: it is added to the list here, per request, and for nobody else.
-  if (env.__isAdmin) nav.push({ id: -1, slug: "hidden-notes", nav_label: "Hidden Notes", admin_only: true, children: [] });
+  const overrides = parseNavBuiltin(first.builtin);
+  // A page of the owner's own on /random stands in for the built-in Articles link, so it follows that link's switch (off by default).
+  const own = builtinHidden(overrides, "random") ? topLevel.filter((p) => p.slug !== "random") : topLevel;
+  const nav = [...own, ...builtinNavItems(overrides, taken)];
+  // Hidden Notes is not a tab: the signed-in owner reaches it from the finder (`owner` tells the page shell to offer it there).
+  nav.owner = Boolean(env.__isAdmin);
   nav.brand = cleanBrand(first.brand);
   return nav;
+}
+
+// The pages that hold a Study block. They are kept out of the nav, the sitemap and search engines (Study is reached through the
+// site's own search and then its password).
+export async function listStudyPageIds(env) {
+  const { results } = await env.DB
+    .prepare(
+      `SELECT DISTINCT b.page_id AS id FROM blocks b LEFT JOIN shared_blocks sb ON sb.id = b.shared_block_id WHERE COALESCE(sb.type, b.type) = 'study'`
+    )
+    .all();
+  return new Set((results || []).map((r) => r.id));
 }
 
 export async function createPage(env, { slug, title, meta_description, nav_label, nav_order, og_image, canonical_url, custom_json_ld }) {

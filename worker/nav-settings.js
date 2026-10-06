@@ -3,7 +3,8 @@
 
 // The built-in links, in the order they follow the owner's own nav pages. `slug` is where each one goes.
 export const BUILTIN_NAV = [
-  { slug: "random", label: "Articles" },
+  // Left out of the bar unless the owner switches it back on (they asked for the articles to be reached by search instead).
+  { slug: "random", label: "Articles", hiddenByDefault: true },
   { slug: "projects", label: "Projects" },
   { slug: "topics", label: "Topics" },
   { slug: "studio", label: "Studio" },
@@ -35,6 +36,7 @@ export function cleanNavBuiltin(raw) {
       const entry = {};
       if (label && label !== item.label) entry.label = label;
       if (o.hidden === true) entry.hidden = true;
+      else if (o.hidden === false && item.hiddenByDefault) entry.hidden = false; // shown on purpose
       if (Object.keys(entry).length) out[item.slug] = entry;
     }
   }
@@ -48,9 +50,17 @@ export function parseNavBuiltin(raw) {
 
 // The built-in links as the nav shows them: renamed or left out as the owner chose. A built-in link is also skipped when one of the
 // owner's own pages already stands in for it (`taken` is the set of slugs those pages use).
+// Whether a built-in link is left out of the bar: hidden by the owner, or hidden by default and not switched back on.
+export function builtinHidden(overrides, slug) {
+  const item = BUILTIN_NAV.find((b) => b.slug === slug);
+  if (!item) return false;
+  const o = (overrides || {})[slug];
+  if (o && o.hidden === true) return true;
+  return Boolean(item.hiddenByDefault) && !(o && o.hidden === false);
+}
 export function builtinNavItems(overrides, taken = new Set()) {
   const over = overrides || {};
-  return BUILTIN_NAV.filter((item) => !taken.has(item.slug) && !(over[item.slug] && over[item.slug].hidden)).map((item) => ({
+  return BUILTIN_NAV.filter((item) => !taken.has(item.slug) && !builtinHidden(over, item.slug)).map((item) => ({
     slug: item.slug,
     nav_label: (over[item.slug] && over[item.slug].label) || item.label,
     nav_parent_id: null,

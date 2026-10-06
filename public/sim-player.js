@@ -20,6 +20,10 @@
   document.addEventListener("DOMContentLoaded", () => {
     if (read()) apply(true);
   });
+  // A page swapped in by page-slide.js gets the same view as the rest (its clicks are handled for the whole document already).
+  window.siteInitSims = () => {
+    if (read()) apply(true);
+  };
   document.addEventListener("click", (e) => {
     const btn = e.target.closest(".sim-view-btn");
     if (!btn) return;

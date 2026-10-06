@@ -368,7 +368,7 @@ document.addEventListener("input", function (e) {
           return (
             '<a class="search-suggest-item finder-item" href="' + String(r.url).replace(/"/g, "&quot;") + '">' +
             '<span class="finder-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
-            (RESULT_ICON[r.type] || RESULT_ICON.page) + "</svg></span>" +
+            (RESULT_ICON[String(r.type).toLowerCase()] || RESULT_ICON.page) + "</svg></span>" +
             '<span class="finder-label">' + String(r.title).replace(/&/g, "&amp;").replace(/</g, "&lt;") + "</span>" +
             '<span class="finder-hint search-suggest-type">' + String(r.type).replace(/</g, "&lt;") + "</span></a>"
           );
@@ -676,6 +676,8 @@ window.siteInitContent = function (root) {
   if (window.siteRenderHistory) window.siteRenderHistory();
   if (window.siteWirePreviewOff) window.siteWirePreviewOff();
   if (window.siteLightboxPrepare) window.siteLightboxPrepare(root);
+  if (window.siteInitSongs) window.siteInitSongs(root);
+  if (window.siteInitSims) window.siteInitSims(root);
 };
 
 // .tabs (the persistent Articles/Projects/Topics nav pill) scrolls

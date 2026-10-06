@@ -38,7 +38,10 @@
   // Only one embed plays at a time: starting one stops whichever was playing.
   let stopOther = null;
 
-  document.querySelectorAll(".song-embed").forEach((wrap) => {
+  // Sets up every song player in `root` that is not set up yet; page-slide.js calls it again after it swaps a page in.
+  function initSongs(root) {
+  (root || document).querySelectorAll(".song-embed:not([data-song-ready])").forEach((wrap) => {
+    wrap.dataset.songReady = "1";
     let songData;
     try {
       songData = JSON.parse(wrap.dataset.song);
@@ -200,4 +203,11 @@
       }
     });
   });
+  }
+  initSongs(document);
+  window.siteInitSongs = initSongs;
+  // Leaving the page in place (page-slide.js) stops whatever is playing, as a normal page change would.
+  window.siteStopSongs = function () {
+    if (stopOther) stopOther();
+  };
 })();
