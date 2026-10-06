@@ -9470,8 +9470,8 @@
     }
     const controls = [];
     for (const [key, options] of Object.entries(ADMIN_CONTROL_PRESETS)) {
-      const vars = options[settings[key]];
-      if (vars) for (const [name, value] of Object.entries(vars)) controls.push(`${name}:${value}`);
+      const vars = options[settings[key]] || Object.values(options)[0]; // unset means the default, which is the first look of each group
+      for (const [name, value] of Object.entries(vars)) controls.push(`${name}:${value}`);
     }
     let styleEl = document.getElementById("admin-site-theme");
     if (!styleEl) {

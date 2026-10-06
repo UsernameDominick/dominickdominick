@@ -9041,17 +9041,6 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 .studio-transport .studio-round:disabled { opacity: 0.45; }
 .studio-btn-primary[data-state="dirty"]::after { top: -4px; right: -4px; width: 9px; height: 9px; background: var(--warning, #f5b041); box-shadow: 0 0 0 2px var(--bg); }
 
-/* the fan's labels, under each circle */
-.studio-fan-label {
-  position: absolute; left: 0; bottom: calc(var(--item) / -2 - 16px); z-index: 2; width: max-content; max-width: 76px; padding: 0 5px; pointer-events: none;
-  font-size: 0.62rem; font-weight: 650; line-height: 1.35; text-align: center; white-space: nowrap; color: var(--text);
-  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent); border-radius: 6px;
-  transform: translate(calc(var(--x, 0px) - 50%), calc(-1 * var(--y, 0px))); opacity: 0;
-}
-.studio-fan-item { z-index: 1; }
-.studio-fan.is-open .studio-fan-label { opacity: 1; }
-@media (prefers-reduced-motion: no-preference) { .studio-fan-label { transition: opacity 0.2s ease var(--d, 0ms); } }
-
 /* the sheet: a Play button in its head, so a sound can be shaped while it plays */
 .studio-sheet-play { width: 40px; height: 40px; min-height: 40px; flex: 0 0 auto; background: var(--accent); color: var(--on-accent); }
 .studio-sheet-play svg { width: 18px; height: 18px; fill: currentColor; }
@@ -9267,3 +9256,32 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
   .admin-header button { white-space: nowrap; }
 }
 @media (min-width: 1180px) and (max-width: 1279px) { .admin-header #page-template-picker { display: none; } }
+
+/* ---- The ⋯ controls: a row laid over the transport bar (it fills the bar, so nothing above is covered), icons only, closed with ×, Esc,
+   a tap elsewhere or the ⋯ again (hold Rec opens it too). Quantize shows its setting. ---- */
+.studio-controls { position: relative; }
+.studio-controls > .studio-hub { position: static; }
+.studio-controls > .studio-hub > .studio-fan {
+  position: absolute; inset: 0; left: 0; width: auto; height: auto; z-index: 40; display: flex; align-items: center; justify-content: center; gap: 4px;
+  padding: 6px 8px; background: var(--bg-elevated); border-radius: inherit;
+}
+.studio-controls > .studio-hub > .studio-fan[hidden] { display: none; }
+.studio-controls .studio-fan .studio-fan-item,
+.studio-controls .studio-fan.is-open .studio-fan-item {
+  position: relative; left: auto; bottom: auto; flex: 1 1 0; min-width: 0; max-width: 58px; width: auto; height: 44px; min-height: 44px;
+  border-radius: 12px; transform: none; opacity: 1; box-shadow: none;
+}
+.studio-controls .studio-fan .studio-fan-item svg { width: 20px; height: 20px; }
+.studio-controls .studio-fan .studio-fan-item[aria-pressed="true"], .studio-controls .studio-fan .studio-fan-item[aria-expanded="true"] { outline: 2px solid var(--text); outline-offset: 1px; }
+.studio-fan-text { font-size: 0.72rem; font-weight: 750; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.studio-fan-close {
+  flex: 0 0 34px; width: 34px; height: 34px; min-height: 34px; padding: 0; margin-left: 2px; border-radius: 50%; font-size: 1.2rem; line-height: 1;
+  background: transparent; color: var(--text-dim); border: 2px solid var(--border); box-shadow: none;
+}
+.studio-fan-close:hover { color: var(--text); border-color: var(--text-dim); }
+.studio-controls .studio-fan .studio-pop { position: absolute; left: 50%; right: auto; bottom: calc(100% + 8px); transform: translateX(-50%); }
+@media (prefers-reduced-motion: no-preference) {
+  .studio-controls .studio-fan.is-open .studio-fan-item, .studio-controls .studio-fan.is-open .studio-fan-close { animation: studio-strip-in 0.2s ease-out backwards; animation-delay: var(--d, 0ms); }
+}
+@keyframes studio-strip-in { from { opacity: 0; transform: translateY(6px) scale(0.85); } to { opacity: 1; transform: none; } }
+@media (max-width: 400px) { .studio-controls > .studio-hub > .studio-fan { gap: 3px; padding: 6px; } }

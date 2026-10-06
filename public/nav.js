@@ -310,100 +310,168 @@ document.addEventListener("input", function (e) {
   });
 })();
 
+// The finder (like a Mac's Spotlight), opened from the Search stop at the end of the nav, or with / or Ctrl/Cmd+K: one box that searches
+// the site as you type and also finds the site's own settings (light or dark, motion, text size), its sections and a random post.
+// Arrow keys move through what it shows, Enter opens, Esc closes and gives the focus back.
 (function () {
-  var searchInput = document.querySelector(".site-search input");
-  if (!searchInput) return;
-  document.addEventListener("keydown", function (e) {
-    var tag = (e.target.tagName || "").toLowerCase();
-    var typing = tag === "input" || tag === "textarea" || e.target.isContentEditable;
-    if (e.key === "/" && !typing) {
-      e.preventDefault();
-      searchInput.focus();
-    } else if (e.key === "Escape" && document.activeElement === searchInput) {
-      searchInput.blur();
-    }
-  });
-})();
-
-(function () {
-  // Type-ahead suggestions for the topbar search box — hits
-  // /api/search-suggest (debounced) rather than a full /search page load
-  // per keystroke.
-  var input = document.querySelector(".site-search input");
-  var list = document.getElementById("search-suggest-list");
-  if (!input || !list) return;
+  var finder = document.getElementById("site-finder");
+  if (!finder) return;
+  var openBtn = document.getElementById("finder-open");
+  var input = document.getElementById("finder-input");
+  var form = finder.querySelector(".finder-form");
+  var suggest = document.getElementById("search-suggest-list");
+  var empty = finder.querySelector(".finder-empty");
+  var lastFocus = null;
   var debounceTimer = null;
-  var activeIndex = -1;
-  var items = [];
+  var RESULT_ICON = {
+    article: '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M9 12h7M9 16h7"/>',
+    project: '<rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+    page: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6"/>',
+  };
+  var asked = "";
 
-  function closeList() {
-    list.hidden = true;
-    list.innerHTML = "";
-    items = [];
-    activeIndex = -1;
-    input.setAttribute("aria-expanded", "false");
+  function visible(el) {
+    return !el.hidden && el.offsetParent !== null;
   }
-
-  function render(results) {
-    items = results;
-    activeIndex = -1;
-    if (!results.length) return closeList();
-    list.innerHTML = results
-      .map(function (r) {
-        return (
-          '<a class="search-suggest-item" href="' +
-          r.url +
-          '">' +
-          r.title.replace(/</g, "&lt;") +
-          '<span class="search-suggest-type">' +
-          r.type +
-          "</span></a>"
-        );
-      })
-      .join("");
-    list.hidden = false;
-    input.setAttribute("aria-expanded", "true");
+  function items() {
+    return [].slice.call(finder.querySelectorAll(".search-suggest-item, #finder-list .finder-item")).filter(visible);
   }
-
+  function words(q) {
+    return q.toLowerCase().split(/\s+/).filter(Boolean);
+  }
+  function filter() {
+    var w = words(input.value);
+    var any = false;
+    [].forEach.call(finder.querySelectorAll("#finder-list .finder-group"), function (g) {
+      var shown = 0;
+      [].forEach.call(g.querySelectorAll(".finder-item"), function (it) {
+        var hay = (it.textContent + " " + (it.getAttribute("data-keys") || "")).toLowerCase();
+        var ok = w.every(function (x) { return hay.indexOf(x) !== -1; });
+        it.hidden = !ok;
+        if (ok) shown++;
+      });
+      g.hidden = !shown;
+      if (shown) any = true;
+    });
+    if (empty) empty.hidden = any || !suggest.hidden || !w.length;
+  }
+  function closeSuggest() {
+    suggest.hidden = true;
+    suggest.innerHTML = "";
+  }
+  function renderSuggest(results) {
+    if (!results.length) return closeSuggest();
+    suggest.innerHTML =
+      '<h2 class="finder-title">Pages and posts</h2>' +
+      results
+        .map(function (r) {
+          return (
+            '<a class="search-suggest-item finder-item" href="' + String(r.url).replace(/"/g, "&quot;") + '">' +
+            '<span class="finder-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+            (RESULT_ICON[r.type] || RESULT_ICON.page) + "</svg></span>" +
+            '<span class="finder-label">' + String(r.title).replace(/&/g, "&amp;").replace(/</g, "&lt;") + "</span>" +
+            '<span class="finder-hint search-suggest-type">' + String(r.type).replace(/</g, "&lt;") + "</span></a>"
+          );
+        })
+        .join("");
+    suggest.hidden = false;
+  }
   function fetchSuggestions(q) {
-    if (!q) return closeList();
+    asked = q;
+    if (!q) {
+      closeSuggest();
+      return filter();
+    }
     fetch("/api/search-suggest?q=" + encodeURIComponent(q))
       .then(function (r) { return r.json(); })
-      .then(function (data) { render(data.results || []); })
+      .then(function (data) {
+        if (q !== asked) return;
+        renderSuggest(data.results || []);
+        filter();
+      })
       .catch(function () {});
   }
 
+  function open() {
+    if (!finder.hidden) return;
+    lastFocus = document.activeElement;
+    finder.hidden = false;
+    document.documentElement.classList.add("finder-on");
+    if (openBtn) openBtn.setAttribute("aria-expanded", "true");
+    filter();
+    if (input.value.trim()) fetchSuggestions(input.value.trim());
+    input.focus();
+    input.select();
+  }
+  function close() {
+    if (finder.hidden) return;
+    finder.hidden = true;
+    document.documentElement.classList.remove("finder-on");
+    if (openBtn) openBtn.setAttribute("aria-expanded", "false");
+    if (lastFocus && document.contains(lastFocus) && lastFocus.focus) lastFocus.focus();
+  }
+  window.siteFinder = { open: open, close: close };
+  if (openBtn) openBtn.addEventListener("click", open);
+  finder.addEventListener("click", function (e) {
+    if (e.target.closest("[data-finder-close]")) close();
+  });
   input.addEventListener("input", function () {
+    filter();
     clearTimeout(debounceTimer);
     var q = input.value.trim();
-    debounceTimer = setTimeout(function () { fetchSuggestions(q); }, 200);
+    debounceTimer = setTimeout(function () { fetchSuggestions(q); }, 180);
   });
-
-  input.addEventListener("keydown", function (e) {
-    var links = list.querySelectorAll(".search-suggest-item");
-    if (!links.length || list.hidden) return;
-    if (e.key === "ArrowDown") {
+  // Enter in the box opens a setting or section whose name starts with what was typed (the top hit); anything else searches the site.
+  form.addEventListener("submit", function (e) {
+    var q = input.value.trim().toLowerCase();
+    if (!q) return e.preventDefault();
+    var hit = items().filter(function (it) {
+      return it.closest("#finder-list") && (it.querySelector(".finder-label") || it).textContent.trim().toLowerCase().indexOf(q) === 0;
+    })[0];
+    if (hit) {
       e.preventDefault();
-      activeIndex = Math.min(activeIndex + 1, links.length - 1);
-    } else if (e.key === "ArrowUp") {
+      hit.click();
+    }
+  });
+  finder.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") {
       e.preventDefault();
-      activeIndex = Math.max(activeIndex - 1, 0);
-    } else if (e.key === "Enter" && activeIndex >= 0) {
-      e.preventDefault();
-      window.location.href = links[activeIndex].getAttribute("href");
-      return;
-    } else {
+      e.stopPropagation();
+      close();
       return;
     }
-    links.forEach(function (l, i) { l.classList.toggle("active", i === activeIndex); });
+    var list = items();
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      if (!list.length) return;
+      e.preventDefault();
+      var i = list.indexOf(document.activeElement);
+      if (e.key === "ArrowDown") (i < 0 ? list[0] : list[Math.min(list.length - 1, i + 1)]).focus();
+      else if (i <= 0) input.focus();
+      else list[i - 1].focus();
+    } else if (e.key === "Tab") {
+      // The focus stays inside while it is open.
+      var all = [input].concat(list, [].slice.call(finder.querySelectorAll(".finder-esc")));
+      var at = all.indexOf(document.activeElement);
+      if (e.shiftKey && at <= 0) {
+        e.preventDefault();
+        all[all.length - 1].focus();
+      } else if (!e.shiftKey && at === all.length - 1) {
+        e.preventDefault();
+        input.focus();
+      }
+    }
   });
-
-  document.addEventListener("click", function (e) {
-    if (e.target !== input && !list.contains(e.target)) closeList();
-  });
-  input.addEventListener("blur", function () {
-    // Let a click on a suggestion register before the list disappears.
-    setTimeout(closeList, 150);
+  document.addEventListener("keydown", function (e) {
+    var tag = (e.target.tagName || "").toLowerCase();
+    var typing = tag === "input" || tag === "textarea" || tag === "select" || e.target.isContentEditable;
+    if ((e.key === "k" || e.key === "K") && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      if (finder.hidden) open();
+      else close();
+    } else if (e.key === "/" && !typing && finder.hidden) {
+      e.preventDefault();
+      open();
+    }
   });
 })();
 
@@ -517,6 +585,8 @@ document.addEventListener("input", function (e) {
     var reduced = root.getAttribute("data-motion") === "reduce";
     btn.setAttribute("aria-pressed", reduced ? "true" : "false");
     btn.title = reduced ? "Animations are off (click to turn back on)" : "Turn off entrance/hover animations";
+    var state = btn.querySelector(".finder-state");
+    if (state) state.textContent = reduced ? "On" : "Off";
   };
   update();
   btn.addEventListener("click", function () {
@@ -551,6 +621,8 @@ document.addEventListener("input", function (e) {
     if (scale === 1) root.style.removeProperty("--font-scale");
     else root.style.setProperty("--font-scale", scale);
     btn.title = "Text size: " + Math.round(scale * 100) + "% (click to change)";
+    var state = btn.querySelector(".finder-state");
+    if (state) state.textContent = Math.round(scale * 100) + "%";
     try {
       localStorage.setItem("fontScale", String(scale));
     } catch (e) {}

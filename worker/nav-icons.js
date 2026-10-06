@@ -17,6 +17,8 @@ const P = {
   photos: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 8"/>',
   search: '<circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/>',
   resume: '<path d="M6 3h12v18H6z"/><path d="M9 8h6M9 12h6M9 16h4"/>',
+  saved: '<path d="M6 3h12v18l-6-4-6 4z"/>',
+  history: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
   dot: '<circle cx="12" cy="12" r="3.5"/>',
 };
 
@@ -37,6 +39,8 @@ const RULES = [
   ["about", /about|bio|^me$|who/],
   ["resume", /resume|cv|experience/],
   ["search", /search|find/],
+  ["saved", /saved|bookmark|later/],
+  ["history", /history|recent/],
   ["notes", /note/],
 ];
 

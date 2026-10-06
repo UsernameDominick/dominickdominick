@@ -1089,7 +1089,7 @@
       const t = from - (n > 1 ? i / (n - 1) : 0.5) * (from - to);
       slot.style.setProperty("--x", (Math.cos(t) * radius).toFixed(1) + "px");
       slot.style.setProperty("--y", (Math.sin(t) * radius).toFixed(1) + "px");
-      slot.style.setProperty("--d", i * 22 + "ms");
+      slot.style.setProperty("--d", i * 18 + "ms");
     });
   }
   function fanIsOpen() {
@@ -1112,6 +1112,10 @@
     fanToggle.setAttribute("aria-expanded", "false");
     if (returnFocus && fan.contains(document.activeElement)) fanToggle.focus();
   }
+  $("studio-fan-close").addEventListener("click", () => {
+    closeFan(false);
+    fanToggle.focus();
+  });
   fanToggle.addEventListener("click", () => {
     if (fanIsOpen()) return closeFan(true);
     openFan();
@@ -1189,10 +1193,19 @@
     syncTransport();
     $("studio-live").textContent = followOn ? "The editor follows the music." : "The editor stays where it is.";
   });
-  $("studio-quant-btn").addEventListener("click", (e) => togglePop(e.currentTarget, $("studio-pop-quant")));
-  $("studio-quant").addEventListener("change", (e) => {
-    host().setQuantize(e.target.value);
+  // Quantize shows what it is set to; a tap moves on to the next (the grid is sixteen steps, so these are the ones that land on it).
+  const QUANT = [
+    [1, "1/16", "nearest sixteenth (one step)"],
+    [2, "1/8", "nearest eighth"],
+    [4, "1/4", "nearest beat"],
+    [0, "Off", "off: the step that is sounding"],
+  ];
+  $("studio-quant-btn").addEventListener("click", () => {
+    const at = QUANT.findIndex((q) => q[0] === host().quantize());
+    const next = QUANT[(at + 1) % QUANT.length];
+    host().setQuantize(String(next[0]));
     syncTransport();
+    $("studio-live").textContent = `Quantize ${next[2]}`;
   });
   $("studio-metro").addEventListener("click", (e) => togglePop(e.currentTarget, $("studio-pop-metro")));
   $("studio-metro-on").addEventListener("change", () => {
@@ -1239,7 +1252,9 @@
     $("studio-rec").setAttribute("aria-pressed", String($("song-record").checked));
     $("studio-rec-top").setAttribute("aria-pressed", String(recTop));
     $("studio-follow").setAttribute("aria-pressed", String(followOn));
-    if (document.activeElement !== $("studio-quant")) $("studio-quant").value = String(host().quantize());
+    const quant = QUANT.find((q) => q[0] === host().quantize()) || QUANT[0];
+    $("studio-quant-value").textContent = quant[1];
+    $("studio-quant-btn").setAttribute("aria-label", `Quantize: ${quant[1]}. Tap for the next setting`);
     $("studio-quant-btn").classList.toggle("is-set", host().quantize() !== 1);
     const metro = $("song-metronome-on").checked;
     $("studio-metro").setAttribute("aria-pressed", String(metro));

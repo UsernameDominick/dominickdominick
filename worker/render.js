@@ -2170,6 +2170,54 @@ function pageScriptsHtml(bodyHtml) {
 }
 
 // The name at the top left: "dominick.dominick" unless the owner set one (Site settings > Header & footer), with each dot in the accent colour.
+// The last stop of the nav dial: Search, which opens the finder.
+function finderTabHtml() {
+  return `<button type="button" class="tab tab-finder" id="finder-open" aria-haspopup="dialog" aria-controls="site-finder" title="Search the site and its settings (/ or Ctrl+K)">${navIconSvg("search", "Search")}<span class="tab-label">Search</span></button>`;
+}
+// The finder (like a Mac's Spotlight): one box that searches the site as you type and also finds the site's own settings (light or dark,
+// motion, text size), its sections and a random post. The settings rows are the same buttons nav.js has always wired by id.
+function finderHtml(navItems, { searchQuery = "", editUrl = null } = {}) {
+  const row = (attrs, icon, label, hint, keys) =>
+    `${attrs.tag === "a" ? `<a class="finder-item${attrs.cls ? " " + attrs.cls : ""}" href="${esc(attrs.href)}"${attrs.rel ? ` rel="${attrs.rel}"` : ""}` : `<button type="button" class="finder-item${attrs.cls ? " " + attrs.cls : ""}"${attrs.id ? ` id="${attrs.id}"` : ""}${attrs.pressed ? ' aria-pressed="false"' : ""}`} data-keys="${esc(keys)}">` +
+    `<span class="finder-ico" aria-hidden="true">${icon}</span><span class="finder-label">${label}</span>${hint ? `<span class="finder-hint">${hint}</span>` : ""}${attrs.tag === "a" ? "</a>" : "</button>"}`;
+  const pages = [];
+  (navItems || []).forEach((n) => {
+    pages.push(n);
+    (n.children || []).forEach((c) => pages.push(c));
+  });
+  const goRows = pages
+    .map((n) => row({ tag: "a", href: n.slug === "home" ? "/" : "/" + n.slug }, navIconSvg(n.slug, n.nav_label), esc(n.nav_label), n.admin_only ? "Only you" : "Page", `${n.nav_label} ${n.slug} page go`))
+    .join("");
+  return `<div class="site-finder" id="site-finder" role="dialog" aria-modal="true" aria-label="Search and settings" hidden>
+      <div class="finder-backdrop" data-finder-close></div>
+      <div class="finder-panel">
+        <form class="site-search finder-form" action="/search" method="get" role="search" aria-label="Search the site" autocomplete="off">
+          <span class="finder-glass" aria-hidden="true">${navIconSvg("search", "Search")}</span>
+          <input type="search" name="q" id="finder-input" placeholder="Search, or try “dark mode”" aria-label="Search the site and its settings" value="${esc(searchQuery || "")}" aria-controls="search-suggest-list finder-list">
+          <button type="button" class="finder-esc" data-finder-close aria-label="Close">esc</button>
+        </form>
+        <div class="finder-results">
+          <div class="search-suggest finder-group" id="search-suggest-list" aria-label="Pages and posts" hidden></div>
+          <div id="finder-list">
+            <div class="finder-group" data-group="settings"><h2 class="finder-title">Settings</h2>
+              ${row({ id: "theme-toggle" }, ICON.sun + ICON.moon, '<span class="finder-theme-dark">Dark mode</span><span class="finder-theme-light">Light mode</span>', "Theme", "dark light theme mode night day colour color appearance")}
+              ${row({ id: "motion-toggle", pressed: true }, ICON.pause, "Reduce motion", '<span class="finder-state">Off</span>', "motion animation reduce calm still")}
+              ${row({ id: "font-size-toggle" }, '<span class="icon-text">Aa</span>', "Text size", '<span class="finder-state">100%</span>', "text size font bigger smaller zoom read")}
+            </div>
+            <div class="finder-group" data-group="go"><h2 class="finder-title">Go to</h2>
+              ${editUrl ? row({ tag: "a", href: editUrl, cls: "edit-this-btn" }, "✎", "Edit this page", "Admin", "edit admin change this page") : ""}
+              ${row({ tag: "a", href: "/shuffle", rel: "nofollow" }, ICON.shuffle, "Surprise me", "A random post or project", "random shuffle surprise lucky")}
+              ${goRows}
+              ${row({ tag: "a", href: "/saved" }, navIconSvg("saved", "Saved"), "Saved for later", "In this browser", "saved bookmarks later")}
+              ${row({ tag: "a", href: "/history" }, navIconSvg("history", "History"), "Reading history", "In this browser", "history read recent")}
+            </div>
+          </div>
+          <p class="finder-empty" hidden>Nothing here by that name. Press Enter to search the whole site.</p>
+        </div>
+        <p class="finder-foot"><span><kbd>↑</kbd><kbd>↓</kbd> move</span><span><kbd>Enter</kbd> open</span><span><kbd>esc</kbd> close</span></p>
+      </div>
+    </div>`;
+}
 function brandHtml(brand) {
   const name = String(brand || "").trim();
   if (!name) return `dominick<span class="accent">.</span>dominick`;
@@ -2432,26 +2480,13 @@ ${customHead || ""}
         navItems.length
           ? `<nav class="site-nav" aria-label="Sections"><div class="tabs">
         ${navHtml}
+        ${finderTabHtml()}
         <span class="tab-indicator" aria-hidden="true"></span>
       </div></nav>`
-          : ""
+          : `<nav class="site-nav" aria-label="Sections"><div class="tabs">${finderTabHtml()}<span class="tab-indicator" aria-hidden="true"></span></div></nav>`
       }
-      <div class="topbar-tools">
-        <form class="site-search" action="/search" method="get" role="search" aria-label="Search the site" autocomplete="off">
-          <input type="search" name="q" placeholder="Search" aria-label="Search" value="${esc(searchQuery || "")}" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="search-suggest-list">
-          <div class="search-suggest" id="search-suggest-list" hidden></div>
-        </form>
-        ${
-          editUrl
-            ? `<a class="icon-link-btn edit-this-btn" href="${esc(editUrl)}" title="Edit this in the admin" aria-label="Edit this in the admin">✎</a>`
-            : ""
-        }
-        <a class="icon-link-btn" href="/shuffle" rel="nofollow" title="Surprise me: a random post or project" aria-label="Random project or article">${ICON.shuffle}</a>
-        <button type="button" id="motion-toggle" aria-label="Reduce motion" aria-pressed="false" title="Turn off entrance/hover animations">${ICON.pause}</button>
-        <button type="button" id="font-size-toggle" aria-label="Change text size" title="Change text size"><span class="icon-text" aria-hidden="true">Aa</span></button>
-        <button type="button" id="theme-toggle" aria-label="Switch light/dark theme" title="Switch light/dark theme">${ICON.sun}${ICON.moon}</button>
-      </div>
     </header>
+    ${finderHtml(navItems, { searchQuery, editUrl })}
     <script src="/nav.js"></script>
 
     <main class="${esc(canvasClass)}" id="main-content">

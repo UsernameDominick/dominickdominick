@@ -4529,3 +4529,78 @@ body:has(.studio-canvas) .site-footer { display: none; }
 }
 /* An empty list has nothing to clear. */
 #clear-saved-btn, #clear-history-btn { min-height: 28px; }
+
+/* ---- The header is the dial alone (brand, sections, then Search at the end); the search box and the site's settings live in the finder.
+   On a phone it is one row, and the dial scrolls like a camera's mode carousel, snapping each section to the middle. ---- */
+.tab-finder { cursor: pointer; }
+@media (max-width: 640px) {
+  .topbar { flex-wrap: nowrap; padding: 6px 12px 2px; gap: 10px; }
+  .topbar .brand { order: 0; flex: 0 0 auto; font-size: 0.95rem; }
+  .topbar .site-nav { order: 1; flex: 1 1 auto; min-width: 0; justify-content: flex-start; }
+  .tabs { scroll-snap-type: x proximity; }
+  .tab { scroll-snap-align: center; }
+}
+
+/* ---- The finder (like a Mac's Spotlight) ---- */
+html.finder-on { overflow: hidden; }
+.site-finder { position: fixed; inset: 0; z-index: 1000; display: flex; justify-content: center; align-items: flex-start; padding: 12vh 16px 16px; }
+.site-finder[hidden] { display: none; }
+.finder-backdrop { position: absolute; inset: 0; background: color-mix(in srgb, #000 40%, transparent); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+.finder-panel {
+  position: relative; display: flex; flex-direction: column; width: min(640px, 100%); max-height: min(72vh, 580px); overflow: hidden;
+  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent); -webkit-backdrop-filter: blur(28px) saturate(1.6); backdrop-filter: blur(28px) saturate(1.6);
+  border: 1px solid color-mix(in srgb, var(--text) 14%, transparent); border-radius: 16px; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+}
+.finder-form { display: flex; align-items: center; gap: 10px; padding: 12px 14px 12px 16px; border-bottom: 1px solid color-mix(in srgb, var(--text) 10%, transparent); }
+.finder-glass { display: inline-flex; color: var(--text-dim); }
+.finder-glass svg { width: 22px; height: 22px; }
+#site-finder .finder-form input {
+  flex: 1 1 auto; min-width: 0; width: auto; max-width: none; margin: 0; padding: 6px 0; border: 0; border-radius: 0; background: transparent; box-shadow: none;
+  color: var(--text); font: inherit; font-size: 1.25rem; outline: none;
+}
+#site-finder .finder-form input::placeholder { color: var(--text-dim); opacity: 1; }
+#site-finder .finder-form input::-webkit-search-cancel-button { display: none; }
+.finder-esc {
+  flex: 0 0 auto; min-height: 26px; padding: 2px 8px; font-size: 0.72rem; color: var(--text-dim); background: transparent;
+  border: 1px solid color-mix(in srgb, var(--text) 22%, transparent); border-radius: 6px; box-shadow: none; cursor: pointer;
+}
+.finder-results { overflow-y: auto; overscroll-behavior: contain; padding: 4px 8px 8px; }
+#site-finder .finder-group { display: flex; flex-direction: column; padding: 4px 0; position: static; width: auto; margin: 0; border: 0; background: none; box-shadow: none; max-height: none; }
+#site-finder .finder-group[hidden] { display: none; }
+.finder-title { margin: 6px 10px 4px; font-size: 0.68rem; font-weight: 650; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-dim); }
+#site-finder .finder-item {
+  display: flex; align-items: center; gap: 12px; width: 100%; height: auto; min-height: 40px; margin: 0; padding: 6px 10px; border: 0; border-radius: 9px;
+  background: transparent; color: var(--text); font: inherit; font-size: 0.95rem; font-weight: 450; line-height: 1.3; text-align: left; text-decoration: none;
+  box-shadow: none; cursor: pointer;
+}
+#site-finder .finder-item[hidden] { display: none; }
+#site-finder .finder-item:hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
+#site-finder .finder-item:focus, #site-finder .finder-item:focus-visible { background: var(--accent); color: var(--on-accent); outline: none; }
+#site-finder .finder-item:focus .finder-hint, #site-finder .finder-item:focus .finder-ico { color: var(--on-accent); }
+.finder-ico {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 8px;
+  background: color-mix(in srgb, var(--text) 9%, transparent); color: var(--text); font-size: 0.8rem; font-weight: 700;
+}
+.finder-ico svg { width: 16px; height: 16px; }
+#site-finder .finder-item:focus .finder-ico { background: color-mix(in srgb, var(--on-accent) 18%, transparent); }
+.finder-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.finder-hint { flex: 0 0 auto; font-size: 0.76rem; color: var(--text-dim); text-transform: none; letter-spacing: 0; }
+:root[data-theme="light"] .finder-theme-light, :root:not([data-theme="light"]) .finder-theme-dark { display: none; }
+.finder-empty { margin: 10px 12px; font-size: 0.9rem; color: var(--text-dim); }
+.finder-foot {
+  display: flex; justify-content: flex-end; gap: 14px; margin: 0; padding: 8px 14px; font-size: 0.72rem; color: var(--text-dim);
+  border-top: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+}
+.finder-foot kbd { margin-right: 4px; padding: 0 5px; font: inherit; border: 1px solid color-mix(in srgb, var(--text) 22%, transparent); border-radius: 4px; }
+@media (max-width: 640px) {
+  .site-finder { padding: 10px; }
+  .finder-panel { max-height: calc(100dvh - 20px); }
+  .finder-foot { display: none; }
+  #site-finder .finder-item { min-height: 44px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .site-finder:not([hidden]) .finder-panel { animation: finder-in 0.16s ease-out; }
+  .site-finder:not([hidden]) .finder-backdrop { animation: finder-fade 0.16s ease-out; }
+}
+@keyframes finder-in { from { opacity: 0; transform: translateY(-8px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes finder-fade { from { opacity: 0; } to { opacity: 1; } }

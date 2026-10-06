@@ -37,13 +37,27 @@ const { chromium, axeSource } = require("./_pw.cjs");
     await c.close();
   }
 
-  // focus ring on the header search
+  // the finder: Search at the end of the nav opens it, with the focus in its box; Escape closes it and gives the focus back
   {
     const p = await desk.newPage();
     await p.goto(E2E_BASE + "/", { waitUntil: "networkidle" });
-    await p.locator(".site-search input").focus();
-    const ring = await p.locator(".site-search input").evaluate((e) => { const cs = getComputedStyle(e); return [cs.outlineStyle, parseFloat(cs.outlineWidth)]; });
-    ok(ring[0] !== "none" && ring[1] >= 2, "the header search box shows a focus ring", ring);
+    await p.locator("#finder-open").focus();
+    const ring = await p.locator("#finder-open").evaluate((e) => { const cs = getComputedStyle(e); return [cs.outlineStyle, parseFloat(cs.outlineWidth)]; });
+    ok(ring[0] !== "none" && ring[1] >= 2, "the Search stop of the nav shows a focus ring", ring);
+    await p.keyboard.press("Enter");
+    await p.waitForTimeout(200);
+    ok((await p.evaluate(() => document.activeElement.id)) === "finder-input" && (await p.isVisible("#site-finder")), "it opens the finder with the focus in its box");
+    await p.keyboard.type("dark");
+    await p.waitForTimeout(150);
+    const shown = await p.evaluate(() => [...document.querySelectorAll("#finder-list .finder-item")].filter((e) => e.offsetParent).map((e) => e.id || e.textContent.trim()));
+    ok(shown.length === 1 && shown[0] === "theme-toggle", "typing a setting's name finds it", shown);
+    const before = await p.evaluate(() => document.documentElement.getAttribute("data-theme") || "dark");
+    await p.keyboard.press("Enter");
+    ok((await p.evaluate(() => document.documentElement.getAttribute("data-theme") || "dark")) !== before, "and Enter switches it");
+    await p.keyboard.press("Escape");
+    ok(!(await p.isVisible("#site-finder")) && (await p.evaluate(() => document.activeElement.id)) === "finder-open", "Escape closes it and gives the focus back");
+    await p.keyboard.press("Control+k");
+    ok(await p.isVisible("#site-finder"), "Ctrl+K opens it too");
     await p.close();
   }
 

@@ -42,7 +42,9 @@ async function api(path, opts = {}) {
 
     if (dataMotion !== 'reduce') {
       // nav.js might not auto-apply from storage on load; click the toggle instead.
+      await page.click('#finder-open'); // the setting lives in the finder
       await page.click('#motion-toggle');
+      await page.keyboard.press('Escape');
       await page.waitForTimeout(100);
     }
     const dataMotion2 = await page.evaluate(() => document.documentElement.getAttribute('data-motion'));
@@ -65,6 +67,7 @@ async function api(path, opts = {}) {
     assert(style.animationName === 'none', 'animationName is none (animation not running) immediately after load with manual reduce-motion');
 
     // Now confirm normal (non-reduced) playback still works: turn toggle back off
+    await page.click('#finder-open');
     await page.click('#motion-toggle');
     await page.waitForTimeout(50);
     const dmOff = await page.evaluate(() => document.documentElement.getAttribute('data-motion'));

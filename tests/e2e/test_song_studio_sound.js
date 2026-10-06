@@ -135,22 +135,28 @@ const { fanify } = require("./_fan.cjs");
     await p.mouse.up();
     await p.waitForTimeout(300);
     ok((await vis(p, "#studio-fan")) && !(await p.isChecked("#song-record")), "holding Rec opens the fan without turning recording on");
+    await p.click("#studio-fan-close");
+    ok(!(await vis(p, "#studio-fan")) && !(await p.isChecked("#song-record")), "× closes the row");
     await p.click("#studio-rec");
-    ok((await p.isChecked("#song-record")) && !(await vis(p, "#studio-fan")), "tapping Rec records, and closes the fan");
+    ok((await p.isChecked("#song-record")) && !(await vis(p, "#studio-fan")), "and a tap on Rec records");
     await p.click("#studio-rec");
     await p.click("#studio-follow");
     ok((await p.getAttribute("#studio-follow", "aria-pressed")) === "false" && (await p.evaluate(() => localStorage.getItem("songFollow"))) === "0", "Follow switches off and remembers it");
     await p.click("#studio-follow");
+    const qv = () => p.evaluate(() => document.getElementById("studio-quant-value").textContent);
+    ok((await qv()) === "1/16", "Quantize shows what it is set to (1/16 by default)", await qv());
     await p.click("#studio-quant-btn");
-    ok(await vis(p, "#studio-pop-quant") && (await p.inputValue("#studio-quant")) === "1", "Quantize opens a small panel (nearest step by default)");
-    await p.selectOption("#studio-quant", "4");
-    ok((await p.evaluate(() => window.SongStudioHost.quantize())) === 4 && (await p.evaluate(() => localStorage.getItem("songQuantize"))) === "4", "its choice reaches the recorder and is remembered");
-    await p.keyboard.press("Escape");
-    ok(!(await vis(p, "#studio-pop-quant")) && (await vis(p, "#song-studio")), "Escape closes it and not the song");
-    await p.selectOption("#studio-quant", "1").catch(() => {});
+    ok((await qv()) === "1/8" && (await p.evaluate(() => window.SongStudioHost.quantize())) === 2 && (await p.evaluate(() => localStorage.getItem("songQuantize"))) === "2", "a tap moves on to 1/8, which reaches the recorder and is remembered", await qv());
+    await p.click("#studio-quant-btn");
+    await p.click("#studio-quant-btn");
+    ok((await qv()) === "Off" && (await p.evaluate(() => window.SongStudioHost.quantize())) === 0, "then 1/4, then off", await qv());
+    await p.click("#studio-quant-btn");
+    ok((await qv()) === "1/16", "and round to 1/16 again", await qv());
+    ok((await p.evaluate(() => { const f = document.getElementById("studio-fan").getBoundingClientRect(); const c = document.querySelector(".studio-controls").getBoundingClientRect(); return Math.abs(f.top - c.top) < 2 && Math.abs(f.bottom - c.bottom) < 2; })), "the ⋯ controls are a row over the bar, not over the steps");
 
     await p.click("#studio-rec-top");
     ok((await p.getAttribute("#studio-rec-top", "aria-pressed")) === "true", "Record from the top switches on");
+    await p.click("#studio-fan-close"); // the row lies over Play, so close it first
     await pick(p, "melody");
     await p.evaluate(() => { window.__steps = []; });
     await p.click("#studio-play");
@@ -167,8 +173,7 @@ const { fanify } = require("./_fan.cjs");
     await p.click("#studio-stop");
     await p.click("#studio-rec"); // disarm
     // ---- quantize: a key pressed at any moment while recording lands on the grid
-    await p.selectOption("#studio-quant", "4").catch(async () => { await p.click("#studio-quant-btn"); await p.selectOption("#studio-quant", "4"); });
-    await p.keyboard.press("Escape");
+    await p.evaluate(() => window.SongStudioHost.setQuantize("4"));
     await p.click("#studio-rec");
     await p.click("#studio-play");
     for (const [wait, key] of [[430, "E4"], [210, "F4"], [170, "A4"]]) {
@@ -192,13 +197,13 @@ const { fanify } = require("./_fan.cjs");
     await open(m2);
     const fit = await m2.evaluate(() => ({ over: document.documentElement.scrollWidth - window.innerWidth, small: [...document.querySelectorAll("#studio-play, #studio-rec, #studio-fan-btn")].map((e) => Math.round(e.getBoundingClientRect().height)).filter((h) => h < 36) }));
     ok(fit.over <= 1 && fit.small.length === 0, "on a phone the controls fit the screen and stay finger-sized", fit);
-    await m2.tap("#studio-quant-btn");
+    await m2.tap("#studio-fan-btn");
+    await m2.waitForTimeout(300);
     const lefts = await m2.evaluate(() => [...document.querySelectorAll("#studio-fan .studio-fan-item")].map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right), Math.round(r.height)]; }));
-    ok(lefts.length === 9 && lefts.every((r) => r[0] >= 0 && r[1] <= 390 && r[2] >= 40), "on a phone the whole fan is inside the screen and its buttons are finger-sized", lefts);
-    
-    ok(await vis(m2, "#studio-pop-quant"), "Quantize opens on a phone too");
-    const rect = await m2.evaluate(() => { const r = document.getElementById("studio-pop-quant").getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right)]; });
-    ok(rect[0] >= 0 && rect[1] <= 390, "inside the screen", rect);
+    ok(lefts.length === 9 && lefts.every((r) => r[0] >= 0 && r[1] <= 390 && r[2] >= 40 && r[1] - r[0] >= 24), "on a phone the whole row is inside the screen and its buttons are finger-sized", lefts);
+    await m2.tap("#studio-volume-btn");
+    const rect = await m2.evaluate(() => { const r = document.getElementById("studio-pop-volume").getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right)]; });
+    ok(rect[0] >= 0 && rect[1] <= 390, "its volume slider opens inside the screen", rect);
     await m2.keyboard.press("Escape");
     await pick(m2, "melody");
     await m2.tap('#studio-detail [data-act="sound"]');

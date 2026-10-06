@@ -136,17 +136,14 @@ window.addEventListener("pagereveal", function (e) {
       else a.removeAttribute("aria-current");
     });
     [].forEach.call(document.querySelectorAll(".tab-group.open"), function (g) { g.classList.remove("open"); });
-    var oldEdit = document.querySelector(".topbar-tools .edit-this-btn");
-    var newEdit = doc.querySelector(".topbar-tools .edit-this-btn");
+    // The finder's "Edit this page" row points at the page now shown (or goes, on a page with nothing to edit).
+    var oldEdit = document.querySelector(".site-finder .edit-this-btn");
+    var newEdit = doc.querySelector(".site-finder .edit-this-btn");
     if (oldEdit) oldEdit.remove();
-    if (newEdit) {
-      var shuffle = document.querySelector('.topbar-tools a[href="/shuffle"]');
-      var clone = document.importNode(newEdit, true);
-      if (shuffle) shuffle.parentNode.insertBefore(clone, shuffle);
-      else document.querySelector(".topbar-tools").insertBefore(clone, document.querySelector(".topbar-tools").firstChild);
-    }
-    var q = document.querySelector(".site-search input[name=q]");
-    var nq = doc.querySelector(".site-search input[name=q]");
+    var goGroup = document.querySelector('.site-finder [data-group="go"]');
+    if (newEdit && goGroup) goGroup.insertBefore(document.importNode(newEdit, true), goGroup.querySelector(".finder-item"));
+    var q = document.getElementById("finder-input");
+    var nq = doc.getElementById("finder-input");
     if (q && nq) q.value = nq.value;
     window.dispatchEvent(new Event("resize")); // slides the active-tab indicator
   }

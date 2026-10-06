@@ -2293,39 +2293,34 @@
             <div id="studio-fan" class="studio-fan" role="group" aria-label="More controls" hidden>
               <span class="studio-fan-slot"><button type="button" id="studio-volume-btn" class="studio-fan-item" data-tone="1" data-no-history aria-haspopup="true" aria-expanded="false" aria-controls="studio-pop-volume" aria-label="Volume" title="Volume">
                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 9.5v5h3.5l4.5 3.5v-12L7.5 9.5z"/><path d="M15.5 9a4 4 0 010 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-              </button><span class="studio-fan-label" aria-hidden="true">Volume</span>
+              </button>
               <div id="studio-pop-volume" class="studio-pop" role="group" aria-label="Master volume">
                 <label><span class="studio-pop-title">Volume</span> <output id="studio-volume-out">100</output><input type="range" id="studio-volume" min="0" max="100" value="100" data-no-reset aria-label="Master volume"></label>
               </div></span>
               <span class="studio-fan-slot"><button type="button" id="studio-metro" class="studio-fan-item" data-tone="2" data-no-history aria-haspopup="true" aria-expanded="false" aria-controls="studio-pop-metro" aria-pressed="false" aria-label="Metronome" title="Metronome: a click on every beat (heard only here)">
                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9.5 3h5l3.2 17H6.3zM12 17l4-9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>
-              </button><span class="studio-fan-label" aria-hidden="true">Metronome</span>
+              </button>
               <div id="studio-pop-metro" class="studio-pop" role="group" aria-label="Metronome">
                 <label class="studio-pop-check"><input type="checkbox" id="studio-metro-on"> Click on every beat</label>
                 <label>Click volume <output id="studio-metro-out">60</output><input type="range" id="studio-metro-vol" min="0" max="100" value="60" data-no-reset aria-label="Metronome volume"></label>
                 <label>Count in <select id="studio-count-in" aria-label="Count-in before playback"><option value="0">No count-in</option><option value="2">2 beats</option><option value="4">4 beats</option><option value="8">8 beats</option></select></label>
               </div></span>
-              <span class="studio-fan-slot"><button type="button" id="studio-fan-undo" class="studio-fan-item" data-tone="3" data-no-history aria-label="Undo" title="Undo (Ctrl+Z)"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 7L4 12l5 5M4 12h10a6 6 0 010 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><span class="studio-fan-label" aria-hidden="true">Undo</span></span>
-              <span class="studio-fan-slot"><button type="button" id="studio-fan-redo" class="studio-fan-item" data-tone="4" data-no-history aria-label="Redo" title="Redo (Ctrl+Shift+Z)"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 7l5 5-5 5M20 12H10a6 6 0 000 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><span class="studio-fan-label" aria-hidden="true">Redo</span></span>
+              <span class="studio-fan-slot"><button type="button" id="studio-fan-undo" class="studio-fan-item" data-tone="3" data-no-history aria-label="Undo" title="Undo (Ctrl+Z)"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 7L4 12l5 5M4 12h10a6 6 0 010 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></span>
+              <span class="studio-fan-slot"><button type="button" id="studio-fan-redo" class="studio-fan-item" data-tone="4" data-no-history aria-label="Redo" title="Redo (Ctrl+Shift+Z)"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 7l5 5-5 5M20 12H10a6 6 0 000 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></span>
               <span class="studio-fan-slot"><button type="button" id="studio-fan-stop" class="studio-fan-item" data-tone="5" data-no-history aria-label="Stop and go back to the start" title="Stop (back to the start)" disabled>
                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 7h10v10H7z"/></svg>
-              </button><span class="studio-fan-label" aria-hidden="true">Stop</span></span>
-              <span class="studio-fan-slot"><button type="button" id="studio-fan-clear" class="studio-fan-item" data-tone="6" data-no-history aria-label="Clear this track's bar" title="Clear: remove everything in this track's bar (undoable)"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12M10 11v5M14 11v5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button><span class="studio-fan-label" aria-hidden="true">Clear</span></span>
+              </button></span>
+              <span class="studio-fan-slot"><button type="button" id="studio-fan-clear" class="studio-fan-item" data-tone="6" data-no-history aria-label="Clear this track's bar" title="Clear: remove everything in this track's bar (undoable)"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12M10 11v5M14 11v5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button></span>
               <span class="studio-fan-slot"><button type="button" id="studio-rec-top" class="studio-fan-item" data-tone="7" data-no-history aria-pressed="false" aria-label="Start from the beginning every time I record" title="Record from the top: when on, recording always starts from the beginning of the song">
                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 5v14M19 6v12l-9-6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>
-              </button><span class="studio-fan-label" aria-hidden="true">From top</span></span>
-              <span class="studio-fan-slot"><button type="button" id="studio-quant-btn" class="studio-fan-item" data-tone="8" data-no-history aria-haspopup="true" aria-expanded="false" aria-controls="studio-pop-quant" aria-label="Quantize" title="Quantize: where the notes you record land">
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 18h16M6 18V9m4 9V5m4 13v-7m4 7V8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-              </button><span class="studio-fan-label" aria-hidden="true">Quantize</span>
-              <div id="studio-pop-quant" class="studio-pop" role="group" aria-label="Quantize">
-                <label><span class="studio-pop-title">Quantize</span> <select id="studio-quant" aria-label="Where recorded notes land"><option value="1">Nearest step (1/16)</option><option value="2">Nearest 1/8</option><option value="4">Nearest beat (1/4)</option><option value="0">Off: the step that is sounding</option></select></label>
-                <p class="studio-pop-hint">A note you play a little early or late is moved to the nearest line of this grid while you record.</p>
-              </div></span>
+              </button></span>
+              <span class="studio-fan-slot"><button type="button" id="studio-quant-btn" class="studio-fan-item studio-fan-text" data-tone="8" data-no-history aria-label="Quantize: 1/16. Tap for the next setting" title="Quantize: where the notes you record land. Tap to go through 1/16, 1/8, 1/4 and off."><span id="studio-quant-value">1/16</span></button></span>
               <span class="studio-fan-slot"><button type="button" id="studio-follow" class="studio-fan-item" data-tone="9" data-no-history aria-pressed="true" aria-label="Follow the music" title="Follow the music: the editor moves along with the song (bar to bar, and sideways in a wide roll). Turn off to stay where you are.">
                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-              </button><span class="studio-fan-label" aria-hidden="true">Follow</span></span>
+              </button></span>
+              <span class="studio-fan-slot"><button type="button" id="studio-fan-close" class="studio-fan-close" data-no-history aria-label="Close these controls" title="Close (Esc)">×</button></span>
             </div>
-            <button type="button" id="studio-rec" class="studio-rec-hub studio-rec" data-no-history aria-pressed="false" aria-haspopup="true" aria-controls="studio-fan" title="Record: notes you play on the keys land on the step that is playing. Hold for volume, metronome, undo, stop and more.">
+            <button type="button" id="studio-rec" class="studio-rec-hub studio-rec" data-no-history aria-pressed="false" aria-haspopup="true" aria-controls="studio-fan" title="Record: notes you play on the keys land on the step that is playing. Hold (or press ⋯) for volume, metronome, undo, stop and more.">
               <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="6"/></svg><span>Rec</span>
             </button>
             <button type="button" id="studio-fan-btn" class="studio-fan-toggle" data-no-history aria-expanded="false" aria-controls="studio-fan" aria-label="More controls" title="More controls: volume, metronome, undo, redo, stop, clear, quantize, follow (or hold Rec)">⋯</button>
