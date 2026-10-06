@@ -4990,9 +4990,20 @@
     closePicker();
   });
   document.addEventListener("keydown", (e) => {
-    if (e.key !== "Escape" || !paletteEl.classList.contains("is-picker-open")) return;
-    e.stopPropagation();
-    closePicker(true);
+    if (!paletteEl.classList.contains("is-picker-open")) return;
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      closePicker(true);
+      return;
+    }
+    // Up and Down walk the rows (from the search box too); the Enter that follows presses the row.
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    const rows = [...paletteEl.querySelectorAll("#palette-blocks .palette-btn")].filter((b) => !b.hidden && b.offsetParent !== null);
+    if (!rows.length || !paletteEl.contains(document.activeElement)) return;
+    e.preventDefault();
+    const at = rows.indexOf(document.activeElement);
+    const next = e.key === "ArrowDown" ? (at + 1) % rows.length : (at <= 0 ? rows.length - 1 : at - 1);
+    rows[next].focus();
   }, true);
   let insertGhost = null;
   function hideInsertGhost() {

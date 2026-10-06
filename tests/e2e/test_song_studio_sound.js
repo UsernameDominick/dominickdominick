@@ -3,6 +3,7 @@
 // from the top, quantize and follow buttons. Also a phone width and axe on the Sound tab.
 const E2E_BASE = process.env.E2E_BASE || "http://localhost:8787";
 const { chromium, axeSource } = require("./_pw.cjs");
+const { fanify } = require("./_fan.cjs");
 (async () => {
   const b = await chromium.launch();
   let fails = 0; const ok = (c, m, x) => { console.log((c ? "PASS" : "FAIL") + " — " + m + (x !== undefined && !c ? " " + JSON.stringify(x) : "")); if (!c) fails++; };
@@ -49,7 +50,7 @@ const { chromium, axeSource } = require("./_pw.cjs");
     const ctx = await b.newContext({ storageState: process.env.ADMIN_STATE, viewport: { width: 1280, height: 900 } });
     await ctx.addInitScript(() => { try { localStorage.setItem("songView", "studio"); localStorage.removeItem("songQuantize"); localStorage.removeItem("songFollow"); localStorage.removeItem("songRecTop"); } catch (e) { /* none */ } });
     await ctx.addInitScript(spy);
-    const p = await ctx.newPage();
+    const p = fanify(await ctx.newPage());
     const errs = []; p.on("pageerror", (e) => errs.push(String(e))); p.on("dialog", (d) => d.accept());
     await open(p);
 
@@ -118,9 +119,25 @@ const { chromium, axeSource } = require("./_pw.cjs");
     await p.click("#close-studio-sheet");
 
     // ---- transport: record from the top, quantize, follow
-    ok(await vis(p, "#studio-rec-top") && (await p.getAttribute("#studio-rec-top", "aria-pressed")) === "false" && (await p.getAttribute("#studio-follow", "aria-pressed")) === "true", "a button before Rec (off at first) and a Follow button (on at first)");
-    const order = await p.evaluate(() => { const r = (i) => document.getElementById(i).getBoundingClientRect().left; return r("studio-rec-top") < r("studio-rec"); });
-    ok(order, "the record-from-the-top button sits before Rec");
+    ok(!(await vis(p, "#studio-fan")) && (await vis(p, "#studio-rec")) && (await vis(p, "#studio-fan-btn")), "the bottom bar is Play, a Rec hub and a tempo; the rest waits in the fan");
+    await p.click("#studio-fan-btn");
+    await p.waitForTimeout(350);
+    ok((await vis(p, "#studio-fan")) && (await vis(p, "#studio-rec-top")) && (await p.getAttribute("#studio-rec-top", "aria-pressed")) === "false" && (await p.getAttribute("#studio-follow", "aria-pressed")) === "true", "the ⋯ button opens the fan: record from the top (off at first) and Follow (on at first) are in it");
+    const items = await p.evaluate(() => [...document.querySelectorAll("#studio-fan .studio-fan-item")].map((e) => e.id));
+    ok(["studio-volume-btn", "studio-metro", "studio-fan-undo", "studio-fan-redo", "studio-stop", "studio-fan-clear", "studio-rec-top", "studio-quant-btn", "studio-follow"].every((id) => items.includes(id)), "volume, metronome, undo, redo, stop, clear, record from the top, quantize and follow", items);
+    await p.keyboard.press("Escape");
+    ok(!(await vis(p, "#studio-fan")), "Escape closes it");
+    // holding Rec opens it too, and the hold is not a tap on Rec
+    const rb = await p.locator("#studio-rec").boundingBox();
+    await p.mouse.move(rb.x + rb.width / 2, rb.y + rb.height / 2);
+    await p.mouse.down();
+    await p.waitForTimeout(650);
+    await p.mouse.up();
+    await p.waitForTimeout(300);
+    ok((await vis(p, "#studio-fan")) && !(await p.isChecked("#song-record")), "holding Rec opens the fan without turning recording on");
+    await p.click("#studio-rec");
+    ok((await p.isChecked("#song-record")) && !(await vis(p, "#studio-fan")), "tapping Rec records, and closes the fan");
+    await p.click("#studio-rec");
     await p.click("#studio-follow");
     ok((await p.getAttribute("#studio-follow", "aria-pressed")) === "false" && (await p.evaluate(() => localStorage.getItem("songFollow"))) === "0", "Follow switches off and remembers it");
     await p.click("#studio-follow");
@@ -170,14 +187,15 @@ const { chromium, axeSource } = require("./_pw.cjs");
     const mctx = await b.newContext({ storageState: process.env.ADMIN_STATE, viewport: { width: 390, height: 780 }, hasTouch: true, isMobile: true });
     await mctx.addInitScript(() => { try { localStorage.setItem("songView", "studio"); } catch (e) { /* none */ } });
     await mctx.addInitScript(spy);
-    const m2 = await mctx.newPage();
+    const m2 = fanify(await mctx.newPage());
     const merrs = []; m2.on("pageerror", (e) => merrs.push(String(e))); m2.on("dialog", (d) => d.accept());
     await open(m2);
-    const fit = await m2.evaluate(() => ({ over: document.documentElement.scrollWidth - window.innerWidth, small: [...document.querySelectorAll("#studio-rec-top, #studio-quant-btn, #studio-follow, #studio-metro, #studio-volume-btn, #studio-rec")].map((e) => Math.round(e.getBoundingClientRect().height)).filter((h) => h < 36) }));
+    const fit = await m2.evaluate(() => ({ over: document.documentElement.scrollWidth - window.innerWidth, small: [...document.querySelectorAll("#studio-play, #studio-rec, #studio-fan-btn")].map((e) => Math.round(e.getBoundingClientRect().height)).filter((h) => h < 36) }));
     ok(fit.over <= 1 && fit.small.length === 0, "on a phone the controls fit the screen and stay finger-sized", fit);
-    const lefts = await m2.evaluate(() => ["studio-play", "studio-rec-top", "studio-rec", "studio-quant-btn", "studio-follow"].map((i) => Math.round(document.getElementById(i).getBoundingClientRect().right)));
-    ok(lefts.every((r) => r <= 390), "none of them runs off the side", lefts);
     await m2.tap("#studio-quant-btn");
+    const lefts = await m2.evaluate(() => [...document.querySelectorAll("#studio-fan .studio-fan-item")].map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right), Math.round(r.height)]; }));
+    ok(lefts.length === 9 && lefts.every((r) => r[0] >= 0 && r[1] <= 390 && r[2] >= 40), "on a phone the whole fan is inside the screen and its buttons are finger-sized", lefts);
+    
     ok(await vis(m2, "#studio-pop-quant"), "Quantize opens on a phone too");
     const rect = await m2.evaluate(() => { const r = document.getElementById("studio-pop-quant").getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right)]; });
     ok(rect[0] >= 0 && rect[1] <= 390, "inside the screen", rect);

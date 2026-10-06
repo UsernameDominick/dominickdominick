@@ -139,7 +139,7 @@
   window.addEventListener("storage", (e) => { if (e.key === "theme") followTheme(); });
 
   // ---------- load the builder ----------
-  const SCRIPTS = ["/song-engine.js", "/admin/song-patterns.js", "/admin/song-files.js", "/admin/song-starters.js", "/admin/song-builder.js", "/admin/song-studio.js"];
+  const SCRIPTS = ["/dial.js", "/song-engine.js", "/admin/song-patterns.js", "/admin/song-files.js", "/admin/song-starters.js", "/admin/song-builder.js", "/admin/song-studio.js"];
   function loadScript(src) {
     return new Promise((resolve, reject) => {
       const s = document.createElement("script");

@@ -5,6 +5,7 @@
 // snapping, the sheet, pause and carry on, recording, undo, and a phone screen.
 const E2E_BASE = process.env.E2E_BASE || "http://localhost:8787";
 const { chromium, axeSource } = require("./_pw.cjs");
+const { fanify } = require("./_fan.cjs");
 (async () => {
   const b = await chromium.launch();
   let fails = 0; const ok = (c, m, x) => { console.log((c ? "PASS" : "FAIL") + " — " + m + (x !== undefined && !c ? " " + JSON.stringify(x) : "")); if (!c) fails++; };
@@ -81,7 +82,7 @@ const { chromium, axeSource } = require("./_pw.cjs");
     const ctx = await b.newContext({ storageState: process.env.ADMIN_STATE, viewport: { width: 1280, height: 900 } });
     await ctx.addInitScript(() => { try { localStorage.setItem("songView", "studio"); } catch (e) { /* none */ } });
     await ctx.addInitScript(spy);
-    const p = await ctx.newPage();
+    const p = fanify(await ctx.newPage());
     const errs = [];
     p.on("pageerror", (e) => errs.push(String(e)));
     p.on("dialog", (d) => d.accept());
@@ -459,7 +460,9 @@ const { chromium, axeSource } = require("./_pw.cjs");
     ok(await p.evaluate(() => document.querySelector('#studio-keys [data-key="C4"]').classList.contains("down")), "keys played on the computer keyboard show on the piano");
 
     // ---- the rest of the controls: a volume slider and a metronome button with its own popover
-    ok((await vis(p, "#studio-volume")) && !(await vis(p, "#studio-volume-btn")), "on a wide screen the volume slider is just there");
+    await p.click("#studio-volume-btn");
+    ok((await vis(p, "#studio-pop-volume")) && (await p.evaluate(() => !!document.querySelector("#studio-pop-volume .dial"))), "the volume button in the fan opens a dial");
+    await p.keyboard.press("Escape");
     await p.click("#studio-metro");
     ok((await vis(p, "#studio-pop-metro")) && (await p.getAttribute("#studio-metro", "aria-expanded")) === "true", "the metronome button opens a small panel for what it controls");
     await p.check("#studio-metro-on");
@@ -475,8 +478,10 @@ const { chromium, axeSource } = require("./_pw.cjs");
     await p.keyboard.press("Escape");
     await p.fill("#studio-bpm", "150");
     ok((await p.inputValue("#song-tempo")) === "150", "BPM drives the tempo");
+    await p.click("#studio-volume-btn");
     await p.fill("#studio-volume", "55");
     ok((await p.inputValue("#song-master-volume")) === "55", "Volume drives the master volume");
+    await p.keyboard.press("Escape");
     ok(await vis(p, "#studio-midi"), "a MIDI button is there when the browser can do MIDI");
 
     // ---- the Tools sheet: the song's settings, patterns and sharing, all from here
@@ -531,7 +536,7 @@ const { chromium, axeSource } = require("./_pw.cjs");
     // ======== bars, loops and free recording ========
     const lctx = await b.newContext({ storageState: process.env.ADMIN_STATE, viewport: { width: 1280, height: 900 } });
     await lctx.addInitScript(() => { try { localStorage.setItem("songView", "studio"); } catch (e) { /* none */ } });
-    const L = await lctx.newPage();
+    const L = fanify(await lctx.newPage());
     const lerrs = [];
     L.on("pageerror", (e) => lerrs.push(String(e)));
     L.on("dialog", (d) => d.accept());
@@ -599,7 +604,7 @@ const { chromium, axeSource } = require("./_pw.cjs");
     // ======== a phone: touch, 390 px wide ========
     const mctx = await b.newContext({ storageState: process.env.ADMIN_STATE, viewport: { width: 390, height: 780 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
     await mctx.addInitScript(() => { try { localStorage.setItem("songView", "studio"); } catch (e) { /* none */ } });
-    const m = await mctx.newPage();
+    const m = fanify(await mctx.newPage());
     const merrs = [];
     m.on("pageerror", (e) => merrs.push(String(e)));
     m.on("dialog", (d) => d.accept());
@@ -643,7 +648,7 @@ const { chromium, axeSource } = require("./_pw.cjs");
     ok(await m.evaluate(() => { const s = document.getElementById("studio-grid-scroll"); return s.scrollWidth <= s.clientWidth + 1 && document.querySelectorAll("#studio-grid .studio-row").length === 24; }), "the roll fits the sixteen steps across a phone, with nothing to scroll sideways");
     await m.tap('.studio-mode[data-mode="steps"]');
     // the volume and the metronome are buttons that pop up their slider
-    ok(!(await vis(m, "#studio-pop-volume")) && (await vis(m, "#studio-volume-btn")), "on a phone the volume is a button");
+    ok(!(await vis(m, "#studio-pop-volume")) && !(await vis(m, "#studio-volume-btn")) && (await vis(m, "#studio-fan-btn")), "on a phone the volume is in the fan, not on the bar");
     await m.tap("#studio-volume-btn");
     ok(await vis(m, "#studio-pop-volume"), "that opens a small slider for the volume");
     await m.evaluate(() => { const i = document.getElementById("studio-volume"); i.value = "42"; i.dispatchEvent(new Event("input", { bubbles: true })); });
@@ -673,7 +678,7 @@ const { chromium, axeSource } = require("./_pw.cjs");
     // ======== a row or a roll hidden in the old editor still works here ========
     const hctx = await b.newContext({ storageState: process.env.ADMIN_STATE, viewport: { width: 1280, height: 900 } });
     await hctx.addInitScript(() => { try { localStorage.setItem("songView", "studio"); } catch (e) { /* none */ } });
-    const h = await hctx.newPage();
+    const h = fanify(await hctx.newPage());
     h.on("dialog", (d) => d.accept());
     await open(h, hiddenId);
     await h.click('#studio-grid .studio-cell[data-row="snare"][data-step="3"]');
@@ -690,7 +695,7 @@ const { chromium, axeSource } = require("./_pw.cjs");
     // ======== a new song starts with the defaults from Site Settings ========
     const sctx = await b.newContext({ storageState: process.env.ADMIN_STATE, viewport: { width: 1280, height: 900 } });
     await sctx.addInitScript(() => { try { localStorage.setItem("songView", "studio"); } catch (e) { /* none */ } });
-    const S = await sctx.newPage();
+    const S = fanify(await sctx.newPage());
     S.on("dialog", (d) => d.accept());
     const current = (await api("GET", "/settings")).j;
     const put = await api("PUT", "/settings", { ...current, song_default_tempo: "97", song_default_bars: "6", song_default_kit: "808" });

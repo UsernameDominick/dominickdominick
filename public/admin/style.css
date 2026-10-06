@@ -8756,9 +8756,6 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
   .studio-grid[data-mode="roll"] { --lab: 32px; }
   .studio-grid[data-mode="roll"] .studio-row-label { font-size: 0.64rem; }
   /* on a wide screen the volume slider is simply there */
-  #studio-volume-btn { display: none; }
-  #studio-pop-volume { display: flex; position: static; transform: none; width: 170px; padding: 0; border: 0; box-shadow: none; background: none; }
-  #studio-pop-volume output { display: none; }
 }
 @media (max-width: 640px) {
   .song-studio { gap: 6px; padding: 6px 10px calc(6px + env(safe-area-inset-bottom, 0px)); }
@@ -8867,11 +8864,6 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 .studio-fold > summary small { font-weight: 400; color: var(--text-dim); font-size: 0.74rem; }
 .studio-fold > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 .studio-field-wide { flex: 1 1 100%; margin-bottom: 8px; }
-.studio-quick { display: contents; }
-@media (max-width: 640px) {
-  .studio-quick { order: 5; flex: 1 1 100%; display: flex; align-items: center; justify-content: space-between; gap: 6px; padding-top: 2px; border-top: 1px solid var(--border); }
-  .studio-controls .studio-bpm { order: 4; margin-left: auto; }
-}
 
 /* ---- The page first: the admin opens on the page, the block picker opens where you click ---- */
 @media (min-width: 861px) {
@@ -8938,3 +8930,89 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 :where(.admin-body) input[type="text"], :where(.admin-body) input[type="search"], :where(.admin-body) input[type="number"], :where(.admin-body) input[type="url"], :where(.admin-body) input[type="email"], :where(.admin-body) input[type="password"], :where(.admin-body) input[type="datetime-local"], :where(.admin-body) textarea, :where(.admin-body) select {
   border: min(var(--field-border-width), 2px) solid var(--btn-ink);
 }
+
+/* ---- Studio dials: the sound knobs and sliders are round dials, name above, reading below ---- */
+.studio-knobs { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 14px 8px; }
+.studio-knob { display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; }
+.studio-knob .studio-knob-name { order: 1; font-size: 0.74rem; line-height: 1.2; }
+.studio-knob .dial { order: 2; }
+.studio-knob output { order: 3; font-size: 0.72rem; }
+.studio-vol-inline .dial { flex: 0 0 auto; }
+.studio-vol-inline { justify-content: space-between; }
+
+/* ---- The picker as a menu card: a toggle on top, then a list of rows, each an icon and a name ---- */
+@media (min-width: 861px) {
+  #palette.is-picker-open {
+    width: 320px; border: 0; border-radius: 22px; background: var(--bg-elevated);
+    box-shadow: 0 22px 60px rgba(0, 0, 0, 0.32), 0 2px 0 color-mix(in srgb, var(--text) 8%, transparent);
+  }
+  #palette.is-picker-open .drawer-scroll-content { padding: 14px 12px 12px; }
+  #palette.is-picker-open .panel-switch {
+    display: flex; gap: 2px; padding: 4px; margin: 0 40px 12px 0; border: 0; border-radius: 14px; background: color-mix(in srgb, var(--text) 8%, transparent);
+  }
+  #palette.is-picker-open .panel-switch button {
+    flex: 1; min-height: 38px; border: 0; border-radius: 10px; background: transparent; box-shadow: none; color: var(--text-dim); font-weight: 600; font-size: 0.88rem;
+  }
+  #palette.is-picker-open .panel-switch button[aria-selected="true"] { background: color-mix(in srgb, var(--text) 16%, var(--bg-elevated)); color: var(--text); }
+  #palette.is-picker-open #close-palette { top: 12px; right: 12px; border: 0; background: color-mix(in srgb, var(--text) 8%, transparent); }
+  #palette.is-picker-open #palette-search { margin-bottom: 8px; }
+  #palette.is-picker-open .palette-group h2 { margin: 12px 4px 4px; font-size: 0.7rem; letter-spacing: 0.12em; }
+  #palette.is-picker-open .palette-grid { grid-template-columns: 1fr; gap: 2px; }
+  #palette.is-picker-open .palette-btn {
+    flex-direction: row; justify-content: flex-start; gap: 14px; min-height: 46px; padding: 8px 12px; border: 0; border-radius: 14px; background: transparent;
+    box-shadow: none; font-size: 0.95rem; font-weight: 500; letter-spacing: 0.02em; text-align: left; color: var(--text);
+  }
+  #palette.is-picker-open .palette-btn svg { width: 22px; height: 22px; flex: 0 0 22px; color: var(--text-dim); }
+  #palette.is-picker-open .palette-btn:hover, #palette.is-picker-open .palette-btn:focus-visible { background: color-mix(in srgb, var(--text) 10%, transparent); border: 0; }
+  #palette.is-picker-open .palette-btn:hover svg, #palette.is-picker-open .palette-btn:focus-visible svg { color: var(--text); }
+  #palette.is-picker-open .palette-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+}
+
+/* ---- The Studio's bottom bar: Play, the Rec hub with a fan of controls above it, and the tempo ---- */
+.studio-controls { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; padding: 8px 12px; position: relative; flex-wrap: nowrap; }
+.studio-controls > .studio-play { justify-self: start; }
+.studio-controls > .studio-bpm { justify-self: end; margin-left: 0; }
+.studio-hub { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.studio-rec-hub {
+  width: 64px; height: 64px; min-height: 64px; padding: 0; border-radius: 50%; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 0;
+  background: #c2331b; color: #fff; border: min(var(--btn-border-width), 2px) solid var(--btn-ink); box-shadow: var(--btn-shadow-sm); font-weight: 700; font-size: 0.72rem; line-height: 1;
+  touch-action: manipulation; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none;
+}
+.studio-rec-hub svg { width: 22px; height: 22px; fill: #fff; }
+.studio-rec-hub:hover { color: #fff; }
+.studio-rec-hub[aria-pressed="true"] { background: #c8102e; box-shadow: 0 0 0 4px color-mix(in srgb, #ff2d55 40%, transparent), var(--btn-shadow-sm); }
+.studio-fan-toggle { width: 38px; height: 38px; min-height: 38px; padding: 0; border-radius: 50%; font-size: 1.1rem; line-height: 1; position: absolute; right: -46px; bottom: 13px; }
+.studio-fan { position: absolute; left: 50%; bottom: 50%; width: 0; height: 0; z-index: 40; --item: 44px; --arc: 150px; }
+.studio-fan[hidden] { display: none; }
+.studio-fan-slot { display: contents; }
+.studio-fan-item {
+  position: absolute; left: calc(var(--item) / -2); bottom: calc(var(--item) / -2); width: var(--item); height: var(--item); min-height: var(--item); padding: 0; border-radius: 50%; border: 0;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28); display: inline-flex; align-items: center; justify-content: center; color: #1c1c1c; background: #d8d8d8;
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+  transform: translate(0, 0) scale(0.3); opacity: 0;
+}
+.studio-fan.is-open .studio-fan-item { transform: translate(var(--x, 0), calc(-1 * var(--y, 0))) scale(1); opacity: 1; }
+@media (prefers-reduced-motion: no-preference) {
+  .studio-fan-item { transition: transform 0.26s cubic-bezier(0.2, 1.25, 0.35, 1) var(--d, 0ms), opacity 0.16s ease var(--d, 0ms), filter 0.15s; }
+}
+.studio-fan-item svg { width: calc(var(--item) * 0.48); height: calc(var(--item) * 0.48); fill: currentColor; }
+.studio-fan-item:hover { color: #1c1c1c; filter: brightness(1.05); }
+.studio-fan-item:disabled { opacity: 0.45; }
+.studio-fan.is-open .studio-fan-item:disabled { opacity: 0.45; }
+.studio-fan-item[aria-pressed="true"], .studio-fan-item[aria-expanded="true"] { outline: 3px solid var(--text); outline-offset: 2px; }
+.studio-fan-item:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.studio-fan-item[data-tone="1"] { background: #b9ebb0; }
+.studio-fan-item[data-tone="2"] { background: #b4ecd7; }
+.studio-fan-item[data-tone="3"] { background: #d9e8a8; }
+.studio-fan-item[data-tone="4"] { background: #b3d6f0; }
+.studio-fan-item[data-tone="5"] { background: #e7a28a; }
+.studio-fan-item[data-tone="6"] { background: #f0dba8; }
+.studio-fan-item[data-tone="7"] { background: #bfe5ea; }
+.studio-fan-item[data-tone="8"] { background: #d7c6f0; }
+.studio-fan-item[data-tone="9"] { background: #f3c6da; }
+.studio-fan .studio-pop { position: absolute; left: 0; bottom: calc(var(--arc) + var(--item) / 2 + 12px); transform: translateX(-50%); width: min(270px, 86vw); z-index: 5; }
+.studio-fan .studio-pop.is-open { display: flex; }
+#studio-pop-volume { display: none; width: min(190px, 70vw); padding: 10px 12px; border: 1px solid var(--border); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45); background: var(--bg-elevated); }
+#studio-pop-volume.is-open { display: flex; }
+#studio-pop-volume output { display: block; float: none; }
+@media (max-width: 640px) { .studio-fan-toggle { right: -44px; } .studio-fan { --item: 40px; --arc: 148px; } }

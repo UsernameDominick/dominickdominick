@@ -4394,3 +4394,18 @@ body:has(.studio-canvas) .site-footer { display: none; }
   color: var(--btn-ink); background: var(--field-notch-bg, var(--bg)); pointer-events: none;
 }
 .field > input, .field > textarea, .field > select { width: 100%; padding-top: 0.8em; }
+
+/* ---- Dials (public/dial.js): a round face over a range input ---- */
+:root { --dial-glow: #ff4fa8; --dial-cap: #1b222b; --dial-ring: #12161c; }
+.dial { position: relative; display: inline-block; width: 56px; height: 56px; flex: 0 0 auto; vertical-align: middle; }
+.dial-input { position: absolute; inset: 0; width: 100% !important; max-width: 100% !important; min-width: 0 !important; height: 100% !important; margin: 0 !important; padding: 0 !important; opacity: 0; pointer-events: none; }.dial-face { position: absolute; inset: 0; border-radius: 50%; cursor: ns-resize; touch-action: none; -webkit-tap-highlight-color: transparent; user-select: none; }
+.dial-face svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.dial-halo { fill: var(--dial-ring); stroke: color-mix(in srgb, var(--btn-ink, #fff) 14%, transparent); stroke-width: 1; }
+.dial-track { fill: none; stroke: color-mix(in srgb, var(--dial-glow) 22%, transparent); stroke-width: 2.4; stroke-linecap: round; }
+.dial-glow { fill: none; stroke: var(--dial-glow); stroke-width: 3; stroke-linecap: round; filter: drop-shadow(0 0 3px var(--dial-glow)); }
+.dial-cap { fill: var(--dial-cap); stroke: rgba(255, 255, 255, 0.07); stroke-width: 1; }
+.dial-hand line { stroke: #ff7ac2; stroke-width: 3; stroke-linecap: round; }
+.dial-input:focus-visible + .dial-face { outline: 2px solid var(--accent); outline-offset: 3px; }
+.dial.is-disabled { opacity: 0.4; }
+.dial.is-disabled .dial-face { cursor: not-allowed; }
+.dial.is-turning .dial-cap { fill: #232b36; }

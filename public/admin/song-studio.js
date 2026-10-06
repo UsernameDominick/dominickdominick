@@ -378,6 +378,8 @@
     mute.setAttribute("aria-label", `${info.muted ? "Unmute" : "Mute"} track ${track.n}, ${track.name}`);
     $("studio-undo").disabled = $("song-undo").disabled;
     $("studio-redo").disabled = $("song-redo").disabled;
+    $("studio-fan-undo").disabled = $("song-undo").disabled;
+    $("studio-fan-redo").disabled = $("song-redo").disabled;
     renderBars();
   }
   // What the builder said about the last thing a tool did ("Bass on every kick…", "The kick has no hits…") is worth showing here.
@@ -1022,6 +1024,93 @@
   $("studio-stop").addEventListener("click", () => {
     host().stop();
     syncTransport();
+    closeFan(true);
+  });
+  // ---------- the fan: Rec is a hub; hold it (or press ⋯) and the other controls open in an arc above it ----------
+  const fan = $("studio-fan");
+  const fanToggle = $("studio-fan-btn");
+  const recHub = $("studio-rec");
+  function layoutFan() {
+    const slots = [...fan.querySelectorAll(".studio-fan-slot")];
+    const n = slots.length;
+    const room = Math.min(studio.clientWidth || window.innerWidth, window.innerWidth) / 2 - 30;
+    const radius = Math.max(96, Math.min(152, room));
+    fan.style.setProperty("--arc", radius.toFixed(0) + "px");
+    // from just above the left of the hub to just above its right (160 degrees round to 20)
+    const from = (160 * Math.PI) / 180;
+    const to = (20 * Math.PI) / 180;
+    slots.forEach((slot, i) => {
+      const t = from - (n > 1 ? i / (n - 1) : 0.5) * (from - to);
+      slot.style.setProperty("--x", (Math.cos(t) * radius).toFixed(1) + "px");
+      slot.style.setProperty("--y", (Math.sin(t) * radius).toFixed(1) + "px");
+      slot.style.setProperty("--d", i * 22 + "ms");
+    });
+  }
+  function fanIsOpen() {
+    return !fan.hidden;
+  }
+  function openFan() {
+    if (fanIsOpen()) return;
+    closePop();
+    fan.hidden = false;
+    layoutFan();
+    requestAnimationFrame(() => fan.classList.add("is-open"));
+    fanToggle.setAttribute("aria-expanded", "true");
+    host().unlock();
+  }
+  function closeFan(returnFocus) {
+    if (!fanIsOpen()) return;
+    closePop();
+    fan.classList.remove("is-open");
+    fan.hidden = true;
+    fanToggle.setAttribute("aria-expanded", "false");
+    if (returnFocus && fan.contains(document.activeElement)) fanToggle.focus();
+  }
+  fanToggle.addEventListener("click", () => {
+    if (fanIsOpen()) return closeFan(true);
+    openFan();
+    const first = fan.querySelector(".studio-fan-item:not([disabled])");
+    if (first) first.focus();
+  });
+  let holdTimer = null;
+  let holdOpened = false;
+  recHub.addEventListener("pointerdown", (e) => {
+    if (e.button !== undefined && e.button > 0) return;
+    holdOpened = false;
+    clearTimeout(holdTimer);
+    holdTimer = setTimeout(() => {
+      holdOpened = true;
+      if (navigator.vibrate) try { navigator.vibrate(12); } catch (err) { /* no buzz */ }
+      openFan();
+    }, 420);
+  });
+  ["pointerup", "pointerleave", "pointercancel"].forEach((t) => recHub.addEventListener(t, () => clearTimeout(holdTimer)));
+  recHub.addEventListener("contextmenu", (e) => e.preventDefault());
+  // The press that opened the fan is not a tap on Rec.
+  recHub.addEventListener("click", (e) => {
+    if (holdOpened) {
+      holdOpened = false;
+      e.stopImmediatePropagation();
+      e.preventDefault();
+    } else closeFan(false);
+  }, true);
+  document.addEventListener("pointerdown", (e) => {
+    if (fanIsOpen() && !e.target.closest("#studio-fan, #studio-rec, #studio-fan-btn")) closeFan(false);
+  });
+  studio.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && fanIsOpen() && !openPop) {
+      e.stopPropagation();
+      closeFan(true);
+    }
+  });
+  window.addEventListener("resize", () => { if (fanIsOpen()) layoutFan(); });
+  // The fan's undo, redo and clear press the same buttons the open track's card has.
+  $("studio-fan-undo").addEventListener("click", () => $("song-undo").click());
+  $("studio-fan-redo").addEventListener("click", () => $("song-redo").click());
+  $("studio-fan-clear").addEventListener("click", () => {
+    const clear = $("studio-clear");
+    if (clear) clear.click();
+    closeFan(true);
   });
   $("studio-rec").addEventListener("click", () => {
     const box = $("song-record");
@@ -1073,11 +1162,7 @@
     $("song-count-in").value = e.target.value;
     fire($("song-count-in"), "change");
   });
-  // The volume button opens its slider on a phone; on a wide screen the slider is simply there.
-  const wide = window.matchMedia ? window.matchMedia("(min-width: 641px)") : { matches: true };
-  $("studio-volume-btn").addEventListener("click", (e) => {
-    if (!wide.matches) togglePop(e.currentTarget, $("studio-pop-volume"));
-  });
+  $("studio-volume-btn").addEventListener("click", (e) => togglePop(e.currentTarget, $("studio-pop-volume")));
   $("studio-volume").addEventListener("input", (e) => {
     $("song-master-volume").value = e.target.value;
     fire($("song-master-volume"), "input");
