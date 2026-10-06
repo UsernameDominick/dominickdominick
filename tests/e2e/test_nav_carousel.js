@@ -1,4 +1,5 @@
-// The nav: no Random (Articles) tab and no Hidden Notes tab; every tab of the dial slides in place, like a carousel, with no page load
+// The nav: no Random (Articles) tab and no Hidden Notes tab; every tab of the dial slides in place, like a carousel, with no page load (even
+// with what Cloudflare adds to live pages)
 // (the Studio and the song and circuit players come along); a page with a Study block stays out of the nav, the sitemap and search
 // engines, is found through the site's search, and always asks for its password.
 const E2E_BASE = process.env.E2E_BASE || "http://localhost:8787";
@@ -71,6 +72,37 @@ const { chromium, request } = require("./_pw.cjs");
     ok(await p.evaluate(() => window.__sameDocument === true), "Back slides too");
     ok(errs.length === 0, "no page errors", errs);
     await ctx.close();
+
+    // What the live site adds that a local server does not: Cloudflare's scripts (email protection, analytics) and its hidden email
+    // addresses, and a page with styles of its own. None of it may turn a slide into a full page load.
+    const cf = await b.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    const enc = (email, key = 0x5a) => key.toString(16).padStart(2, "0") + [...Buffer.from(email)].map((c) => (c ^ key).toString(16).padStart(2, "0")).join("");
+    await cf.route(/\/studio$/, async (route) => {
+      const res = await route.fetch();
+      let html = await res.text();
+      html = html.replace("</head>", "<style>.qq-page-only{outline:3px solid rgb(1, 2, 3)}</style></head>")
+        .replace("</body>", '<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script defer src="https://static.cloudflareinsights.com/beacon.min.js"></script></body>')
+        .replace('id="studio-mount"', `id="studio-mount"></div><p class="qq-page-only"><a id="qq-mail" href="/cdn-cgi/l/email-protection#${enc("hi@example.com")}"><span class="__cf_email__" data-cfemail="${enc("hi@example.com")}">[email&#160;protected]</span></a></p><div hidden`);
+      await route.fulfill({ response: res, body: html });
+    });
+    await cf.route(/cdn-cgi|cloudflareinsights/, (route) => route.fulfill({ status: 200, contentType: "text/javascript", body: "" }));
+    const q = await cf.newPage();
+    const qerrs = []; q.on("pageerror", (e) => qerrs.push(String(e)));
+    await q.goto(E2E_BASE + "/", { waitUntil: "networkidle" });
+    await q.evaluate(() => { window.__sameDocument = true; });
+    if (tabs.includes("/studio")) {
+      await q.evaluate(() => document.querySelector('.tabs a.tab[href="/studio"]').click());
+      await q.waitForFunction(() => location.pathname === "/studio" && !document.querySelector(".page-stage"), null, { timeout: 15000 });
+      ok(await q.evaluate(() => window.__sameDocument === true), "a page with Cloudflare's scripts still slides in place", await q.evaluate(() => sessionStorage.getItem("slideFallback")));
+      const mail = await q.evaluate(() => { const a = document.getElementById("qq-mail"); return a && [a.getAttribute("href"), a.textContent]; });
+      ok(mail && mail[0] === "mailto:hi@example.com" && mail[1] === "hi@example.com", "and its hidden email address is put back", mail);
+      ok(await q.evaluate(() => getComputedStyle(document.querySelector(".qq-page-only")).outlineColor === "rgb(1, 2, 3)"), "its own styles come with it");
+      await q.evaluate(() => document.querySelector('.tabs a.tab[href="/"]').click());
+      await q.waitForFunction(() => location.pathname === "/" && !document.querySelector(".page-stage"), null, { timeout: 15000 });
+      ok(await q.evaluate(() => window.__sameDocument === true && ![...document.querySelectorAll("head style")].some((s) => s.textContent.includes("qq-page-only"))), "and leave with it when the next page slides in");
+    }
+    ok(qerrs.length === 0, "no page errors", qerrs);
+    await cf.close();
   } finally {
     await f("DELETE", `/pages/${pg.id}`);
     await f("DELETE", `/trash/pages/${pg.id}`).catch(() => {});

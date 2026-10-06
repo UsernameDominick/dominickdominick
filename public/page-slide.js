@@ -42,10 +42,13 @@ window.addEventListener("pagereveal", function (e) {
 
 // ---------------------------------------------------------------------------------------------------------------------------------
 // In-place page changes. Clicking a nav tab (or the logo) no longer reloads the page: the next page is fetched, and only the content,
-// title, active tab and footer are swapped, with the old and new content sliding side by side like a carousel (the header never moves).
+// title, active tab, page styles and footer are swapped, with the content travelling sideways like a carousel (the header never moves):
+// the farther the tab, the farther it travels, past the pages in between. On a phone a sideways swipe on the page moves to the tab beside
+// it, following the finger. Every nav page (and its first pictures) is fetched ahead, so nothing waits on the network.
 // The address bar and the Back/Forward buttons work as usual (history.pushState + popstate). Anything this can't do safely, it hands back
-// to a normal page load (which the view-transition slide above still dresses up): an error or non-page response, a page that needs scripts
-// this one doesn't run again (simulation, song, study, article extras), or page-specific styles in the head.
+// to a normal page load (which the view-transition slide above still dresses up): an error or non-page response, or a page that needs
+// scripts this one doesn't run again (study, article extras). Scripts Cloudflare adds to pages (/cdn-cgi/, analytics) do not count, and
+// the addresses Cloudflare's email protection hides are put back here.
 (function () {
   if (!window.fetch || !window.DOMParser || !window.history || !history.pushState) return;
   var SAFE_SCRIPTS = { "/nav.js": 1, "/page-slide.js": 1, "/lightbox.js": 1 };
@@ -55,6 +58,7 @@ window.addEventListener("pagereveal", function (e) {
   var DURATION = 420;
   var EASE = "cubic-bezier(0.22, 0.8, 0.28, 1)";
   var cache = {}; // url -> {at, promise}
+  var ready = {}; // url -> {url, doc} once fetched: the pages in between and the swipe's neighbour are drawn from these
   var busy = null; // {finish()} while a slide is running
   var loaded = location.pathname + location.search;
 
@@ -77,35 +81,83 @@ window.addEventListener("pagereveal", function (e) {
     }
     return -1;
   }
-  function headSignature(doc) {
-    var parts = [];
-    // Tags a script added with data-added-by (the Studio's own styles) are not part of the page as served.
-    [].forEach.call(doc.head.querySelectorAll("style:not([data-added-by])"), function (el) { parts.push("s:" + el.textContent); });
-    [].forEach.call(doc.head.querySelectorAll('link[rel="stylesheet"]:not([data-added-by])'), function (el) {
-      var h = el.getAttribute("href") || "";
-      if (h.charAt(0) === "/" && h.charAt(1) !== "/") parts.push("l:" + h);
-    });
-    return parts.join("\n");
-  }
-  var liveSignature = null;
-  function currentSignature() {
-    // Computed from the page as it was served, never from tags added later by scripts (highlight.js and friends): same-origin links and
-    // <style> only. Cached once, and refreshed from the incoming page after every swap.
-    if (liveSignature === null) liveSignature = headSignature(document);
-    return liveSignature;
-  }
-  // The incoming document must be a plain content page: nothing in it that needs a script to run again.
-  function swappable(doc) {
-    if (!doc.getElementById("main-content") || !doc.querySelector(".topbar")) return false;
-    if (doc.querySelector('meta[http-equiv="refresh" i]')) return false;
+  // Why the incoming page can't be swapped in ("" when it can).
+  function whyNot(doc) {
+    if (!doc.getElementById("main-content") || !doc.querySelector(".topbar")) return "not a site page";
+    if (doc.querySelector('meta[http-equiv="refresh" i]')) return "a refresh page";
     var scripts = doc.querySelectorAll("script[src]");
     for (var i = 0; i < scripts.length; i++) {
-      var src = (scripts[i].getAttribute("src") || "").split("?")[0];
-      if (!SAFE_SCRIPTS[src] && !LOADABLE[src]) return false;
+      var raw = scripts[i].getAttribute("src") || "";
+      var src = raw.split("?")[0];
+      if (SAFE_SCRIPTS[src] || LOADABLE[src]) continue;
+      // Cloudflare's own additions (email protection, analytics, challenge scripts) and anything from another site: not ours to run again.
+      if (/^\/cdn-cgi\//.test(src) || /^(https?:)?\/\//.test(raw)) continue;
+      return "needs " + src;
     }
-    // A frame (the Studio) loads itself, so it can come along; scripts inside the content, 3D models and code still need a real load.
-    if (doc.getElementById("main-content").querySelector("script, model-viewer, .mermaid, .katex-block, pre code")) return false;
-    return headSignature(doc) === currentSignature();
+    // Scripts inside the content, 3D models and code still need a real load.
+    if (doc.getElementById("main-content").querySelector("script, model-viewer, .mermaid, .katex-block, pre code")) return "content needs its scripts";
+    return "";
+  }
+  function swappable(doc) {
+    return !whyNot(doc);
+  }
+  // A page's own styles (page CSS, a theme set for one page): the incoming page's are added before it slides in, and the old page's go
+  // once it has. Tags a script added (data-added-by, the Studio's) are left alone.
+  function styleKey(el) {
+    return el.tagName === "STYLE" ? "s:" + el.textContent : "l:" + (el.getAttribute("href") || "");
+  }
+  function pageStyles(doc) {
+    return [].slice.call(doc.head.querySelectorAll('style:not([data-added-by]), link[rel="stylesheet"]:not([data-added-by])'));
+  }
+  function swapStyles(doc) {
+    var have = {};
+    pageStyles(document).forEach(function (el) { have[styleKey(el)] = el; });
+    var want = {};
+    var waits = [];
+    var added = [];
+    pageStyles(doc).forEach(function (el) {
+      var k = styleKey(el);
+      want[k] = 1;
+      if (have[k]) return;
+      var copy = document.importNode(el, true);
+      added.push(copy);
+      if (copy.tagName === "LINK") waits.push(new Promise(function (r) { copy.onload = copy.onerror = r; setTimeout(r, 1500); }));
+      document.head.appendChild(copy);
+    });
+    return {
+      ready: Promise.all(waits),
+      done: function () { Object.keys(have).forEach(function (k) { if (!want[k]) have[k].remove(); }); },
+      undo: function () { added.forEach(function (el) { el.remove(); }); },
+    };
+  }
+  // Cloudflare's email protection hides addresses in the HTML and puts them back with a script that only runs on a real load.
+  function cfDecode(hex) {
+    var key = parseInt(hex.substr(0, 2), 16);
+    var out = "";
+    for (var i = 2; i < hex.length; i += 2) out += String.fromCharCode(parseInt(hex.substr(i, 2), 16) ^ key);
+    try { return decodeURIComponent(escape(out)); } catch (e) { return out; }
+  }
+  function revealEmails(root) {
+    if (!root) return;
+    [].forEach.call(root.querySelectorAll('a[href*="/cdn-cgi/l/email-protection"]'), function (a) {
+      var hex = (a.getAttribute("href").split("#")[1] || "");
+      if (/^[0-9a-f]+$/i.test(hex)) a.setAttribute("href", "mailto:" + cfDecode(hex));
+    });
+    [].forEach.call(root.querySelectorAll("[data-cfemail]"), function (el) {
+      el.replaceWith(document.createTextNode(cfDecode(el.getAttribute("data-cfemail") || "")));
+    });
+  }
+  // A copy of a page's content to pass by or peek at: no ids (it is never the page), out of the way of the keyboard and screen readers.
+  function ghostOf(doc) {
+    var g = document.importNode(doc.getElementById("main-content"), true);
+    g.removeAttribute("id");
+    [].forEach.call(g.querySelectorAll("[id]"), function (n) { n.removeAttribute("id"); });
+    [].forEach.call(g.querySelectorAll("script"), function (n) { n.remove(); });
+    g.setAttribute("aria-hidden", "true");
+    g.inert = true;
+    g.classList.add("page-ghost");
+    revealEmails(g);
+    return g;
   }
   // A page fetched once is kept for the whole visit and shown at once when its tab is tapped; one older than FRESH is fetched again in the
   // background at the same time, so the next visit has the new copy (stale-while-revalidate). A failed refresh keeps the copy it had.
@@ -118,12 +170,14 @@ window.addEventListener("pagereveal", function (e) {
         hit.promise.then(function () {
           return request(url).then(function (res) {
             cache[url] = { at: Date.now(), promise: Promise.resolve(res) };
+            ready[url] = res;
           });
         }).catch(function () { hit.refreshing = false; });
       }
       return hit.promise;
     }
     var promise = request(url);
+    promise.then(function (res) { ready[url] = res; }, function () {});
     cache[url] = { at: Date.now(), promise: promise };
     promise.catch(function () { if (cache[url] && cache[url].promise === promise) delete cache[url]; });
     return promise;
@@ -199,28 +253,57 @@ window.addEventListener("pagereveal", function (e) {
     var defs = doc.querySelector(".sim-defs-holder");
     if (defs && !document.querySelector(".sim-defs-holder")) document.body.insertBefore(document.importNode(defs, true), document.body.firstChild);
   }
-  function go(url, dir, push) {
+  // The tabs between two stops, in travel order, as pages already fetched (a page not fetched yet, or one that can't be drawn, is skipped).
+  function pagesBetween(fromPath, toPath) {
+    var list = tabs();
+    var a = indexOfPath(fromPath);
+    var b = indexOfPath(toPath);
+    var out = [];
+    if (a < 0 || b < 0) return out;
+    var step = b > a ? 1 : -1;
+    for (var i = a + step; i !== b; i += step) {
+      var href = list[i] && list[i].getAttribute("href");
+      if (!href) continue;
+      var res = ready[new URL(href, location.href).href];
+      if (res && swappable(res.doc)) out.push(res.doc);
+    }
+    return out;
+  }
+  // opts.startPx: where a swipe left the page (it carries on from there); opts.handover(): takes the swipe's preview away, in the same
+  // frame as the real pages go in.
+  function go(url, dir, push, opts) {
+    opts = opts || {};
     finishNow();
+    var fromPath = loaded.split("?")[0];
+    var styles = null;
     return fetchDoc(url.href).then(function (res) {
-      if (!swappable(res.doc)) throw new Error("needs a full load");
-      return loadScripts(res.doc).then(function () { return res; });
+      var why = whyNot(res.doc);
+      if (why) throw new Error(why);
+      styles = swapStyles(res.doc);
+      return Promise.all([loadScripts(res.doc), styles.ready]).then(function () { return res; });
     }).then(function (res) {
+      if (opts.handover) opts.handover();
       if (window.siteStopSongs) window.siteStopSongs();
       document.dispatchEvent(new CustomEvent("site:leave")); // the Studio stops its sound (public/studio.js)
       copySimDefs(res.doc);
       var doc = res.doc;
       var oldMain = document.getElementById("main-content");
       var fresh = document.importNode(doc.getElementById("main-content"), true);
+      revealEmails(fresh);
+      var between = dir !== 0 ? pagesBetween(fromPath, res.url.pathname).map(ghostOf) : [];
       var sy = window.pageYOffset || 0;
       if (push) history.pushState({ slide: 1 }, "", res.url.pathname + res.url.search + res.url.hash);
       loaded = res.url.pathname + res.url.search;
       copyHead(doc);
-      liveSignature = headSignature(doc);
       document.body.className = doc.body.className;
       syncHeader(doc);
       var footer = document.querySelector(".site-footer");
       var newFooter = doc.querySelector(".site-footer");
-      if (footer && newFooter) footer.replaceWith(document.importNode(newFooter, true));
+      if (footer && newFooter) {
+        var nf = document.importNode(newFooter, true);
+        revealEmails(nf);
+        footer.replaceWith(nf);
+      }
       var animate = dir !== 0 && !reduced() && oldMain.animate;
       var stage = document.createElement("div");
       stage.className = "page-stage";
@@ -229,6 +312,7 @@ window.addEventListener("pagereveal", function (e) {
       oldMain.removeAttribute("id");
       oldMain.setAttribute("aria-hidden", "true");
       oldMain.inert = true;
+      if (animate) between.forEach(function (g) { stage.appendChild(g); });
       stage.appendChild(fresh);
       window.scrollTo(0, 0);
       if (window.siteInitContent) window.siteInitContent(fresh);
@@ -241,6 +325,7 @@ window.addEventListener("pagereveal", function (e) {
         // Just before the old page goes: the Studio (public/studio.js) moves itself out of it, so it never leaves the document.
         document.dispatchEvent(new CustomEvent("site:arrive", { detail: { old: oldMain } }));
         stage.replaceWith(fresh);
+        styles.done();
         fresh.setAttribute("tabindex", "-1");
         fresh.focus({ preventScroll: true });
         fresh.addEventListener("blur", function () { fresh.removeAttribute("tabindex"); }, { once: true });
@@ -248,20 +333,42 @@ window.addEventListener("pagereveal", function (e) {
         (window.requestIdleCallback || function (f) { setTimeout(f, 800); })(function () { warmAll(); }); // refresh the copies that have gone stale
       };
       if (!animate) { finish(); return; }
+      // One strip: the old page, the pages in between, the new one, a page-width apart; it travels the whole way in one movement.
       var w = stage.getBoundingClientRect().width;
-      oldMain.style.position = "absolute";
-      oldMain.style.top = "0";
-      oldMain.style.left = "0";
-      oldMain.style.right = "0";
-      var opts = { duration: DURATION, easing: EASE, fill: "both" };
-      var a1 = oldMain.animate([{ transform: "translate(0," + -sy + "px)" }, { transform: "translate(" + -dir * w + "px," + -sy + "px)" }], opts);
-      var a2 = fresh.animate([{ transform: "translateX(" + dir * w + "px)" }, { transform: "translateX(0)" }], opts);
+      var hops = between.length + 1;
+      var startPx = opts.startPx || 0;
+      var left = Math.max(0.15, 1 - Math.abs(startPx) / (w * hops));
+      var duration = Math.round((DURATION + 110 * (hops - 1)) * left);
+      var opts2 = { duration: Math.min(duration, 820), easing: EASE, fill: "both" };
+      var anims = [];
+      [oldMain].concat(between).forEach(function (panel, k) {
+        panel.style.position = "absolute";
+        panel.style.top = "0";
+        panel.style.left = "0";
+        panel.style.right = "0";
+        var y = k === 0 ? -sy : 0;
+        anims.push(panel.animate([
+          { transform: "translate(" + (dir * k * w + startPx) + "px," + y + "px)" },
+          { transform: "translate(" + dir * (k - hops) * w + "px," + y + "px)" },
+        ], opts2));
+      });
+      anims.push(fresh.animate([{ transform: "translateX(" + (dir * hops * w + startPx) + "px)" }, { transform: "translateX(0)" }], opts2));
       busy = { finish: finish };
-      Promise.all([a1.finished, a2.finished]).then(finish, finish);
+      Promise.all(anims.map(function (a) { return a.finished; })).then(finish, finish);
+    }).catch(function (err) {
+      if (styles && !document.querySelector(".page-stage")) styles.undo(); // nothing was swapped: take the incoming page's styles back out
+      if (opts.handover) opts.handover();
+      throw err;
     });
   }
   function hard(url) {
     location.assign(url.href);
+  }
+  // A page that could not slide in loads the normal way; why is kept (console and sessionStorage "slideFallback") to find out later.
+  function fallBack(url, err) {
+    var why = (err && err.message) || "error";
+    try { console.info("[page-slide] full load of " + url.pathname + ": " + why); sessionStorage.setItem("slideFallback", url.pathname + ": " + why); } catch (e) {}
+    hard(url);
   }
   function directionTo(url, fromPath) {
     var from = indexOfPath(fromPath || location.pathname);
@@ -291,7 +398,7 @@ window.addEventListener("pagereveal", function (e) {
     }
     e.preventDefault();
     var dir = directionTo(url);
-    go(url, dir, true).catch(function () { hard(url); });
+    go(url, dir, true).catch(function (err) { fallBack(url, err); });
   });
   // Warm the page up as soon as a tab is hovered, focused or touched, so the slide starts without waiting on the network.
   var warm = function (e) {
@@ -302,22 +409,144 @@ window.addEventListener("pagereveal", function (e) {
   // And every page of the nav once the page has settled, so a tap slides at once even on a phone (no hover there to warm it).
   // A page that holds the Studio has its script loaded early too: on a page without the Studio it only fetches the editor in the
   // background (public/studio.js, warm), so opening the Studio tab does not wait for it.
+  // Its first pictures are fetched too, so a page does not slide in with empty boxes that fill in after.
+  var warmedPictures = {};
+  function warmPictures(res) {
+    if (warmedPictures[res.url.href]) return;
+    warmedPictures[res.url.href] = 1;
+    [].slice.call(res.doc.querySelectorAll("#main-content img")).slice(0, 8).forEach(function (img) {
+      var pic = new Image();
+      if (img.getAttribute("sizes")) pic.sizes = img.getAttribute("sizes");
+      if (img.getAttribute("srcset")) pic.srcset = img.getAttribute("srcset");
+      if (img.getAttribute("src")) pic.src = new URL(img.getAttribute("src"), res.url).href;
+    });
+  }
   var warmAll = function () {
     [].forEach.call(document.querySelectorAll(".tabs a.tab"), function (a) {
       var url = eligible(a, { button: 0 });
       if (!url || clean(url.pathname) === clean(location.pathname)) return;
       fetchDoc(url.href).then(function (res) {
-        if (res.doc.querySelector('script[src="/studio.js"]') && swappable(res.doc)) loadScripts(res.doc).catch(function () {});
+        if (!swappable(res.doc)) return;
+        warmPictures(res);
+        if (res.doc.querySelector('script[src="/studio.js"]')) loadScripts(res.doc).catch(function () {});
       }).catch(function () {});
     });
   };
   if (navigator.connection && navigator.connection.saveData) warmAll = function () {};
+  // As soon as the page itself is in (not after every picture and the analytics have loaded), then again when the browser is idle.
+  var warmSoon = function () { setTimeout(warmAll, 300); };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", warmSoon);
+  else warmSoon();
   window.addEventListener("load", function () {
     (window.requestIdleCallback || function (f) { setTimeout(f, 800); })(warmAll);
   });
   document.addEventListener("pointerover", warm, { passive: true });
   document.addEventListener("focusin", warm);
   document.addEventListener("touchstart", warm, { passive: true });
+  // ---- A sideways swipe on the page (touch screens): the page follows the finger with the tab beside it coming in; let go past a quarter
+  // of the screen (or flick) and it carries on there, otherwise it springs back. Not on things that use sideways drags themselves.
+  var SWIPE_OFF = 'input, textarea, select, [contenteditable], canvas, video, audio, iframe, model-viewer, .studio-native, .song-embed, .sim-embed, [class^="sim-"], .tabs, .site-finder, [data-no-swipe]';
+  function scrollsSideways(el) {
+    for (; el && el !== document.body; el = el.parentElement) {
+      if (el.scrollWidth > el.clientWidth + 2) {
+        var ox = getComputedStyle(el).overflowX;
+        if (ox === "auto" || ox === "scroll") return true;
+      }
+    }
+    return false;
+  }
+  var swipe = null;
+  function neighbour(dir) {
+    var list = tabs();
+    var at = indexOfPath(location.pathname);
+    var tab = at < 0 ? null : list[at + dir];
+    if (!tab || !tab.getAttribute("href")) return null;
+    var url = eligible(tab, { button: 0 });
+    if (!url) return null;
+    var res = ready[url.href];
+    if (!res) fetchDoc(url.href).catch(function () {});
+    return { url: url, res: res && swappable(res.doc) ? res : null };
+  }
+  function startSwipe(dir) {
+    var main = document.getElementById("main-content");
+    var stage = document.createElement("div");
+    stage.className = "page-stage page-swipe";
+    main.parentNode.insertBefore(stage, main);
+    stage.appendChild(main);
+    var next = neighbour(dir);
+    var ghost = null;
+    if (next && next.res) {
+      ghost = ghostOf(next.res.doc);
+      ghost.style.position = "absolute";
+      ghost.style.left = "0";
+      ghost.style.right = "0";
+      ghost.style.top = Math.max(0, (window.pageYOffset || 0) - (stage.getBoundingClientRect().top + (window.pageYOffset || 0))) + "px";
+      stage.appendChild(ghost);
+    }
+    swipe.dir = dir;
+    swipe.stage = stage;
+    swipe.main = main;
+    swipe.ghost = ghost;
+    swipe.next = next;
+    swipe.w = stage.getBoundingClientRect().width;
+  }
+  function moveSwipe(dx) {
+    // The wrong way, or no page beside it: it only gives a little, like the end of a list.
+    var free = swipe.ghost && Math.sign(dx) === -swipe.dir;
+    var x = free ? dx : dx * 0.25;
+    swipe.x = x;
+    swipe.main.style.transform = "translateX(" + x + "px)";
+    if (swipe.ghost) swipe.ghost.style.transform = "translateX(" + (swipe.dir * swipe.w + x) + "px)";
+  }
+  function unwrapSwipe(s) {
+    s.main.style.transform = "";
+    if (s.stage.parentNode) s.stage.replaceWith(s.main);
+  }
+  function endSwipe() {
+    var s = swipe;
+    swipe = null;
+    if (!s || !s.stage) return;
+    var x = s.x || 0;
+    var speed = Math.abs(x) / Math.max(1, Date.now() - s.t0);
+    var go2 = s.ghost && Math.sign(x) === -s.dir && (Math.abs(x) > s.w * 0.25 || (Math.abs(x) > 40 && speed > 0.45));
+    if (go2) {
+      go(s.next.url, s.dir, true, { startPx: x, handover: function () { unwrapSwipe(s); if (s.ghost) s.ghost.remove(); } }).catch(function (err) { fallBack(s.next.url, err); });
+      return;
+    }
+    // Back to where it was.
+    var back = [s.main.animate([{ transform: "translateX(" + x + "px)" }, { transform: "translateX(0)" }], { duration: 220, easing: EASE })];
+    if (s.ghost) back.push(s.ghost.animate([{ transform: "translateX(" + (s.dir * s.w + x) + "px)" }, { transform: "translateX(" + s.dir * s.w + "px)" }], { duration: 220, easing: EASE }));
+    s.main.style.transform = "";
+    Promise.all(back.map(function (a) { return a.finished; })).then(function () { unwrapSwipe(s); if (s.ghost) s.ghost.remove(); }, function () { unwrapSwipe(s); });
+  }
+  document.addEventListener("touchstart", function (e) {
+    swipe = null;
+    if (busy || e.touches.length !== 1 || reduced() || !document.documentElement.animate) return;
+    var main = document.getElementById("main-content");
+    var t = e.target;
+    if (!main || !main.contains(t) || (t.closest && t.closest(SWIPE_OFF)) || scrollsSideways(t)) return;
+    var p = e.touches[0];
+    if (p.clientX < 24 || p.clientX > window.innerWidth - 24) return; // the browser's own edge swipes (back, forward) stay the browser's
+    swipe = { x0: p.clientX, y0: p.clientY, t0: Date.now(), mode: null };
+  }, { passive: true });
+  document.addEventListener("touchmove", function (e) {
+    if (!swipe) return;
+    var p = e.touches[0];
+    var dx = p.clientX - swipe.x0;
+    var dy = p.clientY - swipe.y0;
+    if (!swipe.mode) {
+      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+      if (Math.abs(dx) < Math.abs(dy) * 1.4) { swipe = null; return; } // a scroll up or down
+      swipe.mode = "x";
+      swipe.t0 = Date.now();
+      startSwipe(dx < 0 ? 1 : -1);
+    }
+    e.preventDefault();
+    moveSwipe(dx);
+  }, { passive: false });
+  document.addEventListener("touchend", endSwipe);
+  document.addEventListener("touchcancel", endSwipe);
+
   window.addEventListener("popstate", function () {
     var now = location.pathname + location.search;
     if (now === loaded) return; // only the #hash changed
