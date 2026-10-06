@@ -286,13 +286,6 @@ body {
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
-  background-image:
-    repeating-linear-gradient(90deg, var(--tick-major) 0 1px, transparent 1px 60px),
-    repeating-linear-gradient(90deg, var(--tick) 0 1px, transparent 1px 12px);
-  background-size: 100% 9px, 100% 5px;
-  background-position: calc(var(--indicator-x, 0px) * -0.25) 100%, calc(var(--indicator-x, 0px) * -0.25) 100%;
-  background-repeat: repeat-x;
-  background-attachment: local, local;
 }
 
 .tabs::-webkit-scrollbar {
@@ -409,9 +402,6 @@ body {
   }
   .tab-indicator {
     transition: transform 0.4s var(--ease-smooth), width 0.4s var(--ease-smooth);
-  }
-  .tabs {
-    transition: background-position 0.5s var(--ease-smooth);
   }
 }
 
@@ -4607,13 +4597,11 @@ html.finder-on { overflow: hidden; }
   .tabs > .tab, .tabs > .tab-group { flex: 1 0 0; min-width: max-content; }
   .tabs > .tab-group > .tab { width: 100%; }
 }
-/* The even ruler (nav.js adds is-even when the stops share the bar evenly): a long tick under the middle of each stop, five short
-   ones evenly between, fixed in place. */
-.tabs.is-even { background-image: none; }
-.tab-ruler { position: absolute; left: 0; right: 0; bottom: 0; height: 9px; pointer-events: none; }
+/* The ruler under the tabs (nav.js draws it from the stops, so it follows their widths and the scrolling): a long tick under the middle
+   of every stop, five short ones between neighbours. The marks are children of the strip, so they scroll with the tabs. */
+.tab-ruler { position: absolute; left: 0; bottom: 0; width: 0; height: 9px; pointer-events: none; }
 .tab-ruler > i { position: absolute; bottom: 0; width: 1px; height: 5px; background: var(--tick); }
 .tab-ruler > i.is-major { height: 9px; background: var(--tick-major); }
-.tabs:not(.is-even) > .tab-ruler { display: none; }
 /* The needle is as tall as the ruler's long ticks, so it never reaches up into the tab's name. */
 .tab-indicator::after { height: 9px; box-shadow: 0 0 6px var(--accent); }
 /* After a slide the new page takes the focus (so a screen reader starts there); it is not something to press, so no focus ring. */

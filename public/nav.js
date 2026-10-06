@@ -124,66 +124,89 @@ document.addEventListener("input", function (e) {
 })();
 
 (function () {
-  var active = document.querySelector(".tab.is-active");
   var wrap = document.querySelector(".tabs");
-  if (!active || !wrap) return;
+  if (!wrap) return;
+  var active = wrap.querySelector(".tab.is-active");
 
   // On a narrow screen the row of tabs scrolls sideways. Bring this page's tab into view, centred where there is room, so the
   // visitor never lands on a page whose own tab is cut off at the edge.
   function reveal() {
     var max = wrap.scrollWidth - wrap.clientWidth;
-    if (max <= 0) return;
     var cur = wrap.querySelector(".tab.is-active") || active;
+    if (max <= 0 || !cur) return;
     var target = cur.offsetLeft - (wrap.clientWidth - cur.offsetWidth) / 2;
     wrap.scrollLeft = Math.max(0, Math.min(max, target));
   }
 
-  // The needle of the dial rests under this page's tab and turns to whichever tab the pointer or the keyboard is on, then back.
-  function place(target) {
-    var w = wrap.getBoundingClientRect();
-    // the active tab changes when a page slides in, and Search counts as the current stop while the finder is open
-    var t = (target || wrap.querySelector('.tab-finder[aria-expanded="true"]') || wrap.querySelector(".tab.is-active") || active).getBoundingClientRect();
-    wrap.style.setProperty("--indicator-width", t.width + "px");
-    // The marker scrolls with the tabs, so its place is measured from where the row starts, not from where it is scrolled to, and from
-    // where the marker rests with no shift (the row's border plus the marker's own left offset), so it lands exactly on the tab.
-    var marker = wrap.querySelector(".tab-indicator");
-    var rest = wrap.clientLeft + (marker ? parseFloat(getComputedStyle(marker).left) || 0 : 0);
-    wrap.style.setProperty("--indicator-x", (t.left - w.left + wrap.scrollLeft - rest) + "px");
+  // Everything below is measured in the strip's own coordinates: from the left edge of its scrolled content (inside the border), so a
+  // tick, the needle and a tab all agree whether or not the strip has been scrolled.
+  function origin() {
+    return wrap.getBoundingClientRect().left + wrap.clientLeft - wrap.scrollLeft;
   }
 
-  // When the stops share the bar evenly (a phone), the ruler is laid out from them: a long tick under the middle of every stop and
-  // five short ones evenly between, fixed in place. Otherwise it keeps its own spacing and drifts a little with the needle.
+  // The needle of the dial rests under this page's tab and turns to whichever tab the pointer or the keyboard is on, then back.
+  function place(target) {
+    // the active tab changes when a page slides in, and Search counts as the current stop while the finder is open
+    var tab = target || wrap.querySelector('.tab-finder[aria-expanded="true"]') || wrap.querySelector(".tab.is-active");
+    if (!tab) {
+      wrap.style.setProperty("--indicator-width", "0px");
+      return;
+    }
+    var t = tab.getBoundingClientRect();
+    wrap.style.setProperty("--indicator-width", t.width + "px");
+    wrap.style.setProperty("--indicator-x", t.left - origin() + "px");
+  }
+
+  // The ruler under the tabs is drawn from the stops themselves, whatever their widths and whether or not the strip scrolls: a long
+  // tick under the middle of every stop (where the needle rests when it is the current one) and five short ones evenly between
+  // neighbours, carried on past the first and last stop to the ends of the strip. Every tick is a mark of its own on a whole device
+  // pixel, inside the scrolling strip so it travels with the tabs. (A repeating background cannot do this: its tiles do not match the
+  // tabs' widths, it does not follow the scrolling, and some browsers round every tile, so the short ticks drifted off the long ones.)
+  var rulerHtml = "";
   function ruler() {
     var stops = [].slice.call(wrap.querySelectorAll(":scope > .tab, :scope > .tab-group"));
-    var w = wrap.getBoundingClientRect();
-    var boxes = stops.map(function (s) { return s.getBoundingClientRect(); });
-    var even = boxes.length > 1 && boxes.every(function (b) { return Math.abs(b.width - boxes[0].width) < 1.5; }) && wrap.scrollWidth <= wrap.clientWidth + 1;
-    wrap.classList.toggle("is-even", even);
+    // A stop with a dropdown is the link and a caret: the mark belongs under the link, where the needle goes.
+    var anchors = stops.map(function (s) { return s.classList.contains("tab-group") ? s.querySelector(".tab") || s : s; });
     var marks = wrap.querySelector(":scope > .tab-ruler");
-    if (!even) { if (marks) marks.remove(); return; }
-    var step = boxes[1].left - boxes[0].left;
-    var x0 = boxes[0].left + boxes[0].width / 2 - w.left - wrap.clientLeft;
-    wrap.style.setProperty("--tick-step", step + "px");
-    wrap.style.setProperty("--tick-x0", (x0 - 0.5) + "px");
-    // Each tick is its own mark at a place snapped to the screen's pixels. A repeating background at these fractional sizes is
-    // rounded per tile by some browsers (Safari), so the long and short ticks drifted apart along the bar.
+    // Nothing on screen (the header hidden, a print preview) means nothing to measure: no marks, and no steps of nothing to repeat.
+    if (!anchors.length || !wrap.clientWidth) {
+      if (marks) marks.remove();
+      rulerHtml = "";
+      return;
+    }
+    var o = origin();
+    var cs = anchors.map(function (a) { var b = a.getBoundingClientRect(); return b.left + b.width / 2 - o; });
+    var last = stops[stops.length - 1].getBoundingClientRect();
+    var end = Math.max(last.right - o + (parseFloat(getComputedStyle(wrap).paddingRight) || 0), wrap.clientWidth);
+    var n = cs.length;
+    // The step the ruler carries on with past the ends is the neighbouring gap, never less than a few pixels and never more than a
+    // handful of marks: whatever the layout does, these loops finish.
+    var step = function (gap) { return gap >= 12 ? gap : 60; };
+    var gapFirst = step(n > 1 ? cs[1] - cs[0] : anchors[0].getBoundingClientRect().width);
+    var gapLast = step(n > 1 ? cs[n - 1] - cs[n - 2] : gapFirst);
+    var at = [];
+    var k;
+    for (k = 1; k <= 60 && cs[0] - (k * gapFirst) / 6 >= 0.5; k++) at.push([cs[0] - (k * gapFirst) / 6, false]);
+    for (var i = 0; i < n; i++) {
+      at.push([cs[i], true]);
+      if (i < n - 1) for (k = 1; k < 6; k++) at.push([cs[i] + ((cs[i + 1] - cs[i]) * k) / 6, false]);
+    }
+    for (k = 1; k <= 60 && cs[n - 1] + (k * gapLast) / 6 <= end - 1.5; k++) at.push([cs[n - 1] + (k * gapLast) / 6, false]);
+    var dpr = window.devicePixelRatio || 1;
+    var html = at
+      .map(function (m) { return '<i' + (m[1] ? ' class="is-major"' : "") + ' style="left:' + Math.round((m[0] - 0.5) * dpr) / dpr + 'px"></i>'; })
+      .join("");
     if (!marks) {
       marks = document.createElement("span");
       marks.className = "tab-ruler";
       marks.setAttribute("aria-hidden", "true");
       wrap.insertBefore(marks, wrap.firstChild);
+      rulerHtml = "";
     }
-    var dpr = window.devicePixelRatio || 1;
-    var snap = function (x) { return Math.round(x * dpr) / dpr; };
-    var width = wrap.clientWidth;
-    var minor = step / 6;
-    var html = "";
-    for (var k = -Math.floor(x0 / minor); x0 + k * minor <= width; k++) {
-      var x = snap(x0 + k * minor - 0.5);
-      if (x < 0 || x > width - 1) continue;
-      html += '<i class="' + (k % 6 === 0 ? "is-major" : "") + '" style="left:' + x + 'px"></i>';
+    if (html !== rulerHtml) {
+      marks.innerHTML = html;
+      rulerHtml = html;
     }
-    marks.innerHTML = html;
   }
 
   function layout() {
@@ -192,7 +215,17 @@ document.addEventListener("input", function (e) {
     place();
   }
   layout();
-  window.addEventListener("resize", layout);
+  // A resize that only changes the height (a phone's address bar sliding away) must not throw the strip back to this page's tab.
+  var width = window.innerWidth;
+  window.addEventListener("resize", function () {
+    if (window.innerWidth !== width) {
+      width = window.innerWidth;
+      layout();
+    } else {
+      ruler();
+      place();
+    }
+  });
   // Styles that depend on the rest of the page (the Studio page's slim header) only apply once it has been read, so look again then.
   document.addEventListener("DOMContentLoaded", layout);
   window.addEventListener("load", layout); // and once the fonts are in, which can change the widths
