@@ -2,6 +2,7 @@ import { listArticles, listProjects, getPublishedSimulation, getScan, getSong, g
 import { safeImageSrc, mediaKeyFor, paragraphPictures, bodyPictures, PICTURE_ONLY_LINE } from "./pictures.js";
 import { paragraphEmbed, bodyEmbeds, EMBED_ONLY_LINE, MAX_BODY_EMBEDS } from "./embeds.js";
 import { nowIso, visibleText } from "./text.js";
+import { navIconSvg } from "./nav-icons.js";
 import { renderSimulationSvg, SIM_DEFS_SVG, describeSimulation, renderLogicGateTables } from "./simulation-render.js";
 // STUDY (temporary): see worker/study/README.md.
 import { renderStudyBlock, studyPageTags } from "./study/index.js";
@@ -611,8 +612,9 @@ function searchSnippetHtml(text, terms, max = 160) {
 }
 
 export function renderSearchResultsHtml(query, pages, articles, projects = [], customEmptyText = "", { type = "", sort = "relevance", page = 1, totalPages = null, totalCount = null, terms = [] } = {}) {
+  const formHtml = `<form class="search-page-form" action="/search" method="get" role="search" aria-label="Search the site"><input type="search" name="q" value="${esc(query || "")}" placeholder="Search pages, projects and articles" aria-label="Search for"><button type="submit" class="btn">Search</button></form>`;
   if (!query) {
-    return `<p class="empty-hint">Enter a search term above to look through pages and posts.</p>`;
+    return `${formHtml}<p class="empty-hint">Type what you are looking for to search pages, projects and articles.</p>`;
   }
   // Filter/sort controls are plain links (rebuilding the URL with the query
   // string intact) rather than a JS-driven form — every other listing page
@@ -648,7 +650,7 @@ export function renderSearchResultsHtml(query, pages, articles, projects = [], c
   if (!total) {
     const text = customEmptyText ? customEmptyText.replace("{query}", query) : `No results for "${query}".`;
     const tip = terms.length > 1 ? `<p class="empty-hint">Every word has to appear. Try fewer or different words, or put a few in "quotes" to look for that exact phrase.</p>` : "";
-    return `${filterBarHtml}<p class="empty-hint">${esc(text)}</p>${tip}`;
+    return `${formHtml}${filterBarHtml}<p class="empty-hint">${esc(text)}</p>${tip}`;
   }
   const pageItems = pages
     .map(
@@ -683,7 +685,7 @@ export function renderSearchResultsHtml(query, pages, articles, projects = [], c
     !type && total > shownCount
       ? `<p class="search-truncation-hint">Showing the first ${shownCount} of ${total} — narrow to one type above to see the rest.</p>`
       : "";
-  return `${filterBarHtml}<p class="search-result-count">${total} result${total === 1 ? "" : "s"} for "${esc(query)}"</p>
+  return `${formHtml}${filterBarHtml}<p class="search-result-count">${total} result${total === 1 ? "" : "s"} for "${esc(query)}"</p>
 ${truncationHint}
 ${pageItems ? `<h2 class="results-heading">Pages</h2><ul class="search-results">${pageItems}</ul>` : ""}
 ${projectItems ? `<h2 class="results-heading">Projects</h2><ul class="search-results">${projectItems}</ul>` : ""}
@@ -2296,7 +2298,7 @@ export function renderShell({
       const tabHref = n.slug === "home" ? "/" : "/" + esc(n.slug);
       const tab = `<a class="tab${n.slug === activeSlug || isChildActive ? " is-active" : ""}${n.admin_only ? " is-admin-only" : ""}" href="${tabHref}"${
         n.slug === activeSlug ? ' aria-current="page"' : ""
-      }${n.admin_only ? ' title="Only you can see this link"' : ""}>${esc(n.nav_label)}${n.admin_only ? '<span class="sr-only"> (admin-only link)</span>' : ""}</a>`;
+      }${n.admin_only ? ' title="Only you can see this link"' : ""}>${navIconSvg(n.slug, n.nav_label)}<span class="tab-label">${esc(n.nav_label)}</span>${n.admin_only ? '<span class="sr-only"> (admin-only link)</span>' : ""}</a>`;
       if (!n.children || !n.children.length) return tab;
       const childLinks = n.children
         .map(
@@ -2316,7 +2318,7 @@ export function renderShell({
       const dropdownId = `nav-dropdown-${esc(n.slug)}`;
       return `<div class="tab-group">
         ${tab}
-        <button type="button" class="tab-caret" aria-label="Show ${esc(n.nav_label)} submenu" aria-expanded="false" aria-controls="${dropdownId}">▾</button>
+        <button type="button" class="tab-caret" aria-label="Show ${esc(n.nav_label)} submenu" aria-expanded="false" aria-controls="${dropdownId}"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"/></svg></button>
         <div class="tab-dropdown" id="${dropdownId}">${childLinks}</div>
       </div>`;
     })
@@ -2428,10 +2430,10 @@ ${customHead || ""}
       <a class="brand" href="/">${brandHtml(navItems.brand)}</a>
       ${
         navItems.length
-          ? `<nav class="tabs" aria-label="Sections">
+          ? `<nav class="site-nav" aria-label="Sections"><div class="tabs">
         ${navHtml}
         <span class="tab-indicator" aria-hidden="true"></span>
-      </nav>`
+      </div></nav>`
           : ""
       }
       <div class="topbar-tools">

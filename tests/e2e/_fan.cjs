@@ -1,6 +1,6 @@
-// The Studio keeps its secondary controls (volume, metronome, undo, stop, quantize, follow...) in a fan that opens above the Rec hub. A test that
+// The Studio keeps its secondary controls (volume, metronome, undo, redo, stop, clear, quantize, follow...) in a fan that opens above the Rec hub. A test that
 // clicks one of them goes through here: the fan is opened first when it is closed, the way a person would.
-const FAN = /^#studio-(stop|volume|volume-btn|pop-volume|volume-out|metro|metro-on|metro-vol|metro-out|count-in|pop-metro|quant|quant-btn|pop-quant|follow|rec-top|fan-undo|fan-redo|fan-clear)\b/;
+const FAN = /^#studio-(fan-stop|volume|volume-btn|pop-volume|volume-out|metro|metro-on|metro-vol|metro-out|count-in|pop-metro|quant|quant-btn|pop-quant|follow|rec-top|fan-undo|fan-redo|fan-clear)\b/;
 function fanify(page) {
   const open = async (sel) => {
     if (typeof sel !== "string" || !FAN.test(sel)) return;

@@ -69,13 +69,13 @@ const { fanify } = require("./_fan.cjs");
   const firstKey = (p) => p.evaluate(() => (document.querySelector("#studio-keys .studio-key-white span") || {}).textContent);
   const chips = (p) => p.evaluate(() => [...document.querySelectorAll("#studio-bars .studio-bar")].map((c) => c.textContent).join(" "));
   // where the visible strip of a card is: a tap there picks it
-  const strip = (p, track) => p.evaluate((t) => { const r = document.querySelector(`#studio-stack [data-card="${t}"]`).getBoundingClientRect(); const s = document.getElementById("studio-stack").getBoundingClientRect(); return { x: s.left + s.width / 2, y: r.top + 13 }; }, track);
+  const strip = (p, track) => p.evaluate((t) => { const r = document.querySelector(`#studio-stack [data-card="${t}"]`).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + Math.min(13, r.height / 2) }; }, track);
   const tapStrip = async (p, track) => { await p.waitForTimeout(450); const at = await strip(p, track); await p.mouse.click(at.x, at.y); await p.waitForTimeout(200); };
   const num = (s) => Number((/^(\d+)/.exec(s) || [])[1]);
   const openSheet = async (p, tab) => { if (!(await vis(p, "#studio-sheet"))) await p.click("#studio-tools"); await p.click("#studio-tab-" + tab); await p.waitForTimeout(150); };
   const closeSheet = async (p) => { if (await vis(p, "#studio-sheet")) await p.click("#close-studio-sheet"); await p.waitForTimeout(150); };
   const soundSheet = async (p) => { if (await vis(p, "#studio-sheet")) await p.click("#studio-tab-sound"); else await p.click('#studio-detail [data-act="sound"]'); await p.waitForTimeout(250); };
-  const toolsSheet = async (p) => { if (await vis(p, "#studio-sheet")) await p.click("#studio-tab-tools"); else await p.click('#studio-detail [data-act="tools"]'); await p.waitForTimeout(250); };
+  const toolsSheet = async (p) => { if (!(await vis(p, "#studio-sheet"))) { await p.click("#studio-bars-menu-btn"); await p.click('#studio-bars-menu [data-act="tools"]'); } else await p.click("#studio-tab-tools"); await p.waitForTimeout(250); };
 
   try {
     // ======== a desktop window ========
@@ -94,7 +94,8 @@ const { fanify } = require("./_fan.cjs");
     const badges = await p.evaluate(() => [...document.querySelectorAll("#studio-stack .studio-card .studio-badge")].map((x) => x.textContent).join(""));
     ok(badges === "12345", "numbered 1 to 5", badges);
     const tops = await p.evaluate(() => ["studio-stack", "studio-detail", "studio-play", "studio-keys"].map((i) => Math.round(document.getElementById(i).getBoundingClientRect().top)));
-    ok(tops[0] < tops[1] && tops[1] < tops[2] && tops[2] < tops[3], "stacked cards, then the open track, then the play controls, then the keys at the bottom", tops);
+    // a wide screen puts the tracks in a rail beside the open track; below that they come first
+    ok(tops[0] <= tops[1] && tops[1] < tops[2] && tops[2] < tops[3], "the tracks, then (or beside) the open track, then the play controls, then the keys at the bottom", tops);
     ok(await vis(p, "#song-studio") && !(await vis(p, ".song-builder-body")) && !(await vis(p, ".song-toolbar")), "the old header and body stay out of the way");
     ok(!(await p.evaluate(() => Boolean(document.getElementById("song-view-toggle") || document.getElementById("studio-full")))), "there is no other view to switch to");
     ok((await front(p)) === "drums" && /Drums/.test(await text(p, "#studio-detail h2")), "it opens on the first track that has something in it (Drums)", await front(p));
@@ -618,15 +619,17 @@ const { fanify } = require("./_fan.cjs");
       ok(f.scroll <= 1 && f.bottom <= f.h + 1 && f.top >= 0 && f.doc <= 0 && f.side <= 1, `on a phone every part fits one screen without scrolling (${track})`, f);
     }
     ok(await m.evaluate(() => document.getElementById("studio-detail").getBoundingClientRect().height >= 250), "and the open track keeps room to work in");
-    const swipe = (dy) => m.evaluate((d) => { const el = document.getElementById("studio-stack"); const r = el.getBoundingClientRect(); const x = r.left + r.width / 2; const y = r.top + r.height / 2; const ev = (type, yy) => el.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 41, pointerType: "touch", isPrimary: true, button: 0, clientX: x, clientY: yy })); ev("pointerdown", y); ev("pointermove", y + d / 2); ev("pointermove", y + d); ev("pointerup", y + d); }, dy);
+    // On a phone the tracks are one row of tabs, so the swipe goes across.
+    const swipe = (dx) => m.evaluate((d) => { const el = document.getElementById("studio-stack"); const r = el.getBoundingClientRect(); const x = r.left + r.width / 2; const y = r.top + r.height / 2; const ev = (type, xx) => el.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 41, pointerType: "touch", isPrimary: true, button: 0, clientX: xx, clientY: y })); ev("pointerdown", x); ev("pointermove", x + d / 2); ev("pointermove", x + d); ev("pointerup", x + d); }, dx);
+    ok(await m.evaluate(() => { const r = [...document.querySelectorAll("#studio-stack .studio-card")].map((c) => c.getBoundingClientRect()); return r.every((b) => Math.abs(b.top - r[0].top) < 2 && b.height >= 44) && r.every((b, i) => i === 0 || b.left >= r[i - 1].right - 1); }), "on a phone the five tracks are one row of finger-sized tabs, in order");
     await m.waitForTimeout(450);
     await swipe(60);
     await m.waitForTimeout(250);
-    ok((await front(m)) === "melody", "swiping down on the stack brings the card before forward", await front(m));
+    ok((await front(m)) === "melody", "swiping right on the tabs goes to the track before", await front(m));
     await m.waitForTimeout(450);
     await swipe(-60);
     await m.waitForTimeout(250);
-    ok((await front(m)) === "lead", "and swiping up goes on to the next", await front(m));
+    ok((await front(m)) === "lead", "and swiping left goes on to the next", await front(m));
     await tap("drums");
     ok(await m.evaluate(() => { const g = document.getElementById("studio-grid-scroll"); const cells = [...document.querySelectorAll('#studio-grid .studio-row[data-row="kick"] .studio-cell')].map((c) => c.getBoundingClientRect()); const rowsN = document.querySelectorAll("#studio-grid .studio-row").length; return rowsN === 4 && g.scrollHeight <= g.clientHeight + 1 && cells.length === 16 && Math.min(...cells.map((c) => c.width)) >= 24 && Math.min(...cells.map((c) => c.height)) >= 24 && g.scrollWidth > g.clientWidth; }), "on a phone all four drum rows show at once, with finger-sized steps that scroll sideways");
     await m.tap('#studio-grid .studio-cell[data-row="kick"][data-step="3"]');

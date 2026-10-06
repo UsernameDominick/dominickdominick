@@ -61,7 +61,7 @@
   // The old editor on its own (no Studio) is not offered to anyone; the older browser tests still drive it through this switch.
   const legacy = lsGet("songView", "studio") === "classic";
   let trackId = "drums";
-  let mode = lsGet("songGridMode", window.matchMedia && window.matchMedia("(min-width: 641px)").matches ? "roll" : "steps"); // how the notes of a track are drawn
+  let mode = lsGet("songGridMode", "roll"); // how the notes of a track are drawn: the roll shows every note at once, on a phone too
   let soundRow = "kick"; // the drum sound whose volume the sound sheet shows
   const barPick = {}; // the bar being edited in each track
 
@@ -132,12 +132,22 @@
       .join("");
     return `<svg class="studio-dots" viewBox="0 0 ${STEPS * cell} 24" preserveAspectRatio="none" aria-hidden="true" focusable="false">${rects}</svg>`;
   }
+  // What a card counts is what its track plays in the bar picked for it, not the open pattern (opening Bass's second bar opens pattern
+  // B, which can have no drums in it while the drums go on playing their own A).
+  function cardInfo(s, track) {
+    const name = Engine.patternAtBar && Engine.viewOf ? Engine.patternAtBar(s, track.id, barPick[track.id] || 0) : undefined;
+    if (name === undefined) return trackInfo(s, track);
+    const own = trackInfo(s, track);
+    if (!name) return Object.assign({}, own, { cells: [], count: 0 });
+    const seen = trackInfo(Engine.viewOf(s, name), track);
+    return Object.assign({}, own, { cells: seen.cells, count: seen.count });
+  }
   function cardHtml(track, s, front) {
-    const info = trackInfo(s, track);
+    const info = cardInfo(s, track);
     const count = `${info.count} ${unitOf(track, info.count)}`;
     const label = `Track ${track.n}, ${track.name}: ${count}${info.muted ? ", muted" : ""}. ${front ? "Selected" : "Choose this track"}`;
     return (
-      `<button type="button" class="studio-card-main" data-no-history data-pick="${track.id}" data-muted="${info.muted}" aria-pressed="${front}" aria-label="${esc(label)}">` +
+      `<button type="button" class="studio-card-main" data-no-history data-pick="${track.id}" data-muted="${info.muted}" data-has="${info.count > 0}" aria-pressed="${front}" aria-label="${esc(label)}">` +
       `<span class="studio-card-head"><span class="studio-badge" aria-hidden="true">${track.n}</span><span class="studio-card-name">${esc(track.name)}</span><span class="studio-card-count">${count}${info.muted ? " · muted" : ""}</span></span>` +
       `<span class="studio-card-body">${dots(info)}<span class="studio-card-meta"><span>${count}${info.muted ? " · muted" : ""}</span><span class="studio-card-sound">${esc(info.sound)}</span></span></span>` +
       `</button>`
@@ -173,13 +183,16 @@
   // opens it. A drag follows the finger a little and lets go to the next or the one before.
   let drag = null;
   let dragged = false;
+  // As a row of tabs (a phone, a tablet) the swipe goes across; as a column it goes up and down.
+  const across = () => getComputedStyle(stackEl).flexDirection === "row";
+  const along = (e) => (drag.across ? e.clientX - drag.x : e.clientY - drag.y);
   stackEl.addEventListener("pointerdown", (e) => {
     if (e.button > 0) return;
-    drag = { y: e.clientY, id: e.pointerId, moved: false };
+    drag = { x: e.clientX, y: e.clientY, id: e.pointerId, moved: false, across: across() };
   });
   stackEl.addEventListener("pointermove", (e) => {
     if (!drag || e.pointerId !== drag.id) return;
-    const dy = e.clientY - drag.y;
+    const dy = along(e);
     if (!drag.moved && Math.abs(dy) > 8) {
       drag.moved = true;
       try {
@@ -193,7 +206,7 @@
   });
   function endDrag(e) {
     if (!drag || e.pointerId !== drag.id) return;
-    const dy = e.clientY - drag.y;
+    const dy = along(e);
     const was = drag;
     drag = null;
     stackEl.classList.remove("studio-dragging");
@@ -318,9 +331,8 @@
   // ---------- the expanded card (4) ----------
   const detailEl = $("studio-detail");
   let detailSig = "";
-  const icon = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${d}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-  const ICON_UNDO = "M9 7L4 12l5 5M4 12h10a6 6 0 010 8";
-  const ICON_REDO = "M15 7l5 5-5 5M20 12H10a6 6 0 000 8";
+  // One row of controls over the steps: the bars, + Bar, Loop, Steps or Roll, the sound (named on the button), Mute, Clear and a menu. On a
+  // phone Loop, Mute and Clear move into the menu, so the row stays one row and the steps get the room.
   function detailHtml(track) {
     const hint =
       track.kind === "drums"
@@ -333,27 +345,21 @@
         ? `<span class="studio-modes" role="group" aria-label="How the notes are drawn"><button type="button" class="studio-mode" data-act="mode" data-mode="steps" data-no-history aria-pressed="${mode === "steps"}" title="Big steps you tap, scrolling a little">Steps</button><button type="button" class="studio-mode" data-act="mode" data-mode="roll" data-no-history aria-pressed="${mode === "roll"}" title="A piano roll: every note in view, drag to draw">Roll</button></span>`
         : "";
     return (
-      `<div class="studio-detail-head">` +
-      `<span class="studio-badge" aria-hidden="true">${track.n}</span>` +
-      `<div class="studio-detail-title"><h2>${esc(track.name)}</h2><p id="studio-sub" class="studio-detail-sub"></p></div>` +
-      `<button type="button" class="studio-mini" data-act="sound" data-no-history title="Change the sound: the instrument, how it starts and ends, how bright it is">Sound</button>` +
-      `<button type="button" class="studio-mini" data-act="tools" data-no-history title="Tools for this track: starter beats, fills, shift, reverse, random, chords and more">Tools</button>` +
-      `</div>` +
-      `<div class="studio-barbar" role="group" aria-label="Bars of this track">` +
+      `<h2 class="sim-sr-only">${esc(track.name)}</h2>` +
+      `<div class="studio-trackbar" role="group" aria-label="${esc(track.name)}: bars and controls">` +
       `<div id="studio-bars" class="studio-bars" role="group" aria-label="Choose the bar to edit"></div>` +
-      `<button type="button" id="studio-loop" class="studio-mini studio-loop" data-act="loop" aria-pressed="true" title="Loop: this track plays again from its first bar when it reaches its last, until the song ends">↻ Loop</button>` +
-      `<button type="button" class="studio-mini" data-act="bar-add" title="Add a new empty bar to the end of this track">+ Bar</button>` +
-      `<span class="studio-popwrap"><button type="button" id="studio-bars-menu-btn" class="studio-mini studio-dots-btn" data-act="bars-menu" data-no-history aria-haspopup="true" aria-expanded="false" aria-controls="studio-bars-menu" aria-label="More for the bars" title="More: make a bar different, remove a bar, the length of the song">⋯</button>` +
-      `<div id="studio-bars-menu" class="studio-pop studio-pop-menu" role="group" aria-label="Bars"></div></span>` +
+      `<button type="button" class="studio-mini studio-add-bar" data-act="bar-add" aria-label="Add a bar" title="Add a new empty bar to the end of this track">+<span class="studio-wide-word"> Bar</span></button>` +
+      `<button type="button" id="studio-loop" class="studio-mini studio-loop studio-wide-only" data-act="loop" aria-pressed="true" title="Loop: this track plays again from its first bar when it reaches its last, until the song ends">↻ Loop</button>` +
+      modeSwitch +
+      `<button type="button" class="studio-mini studio-sound-btn" data-act="sound" data-no-history aria-label="Change the sound" title="Change the sound: the instrument, how it starts and ends, how bright it is"><span id="studio-sub" class="studio-sound-name"></span><span aria-hidden="true" class="studio-caret">▾</span></button>` +
+      `<button type="button" id="studio-mute" class="studio-pill studio-wide-only" aria-pressed="false">Mute</button>` +
+      `<button type="button" class="studio-mini studio-wide-only" id="studio-clear" data-act="clear" title="Remove everything in this track's bar (undoable)">Clear</button>` +
+      `<span class="studio-popwrap"><button type="button" id="studio-bars-menu-btn" class="studio-mini studio-dots-btn" data-act="bars-menu" data-no-history aria-haspopup="true" aria-expanded="false" aria-controls="studio-bars-menu" aria-label="More for this track" title="More: track tools, make a bar different, remove a bar, the length of the song">⋯</button>` +
+      `<div id="studio-bars-menu" class="studio-pop studio-pop-menu" role="group" aria-label="More for this track"></div></span>` +
       `</div>` +
-      `<div class="studio-modebar">${modeSwitch}<span class="studio-modebar-end">` +
-      `<button type="button" id="studio-undo" class="studio-round studio-small" data-no-history aria-label="Undo" title="Undo (Ctrl+Z)">${icon(ICON_UNDO)}</button>` +
-      `<button type="button" id="studio-redo" class="studio-round studio-small" data-no-history aria-label="Redo" title="Redo (Ctrl+Shift+Z)">${icon(ICON_REDO)}</button>` +
-      `<button type="button" id="studio-mute" class="studio-pill" aria-pressed="false">Mute</button>` +
-      `<button type="button" class="studio-mini studio-link" id="studio-clear" data-act="clear" title="Remove everything in this track's bar (undoable)">Clear</button>` +
-      `</span></div>` +
       `<div id="studio-grid-scroll" class="studio-grid-scroll"><div id="studio-grid" class="studio-grid" data-kind="${track.kind}" data-mode="${track.kind === "drums" ? "steps" : mode}" role="group" aria-label="${esc(track.name)} steps"></div>` +
       `<div id="studio-silent" class="studio-silent" hidden><p></p><button type="button" class="studio-mini" data-act="bar-add">Add a bar here</button></div></div>` +
+      `<div id="studio-pager" class="studio-pager" role="group" aria-label="Which steps are in view" hidden><button type="button" class="studio-page" data-page="0" data-no-history aria-pressed="true">Steps 1–8</button><button type="button" class="studio-page" data-page="1" data-no-history aria-pressed="false">Steps 9–16</button></div>` +
       `<p id="studio-hint" class="studio-hint">${hint}</p>` +
       `<p id="studio-note" class="studio-note" role="status" hidden></p>`
     );
@@ -370,7 +376,8 @@
       barsSig = "";
     }
     // Values are updated in place, so nothing is rebuilt under a finger.
-    $("studio-sub").textContent = `${info.count} ${unitOf(track, info.count)} · ${info.sound}`;
+    $("studio-sub").textContent = info.sound;
+    $("studio-sub").closest("button").setAttribute("aria-label", `Sound: ${info.sound}. Change it`);
     $("studio-hint").hidden = info.count > 0; // the how-to only shows while the track is empty
     const mute = $("studio-mute");
     mute.setAttribute("aria-pressed", String(info.muted));
@@ -434,11 +441,19 @@
   }
   function barsMenuHtml() {
     const arr = host().arr;
-    const key = trackOf(trackId).id;
+    const track = trackOf(trackId);
+    const key = track.id;
     const info = arr.info(key);
     const sel = barPick[key] || 0;
     const here = info.cells[sel];
+    const s = song();
+    const muted = trackInfo(s, track).muted;
     return (
+      `<button type="button" class="studio-menu-item" data-act="tools">Track tools…<small>${track.kind === "drums" ? "Starter beats, fills, shift, random and more" : "Chords, arpeggios, transpose, the scale and more"}</small></button>` +
+      `<button type="button" class="studio-menu-item studio-menu-narrow" data-act="loop" aria-pressed="${info.loops}">${info.loops ? "Loop is on" : "Loop is off"}<small>${info.loops ? "Tap to play this track once and stop" : "Tap to repeat this track until the song ends"}</small></button>` +
+      `<button type="button" class="studio-menu-item studio-menu-narrow" data-act="mute" aria-pressed="${muted}">${muted ? "Unmute" : "Mute"} ${esc(track.name)}<small>${muted ? "It is silent now" : "Silence it while you work on the others"}</small></button>` +
+      ($("song-midi-connect") && !$("song-midi-connect").hidden ? `<button type="button" class="studio-menu-item studio-menu-narrow" data-act="midi">${esc($("studio-midi").textContent)}<small>Connect a MIDI keyboard or pad controller</small></button>` : "") +
+      `<button type="button" class="studio-menu-item studio-menu-narrow" data-act="clear">Clear bar ${sel + 1}<small>Remove everything this track plays there (undoable)</small></button>` +
       `<button type="button" class="studio-menu-item" data-act="bar-differ"${here && here.name ? "" : " disabled"}>Make bar ${sel + 1} different<small>A copy of what this track plays there, so it can change on its own</small></button>` +
       `<button type="button" class="studio-menu-item" data-act="bar-remove"${here && here.name && !here.repeat ? "" : " disabled"}>Remove bar ${sel + 1} from this track<small>The bars after it move up</small></button>` +
       `<button type="button" class="studio-menu-item" data-act="lane-follow"${info.own ? "" : " disabled"}>Follow the song order again<small>Drop this track's own bars</small></button>` +
@@ -482,16 +497,22 @@
     const track = trackOf(trackId);
     const arr = host().arr;
     const act = t.dataset.act;
-    if (t.id === "studio-mute") toggleMute(track);
-    else if (t.id === "studio-undo") $("song-undo").click();
-    else if (t.id === "studio-redo") $("song-redo").click();
-    else if (act === "mode") {
+    if (t.id === "studio-mute" || act === "mute") {
+      toggleMute(track);
+      closePop();
+    } else if (act === "mode") {
       mode = t.dataset.mode;
       lsSet("songGridMode", mode);
       detailSig = "";
       gridSig = "";
+    } else if (act === "midi") {
+      closePop();
+      $("studio-midi").click();
     } else if (act === "sound") openSheet("sound");
-    else if (act === "tools") openSheet("tools");
+    else if (act === "tools") {
+      closePop();
+      openSheet("tools");
+    }
     else if (act === "bar") {
       barPick[track.id] = Number(t.dataset.bar);
       followPaused = host().playing();
@@ -525,6 +546,7 @@
       closePop();
       barsSig = "";
     } else if (act === "loop") {
+      if (t.closest("#studio-bars-menu")) closePop();
       arr.setLoop(track.id, !arr.info(track.id).loops);
       say(arr.info(track.id).loops ? `${track.name} loops until the song ends` : `${track.name} plays once and then stops`);
       barsSig = "";
@@ -540,6 +562,7 @@
       if (again) again.focus(); // the menu was rebuilt, so keep the focus on it
       barsSig = "";
     } else if (act === "clear") {
+      if (t.closest("#studio-bars-menu")) closePop();
       if (track.kind === "drums") {
         const target = $("song-pattern-target");
         const keep = target.value;
@@ -1021,24 +1044,47 @@
     syncTransport();
   }
   playBtn.addEventListener("click", togglePlay);
+  $("studio-sheet-play").addEventListener("click", togglePlay); // shaping a sound while it plays
   $("studio-stop").addEventListener("click", () => {
     host().stop();
     syncTransport();
+  });
+  $("studio-fan-stop").addEventListener("click", () => {
+    host().stop();
+    syncTransport();
     closeFan(true);
+  });
+  // Undo and redo on the bar press the builder's own, so the history is the one it keeps.
+  $("studio-undo").addEventListener("click", () => {
+    $("song-undo").click();
+    refresh();
+  });
+  $("studio-redo").addEventListener("click", () => {
+    $("song-redo").click();
+    refresh();
   });
   // ---------- the fan: Rec is a hub; hold it (or press ⋯) and the other controls open in an arc above it ----------
   const fan = $("studio-fan");
   const fanToggle = $("studio-fan-btn");
   const recHub = $("studio-rec");
   function layoutFan() {
-    const slots = [...fan.querySelectorAll(".studio-fan-slot")];
+    const slots = [...fan.querySelectorAll(".studio-fan-slot")].filter((slot) => getComputedStyle(slot).display !== "none");
     const n = slots.length;
-    const room = Math.min(studio.clientWidth || window.innerWidth, window.innerWidth) / 2 - 30;
+    const room = Math.min(studio.clientWidth || window.innerWidth, window.innerWidth) / 2 - 44;
     const radius = Math.max(96, Math.min(152, room));
     fan.style.setProperty("--arc", radius.toFixed(0) + "px");
-    // from just above the left of the hub to just above its right (160 degrees round to 20)
-    const from = (160 * Math.PI) / 180;
-    const to = (20 * Math.PI) / 180;
+    // The arc grows from Rec, but slides toward the middle when Rec is near an edge, so every circle (and its label) stays on screen.
+    const hub = fan.parentElement.getBoundingClientRect();
+    const rec = recHub.getBoundingClientRect();
+    const cx = rec.left + rec.width / 2;
+    const item = parseFloat(getComputedStyle(fan).getPropertyValue("--item")) || 44;
+    const need = radius + item / 2 + 8;
+    const W = window.innerWidth;
+    const center = need * 2 > W ? W / 2 : Math.max(need, Math.min(W - need, cx));
+    fan.style.setProperty("--fan-x", (center - hub.left).toFixed(1) + "px");
+    // from just above the left of the hub to just above its right (165 degrees round to 15), wide enough for a name under each circle
+    const from = (165 * Math.PI) / 180;
+    const to = (15 * Math.PI) / 180;
     slots.forEach((slot, i) => {
       const t = from - (n > 1 ? i / (n - 1) : 0.5) * (from - to);
       slot.style.setProperty("--x", (Math.cos(t) * radius).toFixed(1) + "px");
@@ -1182,10 +1228,14 @@
     const paused = h.paused();
     $("studio-play").setAttribute("aria-label", playing ? "Pause" : paused ? "Carry on" : "Play");
     // toggleAttribute, not .hidden: an SVG element has no hidden property, so assigning one would change nothing on screen.
-    playBtn.querySelector(".studio-ico-play").toggleAttribute("hidden", playing);
-    playBtn.querySelector(".studio-ico-pause").toggleAttribute("hidden", !playing);
+    [playBtn, $("studio-sheet-play")].forEach((b) => {
+      b.querySelector(".studio-ico-play").toggleAttribute("hidden", playing);
+      b.querySelector(".studio-ico-pause").toggleAttribute("hidden", !playing);
+    });
+    $("studio-sheet-play").setAttribute("aria-label", playing ? "Pause" : paused ? "Carry on" : "Play");
     playBtn.classList.toggle("studio-playing", playing);
     $("studio-stop").disabled = !playing && !paused;
+    $("studio-fan-stop").disabled = !playing && !paused;
     $("studio-rec").setAttribute("aria-pressed", String($("song-record").checked));
     $("studio-rec-top").setAttribute("aria-pressed", String(recTop));
     $("studio-follow").setAttribute("aria-pressed", String(followOn));
@@ -1249,7 +1299,7 @@
     { id: "tools", label: "Track" },
     { id: "song", label: "Song" },
     { id: "arrange", label: "Patterns" },
-    { id: "share", label: "Share and export" },
+    { id: "share", label: "Share" },
   ];
   const panes = {};
   let sheetTab = "song";
@@ -1610,7 +1660,7 @@
     }).join("");
     const waves = Engine.SYNTH_WAVES.map((w) => `<option value="${w}">${w.charAt(0).toUpperCase() + w.slice(1)}</option>`).join("");
     return (
-      `<section class="studio-section"><h3>${esc(track.name)} sound</h3>` +
+      `<section class="studio-section"><h3>Instrument</h3>` +
       `<div class="studio-section-row"><label class="studio-field">Instrument<select id="studio-voice" data-src="${source}" aria-label="${esc(track.name)} instrument"></select></label>` +
       `<label class="studio-field">Wave<select id="studio-synth-wave" aria-label="Wave shape">${waves}</select></label></div>` +
       `<p id="studio-synth-note" class="studio-section-hint">Basic is a plain wave. Pick an instrument to shape how it starts, rings and sounds.</p>` +
@@ -1779,11 +1829,35 @@
     renderDetail(s);
     buildGrid(track, s);
     paintGrid(s, track);
+    syncPager();
     renderKeys(s);
     syncTransport();
     syncTop();
     syncSheet();
   }
+  // When the steps are wider than the screen (a phone shows half a bar at a time), two buttons say which half is in view and jump to the
+  // other; a swipe across the steps does the same.
+  function syncPager() {
+    const pager = $("studio-pager");
+    const scroll = $("studio-grid-scroll");
+    if (!pager || !scroll) return;
+    const wide = $("studio-grid").dataset.mode === "steps" && scroll.scrollWidth > scroll.clientWidth + 4;
+    if (pager.hidden === wide) pager.hidden = !wide;
+    if (!wide) return;
+    const second = scroll.scrollLeft > (scroll.scrollWidth - scroll.clientWidth) / 2;
+    pager.querySelectorAll(".studio-page").forEach((b) => b.setAttribute("aria-pressed", String(Number(b.dataset.page) === (second ? 1 : 0))));
+    if (!scroll._pagerWired) {
+      scroll._pagerWired = true;
+      scroll.addEventListener("scroll", () => requestAnimationFrame(syncPager), { passive: true });
+    }
+  }
+  detailEl.addEventListener("click", (e) => {
+    const page = e.target.closest && e.target.closest(".studio-page");
+    if (!page) return;
+    const scroll = $("studio-grid-scroll");
+    scroll.scrollTo({ left: page.dataset.page === "1" ? scroll.scrollWidth : 0 });
+  });
+  window.addEventListener("resize", () => requestAnimationFrame(syncPager));
   let queued = 0;
   const later = () => {
     clearTimeout(queued);

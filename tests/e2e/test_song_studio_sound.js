@@ -124,7 +124,7 @@ const { fanify } = require("./_fan.cjs");
     await p.waitForTimeout(350);
     ok((await vis(p, "#studio-fan")) && (await vis(p, "#studio-rec-top")) && (await p.getAttribute("#studio-rec-top", "aria-pressed")) === "false" && (await p.getAttribute("#studio-follow", "aria-pressed")) === "true", "the ⋯ button opens the fan: record from the top (off at first) and Follow (on at first) are in it");
     const items = await p.evaluate(() => [...document.querySelectorAll("#studio-fan .studio-fan-item")].map((e) => e.id));
-    ok(["studio-volume-btn", "studio-metro", "studio-fan-undo", "studio-fan-redo", "studio-stop", "studio-fan-clear", "studio-rec-top", "studio-quant-btn", "studio-follow"].every((id) => items.includes(id)), "volume, metronome, undo, redo, stop, clear, record from the top, quantize and follow", items);
+    ok(["studio-volume-btn", "studio-metro", "studio-fan-undo", "studio-fan-redo", "studio-fan-stop", "studio-fan-clear", "studio-rec-top", "studio-quant-btn", "studio-follow"].every((id) => items.includes(id)), "volume, metronome, undo, redo, stop, clear, record from the top, quantize and follow", items);
     await p.keyboard.press("Escape");
     ok(!(await vis(p, "#studio-fan")), "Escape closes it");
     // holding Rec opens it too, and the hold is not a tap on Rec

@@ -1508,7 +1508,11 @@
     if (!confirm(`Move "${currentPage.title}" and all its blocks to the Trash? You can restore it from there.`)) return;
     await api(`/pages/${currentPage.id}`, { method: "DELETE" });
     currentPage = null;
+    if (typeof closePicker === "function") closePicker(false);
     await loadPages();
+    const chooser = el("page-picker");
+    if (chooser) chooser.focus();
+    if (typeof canvasNote === "function") canvasNote("The page is in the Trash. Restore it from Tools › Trash.");
   });
 
   el("lock-page-btn").addEventListener("click", async () => {
@@ -1816,6 +1820,15 @@
       const barBottom = bar && !bar.hidden && parseFloat(bar.style.top) >= style.top ? parseFloat(bar.style.top) + bar.offsetHeight : 0;
       left = Math.max(0, Math.min(style.left, canvas.clientWidth - w));
       top = Math.max(style.top + style.height, barBottom) + 8;
+    }
+    // Beside the block it starts level with the block's top, which is where the toolbar sits: slide it down below the toolbar then.
+    const tb = canvas.querySelector(".canvas-toolbar");
+    if (tb && !tb.hidden) {
+      const bl = parseFloat(tb.style.left) || 0;
+      const bt = parseFloat(tb.style.top) || 0;
+      const overlapX = left < bl + tb.offsetWidth && bl < left + w;
+      const overlapY = top < bt + tb.offsetHeight && bt < top + box.offsetHeight;
+      if (overlapX && overlapY) top = bt + tb.offsetHeight + 8;
     }
     box.style.left = cLeft + left + "px";
     box.style.top = cTop + top + "px";
@@ -2191,19 +2204,19 @@
     if (!b || isLayoutLocked(b)) return;
     let span = want == null ? b.col_span : Math.max(1, Math.min(BlockFit.COLS, want));
     let col = b.col;
-    if (align === "left") col = 1;
-    else if (align === "center") col = Math.floor((BlockFit.COLS - span) / 2) + 1;
-    else if (align === "right") col = BlockFit.COLS - span + 1;
-    col = Math.max(1, Math.min(col, BlockFit.COLS - span + 1));
-    const trial = { ...b, col, col_span: span };
-    const clash = blocks.find((o) => o.id !== b.id && BlockFit.overlaps(trial, o));
-    if (clash) {
-      // A wider block that runs into the one beside it stops short of it; a move into an occupied place does not happen.
-      if (want != null && !align) {
-        span = BlockFit.maxSpanBeside(blocks, { ...b, col }, span);
-        if (span === b.col_span) return canvasNote("Something is beside this block, so it cannot be any wider.");
-      } else return canvasNote("Another block is already there.");
+    if (want != null && !align) {
+      // A new width keeps the block where it is when it can, grows right then left, and stops short of its neighbours.
+      const fit = BlockFit.fitWidth(blocks, b, span);
+      if (fit.span !== span && fit.span === b.col_span && fit.col === b.col) return canvasNote(span > b.col_span ? "Something is beside this block, so it cannot be any wider." : "Already like that.");
+      col = fit.col;
+      span = fit.span;
+    } else {
+      if (align === "left") col = 1;
+      else if (align === "center") col = Math.floor((BlockFit.COLS - span) / 2) + 1;
+      else if (align === "right") col = BlockFit.COLS - span + 1;
+      col = Math.max(1, Math.min(col, BlockFit.COLS - span + 1));
     }
+    if (blocks.some((o) => o.id !== b.id && BlockFit.overlaps({ ...b, col, col_span: span }, o))) return canvasNote("Another block is in the way.");
     closeSizeMenu();
     const changed = await applyLayoutChanges([{ id: b.id, col, col_span: span }]);
     canvasNote(changed ? "" : "Already like that.");
@@ -2420,13 +2433,14 @@
 
   async function swapStackedBlocks(a, b) {
     if (isLayoutLocked(a) || isLayoutLocked(b)) return;
-    const aPos = { row: a.row, col: a.col };
-    a.row = b.row;
-    a.col = b.col;
-    b.row = aPos.row;
-    b.col = aPos.col;
-    await Promise.all([patchBlockPosition(a), patchBlockPosition(b)]);
-    renderCanvas();
+    const dir = b.row < a.row || (b.row === a.row && b.col < a.col) ? -1 : 1;
+    const changes = BlockFit.swapOrder(blocks, a.id, b.id, isLayoutLocked);
+    if (!changes) return canvasNote("A locked block is in the way.");
+    await applyLayoutChanges(changes);
+    // The moved block's own arrow keeps the focus, so it can be moved again straight away.
+    const card = canvas.querySelector(`.admin-block-stacked[data-id="${a.id}"]`);
+    const again = card && (card.querySelector(dir < 0 ? ".stacked-move-up" : ".stacked-move-down") || card);
+    if (again) again.focus();
   }
 
   function rectsOverlap(a, b) {
@@ -12775,5 +12789,17 @@
   });
 
   window.addEventListener("resize", () => renderCanvas());
+  // The search button's hint names this computer's own shortcut.
+  if (el("command-btn") && !/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)) el("command-btn").textContent = "Search Ctrl K";
+  // Opening or closing the menu or the inspector changes the canvas's width without a window resize.
+  if (window.ResizeObserver && canvas.parentElement) {
+    let lastW = canvas.parentElement.clientWidth;
+    new ResizeObserver(() => {
+      const w = canvas.parentElement.clientWidth;
+      if (Math.abs(w - lastW) < 1) return;
+      lastW = w;
+      requestAnimationFrame(() => renderCanvas());
+    }).observe(canvas.parentElement);
+  }
   boot();
 })();

@@ -174,6 +174,7 @@
     }
     const hint = document.querySelector("#songs-modal .redirects-hint");
     if (hint) hint.textContent = "Build a loop, a tune or a whole track with the step sequencer, the piano roll and the drum kits. Songs you make here are kept in this browser only: use Share and export to save a song file or a sound file.";
+    keepDrafts();
     const list = await api("/songs");
     document.getElementById("songs-btn").click();
     if (loading) loading.remove();
@@ -191,6 +192,26 @@
       }
       await new Promise((r) => setTimeout(r, 50));
     }
+  }
+  // A new song is kept from its first change. The builder only autosaves a song that has been saved once, and a phone never asks
+  // "leave this page?", so a beat made and then lost to a reload would simply be gone. Here saving costs nothing (it stays in this
+  // browser), so the first change saves it and the builder's own autosave carries on from there.
+  function keepDrafts() {
+    const status = document.getElementById("song-autosave-status");
+    if (!status) return;
+    const isDraft = () => /^Unsaved draft/.test(status.textContent.trim());
+    let timer = 0;
+    new MutationObserver(() => {
+      if (!isDraft()) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const name = document.getElementById("song-name");
+        const save = document.getElementById("save-song");
+        if (!isDraft() || !save || save.disabled) return;
+        if (name && !name.value.trim()) name.value = "New song";
+        save.click();
+      }, 1200);
+    }).observe(status, { childList: true, characterData: true, subtree: true });
   }
   boot().catch((err) => say(err && err.message ? err.message : "The Studio could not be loaded."));
 })();

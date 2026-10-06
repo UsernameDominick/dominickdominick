@@ -53,5 +53,32 @@ ok(F.colsForWidth(5000, colW) === 24 && F.colsForWidth(0, colW) === 1 && F.colsF
 ok(F.colsForWidth(F.widthForCols(10, colW) + 1, colW) === 11, "a pixel more than ten columns needs eleven");
 ok(Math.abs(F.shownScale(400, 800) - 0.5) < 1e-9 && F.shownScale(400, 0) === 1, "scale shown = block width over the picture's own width");
 
+// widening from the Size menu: never on top of a neighbour
+let w = F.fitWidth([B(1, 1, 8, 16, 6), B(2, 17, 8, 8, 6)], B(2, 17, 8, 8, 6), 24);
+ok(w.col === 17 && w.span === 8, "an image beside a text block cannot go Full: it keeps its place and width", w);
+w = F.fitWidth([B(1, 1, 8, 8, 6), B(2, 9, 8, 8, 6)], B(2, 9, 8, 8, 6), 16);
+ok(w.col === 9 && w.span === 16, "with room on the right it keeps its left edge and grows right", w);
+w = F.fitWidth([B(1, 1, 8, 8, 6), B(2, 17, 8, 8, 6)], B(2, 17, 8, 8, 6), 16);
+ok(w.col === 9 && w.span === 16, "at the right edge it grows to the left into the free room", w);
+w = F.fitWidth([B(1, 1, 8, 6, 6), B(2, 13, 8, 8, 6)], B(2, 13, 8, 8, 6), 24);
+ok(w.col === 7 && w.span === 18, "with only some room it takes what there is", w);
+w = F.fitWidth([B(1, 1, 1, 24, 4)], B(1, 1, 1, 24, 4), 12);
+ok(w.col === 1 && w.span === 12, "narrowing keeps the left edge", w);
+
+// the phone's up/down: the two trade places and nothing overlaps swwards
+const noOverlap = (list) => list.every((a, i) => list.every((b, j) => i === j || !F.overlaps(a, b)));
+const applied = (list, changes) => list.map((b) => Object.assign({}, b, (changes || []).find((c) => c.id === b.id) || {}));
+let pg = [B(1, 1, 3, 24, 4), B(2, 1, 8, 24, 6), B(3, 1, 15, 24, 3)];
+let ch = F.swapOrder(pg, 1, 2);
+let sw = applied(pg, ch);
+ok(sw.find((b) => b.id === 2).row === 3 && sw.find((b) => b.id === 1).row === 9 && noOverlap(sw), "moving a heading below the text under it: the text moves up, the heading goes straight under it", sw);
+pg = [B(1, 1, 1, 8, 4), B(2, 9, 1, 16, 4)];
+sw = applied(pg, F.swapOrder(pg, 2, 1));
+ok(sw.find((b) => b.id === 2).col === 1 && sw.find((b) => b.id === 1).col === 17 && noOverlap(sw), "side by side they trade columns", sw);
+pg = [B(1, 1, 1, 24, 2), B(2, 1, 3, 24, 10), B(3, 1, 13, 24, 2)];
+sw = applied(pg, F.swapOrder(pg, 1, 2));
+ok(noOverlap(sw), "a tall block moved up pushes whatever it now covers down", sw);
+ok(F.swapOrder([B(1, 1, 1, 24, 2)], 1, 99) === null, "a block that is not on the page swaps nothing");
+
 console.log(fail ? `\n${fail} FAILED` : "\nALL PASS");
 process.exit(fail ? 1 : 0);

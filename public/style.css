@@ -235,7 +235,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 32px;
+  padding: 12px 32px 10px;
   border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
   gap: 16px;
@@ -263,125 +263,179 @@ body {
   color: transparent;
 }
 
+/* The nav is a camera dial: each section an icon over a small upper-case name, a ruler of ticks along the bottom, and a needle with a
+   soft glow under the page you are on (it turns to whatever the pointer or keyboard is on). The strip scrolls sideways when it is
+   wider than its room, with the ticks scrolling along. */
+.site-nav {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+}
+
 .tabs {
+  --tick: color-mix(in srgb, var(--text) 26%, transparent);
+  --tick-major: color-mix(in srgb, var(--text) 48%, transparent);
   position: relative;
   display: inline-flex;
-  gap: 4px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--control-radius);
-  padding: 4px;
-  /* Backstop for many nav items, or several long custom nav_labels, whose
-     combined width still doesn't fit even after each .tab's own max-width/
-     ellipsis below -- scrolls within itself instead of forcing the whole
-     page into horizontal scroll. */
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
   max-width: 100%;
+  padding: 2px 6px 9px;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
+  background-image:
+    repeating-linear-gradient(90deg, var(--tick-major) 0 1px, transparent 1px 60px),
+    repeating-linear-gradient(90deg, var(--tick) 0 1px, transparent 1px 12px);
+  background-size: 100% 9px, 100% 5px;
+  background-position: calc(var(--indicator-x, 0px) * -0.25) 100%, calc(var(--indicator-x, 0px) * -0.25) 100%;
+  background-repeat: repeat-x;
+  background-attachment: local, local;
 }
 
 .tabs::-webkit-scrollbar {
   display: none;
 }
 
-/* Edge-fade cues for the .tabs scroll backstop above — a hidden scrollbar
-   plus plain edge-cropped content gave zero indication there was more to
-   scroll to. Classes toggled by nav.js based on actual scroll position, so
-   a cue only ever shows on the side that genuinely has more content. */
-/* Fade whichever edge has more tabs past it (set by nav.js). The old
-   inset shadow was 15% black -- invisible on the dark theme. */
-.tabs.has-overflow-right {
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent);
-  mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent);
+/* Fades at whichever edge has more tabs past it (set by nav.js), drawn over the strip by the nav so its dropdowns are not masked. */
+.site-nav::before,
+.site-nav::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 36px;
+  z-index: 3;
+  pointer-events: none;
+  opacity: 0;
 }
-
-.tabs.has-overflow-left {
-  -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 48px), transparent);
-  mask-image: linear-gradient(to left, #000 calc(100% - 48px), transparent);
-}
-
-.tabs.has-overflow-left.has-overflow-right {
-  -webkit-mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent);
-  mask-image: linear-gradient(to right, transparent, #000 48px, #000 calc(100% - 48px), transparent);
-}
+.site-nav::before { left: 0; background: linear-gradient(to right, var(--topbar-bg, var(--bg)), transparent); }
+.site-nav::after { right: 0; background: linear-gradient(to left, var(--topbar-bg, var(--bg)), transparent); }
+.site-nav.has-overflow-left::before,
+.site-nav.has-overflow-right::after { opacity: 1; }
 
 .tab {
   position: relative;
   z-index: 1;
-  display: inline-block;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 64px;
+  max-width: 160px;
+  padding: 6px 12px 5px;
   background: transparent;
   border: none;
+  border-radius: 10px;
   color: var(--text-dim);
-  font-size: 0.9rem;
   font-family: inherit;
   text-decoration: none;
-  padding: 8px 18px;
-  border-radius: var(--control-radius);
-  transition: color 0.3s var(--ease-smooth);
-  /* A custom nav_label has no length cap at the data layer. Without this,
-     a long one with spaces wraps inside the pill (inflating its height --
-     and border-radius: 999px turns that extra height straight into a
-     giant oval), while a long one without spaces just overflows .tabs'
-     width and drags the whole page into horizontal scroll instead. */
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  /* Without this, a flex item's default flex-shrink: 1 kicks in before
-     .tabs' own overflow-x: auto backstop ever gets the chance to -- one
-     long tab caused *every* tab, short baseline ones included, to shrink
-     down toward unreadable slivers ("A…", "P…", "T…") instead of just the
-     long one truncating while the row scrolls. Keeping each tab at its own
-     natural (up to max-width) size means only the overflow itself scrolls. */
+  /* Each tab keeps its own size; only the row scrolls (a shrinking flex item would squeeze every name to a sliver). */
   flex-shrink: 0;
 }
 
-.tab.is-active {
-  color: var(--on-accent);
+.tab-ico {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
 }
 
-.tab:hover:not(.is-active) {
+.tab-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.7rem;
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.tab.is-active {
   color: var(--text);
+}
+
+.tab.is-active .tab-ico {
+  color: var(--accent);
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 55%, transparent));
+}
+
+.tab:hover:not(.is-active),
+.tab:focus-visible {
+  color: var(--text);
+}
+
+/* An owner-only link: a dashed ring, and a screen reader hears "(admin-only link)". */
+.tab.is-admin-only {
+  outline: 1px dashed color-mix(in srgb, var(--text-dim) 70%, transparent);
+  outline-offset: -3px;
 }
 
 .tab-indicator {
   position: absolute;
-  top: 4px;
-  left: 4px;
-  height: calc(100% - 8px);
+  top: 0;
+  left: 0;
+  bottom: 0;
   width: var(--indicator-width, 0px);
   transform: translateX(var(--indicator-x, 0px));
-  background: var(--accent-gradient);
-  border-radius: var(--control-radius);
+  background: radial-gradient(70% 60% at 50% 100%, color-mix(in srgb, var(--accent) 26%, transparent), transparent 72%);
+  pointer-events: none;
   z-index: 0;
 }
 
+.tab-indicator::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 2px;
+  height: 15px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}
+
 @media (prefers-reduced-motion: no-preference) {
+  .tab {
+    transition: color 0.25s var(--ease-smooth);
+  }
   .tab-indicator {
     transition: transform 0.4s var(--ease-smooth), width 0.4s var(--ease-smooth);
   }
+  .tabs {
+    transition: background-position 0.5s var(--ease-smooth);
+  }
 }
 
-/* Nav dropdown — a "tab-group" wraps a normal top-level tab link plus a
-   caret toggle and the dropdown panel of child links. Shown on hover or
-   keyboard focus-within with no JS needed at all; the caret (toggled via
-   nav.js) covers touch, where hover doesn't fire. */
+/* Nav dropdown — a "tab-group" wraps a normal top-level tab link plus a caret toggle and the dropdown panel of child links. Shown on
+   hover or keyboard focus-within with no JS needed; the caret (nav.js) covers touch. The panel is fixed to the screen and placed
+   under its tab by nav.js, so the scrolling strip cannot clip it. */
 .tab-group {
   position: relative;
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .tab-caret {
   position: relative;
   z-index: 1;
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  padding: 0 4px;
+  margin-left: -8px;
   background: transparent;
   border: none;
+  box-shadow: none;
   color: var(--text-dim);
-  font-size: 0.7rem;
-  padding: 8px 10px 8px 0;
-  margin-left: -10px;
   cursor: pointer;
 }
 
@@ -390,19 +444,18 @@ body {
 }
 
 .tab-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  margin-top: 8px;
+  position: fixed;
+  top: var(--dd-top, 64px);
+  left: var(--dd-left, 8px);
   display: none;
   flex-direction: column;
-  min-width: 160px;
+  min-width: 180px;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: var(--card-radius);
+  border-radius: 12px;
   padding: 6px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-  z-index: 20;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+  z-index: 60;
 }
 
 .tab-group:hover .tab-dropdown,
@@ -411,14 +464,8 @@ body {
   display: flex;
 }
 
-/* :focus-within on .tab-group matches even when just the leading .tab
-   link itself has focus (by design — Tab-ing onto it shows the dropdown
-   immediately, matching hover), which means moving focus back onto that
-   same link — the usual "Escape returns focus to what opened this" move
-   — doesn't actually make :focus-within stop matching. This override
-   (added by nav.js only while Escape is closing an open dropdown, removed
-   again the moment focus or hover re-enters the group) is what lets
-   Escape actually hide it despite that. */
+/* :focus-within on .tab-group matches even when just the leading .tab link has focus, so Escape needs this override (added by nav.js
+   while it closes a dropdown, removed when focus or hover comes back) to actually hide it. */
 .tab-group.force-closed .tab-dropdown {
   display: none !important;
 }
@@ -437,6 +484,11 @@ body {
 .tab-dropdown a.is-active {
   color: var(--text);
   background: var(--bg);
+}
+
+.tab-dropdown a[data-admin-only] {
+  outline: 1px dashed color-mix(in srgb, var(--text-dim) 70%, transparent);
+  outline-offset: -3px;
 }
 
 .topbar-tools {
@@ -2806,9 +2858,10 @@ hr {
     margin-left: auto;
   }
 
-  .topbar .tabs {
+  .topbar .site-nav {
     order: 3;
     flex: 1 1 100%;
+    justify-content: center;
   }
 
   .topbar .topbar-tools {
@@ -4257,7 +4310,6 @@ html.lightbox-open { overflow: hidden; }
 }
 
 /* A nav link only the signed-in owner can see (set on the page, Nav settings): marked so it is not mistaken for a public one. */
-.tab.is-admin-only::after, .tab-dropdown a[data-admin-only]::after { content: " · admin"; font-size: 0.7em; opacity: 0.7; }
 
 /* Page-to-page slide (see the "pageswap" handler at the end of nav.js): moving to a nav tab on the right slides the page left, to the
    left slides it right. The header and footer stay put, only the page content moves, clipped to its own box. No script runs on the new
@@ -4409,3 +4461,71 @@ body:has(.studio-canvas) .site-footer { display: none; }
 .dial.is-disabled { opacity: 0.4; }
 .dial.is-disabled .dial-face { cursor: not-allowed; }
 .dial.is-turning .dial-cap { fill: #232b36; }
+
+/* ---- The header in one row from a tablet up: the nav strip gives way (and scrolls) instead of the bar wrapping onto two or three rows. ---- */
+@media (min-width: 641px) {
+  .topbar { flex-wrap: nowrap; }
+  .topbar .brand { flex: 0 0 auto; }
+  .topbar .site-nav { flex: 0 1 auto; min-width: 0; }
+  .topbar .topbar-tools { flex: 0 0 auto; }
+}
+@media (min-width: 641px) and (max-width: 1100px) {
+  .topbar { padding-left: 20px; padding-right: 20px; gap: 12px; }
+  #motion-toggle, #font-size-toggle { display: none; }
+  .topbar .site-search input { width: 110px; }
+}
+
+/* A phone: brand and tools on the first row, the dial across the second; a 16px search field so focusing it does not zoom the page. */
+@media (max-width: 640px) {
+  .topbar { padding: 8px 16px 4px; row-gap: 4px; }
+  .tabs { padding: 0 4px 8px; }
+  .tab { min-width: 58px; padding: 5px 8px 4px; gap: 2px; }
+  .tab-ico { width: 20px; height: 20px; }
+  .tab-label { font-size: 0.62rem; letter-spacing: 0.08em; }
+  .topbar .site-search input { font-size: 16px; padding-top: 6px; padding-bottom: 6px; }
+}
+
+/* The Studio page fills the screen, so on a phone (or a phone on its side) the header is a single slim row: the dial and the theme. */
+@media (max-width: 640px), (max-height: 500px) {
+  body:has(.studio-canvas) .topbar { flex-wrap: nowrap; padding: 4px 10px 2px; gap: 6px; }
+  body:has(.studio-canvas) .topbar .brand,
+  body:has(.studio-canvas) .site-search,
+  body:has(.studio-canvas) .icon-link-btn,
+  body:has(.studio-canvas) #motion-toggle,
+  body:has(.studio-canvas) #font-size-toggle { display: none; }
+  body:has(.studio-canvas) .topbar .site-nav { order: 0; flex: 1 1 auto; min-width: 0; justify-content: flex-start; }
+  body:has(.studio-canvas) .topbar .topbar-tools { flex: 0 0 auto; order: 1; margin-left: 0; }
+  body:has(.studio-canvas) .tabs { padding-bottom: 7px; }
+  body:has(.studio-canvas) .tab { padding-top: 3px; padding-bottom: 3px; }
+}
+
+/* ---- The rest of the site's buttons on the chunky tokens (they were still pills or thin outlines), all one weight and height ---- */
+.copy-link-btn, .share-link, .save-for-later-btn, .print-pdf-btn, .read-aloud-btn, .reaction-btn {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 4px 12px; line-height: 1.3; font-size: 0.8rem; font-weight: 600;
+  color: var(--text); background: var(--btn-fill); border: min(var(--btn-border-width), 2px) solid var(--btn-ink); border-radius: var(--btn-radius);
+  box-shadow: var(--btn-shadow-sm); text-decoration: none;
+}
+.copy-link-btn:hover, .share-link:hover, .save-for-later-btn:hover, .print-pdf-btn:hover, .read-aloud-btn:hover, .reaction-btn:hover { color: var(--text); border-color: var(--btn-ink); filter: brightness(1.06); }
+.song-embed-play-btn, .sim-power-btn, .scan-ar-btn { border-color: var(--btn-ink); box-shadow: var(--btn-shadow-sm); }
+@media (prefers-reduced-motion: no-preference) {
+  .copy-link-btn:active, .share-link:active, .save-for-later-btn:active, .print-pdf-btn:active, .read-aloud-btn:active, .reaction-btn:active,
+  .song-embed-play-btn:active, .sim-power-btn:active, .scan-ar-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--btn-ink); }
+}
+/* Search fields: the field outline, and a placeholder in the site's own dim colour. */
+.site-search input, .search-page-form input, .not-found-search input {
+  border: min(var(--field-border-width), 2px) solid color-mix(in srgb, var(--btn-ink) 55%, transparent); border-radius: var(--field-radius, 12px);
+}
+.site-search input::placeholder, .search-page-form input::placeholder { color: var(--text-dim); opacity: 1; }
+.search-page-form { display: flex; gap: 8px; margin: 0 0 16px; max-width: 640px; }
+.search-page-form input { flex: 1 1 auto; min-width: 0; min-height: 44px; padding: 8px 14px; font: inherit; font-size: 16px; color: var(--text); background: var(--bg-elevated); }
+/* The share row now sits under the text; a cover never takes the whole first screen. */
+.article-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.article-actions .share-links { margin-left: 0; }
+.article-cover { max-height: min(56vh, 460px); width: 100%; object-fit: cover; }
+/* On a phone the page title stays bigger than the section headings. */
+@media (max-width: 640px) {
+  .article-canvas h2, #readable-content h2 { font-size: 1.3rem; }
+  .article-canvas h3, #readable-content h3 { font-size: 1.15rem; }
+}
+/* An empty list has nothing to clear. */
+#clear-saved-btn, #clear-history-btn { min-height: 28px; }

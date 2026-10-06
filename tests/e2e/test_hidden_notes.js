@@ -26,7 +26,7 @@ const PASS2 = "another long passphrase!";
     const mine = await admin.get(`${BASE}/hidden-notes`);
     const mineHtml = await mine.text();
     ok(mine.status() === 200 && /name="robots" content="noindex"/.test(mineHtml) && /no-store/.test(mine.headers()["cache-control"] || ""), "the owner gets the page, marked noindex and not cacheable", mine.headers()["cache-control"]);
-    ok(/href="\/hidden-notes"[^>]*>Hidden Notes/.test(await (await admin.get(`${BASE}/`)).text()), "and the home page shows the owner the tab");
+    ok(/href="\/hidden-notes"[^>]*>(?:(?!<\/a>)[\s\S])*Hidden Notes/.test(await (await admin.get(`${BASE}/`)).text()), "and the home page shows the owner the tab");
 
     // ---- the browser
     const ctx = await b.newContext({ storageState: process.env.ADMIN_STATE, viewport: { width: 1200, height: 900 }, acceptDownloads: true });

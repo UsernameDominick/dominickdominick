@@ -8557,23 +8557,16 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
   flex: 1 1 auto; min-height: 250px; display: flex; flex-direction: column; gap: 6px; overflow-x: hidden; overflow-y: auto;
   padding: 8px 10px 10px; background: var(--bg-elevated); border: 1px solid var(--border); border-top: 3px solid var(--track-color, var(--accent)); border-radius: 14px;
 }
-.studio-detail-head { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; }
-.studio-detail-title { flex: 1 1 auto; min-width: 0; }
-.studio-detail-title h2 { margin: 0; font-size: 1rem; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.studio-detail-sub { margin: 0; font-size: 0.74rem; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .studio-round {
   flex: 0 0 auto; width: 40px; height: 40px; padding: 0; border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center;
 }
 .studio-round svg { width: 20px; height: 20px; fill: currentColor; }
-.studio-small { width: 34px; height: 34px; }
-.studio-small svg { width: 17px; height: 17px; }
 .studio-pill { flex: 0 0 auto; min-height: 34px; padding: 0 14px; border-radius: 17px; font-size: 0.85rem; }
 #studio-mute[aria-pressed="true"], .studio-mini[aria-pressed="true"].studio-warn { background: var(--warning); border-color: var(--warning); color: var(--on-accent); }
 .studio-round[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 
 /* the bars of the open track */
-.studio-barbar { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; }
 .studio-bars { flex: 1 1 0; min-width: 0; display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; padding: 1px; }
 .studio-bars::-webkit-scrollbar { display: none; }
 .studio-bar {
@@ -8594,12 +8587,9 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 .studio-loop[aria-pressed="true"] { background: color-mix(in srgb, var(--track-color) 26%, transparent); border-color: var(--track-color); color: var(--text); }
 .studio-dots-btn { padding: 0 8px; font-weight: 700; letter-spacing: 0.08em; }
 
-.studio-modebar { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; }
-.studio-modebar-end { margin-left: auto; display: flex; gap: 6px; }
 .studio-modes { display: inline-flex; border: 1px solid var(--border); border-radius: 17px; overflow: hidden; }
 .studio-mode { min-height: 32px; padding: 0 12px; font-size: 0.78rem; border: 0; border-radius: 0; background: transparent; }
 .studio-mode[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
-.studio-link { background: none; border-color: transparent; color: var(--text-dim); text-decoration: underline; }
 
 /* the steps (or the roll) */
 .studio-grid-scroll {
@@ -8828,7 +8818,6 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 .studio-pop label > input, .studio-pop label > select { grid-column: 1 / -1; }
 .studio-pop output { float: none; }
 .studio-pop .studio-pop-check { display: flex; }
-.studio-detail-head .studio-mini { min-height: 32px; padding: 0 10px; }
 .studio-grid[data-kind="drums"] .studio-row { flex: 1 1 auto; }
 .studio-grid[data-kind="drums"] .studio-cell { height: 100%; min-height: var(--cell-h); max-height: 72px; }
 .studio-grid[data-kind="drums"] .studio-row { max-height: 72px; }
@@ -9016,3 +9005,265 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 #studio-pop-volume.is-open { display: flex; }
 #studio-pop-volume output { display: block; float: none; }
 @media (max-width: 640px) { .studio-fan-toggle { right: -44px; } .studio-fan { --item: 40px; --arc: 148px; } }
+
+/* ---- The Studio laid out so the music gets the room (phone first) ----
+   One row of track tabs on a phone or tablet (a rail of the five tracks on a wide screen), one row of controls for the open track, the
+   steps or the roll filling what is left (the only part that scrolls), then the transport and the keys or pads at the bottom. */
+.studio-detail { min-height: 0; overflow: visible; gap: 8px; }
+.studio-trackbar { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: wrap; row-gap: 6px; }
+.studio-trackbar .studio-bars { flex: 1 1 60px; min-width: 40px; }
+.studio-sound-btn { display: inline-flex; align-items: center; gap: 5px; max-width: 190px; min-width: 0; }
+.studio-sound-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.studio-caret { font-size: 0.7em; opacity: 0.75; }
+.studio-grid-scroll { flex: 1 1 0; min-height: 120px; container-type: inline-size; }
+.studio-row-label { background: var(--bg); box-shadow: 6px 0 6px -4px var(--bg); }
+.studio-pager { flex: 0 0 auto; display: flex; justify-content: center; gap: 6px; }
+.studio-pager[hidden] { display: none; }
+.studio-page { min-height: 28px; padding: 0 12px; border-radius: 14px; font-size: 0.74rem; box-shadow: none; }
+.studio-page[aria-pressed="true"] { background: var(--track-color, var(--accent)); border-color: var(--track-color, var(--accent)); color: var(--on-track, var(--on-accent)); }
+.studio-menu-narrow { display: none; }
+.studio-menu-item[aria-pressed="true"] { color: var(--text); }
+#song-builder-modal #song-studio .studio-grid[data-kind="drums"] .studio-cell { min-height: var(--cell-h); }
+
+/* the transport: Play, Stop, Undo (and Redo on a wider screen) on the left, the Rec hub in the middle, the tempo on the right */
+.studio-controls { display: flex; align-items: center; gap: 8px; padding: 8px 12px; }
+.studio-transport { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; }
+.studio-controls > .studio-hub { margin: 0 auto; padding-right: 46px; }
+.studio-controls .studio-fan-toggle { right: 0; }
+.studio-controls .studio-fan { left: var(--fan-x, 50%); }
+.studio-grid[data-kind="drums"] .studio-row, .studio-grid[data-kind="drums"] .studio-cell { max-height: 88px; }
+.studio-controls > .studio-bpm { margin-left: 0; }
+.studio-play, .studio-rec-hub { width: 56px; height: 56px; min-height: 56px; }
+.studio-play { border: min(var(--btn-border-width), 2px) solid var(--btn-ink); box-shadow: var(--btn-shadow-sm); }
+.studio-play:active, .studio-rec-hub:active { transform: translateY(2px); box-shadow: none; }
+.studio-transport .studio-round { width: 44px; height: 44px; min-height: 44px; }
+.studio-transport .studio-round svg { width: 20px; height: 20px; }
+.studio-transport .studio-round:disabled { opacity: 0.45; }
+.studio-btn-primary[data-state="dirty"]::after { top: -4px; right: -4px; width: 9px; height: 9px; background: var(--warning, #f5b041); box-shadow: 0 0 0 2px var(--bg); }
+
+/* the fan's labels, under each circle */
+.studio-fan-label {
+  position: absolute; left: 0; bottom: calc(var(--item) / -2 - 16px); z-index: 2; width: max-content; max-width: 76px; padding: 0 5px; pointer-events: none;
+  font-size: 0.62rem; font-weight: 650; line-height: 1.35; text-align: center; white-space: nowrap; color: var(--text);
+  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent); border-radius: 6px;
+  transform: translate(calc(var(--x, 0px) - 50%), calc(-1 * var(--y, 0px))); opacity: 0;
+}
+.studio-fan-item { z-index: 1; }
+.studio-fan.is-open .studio-fan-label { opacity: 1; }
+@media (prefers-reduced-motion: no-preference) { .studio-fan-label { transition: opacity 0.2s ease var(--d, 0ms); } }
+
+/* the sheet: a Play button in its head, so a sound can be shaped while it plays */
+.studio-sheet-play { width: 40px; height: 40px; min-height: 40px; flex: 0 0 auto; background: var(--accent); color: var(--on-accent); }
+.studio-sheet-play svg { width: 18px; height: 18px; fill: currentColor; }
+
+/* phones and tablets: the five tracks are one row of tabs (tap one, or swipe across) */
+@media (max-width: 1023px) {
+  .studio-stack { display: flex; flex-direction: row; gap: 5px; height: auto; overflow: visible; padding: 2px 1px 0; }
+  .studio-card { position: relative; left: auto; right: auto; top: auto; height: 46px; flex: 1 1 0; min-width: 0; transform: none !important; }
+  .studio-card[data-pos="front"] { flex: 1.8 1 0; }
+  .studio-card-main { flex-direction: row; align-items: center; justify-content: center; border-radius: 12px; box-shadow: none; }
+  .studio-card[data-pos="front"] .studio-card-main { box-shadow: 0 0 0 2px var(--track-color); background: color-mix(in srgb, var(--track-color) 20%, var(--bg-elevated)); }
+  .studio-card-head { height: 100%; padding: 0 8px; gap: 7px; justify-content: center; }
+  .studio-card-head .studio-badge { width: 24px; height: 24px; font-size: 0.8rem; }
+  .studio-card-name { flex: 0 1 auto; }
+  .studio-card-body, .studio-card-count { display: none; }
+  .studio-card-main[data-has="true"]::after { content: ""; position: absolute; top: 7px; right: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--track-color); }
+  .studio-card[data-pos="front"] .studio-card-main[data-has="true"]::after { display: none; }
+}
+@media (max-width: 560px) {
+  .studio-card:not([data-pos="front"]) .studio-card-name { display: none; }
+  .studio-card-head { padding: 0 4px; }
+}
+
+/* a phone: one row of controls over the steps (Loop, Mute and Clear are in its ⋯ menu), half a bar of drum steps at a time */
+@media (max-width: 640px) {
+  .studio-wide-only, .studio-wide-word { display: none !important; }
+  .studio-menu-narrow { display: flex; }
+  .studio-trackbar { flex-wrap: nowrap; gap: 5px; }
+  #song-builder-modal #song-studio .studio-trackbar .studio-mini,
+  #song-builder-modal #song-studio .studio-trackbar .studio-bar,
+  #song-builder-modal #song-studio .studio-trackbar .studio-mode { min-height: 40px; }
+  .studio-add-bar, .studio-dots-btn { width: 40px; padding: 0; justify-content: center; }
+  .studio-sound-btn { max-width: 104px; padding: 0 8px; }
+  .studio-mode { padding: 0 10px; }
+  .studio-detail { padding: 8px; border-radius: 12px; }
+  .studio-grid[data-mode="steps"] .studio-row { grid-template-columns: var(--lab) repeat(4, calc((100cqw - var(--lab) - 12px) / 2)); }
+  .studio-grid-scroll:has(> .studio-grid[data-mode="steps"]) { scroll-snap-type: x mandatory; scroll-behavior: auto; }
+  .studio-grid[data-mode="steps"] .studio-row > .studio-beat:nth-child(2),
+  .studio-grid[data-mode="steps"] .studio-row > .studio-beat:nth-child(4) { scroll-snap-align: start; scroll-margin-left: calc(var(--lab) + 12px); }
+  #song-builder-modal #song-studio .studio-grid[data-kind="drums"] { --cell-h: 32px; }
+  #studio-midi { display: none !important; }
+  .studio-controls { gap: 6px; padding: 6px 8px; }
+  .studio-controls > .studio-hub { padding-right: 44px; }
+  .studio-top { gap: 5px; }
+  #song-builder-modal #song-studio .studio-name, #song-builder-modal #song-studio .studio-top .studio-btn { min-height: 42px; }
+  #song-builder-modal #song-studio .studio-sheet button:not(.studio-sheet-tab):not(.studio-icon):not(.studio-round):not(.dial-face) { min-height: 40px; }
+  .studio-sheet-tabs { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); padding-right: 20px; }
+}
+@media (max-width: 380px) {
+  .studio-play, .studio-rec-hub { width: 50px; height: 50px; min-height: 50px; }
+  .studio-transport .studio-round { width: 40px; height: 40px; min-height: 40px; }
+  .studio-controls > .studio-hub { padding-right: 42px; }
+}
+
+/* a wide screen: the five tracks are a rail on the left, the open track fills the rest, the sheet opens beside it */
+@media (min-width: 1024px) {
+  #song-builder-modal.song-studio-on .simulation-builder-inner { max-width: 1320px; }
+  .song-studio {
+    display: grid; max-width: 1280px; column-gap: 14px; row-gap: 10px;
+    grid-template-columns: 228px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto auto;
+    grid-template-areas: "top top" "stack detail" "stack controls" "keys keys";
+  }
+  .studio-top { grid-area: top; }
+  .studio-stack { grid-area: stack; display: flex; flex-direction: column; gap: 8px; height: auto; overflow: visible; touch-action: auto; padding: 2px; }
+  .studio-detail { grid-area: detail; }
+  .studio-controls { grid-area: controls; }
+  .studio-keys-scroll { grid-area: keys; }
+  .studio-card { position: relative; left: auto; right: auto; top: auto; height: 82px; flex: 0 0 auto; transform: none !important; }
+  .studio-card-main { box-shadow: none; }
+  .studio-card-head { height: 30px; }
+  .studio-card-count { display: none; }
+  .studio-card-meta { display: flex; color: var(--text); }
+  .studio-card[data-pos="front"] .studio-card-main { box-shadow: 0 0 0 2px var(--track-color); background: color-mix(in srgb, var(--track-color) 12%, var(--bg-elevated)); }
+  .studio-sheet { left: auto; width: min(460px, 44%); border-left: 1px solid var(--border); box-shadow: -18px 0 40px rgba(0, 0, 0, 0.35); }
+  .song-studio.studio-sheet-on { overflow: hidden; }
+}
+
+/* a phone on its side: the music on the left, the transport and the keys on the right */
+@media (max-height: 500px) and (max-width: 1023px) and (orientation: landscape) {
+  .song-studio {
+    display: grid; column-gap: 10px; row-gap: 6px;
+    grid-template-columns: minmax(0, 1fr) minmax(250px, 36%); grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-areas: "top controls" "stack keys" "detail keys";
+  }
+  .studio-top { grid-area: top; }
+  .studio-stack { grid-area: stack; }
+  .studio-detail { grid-area: detail; }
+  .studio-controls { grid-area: controls; padding: 4px 8px; }
+  .studio-keys-scroll { grid-area: keys; }
+  .studio-keys { height: 100% !important; }
+  .studio-card { height: 40px; }
+  .studio-hint { display: none; }
+  .studio-play, .studio-rec-hub { width: 46px; height: 46px; min-height: 46px; }
+  .studio-transport .studio-round { width: 38px; height: 38px; min-height: 38px; }
+  .studio-wide-only, .studio-wide-word { display: none !important; }
+  .studio-menu-narrow { display: flex; }
+}
+
+/* ---- Menus and Site Settings in the style of a browser's own menus (the owner's pick for the admin): a plain card, quiet rows with the
+   name on the left and any hint on the right, thin lines between groups. Buttons pressed on purpose (bars, Save) stay chunky. ---- */
+:root {
+  --menu-bg: #1f1d26;
+  --menu-line: rgba(255, 255, 255, 0.08);
+  --menu-hover: rgba(255, 255, 255, 0.07);
+  --menu-shadow: 0 14px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.07);
+}
+:root[data-theme="light"] {
+  --menu-bg: #ffffff;
+  --menu-line: rgba(0, 0, 0, 0.08);
+  --menu-hover: rgba(0, 0, 0, 0.05);
+  --menu-shadow: 0 10px 30px rgba(0, 0, 0, 0.13), 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+.admin-more-panel, .size-menu, .studio-pop-menu {
+  background: var(--menu-bg); border: 0; border-radius: 10px; box-shadow: var(--menu-shadow); padding: 6px 0; gap: 0;
+}
+.admin-more-group { gap: 0; padding: 4px 0; }
+.admin-more-group:empty { display: none; }
+.admin-more-group + .admin-more-group { border-top: 1px solid var(--menu-line); }
+.admin-more-group h3 { padding: 4px 16px 2px; margin: 0; font-size: 0.68rem; letter-spacing: 0.06em; }
+.admin-more-panel button, .admin-more-panel a, .studio-menu-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 18px; width: 100%; min-height: 34px; margin: 0; padding: 6px 16px;
+  background: transparent; border: 0; border-radius: 0; box-shadow: none; color: var(--text); font-size: 0.88rem; font-weight: 450; text-align: left; text-decoration: none;
+}
+.admin-more-panel button:hover, .admin-more-panel a:hover, .admin-more-panel button:focus-visible, .admin-more-panel a:focus-visible,
+.studio-menu-item:hover, .studio-menu-item:focus-visible { background: var(--menu-hover); color: var(--text); filter: none; transform: none; }
+.studio-menu-item { flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; }
+.studio-pop-menu .studio-menu-item + .studio-menu-item:not(.studio-menu-narrow) { border-top: 0; }
+.studio-pop-menu .studio-menu-item[data-act="bar-differ"], .studio-pop-menu .studio-menu-len { border-top: 1px solid var(--menu-line); }
+.size-menu { padding: 6px; gap: 4px; }
+.size-menu button { box-shadow: none; border-radius: 6px; }
+
+/* The menu (☰ Tools): the same quiet rows, groups split by a line. */
+.admin-sidebar-group { gap: 1px; padding: 6px 0; }
+.admin-sidebar-group + .admin-sidebar-group { border-top: 1px solid var(--menu-line); }
+.admin-sidebar-group h3 { font-size: 0.66rem; letter-spacing: 0.07em; padding: 2px 12px 4px; margin: 0; }
+.admin-sidebar-group button, .admin-sidebar-group a {
+  display: flex; align-items: center; min-height: 34px; padding: 6px 12px; border-left: 0; border-radius: 8px; color: var(--text); font-size: 0.88rem; font-weight: 450; box-shadow: none;
+}
+.admin-sidebar-group button:hover, .admin-sidebar-group a:hover, .admin-sidebar-group button:focus-visible, .admin-sidebar-group a:focus-visible { background: var(--menu-hover); transform: none; color: var(--text); }
+.admin-sidebar-group button:active, .admin-sidebar-group a:active { transform: none; background: var(--menu-hover); }
+:root[data-density="compact"] .admin-sidebar-group button, :root[data-density="compact"] .admin-sidebar-group a { min-height: 28px; padding-top: 3px; padding-bottom: 3px; }
+@media (max-width: 860px) { .admin-sidebar-group button, .admin-sidebar-group a { min-height: 44px; } }
+
+/* Site Settings: the sections down the left like a settings page, each group a card with its title on top and a line under it. */
+.settings-group { background: var(--menu-bg); border: 0; border-radius: 12px; box-shadow: var(--menu-shadow); padding: 0 16px 16px; margin-top: 4px; }
+.settings-body .settings-group > h2 {
+  position: static; margin: 0 -16px 2px; padding: 13px 16px 11px; background: none; border-bottom: 1px solid var(--menu-line);
+  font-size: 0.95rem; font-weight: 650; letter-spacing: 0; text-transform: none; color: var(--text);
+}
+.settings-body { background: color-mix(in srgb, var(--bg) 70%, var(--bg-elevated)); gap: 16px; }
+.settings-panel { gap: 18px; }
+@media (min-width: 900px) {
+  .settings-modal-inner { max-width: 940px; display: grid; grid-template-columns: 208px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; }
+  .settings-modal-inner > header { grid-column: 1 / -1; }
+  .settings-modal-inner > .settings-tabs {
+    grid-column: 1; grid-row: 2; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 1px; padding: 10px 8px; overflow-y: auto;
+    border-bottom: 0; border-right: 1px solid var(--menu-line); background: var(--menu-bg);
+  }
+  .settings-modal-inner > .settings-body { grid-column: 2; grid-row: 2; min-height: 0; }
+  .settings-modal-inner > .settings-save-bar { grid-column: 1 / -1; grid-row: 3; }
+  .settings-tab { margin: 0; padding: 8px 12px; border: 0; border-radius: 8px; text-align: left; font-size: 0.88rem; color: var(--text); }
+  .settings-tab:hover { background: var(--menu-hover); }
+  .settings-tab.is-active { background: var(--menu-hover); color: var(--text); font-weight: 650; box-shadow: inset 3px 0 0 var(--accent); }
+}
+@media (max-width: 899px) {
+  .settings-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding: 8px 12px 0; }
+  .settings-tab { flex: 0 0 auto; white-space: nowrap; min-height: 36px; }
+}
+
+/* ---- Fixes from the admin review ---- */
+/* Focus mode used to hide the block picker too, which left + Add and click-to-add doing nothing. */
+.admin-app.focus-mode #palette.is-picker-open, .admin-app.focus-mode #palette.drawer-open { display: block; }
+/* Delete is red everywhere, even inside the palette and the inspector where buttons are otherwise filled with the accent. */
+.admin-palette button.scripts-delete, .admin-inspector button.scripts-delete, .admin-palette button.danger, .admin-inspector button.danger {
+  background: transparent !important; color: var(--error-text) !important; border: 2px solid var(--error-text) !important; box-shadow: none;
+}
+/* Fields: one clear outline everywhere (a 1px border at 1.3:1 could hardly be seen). */
+.admin-palette input:not([type="checkbox"]):not([type="color"]):not([type="range"]), .admin-palette textarea, .admin-palette select,
+.admin-inspector input:not([type="checkbox"]):not([type="color"]):not([type="range"]), .admin-inspector textarea, .admin-inspector select,
+.modal-inner input[type="text"], .modal-inner input[type="search"], .modal-inner input[type="url"], .modal-inner input[type="number"], .modal-inner input[type="email"],
+.modal-inner input[type="password"], .modal-inner input[type="datetime-local"], .modal-inner input[type="date"], .modal-inner textarea, .modal-inner select {
+  border: min(var(--field-border-width), 2px) solid color-mix(in srgb, var(--btn-ink) 70%, transparent); border-radius: var(--field-radius, 10px);
+}
+/* A dialog's close × and the block toolbar's buttons have no outline, so no hard shadow under them either. */
+.modal-inner > header > button[id^="close-"], .canvas-toolbar button { box-shadow: none; }
+.modal-inner > header > button[id^="close-"]:active { transform: none; }
+.modal-inner > header > [id^="close-"] { margin-left: auto; order: 99; }
+.canvas-toolbar button { min-height: 28px; white-space: nowrap; }
+.canvas-toolbar button[data-act="delete"], .canvas-toolbar .danger, .canvas-toolbar button[aria-label^="Delete"] { color: var(--error-text); }
+/* Delete selected sits level with the other buttons of a bulk bar. */
+.bulk-list-bar .danger, .bulk-bar .danger { margin-top: 0 !important; }
+/* A checkbox sits beside its words, not above them. */
+.modal-inner label:has(> input[type="checkbox"]), .admin-inspector label:has(> input[type="checkbox"]), .admin-palette label:has(> input[type="checkbox"]) {
+  display: inline-flex; align-items: center; gap: 8px;
+}
+/* The resize corner only on the block being worked on. */
+.admin-block:not(.selected) .resize-handle { opacity: 0; }
+.admin-block:not(.selected):hover .resize-handle { opacity: 0.6; }
+/* Closed phone drawers are not reachable by Tab and leave no shadow at the edge. */
+@media (max-width: 860px) {
+  .admin-palette:not(.drawer-open), .admin-sidebar:not(.drawer-open), .admin-inspector:not(.drawer-open) {
+    visibility: hidden; box-shadow: none; transition: transform 0.3s var(--ease-smooth), visibility 0s linear 0.3s, box-shadow 0s linear 0.3s;
+  }
+}
+/* The top bar stays one row on a laptop: the template picker is narrower (hidden below 1280 px), and every button keeps its size. Narrower
+   than 1180 px there is not room for all of it, so it still wraps there. */
+@media (min-width: 1180px) {
+  .admin-header { flex-wrap: nowrap; }
+  .admin-header .admin-sidebar-pages { flex-wrap: nowrap; flex: 0 1 auto; }
+  .admin-header #page-picker { min-width: 110px; max-width: 220px; }
+  .admin-header #page-template-picker { max-width: 128px; min-width: 70px; }
+  .admin-header .page-actions, .admin-header .admin-header-right { flex: 0 0 auto; }
+  .admin-header button { white-space: nowrap; }
+}
+@media (min-width: 1180px) and (max-width: 1279px) { .admin-header #page-template-picker { display: none; } }

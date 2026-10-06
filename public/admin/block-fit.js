@@ -53,6 +53,50 @@
     });
     return Math.max(1, span);
   }
+  // Where a block can take `want` columns: it keeps its left edge when it can, grows to the right first and then to the left, and never
+  // lands on another block. Returns { col, span } (a smaller span when neighbours leave less room); a block that cannot change keeps
+  // its own place and width.
+  function fitWidth(list, block, want) {
+    var others = list.filter(function (o) { return o.id !== block.id; });
+    var target = Math.max(1, Math.min(COLS, want));
+    for (var span = target; span >= 1; span--) {
+      var hi = Math.min(block.col, COLS - span + 1);
+      var lo = Math.max(1, block.col - (span - 1));
+      for (var c = hi; c >= lo; c--) {
+        var trial = { col: c, col_span: span, row: block.row, row_span: block.row_span };
+        if (!others.some(function (o) { return overlaps(trial, o); })) return { col: c, span: span };
+      }
+      if (span <= block.col_span && target >= block.col_span) break; // growing: never end up narrower than it was
+    }
+    return { col: block.col, span: block.col_span };
+  }
+  // Two blocks next to each other in reading order trade places: side by side they trade columns, one above the other the lower one
+  // moves up to where the upper one started and the upper one goes straight under it. Anything they now cover is pushed down.
+  // Returns the changes [{ id, row, col }] to apply, or null when a locked block would have to move.
+  function swapOrder(list, aId, bId, isFixed) {
+    var items = list.map(function (b) { return { id: b.id, col: b.col, row: b.row, col_span: b.col_span, row_span: b.row_span, locked: b.locked }; });
+    var a = items.filter(function (b) { return b.id === aId; })[0];
+    var b = items.filter(function (x) { return x.id === bId; })[0];
+    if (!a || !b) return null;
+    var first = a.row < b.row || (a.row === b.row && a.col < b.col) ? a : b;
+    var second = first === a ? b : a;
+    var before = {};
+    items.forEach(function (x) { before[x.id] = { row: x.row, col: x.col }; });
+    if (first.row === second.row) {
+      var firstCol = first.col;
+      first.col = Math.max(1, Math.min(COLS - first.col_span + 1, second.col + second.col_span - first.col_span));
+      second.col = firstCol;
+    } else {
+      second.row = first.row;
+      first.row = first.row + second.row_span;
+    }
+    var settle = settleDown(items, function (x) { return x.id !== first.id && x.id !== second.id && !!(isFixed && isFixed(x)); });
+    if (settle.blockedBy !== null) return null;
+    settle.moves.forEach(function (m) { items.filter(function (x) { return x.id === m.id; })[0].row = m.row; });
+    var out = [];
+    items.forEach(function (x) { if (x.row !== before[x.id].row || x.col !== before[x.id].col) out.push({ id: x.id, row: x.row, col: x.col }); });
+    return out;
+  }
   // Columns needed for a width in pixels (colW is one column's width), and a picture's "actual size": its own pixel width as columns.
   function colsForWidth(px, colW) {
     var n = Number(px);
@@ -66,6 +110,6 @@
   function shownScale(blockWidthPx, naturalW) {
     return naturalW > 0 ? blockWidthPx / naturalW : 1;
   }
-  var api = { COLS: COLS, ROW_H: ROW_H, GAP: GAP, heightForRows: heightForRows, rowsForHeight: rowsForHeight, overlaps: overlaps, settleDown: settleDown, maxSpanBeside: maxSpanBeside, colsForWidth: colsForWidth, widthForCols: widthForCols, shownScale: shownScale };
+  var api = { COLS: COLS, ROW_H: ROW_H, GAP: GAP, heightForRows: heightForRows, rowsForHeight: rowsForHeight, overlaps: overlaps, settleDown: settleDown, maxSpanBeside: maxSpanBeside, fitWidth: fitWidth, swapOrder: swapOrder, colsForWidth: colsForWidth, widthForCols: widthForCols, shownScale: shownScale };
   if (typeof window !== "undefined") window.BlockFit = api;
 })();

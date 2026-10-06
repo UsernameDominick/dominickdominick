@@ -137,9 +137,10 @@ document.addEventListener("input", function (e) {
     wrap.scrollLeft = Math.max(0, Math.min(max, target));
   }
 
-  function place() {
+  // The needle of the dial rests under this page's tab and turns to whichever tab the pointer or the keyboard is on, then back.
+  function place(target) {
     var w = wrap.getBoundingClientRect();
-    var t = active.getBoundingClientRect();
+    var t = (target || active).getBoundingClientRect();
     wrap.style.setProperty("--indicator-width", t.width + "px");
     // The marker scrolls with the tabs, so its place is measured from where the row starts, not from where it is scrolled to, and from
     // where the marker rests with no shift (the row's border plus the marker's own left offset), so it lands exactly on the tab.
@@ -154,6 +155,46 @@ document.addEventListener("input", function (e) {
     reveal();
     place();
   });
+  // Styles that depend on the rest of the page (the Studio page's slim header) only apply once it has been read, so look again then.
+  document.addEventListener("DOMContentLoaded", function () {
+    reveal();
+    place();
+  });
+  var tabsList = [].slice.call(wrap.querySelectorAll(".tab"));
+  tabsList.forEach(function (tab) {
+    tab.addEventListener("mouseenter", function () { place(tab); });
+    tab.addEventListener("focus", function () { place(tab); });
+    tab.addEventListener("blur", function () { place(); });
+  });
+  wrap.addEventListener("mouseleave", function () { place(); });
+})();
+
+// The dropdowns of the nav sit inside the strip of tabs, which scrolls sideways and so would clip them; each is placed on the screen
+// (position: fixed) under its tab whenever it is about to show.
+(function () {
+  var groups = [].slice.call(document.querySelectorAll(".tab-group"));
+  if (!groups.length) return;
+  function placeMenu(group) {
+    var menu = group.querySelector(".tab-dropdown");
+    if (!menu) return;
+    var r = group.getBoundingClientRect();
+    var width = Math.max(menu.offsetWidth || 180, 160);
+    var left = Math.max(8, Math.min(window.innerWidth - width - 8, r.left));
+    menu.style.setProperty("--dd-top", Math.round(r.bottom + 6) + "px");
+    menu.style.setProperty("--dd-left", Math.round(left) + "px");
+  }
+  groups.forEach(function (group) {
+    ["mouseenter", "focusin", "click"].forEach(function (type) {
+      group.addEventListener(type, function () { placeMenu(group); }, true);
+    });
+  });
+  function again() {
+    groups.forEach(placeMenu);
+  }
+  window.addEventListener("resize", again);
+  window.addEventListener("scroll", again, { passive: true });
+  var strip = document.querySelector(".tabs");
+  if (strip) strip.addEventListener("scroll", again, { passive: true });
 })();
 
 // "Turn off preview mode" button inside the draft-preview banner (see
@@ -578,9 +619,11 @@ window.siteInitContent = function (root) {
 document.addEventListener("DOMContentLoaded", function () {
   var tabs = document.querySelector(".tabs");
   if (!tabs) return;
+  // The fades are drawn by the nav around the strip (a mask on the strip itself would also hide its dropdowns).
+  var holder = tabs.closest(".site-nav") || tabs;
   var updateOverflowHints = function () {
-    tabs.classList.toggle("has-overflow-left", tabs.scrollLeft > 1);
-    tabs.classList.toggle("has-overflow-right", tabs.scrollLeft + tabs.clientWidth < tabs.scrollWidth - 1);
+    holder.classList.toggle("has-overflow-left", tabs.scrollLeft > 1);
+    holder.classList.toggle("has-overflow-right", tabs.scrollLeft + tabs.clientWidth < tabs.scrollWidth - 1);
   };
   updateOverflowHints();
   tabs.addEventListener("scroll", updateOverflowHints);

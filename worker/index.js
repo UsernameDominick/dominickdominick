@@ -118,6 +118,7 @@ import { parseByteRange } from "./range.js";
 import { safeRedirectStatus } from "./redirects.js";
 import { cleanTrackName, cleanTrackPath } from "./track.js";
 import { SVG_CSP, isSvgContentType } from "./svg.js";
+import { trailingSlashTarget } from "./trailing-slash.js";
 import {
   capacitanceMicrofarads,
   computeCircuitAnalysis,
@@ -447,7 +448,6 @@ async function renderArticle(env, article, navItems, previewReason = null, isAdm
     </div>
     <h1>${esc(article.title)}</h1>
     ${renderTags(article.tags)}
-    <div class="article-actions">${renderShareLinks(article.title, `/random/${article.slug}`)}</div>
     ${visibleText(article.og_image) ? `<img class="article-cover" src="${esc(visibleText(article.og_image))}" alt="" loading="eager" fetchpriority="high"${await coverSizeAttrs(env, visibleText(article.og_image))}>` : ""}
   </div>
   <div class="block">${ttsBarHtml}</div>
@@ -457,6 +457,7 @@ async function renderArticle(env, article, navItems, previewReason = null, isAdm
   <div class="block">
     <div id="readable-content">${paragraphsHtml(article.body, { anchors: true, media: bodyMedia })}</div>
   </div>
+  <div class="block"><div class="article-actions">${renderShareLinks(article.title, `/random/${article.slug}`)}</div></div>
   <div class="block">${reactionsHtml}</div>
   ${featuredInHtml ? `<div class="block">${featuredInHtml}</div>` : ""}
   ${relatedHtml ? `<div class="block">${relatedHtml}</div>` : ""}
@@ -602,7 +603,6 @@ async function renderProject(env, project, navItems, previewReason = null, isAdm
     ${linkButtons ? `<div class="project-link-buttons">${linkButtons}</div>` : ""}
     ${techStackHtml}
     ${renderTags(project.tags)}
-    <div class="article-actions">${renderShareLinks(project.title, `/projects/${project.slug}`)}</div>
     ${visibleText(project.og_image) && !heroVideoHtml ? `<img class="article-cover" src="${esc(visibleText(project.og_image))}" alt="" loading="eager" fetchpriority="high"${await coverSizeAttrs(env, visibleText(project.og_image))}>` : ""}
   </div>
   ${heroVideoHtml ? `<div class="block">${heroVideoHtml}</div>` : ""}
@@ -612,6 +612,7 @@ async function renderProject(env, project, navItems, previewReason = null, isAdm
   <div class="block">
     <div id="readable-content">${paragraphsHtml(project.body, { anchors: true, media: bodyMedia })}</div>
   </div>
+  <div class="block"><div class="article-actions">${renderShareLinks(project.title, `/projects/${project.slug}`)}</div></div>
   <div class="block">${reactionsHtml}</div>
   ${downloadsHtml ? `<div class="block">${downloadsHtml}</div>` : ""}
   ${bomHtml ? `<div class="block">${bomHtml}</div>` : ""}
@@ -839,6 +840,7 @@ async function renderHistoryPage(env, navItems) {
     path: "/history",
     navItems,
     activeSlug: null,
+    noindex: true,
     bodyHtml,
     ogImage: defaultOgImage || null,
     theme,
@@ -864,6 +866,7 @@ async function renderSavedPage(env, navItems) {
     path: "/saved",
     navItems,
     activeSlug: null,
+    noindex: true,
     bodyHtml,
     ogImage: defaultOgImage || null,
     theme,
@@ -1445,6 +1448,9 @@ export default {
         const u = new URL(request.url);
         if ((request.method === "GET" || request.method === "HEAD") && /\/{2,}/.test(u.pathname) && !u.pathname.startsWith("/api/") && !u.pathname.startsWith("/admin")) {
           return Response.redirect(`${u.origin}${u.pathname.replace(/\/{2,}/g, "/")}${u.search}`, 301);
+        }
+        if ((request.method === "GET" || request.method === "HEAD") && trailingSlashTarget(u.pathname)) {
+          return Response.redirect(`${u.origin}${trailingSlashTarget(u.pathname)}${u.search}`, 301);
         }
       }
       const clock = await previewClock(request, env);
