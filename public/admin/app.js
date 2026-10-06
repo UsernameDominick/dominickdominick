@@ -9190,9 +9190,9 @@
   // The bar is the pages that have a nav label, in nav_order; a page nested under another shows in its dropdown. Everything is edited
   // here in one list and written back page by page (the per-page Nav fields edit the same data).
   const BUILTIN_NAV_LINKS = [
-    { slug: "random", label: "Articles", hiddenByDefault: true }, // left out unless switched back on (worker/nav-settings.js)
-    { slug: "projects", label: "Projects" },
-    { slug: "topics", label: "Topics" },
+    { slug: "random", label: "Articles", hiddenByDefault: true }, // these three are left out unless switched back on (worker/nav-settings.js)
+    { slug: "projects", label: "Projects", hiddenByDefault: true },
+    { slug: "topics", label: "Topics", hiddenByDefault: true },
     { slug: "studio", label: "Studio" },
   ];
   let navAllPages = [];

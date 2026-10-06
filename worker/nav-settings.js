@@ -3,10 +3,11 @@
 
 // The built-in links, in the order they follow the owner's own nav pages. `slug` is where each one goes.
 export const BUILTIN_NAV = [
-  // Left out of the bar unless the owner switches it back on (they asked for the articles to be reached by search instead).
+  // Left out of the bar unless the owner switches them back on (they asked for a bar of just Home, Studio and Search; articles,
+  // projects and topics are reached through the finder and the pages themselves).
   { slug: "random", label: "Articles", hiddenByDefault: true },
-  { slug: "projects", label: "Projects" },
-  { slug: "topics", label: "Topics" },
+  { slug: "projects", label: "Projects", hiddenByDefault: true },
+  { slug: "topics", label: "Topics", hiddenByDefault: true },
   { slug: "studio", label: "Studio" },
 ];
 

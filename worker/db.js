@@ -146,8 +146,9 @@ export async function listNavPages(env) {
   // under Site settings > Header & footer.
   const taken = new Set(labelled.map((p) => p.slug));
   const overrides = parseNavBuiltin(first.builtin);
-  // A page of the owner's own on /random stands in for the built-in Articles link, so it follows that link's switch (off by default).
-  const own = builtinHidden(overrides, "random") ? topLevel.filter((p) => p.slug !== "random") : topLevel;
+  // A page of the owner's own on a built-in link's address (/random, /projects, /topics) stands in for that link, so it follows the
+  // link's switch (Articles, Projects and Topics are off by default).
+  const own = topLevel.filter((p) => !builtinHidden(overrides, p.slug));
   const nav = [...own, ...builtinNavItems(overrides, taken)];
   // Hidden Notes is not a tab: the signed-in owner reaches it from the finder (`owner` tells the page shell to offer it there).
   nav.owner = Boolean(env.__isAdmin);

@@ -4606,3 +4606,11 @@ html.finder-on { overflow: hidden; }
 /* ---- The header is the dial alone (the owner's choice: no site name on the left), centred on every width. ---- */
 .topbar { justify-content: center; }
 .topbar .site-nav { margin-left: auto; margin-right: auto; }
+/* On a phone the dial spans the whole bar and its stops share the width evenly (with a few stops there is room to spare; if there
+   are ever more than fit, they keep their own width and the strip scrolls as before). */
+@media (max-width: 640px) {
+  .topbar .site-nav { flex: 1 1 auto; width: 100%; margin-left: 0; margin-right: 0; }
+  .tabs { display: flex; width: 100%; }
+  .tabs > .tab, .tabs > .tab-group { flex: 1 0 0; } /* equal widths; a stop never gets narrower than its own content */
+  .tabs > .tab-group > .tab { width: 100%; }
+}
