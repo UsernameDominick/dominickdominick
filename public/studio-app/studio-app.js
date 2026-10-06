@@ -164,6 +164,14 @@
     // The list of songs is "My songs" here: they live in this browser.
     const title = document.getElementById("songs-modal-title");
     if (title) title.textContent = "My songs";
+    const close = document.getElementById("studio-close");
+    if (close) {
+      close.textContent = "Songs";
+      close.classList.remove("studio-icon");
+      close.classList.add("studio-btn");
+      close.setAttribute("aria-label", "My songs");
+      close.title = "My songs: open, start or delete a song";
+    }
     const hint = document.querySelector("#songs-modal .redirects-hint");
     if (hint) hint.textContent = "Build a loop, a tune or a whole track with the step sequencer, the piano roll and the drum kits. Songs you make here are kept in this browser only: use Share and export to save a song file or a sound file.";
     const list = await api("/songs");
