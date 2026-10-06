@@ -4311,3 +4311,19 @@ main h2 > a:only-child { display: inline-block; padding-block: 2px; }
 main h2 > a:only-child, .thought h2 a { max-width: 100%; overflow-wrap: anywhere; }
 .archive-list li > a { min-width: 0; overflow-wrap: anywhere; }
 .archive-list li > .topic-count { flex: none; }
+
+/* A block is exactly its content, wherever it sits and however it is resized. The outer margin of whatever starts or ends a block (a paragraph's
+   16px, a heading's 12px, a rule's 8px) is zero, so the space between two blocks is only the grid's gap and the block's own padding, the same
+   for every kind of block. Margins between things inside a block (paragraph to paragraph) stay. */
+.canvas:not(.article-canvas) > .block > :first-child,
+.canvas:not(.article-canvas) > .block > .block-content-over-bg > :first-child { margin-top: 0; }
+.canvas:not(.article-canvas) > .block > :last-child,
+.canvas:not(.article-canvas) > .block > .block-content-over-bg > :last-child { margin-bottom: 0; }
+/* Whatever a block holds stays inside its box when the box is narrow. */
+.canvas:not(.article-canvas) > .block img,
+.canvas:not(.article-canvas) > .block video,
+.canvas:not(.article-canvas) > .block iframe { max-width: 100%; }
+.canvas:not(.article-canvas) > .block pre { max-width: 100%; overflow-x: auto; }
+@media (max-width: 640px) {
+  .canvas { row-gap: 16px; } /* not the column gap: 23 gaps share the 24 columns, so it stays small */
+}

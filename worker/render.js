@@ -1945,7 +1945,10 @@ export async function renderBlocks(env, blocks, ctx = {}) {
       // rather than every block, since overflow:hidden here would also
       // clip other blocks' intentional escape-the-box effects (e.g. a
       // hover-lift's shadow, a slide-in animation's start position).
-      const overflowStyle = b.type === "video" ? "overflow:hidden;" : "";
+      // A spacer has no content, so it is as tall as the rows it covers (16px rows and the 8px gaps between them). That was only true on a
+      // wide screen: on a phone the blocks stack and an empty one had no height at all, so every spacer vanished.
+      const spacerStyle = b.type === "spacer" ? `min-height:${b.row_span * 16 + (b.row_span - 1) * 8}px;` : "";
+      const overflowStyle = (b.type === "video" ? "overflow:hidden;" : "") + spacerStyle;
       const gridStyle = `grid-column:${b.col} / span ${b.col_span};grid-row:${b.row} / span ${b.row_span};${overflowStyle}`;
       const style = b.style || {};
       // The scroll-triggered reveal itself (adding .is-visible) is plain
@@ -2272,7 +2275,7 @@ export function renderShell({
   // custom width" treatment here.
   const breakpointStyle =
     breakpoint !== 640
-      ? `<style>@media (max-width:${breakpoint}px){.block-hide-mobile{display:none !important;}.canvas{grid-auto-flow:row;grid-auto-rows:auto;}.block{grid-column:1 / -1 !important;grid-row:auto !important;}.block.block-mobile-col-override{grid-column:span var(--mobile-col-span) !important;}}@media (min-width:${
+      ? `<style>@media (max-width:${breakpoint}px){.block-hide-mobile{display:none !important;}.canvas{grid-auto-flow:row;grid-auto-rows:auto;row-gap:16px;}.block{grid-column:1 / -1 !important;grid-row:auto !important;}.block.block-mobile-col-override{grid-column:span var(--mobile-col-span) !important;}}@media (min-width:${
           breakpoint + 1
         }px){.block-hide-desktop{display:none !important;}}</style>`
       : "";
