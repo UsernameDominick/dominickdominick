@@ -9531,3 +9531,14 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
   #song-builder-modal #song-studio .studio-card-name { font-size: 0.78rem; }
   #song-builder-modal #song-studio .studio-badge { width: 18px; height: 18px; font-size: 0.65rem; min-width: 0; }
 }
+
+/* the Studio's MIDI tab */
+.studio-midi-status { margin: 4px 0 8px; font-size: 0.95rem; }
+.studio-midi-devices { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+.studio-midi-devices li { padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-elevated); font-size: 0.9rem; }
+.studio-midi-last { min-height: 48px; display: flex; align-items: center; padding: 8px 12px; border: 2px solid var(--border); border-radius: 10px; font-variant-numeric: tabular-nums; color: var(--text-dim); }
+.studio-midi-last.is-hit { border-color: var(--success); color: var(--text); }
+.studio-midi-keys { display: flex; gap: 1px; height: 54px; margin: 8px 0 4px; overflow: hidden; }
+.studio-midi-key { flex: 1 1 0; min-width: 0; background: var(--text); opacity: 0.18; border-radius: 0 0 3px 3px; }
+.studio-midi-key.is-black { opacity: 0.5; height: 62%; }
+.studio-midi-key.is-down { background: var(--accent); opacity: 1; }

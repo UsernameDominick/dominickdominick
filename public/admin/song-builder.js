@@ -1741,42 +1741,63 @@
     if (historyBefore && pushSongUndoState(historyBefore)) songEditGeneration++;
   }
 
+  // The Studio's MIDI tab reads the connection through this: devices, the last messages, and whether a note can be recorded.
+  const midiListeners = new Set();
+  const midiInfo = { supported: Boolean(navigator.requestMIDIAccess), connected: false, error: "", devices: [] };
+  const midiTell = (event) => midiListeners.forEach((fn) => { try { fn(event); } catch (e) { /* a listener must not break the keyboard */ } });
+  let midiAccess = null;
+  function readMidiDevices() {
+    // Per the Web MIDI spec, unplugging a device does NOT remove its entry from `access.inputs`: only its `.state` flips to
+    // "disconnected", so a disconnected port is skipped (or an unplugged keyboard would be counted as connected forever).
+    const connected = Array.from(midiAccess.inputs.values()).filter((i) => i.state !== "disconnected");
+    connected.forEach((input) => {
+      input.onmidimessage = (msg) => {
+        midiTell({ type: "message", data: Array.from(msg.data), device: input.name || "Unnamed device" });
+        handleMidiMessage(msg);
+      };
+    });
+    midiInfo.devices = connected.map((i) => ({ id: i.id, name: i.name || "Unnamed device", manufacturer: i.manufacturer || "" }));
+    const names = midiInfo.devices.map((d) => d.name);
+    const btn = $("song-midi-connect");
+    if (names.length === 0) {
+      btn.textContent = "No MIDI devices found";
+      btn.title = "Plug in a MIDI keyboard/controller — it'll be picked up automatically, no need to click again.";
+    } else {
+      btn.textContent = `${names.length} MIDI device${names.length === 1 ? "" : "s"} connected`;
+      btn.title = names.join(", ");
+    }
+    midiTell({ type: "state" });
+  }
+  async function connectMidi() {
+    if (!navigator.requestMIDIAccess) return;
+    try {
+      midiAccess = await navigator.requestMIDIAccess();
+      midiInfo.error = "";
+      midiInfo.connected = true;
+      // Runs again on every `statechange`, so a keyboard plugged in mid-session is picked up without another click.
+      readMidiDevices();
+      midiAccess.onstatechange = readMidiDevices;
+      $("song-midi-connect").disabled = true;
+      $("song-record-label").hidden = false;
+    } catch (err) {
+      midiInfo.error = err && err.message ? err.message : "The browser said no.";
+      midiTell({ type: "state" });
+      if (!midiListeners.size) alert("Couldn't access MIDI devices: " + midiInfo.error);
+    }
+  }
+  Object.assign(window.SongStudioHost, {
+    midi: {
+      info: () => midiInfo,
+      connect: connectMidi,
+      refresh: () => { if (midiAccess) readMidiDevices(); else connectMidi(); },
+      subscribe: (fn) => { midiListeners.add(fn); return () => midiListeners.delete(fn); },
+      // Would this note be written by the open roll? (Notes outside its two octaves still sound but are not recorded.)
+      canRecord: (num) => { const r = roll(); return Boolean(r && r.notes && r.notes[rowForNote(Engine.midiToNoteName(num))]); },
+    },
+  });
   if (navigator.requestMIDIAccess) {
     $("song-midi-connect").hidden = false;
-    $("song-midi-connect").addEventListener("click", async () => {
-      try {
-        const access = await navigator.requestMIDIAccess();
-        // Wires up every currently-known input AND re-runs on every future
-        // `statechange` (a device plugged in or unplugged after the initial
-        // connect) -- so a MIDI keyboard plugged in mid-session gets picked
-        // up automatically instead of silently doing nothing until the page
-        // is reloaded and "Connect MIDI" clicked again.
-        function refreshMidiDevices() {
-          // Per the Web MIDI spec, unplugging a device does NOT remove its
-          // entry from `access.inputs` -- the port object is kept around
-          // (so replugging the same physical device can reuse it) and only
-          // its `.state` flips from "connected" to "disconnected". Wiring
-          // and counting every entry unconditionally would keep reporting
-          // an unplugged device as connected forever.
-          const connected = Array.from(access.inputs.values()).filter((i) => i.state !== "disconnected");
-          connected.forEach((input) => (input.onmidimessage = handleMidiMessage));
-          const names = connected.map((i) => i.name || "Unnamed device");
-          if (names.length === 0) {
-            $("song-midi-connect").textContent = "No MIDI devices found";
-            $("song-midi-connect").title = "Plug in a MIDI keyboard/controller — it'll be picked up automatically, no need to click again.";
-          } else {
-            $("song-midi-connect").textContent = `${names.length} MIDI device${names.length === 1 ? "" : "s"} connected`;
-            $("song-midi-connect").title = names.join(", ");
-          }
-        }
-        refreshMidiDevices();
-        access.onstatechange = refreshMidiDevices;
-        $("song-midi-connect").disabled = true;
-        $("song-record-label").hidden = false;
-      } catch (err) {
-        alert("Couldn't access MIDI devices: " + err.message);
-      }
-    });
+    $("song-midi-connect").addEventListener("click", connectMidi);
     // Already allowed on an earlier visit: connect without asking again, so a keyboard just works when the builder opens.
     if (navigator.permissions && navigator.permissions.query) {
       navigator.permissions.query({ name: "midi" }).then((state) => {

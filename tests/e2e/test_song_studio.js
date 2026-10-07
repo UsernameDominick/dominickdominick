@@ -490,7 +490,7 @@ const { fanify } = require("./_fan.cjs");
 
     // ---- the Tools sheet: the song's settings, patterns and sharing, all from here
     await p.click("#studio-tools");
-    ok((await vis(p, "#studio-sheet")) && (await p.locator("#studio-sheet .studio-sheet-tab").count()) === 5, "Tools opens a sheet with five tabs");
+    ok((await vis(p, "#studio-sheet")) && (await p.locator("#studio-sheet .studio-sheet-tab").count()) === 6, "Tools opens a sheet with six tabs (the MIDI tab is the last)");
     await p.click("#studio-tab-song");
     ok((await vis(p, "#song-tempo")) && (await vis(p, "#song-swing")) && (await vis(p, "#song-pump")) && (await vis(p, "#song-tap-tempo")) && (await vis(p, "#studio-song-bars")), "Song has the tempo, tap tempo, length, swing, humanize, space, echo and pump");
     await p.fill("#song-swing", "30");

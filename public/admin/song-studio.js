@@ -2214,6 +2214,7 @@
     { id: "song", label: "Song" },
     { id: "arrange", label: "Patterns" },
     { id: "share", label: "Share" },
+    { id: "midi", label: "MIDI" },
   ];
   const panes = {};
   let sheetTab = "song";
@@ -2308,6 +2309,7 @@
     const exp = section("Export", "Files and renders of this song.");
     exp.append(row($("song-export-report"), $("song-export-audio"), $("song-export-midi"), $("song-export-json")), row($("song-file-status")), row($("song-generate-cover-art"), $("song-snapshot-mix")));
     panes.share.append(look, prev, exp);
+    buildMidiPane();
 
     // Everything else stays in the builder, hidden: the selects the Sound tab drives, the roll's own buttons, the rows and the grids.
     sheetTabs.addEventListener("click", (e) => {
@@ -2338,6 +2340,138 @@
       }
     });
   }
+  // MIDI: connect a keyboard and check it is heard. The builder owns the connection (`SongStudioHost.midi`); this is only the view.
+  const NOTE_LABELS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+  const midiName = (n) => NOTE_LABELS[n % 12] + (Math.floor(n / 12) - 1);
+  const IS_BLACK = [0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0];
+  function midiText(data) {
+    const status = data[0] >> 4;
+    const ch = (data[0] & 15) + 1;
+    if (data[0] >= 0xf0) return null;
+    if (status === 9 && data[2] > 0) return { kind: "note", on: true, note: data[1], text: `Note on ${midiName(data[1])} (${data[1]}), velocity ${data[2]}, channel ${ch}` };
+    if (status === 8 || status === 9) return { kind: "note", on: false, note: data[1], text: `Note off ${midiName(data[1])} (${data[1]}), channel ${ch}` };
+    if (status === 11) return { kind: "other", text: `Control ${data[1]} = ${data[2]}, channel ${ch}${data[1] === 64 ? " (sustain pedal)" : data[1] === 1 ? " (mod wheel)" : ""}` };
+    if (status === 14) return { kind: "other", text: `Pitch bend ${(data[2] << 7) + data[1] - 8192}, channel ${ch}` };
+    if (status === 12) return { kind: "other", text: `Program ${data[1]}, channel ${ch}` };
+    if (status === 10 || status === 13) return { kind: "other", text: `Pressure ${data[status === 10 ? 2 : 1]}, channel ${ch}` };
+    return { kind: "other", text: `MIDI message ${data.join(" ")}` };
+  }
+  function buildMidiPane() {
+    const pane = panes.midi;
+    const m = host().midi;
+    const conn = section("Keyboard", "Plug your MIDI keyboard in, press Connect and play a key. Its notes play the open track and, with Rec on, record.");
+    conn.insertAdjacentHTML(
+      "beforeend",
+      `<p id="studio-midi-status" class="studio-midi-status" role="status" aria-live="polite"></p>` +
+        `<div class="studio-section-row"><button type="button" id="studio-midi-connect" data-no-history>Connect MIDI</button>` +
+        `<button type="button" id="studio-midi-refresh" data-no-history>Look again</button></div>` +
+        `<ul id="studio-midi-devices" class="studio-midi-devices" aria-label="MIDI inputs found"></ul>` +
+        `<p id="studio-midi-help" class="studio-section-hint" hidden></p>`
+    );
+    const test = section("Test your keys", "Every key you press shows here, so you can see the keyboard is talking to the page.");
+    test.insertAdjacentHTML(
+      "beforeend",
+      `<div id="studio-midi-last" class="studio-midi-last" aria-live="off">Waiting for a key</div>` +
+        `<p id="studio-midi-goes" class="studio-section-hint"></p>` +
+        `<div id="studio-midi-keys" class="studio-midi-keys" role="img" aria-label="Keys you are pressing"></div>` +
+        `<p id="studio-midi-range" class="studio-section-hint"></p>` +
+        `<div class="studio-section-row"><button type="button" id="studio-midi-clear" data-no-history>Reset test</button></div>`
+    );
+    pane.append(conn, test);
+    const status = $("studio-midi-status");
+    const list = $("studio-midi-devices");
+    const help = $("studio-midi-help");
+    const last = $("studio-midi-last");
+    const goes = $("studio-midi-goes");
+    const keysEl = $("studio-midi-keys");
+    const rangeEl = $("studio-midi-range");
+    let keyStart = 48;
+    let seen = 0, lo = null, hi = null, quiet = 0;
+    const down = new Set();
+    function drawKeys() {
+      keysEl.textContent = "";
+      for (let i = 0; i <= 36; i++) {
+        const n = keyStart + i;
+        const k = document.createElement("span");
+        k.className = "studio-midi-key" + (IS_BLACK[n % 12] ? " is-black" : "") + (down.has(n) ? " is-down" : "");
+        k.dataset.note = n;
+        if (n % 12 === 0) k.title = midiName(n);
+        keysEl.append(k);
+      }
+    }
+    function drawRange() {
+      rangeEl.textContent = seen ? `Heard ${seen} note${seen === 1 ? "" : "s"}, from ${midiName(lo)} to ${midiName(hi)}. The strip shows ${midiName(keyStart)} to ${midiName(keyStart + 36)} (37 keys).` : "";
+    }
+    function drawState() {
+      const info = m.info();
+      list.textContent = "";
+      info.devices.forEach((d) => {
+        const li = document.createElement("li");
+        li.textContent = d.name + (d.manufacturer ? ` (${d.manufacturer})` : "");
+        list.append(li);
+      });
+      $("studio-midi-connect").hidden = !info.supported || info.connected;
+      $("studio-midi-refresh").hidden = !info.supported || !info.connected;
+      help.hidden = true;
+      if (!info.supported) {
+        status.textContent = "This browser can't talk to MIDI devices.";
+        help.hidden = false;
+        help.textContent = "Use Chrome, Edge or Opera on a computer or an Android phone. Safari on iPhone and Mac doesn't support MIDI keyboards in web pages.";
+      } else if (info.error) {
+        status.textContent = "The browser blocked MIDI access: " + info.error;
+        help.hidden = false;
+        help.textContent = "Allow MIDI for this site in the address bar's site settings, then press Connect again.";
+      } else if (!info.connected) {
+        status.textContent = "Not connected yet. Press Connect MIDI.";
+      } else if (!info.devices.length) {
+        status.textContent = "Connected to the browser, but no MIDI keyboard found.";
+        help.hidden = false;
+        help.textContent = "Check the USB cable (or switch the keyboard on), then press Look again. A keyboard plugged in later is picked up by itself.";
+      } else {
+        status.textContent = `${info.devices.length} MIDI input${info.devices.length === 1 ? "" : "s"} connected. Press a key to test.`;
+      }
+    }
+    function onMessage(data, device) {
+      const t = midiText(data);
+      if (!t) return; // clock and active-sensing pings
+      last.textContent = `${t.text}  (${device})`;
+      last.classList.add("is-hit");
+      clearTimeout(quiet);
+      quiet = setTimeout(() => last.classList.remove("is-hit"), 250);
+      if (t.kind !== "note") return;
+      if (t.on) {
+        seen++;
+        lo = lo === null ? t.note : Math.min(lo, t.note);
+        hi = hi === null ? t.note : Math.max(hi, t.note);
+        if (t.note < keyStart || t.note > keyStart + 36) {
+          keyStart = Math.max(0, Math.min(Math.floor(t.note / 12) * 12, 127 - 36));
+          drawKeys();
+        }
+        down.add(t.note);
+        const tr = trackOf(trackId);
+        if (tr.kind === "drums") goes.textContent = "The open track is Drums: keys play drum sounds only on General MIDI drum notes (36 kick, 38 snare, 42 hat, 46 open hat...).";
+        else goes.textContent = host().midi.canRecord(t.note) ? `Plays and records into ${tr.name}.` : `${midiName(t.note)} is outside ${tr.name}'s two octaves: it sounds but is not recorded. Open another track or play inside its range.`;
+        drawRange();
+      } else down.delete(t.note);
+      const el = keysEl.querySelector(`[data-note="${t.note}"]`);
+      if (el) el.classList.toggle("is-down", down.has(t.note));
+    }
+    m.subscribe((ev) => {
+      if (ev.type === "state") drawState();
+      else if (ev.type === "message") onMessage(ev.data, ev.device);
+    });
+    $("studio-midi-connect").addEventListener("click", () => m.connect());
+    $("studio-midi-refresh").addEventListener("click", () => m.refresh());
+    $("studio-midi-clear").addEventListener("click", () => {
+      seen = 0; lo = hi = null; down.clear(); keyStart = 48;
+      last.textContent = "Waiting for a key";
+      goes.textContent = "";
+      drawKeys(); drawRange();
+    });
+    drawKeys();
+    drawState();
+  }
+
   function showPane(id) {
     sheetTab = id;
     PANES.forEach((p) => {
