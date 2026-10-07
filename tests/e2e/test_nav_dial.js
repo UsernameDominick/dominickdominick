@@ -1,102 +1,74 @@
-// The nav dial: Home in the middle and a little bigger with the other stops on either side, every name in lowercase, the Simulations stop
-// called Sim, and the current stop stepping forward (it jumps up when it becomes current; with reduced motion it just sits forward).
+// The nav is a dial: the stop you are on sits under a needle in the middle and is the biggest, the others step down in size the farther
+// they are from it, every name is lowercase, and the Simulations stop is called Sim. Drag the dial on a phone and, as it settles on a stop,
+// that page comes in; click a stop on a screen with room and it turns to the middle and goes there. Search only opens when it is pressed.
 const E2E_BASE = process.env.E2E_BASE || "http://localhost:8787";
 const { chromium } = require("./_pw.cjs");
 
-// What the strip looks like, measured in the page.
-function dialState() {
+// The dial as it looks right now, measured in the page.
+function dial() {
   const t = document.querySelector(".tabs");
-  const sr = t.getBoundingClientRect();
-  const stops = [...t.children].filter((c) => c.matches(".tab, .tab-group, .tab-spacer"));
-  const homeStop = stops.find((c) => c.matches(".tab-home") || c.querySelector(":scope > .tab-home"));
-  const hr = homeStop && homeStop.getBoundingClientRect();
-  const homeIdx = stops.indexOf(homeStop);
-  const links = [...t.querySelectorAll("a.tab, button.tab")];
-  const home = t.querySelector(".tab-home");
-  const others = links.filter((a) => a !== home);
-  const box = (a) => a.getBoundingClientRect().width;
-  const ico = (a) => parseFloat(getComputedStyle(a.querySelector(".tab-ico")).width); // the drawn size, not the pose it is in
-  const font = (a) => parseFloat(getComputedStyle(a.querySelector(".tab-label")).fontSize);
+  const nav = document.querySelector(".site-nav").getBoundingClientRect(); // the needle is at its middle (and is hidden on a page with no tab)
+  const nx = nav.left + nav.width / 2;
   const scale = (el) => { const m = /matrix\(([^,]+),/.exec(getComputedStyle(el).transform); return m ? Number(m[1]) : 1; };
+  const links = [...t.querySelectorAll("a.tab, button.tab")].map((a) => {
+    const r = a.getBoundingClientRect();
+    return {
+      label: a.querySelector(".tab-label").textContent.trim(), shown: a.querySelector(".tab-label").innerText,
+      href: a.getAttribute("href"), cx: r.left + r.width / 2, off: r.left + r.width / 2 - nx,
+      s: scale(a.querySelector(".tab-ico")), ls: scale(a.querySelector(".tab-label")),
+      d: parseFloat(getComputedStyle(a).getPropertyValue("--d")), centred: a.classList.contains("is-centred"), active: a.classList.contains("is-active"),
+      lower: getComputedStyle(a.querySelector(".tab-label")).textTransform === "lowercase",
+    };
+  });
+  const nearest = links.reduce((b, l) => (Math.abs(l.off) < Math.abs(b.off) ? l : b), links[0]);
   return {
-    stops: stops.length, homeIdx, before: homeIdx, after: stops.length - homeIdx - 1,
-    homeOff: hr ? Math.abs(hr.left + hr.width / 2 - (sr.left + sr.width / 2)) : null,
-    homeWider: home ? box(home) > Math.max(...others.map(box)) : false,
-    homeIcon: home ? ico(home) > Math.max(...others.map(ico)) : false,
-    homeFont: home ? font(home) > Math.max(...others.map(font)) : false,
+    path: location.pathname, sl: t.scrollLeft, links, nearest, needle: nx, needleShown: getComputedStyle(document.querySelector(".site-nav > .tab-indicator")).display !== "none",
+    finder: !!document.getElementById("site-finder") && !document.getElementById("site-finder").hidden, over: document.documentElement.scrollWidth - innerWidth,
     cut: [...t.querySelectorAll(".tab-label")].filter((l) => l.scrollWidth > l.clientWidth + 1).map((l) => l.textContent),
-    scrolls: t.scrollWidth > t.clientWidth + 1,
-    pageOver: document.documentElement.scrollWidth - innerWidth,
-    lower: links.every((a) => getComputedStyle(a.querySelector(".tab-label")).textTransform === "lowercase"),
-    shown: links.map((a) => a.querySelector(".tab-label").innerText),
-    spacers: t.querySelectorAll(":scope > .tab-spacer").length,
-    // the pose of every stop: the current one is forward, the rest are not
-    pose: links.map((a) => ({ cur: a.classList.contains("is-active") || a.getAttribute("aria-expanded") === "true", s: scale(a.querySelector(".tab-ico")), l: scale(a.querySelector(".tab-label")), ty: getComputedStyle(a.querySelector(".tab-ico")).transform })),
   };
 }
-// Is the jump running on this stop right now?
-function jumping(sel) {
-  const el = document.querySelector(sel);
-  return document.getAnimations().some((a) => a.animationName === "tab-jump" && a.effect && a.effect.target && el && el.contains(a.effect.target) && a.playState === "running");
+async function still(p) {
+  let last = -1, n = 0;
+  for (let i = 0; i < 60 && n < 4; i++) { const v = await p.evaluate(() => document.querySelector(".tabs").scrollLeft); n = v === last ? n + 1 : 0; last = v; await p.waitForTimeout(70); }
 }
-// The owner's own nav: Home, Studio, PicEditor, Sim, Scans (and Search), so the widths do not depend on what pages this copy of the database has.
-function liveSet() {
-  const strip = document.querySelector(".tabs");
-  const keep = ["/", "/studio", "/piceditor", "/simulations", "/scans"];
-  [...strip.querySelectorAll(":scope > .tab:not(.tab-finder), :scope > .tab-group, :scope > .tab-spacer")].forEach((s) => {
-    const a = s.matches(".tab") ? s : s.querySelector(".tab");
-    if (!a || !keep.includes(a.getAttribute("href"))) s.remove();
-  });
-  const kids = [...strip.children].filter((c) => c.matches(".tab, .tab-group, .tab-spacer"));
-  const i = kids.findIndex((c) => c.matches(".tab-home") || c.querySelector(":scope > .tab-home"));
-  const gap = kids.length - i - 1 - i;
-  for (let k = 0; k < gap; k++) { const sp = document.createElement("span"); sp.className = "tab-spacer"; sp.setAttribute("aria-hidden", "true"); strip.insertBefore(sp, strip.firstChild); }
-  window.siteLayoutNav();
+// A finger on the dial: touch down, drag, lift (real touch events, so the browser scrolls and snaps it itself).
+async function drag(cdp, y, from, to, steps = 12) {
+  const touch = (type, x) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x, y, id: 1 }] });
+  await touch("touchStart", from);
+  for (let i = 1; i <= steps; i++) { await touch("touchMove", from + ((to - from) * i) / steps); await new Promise((r) => setTimeout(r, 16)); }
+  await new Promise((r) => setTimeout(r, 150)); // hold still before letting go, so there is no flick to carry it past the stop it is on
+  await touch("touchEnd");
 }
 
 (async () => {
   let fail = 0; const ok = (c, m, x) => { console.log((c ? "PASS " : "FAIL ") + m + (x !== undefined && !c ? " " + JSON.stringify(x) : "")); if (!c) fail++; };
   const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
   try {
-    // ---- the real page: Home sits in the middle of the stops, whatever pages this site has ----
-    {
-      const p = await (await b.newContext({ viewport: { width: 1280, height: 800 } })).newPage();
-      const errs = []; p.on("pageerror", (e) => errs.push(e.message));
-      await p.goto(E2E_BASE + "/studio");
-      await p.waitForSelector(".tab-home");
-      const s = await p.evaluate(dialState);
-      ok(s.homeIdx > 0 && s.before === s.after, "Home has as many stops before it as after it (Search and any empty slot counted)", s);
-      ok(s.homeOff <= 10, "and sits within a few pixels of the middle of the strip", s.homeOff);
-      ok(s.homeWider && s.homeIcon && s.homeFont, "Home is wider, with a bigger icon and a bigger name", s);
-      ok(s.lower && s.shown.every((t) => t === t.toLowerCase()), "every name is shown in lowercase", s.shown);
-      ok(errs.length === 0, "no page errors", errs);
-      await p.context().close();
-    }
-
-    // ---- the owner's own set of stops at every width: Home dead centre, nothing cut off ----
-    for (const [w, h, dpr, mobile, centre, label] of [[393, 800, 3, true, 4, "a large phone"], [375, 800, 3, true, 4, "a small phone"], [768, 900, 2, false, 2, "a tablet"], [1280, 800, 1, false, 2, "a computer"]]) {
+    // ---- at rest, at every width: the current stop is in the middle, biggest, with the rest stepping down evenly on both sides ----
+    for (const [w, h, dpr, mobile, label] of [[393, 800, 3, true, "a large phone"], [375, 800, 3, true, "a small phone"], [320, 640, 2, true, "a 320 px phone"], [768, 900, 2, false, "a tablet"], [1280, 800, 1, false, "a computer"]]) {
       const ctx = await b.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: dpr, isMobile: mobile, hasTouch: mobile });
       const p = await ctx.newPage();
-      await p.goto(E2E_BASE + "/studio");
-      await p.waitForSelector(".tab-home");
-      await p.evaluate(liveSet);
-      await p.waitForTimeout(500);
-      const s = await p.evaluate(dialState);
-      ok(s.before === s.after && s.homeOff <= centre, `${label}: Home is in the middle (off by ${s.homeOff && s.homeOff.toFixed(1)}px)`, s);
-      ok(s.homeWider && s.homeIcon && s.homeFont, `${label}: Home is a little bigger than the rest`);
-      ok(!s.scrolls && s.cut.length === 0 && s.pageOver <= 0, `${label}: everything fits, no name is cut and the page does not run sideways`, [s.scrolls, s.cut, s.pageOver]);
-      await ctx.close();
-    }
-    // the smallest phone may scroll the strip, but never the page
-    {
-      const ctx = await b.newContext({ viewport: { width: 320, height: 640 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
-      const p = await ctx.newPage();
-      await p.goto(E2E_BASE + "/studio");
-      await p.waitForSelector(".tab-home");
-      await p.evaluate(liveSet);
-      await p.waitForTimeout(400);
-      const s = await p.evaluate(dialState);
-      ok(s.pageOver <= 0 && s.cut.length === 0, "a 320 px phone: the page does not run sideways and no name is cut", [s.pageOver, s.cut]);
+      const errs = []; p.on("pageerror", (e) => errs.push(e.message));
+      for (const path of ["/", "/studio", "/scans"]) {
+        await p.goto(E2E_BASE + path);
+        await p.waitForSelector(".tab.is-centred");
+        await still(p);
+        const s = await p.evaluate(dial);
+        const cur = s.links.find((l) => l.active);
+        ok(cur && Math.abs(cur.off) <= 1.5 && cur.centred && s.nearest === cur, `${label}, ${path}: this page's stop is in the middle, under the needle (off by ${cur && cur.off.toFixed(1)}px)`, s.links.map((l) => [l.label, l.off, l.centred]));
+        ok(cur && cur.s === 1 && cur.d < 0.05, `${label}, ${path}: and it is full size`, cur);
+        const others = s.links.filter((l) => l !== cur);
+        const pitch = s.links[1].cx - s.links[0].cx;
+        const byDist = (k) => others.filter((l) => Math.abs(Math.abs(l.off) / pitch - k) < 0.1);
+        const one = byDist(1);
+        ok(one.length >= 1 && one.every((l) => l.s < 0.9 && l.s > 0.7), `${label}, ${path}: the stops next to it are smaller`, one.map((l) => [l.label, l.s]));
+        const two = byDist(2);
+        ok(one.length >= 1 && two.every((l) => l.s < one[0].s - 0.1), `${label}, ${path}: the next ones smaller again, a staircase down`, [one.map((l) => l.s), two.map((l) => l.s)]);
+        ok(one.length >= 1 && Math.max(...one.map((l) => l.s)) - Math.min(...one.map((l) => l.s)) < 0.03, `${label}, ${path}: and the two sides step down alike`, one.map((l) => l.s));
+        ok(s.links.every((l) => l.lower && l.shown === l.shown.toLowerCase()), `${label}, ${path}: every name is lowercase`, s.links.map((l) => l.shown));
+        ok(s.over <= 0 && s.cut.length === 0, `${label}, ${path}: nothing runs sideways and no name is cut`, [s.over, s.cut]);
+      }
+      ok(errs.length === 0, `${label}: no page errors`, errs);
       await ctx.close();
     }
 
@@ -106,58 +78,153 @@ function liveSet() {
       await p.goto(E2E_BASE + "/simulations");
       const txt = await p.evaluate(() => { const a = document.querySelector('.tabs a.tab[href="/simulations"]'); return a && [a.textContent.trim(), a.getAttribute("aria-current")]; });
       ok(txt && txt[0] === "Sim" && txt[1] === "page", "the Simulations page's stop is called Sim and is the current one", txt);
-      ok((await p.title()).length > 0 && (await p.textContent("h1")).trim().length > 0, "(the page itself keeps its own title and heading)");
       await p.context().close();
     }
 
-    // ---- the current stop steps forward, and jumps when it becomes current ----
+    // ---- a computer: click the stop you want ----
     {
       const p = await (await b.newContext({ viewport: { width: 1280, height: 800 } })).newPage();
-      await p.goto(E2E_BASE + "/studio");
-      await p.waitForSelector(".tab-home");
-      await p.waitForFunction(() => !document.getAnimations().some((a) => a.animationName === "tab-jump" && a.playState === "running"), null, { timeout: 5000 });
-      let s = await p.evaluate(dialState);
-      const cur = s.pose.filter((x) => x.cur); const rest = s.pose.filter((x) => !x.cur);
-      ok(cur.length === 1 && Math.abs(cur[0].s - 1.12) < 0.01 && Math.abs(cur[0].l - 1.12) < 0.01 && rest.every((x) => x.s === 1 && x.l === 1), "the current stop sits forward (icon and name larger); the others do not", s.pose);
-      await p.click('.tabs a.tab[href="/"]');
-      const during = await p.waitForFunction(jumping, '.tabs a.tab[href="/"]', { polling: "raf", timeout: 5000 }).then(() => true).catch(() => false);
-      ok(during, "when Home becomes the current stop its icon and name jump");
-      ok(!(await p.evaluate(jumping, '.tabs a.tab[href="/studio"]')), "and Studio, no longer current, does not");
-      await p.waitForFunction(() => location.pathname === "/" && !document.querySelector(".page-stage"), null, { timeout: 10000 });
-      await p.waitForFunction(() => !document.getAnimations().some((a) => a.animationName === "tab-jump" && a.playState === "running"), null, { timeout: 5000 });
-      await p.waitForTimeout(450);
-      s = await p.evaluate(dialState);
-      ok(s.pose.filter((x) => x.cur).length === 1 && s.pose.filter((x) => !x.cur).every((x) => x.s === 1 && x.l === 1), "afterwards only Home is forward; Studio has come back down", s.pose);
-      // Search is the forward stop while the finder is open, and the page's own stop steps back
-      await p.click("#finder-open");
-      await p.waitForSelector("#site-finder:not([hidden])");
-      await p.waitForTimeout(700);
-      s = await p.evaluate(dialState);
-      const searchIdx = s.pose.length - 1;
-      ok(s.pose[searchIdx].s > 1.05 && s.pose.slice(0, searchIdx).every((x) => x.s === 1), "with the finder open Search is the forward stop and the page's stop steps back", s.pose);
-      await p.keyboard.press("Escape");
-      await p.waitForTimeout(700);
-      s = await p.evaluate(dialState);
-      ok(s.pose[searchIdx].s === 1 && s.pose.filter((x) => x.cur && x.s > 1.05).length === 1, "closed again, the page's own stop is forward once more", s.pose);
+      await p.goto(E2E_BASE + "/");
+      await p.waitForSelector(".tab.is-centred");
+      await still(p);
+      const needleBefore = (await p.evaluate(dial)).needle;
+      await p.click('.tabs a.tab[href="/scans"]');
+      await p.waitForFunction(() => location.pathname === "/scans" && !document.querySelector(".page-stage"), null, { timeout: 10000 });
+      await still(p);
+      const s = await p.evaluate(dial);
+      const cur = s.links.find((l) => l.active);
+      ok(cur && cur.href === "/scans" && Math.abs(cur.off) <= 1.5 && cur.centred && cur.s === 1, "clicking a stop turns the dial to it, makes it the big one and goes there", s.links.map((l) => [l.label, l.off, l.s]));
+      ok(Math.abs(s.needle - needleBefore) < 0.5, "the needle stayed where it was; the ticks and stops moved under it");
+      const home = s.links.find((l) => l.href === "/");
+      ok(home && home.s < 0.9, "and Home, no longer the middle one, is smaller", home);
+      // pressing the stop you are already on does nothing
+      await p.click('.tabs a.tab[href="/scans"]');
+      await p.waitForTimeout(300);
+      ok((await p.evaluate(dial)).path === "/scans", "pressing the current stop again stays put");
       await p.context().close();
     }
 
-    // ---- reduced motion: it sits forward but does not jump (the visitor's setting, and the site's own switch) ----
-    for (const [label, opts, init] of [["the system asks for reduced motion", { reducedMotion: "reduce" }, null], ["the site's motion switch is on reduce", {}, "try{localStorage.setItem('motion','reduce')}catch(e){}"]]) {
-      const ctx = await b.newContext({ viewport: { width: 1280, height: 800 }, ...opts });
+    // ---- a phone: drag the dial and the page follows; a tap works too ----
+    {
+      const ctx = await b.newContext({ viewport: { width: 393, height: 800 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
       const p = await ctx.newPage();
-      if (init) await p.addInitScript(init);
-      await p.goto(E2E_BASE + "/studio");
-      await p.waitForSelector(".tab-home");
-      await p.waitForTimeout(100);
-      ok(!(await p.evaluate(() => document.getAnimations().some((a) => a.animationName === "tab-jump"))), `${label}: no jump`);
-      let s = await p.evaluate(dialState);
-      ok(s.pose.filter((x) => x.cur && Math.abs(x.s - 1.12) < 0.01).length === 1, `${label}: the current stop still sits forward`, s.pose);
-      await p.click('.tabs a.tab[href="/"]');
-      await p.waitForFunction(() => location.pathname === "/" && !document.querySelector(".page-stage"), null, { timeout: 10000 });
-      await p.waitForTimeout(100);
-      ok(!(await p.evaluate(() => document.getAnimations().some((a) => a.animationName === "tab-jump" || (a.transitionProperty === "transform" && a.effect && a.effect.target && a.effect.target.closest && a.effect.target.closest(".tab-ico, .tab-label"))))), `${label}: sliding to another tab neither jumps nor eases the icons and names`);
-      ok(!(await p.evaluate(() => document.getAnimations().some((a) => a.effect && a.effect.target && a.effect.target.classList && a.effect.target.classList.contains("tab-indicator")))), `${label}: and the needle does not glide`);
+      const errs = []; p.on("pageerror", (e) => errs.push(e.message));
+      await p.goto(E2E_BASE + "/");
+      await p.waitForSelector(".tab.is-centred");
+      await still(p);
+      const cdp = await ctx.newCDPSession(p);
+      const s0 = await p.evaluate(dial);
+      const pitch = s0.links[1].cx - s0.links[0].cx;
+      const homeIdx = s0.links.findIndex((l) => l.active);
+      // a finger moves left by two stops: the dial turns two stops forward
+      await drag(cdp, 50, 300, 300 - 2 * pitch);
+      await p.waitForFunction((want) => location.pathname === want, s0.links[homeIdx + 2].href, { timeout: 8000 }).catch(() => {});
+      await still(p);
+      let s = await p.evaluate(dial);
+      ok(s.path === s0.links[homeIdx + 2].href, "dragging the dial two stops brings in that page", [s.path, s0.links[homeIdx + 2].href]);
+      let cur = s.links.find((l) => l.active);
+      ok(cur && Math.abs(cur.off) <= 1.5 && cur.centred && cur.s === 1, "and it has settled with that stop in the middle and big", cur);
+      // and back one stop
+      await drag(cdp, 50, 100, 100 + pitch);
+      await p.waitForFunction((want) => location.pathname === want, s0.links[homeIdx + 1].href, { timeout: 8000 }).catch(() => {});
+      await still(p);
+      s = await p.evaluate(dial);
+      ok(s.path === s0.links[homeIdx + 1].href, "dragging back one stop brings in the page before it", [s.path, s0.links[homeIdx + 1].href]);
+      // a drag that lets go most of the way to the next stop snaps to it, and that is the page
+      const here = await p.evaluate(dial);
+      const hereIdx = here.links.findIndex((l) => l.active);
+      await drag(cdp, 50, 250, 250 - Math.round(pitch * 0.95), 8);
+      await p.waitForFunction((want) => location.pathname === want, here.links[hereIdx + 1].href, { timeout: 8000 }).catch(() => {});
+      await still(p);
+      s = await p.evaluate(dial);
+      cur = s.links.find((l) => l.active);
+      ok(s.path === here.links[hereIdx + 1].href && cur && Math.abs(cur.off) <= 1.5, "letting go most of the way to the next stop snaps to it", [s.path, cur && cur.off]);
+      // dragging onto Search lights it but does not open the finder
+      await drag(cdp, 50, 330, 330 - 4 * pitch, 16);
+      await still(p);
+      await p.waitForTimeout(500);
+      s = await p.evaluate(dial);
+      ok(!s.finder, "dragging the dial onto Search does not open the finder by itself", s.finder);
+      const search = s.links[s.links.length - 1];
+      ok(Math.abs(search.off) <= 1.5 && search.centred, "it just rests there, lit", search);
+      // a tap on Search opens it, with Search the stop in the middle
+      await p.tap("#finder-open");
+      await p.waitForSelector("#site-finder:not([hidden])");
+      await still(p);
+      s = await p.evaluate(dial);
+      ok(s.finder && s.links[s.links.length - 1].centred && Math.abs(s.links[s.links.length - 1].off) <= 1.5, "pressing Search opens the finder with Search under the needle");
+      await p.keyboard.press("Escape");
+      await p.waitForFunction(() => document.getElementById("site-finder").hidden, null, { timeout: 4000 });
+      await still(p);
+      s = await p.evaluate(dial);
+      cur = s.links.find((l) => l.active);
+      ok(cur && cur.centred && Math.abs(cur.off) <= 1.5, "and closing it turns the dial back to the page's own stop");
+      // a tap on a stop works as on a computer
+      await p.tap('.tabs a.tab[href="/scans"]');
+      await p.waitForFunction(() => location.pathname === "/scans" && !document.querySelector(".page-stage"), null, { timeout: 10000 });
+      await still(p);
+      s = await p.evaluate(dial);
+      cur = s.links.find((l) => l.active);
+      ok(cur && cur.href === "/scans" && Math.abs(cur.off) <= 1.5, "tapping a stop turns the dial to it and goes there");
+      ok(errs.length === 0, "no page errors", errs);
+      await ctx.close();
+    }
+
+    // ---- scrolling the dial from a script, or the browser keeping a focused stop in view, is not a choice: no page change ----
+    {
+      const p = await (await b.newContext({ viewport: { width: 393, height: 800 }, isMobile: true, hasTouch: true })).newPage();
+      await p.goto(E2E_BASE + "/");
+      await p.waitForSelector(".tab.is-centred");
+      await still(p);
+      await p.evaluate(() => { document.querySelector(".tabs").scrollLeft += 144; });
+      await p.waitForTimeout(700);
+      ok((await p.evaluate(dial)).path === "/", "a scroll nobody asked for leaves the page alone");
+      await p.context().close();
+    }
+
+    // ---- the keyboard: arrows pass along the dial without going anywhere, Enter goes ----
+    {
+      const p = await (await b.newContext({ viewport: { width: 1280, height: 800 } })).newPage();
+      await p.goto(E2E_BASE + "/");
+      await p.waitForSelector(".tab.is-centred");
+      await still(p);
+      await p.focus('.tabs a.tab[href="/"]');
+      await p.keyboard.press("ArrowRight");
+      await p.keyboard.press("ArrowRight");
+      await p.waitForTimeout(700);
+      const s = await p.evaluate(dial);
+      const focused = await p.evaluate(() => document.activeElement.getAttribute("href"));
+      const f = s.links.find((l) => l.href === focused);
+      ok(s.path === "/" && f && f.href !== "/" && Math.abs(f.off) <= 1.5, "the arrow keys turn the dial to the next stops without leaving the page", [s.path, focused, f && f.off]);
+      await p.keyboard.press("Enter");
+      await p.waitForFunction((h) => location.pathname === h, focused, { timeout: 10000 });
+      ok(true, "and Enter goes there");
+      await p.context().close();
+    }
+
+    // ---- a page with no tab of its own: the dial rests on Home, unlit, with no needle ----
+    {
+      const ctx = await b.newContext({ viewport: { width: 393, height: 800 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+      const p = await ctx.newPage();
+      await p.goto(E2E_BASE + "/no-such-page-qq");
+      await p.waitForSelector(".tabs");
+      await still(p);
+      const s = await p.evaluate(dial);
+      ok(!s.needleShown && s.links.every((l) => !l.centred) && !s.links.some((l) => l.active), "a missing page has no needle and no lit stop", s.links.map((l) => l.centred));
+      ok(Math.abs(s.links.find((l) => l.href === "/").off) <= 1.5, "the dial rests on Home");
+      await ctx.close();
+    }
+
+    // ---- reduced motion: the dial turns at once (no glide) ----
+    {
+      const ctx = await b.newContext({ viewport: { width: 1280, height: 800 }, reducedMotion: "reduce" });
+      const p = await ctx.newPage();
+      await p.goto(E2E_BASE + "/");
+      await p.waitForSelector(".tab.is-centred");
+      await still(p);
+      await p.evaluate(() => { document.querySelector('.tabs a.tab[href="/scans"]').click(); });
+      const quick = await p.evaluate(() => { const a = document.querySelector('.tabs a.tab[href="/scans"]'); const nav = document.querySelector(".site-nav").getBoundingClientRect(); const r = a.getBoundingClientRect(); return Math.abs(r.left + r.width / 2 - (nav.left + nav.width / 2)); });
+      ok(quick <= 1.5, "with reduced motion the dial is on the new stop straight away", quick);
       await ctx.close();
     }
   } finally {

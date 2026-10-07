@@ -2375,11 +2375,10 @@ export function renderShell({
       <div class="tab-dropdown" id="${dropdownId}">${childLinks}</div>
     </div>`;
   };
-  // Home in the middle of the dial, the other stops on either side of it (worker/nav-order.js); an empty slot at the far left keeps
-  // Home exactly centred when the two sides would not be equally wide.
+  // Home in the middle of the dial, the other stops on either side of it (worker/nav-order.js). The dial scrolls so the stop you are on is
+  // the one in the middle (public/nav.js), so on the home page that is Home with a stop or more on both sides.
   const order = centreHome(navItems);
   const navHtml = [
-    ...(order.gap ? ['<span class="tab-spacer" aria-hidden="true"></span>'] : []),
     ...order.left.map(stopHtml),
     ...(order.home ? [stopHtml(order.home)] : []),
     ...order.right.map(stopHtml),
@@ -2493,9 +2492,8 @@ ${customHead || ""}
           ? `<nav class="site-nav" aria-label="Sections"><div class="tabs">
         ${navHtml}
         ${finderTabHtml()}
-        <span class="tab-indicator" aria-hidden="true"></span>
-      </div></nav>`
-          : `<nav class="site-nav" aria-label="Sections"><div class="tabs">${finderTabHtml()}<span class="tab-indicator" aria-hidden="true"></span></div></nav>`
+      </div><span class="tab-indicator" aria-hidden="true"></span></nav>`
+          : `<nav class="site-nav" aria-label="Sections"><div class="tabs">${finderTabHtml()}</div><span class="tab-indicator" aria-hidden="true"></span></nav>`
       }
     </header>
     ${finderHtml(navItems, { searchQuery, editUrl })}

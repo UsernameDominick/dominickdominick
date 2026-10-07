@@ -126,45 +126,107 @@ document.addEventListener("input", function (e) {
 (function () {
   var wrap = document.querySelector(".tabs");
   if (!wrap) return;
+  var nav = wrap.closest(".site-nav") || wrap;
 
-  // On a narrow screen the row of tabs scrolls sideways. Bring this page's tab into view, centred where there is room, so the
-  // visitor never lands on a page whose own tab is cut off at the edge.
-  function reveal() {
-    var max = wrap.scrollWidth - wrap.clientWidth;
-    var cur = wrap.querySelector(".tab.is-active");
-    if (max <= 0 || !cur) return;
-    var target = cur.offsetLeft - (wrap.clientWidth - cur.offsetWidth) / 2;
-    wrap.scrollLeft = Math.max(0, Math.min(max, target));
+  // The nav is a dial. The strip of stops scrolls sideways and snaps one stop at a time under the needle in the middle; the stop under the
+  // needle is the biggest and the others step down in size the farther they are from it (--d on each stop is its distance from the middle,
+  // in stops; the CSS turns it into a size). The stop you are on is the one in the middle. Drag the dial (a finger on a phone) and, as it
+  // settles on a stop, that page comes in; on a screen with room, click the stop you want and it turns to the middle and goes there.
+  // Search is a stop like the rest but only opens the finder when it is pressed, never because the dial happened to land on it.
+  var stops = [];
+  var anchors = [];
+  var centres = []; // each stop's middle, in the strip's own coordinates (from the left edge of its scrolled content)
+  var pitch = 72;
+  var touching = false;
+  var userAt = 0; // when the visitor last moved the dial (a touch, a sideways wheel, or the glide that follows)
+  var progUntil = 0; // until when a scroll is this script turning the dial itself, which must never count as the visitor's choice
+  var interacted = false; // the visitor has moved the dial on a page that has no tab of its own
+  var commitTimer = 0;
+  var painting = 0;
+
+  function now() { return Date.now(); }
+  function reduced() {
+    return document.documentElement.getAttribute("data-motion") === "reduce" || (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   }
-
-  // Everything below is measured in the strip's own coordinates: from the left edge of its scrolled content (inside the border), so a
-  // tick, the needle and a tab all agree whether or not the strip has been scrolled.
+  // Everything is measured in the strip's own coordinates, so a tick, a stop and the middle agree wherever the strip is scrolled to.
   function origin() {
     return wrap.getBoundingClientRect().left + wrap.clientLeft - wrap.scrollLeft;
   }
-
-  // The needle of the dial rests under this page's tab and turns to whichever tab the pointer or the keyboard is on, then back.
-  function place(target) {
-    // the active tab changes when a page slides in, and Search counts as the current stop while the finder is open
-    var tab = target || wrap.querySelector('.tab-finder[aria-expanded="true"]') || wrap.querySelector(".tab.is-active");
-    // A page with no tab of its own (an article, a missing page) has no needle at all, not a stub of one left where it last was.
-    wrap.classList.toggle("no-needle", !tab);
-    if (!tab) return;
-    var t = tab.getBoundingClientRect();
-    wrap.style.setProperty("--indicator-width", t.width + "px");
-    wrap.style.setProperty("--indicator-x", t.left - origin() + "px");
+  function measure() {
+    stops = [].slice.call(wrap.querySelectorAll(":scope > .tab, :scope > .tab-group"));
+    // A stop with a dropdown is the link and a caret: the mark belongs under the link.
+    anchors = stops.map(function (s) { return s.classList.contains("tab-group") ? s.querySelector(".tab") || s : s; });
+    var o = origin();
+    centres = anchors.map(function (a) { var b = a.getBoundingClientRect(); return b.left + b.width / 2 - o; });
+    pitch = centres.length > 1 ? Math.abs(centres[1] - centres[0]) : 72;
+    if (!(pitch >= 12)) pitch = 72;
+  }
+  // The stop the dial is resting on: this page's, or Search while the finder is open.
+  function target() {
+    return wrap.querySelector('.tab-finder[aria-expanded="true"]') || wrap.querySelector(".tab.is-active");
+  }
+  function nearest() {
+    var mid = wrap.scrollLeft + wrap.clientWidth / 2;
+    var best = 0;
+    for (var i = 1; i < centres.length; i++) if (Math.abs(centres[i] - mid) < Math.abs(centres[best] - mid)) best = i;
+    return best;
+  }
+  // Sizes: every stop learns how far it is from the middle, and the one in the middle is lit.
+  function paint() {
+    if (!stops.length || !wrap.clientWidth) return;
+    var mid = wrap.scrollLeft + wrap.clientWidth / 2;
+    var best = nearest();
+    for (var i = 0; i < stops.length; i++) stops[i].style.setProperty("--d", Math.min(Math.abs(centres[i] - mid) / pitch, 3).toFixed(3));
+    var lit = interacted || target() ? best : -1;
+    for (var k = 0; k < anchors.length; k++) anchors[k].classList.toggle("is-centred", k === lit);
+  }
+  function paintSoon() {
+    if (painting) return;
+    painting = requestAnimationFrame(function () {
+      painting = 0;
+      paint();
+      hints();
+    });
+  }
+  // Turn the dial so stop i is in the middle (glides, unless the visitor asked for less motion).
+  function centreOn(i, smooth) {
+    if (!anchors[i] || !wrap.clientWidth) return;
+    var max = wrap.scrollWidth - wrap.clientWidth;
+    var left = Math.max(0, Math.min(max, centres[i] - wrap.clientWidth / 2));
+    if (Math.abs(left - wrap.scrollLeft) < 2) return;
+    var glide = smooth && !reduced();
+    progUntil = now() + (glide ? 800 : 200);
+    // A glide starts a tick later: the browser scrolls a stop that has just been given the focus into view right after the focus event
+    // (the finder hands the focus back to Search as it closes), and that would cut the glide short.
+    if (glide) setTimeout(function () { wrap.scrollTo({ left: left, behavior: "smooth" }); }, 0);
+    else wrap.scrollTo({ left: left, behavior: "auto" });
+  }
+  // Put the dial on this page's stop (a page with no tab of its own rests on Home, unlit, with no needle).
+  var lastTarget; // the stop (this page's, or Search) the dial was last asked to rest on, so a visitor who has moved it is only brought back when that changes
+  function place(instant) {
+    var t = target();
+    var changed = t !== lastTarget;
+    lastTarget = t;
+    nav.classList.toggle("no-needle", !t && !interacted);
+    wrap.classList.add("dial-ready");
+    if (!stops.length || !wrap.clientWidth) return;
+    var goal = t ? anchors.indexOf(t) : interacted ? -1 : anchors.indexOf(wrap.querySelector(".tab-home"));
+    if (goal < 0 && !t && !interacted) goal = Math.floor((anchors.length - 1) / 2);
+    if (goal < 0) return;
+    // While the visitor has the dial in hand it is theirs; they will land on a stop, and that is where the page goes.
+    if (touching || now() - userAt < 250) return;
+    // Turn it only when this page's stop (or Search) has changed, or the strip has just been laid out again.
+    if (!instant && !changed) return;
+    centreOn(goal, !instant);
   }
 
-  // The ruler under the tabs is drawn from the stops themselves, whatever their widths and whether or not the strip scrolls: a long
-  // tick under the middle of every stop (where the needle rests when it is the current one) and five short ones evenly between
-  // neighbours, carried on past the first and last stop to the ends of the strip. Every tick is a mark of its own on a whole device
-  // pixel, inside the scrolling strip so it travels with the tabs. (A repeating background cannot do this: its tiles do not match the
-  // tabs' widths, it does not follow the scrolling, and some browsers round every tile, so the short ticks drifted off the long ones.)
+  // The ruler under the tabs is drawn from the stops themselves: a long tick under the middle of every stop (where the needle rests when
+  // it is the current one) and five short ones evenly between neighbours, carried on past the first and last stop to the ends of the
+  // strip. Every tick is a mark of its own on a whole device pixel, inside the scrolling strip so it travels with the tabs. (A repeating
+  // background cannot do this: its tiles do not match the tabs' widths, it does not follow the scrolling, and some browsers round every
+  // tile, so the short ticks drifted off the long ones.)
   var rulerHtml = "";
   function ruler() {
-    var stops = [].slice.call(wrap.querySelectorAll(":scope > .tab, :scope > .tab-group"));
-    // A stop with a dropdown is the link and a caret: the mark belongs under the link, where the needle goes.
-    var anchors = stops.map(function (s) { return s.classList.contains("tab-group") ? s.querySelector(".tab") || s : s; });
     var marks = wrap.querySelector(":scope > .tab-ruler");
     // Nothing on screen (the header hidden, a print preview) means nothing to measure: no marks, and no steps of nothing to repeat.
     if (!anchors.length || !wrap.clientWidth) {
@@ -172,24 +234,22 @@ document.addEventListener("input", function (e) {
       rulerHtml = "";
       return;
     }
-    var o = origin();
-    var cs = anchors.map(function (a) { var b = a.getBoundingClientRect(); return b.left + b.width / 2 - o; });
-    var last = stops[stops.length - 1].getBoundingClientRect();
-    var end = Math.max(last.right - o + (parseFloat(getComputedStyle(wrap).paddingRight) || 0), wrap.clientWidth);
+    var cs = centres;
     var n = cs.length;
+    var end = Math.max(wrap.scrollWidth, cs[n - 1] + pitch);
     // The step the ruler carries on with past the ends is the neighbouring gap, never less than a few pixels and never more than a
     // handful of marks: whatever the layout does, these loops finish.
     var step = function (gap) { return gap >= 12 ? gap : 60; };
-    var gapFirst = step(n > 1 ? cs[1] - cs[0] : anchors[0].getBoundingClientRect().width);
+    var gapFirst = step(n > 1 ? cs[1] - cs[0] : pitch);
     var gapLast = step(n > 1 ? cs[n - 1] - cs[n - 2] : gapFirst);
     var at = [];
     var k;
-    for (k = 1; k <= 60 && cs[0] - (k * gapFirst) / 6 >= 0.5; k++) at.push([cs[0] - (k * gapFirst) / 6, false]);
+    for (k = 1; k <= 120 && cs[0] - (k * gapFirst) / 6 >= 0.5; k++) at.push([cs[0] - (k * gapFirst) / 6, false]);
     for (var i = 0; i < n; i++) {
       at.push([cs[i], true]);
       if (i < n - 1) for (k = 1; k < 6; k++) at.push([cs[i] + ((cs[i + 1] - cs[i]) * k) / 6, false]);
     }
-    for (k = 1; k <= 60 && cs[n - 1] + (k * gapLast) / 6 <= end - 1.5; k++) at.push([cs[n - 1] + (k * gapLast) / 6, false]);
+    for (k = 1; k <= 120 && cs[n - 1] + (k * gapLast) / 6 <= end - 1.5; k++) at.push([cs[n - 1] + (k * gapLast) / 6, false]);
     var dpr = window.devicePixelRatio || 1;
     var html = at
       .map(function (m) { return '<i' + (m[1] ? ' class="is-major"' : "") + ' style="left:' + Math.round((m[0] - 0.5) * dpr) / dpr + 'px"></i>'; })
@@ -210,43 +270,45 @@ document.addEventListener("input", function (e) {
   // The fades at the strip's ends show only while there is more to scroll to (drawn by the nav around the strip: a mask on the strip
   // itself would also hide its dropdowns). Looked at again whenever the strip is measured, so a font arriving cannot leave one stuck on.
   function hints() {
-    var holder = wrap.closest(".site-nav") || wrap;
-    holder.classList.toggle("has-overflow-left", wrap.scrollLeft > 1);
-    holder.classList.toggle("has-overflow-right", wrap.scrollLeft + wrap.clientWidth < wrap.scrollWidth - 1);
+    nav.classList.toggle("has-overflow-left", wrap.scrollLeft > 1);
+    nav.classList.toggle("has-overflow-right", wrap.scrollLeft + wrap.clientWidth < wrap.scrollWidth - 1);
   }
 
-  function layout() {
-    reveal();
+  function layout(instant) {
+    measure();
     ruler();
-    place();
+    place(instant === true);
+    paint();
     hints();
   }
-  layout();
-  // A resize that only changes the height (a phone's address bar sliding away) must not throw the strip back to this page's tab.
+  layout(true);
+  // A resize that only changes the height (a phone's address bar sliding away) must not throw the dial off its stop.
   var width = window.innerWidth;
   window.addEventListener("resize", function () {
     if (window.innerWidth !== width) {
       width = window.innerWidth;
-      layout();
+      layout(true);
     } else {
+      measure();
       ruler();
-      place();
+      place(false);
+      paint();
       hints();
     }
   });
-  wrap.addEventListener("scroll", hints, { passive: true });
   // Styles that depend on the rest of the page (the Studio page's slim header) only apply once it has been read, so look again then.
-  document.addEventListener("DOMContentLoaded", layout);
-  window.addEventListener("load", layout); // and once the fonts are in, which can change the widths
-  // And whenever the strip or a stop changes size for any other reason (a page slid in with a slimmer header, a font arriving):
-  // the ticks and the needle are measured from the stops, so they are measured again.
+  document.addEventListener("DOMContentLoaded", function () { layout(true); });
+  window.addEventListener("load", function () { layout(true); }); // and once the fonts are in, which can change the widths
+  // And whenever the strip or a stop changes size for any other reason (a page slid in with a slimmer header, a font arriving).
   var queued = 0;
   function soon() {
     if (queued) return;
     queued = requestAnimationFrame(function () {
       queued = 0;
+      measure();
       ruler();
-      place();
+      place(false);
+      paint();
       hints();
     });
   }
@@ -257,13 +319,66 @@ document.addEventListener("input", function (e) {
   }
   document.addEventListener("site:arrive", function () { setTimeout(layout, 0); });
   window.siteLayoutNav = layout;
-  var tabsList = [].slice.call(wrap.querySelectorAll(".tab"));
-  tabsList.forEach(function (tab) {
-    tab.addEventListener("mouseenter", function () { place(tab); });
-    tab.addEventListener("focus", function () { place(tab); });
-    tab.addEventListener("blur", function () { place(); });
+
+  // ---- the visitor turning the dial ----
+  function moved() { userAt = now(); progUntil = 0; }
+  wrap.addEventListener("touchstart", function () { touching = true; moved(); }, { passive: true });
+  wrap.addEventListener("touchend", function () { touching = false; userAt = now(); }, { passive: true });
+  wrap.addEventListener("touchcancel", function () { touching = false; userAt = now(); }, { passive: true });
+  wrap.addEventListener("wheel", function (e) { if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) moved(); }, { passive: true });
+  wrap.addEventListener("scroll", function () {
+    var t = now();
+    // A scroll is the visitor's when a finger is down, or it follows one closely (the glide after a flick keeps scrolling every frame).
+    // Anything else (this script turning the dial, the browser keeping a focused stop in view, a resize clamping it) is not a choice.
+    var byUser = touching || t - userAt < 200;
+    if (byUser) {
+      userAt = t;
+      interacted = true;
+    }
+    paintSoon();
+    if (byUser && t > progUntil) settle();
+  }, { passive: true });
+  // The dial has stopped on a stop (it is still there a moment after the last movement): go to that page.
+  function settle() {
+    clearTimeout(commitTimer);
+    commitTimer = setTimeout(function () {
+      var a = anchors[nearest()];
+      if (!a || a.tagName !== "A" || a.classList.contains("is-active")) return;
+      a.click(); // the same as pressing it: the page slides in (public/page-slide.js), or loads
+    }, 160);
+  }
+  // A click on a stop turns the dial to it at once; the page follows (or Search opens).
+  wrap.addEventListener("click", function (e) {
+    var a = e.target.closest && e.target.closest(".tab");
+    if (!a || a.closest(".tab-dropdown")) return;
+    var i = anchors.indexOf(a);
+    if (i < 0) return;
+    clearTimeout(commitTimer);
+    interacted = true;
+    centreOn(i, true);
   });
-  wrap.addEventListener("mouseleave", function () { place(); });
+  // The keyboard moves along the dial without going anywhere until Enter: Tab and the arrow keys pass the focus to the next stop and turn
+  // the dial to it. Focus that arrives any other way, such as coming back to Search when the finder closes, leaves the dial alone.
+  var tabAt = 0;
+  document.addEventListener("keydown", function (e) { if (e.key === "Tab") tabAt = now(); }, true);
+  wrap.addEventListener("focusin", function (e) {
+    var a = e.target.closest && e.target.closest(".tab");
+    var i = a ? anchors.indexOf(a) : -1;
+    if (i < 0) return;
+    clearTimeout(commitTimer);
+    progUntil = now() + 900; // the browser scrolls a focused stop into view: that is not a choice either
+    if (now() - tabAt < 300) centreOn(i, true);
+  });
+  wrap.addEventListener("keydown", function (e) {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    var a = document.activeElement && document.activeElement.closest && document.activeElement.closest(".tab");
+    var i = anchors.indexOf(a);
+    var next = i < 0 ? null : anchors[i + (e.key === "ArrowRight" ? 1 : -1)];
+    if (!next) return;
+    e.preventDefault();
+    next.focus();
+    centreOn(anchors.indexOf(next), true);
+  });
 })();
 
 // The dropdowns of the nav sit inside the strip of tabs, which scrolls sideways and so would clip them; each is placed on the screen

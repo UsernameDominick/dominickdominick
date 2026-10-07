@@ -263,10 +263,12 @@ body {
   color: transparent;
 }
 
-/* The nav is a camera dial: each section an icon over a small upper-case name, a ruler of ticks along the bottom, and a needle with a
-   soft glow under the page you are on (it turns to whatever the pointer or keyboard is on). The strip scrolls sideways when it is
-   wider than its room, with the ticks scrolling along. */
+/* The nav is a camera dial: each section an icon over a small lowercase name along a ruler of ticks. The strip scrolls sideways and
+   snaps one stop at a time under a needle that stays in the middle; the stop under the needle is the biggest and the rest step down in
+   size the farther they are from it (nav.js puts each stop's distance from the middle, in stops, in --d as the strip moves, so the sizes
+   follow the finger). Dragging the dial changes the page; on a screen with room you just click the stop you want. */
 .site-nav {
+  --stop-w: 96px;
   position: relative;
   display: flex;
   min-width: 0;
@@ -277,14 +279,16 @@ body {
   --tick: color-mix(in srgb, var(--text) 26%, transparent);
   --tick-major: color-mix(in srgb, var(--text) 48%, transparent);
   position: relative;
-  display: inline-flex;
+  display: flex;
+  flex: 1 1 auto;
   align-items: stretch;
-  gap: 2px;
   min-width: 0;
-  max-width: 100%;
-  padding: 2px 6px 9px;
+  /* Room on both sides so any stop, the first and the last too, can come to the middle. */
+  padding: 2px calc(50% - var(--stop-w) / 2) 9px;
   overflow-x: auto;
   overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
   scrollbar-width: none;
 }
 
@@ -315,64 +319,62 @@ body {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   gap: 3px;
-  min-width: 64px;
-  max-width: 160px;
-  padding: 6px 12px 5px;
+  padding: 6px 2px 5px;
   background: transparent;
   border: none;
   border-radius: 10px;
   color: var(--text-dim);
   font-family: inherit;
   text-decoration: none;
-  /* Each tab keeps its own size; only the row scrolls (a shrinking flex item would squeeze every name to a sliver). */
-  flex-shrink: 0;
 }
+/* Every stop is the same width, so the ticks and the steps in size are even; a stop snaps to the middle. */
+.tabs > .tab, .tabs > .tab-group {
+  flex: 0 0 var(--stop-w);
+  width: var(--stop-w);
+  scroll-snap-align: center;
+}
+.tabs > .tab-group > .tab { flex: 1 1 0; min-width: 0; }
 
+/* The size of a stop follows its distance from the middle (--d, in stops; 0 until nav.js has measured): the icon is full size in the
+   middle and steps down to half, the name a little less, rooted so the icons stand on one line and the names hang from another. */
 .tab-ico {
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   flex: 0 0 auto;
+  transform: scale(calc(1 - 0.2 * min(var(--d, 0), 2.5)));
+  transform-origin: 50% 100%;
 }
 
 .tab-label {
-  max-width: 100%;
+  max-width: calc(var(--stop-w) + 12px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   font-weight: 650;
   line-height: 1.2;
   letter-spacing: 0.02em;
   text-transform: lowercase;
+  transform: scale(calc(1 - 0.12 * min(var(--d, 0), 2.5)));
+  transform-origin: 50% 0;
+  opacity: calc(1 - 0.22 * min(var(--d, 0), 2.5));
 }
 
-.tab.is-active, .tab-finder[aria-expanded="true"] {
+/* The stop under the needle is the lit one (this is also the page you are on, or Search while the finder is open). Before nav.js has
+   placed the dial, or without it, the page's own stop is lit instead. */
+.tab.is-centred,
+.tabs:not(.dial-ready) .tab.is-active {
   color: var(--text);
 }
-/* While the finder is open, Search is the lit stop and the page's own tab steps back. */
-.tabs:has(.tab-finder[aria-expanded="true"]) .tab.is-active:not(.tab-finder) { color: var(--text-dim); }
-.tabs:has(.tab-finder[aria-expanded="true"]) .tab.is-active:not(.tab-finder) .tab-ico { color: inherit; filter: none; }
-
-.tab.is-active .tab-ico, .tab-finder[aria-expanded="true"] .tab-ico {
+.tab.is-centred .tab-ico,
+.tabs:not(.dial-ready) .tab.is-active .tab-ico {
   color: var(--accent);
   filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 55%, transparent));
 }
 
-/* The current stop steps forward: its icon and name sit a little larger and higher than the rest (and jump there when it becomes current,
-   below). While the finder is open it is Search that is forward, and the page's own tab steps back. */
-.tab.is-active .tab-ico, .tab-finder[aria-expanded="true"] .tab-ico,
-.tab.is-active .tab-label, .tab-finder[aria-expanded="true"] .tab-label {
-  transform: translateY(-2px) scale(1.12);
-  transform-origin: 50% 70%;
-}
-.tabs:has(.tab-finder[aria-expanded="true"]) .tab.is-active:not(.tab-finder) .tab-ico,
-.tabs:has(.tab-finder[aria-expanded="true"]) .tab.is-active:not(.tab-finder) .tab-label {
-  transform: none;
-}
-
-.tab:hover:not(.is-active),
+.tab:hover,
 .tab:focus-visible {
   color: var(--text);
 }
@@ -383,16 +385,17 @@ body {
   outline-offset: -3px;
 }
 
+/* The needle stays in the middle of the dial while the ticks slide under it, like the mark on a camera's dial. */
 .tab-indicator {
   position: absolute;
   top: 0;
-  left: 0;
   bottom: 0;
-  width: var(--indicator-width, 0px);
-  transform: translateX(var(--indicator-x, 0px));
+  left: 50%;
+  width: var(--stop-w);
+  margin-left: calc(var(--stop-w) / -2);
   background: radial-gradient(70% 60% at 50% 100%, color-mix(in srgb, var(--accent) 26%, transparent), transparent 72%);
   pointer-events: none;
-  z-index: 0;
+  z-index: 2;
 }
 
 /* The needle is as tall as the ruler's long ticks, so it never reaches up into the tab's name. */
@@ -408,36 +411,11 @@ body {
   background: var(--accent);
   box-shadow: 0 0 6px var(--accent);
 }
-.tabs.no-needle > .tab-indicator { display: none; }
+.site-nav.no-needle > .tab-indicator { display: none; }
 
 @media (prefers-reduced-motion: no-preference) {
   .tab {
     transition: color 0.25s var(--ease-smooth);
-  }
-  :root:not([data-motion="reduce"]) .tab-indicator {
-    transition: transform 0.4s var(--ease-smooth), width 0.4s var(--ease-smooth);
-  }
-  /* The jump: when a stop becomes the current one its icon and name pop up past their resting spot and settle forward. It runs when the
-     class arrives (a page slides in, Search opens), so a tab that is already current when the page loads gives a small hello too. */
-  :root:not([data-motion="reduce"]) .tab.is-active .tab-ico,
-  :root:not([data-motion="reduce"]) .tab.is-active .tab-label,
-  :root:not([data-motion="reduce"]) .tab-finder[aria-expanded="true"] .tab-ico,
-  :root:not([data-motion="reduce"]) .tab-finder[aria-expanded="true"] .tab-label {
-    animation: tab-jump 0.5s cubic-bezier(0.3, 1.4, 0.5, 1) both;
-  }
-  :root:not([data-motion="reduce"]) .tabs:has(.tab-finder[aria-expanded="true"]) .tab.is-active:not(.tab-finder) .tab-ico,
-  :root:not([data-motion="reduce"]) .tabs:has(.tab-finder[aria-expanded="true"]) .tab.is-active:not(.tab-finder) .tab-label {
-    animation: none;
-  }
-  /* and the tab that stops being current eases back down instead of snapping */
-  :root:not([data-motion="reduce"]) .tab-ico,
-  :root:not([data-motion="reduce"]) .tab-label {
-    transition: transform 0.3s var(--ease-smooth);
-  }
-  @keyframes tab-jump {
-    0% { transform: translateY(0) scale(1); }
-    45% { transform: translateY(-5px) scale(1.28); }
-    100% { transform: translateY(-2px) scale(1.12); }
   }
 }
 
@@ -4505,10 +4483,8 @@ body:has(.studio-canvas) .site-footer { display: none; }
 /* A phone: brand and tools on the first row, the dial across the second; a 16px search field so focusing it does not zoom the page. */
 @media (max-width: 640px) {
   .topbar { padding: 8px 16px 4px; row-gap: 4px; }
-  .tabs { padding: 0 4px 8px; }
-  .tab { min-width: 58px; padding: 5px 4px 4px; gap: 2px; }
-  .tab-ico { width: 20px; height: 20px; }
-  .tab-label { font-size: 0.62rem; letter-spacing: 0.06em; }
+  .tab-ico { width: 26px; height: 26px; }
+  .tab-label { font-size: 0.7rem; }
   .topbar .site-search input { font-size: 16px; padding-top: 6px; padding-bottom: 6px; }
 }
 
@@ -4552,8 +4528,6 @@ body:has(.studio-canvas) .site-footer { display: none; }
   .topbar { flex-wrap: nowrap; padding: 6px 4px 2px; gap: 10px; }
   .topbar .brand { order: 0; flex: 0 0 auto; font-size: 0.95rem; }
   .topbar .site-nav { order: 1; flex: 1 1 auto; min-width: 0; justify-content: flex-start; }
-  .tabs { scroll-snap-type: x proximity; }
-  .tab { scroll-snap-align: center; }
 }
 
 /* ---- The finder (like a Mac's Spotlight) ---- */
@@ -4624,24 +4598,11 @@ html.finder-on { overflow: hidden; }
 /* ---- The header is the dial alone (the owner's choice: no site name on the left), centred on every width. ---- */
 .topbar { justify-content: center; }
 .topbar .site-nav { margin-left: auto; margin-right: auto; }
-/* Every stop is the same width, Home a little wider and bigger in the middle (the server puts it there and, when the two sides would not
-   be equally wide, adds an empty .tab-spacer at the far left so Home is dead centre). A stop never gets narrower than its own name (then
-   the strip scrolls, snapping stop by stop). */
-.tabs { --stop-w: 88px; --home-w: 112px; }
-.tabs > .tab, .tabs > .tab-group, .tabs > .tab-spacer { flex: 1 0 var(--stop-w); min-width: max-content; }
-.tabs > .tab-spacer { min-width: 0; pointer-events: none; }
-.tabs > .tab-home, .tabs > .tab-group:has(> .tab-home) { flex-grow: 1.3; flex-basis: var(--home-w); }
-.tabs > .tab-group > .tab { width: 100%; }
-.tab-home .tab-ico { width: 28px; height: 28px; }
-.tab-home .tab-label { font-size: 0.8rem; }
-/* On a phone (and a small tablet) the dial spans the whole bar and its stops share the width evenly. */
+/* The dial is a fixed width (a phone's whole bar), centred; a stop is narrower on a phone so more of them show. */
+.topbar .site-nav { flex: 0 1 760px; margin-left: auto; margin-right: auto; }
 @media (max-width: 720px) {
-  .topbar .site-nav { flex: 1 1 auto; width: 100%; margin-left: 0; margin-right: 0; }
-  .tabs { display: flex; width: 100%; --stop-w: 0px; --home-w: 0px; }
-}
-@media (max-width: 640px) {
-  .tab-home .tab-ico { width: 26px; height: 26px; }
-  .tab-home .tab-label { font-size: 0.7rem; }
+  .site-nav { --stop-w: 72px; }
+  .topbar .site-nav { flex: 1 1 auto; margin-left: 0; margin-right: 0; }
 }
 /* The ruler under the tabs (nav.js draws it from the stops, so it follows their widths and the scrolling): a long tick under the middle
    of every stop, five short ones between neighbours. The marks are children of the strip, so they scroll with the tabs. */

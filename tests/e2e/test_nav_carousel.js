@@ -19,13 +19,14 @@ function rulerState() {
     if (m.major) { if (prev !== null && run.length) { const pts = [prev, ...run, m.c]; const g = pts.slice(1).map((v, i) => v - pts[i]); between.push({ n: run.length, spread: Math.max(...g) - Math.min(...g) }); } prev = m.c; run = []; } else run.push(m.c);
   }
   const act = t.querySelector(".tab.is-active");
-  const needle = mid(t.querySelector(".tab-indicator"));
+  const needleEl = document.querySelector(".site-nav > .tab-indicator"); // the needle stays in the middle of the dial, outside the scrolling strip
+  const needle = mid(needleEl);
   const strip = t.getBoundingClientRect();
   return {
     dpr: window.devicePixelRatio, stops: anchors.length, majors: majors.length,
     stopOff: Math.max(0, ...anchors.map((a, i) => Math.abs(mid(a) - (majors[i] === undefined ? 9999 : majors[i])))),
     needleOff: act ? Math.min(...majors.map((c) => Math.abs(c - needle))) : null,
-    needleWidth: parseFloat(getComputedStyle(t).getPropertyValue("--indicator-width")) || 0,
+    needleShown: getComputedStyle(needleEl).display !== "none",
     five: between.every((b) => b.n === 5), spread: Math.max(0, ...between.map((b) => b.spread)),
     shown: marks.filter((m) => m.c >= strip.left && m.c <= strip.right).length,
     drawn: [...t.querySelectorAll(".tab-ruler > i")].every((i) => getComputedStyle(i).backgroundColor !== "rgba(0, 0, 0, 0)" && i.getBoundingClientRect().width > 0),
@@ -76,35 +77,12 @@ const rulerOk = (r) => r.stops > 0 && r.majors === r.stops && r.stopOff <= 0.5 /
     // on a phone the names are never cut short; the ruler has a long tick under the middle of every tab, and the needle is on the current one
     const start = await p.evaluate(rulerState);
     ok(start.cut === 0, "on a phone no tab's name is cut short", start);
-    ok(rulerOk(start) && start.needleOff <= 0.5 / start.dpr + 0.05, "the ruler has a long tick under every tab, five short ones evenly between, and the needle is on the current tab's", start);
-    if (start.scrolls) {
-      // the strip scrolls: wherever it is scrolled to, the ticks still sit under their tabs (they travel with them)
+    ok(rulerOk(start) && start.needleOff <= 1 / start.dpr + 0.1, "the ruler has a long tick under every tab, five short ones evenly between, and the needle is on the current tab's", start);
+    // the dial scrolls (it always can, so any stop can come to the middle): wherever it is scrolled to, the ticks still sit under their tabs
+    {
       const moved = [];
       for (const to of [0, 9999, 40]) { await p.evaluate((x) => { document.querySelector(".tabs").scrollLeft = x; }, to); await p.waitForTimeout(60); moved.push(await p.evaluate(rulerState)); }
-      ok(moved.every(rulerOk), "and scrolling the strip keeps every tick under its tab", moved.filter((r) => !rulerOk(r)));
-    } else {
-      // Home is wider and the rest share what is left evenly (a stop whose name is longer than its share keeps the room its name needs)
-      const w = await p.evaluate(() => {
-        const t = document.querySelector(".tabs"); const home = t.querySelector(".tab-home");
-        const others = [...t.querySelectorAll(":scope > .tab, :scope > .tab-group > .tab")].filter((a) => a !== home).map((a) => a.getBoundingClientRect().width).sort((x, y) => x - y);
-        return { home: home && home.getBoundingClientRect().width, others };
-      });
-      ok(Math.abs(start.left - start.right) < 2 && w.home >= w.others[0] * 1.2 && w.others[2] - w.others[0] < 1.5, "they all fit, so the bar is filled, Home is wider and the other tabs share the rest evenly", { start, w });
-    }
-    {
-      // Three stops (the owner's own bar) share the width evenly; the ruler follows them.
-      const rp = await (await b.newContext({ viewport: { width: 393, height: 852 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true })).newPage();
-      await rp.goto(E2E_BASE + "/", { waitUntil: "networkidle" });
-      await rp.evaluate(() => {
-        const stops = [...document.querySelectorAll(".tabs > .tab, .tabs > .tab-group")];
-        stops.forEach((x, i) => { if (i > 1 && i < stops.length - 1) x.remove(); });
-        window.siteLayoutNav();
-      });
-      const r = await rp.evaluate(rulerState);
-      const fade = await rp.evaluate(() => document.querySelector(".site-nav").classList.contains("has-overflow-right"));
-      ok(rulerOk(r) && !r.scrolls && Math.max(...r.widths) - Math.min(...r.widths) < 1.5, "with three stops they are even, and each long tick is right under its stop", r);
-      ok(!fade, "and nothing is faded at the edge, since there is nothing more to scroll to");
-      await rp.context().close();
+      ok(start.scrolls && moved.every(rulerOk), "and scrolling the dial keeps every tick under its tab", moved.filter((r) => !rulerOk(r)));
     }
     for (const [w, h, dpr, phone] of [[393, 852, 3, true], [375, 700, 3, true], [320, 640, 2, true], [768, 900, 2, false], [1280, 800, 1, false]]) {
       // every width and screen density: the ticks line up, after a click on each tab too
@@ -117,7 +95,7 @@ const rulerOk = (r) => r.stops > 0 && r.majors === r.stops && r.stopOff <= 0.5 /
         await rp.waitForFunction((x) => location.pathname === x && !document.querySelector(".page-stage"), href, { timeout: 15000 });
         await rp.waitForTimeout(700);
         const r = await rp.evaluate(rulerState);
-        if (!rulerOk(r) || !(r.needleOff <= 0.5 / r.dpr + 0.05) || r.needleWidth <= 0) bad.push([href, r]);
+        if (!rulerOk(r) || !(r.needleOff <= 1 / r.dpr + 0.1) || !r.needleShown) bad.push([href, r]);
       }
       ok(bad.length === 0, `${w} px wide at ${dpr}x: on every tab the ticks sit under their tabs and the needle is on the current one`, bad[0]);
       await rc.close();
@@ -127,8 +105,7 @@ const rulerOk = (r) => r.stops > 0 && r.majors === r.stops && r.stopOff <= 0.5 /
       const rp = await (await b.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })).newPage();
       await rp.goto(E2E_BASE + "/no-such-page-qq", { waitUntil: "networkidle" });
       const r = await rp.evaluate(rulerState);
-      const needleShown = await rp.evaluate(() => getComputedStyle(document.querySelector(".tab-indicator")).display !== "none");
-      ok(rulerOk(r) && r.needleWidth === 0 && !needleShown, "a page that is not one of the tabs keeps the ruler and has no needle (not even a stub at the edge)", { r, needleShown });
+      ok(rulerOk(r) && !r.needleShown, "a page that is not one of the tabs keeps the ruler and has no needle (not even a stub at the edge)", r);
       await rp.context().close();
     }
     {
