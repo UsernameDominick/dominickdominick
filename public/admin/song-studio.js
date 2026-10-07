@@ -1780,6 +1780,21 @@
   });
   syncPlayUi();
 
+  // A one-time tip about holding keys, Hold and Play, until it is dismissed (the explanatory lines under the keys are hidden on a phone).
+  (function tip() {
+    const box = $("studio-tip");
+    if (!box) return;
+    let seen = false;
+    try { seen = localStorage.getItem("studioTipSeen") === "1"; } catch { /* shown each time then */ }
+    box.hidden = seen;
+    $("studio-tip-ok").addEventListener("click", () => {
+      box.hidden = true;
+      try { localStorage.setItem("studioTipSeen", "1"); } catch { /* a nicety */ }
+      const k = keysEl.querySelector("button");
+      if (k) k.focus();
+    });
+  })();
+
   // ---------- playing: the playhead, the keys and the cards light up with the music ----------
   let pending = [];
   let followPaused = false; // tapping a bar while it plays stops the editor following the music until it plays again

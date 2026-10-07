@@ -12,7 +12,7 @@ const axeSrc = axeSource();
     const errs = []; p.on("pageerror", (e) => errs.push(e.message)); p.on("dialog", (d) => d.accept());
     const open = async (play) => {
       await p.goto(E2E_BASE + "/studio");
-      await p.evaluate((v) => { localStorage.setItem("studioPlay", JSON.stringify(v)); }, play || {});
+      await p.evaluate((v) => { localStorage.setItem("studioPlay", JSON.stringify(v)); localStorage.setItem("studioTipSeen", "1"); }, play || {});
       await p.reload();
       await p.waitForSelector("#song-builder-modal:not([hidden]) #studio-keys .studio-pad", { timeout: 30000 });
     };
@@ -22,6 +22,18 @@ const axeSrc = axeSource();
     });
     const calls = (k) => p.evaluate((kind) => window.__calls.filter((c) => c[0] === kind), k);
     const toMelody = async () => { await p.click("#studio-stack .studio-card >> nth=3"); await p.waitForSelector("#studio-keys .studio-key"); await p.waitForTimeout(300); };
+
+    // --- the first-time tip ---
+    await p.goto(E2E_BASE + "/studio");
+    await p.evaluate(() => localStorage.removeItem("studioTipSeen"));
+    await p.reload();
+    await p.waitForSelector("#studio-keys .studio-pad", { timeout: 30000 });
+    ok(await p.locator("#studio-tip").isVisible(), "a first visit shows a tip about holding keys, Hold and Play");
+    await p.click("#studio-tip-ok");
+    ok(!(await p.locator("#studio-tip").isVisible()), "Got it dismisses it");
+    await p.reload();
+    await p.waitForSelector("#studio-keys .studio-pad", { timeout: 30000 });
+    ok(!(await p.locator("#studio-tip").isVisible()), "and it stays dismissed");
 
     // --- drum pads ---
     await open({});

@@ -9505,3 +9505,9 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
   .studio-sheet-head { position: relative; z-index: 1; background: var(--bg); }
   .song-studio.studio-sheet-on { overflow: visible; }
 }
+
+/* The one-time tip above the keys (Studio) */
+.studio-tip { display: flex; align-items: center; gap: 10px; padding: 8px 10px; font-size: 0.82rem; line-height: 1.4; color: var(--text); background: color-mix(in srgb, var(--accent) 12%, var(--bg-elevated)); border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border)); border-radius: 10px; }
+.studio-tip[hidden] { display: none; }
+.studio-tip span { flex: 1 1 auto; min-width: 0; }
+.studio-tip button { flex: 0 0 auto; min-height: 34px; padding: 0 12px; font-size: 0.82rem; }

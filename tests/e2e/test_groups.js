@@ -4,6 +4,8 @@ const { chromium, request } = require("./_pw.cjs");
   let fail = 0; const ok = (c, m) => { console.log((c ? "PASS " : "FAIL ") + m); if (!c) fail++; };
   const c = await request.newContext({ storageState: process.env.ADMIN_STATE });
   const f = (m, p, b) => c.fetch((E2E_BASE + "/api/admin") + p, { method: m, data: b });
+  // a failed earlier attempt (or run) may have left its pages behind: clear them so the test can start clean
+  for (const old of await (await f("GET", "/pages")).json().catch(() => [])) if (/^qq-group-[ab]$/.test(old.slug)) { await f("DELETE", `/pages/${old.id}`); await f("DELETE", `/pages/${old.id}/permanent`); }
   const mk = async (slug) => (await (await f("POST", "/pages", { title: slug, slug })).json()).id;
   const pg = await mk("qq-group-a"), pg2 = await mk("qq-group-b");
   const add = async (pid, type, text, col, row, cs, rs) => (await (await f("POST", `/pages/${pid}/blocks`, { type, content: { text }, col, row, col_span: cs, row_span: rs })).json()).id;
@@ -14,6 +16,9 @@ const { chromium, request } = require("./_pw.cjs");
   const errs = []; p.on("pageerror", (e) => errs.push(e.message));
   p.on("dialog", (d) => d.type() === "prompt" ? d.accept("QQ Section") : d.accept());
   await p.goto((E2E_BASE + "/admin/")); await p.waitForSelector("#app:not([hidden])");
+  // the page list fills in a moment after the admin shows; under load that can take a while, and a reload is the cure for a list that came back before the pages existed
+  const pickerHas = () => p.waitForFunction((id) => [...document.querySelectorAll("#page-picker option")].some((o) => o.value === id), String(pg), { timeout: 20000 }).then(() => true, () => false);
+  if (!(await pickerHas())) { await p.reload(); await p.waitForSelector("#app:not([hidden])"); await pickerHas(); }
   await p.selectOption("#page-picker", String(pg)); await p.waitForSelector("#canvas .admin-block"); await p.waitForTimeout(500);
   const box = (id) => p.locator(`#canvas .admin-block[data-id="${id}"]`).boundingBox();
   // multi-select A and B via shift-click, then group
