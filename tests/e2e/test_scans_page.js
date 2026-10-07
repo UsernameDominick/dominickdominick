@@ -3,6 +3,7 @@
 // open again, download, delete, the editor kept as it was after sliding to another tab and back, nothing sent to the admin API, a phone.
 // The 3D viewer comes from a CDN the test machine may not reach, so the model is checked by its bytes, not by its picture.
 const E2E_BASE = process.env.E2E_BASE || "http://localhost:8787";
+const { toShelf } = require("./_shelf.cjs");
 const { chromium } = require("./_pw.cjs");
 const fs = require("fs");
 const os = require("os");
@@ -21,7 +22,7 @@ function glb() {
   fs.writeFileSync(file, glb());
   const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
   try {
-    const ctx = await b.newContext({ viewport: { width: 1280, height: 900 } });
+    const ctx = await b.newContext({ viewport: { width: 1000, height: 900 } });
     const p = await ctx.newPage();
     const errs = []; const adminCalls = [];
     p.on("pageerror", (e) => errs.push(e.message));
@@ -31,7 +32,7 @@ function glb() {
     ok(res.status() === 200, "/scans is open to everyone", res.status());
     const tab = await p.evaluate(() => { const a = document.querySelector('.site-nav a[href="/scans"]'); return a && [a.textContent.trim(), a.getAttribute("aria-current")]; });
     ok(tab && /scans/i.test(tab[0]) && tab[1] === "page", "the nav has a Scans tab, and it is the current one", tab);
-    await p.waitForSelector("#scans-mount .app-native .scan-shelf:not([hidden])", { timeout: 20000 });
+    await toShelf(p, "scans");
     ok((await p.locator(".shelf-empty").count()) === 1, "a shelf with no scans yet");
 
     // a model from the device opens the editor in place, named after the file
@@ -85,7 +86,7 @@ function glb() {
     const mp = await m.newPage();
     const merrs = []; mp.on("pageerror", (e) => merrs.push(e.message));
     await mp.goto(E2E_BASE + "/scans");
-    await mp.waitForSelector(".scan-shelf:not([hidden])", { timeout: 20000 });
+    await toShelf(mp, "scans");
     const shelfOver = await mp.evaluate(() => document.documentElement.scrollWidth - innerWidth);
     await mp.setInputFiles("#scan-shelf-file", file);
     await mp.waitForSelector("#scan-editor-modal:not([hidden])", { timeout: 10000 });

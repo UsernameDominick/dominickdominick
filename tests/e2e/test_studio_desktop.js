@@ -17,10 +17,8 @@ const axeSrc = axeSource();
     p.on("pageerror", (e) => errs.push(e.message));
     p.on("dialog", (d) => { dialogs.push(d.message()); d.accept(); });
     await p.goto(E2E_BASE + "/studio");
-    await p.waitForSelector("#studio-mount .studio-shelf:not([hidden])", { timeout: 30000 });
-
+    
     // ---- the whole page ----
-    await p.click("#new-song-btn");
     await p.waitForSelector("#song-builder-modal:not([hidden]) #studio-stack .studio-card", { timeout: 15000 });
     await settle(p);
     const studio = await rect(p, "#song-studio");

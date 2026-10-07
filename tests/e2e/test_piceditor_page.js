@@ -2,6 +2,7 @@
 // editor opening in place under the nav, Save as new and Save kept here (nothing sent to the admin API), copy and delete, the editor
 // still holding its work after sliding to another tab and back, and a phone width that fits.
 const E2E_BASE = process.env.E2E_BASE || "http://localhost:8787";
+const { toShelf } = require("./_shelf.cjs");
 const { chromium } = require("./_pw.cjs");
 const fs = require("fs");
 const os = require("os");
@@ -21,7 +22,7 @@ function png(w, h) {
   fs.writeFileSync(file, png(160, 100));
   const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
   try {
-    const ctx = await b.newContext({ viewport: { width: 1280, height: 900 } });
+    const ctx = await b.newContext({ viewport: { width: 1000, height: 900 } });
     const p = await ctx.newPage();
     const errs = []; const adminCalls = [];
     p.on("pageerror", (e) => errs.push(e.message));
@@ -32,7 +33,7 @@ function png(w, h) {
     const tab = await p.evaluate(() => { const a = document.querySelector('.site-nav a[href="/piceditor"]'); return a && [a.textContent.trim(), a.getAttribute("aria-current")]; });
     ok(tab && /piceditor/i.test(tab[0]) && tab[1] === "page", "the nav has a PicEditor tab, and it is the current one", tab);
     ok((await p.title()).startsWith("PicEditor"), "it has its own title");
-    await p.waitForSelector("#piceditor-mount .app-native .pic-shelf:not([hidden])", { timeout: 20000 });
+    await toShelf(p, "pic");
     ok((await p.locator(".shelf-empty").count()) === 1 && (await p.locator(".pic-shelf .shelf-chip").count()) === 4, "a shelf with no pictures yet, and blank sizes to start from");
 
     // open a picture from the device: the editor opens in place, under the nav
@@ -93,7 +94,7 @@ function png(w, h) {
     const mp = await m.newPage();
     const merrs = []; mp.on("pageerror", (e) => merrs.push(e.message));
     await mp.goto(E2E_BASE + "/piceditor");
-    await mp.waitForSelector(".pic-shelf:not([hidden])", { timeout: 20000 });
+    await toShelf(mp, "pic");
     const shelfOver = await mp.evaluate(() => document.documentElement.scrollWidth - innerWidth);
     await mp.setInputFiles("#pic-file", file);
     await mp.waitForSelector("#photo-editor-modal:not([hidden])", { timeout: 10000 });

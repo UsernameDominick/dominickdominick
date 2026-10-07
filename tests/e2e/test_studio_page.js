@@ -2,13 +2,14 @@
 // under the site's nav (no frame, no dialog), songs kept in the visitor's own browser, nothing sent to the admin API, the Studio parked
 // when another tab slides in and back as it was, and a phone width that fits.
 const E2E_BASE = process.env.E2E_BASE || "http://localhost:8787";
+const { toShelf } = require("./_shelf.cjs");
 const { chromium } = require("./_pw.cjs");
 (async () => {
   let fail = 0; const ok = (c, m, x) => { console.log((c ? "PASS " : "FAIL ") + m + (x !== undefined && !c ? " " + JSON.stringify(x) : "")); if (!c) fail++; };
   const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
   try {
     // a visitor: no admin session at all
-    const ctx = await b.newContext({ viewport: { width: 1280, height: 900 } });
+    const ctx = await b.newContext({ viewport: { width: 1000, height: 900 } });
     const p = await ctx.newPage();
     const errs = []; const adminCalls = []; const dialogs = [];
     p.on("pageerror", (e) => errs.push(e.message));
@@ -22,7 +23,7 @@ const { chromium } = require("./_pw.cjs");
     ok((await p.title()).startsWith("Studio") && (await p.locator('meta[name="description"]').getAttribute("content")).length > 40, "it has a title and a description");
 
     // the shelf
-    await p.waitForSelector("#studio-mount .studio-native .studio-shelf:not([hidden])", { timeout: 20000 });
+    await toShelf(p, "studio");
     ok((await p.locator("iframe").count()) === 0, "no frame: the Studio is part of the page");
     ok(await p.locator("#song-builder-modal").evaluate((e) => e.hidden), "it opens on the shelf, the editor closed");
     ok((await p.locator(".shelf-empty").count()) === 1, "with no songs yet it says so");
@@ -106,7 +107,7 @@ const { chromium } = require("./_pw.cjs");
     const merrs = [];
     mp.on("pageerror", (e) => merrs.push(e.message));
     await mp.goto(E2E_BASE + "/studio");
-    await mp.waitForSelector(".studio-shelf:not([hidden])", { timeout: 20000 });
+    await toShelf(mp, "studio");
     const shelfOver = await mp.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     await mp.tap("#new-song-btn");
     await mp.waitForSelector("#song-builder-modal:not([hidden]) #studio-stack .studio-card", { timeout: 10000 });

@@ -10,8 +10,6 @@ const { chromium } = require("./_pw.cjs");
     const p = await (await b.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
     const errs = []; p.on("pageerror", (e) => errs.push(e.message)); p.on("dialog", (d) => d.accept());
     await p.goto(E2E_BASE + "/studio");
-    await p.waitForSelector("#studio-mount .studio-shelf:not([hidden])", { timeout: 30000 });
-    await p.click("#new-song-btn");
     await p.waitForSelector("#song-builder-modal:not([hidden]) #studio-stack .studio-card", { timeout: 15000 });
     await p.waitForTimeout(600);
     const song = () => p.evaluate(() => JSON.parse(JSON.stringify(window.SongStudioHost.song())));

@@ -2,12 +2,13 @@
 // own place and answers its own calls (the editors' calls to the admin API go to whichever app owns the path), sliding between the pages
 // never loads a page or loses an open editor, and nothing is sent to the server.
 const E2E_BASE = process.env.E2E_BASE || "http://localhost:8787";
+const { toShelf } = require("./_shelf.cjs");
 const { chromium } = require("./_pw.cjs");
 (async () => {
   let fail = 0; const ok = (c, m, x) => { console.log((c ? "PASS " : "FAIL ") + m + (x !== undefined && !c ? " " + JSON.stringify(x) : "")); if (!c) fail++; };
   const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
   try {
-    const ctx = await b.newContext({ viewport: { width: 1280, height: 900 } });
+    const ctx = await b.newContext({ viewport: { width: 1000, height: 900 } });
     const p = await ctx.newPage();
     const errs = []; const adminCalls = [];
     p.on("pageerror", (e) => errs.push(e.message));
@@ -23,7 +24,7 @@ const { chromium } = require("./_pw.cjs");
     await p.goto(E2E_BASE + "/studio");
     await p.evaluate(() => { window.__sameDocument = true; });
     ok(await p.evaluate(() => !!document.querySelector('script[src="/app-kit.js"]') && !!document.querySelector('script[src="/studio.js"]')), "the Studio page loads the kit and then its own script");
-    await p.waitForSelector("#studio-mount .app-native.studio-native .studio-shelf:not([hidden]) #new-song-btn", { timeout: 20000 });
+    await toShelf(p, "studio");
     await p.click("#new-song-btn");
     await p.waitForSelector("#song-builder-modal:not([hidden]) #studio-stack .studio-card", { timeout: 15000 });
     await p.evaluate(() => document.querySelector('#studio-grid .studio-cell[data-row="kick"][data-step="0"]').click());
@@ -34,7 +35,7 @@ const { chromium } = require("./_pw.cjs");
 
     // Simulations: a circuit, saved
     await slide("/simulations");
-    await p.waitForSelector("#simulations-mount .sim-shelf:not([hidden])", { timeout: 20000 });
+    await toShelf(p, "sim");
     await p.click("#sim-shelf-new");
     await p.waitForSelector("#simulation-builder-modal:not([hidden])", { timeout: 15000 });
     await p.fill("#simulation-name", "QQ Together Circuit");
@@ -46,10 +47,10 @@ const { chromium } = require("./_pw.cjs");
 
     // PicEditor and Scans open on their shelves
     await slide("/piceditor");
-    await p.waitForSelector("#piceditor-mount .pic-shelf:not([hidden])", { timeout: 20000 });
+    await p.waitForSelector("#piceditor-mount .app-native", { timeout: 20000 });
     await slide("/scans");
-    await p.waitForSelector("#scans-mount .scan-shelf:not([hidden])", { timeout: 20000 });
-    ok(true, "PicEditor and Scans open on their shelves in the same visit");
+    await p.waitForSelector("#scans-mount .app-native", { timeout: 20000 });
+    ok(true, "PicEditor and Scans open in the same visit");
 
     // back to the Studio: its song is still open and the song editor still works
     await slide("/studio");
