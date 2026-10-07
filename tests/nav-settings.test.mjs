@@ -27,15 +27,15 @@ ok(Object.keys(parseNavBuiltin(cleanNavBuiltin('{"random":{"label":"' + "z".repe
 // ---- the nav itself ----
 {
   const slugs = (items) => items.map((i) => i.slug).join();
-  ok(slugs(builtinNavItems({})) === "studio,piceditor,simulations,scans", "by default only Studio and PicEditor: Articles, Projects and Topics are left out until switched back on (the owner wants Home, Studio, Search)");
-ok(slugs(builtinNavItems({ random: { hidden: false } })) === "random,studio,piceditor,simulations,scans" && builtinNavItems({ random: { hidden: false } })[0].nav_label === "Articles", "Articles comes back when switched on");
-ok(slugs(builtinNavItems({ projects: { hidden: false }, topics: { hidden: false } })) === "projects,topics,studio,piceditor,simulations,scans", "and so do Projects and Topics");
+  ok(slugs(builtinNavItems({})) === "trainer,studio,piceditor,simulations,scans", "by default only Studio and PicEditor: Articles, Projects and Topics are left out until switched back on (the owner wants Home, Studio, Search)");
+ok(slugs(builtinNavItems({ random: { hidden: false } })) === "random,trainer,studio,piceditor,simulations,scans" && builtinNavItems({ random: { hidden: false } })[0].nav_label === "Articles", "Articles comes back when switched on");
+ok(slugs(builtinNavItems({ projects: { hidden: false }, topics: { hidden: false } })) === "projects,topics,trainer,studio,piceditor,simulations,scans", "and so do Projects and Topics");
 ok(cleanNavBuiltin({ random: { hidden: false } }) === '{"random":{"hidden":false}}' && cleanNavBuiltin({ studio: { hidden: false } }) === "", "switching on is kept only for a link that is out by default");
   ok(builtinNavItems({ random: { label: "Writing", hidden: false } })[0].nav_label === "Writing", "one can be renamed");
-  ok(slugs(builtinNavItems({ studio: { hidden: true }, piceditor: { hidden: true }, simulations: { hidden: true }, scans: { hidden: true }, topics: { hidden: false } })) === "topics", "one can be hidden");
-  ok(slugs(builtinNavItems({ topics: { hidden: false } }, new Set(["topics"]))) === "studio,piceditor,simulations,scans", "one is skipped when a nav page already links there (as before)");
+  ok(slugs(builtinNavItems({ trainer: { hidden: true }, studio: { hidden: true }, piceditor: { hidden: true }, simulations: { hidden: true }, scans: { hidden: true }, topics: { hidden: false } })) === "topics", "one can be hidden");
+  ok(slugs(builtinNavItems({ topics: { hidden: false } }, new Set(["topics"]))) === "trainer,studio,piceditor,simulations,scans", "one is skipped when a nav page already links there (as before)");
   ok(builtinNavItems({}).every((i) => i.nav_parent_id === null && Array.isArray(i.children) && i.children.length === 0), "and they have the shape the nav renderer expects");
-  ok(BUILTIN_NAV.length === 7, "(seven of them)");
+  ok(BUILTIN_NAV.length === 8, "(eight of them)");
 }
 
 // ---- reaching the nav, through listNavPages and the page shell ----
@@ -61,19 +61,19 @@ function makeEnv(settings, pageRows, extra = {}) {
 const labels = (nav) => nav.map((n) => n.nav_label).join("|");
 {
   const nav = await listNavPages(makeEnv({}, []));
-  ok(labels(nav) === "Studio|PicEditor|Sim|Scans" && nav.brand === "", "with no pages and nothing set: only Studio (Articles, Projects, Topics out by default) and the default name", [labels(nav), nav.brand]);
+  ok(labels(nav) === "Trainer|Studio|PicEditor|Sim|Scans" && nav.brand === "", "with no pages and nothing set: only Trainer, Studio (Articles, Projects, Topics out by default) and the default name", [labels(nav), nav.brand]);
   const named = await listNavPages(makeEnv({ site_brand: " My Site. ", nav_builtin: '{"random":{"label":"Writing","hidden":false},"projects":{"hidden":false}}' }, []));
-  ok(labels(named) === "Writing|Projects|Studio|PicEditor|Sim|Scans" && named.brand === "My Site.", "the site name and the overrides are read even when no page has a nav label", [labels(named), named.brand]);
+  ok(labels(named) === "Writing|Projects|Trainer|Studio|PicEditor|Sim|Scans" && named.brand === "My Site.", "the site name and the overrides are read even when no page has a nav label", [labels(named), named.brand]);
   const mixed = await listNavPages(makeEnv({ nav_builtin: '{"topics":{"hidden":false}}' }, [{ id: 7, slug: "about", nav_label: "About", nav_parent_id: null }]));
-  ok(labels(mixed) === "About|Topics|Studio|PicEditor|Sim|Scans", "the owner's pages come first, then the built-in links that are left", labels(mixed));
+  ok(labels(mixed) === "About|Topics|Trainer|Studio|PicEditor|Sim|Scans", "the owner's pages come first, then the built-in links that are left", labels(mixed));
   const covered = await listNavPages(makeEnv({ nav_builtin: '{"projects":{"hidden":false}}' }, [{ id: 8, slug: "projects", nav_label: "My work", nav_parent_id: null }]));
-  ok(labels(covered) === "My work|Studio|PicEditor|Sim|Scans", "a nav page that stands in for a built-in link still replaces it", labels(covered));
+  ok(labels(covered) === "My work|Trainer|Studio|PicEditor|Sim|Scans", "a nav page that stands in for a built-in link still replaces it", labels(covered));
   const ownProjects = await listNavPages(makeEnv({}, [{ id: 1, slug: "home", nav_label: "Home", nav_parent_id: null }, { id: 8, slug: "projects", nav_label: "Projects", nav_parent_id: null }]));
-  ok(labels(ownProjects) === "Home|Studio|PicEditor|Sim|Scans", "a page of the owner's own on /projects follows the Projects switch: out by default", labels(ownProjects));
+  ok(labels(ownProjects) === "Home|Trainer|Studio|PicEditor|Sim|Scans", "a page of the owner's own on /projects follows the Projects switch: out by default", labels(ownProjects));
   const ownRandom = await listNavPages(makeEnv({}, [{ id: 3, slug: "random", nav_label: "Random", nav_parent_id: null }, { id: 9, slug: "about", nav_label: "About", nav_parent_id: null }]));
-  ok(labels(ownRandom) === "About|Studio|PicEditor|Sim|Scans", "a page of the owner's own on /random follows the Articles switch: out by default", labels(ownRandom));
+  ok(labels(ownRandom) === "About|Trainer|Studio|PicEditor|Sim|Scans", "a page of the owner's own on /random follows the Articles switch: out by default", labels(ownRandom));
   const ownRandomOn = await listNavPages(makeEnv({ nav_builtin: '{"random":{"hidden":false}}' }, [{ id: 3, slug: "random", nav_label: "Random", nav_parent_id: null }]));
-  ok(labels(ownRandomOn) === "Random|Studio|PicEditor|Sim|Scans", "and back when it is switched on", labels(ownRandomOn));
+  ok(labels(ownRandomOn) === "Random|Trainer|Studio|PicEditor|Sim|Scans", "and back when it is switched on", labels(ownRandomOn));
   const owner = await listNavPages(makeEnv({}, [], { __isAdmin: true }));
   ok(!owner.some((n) => n.slug === "hidden-notes") && owner.owner === true, "Hidden Notes is not a tab, even for the owner (it is in the finder)");
 }

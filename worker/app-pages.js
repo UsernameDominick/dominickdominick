@@ -4,6 +4,18 @@
 
 export const APP_PAGES = [
   {
+    path: "/trainer",
+    slug: "trainer",
+    title: "Trainer: an aim trainer for FPS games · Dominick",
+    description: "Practise your aim in your browser: gridshot, tracking and flick drills with accuracy, reaction time and a score. Nothing to install.",
+    h1: "Trainer: an aim trainer for FPS games",
+    about: "Three aim drills for first-person shooters: gridshot (click targets on a grid), tracking (stay on a moving target) and flick (snap to a new target each time), with accuracy, reaction time, a score, target size, run length, sensitivity and a history of your runs. Your settings and runs are kept in your own browser and are never sent to the site.",
+    mountId: "trainer-mount",
+    script: "/trainer.js",
+    loading: "Loading the Trainer…",
+    noscript: "The Trainer needs JavaScript.",
+  },
+  {
     path: "/studio",
     slug: "studio",
     title: "Studio: make music in your browser · Dominick",

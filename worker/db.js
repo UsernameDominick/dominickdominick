@@ -24,6 +24,7 @@ export const RESERVED_SLUGS = new Set([
   "random",
   "projects",
   "simulation",
+  "trainer",
   "studio",
   "studio-app",
   "piceditor",

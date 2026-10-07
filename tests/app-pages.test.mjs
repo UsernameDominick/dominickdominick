@@ -39,7 +39,8 @@ for (const page of APP_PAGES) {
   const scripts = list("scripts");
   const dialogs = list("dialogs");
   ok(scripts.length > 0 && scripts.every((s) => fs.existsSync("public" + s)), `${name}: every script it loads exists`, scripts.filter((s) => !fs.existsSync("public" + s)));
-  ok(dialogs.length > 0 && dialogs.every((d) => adminPage.includes(`id="${d}"`)), `${name}: every admin dialog it takes is on the admin page`, dialogs.filter((d) => !adminPage.includes(`id="${d}"`)));
+  const standalone = /standalone:\s*true/.test(src); // an app with no admin tool behind it takes no dialogs
+  ok((standalone ? dialogs.length === 0 : dialogs.length > 0) && dialogs.every((d) => adminPage.includes(`id="${d}"`)), `${name}: every admin dialog it takes is on the admin page`, dialogs.filter((d) => !adminPage.includes(`id="${d}"`)));
 }
 
 // the sitemap lists each page once

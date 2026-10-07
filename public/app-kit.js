@@ -57,20 +57,28 @@
 
   // ---------- the shared parts, fetched once ----------
   let parts = null;
-  function adminParts() {
-    // One flaky request must not leave a tool broken: each file is tried three times before giving up.
-    const text = async (url) => {
-      for (let i = 0; ; i++) {
-        try {
-          const r = await fetch(url, { credentials: "omit" });
-          if (r.ok) return await r.text();
-        } catch (e) {
-          /* tried again below */
-        }
-        if (i >= 2) throw new Error("This could not be loaded.");
-        await wait(400 * (i + 1));
+  // One flaky request must not leave a tool broken: each file is tried three times before giving up.
+  const text = async (url) => {
+    for (let i = 0; ; i++) {
+      try {
+        const r = await fetch(url, { credentials: "omit" });
+        if (r.ok) return await r.text();
+      } catch (e) {
+        /* tried again below */
       }
-    };
+      if (i >= 2) throw new Error("This could not be loaded.");
+      await wait(400 * (i + 1));
+    }
+  };
+  let own = null;
+  function ownCss() {
+    if (!own) {
+      own = text("/app-kit.css");
+      own.catch(() => { own = null; });
+    }
+    return own;
+  }
+  function adminParts() {
     if (!parts) {
       parts = Promise.all([text("/admin/index.html"), text("/admin/style.css"), text("/app-kit.css")]).then(([page, css, own]) => ({
         doc: new DOMParser().parseFromString(page, "text/html"),
@@ -327,8 +335,10 @@
     let shell = null;
     let booting = null;
     let wasOpen = false;
-    const editor = () => app.editor();
+    // A standalone app (the Trainer) has no admin tool behind it: no dialogs, no admin stylesheet, just its own page in the shell.
+    const editor = () => (app.standalone ? { hidden: false } : app.editor());
     async function boot(mount) {
+      if (app.standalone) return bootStandalone(mount);
       mount.innerHTML = `<p class="studio-loading app-loading" role="status">${esc(app.loadingText || "Loading…")}</p>`;
       const { doc, css } = await adminParts();
       ensureStyles(css);
@@ -351,6 +361,27 @@
       await app.build(inner);
       new MutationObserver(() => app.shown(!editor().hidden)).observe(editor(), { attributes: true, attributeFilter: ["hidden"] });
       app.shown(!editor().hidden);
+    }
+    async function bootStandalone(mount) {
+      mount.innerHTML = `<p class="studio-loading app-loading" role="status">${esc(app.loadingText || "Loading…")}</p>`;
+      const own = await ownCss();
+      if (!document.getElementById("app-kit-lite-css")) {
+        const style = document.createElement("style");
+        style.id = "app-kit-lite-css";
+        style.dataset.addedBy = "app-kit";
+        style.textContent = own;
+        document.head.appendChild(style);
+      }
+      shell = document.createElement("div");
+      shell.className = "app-native " + (app.shellClass || "");
+      const inner = document.createElement("div");
+      inner.className = "app-shell";
+      shell.appendChild(inner);
+      mount.innerHTML = "";
+      mount.appendChild(shell);
+      await loadScripts(app.scripts);
+      await app.build(inner);
+      app.shown(true);
     }
     // Parking: by default the editor is hidden while parked (its document shortcuts sleep) and shown again on the way back; an app whose
     // editor loses its work when hidden (the photo editor frees its layers) gives park()/unpark() of its own instead.
@@ -398,7 +429,7 @@
       park();
       parking.appendChild(shell);
     });
-    const entry = { init, warm: () => { if (!shell && !booting) { adminParts().catch(() => {}); prefetch(app.scripts); } } };
+    const entry = { init, warm: () => { if (!shell && !booting) { (app.standalone ? ownCss() : adminParts()).catch(() => {}); prefetch(app.scripts); } } };
     apps.push(entry);
     // On another page the script was only loaded to get ready (page-slide.js warms the nav's pages): fetch what it needs while idle.
     const start = () => {

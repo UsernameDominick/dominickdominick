@@ -9194,6 +9194,7 @@
     { slug: "random", label: "Articles", hiddenByDefault: true }, // these three are left out unless switched back on (worker/nav-settings.js)
     { slug: "projects", label: "Projects", hiddenByDefault: true },
     { slug: "topics", label: "Topics", hiddenByDefault: true },
+    { slug: "trainer", label: "Trainer" },
     { slug: "studio", label: "Studio" },
     { slug: "piceditor", label: "PicEditor" },
     { slug: "simulations", label: "Sim" },

@@ -267,3 +267,103 @@
 .app-native #song-audio-modal { z-index: 1100; }
 /* More of what only the site's owner has a use for. */
 .app-native :is(#close-songs, #song-generate-cover-art, #studio-sheet-help, #song-view-toggle, #song-toolbar-publish, #studio-help) { display: none !important; }
+
+/* ---- Trainer (/trainer): drills and runs on the left, the practice area in the middle, settings on the right; either panel folds to a thin
+   handle (public/trainer.js). Under 1100px the panels stack around the stage and nothing folds. ---- */
+.app-native .trainer { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 12px; padding: 12px 14px 20px; overflow-y: auto; }
+.app-native .trainer-panel { display: flex; flex-direction: column; min-width: 0; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+.app-native .trainer-panel .studio-panel-handle { display: none; }
+.app-native .trainer-panel .studio-panel-fold { display: none; }
+.app-native .trainer-main { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.app-native .trainer-left { order: 1; }
+.app-native .trainer-main { order: 0; }
+.app-native .trainer-right { order: 2; }
+.app-native .trainer-drills { display: flex; flex-direction: column; gap: 8px; }
+.app-native .trainer-drill {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; min-height: 48px; padding: 8px 12px; text-align: left; font: inherit; color: var(--text); cursor: pointer;
+  background: transparent; border: 2px solid var(--border); border-radius: 12px; box-shadow: none; transform: none;
+}
+.app-native .trainer-drill:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
+.app-native .trainer-drill[aria-checked="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.app-native .trainer-drill .drill-name { font-weight: 650; }
+.app-native .trainer-drill .drill-best { font-size: 0.8rem; color: var(--text-dim); }
+.app-native .trainer-drill[aria-checked="true"] .drill-best { color: var(--text); }
+.app-native .trainer-sub { margin: 18px 0 6px; font-size: 0.78rem; font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-dim); }
+.app-native .trainer-history { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.app-native .trainer-history li { display: grid; grid-template-columns: 1fr auto; gap: 0 10px; padding: 6px 4px; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+.app-native .trainer-history .h-score { font-weight: 700; text-align: right; }
+.app-native .trainer-history .h-meta { grid-column: 1 / -1; font-size: 0.76rem; color: var(--text-dim); }
+.app-native .trainer-history .trainer-empty { display: block; border: 0; color: var(--text-dim); }
+.app-native .trainer-clear { min-height: 36px; font-size: 0.82rem; }
+.app-native .trainer-bar { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 20px; }
+.app-native .trainer-readout { display: flex; flex-direction: column; min-width: 0; }
+.app-native .trainer-name { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.01em; }
+.app-native .trainer-about { font-size: 0.85rem; color: var(--text-dim); max-width: 60ch; }
+.app-native .trainer-live { display: flex; gap: 20px; margin: 0; }
+.app-native .trainer-live div { display: flex; flex-direction: column; align-items: flex-end; }
+.app-native .trainer-live dt { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); }
+.app-native .trainer-live dd { margin: 0; font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.app-native .trainer-stage {
+  position: relative; flex: 1 1 auto; min-height: min(62vh, 520px); overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; outline: 0;
+  background: color-mix(in srgb, var(--text) 4%, var(--bg)); border: 2px solid var(--border); border-radius: 16px;
+  background-image: linear-gradient(color-mix(in srgb, var(--text) 6%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--text) 6%, transparent) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+.app-native .trainer.is-running .trainer-stage { cursor: crosshair; border-color: var(--accent); }
+.app-native .trainer-field { position: absolute; inset: 0; }
+.app-native .trainer-target {
+  position: absolute; left: 0; top: 0; border-radius: 50%; pointer-events: none; will-change: transform;
+  background: radial-gradient(circle, var(--bg) 0 14%, var(--accent) 15% 45%, var(--bg) 46% 62%, var(--accent) 63% 100%);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.app-native .trainer-target.is-on { box-shadow: 0 0 0 4px var(--success, #3ecf8e); }
+.app-native .trainer-miss { position: absolute; left: 0; top: 0; width: 16px; height: 16px; pointer-events: none; border: 2px solid var(--error-text, #ff6b6b); border-radius: 50%; opacity: 0.8; }
+.app-native .trainer-aim { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; z-index: 2; }
+.app-native .trainer-aim::before { content: ""; position: absolute; left: -4px; top: -4px; width: 8px; height: 8px; border-radius: 50%; background: var(--success, #3ecf8e); box-shadow: 0 0 0 2px var(--bg); }
+.app-native .trainer-aim.is-cross::before { left: -10px; top: -1px; width: 20px; height: 2px; border-radius: 0; box-shadow: none; }
+.app-native .trainer-aim.is-cross::after { content: ""; position: absolute; left: -1px; top: -10px; width: 2px; height: 20px; background: var(--success, #3ecf8e); }
+.app-native .trainer-aim.is-circle::before { left: -12px; top: -12px; width: 24px; height: 24px; background: transparent; border: 2px solid var(--success, #3ecf8e); box-shadow: none; }
+.app-native .trainer-overlay { position: absolute; inset: 0; z-index: 3; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.app-native .trainer-overlay[hidden] { display: none; }
+.app-native .trainer-card { max-width: 420px; width: 100%; padding: 22px; text-align: center; background: var(--bg-elevated); border: 2px solid var(--border); border-radius: 16px; }
+.app-native .trainer-card[hidden], .app-native .trainer-count[hidden] { display: none; }
+.app-native .trainer-card h2 { margin: 0 0 8px; font-size: 1.4rem; }
+.app-native .trainer-card p { margin: 0 0 14px; color: var(--text-dim); }
+.app-native .trainer-card .result-record { color: var(--success, #3ecf8e); font-weight: 650; }
+.app-native .trainer-go, .app-native .trainer-again { min-height: 48px; padding: 0 28px; font-size: 1rem; }
+.app-native .trainer-card .intro-hint { margin: 14px 0 0; font-size: 0.8rem; }
+.app-native .result-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 0 0 16px; }
+.app-native .result-grid div { padding: 10px; border: 1px solid var(--border); border-radius: 10px; }
+.app-native .result-grid dt { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); }
+.app-native .result-grid dd { margin: 2px 0 0; font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.app-native .result-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.app-native .trainer-count { font-size: clamp(4rem, 14vw, 8rem); font-weight: 800; color: var(--accent); }
+.app-native .trainer-settings { display: flex; flex-direction: column; gap: 14px; }
+.app-native .trainer-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 10px; min-width: 0; }
+.app-native .trainer-row[hidden] { display: none; }
+.app-native .trainer-row .field-label { grid-column: 1; font-size: 0.85rem; font-weight: 600; }
+.app-native .trainer-row output { grid-column: 2; font-size: 0.85rem; font-variant-numeric: tabular-nums; color: var(--text-dim); }
+.app-native .trainer-row input[type="range"] { grid-column: 1 / -1; width: 100%; min-height: 24px; }
+.app-native .trainer-select select { grid-column: 1 / -1; width: 100%; min-height: 40px; }
+.app-native .trainer-check { display: flex; align-items: center; gap: 10px; min-height: 40px; font-size: 0.9rem; cursor: pointer; }
+.app-native .trainer-check input { width: 24px; height: 24px; flex: 0 0 auto; }
+.app-native .trainer-note { margin: 0; font-size: 0.8rem; color: var(--text-dim); }
+.app-native .trainer-intro .btn[disabled] { opacity: 0.5; }
+
+@media (min-width: 1100px) {
+  .app-native .trainer {
+    --left-w: clamp(210px, 16vw, 280px); --right-w: clamp(250px, 19vw, 330px);
+    display: grid; grid-template-columns: var(--left-w) minmax(0, 1fr) var(--right-w); grid-template-areas: "left main right"; align-items: stretch; overflow: hidden; padding: 12px 16px;
+  }
+  .app-native .trainer.is-left-folded { --left-w: 44px; }
+  .app-native .trainer.is-right-folded { --right-w: 44px; }
+  .app-native .trainer-left { grid-area: left; order: 0; min-height: 0; }
+  .app-native .trainer-main { grid-area: main; order: 0; }
+  .app-native .trainer-right { grid-area: right; order: 0; min-height: 0; }
+  .app-native .trainer-panel .studio-panel-fold { display: inline-flex; align-items: center; justify-content: center; }
+  .app-native .trainer-stage { min-height: 0; }
+  .app-native .trainer.is-left-folded .trainer-left > :not(.studio-panel-handle),
+  .app-native .trainer.is-right-folded .trainer-right > :not(.studio-panel-handle) { display: none; }
+  .app-native .trainer.is-left-folded .trainer-left .studio-panel-handle,
+  .app-native .trainer.is-right-folded .trainer-right .studio-panel-handle { display: flex; }
+}

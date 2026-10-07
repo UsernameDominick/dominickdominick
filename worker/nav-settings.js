@@ -8,6 +8,7 @@ export const BUILTIN_NAV = [
   { slug: "random", label: "Articles", hiddenByDefault: true },
   { slug: "projects", label: "Projects", hiddenByDefault: true },
   { slug: "topics", label: "Topics", hiddenByDefault: true },
+  { slug: "trainer", label: "Trainer" },
   { slug: "studio", label: "Studio" },
   { slug: "piceditor", label: "PicEditor" },
   { slug: "simulations", label: "Sim" },
