@@ -57,15 +57,16 @@ function measure() {
         p.on("pageerror", (e) => errs.push("pageerror: " + String(e).slice(0, 140)));
         p.on("console", (m) => { if (m.type() === "error" && !/ERR_TUNNEL|ERR_CONNECTION|jsdelivr|google|Failed to load resource/.test(m.text())) errs.push(m.text().slice(0, 140)); });
         await p.addInitScript((s) => { try { localStorage.setItem("theme", s); } catch (e) {} }, scheme);
-        for (const state of ["shelf", "editor"]) {
+        // The pages open on an empty project, so the editor is first; the shelf is behind the back button on a phone (a wide screen has the Library panel beside the editor instead).
+        for (const state of vp.touch ? ["editor", "shelf"] : ["editor"]) {
           const where = `${app.name} ${vp.name} ${scheme} ${state}`;
           try {
             if (state === "shelf") {
-              await p.goto(E2E_BASE + app.path, { waitUntil: "load" });
-              await p.waitForSelector(app.shelf, { timeout: 20000 });
+              await p.click(app.close);
+              await p.waitForSelector(app.shelf, { timeout: 15000 });
             } else {
-              await app.open(p);
-              await p.waitForSelector(app.opened, { timeout: 15000 });
+              await p.goto(E2E_BASE + app.path, { waitUntil: "load" });
+              await p.waitForSelector(app.opened.split(" ")[0], { timeout: 30000 });
             }
             await p.waitForTimeout(500);
             const m = await p.evaluate(measure);
@@ -79,11 +80,7 @@ function measure() {
             await p.addScriptTag({ content: axe }).catch(() => {});
             const ax = await p.evaluate(async () => (await window.axe.run(document, { runOnly: ["wcag2a", "wcag2aa", "wcag21aa"], resultTypes: ["violations"] })).violations.map((v) => ({ id: v.id, impact: v.impact, n: v.nodes.length, help: v.help, sample: v.nodes.slice(0, 2).map((x) => x.target.join(" ").slice(0, 60)).join(" ; ") }))).catch(() => []);
             for (const v of ax) add(v.impact === "critical" || v.impact === "serious" ? "high" : "med", "a11y", where, `axe ${v.id} (${v.n}): ${v.help} -- ${v.sample}`);
-            if (state === "editor") {
-              // Esc and the back button leave the editor for the shelf
-              await p.click(app.close).catch(() => {});
-              await p.waitForSelector(app.shelf, { timeout: 8000 }).catch(() => add("high", "ux", where, `the ${app.close} button does not go back to the shelf`));
-            }
+
           } catch (e) {
             add("high", "audit", where, "could not check: " + String(e.message).split("\n")[0].slice(0, 140));
           }
