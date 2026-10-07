@@ -139,20 +139,42 @@ async function drag(cdp, y, from, to, steps = 12) {
       s = await p.evaluate(dial);
       cur = s.links.find((l) => l.active);
       ok(s.path === here.links[hereIdx + 1].href && cur && Math.abs(cur.off) <= 1.5, "letting go most of the way to the next stop snaps to it", [s.path, cur && cur.off]);
-      // dragging onto Search lights it but does not open the finder
+      // dragging the dial onto Search opens the finder (with the box left alone, so a phone's keyboard does not pop up on the way past)
+      const startPath = s.path;
+      const activeAt = s.links.findIndex((l) => l.active);
       await drag(cdp, 50, 330, 330 - 4 * pitch, 16);
+      await p.waitForSelector("#site-finder:not([hidden])", { timeout: 5000 }).catch(() => {});
       await still(p);
-      await p.waitForTimeout(500);
       s = await p.evaluate(dial);
-      ok(!s.finder, "dragging the dial onto Search does not open the finder by itself", s.finder);
       const search = s.links[s.links.length - 1];
-      ok(Math.abs(search.off) <= 1.5 && search.centred, "it just rests there, lit", search);
-      // a tap on Search opens it, with Search the stop in the middle
+      ok(s.finder && Math.abs(search.off) <= 1.5 && search.centred, "dragging the dial onto Search opens the finder, with Search under the needle", [s.finder, search]);
+      ok(await p.evaluate(() => document.activeElement && document.activeElement.id !== "finder-input"), "and leaves the search box unfocused, so no keyboard pops up");
+      ok(s.path === startPath, "the page underneath is still the one you were on", [s.path, startPath]);
+      // dragging back onto the page's own stop closes it again and stays on the page
+      await drag(cdp, 50, 100, 100 + (s.links.length - 1 - activeAt) * pitch);
+      await p.waitForFunction(() => document.getElementById("site-finder").hidden, null, { timeout: 5000 }).catch(() => {});
+      await still(p);
+      s = await p.evaluate(dial);
+      cur = s.links.find((l) => l.active);
+      ok(!s.finder && s.path === startPath && cur && cur.centred && Math.abs(cur.off) <= 1.5, "dragging back onto this page's stop closes the finder and stays put", [s.finder, s.path, cur && cur.off]);
+      // onto Search again, then off it onto a different page's stop: the finder closes and that page comes in
+      await drag(cdp, 50, 330, 330 - 4 * pitch, 16);
+      await p.waitForSelector("#site-finder:not([hidden])", { timeout: 5000 }).catch(() => {});
+      await still(p);
+      const other = (await p.evaluate(dial)).links[activeAt - 1].href;
+      await drag(cdp, 50, 100, 100 + 2 * pitch);
+      await p.waitForFunction((want) => location.pathname === want, other, { timeout: 8000 }).catch(() => {});
+      await still(p);
+      s = await p.evaluate(dial);
+      cur = s.links.find((l) => l.active);
+      ok(s.path === other && !s.finder && cur && cur.centred && Math.abs(cur.off) <= 1.5, "dragging from Search onto another page's stop closes the finder and brings that page in", [s.path, other, s.finder, cur && cur.off]);
+      // a tap on Search opens it with the box ready to type in, and Search the stop in the middle
       await p.tap("#finder-open");
       await p.waitForSelector("#site-finder:not([hidden])");
       await still(p);
       s = await p.evaluate(dial);
       ok(s.finder && s.links[s.links.length - 1].centred && Math.abs(s.links[s.links.length - 1].off) <= 1.5, "pressing Search opens the finder with Search under the needle");
+      ok(await p.evaluate(() => document.activeElement && document.activeElement.id === "finder-input"), "and the box is ready to type in");
       await p.keyboard.press("Escape");
       await p.waitForFunction(() => document.getElementById("site-finder").hidden, null, { timeout: 4000 });
       await still(p);

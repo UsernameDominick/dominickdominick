@@ -338,12 +338,26 @@ document.addEventListener("input", function (e) {
     paintSoon();
     if (byUser && t > progUntil) settle();
   }, { passive: true });
-  // The dial has stopped on a stop (it is still there a moment after the last movement): go to that page.
+  // The dial has stopped on a stop (it is still there a moment after the last movement): go to that page, or open the finder when it is
+  // Search. Landing on a page's stop closes the finder again if it was open. Opening it from the dial leaves the box unfocused on a touch
+  // screen: a phone would pop its keyboard up on every pass over Search (and may refuse to from a timer anyway), and the box is one tap away.
   function settle() {
     clearTimeout(commitTimer);
     commitTimer = setTimeout(function () {
       var a = anchors[nearest()];
-      if (!a || a.tagName !== "A" || a.classList.contains("is-active")) return;
+      if (!a) return;
+      var finder = window.siteFinder;
+      var open = !!wrap.querySelector('.tab-finder[aria-expanded="true"]');
+      if (a.tagName !== "A") {
+        if (!open && finder) finder.open({ focus: !(window.matchMedia && window.matchMedia("(pointer: coarse)").matches) });
+        return;
+      }
+      // the finder closes on the way to this stop; the dial is already there, so it must not be turned back to the page it came from
+      if (open) lastTarget = wrap.querySelector(".tab.is-active");
+      if (a.classList.contains("is-active")) {
+        if (open && finder) finder.close();
+        return;
+      }
       a.click(); // the same as pressing it: the page slides in (public/page-slide.js), or loads
     }, 160);
   }
@@ -610,7 +624,7 @@ document.addEventListener("input", function (e) {
     var top = bar ? Math.max(0, Math.round(bar.getBoundingClientRect().bottom)) : 0;
     finder.style.setProperty("--finder-top", top + "px");
   }
-  function open() {
+  function open(opts) {
     if (!finder.hidden) return;
     lastFocus = document.activeElement;
     placeFinder();
@@ -620,6 +634,7 @@ document.addEventListener("input", function (e) {
     if (window.siteLayoutNav) window.siteLayoutNav(); // the needle turns to Search while it is open
     filter();
     if (input.value.trim()) fetchSuggestions(input.value.trim());
+    if (opts && opts.focus === false) return;
     input.focus();
     input.select();
   }
