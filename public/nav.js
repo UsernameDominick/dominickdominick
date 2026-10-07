@@ -207,10 +207,19 @@ document.addEventListener("input", function (e) {
     }
   }
 
+  // The fades at the strip's ends show only while there is more to scroll to (drawn by the nav around the strip: a mask on the strip
+  // itself would also hide its dropdowns). Looked at again whenever the strip is measured, so a font arriving cannot leave one stuck on.
+  function hints() {
+    var holder = wrap.closest(".site-nav") || wrap;
+    holder.classList.toggle("has-overflow-left", wrap.scrollLeft > 1);
+    holder.classList.toggle("has-overflow-right", wrap.scrollLeft + wrap.clientWidth < wrap.scrollWidth - 1);
+  }
+
   function layout() {
     reveal();
     ruler();
     place();
+    hints();
   }
   layout();
   // A resize that only changes the height (a phone's address bar sliding away) must not throw the strip back to this page's tab.
@@ -222,8 +231,10 @@ document.addEventListener("input", function (e) {
     } else {
       ruler();
       place();
+      hints();
     }
   });
+  wrap.addEventListener("scroll", hints, { passive: true });
   // Styles that depend on the rest of the page (the Studio page's slim header) only apply once it has been read, so look again then.
   document.addEventListener("DOMContentLoaded", layout);
   window.addEventListener("load", layout); // and once the fonts are in, which can change the widths
@@ -236,6 +247,7 @@ document.addEventListener("input", function (e) {
       queued = 0;
       ruler();
       place();
+      hints();
     });
   }
   if (typeof ResizeObserver === "function") {
@@ -794,19 +806,9 @@ window.siteInitContent = function (root) {
 document.addEventListener("DOMContentLoaded", function () {
   var tabs = document.querySelector(".tabs");
   if (!tabs) return;
-  // The fades are drawn by the nav around the strip (a mask on the strip itself would also hide its dropdowns).
-  var holder = tabs.closest(".site-nav") || tabs;
-  var updateOverflowHints = function () {
-    holder.classList.toggle("has-overflow-left", tabs.scrollLeft > 1);
-    holder.classList.toggle("has-overflow-right", tabs.scrollLeft + tabs.clientWidth < tabs.scrollWidth - 1);
-  };
-  updateOverflowHints();
-  tabs.addEventListener("scroll", updateOverflowHints);
-  window.addEventListener("resize", updateOverflowHints);
   tabs.addEventListener("focusin", function (e) {
     if (!e.target.classList.contains("tab")) return;
-    e.target.scrollIntoView({ block: "nearest", inline: "nearest" });
-    updateOverflowHints();
+    e.target.scrollIntoView({ block: "nearest", inline: "nearest" }); // the scroll event updates the fades
   });
 });
 

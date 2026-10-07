@@ -95,7 +95,9 @@ const rulerOk = (r) => r.stops > 0 && r.majors === r.stops && r.stopOff <= 0.5 /
         window.siteLayoutNav();
       });
       const r = await rp.evaluate(rulerState);
+      const fade = await rp.evaluate(() => document.querySelector(".site-nav").classList.contains("has-overflow-right"));
       ok(rulerOk(r) && !r.scrolls && Math.max(...r.widths) - Math.min(...r.widths) < 1.5, "with three stops they are even, and each long tick is right under its stop", r);
+      ok(!fade, "and nothing is faded at the edge, since there is nothing more to scroll to");
       await rp.context().close();
     }
     for (const [w, h, dpr, phone] of [[393, 852, 3, true], [375, 700, 3, true], [320, 640, 2, true], [768, 900, 2, false], [1280, 800, 1, false]]) {
@@ -160,7 +162,7 @@ const rulerOk = (r) => r.stops > 0 && r.majors === r.stops && r.stopOff <= 0.5 /
     if (tabs.includes("/studio")) {
       await p.evaluate(() => document.querySelector('.tabs a.tab[href="/studio"]').click());
       await p.waitForFunction(() => location.pathname === "/studio" && !document.querySelector(".page-stage"), null, { timeout: 15000 });
-      await p.waitForSelector("#studio-mount .studio-native", { timeout: 20000 });
+      await p.waitForSelector("#studio-mount .studio-native", { timeout: 60000 }); // the Studio boots slowly when a full run has the machine busy
       ok(await p.evaluate(() => window.__sameDocument === true), "the Studio comes along in the slide");
     }
     await p.goBack();

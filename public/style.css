@@ -4472,9 +4472,9 @@ body:has(.studio-canvas) .site-footer { display: none; }
 @media (max-width: 640px) {
   .topbar { padding: 8px 16px 4px; row-gap: 4px; }
   .tabs { padding: 0 4px 8px; }
-  .tab { min-width: 58px; padding: 5px 8px 4px; gap: 2px; }
+  .tab { min-width: 58px; padding: 5px 4px 4px; gap: 2px; }
   .tab-ico { width: 20px; height: 20px; }
-  .tab-label { font-size: 0.62rem; letter-spacing: 0.08em; }
+  .tab-label { font-size: 0.62rem; letter-spacing: 0.06em; }
   .topbar .site-search input { font-size: 16px; padding-top: 6px; padding-bottom: 6px; }
 }
 
@@ -4515,7 +4515,7 @@ body:has(.studio-canvas) .site-footer { display: none; }
    On a phone it is one row, and the dial scrolls like a camera's mode carousel, snapping each section to the middle. ---- */
 .tab-finder { cursor: pointer; }
 @media (max-width: 640px) {
-  .topbar { flex-wrap: nowrap; padding: 6px 12px 2px; gap: 10px; }
+  .topbar { flex-wrap: nowrap; padding: 6px 4px 2px; gap: 10px; }
   .topbar .brand { order: 0; flex: 0 0 auto; font-size: 0.95rem; }
   .topbar .site-nav { order: 1; flex: 1 1 auto; min-width: 0; justify-content: flex-start; }
   .tabs { scroll-snap-type: x proximity; }
