@@ -215,6 +215,44 @@ async function drag(cdp, y, from, to, steps = 12) {
       await ctx.close();
     }
 
+    // ---- exactly in the middle, always: before the script arrives, and when the strip changes width at rest ----
+    {
+      // a slow connection: /nav.js has not arrived, yet the page's own stop is already under the needle and the sizes already step down
+      const ctx = await b.newContext({ viewport: { width: 393, height: 800 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+      const p = await ctx.newPage();
+      await p.route("**/nav.js", async (r) => { await new Promise((x) => setTimeout(x, 2500)); r.continue(); });
+      p.goto(E2E_BASE + "/studio").catch(() => {});
+      await p.waitForSelector(".tab.is-active", { state: "attached" });
+      await p.waitForTimeout(400);
+      const early = await p.evaluate(() => {
+        const nav = document.querySelector(".site-nav").getBoundingClientRect(); const a = document.querySelector(".tab.is-active"); const r = a.getBoundingClientRect();
+        const next = a.nextElementSibling; const m = /matrix\(([^,]+),/.exec(getComputedStyle(next.querySelector(".tab-ico")).transform);
+        return { off: r.left + r.width / 2 - (nav.left + nav.width / 2), ready: document.querySelector(".tabs").classList.contains("dial-ready"), neighbour: m ? Number(m[1]) : 1 };
+      });
+      ok(!early.ready && Math.abs(early.off) <= 0.5 && early.neighbour < 0.9, "before /nav.js has arrived the page's stop is already exactly in the middle and the neighbours already smaller", early);
+      await ctx.close();
+    }
+    {
+      // the strip changes width with no window resize (a scrollbar appears, a panel opens): the middle stop stays exactly in the middle.
+      // That holds by the layout itself (the room either side of the stops is half the strip, so a stop at a multiple of the step is at 50%
+      // whatever the width); snapping is switched off here so the browser's own re-snap is not what is being tested.
+      const ctx = await b.newContext({ viewport: { width: 600, height: 800 } });
+      const p = await ctx.newPage();
+      await p.goto(E2E_BASE + "/scans");
+      await p.waitForSelector(".tab.is-centred");
+      await still(p);
+      await p.addStyleTag({ content: ".tabs { scroll-snap-type: none !important; }" });
+      const off = () => p.evaluate(() => { const nav = document.querySelector(".site-nav").getBoundingClientRect(); const r = document.querySelector(".tab.is-active").getBoundingClientRect(); return r.left + r.width / 2 - (nav.left + nav.width / 2); });
+      ok(Math.abs(await off()) <= 0.5, "the middle stop is exactly in the middle to start with");
+      await p.addStyleTag({ content: ".topbar { padding-left: 57px !important; padding-right: 21px !important; }" });
+      await p.waitForTimeout(500);
+      ok(Math.abs(await off()) <= 0.5, "and still is after the strip's width changes without the window changing", await off());
+      await p.addStyleTag({ content: ".topbar { padding-left: 3px !important; padding-right: 90px !important; }" });
+      await p.waitForTimeout(500);
+      ok(Math.abs(await off()) <= 0.5, "and again after it changes the other way", await off());
+      await ctx.close();
+    }
+
     // ---- reduced motion: the dial turns at once (no glide) ----
     {
       const ctx = await b.newContext({ viewport: { width: 1280, height: 800 }, reducedMotion: "reduce" });

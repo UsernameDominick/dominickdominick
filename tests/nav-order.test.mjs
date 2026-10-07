@@ -2,6 +2,7 @@
 // dial then scrolls so the stop you are on is the one under the needle.
 import { centreHome } from "../worker/nav-order.js";
 import { renderShell } from "../worker/render.js";
+import { DIAL_PRESET_SCRIPT } from "../worker/nav-dial-script.js";
 
 let fail = 0;
 const ok = (c, m, extra) => { if (!c) fail++; console.log(`${c ? "PASS" : "FAIL"} — ${m}${extra !== undefined ? " " + JSON.stringify(extra) : ""}`); };
@@ -47,6 +48,8 @@ const order = (html) => [...strip(html).matchAll(/<a class="tab[^"]*" href="([^"
   ok((strip(html).match(/class="tab tab-home/g) || []).length === 1 && /<a class="tab tab-home[^"]*" href="\/"/.test(strip(html)), "Home carries the tab-home class (a little bigger)");
   ok(!strip(html).includes("tab-spacer") && /<\/div><span class="tab-indicator" aria-hidden="true"><\/span><\/nav>/.test(html), "there is no filler in the strip, and the needle sits after it (it stays in the middle while the strip scrolls)");
   ok(/class="tab-label">Sim</.test(html), "the label is written as the owner typed it (lowercase is a style, not a rewrite)");
+  ok(html.indexOf("</nav><script>" + DIAL_PRESET_SCRIPT + "</script>") > html.indexOf('<div class="tabs">') && html.split(DIAL_PRESET_SCRIPT).length === 2, "a few lines right after the nav turn the dial to the page's stop before the first paint (once per page)");
+  ok(!DIAL_PRESET_SCRIPT.includes("</script") && !/eval\(|new Function/.test(DIAL_PRESET_SCRIPT), "and they hold nothing that would close the tag or need eval");
   const even = shell([item("home"), item("a"), item("b"), item("c"), item("d"), item("e")], "a");
   ok(order(even).join(",") === "/a,/b,/c,/,/d,/e,search", "an even count is split three and three", order(even));
   const noHome = shell([item("a"), item("b")], "a");

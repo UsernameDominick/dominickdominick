@@ -193,7 +193,7 @@ document.addEventListener("input", function (e) {
     if (!anchors[i] || !wrap.clientWidth) return;
     var max = wrap.scrollWidth - wrap.clientWidth;
     var left = Math.max(0, Math.min(max, centres[i] - wrap.clientWidth / 2));
-    if (Math.abs(left - wrap.scrollLeft) < 2) return;
+    if (Math.abs(left - wrap.scrollLeft) < 0.5) return;
     var glide = smooth && !reduced();
     progUntil = now() + (glide ? 800 : 200);
     // A glide starts a tick later: the browser scrolls a stop that has just been given the focus into view right after the focus event

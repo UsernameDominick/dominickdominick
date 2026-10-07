@@ -5,6 +5,7 @@ import { paragraphEmbed, bodyEmbeds, EMBED_ONLY_LINE, MAX_BODY_EMBEDS } from "./
 import { nowIso, visibleText } from "./text.js";
 import { navIconSvg } from "./nav-icons.js";
 import { centreHome } from "./nav-order.js";
+import { DIAL_PRESET_SCRIPT } from "./nav-dial-script.js";
 import { uiIcon } from "./ui-icons.js";
 import { renderSimulationSvg, SIM_DEFS_SVG, describeSimulation, renderLogicGateTables } from "./simulation-render.js";
 // STUDY (temporary): see worker/study/README.md.
@@ -2492,7 +2493,7 @@ ${customHead || ""}
           ? `<nav class="site-nav" aria-label="Sections"><div class="tabs">
         ${navHtml}
         ${finderTabHtml()}
-      </div><span class="tab-indicator" aria-hidden="true"></span></nav>`
+      </div><span class="tab-indicator" aria-hidden="true"></span></nav><script>${DIAL_PRESET_SCRIPT}</script>`
           : `<nav class="site-nav" aria-label="Sections"><div class="tabs">${finderTabHtml()}</div><span class="tab-indicator" aria-hidden="true"></span></nav>`
       }
     </header>
