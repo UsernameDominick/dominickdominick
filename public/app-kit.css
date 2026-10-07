@@ -410,3 +410,7 @@
 .app-native .lib-empty { padding: 4px 2px; font-size: 0.85rem; color: var(--text-dim); }
 /* With the Songs panel beside the editor (1280px and up) the "Songs" button has nothing to go back to. */
 @media (min-width: 1280px) { .app-native #studio-close { display: none; } }
+/* PicEditor's adjustment sliders: a finger needs more than a 16 px strip (the editor's own rule is for a mouse). */
+@media (pointer: coarse), (max-width: 640px) {
+  .app-native #photo-editor-modal input[type="range"] { min-height: 24px; }
+}

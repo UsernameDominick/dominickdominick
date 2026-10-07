@@ -301,7 +301,16 @@
       close.addEventListener("click", () => { editor().hidden = true; });
       $("pe-save-overwrite").textContent = "Save";
       const title = $("photo-editor-modal-title");
-      if (title) title.textContent = "PicEditor";
+      if (title) {
+        title.textContent = "PicEditor";
+        // the page already has its h1 (for search engines and screen readers): the editor's own title is a level-two heading here
+        if (title.tagName === "H1") {
+          const h2 = document.createElement("h2");
+          [...title.attributes].forEach((at) => h2.setAttribute(at.name, at.value));
+          h2.textContent = title.textContent;
+          title.replaceWith(h2);
+        }
+      }
       $("pe-download").title = "Save the picture to your device, in the format and quality chosen. The editor stays open.";
       const realConfirm = window.confirm.bind(window);
       window.confirm = (msg) => (/^Overwrite the original file\?/.test(String(msg)) && !editor().hidden ? true : realConfirm(msg));
