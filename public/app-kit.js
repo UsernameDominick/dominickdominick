@@ -49,7 +49,28 @@
     }
     return out;
   }
+  // The scoped copy of a big stylesheet is kept in this browser, keyed by a hash of the source, so a later visit skips the parse.
   function scopeCss(text) {
+    let key = "";
+    try {
+      let h = 5381;
+      for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0;
+      key = "appkit.scoped.v1:" + text.length + ":" + (h >>> 0).toString(36);
+      const hit = localStorage.getItem(key);
+      if (hit) return hit;
+    } catch (e) {
+      key = "";
+    }
+    const out = scopeFresh(text);
+    if (key) {
+      try {
+        Object.keys(localStorage).filter((k) => k.indexOf("appkit.scoped.v1:") === 0).forEach((k) => localStorage.removeItem(k));
+        localStorage.setItem(key, out);
+      } catch (e) { /* full or blocked: just parse every time */ }
+    }
+    return out;
+  }
+  function scopeFresh(text) {
     const sheet = new CSSStyleSheet();
     sheet.replaceSync(text.replace(/@import[^;]+;/g, ""));
     return scopeRules(sheet.cssRules);
