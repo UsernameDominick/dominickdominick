@@ -667,7 +667,7 @@ const { fanify } = require("./_fan.cjs");
     ok(tiny.length === 0, "nothing is under 24 px", tiny);
     await m.tap("#studio-tools");
     await m.waitForTimeout(250);
-    ok((await vis(m, "#studio-sheet")) && await m.evaluate(() => { const b = document.querySelector(".studio-sheet-body"); const sh = document.getElementById("studio-sheet").getBoundingClientRect(); return document.documentElement.scrollWidth <= innerWidth && sh.width >= innerWidth - 4 && b.scrollWidth <= b.clientWidth + 1; }), "the sheet fills a phone and nothing spills sideways");
+    ok((await vis(m, "#studio-sheet")) && await m.evaluate(() => { const b = document.querySelector(".studio-sheet-body"); const sh = document.getElementById("studio-sheet").getBoundingClientRect(); return document.documentElement.scrollWidth <= innerWidth && sh.width >= innerWidth - 24 && sh.right <= innerWidth && sh.left >= 0 && b.scrollWidth <= b.clientWidth + 1; }), "on a phone the sheet is a dropdown across the width and nothing spills sideways");
     for (const tab of ["sound", "tools", "song", "arrange", "share"]) {
       await m.tap("#studio-tab-" + tab);
       await m.waitForTimeout(200);

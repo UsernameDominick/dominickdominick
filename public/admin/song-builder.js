@@ -1630,23 +1630,26 @@
     }
     if (liveBend && handle) handle.bend(liveBend);
     if (handle) liveHandles.add(handle);
+    const startedAt = ctx.currentTime;
     const start = recordNoteStep(noteName, vel);
     return {
       name: noteName,
-      off() {
+      off(heldFor) {
         if (handle) {
           handle.release(ctx.currentTime);
           liveHandles.delete(handle);
         }
         if (!start || start.other) return;
+        // how many steps it was held across (from the time, so a quantized spot cannot stretch a tap into a long note); a quick press stays one step
+        const stepsHeld = Math.floor((Number.isFinite(heldFor) ? heldFor : ctx.currentTime - startedAt) / (60 / (songData.tempo || 120) / 4));
         const end = recordingSpot(rollPart);
-        if (!end || end.pattern !== editingPattern() || end.step <= start.step) return;
+        if (stepsHeld < 2 || !end || end.pattern !== editingPattern()) return;
         const part2 = roll();
         const row = part2.notes[noteName];
         if (!row) return;
         if (!part2.ties) part2.ties = {};
         if (!part2.ties[noteName]) part2.ties[noteName] = new Array(STEPS).fill(false);
-        for (let i = start.step + 1; i <= end.step && i < STEPS; i++) {
+        for (let i = start.step + 1; i < start.step + stepsHeld && i < STEPS; i++) {
           if (row[i] && i !== start.step) break; // never over the next note
           row[i] = row[start.step];
           part2.ties[noteName][i] = true;

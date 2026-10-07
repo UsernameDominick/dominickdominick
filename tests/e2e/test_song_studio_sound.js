@@ -179,6 +179,7 @@ const { fanify } = require("./_fan.cjs");
     for (const [wait, key] of [[430, "E4"], [210, "F4"], [170, "A4"]]) {
       await p.waitForTimeout(wait);
       await p.dispatchEvent(`#studio-keys [data-key="${key}"]`, "pointerdown", { button: 0, pointerType: "mouse" });
+      await p.evaluate(() => window.dispatchEvent(new PointerEvent("pointerup", { pointerId: 0, pointerType: "mouse" }))); // a quick press, not a held key
     }
     await p.waitForTimeout(100);
     await p.click("#studio-stop");

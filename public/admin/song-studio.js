@@ -1399,9 +1399,10 @@
     return {
       el,
       stop() {
+        const heldFor = (performance.now() - at) / 1000; // how long the key was down, whatever the sound is made to last
         const wait = Math.max(0, min - (performance.now() - at));
-        if (wait) setTimeout(() => h.off(), wait);
-        else h.off();
+        if (wait) setTimeout(() => h.off(heldFor), wait);
+        else h.off(heldFor);
       },
     };
   }
@@ -1573,6 +1574,7 @@
       return;
     }
     e.preventDefault();
+    if (held.has(e.pointerId)) end(e.pointerId); // a press whose release was lost
     begin(e.pointerId, el, e);
   });
   window.addEventListener("pointermove", (e) => {
