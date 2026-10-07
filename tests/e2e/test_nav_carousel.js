@@ -83,7 +83,13 @@ const rulerOk = (r) => r.stops > 0 && r.majors === r.stops && r.stopOff <= 0.5 /
       for (const to of [0, 9999, 40]) { await p.evaluate((x) => { document.querySelector(".tabs").scrollLeft = x; }, to); await p.waitForTimeout(60); moved.push(await p.evaluate(rulerState)); }
       ok(moved.every(rulerOk), "and scrolling the strip keeps every tick under its tab", moved.filter((r) => !rulerOk(r)));
     } else {
-      ok(Math.max(...start.widths) - Math.min(...start.widths) < 1.5 && Math.abs(start.left - start.right) < 2, "they all fit, so the tabs share the bar evenly", start);
+      // Home is wider and the rest share what is left evenly (a stop whose name is longer than its share keeps the room its name needs)
+      const w = await p.evaluate(() => {
+        const t = document.querySelector(".tabs"); const home = t.querySelector(".tab-home");
+        const others = [...t.querySelectorAll(":scope > .tab, :scope > .tab-group > .tab")].filter((a) => a !== home).map((a) => a.getBoundingClientRect().width).sort((x, y) => x - y);
+        return { home: home && home.getBoundingClientRect().width, others };
+      });
+      ok(Math.abs(start.left - start.right) < 2 && w.home >= w.others[0] * 1.2 && w.others[2] - w.others[0] < 1.5, "they all fit, so the bar is filled, Home is wider and the other tabs share the rest evenly", { start, w });
     }
     {
       // Three stops (the owner's own bar) share the width evenly; the ruler follows them.
