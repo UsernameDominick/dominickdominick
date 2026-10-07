@@ -4,6 +4,7 @@ import { safeImageSrc, mediaKeyFor, paragraphPictures, bodyPictures, PICTURE_ONL
 import { paragraphEmbed, bodyEmbeds, EMBED_ONLY_LINE, MAX_BODY_EMBEDS } from "./embeds.js";
 import { nowIso, visibleText } from "./text.js";
 import { navIconSvg } from "./nav-icons.js";
+import { centreHome } from "./nav-order.js";
 import { uiIcon } from "./ui-icons.js";
 import { renderSimulationSvg, SIM_DEFS_SVG, describeSimulation, renderLogicGateTables } from "./simulation-render.js";
 // STUDY (temporary): see worker/study/README.md.
@@ -2345,37 +2346,44 @@ export function renderShell({
   // when the *current page is one of its children*, too, since the child
   // link itself is hidden inside the (closed) dropdown most of the time —
   // there'd otherwise be nothing in the visible tab bar showing where you are.
-  const navHtml = navItems
-    .map((n) => {
-      const isChildActive = (n.children || []).some((c) => c.slug === activeSlug);
-      const tabHref = n.slug === "home" ? "/" : "/" + esc(n.slug);
-      const tab = `<a class="tab${n.slug === activeSlug || isChildActive ? " is-active" : ""}${n.admin_only ? " is-admin-only" : ""}" href="${tabHref}"${
-        n.slug === activeSlug ? ' aria-current="page"' : ""
-      }${n.admin_only ? ' title="Only you can see this link"' : ""}>${navIconSvg(n.slug, n.nav_label)}<span class="tab-label">${esc(n.nav_label)}</span>${n.admin_only ? '<span class="sr-only"> (admin-only link)</span>' : ""}</a>`;
-      if (!n.children || !n.children.length) return tab;
-      const childLinks = n.children
-        .map(
-          (c) =>
-            `<a href="/${esc(c.slug)}"${c.slug === activeSlug ? ' aria-current="page" class="is-active"' : ""}${c.admin_only ? ' title="Only you can see this link" data-admin-only="1"' : ""}>${esc(c.nav_label)}${c.admin_only ? '<span class="sr-only"> (admin-only link)</span>' : ""}</a>`
-        )
-        .join("\n");
-      // No role="menu" here — that ARIA role commits to full application-
-      // menu keyboard behavior (arrow keys, Home/End, type-ahead between
-      // menuitems), which nothing here implements; a screen reader user
-      // who gets a "menu" announcement but only plain Tab-order behavior
-      // is worse off than one who's simply told about a list of links.
-      // This is the "Disclosure Navigation Menu" pattern instead: a
-      // plain button (aria-expanded/aria-controls, wired up in nav.js)
-      // revealing ordinary links, which normal Tab order already
-      // handles correctly with no special role needed.
-      const dropdownId = `nav-dropdown-${esc(n.slug)}`;
-      return `<div class="tab-group">
-        ${tab}
-        <button type="button" class="tab-caret" aria-label="Show ${esc(n.nav_label)} submenu" aria-expanded="false" aria-controls="${dropdownId}"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"/></svg></button>
-        <div class="tab-dropdown" id="${dropdownId}">${childLinks}</div>
-      </div>`;
-    })
-    .join("\n");
+  const stopHtml = (n) => {
+    const isChildActive = (n.children || []).some((c) => c.slug === activeSlug);
+    const tabHref = n.slug === "home" ? "/" : "/" + esc(n.slug);
+    const tab = `<a class="tab${n.slug === "home" ? " tab-home" : ""}${n.slug === activeSlug || isChildActive ? " is-active" : ""}${n.admin_only ? " is-admin-only" : ""}" href="${tabHref}"${
+      n.slug === activeSlug ? ' aria-current="page"' : ""
+    }${n.admin_only ? ' title="Only you can see this link"' : ""}>${navIconSvg(n.slug, n.nav_label)}<span class="tab-label">${esc(n.nav_label)}</span>${n.admin_only ? '<span class="sr-only"> (admin-only link)</span>' : ""}</a>`;
+    if (!n.children || !n.children.length) return tab;
+    const childLinks = n.children
+      .map(
+        (c) =>
+          `<a href="/${esc(c.slug)}"${c.slug === activeSlug ? ' aria-current="page" class="is-active"' : ""}${c.admin_only ? ' title="Only you can see this link" data-admin-only="1"' : ""}>${esc(c.nav_label)}${c.admin_only ? '<span class="sr-only"> (admin-only link)</span>' : ""}</a>`
+      )
+      .join("\n");
+    // No role="menu" here — that ARIA role commits to full application-
+    // menu keyboard behavior (arrow keys, Home/End, type-ahead between
+    // menuitems), which nothing here implements; a screen reader user
+    // who gets a "menu" announcement but only plain Tab-order behavior
+    // is worse off than one who's simply told about a list of links.
+    // This is the "Disclosure Navigation Menu" pattern instead: a
+    // plain button (aria-expanded/aria-controls, wired up in nav.js)
+    // revealing ordinary links, which normal Tab order already
+    // handles correctly with no special role needed.
+    const dropdownId = `nav-dropdown-${esc(n.slug)}`;
+    return `<div class="tab-group">
+      ${tab}
+      <button type="button" class="tab-caret" aria-label="Show ${esc(n.nav_label)} submenu" aria-expanded="false" aria-controls="${dropdownId}"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"/></svg></button>
+      <div class="tab-dropdown" id="${dropdownId}">${childLinks}</div>
+    </div>`;
+  };
+  // Home in the middle of the dial, the other stops on either side of it (worker/nav-order.js); an empty slot at the far left keeps
+  // Home exactly centred when the two sides would not be equally wide.
+  const order = centreHome(navItems);
+  const navHtml = [
+    ...(order.gap ? ['<span class="tab-spacer" aria-hidden="true"></span>'] : []),
+    ...order.left.map(stopHtml),
+    ...(order.home ? [stopHtml(order.home)] : []),
+    ...order.right.map(stopHtml),
+  ].join("\n");
 
   return `<!DOCTYPE html>
 <html lang="en">

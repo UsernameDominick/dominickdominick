@@ -28,7 +28,7 @@ Four of the admin's tools are also pages of the public site, built on one shared
 builder), **/piceditor** (the photo editor), **/simulations** (the circuit builder) and **/scans** (the 3D scan viewer). Each opens on a
 shelf of what the visitor has made, with the editor opening in place under the nav. Everything a visitor makes is kept in their own
 browser (localStorage and IndexedDB) and is never sent to the site. They are links in the nav (Site Settings > Header & footer can hide
-any of them), listed in the sitemap, and the nav is a dial with a ruler whose ticks sit under each tab.
+any of them), listed in the sitemap, and the nav is a dial with Home in the middle, lowercase names and a ruler whose ticks sit under each tab.
 
 ## Editing content
 

@@ -21,7 +21,7 @@ const path = require("path");
     const res = await p.goto(E2E_BASE + "/simulations");
     ok(res.status() === 200, "/simulations is open to everyone", res.status());
     const tab = await p.evaluate(() => { const a = document.querySelector('.site-nav a[href="/simulations"]'); return a && [a.textContent.trim(), a.getAttribute("aria-current")]; });
-    ok(tab && /simulations/i.test(tab[0]) && tab[1] === "page", "the nav has a Simulations tab, and it is the current one", tab);
+    ok(tab && /^sim$/i.test(tab[0]) && tab[1] === "page", "the nav has a Sim tab, and it is the current one", tab);
     await p.waitForSelector("#simulations-mount .app-native .sim-shelf:not([hidden])", { timeout: 20000 });
     ok((await p.locator(".shelf-empty").count()) === 1, "a shelf with no circuits yet");
 

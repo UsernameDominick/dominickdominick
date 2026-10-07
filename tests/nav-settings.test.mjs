@@ -61,19 +61,19 @@ function makeEnv(settings, pageRows, extra = {}) {
 const labels = (nav) => nav.map((n) => n.nav_label).join("|");
 {
   const nav = await listNavPages(makeEnv({}, []));
-  ok(labels(nav) === "Studio|PicEditor|Simulations|Scans" && nav.brand === "", "with no pages and nothing set: only Studio (Articles, Projects, Topics out by default) and the default name", [labels(nav), nav.brand]);
+  ok(labels(nav) === "Studio|PicEditor|Sim|Scans" && nav.brand === "", "with no pages and nothing set: only Studio (Articles, Projects, Topics out by default) and the default name", [labels(nav), nav.brand]);
   const named = await listNavPages(makeEnv({ site_brand: " My Site. ", nav_builtin: '{"random":{"label":"Writing","hidden":false},"projects":{"hidden":false}}' }, []));
-  ok(labels(named) === "Writing|Projects|Studio|PicEditor|Simulations|Scans" && named.brand === "My Site.", "the site name and the overrides are read even when no page has a nav label", [labels(named), named.brand]);
+  ok(labels(named) === "Writing|Projects|Studio|PicEditor|Sim|Scans" && named.brand === "My Site.", "the site name and the overrides are read even when no page has a nav label", [labels(named), named.brand]);
   const mixed = await listNavPages(makeEnv({ nav_builtin: '{"topics":{"hidden":false}}' }, [{ id: 7, slug: "about", nav_label: "About", nav_parent_id: null }]));
-  ok(labels(mixed) === "About|Topics|Studio|PicEditor|Simulations|Scans", "the owner's pages come first, then the built-in links that are left", labels(mixed));
+  ok(labels(mixed) === "About|Topics|Studio|PicEditor|Sim|Scans", "the owner's pages come first, then the built-in links that are left", labels(mixed));
   const covered = await listNavPages(makeEnv({ nav_builtin: '{"projects":{"hidden":false}}' }, [{ id: 8, slug: "projects", nav_label: "My work", nav_parent_id: null }]));
-  ok(labels(covered) === "My work|Studio|PicEditor|Simulations|Scans", "a nav page that stands in for a built-in link still replaces it", labels(covered));
+  ok(labels(covered) === "My work|Studio|PicEditor|Sim|Scans", "a nav page that stands in for a built-in link still replaces it", labels(covered));
   const ownProjects = await listNavPages(makeEnv({}, [{ id: 1, slug: "home", nav_label: "Home", nav_parent_id: null }, { id: 8, slug: "projects", nav_label: "Projects", nav_parent_id: null }]));
-  ok(labels(ownProjects) === "Home|Studio|PicEditor|Simulations|Scans", "a page of the owner's own on /projects follows the Projects switch: out by default", labels(ownProjects));
+  ok(labels(ownProjects) === "Home|Studio|PicEditor|Sim|Scans", "a page of the owner's own on /projects follows the Projects switch: out by default", labels(ownProjects));
   const ownRandom = await listNavPages(makeEnv({}, [{ id: 3, slug: "random", nav_label: "Random", nav_parent_id: null }, { id: 9, slug: "about", nav_label: "About", nav_parent_id: null }]));
-  ok(labels(ownRandom) === "About|Studio|PicEditor|Simulations|Scans", "a page of the owner's own on /random follows the Articles switch: out by default", labels(ownRandom));
+  ok(labels(ownRandom) === "About|Studio|PicEditor|Sim|Scans", "a page of the owner's own on /random follows the Articles switch: out by default", labels(ownRandom));
   const ownRandomOn = await listNavPages(makeEnv({ nav_builtin: '{"random":{"hidden":false}}' }, [{ id: 3, slug: "random", nav_label: "Random", nav_parent_id: null }]));
-  ok(labels(ownRandomOn) === "Random|Studio|PicEditor|Simulations|Scans", "and back when it is switched on", labels(ownRandomOn));
+  ok(labels(ownRandomOn) === "Random|Studio|PicEditor|Sim|Scans", "and back when it is switched on", labels(ownRandomOn));
   const owner = await listNavPages(makeEnv({}, [], { __isAdmin: true }));
   ok(!owner.some((n) => n.slug === "hidden-notes") && owner.owner === true, "Hidden Notes is not a tab, even for the owner (it is in the finder)");
 }

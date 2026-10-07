@@ -9196,7 +9196,7 @@
     { slug: "topics", label: "Topics", hiddenByDefault: true },
     { slug: "studio", label: "Studio" },
     { slug: "piceditor", label: "PicEditor" },
-    { slug: "simulations", label: "Simulations" },
+    { slug: "simulations", label: "Sim" },
     { slug: "scans", label: "Scans" },
   ];
   let navAllPages = [];
