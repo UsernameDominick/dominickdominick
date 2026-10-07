@@ -451,3 +451,15 @@
   .app-native .trainer-left .trainer-sub, .app-native .trainer-left .trainer-history, .app-native .trainer-left .trainer-clear { display: none; } /* each drill's best is on its chip; the full list is on a bigger screen */
   .app-native .trainer-stage { min-height: min(54vh, 440px); }
 }
+
+/* ---- Back up and restore (public/app-kit.js `backup`): two quiet buttons at the foot of the Library panel, the shelf and the Trainer's settings ---- */
+.app-native .app-backup { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--border); }
+.app-native .app-backup-row { display: flex; gap: 8px; }
+.app-native .app-backup-row button {
+  flex: 1 1 0; min-height: 36px; padding: 0 10px; font: inherit; font-size: 0.82rem; font-weight: 600; color: var(--text); cursor: pointer;
+  background: transparent; border: 2px solid color-mix(in srgb, var(--btn-ink, var(--text)) 50%, transparent); border-radius: var(--btn-radius, 12px); box-shadow: none; transform: none;
+}
+.app-native .app-backup-row button:hover { border-color: var(--accent); }
+.app-native .app-backup-status { margin: 6px 0 0; font-size: 0.78rem; color: var(--text-dim); }
+.app-native .app-backup-status:empty { display: none; }
+.app-native .studio-shelf .app-backup { max-width: 320px; }

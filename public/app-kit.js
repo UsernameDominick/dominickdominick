@@ -346,8 +346,10 @@
         <button type="button" class="btn btn-accent lib-new">${esc(cfg.newLabel)}</button>
         <label class="lib-start field"><span class="field-label">${esc(cfg.startLabel)}</span><select class="lib-start-select"></select></label>
         <ul class="lib-list"></ul>
+        <div class="lib-footer"></div>
       </div>
       <button type="button" class="studio-panel-handle" aria-expanded="false" aria-controls="${el.id}-body" title="Show the ${esc(cfg.title.toLowerCase())} panel"><span>${esc(cfg.title)}</span></button>`;
+    if (cfg.footer) el.querySelector(".lib-footer").appendChild(cfg.footer);
     cfg.host.classList.add("has-library");
     cfg.host.prepend(el);
     const foldKey = cfg.id + ".libPanel";
@@ -434,6 +436,75 @@
     fill();
     return { el: label, fill };
   }
+
+  // ---------- backup and restore ----------
+  // What a visitor keeps lives in this browser only: a Back up button saves it all to one file, Restore puts it back (merging, never
+  // overwriting: public/backup-logic.js). `cfg` = { app, collect(): parts, restore(parts): { added, skipped, full }, after?() }.
+  function blobToData(blob) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve({ type: blob.type || "", data: String(r.result).split(",")[1] || "" });
+      r.onerror = () => reject(new Error("A file could not be read."));
+      r.readAsDataURL(blob);
+    });
+  }
+  function dataToBlob(o) {
+    const chunks = [];
+    const text = (o && o.data) || "";
+    for (let i = 0; i < text.length; i += 1048576) {
+      const bin = atob(text.slice(i, i + 1048576));
+      const bytes = new Uint8Array(bin.length);
+      for (let k = 0; k < bin.length; k++) bytes[k] = bin.charCodeAt(k);
+      chunks.push(bytes);
+    }
+    return new Blob(chunks, { type: (o && o.type) || "" });
+  }
+  function backup(cfg) {
+    const el = document.createElement("div");
+    el.className = "app-backup";
+    el.innerHTML = `<div class="app-backup-row"><button type="button" class="app-backup-save" data-no-history title="Save everything you have made here to one file, to keep or move to another device">Back up</button><button type="button" class="app-backup-load" data-no-history title="Put things from a backup file back (nothing you have now is overwritten)">Restore</button><input type="file" accept="application/json,.json" hidden></div><p class="app-backup-status" role="status"></p>`;
+    const status = el.querySelector(".app-backup-status");
+    const say = (t) => { status.textContent = t || ""; };
+    const L = () => window.BackupLogic;
+    el.querySelector(".app-backup-save").addEventListener("click", async () => {
+      if (!L()) return say("Backup is not ready yet: try again in a moment.");
+      say("Preparing…");
+      try {
+        const bundle = L().makeBundle(cfg.app, await cfg.collect());
+        const blob = new Blob([JSON.stringify(bundle)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = L().fileName(cfg.app);
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+        say(`Saved ${a.download}.`);
+      } catch (err) {
+        say(err && err.message ? err.message : "That did not work.");
+      }
+    });
+    const input = el.querySelector("input[type=file]");
+    el.querySelector(".app-backup-load").addEventListener("click", () => input.click());
+    input.addEventListener("change", async () => {
+      const file = input.files && input.files[0];
+      input.value = "";
+      if (!file) return;
+      if (!L()) return say("Backup is not ready yet: try again in a moment.");
+      say("Restoring…");
+      try {
+        const parsed = L().parseBundle(await file.text(), cfg.app);
+        if (parsed.error) return say(parsed.error);
+        say(L().summary(await cfg.restore(parsed.bundle.parts)));
+        if (cfg.after) cfg.after();
+      } catch (err) {
+        say(err && err.message ? err.message : "That did not work.");
+      }
+    });
+    return el;
+  }
+
   // What a page starts new things from: the saved choice, or the first option when it is gone.
   function startChoice(key, options, fallback) {
     const now = lsGet(key);
@@ -564,5 +635,5 @@
   // page-slide.js / nav.js call this for every page that slides in.
   window.siteInitApps = (root) => apps.forEach((a) => a.init(root));
 
-  window.SiteAppKit = { esc, fail, wireSubDialogs, addApi, addFetch, addMediaFetch, jsonResponse, readList, writeList, nextId, now, cleanName, presetApi, fileStore, whenEdited, library, startSelect, startChoice, isWide, register };
+  window.SiteAppKit = { esc, fail, wireSubDialogs, addApi, addFetch, addMediaFetch, jsonResponse, readList, writeList, nextId, now, cleanName, presetApi, fileStore, whenEdited, library, startSelect, backup, blobToData, dataToBlob, startChoice, isWide, register };
 })();

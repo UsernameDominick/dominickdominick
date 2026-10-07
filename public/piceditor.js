@@ -247,6 +247,27 @@
     });
   }
 
+  // Back up and restore: every picture to one file, and back (merged, nothing overwritten).
+  function makeBackup() {
+    return K.backup({
+      app: "piceditor",
+      collect: async () => {
+        const all = await store.all();
+        return { pictures: await Promise.all(all.map(async (p) => Object.assign({}, p, { blob: await K.blobToData(p.blob) }))) };
+      },
+      restore: async (parts) => {
+        const B = window.BackupLogic;
+        const have = await store.all();
+        const incoming = (Array.isArray(parts.pictures) ? parts.pictures : []).filter((p) => p && p.blob && typeof p.blob.data === "string").map((p) => Object.assign({}, p, { blob: K.dataToBlob(p.blob) }));
+        const r = B.mergeItems(have, incoming, B.fileSig, MAX_PICTURES);
+        const keep = new Set(have);
+        for (const p of r.list) if (!keep.has(p)) await store.put(p);
+        return r;
+      },
+      after: () => { renderShelf(); if (lib) lib.render(); },
+    });
+  }
+
   // ---------- the Library panel ----------
   const thumbs = new Map(); // "id:updated_at" -> object URL for the panel's pictures
   async function libItems() {
@@ -265,6 +286,7 @@
     const cfg = {
       id: "pic", host: inner, title: "Pictures", noun: "picture", newLabel: "New picture", startKey: START_KEY, startLabel: "New pictures start from", startOptions,
       items: libItems,
+      footer: makeBackup(),
       isOpen: (id) => !editor().hidden && !!current && String(current.id) === id,
       onNew() { if (leave()) openBlank(); },
       async onOpen(id) { if (leave()) await openSaved(Number(id)); },
@@ -289,7 +311,7 @@
     mountId: "piceditor-mount",
     shellClass: "pic-native",
     loadingText: "Loading PicEditor…",
-    scripts: ["/admin/photo-color.js", "/admin/photo-editor.js"],
+    scripts: ["/backup-logic.js", "/admin/photo-color.js", "/admin/photo-editor.js"],
     dialogs: ["photo-editor-modal", "photo-editor-prompt-modal"],
     editor,
     async build(inner) {
@@ -316,6 +338,7 @@
       window.confirm = (msg) => (/^Overwrite the original file\?/.test(String(msg)) && !editor().hidden ? true : realConfirm(msg));
       shelf = buildShelf();
       inner.prepend(shelf);
+      shelf.querySelector(".shelf-bar").before(makeBackup());
       buildLibrary(inner);
       wireShelf();
       await renderShelf();

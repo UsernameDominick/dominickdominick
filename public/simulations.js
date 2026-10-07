@@ -94,6 +94,22 @@
     }
     return undefined;
   });
+  // Back up and restore: every circuit and template to one file, and back (merged, nothing overwritten).
+  function makeBackup() {
+    return K.backup({
+      app: "simulations",
+      collect: async () => ({ circuits: K.readList(KEY), templates: K.readList(TEMPLATES_KEY) }),
+      restore: async (parts) => {
+        const B = window.BackupLogic;
+        const a = B.mergeItems(K.readList(KEY), parts.circuits, B.dataSig, MAX);
+        const t = B.mergeItems(K.readList(TEMPLATES_KEY), parts.templates, B.dataSig, 100);
+        K.writeList(KEY, a.list, full);
+        K.writeList(TEMPLATES_KEY, t.list, full);
+        return { added: a.added + t.added, skipped: a.skipped + t.skipped, full: a.full + t.full };
+      },
+      after: () => { renderShelf(); if (lib) lib.render(); },
+    });
+  }
   // What a new circuit starts from: an empty board, or one of the visitor's own templates.
   const startOptions = () => [{ value: "", label: "An empty board" }].concat(K.readList(TEMPLATES_KEY).map((t) => ({ value: String(t.id), label: "Template: " + t.name })));
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -268,6 +284,7 @@
         const n = s.data && Array.isArray(s.data.components) ? s.data.components.length : 0;
         return { id: String(s.id), name: s.name, meta: `${n} part${n === 1 ? "" : "s"} · ${K.whenEdited(s.updated_at)}`, thumb: `<span class="sim-thumb">${circuitPicture(s.data)}</span>` };
       }),
+      footer: makeBackup(),
       isOpen: (id) => !editor().hidden && openId !== null && String(openId) === id,
       async onNew() { await saveFirst(); await newCircuit(); },
       async onOpen(id) { await saveFirst(); await openCircuit(Number(id)); },
@@ -296,7 +313,7 @@
     mountId: "simulations-mount",
     shellClass: "sim-native",
     loadingText: "Loading Simulations…",
-    scripts: ["/sim-buzzer.js", "/admin/sim-solver.js", "/admin/sim-schematic.js", "/admin/sim-components.js", "/admin/sim-sweep.js", "/admin/simulation-builder.js"],
+    scripts: ["/backup-logic.js", "/sim-buzzer.js", "/admin/sim-solver.js", "/admin/sim-schematic.js", "/admin/sim-components.js", "/admin/sim-sweep.js", "/admin/simulation-builder.js"],
     dialogs: ["simulations-modal", "simulation-builder-modal", "sim-checklist-modal", "sim-model-modal", "sim-warnings-modal", "sim-connect-modal", "sim-sweep-modal"],
     editor,
     // The builder's list stays hidden (the shelf stands for it); the builder listens to a button that opens it, so it must be there first.
@@ -319,6 +336,7 @@
       K.wireSubDialogs(["sim-checklist-modal", "sim-model-modal", "sim-warnings-modal", "sim-connect-modal", "sim-sweep-modal"]);
       shelf = buildShelf();
       inner.prepend(shelf);
+      shelf.querySelector(".shelf-bar").before(makeBackup());
       buildLibrary(inner);
       wireShelf();
       renderShelf();

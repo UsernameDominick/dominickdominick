@@ -86,7 +86,7 @@
       <aside id="trainer-right" class="trainer-panel trainer-right" aria-label="Settings">
         <div class="studio-panel-head"><h2>Settings</h2>
           <button type="button" class="studio-panel-fold" aria-expanded="true" aria-controls="trainer-right-body" aria-label="Hide the settings panel" title="Hide the settings panel">→</button></div>
-        <div id="trainer-right-body" class="studio-panel-body trainer-settings"></div>
+        <div id="trainer-right-body" class="studio-panel-body"><div class="trainer-settings"></div><div class="trainer-backup"></div></div>
         <button type="button" class="studio-panel-handle" aria-expanded="false" aria-controls="trainer-right-body" title="Show the settings"><span>Settings</span></button>
       </aside>
     </div>`;
@@ -413,13 +413,36 @@
     });
   }
 
+  // Back up and restore: your settings and runs to one file, and back (runs are merged, your current settings are kept).
+  function makeBackup() {
+    return K.backup({
+      app: "trainer",
+      collect: async () => ({ settings, history, start: store.get(KEYS.start) || "last" }),
+      restore: async (parts) => {
+        const had = history.length;
+        const seen = new Set(history.map((e) => [e.drill, e.at, e.score].join("|")));
+        const extra = L.cleanHistory(parts.history).filter((e) => !seen.has([e.drill, e.at, e.score].join("|")));
+        history = L.cleanHistory(history.concat(extra).sort((a, b) => b.at - a.at));
+        store.set(KEYS.history, JSON.stringify(history));
+        if (!store.get(KEYS.settings) && parts.settings) {
+          settings = L.cleanSettings(parts.settings);
+          store.set(KEYS.settings, JSON.stringify(settings));
+        }
+        renderDrills();
+        renderHistory();
+        renderSettings();
+        return { added: Math.max(0, history.length - had), skipped: extra.length === 0 ? L.cleanHistory(parts.history).length : 0, full: 0 };
+      },
+    });
+  }
+
   K.register({
     name: "trainer",
     mountId: "trainer-mount",
     shellClass: "trainer-native",
     loadingText: "Loading the Trainer…",
     standalone: true,
-    scripts: ["/trainer-logic.js"],
+    scripts: ["/backup-logic.js", "/trainer-logic.js"],
     build(inner) {
       L = window.TrainerLogic;
       settings = L.cleanSettings(json(KEYS.settings, {}));
@@ -434,6 +457,8 @@
       renderSettings();
       renderHistory();
       wire();
+      const bk = makeBackup();
+      $(".trainer-backup").appendChild(bk);
       chooseDrill(startDrill());
     },
     shown() {},

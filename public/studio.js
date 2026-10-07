@@ -272,6 +272,23 @@
     try { saved = localStorage.getItem(START_KEY); } catch (e) { /* none */ }
     return picker && saved !== null && [...picker.options].some((o) => o.value === saved) ? saved : "";
   };
+  // Back up and restore: every song and template to one file, and back (merged, nothing overwritten).
+  function makeBackup() {
+    const full = "This browser has no room left to keep songs. Delete one, or back some up first.";
+    return K.backup({
+      app: "studio",
+      collect: async () => ({ songs: K.readList(SONGS_KEY), templates: K.readList(TEMPLATES_KEY) }),
+      restore: async (parts) => {
+        const B = window.BackupLogic;
+        const a = B.mergeItems(K.readList(SONGS_KEY), parts.songs, B.dataSig, MAX_SONGS);
+        const t = B.mergeItems(K.readList(TEMPLATES_KEY), parts.templates, B.dataSig, 100);
+        K.writeList(SONGS_KEY, a.list, full);
+        K.writeList(TEMPLATES_KEY, t.list, full);
+        return { added: a.added + t.added, skipped: a.skipped + t.skipped, full: a.full + t.full };
+      },
+      after: () => { panelSig = ""; renderSongsPanel(); renderShelf(); },
+    });
+  }
   let songsPanel = null;
   let panelSig = "";
   let switching = false;
@@ -363,8 +380,10 @@
         <button type="button" class="btn btn-accent studio-songs-new" data-no-history>New song</button>
         <div class="studio-songs-list"></div>
         <div class="studio-songs-starters"></div>
+        <div class="studio-songs-backup"></div>
       </div>
       <button type="button" class="studio-panel-handle" data-no-history aria-expanded="false" aria-controls="studio-songs-panel-body" title="Show your songs"><span>Songs</span></button>`;
+    el.querySelector(".studio-songs-backup").appendChild(makeBackup());
     studio.append(el);
     songsPanel = el;
     const folded = () => { try { return localStorage.getItem("studio.songsPanel") === "folded"; } catch (e) { return false; } };
@@ -476,7 +495,7 @@
     mountId: "studio-mount",
     shellClass: "studio-native",
     loadingText: "Loading the Studio…",
-    scripts: ["/dial.js", "/song-engine.js", "/admin/song-patterns.js", "/admin/song-edit.js", "/admin/song-live.js", "/admin/song-files.js", "/admin/song-starters.js", "/admin/song-builder.js", "/admin/song-studio.js"],
+    scripts: ["/backup-logic.js", "/dial.js", "/song-engine.js", "/admin/song-patterns.js", "/admin/song-edit.js", "/admin/song-live.js", "/admin/song-files.js", "/admin/song-starters.js", "/admin/song-builder.js", "/admin/song-studio.js"],
     // The editor, the list it keeps (hidden here) and the audio export dialog.
     dialogs: ["song-builder-modal", "songs-modal", "song-audio-modal"],
     editor: () => $("song-builder-modal"),
@@ -504,6 +523,7 @@
       }
       shelf = buildShelf();
       inner.prepend(shelf);
+      shelf.querySelector(".shelf-bar").before(makeBackup());
       wireShelf();
       const studio = $("song-studio");
       if (studio) buildSongsPanel(studio);

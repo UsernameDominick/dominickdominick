@@ -298,6 +298,51 @@
     }, true);
   }
 
+  // Back up and restore: every scan with its model files to one file, and back (merged, nothing overwritten). Models can be big: the file
+  // is as large as they are together.
+  function makeBackup() {
+    return K.backup({
+      app: "scans",
+      collect: async () => {
+        const all = await list.all();
+        const keys = new Set();
+        all.forEach((s) => [s.glb_key, s.usdz_key].forEach((k) => k && keys.add(k)));
+        const fileRows = [];
+        for (const k of keys) {
+          const f = await files.get(k);
+          if (f && f.blob) fileRows.push({ id: k, name: f.name, type: f.type, size: f.size, blob: await K.blobToData(f.blob) });
+        }
+        const scans = [];
+        for (const s of all) scans.push(Object.assign({}, s, { thumb: s.thumb ? await K.blobToData(s.thumb) : null }));
+        return { scans, files: fileRows };
+      },
+      restore: async (parts) => {
+        const B = window.BackupLogic;
+        const have = await list.all();
+        const byKey = {};
+        (Array.isArray(parts.files) ? parts.files : []).forEach((f) => { if (f && f.id && f.blob) byKey[f.id] = f; });
+        const incoming = (Array.isArray(parts.scans) ? parts.scans : []).map((s) => Object.assign({}, s, { thumb: s && s.thumb && typeof s.thumb.data === "string" ? K.dataToBlob(s.thumb) : null }));
+        const r = B.mergeItems(have, incoming, B.fileSig, MAX_SCANS);
+        const keep = new Set(have);
+        for (const s of r.list) {
+          if (keep.has(s)) continue;
+          // a model file gets a key of its own here, so it can never replace one that is already kept
+          for (const field of ["glb_key", "usdz_key"]) {
+            const old = s[field];
+            const f = old && byKey[old];
+            if (!f) { if (old) s[field] = null; continue; }
+            const key = `local-scan-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+            await files.put({ id: key, blob: K.dataToBlob(f.blob), name: f.name || "", type: f.type || f.blob.type, size: f.size });
+            s[field] = key;
+          }
+          await list.put(s);
+        }
+        return r;
+      },
+      after: () => { renderShelf(); if (lib) lib.render(); },
+    });
+  }
+
   // ---------- the Library panel ----------
   const thumbUrls = new Map(); // "id:updated_at" -> object URL for the panel's pictures
   async function libItems() {
@@ -321,6 +366,7 @@
     const cfg = {
       id: "scan", host: inner, title: "Scans", noun: "scan", newLabel: "New scan", startKey: START_KEY, startLabel: "The page opens with", startOptions,
       items: libItems,
+      footer: makeBackup(),
       isOpen: (id) => !editor().hidden && openId !== null && String(openId) === id,
       async onNew() { await saveFirst(); newScan(); },
       async onOpen(id) { await saveFirst(); await openScan(Number(id)); },
@@ -345,7 +391,7 @@
     mountId: "scans-mount",
     shellClass: "scan-native",
     loadingText: "Loading Scans…",
-    scripts: ["/admin/scan-builder.js"],
+    scripts: ["/backup-logic.js", "/admin/scan-builder.js"],
     dialogs: ["scans-modal", "scan-editor-modal"],
     editor,
     prepare(inner) {
@@ -370,6 +416,7 @@
       watchViewer();
       shelf = buildShelf();
       inner.prepend(shelf);
+      shelf.querySelector(".shelf-bar").before(makeBackup());
       buildLibrary(inner);
       wireShelf();
       renderShelf();
