@@ -9110,6 +9110,7 @@
     el("settings-song-bars").value = settings.song_default_bars || "";
     el("settings-song-kit").value = settings.song_default_kit || "";
     el("settings-maintenance-mode").checked = settings.maintenance_mode === "1";
+    el("settings-home-tools-off").checked = settings.home_tools_off === "1";
     el("settings-maintenance-message").value = settings.maintenance_message || "";
     el("settings-custom-font-name").value = settings.custom_font_name || "";
     currentCustomFontUrl = settings.custom_font_url || null;
@@ -9174,6 +9175,7 @@
           song_default_bars: el("settings-song-bars").value,
           song_default_kit: el("settings-song-kit").value,
           maintenance_mode: el("settings-maintenance-mode").checked ? "1" : "",
+          home_tools_off: el("settings-home-tools-off").checked ? "1" : "",
           maintenance_message: el("settings-maintenance-message").value,
           custom_font_name: el("settings-custom-font-name").value,
           custom_font_url: currentCustomFontUrl || "",

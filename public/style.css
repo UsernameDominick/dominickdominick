@@ -4628,3 +4628,16 @@ html.finder-on { overflow: hidden; }
 
 /* A mouse drag across the page (page-slide.js): no text gets selected and the cursor says it is a drag. */
 html.is-page-dragging, html.is-page-dragging * { cursor: grabbing !important; user-select: none !important; -webkit-user-select: none !important; }
+
+/* ---- The home page's "Try the tools" cards (worker/home-tools.js) ---- */
+.home-tools { grid-column: 1 / -1; width: 100%; max-width: 1080px; margin: 48px auto 0; padding: 0 var(--page-pad, 20px) 24px; }
+.home-tools-title { margin: 0 0 14px; font-size: 1.15rem; }
+.home-tools-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.home-tool {
+  display: flex; flex-direction: column; gap: 4px; padding: 16px; color: var(--text); text-decoration: none;
+  background: var(--bg-elevated, transparent); border: 2px solid var(--border); border-radius: 14px;
+}
+.home-tool:hover { border-color: var(--accent); }
+.home-tool .tab-ico { width: 26px; height: 26px; color: var(--accent); margin-bottom: 4px; }
+.home-tool-name { font-weight: 700; font-size: 1.02rem; }
+.home-tool-line { font-size: 0.88rem; color: var(--text-dim); line-height: 1.45; }

@@ -29,6 +29,8 @@ for (const page of APP_PAGES) {
   const body = appPageBody(page, esc);
   ok(body.includes(`id="${page.mountId}"`) && body.includes('class="app-mount"') && body.includes(esc(page.h1)), `${name}: the page holds the mount its script builds into`, body.slice(0, 200));
 
+  // its share card
+  ok(/^\/share\/[a-z]+\.png$/.test(page.image || "") && fs.existsSync("public" + page.image), `${name}: it has a share card that exists`, page.image);
   // its script
   const file = "public" + page.script;
   ok(fs.existsSync(file), `${name}: its script exists`, file);

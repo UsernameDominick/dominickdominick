@@ -273,6 +273,7 @@ const SETTINGS_KEYS = [
   "empty_archive_text",
   "empty_topics_text",
   "maintenance_mode",
+  "home_tools_off",
   "maintenance_message",
   "custom_font_name",
   "custom_font_url",

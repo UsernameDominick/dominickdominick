@@ -121,6 +121,7 @@ import { cleanTrackName, cleanTrackPath } from "./track.js";
 import { SVG_CSP, isSvgContentType } from "./svg.js";
 import { trailingSlashTarget } from "./trailing-slash.js";
 import { appPageFor, appPageBody } from "./app-pages.js";
+import { homeToolsHtml } from "./home-tools.js";
 import { uiIcon } from "./ui-icons.js";
 import {
   capacitanceMicrofarads,
@@ -171,6 +172,8 @@ function hasPreviewModeCookie(request) {
 // "node.js" (extension "js") or a page slug starting with "admin" (prefix
 // match, not an exact one) fully rendered its real content instead of the
 // maintenance page. An explicit allowlist can't have that failure mode.
+// The picture links to a page show when the owner has not chosen one (Site settings > default share image): a card with the site name.
+const DEFAULT_SHARE_IMAGE = "/share/site.png";
 const MAINTENANCE_EXEMPT_FILES = new Set(["/nav.js", "/sim-player.js", "/sim-buzzer.js", "/song-embed.js", "/song-engine.js", "/style.css", "/favicon.ico"]);
 function isMaintenanceExempt(path) {
   return path === "/admin" || path.startsWith("/admin/") || path.startsWith("/media/") || MAINTENANCE_EXEMPT_FILES.has(path);
@@ -235,7 +238,7 @@ const THEME_SETTING_KEYS = [
   "custom_font_name", "custom_font_url", ...CONTROL_SETTING_KEYS,
 ];
 const SITE_CONTEXT_KEYS = [
-  ...THEME_SETTING_KEYS, "default_og_image", "site_footer", "site_footer_links", "custom_head", "empty_search_text", "empty_archive_text", "empty_topics_text", "noindex_items",
+  ...THEME_SETTING_KEYS, "default_og_image", "home_tools_off", "site_footer", "site_footer_links", "custom_head", "empty_search_text", "empty_archive_text", "empty_topics_text", "noindex_items",
 ];
 
 function themeFrom(v) {
@@ -265,7 +268,8 @@ async function getSiteContext(env) {
   const footerLinks = cleanFooterLinks(v.site_footer_links);
   const footerText = footerLinks ? { text: footerPlain || "", ...footerLinks } : footerPlain;
   return {
-    defaultOgImage: v.default_og_image,
+    defaultOgImage: v.default_og_image || DEFAULT_SHARE_IMAGE,
+    homeToolsOff: v.home_tools_off,
     theme: themeFrom(v),
     footerText,
     customHead: v.custom_head,
@@ -337,7 +341,9 @@ async function renderPage(env, page, url, request) {
   const pageCss = cleanPageCss(await getSetting(env, pageCssKey(page.id)));
   const pageCssTag = pageCss.css ? `<style data-page-css>${pageCss.css}</style>` : "";
   const activeTagFilter = url.searchParams.get("tag") || null;
-  const bodyHtml = await renderBlocks(env, blocks, { activeTagFilter, isAdmin, query: url.searchParams });
+  const renderedBlocks = await renderBlocks(env, blocks, { activeTagFilter, isAdmin, query: url.searchParams });
+  // The home page also shows a strip of cards for the tool pages, unless the owner has switched it off.
+  const bodyHtml = page.slug === "home" ? renderedBlocks + homeToolsHtml((t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"), (await getSetting(env, "home_tools_off")) || "") : renderedBlocks;
   // A page has no single body-text field to fall back to the way an
   // article/project's excerpt(body) already does — build an equivalent
   // fallback from its own text/heading blocks (reading order, same
@@ -1697,7 +1703,7 @@ async function route(request, env, ctx) {
     const appPage = appPageFor(path);
     if (appPage) {
       const navItems = await listNavPages(env);
-      const { theme, footerText, customHead } = await getSiteContext(env);
+      const { theme, footerText, customHead, defaultOgImage } = await getSiteContext(env);
       const esc = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
       const html = renderShell({
         title: appPage.title,
@@ -1710,6 +1716,8 @@ async function route(request, env, ctx) {
         footerText,
         customHead,
         canvasClass: "canvas studio-canvas",
+        ogImage: appPage.image || defaultOgImage || null,
+        ogImageSize: appPage.image ? 'width="1200" height="630"' : "",
       });
       return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8" } });
     }

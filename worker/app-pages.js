@@ -6,6 +6,7 @@ export const APP_PAGES = [
   {
     path: "/trainer",
     slug: "trainer",
+    image: "/share/trainer.png", // a 1200 x 630 share card for links to this page
     title: "Trainer: an aim trainer for FPS games · Dominick",
     description: "Practise your aim in your browser: gridshot, tracking and flick drills with accuracy, reaction time and a score. Nothing to install.",
     h1: "Trainer: an aim trainer for FPS games",
@@ -18,6 +19,7 @@ export const APP_PAGES = [
   {
     path: "/studio",
     slug: "studio",
+    image: "/share/studio.png", // a 1200 x 630 share card for links to this page
     title: "Studio: make music in your browser · Dominick",
     description: "Make music in your browser: a step sequencer, a piano roll, forty instruments and fifteen drum kits. Nothing to install, and nothing leaves your device.",
     h1: "Studio: make music in your browser",
@@ -30,6 +32,7 @@ export const APP_PAGES = [
   {
     path: "/piceditor",
     slug: "piceditor",
+    image: "/share/piceditor.png", // a 1200 x 630 share card for links to this page
     title: "PicEditor: edit pictures in your browser · Dominick",
     description: "Edit pictures in your browser: layers, brushes, selections, filters, text, crop and more. Nothing to install, and your pictures never leave your device.",
     h1: "PicEditor: edit pictures in your browser",
@@ -41,6 +44,7 @@ export const APP_PAGES = [
   {
     path: "/simulations",
     slug: "simulations",
+    image: "/share/simulations.png", // a 1200 x 630 share card for links to this page
     title: "Simulations: build circuits in your browser · Dominick",
     description: "Build circuits on a breadboard in your browser: batteries, LEDs, switches, meters, transistors and logic gates. Nothing leaves your device.",
     h1: "Simulations: build circuits in your browser",
@@ -52,6 +56,7 @@ export const APP_PAGES = [
   {
     path: "/scans",
     slug: "scans",
+    image: "/share/scans.png", // a 1200 x 630 share card for links to this page
     title: "Scans: look at 3D scans in your browser · Dominick",
     description: "Open a 3D scan or model (.glb or .gltf) in your browser, turn it around, pick the view it opens on and keep it. Your files never leave your device.",
     h1: "Scans: look at 3D scans in your browser",
