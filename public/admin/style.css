@@ -9412,3 +9412,33 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 @media (pointer: coarse) {
   .pe-layer-row button { min-height: 32px; }
 }
+
+/* ---- Studio: a better sequencer and roll (picked notes, resize handles, ghosts of the other tracks, the strength lane, zoom) ---- */
+.studio-cell { position: relative; }
+.studio-cell.sel { outline: 2px solid var(--text); outline-offset: -2px; z-index: 1; }
+.studio-grid[data-mode="roll"] .studio-cell.span-end.on { cursor: ew-resize; }
+.studio-grid[data-mode="roll"] .studio-cell.span-end.on::after {
+  content: ""; position: absolute; top: 0; bottom: 0; right: 0; width: 5px; border-radius: 0 3px 3px 0; background: rgba(0, 0, 0, 0.28);
+}
+.studio-grid[data-mode="roll"] .studio-cell.on:not(.span-end) { cursor: grab; }
+.studio-cell.ghost::before {
+  content: ""; position: absolute; inset: 38% 18%; border-radius: 2px; pointer-events: none; background: color-mix(in srgb, var(--text) 38%, transparent);
+}
+.studio-lane-row { flex: 0 0 52px !important; min-height: 52px !important; max-height: 52px !important; margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--border); }
+.studio-lane-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.studio-lane-bar {
+  position: relative; display: block; height: 100%; min-width: 0; border-radius: 3px; cursor: ns-resize; touch-action: none;
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+}
+.studio-lane-bar:hover { background: color-mix(in srgb, var(--text) 14%, transparent); }
+.studio-lane-bar i {
+  position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--h, 0) * 100%); border-radius: 3px; background: var(--track-color); opacity: 0.85;
+}
+.studio-marquee { position: fixed; z-index: 1200; pointer-events: none; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.studio-rolltools { display: inline-flex; align-items: center; gap: 4px; }
+.studio-snap { display: inline-flex; align-items: center; gap: 4px; font-size: 0.74rem; color: var(--text-dim); }
+.studio-snap select { min-height: 30px; padding: 0 4px; font-size: 0.78rem; }
+.studio-grid[data-zoomed] { min-width: calc(100% * var(--zoom, 1)); }
+.studio-grid[data-zoomed][data-mode="roll"] .studio-row:not(.studio-lane-row) { flex: 0 0 calc(16px * var(--zoom, 1)) !important; min-height: calc(16px * var(--zoom, 1)) !important; }
+@media (max-width: 640px) { .studio-lane-row { display: none; } }
+@media (min-width: 641px) { .studio-trackbar .studio-bars { min-width: 150px; } }

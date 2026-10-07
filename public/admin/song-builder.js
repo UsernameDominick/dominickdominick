@@ -18,6 +18,44 @@
   window.SongStudioHost = {
     song: () => songData,
     songId: () => currentSongId,
+    // The strength a new step is struck at (the "Step strength" menu): 1, or a number below it.
+    stepStrength: () => selectedStepLevel(),
+    // Editing from the Studio's drags and selections. fn gets copies of what the roll (or the drums) holds and returns the new data, or
+    // nothing to change none; the work is one undo step unless a drag has already opened a group of its own.
+    editRoll: (fn) => {
+      const part = roll();
+      if (part.hidden === true) return false;
+      const own = !historyGroup;
+      if (own) window.SongStudioHost.group(true);
+      const out = fn({ notes: JSON.parse(JSON.stringify(part.notes)), ties: JSON.parse(JSON.stringify(part.ties || {})) });
+      if (out) {
+        part.notes = out.notes;
+        rollNotes().forEach((n) => {
+          if (!part.notes[n]) part.notes[n] = new Array(STEPS).fill(false);
+        });
+        setMelodyTies(out.ties || {});
+        renderPianoRoll();
+        refreshWaveformPreview();
+        scheduleAutosave();
+      }
+      if (own) window.SongStudioHost.group(false);
+      return Boolean(out);
+    },
+    editDrums: (fn) => {
+      const own = !historyGroup;
+      if (own) window.SongStudioHost.group(true);
+      const out = fn(JSON.parse(JSON.stringify(songData.tracks)));
+      if (out) {
+        Object.keys(out).forEach((row) => {
+          if (songData.tracks[row]) songData.tracks[row] = out[row];
+        });
+        renderSequencer();
+        refreshWaveformPreview();
+        scheduleAutosave();
+      }
+      if (own) window.SongStudioHost.group(false);
+      return Boolean(out);
+    },
     playing: () => player.isPlaying() || isCountingIn(),
     paused: () => resumeFrom !== null && !(player.isPlaying() || isCountingIn()),
     pause: () => pausePlayback(),

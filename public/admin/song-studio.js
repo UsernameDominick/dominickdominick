@@ -13,6 +13,7 @@
   const studio = $("song-studio");
   if (!modal || !studio) return;
   const Engine = window.SongEngine;
+  const Edit = window.SongEdit;
   const host = () => window.SongStudioHost;
   const song = () => (host() ? host().song() : null);
 
@@ -62,7 +63,11 @@
   const legacy = lsGet("songView", "studio") === "classic";
   let trackId = "drums";
   let mode = lsGet("songGridMode", "roll"); // how the notes of a track are drawn: the roll shows every note at once, on a phone too
-  let soundRow = "kick"; // the drum sound whose volume the sound sheet shows
+  let soundRow = "kick"; // the drum sound whose volume the sound sheet shows (and whose strengths the level lane draws)
+  let sel = new Set(); // the notes picked in the roll, by Edit.key (row:start)
+  let snapBy = [1, 2, 4].includes(Number(lsGet("studioSnap", "1"))) ? Number(lsGet("studioSnap", "1")) : 1; // steps a drag snaps to: 1/16, 1/8, 1/4
+  let zoom = [1, 1.5, 2, 3].includes(Number(lsGet("studioZoom", "1"))) ? Number(lsGet("studioZoom", "1")) : 1; // size of the roll
+  let clip = null; // the bar copied with "Copy bar"
   const barPick = {}; // the bar being edited in each track
 
   // ---------- reading the song ----------
@@ -336,10 +341,15 @@
   function detailHtml(track) {
     const hint =
       track.kind === "drums"
-        ? "Tap a step to place a hit. With Rec on, press a pad while it plays."
+        ? "Tap a step to place a hit, or press and drag across steps to paint a run of them. Drag the bars under the steps to set how hard each is struck. With Rec on, press a pad while it plays."
         : mode === "roll"
-          ? "Tap to place a note, drag along empty steps to draw a held note, drag over notes to erase. With Rec on, play the keys while it plays."
+          ? "Tap to place a note, drag along empty steps to draw a held note. Drag a note to move it, its right edge to resize it, Alt-drag to copy it, Shift-drag a box to select several. Drag the bars under the notes to set their strength."
           : "Tap to place notes; hold a note to tie it to the one before. With Rec on, play the keys while it plays.";
+    const rollTools =
+      track.kind === "notes" && mode === "roll"
+        ? `<span class="studio-rolltools studio-wide-only" role="group" aria-label="Piano roll view"><label class="studio-snap" title="Notes you draw, move or resize snap to this">Snap <select id="studio-snap-by" data-no-reset aria-label="Snap notes to"><option value="1">1/16</option><option value="2">1/8</option><option value="4">1/4</option></select></label>` +
+          `<button type="button" class="studio-mini" data-act="zoom-out" data-no-history aria-label="Zoom out" title="Zoom out">−</button><button type="button" class="studio-mini" data-act="zoom-in" data-no-history aria-label="Zoom in" title="Zoom in: bigger notes, scroll to see the rest">+</button></span>`
+        : "";
     const modeSwitch =
       track.kind === "notes"
         ? `<span class="studio-modes" role="group" aria-label="How the notes are drawn"><button type="button" class="studio-mode" data-act="mode" data-mode="steps" data-no-history aria-pressed="${mode === "steps"}" title="Big steps you tap, scrolling a little">Steps</button><button type="button" class="studio-mode" data-act="mode" data-mode="roll" data-no-history aria-pressed="${mode === "roll"}" title="A piano roll: every note in view, drag to draw">Roll</button></span>`
@@ -351,6 +361,7 @@
       `<button type="button" class="studio-mini studio-add-bar" data-act="bar-add" aria-label="Add a bar" title="Add a new empty bar to the end of this track">+<span class="studio-wide-word"> Bar</span></button>` +
       `<button type="button" id="studio-loop" class="studio-mini studio-loop studio-wide-only" data-act="loop" aria-pressed="true" title="Loop: this track plays again from its first bar when it reaches its last, until the song ends">↻ Loop</button>` +
       modeSwitch +
+      rollTools +
       `<button type="button" class="studio-mini studio-sound-btn" data-act="sound" data-no-history aria-label="Change the sound" title="Change the sound: the instrument, how it starts and ends, how bright it is"><span id="studio-sub" class="studio-sound-name"></span><span aria-hidden="true" class="studio-caret">▾</span></button>` +
       `<button type="button" id="studio-mute" class="studio-pill studio-wide-only" aria-pressed="false">Mute</button>` +
       `<button type="button" class="studio-mini studio-wide-only" id="studio-clear" data-act="clear" title="Remove everything in this track's bar (undoable)">Clear</button>` +
@@ -374,6 +385,9 @@
       detailEl.innerHTML = detailHtml(track);
       gridSig = "";
       barsSig = "";
+      const snapMenu = $("studio-snap-by");
+      if (snapMenu) snapMenu.value = String(snapBy);
+      applyZoom();
     }
     // Values are updated in place, so nothing is rebuilt under a finger.
     $("studio-sub").textContent = info.sound;
@@ -444,7 +458,8 @@
     const track = trackOf(trackId);
     const key = track.id;
     const info = arr.info(key);
-    const sel = barPick[key] || 0;
+    const sel0 = barPick[key] || 0;
+    const sel = sel0;
     const here = info.cells[sel];
     const s = song();
     const muted = trackInfo(s, track).muted;
@@ -454,6 +469,10 @@
       `<button type="button" class="studio-menu-item studio-menu-narrow" data-act="mute" aria-pressed="${muted}">${muted ? "Unmute" : "Mute"} ${esc(track.name)}<small>${muted ? "It is silent now" : "Silence it while you work on the others"}</small></button>` +
       ($("song-midi-connect") && !$("song-midi-connect").hidden ? `<button type="button" class="studio-menu-item studio-menu-narrow" data-act="midi">${esc($("studio-midi").textContent)}<small>Connect a MIDI keyboard or pad controller</small></button>` : "") +
       `<button type="button" class="studio-menu-item studio-menu-narrow" data-act="clear">Clear bar ${sel + 1}<small>Remove everything this track plays there (undoable)</small></button>` +
+      `<button type="button" class="studio-menu-item" data-act="shift-left">Shift the bar earlier<small>Everything moves one step left and wraps round</small></button>` +
+      `<button type="button" class="studio-menu-item" data-act="shift-right">Shift the bar later<small>Everything moves one step right and wraps round</small></button>` +
+      `<button type="button" class="studio-menu-item" data-act="copy-bar">Copy bar ${sel0 + 1}<small>Keep what this track plays in this bar</small></button>` +
+      `<button type="button" class="studio-menu-item" data-act="paste-bar"${clip && clip.kind === track.kind ? "" : " disabled"}>Paste into bar ${sel0 + 1}<small>${clip && clip.kind === track.kind ? "Replace this bar with the one you copied" : "Copy a bar of this kind of track first"}</small></button>` +
       `<button type="button" class="studio-menu-item" data-act="bar-differ"${here && here.name ? "" : " disabled"}>Make bar ${sel + 1} different<small>A copy of what this track plays there, so it can change on its own</small></button>` +
       `<button type="button" class="studio-menu-item" data-act="bar-remove"${here && here.name && !here.repeat ? "" : " disabled"}>Remove bar ${sel + 1} from this track<small>The bars after it move up</small></button>` +
       `<button type="button" class="studio-menu-item" data-act="lane-follow"${info.own ? "" : " disabled"}>Follow the song order again<small>Drop this track's own bars</small></button>` +
@@ -550,6 +569,21 @@
       arr.setLoop(track.id, !arr.info(track.id).loops);
       say(arr.info(track.id).loops ? `${track.name} loops until the song ends` : `${track.name} plays once and then stops`);
       barsSig = "";
+    } else if (act === "shift-left" || act === "shift-right") {
+      closePop();
+      shiftBar(track, act === "shift-left" ? -1 : 1);
+    } else if (act === "copy-bar") {
+      closePop();
+      copyBar(track);
+    } else if (act === "paste-bar") {
+      closePop();
+      pasteBar(track);
+    } else if (act === "zoom-in" || act === "zoom-out") {
+      const steps = [1, 1.5, 2, 3];
+      zoom = steps[Math.max(0, Math.min(steps.length - 1, steps.indexOf(zoom) + (act === "zoom-in" ? 1 : -1)))];
+      lsSet("studioZoom", String(zoom));
+      applyZoom();
+      return;
     } else if (act === "bars-menu") {
       $("studio-bars-menu").innerHTML = barsMenuHtml();
       togglePop(t, $("studio-bars-menu"));
@@ -618,6 +652,15 @@
         return `<div class="studio-row${row.includes("#") ? " studio-row-black" : ""}${off ? " studio-row-off" : ""}" data-row="${row}">${tag}${groups}</div>`;
       })
       .join("");
+    // Under the steps, a lane of bars: how hard each step is struck. Drag across it to draw the strengths.
+    let laneBeats = "";
+    for (let g = 0; g < 4; g++) {
+      let bars = "";
+      for (let i = g * 4; i < g * 4 + 4; i++) bars += `<span class="studio-lane-bar" data-lane="${i}"><i></i></span>`;
+      laneBeats += `<span class="studio-beat${g % 2 ? " studio-beat-alt" : ""}">${bars}</span>`;
+    }
+    grid.insertAdjacentHTML("beforeend", `<div class="studio-row studio-lane-row" aria-hidden="true"><span class="studio-row-label studio-lane-label"></span>${laneBeats}</div>`);
+    laneBars = Array.from(grid.querySelectorAll(".studio-lane-bar"));
     gridCells = Array.from(grid.querySelectorAll(".studio-cell"));
     colCells = Array.from({ length: STEPS }, () => []);
     cellAt = {};
@@ -627,10 +670,49 @@
     });
     if (gridCells[0]) gridCells[0].tabIndex = 0;
     lastCol = -1;
+    applyZoom();
     centerGrid(false);
   }
+  let laneBars = [];
+  // The roll's size: rows taller and steps wider, the grid scrolling when it is bigger than its room.
+  function applyZoom() {
+    const grid = $("studio-grid");
+    if (!grid) return;
+    const zoomed = zoom > 1 && trackOf(trackId).kind === "notes" && mode === "roll";
+    grid.toggleAttribute("data-zoomed", zoomed);
+    grid.style.setProperty("--zoom", String(zoomed ? zoom : 1));
+    const out = detailEl.querySelector('[data-act="zoom-out"]');
+    const inn = detailEl.querySelector('[data-act="zoom-in"]');
+    if (out) out.disabled = zoom <= 1;
+    if (inn) inn.disabled = zoom >= 3;
+  }
+  // Notes that are picked, notes of other tracks behind this one (ghosts), and where each note ends (its resize handle).
+  let selCells = new Set();
+  let endCells = new Set();
+  let ghostCells = new Set();
   function paintGrid(s, track) {
     const part = track.kind === "drums" ? null : partOf(s, track);
+    if (part) {
+      const list = Edit.spans(part.notes || {}, part.ties || {}, STEPS);
+      const keys = new Set(list.map(Edit.key));
+      sel.forEach((k) => keys.has(k) || sel.delete(k));
+      selCells = new Set();
+      endCells = new Set();
+      list.forEach((sp) => {
+        endCells.add(sp.row + ":" + (sp.start + sp.len - 1));
+        if (sel.has(Edit.key(sp))) for (let k = 0; k < sp.len; k++) selCells.add(sp.row + ":" + (sp.start + k));
+      });
+      ghostCells = new Set();
+      TRACKS.forEach((t) => {
+        if (t.kind !== "notes" || t.id === track.id) return;
+        const notes = partOf(s, t).notes || {};
+        Object.keys(notes).forEach((row) => (notes[row] || []).forEach((v, i) => hit(v) && ghostCells.add(row + ":" + i)));
+      });
+    } else {
+      selCells = new Set();
+      endCells = new Set();
+      ghostCells = new Set();
+    }
     gridCells.forEach((cell) => {
       const row = cell.dataset.row;
       const i = Number(cell.dataset.step);
@@ -651,6 +733,39 @@
       if (cell._tied !== tied) {
         cell._tied = tied;
         cell.classList.toggle("tied", tied);
+      }
+      const k = row + ":" + i;
+      const picked = selCells.has(k);
+      if (cell._sel !== picked) {
+        cell._sel = picked;
+        cell.classList.toggle("sel", picked);
+      }
+      const end = endCells.has(k);
+      if (cell._end !== end) {
+        cell._end = end;
+        cell.classList.toggle("span-end", end);
+      }
+      const ghost = !on && ghostCells.has(k);
+      if (cell._ghost !== ghost) {
+        cell._ghost = ghost;
+        cell.classList.toggle("ghost", ghost);
+      }
+    });
+    paintLane(s, track, part);
+  }
+  // The level lane: the strength of each step of the chosen drum sound, or of the notes that start on each step of the roll.
+  function paintLane(s, track, part) {
+    if (!laneBars.length) return;
+    const label = detailEl.querySelector(".studio-lane-label");
+    if (label) label.textContent = track.kind === "drums" ? "Hit" : "Level";
+    const row = track.kind === "drums" ? (s.tracks[soundRow] ? soundRow : drumRows(s)[0]) : null;
+    laneBars.forEach((bar) => {
+      const i = Number(bar.dataset.lane);
+      const lv = track.kind === "drums" ? Edit.startLevel({ [row]: s.tracks[row] || [] }, {}, i, STEPS) : Edit.startLevel(part.notes || {}, part.ties || {}, i, STEPS);
+      if (bar._lv !== lv) {
+        bar._lv = lv;
+        bar.firstChild.style.setProperty("--h", String(lv));
+        bar.classList.toggle("on", lv > 0);
       }
     });
   }
@@ -693,9 +808,15 @@
   // A long press on a note ties it to the one before (the builder's Shift+click).
   let hold = null;
   detailEl.addEventListener("pointerdown", (e) => {
+    const bar = e.target.closest && e.target.closest(".studio-lane-bar");
+    if (bar) return laneDown(e);
     const cell = e.target.closest && e.target.closest(".studio-cell");
-    if (!cell || trackOf(trackId).kind === "drums") return;
-    if (mode === "roll") return startPaint(e, cell);
+    if (!cell) return;
+    if (trackOf(trackId).kind === "drums") {
+      soundRow = cell.dataset.row;
+      return drumDown(e, cell);
+    }
+    if (mode === "roll") return rollDown(e, cell);
     hold = {
       cell,
       fired: false,
@@ -718,6 +839,347 @@
   detailEl.addEventListener("pointerup", endHold);
   detailEl.addEventListener("pointercancel", endHold);
   detailEl.addEventListener("pointerleave", endHold);
+
+  // ---------- dragging: paint drum steps, move and resize notes, pick with a box, draw strengths ----------
+  const clone = (o) => JSON.parse(JSON.stringify(o));
+  let gdrag = null; // { kind: "move" | "resize" | "box" | "drums", ... }
+  let lane = null;
+  const suppressClick = () => {
+    paintDone = true;
+    setTimeout(() => (paintDone = false), 60);
+  };
+  // How big a step and a row are on screen right now, and the roll's rows from the top.
+  function geom() {
+    const rows = Array.from($("studio-grid").querySelectorAll(".studio-row[data-row]:not(.studio-lane-row)"));
+    if (!rows.length) return null;
+    const r0 = rows[0].getBoundingClientRect();
+    const r1 = rows[1] ? rows[1].getBoundingClientRect() : r0;
+    const a = cellAt[rows[0].dataset.row + ":0"].getBoundingClientRect();
+    const b = cellAt[rows[0].dataset.row + ":1"].getBoundingClientRect();
+    return { cw: Math.max(4, b.left - a.left), rh: Math.max(4, r1.top - r0.top || r0.height), names: rows.map((r) => r.dataset.row) };
+  }
+  const barNow = () => {
+    const part = partOf(song(), trackOf(trackId));
+    return { notes: clone(part.notes || {}), ties: clone(part.ties || {}) };
+  };
+  const strengthNow = () => Edit.level(host().stepStrength());
+
+  function drumDown(e, cell) {
+    if (e.button > 0) return;
+    gdrag = { kind: "drums", id: e.pointerId, erase: cell.classList.contains("on"), x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, seen: new Set([cell.dataset.row + ":" + cell.dataset.step]), start: cell, moved: false };
+  }
+  function drumApply(cell) {
+    const row = cell.dataset.row;
+    const step = Number(cell.dataset.step);
+    host().editDrums((tracks) => Edit.paintCells(tracks, [{ row, step }], gdrag.erase ? false : strengthNow(), STEPS));
+  }
+  function rollDown(e, cell) {
+    if (e.button > 0) return;
+    const part = partOf(song(), trackOf(trackId));
+    const step = Number(cell.dataset.step);
+    const sp = Edit.spanAt(part.notes || {}, part.ties || {}, cell.dataset.row, step, STEPS);
+    const modKey = e.ctrlKey || e.metaKey;
+    if (e.shiftKey) {
+      // Shift on empty steps: a box. Shift on a note stays the builder's own tie toggle.
+      if (sp) return;
+      const g = geom();
+      if (!g) return;
+      gdrag = { kind: "box", id: e.pointerId, x: e.clientX, y: e.clientY, a: { row: g.names.indexOf(cell.dataset.row), step }, g, moved: false, el: null };
+      return;
+    }
+    if (!sp) {
+      sel.clear();
+      paintGrid(song(), trackOf(trackId));
+      return startPaint(e, cell);
+    }
+    if (modKey) {
+      const k = Edit.key(sp);
+      sel.has(k) ? sel.delete(k) : sel.add(k);
+      paintGrid(song(), trackOf(trackId));
+      suppressClick();
+      e.preventDefault();
+      return;
+    }
+    if (!sel.has(Edit.key(sp))) {
+      sel = new Set([Edit.key(sp)]);
+      paintGrid(song(), trackOf(trackId));
+    }
+    const r = cell.getBoundingClientRect();
+    const atEdge = step === sp.start + sp.len - 1 && e.clientX > r.left + r.width * 0.6;
+    gdrag = { kind: atEdge ? "resize" : "move", id: e.pointerId, x: e.clientX, y: e.clientY, sp, copy: e.altKey && !atEdge, moved: false, base: null, list: null, g: null, lastRows: 0 };
+  }
+  detailEl.addEventListener("pointermove", (e) => {
+    if (!gdrag || e.pointerId !== gdrag.id) return;
+    const dx = e.clientX - gdrag.x;
+    const dy = e.clientY - gdrag.y;
+    if (gdrag.kind === "drums") {
+      if (!gdrag.moved) {
+        if (Math.hypot(dx, dy) < 4) return;
+        gdrag.moved = true;
+        host().group(true);
+        try {
+          detailEl.setPointerCapture(e.pointerId);
+        } catch {
+          /* not capturable */
+        }
+        drumApply(gdrag.start);
+      }
+      // sample along the way so a fast gdrag does not skip a step
+      const dist = Math.hypot(e.clientX - gdrag.lx, e.clientY - gdrag.ly);
+      const n = Math.max(1, Math.ceil(dist / 6));
+      for (let k = 1; k <= n; k++) {
+        const c = stepUnder(gdrag.lx + ((e.clientX - gdrag.lx) * k) / n, gdrag.ly + ((e.clientY - gdrag.ly) * k) / n);
+        const key = c && c.dataset.row + ":" + c.dataset.step;
+        if (c && !gdrag.seen.has(key)) {
+          gdrag.seen.add(key);
+          drumApply(c);
+        }
+      }
+      gdrag.lx = e.clientX;
+      gdrag.ly = e.clientY;
+      paintGrid(song(), trackOf(trackId));
+      return;
+    }
+    if (gdrag.kind === "box") {
+      if (!gdrag.moved && Math.hypot(dx, dy) < 4) return;
+      if (!gdrag.moved) {
+        gdrag.moved = true;
+        gdrag.el = document.createElement("div");
+        gdrag.el.className = "studio-marquee";
+        document.body.append(gdrag.el);
+        try {
+          detailEl.setPointerCapture(e.pointerId);
+        } catch {
+          /* not capturable */
+        }
+      }
+      Object.assign(gdrag.el.style, { left: Math.min(gdrag.x, e.clientX) + "px", top: Math.min(gdrag.y, e.clientY) + "px", width: Math.abs(dx) + "px", height: Math.abs(dy) + "px" });
+      const c = stepUnder(e.clientX, e.clientY);
+      if (c) {
+        const b = { row: gdrag.g.names.indexOf(c.dataset.row), step: Number(c.dataset.step) };
+        const part = barNow();
+        sel = new Set(Edit.inBox(part.notes, part.ties, STEPS, gdrag.g.names, gdrag.a, b).map(Edit.key));
+        paintGrid(song(), trackOf(trackId));
+      }
+      return;
+    }
+    // move or resize a note (or all the picked ones)
+    if (!gdrag.moved) {
+      if (Math.hypot(dx, dy) < 5) return;
+      gdrag.moved = true;
+      gdrag.g = geom();
+      gdrag.base = barNow();
+      gdrag.list = Edit.spans(gdrag.base.notes, gdrag.base.ties, STEPS).filter((sp) => sel.has(Edit.key(sp)));
+      if (!gdrag.list.length) gdrag.list = [gdrag.sp];
+      host().group(true);
+      try {
+        detailEl.setPointerCapture(e.pointerId);
+      } catch {
+        /* not capturable */
+      }
+    }
+    const g = gdrag.g;
+    if (!g) return;
+    const track = trackOf(trackId);
+    if (gdrag.kind === "move") {
+      const first = gdrag.list[0];
+      const dSteps = Edit.snap(first.start + dx / g.cw, snapBy) - first.start;
+      const dRows = Math.round(dy / g.rh);
+      host().editRoll(() => {
+        const out = Edit.move(gdrag.base.notes, gdrag.base.ties, gdrag.list, dRows, dSteps, STEPS, g.names, { copy: gdrag.copy });
+        sel = new Set(out.spans.map(Edit.key));
+        if (out.moved.rows !== gdrag.lastRows) {
+          gdrag.lastRows = out.moved.rows;
+          const at = g.names.indexOf(gdrag.sp.row) + out.moved.rows;
+          if (g.names[at]) host().hear(track.id, g.names[at]);
+        }
+        return { notes: out.notes, ties: out.ties };
+      });
+    } else {
+      const end = gdrag.sp.start + gdrag.sp.len;
+      const dLen = Edit.snap(end + dx / g.cw, snapBy) - end;
+      host().editRoll(() => {
+        let n = gdrag.base.notes;
+        let t = gdrag.base.ties;
+        gdrag.list.forEach((sp) => {
+          const out = Edit.resize(n, t, sp, sp.len + dLen, STEPS);
+          n = out.notes;
+          t = out.ties;
+        });
+        return { notes: n, ties: t };
+      });
+    }
+    paintGrid(song(), track);
+  });
+  function endDrag(e) {
+    if (lane && (!e || e.pointerId === lane.id)) {
+      lane = null;
+      host().group(false);
+      suppressClick();
+      refresh();
+    }
+    if (!gdrag || (e && e.pointerId !== gdrag.id)) return;
+    const was = gdrag;
+    gdrag = null;
+    if (was.el) was.el.remove();
+    if (was.moved) {
+      if (was.kind !== "box") host().group(false);
+      suppressClick();
+      refresh();
+    }
+  }
+  detailEl.addEventListener("pointerup", endDrag);
+  detailEl.addEventListener("pointercancel", endDrag);
+  detailEl.addEventListener("lostpointercapture", endDrag);
+  window.addEventListener("pointerup", endDrag, true);
+
+  // The lane: press on a bar and drag to set the strength of that step; keep dragging along to draw them.
+  function laneDown(e) {
+    if (e.button > 0) return;
+    lane = { id: e.pointerId };
+    host().group(true);
+    try {
+      detailEl.setPointerCapture(e.pointerId);
+    } catch {
+      /* not capturable */
+    }
+    laneSet(e);
+    e.preventDefault();
+  }
+  function laneSet(e) {
+    let bar = null;
+    for (const b of laneBars) {
+      const r = b.getBoundingClientRect();
+      if (e.clientX >= r.left && e.clientX < r.right + 2) {
+        bar = b;
+        break;
+      }
+    }
+    if (!bar) return;
+    const r = bar.getBoundingClientRect();
+    let lv = 1 - (e.clientY - r.top) / Math.max(1, r.height);
+    lv = Math.max(0.1, Math.min(1, lv));
+    if (lv > 0.93) lv = 1;
+    const step = Number(bar.dataset.lane);
+    const track = trackOf(trackId);
+    if (track.kind === "drums") {
+      const row = soundRow;
+      host().editDrums((tracks) => {
+        if (!tracks[row] || !Edit.on(tracks[row][step])) return null;
+        return { [row]: Edit.setStepLevels({ [row]: tracks[row] }, [{ row, step }], lv, STEPS)[row] };
+      });
+    } else {
+      host().editRoll(({ notes, ties }) => {
+        const list = Edit.spans(notes, ties, STEPS).filter((sp) => sp.start === step && (!sel.size || sel.has(Edit.key(sp))));
+        return list.length ? { notes: Edit.setLevel(notes, list, lv, STEPS), ties } : null;
+      });
+    }
+    paintGrid(song(), track);
+  }
+  detailEl.addEventListener("pointermove", (e) => {
+    if (lane && e.pointerId === lane.id) laneSet(e);
+  });
+
+  // Keys on the picked notes: Delete removes them, the arrows move them (up and down by a semitone, Shift for an octave), Esc lets go.
+  detailEl.addEventListener(
+    "keydown",
+    (e) => {
+      if (mode !== "roll" || trackOf(trackId).kind !== "notes" || !e.target.closest || !e.target.closest(".studio-cell")) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
+        e.preventDefault();
+        e.stopPropagation();
+        const b = barNow();
+        sel = new Set(Edit.spans(b.notes, b.ties, STEPS).map(Edit.key));
+        paintGrid(song(), trackOf(trackId));
+        return;
+      }
+      if (!sel.size) return;
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        sel.clear();
+        paintGrid(song(), trackOf(trackId));
+        return;
+      }
+      const g = geom();
+      if (!g) return;
+      const pickedNow = (b) => Edit.spans(b.notes, b.ties, STEPS).filter((sp) => sel.has(Edit.key(sp)));
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        e.stopPropagation();
+        host().editRoll((b) => {
+          const out = Edit.remove(b.notes, b.ties, pickedNow(b), STEPS);
+          return { notes: out.notes, ties: out.ties };
+        });
+        sel.clear();
+        refresh();
+        return;
+      }
+      const dir = { ArrowLeft: [0, -1], ArrowRight: [0, 1], ArrowUp: [-1, 0], ArrowDown: [1, 0] }[e.key];
+      if (!dir) return;
+      e.preventDefault();
+      e.stopPropagation();
+      let moved = null;
+      host().editRoll((b) => {
+        const out = Edit.move(b.notes, b.ties, pickedNow(b), dir[0] * (e.shiftKey ? 12 : 1), dir[1] * (e.shiftKey ? snapBy * 4 : snapBy), STEPS, g.names);
+        sel = new Set(out.spans.map(Edit.key));
+        moved = out;
+        return { notes: out.notes, ties: out.ties };
+      });
+      if (moved && dir[0] && moved.moved.rows) {
+        const now = barNow();
+        const one = Edit.spans(now.notes, now.ties, STEPS).find((sp) => sel.has(Edit.key(sp)));
+        if (one) host().hear(trackId, one.row);
+      }
+      refresh();
+    },
+    true
+  );
+
+  // ---------- bar tools: shift, copy, paste ----------
+  const MP = () => window.SongPatterns;
+  function shiftBar(track, by) {
+    if (track.kind === "drums") {
+      host().editDrums((tracks) => {
+        const out = {};
+        Object.keys(tracks).forEach((row) => (out[row] = MP().rotateMelody({ [row]: tracks[row] }, by, STEPS)[row] || tracks[row]));
+        return out;
+      });
+    } else {
+      host().editRoll(({ notes, ties }) => ({ notes: MP().rotateMelody(notes, by, STEPS), ties: MP().rotateTies(ties, by, STEPS) }));
+    }
+    sel.clear();
+    say(`${track.name} shifted one step ${by < 0 ? "earlier" : "later"}`);
+    refresh();
+  }
+  function copyBar(track) {
+    clip = track.kind === "drums" ? { kind: "drums", tracks: clone(song().tracks) } : { kind: "notes", ...barNow() };
+    say(`Copied ${track.name}'s bar`);
+  }
+  function pasteBar(track) {
+    if (!clip || clip.kind !== track.kind) return;
+    if (track.kind === "drums") {
+      host().editDrums((tracks) => {
+        const out = {};
+        Object.keys(tracks).forEach((row) => (out[row] = clip.tracks[row] ? clone(clip.tracks[row]) : new Array(STEPS).fill(false)));
+        return out;
+      });
+    } else {
+      host().editRoll(({ notes }) => {
+        const n = {};
+        Object.keys(notes).forEach((row) => (n[row] = clip.notes[row] ? clone(clip.notes[row]) : new Array(STEPS).fill(false)));
+        return { notes: n, ties: clone(clip.ties) };
+      });
+    }
+    sel.clear();
+    say(`Pasted into ${track.name}'s bar`);
+    refresh();
+  }
+  detailEl.addEventListener("change", (e) => {
+    if (e.target.id === "studio-snap-by") {
+      snapBy = Number(e.target.value) || 1;
+      lsSet("studioSnap", String(snapBy));
+    }
+  });
 
   // The roll: press a note and drag along its row to hold it for as long as you drag, press on an empty step and drag to draw, or press on a
   // note and drag across others to erase them. The whole drag is one undo step. A plain tap is the usual click.
