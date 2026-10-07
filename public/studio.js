@@ -261,6 +261,151 @@
     return el;
   }
 
+  // ---------- the Songs panel: on a wide screen the songs sit beside the editor, for switching without leaving it ----------
+  // (The stylesheet shows it from 1280 px, next to the Sound panel song-studio.js builds on the right; it can be folded away to give the
+  // music the whole width.) A tap on a song saves the open one first, exactly as the Songs button does, then opens that one.
+  let songsPanel = null;
+  let panelSig = "";
+  let switching = false;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const saveStatus = () => (($("song-autosave-status") || {}).textContent || "").trim();
+  // Save whatever is unsaved or still saving, and wait for it (up to a few seconds): switching songs must never ask "discard?".
+  async function flushSave() {
+    if (/^Unsaved|^Saved, but/.test(saveStatus())) {
+      const name = $("song-name");
+      if (name && !name.value.trim()) name.value = "New song";
+      if ($("save-song") && !$("save-song").disabled) $("save-song").click();
+      await sleep(30);
+    }
+    for (let i = 0; i < 100 && /^(Unsaved|Saving|Autosaving|Save in progress|Autosave in progress)/.test(saveStatus()); i++) await sleep(50);
+  }
+  const openSongId = () => {
+    const h = window.SongStudioHost;
+    return h && h.songId ? h.songId() : null;
+  };
+  function renderSongsPanel() {
+    if (!songsPanel) return;
+    const list = K.readList(SONGS_KEY).slice().sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
+    const cur = openSongId();
+    const picker = $("song-template-picker");
+    // A song that has not been saved yet (a starter or a new one before its first change) is not in the list, but it is open: show it.
+    const modal = $("song-builder-modal");
+    const draftName = cur == null && modal && !modal.hidden ? ($("song-name").value || "").trim() || "New song" : null;
+    const sig = list.map((x) => `${x.id}:${x.name}:${x.updated_at}`).join("|") + "#" + cur + "#" + (picker ? picker.options.length : 0) + "#" + draftName;
+    if (sig === panelSig) return;
+    panelSig = sig;
+    songsPanel.querySelector(".studio-songs-count").textContent = list.length ? `(${list.length})` : "";
+    const draftRow =
+      draftName === null
+        ? ""
+        : `<li class="studio-song is-current is-draft"><div class="studio-song-open" aria-current="true"><span class="studio-song-name">${esc(draftName)}</span><span class="studio-song-when">Not saved yet: it is kept as soon as you change something</span></div></li>`;
+    songsPanel.querySelector(".studio-songs-list").innerHTML = list.length || draftRow
+      ? `<ul class="studio-songs">${draftRow}${list
+          .map(
+            (x) => `<li class="studio-song${x.id === cur ? " is-current" : ""}" data-id="${x.id}">
+              <button type="button" class="studio-song-open" data-act="open"${x.id === cur ? ' aria-current="true"' : ""} aria-label="Open ${esc(x.name)}">
+                <span class="shelf-picture studio-song-picture" aria-hidden="true">${cardPicture(x.data)}</span>
+                <span class="studio-song-name">${esc(x.name)}</span><span class="studio-song-when">${esc(K.whenEdited(x.updated_at))}</span>
+              </button>
+              <span class="studio-song-actions"><button type="button" data-act="copy" aria-label="Make a copy of ${esc(x.name)}" title="Make a copy">Copy</button>${x.id === cur ? "" : `<button type="button" data-act="delete" class="studio-song-delete" aria-label="Delete ${esc(x.name)}" title="Delete">Delete</button>`}</span>
+            </li>`
+          )
+          .join("")}</ul>`
+      : `<p class="studio-songs-empty">No songs yet. Your first one is kept as soon as you change anything.</p>`;
+    const opts = picker ? [...picker.options].filter((o) => o.value && o.value.startsWith("starter:")) : [];
+    songsPanel.querySelector(".studio-songs-starters").innerHTML = opts.length
+      ? `<h3>Start from</h3><div class="studio-songs-chips">${opts.map((o) => `<button type="button" class="shelf-chip" data-start="${esc(o.value)}">${esc(o.textContent.replace(/^Starter:\s*/i, ""))}</button>`).join("")}</div>`
+      : "";
+  }
+  async function switchSong(id) {
+    if (switching || id === openSongId()) return;
+    switching = true;
+    try {
+      stopShelf();
+      await flushSave();
+      await openSong(id);
+    } finally {
+      switching = false;
+    }
+  }
+  async function newSong(starter) {
+    if (switching) return;
+    switching = true;
+    try {
+      stopShelf();
+      await flushSave();
+      $("song-template-picker").value = starter || "";
+      $("new-song-btn").click();
+    } finally {
+      switching = false;
+    }
+  }
+  function buildSongsPanel(studio) {
+    const el = document.createElement("aside");
+    el.id = "studio-songs-panel";
+    el.className = "studio-panel studio-songs-panel";
+    el.setAttribute("aria-label", "Your songs");
+    el.innerHTML = `<div class="studio-panel-head"><h2>Songs <span class="studio-songs-count"></span></h2>
+        <button type="button" class="studio-panel-fold" data-no-history aria-expanded="true" aria-controls="studio-songs-panel-body" aria-label="Hide the songs panel" title="Hide the songs panel">←</button></div>
+      <div id="studio-songs-panel-body" class="studio-panel-body">
+        <button type="button" class="btn btn-accent studio-songs-new" data-no-history>New song</button>
+        <div class="studio-songs-list"></div>
+        <div class="studio-songs-starters"></div>
+      </div>
+      <button type="button" class="studio-panel-handle" data-no-history aria-expanded="false" aria-controls="studio-songs-panel-body" title="Show your songs"><span>Songs</span></button>`;
+    studio.append(el);
+    songsPanel = el;
+    const folded = () => { try { return localStorage.getItem("studio.songsPanel") === "folded"; } catch (e) { return false; } };
+    const setFold = (on) => {
+      try { localStorage.setItem("studio.songsPanel", on ? "folded" : "open"); } catch (e) { /* not kept */ }
+      studio.classList.toggle("studio-songs-folded", on);
+      el.querySelectorAll(".studio-panel-fold, .studio-panel-handle").forEach((b) => b.setAttribute("aria-expanded", String(!on)));
+    };
+    setFold(folded());
+    el.addEventListener("click", async (e) => {
+      if (e.target.closest(".studio-panel-fold")) {
+        setFold(true);
+        el.querySelector(".studio-panel-handle").focus();
+        return;
+      }
+      if (e.target.closest(".studio-panel-handle")) {
+        setFold(false);
+        el.querySelector(".studio-panel-fold").focus();
+        return;
+      }
+      if (e.target.closest(".studio-songs-new")) return newSong("");
+      const chip = e.target.closest(".shelf-chip");
+      if (chip) return newSong(chip.dataset.start);
+      const btn = e.target.closest("button[data-act]");
+      const row = btn && btn.closest(".studio-song");
+      if (!row) return;
+      const id = Number(row.dataset.id);
+      try {
+        if (btn.dataset.act === "open") await switchSong(id);
+        else if (btn.dataset.act === "copy") {
+          await window.adminApi(`/songs/${id}/duplicate`, { method: "POST" });
+          renderSongsPanel();
+        } else if (btn.dataset.act === "delete") {
+          const song = K.readList(SONGS_KEY).find((x) => x.id === id);
+          if (!song || !window.confirm(`Delete "${song.name}" from this browser? This can't be undone.`)) return;
+          await window.adminApi(`/songs/${id}`, { method: "DELETE" });
+          renderSongsPanel();
+        }
+      } catch (err) {
+        const status = $("song-import-status");
+        if (status) status.textContent = err && err.message ? err.message : "That did not work.";
+      }
+    });
+    // What the panel lists follows the songs and the open one: checked as they are saved, renamed or switched.
+    setInterval(() => {
+      const modal = $("song-builder-modal");
+      if (modal && !modal.hidden) renderSongsPanel();
+    }, 700);
+    const status = $("song-autosave-status");
+    if (status) new MutationObserver(renderSongsPanel).observe(status, { childList: true, characterData: true, subtree: true });
+    renderSongsPanel();
+  }
+
   // "Songs" goes back to the shelf without asking: a song here costs nothing to keep, so whatever is unsaved (or still saving) is saved
   // first, and the editor closes once it is. Only a save that fails falls through to the editor's own "discard?" question.
   function saveBeforeShelf(inner) {
@@ -342,6 +487,8 @@
       shelf = buildShelf();
       inner.prepend(shelf);
       wireShelf();
+      const studio = $("song-studio");
+      if (studio) buildSongsPanel(studio);
       keepDrafts();
       saveBeforeShelf(inner);
       $("songs-btn").click(); // loads the editor's list and its starters
@@ -351,6 +498,8 @@
       if (!shelf) return;
       shelf.hidden = open;
       if (!open) renderShelf();
+      panelSig = "";
+      renderSongsPanel();
     },
     // Leaving in place (page-slide.js): stop the sound.
     onLeave() {

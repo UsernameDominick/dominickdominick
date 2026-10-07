@@ -1309,6 +1309,26 @@
   const sheet = $("studio-sheet");
   const sheetTabs = sheet.querySelector(".studio-sheet-tabs");
   const sheetBody = sheet.querySelector(".studio-sheet-body");
+  // On the Studio page (not the owner's dialog) a wide screen shows the open track's sound in a panel beside the music, instead of in the
+  // sheet: the Sound pane is moved there (ids, handlers and all) and moved back when the screen gets narrow. It is always built, and the page's
+  // stylesheet shows it from 1280 px (matching `wide` below); `soundHomed` says whether the pane is in it right now.
+  const pageMode = Boolean(studio.closest(".app-native"));
+  const wide = window.matchMedia("(min-width: 1280px)");
+  const soundPanel = document.createElement("aside");
+  soundPanel.id = "studio-sound-panel";
+  soundPanel.className = "studio-panel studio-sound-panel";
+  soundPanel.setAttribute("aria-label", "Sound of the open track");
+  soundPanel.innerHTML =
+    `<div class="studio-panel-head"><h2 id="studio-sound-panel-title">Sound</h2>` +
+    `<button type="button" class="studio-panel-fold" data-no-history aria-expanded="true" aria-controls="studio-sound-panel-body" aria-label="Hide the sound panel" title="Hide the sound panel">→</button></div>` +
+    `<div id="studio-sound-panel-body" class="studio-panel-body"></div>` +
+    `<button type="button" class="studio-panel-handle" data-no-history aria-expanded="false" aria-controls="studio-sound-panel-body" title="Show the sound panel"><span>Sound</span></button>`;
+  const soundPanelBody = soundPanel.querySelector(".studio-panel-body");
+  if (pageMode) studio.append(soundPanel);
+  let soundHomed = false;
+  let soundFolded = lsGet("studio.soundPanel", "") === "folded";
+  // The Sound pane's own controls answer to whichever of the two it is in.
+  const onSound = (type, fn) => [sheetBody, soundPanelBody].forEach((root) => root.addEventListener(type, fn));
   const PANES = [
     { id: "sound", label: "Sound" },
     { id: "tools", label: "Track" },
@@ -1443,7 +1463,7 @@
     sheetTab = id;
     PANES.forEach((p) => {
       const on = p.id === id;
-      panes[p.id].hidden = !on;
+      if (!(p.id === "sound" && soundHomed)) panes[p.id].hidden = !on;
       const tab = $("studio-tab-" + p.id);
       tab.setAttribute("aria-selected", String(on));
       tab.tabIndex = on ? 0 : -1;
@@ -1453,7 +1473,64 @@
     syncSheet();
   }
   let sheetReturn = null;
+  // Put the Sound pane where it belongs for this width: the panel on a wide Studio page, the sheet otherwise.
+  function placeSound() {
+    if (!sheetBuilt) return;
+    soundHomed = pageMode && wide.matches && !legacy;
+    const home = soundHomed ? soundPanelBody : sheetBody;
+    if (panes.sound.parentNode !== home) {
+      home.append(panes.sound);
+      soundSig = "";
+    }
+    const tab = $("studio-tab-sound");
+    if (tab) tab.hidden = soundHomed;
+    if (soundHomed) {
+      panes.sound.hidden = false;
+      if (sheetTab === "sound") showPane("song");
+    } else showPane(sheetTab);
+    soundPanel.classList.toggle("is-folded", soundHomed && soundFolded);
+    studio.classList.toggle("studio-sounds-folded", soundHomed && soundFolded);
+    syncSoundFold();
+  }
+  function syncSoundFold() {
+    const fold = soundPanel.querySelector(".studio-panel-fold");
+    const handle = soundPanel.querySelector(".studio-panel-handle");
+    fold.setAttribute("aria-expanded", String(!soundFolded));
+    handle.setAttribute("aria-expanded", String(!soundFolded));
+  }
+  function foldSound(folded) {
+    soundFolded = folded;
+    lsSet("studio.soundPanel", folded ? "folded" : "open");
+    placeSound();
+    gridSig = "";
+    refresh();
+  }
+  soundPanel.addEventListener("click", (e) => {
+    if (e.target.closest(".studio-panel-fold")) {
+      foldSound(true);
+      soundPanel.querySelector(".studio-panel-handle").focus();
+    } else if (e.target.closest(".studio-panel-handle")) {
+      foldSound(false);
+      soundPanel.querySelector(".studio-panel-fold").focus();
+    }
+  });
+  if (wide.addEventListener) wide.addEventListener("change", () => { placeSound(); refresh(); });
+  // The panel shows the open track's sound and follows the track chosen on the left.
+  function syncSoundPanel() {
+    if (!soundHomed || soundFolded) return;
+    const track = trackOf(trackId);
+    $("studio-sound-panel-title").textContent = `${track.name} sound`;
+    soundPanel.style.setProperty("--panel-color", `var(--track-${track.n})`);
+    renderSound();
+  }
   function openSheet(id) {
+    if (id === "sound" && soundHomed) {
+      // the sound is in the panel: open it if it was folded, and put the focus on its first control
+      if (soundFolded) foldSound(false);
+      const first = panes.sound.querySelector("button, select, input");
+      if (first) first.focus();
+      return;
+    }
     buildSheet();
     sheetReturn = document.activeElement;
     closePop();
@@ -1574,6 +1651,44 @@
     }
   }
   let soundSig = "";
+  // The instrument and kit browsers (shown in the Sounds panel): every name the menu has, the chosen one pressed. A menu that has groups
+  // (the instruments) shows a row of group buttons and the names of one group, the chosen instrument's to start with; a flat one (the kits)
+  // shows every name.
+  function fillBrowsers(pane) {
+    pane.querySelectorAll(".studio-browser").forEach((box) => {
+      const sel = pane.querySelector("#" + box.dataset.browse);
+      if (!sel) return;
+      const groupOf = (value) => {
+        const o = [...sel.options].find((x) => x.value === value);
+        return o && o.parentNode.tagName === "OPTGROUP" ? o.parentNode.label : "";
+      };
+      // follow the chosen instrument into its group when it changes (from the menu, a preset, a new song), else keep the group the visitor is in
+      if (box.dataset.value !== sel.value) {
+        box.dataset.value = sel.value;
+        const g = groupOf(sel.value);
+        if (g) box.dataset.group = g;
+        box.dataset.filled = "";
+      }
+      const sig = sel.innerHTML + "|" + (box.dataset.group || "");
+      if (box.dataset.filled !== sig) {
+        box.dataset.filled = sig;
+        const btn = (o) => `<button type="button" class="studio-pick" data-pick="${esc(o.value)}" data-no-history aria-pressed="false">${esc(o.textContent)}</button>`;
+        const groups = [...sel.children].filter((c) => c.tagName === "OPTGROUP");
+        const loose = [...sel.children].filter((c) => c.tagName !== "OPTGROUP");
+        const shown = groups.find((g) => g.label === box.dataset.group) || groups[0];
+        let html = "";
+        if (loose.length) html += `<div class="studio-picks">${loose.map(btn).join("")}</div>`;
+        if (groups.length) {
+          html += `<div class="studio-pick-tabs" role="group" aria-label="Kinds of sound">${groups
+            .map((g) => `<button type="button" class="studio-pick-tab" data-group="${esc(g.label)}" data-no-history aria-pressed="${g === shown}">${esc(g.label)}</button>`)
+            .join("")}</div>`;
+          html += `<div class="studio-picks">${[...shown.children].map(btn).join("")}</div>`;
+        }
+        box.innerHTML = html;
+      }
+      box.querySelectorAll("[data-pick]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.pick === sel.value)));
+    });
+  }
   function renderSound() {
     const pane = panes.sound;
     const s = song();
@@ -1594,6 +1709,7 @@
       }
       if (sel.value !== src.value) sel.value = src.value;
     });
+    fillBrowsers(pane);
     if (track.kind === "drums") {
       pane.querySelectorAll("[data-sound]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.sound === soundRow)));
       const vol = pane.querySelector("#studio-sound-vol");
@@ -1676,7 +1792,8 @@
     const waves = Engine.SYNTH_WAVES.map((w) => `<option value="${w}">${w.charAt(0).toUpperCase() + w.slice(1)}</option>`).join("");
     return (
       `<section class="studio-section"><h3>Instrument</h3>` +
-      `<div class="studio-section-row"><label class="studio-field">Instrument<select id="studio-voice" data-src="${source}" aria-label="${esc(track.name)} instrument"></select></label>` +
+      `<div class="studio-browser" data-browse="studio-voice" role="group" aria-label="${esc(track.name)} instruments"></div>` +
+      `<div class="studio-section-row"><label class="studio-field studio-browse-select">Instrument<select id="studio-voice" data-src="${source}" aria-label="${esc(track.name)} instrument"></select></label>` +
       `<label class="studio-field">Wave<select id="studio-synth-wave" aria-label="Wave shape">${waves}</select></label></div>` +
       `<p id="studio-synth-note" class="studio-section-hint">Basic is a plain wave. Pick an instrument to shape how it starts, rings and sounds.</p>` +
       `<div class="studio-section-row"><button type="button" class="studio-mini" data-hear data-no-history>Preview</button>` +
@@ -1689,7 +1806,7 @@
   function drumSoundHtml(rows) {
     const chips = rows.map((r) => `<button type="button" class="studio-chip" data-sound="${r}" data-no-history aria-pressed="false">${ROW_LABELS[r]}</button>`).join("");
     return (
-      `<section class="studio-section"><h3>Drum kit</h3><div class="studio-section-row"><label class="studio-field">Kit for every drum sound<select id="studio-kit" data-src="song-kit" aria-label="Drum kit"></select></label></div></section>` +
+      `<section class="studio-section"><h3>Drum kit</h3><div class="studio-browser" data-browse="studio-kit" role="group" aria-label="Drum kits"></div><div class="studio-section-row"><label class="studio-field studio-browse-select">Kit for every drum sound<select id="studio-kit" data-src="song-kit" aria-label="Drum kit"></select></label></div></section>` +
       `<section class="studio-section"><h3>Each sound</h3><p class="studio-section-hint">Pick a sound, then set its volume, tune, length and tone, or mute it.</p>` +
       `<div class="studio-chips" role="group" aria-label="Drum sound">${chips}</div>` +
       `<div class="studio-section-row"><label class="studio-vol-inline"><span>Volume</span><input type="range" id="studio-sound-vol" min="0" max="100" data-no-reset aria-label="Volume of the chosen drum sound"></label></div>` +
@@ -1700,7 +1817,7 @@
       `<section class="studio-section"><h3>Add a sound</h3><div class="studio-section-row"><label class="studio-field">Sound<select id="studio-add" aria-label="Drum sound to add"></select></label><button type="button" id="studio-add-btn" class="studio-mini" data-no-history>Add</button></div></section>`
     );
   }
-  sheetBody.addEventListener("change", (e) => {
+  onSound("change", (e) => {
     const t = e.target;
     if (t.matches && t.matches("select[data-src]")) {
       const src = $(t.dataset.src);
@@ -1728,7 +1845,7 @@
       host().hear(trackId, HEAR[trackOf(trackId).part]);
     }
   });
-  sheetBody.addEventListener("input", (e) => {
+  onSound("input", (e) => {
     const t = e.target;
     if (t.dataset && t.dataset.knob) {
       const k = KNOBS.find((x) => x.key === t.dataset.knob);
@@ -1776,7 +1893,7 @@
       }
     }
   });
-  sheetBody.addEventListener("click", (e) => {
+  onSound("click", (e) => {
     const t = e.target.closest && e.target.closest("button");
     if (!t) return;
     const track = trackOf(trackId);
@@ -1808,6 +1925,18 @@
       $("song-add-drum").value = $("studio-add").value;
       $("song-add-drum-btn").click();
       soundSig = "";
+    } else if (t.dataset.group !== undefined && t.closest(".studio-browser")) {
+      const box = t.closest(".studio-browser");
+      box.dataset.group = t.dataset.group;
+      fillBrowsers(panes.sound);
+      return;
+    } else if (t.dataset.pick !== undefined) {
+      // a name in the instrument or kit browser: the same as choosing it in the menu it stands for (which also plays it)
+      const sel = panes.sound.querySelector("#" + t.closest(".studio-browser").dataset.browse);
+      if (!sel) return;
+      sel.value = t.dataset.pick;
+      fire(sel, "change");
+      return;
     } else return;
     refresh();
   });
@@ -1849,6 +1978,7 @@
     syncTransport();
     syncTop();
     syncSheet();
+    syncSoundPanel();
   }
   // When the steps are wider than the screen (a phone shows half a bar at a time), two buttons say which half is in view and jump to the
   // other; a swipe across the steps does the same.
@@ -1890,6 +2020,7 @@
     modal.classList.add("song-studio-on");
     studio.hidden = false;
     buildSheet();
+    placeSound();
     refresh({ rebuild: true });
   }
 

@@ -17,6 +17,7 @@
   // when a step is about to sound and when playback stopped.
   window.SongStudioHost = {
     song: () => songData,
+    songId: () => currentSongId,
     playing: () => player.isPlaying() || isCountingIn(),
     paused: () => resumeFrom !== null && !(player.isPlaying() || isCountingIn()),
     pause: () => pausePlayback(),
