@@ -77,11 +77,12 @@
   const bendCents = (wheel, range) => Math.round(clamp(Number(wheel) || 0, -1, 1) * clamp(Number(range) > 0 ? Number(range) : 2, 0.5, 12) * 100);
 
   // Play settings kept in the browser, cleaned on the way in.
-  const DEFAULTS = { mode: "off", rate: "1/16", pattern: "up", octaves: 1, gate: 0.6, chord: "major", spread: 70, dir: "down", swell: false, bendRange: 2 };
+  const DEFAULTS = { mode: "off", padMode: "off", rate: "1/16", pattern: "up", octaves: 1, gate: 0.6, chord: "major", spread: 70, dir: "down", swell: false, bendRange: 2 };
   function cleanPlay(raw) {
     const r = raw && typeof raw === "object" ? raw : {};
     return {
-      mode: ["off", "arp", "strum", "random", "roll"].includes(r.mode) ? r.mode : DEFAULTS.mode,
+      mode: ["off", "arp", "strum", "random"].includes(r.mode) ? r.mode : DEFAULTS.mode,
+      padMode: ["off", "roll"].includes(r.padMode) ? r.padMode : DEFAULTS.padMode,
       rate: RATES[r.rate] ? r.rate : DEFAULTS.rate,
       pattern: PATTERNS[r.pattern] ? r.pattern : DEFAULTS.pattern,
       octaves: clamp(Math.round(Number(r.octaves)) || 1, 1, 3),

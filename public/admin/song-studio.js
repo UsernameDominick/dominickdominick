@@ -1299,14 +1299,18 @@
     const sc = scaleSet();
     const sig = track.id + "|" + (rows ? rows.join() : "") + "|" + (sc ? sc.root + sc.type : "");
     if (sig === keysSig) return;
+    releaseAllLive(true);
     keysSig = sig;
     lit.clear();
     keysEl.style.setProperty("--track-color", `var(--track-${track.n})`);
+    $("studio-keyboard").style.setProperty("--track-color", `var(--track-${track.n})`);
+    $("studio-keyboard").dataset.kind = track.kind === "drums" ? "drums" : "notes";
+    syncPlayUi();
     if (track.kind === "drums") {
       keysEl.className = "studio-keys studio-pads";
       keysEl.style.removeProperty("--whites");
       keysEl.setAttribute("aria-label", "Drum pads");
-      keysEl.innerHTML = rows.map((r) => `<button type="button" class="studio-pad" data-pad="${r}" aria-label="Play ${ROW_LABELS[r]}">${ROW_LABELS[r]}</button>`).join("");
+      keysEl.innerHTML = rows.map((r) => `<button type="button" class="studio-pad" data-pad="${r}" aria-label="Play ${ROW_LABELS[r]}"><span class="p-vel" aria-hidden="true"></span><span class="p-name">${ROW_LABELS[r]}</span><span class="p-hint" aria-hidden="true">soft top, hard bottom</span></button>`).join("");
       return;
     }
     keysEl.className = "studio-keys";
@@ -1321,11 +1325,15 @@
     keysEl.innerHTML = all
       .map((n) => {
         const off = sc && !sc.has(semis(n)) ? " out" : "";
+        const letter = n.replace(/-?\d+$/, "");
+        const oct = n.slice(letter.length);
         if (!n.includes("#")) {
           whites++;
-          return `<button type="button" class="studio-key studio-key-white${off}" data-key="${n}" aria-label="Play ${n}" style="left:${(whites * step).toFixed(3)}%;width:${step.toFixed(3)}%"><span aria-hidden="true">${/^C\d$/.test(n) ? n : ""}</span></button>`;
+          const root = sc && sc.root === letter ? " is-root" : "";
+          const isC = letter === "C" ? " is-c" : "";
+          return `<button type="button" class="studio-key studio-key-white${off}${isC}${root}" data-key="${n}" aria-label="Play ${n}" style="left:${(whites * step).toFixed(3)}%;width:${step.toFixed(3)}%"><span class="k-name" aria-hidden="true"><span class="k-letter">${letter}</span><span class="k-oct">${oct}</span></span></button>`;
         }
-        return `<button type="button" class="studio-key studio-key-black${off}" data-key="${n}" aria-label="Play ${n.replace("#", " sharp")}" style="left:${((whites + 1) * step - step * 0.32).toFixed(3)}%;width:${(step * 0.64).toFixed(3)}%"></button>`;
+        return `<button type="button" class="studio-key studio-key-black${off}" data-key="${n}" aria-label="Play ${n.replace("#", " sharp")}" style="left:${((whites + 1) * step - step * 0.32).toFixed(3)}%;width:${(step * 0.64).toFixed(3)}%"><span class="k-name" aria-hidden="true">${letter}</span></button>`;
       })
       .join("");
     centerKeys(false);
@@ -1353,30 +1361,422 @@
     flash(keysEl.querySelector(`[data-key="${snapRow(name)}"]`) || keysEl.querySelector(`[data-key="${name}"]`));
     refresh();
   }
-  // A mouse or pen plays on press (so it feels like an instrument); the click that follows is skipped. A finger plays on the click, which
-  // never happens when it was a swipe along the keyboard. Keyboard Enter and Space arrive as clicks too.
-  let mouseDone = false;
+  // ---------- playing live: keys you can hold, Hold, the pitch wheel, arpeggio, strum, random and pad rolls ----------
+  // A press makes a "voice" ({ el, stop() }): a held note, an arpeggio running while keys are down, a strummed chord, or a pad (a roll when the
+  // pad is set to roll). Releasing stops the voice, unless Hold is on: then it is kept, and stopped when Hold is switched off.
+  const Live = window.SongLive;
+  const clampN = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
+  const readPlay = () => {
+    try {
+      return Live.cleanPlay(JSON.parse(lsGet("studioPlay", "{}")));
+    } catch {
+      return Live.cleanPlay({});
+    }
+  };
+  let play = readPlay();
+  const savePlay = () => {
+    try {
+      localStorage.setItem("studioPlay", JSON.stringify(play));
+    } catch {
+      /* a remembered choice is a nicety */
+    }
+  };
+  const keyboardEl = $("studio-keyboard");
+  const held = new Map(); // pointer id -> voice
+  const pedal = []; // voices kept alive by Hold
+  const touching = new Map(); // a finger that may still turn out to be a swipe: id -> { el, x, y, timer }
+  let sustained = false;
+  const reduceMotion = () => window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const isDrums = () => trackOf(trackId).kind === "drums";
+  const tempo = () => (song() && song().tempo) || 120;
+  const keyEl = (name) => keysEl.querySelector(`[data-key="${name}"]`);
+
+  // A note held live, sounding at least `min` ms so a quick tap is still heard.
+  function heldNote(el, name, velocity, min) {
+    const h = host().noteOn(name, velocity);
+    const at = performance.now();
+    if (!h) return { el, stop() {} };
+    return {
+      el,
+      stop() {
+        const wait = Math.max(0, min - (performance.now() - at));
+        if (wait) setTimeout(() => h.off(), wait);
+        else h.off();
+      },
+    };
+  }
+  // The arpeggio: one for the whole keyboard, running while any key is down (or held by Hold), over the notes held.
+  const arp = { notes: [], i: 0, timer: 0, prev: null };
+  function arpTick() {
+    const track = trackOf(trackId);
+    if (!arp.notes.length || track.kind === "drums") {
+      arp.timer = 0;
+      return;
+    }
+    const sec = Live.rateSeconds(tempo(), play.rate);
+    const [lo, hi] = RANGE[track.part];
+    let pick = Live.arpPick(arp.notes.map((n) => n.midi), play.mode === "random" ? "random" : play.pattern, play.octaves, arp.i++, Math.random, arp.prev);
+    if (pick !== null) {
+      while (pick > hi) pick -= 12;
+      while (pick < lo) pick += 12;
+      arp.prev = pick;
+      const name = noteName(pick);
+      host().note(name, { duration: sec * play.gate, velocity: 1 });
+      flash(keyEl(name));
+      refresh();
+    }
+    arp.timer = setTimeout(arpTick, sec * 1000);
+  }
+  function startArp(el, name) {
+    const entry = { el, midi: semis(name) };
+    arp.notes.push(entry);
+    if (!arp.timer) {
+      arp.i = 0;
+      arp.prev = null;
+      arpTick();
+    }
+    return {
+      el,
+      stop() {
+        arp.notes = arp.notes.filter((n) => n !== entry);
+        if (!arp.notes.length) {
+          clearTimeout(arp.timer);
+          arp.timer = 0;
+        }
+      },
+    };
+  }
+  // A strum: the chord built on the key, its notes sounding one after another across the spread and held until the key is let go.
+  let strums = 0;
+  function startStrum(el, name) {
+    const [, hi] = RANGE[trackOf(trackId).part];
+    const chord = Live.chordNotes(semis(name), play.chord).map((m) => {
+      while (m > hi) m -= 12;
+      return m;
+    });
+    const voices = [];
+    const timers = [];
+    let released = false;
+    Live.strumPlan(chord.length, play.spread, play.dir, strums++).forEach((p) => {
+      timers.push(setTimeout(() => {
+        if (released) return;
+        voices.push(heldNote(el, noteName(chord[p.i]), 0.9, 320));
+        flash(keyEl(noteName(chord[p.i])));
+      }, p.at * 1000));
+    });
+    return {
+      el,
+      stop() {
+        released = true;
+        timers.forEach(clearTimeout);
+        voices.forEach((v) => v.stop());
+      },
+    };
+  }
+  function startKey(el) {
+    const name = el.dataset.key;
+    if (play.mode === "arp" || play.mode === "random") return startArp(el, name);
+    if (play.mode === "strum") return startStrum(el, name);
+    return heldNote(el, name, 1, 140);
+  }
+  // A pad: struck at a strength set by where on it you press (or a pen's pressure); a roll repeats until it is let go.
+  function padFlash(el, v) {
+    const bar = el.querySelector(".p-vel");
+    if (bar) bar.style.setProperty("--vel", String(v));
+    el.classList.add("down");
+    setTimeout(() => {
+      el.classList.remove("down");
+      if (bar) bar.style.setProperty("--vel", "0");
+    }, 170);
+  }
+  function startPad(el, e) {
+    const row = el.dataset.pad;
+    const rect = el.getBoundingClientRect();
+    const base = Live.padVelocity({ y: e.clientY - rect.top, h: rect.height, pressure: e.pressure, pointerType: e.pointerType });
+    let n = 0;
+    let timer = 0;
+    const strike = () => {
+      const v = n === 0 ? base : Live.rollVelocity(n, play.swell, base);
+      n++;
+      host().hit(row, v);
+      padFlash(el, v);
+      refresh();
+    };
+    strike();
+    const rolling = play.padMode === "roll";
+    if (rolling) {
+      el.classList.add("rolling");
+      const sec = Live.rateSeconds(tempo(), play.rate);
+      const again = () => {
+        timer = setTimeout(() => {
+          strike();
+          again();
+        }, sec * 1000);
+      };
+      again();
+    }
+    return {
+      el,
+      stop() {
+        clearTimeout(timer);
+        el.classList.remove("rolling");
+      },
+    };
+  }
+  function begin(id, el, e) {
+    if (held.has(id)) return;
+    if (host().unlock) host().unlock();
+    const voice = el.dataset.pad ? startPad(el, e) : startKey(el);
+    if (!voice) return;
+    held.set(id, voice);
+    el.classList.add("held");
+  }
+  function end(id) {
+    const voice = held.get(id);
+    if (!voice) return;
+    held.delete(id);
+    if (sustained) {
+      pedal.push(voice);
+      return;
+    }
+    voice.stop();
+    if (![...held.values(), ...pedal].some((v) => v.el === voice.el)) voice.el.classList.remove("held");
+    refresh();
+  }
+  function releaseAllLive(everything) {
+    touching.forEach((t) => clearTimeout(t.timer));
+    touching.clear();
+    [...held.keys()].forEach((id) => {
+      const v = held.get(id);
+      held.delete(id);
+      v.stop();
+    });
+    if (everything) pedal.splice(0).forEach((v) => v.stop());
+    keysEl.querySelectorAll(".held").forEach((el) => el.classList.remove("held"));
+    arp.notes = [];
+    clearTimeout(arp.timer);
+    arp.timer = 0;
+    setWheel(0);
+  }
   keysEl.addEventListener("pointerdown", (e) => {
-    const k = e.target.closest && e.target.closest("[data-key], [data-pad]");
-    if (!k || e.pointerType === "touch" || e.button > 0) return;
+    if (e.button > 0) return;
+    const el = e.target.closest && e.target.closest("[data-key], [data-pad]");
+    if (!el) return;
+    if (e.pointerType === "touch") {
+      // a finger may be starting to swipe along the keyboard: play once it has stayed put for a moment (or lifts, which is a tap)
+      const t = { el, x: e.clientX, y: e.clientY, e: { clientY: e.clientY, pressure: e.pressure, pointerType: e.pointerType } };
+      t.timer = setTimeout(() => {
+        touching.delete(e.pointerId);
+        begin(e.pointerId, el, t.e);
+      }, 70);
+      touching.set(e.pointerId, t);
+      return;
+    }
     e.preventDefault();
-    mouseDone = true;
-    k.click();
+    begin(e.pointerId, el, e);
   });
-  keysEl.addEventListener("pointerup", () => setTimeout(() => (mouseDone = false), 0));
-  keysEl.addEventListener("pointercancel", () => setTimeout(() => (mouseDone = false), 0));
+  window.addEventListener("pointermove", (e) => {
+    const t = touching.get(e.pointerId);
+    if (t && Math.hypot(e.clientX - t.x, e.clientY - t.y) > 8) {
+      clearTimeout(t.timer);
+      touching.delete(e.pointerId);
+      return;
+    }
+    // a mouse or pen sliding across the keys plays each one in turn (a glissando)
+    const voice = held.get(e.pointerId);
+    if (!voice || e.pointerType === "touch" || !voice.el.dataset.key) return;
+    const over = document.elementFromPoint(e.clientX, e.clientY);
+    const next = over && over.closest && over.closest("[data-key]");
+    if (next && next !== voice.el && keysEl.contains(next)) {
+      end(e.pointerId);
+      begin(e.pointerId, next, e);
+    }
+  });
+  const lift = (e) => {
+    const t = touching.get(e.pointerId);
+    if (t) {
+      // lifted before the delay: a tap
+      clearTimeout(t.timer);
+      touching.delete(e.pointerId);
+      if (e.type === "pointerup") {
+        begin(e.pointerId, t.el, t.e);
+        setTimeout(() => end(e.pointerId), 30);
+      }
+      return;
+    }
+    end(e.pointerId);
+  };
+  window.addEventListener("pointerup", lift);
+  window.addEventListener("pointercancel", lift);
+  // A keyboard user's Enter or Space (a click with no pointer) and a script's .click() play a single note or hit; a real click after a
+  // pointer press was already played.
   keysEl.addEventListener("click", (e) => {
     const k = e.target.closest && e.target.closest("[data-key], [data-pad]");
     if (!k) return;
-    if (e.isTrusted && mouseDone) return;
+    if (e.isTrusted && e.detail > 0) return;
     if (k.dataset.pad) {
       host().hit(k.dataset.pad);
       flash(k);
       refresh();
-    } else {
-      pressNote(k.dataset.key);
+    } else pressNote(k.dataset.key);
+  });
+  // Hold: keeps what you let go of sounding until you press it again.
+  const sustainBtn = $("studio-sustain");
+  sustainBtn.addEventListener("click", () => {
+    sustained = !sustained;
+    sustainBtn.setAttribute("aria-pressed", String(sustained));
+    if (!sustained) {
+      pedal.splice(0).forEach((v) => v.stop());
+      keysEl.querySelectorAll(".held").forEach((el) => {
+        if (![...held.values()].some((v) => v.el === el)) el.classList.remove("held");
+      });
+      refresh();
     }
   });
+
+  // The pitch wheel: drag it up or down to bend every note held; it springs back to the middle when let go.
+  const wheel = $("studio-wheel");
+  let wheelV = 0;
+  let wheelDrag = false;
+  let spring = 0;
+  function setWheel(v) {
+    wheelV = clampN(v, -1, 1);
+    const cents = Live.bendCents(wheelV, play.bendRange);
+    wheel.style.setProperty("--bend", String(wheelV));
+    wheel.classList.toggle("is-bent", Math.abs(wheelV) > 0.02);
+    wheel.setAttribute("aria-valuenow", String(Math.round(wheelV * 100)));
+    wheel.setAttribute("aria-valuetext", cents ? `${cents > 0 ? "up" : "down"} ${Math.abs(cents)} cents` : "No bend");
+    if (host() && host().bend) host().bend(cents);
+  }
+  function springBack() {
+    cancelAnimationFrame(spring);
+    if (reduceMotion()) return setWheel(0);
+    const step = () => {
+      if (Math.abs(wheelV) < 0.03) return setWheel(0);
+      setWheel(wheelV * 0.7);
+      spring = requestAnimationFrame(step);
+    };
+    spring = requestAnimationFrame(step);
+  }
+  const wheelTo = (e) => {
+    const r = wheel.getBoundingClientRect();
+    setWheel((r.top + r.height / 2 - e.clientY) / Math.max(1, r.height / 2 - 14));
+  };
+  wheel.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    cancelAnimationFrame(spring);
+    wheelDrag = true;
+    try { wheel.setPointerCapture(e.pointerId); } catch { /* fine */ }
+    if (host().unlock) host().unlock();
+    wheelTo(e);
+  });
+  wheel.addEventListener("pointermove", (e) => { if (wheelDrag) wheelTo(e); });
+  const wheelUp = () => {
+    if (!wheelDrag) return;
+    wheelDrag = false;
+    springBack();
+  };
+  wheel.addEventListener("pointerup", wheelUp);
+  wheel.addEventListener("pointercancel", wheelUp);
+  wheel.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+    e.preventDefault();
+    cancelAnimationFrame(spring);
+    setWheel(wheelV + (e.key === "ArrowUp" ? 0.5 : -0.5));
+  });
+  wheel.addEventListener("keyup", (e) => { if (e.key === "ArrowUp" || e.key === "ArrowDown") springBack(); });
+
+  // The Play button: how the keys play (normal, arpeggio, strum, random; or normal and roll on the pads) and its settings.
+  const modeBtn = $("studio-playmode");
+  const playPop = $("studio-playpop");
+  const MODES = [["off", "Normal"], ["arp", "Arpeggio"], ["strum", "Strum"], ["random", "Random"]];
+  const PAD_MODES = [["off", "Normal"], ["roll", "Roll"]];
+  const ppSel = (key, label, list, value) => `<label>${label}<select data-pp="${key}">${list.map(([v, l]) => `<option value="${v}"${String(v) === String(value) ? " selected" : ""}>${l}</option>`).join("")}</select></label>`;
+  const RATE_LIST = Object.keys(Live.RATES).map((r) => [r, Live.RATE_LABELS[r]]);
+  function playLabel() {
+    if (isDrums()) return play.padMode === "roll" ? `Roll ${Live.RATE_LABELS[play.rate]}` : "Normal";
+    return { off: "Normal", arp: `Arpeggio ${play.rate}`, strum: `Strum ${Live.CHORDS[play.chord].label}`, random: `Random ${play.rate}` }[play.mode];
+  }
+  function syncPlayUi() {
+    if (!modeBtn) return;
+    modeBtn.textContent = "Play: " + playLabel();
+    const hint = isDrums()
+      ? play.padMode === "roll" ? "Hold a pad to roll it" : "Press low on a pad to hit it hard"
+      : { off: "Hold a key to sustain it", arp: "Hold keys to arpeggiate them", strum: "Tap a key to strum its chord", random: "Hold keys for random notes from them" }[play.mode];
+    $("studio-keyhint").textContent = hint;
+    if (!playPop.hidden) renderPlayPop();
+  }
+  function renderPlayPop() {
+    const drums = isDrums();
+    const modes = (drums ? PAD_MODES : MODES).map(([v, l]) => `<button type="button" class="pp-mode" data-pp-mode="${v}" aria-pressed="${(drums ? play.padMode : play.mode) === v}" data-no-history>${l}</button>`).join("");
+    let body = "";
+    if (drums) {
+      if (play.padMode === "roll") body += ppSel("rate", "Roll speed", RATE_LIST, play.rate) + `<label class="pp-check"><input type="checkbox" data-pp="swell"${play.swell ? " checked" : ""}> Swell: build up as it rolls</label>`;
+      body += `<p class="pp-note">Where you press a pad sets how hard it hits: the top is soft, the bottom is hard. Hold a pad with Roll on for a hi-hat roll, and press Hold to keep it rolling.</p>`;
+    } else {
+      if (play.mode === "arp" || play.mode === "random") {
+        body += ppSel("rate", "Speed", RATE_LIST, play.rate);
+        if (play.mode === "arp") body += ppSel("pattern", "Order", Object.entries(Live.PATTERNS), play.pattern);
+        body += ppSel("octaves", "Octaves", [[1, "1"], [2, "2"], [3, "3"]], play.octaves);
+        body += ppSel("gate", "Note length", [[0.3, "Short"], [0.6, "Medium"], [1, "Full"]], play.gate);
+      } else if (play.mode === "strum") {
+        body += ppSel("chord", "Chord", Object.entries(Live.CHORDS).map(([k, c]) => [k, c.label]), play.chord);
+        body += ppSel("spread", "Strum speed", [[30, "Fast"], [70, "Medium"], [140, "Slow"], [260, "Very slow"]], play.spread);
+        body += ppSel("dir", "Direction", [["down", "Down"], ["up", "Up"], ["alt", "Alternate"]], play.dir);
+      }
+      body += ppSel("bendRange", "Pitch wheel range", [[1, "1 semitone"], [2, "2 semitones"], [5, "5 semitones"], [12, "An octave"]], play.bendRange);
+      body += `<p class="pp-note">${{ off: "Normal: a held key keeps sounding until you let go.", arp: "Arpeggio: hold one or more keys and they play one after another. One key repeats it, like a trill.", strum: "Strum: a key plays the chord built on it, one note after another.", random: "Random: hold keys and random notes from them (and the octaves above) play." }[play.mode]}</p>`;
+    }
+    playPop.innerHTML = `<div class="pp-modes">${modes}</div>${body}`;
+  }
+  modeBtn.addEventListener("click", () => {
+    playPop.hidden = !playPop.hidden;
+    modeBtn.setAttribute("aria-expanded", String(!playPop.hidden));
+    if (!playPop.hidden) {
+      renderPlayPop();
+      const first = playPop.querySelector("[aria-pressed='true'], button");
+      if (first) first.focus();
+    }
+  });
+  const closePlayPop = () => {
+    if (playPop.hidden) return false;
+    playPop.hidden = true;
+    modeBtn.setAttribute("aria-expanded", "false");
+    return true;
+  };
+  playPop.addEventListener("click", (e) => {
+    const m = e.target.closest("[data-pp-mode]");
+    if (!m) return;
+    releaseAllLive(false);
+    if (isDrums()) play.padMode = m.dataset.ppMode;
+    else play.mode = m.dataset.ppMode;
+    play = Live.cleanPlay(play);
+    savePlay();
+    syncPlayUi();
+    renderPlayPop();
+    const again = playPop.querySelector("[aria-pressed='true']");
+    if (again) again.focus();
+  });
+  playPop.addEventListener("change", (e) => {
+    const key = e.target.dataset && e.target.dataset.pp;
+    if (!key) return;
+    play = Live.cleanPlay(Object.assign({}, play, { [key]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
+    savePlay();
+    syncPlayUi();
+    const again = playPop.querySelector(`[data-pp="${key}"]`); // the options were redrawn: give the focus back
+    if (again) again.focus();
+  });
+  playPop.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      closePlayPop();
+      modeBtn.focus();
+    }
+  });
+  document.addEventListener("pointerdown", (e) => {
+    if (!playPop.hidden && !playPop.contains(e.target) && !modeBtn.contains(e.target)) closePlayPop();
+  });
+  syncPlayUi();
 
   // ---------- playing: the playhead, the keys and the cards light up with the music ----------
   let pending = [];
@@ -1997,12 +2397,28 @@
     sheetReturn = document.activeElement;
     closePop();
     sheet.hidden = false;
+    placeSheet();
     studio.classList.add("studio-sheet-on");
     showPane(id || sheetTab);
     const first = panes[sheetTab].querySelector("select, input, button");
     const close = $("close-studio-sheet");
     (first || close).focus();
   }
+  // On a phone the sheet is a dropdown under the Tools button, with a little pointer to it; elsewhere it is the panel it always was.
+  const phoneSheet = () => window.matchMedia && window.matchMedia("(max-width: 640px)").matches;
+  function placeSheet() {
+    if (!phoneSheet()) return;
+    const sr = studio.getBoundingClientRect();
+    const tr = $("studio-tools").getBoundingClientRect();
+    sheet.style.setProperty("--sheet-top", Math.round(tr.bottom - sr.top + 8) + "px");
+    sheet.style.setProperty("--sheet-caret", Math.max(14, Math.round(sr.right - 8 - (tr.left + tr.width / 2) - 6)) + "px");
+  }
+  window.addEventListener("resize", () => { if (!sheet.hidden) placeSheet(); });
+  document.addEventListener("pointerdown", (e) => {
+    if (sheet.hidden || !phoneSheet()) return;
+    if (sheet.contains(e.target) || $("studio-tools").contains(e.target) || (e.target.closest && e.target.closest(".modal:not(#song-builder-modal), .dial-face"))) return;
+    closeSheet();
+  });
   function closeSheet() {
     if (sheet.hidden) return;
     sheet.hidden = true;

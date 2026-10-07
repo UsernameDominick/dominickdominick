@@ -62,8 +62,14 @@
     stop: () => stopPlayback(),
     forget: () => { resumeFrom = null; },
     now: () => getAudioCtx().currentTime,
-    note: (name) => playAndMaybeRecordNote(name),
-    hit: (row) => auditDrumHit(row),
+    note: (name, opts) => playAndMaybeRecordNote(name, opts),
+    // A note held while a key is down (see startLiveNote); the pitch wheel bends every note held.
+    noteOn: (name, velocity) => startLiveNote(name, velocity),
+    bend: (cents) => {
+      liveBend = Number(cents) || 0;
+      liveHandles.forEach((h) => h.bend(liveBend));
+    },
+    hit: (row, velocity) => auditDrumHit(row, velocity),
     // One undo step for everything done between group(true) and group(false).
     group: (on) => {
       if (on) {
@@ -1573,22 +1579,24 @@
   // A drum pad (the Studio's keys on a drum layer): it sounds the drum, and while recording it also turns that step on in the pattern the
   // drums play in this bar through the grid's own click, so undo, autosave and the preview behave as for a hand-placed step.
   // A drum row's sound on its own, for the ear.
-  function soundDrum(row) {
+  // A strength to store in a step: full is `true`, softer is a number.
+  const levelValue = (v) => (!Number.isFinite(v) || v >= 0.98 ? true : Math.round(Math.max(0.1, v) * 100) / 100);
+  function soundDrum(row, velocity) {
     if (!songData.tracks || !songData.tracks[row]) return false;
     const ctx = ensureAudio();
     const meta = Object.assign({}, songData.trackMeta && songData.trackMeta[row], { muted: false });
-    const one = Object.assign({}, songData, { tracks: { [row]: [true] }, trackMeta: { [row]: meta }, melody: { notes: {} }, bass: undefined, chords: undefined, lead: undefined });
+    const one = Object.assign({}, songData, { tracks: { [row]: [levelValue(velocity)] }, trackMeta: { [row]: meta }, melody: { notes: {} }, bass: undefined, chords: undefined, lead: undefined });
     Engine.scheduleStep(ctx, one, 0, ctx.currentTime);
     return true;
   }
-  function auditDrumHit(row) {
-    if (!soundDrum(row)) return;
+  function auditDrumHit(row, velocity) {
+    if (!soundDrum(row, velocity)) return;
     const spot = recordingSpot("drums");
     if (!spot) return;
     if (spot.pattern !== editingPattern()) {
       const lane = storedLane(spot.pattern, "drums", row);
       if (lane && !lane[spot.step]) {
-        lane[spot.step] = true;
+        lane[spot.step] = levelValue(velocity);
         refreshWaveformPreview();
         scheduleAutosave();
       }
@@ -1597,36 +1605,99 @@
     if (songData.tracks[row][spot.step]) return;
     const cell = $("song-sequencer").querySelector(`.song-step[data-row="${row}"][data-step="${spot.step}"]`);
     if (cell) cell.click();
+    if (velocity !== undefined && songData.tracks[row][spot.step] === true) songData.tracks[row][spot.step] = levelValue(velocity); // a soft hit is recorded soft
   }
-  function playAndMaybeRecordNote(requested) {
+  // The pitch wheel's bend and the notes held right now (a key held, or kept by the sustain button), so a bend reaches them.
+  let liveBend = 0;
+  const liveHandles = new Set();
+  // A note played live: held until `off()`, bent by the wheel. While recording, the step it started on gets the note and, when it is let go
+  // in the same pattern a few steps later, the steps in between are tied to it, so a held key records as a held note.
+  function startLiveNote(requested, velocity) {
+    if (window.SongStudio && window.SongStudio.drumTrackOpen()) return null;
+    requested = snapToScale(requested, (candidate) => Boolean(roll().notes[rowForNote(candidate)]));
+    if (window.SongStudio) window.SongStudio.played(requested);
+    const ctx = ensureAudio();
+    const noteName = rowForNote(requested);
+    const part = roll();
+    const vel = Number.isFinite(velocity) ? Math.max(0.1, Math.min(1, velocity)) : 1;
+    let handle;
+    if (isPartRoll()) {
+      handle = Engine.withVolume(ctx, Engine.volumeOf(part) * vel, () => Engine.playVoicedNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), Engine.partVoiceOf(songData, rollPart), 1, part.synth, Math.random, true));
+    } else {
+      const voice = Engine.melodyVoiceOf(songData);
+      handle = Engine.withVolume(ctx, Engine.volumeOf(songData.melody) * vel, () =>
+        voice ? Engine.playVoicedNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), voice, 1, songData.melody.synth, Math.random, true) : Engine.playLiveWave(ctx, Engine.noteToFreq(noteName), $("song-waveform").value));
+    }
+    if (liveBend && handle) handle.bend(liveBend);
+    if (handle) liveHandles.add(handle);
+    const start = recordNoteStep(noteName, vel);
+    return {
+      name: noteName,
+      off() {
+        if (handle) {
+          handle.release(ctx.currentTime);
+          liveHandles.delete(handle);
+        }
+        if (!start || start.other) return;
+        const end = recordingSpot(rollPart);
+        if (!end || end.pattern !== editingPattern() || end.step <= start.step) return;
+        const part2 = roll();
+        const row = part2.notes[noteName];
+        if (!row) return;
+        if (!part2.ties) part2.ties = {};
+        if (!part2.ties[noteName]) part2.ties[noteName] = new Array(STEPS).fill(false);
+        for (let i = start.step + 1; i <= end.step && i < STEPS; i++) {
+          if (row[i] && i !== start.step) break; // never over the next note
+          row[i] = row[start.step];
+          part2.ties[noteName][i] = true;
+        }
+        renderPianoRoll();
+        refreshWaveformPreview();
+        scheduleAutosave();
+      },
+      bend(cents) {
+        if (handle) handle.bend(cents);
+      },
+    };
+  }
+  function playAndMaybeRecordNote(requested, opts) {
     if (window.SongStudio && window.SongStudio.drumTrackOpen()) return; // notes would land in a part that is not on screen
     requested = snapToScale(requested, (candidate) => Boolean(roll().notes[rowForNote(candidate)]));
     if (window.SongStudio) window.SongStudio.played(requested);
     const ctx = ensureAudio();
     const noteName = rowForNote(requested);
     const part = roll();
-    const duration = 60 / (songData.tempo || 120) / 4;
+    const o = opts || {};
+    const vel = Number.isFinite(o.velocity) ? Math.max(0.1, Math.min(1, o.velocity)) : 1;
+    const duration = o.duration || 60 / (songData.tempo || 120) / 4;
     if (isPartRoll()) {
-      Engine.withVolume(ctx, Engine.volumeOf(part), () => Engine.playVoicedNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), Engine.partVoiceOf(songData, rollPart), duration, part.synth));
+      Engine.withVolume(ctx, Engine.volumeOf(part) * vel, () => Engine.playVoicedNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), Engine.partVoiceOf(songData, rollPart), duration, part.synth));
     } else {
       const waveform = $("song-waveform").value;
       const voice = Engine.melodyVoiceOf(songData);
-      Engine.withVolume(ctx, Engine.volumeOf(songData.melody), () =>
+      Engine.withVolume(ctx, Engine.volumeOf(songData.melody) * vel, () =>
         voice ? Engine.playVoicedNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), voice, duration, songData.melody.synth) : Engine.playMelodyNote(ctx, ctx.currentTime, Engine.noteToFreq(noteName), waveform, duration));
     }
-    if (!part.notes[noteName]) return; // outside the 2-octave piano roll range — preview only
+    recordNoteStep(noteName, vel);
+  }
+  // While recording, write the note on the step that is sounding now (in the pattern this part plays in this bar). Returns where it landed.
+  function recordNoteStep(noteName, vel) {
+    const part = roll();
+    const level = vel === undefined ? true : levelValue(vel);
+    if (!part.notes[noteName]) return null; // outside the 2-octave piano roll range — preview only
     const spot = recordingSpot(rollPart);
     if (spot && spot.pattern !== editingPattern()) {
       const lane = storedLane(spot.pattern, rollPart, noteName);
       if (lane && !lane[spot.step]) {
-        lane[spot.step] = true;
+        lane[spot.step] = level;
         refreshWaveformPreview();
         scheduleAutosave();
       }
+      return { step: spot.step, other: true };
     } else if (spot) {
       const step = spot.step;
       const wasRecorded = Boolean(part.notes[noteName][step]);
-      if (!wasRecorded) part.notes[noteName][step] = true;
+      if (!wasRecorded) part.notes[noteName][step] = level;
       // Recording into a collapsed piano roll would write notes nobody can see.
       const revealed = part.hidden === true;
       if (revealed) {
@@ -1636,7 +1707,9 @@
       const cell = document.querySelector(`.song-steps[data-row="${noteName}"] .song-step[data-step="${step}"]`);
       if (cell) cell.classList.add("song-step-on");
       if (!wasRecorded || revealed) scheduleAutosave();
+      return { step };
     }
+    return null;
   }
 
   // A note of a track played for the ear only (a slider released in the Studio's sound settings), with the track's sound as it is now.

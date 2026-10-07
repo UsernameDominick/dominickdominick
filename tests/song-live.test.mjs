@@ -75,7 +75,7 @@ ok(L.bendCents(5, 2) === 200 && L.bendCents(1, 99) === 1200 && L.bendCents(1, 0)
   ok(d.mode === "off" && d.rate === "1/16" && d.octaves === 1 && d.chord === "major" && d.swell === false, "no settings gives the defaults", d);
   const w = L.cleanPlay({ mode: "laser", rate: "1/99", pattern: "x", octaves: 9, gate: 7, chord: "z", spread: 1, dir: "sideways", swell: "yes", bendRange: -3 });
   ok(w.mode === "off" && w.rate === "1/16" && w.pattern === "up" && w.octaves === 3 && w.gate === 1 && w.chord === "major" && w.spread === 10 && w.dir === "down" && w.swell === false && w.bendRange === 2, "wild values are pulled into range or dropped", w);
-  ok(L.cleanPlay({ mode: "roll", rate: "1/32", swell: true }).swell === true, "good values stay");
+  ok(L.cleanPlay({ padMode: "roll", rate: "1/32", swell: true }).swell === true && L.cleanPlay({ padMode: "roll" }).padMode === "roll" && L.cleanPlay({ mode: "roll" }).mode === "off", "good values stay, and roll belongs to the pads");
 }
 
 console.log(fail ? `\n${fail} FAILED` : "\nALL PASS");

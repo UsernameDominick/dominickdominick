@@ -2329,8 +2329,19 @@
             <input type="number" id="studio-bpm" min="40" max="240" value="120" data-no-reset inputmode="numeric" aria-label="Tempo in beats per minute"><span aria-hidden="true">BPM</span>
           </label>
         </div>
-        <div id="studio-keys-scroll" class="studio-keys-scroll">
-          <div id="studio-keys" class="studio-keys" role="group" aria-label="Piano keys"></div>
+        <div id="studio-keyboard" class="studio-keyboard" data-kind="notes">
+          <div class="studio-keybar" role="toolbar" aria-label="Playing options">
+            <button type="button" id="studio-sustain" class="studio-pill" aria-pressed="false" data-no-history title="Hold: notes keep sounding after you let go (and a pad roll keeps rolling) until you press Hold again">Hold</button>
+            <button type="button" id="studio-playmode" class="studio-pill" aria-expanded="false" aria-controls="studio-playpop" data-no-history title="How the keys play: normal, arpeggio, strum or random; for the pads, rolls">Play: Normal</button>
+            <span class="studio-keybar-hint" id="studio-keyhint" aria-live="polite"></span>
+          </div>
+          <div id="studio-playpop" class="studio-playpop" role="group" aria-label="Play options" hidden></div>
+          <div class="studio-keyrow">
+            <div id="studio-wheel" class="studio-wheel" role="slider" tabindex="0" aria-label="Pitch wheel" aria-orientation="vertical" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0" aria-valuetext="No bend" title="Pitch wheel: drag up or down to bend the notes you hold; it springs back"><span class="studio-wheel-thumb"></span></div>
+            <div id="studio-keys-scroll" class="studio-keys-scroll">
+              <div id="studio-keys" class="studio-keys" role="group" aria-label="Piano keys"></div>
+            </div>
+          </div>
         </div>
         <div id="studio-sheet" class="studio-sheet" role="dialog" aria-modal="false" aria-labelledby="studio-sheet-title" hidden>
           <div class="studio-sheet-head">
@@ -2958,6 +2969,7 @@
 <script src="/song-engine.js"></script>
 <script src="/admin/song-patterns.js"></script>
 <script src="/admin/song-edit.js"></script>
+<script src="/admin/song-live.js"></script>
 <script src="/admin/song-files.js"></script>
 <script src="/admin/song-starters.js"></script>
 <script src="/admin/song-builder.js"></script>

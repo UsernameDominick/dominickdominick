@@ -476,7 +476,7 @@
     mountId: "studio-mount",
     shellClass: "studio-native",
     loadingText: "Loading the Studio…",
-    scripts: ["/dial.js", "/song-engine.js", "/admin/song-patterns.js", "/admin/song-edit.js", "/admin/song-files.js", "/admin/song-starters.js", "/admin/song-builder.js", "/admin/song-studio.js"],
+    scripts: ["/dial.js", "/song-engine.js", "/admin/song-patterns.js", "/admin/song-edit.js", "/admin/song-live.js", "/admin/song-files.js", "/admin/song-starters.js", "/admin/song-builder.js", "/admin/song-studio.js"],
     // The editor, the list it keeps (hidden here) and the audio export dialog.
     dialogs: ["song-builder-modal", "songs-modal", "song-audio-modal"],
     editor: () => $("song-builder-modal"),

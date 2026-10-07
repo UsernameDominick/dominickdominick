@@ -696,9 +696,13 @@ function setMasterVolume(ctx, value) {
     return v;
   }
 
-  function playVoicedNote(ctx, time, freq, voiceName, duration, synth, random = Math.random) {
+  // Returns { release(at), bend(cents) } for a note played live (held until released, up to 30 s, and bent by the pitch wheel); a note
+  // scheduled in a song ignores it. `live` only changes the length: the sound is built exactly as before.
+  function playVoicedNote(ctx, time, freq, voiceName, duration, synth, random = Math.random, live = false) {
     const v = shapedVoice(voiceName, synth);
-    const end = time + duration;
+    const end = time + (live ? 30 : duration);
+    const tracked = []; // everything that has to stop when a held note is let go
+    const pitched = []; // the oscillators that carry the note's pitch, with their ratio to it, for bending
     const peak = MELODY_VOICE_PEAK * (v.level || 1);
     const envelope = ctx.createGain();
     const g = envelope.gain;
@@ -734,6 +738,7 @@ function setMasterVolume(ctx, value) {
         wob.connect(wobDepth).connect(filter.detune);
         wob.start(time);
         wob.stop(stopAt);
+        tracked.push(wob);
       }
     }
     if (v.drive) {
@@ -752,6 +757,7 @@ function setMasterVolume(ctx, value) {
       lfo.connect(lfoDepth).connect(trem.gain);
       lfo.start(time);
       lfo.stop(stopAt);
+      tracked.push(lfo);
       envelope.connect(trem).connect(voiceOut(ctx));
     } else envelope.connect(voiceOut(ctx));
     const oscillator = (type, hz, level, cents) => {
@@ -767,6 +773,8 @@ function setMasterVolume(ctx, value) {
       osc.connect(mix).connect(tone);
       osc.start(time);
       osc.stop(stopAt);
+      tracked.push(osc);
+      pitched.push({ osc, ratio: hz / freq });
       return osc;
     };
     const voices = [];
@@ -791,6 +799,7 @@ function setMasterVolume(ctx, value) {
       hissLevel.gain.value = v.noise * 0.7;
       hiss.connect(hissLevel).connect(tone);
       hiss.start(time);
+      tracked.push(hiss);
     }
     if (v.fm) {
       // a sine modulator at a multiple of the note bends every oscillator's pitch; its depth falls away as the note decays, which is what gives
@@ -805,6 +814,7 @@ function setMasterVolume(ctx, value) {
       voices.forEach((o) => modDepth.connect(o.frequency));
       mod.start(time);
       mod.stop(stopAt);
+      tracked.push(mod);
     }
     if (v.vibrato) {
       const lfo = ctx.createOscillator();
@@ -816,7 +826,60 @@ function setMasterVolume(ctx, value) {
       voices.forEach((o) => depth.connect(o.detune));
       lfo.start(time);
       lfo.stop(stopAt);
+      tracked.push(lfo);
     }
+    return {
+      // Let go of a held note: a voice with a sustain fades over its release; a struck voice (pluck, bell, piano) rings out by itself.
+      release(at) {
+        if (v.sustain <= 0) return;
+        const t = Math.max(Number(at) || 0, ctx.currentTime);
+        try {
+          if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(t);
+          else {
+            g.cancelScheduledValues(t);
+            g.setValueAtTime(Math.max(0.0001, g.value), t);
+          }
+          const fade = Math.max(0.06, v.release);
+          g.exponentialRampToValueAtTime(0.0001, t + fade);
+          tracked.forEach((o) => { try { o.stop(t + fade + 0.03); } catch (e) { /* already stopped */ } });
+        } catch (e) { /* the note has already ended */ }
+      },
+      bend(cents) {
+        const k = Math.pow(2, (Number(cents) || 0) / 1200);
+        pitched.forEach((p) => { try { p.osc.frequency.setTargetAtTime(freq * p.ratio * k, ctx.currentTime, 0.015); } catch (e) { /* ended */ } });
+      },
+    };
+  }
+
+  // A plain waveform note held while a key is down (a song with no named voice): a short attack, a steady level, a quick release.
+  function playLiveWave(ctx, freq, waveform) {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const now = ctx.currentTime;
+    osc.type = waveform;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.linearRampToValueAtTime(0.22, now + 0.012);
+    osc.connect(gain).connect(voiceOut(ctx));
+    osc.start(now);
+    osc.stop(now + 30);
+    return {
+      release(at) {
+        const t = Math.max(Number(at) || 0, ctx.currentTime);
+        try {
+          if (gain.gain.cancelAndHoldAtTime) gain.gain.cancelAndHoldAtTime(t);
+          else {
+            gain.gain.cancelScheduledValues(t);
+            gain.gain.setValueAtTime(Math.max(0.0001, gain.gain.value), t);
+          }
+          gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+          osc.stop(t + 0.12);
+        } catch (e) { /* ended */ }
+      },
+      bend(cents) {
+        try { osc.frequency.setTargetAtTime(freq * Math.pow(2, (Number(cents) || 0) / 1200), ctx.currentTime, 0.015); } catch (e) { /* ended */ }
+      },
+    };
   }
 
   // The name of the voice a song's melody uses, or "" for the plain waveform note (an unknown name is "" too, so stale data stays safe).
@@ -1406,6 +1469,7 @@ function setMasterVolume(ctx, value) {
     previewRandom,
     playMelodyNote,
     playVoicedNote,
+    playLiveWave,
     cleanSynth,
     SYNTH_WAVES,
     SYNTH_FILTERS,
