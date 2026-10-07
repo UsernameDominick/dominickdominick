@@ -463,3 +463,30 @@
 .app-native .app-backup-status { margin: 6px 0 0; font-size: 0.78rem; color: var(--text-dim); }
 .app-native .app-backup-status:empty { display: none; }
 .app-native .studio-shelf .app-backup { max-width: 320px; }
+
+/* ---- Trainer: progress chart, the reaction cue, sharing, the sensitivity converter ---- */
+.app-native .trainer-chart { margin-top: 4px; }
+.app-native .trainer-spark { display: block; width: 100%; height: auto; }
+.app-native .trainer-spark path { stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.app-native .trainer-spark circle { fill: var(--accent); }
+.app-native .trainer-spark circle.is-best { fill: var(--success, #3ecf8e); }
+.app-native .trainer-chart-cap, .app-native .trainer-chart-empty { margin: 4px 0 0; font-size: 0.78rem; color: var(--text-dim); }
+.app-native .result-chart { margin: 0 0 14px; }
+.app-native .result-chart .trainer-spark { max-width: 320px; margin: 0 auto; }
+.app-native .result-share-status { margin: 10px 0 0; font-size: 0.8rem; color: var(--text-dim); }
+.app-native .result-share-status:empty { display: none; }
+.app-native .trainer-cue { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 20px; font-size: clamp(1.6rem, 6vw, 3rem); font-weight: 800; pointer-events: none; }
+.app-native .trainer-cue.is-wait { background: color-mix(in srgb, #c0392b 55%, var(--bg)); color: #fff; }
+.app-native .trainer-cue.is-go { background: #1faa5b; color: #fff; }
+.app-native .trainer-cue.is-early { background: color-mix(in srgb, #c0392b 80%, var(--bg)); color: #fff; }
+.app-native .trainer-cue.is-result { background: color-mix(in srgb, var(--accent) 60%, var(--bg)); color: #fff; }
+.app-native .trainer-convert { border-top: 1px solid var(--border); padding-top: 10px; }
+.app-native .trainer-convert summary { cursor: pointer; font-size: 0.85rem; font-weight: 600; min-height: 28px; }
+.app-native .trainer-convert .trainer-row { margin-top: 10px; }
+.app-native .trainer-convert input[type="number"] { grid-column: 1 / -1; width: 100%; min-height: 40px; }
+.app-native .trainer-convert-out { margin: 10px 0 0; font-size: 0.85rem; font-weight: 600; }
+@media (max-width: 640px) {
+  .app-native .trainer-drills { flex-wrap: wrap; }
+  .app-native .trainer-drill { flex: 1 1 calc(33% - 8px); }
+  .app-native .trainer-left .trainer-chart { display: none; }
+}

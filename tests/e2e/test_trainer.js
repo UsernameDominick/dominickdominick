@@ -7,7 +7,7 @@ const axeSrc = axeSource();
   let fail = 0; const ok = (c, m, x) => { console.log((c ? "PASS " : "FAIL ") + m + (x !== undefined && !c ? " " + JSON.stringify(x) : "")); if (!c) fail++; };
   const b = await chromium.launch();
   try {
-    const ctx = await b.newContext({ viewport: { width: 1360, height: 860 } });
+    const ctx = await b.newContext({ viewport: { width: 1360, height: 860 }, acceptDownloads: true });
     const p = await ctx.newPage();
     const errs = []; const adminCalls = [];
     p.on("pageerror", (e) => errs.push(e.message));
@@ -19,7 +19,7 @@ const axeSrc = axeSource();
     const hrefs = await p.evaluate(() => [...document.querySelectorAll(".site-nav .tabs > .tab")].map((a) => a.getAttribute("href")));
     ok(hrefs.indexOf("/trainer") >= 0 && hrefs.indexOf("/trainer") < hrefs.indexOf("/studio") && hrefs.indexOf("/trainer") + 1 === hrefs.indexOf("/studio") - 0 || hrefs.indexOf("/trainer") < hrefs.indexOf("/studio"), "the Trainer tab sits to the left of Studio", hrefs);
     await p.waitForSelector("#trainer-mount .trainer", { timeout: 20000 });
-    ok((await p.locator(".trainer-drill").count()) === 3, "three drills in the left panel");
+    ok((await p.locator(".trainer-drill").count()) === 5, "five drills in the left panel");
     ok((await p.locator("#trainer-right input[data-key=size]").count()) === 1, "settings are in the right panel");
     ok((await p.locator(".trainer-intro").isVisible()), "it opens on a Start card, no prompt about new things");
     await p.evaluate(() => { localStorage.clear(); });
@@ -99,6 +99,50 @@ const axeSrc = axeSource();
     await p.check("[data-key=lock]");
     ok(await p.locator("[data-key=sensitivity]").isVisible(), "capturing the mouse brings up the sensitivity");
     await p.uncheck("[data-key=lock]");
+
+    // --- precision: half-size targets ---
+    await p.click(".trainer-drill[data-drill=precision]");
+    await p.click(".trainer-go");
+    await p.waitForSelector(".trainer-target", { timeout: 8000 });
+    const pw = (await p.locator(".trainer-target").boundingBox()).width;
+    ok(pw >= 22 && pw <= 26, "precision targets are half the size set", pw);
+    await p.keyboard.press("Escape");
+
+    // --- the chart ---
+    await p.evaluate(() => localStorage.setItem("trainer.history.v1", JSON.stringify([300, 500, 400].map((s, i) => ({ drill: "gridshot", score: s, accuracy: 90, reaction: 400, hits: 5, seconds: 30, at: 1700000000000 + i })))));
+    await p.reload();
+    await p.waitForSelector(".trainer", { timeout: 30000 });
+    await p.click(".trainer-drill[data-drill=gridshot]");
+    ok((await p.locator(".trainer-chart .trainer-spark circle").count()) === 3 && /best 500/.test(await p.textContent(".trainer-chart-cap")), "the progress chart draws the drill's recent scores and names the best", await p.textContent(".trainer-chart"));
+    ok(/Your last 3 Gridshot scores/.test(await p.getAttribute(".trainer-spark", "aria-label")), "and says it in words for a screen reader");
+
+    // --- the sensitivity converter ---
+    await p.click(".trainer-convert summary");
+    await p.fill("#conv-sens", "1");
+    ok(/Valorant: 0\.3143/.test(await p.textContent("#conv-out")) && /51\.95 cm per full turn at 800 DPI/.test(await p.textContent("#conv-out")), "CS2 1.0 converts to Valorant 0.3143 and shows the distance for a full turn", await p.textContent("#conv-out"));
+    await p.selectOption("#conv-to", "overwatch");
+    ok(/Overwatch 2: 3\.333(?!\d)/.test(await p.textContent("#conv-out")), "and to another game when it is changed", await p.textContent("#conv-out"));
+
+    // --- the reaction drill, and sharing the result ---
+    await p.click(".trainer-drill[data-drill=reaction]");
+    ok(!(await p.locator('[data-row="size"]').isVisible()) && !(await p.locator('[data-row="duration"]').isVisible()), "the reaction drill hides the size and length settings");
+    await p.click(".trainer-go");
+    await p.waitForSelector(".trainer-cue.is-wait", { timeout: 8000 });
+    const st = await p.locator("#trainer-stage").boundingBox();
+    await p.mouse.click(st.x + st.width / 2, st.y + st.height / 2);
+    await p.waitForSelector(".trainer-cue.is-early", { timeout: 3000 });
+    ok(true, "clicking before green is called too soon");
+    for (let i = 0; i < 8; i++) {
+      await p.waitForSelector(".trainer-cue.is-go", { timeout: 8000 });
+      await p.mouse.click(st.x + st.width / 2, st.y + st.height / 2);
+      await p.waitForSelector(".trainer-cue.is-result, .trainer-result:not([hidden])", { timeout: 3000 });
+    }
+    await p.waitForSelector(".trainer-result:not([hidden])", { timeout: 6000 });
+    const rg = await p.textContent(".result-grid");
+    ok(/Average/.test(rg) && /Fastest/.test(rg) && /Early clicks\s*1/.test(rg), "the result shows the average, the fastest and the early click", rg);
+    const [dl] = await Promise.all([p.waitForEvent("download", { timeout: 8000 }), p.click(".trainer-share")]);
+    ok(dl.suggestedFilename() === "aim-score.png", "Share saves a picture of the score where the browser cannot share it", dl.suggestedFilename());
+    await p.click(".trainer-close");
 
     // --- accessibility, dark and light ---
     await p.addScriptTag({ content: axeSrc }).catch(() => {});

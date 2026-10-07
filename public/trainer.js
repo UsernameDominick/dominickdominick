@@ -23,6 +23,8 @@
   let aim = { x: 0, y: 0 };
   let pressed = false;
   let seed = Date.now();
+  let lastResult = null; // the run just finished, for the Share button
+  const sz = () => L.targetSize(run ? run.drill : drill, settings.size);
   const els = {};
   const $ = (sel) => root.querySelector(sel);
 
@@ -47,6 +49,7 @@
           <button type="button" class="studio-panel-fold" aria-expanded="true" aria-controls="trainer-left-body" aria-label="Hide the drills panel" title="Hide the drills panel">←</button></div>
         <div id="trainer-left-body" class="studio-panel-body">
           <div class="trainer-drills" role="radiogroup" aria-label="Drill"></div>
+          <div class="trainer-chart"></div>
           <h3 class="trainer-sub">Recent runs</h3>
           <ol class="trainer-history"></ol>
           <button type="button" class="btn trainer-clear" hidden>Clear history</button>
@@ -76,7 +79,9 @@
               <h2>Run finished</h2>
               <p class="result-record" hidden>New best for this drill.</p>
               <dl class="result-grid"></dl>
-              <div class="result-actions"><button type="button" class="btn btn-accent trainer-again">Go again</button><button type="button" class="btn trainer-close">Done</button></div>
+              <div class="result-chart"></div>
+              <div class="result-actions"><button type="button" class="btn btn-accent trainer-again">Go again</button><button type="button" class="btn trainer-share">Share score</button><button type="button" class="btn trainer-close">Done</button></div>
+              <p class="result-share-status" role="status"></p>
             </div>
             <div class="trainer-count" hidden aria-hidden="true"></div>
           </div>
@@ -99,15 +104,41 @@
       return `<button type="button" role="radio" class="trainer-drill" data-drill="${id}" aria-checked="${id === drill}"><span class="drill-name">${esc(L.DRILLS[id].name)}</span><span class="drill-best">${best === null ? "No runs yet" : "Best " + best}</span></button>`;
     }).join("");
   }
+  // A drill's recent scores as a line: how you are doing over time, with the best run marked.
+  function chartHtml(id, w, h) {
+    const values = L.series(history, id, 20);
+    if (values.length < 2) return `<p class="trainer-chart-empty">${values.length ? "One run so far: play a few more to see your progress." : "Play a few runs to see your progress."}</p>`;
+    const sp = L.sparkline(values, w, h, 6);
+    const best = Math.max(...values);
+    const dots = sp.dots.map((d, i) => `<circle cx="${d.x}" cy="${d.y}" r="${i === sp.best ? 4.5 : 2.5}" class="${i === sp.best ? "is-best" : ""}"/>`).join("");
+    return `<svg viewBox="0 0 ${w} ${h}" class="trainer-spark" role="img" aria-label="Your last ${values.length} ${esc(L.DRILLS[id].name)} scores, from ${values[0]} to ${values[values.length - 1]}, best ${best}"><path d="${sp.line}" fill="none"/>${dots}</svg><p class="trainer-chart-cap">Last ${values.length} runs · best ${best}</p>`;
+  }
+  function renderChart() {
+    $(".trainer-chart").innerHTML = `<h3 class="trainer-sub">Progress</h3>${chartHtml(drill, 220, 70)}`;
+  }
   function renderHistory() {
+    renderChart();
     const list = history.slice(0, 12);
     $(".trainer-history").innerHTML = list.length
       ? list.map((e) => `<li><span class="h-drill">${esc(L.DRILLS[e.drill].name)}</span><span class="h-score">${e.score}</span><span class="h-meta">${e.accuracy}%${e.reaction === null ? "" : " · " + e.reaction + " ms"}</span></li>`).join("")
       : `<li class="trainer-empty">Your runs show up here.</li>`;
     $(".trainer-clear").hidden = !history.length;
   }
+  const gameOptions = (sel) => Object.keys(L.GAMES).map((k) => `<option value="${k}"${k === sel ? " selected" : ""}>${esc(L.GAMES[k].name)}</option>`).join("");
+  // The same turn of the wrist in another game: its sensitivity, and how far the mouse travels for a full turn.
+  function convert() {
+    const out = $("#conv-out");
+    if (!out) return;
+    const from = $("#conv-from").value;
+    const to = $("#conv-to").value;
+    const sens = Number($("#conv-sens").value);
+    const dpi = Number($("#conv-dpi").value);
+    const r = L.convertSens(from, to, sens);
+    const cm = L.cm360(from, sens, dpi);
+    out.textContent = r === null ? "Enter a sensitivity above zero." : `${L.GAMES[to].name}: ${r}` + (cm === null ? "" : `  ·  ${cm} cm per full turn${dpi ? " at " + dpi + " DPI" : ""}`);
+  }
   function renderSettings() {
-    const rows = settingRows().map((r) => `<label class="trainer-row" data-only="${r.only || ""}"${r.only && r.only !== drill ? " hidden" : ""}><span class="field-label">${esc(r.label)}</span>
+    const rows = settingRows().map((r) => `<label class="trainer-row" data-row="${r.key}" data-only="${r.only || ""}"${r.only && r.only !== drill ? " hidden" : ""}><span class="field-label">${esc(r.label)}</span>
         <input type="range" data-key="${r.key}" min="${r.min}" max="${r.max}" step="${r.step}" value="${settings[r.key]}"><output>${settings[r.key]}${r.unit}</output></label>`).join("");
     $(".trainer-settings").innerHTML = `${rows}
       <label class="trainer-check"><input type="checkbox" data-key="lock"${settings.lock ? " checked" : ""}><span>Capture the mouse like a game</span></label>
@@ -117,8 +148,17 @@
         <select data-key="crosshair">${L.CROSSHAIRS.map((c) => `<option value="${c}"${settings.crosshair === c ? " selected" : ""}>${c[0].toUpperCase() + c.slice(1)}</option>`).join("")}</select></label>
       <label class="trainer-row trainer-select"><span class="field-label">Opens with</span>
         <select id="trainer-start"><option value="last">The drill I used last</option>${L.DRILL_IDS.map((id) => `<option value="${id}"${store.get(KEYS.start) === id ? " selected" : ""}>${esc(L.DRILLS[id].name)}</option>`).join("")}</select></label>
+      <details class="trainer-convert"><summary>Convert sensitivity between games</summary>
+        <label class="trainer-row trainer-select"><span class="field-label">From</span><select id="conv-from">${gameOptions("cs2")}</select></label>
+        <label class="trainer-row"><span class="field-label">Sensitivity</span><input type="number" id="conv-sens" min="0.001" step="any" value="1" inputmode="decimal"></label>
+        <label class="trainer-row trainer-select"><span class="field-label">To</span><select id="conv-to">${gameOptions("valorant")}</select></label>
+        <label class="trainer-row"><span class="field-label">Mouse DPI (optional)</span><input type="number" id="conv-dpi" min="100" step="50" value="800" inputmode="numeric"></label>
+        <p class="trainer-convert-out" id="conv-out" role="status" aria-live="polite"></p>
+      </details>
       <p class="trainer-note">Settings and runs stay in this browser.</p>`;
     paintAimLook();
+    rowsFor(drill);
+    convert();
   }
   function paintAimLook() {
     els.aim.className = "trainer-aim is-" + settings.crosshair;
@@ -138,6 +178,14 @@
     });
   }
 
+  // Which settings matter for the drill: the speed only for tracking; the reaction drill has no targets and no length.
+  function rowsFor(id) {
+    root.querySelectorAll("[data-row]").forEach((row) => {
+      const key = row.dataset.row;
+      row.hidden = (key === "speed" && id !== "tracking") || ((key === "size" || key === "duration") && id === "reaction");
+    });
+  }
+
   // ---------- picking a drill ----------
   function chooseDrill(id) {
     if (run) return;
@@ -147,8 +195,10 @@
     $(".trainer-name").textContent = L.DRILLS[id].name;
     $(".trainer-about").textContent = L.DRILLS[id].about;
     $(".intro-title").textContent = L.DRILLS[id].name;
-    $(".intro-text").textContent = id === "tracking" ? "Hold the button down and keep your aim on the moving target. Time on target is your score." : L.DRILLS[id].about + " Click as fast as you can without missing.";
+    $(".intro-text").textContent = id === "tracking" ? "Hold the button down and keep your aim on the moving target. Time on target is your score." : id === "reaction" ? L.DRILLS[id].about + " Clicking early costs you." : L.DRILLS[id].about + " Click as fast as you can without missing.";
     renderDrills();
+    renderChart();
+    rowsFor(id);
     $(".trainer-settings").querySelectorAll("[data-only]").forEach((row) => {
       const only = row.dataset.only;
       if (only === "tracking") row.hidden = id !== "tracking";
@@ -168,12 +218,12 @@
     $(".trainer-count").hidden = which !== "count";
   }
   function spot(t) {
-    t.el.style.transform = `translate(${t.x - settings.size / 2}px, ${t.y - settings.size / 2}px)`;
+    t.el.style.transform = `translate(${t.x - sz() / 2}px, ${t.y - sz() / 2}px)`;
   }
   function makeTarget(x, y, extra) {
     const el = document.createElement("div");
     el.className = "trainer-target";
-    el.style.width = el.style.height = settings.size + "px";
+    el.style.width = el.style.height = sz() + "px";
     el.setAttribute("aria-hidden", "true");
     els.field.appendChild(el);
     const t = Object.assign({ el, x, y, born: performance.now() }, extra || {});
@@ -186,14 +236,14 @@
     const { w, h } = stageSize();
     const taken = run.targets.map((t) => t.cell);
     const cell = L.pickCell(rng, taken);
-    const c = L.gridCenter(cell, w, h, settings.size);
+    const c = L.gridCenter(cell, w, h, sz());
     run.targets.push(makeTarget(c.x, c.y, { cell }));
     return first;
   }
   function spawnFlick() {
     const { w, h } = stageSize();
     const last = run.last;
-    const p = L.flickNext(rng, w, h, settings.size, last, Math.min(w, h) * 0.35);
+    const p = L.flickNext(rng, w, h, sz(), last, Math.min(w, h) * 0.35);
     run.last = p;
     run.targets = [makeTarget(p.x, p.y, {})];
   }
@@ -233,9 +283,10 @@
     run.lastFrame = run.startAt;
     const { w, h } = stageSize();
     if (drill === "gridshot") for (let i = 0; i < 3; i++) spawnGrid();
-    else if (drill === "flick") spawnFlick();
+    else if (drill === "flick" || drill === "precision") spawnFlick();
+    else if (drill === "reaction") reactionNext();
     else {
-      run.track = L.trackStart(rng, w, h, settings.size);
+      run.track = L.trackStart(rng, w, h, sz());
       run.targets = [makeTarget(run.track.x, run.track.y, {})];
     }
     els.stage.focus({ preventScroll: true });
@@ -248,17 +299,17 @@
     const elapsed = now - run.startAt;
     if (drill === "tracking") {
       const { w, h } = stageSize();
-      run.track = L.trackStep(run.track, dt, w, h, settings.size, settings.speed, rng);
+      run.track = L.trackStep(run.track, dt, w, h, sz(), settings.speed, rng);
       const t = run.targets[0];
       t.x = run.track.x;
       t.y = run.track.y;
       spot(t);
-      const on = pressed && L.hit(t, aim.x, aim.y, settings.size);
+      const on = pressed && L.hit(t, aim.x, aim.y, sz());
       t.el.classList.toggle("is-on", on);
       if (on) run.onTarget += dt * 1000;
     }
     paintLive(elapsed);
-    if (elapsed >= settings.duration * 1000) return finish(elapsed);
+    if (drill !== "reaction" && elapsed >= settings.duration * 1000) return finish(elapsed);
     raf = requestAnimationFrame(frame);
   }
   function summaryNow(elapsed) {
@@ -271,10 +322,14 @@
       $(".live-acc").textContent = "-";
       return;
     }
-    $(".live-time").textContent = Math.max(0, Math.ceil(settings.duration - elapsed / 1000)) + " s";
+    $(".live-time").textContent = run.drill === "reaction" ? `${run.hits} of ${L.REACTION_TRIALS}` : Math.max(0, Math.ceil(settings.duration - elapsed / 1000)) + " s";
     if (drill === "tracking") {
       $(".live-hits").textContent = Math.round(run.onTarget / 100) / 10 + " s";
       $(".live-acc").textContent = elapsed > 500 ? Math.min(100, Math.round((run.onTarget / elapsed) * 100)) + "%" : "-";
+    } else if (run.drill === "reaction") {
+      const avg = run.reactions.length ? Math.round(run.reactions.reduce((a, b) => a + b, 0) / run.reactions.length) : null;
+      $(".live-hits").textContent = avg === null ? "-" : avg + " ms";
+      $(".live-acc").textContent = run.shots ? Math.round((run.hits / run.shots) * 100) + "%" : "-";
     } else {
       $(".live-hits").textContent = String(run.hits);
       $(".live-acc").textContent = run.shots ? Math.round((run.hits / run.shots) * 100) + "%" : "-";
@@ -288,14 +343,16 @@
   function stop() {
     if (!run) return;
     clearTimeout(run.timer);
+    clearTimeout(run.cueTimer);
     cancelAnimationFrame(raf);
     release();
     run = null;
     $(".trainer").classList.remove("is-running");
   }
   function finish(elapsed) {
-    const done = summaryNow(Math.min(elapsed, settings.duration * 1000));
+    const done = summaryNow(run.drill === "reaction" ? elapsed : Math.min(elapsed, settings.duration * 1000));
     const record = L.isRecord(history, done);
+    const run_best = run.reactions.length ? Math.min(...run.reactions) : null;
     stop();
     history = L.addRun(history, done, Date.now());
     store.set(KEYS.history, JSON.stringify(history));
@@ -304,12 +361,19 @@
     clearField();
     const grid = $(".result-grid");
     const isTrack = done.drill === "tracking";
-    grid.innerHTML = [
-      ["Score", done.score],
-      [isTrack ? "Time on target" : "Accuracy", done.accuracy + "%"],
-      isTrack ? ["Run length", done.seconds + " s"] : ["Hits", done.hits + " of " + done.shots],
-      isTrack ? null : ["Reaction", done.reaction === null ? "-" : done.reaction + " ms"],
-    ].filter(Boolean).map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("");
+    const isReact = done.drill === "reaction";
+    const best = run_best;
+    grid.innerHTML = (isReact
+      ? [["Score", done.score], ["Average", done.reaction === null ? "-" : done.reaction + " ms"], ["Fastest", best === null ? "-" : best + " ms"], ["Early clicks", done.shots - done.hits]]
+      : [
+          ["Score", done.score],
+          [isTrack ? "Time on target" : "Accuracy", done.accuracy + "%"],
+          isTrack ? ["Run length", done.seconds + " s"] : ["Hits", done.hits + " of " + done.shots],
+          isTrack ? null : ["Reaction", done.reaction === null ? "-" : done.reaction + " ms"],
+        ]
+    ).filter(Boolean).map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join("");
+    lastResult = { done, record };
+    $(".result-chart").innerHTML = chartHtml(done.drill, 320, 80);
     $(".result-record").hidden = !record;
     showOverlay("result");
     $(".trainer-status").textContent = `Run finished. Score ${done.score}, accuracy ${done.accuracy} percent.${record ? " New best." : ""}`;
@@ -325,6 +389,110 @@
     $(".trainer-go").focus({ preventScroll: true });
   }
 
+  // ---------- the reaction drill: wait for green, then click ----------
+  function reactionNext() {
+    if (!run) return;
+    clearField();
+    const cue = document.createElement("div");
+    cue.className = "trainer-cue is-wait";
+    cue.textContent = "Wait for green…";
+    els.field.appendChild(cue);
+    run.cueEl = cue;
+    run.cueOn = false;
+    run.pause = false;
+    run.cueTimer = setTimeout(() => {
+      if (!run) return;
+      run.cueOn = true;
+      run.cueAt = performance.now();
+      cue.className = "trainer-cue is-go";
+      cue.textContent = "Click!";
+    }, L.reactionDelay(rng));
+  }
+  function reactionClick() {
+    if (!run || run.state !== "go" || run.pause) return;
+    const now = performance.now();
+    run.shots++;
+    run.pause = true;
+    if (!run.cueOn) {
+      // too soon: it counts against you and the wait starts again
+      clearTimeout(run.cueTimer);
+      run.cueEl.className = "trainer-cue is-early";
+      run.cueEl.textContent = "Too soon. Wait for green.";
+      run.timer = setTimeout(reactionNext, 1000);
+    } else {
+      const ms = Math.round(now - run.cueAt);
+      run.hits++;
+      run.reactions.push(ms);
+      run.cueOn = false;
+      run.cueEl.className = "trainer-cue is-result";
+      run.cueEl.textContent = ms + " ms";
+      if (run.hits >= L.REACTION_TRIALS) run.timer = setTimeout(() => finish(performance.now() - run.startAt), 800);
+      else run.timer = setTimeout(reactionNext, 900);
+    }
+    paintLive(now - run.startAt);
+  }
+
+  // ---------- sharing a score: a picture of the result, shared or saved ----------
+  function cardBlob(done, record) {
+    const c = document.createElement("canvas");
+    c.width = 1200;
+    c.height = 630;
+    const g = c.getContext("2d");
+    g.fillStyle = "#1a1620";
+    g.fillRect(0, 0, 1200, 630);
+    g.fillStyle = "#d65624";
+    g.fillRect(0, 0, 18, 630);
+    const font = (size, weight) => `${weight || 400} ${size}px system-ui, -apple-system, "Segoe UI", sans-serif`;
+    g.fillStyle = "#b0a6a0";
+    g.font = font(32);
+    g.fillText("dominickdominick.com/trainer", 80, 100);
+    g.fillStyle = "#f7eee4";
+    g.font = font(84, 700);
+    g.fillText(L.DRILLS[done.drill].name, 80, 220);
+    g.font = font(190, 800);
+    g.fillStyle = "#d65624";
+    g.fillText(String(done.score), 80, 410);
+    g.fillStyle = "#f7eee4";
+    g.font = font(44, 600);
+    const lines = done.drill === "tracking" ? [`${done.accuracy}% on target`] : done.drill === "reaction" ? [done.reaction === null ? "" : `${done.reaction} ms average`, `${done.hits} of ${L.REACTION_TRIALS} clean`] : [`${done.accuracy}% accuracy`, done.reaction === null ? "" : `${done.reaction} ms per target`];
+    lines.filter(Boolean).forEach((t, i) => g.fillText(t, 80, 490 + i * 56));
+    if (record) {
+      g.fillStyle = "#3ecf8e";
+      g.font = font(40, 700);
+      g.fillText("New best", 80, 580);
+    }
+    return new Promise((resolve) => c.toBlob(resolve, "image/png"));
+  }
+  async function shareScore() {
+    const say = (t) => { $(".result-share-status").textContent = t; };
+    if (!lastResult) return;
+    const { done, record } = lastResult;
+    const text = `I scored ${done.score} on ${L.DRILLS[done.drill].name} in the aim trainer (${done.accuracy}%). dominickdominick.com/trainer`;
+    try {
+      const blob = await cardBlob(done, record);
+      const file = new File([blob], "aim-score.png", { type: "image/png" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], text });
+          return say("Shared.");
+        } catch (err) {
+          if (err && err.name === "AbortError") return;
+        }
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "aim-score.png";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      say("Saved the picture of your score.");
+    } catch (err) {
+      say("That did not work here.");
+    }
+  }
+
   // ---------- aiming ----------
   function placeAim() { els.aim.style.transform = `translate(${aim.x}px, ${aim.y}px)`; }
   function pointer(e) {
@@ -335,7 +503,7 @@
     if (!run || run.state !== "go") return;
     run.shots++;
     const now = performance.now();
-    const t = run.targets.find((q) => L.hit(q, x, y, settings.size));
+    const t = run.targets.find((q) => L.hit(q, x, y, sz()));
     if (t) {
       run.hits++;
       run.reactions.push(Math.round(now - t.born));
@@ -363,7 +531,8 @@
       e.preventDefault();
       pressed = true;
       if (!settings.lock) aim = pointer(e);
-      if (drill !== "tracking") shoot(aim.x, aim.y);
+      if (drill === "reaction") reactionClick();
+      else if (drill !== "tracking") shoot(aim.x, aim.y);
       try { if (!settings.lock) els.stage.setPointerCapture(e.pointerId); } catch (err) { /* fine */ }
     });
     els.stage.addEventListener("pointerup", () => { pressed = false; });
@@ -386,6 +555,7 @@
       if (d) return chooseDrill(d.dataset.drill);
       if (e.target.closest(".trainer-go, .trainer-again")) return begin();
       if (e.target.closest(".trainer-close")) return showOverlay("intro");
+      if (e.target.closest(".trainer-share")) return shareScore();
       if (e.target.closest(".trainer-clear")) {
         if (!window.confirm("Clear your runs from this browser?")) return;
         history = [];
@@ -408,6 +578,8 @@
     root.addEventListener("change", (e) => {
       if (e.target.id === "trainer-start") store.set(KEYS.start, e.target.value);
     });
+    root.addEventListener("input", (e) => { if (e.target.closest && e.target.closest(".trainer-convert")) convert(); });
+    root.addEventListener("change", (e) => { if (e.target.closest && e.target.closest(".trainer-convert")) convert(); });
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && run && document.contains(root)) { e.preventDefault(); abort(); }
     });

@@ -8,7 +8,14 @@
     gridshot: { name: "Gridshot", about: "Three targets sit on a grid. Hit one and another appears. Fast and accurate." },
     tracking: { name: "Tracking", about: "A target glides around. Keep your aim on it for as long as you can." },
     flick: { name: "Flick", about: "One target at a time, somewhere new each time. Snap to it and click." },
+    precision: { name: "Precision", about: "Small targets, one at a time. Slow down just enough to hit every one." },
+    reaction: { name: "Reaction", about: "Wait for the screen to turn green, then click as fast as you can. Eight tries." },
   };
+  const REACTION_TRIALS = 8;
+  // How big a drill's targets are, from the Target size setting: precision uses half-size targets.
+  const targetSize = (drill, size) => Math.max(12, Math.round(drill === "precision" ? size * 0.5 : size));
+  // The wait before the screen turns green, in ms (never the same twice because it comes from the run's own random numbers).
+  const reactionDelay = (rng) => Math.round(900 + rng() * 2100);
   const DRILL_IDS = Object.keys(DRILLS);
 
   const DEFAULTS = { size: 48, duration: 30, sensitivity: 1, speed: 3, lock: false, crosshair: "dot" };
@@ -157,5 +164,52 @@
     return summary.score > 0 && (best === null || summary.score > best);
   }
 
-  window.TrainerLogic = { DRILLS, DRILL_IDS, DEFAULTS, LIMITS, CROSSHAIRS, GRID, HISTORY_MAX, cleanSettings, makeRng, gridCenter, pickCell, flickNext, trackStart, trackStep, hit, moveAim, summarize, cleanHistory, addRun, bestOf, isRecord };
+  // ---- the chart: a drill's last scores, oldest first, as points in a small box ----
+  function series(list, drill, n) {
+    return cleanHistory(list).filter((e) => e.drill === drill).slice(0, n || 20).map((e) => e.score).reverse();
+  }
+  // { line: "M x y L x y ...", dots: [{x, y}], best: index of the highest } for `values` drawn in a w x h box with `pad` around it.
+  function sparkline(values, w, h, pad) {
+    const v = (values || []).filter((n) => Number.isFinite(n));
+    const p = pad == null ? 4 : pad;
+    if (!v.length) return { line: "", dots: [], best: -1 };
+    const lo = Math.min(...v);
+    const hi = Math.max(...v);
+    const span = hi - lo || 1;
+    const dots = v.map((n, i) => ({
+      x: Math.round((v.length === 1 ? w / 2 : p + ((w - p * 2) * i) / (v.length - 1)) * 10) / 10,
+      y: Math.round((hi === lo ? h / 2 : h - p - ((h - p * 2) * (n - lo)) / span) * 10) / 10,
+    }));
+    return { line: dots.map((d, i) => `${i ? "L" : "M"}${d.x} ${d.y}`).join(" "), dots, best: v.indexOf(hi) };
+  }
+
+  // ---- sensitivity: the same turn of the wrist in different games ----
+  // `yaw` is how many degrees the view turns for one count of the mouse at a sensitivity of 1 (the numbers the games' own communities use).
+  const GAMES = {
+    cs2: { name: "CS2 and CS:GO", yaw: 0.022 },
+    valorant: { name: "Valorant", yaw: 0.07 },
+    apex: { name: "Apex Legends", yaw: 0.022 },
+    overwatch: { name: "Overwatch 2", yaw: 0.0066 },
+    cod: { name: "Call of Duty", yaw: 0.0066 },
+    r6: { name: "Rainbow Six Siege", yaw: 0.00572957795 },
+  };
+  // How far (cm) the mouse travels for a full turn, at `dpi`.
+  function cm360(game, sens, dpi) {
+    const g = GAMES[game];
+    const n = Number(sens);
+    const d = Number(dpi);
+    if (!g || !(n > 0) || !(d > 0)) return null;
+    return Math.round(((360 / (d * g.yaw * n)) * 2.54) * 100) / 100;
+  }
+  // The sensitivity in game `to` that turns the view as far as `sens` does in game `from` (the DPI cancels out).
+  function convertSens(from, to, sens) {
+    const a = GAMES[from];
+    const b = GAMES[to];
+    const n = Number(sens);
+    if (!a || !b || !(n > 0)) return null;
+    const out = (n * a.yaw) / b.yaw;
+    return Math.round(out * (out < 1 ? 10000 : 1000)) / (out < 1 ? 10000 : 1000);
+  }
+
+  window.TrainerLogic = { DRILLS, DRILL_IDS, DEFAULTS, LIMITS, CROSSHAIRS, GRID, HISTORY_MAX, REACTION_TRIALS, GAMES, targetSize, reactionDelay, series, sparkline, cm360, convertSens, cleanSettings, makeRng, gridCenter, pickCell, flickNext, trackStart, trackStep, hit, moveAim, summarize, cleanHistory, addRun, bestOf, isRecord };
 })();

@@ -115,5 +115,34 @@ ok(T.hit({ x: 100, y: 100 }, 120, 100, 48) && !T.hit({ x: 100, y: 100 }, 125, 10
   ok(T.cleanHistory("junk").length === 0, "and junk gives an empty list");
 }
 
+// more drills
+ok(T.DRILL_IDS.join() === "gridshot,tracking,flick,precision,reaction", "there are five drills");
+ok(T.targetSize("precision", 48) === 24 && T.targetSize("gridshot", 48) === 48 && T.targetSize("precision", 16) === 12, "precision uses half-size targets, never under 12 px");
+{
+  const r = T.makeRng(2);
+  const d = Array.from({ length: 50 }, () => T.reactionDelay(r));
+  ok(d.every((n) => n >= 900 && n <= 3000) && new Set(d).size > 20, "the reaction wait is between 0.9 and 3 seconds and varies", [Math.min(...d), Math.max(...d)]);
+  const sum = T.summarize({ drill: "reaction", hits: 8, shots: 10, reactions: [250, 300], total: 20000 });
+  ok(sum.accuracy === 80 && sum.reaction === 275 && sum.score > 0, "a reaction run scores like the click drills (early clicks count as misses)", sum);
+  ok(T.REACTION_TRIALS === 8, "eight tries");
+}
+// the chart
+{
+  let h = [];
+  [100, 300, 200].forEach((sc, i) => { h = T.addRun(h, { drill: "flick", score: sc, accuracy: 90, reaction: 300, hits: 5, seconds: 30 }, 1000 + i); });
+  h = T.addRun(h, { drill: "gridshot", score: 999, accuracy: 90, reaction: 300, hits: 5, seconds: 30 }, 5000);
+  ok(T.series(h, "flick").join() === "100,300,200", "a drill's scores come oldest first, and only that drill's");
+  ok(T.series(h, "flick", 2).join() === "300,200", "capped to the most recent");
+  const sp = T.sparkline([100, 300, 200], 100, 40, 4);
+  ok(sp.dots.length === 3 && sp.best === 1 && sp.dots[1].y < sp.dots[0].y && sp.dots[0].x === 4 && sp.dots[2].x === 96 && sp.line.startsWith("M4 "), "the line rises to the best run, inside the box", sp);
+  ok(T.sparkline([], 100, 40).line === "" && T.sparkline([5], 100, 40).dots[0].x === 50 && T.sparkline([5, 5], 100, 40).dots[0].y === 20, "empty, one and flat series are fine");
+}
+// sensitivity
+ok(T.cm360("cs2", 1, 800) === 51.95 && T.cm360("valorant", 0.35, 800) === 51.95 || Math.abs(T.cm360("valorant", 0.314, 800) - T.cm360("cs2", 1, 800)) < 0.5, "a CS2 sensitivity of 1 at 800 DPI is about 52 cm per turn, and Valorant has the matching number", [T.cm360("cs2", 1, 800), T.cm360("valorant", 0.314, 800)]);
+ok(T.convertSens("cs2", "valorant", 1) === 0.3143 && T.convertSens("valorant", "cs2", 0.3143) > 0.99 && T.convertSens("valorant", "cs2", 0.3143) < 1.01, "CS2 1.0 is Valorant 0.3143, and back again");
+ok(T.convertSens("cs2", "cs2", 2.5) === 2.5 && T.convertSens("apex", "cs2", 1.7) === 1.7, "the same game, or one with the same yaw, gives the same number");
+ok(T.convertSens("cs2", "nope", 1) === null && T.convertSens("cs2", "apex", 0) === null && T.cm360("cs2", 1, 0) === null && T.cm360("x", 1, 800) === null, "bad input gives nothing rather than nonsense");
+ok(Object.keys(T.GAMES).length >= 6 && Object.values(T.GAMES).every((g) => g.yaw > 0 && g.name), "a handful of games are known");
+
 console.log(fail ? `\n${fail} FAILED` : "\nALL PASS");
 process.exit(fail ? 1 : 0);
