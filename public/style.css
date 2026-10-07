@@ -4622,3 +4622,6 @@ html.finder-on { overflow: hidden; }
 .reaction-emoji .ui-icon { width: 1.15em; height: 1.15em; }
 .btn-external-icon .ui-icon { margin-left: 4px; }
 .footnote-back .ui-icon { width: 0.9em; height: 0.9em; }
+
+/* A mouse drag across the page (page-slide.js): no text gets selected and the cursor says it is a drag. */
+html.is-page-dragging, html.is-page-dragging * { cursor: grabbing !important; user-select: none !important; -webkit-user-select: none !important; }

@@ -547,6 +547,54 @@ window.addEventListener("pagereveal", function (e) {
   document.addEventListener("touchend", endSwipe);
   document.addEventListener("touchcancel", endSwipe);
 
+  // ---- The same drag with a mouse: press on the page's own space (not on text, a link, a button or a control) and drag hard sideways. It
+  // only starts after a clear sideways pull of 28 px with nothing selected, so selecting text, dragging a picture or using a slider still
+  // work as always; the click that ends such a drag is swallowed. Same rules after that: past a quarter of the width (or a quick flick)
+  // it goes to the tab beside it, otherwise it springs back.
+  var MOUSE_OFF = SWIPE_OFF + ', a, button, summary, label, img, svg, [draggable="true"], [role="slider"], [role="button"]';
+  var mouse = null;
+  document.addEventListener("mousedown", function (e) {
+    mouse = null;
+    if (e.button !== 0 || busy || reduced() || !document.documentElement.animate) return;
+    var main = document.getElementById("main-content");
+    var t = e.target;
+    if (!main || !main.contains(t) || (t.closest && t.closest(MOUSE_OFF)) || scrollsSideways(t)) return;
+    mouse = { x0: e.clientX, y0: e.clientY, t0: Date.now(), mode: null };
+  });
+  document.addEventListener("mousemove", function (e) {
+    if (!mouse) return;
+    if (!(e.buttons & 1)) { mouse = null; return; }
+    var dx = e.clientX - mouse.x0;
+    var dy = e.clientY - mouse.y0;
+    if (!mouse.mode) {
+      if (Math.abs(dy) > 14 && Math.abs(dy) > Math.abs(dx)) { mouse = null; return; }
+      if (Math.abs(dx) < 28 || Math.abs(dx) < Math.abs(dy) * 2) return;
+      var sel = window.getSelection && window.getSelection();
+      if (sel && !sel.isCollapsed) { mouse = null; return; } // that is a text selection
+      mouse.mode = "x";
+      mouse.t0 = Date.now();
+      swipe = { x0: mouse.x0, y0: mouse.y0, t0: mouse.t0, mode: "x" };
+      startSwipe(dx < 0 ? 1 : -1);
+      document.documentElement.classList.add("is-page-dragging");
+    }
+    e.preventDefault();
+    if (window.getSelection) window.getSelection().removeAllRanges();
+    if (swipe) moveSwipe(dx);
+  });
+  function endMouse() {
+    if (!mouse) return;
+    var dragged = mouse.mode === "x";
+    mouse = null;
+    if (!dragged) return;
+    document.documentElement.classList.remove("is-page-dragging");
+    endSwipe();
+    var swallow = function (ev) { ev.stopPropagation(); ev.preventDefault(); };
+    document.addEventListener("click", swallow, { capture: true, once: true });
+    setTimeout(function () { document.removeEventListener("click", swallow, true); }, 60);
+  }
+  document.addEventListener("mouseup", endMouse);
+  window.addEventListener("blur", endMouse);
+
   window.addEventListener("popstate", function () {
     var now = location.pathname + location.search;
     if (now === loaded) return; // only the #hash changed

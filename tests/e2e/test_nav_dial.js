@@ -161,7 +161,8 @@ async function drag(cdp, y, from, to, steps = 12) {
       await drag(cdp, 50, 330, 330 - 4 * pitch, 16);
       await p.waitForSelector("#site-finder:not([hidden])", { timeout: 5000 }).catch(() => {});
       await still(p);
-      const other = (await p.evaluate(dial)).links[activeAt - 1].href;
+      const dialNow = await p.evaluate(dial);
+      const other = dialNow.links[dialNow.links.length - 3].href; // dragging two stops back from Search lands here
       await drag(cdp, 50, 100, 100 + 2 * pitch);
       await p.waitForFunction((want) => location.pathname === want, other, { timeout: 8000 }).catch(() => {});
       await still(p);
