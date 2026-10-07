@@ -1011,7 +1011,7 @@
     }
     paintGrid(song(), track);
   });
-  function endDrag(e) {
+  function endGridDrag(e) {
     if (lane && (!e || e.pointerId === lane.id)) {
       lane = null;
       host().group(false);
@@ -1028,10 +1028,10 @@
       refresh();
     }
   }
-  detailEl.addEventListener("pointerup", endDrag);
-  detailEl.addEventListener("pointercancel", endDrag);
-  detailEl.addEventListener("lostpointercapture", endDrag);
-  window.addEventListener("pointerup", endDrag, true);
+  detailEl.addEventListener("pointerup", endGridDrag);
+  detailEl.addEventListener("pointercancel", endGridDrag);
+  detailEl.addEventListener("lostpointercapture", endGridDrag);
+  window.addEventListener("pointerup", endGridDrag, true);
 
   // The lane: press on a bar and drag to set the strength of that step; keep dragging along to draw them.
   function laneDown(e) {

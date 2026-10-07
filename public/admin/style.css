@@ -9441,4 +9441,3 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 .studio-grid[data-zoomed] { min-width: calc(100% * var(--zoom, 1)); }
 .studio-grid[data-zoomed][data-mode="roll"] .studio-row:not(.studio-lane-row) { flex: 0 0 calc(16px * var(--zoom, 1)) !important; min-height: calc(16px * var(--zoom, 1)) !important; }
 @media (max-width: 640px) { .studio-lane-row { display: none; } }
-@media (min-width: 641px) { .studio-trackbar .studio-bars { min-width: 150px; } }
