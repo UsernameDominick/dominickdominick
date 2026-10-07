@@ -18,6 +18,9 @@
     ["Banner", 1500, 500],
   ];
   let shelf = null;
+  let lib = null; // the Library panel on a wide screen
+  let shelfStart = null; // the "new ones start from" field on the shelf
+  let savedAt = 0; // PhotoEditor.edits() at the last save, to tell whether the open picture has changes that were not kept
   let current = null; // { id, name } of the saved picture being edited, or { name } of one from the device
   let urls = []; // object URLs of the shelf's thumbnails, let go on every redraw
 
@@ -45,9 +48,27 @@
     await store.put(item);
     return item;
   }
+  const START_KEY = "piceditor.start";
+  const startOptions = () => BLANKS.map(([label, w, h]) => ({ value: `${w}x${h}`, label: `Blank ${label.toLowerCase()} (${w}×${h})` }));
+  const blankSize = () => {
+    const v = K.startChoice(START_KEY, startOptions(), "1080x1080");
+    const [w, h] = v.split("x").map(Number);
+    return { w, h };
+  };
+  const unkept = () => !editor().hidden && !!window.PhotoEditor && window.PhotoEditor.edits() > savedAt;
+  // An empty picture at the size this page starts from.
+  function openBlank() {
+    const { w, h } = blankSize();
+    current = { name: `Blank ${w}×${h}` };
+    window.PhotoEditor.openBlank(w, h);
+    savedAt = window.PhotoEditor.edits();
+    hintWhenOpen("A blank picture. Save as new keeps it in your library, in this browser; Download saves a file.");
+  }
+  const leave = () => !unkept() || window.confirm("This picture has changes that are not saved. Leave it anyway?");
   // Save as new: a new picture on the shelf, named after the one being edited.
   window.adminUploadBlob = async (blob) => {
     const item = await addPicture(blob, current ? stem(current.name) + " (edited)" : "New picture");
+    savedAt = window.PhotoEditor.edits();
     return { key: "local-" + item.id, url: "" };
   };
   // Save (the editor's "overwrite"): the picture being edited gets the new pixels.
@@ -64,11 +85,12 @@
       } catch (err) {
         return K.jsonResponse({ error: err.message }, 507);
       }
+      savedAt = window.PhotoEditor.edits();
       return K.jsonResponse({ ok: true });
     })();
   });
   window.refreshCachedMedia = async () => {};
-  window.refreshMediaLibrary = () => renderShelf();
+  window.refreshMediaLibrary = () => { renderShelf(); if (lib) lib.render(); };
 
   // ---------- the shelf ----------
   function buildShelf() {
@@ -82,6 +104,7 @@
       <div class="shelf-starters" role="group" aria-label="Start a blank picture"><span class="shelf-starters-label">Or start blank</span>${BLANKS.map(
         ([label, w, h]) => `<button type="button" class="shelf-chip" data-w="${w}" data-h="${h}">${label} <span class="chip-size">${w}×${h}</span></button>`
       ).join("")}</div>
+      <div class="shelf-start-slot"></div>
       <p class="pic-drop-hint">You can also drop a picture here, or paste one.</p>
       <div class="shelf-bar"><h3 class="shelf-sub">Your pictures <span class="shelf-count"></span></h3></div>
       <p class="shelf-status" role="status"></p>
@@ -127,6 +150,7 @@
     const out = window.PhotoEditor.openFile(file);
     if (out && out.error) return say(out.error);
     current = { name: file.name || "Pasted picture" };
+    savedAt = 0;
     say("");
     hintWhenOpen(`Editing "${current.name}" from your device. Save as new keeps it on your shelf, in this browser; Download saves a file.`);
   }
@@ -143,6 +167,7 @@
     const p = await store.get(id);
     if (!p) return renderShelf();
     current = { id: p.id, name: p.name };
+    savedAt = 0;
     window.PhotoEditor.open(URL.createObjectURL(p.blob), "local-" + p.id, {
       name: p.name,
       revoke: true,
@@ -171,7 +196,8 @@
       if (!chip) return;
       current = { name: `Blank ${chip.dataset.w}×${chip.dataset.h}` };
       window.PhotoEditor.openBlank(Number(chip.dataset.w), Number(chip.dataset.h));
-      hintWhenOpen("A blank picture. Save as new keeps it on your shelf, in this browser; Download saves a file.");
+      savedAt = window.PhotoEditor.edits();
+      hintWhenOpen("A blank picture. Save as new keeps it in your library, in this browser; Download saves a file.");
     });
     shelf.querySelector(".shelf-grid").addEventListener("click", async (e) => {
       const btn = e.target.closest("button[data-act]");
@@ -221,6 +247,42 @@
     });
   }
 
+  // ---------- the Library panel ----------
+  const thumbs = new Map(); // "id:updated_at" -> object URL for the panel's pictures
+  async function libItems() {
+    const all = (await store.all()).sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
+    const keep = new Set();
+    const out = all.map((p) => {
+      const k = p.id + ":" + p.updated_at;
+      keep.add(k);
+      if (!thumbs.has(k)) thumbs.set(k, URL.createObjectURL(p.blob));
+      return { id: String(p.id), name: p.name, meta: (p.width ? `${p.width}×${p.height} · ` : "") + K.whenEdited(p.updated_at), thumb: `<span class="pic-thumb"><img src="${thumbs.get(k)}" alt="" decoding="async"></span>` };
+    });
+    thumbs.forEach((u, k) => { if (!keep.has(k)) { URL.revokeObjectURL(u); thumbs.delete(k); } });
+    return out;
+  }
+  function buildLibrary(inner) {
+    const cfg = {
+      id: "pic", host: inner, title: "Pictures", noun: "picture", newLabel: "New picture", startKey: START_KEY, startLabel: "New pictures start from", startOptions,
+      items: libItems,
+      isOpen: (id) => !editor().hidden && !!current && String(current.id) === id,
+      onNew() { if (leave()) openBlank(); },
+      async onOpen(id) { if (leave()) await openSaved(Number(id)); },
+      async onCopy(id) { const p = await store.get(Number(id)); if (p) await addPicture(p.blob, p.name + " (copy)"); },
+      async onDelete(id) {
+        const p = await store.get(Number(id));
+        if (!p || !window.confirm(`Delete "${p.name}" from this browser? This can't be undone.`)) return;
+        await store.delete(Number(id));
+        if (current && current.id === p.id) { current = null; editor().hidden = true; }
+      },
+      onStartChange() { if (shelfStart) shelfStart.fill(); },
+    };
+    lib = K.library(cfg);
+    shelfStart = K.startSelect(Object.assign({}, cfg, { onStartChange() { lib.render(); } }));
+    shelf.querySelector(".shelf-start-slot").appendChild(shelfStart.el);
+    return cfg;
+  }
+
   const editor = () => $("photo-editor-modal");
   K.register({
     name: "piceditor",
@@ -245,9 +307,12 @@
       window.confirm = (msg) => (/^Overwrite the original file\?/.test(String(msg)) && !editor().hidden ? true : realConfirm(msg));
       shelf = buildShelf();
       inner.prepend(shelf);
+      buildLibrary(inner);
       wireShelf();
       await renderShelf();
     },
+    // The page opens on an empty picture, not on a shelf asking for a new one.
+    openStart() { if (editor().hidden) openBlank(); },
     shown(open) {
       // The editor's shortcuts listen only while it is the open dialog (aria-modal), as in the admin.
       editor().setAttribute("aria-modal", open ? "true" : "false");
@@ -255,6 +320,7 @@
         shelf.hidden = open;
         if (!open) renderShelf();
       }
+      if (lib) lib.render();
     },
     // Hiding the editor would let go of its layers and history: parked, it only stops listening for shortcuts, and comes back as it was.
     park() { editor().setAttribute("aria-modal", "false"); },

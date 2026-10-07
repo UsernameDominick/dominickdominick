@@ -14,6 +14,9 @@
   const MAX = 200;
   const MAX_BYTES = 1000000;
   let shelf = null;
+  let lib = null; // the Library panel on a wide screen
+  let openId = null; // the saved circuit the builder has open (null: a new one that was never saved)
+  const START_KEY = "simulations.start";
 
   // ---------- the builder's calls, answered from this browser ----------
   const checkData = (data) => {
@@ -34,6 +37,7 @@
       const id = K.nextId(list);
       list.push({ id, name, data: body.data, updated_at: K.now() });
       K.writeList(KEY, list, full);
+      openId = id; // a new circuit saved for the first time is the open one
       return { id };
     }
     const one = /^\/simulations\/(\d+)(\/duplicate|\/publish|\/unpublish)?$/.exec(p);
@@ -42,7 +46,10 @@
       const list = K.readList(KEY);
       const at = list.findIndex((s) => s.id === id);
       if (at < 0) throw K.fail("Simulation not found", 404);
-      if (!one[2] && method === "GET") return Object.assign({ is_published: false }, list[at]);
+      if (!one[2] && method === "GET") {
+        openId = id;
+        return Object.assign({ is_published: false }, list[at]);
+      }
       if (!one[2] && method === "PATCH") {
         if (body && body.name !== undefined) {
           const name = K.cleanName(body.name);
@@ -87,6 +94,28 @@
     }
     return undefined;
   });
+  // What a new circuit starts from: an empty board, or one of the visitor's own templates.
+  const startOptions = () => [{ value: "", label: "An empty board" }].concat(K.readList(TEMPLATES_KEY).map((t) => ({ value: String(t.id), label: "Template: " + t.name })));
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  // The builder takes its templates from its own (hidden) list; make sure it has loaded them, then start a circuit from the chosen one.
+  async function newCircuit() {
+    openId = null;
+    $("simulations-btn").click();
+    const want = 1 + K.readList(TEMPLATES_KEY).length;
+    for (let i = 0; i < 60 && $("sim-template-picker").options.length < want; i++) await sleep(30);
+    $("sim-template-picker").value = K.startChoice(START_KEY, startOptions(), "");
+    $("new-simulation-btn").click();
+    $("simulations-modal").hidden = true;
+  }
+  // A circuit with changes not yet saved is saved before the builder moves on (it costs nothing here).
+  async function saveFirst() {
+    if (editor().hidden) return;
+    if (!/^Unsaved/.test((($("sim-save-status") || {}).textContent || "").trim())) return;
+    const name = $("simulation-name");
+    if (name && !name.value.trim()) name.value = "New circuit";
+    $("save-simulation").click();
+    for (let i = 0; i < 60 && /^Unsaved/.test((($("sim-save-status") || {}).textContent || "").trim()); i++) await sleep(50);
+  }
   window.refreshSimulationOptions = () => {};
   window.showContentUsage = window.showContentUsage || (() => {});
 
@@ -125,6 +154,7 @@
         <div><h2 id="sim-shelf-title" class="shelf-title">Simulations</h2><p class="shelf-lede">Build a circuit on a breadboard: batteries, LEDs, switches, resistors, meters, logic gates and more, and see what lights up. Your circuits stay in this browser.</p></div>
         <div class="shelf-new"><button type="button" class="btn btn-accent" id="sim-shelf-new">New circuit</button></div>
       </header>
+      <div class="shelf-start-slot"></div>
       <div class="shelf-bar"><h3 class="shelf-sub">Your circuits <span class="shelf-count"></span></h3><div class="shelf-files"><button type="button" id="sim-shelf-open">Open a circuit file…</button><input type="file" id="sim-shelf-file" accept="application/json,.json" hidden></div></div>
       <p class="shelf-status" role="status"></p>
       <div class="shelf-grid sim-grid"></div>`;
@@ -166,7 +196,7 @@
     say("That circuit could not be opened.");
   }
   function wireShelf() {
-    shelf.querySelector("#sim-shelf-new").addEventListener("click", () => $("new-simulation-btn").click());
+    shelf.querySelector("#sim-shelf-new").addEventListener("click", () => newCircuit());
     shelf.querySelector("#sim-shelf-open").addEventListener("click", () => shelf.querySelector("#sim-shelf-file").click());
     shelf.querySelector("#sim-shelf-file").addEventListener("change", async (e) => {
       const file = e.target.files && e.target.files[0];
@@ -230,6 +260,36 @@
     }, true);
   }
 
+  // ---------- the Library panel ----------
+  function buildLibrary(inner) {
+    const cfg = {
+      id: "sim", host: inner, title: "Circuits", noun: "circuit", newLabel: "New circuit", startKey: START_KEY, startLabel: "New circuits start from", startOptions,
+      items: () => K.readList(KEY).slice().sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at))).map((s) => {
+        const n = s.data && Array.isArray(s.data.components) ? s.data.components.length : 0;
+        return { id: String(s.id), name: s.name, meta: `${n} part${n === 1 ? "" : "s"} · ${K.whenEdited(s.updated_at)}`, thumb: `<span class="sim-thumb">${circuitPicture(s.data)}</span>` };
+      }),
+      isOpen: (id) => !editor().hidden && openId !== null && String(openId) === id,
+      async onNew() { await saveFirst(); await newCircuit(); },
+      async onOpen(id) { await saveFirst(); await openCircuit(Number(id)); },
+      async onCopy(id) { await window.adminApi(`/simulations/${id}/duplicate`, { method: "POST" }); },
+      async onDelete(id) {
+        const s = K.readList(KEY).find((x) => String(x.id) === id);
+        if (!s || !window.confirm(`Delete "${s.name}" from this browser? This can't be undone.`)) return;
+        await window.adminApi(`/simulations/${id}`, { method: "DELETE" });
+        if (openId === s.id) { openId = null; editor().hidden = true; }
+      },
+      onStartChange() { fillShelfStart(); },
+    };
+    lib = K.library(cfg);
+    shelfStart = K.startSelect(Object.assign({}, cfg, { onStartChange() { lib.render(); } }));
+    shelf.querySelector(".shelf-start-slot").appendChild(shelfStart.el);
+    // The panel follows the builder's own save indicator and the circuit's name.
+    const status = $("sim-save-status");
+    if (status) new MutationObserver(() => lib.refresh()).observe(status, { childList: true, characterData: true, subtree: true });
+  }
+  let shelfStart = null;
+  const fillShelfStart = () => { if (shelfStart) shelfStart.fill(); };
+
   const editor = () => $("simulation-builder-modal");
   K.register({
     name: "simulations",
@@ -259,14 +319,18 @@
       K.wireSubDialogs(["sim-checklist-modal", "sim-model-modal", "sim-warnings-modal", "sim-connect-modal", "sim-sweep-modal"]);
       shelf = buildShelf();
       inner.prepend(shelf);
+      buildLibrary(inner);
       wireShelf();
       renderShelf();
     },
+    // The page opens on an empty board (or the template chosen in the panel), not on a shelf asking for a new circuit.
+    openStart() { return editor().hidden ? newCircuit() : undefined; },
     shown(open) {
       if (shelf) {
         shelf.hidden = open;
         if (!open) renderShelf();
       }
+      if (lib) lib.render();
     },
   });
 })();

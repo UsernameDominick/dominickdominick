@@ -15,6 +15,10 @@
   const VIEWER = "https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js";
   let shelf = null;
   let urls = [];
+  let lib = null; // the Library panel on a wide screen
+  let shelfStart = null;
+  let openId = null; // the saved scan the editor has open (null: a new one that was never saved)
+  const START_KEY = "scans.start";
 
   // ---------- the editor's calls, answered here ----------
   const FIELDS = ["name", "glb_key", "size", "usdz_key", "poster_key", "camera_orbit", "camera_target", "field_of_view"];
@@ -41,6 +45,7 @@
       const item = Object.assign(pick(body), { id: K.nextId(all), thumb: await snapshot(), updated_at: K.now() });
       if (!item.name) throw K.fail("Name is required");
       await list.put(item);
+      openId = item.id; // a new scan saved for the first time is the open one
       return { id: item.id };
     }
     const one = /^\/scans\/(\d+)$/.exec(p);
@@ -48,7 +53,10 @@
       const id = Number(one[1]);
       const item = await list.get(id);
       if (!item) throw K.fail("Scan not found", 404);
-      if (method === "GET") return item;
+      if (method === "GET") {
+        openId = id;
+        return item;
+      }
       if (method === "PATCH") {
         const old = { glb: item.glb_key, usdz: item.usdz_key };
         Object.assign(item, pick(body), { updated_at: K.now() });
@@ -90,6 +98,31 @@
     if (!/^local-scan-[a-z0-9]+$/.test(key)) return undefined;
     return files.get(key).then((f) => (f ? new Response(f.blob, { headers: { "Content-Type": f.type || "model/gltf-binary" } }) : new Response("", { status: 404 })));
   });
+  // What the page opens with: an empty viewer, or the scan that was edited last.
+  const startOptions = () => [{ value: "", label: "An empty viewer" }, { value: "last", label: "My last scan" }];
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  function newScan() {
+    openId = null;
+    $("new-scan-btn").click();
+  }
+  // At first (and when the open scan was deleted) the page opens the chosen start; a New scan button always means an empty viewer.
+  async function openStart() {
+    if (!editor().hidden) return;
+    if (K.startChoice(START_KEY, startOptions(), "") === "last") {
+      const all = (await list.all()).sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
+      if (all.length) return openScan(all[0].id);
+    }
+    newScan();
+  }
+  // A scan with changes not yet saved (and a model to keep) is saved before the editor moves on.
+  async function saveFirst() {
+    if (editor().hidden) return;
+    const status = (($("scan-save-status") || {}).textContent || "").trim();
+    const hasModel = /\(|Current file/.test(($("scan-glb-status") || {}).textContent || "");
+    if (!/^Unsaved/.test(status) || !hasModel) return;
+    $("save-scan-btn").click();
+    for (let i = 0; i < 100 && /^Unsaved/.test((($("scan-save-status") || {}).textContent || "").trim()); i++) await sleep(50);
+  }
   window.refreshScanOptions = () => {};
   window.showContentUsage = window.showContentUsage || (() => {});
 
@@ -135,6 +168,7 @@
         <div><h2 id="scan-shelf-title" class="shelf-title">Scans</h2><p class="shelf-lede">Look at a 3D scan or model from every side: open a .glb or .gltf file (from Polycam, a phone's LiDAR scanner or any 3D app), pick the view it opens on, and keep it here. Your scans stay in this browser.</p></div>
         <div class="shelf-new"><button type="button" class="btn btn-accent" id="scan-shelf-open">Open a 3D model…</button><input type="file" id="scan-shelf-file" accept=".glb,.gltf,model/gltf-binary,model/gltf+json" hidden></div>
       </header>
+      <div class="shelf-start-slot"></div>
       <div class="shelf-bar"><h3 class="shelf-sub">Your scans <span class="shelf-count"></span></h3></div>
       <p class="shelf-status" role="status"></p>
       <div class="shelf-grid scan-grid"></div>`;
@@ -264,6 +298,47 @@
     }, true);
   }
 
+  // ---------- the Library panel ----------
+  const thumbUrls = new Map(); // "id:updated_at" -> object URL for the panel's pictures
+  async function libItems() {
+    const all = (await list.all()).sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
+    const keep = new Set();
+    const out = all.map((sc) => {
+      let pic = `<span class="scan-thumb"><span class="scan-thumb-blank" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 20 7.5v9L12 21l-8-4.5v-9z"/><path d="M12 12 20 7.5M12 12v9M12 12 4 7.5"/></svg></span></span>`;
+      if (sc.thumb) {
+        const k = sc.id + ":" + sc.updated_at;
+        keep.add(k);
+        if (!thumbUrls.has(k)) thumbUrls.set(k, URL.createObjectURL(sc.thumb));
+        pic = `<span class="scan-thumb"><img src="${thumbUrls.get(k)}" alt="" decoding="async"></span>`;
+      }
+      const mb = sc.size ? `${(sc.size / 1048576).toFixed(1)} MB · ` : "";
+      return { id: String(sc.id), name: sc.name, meta: mb + K.whenEdited(sc.updated_at), thumb: pic };
+    });
+    thumbUrls.forEach((u, k) => { if (!keep.has(k)) { URL.revokeObjectURL(u); thumbUrls.delete(k); } });
+    return out;
+  }
+  function buildLibrary(inner) {
+    const cfg = {
+      id: "scan", host: inner, title: "Scans", noun: "scan", newLabel: "New scan", startKey: START_KEY, startLabel: "The page opens with", startOptions,
+      items: libItems,
+      isOpen: (id) => !editor().hidden && openId !== null && String(openId) === id,
+      async onNew() { await saveFirst(); newScan(); },
+      async onOpen(id) { await saveFirst(); await openScan(Number(id)); },
+      async onDelete(id) {
+        const sc = await list.get(Number(id));
+        if (!sc || !window.confirm(`Delete "${sc.name}" and its model from this browser? This can't be undone.`)) return;
+        await window.adminApi(`/scans/${id}`, { method: "DELETE" });
+        if (openId === sc.id) { openId = null; editor().hidden = true; }
+      },
+      onStartChange() { if (shelfStart) shelfStart.fill(); },
+    };
+    lib = K.library(cfg);
+    shelfStart = K.startSelect(Object.assign({}, cfg, { onStartChange() { lib.render(); } }));
+    shelf.querySelector(".shelf-start-slot").appendChild(shelfStart.el);
+    const status = $("scan-save-status");
+    if (status) new MutationObserver(() => lib.refresh()).observe(status, { childList: true, characterData: true, subtree: true });
+  }
+
   const editor = () => $("scan-editor-modal");
   K.register({
     name: "scans",
@@ -295,9 +370,12 @@
       watchViewer();
       shelf = buildShelf();
       inner.prepend(shelf);
+      buildLibrary(inner);
       wireShelf();
       renderShelf();
     },
+    // The page opens on an empty viewer (or the scan chosen in the panel), not on a shelf asking for a new one.
+    openStart,
     shown(open) {
       if (shelf) {
         shelf.hidden = open;
@@ -306,6 +384,7 @@
           renderShelf();
         }
       }
+      if (lib) lib.render();
     },
   });
 })();

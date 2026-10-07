@@ -325,6 +325,121 @@
     return days < 30 ? `Edited ${days} day${days === 1 ? "" : "s"} ago` : `Edited ${new Date(t).toLocaleDateString()}`;
   }
 
+
+  // ---------- the Library panel (a tool page's workspace) ----------
+  // The tool pages open straight into an empty item, with the visitor's saved things in a panel on the left (a screen 1100 px wide and up;
+  // the phone keeps its shelf behind the editor's back button) and a choice of what new ones start from, remembered per page.
+  const lsGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* not kept */ } };
+  const WIDE = "(min-width: 1100px)";
+  const isWide = () => !!(window.matchMedia && window.matchMedia(WIDE).matches);
+  // cfg = { id, host, title, noun, newLabel, items(): [{ id, name, meta, thumb }], onNew(), onOpen(id), onCopy?(id), onDelete?(id), isOpen?(id),
+  //         startKey, startLabel, startOptions(): [{ value, label }], onStartChange?() }
+  function library(cfg) {
+    const el = document.createElement("aside");
+    el.className = "app-library";
+    el.id = "app-library-" + cfg.id;
+    el.setAttribute("aria-label", cfg.title);
+    el.innerHTML = `<div class="studio-panel-head"><h2>${esc(cfg.title)} <span class="lib-count"></span></h2>
+        <button type="button" class="studio-panel-fold" aria-expanded="true" aria-controls="${el.id}-body" aria-label="Hide the ${esc(cfg.title.toLowerCase())} panel" title="Hide the ${esc(cfg.title.toLowerCase())} panel">←</button></div>
+      <div id="${el.id}-body" class="studio-panel-body">
+        <button type="button" class="btn btn-accent lib-new">${esc(cfg.newLabel)}</button>
+        <label class="lib-start field"><span class="field-label">${esc(cfg.startLabel)}</span><select class="lib-start-select"></select></label>
+        <ul class="lib-list"></ul>
+      </div>
+      <button type="button" class="studio-panel-handle" aria-expanded="false" aria-controls="${el.id}-body" title="Show the ${esc(cfg.title.toLowerCase())} panel"><span>${esc(cfg.title)}</span></button>`;
+    cfg.host.classList.add("has-library");
+    cfg.host.prepend(el);
+    const foldKey = cfg.id + ".libPanel";
+    const setFold = (on) => {
+      lsSet(foldKey, on ? "folded" : "open");
+      cfg.host.classList.toggle("lib-folded", on);
+      el.querySelectorAll(".studio-panel-fold, .studio-panel-handle").forEach((b) => b.setAttribute("aria-expanded", String(!on)));
+    };
+    setFold(lsGet(foldKey) === "folded");
+    const select = el.querySelector(".lib-start-select");
+    const fillStart = () => {
+      const opts = cfg.startOptions();
+      const now = lsGet(cfg.startKey);
+      select.innerHTML = opts.map((o) => `<option value="${esc(o.value)}"${o.value === now ? " selected" : ""}>${esc(o.label)}</option>`).join("");
+      if (!opts.some((o) => o.value === now)) select.value = opts[0] ? opts[0].value : "";
+      el.querySelector(".lib-start").hidden = opts.length < 2; // nothing to choose between
+    };
+    select.addEventListener("change", () => {
+      lsSet(cfg.startKey, select.value);
+      if (cfg.onStartChange) cfg.onStartChange();
+    });
+    let sig = "";
+    let busy = false;
+    async function render() {
+      if (busy) return;
+      busy = true;
+      try {
+        fillStartIfChanged();
+        const items = await cfg.items();
+        const open = cfg.isOpen ? items.map((i) => cfg.isOpen(i.id)) : [];
+        const next = JSON.stringify([items.map((i) => [i.id, i.name, i.meta]), open]);
+        el.querySelector(".lib-count").textContent = items.length ? `(${items.length})` : "";
+        if (next === sig) return;
+        sig = next;
+        el.querySelector(".lib-list").innerHTML = items.length
+          ? items.map((i, n) => `<li class="lib-item${open[n] ? " is-open" : ""}" data-id="${esc(i.id)}">
+              <button type="button" class="lib-open" data-act="open" aria-label="Open ${esc(i.name)}"${open[n] ? ' aria-current="true"' : ""}>${i.thumb || ""}<span class="lib-name">${esc(i.name)}</span><span class="lib-meta">${esc(i.meta || "")}</span></button>
+              <span class="lib-actions">${cfg.onCopy ? `<button type="button" data-act="copy" aria-label="Make a copy of ${esc(i.name)}">Copy</button>` : ""}${cfg.onDelete ? `<button type="button" data-act="delete" aria-label="Delete ${esc(i.name)}">Delete</button>` : ""}</span>
+            </li>`).join("")
+          : `<li class="lib-empty">Nothing saved yet. What you make is kept here, in this browser.</li>`;
+      } finally {
+        busy = false;
+      }
+    }
+    let startSig = "";
+    function fillStartIfChanged() {
+      const s = JSON.stringify(cfg.startOptions()) + lsGet(cfg.startKey);
+      if (s === startSig) return;
+      startSig = s;
+      fillStart();
+    }
+    el.addEventListener("click", async (e) => {
+      if (e.target.closest(".studio-panel-fold")) { setFold(true); el.querySelector(".studio-panel-handle").focus(); return; }
+      if (e.target.closest(".studio-panel-handle")) { setFold(false); el.querySelector(".studio-panel-fold").focus(); return; }
+      if (e.target.closest(".lib-new")) return cfg.onNew();
+      const btn = e.target.closest("button[data-act]");
+      const row = btn && btn.closest(".lib-item");
+      if (!row) return;
+      const id = row.dataset.id;
+      const act = btn.dataset.act;
+      if (act === "open") await cfg.onOpen(id);
+      else if (act === "copy") await cfg.onCopy(id);
+      else if (act === "delete") await cfg.onDelete(id);
+      sig = "";
+      render();
+    });
+    render();
+    return { el, render: () => { sig = ""; return render(); }, refresh: render };
+  }
+  // The same choice as a field for a shelf (a phone has no panel): `cfg` is the library's { startKey, startLabel, startOptions }.
+  function startSelect(cfg) {
+    const label = document.createElement("label");
+    label.className = "field shelf-start";
+    label.innerHTML = `<span class="field-label">${esc(cfg.startLabel)}</span><select></select>`;
+    const select = label.querySelector("select");
+    const fill = () => {
+      const opts = cfg.startOptions();
+      const now = lsGet(cfg.startKey);
+      select.innerHTML = opts.map((o) => `<option value="${esc(o.value)}"${o.value === now ? " selected" : ""}>${esc(o.label)}</option>`).join("");
+      if (!opts.some((o) => o.value === now)) select.value = opts[0] ? opts[0].value : "";
+      label.hidden = opts.length < 2;
+    };
+    select.addEventListener("change", () => { lsSet(cfg.startKey, select.value); if (cfg.onStartChange) cfg.onStartChange(); });
+    fill();
+    return { el: label, fill };
+  }
+  // What a page starts new things from: the saved choice, or the first option when it is gone.
+  function startChoice(key, options, fallback) {
+    const now = lsGet(key);
+    return options.some((o) => o.value === now) ? now : fallback;
+  }
+
   // ---------- the page life ----------
   // app = { name, mountId, shellClass, loadingText, scripts, dialogs: [ids taken from the admin page], editor: () => the dialog that is
   //         the editor, prepare(shell) before the scripts load, build(shell) after they ran (makes the shelf), onLeave(), shown(editorOpen), park()/unpark() optional }
@@ -359,7 +474,13 @@
       if (app.prepare) app.prepare(inner); // anything the tool's scripts look up as they load
       await loadScripts(app.scripts);
       await app.build(inner);
-      new MutationObserver(() => app.shown(!editor().hidden)).observe(editor(), { attributes: true, attributeFilter: ["hidden"] });
+      // A tool page opens straight into an empty item (app.openStart), not onto a shelf that asks for a new one.
+      if (app.openStart) await app.openStart();
+      new MutationObserver(() => {
+        app.shown(!editor().hidden);
+        // On a wide screen the Library panel stands for the shelf, so an editor that closes (the open item was deleted) opens a fresh one.
+        if (app.openStart && (app.wideQuery ? window.matchMedia(app.wideQuery).matches : isWide())) setTimeout(() => { if (shell && !(parking && parking.contains(shell)) && editor().hidden) app.openStart(); }, 0);
+      }).observe(editor(), { attributes: true, attributeFilter: ["hidden"] });
       app.shown(!editor().hidden);
     }
     async function bootStandalone(mount) {
@@ -443,5 +564,5 @@
   // page-slide.js / nav.js call this for every page that slides in.
   window.siteInitApps = (root) => apps.forEach((a) => a.init(root));
 
-  window.SiteAppKit = { esc, fail, wireSubDialogs, addApi, addFetch, addMediaFetch, jsonResponse, readList, writeList, nextId, now, cleanName, presetApi, fileStore, whenEdited, register };
+  window.SiteAppKit = { esc, fail, wireSubDialogs, addApi, addFetch, addMediaFetch, jsonResponse, readList, writeList, nextId, now, cleanName, presetApi, fileStore, whenEdited, library, startSelect, startChoice, isWide, register };
 })();

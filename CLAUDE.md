@@ -146,7 +146,7 @@ The admin opens on the page itself. `page-first.js` puts the page chooser (`.adm
 - **The builder's markup lives in `public/admin/index.html`**: if that page is ever restructured, keep those ids (or move the markup to a shared file and load it from both); `tests/app-pages.test.mjs` fails when an app asks for a dialog id that is not on the admin page. Something the builder looks up at start that is not inside those three dialogs has to be added in `prepare`.
 - `tests/e2e/test_studio_page.js` covers it as a visitor (shelf, save, Songs, card play, copy/delete, slide away and back, a phone).
 
-## App pages (Studio, PicEditor, Simulations, Scans)
+## App pages (Studio, PicEditor, Simulations, Scans; the Trainer is a standalone one)
 
 Admin tools as pages every visitor can use, built on **`public/app-kit.js`** (`window.SiteAppKit`) with
 `public/app-kit.css`. Each one is an entry in `worker/app-pages.js` (`APP_PAGES`: path, nav slug, words, `mountId`, script; `index.js`
@@ -179,6 +179,14 @@ routes them, `render.js` adds `/app-kit.js` + the app script, `sitemap.js` lists
   its own, and the Studio's `/templates` only answers `kind=song`), so all the apps can be open in one visit. A new app adds an `APP_PAGES` entry,
   a built-in nav link, a reserved slug and its script to `LOADABLE`; `tests/app-pages.test.mjs` checks they agree.
 - On a phone the nav is a dial that shows about five stops at a time (see "The nav is a camera dial").
+
+## Workspace pages: the Library panel and "starts from"
+
+PicEditor, Simulations, Scans and the Studio **open straight into an empty item** (no "start a new one" shelf first). Each app's `register({...})` has `openStart()` (kit calls it after `build`, and again when the editor closes on a wide screen, `wideQuery`), and each remembers what new things start from in localStorage (`piceditor.start` = a size like `1080x1080`, `simulations.start` = a circuit template id or "", `scans.start` = "" or "last", `studio.start` = a value of `#song-template-picker`). **Library panel:** `K.library(cfg)` in `app-kit.js` (the saved things on the left of the editor from 1100 px, foldable, `cfg.items/onNew/onOpen/onCopy/onDelete/isOpen/startOptions`; `.app-library`, `.lib-*` in `app-kit.css`; the editor modals are pushed right with `left: var(--lib-w)` and the editor's back button is hidden while the panel shows). `K.startSelect(cfg)` is the same choice as a field on the phone's shelf (hidden when there is only one option). The Studio keeps its own Songs panel (from 1280 px, `wideQuery`) and only adds the "New songs start from" select to it. Moving to another item first saves an unsaved circuit/scan/song (PicEditor asks, using `PhotoEditor.edits()` against the value at its last save), so nothing is lost. The shelf behind the back button is still there for a phone.
+
+## The Trainer page (/trainer)
+
+An aim trainer, the first nav tab (left of Studio). The one **standalone** app page: `register({ standalone: true })` in `app-kit.js` skips the admin page, its dialogs and the scoped admin stylesheet (only `app-kit.css` loads, as `#app-kit-lite-css`); `public/trainer.js` is the UI and `public/trainer-logic.js` the pure rules (`window.TrainerLogic`: settings limits, target placement, tracking movement, scoring, history; `tests/trainer-logic.test.mjs`). Drills: `gridshot` (3 targets on a 3 x 3 grid), `tracking` (hold the button on a moving target, time on target is the score), `flick` (one target, always far from the last). Targets are DOM elements moved with `transform`; the hit test is ours (`L.hit`) so "Capture the mouse like a game" (pointer lock, `moveAim` with the sensitivity) shares it. Kept in this browser: `trainer.settings.v1`, `trainer.history.v1` (60 runs), `trainer.start.v1` ("Opens with"), `trainer.last.v1`, panel folds. Nothing is sent anywhere. `tests/e2e/test_trainer.js` covers it.
 
 ## Hidden Notes
 

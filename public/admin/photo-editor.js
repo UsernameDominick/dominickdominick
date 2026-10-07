@@ -5783,6 +5783,10 @@
       });
       return { ok: true };
     },
+    // How many edits (and undos) this session has seen; a page that keeps pictures compares it with the value at its last save.
+    edits() {
+      return editVersion;
+    },
     // A brand-new, fully transparent canvas has no source image to
     // compare against or overwrite. initEditorSession hides Overwrite while
     // originalKey is null, leaving only "Save as new".

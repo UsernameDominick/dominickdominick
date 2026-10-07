@@ -264,6 +264,14 @@
   // ---------- the Songs panel: on a wide screen the songs sit beside the editor, for switching without leaving it ----------
   // (The stylesheet shows it from 1280 px, next to the Sound panel song-studio.js builds on the right; it can be folded away to give the
   // music the whole width.) A tap on a song saves the open one first, exactly as the Songs button does, then opens that one.
+  const START_KEY = "studio.start";
+  // What a new song starts from: Blank, a starter or one of the visitor's templates (the values of the editor's own template menu).
+  const startValue = () => {
+    const picker = $("song-template-picker");
+    let saved = null;
+    try { saved = localStorage.getItem(START_KEY); } catch (e) { /* none */ }
+    return picker && saved !== null && [...picker.options].some((o) => o.value === saved) ? saved : "";
+  };
   let songsPanel = null;
   let panelSig = "";
   let switching = false;
@@ -291,7 +299,7 @@
     // A song that has not been saved yet (a starter or a new one before its first change) is not in the list, but it is open: show it.
     const modal = $("song-builder-modal");
     const draftName = cur == null && modal && !modal.hidden ? ($("song-name").value || "").trim() || "New song" : null;
-    const sig = list.map((x) => `${x.id}:${x.name}:${x.updated_at}`).join("|") + "#" + cur + "#" + (picker ? picker.options.length : 0) + "#" + draftName;
+    const sig = startValue() + "~" + list.map((x) => `${x.id}:${x.name}:${x.updated_at}`).join("|") + "#" + cur + "#" + (picker ? picker.options.length : 0) + "#" + draftName;
     if (sig === panelSig) return;
     panelSig = sig;
     songsPanel.querySelector(".studio-songs-count").textContent = list.length ? `(${list.length})` : "";
@@ -313,9 +321,13 @@
           .join("")}</ul>`
       : `<p class="studio-songs-empty">No songs yet. Your first one is kept as soon as you change anything.</p>`;
     const opts = picker ? [...picker.options].filter((o) => o.value && o.value.startsWith("starter:")) : [];
-    songsPanel.querySelector(".studio-songs-starters").innerHTML = opts.length
+    const all = picker ? [...picker.options] : [];
+    const now = startValue();
+    songsPanel.querySelector(".studio-songs-starters").innerHTML = (opts.length
       ? `<h3>Start from</h3><div class="studio-songs-chips">${opts.map((o) => `<button type="button" class="shelf-chip" data-start="${esc(o.value)}">${esc(o.textContent.replace(/^Starter:\s*/i, ""))}</button>`).join("")}</div>`
-      : "";
+      : "") + (all.length > 1
+      ? `<label class="field studio-start"><span class="field-label">New songs start from</span><select id="studio-start-select">${all.map((o) => `<option value="${esc(o.value)}"${o.value === now ? " selected" : ""}>${esc(o.value ? o.textContent.replace(/^Starter:\s*/i, "Starter: ") : "A blank song")}</option>`).join("")}</select></label>`
+      : "");
   }
   async function switchSong(id) {
     if (switching || id === openSongId()) return;
@@ -334,7 +346,7 @@
     try {
       stopShelf();
       await flushSave();
-      $("song-template-picker").value = starter || "";
+      $("song-template-picker").value = starter === undefined ? startValue() : starter || "";
       $("new-song-btn").click();
     } finally {
       switching = false;
@@ -362,6 +374,12 @@
       el.querySelectorAll(".studio-panel-fold, .studio-panel-handle").forEach((b) => b.setAttribute("aria-expanded", String(!on)));
     };
     setFold(folded());
+    el.addEventListener("change", (e) => {
+      if (e.target.id !== "studio-start-select") return;
+      try { localStorage.setItem(START_KEY, e.target.value); } catch (err) { /* not kept */ }
+      const picker = $("song-template-picker");
+      if (picker) picker.value = e.target.value;
+    });
     el.addEventListener("click", async (e) => {
       if (e.target.closest(".studio-panel-fold")) {
         setFold(true);
@@ -373,7 +391,7 @@
         el.querySelector(".studio-panel-fold").focus();
         return;
       }
-      if (e.target.closest(".studio-songs-new")) return newSong("");
+      if (e.target.closest(".studio-songs-new")) return newSong();
       const chip = e.target.closest(".shelf-chip");
       if (chip) return newSong(chip.dataset.start);
       const btn = e.target.closest("button[data-act]");
@@ -489,10 +507,27 @@
       wireShelf();
       const studio = $("song-studio");
       if (studio) buildSongsPanel(studio);
+      // The shelf's own New song button starts from the chosen starter too: keep the (hidden) menu on it whenever its options are refilled.
+      const picker = $("song-template-picker");
+      if (picker) new MutationObserver(() => { picker.value = startValue(); }).observe(picker, { childList: true });
       keepDrafts();
       saveBeforeShelf(inner);
       $("songs-btn").click(); // loads the editor's list and its starters
     },
+    // The page opens on an empty song (or what "New songs start from" says), not on a shelf asking for a new one. The editor's template menu
+    // fills in a moment after its list is asked for, so wait for it.
+    async openStart() {
+      const modal = $("song-builder-modal");
+      if (!modal || !modal.hidden) return;
+      const picker = $("song-template-picker");
+      for (let i = 0; i < 60 && picker && picker.options.length < 2; i++) await sleep(30);
+      if (!modal.hidden) return;
+      if (picker) picker.value = startValue();
+      $("new-song-btn").click();
+      const list = $("songs-modal");
+      if (list) list.hidden = true;
+    },
+    wideQuery: "(min-width: 1280px)",
     // The shelf shows whenever the editor is closed.
     shown(open) {
       if (!shelf) return;
