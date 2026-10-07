@@ -9511,3 +9511,23 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 .studio-tip[hidden] { display: none; }
 .studio-tip span { flex: 1 1 auto; min-width: 0; }
 .studio-tip button { flex: 0 0 auto; min-height: 34px; padding: 0 12px; font-size: 0.82rem; }
+
+/* the narrowest phones (320 px): the transport and its tempo box must fit */
+@media (max-width: 340px) {
+  .studio-controls { gap: 4px; padding: 5px 6px; }
+  .studio-controls > .studio-hub { padding-right: 40px; }
+  .studio-bpm input, #song-builder-modal #song-studio .studio-bpm input { width: 44px; }
+  .studio-play { width: 42px; height: 42px; }
+  .studio-controls .studio-round, .studio-transport .studio-round { width: 36px; height: 36px; min-height: 36px; }
+}
+@media (max-width: 340px) {
+  #song-builder-modal #song-studio #studio-undo, #song-builder-modal #song-studio #studio-redo { display: none; }
+}
+@media (max-width: 340px) {
+  #song-builder-modal #song-studio .studio-card-main { padding-inline: 2px; overflow: hidden; }
+}
+@media (max-width: 340px) {
+  #song-builder-modal #song-studio .studio-card-head { gap: 2px; }
+  #song-builder-modal #song-studio .studio-card-name { font-size: 0.78rem; }
+  #song-builder-modal #song-studio .studio-badge { width: 18px; height: 18px; font-size: 0.65rem; min-width: 0; }
+}
