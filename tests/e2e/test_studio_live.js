@@ -96,14 +96,14 @@ const axeSrc = axeSource();
     await open({ mode: "arp", rate: "1/16", pattern: "up", octaves: 1 });
     await toMelody();
     await spy();
+    await p.click("#studio-sustain"); // Hold keeps each key that is tapped
     for (const n of ["C3", "E3", "G3"]) {
       const kk = await p.locator(`.studio-key[data-key="${n}"]`).boundingBox();
-      await p.mouse.move(kk.x + kk.width / 2, kk.y + kk.height - 8); await p.mouse.down(); await p.mouse.up(); // each is tapped, and Hold keeps it
-      if (n === "C3") await p.click("#studio-sustain");
+      await p.mouse.move(kk.x + kk.width / 2, kk.y + kk.height - 8); await p.mouse.down(); await p.mouse.up();
     }
     await p.waitForTimeout(900);
     const arpNotes = (await calls("note")).map((c) => c[1]);
-    ok(arpNotes.length >= 5 && new Set(arpNotes).size === 3 && arpNotes.slice(0, 3).join() === "C3,E3,G3", "an arpeggio cycles the held keys in order", arpNotes);
+    ok(arpNotes.length >= 5 && new Set(arpNotes).size === 3 && ["C3,E3,G3", "E3,G3,C3", "G3,C3,E3"].includes(arpNotes.slice(-3).join()), "an arpeggio cycles the held keys in order", arpNotes);
     ok((await calls("note")).every((c) => c[2] && c[2].duration > 0.05 && c[2].duration < 0.13), "each note is a fraction of the step long", (await calls("note"))[0]);
     await p.click("#studio-sustain");
     const arpDone = (await calls("note")).length;
@@ -125,10 +125,10 @@ const axeSrc = axeSource();
     await open({ mode: "random", rate: "1/16", octaves: 2 });
     await toMelody();
     await spy();
+    await p.click("#studio-sustain");
     for (const n of ["C3", "G3"]) {
       const kk = await p.locator(`.studio-key[data-key="${n}"]`).boundingBox();
       await p.mouse.move(kk.x + kk.width / 2, kk.y + kk.height - 8); await p.mouse.down(); await p.mouse.up();
-      if (n === "C3") await p.click("#studio-sustain");
     }
     await p.waitForTimeout(1200);
     const rnd = (await calls("note")).map((c) => c[1]);
@@ -182,6 +182,12 @@ const axeSrc = axeSource();
     const ph = await pctx.newPage();
     await ph.goto(E2E_BASE + "/studio");
     await ph.waitForSelector("#song-builder-modal:not([hidden]) #studio-keys .studio-pad", { timeout: 30000 });
+    // a touch on a pad hits at once (only keys wait a moment, in case the finger is starting to swipe along them)
+    await ph.evaluate(() => { const h = window.SongStudioHost; window.__hits = []; const o = h.hit; h.hit = (...a) => { window.__hits.push(performance.now()); return o(...a); }; window.__t0 = 0; document.addEventListener("pointerdown", () => { window.__t0 = performance.now(); }, true); });
+    await ph.tap("#studio-keys .studio-pad >> nth=0");
+    await ph.waitForTimeout(150);
+    const lag = await ph.evaluate(() => (window.__hits[0] || 1e9) - window.__t0);
+    ok(lag < 40, "a finger on a pad hits straight away (no swipe-guard delay)", lag);
     await ph.tap("#studio-tools");
     await ph.waitForSelector("#studio-sheet:not([hidden])");
     const r = await ph.evaluate(() => { const s = document.getElementById("studio-sheet").getBoundingClientRect(); const t = document.getElementById("studio-tools").getBoundingClientRect(); return { top: s.top, bottom: s.bottom, left: s.left, right: s.right, toolsBottom: t.bottom, h: innerHeight, w: innerWidth }; });

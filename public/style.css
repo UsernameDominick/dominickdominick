@@ -225,6 +225,7 @@ body {
 
 .page {
   min-height: 100vh;
+  min-height: 100dvh; /* a phone's address bar comes and goes: 100vh alone is taller than what is on screen */
   display: flex;
   flex-direction: column;
 }
@@ -4405,6 +4406,8 @@ main h2 > a:only-child, .thought h2 a { max-width: 100%; overflow-wrap: anywhere
 /* An app page: header on top, the Studio filling the rest of the screen, no footer and no page scroll (the Studio scrolls itself where it must). */
 body:has(.studio-canvas) { height: 100vh; height: 100dvh; overflow: hidden; }
 body:has(.studio-canvas) .site-footer { display: none; }
+/* the app pages are exactly the visible screen (not the larger 100vh of a phone with its address bar showing), so nothing sits under the browser's bottom bar */
+body:has(.studio-canvas) .page { min-height: 0; height: 100%; }
 .canvas.studio-canvas { min-height: 0; }
 
 /* ---- The default look of every button and field ----

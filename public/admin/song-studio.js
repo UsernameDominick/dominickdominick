@@ -1563,7 +1563,7 @@
     if (e.button > 0) return;
     const el = e.target.closest && e.target.closest("[data-key], [data-pad]");
     if (!el) return;
-    if (e.pointerType === "touch") {
+    if (e.pointerType === "touch" && !el.dataset.pad) {
       // a finger may be starting to swipe along the keyboard: play once it has stayed put for a moment (or lifts, which is a tap)
       const t = { el, x: e.clientX, y: e.clientY, e: { clientY: e.clientY, pressure: e.pressure, pointerType: e.pointerType } };
       t.timer = setTimeout(() => {
