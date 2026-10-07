@@ -9146,6 +9146,7 @@
   });
   el("save-settings").addEventListener("click", async () => {
     try {
+      await saveNavigation(); // the links in the bar are saved by this button too, not only by "Save navigation"
       await api("/settings", {
         method: "PUT",
         body: JSON.stringify({
@@ -9307,8 +9308,9 @@
     const added = el("nav-editor").querySelector(`.nav-row[data-id="${id}"] [data-field="label"]`);
     if (added) added.focus();
   });
-  el("nav-save-btn").addEventListener("click", async () => {
-    const status = el("nav-save-status");
+  // Writes the bar back page by page and returns how many pages changed (0 = nothing to save). The Save button at the bottom of Site
+  // Settings (and Ctrl+S) calls this too: otherwise a renamed link was dropped when that button closed the dialog.
+  async function saveNavigation() {
     const rows = navDisplayRows();
     const wanted = new Map(rows.map((r, i) => [r.id, { nav_label: r.label.trim() || null, nav_order: (i + 1) * 10, nav_parent_id: r.parentId || null, nav_admin_only: !!r.adminOnly }]));
     const changes = [];
@@ -9321,18 +9323,19 @@
       if (!!p.nav_admin_only !== want.nav_admin_only) body.nav_admin_only = want.nav_admin_only;
       if (Object.keys(body).length) changes.push({ id: p.id, body });
     }
-    if (!changes.length) {
-      status.textContent = "Nothing to save.";
-      return;
-    }
+    if (!changes.length) return 0;
     // Un-nesting goes first, so a page is never nested under one that is itself still nested.
     changes.sort((a, b) => (a.body.nav_parent_id === null ? 0 : 1) - (b.body.nav_parent_id === null ? 0 : 1));
+    for (const c of changes) await api(`/pages/${c.id}`, { method: "PATCH", body: JSON.stringify(c.body) });
+    await loadPages();
+    await loadNavEditor();
+    return changes.length;
+  }
+  el("nav-save-btn").addEventListener("click", async () => {
+    const status = el("nav-save-status");
     status.textContent = "Saving…";
     try {
-      for (const c of changes) await api(`/pages/${c.id}`, { method: "PATCH", body: JSON.stringify(c.body) });
-      await loadPages();
-      await loadNavEditor();
-      status.textContent = "Saved " + new Date().toLocaleTimeString();
+      status.textContent = (await saveNavigation()) ? "Saved " + new Date().toLocaleTimeString() : "Nothing to save.";
     } catch (err) {
       status.textContent = "Couldn't save: " + err.message;
       alert(err.message);

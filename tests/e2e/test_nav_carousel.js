@@ -162,7 +162,12 @@ const rulerOk = (r) => r.stops > 0 && r.majors === r.stops && r.stopOff <= 0.5 /
     if (tabs.includes("/studio")) {
       await p.evaluate(() => document.querySelector('.tabs a.tab[href="/studio"]').click());
       await p.waitForFunction(() => location.pathname === "/studio" && !document.querySelector(".page-stage"), null, { timeout: 15000 });
-      await p.waitForSelector("#studio-mount .studio-native", { timeout: 60000 }); // the Studio boots slowly when a full run has the machine busy
+      await p.waitForSelector("#studio-mount .studio-native", { timeout: 60000 }).catch(async (e) => {
+        // say what state the Studio was in, so a failure explains itself
+        const d = await p.evaluate(() => { const sh = document.querySelector(".studio-native"); const m = document.getElementById("studio-mount"); return { path: location.pathname, shell: !!sh, shellIn: sh && sh.parentElement && (sh.parentElement.id || sh.parentElement.className), mount: m ? m.innerHTML.slice(0, 160) : null, parked: [...document.querySelectorAll("#app-parking > *")].map((x) => x.className), scripts: [...document.scripts].map((x) => x.getAttribute("src")).filter(Boolean).slice(-8), fallback: sessionStorage.getItem("slideFallback") }; }).catch((x) => ({ error: String(x) }));
+        console.log("FAIL the Studio shell did not show " + JSON.stringify(d));
+        throw e;
+      });
       ok(await p.evaluate(() => window.__sameDocument === true), "the Studio comes along in the slide");
     }
     await p.goBack();

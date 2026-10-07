@@ -58,7 +58,19 @@
   // ---------- the shared parts, fetched once ----------
   let parts = null;
   function adminParts() {
-    const text = (url) => fetch(url, { credentials: "omit" }).then((r) => { if (!r.ok) throw new Error("This could not be loaded."); return r.text(); });
+    // One flaky request must not leave a tool broken: each file is tried three times before giving up.
+    const text = async (url) => {
+      for (let i = 0; ; i++) {
+        try {
+          const r = await fetch(url, { credentials: "omit" });
+          if (r.ok) return await r.text();
+        } catch (e) {
+          /* tried again below */
+        }
+        if (i >= 2) throw new Error("This could not be loaded.");
+        await wait(400 * (i + 1));
+      }
+    };
     if (!parts) {
       parts = Promise.all([text("/admin/index.html"), text("/admin/style.css"), text("/app-kit.css")]).then(([page, css, own]) => ({
         doc: new DOMParser().parseFromString(page, "text/html"),
@@ -78,20 +90,35 @@
     document.head.appendChild(style);
   }
   const loaded = {};
+  const wait = (ms) => new Promise((done) => setTimeout(done, ms));
+  // A script that fails to arrive (a flaky connection, a busy server) is asked for again, up to three times, before the tool gives up.
   function loadScript(src) {
     if (loaded[src]) return loaded[src];
     if ([].some.call(document.querySelectorAll("script[src]"), (s) => (s.getAttribute("src") || "").split("?")[0] === src)) return (loaded[src] = Promise.resolve());
-    loaded[src] = new Promise((resolve, reject) => {
-      const s = document.createElement("script");
-      s.src = src;
-      s.async = false;
-      s.onload = resolve;
-      s.onerror = () => {
-        delete loaded[src];
-        reject(new Error("Could not load " + src));
-      };
-      document.body.appendChild(s);
-    });
+    loaded[src] = (async () => {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          await new Promise((resolve, reject) => {
+            const s = document.createElement("script");
+            s.src = src;
+            s.async = false;
+            s.onload = resolve;
+            s.onerror = () => {
+              s.remove();
+              reject(new Error("Could not load " + src));
+            };
+            document.body.appendChild(s);
+          });
+          return;
+        } catch (err) {
+          if (attempt >= 2) {
+            delete loaded[src];
+            throw err;
+          }
+          await wait(500 * (attempt + 1));
+        }
+      }
+    })();
     return loaded[src];
   }
   async function loadScripts(list) {
@@ -352,7 +379,8 @@
           console.error(err);
           booting = null;
           shell = null;
-          mount.innerHTML = `<p class="studio-loading app-loading" role="alert">${esc(err && err.message ? err.message : "This could not be loaded.")}</p>`;
+          mount.innerHTML = `<div class="studio-loading app-loading" role="alert"><p>${esc(err && err.message ? err.message : "This could not be loaded.")}</p><button type="button" class="btn app-retry">Try again</button></div>`;
+          mount.querySelector(".app-retry").addEventListener("click", () => init(document));
         });
     }
     document.addEventListener("site:leave", () => {
