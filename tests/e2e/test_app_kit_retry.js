@@ -13,7 +13,7 @@ const { chromium } = require("./_pw.cjs");
       await p.route("**/admin/song-builder.js", (r) => (blocked++ < 2 ? r.abort() : r.continue()));
       const errs = []; p.on("pageerror", (e) => errs.push(e.message));
       await p.goto(E2E_BASE + "/studio");
-      const built = await p.waitForSelector("#studio-mount .studio-shelf:not([hidden])", { timeout: 30000 }).then(() => true).catch(() => false);
+      const built = await p.waitForSelector("#studio-mount #song-builder-modal:not([hidden])", { timeout: 30000 }).then(() => true).catch(() => false);
       ok(built && blocked === 3, "a script that fails twice is asked for again and the Studio still builds", { built, requests: blocked });
       ok(errs.length === 0, "with no page errors", errs);
       await p.context().close();
@@ -30,7 +30,7 @@ const { chromium } = require("./_pw.cjs");
       ok(over <= 0, "and the message fits a phone", over);
       down = false;
       await p.tap("#studio-mount .app-retry");
-      const built = await p.waitForSelector("#studio-mount .studio-shelf:not([hidden])", { timeout: 30000 }).then(() => true).catch(() => false);
+      const built = await p.waitForSelector("#studio-mount #song-builder-modal:not([hidden])", { timeout: 30000 }).then(() => true).catch(() => false);
       ok(built, "Try again builds the Studio once the connection is back");
       await p.context().close();
     }
