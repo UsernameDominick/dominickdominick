@@ -22,7 +22,7 @@
   </main>
 
   <div id="app" class="admin-app" hidden>
-    <aside class="admin-sidebar" id="admin-sidebar" aria-label="Admin menu">
+    <aside class="admin-sidebar" id="admin-sidebar" aria-label="Admin menu" data-win="tools">
       <div class="admin-sidebar-header">
         <button id="close-site-menu" class="mobile-only close-drawer" aria-label="Close">×</button>
         <strong class="brand-label">dominick.dominick</strong>
@@ -80,7 +80,7 @@
     <div class="admin-main">
       <header class="admin-header">
         <h1 class="sim-sr-only">Site admin</h1>
-        <button id="site-menu-btn" class="mobile-only" aria-label="Menu">☰</button>
+        <button id="site-menu-btn" class="mobile-only" aria-label="Menu"><span class="px px-menu" aria-hidden="true"></span></button>
         <button id="mobile-menu-btn" class="mobile-only" aria-label="Add block">+ Block</button>
         <div class="admin-sidebar-pages">
           <select id="page-picker" aria-label="Page to edit"></select>
@@ -101,7 +101,7 @@
           <button type="button" id="page-settings-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="palette" title="This page's title, address, navigation and search settings">Page settings</button>
         </div>
         <div class="panel-toggles" role="group" aria-label="Side panels">
-          <button type="button" id="sidebar-toggle-btn" aria-pressed="true" title="Show or hide the tools menu: articles, projects, media, songs, settings and the rest (Ctrl+B)">☰ Tools</button>
+          <button type="button" id="sidebar-toggle-btn" aria-pressed="true" title="Show or hide the tools menu: articles, projects, media, songs, settings and the rest (Ctrl+B)"><span class="px px-menu" aria-hidden="true"></span> Tools</button>
           <button type="button" id="inspector-toggle-btn" aria-pressed="true" title="Show or hide the block inspector">Inspector</button>
         </div>
         <div class="admin-header-right" id="admin-header-right">
@@ -125,7 +125,7 @@
     </div>
 
     <div class="admin-body-layout">
-      <aside id="palette" class="admin-palette" aria-label="Add blocks">
+      <aside id="palette" class="admin-palette" aria-label="Add blocks" data-win="add a block">
         <button id="close-palette" class="mobile-only close-drawer" aria-label="Close">×</button>
         <div class="drawer-scroll-content">
         <div class="panel-switch seg-control" role="tablist" aria-label="Left panel">
@@ -264,7 +264,7 @@
         <div id="canvas" class="admin-canvas"></div>
       </main>
 
-      <aside id="inspector" class="admin-inspector" aria-label="Block inspector" hidden>
+      <aside id="inspector" class="admin-inspector" aria-label="Block inspector" data-win="inspector" hidden>
         <button id="close-inspector" class="mobile-only close-drawer" aria-label="Close">×</button>
         <div class="drawer-scroll-content">
         <div id="single-block-inspector">

@@ -1704,7 +1704,7 @@ async function renderBlockInner(env, block, ctx) {
         .map(
           (a) =>
             `<article class="thought${a.pinned ? " thought-pinned" : ""}">${
-              a.featured ? `<span class="featured-badge">★ Featured</span>` : ""
+              a.featured ? `<span class="featured-badge">Featured</span>` : ""
             }<time datetime="${esc(a.published_at)}">${esc(displayDate(a.published_at))}</time><h2><a href="/random/${esc(a.slug)}">${esc(
               a.title
             )}</a></h2>${a.body ? `<p class="thought-excerpt">${esc(excerpt(a.body, 150))}</p>` : ""}${renderTags(a.tags)}</article>`
@@ -1724,7 +1724,7 @@ async function renderBlockInner(env, block, ctx) {
         .map(
           (p) =>
             `<div class="project-card">${
-              p.featured ? `<span class="featured-badge">★ Featured</span>` : ""
+              p.featured ? `<span class="featured-badge">Featured</span>` : ""
             }<h2><a href="/projects/${esc(p.slug)}">${esc(p.title)}</a></h2>${p.summary ? `<p>${esc(p.summary)}</p>` : ""}${renderTags(p.tags)}</div>`
         )
         .join("\n")}</div>`;
