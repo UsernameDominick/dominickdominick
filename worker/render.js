@@ -334,7 +334,7 @@ export function footerHtml(footer, year = new Date().getUTCFullYear()) {
   // The feed link and a Share button close every footer. The feed link is left out when the admin already put one in the footer, and the
   // button stays hidden until nav.js finds the browser can share the page or copy its address (so it never shows without JavaScript).
   const hasFeedLink = [...columns.flatMap((c) => c.links || []), ...social].some((l) => /^\/rss\.xml(\?|$)/i.test(String(l.url)));
-  const extras = `<p class="footer-extras">${hasFeedLink ? "" : '<a class="footer-rss" href="/rss.xml">RSS feed</a>'}<button type="button" class="footer-share" data-share hidden>Share this page</button><span class="footer-share-note" role="status" aria-live="polite"></span></p>`;
+  const extras = `<p class="footer-extras"><button type="button" class="footer-share" data-share hidden>Share this page</button><span class="footer-share-note" role="status" aria-live="polite"></span></p>`;
   if (!body && !columns.length && !social.length) return `<footer class="site-footer"><p class="footer-mono">© ${year} Dominick</p>${extras}</footer>`;
   return `<footer class="site-footer">${colsHtml}${socialHtml}${body ? paragraphsHtml(body) : ""}${extras}</footer>`;
 }
@@ -2412,7 +2412,6 @@ ${modifiedTime ? `<meta property="article:modified_time" content="${esc(modified
 <meta name="twitter:description" content="${esc(description)}">
 ${ogImage ? `<meta name="twitter:image" content="${esc(absoluteUrl(ogImage))}">
 <meta name="twitter:image:alt" content="${esc(title.replace(/ · Dominick$/, ""))}">` : ""}
-<link rel="alternate" type="application/rss+xml" title="Dominick — RSS feed" href="/rss.xml">
 
 <link rel="stylesheet" href="/style.css">
 <link rel="expect" href="#main-content" blocking="render">
@@ -2483,6 +2482,7 @@ ${customHead || ""}
   ${simDefsHolder(bodyHtml)}<a class="skip-link" href="#main-content">Skip to content</a>
   <div class="page">
     <header class="topbar">
+      <span class="nav-word" aria-hidden="true" data-text="DOMINICK.DOMINICK">DOMINICK.DOMINICK</span>
       ${
         navItems.length
           ? `<nav class="site-nav" aria-label="Sections"><div class="tabs">

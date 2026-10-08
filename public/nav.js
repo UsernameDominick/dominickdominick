@@ -179,6 +179,16 @@ document.addEventListener("input", function (e) {
     for (var i = 0; i < stops.length; i++) stops[i].style.setProperty("--d", Math.min(Math.abs(centres[i] - mid) / pitch, 3).toFixed(3));
     var lit = interacted || target() ? best : -1;
     for (var k = 0; k < anchors.length; k++) anchors[k].classList.toggle("is-centred", k === lit);
+    setNeedle(target());
+  }
+  // The needle sits under the stop you are on (or Search while the finder is open) and glides when that changes: the stops are a
+  // fixed group in the middle of the bar, so the needle moves rather than the strip. --needle-x is its place from the nav's left edge.
+  function setNeedle(a) {
+    if (!a) return;
+    var nb = nav.getBoundingClientRect();
+    var r = a.getBoundingClientRect();
+    if (!r.width) return;
+    nav.style.setProperty("--needle-x", (r.left + r.width / 2 - nb.left).toFixed(1) + "px");
   }
   function paintSoon() {
     if (painting) return;
@@ -244,15 +254,15 @@ document.addEventListener("input", function (e) {
     var gapLast = step(n > 1 ? cs[n - 1] - cs[n - 2] : gapFirst);
     var at = [];
     var k;
-    for (k = 1; k <= 120 && cs[0] - (k * gapFirst) / 6 >= 0.5; k++) at.push([cs[0] - (k * gapFirst) / 6, false]);
+    for (k = 1; k <= 120 && cs[0] - (k * gapFirst) / 6 >= 0.5; k++) at.push([cs[0] - (k * gapFirst) / 6, k % 6 === 0, k % 6 === 3]);
     for (var i = 0; i < n; i++) {
       at.push([cs[i], true]);
-      if (i < n - 1) for (k = 1; k < 6; k++) at.push([cs[i] + ((cs[i + 1] - cs[i]) * k) / 6, false]);
+      if (i < n - 1) for (k = 1; k < 6; k++) at.push([cs[i] + ((cs[i + 1] - cs[i]) * k) / 6, false, k === 3]);
     }
-    for (k = 1; k <= 120 && cs[n - 1] + (k * gapLast) / 6 <= end - 1.5; k++) at.push([cs[n - 1] + (k * gapLast) / 6, false]);
+    for (k = 1; k <= 120 && cs[n - 1] + (k * gapLast) / 6 <= end - 1.5; k++) at.push([cs[n - 1] + (k * gapLast) / 6, k % 6 === 0, k % 6 === 3]);
     var dpr = window.devicePixelRatio || 1;
     var html = at
-      .map(function (m) { return '<i' + (m[1] ? ' class="is-major"' : "") + ' style="left:' + Math.round((m[0] - 0.5) * dpr) / dpr + 'px"></i>'; })
+      .map(function (m) { return '<i' + (m[1] ? ' class="is-major"' : m[2] ? ' class="is-mid"' : "") + ' style="left:' + Math.round((m[0] - 0.5) * dpr) / dpr + 'px"></i>'; })
       .join("");
     if (!marks) {
       marks = document.createElement("span");
@@ -319,6 +329,9 @@ document.addEventListener("input", function (e) {
   }
   document.addEventListener("site:arrive", function () { setTimeout(layout, 0); });
   window.siteLayoutNav = layout;
+  if (typeof MutationObserver === "function") {
+    new MutationObserver(paintSoon).observe(wrap, { subtree: true, attributes: true, attributeFilter: ["aria-expanded", "class"] });
+  }
 
   // ---- the visitor turning the dial ----
   function moved() { userAt = now(); progUntil = 0; }
@@ -370,6 +383,7 @@ document.addEventListener("input", function (e) {
     clearTimeout(commitTimer);
     interacted = true;
     centreOn(i, true);
+    setNeedle(a);
   });
   // The keyboard moves along the dial without going anywhere until Enter: Tab and the arrow keys pass the focus to the next stop and turn
   // the dial to it. Focus that arrives any other way, such as coming back to Search when the finder closes, leaves the dial alone.

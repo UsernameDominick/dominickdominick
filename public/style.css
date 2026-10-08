@@ -4644,44 +4644,13 @@ html.is-page-dragging, html.is-page-dragging * { cursor: grabbing !important; us
 
 /* ---- The aggregate look (from plugin-aggregate's desktop app and its Explore DAW) ----
    Cassette (the owner's pick): navy-black, an orange accent and a soft blue second colour, IBM Plex Mono everywhere, flat 1px outlines with 4px corners and no hard
-   shadow. It is set on body, not :root, so the header and the finder keep exactly the look they had (the owner's call: the nav is not
-   part of this): :root still holds the old palette (and whatever Site Settings saves), the --nav-* copies below are resolved there,
-   and .topbar / #site-finder put them back. Tokens that are built from other tokens (--btn-fill, --accent-gradient) are repeated here
-   because a var() inside a custom property is resolved where it is declared. */
+   shadow. It is set on body, not :root, so it wins over the palette :root holds (and whatever Site Settings saves there). Tokens that
+   are built from other tokens (--btn-fill, --accent-gradient) are repeated here because a var() inside a custom property is resolved
+   where it is declared. */
 @font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/ibm-plex-mono-400.woff2") format("woff2"); }
 @font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 500; font-display: swap; src: url("/fonts/ibm-plex-mono-500.woff2") format("woff2"); }
 @font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 700; font-display: swap; src: url("/fonts/ibm-plex-mono-700.woff2") format("woff2"); }
 
-:root {
-  --nav-bg: var(--bg);
-  --nav-bg-elevated: var(--bg-elevated);
-  --nav-border: var(--border);
-  --nav-text: var(--text);
-  --nav-text-dim: var(--text-dim);
-  --nav-accent: var(--accent);
-  --nav-accent-secondary: var(--accent-secondary);
-  --nav-accent-gradient: var(--accent-gradient);
-  --nav-accent-dim: var(--accent-dim);
-  --nav-on-accent: var(--on-accent);
-  --nav-font-family: var(--font-family);
-  --nav-heading-font-family: var(--heading-font-family);
-  --nav-font-mono: var(--font-mono);
-  --nav-control-radius: var(--control-radius);
-  --nav-control-border-width: var(--control-border-width);
-  --nav-card-radius: var(--card-radius);
-  --nav-field-radius: var(--field-radius);
-  --nav-field-border-width: var(--field-border-width);
-  --nav-btn-ink: var(--btn-ink);
-  --nav-btn-fill: var(--btn-fill);
-  --nav-btn-radius: var(--btn-radius);
-  --nav-btn-border-width: var(--btn-border-width);
-  --nav-btn-shadow: var(--btn-shadow);
-  --nav-btn-shadow-sm: var(--btn-shadow-sm);
-  --nav-error-text: var(--error-text);
-  --nav-success: var(--success);
-  --nav-warning: var(--warning);
-  --nav-info: var(--info);
-}
 
 body {
   --bg: #0a0d14;
@@ -4777,43 +4746,168 @@ html { background: #0a0d14; }
 :where(input, textarea, select):where(:not(.topbar *, #site-finder *)):focus-visible { border-color: var(--accent); }
 :where(:not(.topbar, .topbar *, #site-finder, #site-finder *))::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
 
-/* The header and the finder keep the old look. */
-.topbar, #site-finder {
-  --bg: var(--nav-bg);
-  --bg-elevated: var(--nav-bg-elevated);
-  --border: var(--nav-border);
-  --text: var(--nav-text);
-  --text-dim: var(--nav-text-dim);
-  --accent: var(--nav-accent);
-  --accent-secondary: var(--nav-accent-secondary);
-  --accent-gradient: var(--nav-accent-gradient);
-  --accent-dim: var(--nav-accent-dim);
-  --on-accent: var(--nav-on-accent);
-  --font-family: var(--nav-font-family);
-  --heading-font-family: var(--nav-heading-font-family);
-  --font-mono: var(--nav-font-mono);
-  --control-radius: var(--nav-control-radius);
-  --control-border-width: var(--nav-control-border-width);
-  --card-radius: var(--nav-card-radius);
-  --field-radius: var(--nav-field-radius);
-  --field-border-width: var(--nav-field-border-width);
-  --btn-ink: var(--nav-btn-ink);
-  --btn-line: initial;
-  --btn-fill: var(--nav-btn-fill);
-  --btn-radius: var(--nav-btn-radius);
-  --btn-border-width: var(--nav-btn-border-width);
-  --btn-shadow: var(--nav-btn-shadow);
-  --btn-shadow-sm: var(--nav-btn-shadow-sm);
-  --btn-shadow-press: initial;
-  --btn-press: initial;
-  --btn-press-sm: initial;
-  --error-text: var(--nav-error-text);
-  --success: var(--nav-success);
-  --warning: var(--nav-warning);
-  --info: var(--nav-info);
-  color: var(--text);
-  font-family: var(--font-family);
+/* ---- The nav: a strip of three icons on a lens scale, DOMINICK.DOMINICK behind it ----
+   The stops are a fixed group in the middle of the bar (Home in the middle, so the period of the word sits under it); the needle slides
+   under the page you are on (nav.js sets --needle-x; worker/nav-dial-script.js presets it before the first paint). Names are kept for
+   screen readers only. The word is an outline, stretched and cut by the bar's edges, with a glint passing every 20 s. */
+body .topbar {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: nowrap;
+  gap: 0;
+  padding: 16px 0;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
 }
-.topbar { background: var(--bg); }
+.nav-word {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 0;
+  transform: translate(-50%, -50%) scaleX(1.3);
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  font: 700 150px/1 var(--font-family);
+  letter-spacing: 0;
+  color: transparent;
+  -webkit-text-stroke: 1px var(--border);
+}
+.nav-word::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  color: transparent;
+  -webkit-text-stroke: 0;
+  background: linear-gradient(100deg, transparent 42%, color-mix(in srgb, var(--text) 22%, transparent) 50%, transparent 58%);
+  background-size: 300% 100%;
+  background-position: 120% 50%;
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+body .topbar .site-nav {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 100%;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  height: 58px;
+  background: var(--bg-elevated);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+body .topbar .tabs {
+  padding: 0;
+  overflow: visible;
+  scroll-snap-type: none;
+  justify-content: center;
+  align-items: stretch;
+}
+body .topbar .site-nav::before,
+body .topbar .site-nav::after { display: none; }
+body .site-nav .tab {
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+  border-radius: 0;
+}
+body .site-nav .tab-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+/* Every icon the same size; the page you are on (or Search while the finder is open) bigger, in the accent, with a glow. */
+body .site-nav.site-nav .tabs .tab .tab-ico {
+  width: 20px;
+  height: 20px;
+  transform: none;
+  color: var(--text-dim);
+  filter: none;
+}
+body .site-nav.site-nav .tabs .tab:hover .tab-ico { color: var(--text); }
+body .site-nav.site-nav .tabs .tab.is-active .tab-ico,
+body .site-nav.site-nav .tabs .tab-finder[aria-expanded="true"] .tab-ico {
+  width: 26px;
+  height: 26px;
+  color: var(--accent);
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 55%, transparent));
+}
+body .site-nav.site-nav:has(.tab-finder[aria-expanded="true"]) .tabs .tab.is-active:not(.tab-finder) .tab-ico {
+  width: 20px;
+  height: 20px;
+  color: var(--text-dim);
+  filter: none;
+}
+/* The lens scale (nav.js draws the marks): long under each stop, medium halfway, short between; it fades out towards both ends. */
+body .site-nav .tab-ruler {
+  width: 100%;
+  height: 11px;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 max(20%, calc(50% - 300px)), #000 min(80%, calc(50% + 300px)), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 max(20%, calc(50% - 300px)), #000 min(80%, calc(50% + 300px)), transparent);
+}
+body .site-nav .tab-ruler > i { height: 4px; background: color-mix(in srgb, var(--text) 16%, transparent); }
+body .site-nav .tab-ruler > i.is-mid { height: 7px; background: color-mix(in srgb, var(--text) 26%, transparent); }
+body .site-nav .tab-ruler > i.is-major { height: 11px; background: color-mix(in srgb, var(--text) 40%, transparent); }
+/* The needle, and the ticks either side of it lit in the accent. */
+body .site-nav .tab-indicator {
+  top: auto;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  height: 13px;
+  margin-left: 0;
+  background: none;
+  transform: translateX(var(--needle-x, 50vw));
+}
+body .site-nav .tab-indicator::after {
+  left: 0;
+  width: 2px;
+  height: 13px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--accent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 80%, transparent);
+}
+body .site-nav .tab-indicator::before {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: calc(var(--stop-w) * -1);
+  width: calc(var(--stop-w) * 2);
+  height: 11px;
+  background-image:
+    linear-gradient(90deg, var(--accent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 75%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 60%, transparent) 1px, transparent 1px);
+  background-size: var(--stop-w) 11px, calc(var(--stop-w) / 2) 7px, calc(var(--stop-w) / 6) 4px;
+  background-position: -0.5px 100%, -0.5px 100%, -0.5px 100%;
+  background-repeat: repeat-x;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 50%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 50%, transparent);
+}
+@media (max-width: 720px) {
+  body .topbar { padding: 12px 0; }
+  .nav-word { font-size: 112px; transform: translate(-50%, -50%) scaleX(1.25); }
+  body .topbar .site-nav { height: 54px; }
+  body .site-nav.site-nav .tabs .tab .tab-ico { width: 18px; height: 18px; }
+  body .site-nav.site-nav .tabs .tab.is-active .tab-ico,
+  body .site-nav.site-nav .tabs .tab-finder[aria-expanded="true"] .tab-ico { width: 23px; height: 23px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-motion="reduce"]) .nav-word::after { animation: nav-glint 20s ease-in-out infinite; }
+  html:not([data-motion="reduce"]) body .site-nav .tab-indicator { transition: transform 0.55s cubic-bezier(0.16, 1, 0.3, 1); }
+  html:not([data-motion="reduce"]) body .site-nav .tab-ico { transition: color 0.3s ease, width 0.3s ease, height 0.3s ease, filter 0.3s ease; }
+  @keyframes nav-glint {
+    0% { background-position: 120% 50%; }
+    12%, 100% { background-position: -20% 50%; }
+  }
+}
 /* Plex Mono is wider than the old face: on a narrow phone the search filter pills wrap inside their outline instead of running off the screen. */
 .search-filter-group { flex-wrap: wrap; max-width: 100%; }
