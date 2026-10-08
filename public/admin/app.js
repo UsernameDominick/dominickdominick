@@ -1819,6 +1819,13 @@
     }
     box.style.left = cLeft + left + "px";
     box.style.top = cTop + top + "px";
+    // Never under the floating block bar: an editor on screen that runs into it is lifted so Done stays reachable.
+    const bar = el("block-bar");
+    const r = box.getBoundingClientRect();
+    if (bar && !bar.hidden && bar.getClientRects().length && r.top >= 0 && r.top < innerHeight) {
+      const over = r.bottom - (bar.getBoundingClientRect().top - 8);
+      if (over > 0) box.style.top = Math.max(cTop, cTop + top - over) + "px";
+    }
   }
   function syncQuickEdit() {
     if (quickEditId === null) return;
@@ -1882,6 +1889,7 @@
     const first = fieldsBox.querySelector("input:not([type=checkbox]), textarea, select") || box.querySelector(".quick-edit-done");
     if (first) first.focus();
     box.scrollIntoView({ block: "nearest", inline: "nearest" });
+    positionQuickEdit();
   }
 
   el("fit-all-blocks-btn").addEventListener("click", fitAllBlocks);

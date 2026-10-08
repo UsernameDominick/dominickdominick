@@ -9598,3 +9598,7 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
   background-size: var(--pl-bar) 100%, calc(var(--pl-bar) / 4) 100%;
 }
 .song-studio :is(.studio-stack, .studio-grid-scroll, .studio-controls, .studio-page) { border-radius: 4px; }
+/* Plex Mono is wider than the old face: the hint beside Hold and Play shortens instead of wrapping onto a row of its own. */
+.studio-keybar-hint { flex: 1 1 0; min-width: 0; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The quick editor scrolls itself into view when it opens; keep it clear of the floating block bar at the bottom (Plex Mono makes it taller). */
+.quick-edit { scroll-margin-bottom: 96px; }
