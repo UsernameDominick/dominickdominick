@@ -2482,7 +2482,6 @@ ${customHead || ""}
   ${simDefsHolder(bodyHtml)}<a class="skip-link" href="#main-content">Skip to content</a>
   <div class="page">
     <header class="topbar">
-      <span class="nav-word" aria-hidden="true" data-text="DOMINICK.DOMINICK">DOMINICK.DOMINICK</span>
       ${
         navItems.length
           ? `<nav class="site-nav" aria-label="Sections"><div class="tabs">
