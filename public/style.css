@@ -181,7 +181,8 @@ html, body {
 }
 
 html {
-  font-size: calc(16px * var(--font-scale, 1));
+  /* VT323 sets small for its size, so the root is 20px; every rem on the site grows with it, and the text-size setting still scales the whole thing. */
+  font-size: calc(20px * var(--font-scale, 1));
 }
 
 /* Smooth scrolling is motion: off under the OS setting and the site's manual switch. */
@@ -4647,93 +4648,98 @@ html.is-page-dragging, html.is-page-dragging * { cursor: grabbing !important; us
    shadow. It is set on body, not :root, so it wins over the palette :root holds (and whatever Site Settings saves there). Tokens that
    are built from other tokens (--btn-fill, --accent-gradient) are repeated here because a var() inside a custom property is resolved
    where it is declared. */
-@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/ibm-plex-mono-400.woff2") format("woff2"); }
-@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 500; font-display: swap; src: url("/fonts/ibm-plex-mono-500.woff2") format("woff2"); }
-@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 700; font-display: swap; src: url("/fonts/ibm-plex-mono-700.woff2") format("woff2"); }
+@font-face { font-family: "Silkscreen"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/silkscreen-400.woff2") format("woff2"); }
+@font-face { font-family: "Silkscreen"; font-style: normal; font-weight: 700; font-display: swap; src: url("/fonts/silkscreen-700.woff2") format("woff2"); }
+@font-face { font-family: "VT323"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/vt323-400.woff2") format("woff2"); }
 
 
+/* The look is "Bit bento" (the owner's pick): black, white and dither only, Mac-style windows, VT323 for text and Silkscreen for labels, and ONE tiny orange accent
+   (--orange) that marks function (the playhead, the current stop, the active window, the lit controls) and is never used for text. Light is black ink on white; dark is the
+   same screen inverted. Everything that used --accent as ink or as a button fill keeps working: --accent is the ink colour, --on-accent the paper colour. Set on body, so it wins
+   over the palette :root holds (and whatever Site Settings saves there). Tokens built from other tokens are repeated where they are used. */
 body {
-  --bg: #0a0d14;
-  --bg-elevated: #121827;
-  --border: #222b40;
-  --text: #eef2fa;
-  --text-dim: #94a0ba;
-  --accent: #ff8a3d;
-  --accent-secondary: #8fb8ff;
-  --accent-gradient: linear-gradient(135deg, #ff8a3d, #ffd27a);
-  --accent-dim: #ffb27f;
-  --on-accent: #0a0d14;
-  --error-text: #ff7a7a;
-  --success: #6ee7c8;
-  --warning: #ffd27a;
-  --info: #8fb8ff;
-  --font-family: "IBM Plex Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --ink: #000000;
+  --paper: #ffffff;
+  --orange: #ff6a1a;
+  --orange-ink: #000000;
+  --bg: #ffffff;
+  --bg-elevated: #ffffff;
+  --border: #000000;
+  --text: #000000;
+  --text-dim: #555555;
+  --accent: #000000;
+  --accent-secondary: #000000;
+  --accent-gradient: linear-gradient(#000000, #000000);
+  --accent-dim: #555555;
+  --on-accent: #ffffff;
+  --error-text: #b3261e;
+  --success: #000000;
+  --warning: #000000;
+  --info: #000000;
+  --font-family: "VT323", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --heading-font-family: var(--font-family);
+  --font-pixel: "Silkscreen", "VT323", ui-monospace, monospace;
   --font-mono: var(--font-family);
-  --control-radius: 4px;
-  --control-border-width: 1px;
-  --card-radius: 4px;
-  --field-radius: 4px;
-  --field-border-width: 1px;
-  --btn-ink: #eef2fa;
-  --btn-line: #222b40;
-  --btn-fill: #0a0d14;
-  --btn-radius: 4px;
-  --btn-border-width: 1px;
+  --control-radius: 0;
+  --control-border-width: 2px;
+  --card-radius: 0;
+  --field-radius: 0;
+  --field-border-width: 2px;
+  --btn-ink: #000000;
+  --btn-line: #000000;
+  --btn-fill: #ffffff;
+  --btn-radius: 0;
+  --btn-border-width: 2px;
   --btn-shadow: none;
   --btn-shadow-sm: none;
   --btn-shadow-press: none;
   --btn-press: 0px;
   --btn-press-sm: 0px;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 10px 26px rgba(0, 0, 0, 0.5);
-  --dial-glow: #ff8a3d;
-  --dial-cap: #121827;
-  --dial-ring: #0a0d14;
-  --dial-hand: #eef2fa;
-  --dial-cap-on: #1a2236;
-  --menu-bg: #121827;
-  --menu-line: #222b40;
-  --menu-hover: rgba(255, 138, 61, 0.1);
-  --menu-shadow: 0 10px 26px rgba(0, 0, 0, 0.5), 0 0 0 1px #222b40;
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  --dial-glow: var(--orange);
+  --dial-cap: #ffffff;
+  --dial-ring: #000000;
+  --dial-hand: #000000;
+  --dial-cap-on: #ffffff;
+  --menu-bg: #ffffff;
+  --menu-line: #000000;
+  --menu-hover: #000000;
+  --menu-shadow: 4px 4px 0 #000000;
   font-family: var(--font-family);
-  scrollbar-color: #222b40 #0a0d14;
+  scrollbar-color: #000000 #ffffff;
 }
-:root[data-theme="light"] body {
-  --bg: #eef1f6;
-  --bg-elevated: #f8f9fc;
-  --border: #cfd6e4;
-  --text: #0f1626;
-  --text-dim: #4b5670;
-  --accent: #b34d0c;
-  --accent-secondary: #2f5fb3;
-  --accent-gradient: linear-gradient(135deg, #b34d0c, #8a6a12);
-  --accent-dim: #8f3d08;
-  --on-accent: #ffffff;
-  --error-text: #b3261e;
-  --success: #0f7a63;
-  --warning: #8a6a12;
-  --info: #2f5fb3;
-  --btn-ink: #0f1626;
-  --btn-line: #c3cbdb;
-  --btn-fill: #f8f9fc;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
-  --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 26px rgba(0, 0, 0, 0.14);
-  --dial-glow: #b34d0c;
-  --dial-cap: #f8f9fc;
-  --dial-ring: #e3e8f2;
-  --dial-hand: #0f1626;
-  --dial-cap-on: #e3e8f2;
-  --menu-bg: #f8f9fc;
-  --menu-line: #dde3ee;
-  --menu-hover: rgba(179, 77, 12, 0.08);
-  --menu-shadow: 0 10px 30px rgba(0, 0, 0, 0.12), 0 0 0 1px #dde3ee;
-  scrollbar-color: #cfd6e4 #eef1f6;
+:root:not([data-theme="light"]) body {
+  --bg: #000000;
+  --bg-elevated: #000000;
+  --border: #ffffff;
+  --text: #ffffff;
+  --text-dim: #b3b3b3;
+  --accent: #ffffff;
+  --accent-secondary: #ffffff;
+  --accent-gradient: linear-gradient(#ffffff, #ffffff);
+  --accent-dim: #b3b3b3;
+  --on-accent: #000000;
+  --error-text: #ff7a70;
+  --success: #ffffff;
+  --warning: #ffffff;
+  --info: #ffffff;
+  --btn-ink: #ffffff;
+  --btn-line: #ffffff;
+  --btn-fill: #000000;
+  --dial-cap: #000000;
+  --dial-ring: #ffffff;
+  --dial-hand: #ffffff;
+  --dial-cap-on: #000000;
+  --menu-bg: #000000;
+  --menu-line: #ffffff;
+  --menu-hover: #ffffff;
+  --menu-shadow: 4px 4px 0 #ffffff;
+  scrollbar-color: #ffffff #000000;
 }
-html { background: #0a0d14; }
-:root[data-theme="light"] { background: #eef1f6; }
+html { background: #000000; }
+:root[data-theme="light"] { background: #ffffff; }
 
 /* Flat buttons: the outline brightens on hover instead of lifting, a press dims a little. Zero specificity (all inside :where), so a
    component that styles its own buttons keeps its look, and the header and finder are left out. */

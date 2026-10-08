@@ -2043,8 +2043,8 @@ export async function renderBlocks(env, blocks, ctx = {}) {
 // theme. Falls back to the defaults for anything that isn't a plain hex.
 export function faviconSvg(theme = {}) {
   const hex = (v, d) => (/^#[0-9a-f]{6}$/i.test(v || "") ? v : d);
-  const bg = hex(theme.bg, "#0c0a16");
-  const fg = hex(theme.accent, "#ff7a45");
+  const bg = hex(theme.bg, "#000000");
+  const fg = hex(theme.accent, "#ffffff");
   return `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='${bg}'/><text x='50' y='68' font-family='Arial,sans-serif' font-size='60' font-weight='700' fill='${fg}' text-anchor='middle'>D</text></svg>`;
 }
 
@@ -2068,9 +2068,10 @@ function noticePageHtml({ title, heading, paragraphs, robots = "noindex" }) {
 <style>
   html, body { margin: 0; height: 100%; }
   body {
-    background: #0c0a16;
-    color: #f4eefc;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: #000000;
+    color: #ffffff;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 18px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2079,18 +2080,18 @@ function noticePageHtml({ title, heading, paragraphs, robots = "noindex" }) {
   }
   main { max-width: 480px; }
   h1 { font-size: 1.6rem; margin-bottom: 12px; }
-  p { color: #b6a9d1; line-height: 1.5; }
-  a { color: #ff7a45; text-decoration: none; }
-  a:hover { text-decoration: underline; }
-  a:focus-visible { outline: 2px solid #ff7a45; outline-offset: 3px; }
+  p { color: #b3b3b3; line-height: 1.5; }
+  a { color: #ffffff; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; text-decoration-color: #ff6a1a; }
+  a:hover { background: #ffffff; color: #000000; }
+  a:focus-visible { outline: 2px dotted #ff6a1a; outline-offset: 3px; }
   .error-ref { font-size: 0.85rem; }
-  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: #f4eefc; }
+  code { font-family: inherit; color: #ffffff; }
   @media (prefers-color-scheme: light) {
-    body { background: #fffaf5; color: #241832; }
-    p { color: #6e5f82; }
-    a { color: #c1440e; }
-    a:focus-visible { outline-color: #c1440e; }
-    code { color: #241832; }
+    body { background: #ffffff; color: #000000; }
+    p { color: #555555; }
+    a { color: #000000; }
+    a:hover { background: #000000; color: #ffffff; }
+    code { color: #000000; }
   }
 </style>
 </head>
@@ -2254,7 +2255,7 @@ export function renderShell({
   const canonical = canonicalUrl || `https://dominickdominick.com${path}`;
   // The browser-chrome color follows the saved background instead of the
   // old built-in violet.
-  const themeColorDark = /^#[0-9a-f]{6}$/i.test(theme.bg || "") ? theme.bg : "#0c0a16";
+  const themeColorDark = /^#[0-9a-f]{6}$/i.test(theme.bg || "") ? theme.bg : "#000000";
   const ogSizeMatch = /width="(\d+)" height="(\d+)"/.exec(ogImageSize || "");
   const articleTags = ogType === "article" && keywords ? String(keywords).split(",").map((t) => t.trim()).filter(Boolean) : [];
   const themeVars = [];
@@ -2385,7 +2386,7 @@ export function renderShell({
 <head>
 <meta charset="UTF-8">
 <meta name="theme-color" id="theme-color-meta" content="${esc(themeColorDark)}" data-dark="${esc(themeColorDark)}">
-<script>(function(){try{var t=localStorage.getItem("theme");if(t!=="light"&&t!=="dark")t=window.matchMedia&&window.matchMedia("(prefers-color-scheme: light)").matches?"light":null;if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);if(t==="light"){var tc=document.getElementById("theme-color-meta");if(tc)tc.setAttribute("content","#fffaf5");}if(localStorage.getItem("sim-schematic")==="1")document.documentElement.classList.add("sim-schematic-pref");if(window.top!==window)document.documentElement.classList.add("in-frame");var m=localStorage.getItem("motion");if(m==="reduce")document.documentElement.setAttribute("data-motion","reduce");var fs=parseFloat(localStorage.getItem("fontScale"));if(fs)document.documentElement.style.setProperty("--font-scale",fs);}catch(e){}})();</script>
+<script>(function(){try{var t=localStorage.getItem("theme");if(t!=="light"&&t!=="dark")t=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);if(t==="light"){var tc=document.getElementById("theme-color-meta");if(tc)tc.setAttribute("content","#ffffff");}if(localStorage.getItem("sim-schematic")==="1")document.documentElement.classList.add("sim-schematic-pref");if(window.top!==window)document.documentElement.classList.add("in-frame");var m=localStorage.getItem("motion");if(m==="reduce")document.documentElement.setAttribute("data-motion","reduce");var fs=parseFloat(localStorage.getItem("fontScale"));if(fs)document.documentElement.style.setProperty("--font-scale",fs);}catch(e){}})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(description)}">

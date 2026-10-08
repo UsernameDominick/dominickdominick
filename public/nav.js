@@ -804,7 +804,7 @@ document.addEventListener("input", function (e) {
     var next = current === "light" ? "dark" : "light";
     root.setAttribute("data-theme", next);
     var themeColorMeta = document.getElementById("theme-color-meta");
-    if (themeColorMeta) themeColorMeta.setAttribute("content", next === "light" ? "#fffaf5" : themeColorMeta.getAttribute("data-dark") || "#0c0a16");
+    if (themeColorMeta) themeColorMeta.setAttribute("content", next === "light" ? "#ffffff" : themeColorMeta.getAttribute("data-dark") || "#000000");
     try {
       localStorage.setItem("theme", next);
     } catch (e) {}
