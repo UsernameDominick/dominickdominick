@@ -1,7 +1,7 @@
-// The "Try the tools" strip at the bottom of the home page: one card for each tool page (Trainer, Studio, PicEditor, Sim, Scans) with what
+// The "Try the tools" strip (bento tiles: each is a small window with a title bar) at the bottom of the home page: one card for each tool page (Trainer, Studio, PicEditor, Sim, Scans) with what
 // it does, so a visitor can find them without knowing to turn the nav dial. Pure: the page passes in its escape function. The owner can
 // switch it off in Site settings > Header & footer (setting `home_tools_off` = "1").
-import { navIconSvg } from "./nav-icons.js";
+import { navIconSvg, pixelIcon } from "./nav-icons.js";
 import { inScope } from "./site-scope.js";
 
 export const HOME_TOOLS = [
@@ -18,7 +18,7 @@ export function homeToolsHtml(esc, off) {
   const tools = HOME_TOOLS.filter((t) => inScope(t.slug));
   if (!tools.length) return "";
   const cards = tools.map(
-    (t) => `<a class="home-tool" href="${esc(t.path)}">${navIconSvg(t.slug, t.name)}<span class="home-tool-name">${esc(t.name)}</span><span class="home-tool-line">${esc(t.line)}</span></a>`
+    (t) => `<a class="home-tool" href="${esc(t.path)}"><span class="win-title" aria-hidden="true">${esc(t.slug)}</span>${navIconSvg(t.slug, t.name)}<span class="home-tool-name">${esc(t.name)}</span><span class="home-tool-line">${esc(t.line)}</span><span class="home-tool-go" aria-hidden="true">${pixelIcon("arrow", "icon", 32)}</span></a>`
   ).join("");
   return `<section class="home-tools" aria-labelledby="home-tools-title"><h2 id="home-tools-title" class="home-tools-title">${tools.length === 1 ? `Try the ${esc(tools[0].name)}` : "Try the tools"}</h2><div class="home-tools-grid">${cards}</div></section>`;
 }

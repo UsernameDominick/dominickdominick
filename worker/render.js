@@ -3,7 +3,7 @@ import { listArticles, listProjects, getPublishedSimulation, getScan, getSong, g
 import { safeImageSrc, mediaKeyFor, paragraphPictures, bodyPictures, PICTURE_ONLY_LINE } from "./pictures.js";
 import { paragraphEmbed, bodyEmbeds, EMBED_ONLY_LINE, MAX_BODY_EMBEDS } from "./embeds.js";
 import { nowIso, visibleText } from "./text.js";
-import { navIconSvg } from "./nav-icons.js";
+import { navIconSvg, pixelIcon } from "./nav-icons.js";
 import { centreHome } from "./nav-order.js";
 import { DIAL_PRESET_SCRIPT } from "./nav-dial-script.js";
 import { uiIcon } from "./ui-icons.js";
@@ -2141,9 +2141,9 @@ const svgIcon = (cls, paths) =>
   `<svg class="icon ${cls}" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${paths}</svg>`;
 const ICON = {
   shuffle: svgIcon("icon-shuffle", '<path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="m15 15 6 6"/><path d="M4 4l5 5"/>'),
-  pause: svgIcon("icon-pause", '<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>'),
-  sun: svgIcon("icon-sun", '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>'),
-  moon: svgIcon("icon-moon", '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>'),
+  pause: pixelIcon("pause", "icon icon-pause"),
+  sun: pixelIcon("sun", "icon icon-sun"),
+  moon: pixelIcon("moon", "icon icon-moon"),
 };
 
 // Every page used to download the simulator, song engine, song embed and
@@ -2203,6 +2203,7 @@ function finderHtml(navItems, { searchQuery = "", editUrl = null } = {}) {
   return `<div class="site-finder" id="site-finder" role="dialog" aria-modal="true" aria-label="Search and settings" hidden>
       <div class="finder-backdrop" data-finder-close></div>
       <div class="finder-panel">
+        <span class="win-title" aria-hidden="true">find</span>
         <form class="site-search finder-form" action="/search" method="get" role="search" aria-label="Search the site" autocomplete="off">
           <span class="finder-glass" aria-hidden="true">${navIconSvg("search", "Search")}</span>
           <input type="search" name="q" id="finder-input" placeholder="Search, or try “dark mode”" aria-label="Search the site and its settings" value="${esc(searchQuery || "")}" aria-controls="search-suggest-list finder-list">
@@ -2217,7 +2218,7 @@ function finderHtml(navItems, { searchQuery = "", editUrl = null } = {}) {
               ${row({ id: "font-size-toggle" }, '<span class="icon-text">Aa</span>', "Text size", '<span class="finder-state">100%</span>', "text size font bigger smaller zoom read")}
             </div>
             <div class="finder-group" data-group="go"><h2 class="finder-title">Go to</h2>
-              ${editUrl ? row({ tag: "a", href: editUrl, cls: "edit-this-btn" }, "✎", "Edit this page", "Admin", "edit admin change this page") : ""}
+              ${editUrl ? row({ tag: "a", href: editUrl, cls: "edit-this-btn" }, pixelIcon("pencil", "icon", 20), "Edit this page", "Admin", "edit admin change this page") : ""}
               ${goRows}
             </div>
           </div>
