@@ -1131,7 +1131,9 @@
 
   // ---------- Pages ----------
   async function loadPages() {
-    pages = await api("/pages");
+    // The site is cut down to the home page and the Studio (worker/site-scope.js): only the home page is offered here.
+    const allPages = await api("/pages");
+    pages = allPages.some((p) => p.slug === "home") ? allPages.filter((p) => p.slug === "home") : allPages;
     await loadNoindexItems();
     const picker = el("page-picker");
     picker.innerHTML = pages
@@ -11384,7 +11386,11 @@
         { label: "Photo Editor: Overwrite original", sub: "", run: peClick("pe-save-overwrite") }
       );
     }
-    return actions;
+    // A tool hidden from the cut-down admin (its sidebar button carries `hidden`) is left out here too.
+    return actions.filter((a) => {
+      const ids = String(a.run).match(/el\("[a-z-]+-btn"\)/g) || [];
+      return !ids.some((m) => { const b = el(m.slice(4, -2)); return b && b.hidden; });
+    });
   }
 
   async function openArticleEditorById(id) {

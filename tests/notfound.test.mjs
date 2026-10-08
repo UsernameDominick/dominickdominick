@@ -45,6 +45,7 @@ const nav = [{ slug: "about", nav_label: "About" }];
 const withHint = renderNotFoundHtml(nav, [], { path: '/random/a"b', label: "<b>Odd</b>" });
 assert.match(withHint, /Did you mean <a href="\/random\/a&quot;b">&lt;b&gt;Odd&lt;\/b&gt;<\/a>\?/);
 assert.doesNotMatch(renderNotFoundHtml(nav, []), /Did you mean/);
-assert.match(renderNotFoundHtml(nav, []), /Browse the full archive/);
+// The archive is off the cut-down site (worker/site-scope.js), so the 404 no longer links to it.
+assert.doesNotMatch(renderNotFoundHtml(nav, []), /Browse the full archive/);
 
 console.log("ALL PASS");

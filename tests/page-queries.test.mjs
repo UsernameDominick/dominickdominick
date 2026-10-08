@@ -58,14 +58,14 @@ const settingsQueries = (log) => log.filter((q) => /FROM settings/.test(q));
   assert.ok(sq.length <= 3, `settings queries: ${sq.length}\n${sq.map((q) => q.slice(0, 90)).join("\n")}`);
   assert.ok(log.length <= 12, `total queries: ${log.length}`);
 }
-// an article page
+// the Studio page (articles are off the cut-down site, worker/site-scope.js)
 {
   const { env, log } = makeEnv({ theme_bg: "#101010", maintenance_mode: "0" });
-  const res = await get(env, "/random/hello");
+  const res = await get(env, "/studio");
   assert.equal(res.status, 200);
   assert.match(await res.text(), /--bg:#101010/);
   const sq = settingsQueries(log);
-  console.log(`article: ${log.length} queries, ${sq.length} on settings`);
+  console.log(`studio: ${log.length} queries, ${sq.length} on settings`);
   assert.ok(sq.length <= 3, `settings queries: ${sq.length}`);
 }
 // maintenance mode still works, from the same single read

@@ -615,10 +615,11 @@ function searchSnippetHtml(text, terms, max = 160) {
   return `${start > 0 ? "…" : ""}${highlightHtml(flat.slice(start, end).trim(), terms)}${end < flat.length ? "…" : ""}`;
 }
 
-export function renderSearchResultsHtml(query, pages, articles, projects = [], customEmptyText = "", { type = "", sort = "relevance", page = 1, totalPages = null, totalCount = null, terms = [] } = {}) {
-  const formHtml = `<form class="search-page-form" action="/search" method="get" role="search" aria-label="Search the site"><input type="search" name="q" value="${esc(query || "")}" placeholder="Search pages, projects and articles" aria-label="Search for"><button type="submit" class="btn">Search</button></form>`;
+export function renderSearchResultsHtml(query, pages, articles, projects = [], customEmptyText = "", { type = "", sort = "relevance", page = 1, totalPages = null, totalCount = null, terms = [], simple = false } = {}) {
+  // `simple`: the cut-down site (site-scope.js) has only pages to find, so no type or sort choices and no pages of results.
+  const formHtml = `<form class="search-page-form" action="/search" method="get" role="search" aria-label="Search the site"><input type="search" name="q" value="${esc(query || "")}" placeholder="${simple ? "Search the site" : "Search pages, projects and articles"}" aria-label="Search for"><button type="submit" class="btn">Search</button></form>`;
   if (!query) {
-    return `${formHtml}<p class="empty-hint">Type what you are looking for to search pages, projects and articles.</p>`;
+    return `${formHtml}<p class="empty-hint">${simple ? "Type what you are looking for." : "Type what you are looking for to search pages, projects and articles."}</p>`;
   }
   // Filter/sort controls are plain links (rebuilding the URL with the query
   // string intact) rather than a JS-driven form — every other listing page
@@ -634,7 +635,7 @@ export function renderSearchResultsHtml(query, pages, articles, projects = [], c
     `<a href="/search?q=${encodeURIComponent(query)}${type ? `&type=${encodeURIComponent(type)}` : ""}${value !== "relevance" ? `&sort=${value}` : ""}"${
       sort === value ? ' class="is-active" aria-current="true"' : ""
     }>${label}</a>`;
-  const filterBarHtml = `<div class="search-filter-bar">
+  const filterBarHtml = simple ? "" : `<div class="search-filter-bar">
     <span class="search-filter-group" role="group" aria-label="Type">${typeLink("", "All")} ${typeLink("page", "Pages")} ${typeLink("project", "Projects")} ${typeLink("article", "Articles")}</span>
     <span class="search-filter-group" role="group" aria-label="Sort">${sortLink("relevance", "Best match")} ${sortLink("newest", "Newest first")} ${sortLink("oldest", "Oldest first")}</span>
   </div>`;
@@ -645,7 +646,7 @@ export function renderSearchResultsHtml(query, pages, articles, projects = [], c
       value > 1 ? `&page=${value}` : ""
     }"${cssClass ? ` class="${cssClass}"` : ""}>${label}</a>`;
   const paginationHtml =
-    type && totalPages && totalPages > 1
+    !simple && type && totalPages && totalPages > 1
       ? `<div class="search-pagination">${page > 1 ? pageLink(page - 1, "← Previous") : ""}<span>Page ${page} of ${totalPages}</span>${
           page < totalPages ? pageLink(page + 1, "Next →") : ""
         }</div>`
@@ -959,8 +960,7 @@ ${suggestion ? `<p class="not-found-suggest">Did you mean <a href="${esc(suggest
   <button type="submit">Search</button>
 </form>
 ${links ? `<h2 class="not-found-heading">Try one of these instead</h2><ul class="search-results">${links}</ul>` : ""}
-${recentHtml}
-<p><a href="/archive">Browse the full archive →</a></p>`;
+${recentHtml}`;
 }
 
 // Copy-link plus a couple of prebuilt share intents — no share-widget
@@ -2217,12 +2217,7 @@ function finderHtml(navItems, { searchQuery = "", editUrl = null } = {}) {
             </div>
             <div class="finder-group" data-group="go"><h2 class="finder-title">Go to</h2>
               ${editUrl ? row({ tag: "a", href: editUrl, cls: "edit-this-btn" }, "✎", "Edit this page", "Admin", "edit admin change this page") : ""}
-              ${row({ tag: "a", href: "/shuffle", rel: "nofollow" }, ICON.shuffle, "Surprise me", "A random post or project", "random shuffle surprise lucky")}
               ${goRows}
-              ${pages.some((n) => n.slug === "random") ? "" : row({ tag: "a", href: "/random" }, navIconSvg("articles", "Articles"), "All articles", "Posts", "articles posts blog writing random read")}
-              ${navItems && navItems.owner ? row({ tag: "a", href: "/hidden-notes" }, navIconSvg("hidden-notes", "Hidden Notes"), "Hidden Notes", "Only you", "hidden notes private vault secret") : ""}
-              ${row({ tag: "a", href: "/saved" }, navIconSvg("saved", "Saved"), "Saved for later", "In this browser", "saved bookmarks later")}
-              ${row({ tag: "a", href: "/history" }, navIconSvg("history", "History"), "Reading history", "In this browser", "history read recent")}
             </div>
           </div>
           <p class="finder-empty" hidden>Nothing here by that name. Press Enter to search the whole site.</p>

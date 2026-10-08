@@ -2,6 +2,7 @@
 // it does, so a visitor can find them without knowing to turn the nav dial. Pure: the page passes in its escape function. The owner can
 // switch it off in Site settings > Header & footer (setting `home_tools_off` = "1").
 import { navIconSvg } from "./nav-icons.js";
+import { inScope } from "./site-scope.js";
 
 export const HOME_TOOLS = [
   { path: "/trainer", slug: "trainer", name: "Aim trainer", line: "Gridshot, tracking and flick drills for FPS games, with a score and a history." },
@@ -13,8 +14,11 @@ export const HOME_TOOLS = [
 
 export function homeToolsHtml(esc, off) {
   if (off === "1" || off === true) return "";
-  const cards = HOME_TOOLS.map(
+  // Only the tools still on the site (site-scope.js).
+  const tools = HOME_TOOLS.filter((t) => inScope(t.slug));
+  if (!tools.length) return "";
+  const cards = tools.map(
     (t) => `<a class="home-tool" href="${esc(t.path)}">${navIconSvg(t.slug, t.name)}<span class="home-tool-name">${esc(t.name)}</span><span class="home-tool-line">${esc(t.line)}</span></a>`
   ).join("");
-  return `<section class="home-tools" aria-labelledby="home-tools-title"><h2 id="home-tools-title" class="home-tools-title">Try the tools</h2><div class="home-tools-grid">${cards}</div></section>`;
+  return `<section class="home-tools" aria-labelledby="home-tools-title"><h2 id="home-tools-title" class="home-tools-title">${tools.length === 1 ? `Try the ${esc(tools[0].name)}` : "Try the tools"}</h2><div class="home-tools-grid">${cards}</div></section>`;
 }

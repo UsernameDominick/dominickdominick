@@ -4,7 +4,7 @@ import {
   listPages,
   listStudyPageIds,
   RESERVED_SLUGS,
-  listNavPages,
+  listNavPages as listAllNavPages,
   listBlocks,
   listArticles,
   getArticleBySlug,
@@ -56,6 +56,7 @@ import {
   isInSitemap,
 } from "./db.js";
 import { isAuthenticated, parseCookies, hmac, timingSafeEqual } from "./auth.js";
+import { isPublicPath, scopeNav, scopeSearch, scopeSitemap } from "./site-scope.js";
 import {
   renderShell,
   renderBlocks,
@@ -686,14 +687,14 @@ async function renderProject(env, project, navItems, previewReason = null, isAdm
 async function renderSearch(env, query, navItems, ctx, { type = "", sort = "relevance", page = 1 } = {}) {
   const { defaultOgImage, theme, footerText, customHead, emptySearchText } = await getSiteContext(env);
   const { pages, articles, projects, totalCount, terms } = query
-    ? await publicSearch(env, query, { type, sort, page })
+    ? scopeSearch(await publicSearch(env, query, { type: "page", sort, page }), query)
     : { pages: [], articles: [], projects: [], totalCount: null, terms: [] };
   if (query) {
     const count = pages.length + articles.length + projects.length;
     ctx.waitUntil(logEvent(env, { name: "search", path: "/search", detail: JSON.stringify({ q: query, count }) }).catch(() => {}));
   }
   const totalPages = totalCount != null ? Math.max(1, Math.ceil(totalCount / SEARCH_PAGE_SIZE)) : null;
-  const resultsHtml = renderSearchResultsHtml(query, pages, articles, projects, emptySearchText, { type, sort, page, totalPages, totalCount, terms });
+  const resultsHtml = renderSearchResultsHtml(query, pages, articles, projects, emptySearchText, { type, sort, page, totalPages, totalCount, terms, simple: true });
   // Flow layout, not a fixed grid-row span — a page of 10+ results (or a
   // second page's worth) can be taller than any span picked ahead of
   // time, and a fixed span let real content overflow into (and get
@@ -921,9 +922,9 @@ async function renderTopicPage(env, tag, navItems) {
 async function renderNotFound(env, navItems, missingPath = null) {
   const [{ defaultOgImage, theme, footerText, customHead }, recentArticles, suggestion] = await Promise.all([
     getSiteContext(env),
-    listArticles(env, { publishedOnly: true, limit: 5 }),
-    // A mistyped address usually has one obvious neighbour: offered first, before the generic lists.
-    missingPath ? listLinkTargets(env, { publicOnly: true }).then((targets) => suggestNearest(missingPath, targets)).catch(() => null) : null,
+    [], // no posts on the cut-down site (site-scope.js)
+    // A mistyped address usually has one obvious neighbour: offered first, before the generic lists (only one that still exists).
+    missingPath ? listLinkTargets(env, { publicOnly: true }).then((targets) => suggestNearest(missingPath, targets.filter((t) => isPublicPath(t.path || "")))).catch(() => null) : null,
   ]);
   const bodyHtml = `<div class="block">
     ${renderNotFoundHtml(navItems, recentArticles, suggestion)}
@@ -1186,7 +1187,7 @@ async function renderSitemap(env) {
   const [counts, topicNotes] = await Promise.all([getTagCounts(env), listTopicMeta(env)]);
   const descriptions = new Map(topicNotes.map((m) => [m.tag, visibleText(m.description)]));
   const tagCounts = counts.map((t) => ({ ...t, description: descriptions.get(t.tag) || "" }));
-  const entries = buildSitemapEntries({ pages, articles, projects, simulations, tagCounts }, { isInSitemap, reservedSlugs: RESERVED_SLUGS });
+  const entries = scopeSitemap(buildSitemapEntries({ pages, articles, projects, simulations, tagCounts }, { isInSitemap, reservedSlugs: RESERVED_SLUGS }));
   return new Response(sitemapXml(entries), { headers: { "Content-Type": "application/xml;charset=UTF-8" } });
 }
 
@@ -1267,6 +1268,11 @@ function trackMiss(ctx, env, request, path) {
 }
 
 // The branded 404 for a missing address, after noting the miss.
+// The nav of the public site: only the pages that stay (see site-scope.js).
+async function listNavPages(env) {
+  return scopeNav(await listAllNavPages(env));
+}
+
 async function respondNotFound(ctx, env, request, path) {
   trackMiss(ctx, env, request, path);
   return renderNotFound(env, await listNavPages(env), path);
@@ -1543,6 +1549,9 @@ async function route(request, env, ctx) {
       return handleAdminApi(request, env, url, ctx);
     }
 
+    // The public site is cut down to the home page, the Studio and Search (site-scope.js): other public API calls are gone.
+    if (path.startsWith("/api/") && !isPublicPath(path)) return new Response("Not found", { status: 404 });
+
     // STUDY (temporary): the password check behind the Study block.
     if (path === "/api/study/unlock" && request.method === "POST") {
       return handleStudyUnlock(request, env);
@@ -1567,6 +1576,9 @@ async function route(request, env, ctx) {
         headers: { "Content-Type": "text/html;charset=UTF-8", "Retry-After": "3600" },
       });
     }
+
+    // Every other public address is the 404 page (site-scope.js); the code behind it stays in place.
+    if (!isPublicPath(path)) return respondNotFound(ctx, env, request, path);
 
     // /page-access/:slug — verifies a password-protected page's password
     // and, on success, sets that page's own unlock cookie before redirecting
@@ -1642,7 +1654,7 @@ async function route(request, env, ctx) {
       const allowed = await checkRateLimit(env, "search-suggest", ip, { windowMinutes: 1, maxAttempts: 60 });
       if (!allowed) return new Response(JSON.stringify({ results: [] }), { status: 429, headers: { "Content-Type": "application/json" } });
       ctx.waitUntil(recordRateLimitHit(env, "search-suggest", ip).catch(() => {}));
-      const { pages, articles, projects } = await publicSearch(env, q);
+      const { pages, articles, projects } = scopeSearch(await publicSearch(env, q, { type: "page" }), q);
       const results = [
         ...pages.slice(0, 3).map((p) => ({ type: "Page", title: p.title, url: p.slug === "home" ? "/" : `/${p.slug}` })),
         ...articles.slice(0, 3).map((a) => ({ type: "Article", title: a.title, url: `/random/${a.slug}` })),

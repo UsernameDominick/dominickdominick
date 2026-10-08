@@ -29,31 +29,32 @@
       </div>
       <div id="sidebar-pages-slot"></div>
       <nav class="admin-sidebar-scroll">
-        <div class="admin-sidebar-group">
+        <!-- The site is cut down to the home page and the Studio (worker/site-scope.js): the tools for the rest are hidden, not removed. -->
+        <div class="admin-sidebar-group" hidden>
           <h3>Content</h3>
-          <button id="dashboard-btn">Dashboard</button>
-          <button id="articles-btn">Articles</button>
-          <button id="projects-btn">Projects</button>
+          <button id="dashboard-btn" hidden>Dashboard</button>
+          <button id="articles-btn" hidden>Articles</button>
+          <button id="projects-btn" hidden>Projects</button>
         </div>
         <div class="admin-sidebar-group">
           <h3>Library</h3>
           <button id="media-btn">Media</button>
-          <button id="redirects-btn">Redirects</button>
-          <button id="simulations-btn">Simulations</button>
-          <button id="scans-btn">Scans</button>
+          <button id="redirects-btn" hidden>Redirects</button>
+          <button id="simulations-btn" hidden>Simulations</button>
+          <button id="scans-btn" hidden>Scans</button>
           <button id="songs-btn">Songs</button>
-          <button id="shared-blocks-btn">Reusable Blocks</button>
+          <button id="shared-blocks-btn" hidden>Reusable Blocks</button>
         </div>
         <div class="admin-sidebar-group">
           <h3>Tools</h3>
           <button id="layers-btn">Layers</button>
-          <button id="diagnostics-btn">Diagnostics</button>
-          <button id="scripts-btn">Scripts</button>
+          <button id="diagnostics-btn" hidden>Diagnostics</button>
+          <button id="scripts-btn" hidden>Scripts</button>
           <button id="features-btn">Features</button>
-          <button id="seo-dashboard-btn">Site Health</button>
-          <button id="topic-pages-btn">Topic Pages</button>
-          <button id="analytics-btn">Analytics</button>
-          <button id="trash-btn">Trash</button>
+          <button id="seo-dashboard-btn" hidden>Site Health</button>
+          <button id="topic-pages-btn" hidden>Topic Pages</button>
+          <button id="analytics-btn" hidden>Analytics</button>
+          <button id="trash-btn" hidden>Trash</button>
         </div>
         <div class="admin-sidebar-group">
           <h3>Settings</h3>
@@ -64,7 +65,7 @@
           <a id="admin-view-live" href="/" target="_blank" class="admin-view-live">View live</a>
           <button id="draft-preview-mode-toggle" aria-pressed="false" title="Draft preview: while on, this browser shows your draft and expired articles and projects on the live site as you click around, instead of needing ?preview=1 on every link. Only you see them (while signed in); visitors are not affected.">Draft preview: Off</button>
           <button id="preview-btn" title="Preview this page at different screen widths">Screen Preview</button>
-          <button id="preview-at-btn" title="See the public site as it will look on a future date: scheduled items live, expired ones gone. Only you see it.">Preview at a date…</button>
+          <button id="preview-at-btn" hidden title="See the public site as it will look on a future date: scheduled items live, expired ones gone. Only you see it.">Preview at a date…</button>
           <button id="focus-mode-btn" aria-pressed="false" title="Hide the block palette for more canvas room">Focus</button>
           <button id="content-only-mode-btn" aria-pressed="false" title="Locks every block's position/size so you can safely click around and edit content without nudging the layout">Content-only</button>
         </div>
@@ -83,8 +84,8 @@
         <button id="mobile-menu-btn" class="mobile-only" aria-label="Add block">+ Block</button>
         <div class="admin-sidebar-pages">
           <select id="page-picker" aria-label="Page to edit"></select>
-          <button id="new-page-btn" title="New page">+ Page</button>
-          <select id="page-template-picker" aria-label="Template for the next new page" title="Start the next new page from a saved template">
+          <button id="new-page-btn" hidden title="New page">+ Page</button>
+          <select id="page-template-picker" hidden aria-label="Template for the next new page" title="Start the next new page from a saved template">
             <option value="">Blank page</option>
           </select>
           <div class="admin-more-wrap">
