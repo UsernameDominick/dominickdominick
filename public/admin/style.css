@@ -8551,8 +8551,8 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 }
 .studio-stack:focus { outline: none; }
 .studio-pl-scroll { height: 100%; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; scroll-padding: var(--pl-ruler) 0 0 var(--pl-head); }
-.studio-pl-grid { position: relative; min-width: calc(var(--pl-head) + var(--bars, 4) * var(--pl-bar)); }
-.studio-pl-ruler { position: sticky; top: 0; z-index: 4; display: flex; height: var(--pl-ruler); background: var(--bg-elevated); border-bottom: 1px solid var(--border); }
+.studio-pl-grid { position: relative; display: flex; flex-direction: column; min-height: 100%; min-width: calc(var(--pl-head) + var(--bars, 4) * var(--pl-bar)); }
+.studio-pl-ruler { position: sticky; top: 0; z-index: 4; flex: 0 0 auto; display: flex; height: var(--pl-ruler); background: var(--bg-elevated); border-bottom: 1px solid var(--border); }
 .studio-pl-corner { flex: 0 0 var(--pl-head); position: sticky; left: 0; z-index: 3; background: var(--bg-elevated); border-right: 1px solid var(--border); }
 .studio-pl-marks {
   flex: 1 1 0; min-width: 0; display: flex;
@@ -8564,7 +8564,7 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 }
 .studio-pl-mark:first-child { border-left: 0; }
 .studio-pl-mark.is-now { color: var(--text); font-weight: 700; }
-.studio-card { display: flex; height: var(--pl-row); }
+.studio-card { display: flex; flex: 1 0 var(--pl-row); min-height: var(--pl-row); max-height: 72px; }
 .studio-card + .studio-card { border-top: 1px solid var(--border); }
 .studio-pl-head {
   flex: 0 0 var(--pl-head); position: sticky; left: 0; z-index: 2; display: flex; align-items: stretch; min-width: 0;
@@ -8613,6 +8613,18 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 .studio-editing > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .studio-editing-pat { font-weight: 450; color: var(--text-dim); }
 .studio-editing-name { font-weight: 650; }
+
+/* the handle between the playlist and the open track (a phone): drag it to set how tall the open track is */
+.studio-split { display: none; position: relative; flex: 0 0 auto; height: 18px; margin: -6px 0; touch-action: none; cursor: row-resize; z-index: 5; border-radius: 8px; }
+.studio-split i { position: absolute; left: 50%; top: 50%; width: 46px; height: 5px; margin: -2px 0 0 -23px; border-radius: 3px; background: color-mix(in srgb, var(--text) 38%, transparent); }
+.studio-split:hover i, .studio-split.is-dragging i { background: var(--accent); }
+.studio-split:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.studio-split:focus-visible i { background: var(--accent); }
+@media (max-width: 1023px) {
+  .studio-split { display: block; }
+}
+.studio-fold { width: 34px; padding: 0; justify-content: center; font-size: 0.9rem; }
+.studio-detail[data-folded="true"] > :not(.studio-trackbar):not(h2) { display: none; }
 
 /* the open track (4) */
 .studio-detail {
@@ -9156,6 +9168,7 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
   .studio-card-main { padding-left: 6px; }
   .studio-pl-mute { width: 22px; height: 20px; margin-right: 3px; }
   .studio-hint { display: none; }
+  .studio-split { display: none; }
   .studio-play, .studio-rec-hub { width: 46px; height: 46px; min-height: 46px; }
   .studio-transport .studio-round { width: 38px; height: 38px; min-height: 38px; }
   .studio-wide-only, .studio-wide-word { display: none !important; }
@@ -9539,4 +9552,15 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 /* The playlist and the open track share the height: the playlist gives room first (it scrolls), the open track never gets less than it needs. */
 @media (max-width: 1023px) {
   .studio-detail { flex: 1 1 250px; min-height: 250px; }
+  /* a height set with the handle: the open track is that tall and the playlist takes what is left (rows grow to fill it) */
+  .song-studio[data-detail-h] .studio-detail { flex: 0 0 var(--detail-h); min-height: 0; }
+  .song-studio[data-detail-h] .studio-stack { flex: 1 1 0; max-height: calc(var(--pl-ruler) + 5 * 72px + 7px); }
+  /* folded: just its row of controls, and the playlist takes the room */
+  .song-studio.studio-editor-folded .studio-detail { flex: 0 0 auto; min-height: 0; }
+  .song-studio.studio-editor-folded .studio-stack { flex: 1 1 auto; max-height: calc(var(--pl-ruler) + 5 * 72px + 7px); }
+  .song-studio.studio-editor-folded .studio-split { display: none; }
+}
+@media (min-width: 1024px) {
+  .song-studio.studio-editor-folded { grid-template-rows: auto minmax(calc(var(--pl-ruler) + 1.5 * var(--pl-row) + 7px), 1fr) auto auto auto; }
+  .song-studio.studio-editor-folded .studio-stack { max-height: calc(var(--pl-ruler) + 5 * 72px + 7px); }
 }

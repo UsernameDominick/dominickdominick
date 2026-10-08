@@ -405,6 +405,7 @@
     return (
       `<h2 class="sim-sr-only">${esc(track.name)}</h2>` +
       `<div class="studio-trackbar" role="group" aria-label="${esc(track.name)}: bars and controls">` +
+      `<button type="button" id="studio-fold" class="studio-mini studio-fold" data-act="fold" data-no-history aria-expanded="true" aria-controls="studio-grid-scroll" aria-label="Fold the editor away" title="Fold the editor away: the tracks get the room"><span aria-hidden="true">▾</span></button>` +
       `<span id="studio-editing" class="studio-editing"><span class="studio-badge" aria-hidden="true">${track.n}</span><span id="studio-editing-text"></span></span>` +
       `<button type="button" class="studio-mini studio-add-bar" data-act="bar-add" aria-label="Add a bar" title="Add a new empty bar to the end of this track">+<span class="studio-wide-word"> Bar</span></button>` +
       `<button type="button" id="studio-loop" class="studio-mini studio-loop studio-wide-only" data-act="loop" aria-pressed="true" title="Loop: this track plays again from its first bar when it reaches its last, until the song ends">↻ Loop</button>` +
@@ -431,6 +432,7 @@
       detailSig = sig;
       detailEl.style.setProperty("--track-color", `var(--track-${track.n})`);
       detailEl.innerHTML = detailHtml(track);
+      syncFold();
       gridSig = "";
       const snapMenu = $("studio-snap-by");
       if (snapMenu) snapMenu.value = String(snapBy);
@@ -458,6 +460,110 @@
     el.textContent = text;
     el.hidden = !text;
   }
+
+  // ---------- folding and sizing the open track ----------
+  // The open track can be folded to its one row of controls (the tracks above then take the room), and on a phone, where the playlist and
+  // the open track share one column, a handle between them sets how tall the open track is (kept in this browser; Enter on the handle puts
+  // it back to automatic). The height only ever moves the handle's edge: nothing in the song changes.
+  const splitEl = $("studio-split");
+  let folded = lsGet("studioEditorFold", "") === "1";
+  let editorH = Math.max(0, Number(lsGet("studioEditorH", "")) || 0); // px, 0 = automatic
+  const EDITOR_MIN = 150;
+  function syncFold() {
+    studio.classList.toggle("studio-editor-folded", folded);
+    detailEl.dataset.folded = String(folded);
+    const btn = $("studio-fold");
+    if (btn) {
+      btn.setAttribute("aria-expanded", String(!folded));
+      btn.setAttribute("aria-label", folded ? "Open the editor" : "Fold the editor away");
+      btn.title = folded ? "Open the editor again" : "Fold the editor away: the tracks get the room";
+      btn.firstElementChild.textContent = folded ? "▸" : "▾";
+    }
+  }
+  function setFolded(on) {
+    folded = on;
+    lsSet("studioEditorFold", on ? "1" : "");
+    syncFold();
+    gridSig = "";
+    refresh();
+    say(on ? "Editor folded away" : "Editor open");
+  }
+  // The tallest the open track can be without pushing the keys off the screen: what is left once the rest has its room.
+  function editorMax() {
+    const cs = getComputedStyle(studio);
+    const gap = parseFloat(cs.rowGap) || 0;
+    const pad = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+    const others = [".studio-top", ".studio-controls", ".studio-keyboard"].reduce((n, q) => n + ((studio.querySelector(q) || {}).offsetHeight || 0), 0);
+    const stackMin = parseFloat(getComputedStyle(stackEl).minHeight) || 70;
+    // (the handle overlaps its neighbours by 6 px each side, which is why 12 comes back)
+    return Math.max(EDITOR_MIN, studio.clientHeight - pad - others - stackMin - splitEl.offsetHeight + 12 - gap * 6);
+  }
+  // `limit` keeps a height by hand inside what fits; what was kept earlier is applied as it was (the screen may have been another shape).
+  function setEditorH(px, save, limit = true) {
+    editorH = px === 0 ? 0 : Math.round(Math.max(EDITOR_MIN, limit ? Math.min(editorMax(), px) : px)); // 0 is automatic; anything else is at least the smallest
+    if (editorH) studio.style.setProperty("--detail-h", editorH + "px");
+    else studio.style.removeProperty("--detail-h");
+    studio.toggleAttribute("data-detail-h", editorH > 0);
+    splitEl.setAttribute("aria-valuenow", String(editorH || Math.round(detailEl.getBoundingClientRect().height)));
+    splitEl.setAttribute("aria-valuemin", String(EDITOR_MIN));
+    splitEl.setAttribute("aria-valuemax", String(Math.round(editorMax())));
+    if (save) lsSet("studioEditorH", editorH ? String(editorH) : "");
+    requestAnimationFrame(syncPager);
+  }
+  let splitDrag = null;
+  let lastSplitTap = 0;
+  splitEl.addEventListener("pointerdown", (e) => {
+    if (e.button > 0) return;
+    e.preventDefault();
+    splitDrag = { id: e.pointerId, y: e.clientY, h: detailEl.getBoundingClientRect().height, moved: false };
+    try {
+      splitEl.setPointerCapture(e.pointerId);
+    } catch {
+      /* not capturable */
+    }
+    splitEl.classList.add("is-dragging");
+  });
+  splitEl.addEventListener("pointermove", (e) => {
+    if (!splitDrag || e.pointerId !== splitDrag.id) return;
+    const dy = e.clientY - splitDrag.y;
+    if (Math.abs(dy) > 3) splitDrag.moved = true;
+    if (splitDrag.moved) setEditorH(splitDrag.h - dy, false);
+  });
+  function endSplit(e) {
+    if (!splitDrag || e.pointerId !== splitDrag.id) return;
+    const was = splitDrag;
+    splitDrag = null;
+    splitEl.classList.remove("is-dragging");
+    if (was.moved) {
+      setEditorH(editorH, true);
+      return;
+    }
+    // two quick taps put the height back to automatic
+    const now = Date.now();
+    if (now - lastSplitTap < 380) {
+      setEditorH(0, true);
+      say("Open track height: automatic");
+    }
+    lastSplitTap = now;
+  }
+  splitEl.addEventListener("pointerup", endSplit);
+  splitEl.addEventListener("pointercancel", endSplit);
+  splitEl.addEventListener("keydown", (e) => {
+    const now = editorH || Math.round(detailEl.getBoundingClientRect().height);
+    let to = null;
+    if (e.key === "ArrowUp") to = now + 24;
+    else if (e.key === "ArrowDown") to = now - 24;
+    else if (e.key === "Home") to = EDITOR_MIN;
+    else if (e.key === "End") to = editorMax();
+    else if (e.key === "Enter") to = 0;
+    else return;
+    e.preventDefault();
+    setEditorH(to, true);
+    say(to === 0 ? "Open track height: automatic" : `Open track ${editorH} pixels tall`);
+  });
+  window.addEventListener("resize", () => {
+    if (editorH) setEditorH(editorH, false, false);
+  });
 
   // ---------- the bars of the open track ----------
   // The playlist above shows every bar; here the open track says which bar it is editing, Loop shows whether it repeats, and a track that is
@@ -585,7 +691,9 @@
       closePop();
       openSheet("tools");
     }
-    else if (act === "bar-add") {
+    else if (act === "fold") {
+      setFolded(!folded);
+    } else if (act === "bar-add") {
       const name = arr.addBar(track.id);
       if (!name) say("There is no room for another bar: all sixteen patterns are used.");
       else barPick[track.id] = Math.max(0, arr.info(track.id).length - 1);
@@ -3100,6 +3208,7 @@
     studio.hidden = false;
     buildSheet();
     placeSound();
+    setEditorH(editorH, false, false);
     refresh({ rebuild: true });
   }
 

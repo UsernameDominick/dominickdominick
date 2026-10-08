@@ -41,6 +41,7 @@ function png(w, h) {
     await p.waitForSelector("#photo-editor-modal:not([hidden])", { timeout: 10000 });
     const geo = await p.evaluate(() => { const nav = document.querySelector("header.topbar").getBoundingClientRect(); const ed = document.querySelector("#photo-editor-modal > .modal-inner").getBoundingClientRect(); return { navBottom: nav.bottom, top: ed.top, fixed: getComputedStyle(document.getElementById("photo-editor-modal")).position, w: document.getElementById("pe-canvas").width }; });
     ok(geo.top >= geo.navBottom - 1 && geo.fixed !== "fixed" && geo.w === 160, "the picture opens in the editor under the site's nav", geo);
+    await p.waitForFunction(() => /from your device/.test(document.getElementById("pe-hint").textContent), null, { timeout: 5000 }).catch(() => {});
     ok(/from your device/.test(await p.textContent("#pe-hint")), "the editor says the picture is from this device");
     await p.click("#pe-save-new");
     await p.waitForSelector(".pic-shelf:not([hidden]) .pic-card", { timeout: 10000 });
