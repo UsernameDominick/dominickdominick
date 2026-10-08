@@ -953,7 +953,7 @@ body {
   gap: 0.45em;
   padding: var(--control-pad-y) var(--control-pad-x);
   border-radius: var(--btn-radius);
-  border: var(--btn-border-width) solid var(--btn-ink);
+  border: var(--btn-border-width) solid var(--btn-line, var(--btn-ink));
   background: var(--btn-fill);
   color: var(--btn-ink);
   box-shadow: var(--btn-shadow);
@@ -981,7 +981,7 @@ body {
   /* Pressed: it sinks onto its own shadow. */
   .btn:active {
     transform: translateY(var(--btn-press, 4px));
-    box-shadow: 0 1px 0 var(--btn-ink);
+    box-shadow: var(--btn-shadow-press, 0 1px 0 var(--btn-ink));
   }
 }
 
@@ -4432,7 +4432,7 @@ body:has(.studio-canvas) .page { min-height: 0; height: 100%; }
   font-weight: 700;
   color: var(--btn-ink);
   background: var(--btn-fill);
-  border: var(--btn-border-width) solid var(--btn-ink);
+  border: var(--btn-border-width) solid var(--btn-line, var(--btn-ink));
   border-radius: var(--btn-radius);
   padding: var(--control-pad-y) var(--control-pad-x);
   cursor: pointer;
@@ -4442,7 +4442,7 @@ body:has(.studio-canvas) .page { min-height: 0; height: 100%; }
   font: inherit;
   color: var(--text);
   background: transparent;
-  border: var(--field-border-width) solid var(--btn-ink);
+  border: var(--field-border-width) solid var(--btn-line, var(--btn-ink));
   border-radius: var(--field-radius);
   padding: 0.55em 0.8em;
 }
@@ -4496,18 +4496,18 @@ body:has(.studio-canvas) .page { min-height: 0; height: 100%; }
 /* ---- The rest of the site's buttons on the chunky tokens (they were still pills or thin outlines), all one weight and height ---- */
 .copy-link-btn, .share-link, .save-for-later-btn, .print-pdf-btn, .read-aloud-btn, .reaction-btn {
   display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 4px 12px; line-height: 1.3; font-size: 0.8rem; font-weight: 600;
-  color: var(--text); background: var(--btn-fill); border: min(var(--btn-border-width), 2px) solid var(--btn-ink); border-radius: var(--btn-radius);
+  color: var(--text); background: var(--btn-fill); border: min(var(--btn-border-width), 2px) solid var(--btn-line, var(--btn-ink)); border-radius: var(--btn-radius);
   box-shadow: var(--btn-shadow-sm); text-decoration: none;
 }
-.copy-link-btn:hover, .share-link:hover, .save-for-later-btn:hover, .print-pdf-btn:hover, .read-aloud-btn:hover, .reaction-btn:hover { color: var(--text); border-color: var(--btn-ink); filter: brightness(1.06); }
-.song-embed-play-btn, .sim-power-btn, .scan-ar-btn { border-color: var(--btn-ink); box-shadow: var(--btn-shadow-sm); }
+.copy-link-btn:hover, .share-link:hover, .save-for-later-btn:hover, .print-pdf-btn:hover, .read-aloud-btn:hover, .reaction-btn:hover { color: var(--text); border-color: var(--btn-line, var(--btn-ink)); filter: brightness(1.06); }
+.song-embed-play-btn, .sim-power-btn, .scan-ar-btn { border-color: var(--btn-line, var(--btn-ink)); box-shadow: var(--btn-shadow-sm); }
 @media (prefers-reduced-motion: no-preference) {
   .copy-link-btn:active, .share-link:active, .save-for-later-btn:active, .print-pdf-btn:active, .read-aloud-btn:active, .reaction-btn:active,
-  .song-embed-play-btn:active, .sim-power-btn:active, .scan-ar-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--btn-ink); }
+  .song-embed-play-btn:active, .sim-power-btn:active, .scan-ar-btn:active { transform: translateY(var(--btn-press-sm, 2px)); box-shadow: var(--btn-shadow-press, 0 1px 0 var(--btn-ink)); }
 }
 /* Search fields: the field outline, and a placeholder in the site's own dim colour. */
 .site-search input, .search-page-form input, .not-found-search input {
-  border: min(var(--field-border-width), 2px) solid color-mix(in srgb, var(--btn-ink) 55%, transparent); border-radius: var(--field-radius, 12px);
+  border: min(var(--field-border-width), 2px) solid color-mix(in srgb, var(--btn-line, var(--btn-ink)) 55%, transparent); border-radius: var(--field-radius, 12px);
 }
 .site-search input::placeholder, .search-page-form input::placeholder { color: var(--text-dim); opacity: 1; }
 .search-page-form { display: flex; gap: 8px; margin: 0 0 16px; max-width: 640px; }
@@ -4641,3 +4641,173 @@ html.is-page-dragging, html.is-page-dragging * { cursor: grabbing !important; us
 .home-tool .tab-ico { width: 26px; height: 26px; color: var(--accent); margin-bottom: 4px; }
 .home-tool-name { font-weight: 700; font-size: 1.02rem; }
 .home-tool-line { font-size: 0.88rem; color: var(--text-dim); line-height: 1.45; }
+
+/* ---- The aggregate look (from plugin-aggregate's desktop app and its Explore DAW) ----
+   Near-black neutral surfaces, cyan and magenta accents, IBM Plex Mono everywhere, flat 1px outlines with 4px corners and no hard
+   shadow. It is set on body, not :root, so the header and the finder keep exactly the look they had (the owner's call: the nav is not
+   part of this): :root still holds the old palette (and whatever Site Settings saves), the --nav-* copies below are resolved there,
+   and .topbar / #site-finder put them back. Tokens that are built from other tokens (--btn-fill, --accent-gradient) are repeated here
+   because a var() inside a custom property is resolved where it is declared. */
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/ibm-plex-mono-400.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 500; font-display: swap; src: url("/fonts/ibm-plex-mono-500.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 700; font-display: swap; src: url("/fonts/ibm-plex-mono-700.woff2") format("woff2"); }
+
+:root {
+  --nav-bg: var(--bg);
+  --nav-bg-elevated: var(--bg-elevated);
+  --nav-border: var(--border);
+  --nav-text: var(--text);
+  --nav-text-dim: var(--text-dim);
+  --nav-accent: var(--accent);
+  --nav-accent-secondary: var(--accent-secondary);
+  --nav-accent-gradient: var(--accent-gradient);
+  --nav-accent-dim: var(--accent-dim);
+  --nav-on-accent: var(--on-accent);
+  --nav-font-family: var(--font-family);
+  --nav-heading-font-family: var(--heading-font-family);
+  --nav-font-mono: var(--font-mono);
+  --nav-control-radius: var(--control-radius);
+  --nav-control-border-width: var(--control-border-width);
+  --nav-card-radius: var(--card-radius);
+  --nav-field-radius: var(--field-radius);
+  --nav-field-border-width: var(--field-border-width);
+  --nav-btn-ink: var(--btn-ink);
+  --nav-btn-fill: var(--btn-fill);
+  --nav-btn-radius: var(--btn-radius);
+  --nav-btn-border-width: var(--btn-border-width);
+  --nav-btn-shadow: var(--btn-shadow);
+  --nav-btn-shadow-sm: var(--btn-shadow-sm);
+  --nav-error-text: var(--error-text);
+  --nav-success: var(--success);
+  --nav-warning: var(--warning);
+  --nav-info: var(--info);
+}
+
+body {
+  --bg: #0b0b0d;
+  --bg-elevated: #16181d;
+  --border: #26262b;
+  --text: #f5f5f5;
+  --text-dim: #a1a1aa;
+  --accent: #22d3ee;
+  --accent-secondary: #ff2d95;
+  --accent-gradient: linear-gradient(135deg, #22d3ee, #b18cff);
+  --accent-dim: #7dd3e0;
+  --on-accent: #0b0b0d;
+  --error-text: #ff6b8a;
+  --success: #a3e635;
+  --warning: #f5b942;
+  --info: #b18cff;
+  --font-family: "IBM Plex Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --heading-font-family: var(--font-family);
+  --font-mono: var(--font-family);
+  --control-radius: 4px;
+  --control-border-width: 1px;
+  --card-radius: 4px;
+  --field-radius: 4px;
+  --field-border-width: 1px;
+  --btn-ink: #f5f5f5;
+  --btn-line: #26262b;
+  --btn-fill: #0b0b0d;
+  --btn-radius: 4px;
+  --btn-border-width: 1px;
+  --btn-shadow: none;
+  --btn-shadow-sm: none;
+  --btn-shadow-press: none;
+  --btn-press: 0px;
+  --btn-press-sm: 0px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 10px 26px rgba(0, 0, 0, 0.5);
+  --dial-glow: #22d3ee;
+  --dial-cap: #16181d;
+  --dial-ring: #0b0b0d;
+  --menu-bg: #16181d;
+  --menu-line: #26262b;
+  --menu-hover: rgba(34, 211, 238, 0.1);
+  --menu-shadow: 0 10px 26px rgba(0, 0, 0, 0.5), 0 0 0 1px #26262b;
+  font-family: var(--font-family);
+  scrollbar-color: #26262b #0b0b0d;
+}
+:root[data-theme="light"] body {
+  --bg: #f4f4f5;
+  --bg-elevated: #ffffff;
+  --border: #d4d4d8;
+  --text: #0b0b0d;
+  --text-dim: #52525b;
+  --accent: #0e7490;
+  --accent-secondary: #be185d;
+  --accent-gradient: linear-gradient(135deg, #0e7490, #6d28d9);
+  --accent-dim: #155e75;
+  --on-accent: #ffffff;
+  --error-text: #b91c1c;
+  --success: #3f6212;
+  --warning: #92400e;
+  --info: #6d28d9;
+  --btn-ink: #0b0b0d;
+  --btn-line: #c4c4cc;
+  --btn-fill: #ffffff;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 26px rgba(0, 0, 0, 0.14);
+  --dial-glow: #0e7490;
+  --dial-cap: #ffffff;
+  --dial-ring: #e4e4e7;
+  --menu-bg: #ffffff;
+  --menu-line: #e4e4e7;
+  --menu-hover: rgba(14, 116, 144, 0.08);
+  --menu-shadow: 0 10px 30px rgba(0, 0, 0, 0.12), 0 0 0 1px #e4e4e7;
+  scrollbar-color: #d4d4d8 #f4f4f5;
+}
+html { background: #0b0b0d; }
+:root[data-theme="light"] { background: #f4f4f5; }
+
+/* Flat buttons: the outline brightens on hover instead of lifting, a press dims a little. Zero specificity (all inside :where), so a
+   component that styles its own buttons keeps its look, and the header and finder are left out. */
+:where(button, input[type="submit"], input[type="button"], input[type="reset"], .btn):where(:not(.topbar *, #site-finder *)):hover:not(:disabled) { border-color: var(--btn-ink); }
+:where(.btn-accent):where(:not(.topbar *, #site-finder *)), :where(.btn-accent):where(:not(.topbar *, #site-finder *)):hover { border-color: var(--accent); }
+@media (prefers-reduced-motion: no-preference) {
+  :where(button, .btn):where(:not(.topbar *, #site-finder *)) { transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease, opacity 150ms ease; }
+  :where(button, .btn):where(:not(.topbar *, #site-finder *)):active:not(:disabled) { opacity: 0.85; }
+}
+:where(input, textarea, select):where(:not(.topbar *, #site-finder *)):focus-visible { border-color: var(--accent); }
+:where(:not(.topbar, .topbar *, #site-finder, #site-finder *))::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+
+/* The header and the finder keep the old look. */
+.topbar, #site-finder {
+  --bg: var(--nav-bg);
+  --bg-elevated: var(--nav-bg-elevated);
+  --border: var(--nav-border);
+  --text: var(--nav-text);
+  --text-dim: var(--nav-text-dim);
+  --accent: var(--nav-accent);
+  --accent-secondary: var(--nav-accent-secondary);
+  --accent-gradient: var(--nav-accent-gradient);
+  --accent-dim: var(--nav-accent-dim);
+  --on-accent: var(--nav-on-accent);
+  --font-family: var(--nav-font-family);
+  --heading-font-family: var(--nav-heading-font-family);
+  --font-mono: var(--nav-font-mono);
+  --control-radius: var(--nav-control-radius);
+  --control-border-width: var(--nav-control-border-width);
+  --card-radius: var(--nav-card-radius);
+  --field-radius: var(--nav-field-radius);
+  --field-border-width: var(--nav-field-border-width);
+  --btn-ink: var(--nav-btn-ink);
+  --btn-line: initial;
+  --btn-fill: var(--nav-btn-fill);
+  --btn-radius: var(--nav-btn-radius);
+  --btn-border-width: var(--nav-btn-border-width);
+  --btn-shadow: var(--nav-btn-shadow);
+  --btn-shadow-sm: var(--nav-btn-shadow-sm);
+  --btn-shadow-press: initial;
+  --btn-press: initial;
+  --btn-press-sm: initial;
+  --error-text: var(--nav-error-text);
+  --success: var(--nav-success);
+  --warning: var(--nav-warning);
+  --info: var(--nav-info);
+  color: var(--text);
+  font-family: var(--font-family);
+}
+.topbar { background: var(--bg); }

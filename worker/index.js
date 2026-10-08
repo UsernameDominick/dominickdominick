@@ -174,7 +174,7 @@ function hasPreviewModeCookie(request) {
 // maintenance page. An explicit allowlist can't have that failure mode.
 // The picture links to a page show when the owner has not chosen one (Site settings > default share image): a card with the site name.
 const DEFAULT_SHARE_IMAGE = "/share/site.png";
-const MAINTENANCE_EXEMPT_FILES = new Set(["/nav.js", "/sim-player.js", "/sim-buzzer.js", "/song-embed.js", "/song-engine.js", "/style.css", "/favicon.ico"]);
+const MAINTENANCE_EXEMPT_FILES = new Set(["/nav.js", "/sim-player.js", "/sim-buzzer.js", "/song-embed.js", "/song-engine.js", "/style.css", "/favicon.ico", "/fonts/ibm-plex-mono-400.woff2", "/fonts/ibm-plex-mono-500.woff2", "/fonts/ibm-plex-mono-700.woff2"]);
 function isMaintenanceExempt(path) {
   return path === "/admin" || path.startsWith("/admin/") || path.startsWith("/media/") || MAINTENANCE_EXEMPT_FILES.has(path);
 }

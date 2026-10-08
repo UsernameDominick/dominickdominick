@@ -98,8 +98,8 @@
 }
 .app-native .shelf-actions button:hover { color: var(--text); background: color-mix(in srgb, var(--text) 8%, transparent); }
 .app-native .shelf-actions .shelf-delete:hover { color: var(--error-text); }
-.app-native .song-studio, .app-native .studio-shelf { --track-1: #ff7a45; --track-2: #4aa3ff; --track-3: #3ecf8e; --track-4: #b388ff; --track-5: #ff6fae; }
-:root[data-theme="light"] .app-native .studio-shelf { --track-1: #c2410c; --track-2: #1d5fc2; --track-3: #0f7a55; --track-4: #6d35c9; --track-5: #b0245f; }
+.app-native .song-studio, .app-native .studio-shelf { --track-1: #ff2d95; --track-2: #22d3ee; --track-3: #a3e635; --track-4: #b18cff; --track-5: #f5b942; }
+:root[data-theme="light"] .app-native .studio-shelf { --track-1: #be185d; --track-2: #0e7490; --track-3: #4d7c0f; --track-4: #6d28d9; --track-5: #b45309; }
 @media (max-width: 640px) {
   .app-native .studio-shelf { padding: 18px 16px 28px; }
   .app-native .shelf-starters { --shelf-pad: 16px; }
@@ -417,10 +417,9 @@
   .app-native #photo-editor-modal input[type="range"] { min-height: 24px; }
 }
 
-/* ---- Phones: calmer tool pages. The desktop layouts stay as they are; under 641px the heavy chunky buttons get lighter, the helper text that
+/* ---- Phones: calmer tool pages. The desktop layouts stay as they are; under 641px the helper text that
    repeats what a control already says goes, rows get room to breathe, and the thing you are working on gets the screen. ---- */
 @media (max-width: 640px) {
-  .app-native { --btn-border-width: 2px; --btn-shadow: 0 3px 0 var(--btn-ink); --btn-shadow-sm: 0 2px 0 var(--btn-ink); --field-border-width: 2px; }
   /* the Studio */
   .app-native .song-studio { gap: 10px; padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px)); }
   .app-native .studio-hint, .app-native .studio-note, .app-native .studio-keybar-hint, .app-native .studio-pad .p-hint { display: none; }
@@ -492,3 +491,13 @@
   .app-native .trainer-drill { flex: 1 1 calc(33% - 8px); }
   .app-native .trainer-left .trainer-chart { display: none; }
 }
+
+/* ---- The aggregate look on the tool pages: flat panels and cards with 4px corners, small uppercase panel titles like the aggregate's
+   module headers, and the Sound panel's edge thinned to 2px. Colours, font and buttons come from the tokens on body in style.css. ---- */
+.app-native :is(.studio-panel, .trainer-panel, .trainer-card, .trainer-stage, .trainer-drill, .studio-song, .lib-item, .app-library, .shelf-empty, .shelf-picture, .shelf-chip, .result-grid div, .studio-pick-tabs) { border-radius: 4px; }
+.app-native :is(.trainer-drill, .trainer-stage, .trainer-card) { border-width: 1px; }
+.app-native .pic-shelf.is-dropping { border-radius: 4px; }
+.app-native .studio-pick-tabs > * { border-radius: 2px; }
+.app-native .studio-pick { border-radius: 4px; }
+.app-native .studio-sound-panel { border-top-width: 2px; }
+.app-native :is(.studio-panel-head, .trainer-panel-head) h2 { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }

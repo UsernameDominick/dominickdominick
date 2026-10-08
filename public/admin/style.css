@@ -112,7 +112,7 @@ button {
   font-family: inherit;
   background: var(--btn-fill);
   color: var(--btn-ink);
-  border: min(var(--btn-border-width), 2px) solid var(--btn-ink);
+  border: min(var(--btn-border-width), 2px) solid var(--btn-line, var(--btn-ink));
   border-radius: var(--btn-radius);
   padding: 6px 10px;
   font-size: 0.85rem;
@@ -8963,17 +8963,17 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 @media (prefers-reduced-motion: no-preference) {
   .admin-header button:active, .modal-inner > header button:active, .canvas-toolbar button:active, .size-menu button:active, .quick-edit-actions button:active,
   .studio-btn:active, .studio-pill:active, .studio-round:active, .studio-mini:active, .login-form button:active, #save-settings:active {
-    transform: translateY(2px);
-    box-shadow: 0 1px 0 var(--btn-ink);
+    transform: translateY(var(--btn-press-sm, 2px));
+    box-shadow: var(--btn-shadow-press, 0 1px 0 var(--btn-ink));
   }
 }
-.admin-header button, .admin-view-live { color: var(--btn-ink); background: var(--btn-fill); border: min(var(--btn-border-width), 2px) solid var(--btn-ink); border-radius: var(--btn-radius); }
-.admin-header button:hover, .admin-view-live:hover { color: var(--btn-ink); border-color: var(--btn-ink); filter: brightness(1.06); }
-.admin-header .page-add-btn, button[data-tier="primary"], .studio-btn-primary { background: var(--accent); color: var(--on-accent, #fff); border-color: var(--btn-ink); }
-.admin-header .page-add-btn:hover, button[data-tier="primary"]:hover, .studio-btn-primary:hover { color: var(--on-accent, #fff); border-color: var(--btn-ink); }
+.admin-header button, .admin-view-live { color: var(--btn-ink); background: var(--btn-fill); border: min(var(--btn-border-width), 2px) solid var(--btn-line, var(--btn-ink)); border-radius: var(--btn-radius); }
+.admin-header button:hover, .admin-view-live:hover { color: var(--btn-ink); border-color: var(--btn-line, var(--btn-ink)); filter: brightness(1.06); }
+.admin-header .page-add-btn, button[data-tier="primary"], .studio-btn-primary { background: var(--accent); color: var(--on-accent, #fff); border-color: var(--btn-line, var(--btn-ink)); }
+.admin-header .page-add-btn:hover, button[data-tier="primary"]:hover, .studio-btn-primary:hover { color: var(--on-accent, #fff); border-color: var(--btn-line, var(--btn-ink)); }
 /* Fields: the same outline. */
 :where(.admin-body) input[type="text"], :where(.admin-body) input[type="search"], :where(.admin-body) input[type="number"], :where(.admin-body) input[type="url"], :where(.admin-body) input[type="email"], :where(.admin-body) input[type="password"], :where(.admin-body) input[type="datetime-local"], :where(.admin-body) textarea, :where(.admin-body) select {
-  border: min(var(--field-border-width), 2px) solid var(--btn-ink);
+  border: min(var(--field-border-width), 2px) solid var(--btn-line, var(--btn-ink));
 }
 
 /* ---- Studio dials: the sound knobs and sliders are round dials, name above, reading below ---- */
@@ -9020,7 +9020,7 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 .studio-hub { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; }
 .studio-rec-hub {
   width: 64px; height: 64px; min-height: 64px; padding: 0; border-radius: 50%; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 0;
-  background: #c2331b; color: #fff; border: min(var(--btn-border-width), 2px) solid var(--btn-ink); box-shadow: var(--btn-shadow-sm); font-weight: 700; font-size: 0.72rem; line-height: 1;
+  background: #c2331b; color: #fff; border: min(var(--btn-border-width), 2px) solid var(--btn-line, var(--btn-ink)); box-shadow: var(--btn-shadow-sm); font-weight: 700; font-size: 0.72rem; line-height: 1;
   touch-action: manipulation; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none;
 }
 .studio-rec-hub svg { width: 22px; height: 22px; fill: #fff; }
@@ -9089,7 +9089,7 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 .studio-grid[data-kind="drums"] .studio-row, .studio-grid[data-kind="drums"] .studio-cell { max-height: 88px; }
 .studio-controls > .studio-bpm { margin-left: 0; }
 .studio-play, .studio-rec-hub { width: 56px; height: 56px; min-height: 56px; }
-.studio-play { border: min(var(--btn-border-width), 2px) solid var(--btn-ink); box-shadow: var(--btn-shadow-sm); }
+.studio-play { border: min(var(--btn-border-width), 2px) solid var(--btn-line, var(--btn-ink)); box-shadow: var(--btn-shadow-sm); }
 .studio-play:active, .studio-rec-hub:active { transform: translateY(2px); box-shadow: none; }
 .studio-transport .studio-round { width: 44px; height: 44px; min-height: 44px; }
 .studio-transport .studio-round svg { width: 20px; height: 20px; }
@@ -9258,7 +9258,7 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 .admin-inspector input:not([type="checkbox"]):not([type="color"]):not([type="range"]), .admin-inspector textarea, .admin-inspector select,
 .modal-inner input[type="text"], .modal-inner input[type="search"], .modal-inner input[type="url"], .modal-inner input[type="number"], .modal-inner input[type="email"],
 .modal-inner input[type="password"], .modal-inner input[type="datetime-local"], .modal-inner input[type="date"], .modal-inner textarea, .modal-inner select {
-  border: min(var(--field-border-width), 2px) solid color-mix(in srgb, var(--btn-ink) 70%, transparent); border-radius: var(--field-radius, 10px);
+  border: min(var(--field-border-width), 2px) solid color-mix(in srgb, var(--btn-line, var(--btn-ink)) 70%, transparent); border-radius: var(--field-radius, 10px);
 }
 /* A dialog's close × and the block toolbar's buttons have no outline, so no hard shadow under them either. */
 .modal-inner > header > button[id^="close-"], .canvas-toolbar button { box-shadow: none; }
@@ -9564,3 +9564,37 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
   .song-studio.studio-editor-folded { grid-template-rows: auto minmax(calc(var(--pl-ruler) + 1.5 * var(--pl-row) + 7px), 1fr) auto auto auto; }
   .song-studio.studio-editor-folded .studio-stack { max-height: calc(var(--pl-ruler) + 5 * 72px + 7px); }
 }
+
+/* ---- The aggregate look in the Studio (plugin-aggregate's Explore DAW): the five tracks take the aggregate's accents (magenta, cyan,
+   lime, violet, warm amber), panels and pads are flat with 4px corners, pills become small rectangles, the keys and pads sit on the
+   aggregate's base, and the playlist lanes carry its faint canvas grid. Colours and buttons come from the tokens on body in style.css. ---- */
+.song-studio {
+  --track-1: #ff2d95;
+  --track-2: #22d3ee;
+  --track-3: #a3e635;
+  --track-4: #b18cff;
+  --track-5: #f5b942;
+  --on-track: #0b0b0d;
+}
+:root[data-theme="light"] .song-studio {
+  --track-1: #be185d;
+  --track-2: #0e7490;
+  --track-3: #4d7c0f;
+  --track-4: #6d28d9;
+  --track-5: #b45309;
+  --on-track: #fff;
+}
+.studio-detail, .studio-keys-scroll, .studio-keyrow .studio-keys-scroll, .studio-pad, .studio-playpop, .studio-tip { border-radius: 4px; }
+.studio-pill, .studio-modes, .studio-sheet-tab, .studio-chip { border-radius: 4px; }
+.studio-clip, .studio-pl-mute { border-radius: 2px; }
+.studio-detail { border-top-width: 2px; }
+.studio-keys-scroll { background: var(--bg); }
+.studio-pad { background: var(--bg); border-color: var(--border); color: var(--text); box-shadow: none; }
+.studio-pad:hover { border-color: var(--track-color, var(--accent)); }
+.studio-pl-lane {
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--text) 12%, transparent) 1px, transparent 1px),
+    linear-gradient(to right, color-mix(in srgb, var(--text) 4%, transparent) 1px, transparent 1px);
+  background-size: var(--pl-bar) 100%, calc(var(--pl-bar) / 4) 100%;
+}
+.song-studio :is(.studio-stack, .studio-grid-scroll, .studio-controls, .studio-page) { border-radius: 4px; }
