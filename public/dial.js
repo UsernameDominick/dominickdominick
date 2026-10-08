@@ -1,6 +1,6 @@
-// Rotary dials. A range input in a dial keeps being the real control (keyboard, forms, labels, tests) and a round face is drawn over it: a dark cap
-// in a ring, a glowing arc up to the value and a pink mark at the pointer. Drag up or down on the face (hold Shift for fine steps), or use the
-// arrow keys on the focused input. Asking for one: a range input with class "dial-me" (or inside .dial-scope) is enhanced as it appears.
+// Rotary dials. A range input in a dial keeps being the real control (keyboard, forms, labels, tests) and a 1-bit face is drawn over it: eleven ticks
+// round a paper disc, the ticks up to the value lit (the one orange on the face) and a needle at the pointer. Drag up or down on the face (hold Shift for
+// fine steps), or use the arrow keys on the focused input. Asking for one: a range input with class "dial-me" (or inside .dial-scope) is enhanced as it appears.
 (function () {
   "use strict";
   const SWEEP = 270; // from 7:30 round to 4:30, clockwise
@@ -25,22 +25,38 @@
     const face = document.createElement("span");
     face.className = "dial-face";
     face.setAttribute("aria-hidden", "true");
+    // Eleven ticks over the 270 degree sweep; the ones up to the value are drawn twice (an ink bar, an orange bar on it) so they read on paper and on ink.
+    const tick = (r1, r2, i) => {
+      const a = ((-SWEEP / 2 + (SWEEP / 10) * i) * Math.PI) / 180;
+      return `M${(30 + r1 * Math.sin(a)).toFixed(1)} ${(30 - r1 * Math.cos(a)).toFixed(1)}L${(30 + r2 * Math.sin(a)).toFixed(1)} ${(30 - r2 * Math.cos(a)).toFixed(1)}`;
+    };
     face.innerHTML =
-      `<svg viewBox="0 0 64 64" focusable="false">` +
-      `<circle class="dial-halo" cx="32" cy="32" r="31"/>` +
-      `<circle class="dial-track" cx="32" cy="32" r="26" pathLength="100" stroke-dasharray="75 100" transform="rotate(135 32 32)"/>` +
-      `<circle class="dial-glow" cx="32" cy="32" r="26" pathLength="100" stroke-dasharray="0 100" transform="rotate(135 32 32)"/>` +
-      `<circle class="dial-cap" cx="32" cy="32" r="19"/>` +
-      `<g class="dial-hand"><line x1="32" y1="17" x2="32" y2="24"/></g>` +
+      `<svg viewBox="0 0 60 60" focusable="false" shape-rendering="crispEdges">` +
+      `<path class="dial-k" d=""/>` +
+      `<path class="dial-kl-edge" d=""/>` +
+      `<path class="dial-kl" d=""/>` +
+      `<circle class="dial-disc" cx="30" cy="30" r="17"/>` +
+      `<g class="dial-needle"><line x1="30" y1="26" x2="30" y2="16"/></g>` +
+      `<circle class="dial-dot" cx="30" cy="30" r="3"/>` +
       `</svg>`;
     wrap.appendChild(face);
-    const glow = face.querySelector(".dial-glow");
-    const hand = face.querySelector(".dial-hand");
+    const ticks = face.querySelector(".dial-k");
+    const litEdge = face.querySelector(".dial-kl-edge");
+    const lit = face.querySelector(".dial-kl");
+    const hand = face.querySelector(".dial-needle");
 
     function draw() {
       const f = fraction(input);
-      glow.setAttribute("stroke-dasharray", `${(75 * f).toFixed(2)} 100`);
-      hand.setAttribute("transform", `rotate(${(-SWEEP / 2 + SWEEP * f).toFixed(2)} 32 32)`);
+      let on = "";
+      let off = "";
+      for (let i = 0; i <= 10; i++) {
+        if (i / 10 <= f + 1e-9) on += tick(23, 29, i);
+        else off += tick(23, 29, i);
+      }
+      ticks.setAttribute("d", off);
+      litEdge.setAttribute("d", on);
+      lit.setAttribute("d", on);
+      hand.setAttribute("transform", `rotate(${(-SWEEP / 2 + SWEEP * f).toFixed(2)} 30 30)`);
       wrap.classList.toggle("is-disabled", input.disabled);
     }
     draw();
