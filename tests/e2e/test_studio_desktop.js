@@ -1,6 +1,6 @@
 // The Studio on a wide screen: the music takes the whole page, with the visitor's songs in a panel on the left (switch songs without leaving
 // the editor) and the open track's sound in a panel on the right (browse instruments or kits, shape the sound). Either panel folds to a thin
-// handle. Under 1280 px there are no panels (the sound is in the Tools sheet, as on a phone).
+// handle. Under 1280 px there are no panels (the tools are in the bottom deck, as on a phone).
 const E2E_BASE = process.env.E2E_BASE || "http://localhost:8787";
 const { chromium, axeSource } = require("./_pw.cjs");
 const axeSrc = axeSource();
@@ -30,7 +30,7 @@ const axeSrc = axeSource();
     ok(songs && sound && songs.r < detail.l && detail.r < sound.l, "the songs panel is on the left and the sound panel on the right of the music", { songs, detail, sound });
     ok(songs.h > 500 && sound.h > 500 && Math.abs(songs.t - sound.t) < 2, "both run the full height beside it", [songs.h, sound.h]);
     ok((await p.evaluate(() => document.documentElement.scrollWidth - innerWidth)) <= 0, "and nothing runs sideways");
-    ok(await p.evaluate(() => { const t = document.getElementById("studio-tab-sound"); return Boolean(t) && t.hidden; }), "the Tools sheet has no Sound tab here: the panel is the sound's home");
+    ok(await p.evaluate(() => { const t = document.getElementById("studio-tab-sound"); return Boolean(t) && !t.hidden && t.getAttribute("aria-selected") === "true" && Boolean(document.querySelector("#studio-sound-panel #studio-sheet.is-docked")); }), "the tools are docked in the right-hand panel as the inspector, open on the track's sound");
 
     // ---- songs: a first song, a second from the panel, and back ----
     await p.fill("#studio-name", "QQ Alpha");
@@ -133,12 +133,10 @@ const axeSrc = axeSource();
     ok(!(await rect(p, "#studio-songs-panel")) && !(await rect(p, "#studio-sound-panel")), "under 1280 px there are no panels");
     const full = await rect(p, "#song-studio");
     ok(full.w >= 1090, "the Studio still takes the whole width at 1100 px", full);
-    await p.click("#studio-tools");
-    await p.waitForSelector("#studio-sheet:not([hidden])");
-    ok(await p.locator("#studio-tab-sound").isVisible(), "the Tools sheet has its Sound tab back");
-    await p.click("#studio-tab-sound");
-    ok(await p.locator("#studio-sheet #studio-pane-sound select#studio-kit, #studio-sheet #studio-pane-sound select#studio-voice").first().isVisible(), "with the instrument menu in it");
-    await p.click("#close-studio-sheet");
+    ok((await p.locator('.studio-deck-dial [data-deck="pads"]').getAttribute("aria-selected")) === "true" && !(await p.locator("#studio-tools").isVisible()), "under 1280 px the tools are in the bottom deck, its dial on the pads");
+    await p.click('.studio-deck-dial [data-deck="sound"]');
+    ok((await p.locator("#studio-pane-sound select#studio-kit, #studio-pane-sound select#studio-voice").first().isVisible()) && !(await p.locator("#studio-keyboard").isVisible()), "the deck's sound stop shows the instrument menu where the keys were");
+    await p.click('.studio-deck-dial [data-deck="pads"]');
     await p.setViewportSize({ width: 1440, height: 900 });
     await settle(p);
     ok((await rect(p, "#studio-sound-panel")) && (await p.locator("#studio-sound-panel #studio-pane-sound").count()) === 1, "back on a wide screen the sound is in the panel again");

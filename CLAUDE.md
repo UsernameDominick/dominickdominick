@@ -93,6 +93,14 @@ node tests/e2e/run.mjs --live test_x  # one test against the dev server already 
     `.ui-icon` in `public/style.css`). Plain text marks (✓ × ← → ♪ ©) are fine. `tests/no-emoji.test.mjs` fails on any, escapes included; a line
     that only holds one as data (the stored reaction keys) is marked `// no-emoji: data` and uses an escape.
 
+## The redesign (Cassette): read this before the older sections below
+
+Some sections further down describe the design before this one; where they disagree, this wins.
+- **Colours:** Cassette (navy-black, orange accent, soft blue second colour; a light version too), set on `body` in the "aggregate look" block at the end of `public/style.css`, IBM Plex Mono everywhere (self-hosted in `public/fonts/`). Studio track colours: `--track-1..5` in `admin/style.css` (`.song-studio`) and `app-kit.css`.
+- **The public site is cut down** to Home, Studio and Search (`worker/site-scope.js` decides; everything else is the 404 page, the code is kept). The admin hides the tools for the rest (`hidden` sidebar buttons; Ctrl+K leaves out actions that press a hidden button).
+- **The nav is no longer a scrolling dial.** The stops (icons only, names kept for screen readers) are a fixed group in the middle of a strip; the needle slides under the current page or Search (`--needle-x`, set by `setNeedle` in `nav.js` and preset by `worker/nav-dial-script.js`); the ruler is a lens scale (`.tab-ruler` marks: `is-major` under each stop, `is-mid` halfway) and the ticks around the needle are lit. `DOMINICK.DOMINICK` (`.nav-word` in the header) is an outline behind it, its period under Home, with a glint every 20 s. `test_nav_carousel.js` and `test_nav_dial.js` still describe the old dial and need rewriting.
+- **The Studio** (`song-studio.js`, "the display" and `placeSound`): the transport row is the **display** at the top (Play, Stop, Rec, a readout of position and tempo, the named switches click / snap / follow / from top / volume, Undo, Redo); there is no fan (`NO_FAN`; `tests/e2e/_fan.cjs` now only maps the fan's old Stop/Undo/Redo/Clear ids to the display's). On a phone the switches sit beside Hold and Play over the keys. On the Studio page the Tools sheet is **docked** (`dock`): from 1280 px it is the inspector in the right-hand panel (its tabs a small dial), below that it is the bottom **deck**, where `.studio-deck-dial` picks pads (the keys) or a pane. The owner's admin dialog keeps the sheet and its Tools button. The open track's row no longer repeats Mute (each playlist row has its M); the hint paragraphs are hidden.
+
 ## Songs: how a song is stored
 
 A song is one JSON blob (`songs.data`). The sound is made by `public/song-engine.js` (shared by the admin builder, the public embed and the offline renders), the editor is `public/admin/song-builder.js`, and `public/admin/song-files.js` is the pure helper for MIDI, JSON import/export and import cleaning.

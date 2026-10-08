@@ -493,7 +493,7 @@
     const cs = getComputedStyle(studio);
     const gap = parseFloat(cs.rowGap) || 0;
     const pad = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
-    const others = [".studio-top", ".studio-controls", ".studio-keyboard"].reduce((n, q) => n + ((studio.querySelector(q) || {}).offsetHeight || 0), 0);
+    const others = [".studio-top", ".studio-controls", ".studio-deck-dial", ".studio-keyboard"].reduce((n, q) => n + ((studio.querySelector(q) || {}).offsetHeight || 0), 0);
     const stackMin = parseFloat(getComputedStyle(stackEl).minHeight) || 70;
     // (the handle overlaps its neighbours by 6 px each side, which is why 12 comes back)
     return Math.max(EDITOR_MIN, studio.clientHeight - pad - others - stackMin - splitEl.offsetHeight + 12 - gap * 6);
@@ -654,6 +654,23 @@
     panel.classList.add("is-open");
     button.setAttribute("aria-expanded", "true");
     openPop = { button, panel };
+    // A switch in the display or over the keys can sit in a row that scrolls sideways, which would cut its popover off: it is put on the
+    // screen instead, under the switch, or above it when there is more room there.
+    if (panel.closest(".studio-toggles")) {
+      const r = button.getBoundingClientRect();
+      const w = panel.offsetWidth;
+      const h = panel.offsetHeight;
+      panel.style.position = "fixed";
+      panel.style.transform = "none";
+      panel.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left)) + "px";
+      if (window.innerHeight - r.bottom >= h + 16 || r.top < h + 16) {
+        panel.style.top = r.bottom + 8 + "px";
+        panel.style.bottom = "auto";
+      } else {
+        panel.style.top = "auto";
+        panel.style.bottom = window.innerHeight - r.top + 8 + "px";
+      }
+    }
     const field = panel.querySelector("input, select, button:not([disabled])");
     if (field) field.focus();
   }
@@ -1995,6 +2012,7 @@
   function paintStep(step, info) {
     const s = song();
     if (!s) return;
+    if (info && step >= 0) paintPos(info, step);
     const data = info ? info.data : s;
     const track = trackOf(trackId);
     // The editor follows the music from bar to bar: when the open track moves on to another bar, that bar opens (its pattern, if it differs).
@@ -2101,6 +2119,8 @@
     refresh();
   });
   // ---------- the fan: Rec is a hub; hold it (or press ⋯) and the other controls open in an arc above it ----------
+  // Retired in the display layout (NO_FAN): its controls are in the display bar, named; the fan stays in the page, never opened.
+  const NO_FAN = true;
   const fan = $("studio-fan");
   const fanToggle = $("studio-fan-btn");
   const recHub = $("studio-rec");
@@ -2133,7 +2153,7 @@
     return !fan.hidden;
   }
   function openFan() {
-    if (fanIsOpen()) return;
+    if (NO_FAN || fanIsOpen()) return;
     closePop();
     fan.hidden = false;
     layoutFan();
@@ -2162,6 +2182,7 @@
   let holdTimer = null;
   let holdOpened = false;
   recHub.addEventListener("pointerdown", (e) => {
+    if (NO_FAN) return;
     if (e.button !== undefined && e.button > 0) return;
     holdOpened = false;
     clearTimeout(holdTimer);
@@ -2286,6 +2307,7 @@
     playBtn.classList.toggle("studio-playing", playing);
     $("studio-stop").disabled = !playing && !paused;
     $("studio-fan-stop").disabled = !playing && !paused;
+    if (!playing && !paused) paintPos(null);
     $("studio-rec").setAttribute("aria-pressed", String($("song-record").checked));
     $("studio-rec-top").setAttribute("aria-pressed", String(recTop));
     $("studio-follow").setAttribute("aria-pressed", String(followOn));
@@ -2339,6 +2361,67 @@
     mb.textContent = connected && /\d/.test(midi.textContent) ? "MIDI ✓" : "MIDI";
     mb.title = connected ? midi.title || "MIDI connected" : "Connect a MIDI keyboard or pad controller: its notes play and, with Rec on, record";
     if (midi.textContent.includes("No MIDI")) mb.title = "No MIDI device found. Plug one in and it is picked up.";
+  }
+
+  // ---------- the display: the whole song's controls in one bar at the top, every one named ----------
+  // Play, Stop and Rec; a readout of where the music is and the tempo; the switches that used to hide in the fan (click, snap, follow,
+  // from the top, volume), each with its name; then Undo and Redo. The buttons are the same ones (ids, handlers and popovers), moved.
+  const display = studio.querySelector(".studio-controls");
+  if (display && !legacy) {
+    display.classList.add("studio-display");
+    display.setAttribute("aria-label", "The song: play, record, where it is, tempo and switches");
+    const transport = display.querySelector(".studio-transport");
+    transport.append(recHub);
+    const readout = document.createElement("div");
+    readout.className = "studio-readout";
+    readout.innerHTML = `<span class="studio-readout-cell"><span class="studio-readout-cap">position</span><span id="studio-pos" class="studio-pos" aria-live="off">1.1.1</span></span>`;
+    const bpm = display.querySelector(".studio-bpm");
+    if (bpm) {
+      bpm.classList.add("studio-readout-cell");
+      readout.append(bpm);
+    }
+    const toggles = document.createElement("div");
+    toggles.className = "studio-toggles";
+    toggles.setAttribute("role", "group");
+    toggles.setAttribute("aria-label", "Switches");
+    [["studio-metro", "click"], ["studio-quant-btn", ""], ["studio-follow", "follow"], ["studio-rec-top", "from top"], ["studio-volume-btn", "volume"]].forEach(([id, name]) => {
+      const btn = $(id);
+      if (!btn) return;
+      btn.classList.add("studio-toggle");
+      if (name) {
+        const label = document.createElement("span");
+        label.className = "studio-toggle-name";
+        label.textContent = name;
+        btn.append(label);
+      }
+      toggles.append(btn.closest(".studio-fan-slot") || btn);
+    });
+    const history = document.createElement("div");
+    history.className = "studio-history";
+    history.append($("studio-undo"), $("studio-redo"));
+    display.append(readout, toggles, history);
+    // At the top of the Studio, under the song's name.
+    studio.insertBefore(display, $("studio-stack"));
+    // On a phone the display is one row; the switches go beside Hold and Play, over the keys.
+    const narrow = window.matchMedia("(max-width: 640px)");
+    const placeToggles = () => {
+      const keybar = studio.querySelector(".studio-keybar");
+      if (narrow.matches && keybar) {
+        if (toggles.parentNode !== keybar) keybar.append(toggles);
+      } else if (toggles.parentNode !== display) display.insertBefore(toggles, history);
+    };
+    placeToggles();
+    if (narrow.addEventListener) narrow.addEventListener("change", placeToggles);
+  }
+  function paintPos(info, step) {
+    const pos = $("studio-pos");
+    if (!pos) return;
+    if (!info) {
+      pos.textContent = "1.1.1";
+      return;
+    }
+    const bar = (info.chainIndex || 0) + 1;
+    pos.textContent = `${bar}.${Math.floor(step / 4) + 1}.${(step % 4) + 1}`;
   }
 
   // ---------- the tools sheet ----------
@@ -2634,7 +2717,7 @@
     sheetTab = id;
     PANES.forEach((p) => {
       const on = p.id === id;
-      if (!(p.id === "sound" && soundHomed)) panes[p.id].hidden = !on;
+      panes[p.id].hidden = !on;
       const tab = $("studio-tab-" + p.id);
       tab.setAttribute("aria-selected", String(on));
       tab.tabIndex = on ? 0 : -1;
@@ -2644,23 +2727,86 @@
     syncSheet();
   }
   let sheetReturn = null;
-  // Put the Sound pane where it belongs for this width: the panel on a wide Studio page, the sheet otherwise.
+  // Where the tools live (the owner's layout, on the Studio page): on a wide screen the whole sheet is docked in the right-hand panel as
+  // the inspector, its tabs a small dial; on a narrower screen it is docked in the bottom deck, where a dial picks the pads/keys or one of
+  // its panes. In the owner's dialog it stays the sheet that the Tools button opens. `dock` is "panel", "deck" or "sheet".
+  let dock = "sheet";
+  const deckDial = document.createElement("div");
+  deckDial.className = "studio-deck-dial";
+  deckDial.setAttribute("role", "tablist");
+  deckDial.setAttribute("aria-label", "What the bottom of the Studio shows");
+  const DECK = [["song", "song"], ["sound", "sound"], ["pads", "pads"], ["tools", "track"], ["arrange", "patterns"], ["share", "share"], ["midi", "midi"]];
+  deckDial.innerHTML = DECK.map(([id, name]) => `<button type="button" role="tab" class="studio-deck-stop" data-deck="${id}" data-no-history aria-selected="false">${name}</button>`).join("");
+  const deckBody = document.createElement("div");
+  deckBody.className = "studio-deck-body";
+  let deckTab = "pads";
+  function setDeck(id) {
+    deckTab = id;
+    deckDial.querySelectorAll("[data-deck]").forEach((b) => {
+      const on = b.dataset.deck === id;
+      b.setAttribute("aria-selected", String(on));
+      b.tabIndex = on ? 0 : -1;
+    });
+    const pads = id === "pads";
+    studio.classList.toggle("studio-deck-pane", !pads);
+    sheet.hidden = pads;
+    deckBody.hidden = pads;
+    if (!pads) showPane(id);
+    gridSig = "";
+    refresh();
+  }
+  deckDial.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-deck]");
+    if (b) setDeck(b.dataset.deck);
+  });
+  deckDial.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    const i = DECK.findIndex((d) => d[0] === deckTab);
+    const next = DECK[Math.max(0, Math.min(DECK.length - 1, i + (e.key === "ArrowRight" ? 1 : -1)))];
+    e.preventDefault();
+    setDeck(next[0]);
+    deckDial.querySelector(`[data-deck="${next[0]}"]`).focus();
+  });
   function placeSound() {
     if (!sheetBuilt) return;
-    soundHomed = pageMode && wide.matches && !legacy;
-    const home = soundHomed ? soundPanelBody : sheetBody;
-    if (panes.sound.parentNode !== home) {
-      home.append(panes.sound);
+    soundHomed = false;
+    if (panes.sound.parentNode !== sheetBody) {
+      sheetBody.append(panes.sound);
       soundSig = "";
     }
-    const tab = $("studio-tab-sound");
-    if (tab) tab.hidden = soundHomed;
-    if (soundHomed) {
-      panes.sound.hidden = false;
-      if (sheetTab === "sound") showPane("song");
-    } else showPane(sheetTab);
-    soundPanel.classList.toggle("is-folded", soundHomed && soundFolded);
-    studio.classList.toggle("studio-sounds-folded", soundHomed && soundFolded);
+    const want = pageMode && !legacy ? (wide.matches ? "panel" : "deck") : "sheet";
+    const wasDocked = dock !== "sheet";
+    dock = want;
+    sheet.classList.toggle("is-docked", dock !== "sheet");
+    studio.classList.toggle("studio-docked-panel", dock === "panel");
+    studio.classList.toggle("studio-docked-deck", dock === "deck");
+    if (dock === "panel") {
+      if (sheet.parentNode !== soundPanelBody) soundPanelBody.append(sheet);
+      if (deckDial.isConnected) deckDial.remove();
+      if (deckBody.isConnected) deckBody.remove();
+      studio.classList.remove("studio-deck-pane", "studio-sheet-on");
+      sheet.hidden = false;
+      if (!wasDocked) sheetTab = "sound";
+      showPane(sheetTab);
+    } else if (dock === "deck") {
+      const keys = $("studio-keyboard");
+      studio.insertBefore(deckDial, keys);
+      studio.insertBefore(deckBody, keys);
+      if (sheet.parentNode !== deckBody) deckBody.append(sheet);
+      studio.classList.remove("studio-sheet-on");
+      setDeck(deckTab);
+    } else {
+      if (wasDocked) {
+        studio.insertBefore(sheet, $("studio-holder"));
+        sheet.hidden = true;
+        deckDial.remove();
+        deckBody.remove();
+        studio.classList.remove("studio-deck-pane");
+      }
+      showPane(sheetTab);
+    }
+    soundPanel.classList.toggle("is-folded", dock === "panel" && soundFolded);
+    studio.classList.toggle("studio-sounds-folded", dock === "panel" && soundFolded);
     syncSoundFold();
   }
   function syncSoundFold() {
@@ -2688,13 +2834,24 @@
   if (wide.addEventListener) wide.addEventListener("change", () => { placeSound(); refresh(); });
   // The panel shows the open track's sound and follows the track chosen on the left.
   function syncSoundPanel() {
-    if (!soundHomed || soundFolded) return;
+    if (dock !== "panel" || soundFolded) return;
     const track = trackOf(trackId);
     $("studio-sound-panel-title").textContent = `${track.name} sound`;
     soundPanel.style.setProperty("--panel-color", `var(--track-${track.n})`);
-    renderSound();
+    if (sheetTab === "sound") renderSound();
   }
   function openSheet(id) {
+    if (dock !== "sheet") {
+      buildSheet();
+      placeSound();
+      if (dock === "panel" && soundFolded) foldSound(false);
+      const want = id || (dock === "deck" && deckTab === "pads" ? "song" : sheetTab);
+      if (dock === "deck") setDeck(want);
+      else showPane(want);
+      const first = panes[sheetTab] && panes[sheetTab].querySelector("select, input, button");
+      if (first) first.focus();
+      return;
+    }
     if (id === "sound" && soundHomed) {
       // the sound is in the panel: open it if it was folded, and put the focus on its first control
       if (soundFolded) foldSound(false);
@@ -2716,7 +2873,7 @@
   // On a phone the sheet is a dropdown under the Tools button, with a little pointer to it; elsewhere it is the panel it always was.
   const phoneSheet = () => window.matchMedia && window.matchMedia("(max-width: 640px)").matches;
   function placeSheet() {
-    if (!phoneSheet()) return;
+    if (dock !== "sheet" || !phoneSheet()) return;
     const sr = studio.getBoundingClientRect();
     const tr = $("studio-tools").getBoundingClientRect();
     sheet.style.setProperty("--sheet-top", Math.round(tr.bottom - sr.top + 8) + "px");
@@ -2724,11 +2881,20 @@
   }
   window.addEventListener("resize", () => { if (!sheet.hidden) placeSheet(); });
   document.addEventListener("pointerdown", (e) => {
-    if (sheet.hidden || !phoneSheet()) return;
+    if (dock !== "sheet" || sheet.hidden || !phoneSheet()) return;
     if (sheet.contains(e.target) || $("studio-tools").contains(e.target) || (e.target.closest && e.target.closest(".modal:not(#song-builder-modal), .dial-face"))) return;
     closeSheet();
   });
   function closeSheet() {
+    if (dock === "deck") {
+      if (deckTab !== "pads") {
+        setDeck("pads");
+        const b = deckDial.querySelector('[data-deck="pads"]');
+        if (b) b.focus();
+      }
+      return;
+    }
+    if (dock === "panel") return;
     if (sheet.hidden) return;
     sheet.hidden = true;
     studio.classList.remove("studio-sheet-on");

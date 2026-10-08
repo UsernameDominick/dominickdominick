@@ -42,7 +42,7 @@ const { fanify } = require("./_fan.cjs");
     await p.evaluate(() => document.getElementById("songs-btn").click()); await p.waitForSelector("#songs-modal:not([hidden])");
     await p.locator(`.edit-song[data-id="${id}"]`).click(); await p.waitForSelector("#song-builder-modal:not([hidden])"); await p.waitForSelector("#studio-stack .studio-card-main"); await p.waitForTimeout(500);
   };
-  const vis = (p, sel) => p.evaluate((q) => { const e = document.querySelector(q); return Boolean(e) && !e.hidden && e.offsetParent !== null; }, sel);
+  const vis = (p, sel) => p.evaluate((q) => { const e = document.querySelector(q); return Boolean(e) && !e.hidden && (e.offsetParent !== null || (getComputedStyle(e).position === "fixed" && getComputedStyle(e).display !== "none")); }, sel); // a popover placed on the screen (position: fixed) has no offsetParent
   const osc = (p) => p.evaluate(() => window.__audio.osc + window.__audio.sources);
   const synth = (p, track) => p.evaluate((t) => { const s = window.SongStudioHost.song(); return JSON.stringify((t === "melody" ? s.melody : s[t] || {}).synth || {}); }, track);
   const pick = async (p, track) => { await p.evaluate((t) => document.querySelector(`#studio-stack [data-pick="${t}"]`).click(), track); await p.waitForTimeout(500); };
@@ -118,27 +118,23 @@ const { fanify } = require("./_fan.cjs");
     const keep = await p.evaluate(() => { const i = document.querySelector('[data-dknob="tone"]'); i.value = "900"; i.dispatchEvent(new Event("input", { bubbles: true })); return null; });
     await p.click("#close-studio-sheet");
 
-    // ---- transport: record from the top, quantize, follow
-    ok(!(await vis(p, "#studio-fan")) && (await vis(p, "#studio-rec")) && (await vis(p, "#studio-fan-btn")), "the bottom bar is Play, a Rec hub and a tempo; the rest waits in the fan");
-    await p.click("#studio-fan-btn");
-    await p.waitForTimeout(350);
-    ok((await vis(p, "#studio-fan")) && (await vis(p, "#studio-rec-top")) && (await p.getAttribute("#studio-rec-top", "aria-pressed")) === "false" && (await p.getAttribute("#studio-follow", "aria-pressed")) === "true", "the ⋯ button opens the fan: record from the top (off at first) and Follow (on at first) are in it");
-    const items = await p.evaluate(() => [...document.querySelectorAll("#studio-fan .studio-fan-item")].map((e) => e.id));
-    ok(["studio-volume-btn", "studio-metro", "studio-fan-undo", "studio-fan-redo", "studio-fan-stop", "studio-fan-clear", "studio-rec-top", "studio-quant-btn", "studio-follow"].every((id) => items.includes(id)), "volume, metronome, undo, redo, stop, clear, record from the top, quantize and follow", items);
-    await p.keyboard.press("Escape");
-    ok(!(await vis(p, "#studio-fan")), "Escape closes it");
-    // holding Rec opens it too, and the hold is not a tap on Rec
+    // ---- the display: Play, Stop and Rec, where the music is and the tempo, then the switches, each named (there is no fan any more)
+    const disp = await p.evaluate(() => {
+      const d = document.querySelector(".studio-display");
+      const ids = [...d.querySelectorAll("button, input")].filter((e) => e.offsetParent).map((e) => e.id);
+      return { top: Boolean(d.compareDocumentPosition(document.getElementById("studio-stack")) & Node.DOCUMENT_POSITION_FOLLOWING), ids };
+    });
+    ok(disp.top && ["studio-play", "studio-stop", "studio-rec", "studio-bpm", "studio-metro", "studio-quant-btn", "studio-follow", "studio-rec-top", "studio-volume-btn", "studio-undo", "studio-redo"].every((i) => disp.ids.includes(i)), "the display, above the tracks, holds Play, Stop, Rec, the tempo, the switches, Undo and Redo", disp);
+    ok(!(await vis(p, "#studio-fan")) && !(await vis(p, "#studio-fan-btn")) && (await p.getAttribute("#studio-rec-top", "aria-pressed")) === "false" && (await p.getAttribute("#studio-follow", "aria-pressed")) === "true", "no fan: record from the top (off at first) and Follow (on at first) are switches in view");
+    ok(/follow/.test(await p.textContent("#studio-follow")) && /from top/.test(await p.textContent("#studio-rec-top")) && /click/.test(await p.textContent("#studio-metro")), "each switch says what it is");
+    // holding Rec is a press like any other now: it records, and nothing opens
     const rb = await p.locator("#studio-rec").boundingBox();
     await p.mouse.move(rb.x + rb.width / 2, rb.y + rb.height / 2);
     await p.mouse.down();
     await p.waitForTimeout(650);
     await p.mouse.up();
     await p.waitForTimeout(300);
-    ok((await vis(p, "#studio-fan")) && !(await p.isChecked("#song-record")), "holding Rec opens the fan without turning recording on");
-    await p.click("#studio-fan-close");
-    ok(!(await vis(p, "#studio-fan")) && !(await p.isChecked("#song-record")), "× closes the row");
-    await p.click("#studio-rec");
-    ok((await p.isChecked("#song-record")) && !(await vis(p, "#studio-fan")), "and a tap on Rec records");
+    ok((await p.isChecked("#song-record")) && !(await vis(p, "#studio-fan")), "holding Rec records, and nothing pops up");
     await p.click("#studio-rec");
     await p.click("#studio-follow");
     ok((await p.getAttribute("#studio-follow", "aria-pressed")) === "false" && (await p.evaluate(() => localStorage.getItem("songFollow"))) === "0", "Follow switches off and remembers it");
@@ -152,11 +148,10 @@ const { fanify } = require("./_fan.cjs");
     ok((await qv()) === "Off" && (await p.evaluate(() => window.SongStudioHost.quantize())) === 0, "then 1/4, then off", await qv());
     await p.click("#studio-quant-btn");
     ok((await qv()) === "1/16", "and round to 1/16 again", await qv());
-    ok((await p.evaluate(() => { const f = document.getElementById("studio-fan").getBoundingClientRect(); const c = document.querySelector(".studio-controls").getBoundingClientRect(); return Math.abs(f.top - c.top) < 2 && Math.abs(f.bottom - c.bottom) < 2; })), "the ⋯ controls are a row over the bar, not over the steps");
+    ok((await p.textContent("#studio-quant-btn")).includes("1/16"), "the snap switch shows its setting in its name");
 
     await p.click("#studio-rec-top");
     ok((await p.getAttribute("#studio-rec-top", "aria-pressed")) === "true", "Record from the top switches on");
-    await p.click("#studio-fan-close"); // the row lies over Play, so close it first
     await pick(p, "melody");
     await p.evaluate(() => { window.__steps = []; });
     await p.click("#studio-play");
@@ -196,14 +191,16 @@ const { fanify } = require("./_fan.cjs");
     const m2 = fanify(await mctx.newPage());
     const merrs = []; m2.on("pageerror", (e) => merrs.push(String(e))); m2.on("dialog", (d) => d.accept());
     await open(m2);
-    const fit = await m2.evaluate(() => ({ over: document.documentElement.scrollWidth - window.innerWidth, small: [...document.querySelectorAll("#studio-play, #studio-rec, #studio-fan-btn")].map((e) => Math.round(e.getBoundingClientRect().height)).filter((h) => h < 36) }));
+    const fit = await m2.evaluate(() => ({ over: document.documentElement.scrollWidth - window.innerWidth, small: [...document.querySelectorAll("#studio-play, #studio-stop, #studio-rec")].map((e) => Math.round(e.getBoundingClientRect().height)).filter((h) => h < 36) }));
     ok(fit.over <= 1 && fit.small.length === 0, "on a phone the controls fit the screen and stay finger-sized", fit);
-    const clash = await m2.evaluate(() => { const r = (id) => document.getElementById(id).getBoundingClientRect(); const a = r("studio-fan-btn"), b = r("studio-bpm"), c = r("studio-rec"); const hit = (x, y) => x.left < y.right && y.left < x.right && x.top < y.bottom && y.top < x.bottom; return hit(a, b) || hit(a, c) || a.left < c.right - 1; });
-    ok(!clash, "the ⋯ sits just right of Rec and covers neither Rec nor the tempo");
-    await m2.tap("#studio-fan-btn");
-    await m2.waitForTimeout(300);
-    const lefts = await m2.evaluate(() => [...document.querySelectorAll("#studio-fan .studio-fan-item")].map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right), Math.round(r.height)]; }));
-    ok(lefts.length === 9 && lefts.every((r) => r[0] >= 0 && r[1] <= 390 && r[2] >= 40 && r[1] - r[0] >= 24), "on a phone the whole row is inside the screen and its buttons are finger-sized", lefts);
+    const row = await m2.evaluate(() => {
+      const r = (id) => document.getElementById(id).getBoundingClientRect();
+      const ids = ["studio-play", "studio-stop", "studio-rec", "studio-bpm", "studio-undo"];
+      const tops = ids.map((id) => Math.round(r(id).top + r(id).height / 2));
+      const t = document.querySelector(".studio-toggles").getBoundingClientRect();
+      return { oneRow: Math.max(...tops) - Math.min(...tops) < 24, inKeybar: Boolean(document.querySelector(".studio-keybar .studio-toggles")), sw: [Math.round(t.left), Math.round(t.right)] };
+    });
+    ok(row.oneRow && row.inKeybar && row.sw[0] >= 0 && row.sw[1] <= 390, "on a phone the display is one row, and the switches sit beside Hold and Play, inside the screen", row);
     await m2.tap("#studio-volume-btn");
     const rect = await m2.evaluate(() => { const r = document.getElementById("studio-pop-volume").getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right)]; });
     ok(rect[0] >= 0 && rect[1] <= 390, "its volume slider opens inside the screen", rect);

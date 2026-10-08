@@ -18,9 +18,11 @@ const axeSrc = axeSource();
       const p = await ctx.newPage();
       const errs = []; p.on("pageerror", (e) => errs.push(e.message)); p.on("dialog", (d) => d.accept());
       await p.goto(E2E_BASE + "/studio");
-      await p.waitForSelector("#song-builder-modal:not([hidden]) #studio-tools", { timeout: 30000 });
-      await p.click("#studio-tools");
-      await p.click("#studio-tab-midi");
+      await p.waitForSelector("#song-builder-modal:not([hidden]) #studio-stack .studio-card", { timeout: 30000 });
+      await p.waitForTimeout(400);
+      // the tools are the inspector on a wide screen (its dial's tabs) and the bottom deck on a phone (the deck's dial)
+      if (await p.locator("#studio-tab-midi").isVisible()) await p.click("#studio-tab-midi");
+      else await p.click('.studio-deck-dial [data-deck="midi"]');
       ok(await p.locator("#studio-pane-midi").isVisible(), theme + ": the MIDI tab opens");
       const status = () => p.locator("#studio-midi-status").textContent();
       ok(/Press Connect|connected/i.test(await status()), theme + ": it says where things stand", await status());

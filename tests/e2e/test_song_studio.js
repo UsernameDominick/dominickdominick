@@ -57,7 +57,7 @@ const { fanify } = require("./_fan.cjs");
     await p.waitForSelector("#studio-stack .studio-card-main");
     await p.waitForTimeout(500);
   };
-  const vis = (p, sel) => p.evaluate((q) => { const e = document.querySelector(q); return Boolean(e) && !e.hidden && e.offsetParent !== null; }, sel);
+  const vis = (p, sel) => p.evaluate((q) => { const e = document.querySelector(q); return Boolean(e) && !e.hidden && (e.offsetParent !== null || (getComputedStyle(e).position === "fixed" && getComputedStyle(e).display !== "none")); }, sel); // a popover placed on the screen (position: fixed) has no offsetParent
   const text = (p, sel) => p.textContent(sel);
   const pressed = (p, sel) => p.getAttribute(sel, "aria-pressed");
   const front = (p) => p.evaluate(() => { const c = document.querySelector('#studio-stack .studio-card[data-pos="front"]'); return c ? c.dataset.card : null; });
@@ -93,9 +93,9 @@ const { fanify } = require("./_fan.cjs");
     ok(names === "Drums|Bass|Chords|Melody|Lead", "five tracks, always in the same order", names);
     const badges = await p.evaluate(() => [...document.querySelectorAll("#studio-stack .studio-card .studio-badge")].map((x) => x.textContent).join(""));
     ok(badges === "12345", "numbered 1 to 5", badges);
-    const tops = await p.evaluate(() => ["studio-stack", "studio-detail", "studio-play", "studio-keys"].map((i) => Math.round(document.getElementById(i).getBoundingClientRect().top)));
-    // a wide screen puts the tracks in a rail beside the open track; below that they come first
-    ok(tops[0] <= tops[1] && tops[1] < tops[2] && tops[2] < tops[3], "the tracks, then (or beside) the open track, then the play controls, then the keys at the bottom", tops);
+    const tops = await p.evaluate(() => ["studio-play", "studio-stack", "studio-detail", "studio-keys"].map((i) => Math.round(document.getElementById(i).getBoundingClientRect().top)));
+    // the display (play controls) at the top, then the tracks, then (or beside) the open track, then the keys at the bottom
+    ok(tops[0] < tops[1] && tops[1] <= tops[2] && tops[2] < tops[3], "the display, then the tracks, then (or beside) the open track, then the keys at the bottom", tops);
     ok(await vis(p, "#song-studio") && !(await vis(p, ".song-builder-body")) && !(await vis(p, ".song-toolbar")), "the old header and body stay out of the way");
     ok(!(await p.evaluate(() => Boolean(document.getElementById("song-view-toggle") || document.getElementById("studio-full")))), "there is no other view to switch to");
     ok((await front(p)) === "drums" && /Drums/.test(await text(p, "#studio-detail h2")), "it opens on the first track that has something in it (Drums)", await front(p));
@@ -195,11 +195,11 @@ const { fanify } = require("./_fan.cjs");
     await p.click('[data-sound="kick"]');
     ok(!(await vis(p, "#studio-sound-remove")) && (await rows(p)).join() === "kick,snare,hihat,clap,tom", "removing it takes its row away", await rows(p));
     await closeSheet(p);
-    await p.click("#studio-mute");
+    await p.click('#studio-stack [data-mute="drums"]'); // the open track's own M in the playlist (the row of controls no longer repeats it)
     await settle(p);
     const muted = await p.evaluate(() => ["kick", "snare", "hihat", "clap", "tom"].map((r) => document.querySelector(`.song-track-mute[data-row="${r}"]`).getAttribute("aria-pressed")).join());
-    ok(muted === "true,true,true,true,true" && (await pressed(p, "#studio-mute")) === "true" && /muted/i.test(await p.getAttribute('#studio-stack [data-card="drums"] .studio-card-main', "aria-label")) && /muted/.test(await count(p, "drums")), "Mute silences every drum sound and the card says so", muted);
-    await p.click("#studio-mute");
+    ok(muted === "true,true,true,true,true" && (await pressed(p, '#studio-stack [data-mute="drums"]')) === "true" && /muted/i.test(await p.getAttribute('#studio-stack [data-card="drums"] .studio-card-main', "aria-label")) && /muted/.test(await count(p, "drums")), "Mute silences every drum sound and the card says so", muted);
+    await p.click('#studio-stack [data-mute="drums"]');
     await settle(p);
     ok(!/muted/.test(await count(p, "drums")), "and it comes back");
     await p.click("#studio-clear");
@@ -371,10 +371,10 @@ const { fanify } = require("./_fan.cjs");
     ok((await p.inputValue("#song-part-voice")) === "bell" && /Bell/.test(await sound(p, "lead")) && /pluck/i.test(await sound(p, "chords")), "changing the lead's sound leaves the chords' sound alone");
     await p.fill("#studio-sound-vol", "40");
     await closeSheet(p);
-    await p.click("#studio-mute");
+    await p.click('#studio-stack [data-mute="lead"]');
     await settle(p);
     ok((await pressed(p, "#song-melody-mute")) === "true" && /muted/.test(await count(p, "lead")) && !/muted/.test(await count(p, "melody")), "Mute silences just this track, and its card says so");
-    await p.click("#studio-mute");
+    await p.click('#studio-stack [data-mute="lead"]');
     await settle(p);
 
     // ---- play, pause, carry on, stop
@@ -452,7 +452,7 @@ const { fanify } = require("./_fan.cjs");
 
     // ---- the rest of the controls: a volume slider and a metronome button with its own popover
     await p.click("#studio-volume-btn");
-    ok((await vis(p, "#studio-pop-volume")) && (await p.evaluate(() => !!document.querySelector("#studio-pop-volume .dial"))), "the volume button in the fan opens a dial");
+    ok((await vis(p, "#studio-pop-volume")) && (await p.evaluate(() => !!document.querySelector("#studio-pop-volume .dial"))), "the volume switch opens a dial");
     await p.keyboard.press("Escape");
     await p.click("#studio-metro");
     ok((await vis(p, "#studio-pop-metro")) && (await p.getAttribute("#studio-metro", "aria-expanded")) === "true", "the metronome button opens a small panel for what it controls");
@@ -644,7 +644,7 @@ const { fanify } = require("./_fan.cjs");
     ok(await m.evaluate(() => { const s = document.getElementById("studio-grid-scroll"); return s.scrollWidth <= s.clientWidth + 1 && document.querySelectorAll("#studio-grid .studio-row[data-row]").length === 24; }), "the roll fits the sixteen steps across a phone, with nothing to scroll sideways");
     await m.tap('.studio-mode[data-mode="steps"]');
     // the volume and the metronome are buttons that pop up their slider
-    ok(!(await vis(m, "#studio-pop-volume")) && !(await vis(m, "#studio-volume-btn")) && (await vis(m, "#studio-fan-btn")), "on a phone the volume is in the fan, not on the bar");
+    ok(!(await vis(m, "#studio-pop-volume")) && (await vis(m, "#studio-volume-btn")) && !(await vis(m, "#studio-fan-btn")), "on a phone the volume is a named switch beside the keys (there is no fan)");
     await m.tap("#studio-volume-btn");
     ok(await vis(m, "#studio-pop-volume"), "that opens a small slider for the volume");
     await m.evaluate(() => { const i = document.getElementById("studio-volume"); i.value = "42"; i.dispatchEvent(new Event("input", { bubbles: true })); });

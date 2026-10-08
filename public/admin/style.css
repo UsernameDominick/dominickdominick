@@ -9561,7 +9561,7 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
   .song-studio.studio-editor-folded .studio-split { display: none; }
 }
 @media (min-width: 1024px) {
-  .song-studio.studio-editor-folded { grid-template-rows: auto minmax(calc(var(--pl-ruler) + 1.5 * var(--pl-row) + 7px), 1fr) auto auto auto; }
+  .song-studio.studio-editor-folded { grid-template-rows: auto auto minmax(calc(var(--pl-ruler) + 1.5 * var(--pl-row) + 7px), 1fr) auto auto; }
   .song-studio.studio-editor-folded .studio-stack { max-height: calc(var(--pl-ruler) + 5 * 72px + 7px); }
 }
 
@@ -9602,3 +9602,145 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 .studio-keybar-hint { flex: 1 1 0; min-width: 0; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* The quick editor scrolls itself into view when it opens; keep it clear of the floating block bar at the bottom (Plex Mono makes it taller). */
 .quick-edit { scroll-margin-bottom: 96px; }
+
+/* ---- The Studio, reorganised (the owner's layout): one display bar at the top for the whole song, every control named; the tools
+   docked as an inspector on a wide Studio page (a small dial picks the pane) and in a bottom deck on a narrower one (a dial picks the
+   pads/keys or a pane). song-studio.js moves the real buttons into place ("the display", placeSound); this is how they look. ---- */
+.studio-controls.studio-display {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 8px 10px;
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 4px;
+}
+.studio-display > .studio-hub { display: none; }
+.studio-display .studio-transport { display: flex; align-items: center; gap: 8px; }
+.studio-display .studio-rec-hub { width: 46px; height: 46px; min-height: 46px; font-size: 0.6rem; }
+.studio-display .studio-rec-hub svg { width: 16px; height: 16px; }
+.studio-readout {
+  display: flex; align-items: stretch; height: 46px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; overflow: hidden;
+}
+.studio-readout-cell { display: flex; flex-direction: column; justify-content: center; padding: 0 12px; border-right: 1px solid var(--border); }
+.studio-readout-cell:last-child { border-right: 0; }
+.studio-readout-cap { font-size: 0.62rem; color: var(--text-dim); text-transform: lowercase; letter-spacing: 0.04em; }
+.studio-pos { min-width: 5ch; font-weight: 700; font-size: 1.05rem; color: var(--accent); font-variant-numeric: tabular-nums; letter-spacing: 0.06em; }
+.studio-readout .studio-bpm { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; height: 100%; margin: 0; padding: 0 12px; }
+.studio-readout .studio-bpm input { width: 4ch; height: auto; min-height: 24px; padding: 0; border: 0; background: transparent; font-weight: 700; font-size: 1.05rem; line-height: 1.2; color: var(--text); }
+.studio-readout .studio-bpm span { order: -1; font-size: 0.62rem; line-height: 1.2; color: var(--text-dim); text-transform: lowercase; }
+.studio-toggles { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex: 1 1 auto; min-width: 0; }
+.studio-toggles .studio-fan-item.studio-toggle,
+.studio-toggles .studio-fan-item.studio-toggle[data-tone] {
+  position: static; width: auto; height: 32px; min-height: 32px; padding: 0 10px; gap: 6px; border-radius: 4px; transform: none; opacity: 1;
+  color: var(--text); background: var(--bg); border: 1px solid var(--border); box-shadow: none; font-size: 0.72rem; font-weight: 700; white-space: nowrap;
+}
+.studio-toggles .studio-fan-item.studio-toggle svg { width: 14px; height: 14px; }
+.studio-toggles .studio-fan-item.studio-toggle:hover { color: var(--text); border-color: var(--text-dim); filter: none; }
+.studio-toggles .studio-fan-item.studio-toggle[aria-pressed="true"],
+.studio-toggles .studio-fan-item.studio-toggle.is-set,
+.studio-toggles .studio-fan-item.studio-toggle[aria-expanded="true"] {
+  color: var(--text); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--bg)); box-shadow: inset 0 -2px 0 var(--accent);
+}
+.studio-toggles .studio-fan-item.studio-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; box-shadow: none; }
+/* on a computer the names say it all: no icons, so the whole bar fits on one line */
+@media (min-width: 1024px) {
+  .studio-controls.studio-display { flex-wrap: nowrap; }
+  .studio-toggles { flex-wrap: nowrap; }
+  .studio-toggles .studio-fan-item.studio-toggle svg { display: none; }
+}
+/* the explanations under the grid and beside the keys: the controls are named now */
+.song-studio .studio-hint, .song-studio .studio-keybar-hint { display: none; }
+.studio-toggles #studio-quant-btn::before { content: "snap"; }
+.studio-toggles .studio-pop { top: calc(100% + 8px); bottom: auto; left: 0; transform: none; }
+.studio-history { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.studio-history .studio-round { width: 36px; height: 36px; min-height: 36px; }
+.song-studio .studio-display #studio-redo { display: inline-flex; }
+@media (min-width: 641px) {
+  .song-studio #studio-detail #studio-mute { display: none; }
+}
+@media (max-width: 640px) {
+  .studio-controls.studio-display { flex-wrap: nowrap; gap: 6px; padding: 6px 8px; }
+  .studio-readout { flex: 1 1 auto; min-width: 0; }
+  .studio-readout .studio-bpm { padding: 0 8px; }
+  .studio-readout-cell { padding: 0 8px; }
+  .studio-keybar .studio-toggles { flex: 1 1 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .studio-toggles::-webkit-scrollbar { display: none; }
+  .studio-history { margin-left: 0; }
+}
+
+/* the display sits at the top, under the song's name */
+@media (min-width: 1024px) {
+  .song-studio {
+    grid-template-rows: auto auto minmax(calc(var(--pl-ruler) + 1.5 * var(--pl-row) + 7px), auto) minmax(var(--detail-min), 1fr) auto;
+    grid-template-areas: "top" "controls" "stack" "detail" "keys";
+  }
+  .song-studio.studio-docked-deck {
+    grid-template-rows: auto auto minmax(calc(var(--pl-ruler) + 1.5 * var(--pl-row) + 7px), auto) minmax(var(--detail-min), 1fr) auto auto;
+    grid-template-areas: "top" "controls" "stack" "detail" "dial" "keys";
+  }
+}
+
+/* The dials that pick a pane: the inspector's tabs, and the deck's stops. Small names on a lens scale, the chosen one lit with a needle. */
+.studio-sheet.is-docked {
+  position: static; inset: auto; z-index: auto; width: auto; height: auto; max-height: none; margin: 0;
+  display: flex; flex-direction: column; background: transparent; border: 0; box-shadow: none;
+}
+.studio-sheet.is-docked .studio-sheet-play,
+.studio-sheet.is-docked #studio-sheet-title,
+.studio-sheet.is-docked #studio-sheet-help,
+.studio-sheet.is-docked #close-studio-sheet,
+.studio-sheet.is-docked::before { display: none; }
+.studio-sheet.is-docked .studio-sheet-body { overflow: visible; padding: 12px; }
+.studio-sheet.is-docked .studio-sheet-head,
+.studio-deck-dial {
+  position: relative; display: flex; justify-content: center; align-items: flex-end; padding: 8px 4px 13px; margin: 0;
+  background: none; border: 0; border-bottom: 1px solid var(--border);
+}
+.studio-sheet.is-docked .studio-sheet-head::after,
+.studio-deck-dial::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 7px; pointer-events: none;
+  background-image: linear-gradient(90deg, color-mix(in srgb, var(--text) 26%, transparent) 1px, transparent 1px);
+  background-size: 10px 7px; background-position: 50% 100%; background-repeat: repeat-x;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 25%, #000 75%, transparent); mask-image: linear-gradient(90deg, transparent, #000 25%, #000 75%, transparent);
+}
+.studio-sheet.is-docked .studio-sheet-tabs { display: flex; flex-wrap: nowrap; justify-content: center; gap: 2px; overflow: visible; width: 100%; padding: 0; border: 0; }
+.studio-sheet.is-docked .studio-sheet-tab,
+.studio-deck-stop {
+  position: relative; min-height: 28px; height: auto; padding: 4px 6px; border: 0; border-radius: 0; box-shadow: none; background: none;
+  color: var(--text-dim); font-size: 0.7rem; font-weight: 600; text-transform: lowercase; letter-spacing: 0.02em;
+}
+.studio-sheet.is-docked .studio-sheet-tab:hover,
+.studio-deck-stop:hover { color: var(--text); background: none; filter: none; }
+.studio-sheet.is-docked .studio-sheet-tab.is-active,
+.studio-deck-stop[aria-selected="true"] { color: var(--accent); font-size: 0.82rem; font-weight: 700; background: none; }
+.studio-sheet.is-docked .studio-sheet-tab.is-active::after,
+.studio-deck-stop[aria-selected="true"]::after {
+  content: ""; position: absolute; left: 50%; bottom: -13px; width: 2px; height: 11px; margin-left: -1px; border-radius: 1px; z-index: 1;
+  background: var(--accent); box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 80%, transparent);
+}
+/* the inspector: the panel's head keeps only its fold button; the dial is the sheet's */
+.studio-docked-panel .studio-sound-panel .studio-panel-head { justify-content: flex-end; padding: 2px 4px; border-bottom: 0; }
+.studio-docked-panel .studio-sound-panel .studio-panel-head h2 { display: none; }
+.studio-docked-panel .studio-sound-panel .studio-panel-body { padding: 0; }
+.studio-docked-panel #studio-tools,
+.studio-docked-deck #studio-tools { display: none; }
+/* the deck: its dial over the bottom, and the chosen pane where the keys were */
+.studio-deck-dial { grid-area: dial; flex: 0 0 auto; gap: 2px; overflow-x: auto; scrollbar-width: none; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 4px; }
+.studio-deck-dial::-webkit-scrollbar { display: none; }
+.studio-deck-body { grid-area: keys; flex: 1 1 0; min-height: 240px; overflow-y: auto; overscroll-behavior: contain; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 4px; }
+.studio-deck-body[hidden] { display: none; }
+.studio-docked-deck .studio-sheet.is-docked .studio-sheet-head { display: none; }
+.song-studio.studio-deck-pane .studio-keyboard { display: none; }
+.studio-toggles .studio-fan-item.studio-toggle[aria-pressed="true"],
+.studio-toggles .studio-fan-item.studio-toggle[aria-expanded="true"] { outline: none; }
+#song-builder-modal #song-studio .studio-readout .studio-bpm input { min-height: 24px; width: 4ch; }
+/* a phone: the display, the deck's dial and the pads a little slimmer, so the open track keeps room to grow (the handle) */
+@media (max-width: 640px) {
+  .studio-controls.studio-display { padding: 4px 6px; }
+  .studio-display .studio-play { width: 44px; height: 44px; min-height: 44px; }
+  .studio-display .studio-rec-hub { width: 42px; height: 42px; min-height: 42px; }
+  .studio-display .studio-round { width: 36px; height: 36px; min-height: 36px; }
+  .studio-readout { height: 42px; }
+  .studio-deck-dial { padding: 3px 4px 9px; }
+  .studio-deck-stop { min-height: 22px; padding: 2px 5px; font-size: 0.66rem; }
+  .studio-deck-stop[aria-selected="true"] { font-size: 0.76rem; }
+  .studio-deck-stop[aria-selected="true"]::after { bottom: -9px; height: 8px; }
+  .studio-deck-dial::after { height: 5px; background-size: 10px 5px; }
+  .studio-docked-deck .studio-keys { height: 68px; }
+}
