@@ -9744,3 +9744,38 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
   .studio-deck-dial::after { height: 5px; background-size: 10px 5px; }
   .studio-docked-deck .studio-keys { height: 68px; }
 }
+/* The dials, tidied: every stop is the same width and carries its own stretch of the scale (a long tick under its middle, short ones at
+   its quarters), so the needle always lands on a long tick and the ticks line up with the names. The chosen stop changes colour and weight
+   only, never size, so nothing moves when you pick one. */
+.studio-deck-dial,
+.studio-sheet.is-docked .studio-sheet-tabs { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; justify-content: stretch; }
+.studio-deck-dial { padding: 6px 0 13px; overflow: visible; }
+.studio-sheet.is-docked .studio-sheet-head { padding: 8px 0 13px; }
+.studio-deck-dial::after,
+.studio-sheet.is-docked .studio-sheet-head::after { display: none; }
+.studio-deck-stop,
+.studio-sheet.is-docked .studio-sheet-tab { width: 100%; min-width: 0; padding: 4px 0; text-align: center; white-space: nowrap; overflow: visible; font-size: 0.7rem; }
+.studio-deck-stop[aria-selected="true"],
+.studio-sheet.is-docked .studio-sheet-tab.is-active { font-size: 0.7rem; font-weight: 800; }
+.studio-deck-stop::before,
+.studio-sheet.is-docked .studio-sheet-tab::before {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -13px; height: 9px; pointer-events: none;
+  background-image:
+    linear-gradient(90deg, transparent calc(50% - 0.5px), color-mix(in srgb, var(--text) 45%, transparent) calc(50% - 0.5px), color-mix(in srgb, var(--text) 45%, transparent) calc(50% + 0.5px), transparent calc(50% + 0.5px)),
+    linear-gradient(90deg, color-mix(in srgb, var(--text) 22%, transparent) 1px, transparent 1px);
+  background-size: 100% 9px, 25% 4px;
+  background-position: 0 100%, 12.5% 100%;
+  background-repeat: no-repeat, repeat-x;
+}
+.studio-deck-stop[aria-selected="true"]::after,
+.studio-sheet.is-docked .studio-sheet-tab.is-active::after { bottom: -13px; height: 11px; }
+@media (max-width: 640px) {
+  .studio-deck-dial { padding: 4px 0 11px; }
+  .studio-deck-stop { font-size: 0.64rem; }
+  .studio-deck-stop[aria-selected="true"] { font-size: 0.64rem; }
+  .studio-deck-stop::before { bottom: -11px; height: 8px; background-size: 100% 8px, 25% 4px; }
+  .studio-deck-stop[aria-selected="true"]::after { bottom: -11px; height: 9px; }
+}
+
+/* The fixed track menu scrolls when short of room: its rows keep their height instead of squeezing into each other. */
+.studio-pop-menu > * { flex-shrink: 0; }

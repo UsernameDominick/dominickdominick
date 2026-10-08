@@ -656,19 +656,32 @@
     openPop = { button, panel };
     // A switch in the display or over the keys can sit in a row that scrolls sideways, which would cut its popover off: it is put on the
     // screen instead, under the switch, or above it when there is more room there.
-    if (panel.closest(".studio-toggles")) {
+    // The track's menu is placed the same way, against the right edge of its button, so a long menu never makes the page longer:
+    // it gets the bigger of the room below or above, and scrolls inside itself past that.
+    const menu = panel.classList.contains("studio-pop-menu");
+    if (menu || panel.closest(".studio-toggles")) {
       const r = button.getBoundingClientRect();
+      panel.style.maxHeight = "none";
       const w = panel.offsetWidth;
       const h = panel.offsetHeight;
+      const below = window.innerHeight - r.bottom - 16;
+      // never up into the site's header (on the Studio page the nav sits above everything the studio draws)
+      const head = document.querySelector("header.topbar");
+      const ceiling = head ? Math.max(0, head.getBoundingClientRect().bottom) : 0;
+      const above = r.top - ceiling - 16;
       panel.style.position = "fixed";
       panel.style.transform = "none";
-      panel.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left)) + "px";
-      if (window.innerHeight - r.bottom >= h + 16 || r.top < h + 16) {
+      panel.style.right = "auto";
+      panel.style.overflowY = "auto";
+      panel.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, menu ? r.right - w : r.left)) + "px";
+      if (below >= h || below >= above) {
         panel.style.top = r.bottom + 8 + "px";
         panel.style.bottom = "auto";
+        panel.style.maxHeight = Math.max(120, below) + "px";
       } else {
         panel.style.top = "auto";
         panel.style.bottom = window.innerHeight - r.top + 8 + "px";
+        panel.style.maxHeight = Math.max(120, above) + "px";
       }
     }
     const field = panel.querySelector("input, select, button:not([disabled])");
@@ -677,6 +690,9 @@
   document.addEventListener("pointerdown", (e) => {
     if (openPop && !openPop.panel.contains(e.target) && !openPop.button.contains(e.target)) closePop();
   });
+  // a popover placed on the screen would be left behind by a scroll or a resize: close it instead
+  studio.addEventListener("scroll", () => { if (openPop && openPop.panel.style.position === "fixed") closePop(); }, { passive: true });
+  window.addEventListener("resize", () => { if (openPop && openPop.panel.style.position === "fixed") closePop(); });
   studio.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && openPop) {
       e.stopPropagation();
@@ -1028,9 +1044,34 @@
   };
   const strengthNow = () => Edit.level(host().stepStrength());
 
+  // On a touch screen a finger that moves straight away is scrolling the grid, not drawing on it: a drag only paints or moves notes once
+  // the finger has been held still for a moment (TOUCH_HOLD), and from then on the page does not scroll under it. A tap still toggles.
+  const TOUCH_HOLD = 180;
+  function touchArm(st, e) {
+    st.touch = e.pointerType === "touch";
+    st.armed = !st.touch;
+    if (st.touch) setTimeout(() => {
+      if (st.abandoned) return;
+      st.armed = true;
+      if (navigator.vibrate) try { navigator.vibrate(8); } catch (err) { /* no buzz */ }
+    }, TOUCH_HOLD);
+    return st;
+  }
+  // true: ignore this move for now; "off": the finger is scrolling, let the page have it
+  function touchGate(st, e) {
+    if (!st || !st.touch || st.armed) return false;
+    if (Math.hypot(e.clientX - st.x, e.clientY - st.y) > 8) {
+      st.abandoned = true;
+      return "off";
+    }
+    return true;
+  }
+  detailEl.addEventListener("touchmove", (e) => {
+    if ((gdrag && gdrag.touch && gdrag.armed && !gdrag.abandoned) || (paint && paint.touch && paint.armed && !paint.abandoned)) e.preventDefault();
+  }, { passive: false });
   function drumDown(e, cell) {
     if (e.button > 0) return;
-    gdrag = { kind: "drums", id: e.pointerId, erase: cell.classList.contains("on"), x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, seen: new Set([cell.dataset.row + ":" + cell.dataset.step]), start: cell, moved: false };
+    gdrag = touchArm({ kind: "drums", id: e.pointerId, erase: cell.classList.contains("on"), x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, seen: new Set([cell.dataset.row + ":" + cell.dataset.step]), start: cell, moved: false }, e);
   }
   function drumApply(cell) {
     const row = cell.dataset.row;
@@ -1070,10 +1111,16 @@
     }
     const r = cell.getBoundingClientRect();
     const atEdge = step === sp.start + sp.len - 1 && e.clientX > r.left + r.width * 0.6;
-    gdrag = { kind: atEdge ? "resize" : "move", id: e.pointerId, x: e.clientX, y: e.clientY, sp, copy: e.altKey && !atEdge, moved: false, base: null, list: null, g: null, lastRows: 0 };
+    gdrag = touchArm({ kind: atEdge ? "resize" : "move", id: e.pointerId, x: e.clientX, y: e.clientY, sp, copy: e.altKey && !atEdge, moved: false, base: null, list: null, g: null, lastRows: 0 }, e);
   }
   detailEl.addEventListener("pointermove", (e) => {
     if (!gdrag || e.pointerId !== gdrag.id) return;
+    const gate = touchGate(gdrag, e);
+    if (gate === "off") {
+      gdrag = null;
+      return;
+    }
+    if (gate) return;
     const dx = e.clientX - gdrag.x;
     const dy = e.clientY - gdrag.y;
     if (gdrag.kind === "drums") {
@@ -1356,10 +1403,16 @@
   }
   function startPaint(e, cell) {
     if (e.button > 0) return;
-    paint = { id: e.pointerId, row: cell.dataset.row, from: Number(cell.dataset.step), last: Number(cell.dataset.step), x: e.clientX, y: e.clientY, moved: false, erase: cell.classList.contains("on"), grouped: false };
+    paint = touchArm({ id: e.pointerId, row: cell.dataset.row, from: Number(cell.dataset.step), last: Number(cell.dataset.step), x: e.clientX, y: e.clientY, moved: false, erase: cell.classList.contains("on"), grouped: false }, e);
   }
   detailEl.addEventListener("pointermove", (e) => {
     if (!paint || e.pointerId !== paint.id) return;
+    const gate = touchGate(paint, e);
+    if (gate === "off") {
+      paint = null;
+      return;
+    }
+    if (gate) return;
     if (!paint.moved && Math.abs(e.clientX - paint.x) < 7) return;
     const cell = stepUnder(e.clientX, e.clientY);
     if (!cell) return;
@@ -2735,7 +2788,7 @@
   deckDial.className = "studio-deck-dial";
   deckDial.setAttribute("role", "tablist");
   deckDial.setAttribute("aria-label", "What the bottom of the Studio shows");
-  const DECK = [["song", "song"], ["sound", "sound"], ["pads", "pads"], ["tools", "track"], ["arrange", "patterns"], ["share", "share"], ["midi", "midi"]];
+  const DECK = [["pads", "pads"], ["sound", "sound"], ["tools", "track"], ["song", "song"], ["arrange", "patterns"], ["share", "share"], ["midi", "midi"]];
   deckDial.innerHTML = DECK.map(([id, name]) => `<button type="button" role="tab" class="studio-deck-stop" data-deck="${id}" data-no-history aria-selected="false">${name}</button>`).join("");
   const deckBody = document.createElement("div");
   deckBody.className = "studio-deck-body";
