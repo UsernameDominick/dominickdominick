@@ -4464,11 +4464,11 @@ body:has(.studio-canvas) .page { min-height: 0; height: 100%; }
 .dial-track { fill: none; stroke: color-mix(in srgb, var(--dial-glow) 22%, transparent); stroke-width: 2.4; stroke-linecap: round; }
 .dial-glow { fill: none; stroke: var(--dial-glow); stroke-width: 3; stroke-linecap: round; filter: drop-shadow(0 0 3px var(--dial-glow)); }
 .dial-cap { fill: var(--dial-cap); stroke: rgba(255, 255, 255, 0.07); stroke-width: 1; }
-.dial-hand line { stroke: #ff7ac2; stroke-width: 3; stroke-linecap: round; }
+.dial-hand line { stroke: var(--dial-hand, #ff7ac2); stroke-width: 3; stroke-linecap: round; }
 .dial-input:focus-visible + .dial-face { outline: 2px solid var(--accent); outline-offset: 3px; }
 .dial.is-disabled { opacity: 0.4; }
 .dial.is-disabled .dial-face { cursor: not-allowed; }
-.dial.is-turning .dial-cap { fill: #232b36; }
+.dial.is-turning .dial-cap { fill: var(--dial-cap-on, #232b36); }
 
 /* ---- The header in one row from a tablet up: the nav strip gives way (and scrolls) instead of the bar wrapping onto two or three rows. ---- */
 @media (min-width: 641px) {
@@ -4643,7 +4643,7 @@ html.is-page-dragging, html.is-page-dragging * { cursor: grabbing !important; us
 .home-tool-line { font-size: 0.88rem; color: var(--text-dim); line-height: 1.45; }
 
 /* ---- The aggregate look (from plugin-aggregate's desktop app and its Explore DAW) ----
-   Near-black neutral surfaces, cyan and magenta accents, IBM Plex Mono everywhere, flat 1px outlines with 4px corners and no hard
+   Rust and sage (the owner's pick): warm near-black, a rust accent and a sage second colour, IBM Plex Mono everywhere, flat 1px outlines with 4px corners and no hard
    shadow. It is set on body, not :root, so the header and the finder keep exactly the look they had (the owner's call: the nav is not
    part of this): :root still holds the old palette (and whatever Site Settings saves), the --nav-* copies below are resolved there,
    and .topbar / #site-finder put them back. Tokens that are built from other tokens (--btn-fill, --accent-gradient) are repeated here
@@ -4684,20 +4684,20 @@ html.is-page-dragging, html.is-page-dragging * { cursor: grabbing !important; us
 }
 
 body {
-  --bg: #0b0b0d;
-  --bg-elevated: #16181d;
-  --border: #26262b;
-  --text: #f5f5f5;
-  --text-dim: #a1a1aa;
-  --accent: #22d3ee;
-  --accent-secondary: #ff2d95;
-  --accent-gradient: linear-gradient(135deg, #22d3ee, #b18cff);
-  --accent-dim: #7dd3e0;
-  --on-accent: #0b0b0d;
-  --error-text: #ff6b8a;
-  --success: #a3e635;
-  --warning: #f5b942;
-  --info: #b18cff;
+  --bg: #0e0c0a;
+  --bg-elevated: #191512;
+  --border: #2d2722;
+  --text: #efe8df;
+  --text-dim: #a89d90;
+  --accent: #e2683c;
+  --accent-secondary: #9fb8a5;
+  --accent-gradient: linear-gradient(135deg, #e2683c, #d9b26f);
+  --accent-dim: #e8a07f;
+  --on-accent: #0e0c0a;
+  --error-text: #ff7a6b;
+  --success: #9fb8a5;
+  --warning: #d9b26f;
+  --info: #7d9bb0;
   --font-family: "IBM Plex Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --heading-font-family: var(--font-family);
   --font-mono: var(--font-family);
@@ -4706,9 +4706,9 @@ body {
   --card-radius: 4px;
   --field-radius: 4px;
   --field-border-width: 1px;
-  --btn-ink: #f5f5f5;
-  --btn-line: #26262b;
-  --btn-fill: #0b0b0d;
+  --btn-ink: #efe8df;
+  --btn-line: #2d2722;
+  --btn-fill: #0e0c0a;
   --btn-radius: 4px;
   --btn-border-width: 1px;
   --btn-shadow: none;
@@ -4719,48 +4719,52 @@ body {
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.45);
   --shadow-lg: 0 10px 26px rgba(0, 0, 0, 0.5);
-  --dial-glow: #22d3ee;
-  --dial-cap: #16181d;
-  --dial-ring: #0b0b0d;
-  --menu-bg: #16181d;
-  --menu-line: #26262b;
-  --menu-hover: rgba(34, 211, 238, 0.1);
-  --menu-shadow: 0 10px 26px rgba(0, 0, 0, 0.5), 0 0 0 1px #26262b;
+  --dial-glow: #e2683c;
+  --dial-cap: #191512;
+  --dial-ring: #0e0c0a;
+  --dial-hand: #efe8df;
+  --dial-cap-on: #241e19;
+  --menu-bg: #191512;
+  --menu-line: #2d2722;
+  --menu-hover: rgba(226, 104, 60, 0.1);
+  --menu-shadow: 0 10px 26px rgba(0, 0, 0, 0.5), 0 0 0 1px #2d2722;
   font-family: var(--font-family);
-  scrollbar-color: #26262b #0b0b0d;
+  scrollbar-color: #2d2722 #0e0c0a;
 }
 :root[data-theme="light"] body {
-  --bg: #f4f4f5;
-  --bg-elevated: #ffffff;
-  --border: #d4d4d8;
-  --text: #0b0b0d;
-  --text-dim: #52525b;
-  --accent: #0e7490;
-  --accent-secondary: #be185d;
-  --accent-gradient: linear-gradient(135deg, #0e7490, #6d28d9);
-  --accent-dim: #155e75;
+  --bg: #f3eee7;
+  --bg-elevated: #fbf8f3;
+  --border: #d8cdbf;
+  --text: #1c1814;
+  --text-dim: #6d6156;
+  --accent: #b8461f;
+  --accent-secondary: #4f6f5a;
+  --accent-gradient: linear-gradient(135deg, #b8461f, #8a6a2a);
+  --accent-dim: #8f3818;
   --on-accent: #ffffff;
-  --error-text: #b91c1c;
-  --success: #3f6212;
-  --warning: #92400e;
-  --info: #6d28d9;
-  --btn-ink: #0b0b0d;
-  --btn-line: #c4c4cc;
-  --btn-fill: #ffffff;
+  --error-text: #b3261e;
+  --success: #3f6b4c;
+  --warning: #8a5a1f;
+  --info: #3f5f86;
+  --btn-ink: #1c1814;
+  --btn-line: #cbbfb0;
+  --btn-fill: #fbf8f3;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
   --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.1);
   --shadow-lg: 0 10px 26px rgba(0, 0, 0, 0.14);
-  --dial-glow: #0e7490;
-  --dial-cap: #ffffff;
-  --dial-ring: #e4e4e7;
-  --menu-bg: #ffffff;
-  --menu-line: #e4e4e7;
-  --menu-hover: rgba(14, 116, 144, 0.08);
-  --menu-shadow: 0 10px 30px rgba(0, 0, 0, 0.12), 0 0 0 1px #e4e4e7;
-  scrollbar-color: #d4d4d8 #f4f4f5;
+  --dial-glow: #b8461f;
+  --dial-cap: #fbf8f3;
+  --dial-ring: #e9e2d8;
+  --dial-hand: #1c1814;
+  --dial-cap-on: #efe7dc;
+  --menu-bg: #fbf8f3;
+  --menu-line: #e3d9cc;
+  --menu-hover: rgba(184, 70, 31, 0.08);
+  --menu-shadow: 0 10px 30px rgba(0, 0, 0, 0.12), 0 0 0 1px #e3d9cc;
+  scrollbar-color: #d8cdbf #f3eee7;
 }
-html { background: #0b0b0d; }
-:root[data-theme="light"] { background: #f4f4f5; }
+html { background: #0e0c0a; }
+:root[data-theme="light"] { background: #f3eee7; }
 
 /* Flat buttons: the outline brightens on hover instead of lifting, a press dims a little. Zero specificity (all inside :where), so a
    component that styles its own buttons keeps its look, and the header and finder are left out. */
