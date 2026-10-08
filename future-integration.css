@@ -1,0 +1,591 @@
+/* future-integration.css
+ *
+ * Styling pulled from plugin-aggregate (the desktop app) so it can be brought
+ * into this site later. NOT loaded anywhere yet: nothing in worker/ or public/
+ * references this file, and it sits outside public/ on purpose so it is never
+ * served and the site's lint-style tests don't scan it.
+ *
+ * What's in here, translated from Tailwind to plain CSS:
+ *   1. Tokens       apps/desktop/tailwind.config.js (the "vfd" palette, fonts, shadows)
+ *   2. Fonts        apps/desktop/src/index.css @font-face blocks
+ *   3. Base         body, scrollbars, focus overrides, a11y helper classes
+ *   4. App frame    components/Layout.tsx (header, info readout, tab strip)
+ *   5. DAW layout   components/ExploreView.tsx (transport bar, timeline strip,
+ *                   grid canvas, module windows, instruments, zoom dock,
+ *                   content browser)
+ *
+ * Everything is prefixed `pa-` so it can't collide with the site's own
+ * classes. When integrating: either map --pa-* onto the site's tokens in
+ * public/style.css, or load this scoped under one root (like `.app-native`).
+ * Animations are already inside prefers-reduced-motion: no-preference, per
+ * the site's rule.
+ */
+
+/* ── 1. Tokens ───────────────────────────────────────────────────────── */
+
+:root {
+  /* "vfd" palette. --pa-amber is the primary text colour now (the name is
+     left over from the old amber look; the value is near-white). */
+  --pa-base: #0b0b0d;
+  --pa-surface: #16181d;
+  --pa-border: #26262b;
+  --pa-amber: #f5f5f5;
+  --pa-cyan: #22d3ee;
+  --pa-magenta: #ff2d95;
+  --pa-violet: #b18cff;
+  --pa-lime: #a3e635;
+  --pa-muted: #6b6b6b;
+
+  /* Tints the app uses a lot (Tailwind's /NN opacity modifiers) */
+  --pa-surface-60: rgba(22, 24, 29, 0.6);
+  --pa-surface-80: rgba(22, 24, 29, 0.8);
+  --pa-surface-90: rgba(22, 24, 29, 0.9);
+  --pa-base-70: rgba(11, 11, 13, 0.7);
+  --pa-cyan-10: rgba(34, 211, 238, 0.1);
+  --pa-cyan-15: rgba(34, 211, 238, 0.15);
+  --pa-cyan-20: rgba(34, 211, 238, 0.2);
+  --pa-cyan-25: rgba(34, 211, 238, 0.25);
+  --pa-magenta-10: rgba(255, 45, 149, 0.1);
+  --pa-magenta-20: rgba(255, 45, 149, 0.2);
+  --pa-amber-10: rgba(245, 245, 245, 0.1);
+  --pa-amber-15: rgba(245, 245, 245, 0.15);
+  --pa-grid-line: rgba(255, 176, 0, 0.07);
+
+  /* One face everywhere, headings through data */
+  --pa-font: "IBM Plex Mono", "JetBrains Mono", "Share Tech Mono", monospace;
+
+  /* Soft drop shadows (the old "-glow" names no longer glow) */
+  --pa-shadow: 0 10px 26px rgba(0, 0, 0, 0.5);
+  --pa-shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.4);
+  --pa-shadow-pressed: inset 0 1px 0 rgba(255, 255, 255, 0.14), inset 0 -3px 4px rgba(0, 0, 0, 0.3);
+
+  --pa-radius: 4px;
+  --pa-radius-lg: 8px;
+  --pa-ease: 150ms ease;
+
+  /* Fixed design frame (the app scales this whole box to fit the window) */
+  --pa-frame-w: 1728px;
+  --pa-frame-h: 1117px;
+
+  /* DAW canvas */
+  --pa-grid: 20px;
+}
+
+/* ── 2. Fonts ────────────────────────────────────────────────────────── */
+/* The woff2 files live in plugin-aggregate/apps/desktop/public/fonts/.
+   Copy them to public/fonts/ here before turning these on. */
+
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/ibm-plex-mono-400.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 500; font-display: swap; src: url("/fonts/ibm-plex-mono-500.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 700; font-display: swap; src: url("/fonts/ibm-plex-mono-700.woff2") format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-style: normal; font-weight: 100 800; font-display: swap; src: url("/fonts/jetbrains-mono-variable.woff2") format("woff2"); }
+@font-face { font-family: "Share Tech Mono"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/share-tech-mono-regular.woff2") format("woff2"); }
+@font-face { font-family: "Inter"; font-style: normal; font-weight: 100 900; font-display: swap; src: url("/fonts/inter-variable.woff2") format("woff2"); }
+
+/* ── 3. Base ─────────────────────────────────────────────────────────── */
+
+.pa-root {
+  background: var(--pa-base);
+  color: var(--pa-amber);
+  font-family: var(--pa-font);
+  user-select: none;
+  overflow: hidden;
+}
+
+.pa-root ::-webkit-scrollbar { width: 6px; height: 6px; }
+.pa-root ::-webkit-scrollbar-track { background: var(--pa-base); }
+.pa-root ::-webkit-scrollbar-thumb { background: var(--pa-border); border-radius: 2px; }
+.pa-root ::-webkit-scrollbar-thumb:hover { background: var(--pa-cyan); }
+
+.pa-no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.pa-no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Flat buttons: bordered, dark fill, colour shifts on hover, no bevel */
+.pa-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  font: 700 10px/1.2 var(--pa-font);
+  white-space: nowrap;
+  color: var(--pa-muted);
+  background: var(--pa-base);
+  border: 1px solid var(--pa-border);
+  border-radius: var(--pa-radius);
+  cursor: pointer;
+  transition: background-color var(--pa-ease), border-color var(--pa-ease), color var(--pa-ease), opacity var(--pa-ease), transform var(--pa-ease);
+}
+.pa-btn:hover { color: var(--pa-amber); }
+.pa-btn:active { opacity: 0.85; }
+.pa-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.pa-btn.is-on { background: var(--pa-cyan-25); color: var(--pa-cyan); border-color: var(--pa-cyan); }
+.pa-btn--icon { padding: 4px; }
+.pa-btn--accent { background: var(--pa-cyan); color: var(--pa-base); border-color: var(--pa-cyan); }
+.pa-btn--accent:hover { color: var(--pa-base); }
+
+/* A row of buttons sharing one outline (PLAY | STOP | REC, filter tabs) */
+.pa-seg {
+  display: flex;
+  border: 1px solid var(--pa-border);
+  border-radius: var(--pa-radius);
+  overflow: hidden;
+}
+.pa-seg > .pa-btn { border: 0; border-radius: 0; }
+.pa-seg > .pa-btn + .pa-btn { border-left: 1px solid var(--pa-border); }
+
+.pa-divider { width: 1px; height: 20px; margin: 0 2px; background: var(--pa-border); flex: none; }
+
+.pa-input {
+  background: var(--pa-base);
+  border: 1px solid var(--pa-border);
+  border-radius: var(--pa-radius);
+  padding: 4px 8px;
+  font: 10px var(--pa-font);
+  color: var(--pa-amber);
+}
+.pa-input::placeholder { color: var(--pa-muted); }
+.pa-input:focus { outline: none; border-color: var(--pa-cyan); }
+
+.pa-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+  border-radius: 999px;
+  font: 700 8px var(--pa-font);
+  background: var(--pa-cyan-15);
+  color: var(--pa-cyan);
+}
+.pa-chip--plain { background: var(--pa-amber-15); color: var(--pa-amber); }
+
+/* Accessibility switches the app puts on <html> */
+.pa-reduce-motion,
+.pa-reduce-motion *,
+.pa-reduce-motion *::before,
+.pa-reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+.pa-bold-text body, .pa-bold-text p, .pa-bold-text span, .pa-bold-text button { font-weight: 700; }
+.pa-focus-bold :focus-visible { outline: 2px solid var(--pa-cyan) !important; outline-offset: 2px !important; }
+.pa-focus-high-contrast :focus-visible {
+  outline: 3px solid #fff !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 6px rgba(34, 211, 238, 0.5) !important;
+}
+
+/* ── 4. App frame (Layout.tsx) ───────────────────────────────────────── */
+
+.pa-viewport {           /* letterbox around the scaled frame */
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  overflow: hidden;
+}
+.pa-frame {              /* scale with transform: scale(var(--pa-scale)) */
+  position: relative;
+  width: var(--pa-frame-w);
+  height: var(--pa-frame-h);
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  background: var(--pa-base);
+  overflow: hidden;
+  transform: scale(var(--pa-scale, 1));
+}
+
+.pa-header {
+  flex: none;
+  display: flex;
+  align-items: stretch;
+  background: var(--pa-surface);
+  border-bottom: 1px solid var(--pa-border);
+}
+.pa-wordmark {
+  display: flex;
+  align-items: center;
+  padding: 0 24px 0 36px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--pa-amber);
+}
+.pa-header-mid { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; padding: 0 16px; }
+
+/* The little readout box in the middle of the header */
+.pa-readout {
+  width: 256px;
+  max-width: 100%;
+  min-width: 80px;
+  height: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 0 8px;
+  text-align: center;
+  background: var(--pa-base);
+  border: 1px solid var(--pa-border);
+  border-radius: var(--pa-radius);
+  overflow: hidden;
+}
+.pa-readout-label { font-size: 9px; font-weight: 700; letter-spacing: 0.2em; white-space: nowrap; }
+.pa-readout-line { font-size: 8px; color: var(--pa-muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Tabs: fixed-width blocks on the right edge, the active one filled solid */
+.pa-tabs { display: flex; align-items: stretch; }
+.pa-tab {
+  position: relative;
+  width: 128px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-left: 1px solid var(--pa-border);
+  background: transparent;
+  color: var(--pa-muted);
+  font: 700 12px var(--pa-font);
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background-color var(--pa-ease), color var(--pa-ease);
+}
+.pa-tab:hover { background: var(--pa-base); color: var(--pa-amber); }
+.pa-tab[aria-current="page"] { background: var(--pa-amber); color: var(--pa-base); }
+.pa-tab:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--pa-cyan); }
+.pa-tab-mode {           /* "LAYOUT VIEW" under the active Explore tab */
+  position: absolute;
+  inset: auto 0 6px;
+  text-align: center;
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  color: rgba(107, 107, 107, 0.7);
+  pointer-events: none;
+}
+.pa-busy-dot {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  margin-left: -3px;
+  border-radius: 50%;
+  background: var(--pa-magenta);
+}
+
+.pa-main { flex: 1; min-height: 0; overflow: hidden; }
+
+/* ── 5. DAW layout (ExploreView.tsx) ─────────────────────────────────── */
+/*
+ *   .pa-daw
+ *     .pa-transport       BPM stepper, VOL popover, mute, PLAY|STOP|REC
+ *     .pa-timeline        4px strip, fills once per bar while playing
+ *     .pa-canvas          grid viewport (pan sideways, zoom)
+ *       .pa-canvas-content   3600 x 700 surface, transform: translate() scale()
+ *         .pa-window         one per instrument (keyboard, chords, sequencer, drums)
+ *       .pa-zoom          floating zoom dock, bottom right
+ *     .pa-browser         bottom-docked content browser, 44px shut / 252px open
+ */
+
+.pa-daw { height: 100%; display: flex; flex-direction: column; font-family: var(--pa-font); }
+
+/* Transport bar */
+.pa-transport {
+  flex: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 24px;
+  background: var(--pa-surface-60);
+}
+.pa-bpm { display: flex; align-items: center; gap: 4px; }
+.pa-bpm-readout {
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  font: 700 10px var(--pa-font);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--pa-amber);
+  cursor: pointer;
+}
+.pa-bpm-readout:hover { color: var(--pa-cyan); }
+.pa-pop {                /* VOL popover etc. */
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  background: var(--pa-surface);
+  border: 1px solid var(--pa-border);
+  border-radius: var(--pa-radius);
+  box-shadow: var(--pa-shadow);
+}
+.pa-pop input[type="range"] { width: 80px; accent-color: var(--pa-amber); }
+.pa-btn.is-muted { background: var(--pa-magenta); color: var(--pa-base); border-color: var(--pa-magenta); }
+.pa-btn.is-recording { background: var(--pa-magenta); color: var(--pa-base); }
+.pa-btn.is-playing { background: var(--pa-cyan-25); color: var(--pa-cyan); }
+
+/* Timeline strip: set --pa-bar-ms to one bar's length, add .is-playing */
+.pa-timeline {
+  flex: none;
+  height: 4px;
+  background: var(--pa-base);
+  border-bottom: 1px solid var(--pa-border);
+  overflow: hidden;
+}
+.pa-timeline-fill { height: 100%; width: 0; background: var(--pa-cyan); }
+
+/* Canvas: grid lives on the viewport so lines stay crisp at any zoom.
+   Set --pa-zoom, --pa-pan-x, --pa-pan-y from script. */
+.pa-canvas {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+  background-image:
+    linear-gradient(var(--pa-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--pa-grid-line) 1px, transparent 1px);
+  background-size: calc(var(--pa-grid) * var(--pa-zoom, 1)) calc(var(--pa-grid) * var(--pa-zoom, 1));
+  background-position: var(--pa-pan-x, 0) var(--pa-pan-y, 0);
+}
+.pa-canvas.is-panning { cursor: grabbing; }
+.pa-canvas-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3600px;
+  height: 700px;
+  transform-origin: 0 0;
+  transform: translate(var(--pa-pan-x, 0), var(--pa-pan-y, 0)) scale(var(--pa-zoom, 1));
+}
+.pa-marquee {
+  position: absolute;
+  z-index: 20;
+  border: 1px dashed var(--pa-amber);
+  background: var(--pa-amber-10);
+  pointer-events: none;
+}
+
+/* Module window: a tab-shaped title strip on top of the instrument panel.
+   Sizes snap to the 20px grid; defaults 380 wide, 160 to 380 tall. */
+.pa-window { position: absolute; border-radius: var(--pa-radius); transition: box-shadow var(--pa-ease); }
+.pa-window.is-selected { box-shadow: 0 0 0 2px var(--pa-amber); }
+.pa-window-bar {
+  display: flex;
+  align-items: center;
+  background: var(--pa-surface);
+  border: 1px solid var(--pa-border);
+  border-bottom: 0;
+  border-radius: var(--pa-radius) var(--pa-radius) 0 0;
+}
+.pa-window-title {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  touch-action: none;
+  cursor: grab;
+}
+.pa-window-title > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pa-window-actions { display: flex; flex: none; align-items: stretch; }
+.pa-window-actions button {
+  padding: 6px;
+  border: 0;
+  border-left: 1px solid var(--pa-border);
+  background: none;
+  color: var(--pa-muted);
+  cursor: pointer;
+  transition: color var(--pa-ease), background-color var(--pa-ease);
+}
+.pa-window-actions button:hover { color: var(--pa-cyan); background: var(--pa-cyan-10); }
+.pa-window-actions button.is-danger:hover { color: var(--pa-magenta); background: var(--pa-magenta-10); }
+.pa-window-actions button:last-child { border-top-right-radius: var(--pa-radius); }
+.pa-window-body { overflow: auto; }
+.pa-window-resize { position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; touch-action: none; }
+
+/* Instrument panel (inside a window) */
+.pa-panel {
+  height: 100%;
+  padding: 16px;
+  background: var(--pa-surface);
+  border: 1px solid var(--pa-border);
+  border-radius: 0 var(--pa-radius) var(--pa-radius) var(--pa-radius);
+}
+.pa-panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.pa-panel-title { margin: 0; font-size: 12px; font-weight: 700; color: var(--pa-amber); }
+.pa-row { display: flex; gap: 6px; }
+
+/* Keyboard keys */
+.pa-key {
+  flex: 1;
+  height: 96px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  padding-bottom: 8px;
+  background: var(--pa-base);
+  border: 1px solid var(--pa-border);
+  border-radius: var(--pa-radius);
+  color: var(--pa-muted);
+  font: 700 10px var(--pa-font);
+  cursor: pointer;
+  transition: all 100ms;
+}
+.pa-key:hover { border-color: var(--pa-amber); color: var(--pa-amber); }
+.pa-key:active { transform: scale(0.95); }
+.pa-key.is-down { background: var(--pa-amber); border-color: var(--pa-amber); color: var(--pa-base); box-shadow: var(--pa-shadow-pressed), 0 0 10px rgba(255, 176, 0, 0.4); }
+.pa-key small { font-size: 9px; text-transform: uppercase; letter-spacing: 0.025em; opacity: 0.7; }
+
+/* Step sequencer cells */
+.pa-step {
+  flex: 1;
+  height: 56px;
+  background: var(--pa-base);
+  border: 1px solid var(--pa-border);
+  border-radius: var(--pa-radius);
+  cursor: pointer;
+  transition: all 100ms;
+}
+.pa-step:active { transform: scale(0.95); }
+.pa-step.is-on { background: var(--pa-cyan-20); border-color: var(--pa-cyan); }
+.pa-step.is-now { box-shadow: 0 0 0 2px var(--pa-amber); }
+
+/* Drum pads: one accent colour each (kick amber, snare magenta, hat cyan) */
+.pa-pads { display: flex; gap: 12px; }
+.pa-pad {
+  --pad: var(--pa-amber);
+  flex: 1;
+  height: 64px;
+  background: var(--pa-base);
+  border: 2px solid var(--pad);
+  border-radius: var(--pa-radius);
+  color: var(--pad);
+  font: 700 12px var(--pa-font);
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: all 100ms;
+}
+.pa-pad:hover { background: var(--pad); color: var(--pa-base); }
+.pa-pad:active { transform: scale(0.95); }
+.pa-pad--snare { --pad: var(--pa-magenta); }
+.pa-pad--hat { --pad: var(--pa-cyan); }
+
+/* Floating zoom dock */
+.pa-zoom {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--pa-surface-90);
+  border: 1px solid var(--pa-border);
+  border-radius: var(--pa-radius);
+  box-shadow: var(--pa-shadow);
+  backdrop-filter: blur(4px);
+}
+.pa-zoom-value { width: 36px; text-align: center; font-size: 10px; color: var(--pa-muted); font-variant-numeric: tabular-nums; }
+
+/* Content browser: bottom dock, a 44px strip that opens to 252px */
+.pa-browser {
+  flex: none;
+  height: 44px;
+  display: flex;
+  flex-direction: column;
+  background: var(--pa-surface-80);
+  border-top: 1px solid var(--pa-border);
+  backdrop-filter: blur(4px);
+  overflow: hidden;
+}
+.pa-browser.is-open { height: 252px; }
+.pa-browser-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 16px;
+  border-bottom: 1px solid rgba(38, 38, 43, 0.6);
+}
+.pa-browser-label { font-size: 10px; letter-spacing: 0.1em; color: var(--pa-muted); white-space: nowrap; }
+.pa-browser-shelf { flex: 1; min-height: 0; overflow: auto hidden; padding: 12px 16px; }
+.pa-browser-row { display: flex; align-items: stretch; gap: 8px; height: 100%; }
+.pa-card {
+  position: relative;
+  flex: none;
+  width: 96px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 8px;
+  background: var(--pa-base-70);
+  border: 1px solid var(--pa-border);
+  border-radius: var(--pa-radius);
+  cursor: grab;
+  touch-action: none;
+  transition: border-color var(--pa-ease);
+}
+.pa-card:hover { border-color: var(--pa-cyan); }
+.pa-card:active { cursor: grabbing; }
+.pa-card-name {
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+  color: var(--pa-amber);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Dialog (edit popup) */
+.pa-scrim { position: absolute; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(4px); }
+.pa-dialog {
+  width: min(22rem, 90vw);
+  background: var(--pa-surface);
+  border: 1px solid var(--pa-border);
+  border-radius: var(--pa-radius-lg);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  font-family: var(--pa-font);
+}
+.pa-dialog-head { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--pa-border); }
+
+/* ── Motion (only when the visitor hasn't asked for less) ────────────── */
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes pa-timeline-fill { from { width: 0%; } to { width: 100%; } }
+  @keyframes pa-indicator-pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+  @keyframes pa-led-blink { 0%, 45% { opacity: 1; } 50%, 95% { opacity: 0.25; } 100% { opacity: 1; } }
+  @keyframes pa-ticker-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  @keyframes pa-pulse { 50% { opacity: 0.5; } }
+
+  .pa-timeline.is-playing .pa-timeline-fill { animation: pa-timeline-fill var(--pa-bar-ms, 1714ms) linear infinite; }
+  .pa-tab-mode.is-live { animation: pa-indicator-pulse 2.4s ease-in-out infinite; }
+  .pa-busy-dot, .pa-btn.is-recording { animation: pa-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+  .pa-browser { transition: height 300ms ease-out; }
+}
