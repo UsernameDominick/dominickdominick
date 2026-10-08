@@ -20,7 +20,7 @@ const OPEN_PATHS = new Set([
 // Words a search can match the Studio by (it is an app page, not a page in the database).
 const STUDIO_RESULT = {
   slug: "studio",
-  title: "Studio",
+  title: "studio", // lowercase, like the nav (the owner asked)
   meta_description: "Make music in your browser: a step sequencer, a piano roll, forty instruments and fifteen drum kits.",
   words: "studio music song songs beat beats make drums bass chords melody lead piano roll sequencer instruments midi daw",
 };

@@ -2197,7 +2197,7 @@ function finderHtml(navItems, { searchQuery = "", editUrl = null } = {}) {
     (n.children || []).forEach((c) => pages.push(c));
   });
   const goRows = pages
-    .map((n) => row({ tag: "a", href: n.slug === "home" ? "/" : "/" + n.slug }, navIconSvg(n.slug, n.nav_label), esc(n.nav_label), n.admin_only ? "Only you" : "Page", `${n.nav_label} ${n.slug} page go`))
+    .map((n) => row({ tag: "a", href: n.slug === "home" ? "/" : "/" + n.slug }, navIconSvg(n.slug, n.nav_label), esc(n.slug === "studio" ? n.nav_label.toLowerCase() : n.nav_label), n.admin_only ? "Only you" : "Page", `${n.nav_label} ${n.slug} page go`))
     .join("");
   return `<div class="site-finder" id="site-finder" role="dialog" aria-modal="true" aria-label="Search and settings" hidden>
       <div class="finder-backdrop" data-finder-close></div>
