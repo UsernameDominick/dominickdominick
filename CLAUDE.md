@@ -35,6 +35,12 @@ Static files in `public/` are served straight from disk, so a browser reload pic
 
 ## Testing (do this before every commit)
 
+**Check only what the change can break. Every run costs the owner money.** A CSS or copy change gets `node tests/run.mjs`
+(6 s) plus the few browser tests for the area touched (`node tests/e2e/run.mjs studio_`), never the full browser run. The full run and
+the audits are for changes to the worker, the data, or something shared by much of the site. A failure that plainly comes from the
+sandbox (empty local database, no home page, no CDN or internet) is noted, not investigated, and not compared against older commits.
+A doc-only change needs no tests.
+
 ```bash
 node tests/run.mjs                    # all pure tests, ~6 s. `node tests/run.mjs song sim` filters by name.
 node tests/e2e/run.mjs                # all browser tests, parallel. `node tests/e2e/run.mjs prepublish` filters by name.
