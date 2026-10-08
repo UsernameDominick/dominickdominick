@@ -98,8 +98,8 @@
 }
 .app-native .shelf-actions button:hover { color: var(--text); background: color-mix(in srgb, var(--text) 8%, transparent); }
 .app-native .shelf-actions .shelf-delete:hover { color: var(--error-text); }
-.app-native .song-studio, .app-native .studio-shelf { --track-1: #e2683c; --track-2: #9fb8a5; --track-3: #d9b26f; --track-4: #7d9bb0; --track-5: #c98f7a; }
-:root[data-theme="light"] .app-native .studio-shelf { --track-1: #b8461f; --track-2: #4f6f5a; --track-3: #8a6a2a; --track-4: #3f5f86; --track-5: #8f5a46; }
+.app-native .song-studio, .app-native .studio-shelf { --track-1: #ff8a3d; --track-2: #8fb8ff; --track-3: #ffd27a; --track-4: #c48cff; --track-5: #6ee7c8; }
+:root[data-theme="light"] .app-native .studio-shelf { --track-1: #b34d0c; --track-2: #2f5fb3; --track-3: #8a6a12; --track-4: #7a3fc4; --track-5: #0f7a63; }
 @media (max-width: 640px) {
   .app-native .studio-shelf { padding: 18px 16px 28px; }
   .app-native .shelf-starters { --shelf-pad: 16px; }

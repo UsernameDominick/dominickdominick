@@ -9565,23 +9565,23 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
   .song-studio.studio-editor-folded .studio-stack { max-height: calc(var(--pl-ruler) + 5 * 72px + 7px); }
 }
 
-/* ---- The aggregate look in the Studio (plugin-aggregate's Explore DAW): the five tracks take the rust and sage palette (rust, sage,
-   ochre, slate, clay), panels and pads are flat with 4px corners, pills become small rectangles, the keys and pads sit on the
+/* ---- The aggregate look in the Studio (plugin-aggregate's Explore DAW): the five tracks take the Cassette palette (orange, blue,
+   gold, violet, mint), panels and pads are flat with 4px corners, pills become small rectangles, the keys and pads sit on the
    aggregate's base, and the playlist lanes carry its faint canvas grid. Colours and buttons come from the tokens on body in style.css. ---- */
 .song-studio {
-  --track-1: #e2683c;
-  --track-2: #9fb8a5;
-  --track-3: #d9b26f;
-  --track-4: #7d9bb0;
-  --track-5: #c98f7a;
+  --track-1: #ff8a3d;
+  --track-2: #8fb8ff;
+  --track-3: #ffd27a;
+  --track-4: #c48cff;
+  --track-5: #6ee7c8;
   --on-track: #0b0b0d;
 }
 :root[data-theme="light"] .song-studio {
-  --track-1: #b8461f;
-  --track-2: #4f6f5a;
-  --track-3: #8a6a2a;
-  --track-4: #3f5f86;
-  --track-5: #8f5a46;
+  --track-1: #b34d0c;
+  --track-2: #2f5fb3;
+  --track-3: #8a6a12;
+  --track-4: #7a3fc4;
+  --track-5: #0f7a63;
   --on-track: #fff;
 }
 .studio-detail, .studio-keys-scroll, .studio-keyrow .studio-keys-scroll, .studio-pad, .studio-playpop, .studio-tip { border-radius: 4px; }
