@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-07",
+  "updated": "2026-10-08",
   "items": [
     {"id": "password-protected-pages", "area": "Site & content", "status": "done", "title": "Password-protected pages", "summary": "A page can be locked behind a password; search, 404 suggestions and the lock screen no longer leak its content."},
     {"id": "admin-only-nav-items", "area": "Site & content", "status": "done", "title": "Admin-only nav items", "summary": "Hide a nav link from visitors while you test it signed in."},
@@ -164,6 +164,7 @@
     {"id": "trainer-more", "area": "Trainer", "status": "done", "title": "Trainer: precision and reaction drills, chart, converter, share", "summary": "Two new drills (small targets, and reaction time), a chart of your recent scores, a sensitivity converter between popular games, and a Share button that makes a score picture.", "date": "2026-10-07"},
     {"id": "studio-first-tip", "area": "Studio", "status": "done", "title": "Studio first-time tip", "summary": "The first time someone opens the Studio, a short tip explains the keys, Hold and the Rec button. It shows once.", "date": "2026-10-07"},
     {"id": "tool-pages-faster", "area": "Tools", "status": "done", "title": "Faster first open of the tool pages", "summary": "The tool pages keep their processed styles in the browser, so opening them a second time skips the slow part.", "date": "2026-10-07"},
-    {"id":"studio-midi-tab","area":"Studio","status":"done","title":"MIDI tab in the Studio tools","summary":"Tools has a new MIDI tab: connect your keyboard, see its name listed, then press keys and watch each one show up (note, velocity, pedal) on a 37-key strip. It tells you if the browser blocks MIDI or no keyboard is found, and whether a note is inside the open track range so it records.","date":"2026-10-07"}
+    {"id":"studio-midi-tab","area":"Studio","status":"done","title":"MIDI tab in the Studio tools","summary":"Tools has a new MIDI tab: connect your keyboard, see its name listed, then press keys and watch each one show up (note, velocity, pedal) on a 37-key strip. It tells you if the browser blocks MIDI or no keyboard is found, and whether a note is inside the open track range so it records.","date":"2026-10-07"},
+    {"id":"studio-playlist-tracks","area":"Studio","status":"done","title":"Tracks like a DAW playlist","summary":"The five tracks are now rows like FL Studio: a header on the left (number, name, mute) and the song bars as clips on a timeline you can scroll sideways, with a ruler and a line that follows the music. Tap a clip to edit that track in that bar. The order and the five tracks are the same as before. On a short screen the rows scroll so the editor keeps its room.","date":"2026-10-08"}
   ]
 }

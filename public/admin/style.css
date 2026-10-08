@@ -8534,45 +8534,85 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 .studio-midi[data-state="on"] { border-color: var(--success); color: var(--success); }
 .studio-icon { flex: 0 0 auto; width: 40px; height: 40px; padding: 0; font-size: 1.1rem; }
 
-/* the track cards (3): stacked on top of each other, each showing its top strip, the open one in front. Scroll, or tap one. */
-.studio-stack {
-  --F: 58px;
-  --s: 24px;
-  position: relative; flex: 0 0 auto; height: calc(var(--F) + 4 * var(--s) + 5px);
-  overflow: hidden; touch-action: none; user-select: none;
-}
-.studio-stack:focus { outline: none; }
-.studio-card {
-  position: absolute; left: 3px; right: 3px; top: 3px; height: var(--F);
-  transform: translateY(calc(var(--k1, 0) * var(--s) + var(--k2, 0) * var(--F)));
-  z-index: var(--z, 1);
-}
-.studio-card[data-pos="front"] { transform: translateY(calc(var(--k1, 0) * var(--s) + var(--drag, 0px))); }
-.studio-card-main {
-  position: absolute; inset: 0; display: flex; flex-direction: column; padding: 0; overflow: hidden; text-align: left; color: var(--text);
-  background: var(--bg-elevated); border: 1px solid var(--border); border-top: 3px solid var(--track-color); border-radius: 12px;
-  box-shadow: 0 -3px 10px rgba(0, 0, 0, 0.22);
-}
-.studio-card-main:hover { color: var(--text); border-color: var(--border); border-top-color: var(--track-color); background: color-mix(in srgb, var(--track-color) 8%, var(--bg-elevated)); }
-.studio-card[data-pos="front"] .studio-card-main { box-shadow: 0 8px 22px rgba(0, 0, 0, 0.4), 0 0 0 2px var(--track-color); background: var(--bg-elevated); }
-.studio-card-head { flex: 0 0 auto; height: calc(var(--s) - 3px); display: flex; align-items: center; gap: 8px; padding: 0 10px; }
+/* the playlist (3): the five tracks as rows, the way a DAW lays them out. Each row has a header on the left (number, name, mute) and the
+   song's bars as clips on a timeline that scrolls sideways with the other rows. The open track's header is lit and its open bar is ringed;
+   a line runs across the rows while the music plays. */
 .studio-badge {
   width: 26px; height: 26px; border-radius: 50%; flex: 0 0 auto;
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--track-color, var(--accent)); color: var(--on-track); font-size: 0.85rem; font-weight: 700;
 }
-.studio-card-head .studio-badge { width: 17px; height: 17px; font-size: 0.68rem; }
-.studio-card-name { flex: 1 1 auto; min-width: 0; font-size: 0.92rem; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.studio-card-count { flex: 0 0 auto; font-size: 0.72rem; color: var(--text-dim); }
-.studio-card[data-pos="front"] .studio-card-count { display: none; }
-.studio-card-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 4px; padding: 0 10px 6px; }
-.studio-dots {
-  flex: 1 1 auto; min-height: 16px; width: 100%;
-  fill: var(--track-color); background: color-mix(in srgb, var(--text) 6%, transparent); border-radius: 6px;
+.song-studio { --pl-row: 30px; --pl-head: 112px; --pl-bar: 56px; --pl-ruler: 16px; }
+.studio-stack {
+  /* five rows when there is room; with less it shrinks (down to a row and a half) and scrolls up and down */
+  flex: 0 1 auto; min-width: 0; user-select: none;
+  min-height: calc(var(--pl-ruler) + 1.5 * var(--pl-row) + 7px); max-height: calc(var(--pl-ruler) + 5 * var(--pl-row) + 7px);
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
 }
-.studio-card-meta { display: none; flex: 0 0 auto; justify-content: space-between; gap: 8px; font-size: 0.74rem; color: var(--text-dim); }
+.studio-stack:focus { outline: none; }
+.studio-pl-scroll { height: 100%; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; scroll-padding: var(--pl-ruler) 0 0 var(--pl-head); }
+.studio-pl-grid { position: relative; min-width: calc(var(--pl-head) + var(--bars, 4) * var(--pl-bar)); }
+.studio-pl-ruler { position: sticky; top: 0; z-index: 4; display: flex; height: var(--pl-ruler); background: var(--bg-elevated); border-bottom: 1px solid var(--border); }
+.studio-pl-corner { flex: 0 0 var(--pl-head); position: sticky; left: 0; z-index: 3; background: var(--bg-elevated); border-right: 1px solid var(--border); }
+.studio-pl-marks {
+  flex: 1 1 0; min-width: 0; display: flex;
+  background-image: linear-gradient(to right, color-mix(in srgb, var(--text) 14%, transparent) 1px, transparent 1px); background-size: var(--pl-bar) 100%;
+}
+.studio-pl-mark {
+  flex: 0 0 var(--pl-bar); box-sizing: border-box; font-style: normal; font-size: 0.64rem; line-height: var(--pl-ruler); padding-left: 5px; color: var(--text-dim); font-variant-numeric: tabular-nums;
+  border-left: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+}
+.studio-pl-mark:first-child { border-left: 0; }
+.studio-pl-mark.is-now { color: var(--text); font-weight: 700; }
+.studio-card { display: flex; height: var(--pl-row); }
+.studio-card + .studio-card { border-top: 1px solid var(--border); }
+.studio-pl-head {
+  flex: 0 0 var(--pl-head); position: sticky; left: 0; z-index: 2; display: flex; align-items: stretch; min-width: 0;
+  background: var(--bg-elevated); border-right: 1px solid var(--border);
+}
+.studio-card[data-pos="front"] .studio-pl-head { background: color-mix(in srgb, var(--track-color) 16%, var(--bg-elevated)); box-shadow: inset 3px 0 0 var(--track-color); }
+.studio-card-main {
+  flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 0; margin: 0; padding: 0 2px 0 7px;
+  text-align: left; color: var(--text); background: transparent; border: 0; border-radius: 0; box-shadow: none; font-weight: 600;
+}
+.studio-card-main:hover { color: var(--text); background: color-mix(in srgb, var(--track-color) 8%, transparent); filter: none; }
+.studio-card-head { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.studio-card-head .studio-badge { width: 17px; height: 17px; font-size: 0.66rem; }
+.studio-card-name { flex: 1 1 auto; min-width: 0; font-size: 0.8rem; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.studio-card-meta { display: none; justify-content: space-between; gap: 6px; font-size: 0.66rem; line-height: 1.1; font-weight: 450; color: var(--text); padding-left: 22px; }
+.studio-card-meta > span:first-child { white-space: nowrap; }
 .studio-card-sound { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.studio-card-main[data-muted="true"] .studio-card-name, .studio-card-main[data-muted="true"] .studio-dots { opacity: 0.5; }
+.studio-card-main[data-muted="true"] .studio-card-name { opacity: 0.5; text-decoration: line-through; }
+.studio-pl-mute {
+  flex: 0 0 auto; align-self: center; width: 25px; height: 25px; min-height: 0; margin: 0 4px 0 0; padding: 0; font-size: 0.7rem; font-weight: 700; line-height: 1;
+  color: var(--text-dim); background: transparent; border: 1px solid var(--border); border-radius: 6px; box-shadow: none;
+}
+.studio-pl-mute:hover { color: var(--text); filter: none; }
+.studio-pl-mute[aria-pressed="true"] { background: var(--warning); border-color: var(--warning); color: var(--on-accent); }
+.studio-pl-lane {
+  flex: 1 1 0; min-width: 0; display: grid; grid-template-columns: repeat(var(--bars, 4), var(--pl-bar)); justify-content: start; padding: 3px 0;
+  background-image: linear-gradient(to right, color-mix(in srgb, var(--text) 12%, transparent) 1px, transparent 1px); background-size: var(--pl-bar) 100%;
+}
+.studio-clip {
+  position: relative; min-width: 0; min-height: 0; margin: 0 2px; padding: 0; overflow: hidden; display: block; font-weight: 600;
+  color: var(--text); background: color-mix(in srgb, var(--track-color) 22%, var(--bg)); border: 1px solid color-mix(in srgb, var(--track-color) 70%, transparent); border-radius: 6px; box-shadow: none;
+}
+.studio-clip:hover { color: var(--text); background: color-mix(in srgb, var(--track-color) 32%, var(--bg)); filter: none; }
+.studio-clip .studio-dots { position: absolute; inset: 3px 3px 3px 3px; width: calc(100% - 6px); height: calc(100% - 6px); fill: var(--track-color); }
+.studio-clip i { position: absolute; top: 1px; left: 4px; font-style: normal; font-size: 0.6rem; line-height: 1.1; font-weight: 700; color: var(--text); text-shadow: 0 0 3px var(--bg), 0 0 3px var(--bg); }
+.studio-clip.is-repeat { border-style: dashed; background: color-mix(in srgb, var(--track-color) 10%, var(--bg)); }
+.studio-clip.is-repeat .studio-dots { opacity: 0.55; }
+.studio-clip.is-empty { background: transparent; border: 1px dotted var(--border); }
+.studio-clip.is-sel { box-shadow: 0 0 0 2px var(--track-color); z-index: 1; }
+.studio-clip.is-now::after { content: ""; position: absolute; left: 3px; right: 3px; bottom: 2px; height: 3px; border-radius: 2px; background: var(--track-color); }
+.studio-pl-over { position: absolute; top: 0; bottom: 0; left: var(--pl-head); right: 0; pointer-events: none; overflow: hidden; z-index: 1; }
+.studio-playhead { position: absolute; top: 0; bottom: 0; left: calc(var(--ph, 0) * var(--pl-bar)); width: 2px; margin-left: -1px; background: var(--accent); opacity: 0; box-shadow: 0 0 6px var(--accent); }
+.studio-playhead.is-on { opacity: 1; }
+.studio-editing { flex: 1 1 130px; min-width: 130px; display: inline-flex; align-items: center; gap: 8px; font-size: 0.85rem; font-weight: 650; }
+.studio-editing .studio-badge { width: 22px; height: 22px; font-size: 0.74rem; }
+.studio-editing > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.studio-editing-pat { font-weight: 450; color: var(--text-dim); }
+.studio-editing-name { font-weight: 650; }
 
 /* the open track (4) */
 .studio-detail {
@@ -8588,22 +8628,6 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 #studio-mute[aria-pressed="true"], .studio-mini[aria-pressed="true"].studio-warn { background: var(--warning); border-color: var(--warning); color: var(--on-accent); }
 .studio-round[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 
-/* the bars of the open track */
-.studio-bars { flex: 1 1 0; min-width: 0; display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; padding: 1px; }
-.studio-bars::-webkit-scrollbar { display: none; }
-.studio-bar {
-  flex: 0 0 auto; min-width: 34px; min-height: 34px; padding: 1px 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; line-height: 1.05;
-  border-radius: 8px; background: color-mix(in srgb, var(--text) 7%, transparent); border: 1px solid var(--border); position: relative;
-}
-.studio-bar b { font-size: 0.8rem; }
-.studio-bar i { font-style: normal; font-size: 0.62rem; color: var(--text-dim); }
-.studio-bar.is-open { background: color-mix(in srgb, var(--track-color) 24%, transparent); border-color: var(--track-color); }
-.studio-bar.is-repeat { border-style: dashed; }
-.studio-bar.is-repeat b, .studio-bar.is-repeat i { opacity: 0.65; }
-.studio-bar.is-empty { border-style: dotted; opacity: 0.6; }
-.studio-bar.is-sel { box-shadow: 0 0 0 2px var(--track-color); }
-.studio-bar.is-now::after { content: ""; position: absolute; left: 4px; right: 4px; bottom: 2px; height: 3px; border-radius: 2px; background: var(--track-color); }
-.studio-bar:hover { color: var(--text); }
 .studio-mini { flex: 0 0 auto; min-height: 34px; padding: 0 10px; font-size: 0.78rem; white-space: nowrap; }
 .studio-loop.is-off { opacity: 0.7; text-decoration: line-through; }
 .studio-loop[aria-pressed="true"] { background: color-mix(in srgb, var(--track-color) 26%, transparent); border-color: var(--track-color); color: var(--text); }
@@ -8760,8 +8784,10 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 .studio-holder { display: none; }
 
 @media (min-width: 641px) {
-  .studio-stack { --F: 76px; --s: 26px; }
+  .song-studio { --pl-row: 30px; --pl-head: 168px; --pl-bar: 84px; --pl-ruler: 18px; }
+  .studio-card-name { font-size: 0.9rem; }
   .studio-card-meta { display: flex; }
+  .studio-card-head .studio-badge { width: 20px; height: 20px; }
   .studio-grid[data-kind="drums"] { --cell-h: 34px; }
   .studio-grid[data-kind="notes"][data-mode="steps"] { --cell-h: 26px; }
   .studio-keys { height: 120px; }
@@ -8788,15 +8814,12 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
   .studio-btn { padding: 0 9px; }
 }
 @media (max-height: 640px) {
-  .studio-stack { --F: 50px; --s: 22px; }
   .studio-keys { height: 76px; }
   .studio-hint { display: none; }
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .studio-card { transition: transform 0.38s cubic-bezier(0.2, 0.8, 0.2, 1); }
-  .studio-dragging .studio-card { transition: none; }
-  .studio-card.hit .studio-card-main { animation: studio-hit 0.24s ease-out; }
+  .studio-card.hit .studio-pl-head { animation: studio-hit 0.24s ease-out; }
   .studio-detail-in { animation: studio-slide 0.28s ease-out; }
   .studio-cell { transition: background-color 0.12s, transform 0.12s, box-shadow 0.12s; }
   .studio-cell.on { animation: studio-pop 0.22s ease-out; }
@@ -8821,7 +8844,6 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 #song-builder-modal #song-studio .studio-field select { min-height: 40px; }
 #song-builder-modal #song-studio .studio-mini { min-height: 34px; }
 #song-builder-modal #song-studio .studio-mode { min-height: 32px; }
-#song-builder-modal #song-studio .studio-bar { min-height: 34px; }
 #song-builder-modal #song-studio .studio-chip { min-height: 36px; }
 #song-builder-modal #song-studio .studio-sheet-tab { min-height: 36px; }
 #song-builder-modal #song-studio .studio-menu-item { min-height: 40px; }
@@ -9033,7 +9055,6 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
    steps or the roll filling what is left (the only part that scrolls), then the transport and the keys or pads at the bottom. */
 .studio-detail { min-height: 0; overflow: visible; gap: 8px; }
 .studio-trackbar { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: wrap; row-gap: 6px; }
-.studio-trackbar .studio-bars { flex: 1 1 60px; min-width: 40px; }
 .studio-sound-btn { display: inline-flex; align-items: center; gap: 5px; max-width: 190px; min-width: 0; }
 .studio-sound-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .studio-caret { font-size: 0.7em; opacity: 0.75; }
@@ -9067,32 +9088,14 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 .studio-sheet-play { width: 40px; height: 40px; min-height: 40px; flex: 0 0 auto; background: var(--accent); color: var(--on-accent); }
 .studio-sheet-play svg { width: 18px; height: 18px; fill: currentColor; }
 
-/* phones and tablets: the five tracks are one row of tabs (tap one, or swipe across) */
-@media (max-width: 1023px) {
-  .studio-stack { display: flex; flex-direction: row; gap: 5px; height: auto; overflow: visible; padding: 2px 1px 0; }
-  .studio-card { position: relative; left: auto; right: auto; top: auto; height: 46px; flex: 1 1 0; min-width: 0; transform: none !important; }
-  .studio-card[data-pos="front"] { flex: 1.8 1 0; }
-  .studio-card-main { flex-direction: row; align-items: center; justify-content: center; border-radius: 12px; box-shadow: none; }
-  .studio-card[data-pos="front"] .studio-card-main { box-shadow: 0 0 0 2px var(--track-color); background: color-mix(in srgb, var(--track-color) 20%, var(--bg-elevated)); }
-  .studio-card-head { height: 100%; padding: 0 8px; gap: 7px; justify-content: center; }
-  .studio-card-head .studio-badge { width: 24px; height: 24px; font-size: 0.8rem; }
-  .studio-card-name { flex: 0 1 auto; }
-  .studio-card-body, .studio-card-count { display: none; }
-  .studio-card-main[data-has="true"]::after { content: ""; position: absolute; top: 7px; right: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--track-color); }
-  .studio-card[data-pos="front"] .studio-card-main[data-has="true"]::after { display: none; }
-}
-@media (max-width: 560px) {
-  .studio-card:not([data-pos="front"]) .studio-card-name { display: none; }
-  .studio-card-head { padding: 0 4px; }
-}
-
 /* a phone: one row of controls over the steps (Loop, Mute and Clear are in its ⋯ menu), half a bar of drum steps at a time */
 @media (max-width: 640px) {
+  .studio-editing-pat, .studio-editing-name { display: none; }
+  .studio-editing { flex: 1 1 0; min-width: 0; }
   .studio-wide-only, .studio-wide-word { display: none !important; }
   .studio-menu-narrow { display: flex; }
   .studio-trackbar { flex-wrap: nowrap; gap: 5px; }
   #song-builder-modal #song-studio .studio-trackbar .studio-mini,
-  #song-builder-modal #song-studio .studio-trackbar .studio-bar,
   #song-builder-modal #song-studio .studio-trackbar .studio-mode { min-height: 40px; }
   .studio-add-bar, .studio-dots-btn { width: 40px; padding: 0; justify-content: center; }
   .studio-sound-btn { max-width: 104px; padding: 0 8px; }
@@ -9117,25 +9120,20 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
   .studio-controls > .studio-hub { padding-right: 42px; }
 }
 
-/* a wide screen: the five tracks are a rail on the left, the open track fills the rest, the sheet opens beside it */
+/* a wide screen: the playlist across the top, the open track under it, the sheet opens beside it */
 @media (min-width: 1024px) {
   #song-builder-modal.song-studio-on .simulation-builder-inner { max-width: 1320px; }
   .song-studio {
     display: grid; max-width: 1280px; column-gap: 14px; row-gap: 10px;
-    grid-template-columns: 228px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto auto;
-    grid-template-areas: "top top" "stack detail" "stack controls" "keys keys";
+    --detail-min: clamp(240px, 30vh, 360px);
+    grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(calc(var(--pl-ruler) + 1.5 * var(--pl-row) + 7px), auto) minmax(var(--detail-min), 1fr) auto auto;
+    grid-template-areas: "top" "stack" "detail" "controls" "keys";
   }
   .studio-top { grid-area: top; }
-  .studio-stack { grid-area: stack; display: flex; flex-direction: column; gap: 8px; height: auto; overflow: visible; touch-action: auto; padding: 2px; }
+  .studio-stack { grid-area: stack; }
   .studio-detail { grid-area: detail; }
   .studio-controls { grid-area: controls; }
   .studio-keyboard { grid-area: keys; }
-  .studio-card { position: relative; left: auto; right: auto; top: auto; height: 82px; flex: 0 0 auto; transform: none !important; }
-  .studio-card-main { box-shadow: none; }
-  .studio-card-head { height: 30px; }
-  .studio-card-count { display: none; }
-  .studio-card-meta { display: flex; color: var(--text); }
-  .studio-card[data-pos="front"] .studio-card-main { box-shadow: 0 0 0 2px var(--track-color); background: color-mix(in srgb, var(--track-color) 12%, var(--bg-elevated)); }
   .studio-sheet { left: auto; width: min(460px, 44%); border-left: 1px solid var(--border); box-shadow: -18px 0 40px rgba(0, 0, 0, 0.35); }
   .song-studio.studio-sheet-on { overflow: hidden; }
 }
@@ -9153,7 +9151,10 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
   .studio-controls { grid-area: controls; padding: 4px 8px; }
   .studio-keyboard { grid-area: keys; }
   .studio-keys { height: 100% !important; }
-  .studio-card { height: 40px; }
+  .song-studio { --pl-row: 24px; --pl-head: 92px; --pl-ruler: 14px; }
+  .studio-stack { flex: none; height: calc(var(--pl-ruler) + 2.5 * var(--pl-row) + 7px); }
+  .studio-card-main { padding-left: 6px; }
+  .studio-pl-mute { width: 22px; height: 20px; margin-right: 3px; }
   .studio-hint { display: none; }
   .studio-play, .studio-rec-hub { width: 46px; height: 46px; min-height: 46px; }
   .studio-transport .studio-round { width: 38px; height: 38px; min-height: 38px; }
@@ -9523,14 +9524,6 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 @media (max-width: 340px) {
   #song-builder-modal #song-studio #studio-undo, #song-builder-modal #song-studio #studio-redo { display: none; }
 }
-@media (max-width: 340px) {
-  #song-builder-modal #song-studio .studio-card-main { padding-inline: 2px; overflow: hidden; }
-}
-@media (max-width: 340px) {
-  #song-builder-modal #song-studio .studio-card-head { gap: 2px; }
-  #song-builder-modal #song-studio .studio-card-name { font-size: 0.78rem; }
-  #song-builder-modal #song-studio .studio-badge { width: 18px; height: 18px; font-size: 0.65rem; min-width: 0; }
-}
 
 /* the Studio's MIDI tab */
 .studio-midi-status { margin: 4px 0 8px; font-size: 0.95rem; }
@@ -9542,3 +9535,8 @@ input[type="checkbox"].ne-control { width: 16px; height: 16px; justify-self: sta
 .studio-midi-key { flex: 1 1 0; min-width: 0; background: var(--text); opacity: 0.18; border-radius: 0 0 3px 3px; }
 .studio-midi-key.is-black { opacity: 0.5; height: 62%; }
 .studio-midi-key.is-down { background: var(--accent); opacity: 1; }
+
+/* The playlist and the open track share the height: the playlist gives room first (it scrolls), the open track never gets less than it needs. */
+@media (max-width: 1023px) {
+  .studio-detail { flex: 1 1 250px; min-height: 250px; }
+}

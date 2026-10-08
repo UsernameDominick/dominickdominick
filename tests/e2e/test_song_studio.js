@@ -1,7 +1,7 @@
-// The Song builder's Studio, the one way to make a song: five track cards stacked on top of each other (Drums, Bass, Chords, Melody, Lead,
-// always in that order), the open track's card with a bar strip and a step grid or a roll, the play controls with a volume and a metronome
-// button, a piano that stays at the bottom, and a Tools sheet that holds everything else. Checks the fixed tracks, choosing one (tap, swipe,
-// wheel, arrows), editing from the card (steps, drawing in the roll, sounds and their shape), bars and looping, free recording, scale
+// The Song builder's Studio, the one way to make a song: the playlist, five track rows (Drums, Bass, Chords, Melody, Lead, always in that
+// order) with their bars as clips on a timeline, the open track with a step grid or a roll, the play controls with a volume and a metronome
+// button, a piano that stays at the bottom, and a Tools sheet that holds everything else. Checks the fixed tracks, choosing one (tap a row or a bar clip,
+// arrows), editing from the card (steps, drawing in the roll, sounds and their shape), bars and looping, free recording, scale
 // snapping, the sheet, pause and carry on, recording, undo, and a phone screen.
 const E2E_BASE = process.env.E2E_BASE || "http://localhost:8787";
 const { chromium, axeSource } = require("./_pw.cjs");
@@ -67,7 +67,7 @@ const { fanify } = require("./_fan.cjs");
   const rows = (p) => p.evaluate(() => [...document.querySelectorAll("#studio-grid .studio-row[data-row]")].map((r) => r.dataset.row));
   const keyCount = (p) => p.evaluate(() => [document.querySelectorAll("#studio-keys .studio-key-white").length, document.querySelectorAll("#studio-keys .studio-key-black").length].join("/"));
   const firstKey = (p) => p.evaluate(() => (document.querySelector("#studio-keys .studio-key-white span") || {}).textContent);
-  const chips = (p) => p.evaluate(() => [...document.querySelectorAll("#studio-bars .studio-bar")].map((c) => c.textContent).join(" "));
+  const chips = (p) => p.evaluate(() => [...document.querySelectorAll('#studio-stack [data-pos="front"] [data-clip]')].map((c) => (Number(c.dataset.bar) + 1) + (c.querySelector("i").textContent || "–")).join(" "));
   // where the visible strip of a card is: a tap there picks it
   const strip = (p, track) => p.evaluate((t) => { const r = document.querySelector(`#studio-stack [data-card="${t}"]`).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + Math.min(13, r.height / 2) }; }, track);
   const tapStrip = async (p, track) => { await p.waitForTimeout(450); const at = await strip(p, track); await p.mouse.click(at.x, at.y); await p.waitForTimeout(200); };
@@ -102,14 +102,14 @@ const { fanify } = require("./_fan.cjs");
     ok((await p.locator("#studio-detail h2").count()) === 1 && (await p.locator('#studio-stack [data-pos="front"]').count()) === 1, "only one track is open at a time");
     const counts = await Promise.all(["drums", "bass", "chords", "melody", "lead"].map((t) => count(p, t)));
     ok(counts.join("|") === "14 hits|2 notes|3 notes|4 notes|2 notes", "each card gives a simple overview (hits for the drums, notes for the rest)", counts);
-    const dotCounts = await p.evaluate(() => ["drums", "bass", "chords", "melody", "lead"].map((t) => document.querySelectorAll(`#studio-stack [data-card="${t}"] .studio-dots rect`).length).join());
+    const dotCounts = await p.evaluate(() => ["drums", "bass", "chords", "melody", "lead"].map((t) => document.querySelectorAll(`#studio-stack [data-card="${t}"] [data-clip][data-bar="0"] .studio-dots rect`).length).join());
     ok(dotCounts === "14,2,3,4,2", "and a small picture of where its notes are", dotCounts);
     const sounds = await Promise.all(["drums", "bass", "chords", "melody", "lead"].map((t) => sound(p, t)));
     ok(/^Acoustic kit$/.test(sounds[0]) && /Pad/.test(sounds[2]) && /Basic sine/.test(sounds[3]) && /Lead/.test(sounds[4]), "and the sound it plays with", sounds);
     ok(!(await p.isEnabled("#studio-undo")), "nothing to undo on a freshly opened song");
     ok(!(await p.evaluate(() => /add (a )?(new )?track|new track|reorder|move (up|down)/i.test(document.getElementById("song-studio").textContent))) && (await p.evaluate(() => document.querySelectorAll("#song-studio [draggable=true]").length)) === 0, "there is no way to add, remove or reorder tracks");
 
-    // ---- choosing a track: tap a strip, the arrow keys, the wheel, a swipe
+    // ---- choosing a track: tap a row or a clip, the arrow keys
     await tapStrip(p, "chords");
     ok((await front(p)) === "chords" && /Chords/.test(await text(p, "#studio-detail h2")), "tapping a card opens it", await front(p));
     await tapStrip(p, "lead");
@@ -129,25 +129,12 @@ const { fanify } = require("./_fan.cjs");
     await p.keyboard.press("Home");
     await settle(p);
     ok((await front(p)) === "drums", "Home goes back to track 1", await front(p));
-    await p.waitForTimeout(450);
-    const box = await p.evaluate(() => { const r = document.getElementById("studio-stack").getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
-    await p.mouse.move(box.x, box.y);
-    await p.mouse.wheel(0, 120);
-    await settle(p, 350);
-    ok((await front(p)) === "bass", "scrolling the wheel over the stack moves to the next card", await front(p));
-    await p.mouse.wheel(0, 120);
-    await settle(p, 350);
-    await p.mouse.wheel(0, -120);
-    await settle(p, 350);
-    ok((await front(p)) === "bass", "and back up again", await front(p));
-    await p.waitForTimeout(450);
-    await p.mouse.move(box.x, box.y + 40); await p.mouse.down(); await p.mouse.move(box.x, box.y + 10, { steps: 4 }); await p.mouse.move(box.x, box.y - 40, { steps: 4 }); await p.mouse.up();
+    // tapping the empty part of a track's row opens it too, and a bar clip opens that track in that bar
+    await tapStrip(p, "melody");
+    ok((await front(p)) === "melody", "tapping the empty part of a track row opens it", await front(p));
+    await p.click('#studio-stack [data-card="chords"] [data-clip][data-bar="0"]');
     await settle(p);
-    ok((await front(p)) === "chords", "swiping up goes to the next card", await front(p));
-    await p.waitForTimeout(450);
-    await p.mouse.move(box.x, box.y - 40); await p.mouse.down(); await p.mouse.move(box.x, box.y - 10, { steps: 4 }); await p.mouse.move(box.x, box.y + 40, { steps: 4 }); await p.mouse.up();
-    await settle(p);
-    ok((await front(p)) === "bass", "swiping down brings the one before it forward", await front(p));
+    ok((await front(p)) === "chords" && (await pressed(p, '#studio-stack [data-card="chords"] [data-clip][data-bar="0"]')) === "true", "a clip opens its track in that bar", await front(p));
     ok((await p.locator("#studio-stack .studio-card").count()) === 5 && !(await p.isEnabled("#studio-undo")), "choosing tracks is not an edit (still five cards, nothing to undo)");
 
     // ---- editing steps from the open track (Drums: every drum sound in one grid)
@@ -545,15 +532,15 @@ const { fanify } = require("./_fan.cjs");
     L.on("pageerror", (e) => lerrs.push(String(e)));
     L.on("dialog", (d) => d.accept());
     await open(L, laneId);
-    ok((await chips(L)) === "1A 2B 3A 4B" && (await L.locator("#studio-bars .is-repeat").count()) === 2, "the drums show the song's four bars: their own two patterns, repeated (the repeats are dimmed)", await chips(L));
+    ok((await chips(L)) === "1A 2B 3A 4B" && (await L.locator('#studio-stack [data-pos="front"] .studio-clip.is-repeat').count()) === 2, "the drums show the song's four bars: their own two patterns, repeated (the repeats are dimmed)", await chips(L));
     ok((await pressed(L, "#studio-loop")) === "true", "and Loop is on");
-    await L.click('#studio-bars [data-bar="1"]');
+    await L.click('#studio-stack [data-pos="front"] [data-clip][data-bar="1"]');
     await settle(L);
-    ok((await count(L, "drums")) === "8 hits" && (await pressed(L, '#studio-bars [data-bar="1"]')) === "true", "tapping a bar opens its pattern (bar 2 has its own drums: B)", await count(L, "drums"));
-    await L.click('#studio-bars [data-bar="0"]');
+    ok((await count(L, "drums")) === "8 hits" && (await pressed(L, '#studio-stack [data-pos="front"] [data-clip][data-bar="1"]')) === "true", "tapping a bar opens its pattern (bar 2 has its own drums: B)", await count(L, "drums"));
+    await L.click('#studio-stack [data-pos="front"] [data-clip][data-bar="0"]');
     await settle(L);
     ok((await count(L, "drums")) === "14 hits", "and bar 1 has its own (A)");
-    await L.click('#studio-bars [data-bar="2"]');
+    await L.click('#studio-stack [data-pos="front"] [data-clip][data-bar="2"]');
     await settle(L);
     await L.click('#studio-bars-menu-btn');
     await L.click('[data-act="bar-differ"]');
@@ -561,7 +548,7 @@ const { fanify } = require("./_fan.cjs");
     ok((await chips(L)) === "1A 2B 3C 4B" && (await count(L, "drums")) === "14 hits", "Make bar 3 different gives it a pattern of its own, a copy of what it played (the loop starts again after it)", await chips(L));
     await L.click('#studio-grid .studio-cell[data-row="clap"][data-step="3"]');
     await settle(L);
-    await L.click('#studio-bars [data-bar="0"]');
+    await L.click('#studio-stack [data-pos="front"] [data-clip][data-bar="0"]');
     await settle(L);
     ok((await count(L, "drums")) === "14 hits", "and changing it leaves bar 1 alone");
     await L.click('#studio-bars-menu-btn');
@@ -569,7 +556,7 @@ const { fanify } = require("./_fan.cjs");
     await L.click('[data-act="bars-more"]');
     await L.click('[data-act="bars-more"]');
     await settle(L);
-    ok((await chips(L)).split(" ").length === 6 && (await L.locator("#studio-bars .studio-bar").count()) === 6, "a longer song gets more bars, and the looping drums fill them", await chips(L));
+    ok((await chips(L)).split(" ").length === 6 && (await L.locator('#studio-stack [data-pos="front"] [data-clip]').count()) === 6, "a longer song gets more bars, and the looping drums fill them", await chips(L));
     await L.click('[data-act="bars-auto"]');
     await settle(L);
     await L.keyboard.press("Escape");
@@ -581,7 +568,7 @@ const { fanify } = require("./_fan.cjs");
     ok((await pressed(L, "#studio-loop")) === "false", "Loop off: it plays through once and then stops", await pressed(L, "#studio-loop"));
     await L.click('#studio-detail [data-act="bar-add"]');
     await settle(L);
-    ok(/ B/.test(" " + (await chips(L))) || (await L.locator("#studio-bars .studio-bar").count()) >= 2, "+ Bar adds a new empty bar to this track", await chips(L));
+    ok(/ B/.test(" " + (await chips(L))) || (await L.locator('#studio-stack [data-pos="front"] [data-clip]').count()) >= 2, "+ Bar adds a new empty bar to this track", await chips(L));
     ok((await count(L, "melody")) === "0 notes" || true, "(the new bar is empty)");
     await L.click("#studio-undo");
     await settle(L, 300);
@@ -596,12 +583,12 @@ const { fanify } = require("./_fan.cjs");
     await L.click("#studio-stop");
     await L.click("#studio-rec");
     await settle(L, 300);
-    const grown = (await L.locator("#studio-bars .studio-bar").count());
+    const grown = (await L.locator('#studio-stack [data-pos="front"] [data-clip]').count());
     ok(grown >= 4, "recording on a track that does not loop keeps going: the song grew while it was recorded", grown);
     const perBar = [];
-    for (let i = 0; i < grown; i++) { await L.click(`#studio-bars [data-bar="${i}"]`); await settle(L, 120); perBar.push(num(await count(L, "melody"))); }
+    for (let i = 0; i < grown; i++) { await L.click(`#studio-stack [data-pos="front"] [data-clip][data-bar="${i}"]`); await settle(L, 120); perBar.push(num(await count(L, "melody"))); }
     ok(perBar.filter((n) => n > 0).length >= 2, "the notes went into the bars that were playing when they were played", perBar);
-    ok(num(await count(L, "drums")) >= 0 && (await L.locator("#studio-bars .studio-bar").count()) === grown, "(the drums are still looping underneath)");
+    ok(num(await count(L, "drums")) >= 0 && (await L.locator('#studio-stack [data-pos="front"] [data-clip]').count()) === grown, "(the drums are still looping underneath)");
     ok(lerrs.length === 0, "no page errors while recording bars", lerrs);
     await lctx.close();
 
@@ -613,7 +600,7 @@ const { fanify } = require("./_fan.cjs");
     m.on("pageerror", (e) => merrs.push(String(e)));
     m.on("dialog", (d) => d.accept());
     await open(m, phoneId);
-    const tap = async (track) => { await m.waitForTimeout(450); const at = await strip(m, track); await m.touchscreen.tap(at.x, at.y); await m.waitForTimeout(250); };
+    const tap = async (track) => { await m.waitForTimeout(450); await m.evaluate((t) => document.querySelector(`#studio-stack [data-card="${t}"]`).scrollIntoView({ block: "nearest" }), track); await m.waitForTimeout(150); const at = await strip(m, track); await m.touchscreen.tap(at.x, at.y); await m.waitForTimeout(250); };
     const fit = async () => m.evaluate(() => { const st = document.getElementById("song-studio"); const parts = ["studio-stack", "studio-detail", "studio-play", "studio-keys-scroll"].map((i) => document.getElementById(i).getBoundingClientRect()); return { scroll: st.scrollHeight - st.clientHeight, doc: document.documentElement.scrollWidth - document.documentElement.clientWidth, bottom: Math.max(...parts.map((r) => r.bottom)), top: Math.min(...parts.map((r) => r.top)), h: innerHeight, side: Math.max(...parts.map((r) => r.right)) - innerWidth }; });
     for (const track of ["drums", "bass", "chords", "melody", "lead"]) {
       await tap(track);
@@ -621,20 +608,23 @@ const { fanify } = require("./_fan.cjs");
       const f = await fit();
       ok(f.scroll <= 1 && f.bottom <= f.h + 1 && f.top >= 0 && f.doc <= 0 && f.side <= 1, `on a phone every part fits one screen without scrolling (${track})`, f);
     }
-    ok(await m.evaluate(() => document.getElementById("studio-detail").getBoundingClientRect().height >= 250), "and the open track keeps room to work in");
-    // On a phone the tracks are one row of tabs, so the swipe goes across.
-    const swipe = (dx) => m.evaluate((d) => { const el = document.getElementById("studio-stack"); const r = el.getBoundingClientRect(); const x = r.left + r.width / 2; const y = r.top + r.height / 2; const ev = (type, xx) => el.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 41, pointerType: "touch", isPrimary: true, button: 0, clientX: xx, clientY: y })); ev("pointerdown", x); ev("pointermove", x + d / 2); ev("pointermove", x + d); ev("pointerup", x + d); }, dx);
-    ok(await m.evaluate(() => { const r = [...document.querySelectorAll("#studio-stack .studio-card")].map((c) => c.getBoundingClientRect()); return r.every((b) => Math.abs(b.top - r[0].top) < 2 && b.height >= 44) && r.every((b, i) => i === 0 || b.left >= r[i - 1].right - 1); }), "on a phone the five tracks are one row of finger-sized tabs, in order");
-    await m.waitForTimeout(450);
-    await swipe(60);
+    const room = await m.evaluate(() => Math.round(document.getElementById("studio-detail").getBoundingClientRect().height));
+    ok(room >= 250, "and the open track keeps room to work in", room);
+    // On a phone the five tracks are five rows (a DAW's playlist): a finger-sized header on the left, the bars as clips beside it.
+    ok(await m.evaluate(() => { const r = [...document.querySelectorAll("#studio-stack .studio-card")].map((c) => c.getBoundingClientRect()); const heads = [...document.querySelectorAll("#studio-stack .studio-card-main")].map((c) => c.getBoundingClientRect()); return r.length === 5 && r.every((b) => b.height >= 30) && r.every((b, i) => i === 0 || (Math.abs(b.left - r[0].left) < 2 && b.top >= r[i - 1].bottom - 1)) && heads.every((h) => h.width >= 60); }), "on a phone the five tracks are five rows, in order, each with a header you can tap");
+    ok(await m.evaluate(() => [...document.querySelectorAll("#studio-stack [data-clip], #studio-stack [data-mute]")].every((c) => { const b = c.getBoundingClientRect(); return b.width >= 24 && b.height >= 24; })), "and the clips and the mute buttons are all at least 24 px");
+    await m.tap('#studio-stack [data-card="bass"] [data-clip][data-bar="0"]');
     await m.waitForTimeout(250);
-    ok((await front(m)) === "melody", "swiping right on the tabs goes to the track before", await front(m));
-    await m.waitForTimeout(450);
-    await swipe(-60);
-    await m.waitForTimeout(250);
-    ok((await front(m)) === "lead", "and swiping left goes on to the next", await front(m));
+    ok((await front(m)) === "bass", "a finger tap on a clip opens its track", await front(m));
+    await m.tap('#studio-stack [data-mute="lead"]');
+    await m.waitForTimeout(300);
+    ok((await front(m)) === "bass" && /muted/i.test(await m.getAttribute('#studio-stack [data-card="lead"] .studio-card-main', "aria-label")), "the M button mutes a track without taking the editor away from the open one", await front(m));
+    await m.tap('#studio-stack [data-mute="lead"]');
+    await m.waitForTimeout(300);
+    ok(!/muted/i.test(await m.getAttribute('#studio-stack [data-card="lead"] .studio-card-main', "aria-label")), "and it unmutes the same way");
     await tap("drums");
-    ok(await m.evaluate(() => { const g = document.getElementById("studio-grid-scroll"); const cells = [...document.querySelectorAll('#studio-grid .studio-row[data-row="kick"] .studio-cell')].map((c) => c.getBoundingClientRect()); const rowsN = document.querySelectorAll("#studio-grid .studio-row[data-row]").length; return rowsN === 4 && g.scrollHeight <= g.clientHeight + 1 && cells.length === 16 && Math.min(...cells.map((c) => c.width)) >= 24 && Math.min(...cells.map((c) => c.height)) >= 24 && g.scrollWidth > g.clientWidth; }), "on a phone all four drum rows show at once, with finger-sized steps that scroll sideways");
+    const drumFit = await m.evaluate(() => { const g = document.getElementById("studio-grid-scroll"); const gr = g.getBoundingClientRect(); const cells = [...document.querySelectorAll('#studio-grid .studio-row[data-row="kick"] .studio-cell')].map((c) => c.getBoundingClientRect()); const rowEls = [...document.querySelectorAll("#studio-grid .studio-row[data-row]")].map((r) => r.getBoundingClientRect()); const rowsN = rowEls.length; return { rowsN, inView: rowEls.every((r) => r.top >= gr.top - 1 && r.bottom <= gr.bottom + 1), n: cells.length, w: Math.min(...cells.map((c) => c.width)), h: Math.min(...cells.map((c) => c.height)), sw: g.scrollWidth, cw: g.clientWidth }; });
+    ok(drumFit.rowsN === 4 && drumFit.inView && drumFit.n === 16 && drumFit.w >= 24 && drumFit.h >= 24 && drumFit.sw > drumFit.cw, "on a phone all four drum rows show at once, with finger-sized steps that scroll sideways", drumFit);
     await m.tap('#studio-grid .studio-cell[data-row="kick"][data-step="3"]');
     await m.waitForTimeout(200);
     ok((await count(m, "drums")) === "15 hits", "a finger tap places a step", await count(m, "drums"));
@@ -715,7 +705,7 @@ const { fanify } = require("./_fan.cjs");
     await S.waitForSelector("#song-builder-modal:not([hidden])");
     await S.waitForSelector("#studio-stack .studio-card-main");
     await S.waitForTimeout(400);
-    ok((await S.inputValue("#studio-bpm")) === "97" && (await S.inputValue("#song-kit")) === "808" && (await S.locator("#studio-bars .studio-bar").count()) === 6, "a new song opens at that tempo, length and kit", [await S.inputValue("#studio-bpm"), await S.inputValue("#song-kit"), await S.locator("#studio-bars .studio-bar").count()]);
+    ok((await S.inputValue("#studio-bpm")) === "97" && (await S.inputValue("#song-kit")) === "808" && (await S.locator('#studio-stack [data-pos="front"] [data-clip]').count()) === 6, "a new song opens at that tempo, length and kit", [await S.inputValue("#studio-bpm"), await S.inputValue("#song-kit"), await S.locator('#studio-stack [data-pos="front"] [data-clip]').count()]);
     await S.click("#studio-close");
     await S.waitForTimeout(300);
     await api("PUT", "/settings", { ...current, song_default_tempo: "", song_default_bars: "", song_default_kit: "" });

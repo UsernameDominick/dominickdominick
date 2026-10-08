@@ -188,8 +188,9 @@
   .app-native .song-studio {
     --songs-w: clamp(210px, 15vw, 290px);
     --sounds-w: clamp(300px, 23vw, 410px);
-    grid-template-columns: var(--songs-w) 228px minmax(0, 1fr) var(--sounds-w);
-    grid-template-areas: "songs top top sounds" "songs stack detail sounds" "songs stack controls sounds" "songs keys keys sounds";
+    grid-template-columns: var(--songs-w) minmax(0, 1fr) var(--sounds-w);
+    grid-template-areas: "songs top sounds" "songs stack sounds" "songs detail sounds" "songs controls sounds" "songs keys sounds";
+    grid-template-rows: auto minmax(calc(var(--pl-ruler) + 1.5 * var(--pl-row) + 7px), auto) minmax(var(--detail-min), 1fr) auto auto;
     padding: 12px 16px;
   }
   .app-native .song-studio.studio-songs-folded { --songs-w: 44px; }

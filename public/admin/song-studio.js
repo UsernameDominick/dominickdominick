@@ -1,6 +1,6 @@
-// The Song builder: the Studio, the one way to make a song, built for a phone first. Top to bottom: five track cards stacked on top of each
-// other (Drums, Bass, Chords, Melody, Lead; scroll through them or tap one), the open track's expanded card (a bar strip, a step grid or a
-// roll, a few quick buttons), the play controls and a piano keyboard that stays at the bottom. Everything else the builder can do sits in the
+// The Song builder: the Studio, the one way to make a song, built for a phone first. Top to bottom: the playlist (the five tracks, Drums,
+// Bass, Chords, Melody and Lead, as rows like a DAW's, each with its bars as clips on a timeline; tap a clip to edit that bar), the open
+// track (a step grid or a roll, a few quick buttons), the play controls and a piano keyboard that stays at the bottom. Everything else the builder can do sits in the
 // Tools sheet: the sound of the open track, its tools, the song's settings, the patterns, and sharing and export.
 //
 // It is a view over the builder's own editor, not a second editor. That editor stays in the page (hidden) and every control here drives the
@@ -125,9 +125,15 @@
     return sc && sc.snap && host().snap ? host().snap(row) : row;
   }
 
-  // ---------- the stack of track cards (3): stacked on top of each other, the open one in front ----------
+  // ---------- the playlist (3): the five tracks as rows, the way a DAW lays them out ----------
+  // Each row has a header on the left (number, name, mute) and its bars as clips on a timeline that scrolls sideways with the other rows.
+  // A clip is one bar of that track: a small picture of the pattern the track plays there, and its letter. A tap on a clip opens that
+  // track in that bar in the editor below; a tap on a header opens the track in the bar it was last in. Nothing here is stored.
   const stackEl = $("studio-stack");
   const cardSigs = {};
+  const cardEls = {};
+  let plSig = "";
+  let plBars = 0;
   function dots(info) {
     const cell = 6;
     const h = Math.max(1, info.cells[0] ? info.cells[0].h : 1);
@@ -137,7 +143,7 @@
       .join("");
     return `<svg class="studio-dots" viewBox="0 0 ${STEPS * cell} 24" preserveAspectRatio="none" aria-hidden="true" focusable="false">${rects}</svg>`;
   }
-  // What a card counts is what its track plays in the bar picked for it, not the open pattern (opening Bass's second bar opens pattern
+  // What a header counts is what its track plays in the bar picked for it, not the open pattern (opening Bass's second bar opens pattern
   // B, which can have no drums in it while the drums go on playing their own A).
   function cardInfo(s, track) {
     const name = Engine.patternAtBar && Engine.viewOf ? Engine.patternAtBar(s, track.id, barPick[track.id] || 0) : undefined;
@@ -147,122 +153,164 @@
     const seen = trackInfo(Engine.viewOf(s, name), track);
     return Object.assign({}, own, { cells: seen.cells, count: seen.count });
   }
-  function cardHtml(track, s, front) {
+  function headHtml(track, s, front) {
     const info = cardInfo(s, track);
     const count = `${info.count} ${unitOf(track, info.count)}`;
     const label = `Track ${track.n}, ${track.name}: ${count}${info.muted ? ", muted" : ""}. ${front ? "Selected" : "Choose this track"}`;
+    const mute = `${info.muted ? "Unmute" : "Mute"} track ${track.n}, ${track.name}`;
     return (
       `<button type="button" class="studio-card-main" data-no-history data-pick="${track.id}" data-muted="${info.muted}" data-has="${info.count > 0}" aria-pressed="${front}" aria-label="${esc(label)}">` +
-      `<span class="studio-card-head"><span class="studio-badge" aria-hidden="true">${track.n}</span><span class="studio-card-name">${esc(track.name)}</span><span class="studio-card-count">${count}${info.muted ? " · muted" : ""}</span></span>` +
-      `<span class="studio-card-body">${dots(info)}<span class="studio-card-meta"><span>${count}${info.muted ? " · muted" : ""}</span><span class="studio-card-sound">${esc(info.sound)}</span></span></span>` +
-      `</button>`
+      `<span class="studio-card-head"><span class="studio-badge" aria-hidden="true">${track.n}</span><span class="studio-card-name">${esc(track.name)}</span></span>` +
+      `<span class="studio-card-meta"><span>${count}${info.muted ? " · muted" : ""}</span><span class="studio-card-sound">${esc(info.sound)}</span></span>` +
+      `</button>` +
+      `<button type="button" class="studio-pl-mute" data-no-history data-mute="${track.id}" aria-pressed="${info.muted}" aria-label="${esc(mute)}" title="${esc(mute)}">M</button>`
     );
   }
-  // Card i sits i strips down from the top, except that the cards below the open one start after its full height; the open card is in
-  // front of all. Each card behind shows only its top strip, which is all the name and count need.
-  function renderStack(s) {
-    if (!stackEl.children.length) {
-      TRACKS.forEach((track) => {
-        const el = document.createElement("div");
-        el.className = "studio-card";
-        el.dataset.card = track.id;
-        el.style.setProperty("--track-color", `var(--track-${track.n})`);
-        stackEl.appendChild(el);
-      });
+  // One clip per bar of the song: the pattern the track plays there (a bar a looping track repeats is dashed, a bar it is silent in is empty).
+  function clipsHtml(track, s, info) {
+    const sel = trackId === track.id ? Math.max(0, Math.min(info.bars - 1, barPick[track.id] || 0)) : -1;
+    const seen = {};
+    return info.cells
+      .map((c) => {
+        let pic = "";
+        if (c.name) {
+          if (!(c.name in seen)) seen[c.name] = Engine.viewOf ? trackInfo(Engine.viewOf(s, c.name), track) : trackInfo(s, track);
+          pic = dots(seen[c.name]);
+        }
+        const word = c.name ? `pattern ${c.name}${c.repeat ? ", repeated from the loop" : ""}` : "silent";
+        return `<button type="button" class="studio-clip${c.repeat ? " is-repeat" : ""}${c.name ? "" : " is-empty"}${c.bar === sel ? " is-sel" : ""}" data-no-history data-clip data-track="${track.id}" data-bar="${c.bar}" aria-pressed="${c.bar === sel}" aria-label="${esc(track.name)}, bar ${c.bar + 1}, ${word}">${pic}<i>${c.name || ""}</i></button>`;
+      })
+      .join("");
+  }
+  // A rebuilt row keeps the focus on the same header button or clip.
+  function keepFocus(box, build) {
+    const a = document.activeElement;
+    let key = null;
+    if (a && box.contains(a)) key = a.dataset.pick ? `[data-pick="${a.dataset.pick}"]` : a.dataset.mute ? `[data-mute="${a.dataset.mute}"]` : a.dataset.clip !== undefined ? `[data-clip][data-bar="${a.dataset.bar}"]` : null;
+    build();
+    if (key) {
+      const again = box.querySelector(key);
+      if (again && again !== document.activeElement) again.focus({ preventScroll: true });
     }
-    const f = trackIndex();
-    TRACKS.forEach((track, i) => {
-      const el = stackEl.children[i];
-      el.style.setProperty("--k1", String(i <= f ? i : i - 1));
-      el.style.setProperty("--k2", String(i > f ? 1 : 0));
-      el.style.setProperty("--z", String(i === f ? 20 : i + 1));
-      el.dataset.pos = i === f ? "front" : i < f ? "above" : "below";
-      const html = cardHtml(track, s, i === f);
-      if (cardSigs[track.id] !== html) {
-        cardSigs[track.id] = html;
-        el.innerHTML = html;
-      }
+  }
+  function buildPlaylist() {
+    stackEl.innerHTML =
+      `<div class="studio-pl-scroll" id="studio-pl-scroll"><div class="studio-pl-grid" id="studio-pl-grid">` +
+      `<div class="studio-pl-ruler" aria-hidden="true"><span class="studio-pl-corner"></span><span class="studio-pl-marks" id="studio-pl-marks"></span></div>` +
+      TRACKS.map((t) => `<div class="studio-card" data-card="${t.id}" style="--track-color: var(--track-${t.n})"><div class="studio-pl-head"></div><div class="studio-pl-lane"></div></div>`).join("") +
+      `<div class="studio-pl-over" aria-hidden="true"><i class="studio-playhead" id="studio-playhead"></i></div>` +
+      `</div></div>`;
+    TRACKS.forEach((t) => {
+      const el = stackEl.querySelector(`[data-card="${t.id}"]`);
+      cardEls[t.id] = { el, head: el.querySelector(".studio-pl-head"), lane: el.querySelector(".studio-pl-lane") };
     });
   }
-  // Scrolling through the stack: a swipe up or down, the wheel, or the arrow keys moves to the next or the one before; a tap on any card
-  // opens it. A drag follows the finger a little and lets go to the next or the one before.
-  let drag = null;
-  let dragged = false;
-  // As a row of tabs (a phone, a tablet) the swipe goes across; as a column it goes up and down.
-  const across = () => getComputedStyle(stackEl).flexDirection === "row";
-  const along = (e) => (drag.across ? e.clientX - drag.x : e.clientY - drag.y);
-  stackEl.addEventListener("pointerdown", (e) => {
-    if (e.button > 0) return;
-    drag = { x: e.clientX, y: e.clientY, id: e.pointerId, moved: false, across: across() };
-  });
-  stackEl.addEventListener("pointermove", (e) => {
-    if (!drag || e.pointerId !== drag.id) return;
-    const dy = along(e);
-    if (!drag.moved && Math.abs(dy) > 8) {
-      drag.moved = true;
-      try {
-        stackEl.setPointerCapture(e.pointerId);
-      } catch {
-        /* not capturable */
+  function renderStack(s) {
+    const arr = host().arr;
+    if (!cardEls.drums || !stackEl.contains(cardEls.drums.el)) buildPlaylist();
+    const front = trackIndex();
+    let bars = 1;
+    TRACKS.forEach((track, i) => {
+      const row = cardEls[track.id];
+      const info = arr ? arr.info(track.id) : { bars: 1, cells: [{ bar: 0, name: "A", repeat: false }] };
+      bars = info.bars;
+      row.el.dataset.pos = i === front ? "front" : i < front ? "above" : "below";
+      const head = headHtml(track, s, i === front);
+      const lane = clipsHtml(track, s, info);
+      if (cardSigs[track.id + "h"] !== head) {
+        cardSigs[track.id + "h"] = head;
+        keepFocus(row.head, () => (row.head.innerHTML = head));
       }
-      stackEl.classList.add("studio-dragging");
+      if (cardSigs[track.id + "l"] !== lane) {
+        cardSigs[track.id + "l"] = lane;
+        keepFocus(row.lane, () => (row.lane.innerHTML = lane));
+      }
+    });
+    if (bars !== plBars) {
+      plBars = bars;
+      $("studio-pl-grid").style.setProperty("--bars", String(bars));
     }
-    if (drag.moved) stackEl.style.setProperty("--drag", `${Math.max(-40, Math.min(40, dy))}px`);
-  });
-  function endDrag(e) {
-    if (!drag || e.pointerId !== drag.id) return;
-    const dy = along(e);
-    const was = drag;
-    drag = null;
-    stackEl.classList.remove("studio-dragging");
-    stackEl.style.removeProperty("--drag");
-    if (!was.moved) return;
-    dragged = true;
-    setTimeout(() => (dragged = false), 50);
-    if (Math.abs(dy) > 28) moveTrack(dy < 0 ? 1 : -1);
+    // (The ruler's ticks carry on past the end of the song by its background, the way a DAW's does; only the bars have numbers.)
+    const marks = Array.from({ length: bars }, (_, i) => `<i class="studio-pl-mark" data-bar="${i}">${i + 1}</i>`).join("");
+    if (marks !== plSig) {
+      plSig = marks;
+      $("studio-pl-marks").innerHTML = marks;
+    }
   }
-  stackEl.addEventListener("pointerup", endDrag);
-  stackEl.addEventListener("pointercancel", endDrag);
-  let wheelAt = 0;
-  stackEl.addEventListener(
-    "wheel",
-    (e) => {
-      const delta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
-      if (Math.abs(delta) < 8) return;
-      e.preventDefault();
-      const now = Date.now();
-      if (now - wheelAt < 260) return;
-      wheelAt = now;
-      moveTrack(delta > 0 ? 1 : -1);
-    },
-    { passive: false }
-  );
+  // With less room than five rows (a short screen) the playlist scrolls up and down: bring the open track's row into view.
+  function revealRow(id) {
+    const box = $("studio-pl-scroll");
+    const row = cardEls[id] && cardEls[id].el;
+    if (!box || !row || box.scrollHeight <= box.clientHeight + 2) return;
+    const ruler = box.querySelector(".studio-pl-ruler").offsetHeight;
+    const top = row.offsetTop;
+    const bottom = top + row.offsetHeight;
+    if (top < box.scrollTop + ruler) box.scrollTop = Math.max(0, top - ruler);
+    else if (bottom > box.scrollTop + box.clientHeight) box.scrollTop = bottom - box.clientHeight;
+  }
+  // A tap on a clip: that track, in that bar.
+  function pickBar(track, bar) {
+    const arr = host().arr;
+    barPick[track.id] = bar;
+    followPaused = host().playing();
+    if (track.id !== trackId) selectTrack(track.id);
+    else if (arr) {
+      if (!arr.openBar(track.id, bar)) say(`Bar ${bar + 1} is silent for ${track.name}`);
+      gridSig = "";
+      keysSig = "";
+      refresh();
+    }
+    say(`${track.name}, bar ${bar + 1}`);
+  }
+  // A header's M silences its track without taking the editor away from the track being edited.
+  function muteRow(track) {
+    const back = trackId;
+    toggleMute(track); // the builder's mute buttons act on the open track, so it is opened for a moment
+    if (back !== track.id) selectTrack(back, { quiet: true });
+  }
   stackEl.addEventListener("click", (e) => {
-    if (dragged) {
-      e.preventDefault();
-      e.stopPropagation();
+    const mute = e.target.closest && e.target.closest("[data-mute]");
+    if (mute) return muteRow(trackOf(mute.dataset.mute));
+    const clipEl = e.target.closest && e.target.closest("[data-clip]");
+    if (clipEl) return pickBar(trackOf(clipEl.dataset.track), Number(clipEl.dataset.bar));
+    const pick = e.target.closest && e.target.closest("[data-pick]");
+    if (pick) return selectTrack(pick.dataset.pick);
+    // the empty part of a row belongs to its track too
+    const row = e.target.closest && e.target.closest("[data-card]");
+    if (row && e.target.closest(".studio-pl-lane")) selectTrack(row.dataset.card);
+  });
+  // Arrow keys: up and down go through the tracks (headers and clips alike, keeping the column), left and right go along a row's bars
+  // (or, on a header, to the track before and after, which is also how it has always worked); Home and End go to the first and last track.
+  stackEl.addEventListener("keydown", (e) => {
+    const t = e.target;
+    const clipEl = t.closest && t.closest("[data-clip]");
+    const headEl = t.closest && t.closest("[data-pick], [data-mute]");
+    if (!clipEl && !headEl) return;
+    const trackAt = (id) => TRACKS.findIndex((x) => x.id === id);
+    const from = trackAt(clipEl ? clipEl.dataset.track : headEl.dataset.pick || headEl.dataset.mute);
+    let to = null;
+    let bar = clipEl ? Number(clipEl.dataset.bar) : null;
+    if (e.key === "ArrowDown" || (!clipEl && e.key === "ArrowRight")) to = from + 1;
+    else if (e.key === "ArrowUp" || (!clipEl && e.key === "ArrowLeft")) to = from - 1;
+    else if (e.key === "Home" && !clipEl) to = 0;
+    else if (e.key === "End" && !clipEl) to = TRACKS.length - 1;
+    else if (clipEl && (e.key === "ArrowRight" || e.key === "ArrowLeft")) {
+      to = from;
+      bar += e.key === "ArrowRight" ? 1 : -1;
+    } else return;
+    e.preventDefault();
+    to = Math.max(0, Math.min(TRACKS.length - 1, to));
+    const target = TRACKS[to];
+    if (clipEl) {
+      const next = cardEls[target.id].lane.querySelector(`[data-clip][data-bar="${Math.max(0, bar)}"]`);
+      if (next) next.focus();
       return;
     }
-    const pick = e.target.closest && e.target.closest("[data-pick]");
-    if (pick) selectTrack(pick.dataset.pick);
-  });
-  stackEl.addEventListener("keydown", (e) => {
-    const steps = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 };
-    let to = null;
-    if (e.key in steps) to = trackIndex() + steps[e.key];
-    else if (e.key === "Home") to = 0;
-    else if (e.key === "End") to = TRACKS.length - 1;
-    if (to === null) return;
-    e.preventDefault();
-    const target = TRACKS[Math.max(0, Math.min(TRACKS.length - 1, to))];
     selectTrack(target.id);
     const btn = stackEl.querySelector(`[data-pick="${target.id}"]`);
     if (btn) btn.focus();
   });
-  function moveTrack(delta) {
-    const to = Math.max(0, Math.min(TRACKS.length - 1, trackIndex() + delta));
-    if (TRACKS[to].id !== trackId) selectTrack(TRACKS[to].id);
-  }
+
   function toggleMute(track) {
     if (track.id !== trackId) selectTrack(track.id, { quiet: true });
     const s = song();
@@ -357,7 +405,7 @@
     return (
       `<h2 class="sim-sr-only">${esc(track.name)}</h2>` +
       `<div class="studio-trackbar" role="group" aria-label="${esc(track.name)}: bars and controls">` +
-      `<div id="studio-bars" class="studio-bars" role="group" aria-label="Choose the bar to edit"></div>` +
+      `<span id="studio-editing" class="studio-editing"><span class="studio-badge" aria-hidden="true">${track.n}</span><span id="studio-editing-text"></span></span>` +
       `<button type="button" class="studio-mini studio-add-bar" data-act="bar-add" aria-label="Add a bar" title="Add a new empty bar to the end of this track">+<span class="studio-wide-word"> Bar</span></button>` +
       `<button type="button" id="studio-loop" class="studio-mini studio-loop studio-wide-only" data-act="loop" aria-pressed="true" title="Loop: this track plays again from its first bar when it reaches its last, until the song ends">↻ Loop</button>` +
       modeSwitch +
@@ -384,7 +432,6 @@
       detailEl.style.setProperty("--track-color", `var(--track-${track.n})`);
       detailEl.innerHTML = detailHtml(track);
       gridSig = "";
-      barsSig = "";
       const snapMenu = $("studio-snap-by");
       if (snapMenu) snapMenu.value = String(snapBy);
       applyZoom();
@@ -413,45 +460,51 @@
   }
 
   // ---------- the bars of the open track ----------
-  // One chip per bar of the song: its number, the pattern the track plays in it (a bar a looping track repeats is dimmed, a bar it is
-  // silent in is empty). A tap opens that bar. Loop, + Bar and the menu are on the same row.
-  let barsSig = "";
+  // The playlist above shows every bar; here the open track says which bar it is editing, Loop shows whether it repeats, and a track that is
+  // silent in the bar says so (with a button to add one).
   let playingBar = -1;
+  let lastSel = "";
   function renderBars() {
     const arr = host().arr;
-    const box = $("studio-bars");
-    if (!arr || !box) return;
-    const key = trackOf(trackId).id;
+    if (!arr) return;
+    const track = trackOf(trackId);
+    const key = track.id;
     const info = arr.info(key);
     const sel = Math.max(0, Math.min(info.bars - 1, barPick[key] || 0));
-    const sig = JSON.stringify([info.cells.map((c) => [c.name, c.repeat]), info.open, info.loops, info.own, sel, info.free]);
     const loop = $("studio-loop");
     loop.setAttribute("aria-pressed", String(info.loops));
     loop.classList.toggle("is-off", !info.loops);
-    if (sig !== barsSig) {
-      barsSig = sig;
-      box.innerHTML = info.cells
-        .map((c) => {
-          const word = c.name ? `pattern ${c.name}${c.repeat ? ", repeated from the loop" : ""}` : "silent";
-          return `<button type="button" class="studio-bar${c.name === info.open ? " is-open" : ""}${c.repeat ? " is-repeat" : ""}${c.name ? "" : " is-empty"}${c.bar === sel ? " is-sel" : ""}" data-no-history data-act="bar" data-bar="${c.bar}" aria-pressed="${c.bar === sel}" aria-label="Bar ${c.bar + 1}, ${word}"><b>${c.bar + 1}</b><i>${c.name || "–"}</i></button>`;
-        })
-        .join("");
-      const open = box.querySelector(".is-sel");
-      if (open && open.scrollIntoView) open.scrollIntoView({ block: "nearest", inline: "nearest" });
+    const here = info.cells[sel];
+    const text = $("studio-editing-text");
+    if (text) text.innerHTML = `<span class="studio-editing-name">${esc(track.name)} · </span>Bar ${sel + 1}<span class="studio-editing-pat">${here && here.name ? ` (pattern ${esc(here.name)})` : " (silent)"}</span>`;
+    // The clip being edited comes into view when it changes (a long song scrolls sideways).
+    const sig = key + ":" + sel;
+    if (sig !== lastSel) {
+      if (key !== lastSel.split(":")[0]) revealRow(key);
+      lastSel = sig;
+      const clipEl = stackEl.querySelector(`[data-card="${key}"] [data-clip][data-bar="${sel}"]`);
+      scrollClipIntoView(clipEl);
     }
     markPlayingBar(playingBar);
     const silent = $("studio-silent");
-    const here = info.cells[sel];
     if (silent) {
       silent.hidden = Boolean(here && here.name);
       silent.querySelector("p").textContent = `This track is silent in bar ${sel + 1}${info.loops ? "" : " (it does not loop)"}.`;
     }
   }
+  // Only the timeline scrolls sideways, never the page: bring a clip into the middle of what is visible when it is off to one side.
+  function scrollClipIntoView(el) {
+    const box = $("studio-pl-scroll");
+    if (!el || !box || box.scrollWidth <= box.clientWidth + 2) return;
+    const head = box.querySelector(".studio-pl-head");
+    const left = box.getBoundingClientRect().left + (head ? head.offsetWidth : 0);
+    const r = el.getBoundingClientRect();
+    if (r.left >= left && r.right <= box.getBoundingClientRect().right) return;
+    box.scrollTo({ left: Math.max(0, box.scrollLeft + (r.left - left) - 8), behavior: "smooth" });
+  }
   function markPlayingBar(bar) {
     playingBar = bar;
-    const box = $("studio-bars");
-    if (!box) return;
-    box.querySelectorAll(".studio-bar").forEach((b) => b.classList.toggle("is-now", Number(b.dataset.bar) === bar));
+    stackEl.querySelectorAll("[data-bar]").forEach((b) => b.classList.toggle("is-now", Number(b.dataset.bar) === bar));
   }
   function barsMenuHtml() {
     const arr = host().arr;
@@ -532,26 +585,16 @@
       closePop();
       openSheet("tools");
     }
-    else if (act === "bar") {
-      barPick[track.id] = Number(t.dataset.bar);
-      followPaused = host().playing();
-      if (!arr.openBar(track.id, barPick[track.id])) say(`Bar ${barPick[track.id] + 1} is silent for ${track.name}`);
-      else say(`Bar ${barPick[track.id] + 1}`);
-      gridSig = "";
-      keysSig = "";
-      barsSig = "";
-    } else if (act === "bar-add") {
+    else if (act === "bar-add") {
       const name = arr.addBar(track.id);
       if (!name) say("There is no room for another bar: all sixteen patterns are used.");
       else barPick[track.id] = Math.max(0, arr.info(track.id).length - 1);
       gridSig = "";
-      barsSig = "";
     } else if (act === "bar-differ") {
       const name = arr.differ(track.id, barPick[track.id] || 0);
       say(name ? `Bar ${(barPick[track.id] || 0) + 1} is now its own pattern, ${name}.` : "There is no room for another pattern: all sixteen are used.");
       closePop();
       gridSig = "";
-      barsSig = "";
     } else if (act === "bar-remove") {
       const bar = barPick[track.id] || 0;
       arr.removeBar(track.id, bar);
@@ -559,16 +602,13 @@
       showBar(track);
       closePop();
       gridSig = "";
-      barsSig = "";
     } else if (act === "lane-follow") {
       arr.follow(track.id);
       closePop();
-      barsSig = "";
     } else if (act === "loop") {
       if (t.closest("#studio-bars-menu")) closePop();
       arr.setLoop(track.id, !arr.info(track.id).loops);
       say(arr.info(track.id).loops ? `${track.name} loops until the song ends` : `${track.name} plays once and then stops`);
-      barsSig = "";
     } else if (act === "shift-left" || act === "shift-right") {
       closePop();
       shiftBar(track, act === "shift-left" ? -1 : 1);
@@ -594,7 +634,6 @@
       $("studio-bars-menu").innerHTML = barsMenuHtml();
       const again = $("studio-bars-menu").querySelector(`[data-act="${act}"]:not([disabled])`) || $("studio-bars-menu").querySelector("button:not([disabled])");
       if (again) again.focus(); // the menu was rebuilt, so keep the focus on it
-      barsSig = "";
     } else if (act === "clear") {
       if (t.closest("#studio-bars-menu")) closePop();
       if (track.kind === "drums") {
@@ -1861,13 +1900,15 @@
         syncRoll();
         refresh();
       }
-      barsSig = "";
+      renderStack(s);
       renderBars();
     }
     if (info) {
+      if (followOn && lastBar !== info.chainIndex) scrollClipIntoView(stackEl.querySelector(`.studio-pl-mark[data-bar="${info.chainIndex}"]`));
       lastBar = info.chainIndex;
       markPlayingBar(info.chainIndex);
     }
+    placePlayhead((info && typeof info.chainIndex === "number" ? info.chainIndex : Math.max(0, playingBar)) + step / STEPS);
     const open = info && info.patterns && info.patterns[track.id] !== undefined ? info.patterns[track.id] : info ? info.pattern : null;
     const here = !info || open === Engine.editingName(s);
     if (lastCol !== -1 && colCells[lastCol]) colCells[lastCol].forEach((c) => c.classList.remove("now"));
@@ -1887,9 +1928,9 @@
       if (part && part.notes && part.muted !== true) Object.keys(part.notes).forEach((n) => hit((part.notes[n] || [])[step]) && names.add(n));
     }
     setLit(names);
-    TRACKS.forEach((t, i) => {
+    TRACKS.forEach((t) => {
       if (!trackHits(t, data, step)) return;
-      const el = stackEl.children[i];
+      const el = cardEls[t.id] && cardEls[t.id].el;
       if (!el) return;
       el.classList.remove("hit");
       void el.offsetWidth;
@@ -1897,6 +1938,13 @@
     });
   }
   let lastBar = -1;
+  // The line across the playlist: where the music is, in bars from the start.
+  function placePlayhead(pos) {
+    const ph = $("studio-playhead");
+    if (!ph) return;
+    ph.parentNode.parentNode.style.setProperty("--ph", String(pos));
+    ph.classList.add("is-on");
+  }
   function clearPlay() {
     pending.forEach(clearTimeout);
     pending = [];
@@ -1905,6 +1953,8 @@
     lastBar = -1;
     followPaused = false;
     markPlayingBar(-1);
+    const ph = $("studio-playhead");
+    if (ph) ph.classList.remove("is-on");
     setLit(new Set());
     stackEl.querySelectorAll(".hit").forEach((el) => el.classList.remove("hit"));
   }
@@ -2991,7 +3041,7 @@
       closeSheet();
     }
     if (opts && (opts.opened || opts.rebuild)) {
-      detailSig = gridSig = keysSig = barsSig = soundSig = "";
+      detailSig = gridSig = keysSig = soundSig = "";
       Object.keys(cardSigs).forEach((k) => delete cardSigs[k]);
       showBar(trackOf(trackId));
       syncRoll();
