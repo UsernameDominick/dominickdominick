@@ -3349,3 +3349,10 @@
 .app-native .studio-knob-pane[hidden] { display: none; }
 .app-native .studio-knob-pane > .studio-section-hint { margin: 0 0 8px; }
 .app-native #studio-sound-panel .studio-browse-select { display: none; }
+
+/* On a phone the strip of sections (pads, sound, track, song, patterns, share, midi) is a carousel: equal stops that snap to the middle with room either
+   side so the first and the last can get there too; the stop in the middle is the section shown (song-studio.js, "carousel"). */
+@media (max-width: 640px) {
+  .app-native .song-studio .studio-deck-dial { --deck-stop-w: 92px; scroll-snap-type: x mandatory; padding-inline: calc(50% - var(--deck-stop-w) / 2); scroll-padding-inline: 0; overscroll-behavior-x: contain; gap: 0; }
+  .app-native .song-studio .studio-deck-stop { flex: 0 0 var(--deck-stop-w); width: var(--deck-stop-w); padding: 0 4px; scroll-snap-align: center; scroll-snap-stop: always; }
+}

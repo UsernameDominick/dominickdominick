@@ -2841,13 +2841,53 @@
   const deckBody = document.createElement("div");
   deckBody.className = "studio-deck-body";
   let deckTab = "pads";
-  function setDeck(id) {
+  // On a phone the strip of sections is a carousel you scroll, like the site's dial: every stop is the same width and snaps to the middle, the one in
+  // the middle is the section shown, and when the scrolling stops on another one it becomes the section (a tap on a stop scrolls it to the middle).
+  // The script's own turns are told apart from the visitor's by the time (progUntil), as the nav dial does.
+  const deckCarousel = () => window.matchMedia("(max-width: 640px)").matches;
+  const calm = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let deckProgUntil = 0;
+  let deckSettle = 0;
+  function centreStop(b, smooth) {
+    if (!deckCarousel()) {
+      b.scrollIntoView({ block: "nearest", inline: "nearest" });
+      return;
+    }
+    clearTimeout(deckSettle);
+    deckProgUntil = performance.now() + (smooth ? 700 : 250);
+    b.scrollIntoView({ block: "nearest", inline: "center", behavior: smooth && !calm() ? "smooth" : "auto" });
+  }
+  deckDial.addEventListener("scroll", () => {
+    if (!deckCarousel() || performance.now() < deckProgUntil) return;
+    clearTimeout(deckSettle);
+    deckSettle = setTimeout(() => {
+      if (performance.now() < deckProgUntil) return;
+      const box = deckDial.getBoundingClientRect();
+      const mid = box.left + box.width / 2;
+      let best = null;
+      let gap = Infinity;
+      deckDial.querySelectorAll("[data-deck]").forEach((b) => {
+        const r = b.getBoundingClientRect();
+        const d = Math.abs(r.left + r.width / 2 - mid);
+        if (d < gap) {
+          gap = d;
+          best = b;
+        }
+      });
+      if (best && best.dataset.deck !== deckTab) setDeck(best.dataset.deck);
+    }, 140);
+  }, { passive: true });
+  window.addEventListener("resize", () => {
+    const on = deckDial.querySelector("[aria-selected=\"true\"]");
+    if (on && deckDial.isConnected) centreStop(on, false);
+  });
+  function setDeck(id, smooth) {
     deckTab = id;
     deckDial.querySelectorAll("[data-deck]").forEach((b) => {
       const on = b.dataset.deck === id;
       b.setAttribute("aria-selected", String(on));
       b.tabIndex = on ? 0 : -1;
-      if (on) b.scrollIntoView({ block: "nearest", inline: "nearest" });
+      if (on) centreStop(b, smooth);
     });
     const pads = id === "pads";
     studio.classList.toggle("studio-deck-pane", !pads);
@@ -2859,7 +2899,7 @@
   }
   deckDial.addEventListener("click", (e) => {
     const b = e.target.closest("[data-deck]");
-    if (b) setDeck(b.dataset.deck);
+    if (b) setDeck(b.dataset.deck, true);
   });
   deckDial.addEventListener("keydown", (e) => {
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
@@ -2893,6 +2933,10 @@
     } else if (dock === "deck") {
       const keys = $("studio-keyboard");
       studio.insertBefore(deckDial, keys);
+      requestAnimationFrame(() => {
+        const on = deckDial.querySelector("[aria-selected=\"true\"]");
+        if (on) centreStop(on, false);
+      });
       studio.insertBefore(deckBody, keys);
       if (sheet.parentNode !== deckBody) deckBody.append(sheet);
       studio.classList.remove("studio-sheet-on");
