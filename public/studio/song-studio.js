@@ -1743,11 +1743,14 @@
       },
     };
   }
-  function startKey(el) {
+  function startKey(el, e) {
     const name = el.dataset.key;
     if (play.mode === "arp" || play.mode === "random") return startArp(el, name);
     if (play.mode === "strum") return startStrum(el, name);
-    return heldNote(el, name, 1, 140);
+    // struck softer near the top of the key and harder near the front (a pen's pressure counts when there is one)
+    const rect = el.getBoundingClientRect();
+    const vel = e && e.clientY !== undefined ? Live.keyVelocity({ y: e.clientY - rect.top, h: rect.height, pressure: e.pressure, pointerType: e.pointerType }) : 1;
+    return heldNote(el, name, vel, 140);
   }
   // A pad: struck at a strength set by where on it you press (or a pen's pressure); a roll repeats until it is let go.
   function padFlash(el, v) {
@@ -1796,7 +1799,7 @@
   function begin(id, el, e) {
     if (held.has(id)) return;
     if (host().unlock) host().unlock();
-    const voice = el.dataset.pad ? startPad(el, e) : startKey(el);
+    const voice = el.dataset.pad ? startPad(el, e) : startKey(el, e);
     if (!voice) return;
     held.set(id, voice);
     el.classList.add("held");

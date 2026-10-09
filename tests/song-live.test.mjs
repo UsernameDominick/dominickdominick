@@ -78,5 +78,17 @@ ok(L.bendCents(5, 2) === 200 && L.bendCents(1, 99) === 1200 && L.bendCents(1, 0)
   ok(L.cleanPlay({ padMode: "roll", rate: "1/32", swell: true }).swell === true && L.cleanPlay({ padMode: "roll" }).padMode === "roll" && L.cleanPlay({ mode: "roll" }).mode === "off", "good values stay, and roll belongs to the pads");
 }
 
+// expression: how hard a key is struck, MIDI velocity, the wheel, the controllers
+{
+  const ky = (o) => L.keyVelocity(o);
+  ok(ky({ y: 0, h: 100 }) === 0.35 && ky({ y: 100, h: 100 }) === 1 && ky({ y: 50, h: 100 }) > 0.6 && ky({ y: 50, h: 100 }) < 0.7, "a key struck at its top edge is soft (0.35), at its front edge full, and in between in between");
+  ok(ky({ y: -20, h: 100 }) === 0.35 && ky({ y: 500, h: 100 }) === 1 && ky({}) >= 0.35, "off the key either way stays inside 0.35 to 1");
+  ok(ky({ pointerType: "pen", pressure: 1, y: 0, h: 100 }) === 1 && ky({ pointerType: "pen", pressure: 0.2, y: 100, h: 100 }) < 0.5, "a pen's pressure counts instead of the position");
+  ok(ky({ pointerType: "mouse", pressure: 0.9, y: 0, h: 100 }) === 0.35, "a mouse reports a fixed pressure: it does not count");
+  ok(L.midiVelocity(127) === 1 && L.midiVelocity(64) > 0.49 && L.midiVelocity(64) < 0.51 && L.midiVelocity(1) === 0.1 && L.midiVelocity(0) === 0.1 && L.midiVelocity(500) === 1, "a MIDI velocity byte is a strength from 0.1 to 1");
+  ok(L.midiBend(0, 64) === 0 && L.midiBend(127, 127) > 0.99 && L.midiBend(0, 0) === -1 && Math.abs(L.midiBend(0, 96) - 0.5) < 1e-9, "the pitch wheel's two bytes are -1 to 1 with the middle at 8192");
+  ok(L.modVibrato(0) === 0 && L.modVibrato(127) === 45 && L.modVibrato(64) > 22 && L.modVibrato(64) < 23, "the mod wheel is a vibrato of up to 45 cents");
+  ok(Math.abs(L.brightCutoff(0) - 200) < 1e-9 && Math.abs(L.brightCutoff(127) - 12000) < 1e-6 && L.brightCutoff(64) > L.brightCutoff(32), "CC 74 sets a cutoff from 200 to 12000 Hz, rising with the controller");
+}
 console.log(fail ? `\n${fail} FAILED` : "\nALL PASS");
 process.exit(fail ? 1 : 0);

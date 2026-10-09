@@ -65,6 +65,29 @@
     const h = Number(o.h) || 1;
     return clamp(0.3 + 0.7 * clamp((Number(o.y) || 0) / h, 0, 1), 0.3, 1);
   }
+  // How hard a piano key is struck, 0.35 to 1: a pen's pressure, else where on the key it lands (the top edge soft, the front edge hard).
+  function keyVelocity(o) {
+    const pressure = Number(o.pressure);
+    if (o.pointerType === "pen" && pressure > 0 && pressure !== 0.5) return clamp(0.3 + 0.7 * pressure, 0.35, 1);
+    const h = Number(o.h) || 1;
+    return clamp(0.35 + 0.65 * clamp((Number(o.y) || 0) / h, 0, 1), 0.35, 1);
+  }
+  // A MIDI key's velocity byte (1 to 127) as a strength, 0.1 to 1.
+  function midiVelocity(v) {
+    return clamp((Number(v) || 0) / 127, 0.1, 1);
+  }
+  // A MIDI pitch-bend message's two data bytes (7 bits each, low first) as -1 to 1 (8192 is the middle).
+  function midiBend(lsb, msb) {
+    const raw = clamp(Math.round(Number(msb) || 0), 0, 127) * 128 + clamp(Math.round(Number(lsb) || 0), 0, 127);
+    return clamp((raw - 8192) / 8192, -1, 1);
+  }
+  // The mod wheel (CC 1, 0 to 127) as a vibrato depth in cents, and the brightness controller (CC 74) as a filter cutoff in Hz (200 to 12000, by ear).
+  function modVibrato(cc) {
+    return (clamp(Number(cc) || 0, 0, 127) / 127) * 45;
+  }
+  function brightCutoff(cc) {
+    return 200 * Math.pow(60, clamp(Number(cc) || 0, 0, 127) / 127);
+  }
   // A roll (a held pad that repeats): the strength of hit `i`. With swell it builds from soft to the full strength over eight hits; without,
   // every other hit is a touch softer, which is what makes a hat roll sound played rather than machine-gunned.
   function rollVelocity(i, swell, base) {
@@ -121,5 +144,5 @@
     return render - Math.min(lag, MAX_LAG);
   }
 
-  window.SongLive = { pressTime, RATES, RATE_LABELS, CHORDS, PATTERNS, DEFAULTS, rateSeconds, chordNotes, strumPlan, arpCycle, arpPick, padVelocity, rollVelocity, bendCents, cleanPlay };
+  window.SongLive = { keyVelocity, midiVelocity, midiBend, modVibrato, brightCutoff, pressTime, RATES, RATE_LABELS, CHORDS, PATTERNS, DEFAULTS, rateSeconds, chordNotes, strumPlan, arpCycle, arpPick, padVelocity, rollVelocity, bendCents, cleanPlay };
 })();

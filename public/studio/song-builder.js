@@ -116,7 +116,7 @@
       // the notes being held on this track follow the knob while they sound
       liveHandles.forEach((h) => {
         const m = liveMeta.get(h);
-        if (m && m.id === id && m.voice && h.update) h.update(m.voice, part.synth);
+        if (m && m.id === id && m.voice && h.update) h.update(m.voice, synthWithExpression(part.synth));
       });
       scheduleAutosave();
     },
@@ -1447,6 +1447,24 @@
   let liveBend = 0;
   const liveHandles = new Set();
   const liveMeta = new Map(); // handle -> { id: the track, voice } so a knob turned for that track reaches the notes it is holding
+  // What a MIDI keyboard's wheel and controllers add to the sound of the notes being held (never saved with the song): CC 1 raises the vibrato, CC 74
+  // sets the filter's cutoff.
+  const midiExpression = { mod: 0, bright: null };
+  function expressionTweaks() {
+    const t = {};
+    if (midiExpression.mod > 0) t.vibrato = window.SongLive.modVibrato(midiExpression.mod);
+    if (midiExpression.bright !== null) t.cutoff = window.SongLive.brightCutoff(midiExpression.bright);
+    return t;
+  }
+  const synthWithExpression = (synth) => Object.assign({}, synth || {}, expressionTweaks());
+  function refreshHeldExpression() {
+    liveHandles.forEach((h) => {
+      const m = liveMeta.get(h);
+      if (!m || !m.voice || !h.update) return;
+      const part = m.id === "melody" ? songData.melody : songData[m.id];
+      h.update(m.voice, synthWithExpression(part && part.synth));
+    });
+  }
   // A note played live: held until `off()`, bent by the wheel. While recording, the step it started on gets the note and, when it is let go
   // in the same pattern a few steps later, the steps in between are tied to it, so a held key records as a held note.
   function startLiveNote(requested, velocity) {
@@ -1469,6 +1487,7 @@
     if (handle) {
       liveHandles.add(handle);
       liveMeta.set(handle, { id: isPartRoll() ? rollPart : "melody", voice: isPartRoll() ? Engine.partVoiceOf(songData, rollPart) : Engine.melodyVoiceOf(songData) });
+      if ((midiExpression.mod > 0 || midiExpression.bright !== null) && handle.update) refreshHeldExpression();
     }
     const startedAt = ctx.currentTime;
     const start = recordNoteStep(noteName, vel);
@@ -1588,20 +1607,70 @@
       pressStamp = null;
     }
   }
-  function handleMidiMessageNow(msg) {
-    const [status, note, velocity] = msg.data;
-    const isNoteOn = status >> 4 === 9 && velocity > 0;
-    if (!isNoteOn) return;
-    // Drum pads (channel 10, or any note while the Studio has the drums open): General MIDI drum notes play and record the matching row.
-    if (window.SongStudio && window.SongStudio.drumTrackOpen()) {
-      const row = window.SongFiles && window.SongFiles.GM_TO_ROW[note];
-      if (row) auditDrumHit(row);
+  // MIDI notes are held until the key is let go (a note-off, or the sustain pedal coming up), with the key's own strength; the pitch wheel bends the notes
+  // being held, the mod wheel (CC 1) adds vibrato, CC 74 moves the filter, CC 64 is the sustain pedal.
+  const midiHeld = new Map(); // note number -> { voice, at }
+  let midiPedal = false;
+  const midiPedalQueue = new Set();
+  function releaseMidiNote(num, force) {
+    const held = midiHeld.get(num);
+    if (!held) return;
+    if (midiPedal && !force) {
+      midiPedalQueue.add(num);
       return;
     }
-    const noteName = Engine.midiToNoteName(note);
+    midiHeld.delete(num);
+    midiPedalQueue.delete(num);
+    held.voice.off((performance.now() - held.at) / 1000);
+  }
+  function releaseAllMidiNotes() {
+    midiPedal = false;
+    [...midiHeld.keys()].forEach((n) => releaseMidiNote(n, true));
+  }
+  window.addEventListener("blur", releaseAllMidiNotes);
+  function handleMidiMessageNow(msg) {
+    const [status, d1, d2] = msg.data;
+    const kind = status >> 4;
+    const Live = window.SongLive;
+    if (kind === 14) {
+      window.SongStudioHost.bend(Live.midiBend(d1, d2) * 200); // the wheel's whole travel is two semitones, as most synths start
+      return;
+    }
+    if (kind === 11) {
+      if (d1 === 1) {
+        midiExpression.mod = d2;
+        refreshHeldExpression();
+      } else if (d1 === 74) {
+        midiExpression.bright = d2;
+        refreshHeldExpression();
+      } else if (d1 === 64) {
+        if (d2 >= 64) midiPedal = true;
+        else {
+          midiPedal = false;
+          [...midiPedalQueue].forEach((n) => releaseMidiNote(n, true));
+        }
+      }
+      return;
+    }
+    const isNoteOn = kind === 9 && d2 > 0;
+    if (kind === 8 || (kind === 9 && d2 === 0)) {
+      releaseMidiNote(d1, false);
+      return;
+    }
+    if (!isNoteOn) return;
+    const velocity = Live.midiVelocity(d2);
+    // Drum pads (channel 10, or any note while the Studio has the drums open): General MIDI drum notes play and record the matching row.
+    if (window.SongStudio && window.SongStudio.drumTrackOpen()) {
+      const row = window.SongFiles && window.SongFiles.GM_TO_ROW[d1];
+      if (row) auditDrumHit(row, velocity);
+      return;
+    }
+    const noteName = Engine.midiToNoteName(d1);
+    if (midiHeld.has(d1)) releaseMidiNote(d1, true); // the same key struck again before it was let go
     const shouldRecord = Boolean(recordingSpot(rollPart)) && !!roll().notes[rowForNote(snapToScale(noteName, (candidate) => Boolean(roll().notes[rowForNote(candidate)])))];
     const historyBefore = shouldRecord ? captureSongHistoryState() : null;
-    playAndMaybeRecordNote(noteName);
+    const voice = startLiveNote(noteName, velocity);
+    if (voice) midiHeld.set(d1, { voice, at: performance.now() });
     if (historyBefore && pushSongUndoState(historyBefore)) songEditGeneration++;
   }
 
@@ -1689,6 +1758,10 @@
     z: 3, s: 3, x: 3, d: 3, c: 3, v: 3, g: 3, b: 3, h: 3, n: 3, j: 3, m: 3,
     q: 4, "2": 4, w: 4, "3": 4, e: 4, r: 4, "5": 4, t: 4, "6": 4, y: 4, "7": 4, u: 4,
   };
+  // A key is held for as long as it is down (a quick tap is one short note, as before), and "," and "." move the whole keyboard an octave down or up
+  // (two either way at most).
+  const typedHeld = new Map(); // key -> { voice, at }
+  let typedOctave = 0;
   document.addEventListener("keydown", (e) => {
     if ($("song-builder-modal").hidden) return;
     if (e.repeat) return; // a held key must play the note once, not retrigger on every OS auto-repeat tick
@@ -1696,10 +1769,28 @@
     if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (document.activeElement && document.activeElement.isContentEditable)) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const key = e.key.toLowerCase();
+    if (key === "," || key === ".") {
+      typedOctave = Math.max(-2, Math.min(2, typedOctave + (key === "." ? 1 : -1)));
+      const live = $("studio-live");
+      if (live) live.textContent = typedOctave === 0 ? "Computer keyboard: the usual octaves" : `Computer keyboard: ${Math.abs(typedOctave)} octave${Math.abs(typedOctave) > 1 ? "s" : ""} ${typedOctave > 0 ? "up" : "down"}`;
+      e.preventDefault();
+      return;
+    }
     if (!(key in KEYBOARD_NOTE_MAP)) return;
     e.preventDefault();
-    playAndMaybeRecordNote(KEYBOARD_NOTE_MAP[key] + (KEYBOARD_NOTE_OCTAVE[key] + (rollPart === "lead" ? 1 : 0)));
+    if (typedHeld.has(key)) return;
+    const name = KEYBOARD_NOTE_MAP[key] + (KEYBOARD_NOTE_OCTAVE[key] + (rollPart === "lead" ? 1 : 0) + typedOctave);
+    const voice = startLiveNote(name, 1);
+    if (voice) typedHeld.set(key, { voice, at: performance.now() });
   });
+  const releaseTyped = (key) => {
+    const held = typedHeld.get(key);
+    if (!held) return;
+    typedHeld.delete(key);
+    held.voice.off((performance.now() - held.at) / 1000);
+  };
+  document.addEventListener("keyup", (e) => releaseTyped(String(e.key || "").toLowerCase()));
+  window.addEventListener("blur", () => [...typedHeld.keys()].forEach(releaseTyped));
   // Space plays and stops, the way it does in a music program. It only counts when no control has the focus (on a button, a step or a
   // field, Space already means "press this"), and only while the song builder is the dialog on top.
   document.addEventListener("keydown", (e) => {
