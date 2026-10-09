@@ -3325,3 +3325,14 @@
   .app-native .song-studio .studio-toggles .studio-fan-item.studio-toggle, .app-native .song-studio .studio-toggles .studio-fan-item.studio-toggle[data-tone] { height: 40px; min-height: 40px; }
   .app-native .song-studio .studio-toggles #studio-quant-btn, .app-native .song-studio .studio-toggles #studio-volume-btn { height: 40px; min-height: 40px; }
 }
+
+/* The display's centre of gravity: Play is the biggest control and the position and tempo digits are large, so the eye starts there; the rest
+   (stop, record, undo, redo, the switches) stays smaller and quieter. */
+@media (min-width: 641px) {
+  .app-native .studio-display .studio-play { width: 68px; height: 46px; min-height: 46px; }
+  .app-native .studio-readout { height: 46px; }
+  .app-native .studio-pos, .app-native .studio-readout .studio-bpm input { font-size: 34px; line-height: 28px; }
+}
+@media (max-width: 640px) {
+  .app-native .studio-display .studio-play { width: 54px; height: 44px; min-height: 44px; }
+}
