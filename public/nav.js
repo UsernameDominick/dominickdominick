@@ -549,10 +549,11 @@ document.addEventListener("input", function (e) {
   var empty = finder.querySelector(".finder-empty");
   var lastFocus = null;
   var debounceTimer = null;
+  // Pixel icons (16 x 16, one path of unit squares), like the nav's own.
   var RESULT_ICON = {
-    article: '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M9 12h7M9 16h7"/>',
-    project: '<rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
-    page: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6"/>',
+    article: '<path d="M2 1h9v1h-9zM2 2h9v1h-9zM2 3h2v1h-2zM9 3h4v1h-4zM2 4h2v1h-2zM9 4h1v1h-1zM11 4h2v1h-2zM2 5h2v1h-2zM9 5h4v1h-4zM2 6h2v1h-2zM12 6h2v1h-2zM2 7h2v1h-2zM5 7h6v1h-6zM12 7h2v1h-2zM2 8h2v1h-2zM12 8h2v1h-2zM2 9h2v1h-2zM5 9h6v1h-6zM12 9h2v1h-2zM2 10h2v1h-2zM12 10h2v1h-2zM2 11h2v1h-2zM5 11h4v1h-4zM12 11h2v1h-2zM2 12h2v1h-2zM12 12h2v1h-2zM2 13h12v1h-12z"/>',
+    project: '<path d="M2 1h7v1h-7zM10 1h5v1h-5zM2 2h7v1h-7zM10 2h5v1h-5zM2 3h2v1h-2zM7 3h2v1h-2zM10 3h2v1h-2zM13 3h2v1h-2zM2 4h2v1h-2zM7 4h2v1h-2zM10 4h2v1h-2zM13 4h2v1h-2zM2 5h2v1h-2zM7 5h2v1h-2zM10 5h5v1h-5zM2 6h7v1h-7zM10 6h5v1h-5zM2 8h7v1h-7zM10 8h5v1h-5zM2 9h7v1h-7zM10 9h5v1h-5zM2 10h2v1h-2zM7 10h2v1h-2zM10 10h2v1h-2zM13 10h2v1h-2zM2 11h2v1h-2zM7 11h2v1h-2zM10 11h2v1h-2zM13 11h2v1h-2zM2 12h2v1h-2zM7 12h2v1h-2zM10 12h5v1h-5zM2 13h7v1h-7zM10 13h5v1h-5z"/>',
+    page: '<path d="M2 1h10v1h-10zM2 2h10v1h-10zM2 3h2v1h-2zM10 3h2v1h-2zM2 4h2v1h-2zM5 4h4v1h-4zM10 4h2v1h-2zM2 5h2v1h-2zM10 5h2v1h-2zM2 6h2v1h-2zM5 6h4v1h-4zM10 6h2v1h-2zM2 7h2v1h-2zM10 7h2v1h-2zM2 8h2v1h-2zM5 8h3v1h-3zM10 8h2v1h-2zM2 9h2v1h-2zM10 9h2v1h-2zM2 10h10v1h-10zM2 11h10v1h-10z"/>',
   };
   var asked = "";
 
@@ -593,7 +594,7 @@ document.addEventListener("input", function (e) {
         .map(function (r) {
           return (
             '<a class="search-suggest-item finder-item" href="' + String(r.url).replace(/"/g, "&quot;") + '">' +
-            '<span class="finder-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+            '<span class="finder-ico" aria-hidden="true"><svg viewBox="0 0 16 16" width="20" height="20" fill="currentColor" shape-rendering="crispEdges" aria-hidden="true" focusable="false">' +
             (RESULT_ICON[String(r.type).toLowerCase()] || RESULT_ICON.page) + "</svg></span>" +
             '<span class="finder-label">' + String(r.title).replace(/&/g, "&amp;").replace(/</g, "&lt;") + "</span>" +
             '<span class="finder-hint search-suggest-type">' + String(r.type).replace(/</g, "&lt;") + "</span></a>"
@@ -804,7 +805,7 @@ document.addEventListener("input", function (e) {
     var next = current === "light" ? "dark" : "light";
     root.setAttribute("data-theme", next);
     var themeColorMeta = document.getElementById("theme-color-meta");
-    if (themeColorMeta) themeColorMeta.setAttribute("content", next === "light" ? "#fffaf5" : themeColorMeta.getAttribute("data-dark") || "#0c0a16");
+    if (themeColorMeta) themeColorMeta.setAttribute("content", next === "light" ? "#ffffff" : themeColorMeta.getAttribute("data-dark") || "#000000");
     try {
       localStorage.setItem("theme", next);
     } catch (e) {}

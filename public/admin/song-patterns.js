@@ -176,10 +176,10 @@
     { id: "pop", label: "Pop: I – V – vi – IV", chords: [[0, "major"], [7, "major"], [9, "minor"], [5, "major"]] },
     { id: "doowop", label: "Doo-wop: I – vi – IV – V", chords: [[0, "major"], [9, "minor"], [5, "major"], [7, "major"]] },
     { id: "sensitive", label: "Sensitive: vi – IV – I – V", chords: [[9, "minor"], [5, "major"], [0, "major"], [7, "major"]] },
-    { id: "rock", label: "Rock: I – ♭VII – IV – I", chords: [[0, "major"], [10, "major"], [5, "major"], [0, "major"]] },
+    { id: "rock", label: "Rock: I – bVII – IV – I", chords: [[0, "major"], [10, "major"], [5, "major"], [0, "major"]] },
     { id: "jazz", label: "Jazz: ii – V – I – I (sevenths)", chords: [[2, "min7"], [7, "dom7"], [0, "maj7"], [0, "maj7"]] },
-    { id: "minor", label: "Minor: i – ♭VI – ♭III – ♭VII", chords: [[0, "minor"], [8, "major"], [3, "major"], [10, "major"]] },
-    { id: "andalusian", label: "Andalusian: i – ♭VII – ♭VI – V", chords: [[0, "minor"], [10, "major"], [8, "major"], [7, "major"]] },
+    { id: "minor", label: "Minor: i – bVI – bIII – bVII", chords: [[0, "minor"], [8, "major"], [3, "major"], [10, "major"]] },
+    { id: "andalusian", label: "Andalusian: i – bVII – bVI – V", chords: [[0, "minor"], [10, "major"], [8, "major"], [7, "major"]] },
     { id: "canon", label: "Canon: I – V – vi – iii – IV – I – IV – V", chords: [[0, "major"], [7, "major"], [9, "minor"], [4, "minor"], [5, "major"], [0, "major"], [5, "major"], [7, "major"]] },
   ];
   const CHORD_SUFFIX = { major: "", minor: "m", dim: "dim", sus4: "sus4", dom7: "7", maj7: "maj7", min7: "m7" };

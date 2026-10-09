@@ -175,7 +175,7 @@ function hasPreviewModeCookie(request) {
 // maintenance page. An explicit allowlist can't have that failure mode.
 // The picture links to a page show when the owner has not chosen one (Site settings > default share image): a card with the site name.
 const DEFAULT_SHARE_IMAGE = "/share/site.png";
-const MAINTENANCE_EXEMPT_FILES = new Set(["/nav.js", "/sim-player.js", "/sim-buzzer.js", "/song-embed.js", "/song-engine.js", "/style.css", "/favicon.ico", "/fonts/ibm-plex-mono-400.woff2", "/fonts/ibm-plex-mono-500.woff2", "/fonts/ibm-plex-mono-700.woff2"]);
+const MAINTENANCE_EXEMPT_FILES = new Set(["/nav.js", "/sim-player.js", "/sim-buzzer.js", "/song-embed.js", "/song-engine.js", "/style.css", "/favicon.ico", "/fonts/silkscreen-400.woff2", "/fonts/silkscreen-700.woff2", "/fonts/vt323-400.woff2"]);
 function isMaintenanceExempt(path) {
   return path === "/admin" || path.startsWith("/admin/") || path.startsWith("/media/") || MAINTENANCE_EXEMPT_FILES.has(path);
 }
@@ -188,10 +188,10 @@ function renderMaintenanceHtml(message) {
 <meta name="robots" content="noindex">
 <title>Down for maintenance · Dominick</title>
 <style>
-  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #0c0a16; color: #f4eefc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; text-align: center; padding: 24px; }
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #000000; color: #ffffff; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 18px; text-align: center; padding: 24px; }
   .maintenance-box { max-width: 480px; }
   h1 { font-size: 1.4rem; margin-bottom: 12px; }
-  p { color: #b6a9d1; line-height: 1.6; }
+  p { color: #b3b3b3; line-height: 1.6; }
 </style>
 </head>
 <body>

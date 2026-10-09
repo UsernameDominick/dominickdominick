@@ -181,7 +181,8 @@ html, body {
 }
 
 html {
-  font-size: calc(16px * var(--font-scale, 1));
+  /* VT323 sets small for its size, so the root is 20px; every rem on the site grows with it, and the text-size setting still scales the whole thing. */
+  font-size: calc(20px * var(--font-scale, 1));
 }
 
 /* Smooth scrolling is motion: off under the OS setting and the site's manual switch. */
@@ -230,62 +231,52 @@ body {
   flex-direction: column;
 }
 
-/* Top bar */
+/* Top bar: the menu bar. Black ink on paper under a 2px rule, and the nav is a ruler of ticks with the stops standing on it. */
 
 .topbar {
+  --rz: 22px; /* the height of the ruler under the stops */
+  position: relative;
+  z-index: 30;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 32px 10px;
-  border-bottom: 1px solid var(--border);
-  flex-wrap: wrap;
-  gap: 16px;
+  align-items: stretch;
+  justify-content: center;
+  padding: 0;
+  gap: 0;
+  min-height: 62px;
+  background: var(--bg);
+  border-bottom: 2px solid var(--border);
 }
 
 .brand {
   display: inline-flex;
   align-items: center;
-  font-weight: 600;
-  font-size: 1.05rem;
-  letter-spacing: -0.01em;
+  font-family: var(--font-pixel);
   color: var(--text);
   text-decoration: none;
-  /* Text-sized link box alone is well under the ~24x24px minimum tap
-     target on a touchscreen — pad it and pull back with a matching
-     negative margin so the topbar's visual layout doesn't shift. */
-  padding: 10px 0;
-  margin: -10px 0;
 }
 
-.brand .accent {
-  background: var(--accent-gradient);
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
-}
-
-/* The nav is a camera dial: each section an icon over a small lowercase name along a ruler of ticks. The strip scrolls sideways and
-   snaps one stop at a time under a needle that stays in the middle; the stop under the needle is the biggest and the rest step down in
-   size the farther they are from it (nav.js puts each stop's distance from the middle, in stops, in --d as the strip moves, so the sizes
-   follow the finger). Dragging the dial changes the page; on a screen with room you just click the stop you want. */
+/* The nav is a dial along a ruler of ticks. The strip scrolls sideways and snaps one stop at a time under a needle that stays in the
+   middle; the stop under the needle is the lit one (an inverted flag with a small orange bar). nav.js puts each stop's distance from the
+   middle in --d as the strip moves. Dragging the dial changes the page; on a screen with room you just click the stop you want. */
 .site-nav {
-  --stop-w: 96px;
+  --stop-w: 160px;
   position: relative;
   display: flex;
+  flex: 1 1 auto;
   min-width: 0;
   max-width: 100%;
 }
 
 .tabs {
-  --tick: color-mix(in srgb, var(--text) 26%, transparent);
-  --tick-major: color-mix(in srgb, var(--text) 48%, transparent);
+  --tick: var(--text);
   position: relative;
   display: flex;
   flex: 1 1 auto;
-  align-items: stretch;
+  align-items: flex-end;
   min-width: 0;
+  height: 62px;
   /* Room on both sides so any stop, the first and the last too, can come to the middle. */
-  padding: 2px calc(50% - var(--stop-w) / 2) 9px;
+  padding: 0 calc(50% - var(--stop-w) / 2) var(--rz);
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
@@ -297,40 +288,32 @@ body {
   display: none;
 }
 
-/* Fades at whichever edge has more tabs past it (set by nav.js), drawn over the strip by the nav so its dropdowns are not masked. */
+/* The ruler runs to both ends of the bar, so the strip has no fades at its edges. */
 .site-nav::before,
 .site-nav::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 36px;
-  z-index: 3;
-  pointer-events: none;
-  opacity: 0;
+  content: none;
 }
-.site-nav::before { left: 0; background: linear-gradient(to right, var(--topbar-bg, var(--bg)), transparent); }
-.site-nav::after { right: 0; background: linear-gradient(to left, var(--topbar-bg, var(--bg)), transparent); }
-.site-nav.has-overflow-left::before,
-.site-nav.has-overflow-right::after { opacity: 1; }
 
 .tab {
   position: relative;
   z-index: 1;
   display: inline-flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: flex-end;
-  gap: 3px;
-  padding: 6px 2px 5px;
+  justify-content: center;
+  height: 32px;
+  padding: 0;
   background: transparent;
-  border: none;
-  border-radius: 10px;
-  color: var(--text-dim);
-  font-family: inherit;
+  border: 0;
+  border-radius: 0;
+  color: var(--text);
+  font-family: var(--font-pixel);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
   text-decoration: none;
+  cursor: pointer;
 }
-/* Every stop is the same width, so the ticks and the steps in size are even; a stop snaps to the middle. */
+/* Every stop is the same width, so the ticks are even; a stop snaps to the middle. */
 .tabs > .tab, .tabs > .tab-group {
   flex: 0 0 var(--stop-w);
   width: var(--stop-w);
@@ -338,87 +321,82 @@ body {
 }
 .tabs > .tab-group > .tab { flex: 1 1 0; min-width: 0; }
 
-/* The size of a stop follows its distance from the middle (--d, in stops; 0 until nav.js has measured): the icon is full size in the
-   middle and steps down to half, the name a little less, rooted so the icons stand on one line and the names hang from another. */
-.tab-ico {
-  width: 28px;
-  height: 28px;
-  flex: 0 0 auto;
-  transform: scale(calc(1 - 0.2 * min(var(--d, 0), 2.5)));
-  transform-origin: 50% 100%;
-}
-
+/* Stops are words (the icons live in the finder and on the home tiles). The word is the flag. */
+.tabs .tab-ico { display: none; }
 .tab-label {
-  max-width: calc(var(--stop-w) + 12px);
+  display: block;
+  max-width: var(--stop-w);
+  height: 32px;
+  padding: 2px 10px 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.78rem;
-  font-weight: 650;
-  line-height: 1.2;
-  letter-spacing: 0.02em;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 28px;
+  letter-spacing: 0;
   text-transform: lowercase;
-  transform: scale(calc(1 - 0.12 * min(var(--d, 0), 2.5)));
-  transform-origin: 50% 0;
-  opacity: calc(1 - 0.22 * min(var(--d, 0), 2.5));
+  color: inherit;
+  background: var(--bg);
 }
 
 /* The stop under the needle is the lit one (this is also the page you are on, or Search while the finder is open). Before nav.js has
    placed the dial, or without it, the page's own stop is lit instead. */
-.tab.is-centred,
-.tabs:not(.dial-ready) .tab.is-active {
-  color: var(--text);
+.tab.is-centred .tab-label,
+.tabs:not(.dial-ready) .tab.is-active .tab-label {
+  background: var(--text);
+  color: var(--bg);
+  box-shadow: inset 0 -4px 0 var(--orange);
 }
-.tab.is-centred .tab-ico,
-.tabs:not(.dial-ready) .tab.is-active .tab-ico {
-  color: var(--accent);
-  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 55%, transparent));
+.tab:hover .tab-label {
+  background: var(--text);
+  color: var(--bg);
+}
+.tab:focus-visible {
+  outline: 3px dotted var(--orange);
+  outline-offset: -5px;
 }
 
-.tab:hover,
-.tab:focus-visible {
-  color: var(--text);
+/* The shortcut shown beside Search, where there is a keyboard. */
+@media (hover: hover) and (min-width: 721px) {
+  .tab-finder .tab-label::after {
+    content: "/";
+    display: inline-block;
+    margin: 0 0 0 8px;
+    padding: 0 4px;
+    border: 2px solid currentColor;
+    font-size: 12px;
+    line-height: 14px;
+    vertical-align: 3px;
+  }
 }
 
 /* An owner-only link: a dashed ring, and a screen reader hears "(admin-only link)". */
-.tab.is-admin-only {
-  outline: 1px dashed color-mix(in srgb, var(--text-dim) 70%, transparent);
-  outline-offset: -3px;
+.tab.is-admin-only .tab-label {
+  outline: 2px dashed currentColor;
+  outline-offset: -5px;
 }
 
-/* The needle stays in the middle of the dial while the ticks slide under it, like the mark on a camera's dial. */
+/* The needle stays in the middle of the dial while the ticks slide under it, like the mark on a camera's dial. It is as tall as the ruler. */
 .tab-indicator {
   position: absolute;
   top: 0;
   bottom: 0;
   left: 50%;
-  width: var(--stop-w);
-  margin-left: calc(var(--stop-w) / -2);
-  background: radial-gradient(70% 60% at 50% 100%, color-mix(in srgb, var(--accent) 26%, transparent), transparent 72%);
+  width: 0;
   pointer-events: none;
   z-index: 2;
 }
-
-/* The needle is as tall as the ruler's long ticks, so it never reaches up into the tab's name. */
 .tab-indicator::after {
   content: "";
   position: absolute;
-  left: 50%;
+  left: -1px;
   bottom: 0;
-  width: 2px;
-  height: 9px;
-  margin-left: -1px;
-  border-radius: 1px;
-  background: var(--accent);
-  box-shadow: 0 0 6px var(--accent);
+  width: 3px;
+  height: var(--rz);
+  background: var(--orange);
 }
 .site-nav.no-needle > .tab-indicator { display: none; }
-
-@media (prefers-reduced-motion: no-preference) {
-  .tab {
-    transition: color 0.25s var(--ease-smooth);
-  }
-}
 
 /* Nav dropdown — a "tab-group" wraps a normal top-level tab link plus a caret toggle and the dropdown panel of child links. Shown on
    hover or keyboard focus-within with no JS needed; the caret (nav.js) covers touch. The panel is fixed to the screen and placed
@@ -4470,29 +4448,6 @@ body:has(.studio-canvas) .page { min-height: 0; height: 100%; }
 .dial.is-disabled .dial-face { cursor: not-allowed; }
 .dial.is-turning .dial-cap { fill: var(--dial-cap-on, #232b36); }
 
-/* ---- The header in one row from a tablet up: the nav strip gives way (and scrolls) instead of the bar wrapping onto two or three rows. ---- */
-@media (min-width: 641px) {
-  .topbar { flex-wrap: nowrap; }
-  .topbar .brand { flex: 0 0 auto; }
-  .topbar .site-nav { flex: 0 1 auto; min-width: 0; }
-  .topbar .topbar-tools { flex: 0 0 auto; }
-}
-@media (min-width: 641px) and (max-width: 1100px) {
-  .topbar { padding-left: 20px; padding-right: 20px; gap: 12px; }
-  #motion-toggle, #font-size-toggle { display: none; }
-  .topbar .site-search input { width: 110px; }
-}
-
-/* A phone: brand and tools on the first row, the dial across the second; a 16px search field so focusing it does not zoom the page. */
-@media (max-width: 640px) {
-  .topbar { padding: 8px 16px 4px; row-gap: 4px; }
-  .tab-ico { width: 26px; height: 26px; }
-  .tab-label { font-size: 0.7rem; }
-  .topbar .site-search input { font-size: 16px; padding-top: 6px; padding-bottom: 6px; }
-}
-
-/* The Studio page has the same header as every other page, so the bar keeps its height from tab to tab. */
-
 /* ---- The rest of the site's buttons on the chunky tokens (they were still pills or thin outlines), all one weight and height ---- */
 .copy-link-btn, .share-link, .save-for-later-btn, .print-pdf-btn, .read-aloud-btn, .reaction-btn {
   display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 4px 12px; line-height: 1.3; font-size: 0.8rem; font-weight: 600;
@@ -4524,94 +4479,8 @@ body:has(.studio-canvas) .page { min-height: 0; height: 100%; }
 /* An empty list has nothing to clear. */
 #clear-saved-btn, #clear-history-btn { min-height: 28px; }
 
-/* ---- The header is the dial alone (brand, sections, then Search at the end); the search box and the site's settings live in the finder.
-   On a phone it is one row, and the dial scrolls like a camera's mode carousel, snapping each section to the middle. ---- */
 .tab-finder { cursor: pointer; }
-@media (max-width: 640px) {
-  .topbar { flex-wrap: nowrap; padding: 6px 4px 2px; gap: 10px; }
-  .topbar .brand { order: 0; flex: 0 0 auto; font-size: 0.95rem; }
-  .topbar .site-nav { order: 1; flex: 1 1 auto; min-width: 0; justify-content: flex-start; }
-}
 
-/* ---- The finder (like a Mac's Spotlight) ---- */
-html.finder-on { overflow: hidden; }
-/* It opens under the nav (nav.js sets --finder-top to where the header ends), so the nav stays in view and can still be tapped. */
-.site-finder { position: fixed; top: var(--finder-top, 0px); left: 0; right: 0; bottom: 0; z-index: 1000; display: flex; justify-content: center; align-items: flex-start; padding: 12px 16px 16px; }
-.site-finder[hidden] { display: none; }
-.finder-backdrop { position: absolute; inset: 0; background: color-mix(in srgb, #000 40%, transparent); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
-.finder-panel {
-  position: relative; display: flex; flex-direction: column; width: min(640px, 100%); max-height: min(calc(100dvh - var(--finder-top, 0px) - 28px), 580px); overflow: hidden;
-  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent); -webkit-backdrop-filter: blur(28px) saturate(1.6); backdrop-filter: blur(28px) saturate(1.6);
-  border: 1px solid color-mix(in srgb, var(--text) 14%, transparent); border-radius: 16px; box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
-}
-.finder-form { display: flex; align-items: center; gap: 10px; padding: 12px 14px 12px 16px; border-bottom: 1px solid color-mix(in srgb, var(--text) 10%, transparent); }
-.finder-glass { display: inline-flex; color: var(--text-dim); }
-.finder-glass svg { width: 22px; height: 22px; }
-#site-finder .finder-form input {
-  flex: 1 1 auto; min-width: 0; width: auto; max-width: none; margin: 0; padding: 6px 0; border: 0; border-radius: 0; background: transparent; box-shadow: none;
-  color: var(--text); font: inherit; font-size: 1.25rem; outline: none;
-}
-#site-finder .finder-form input::placeholder { color: var(--text-dim); opacity: 1; }
-#site-finder .finder-form input::-webkit-search-cancel-button { display: none; }
-.finder-esc {
-  flex: 0 0 auto; min-height: 26px; padding: 2px 8px; font-size: 0.72rem; color: var(--text-dim); background: transparent;
-  border: 1px solid color-mix(in srgb, var(--text) 22%, transparent); border-radius: 6px; box-shadow: none; cursor: pointer;
-}
-.finder-results { overflow-y: auto; overscroll-behavior: contain; padding: 4px 8px 8px; }
-#site-finder .finder-group { display: flex; flex-direction: column; padding: 4px 0; position: static; width: auto; margin: 0; border: 0; background: none; box-shadow: none; max-height: none; }
-#site-finder .finder-group[hidden] { display: none; }
-.finder-title { margin: 6px 10px 4px; font-size: 0.68rem; font-weight: 650; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-dim); }
-#site-finder .finder-item {
-  display: flex; align-items: center; gap: 12px; width: 100%; height: auto; min-height: 40px; margin: 0; padding: 6px 10px; border: 0; border-radius: 9px;
-  background: transparent; color: var(--text); font: inherit; font-size: 0.95rem; font-weight: 450; line-height: 1.3; text-align: left; text-decoration: none;
-  box-shadow: none; cursor: pointer;
-}
-#site-finder .finder-item[hidden] { display: none; }
-#site-finder .finder-item:hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
-#site-finder .finder-item:focus, #site-finder .finder-item:focus-visible { background: var(--accent); color: var(--on-accent); outline: none; }
-#site-finder .finder-item:focus .finder-hint, #site-finder .finder-item:focus .finder-ico { color: var(--on-accent); }
-.finder-ico {
-  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 8px;
-  background: color-mix(in srgb, var(--text) 9%, transparent); color: var(--text); font-size: 0.8rem; font-weight: 700;
-}
-.finder-ico svg { width: 16px; height: 16px; }
-#site-finder .finder-item:focus .finder-ico { background: color-mix(in srgb, var(--on-accent) 18%, transparent); }
-.finder-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.finder-hint { flex: 0 0 auto; font-size: 0.76rem; color: var(--text-dim); text-transform: none; letter-spacing: 0; }
-:root[data-theme="light"] .finder-theme-light, :root:not([data-theme="light"]) .finder-theme-dark { display: none; }
-.finder-empty { margin: 10px 12px; font-size: 0.9rem; color: var(--text-dim); }
-.finder-foot {
-  display: flex; justify-content: flex-end; gap: 14px; margin: 0; padding: 8px 14px; font-size: 0.72rem; color: var(--text-dim);
-  border-top: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
-}
-.finder-foot kbd { margin-right: 4px; padding: 0 5px; font: inherit; border: 1px solid color-mix(in srgb, var(--text) 22%, transparent); border-radius: 4px; }
-@media (max-width: 640px) {
-  .site-finder { padding: 8px 10px 10px; }
-  .finder-panel { max-height: calc(100dvh - var(--finder-top, 0px) - 18px); }
-  .finder-foot { display: none; }
-  #site-finder .finder-item { min-height: 44px; }
-}
-@media (prefers-reduced-motion: no-preference) {
-  .site-finder:not([hidden]) .finder-panel { animation: finder-in 0.16s ease-out; }
-  .site-finder:not([hidden]) .finder-backdrop { animation: finder-fade 0.16s ease-out; }
-}
-@keyframes finder-in { from { opacity: 0; transform: translateY(-8px) scale(0.98); } to { opacity: 1; transform: none; } }
-@keyframes finder-fade { from { opacity: 0; } to { opacity: 1; } }
-
-/* ---- The header is the dial alone (the owner's choice: no site name on the left), centred on every width. ---- */
-.topbar { justify-content: center; }
-.topbar .site-nav { margin-left: auto; margin-right: auto; }
-/* The dial is a fixed width (a phone's whole bar), centred; a stop is narrower on a phone so more of them show. */
-.topbar .site-nav { flex: 0 1 760px; margin-left: auto; margin-right: auto; }
-@media (max-width: 720px) {
-  .site-nav { --stop-w: 72px; }
-  .topbar .site-nav { flex: 1 1 auto; margin-left: 0; margin-right: 0; }
-}
-/* The ruler under the tabs (nav.js draws it from the stops, so it follows their widths and the scrolling): a long tick under the middle
-   of every stop, five short ones between neighbours. The marks are children of the strip, so they scroll with the tabs. */
-.tab-ruler { position: absolute; left: 0; bottom: 0; width: 0; height: 9px; pointer-events: none; }
-.tab-ruler > i { position: absolute; bottom: 0; width: 1px; height: 5px; background: var(--tick); }
-.tab-ruler > i.is-major { height: 9px; background: var(--tick-major); }
 /* After a slide the new page takes the focus (so a screen reader starts there); it is not something to press, so no focus ring. */
 #main-content:focus, #main-content:focus-visible { outline: none; }
 /* The app pages (Studio, PicEditor…) while their script builds them, and the mount they fill. */
@@ -4629,111 +4498,103 @@ html.finder-on { overflow: hidden; }
 /* A mouse drag across the page (page-slide.js): no text gets selected and the cursor says it is a drag. */
 html.is-page-dragging, html.is-page-dragging * { cursor: grabbing !important; user-select: none !important; -webkit-user-select: none !important; }
 
-/* ---- The home page's "Try the tools" cards (worker/home-tools.js) ---- */
-.home-tools { grid-column: 1 / -1; width: 100%; max-width: 1080px; margin: 48px auto 0; padding: 0 var(--page-pad, 20px) 24px; }
-.home-tools-title { margin: 0 0 14px; font-size: 1.15rem; }
-.home-tools-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
-.home-tool {
-  display: flex; flex-direction: column; gap: 4px; padding: 16px; color: var(--text); text-decoration: none;
-  background: var(--bg-elevated, transparent); border: 2px solid var(--border); border-radius: 14px;
-}
-.home-tool:hover { border-color: var(--accent); }
-.home-tool .tab-ico { width: 26px; height: 26px; color: var(--accent); margin-bottom: 4px; }
-.home-tool-name { font-weight: 700; font-size: 1.02rem; }
-.home-tool-line { font-size: 0.88rem; color: var(--text-dim); line-height: 1.45; }
-
 /* ---- The aggregate look (from plugin-aggregate's desktop app and its Explore DAW) ----
    Cassette (the owner's pick): navy-black, an orange accent and a soft blue second colour, IBM Plex Mono everywhere, flat 1px outlines with 4px corners and no hard
    shadow. It is set on body, not :root, so it wins over the palette :root holds (and whatever Site Settings saves there). Tokens that
    are built from other tokens (--btn-fill, --accent-gradient) are repeated here because a var() inside a custom property is resolved
    where it is declared. */
-@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/ibm-plex-mono-400.woff2") format("woff2"); }
-@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 500; font-display: swap; src: url("/fonts/ibm-plex-mono-500.woff2") format("woff2"); }
-@font-face { font-family: "IBM Plex Mono"; font-style: normal; font-weight: 700; font-display: swap; src: url("/fonts/ibm-plex-mono-700.woff2") format("woff2"); }
+@font-face { font-family: "Silkscreen"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/silkscreen-400.woff2") format("woff2"); }
+@font-face { font-family: "Silkscreen"; font-style: normal; font-weight: 700; font-display: swap; src: url("/fonts/silkscreen-700.woff2") format("woff2"); }
+@font-face { font-family: "VT323"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/vt323-400.woff2") format("woff2"); }
 
 
+/* The look is "Bit bento" (the owner's pick): black, white and dither only, Mac-style windows, VT323 for text and Silkscreen for labels, and ONE tiny orange accent
+   (--orange) that marks function (the playhead, the current stop, the active window, the lit controls) and is never used for text. Light is black ink on white; dark is the
+   same screen inverted. Everything that used --accent as ink or as a button fill keeps working: --accent is the ink colour, --on-accent the paper colour. Set on body, so it wins
+   over the palette :root holds (and whatever Site Settings saves there). Tokens built from other tokens are repeated where they are used. */
 body {
-  --bg: #0a0d14;
-  --bg-elevated: #121827;
-  --border: #222b40;
-  --text: #eef2fa;
-  --text-dim: #94a0ba;
-  --accent: #ff8a3d;
-  --accent-secondary: #8fb8ff;
-  --accent-gradient: linear-gradient(135deg, #ff8a3d, #ffd27a);
-  --accent-dim: #ffb27f;
-  --on-accent: #0a0d14;
-  --error-text: #ff7a7a;
-  --success: #6ee7c8;
-  --warning: #ffd27a;
-  --info: #8fb8ff;
-  --font-family: "IBM Plex Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --ink: #000000;
+  --paper: #ffffff;
+  --orange: #ff6a1a;
+  --orange-ink: #000000;
+  --bg: #ffffff;
+  --bg-elevated: #ffffff;
+  --border: #000000;
+  --text: #000000;
+  --text-dim: #555555;
+  --accent: #000000;
+  --accent-secondary: #000000;
+  --accent-gradient: linear-gradient(#000000, #000000);
+  --accent-dim: #555555;
+  --on-accent: #ffffff;
+  --error-text: #b3261e;
+  --success: #000000;
+  --warning: #000000;
+  --info: #000000;
+  --font-family: "VT323", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --heading-font-family: var(--font-family);
+  --font-pixel: "Silkscreen", "VT323", ui-monospace, monospace;
   --font-mono: var(--font-family);
-  --control-radius: 4px;
-  --control-border-width: 1px;
-  --card-radius: 4px;
-  --field-radius: 4px;
-  --field-border-width: 1px;
-  --btn-ink: #eef2fa;
-  --btn-line: #222b40;
-  --btn-fill: #0a0d14;
-  --btn-radius: 4px;
-  --btn-border-width: 1px;
+  --control-radius: 0;
+  --control-border-width: 2px;
+  --card-radius: 0;
+  --field-radius: 0;
+  --field-border-width: 2px;
+  --btn-ink: #000000;
+  --btn-line: #000000;
+  --btn-fill: #ffffff;
+  --btn-radius: 0;
+  --btn-border-width: 2px;
   --btn-shadow: none;
   --btn-shadow-sm: none;
   --btn-shadow-press: none;
   --btn-press: 0px;
   --btn-press-sm: 0px;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 10px 26px rgba(0, 0, 0, 0.5);
-  --dial-glow: #ff8a3d;
-  --dial-cap: #121827;
-  --dial-ring: #0a0d14;
-  --dial-hand: #eef2fa;
-  --dial-cap-on: #1a2236;
-  --menu-bg: #121827;
-  --menu-line: #222b40;
-  --menu-hover: rgba(255, 138, 61, 0.1);
-  --menu-shadow: 0 10px 26px rgba(0, 0, 0, 0.5), 0 0 0 1px #222b40;
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  --dial-glow: var(--orange);
+  --dial-cap: #ffffff;
+  --dial-ring: #000000;
+  --dial-hand: #000000;
+  --dial-cap-on: #ffffff;
+  --menu-bg: #ffffff;
+  --menu-line: #000000;
+  --menu-hover: #000000;
+  --menu-shadow: 4px 4px 0 #000000;
   font-family: var(--font-family);
-  scrollbar-color: #222b40 #0a0d14;
+  scrollbar-color: #000000 #ffffff;
 }
-:root[data-theme="light"] body {
-  --bg: #eef1f6;
-  --bg-elevated: #f8f9fc;
-  --border: #cfd6e4;
-  --text: #0f1626;
-  --text-dim: #4b5670;
-  --accent: #b34d0c;
-  --accent-secondary: #2f5fb3;
-  --accent-gradient: linear-gradient(135deg, #b34d0c, #8a6a12);
-  --accent-dim: #8f3d08;
-  --on-accent: #ffffff;
-  --error-text: #b3261e;
-  --success: #0f7a63;
-  --warning: #8a6a12;
-  --info: #2f5fb3;
-  --btn-ink: #0f1626;
-  --btn-line: #c3cbdb;
-  --btn-fill: #f8f9fc;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
-  --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 26px rgba(0, 0, 0, 0.14);
-  --dial-glow: #b34d0c;
-  --dial-cap: #f8f9fc;
-  --dial-ring: #e3e8f2;
-  --dial-hand: #0f1626;
-  --dial-cap-on: #e3e8f2;
-  --menu-bg: #f8f9fc;
-  --menu-line: #dde3ee;
-  --menu-hover: rgba(179, 77, 12, 0.08);
-  --menu-shadow: 0 10px 30px rgba(0, 0, 0, 0.12), 0 0 0 1px #dde3ee;
-  scrollbar-color: #cfd6e4 #eef1f6;
+:root:not([data-theme="light"]) body {
+  --bg: #000000;
+  --bg-elevated: #000000;
+  --border: #ffffff;
+  --text: #ffffff;
+  --text-dim: #b3b3b3;
+  --accent: #ffffff;
+  --accent-secondary: #ffffff;
+  --accent-gradient: linear-gradient(#ffffff, #ffffff);
+  --accent-dim: #b3b3b3;
+  --on-accent: #000000;
+  --error-text: #ff7a70;
+  --success: #ffffff;
+  --warning: #ffffff;
+  --info: #ffffff;
+  --btn-ink: #ffffff;
+  --btn-line: #ffffff;
+  --btn-fill: #000000;
+  --dial-cap: #000000;
+  --dial-ring: #ffffff;
+  --dial-hand: #ffffff;
+  --dial-cap-on: #000000;
+  --menu-bg: #000000;
+  --menu-line: #ffffff;
+  --menu-hover: #ffffff;
+  --menu-shadow: 4px 4px 0 #ffffff;
+  scrollbar-color: #ffffff #000000;
 }
-html { background: #0a0d14; }
-:root[data-theme="light"] { background: #eef1f6; }
+html { background: #000000; }
+:root[data-theme="light"] { background: #ffffff; }
 
 /* Flat buttons: the outline brightens on hover instead of lifting, a press dims a little. Zero specificity (all inside :where), so a
    component that styles its own buttons keeps its look, and the header and finder are left out. */
@@ -4749,3 +4610,521 @@ html { background: #0a0d14; }
 /* The header and the finder take the same colours as the rest of the site (the owner's call). */
 /* Plex Mono is wider than the old face: on a narrow phone the search filter pills wrap inside their outline instead of running off the screen. */
 .search-filter-group { flex-wrap: wrap; max-width: 100%; }
+
+
+/* =====================================================================================================================================
+   Bit bento: the components. Windows (a striped title bar, a close box, pixel-stepped corners and a dithered shadow), the menu bar, the
+   finder, buttons, fields and the page furniture. Black, white and dither only; ONE small orange accent that means something is live
+   (the current stop, the active window, the focus ring, a selected row). Everything takes its two colours from --border (ink) and --bg
+   (paper), so the dark theme is this same drawing inverted.
+   ===================================================================================================================================== */
+body {
+  /* The stepped outline of a window: 4px of corner cut in two steps (--o); the same, 2px, for a thing inside it (--i). */
+  --o: 0 4px, 2px 4px, 2px 2px, 4px 2px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 2px, calc(100% - 2px) 2px, calc(100% - 2px) 4px, 100% 4px, 100% calc(100% - 4px), calc(100% - 2px) calc(100% - 4px), calc(100% - 2px) calc(100% - 2px), calc(100% - 4px) calc(100% - 2px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 2px), 2px calc(100% - 2px), 2px calc(100% - 4px), 0 calc(100% - 4px);
+  --i: 0 2px, 2px 2px, 2px 0, calc(100% - 2px) 0, calc(100% - 2px) 2px, 100% 2px, 100% calc(100% - 2px), calc(100% - 2px) calc(100% - 2px), calc(100% - 2px) 100%, 2px 100%, 2px calc(100% - 2px), 0 calc(100% - 2px);
+  /* A window and its 6px shadow in one outline (--win), and the shadow alone, the L round the window's right and bottom (--shade). */
+  --win: 0 4px, 2px 4px, 2px 2px, 4px 2px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 2px, calc(100% - 2px) 2px, calc(100% - 2px) 4px, 100% 4px, 100% 6px, calc(100% + 2px) 6px, calc(100% + 2px) 8px, calc(100% + 4px) 8px, calc(100% + 4px) 10px, calc(100% + 6px) 10px, calc(100% + 6px) calc(100% + 2px), calc(100% + 4px) calc(100% + 2px), calc(100% + 4px) calc(100% + 4px), calc(100% + 2px) calc(100% + 4px), calc(100% + 2px) calc(100% + 6px), 10px calc(100% + 6px), 10px calc(100% + 4px), 8px calc(100% + 4px), 8px calc(100% + 2px), 6px calc(100% + 2px), 6px 100%, 4px 100%, 4px calc(100% - 2px), 2px calc(100% - 2px), 2px calc(100% - 4px), 0 calc(100% - 4px);
+  --shade: calc(100% - 6px) 0, calc(100% - 4px) 0, calc(100% - 4px) 2px, calc(100% - 2px) 2px, calc(100% - 2px) 4px, 100% 4px, 100% calc(100% - 4px), calc(100% - 2px) calc(100% - 4px), calc(100% - 2px) calc(100% - 2px), calc(100% - 4px) calc(100% - 2px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 2px), 2px calc(100% - 2px), 2px calc(100% - 4px), 0 calc(100% - 4px), 0 calc(100% - 6px), calc(100% - 6px) calc(100% - 6px);
+  --tone-50: repeating-conic-gradient(var(--border) 0 25%, var(--bg) 0 50%) 0 0 / 2px 2px;
+  --tone-hatch: repeating-linear-gradient(45deg, var(--border) 0 1px, var(--bg) 1px 4px);
+  --tone-stripes: repeating-linear-gradient(var(--border) 0 1px, var(--bg) 1px 2px);
+  --text-dim: #555555;
+}
+:root:not([data-theme="light"]) body { --text-dim: #b3b3b3; }
+
+/* The page ground is a grid of single dots; the menu bar and the footer are plain paper. The Studio page has its own ground. */
+body:not(:has(.studio-canvas)) .page {
+  background-color: var(--border);
+  background-image: linear-gradient(90deg, transparent 1px, var(--bg) 0), linear-gradient(180deg, transparent 1px, var(--bg) 0);
+  background-size: 4px 4px;
+}
+.page { font-size: 1.2rem; line-height: 1.2; }
+
+/* ---- Type ---- */
+h1, h2, h3, h4, h5, h6 { font-weight: 400; letter-spacing: 0; line-height: 1; }
+h1 { font-size: 2.7rem; }
+h2 { font-size: 1.9rem; }
+h3 { font-size: 1.5rem; }
+h4 { font-size: 1.25rem; }
+h5, h6 { font-size: 1.2rem; }
+b, strong { font-weight: 400; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+em, i, cite { font-style: normal; text-decoration: underline dotted; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+small { font-size: 0.8em; }
+@media (max-width: 640px) {
+  h1 { font-size: 2.1rem; }
+  h2 { font-size: 1.6rem; }
+}
+
+/* Links: ink with an orange underline; the pointer turns one into an inverted plate. */
+a {
+  color: var(--text);
+  text-decoration-line: underline;
+  text-decoration-color: var(--orange);
+  text-decoration-thickness: 3px;
+  text-underline-offset: 4px;
+}
+a:hover { text-decoration-color: var(--orange); }
+.canvas a:not(.btn, .home-tool, .project-card-link, .block-image-link):hover,
+.site-footer a:hover,
+.search-results li a:hover {
+  background: var(--text);
+  color: var(--bg);
+  text-decoration-line: none;
+}
+.skip-link { background: var(--text); color: var(--bg); border-radius: 0; font-family: var(--font-pixel); font-weight: 400; }
+
+/* Keyboard focus is a 3px dotted orange ring, everywhere. */
+a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, summary:focus-visible, [tabindex]:focus-visible {
+  outline: 3px dotted var(--orange);
+  outline-offset: 2px;
+}
+:where(body, body *)::selection { background: var(--text); color: var(--bg); }
+
+hr, .block hr {
+  border: 0;
+  height: 6px;
+  margin: 16px 0;
+  background: var(--tone-stripes);
+}
+
+/* ---- Windows ---- */
+.canvas > .block, .home-tool, .finder-panel {
+  --bt: 28px; /* the title bar is the top border */
+  --cb-dot: var(--bg);
+  position: relative;
+  border: 2px solid var(--border);
+  border-top: var(--bt) solid transparent;
+  background-color: var(--bg);
+  background-image: linear-gradient(var(--border), var(--border)), linear-gradient(var(--border), var(--border));
+  background-position: left bottom, right bottom;
+  background-size: 2px 2px;
+  background-repeat: no-repeat;
+  color: var(--text);
+  clip-path: polygon(var(--win));
+}
+.canvas > .block::before, .home-tool::before, .finder-panel::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  right: -8px;
+  bottom: -8px;
+  top: calc(6px - var(--bt));
+  background: var(--bg) var(--tone-50);
+  clip-path: polygon(var(--shade));
+  pointer-events: none;
+}
+.canvas > .block::after, .home-tool::after, .finder-panel::after {
+  content: "";
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  top: calc(-1 * var(--bt));
+  height: var(--bt);
+  pointer-events: none;
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(var(--cb-dot), var(--cb-dot)),
+    linear-gradient(var(--bg), var(--bg)),
+    linear-gradient(var(--border), var(--border)),
+    linear-gradient(var(--border), var(--border)),
+    linear-gradient(var(--border), var(--border)),
+    linear-gradient(var(--bg), var(--bg)),
+    linear-gradient(var(--border), var(--border)),
+    linear-gradient(var(--bg), var(--bg)),
+    linear-gradient(var(--bg), var(--bg)),
+    var(--tone-stripes),
+    linear-gradient(var(--border), var(--border)),
+    linear-gradient(var(--border), var(--border)),
+    linear-gradient(var(--border), var(--border)),
+    linear-gradient(var(--border), var(--border)),
+    linear-gradient(var(--border), var(--border)),
+    linear-gradient(var(--border), var(--border));
+  background-position:
+    18px 11px, 16px 9px, 14px 7px,
+    right 22px top 9px, right 22px top 11px, right 16px top 9px, right 14px top 7px,
+    11px 4px, right 11px top 4px,
+    8px 8px,
+    left top, left bottom, left top, right top, 2px 2px, right 2px top 2px;
+  background-size:
+    6px 6px, 10px 10px, 14px 14px,
+    2px 4px, 4px 2px, 10px 10px, 14px 14px,
+    20px 20px, 20px 20px,
+    calc(100% - 16px) 12px,
+    100% 2px, 100% 2px, 2px 100%, 2px 100%, 2px 2px, 2px 2px;
+  background-repeat: no-repeat;
+}
+.win-title {
+  position: absolute;
+  z-index: 1;
+  top: calc(2px - var(--bt));
+  left: 0;
+  right: 0;
+  width: max-content;
+  max-width: calc(100% - 96px);
+  margin: 0 auto;
+  height: 24px;
+  padding: 0 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: var(--bg);
+  color: var(--text);
+  font: 400 16px/24px var(--font-pixel);
+  text-transform: lowercase;
+  pointer-events: none;
+}
+
+/* The first window is the active one (an orange mark in its close box) until the pointer or the keyboard is in another. */
+.canvas > .block:first-of-type { --cb-dot: var(--orange); }
+.canvas:has(.block:is(:hover, :focus-within), .home-tool:is(:hover, :focus-within)) > .block:first-of-type:not(:hover, :focus-within) { --cb-dot: var(--bg); }
+.canvas > .block:is(:hover, :focus-within), .home-tool:is(:hover, :focus-within), .finder-panel { --cb-dot: var(--orange); }
+
+/* The page: windows laid out on the grid. */
+.canvas:not(.article-canvas, .studio-canvas) { max-width: 1376px; padding: 28px 32px 40px; gap: 16px; }
+.canvas > .block { padding: 12px 18px 18px; font-size: 1.2rem; line-height: 1.2; min-height: 0; }
+.canvas > .block p { margin: 0 0 0.6em; }
+.canvas > .block p:last-child { margin-bottom: 0; }
+.canvas > .block > .block-content-over-bg { color: inherit; }
+.block-has-bg-layer { overflow: clip; overflow-clip-margin: 40px; }
+.canvas > .block ul, .canvas > .block ol { line-height: 1.2; }
+.canvas > .block li + li { margin-top: 0.25em; }
+.article-canvas { max-width: 760px; }
+.article-canvas > .block { padding: 18px 24px 24px; }
+@media (max-width: 640px) {
+  .canvas:not(.article-canvas, .studio-canvas) { padding: 18px 14px 28px; gap: 16px 8px; }
+  .canvas > .block { padding: 10px 14px 16px; }
+  .article-canvas > .block { padding: 14px 16px 20px; }
+  .article-canvas { padding: 18px 14px 28px; }
+}
+
+/* Whatever a block holds is ink on paper. */
+.block-image, .image-figure img, .body-figure img, .gallery img, .before-after, .before-after-tag, .video-embed, .project-hero-video, .generic-embed iframe, .device-frame, .device-frame img {
+  border-radius: 0 !important;
+}
+.block-image { border: 2px solid var(--border); }
+figcaption, .image-figure figcaption { font: 12px/1.4 var(--font-pixel); text-transform: uppercase; margin-top: 6px; }
+.block-quote {
+  margin: 0;
+  padding: 2px 0 2px 18px;
+  border: 0;
+  border-left: 6px solid var(--border);
+  border-radius: 0;
+  font-size: 1.5rem;
+  line-height: 1.15;
+  color: var(--text);
+}
+.block-quote, .block-quote * { font-style: normal; }
+.block-quote p:first-child { font-size: inherit; font-weight: 400; }
+.block-quote footer { font: 12px/1.4 var(--font-pixel); text-transform: uppercase; color: var(--text); margin-top: 8px; }
+.block-quote footer::before { content: "- "; }
+.block-quote-large { font-size: 2.1rem; padding-left: 22px; }
+.block-quote-large::before { content: none; }
+.block .block-links { gap: 0; margin: 0; padding: 0; }
+.block-links li { border-bottom: 2px dotted var(--border); }
+.block-links a { display: block; padding: 10px 2px; margin: 0; color: var(--text); text-decoration: none; }
+.block-links a:hover { background: var(--text); color: var(--bg); text-decoration: none; }
+.tag, .tech-chip {
+  display: inline-block;
+  padding: 0 8px;
+  border: 2px solid var(--border);
+  border-radius: 0;
+  font: 12px/18px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--text);
+  background: var(--bg);
+}
+/* A callout: a 2px box with a bar of tone down its left side; the kind of callout is the tone (checker, dots, hatch, solid). */
+.callout {
+  position: relative;
+  border: 2px solid var(--border);
+  border-radius: 0;
+  padding: 12px 16px 12px 28px;
+  background: var(--bg);
+}
+.callout::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 12px; border-right: 2px solid var(--border); background: var(--bg) var(--tone-50); }
+.callout-tip::before { background: conic-gradient(var(--border) 25%, var(--bg) 0) 0 0 / 4px 4px; }
+.callout-warning::before { background: var(--bg) var(--tone-hatch); }
+.callout-danger::before { background: var(--border); }
+.callout-label { display: block; margin-bottom: 4px; font: 12px/14px var(--font-pixel); letter-spacing: 0; text-transform: uppercase; }
+.md-quote { border-left: 6px solid var(--border); font-style: normal; font-size: 1.4rem; }
+
+/* Tables, code, details */
+.table-wrap table { border: 2px solid var(--border); font-size: 1.2rem; }
+.table-wrap th, .table-wrap td { border: 0; border-bottom: 2px dotted var(--border); padding: 6px 12px; }
+.table-wrap th { background: var(--text); color: var(--bg); font: 12px/18px var(--font-pixel); text-transform: uppercase; font-weight: 400; border-bottom: 2px solid var(--border); }
+pre { border: 2px solid var(--border); border-radius: 0; background: var(--bg); font-size: 1.1rem; line-height: 1.15; }
+pre code, pre code.hljs, .hljs { font-family: var(--font-family); background: transparent !important; color: var(--text) !important; padding: 0; }
+.hljs-comment, .hljs-quote { color: var(--text-dim) !important; }
+.hljs-keyword, .hljs-selector-tag, .hljs-built_in, .hljs-title, .hljs-section { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+:not(pre) > code { border: 2px solid var(--border); border-radius: 0; background: var(--bg); font-family: var(--font-family); font-size: 1em; padding: 0 0.3em; }
+kbd { font: 12px/14px var(--font-pixel); border: 2px solid currentColor; border-radius: 0; padding: 0 4px; }
+.code-copy-btn { border: 2px solid var(--border); border-radius: 0; background: var(--bg); color: var(--text); font: 12px/16px var(--font-pixel); }
+.accordion-item { border: 2px solid var(--border); border-radius: 0; }
+.status-badge, .featured-badge, .admin-only-tag { border: 2px solid var(--border); border-radius: 0; background: var(--bg); color: var(--text); font: 12px/16px var(--font-pixel); text-transform: uppercase; }
+.project-card { border: 2px solid var(--border); border-radius: 0; box-shadow: none; background: var(--bg); }
+.project-card-linked:hover, .project-card:has(h2 a):hover { background: var(--bg); }
+.empty-hint-admin, .canvas > .block > .empty-hint:not(.empty-hint-admin) { border: 2px dashed var(--border); border-radius: 0; font-style: normal; font-size: 1.1rem; padding: 10px 14px; }
+
+/* ---- Buttons ---- */
+:where(button, input[type="submit"], input[type="button"], input[type="reset"]) { font-weight: 400; }
+.btn, .not-found-search button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 18px;
+  border: 2px solid var(--border);
+  border-radius: 0;
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: none;
+  font: 400 1.2rem/1 var(--font-family);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  clip-path: polygon(var(--i));
+}
+.btn:hover, .btn:active, .not-found-search button:hover {
+  background: var(--text);
+  color: var(--bg);
+  box-shadow: none;
+  filter: none;
+  transform: none;
+  text-decoration: none;
+}
+.btn:focus-visible, .not-found-search button:focus-visible { outline: 3px dotted var(--orange); outline-offset: -6px; }
+.btn-accent, .btn-primary {
+  background: var(--text);
+  color: var(--bg);
+  border-color: var(--text);
+  box-shadow: inset 0 0 0 2px var(--text), inset 0 0 0 4px var(--bg);
+}
+.btn-accent:hover, .btn-accent:active, .btn-primary:hover {
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: inset 0 0 0 2px var(--bg), inset 0 0 0 4px var(--text);
+}
+.btn-secondary { background: var(--bg); color: var(--text); }
+.btn-link {
+  min-height: 0;
+  padding: 0;
+  border-color: transparent;
+  background: none;
+  color: var(--text);
+  text-decoration: underline var(--orange) 3px;
+  text-underline-offset: 4px;
+  clip-path: none;
+}
+.btn-link:hover { background: var(--text); color: var(--bg); text-decoration: none; }
+.btn-external-icon { opacity: 1; }
+.copy-link-btn, .share-link, .save-for-later-btn, .print-pdf-btn, .read-aloud-btn, .reaction-btn {
+  border: 2px solid var(--border);
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--bg);
+  color: var(--text);
+  font: 400 1.1rem/1 var(--font-family);
+  min-height: 34px;
+}
+.copy-link-btn:hover, .share-link:hover, .save-for-later-btn:hover, .print-pdf-btn:hover, .read-aloud-btn:hover, .reaction-btn:hover { background: var(--text); color: var(--bg); filter: none; border-color: var(--border); }
+button:disabled, .btn[aria-disabled="true"] { border-style: dashed; opacity: 1; color: var(--text-dim); cursor: not-allowed; }
+
+/* ---- Fields ---- */
+:where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="submit"], [type="button"], [type="reset"], [type="hidden"]), textarea, select) {
+  border-radius: 0;
+  font-size: 1.2rem;
+}
+.search-page-form input, .not-found-search input, .password-gate-form input {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 2px solid var(--border);
+  border-radius: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 400 1.5rem/1 var(--font-family);
+}
+.search-page-form input::placeholder, .not-found-search input::placeholder, #finder-input::placeholder { color: var(--text-dim); opacity: 1; }
+.field > .field-label { font: 12px/1.3 var(--font-pixel); text-transform: uppercase; font-weight: 400; }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--text); width: 20px; height: 20px; }
+
+/* ---- The page furniture: search, 404, footer ---- */
+.search-result-count { font: 12px/1.4 var(--font-pixel); text-transform: uppercase; color: var(--text); margin: 8px 0 16px; }
+.results-heading, .not-found-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 20px 0 8px;
+  font: 400 12px/14px var(--font-pixel);
+  letter-spacing: 0;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.results-heading::after, .not-found-heading::after { content: ""; flex: 1; height: 6px; background: var(--tone-stripes); }
+.search-results { list-style: none; margin: 0; padding: 0; }
+.search-results li { padding: 10px 0; border-bottom: 2px dotted var(--border); }
+.search-results li a { font-weight: 400; font-size: 1.6rem; color: var(--text); text-decoration-line: underline; text-decoration-color: var(--orange); text-decoration-thickness: 3px; text-underline-offset: 4px; }
+.search-results li p { color: var(--text-dim); font-size: 1.2rem; margin: 4px 0 0; line-height: 1.15; }
+mark, .search-results mark { background: var(--text); color: var(--bg); padding: 0 0.15em; border-radius: 0; }
+.search-filter-group { border: 2px solid var(--border); border-radius: 0; background: var(--bg); gap: 0; padding: 0; }
+.search-filter-group a { border: 0; border-radius: 0; padding: 0 12px; min-height: 32px; display: inline-flex; align-items: center; font: 12px/1 var(--font-pixel); text-transform: uppercase; color: var(--text); text-decoration: none; background: var(--bg); }
+.search-filter-group a + a { border-left: 2px solid var(--border); }
+.search-filter-group a:hover { background: var(--text); color: var(--bg); }
+.search-filter-group a.is-active { background: var(--text); color: var(--bg); box-shadow: inset 0 -4px 0 var(--orange); }
+.not-found-code { font: 12px/14px var(--font-pixel); letter-spacing: 0; color: var(--text); }
+.not-found-trace { color: var(--text); shape-rendering: crispEdges; }
+.not-found-trace path { stroke-linecap: butt; stroke-width: 3; }
+.not-found-trace path[stroke="var(--accent)"] { stroke: var(--text); }
+.not-found-trace circle { fill: var(--bg); }
+.not-found-suggest { font-size: 1.2rem; }
+
+.site-footer {
+  background: var(--bg);
+  border-top: 2px solid var(--border);
+  padding: 14px 32px 16px;
+  color: var(--text);
+  font: 400 12px/1.5 var(--font-pixel);
+  text-transform: uppercase;
+}
+.site-footer p { margin: 0 0 4px; }
+.site-footer .footer-mono { font: 400 12px/1.5 var(--font-pixel); letter-spacing: 0; }
+.site-footer a, .site-footer .footer-share { color: var(--text); }
+.site-footer .footer-share { font: inherit; text-decoration: underline var(--orange) 3px; text-underline-offset: 4px; }
+.site-footer .footer-share:hover { background: var(--text); color: var(--bg); text-decoration: none; }
+.site-footer .footer-share-note { font: inherit; color: var(--text); }
+.site-footer .footer-column h2 { font: 400 12px/14px var(--font-pixel); color: var(--text); letter-spacing: 0; }
+
+/* ---- Nav dropdown (a stop with children) ---- */
+.tab-caret { color: var(--text); }
+.tab-dropdown { background: var(--bg); border: 2px solid var(--border); border-radius: 0; box-shadow: var(--menu-shadow); padding: 0; }
+.tab-dropdown a { border-radius: 0; color: var(--text); font: 16px/1 var(--font-pixel); text-transform: lowercase; padding: 12px 14px; text-decoration: none; border-bottom: 2px dotted var(--border); }
+.tab-dropdown a:last-child { border-bottom: 0; }
+.tab-dropdown a:hover, .tab-dropdown a.is-active { background: var(--text); color: var(--bg); }
+
+/* ---- The ruler: marks drawn by nav.js ---- */
+.tab-ruler { position: absolute; left: 0; bottom: 0; width: 0; height: var(--rz); pointer-events: none; }
+.tab-ruler > i { position: absolute; bottom: 0; width: 1px; height: 5px; background: var(--tick); }
+.tab-ruler > i.is-major { height: min(16px, var(--rz)); }
+@media (max-width: 640px) {
+  .topbar { padding: 0; gap: 0; flex-wrap: nowrap; }
+  .topbar .site-nav { order: 0; flex: 1 1 auto; }
+}
+@media (max-width: 720px) {
+  .topbar { --rz: 14px; }
+  .site-nav { --stop-w: 96px; }
+  .tab { height: 44px; }
+  .tab-label { height: 44px; line-height: 40px; padding-left: 8px; padding-right: 8px; }
+}
+
+/* ---- The home tiles ---- */
+.home-tools { grid-column: 1 / -1; width: 100%; max-width: none; margin: 8px 0 0; padding: 0; }
+.home-tools-title { display: flex; align-items: center; gap: 10px; margin: 0 0 18px; font: 400 12px/14px var(--font-pixel); text-transform: uppercase; }
+.home-tools-title::after { content: ""; flex: 1; height: 6px; background: var(--tone-stripes); }
+.home-tools-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 22px 18px; }
+.home-tool { display: flex; flex-direction: column; gap: 6px; min-height: 210px; padding: 16px 20px 14px; color: var(--text); text-decoration: none; }
+.home-tool .tab-ico { display: block; width: 40px; height: 40px; margin: 0 0 4px; }
+.home-tool-name { font-size: 2.1rem; line-height: 1; }
+.home-tool-line { font-size: 1.2rem; line-height: 1.15; color: var(--text-dim); max-width: 38ch; }
+.home-tool-go { margin-top: auto; align-self: flex-end; display: inline-flex; }
+.home-tool-go svg { width: 32px; height: 32px; }
+.home-tool:hover { background-color: var(--text); color: var(--bg); }
+.home-tool:hover .home-tool-line { color: inherit; }
+.home-tool:focus-visible { outline: 3px dotted var(--orange); outline-offset: -10px; }
+.home-tool:hover .win-title, .home-tool:focus-visible .win-title { color: var(--text); }
+
+/* ---- The finder (Search) ---- */
+:root[data-theme="light"] .finder-theme-light, :root:not([data-theme="light"]) .finder-theme-dark { display: none; }
+html.finder-on { overflow: hidden; }
+.site-finder { position: fixed; top: var(--finder-top, 0px); left: 0; right: 0; bottom: 0; z-index: 1000; display: flex; justify-content: center; align-items: flex-start; padding: 28px 18px 16px; }
+.site-finder[hidden] { display: none; }
+.finder-backdrop { position: absolute; inset: 0; background: conic-gradient(var(--border) 25%, transparent 0) 0 0 / 2px 2px; }
+.finder-panel { display: flex; flex-direction: column; width: min(720px, 100%); max-height: min(calc(100dvh - var(--finder-top, 0px) - 52px), 640px); padding: 0; }
+.finder-form { display: flex; align-items: center; gap: 10px; margin: 14px 16px; padding: 0 8px 0 12px; min-height: 48px; border: 2px solid var(--border); background: var(--bg); }
+.finder-form:focus-within { outline: 3px dotted var(--orange); outline-offset: 2px; }
+.finder-glass { display: inline-flex; color: var(--text); }
+.finder-glass svg { width: 22px; height: 22px; }
+#site-finder .finder-form input { flex: 1 1 auto; min-width: 0; width: auto; max-width: none; margin: 0; padding: 0; min-height: 44px; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: var(--text); font: 400 1.5rem/1 var(--font-family); outline: none; }
+#site-finder .finder-form input::-webkit-search-cancel-button { display: none; }
+.finder-esc { flex: 0 0 auto; min-height: 28px; padding: 0 8px; border: 2px solid var(--border); border-radius: 0; background: var(--bg); color: var(--text); font: 400 12px/1 var(--font-pixel); text-transform: uppercase; box-shadow: none; cursor: pointer; }
+.finder-esc:hover { background: var(--text); color: var(--bg); }
+.finder-esc:focus-visible { outline-offset: 2px; }
+.finder-results { overflow-y: auto; overscroll-behavior: contain; padding: 0; border-top: 2px solid var(--border); }
+#site-finder .finder-group { display: flex; flex-direction: column; position: static; width: auto; min-width: 0; max-width: none; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; max-height: none; }
+#site-finder .finder-group[hidden] { display: none; }
+.finder-title { display: flex; align-items: center; gap: 10px; margin: 0; padding: 12px 16px 6px; font: 400 12px/14px var(--font-pixel); letter-spacing: 0; text-transform: uppercase; color: var(--text); }
+.finder-title::after { content: ""; flex: 1; height: 6px; background: var(--tone-stripes); }
+#site-finder .finder-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: auto;
+  min-height: 44px;
+  margin: 0;
+  padding: 4px 16px;
+  border: 0;
+  border-bottom: 2px dotted var(--border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  font: 400 1.5rem/1 var(--font-family);
+  text-align: left;
+  text-decoration: none;
+  box-shadow: none;
+  cursor: pointer;
+}
+#site-finder .finder-item[hidden] { display: none; }
+#site-finder .finder-item:hover, #site-finder .finder-item:focus, #site-finder .finder-item:focus-visible { background: var(--text); color: var(--bg); box-shadow: inset 8px 0 0 var(--orange); }
+#site-finder .finder-item:focus-visible { outline: 3px dotted var(--orange); outline-offset: -6px; }
+#site-finder .finder-item:focus { outline: none; }
+#site-finder .finder-item:hover .finder-hint, #site-finder .finder-item:focus .finder-hint, #site-finder .finder-item:hover .finder-ico, #site-finder .finder-item:focus .finder-ico { color: inherit; }
+.finder-ico { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 0; background: none; color: inherit; font: 400 16px/1 var(--font-pixel); }
+.finder-ico svg { width: 20px; height: 20px; }
+#site-finder .finder-ico .icon-text { font: 400 14px/1 var(--font-pixel); letter-spacing: 0; }
+.finder-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#site-finder .finder-hint { flex: 0 0 auto; display: inline; margin: 0; font: 400 12px/1 var(--font-pixel); letter-spacing: 0; text-transform: uppercase; color: var(--text-dim); }
+.finder-empty { margin: 0; padding: 14px 16px; font-size: 1.2rem; color: var(--text); }
+.finder-foot { display: flex; justify-content: flex-end; gap: 16px; margin: 0; padding: 10px 16px; border-top: 2px solid var(--border); background: var(--text); color: var(--bg); font: 400 12px/16px var(--font-pixel); text-transform: uppercase; }
+.finder-foot kbd { margin-right: 6px; padding: 0 4px; border: 2px solid currentColor; border-radius: 0; font: inherit; }
+@media (max-width: 640px) {
+  .site-finder { padding: 14px 10px 10px; }
+  .finder-panel { max-height: calc(100dvh - var(--finder-top, 0px) - 30px); }
+  .finder-foot { display: none; }
+  #site-finder .finder-item { min-height: 48px; }
+}
+
+/* ---- Embeds: a song's player, a circuit's power switch, a scan's AR button ---- */
+.song-embed { border: 2px solid var(--border); border-radius: 0; background: var(--bg); box-shadow: none; }
+.song-embed-play-btn, .sim-power-btn, .scan-ar-btn {
+  min-height: 40px;
+  padding: 0 18px;
+  border-color: var(--border);
+  background: var(--text);
+  color: var(--bg);
+  font: 400 1.2rem/1 var(--font-family);
+  clip-path: polygon(var(--i));
+}
+.song-embed-play-btn:hover, .sim-power-btn:hover, .scan-ar-btn:hover { box-shadow: none; background: var(--bg); color: var(--text); }
+.song-embed-play-btn.is-active, .sim-power-btn.is-active, .sim-view-btn[aria-pressed="true"] { background: var(--bg); color: var(--text); border-color: var(--border); box-shadow: inset 0 -4px 0 var(--orange); }
+.song-embed-play-btn:focus-visible, .sim-power-btn:focus-visible, .scan-ar-btn:focus-visible, .sim-view-btn:focus-visible { outline: 3px dotted var(--orange); outline-offset: -6px; }
+.sim-view-btn { border-color: var(--border); }
+.song-embed-bar { border-radius: 0; }
+.song-embed-pulse-core { border-radius: 0; }
+.song-embed-position { font: 12px/1.4 var(--font-pixel); text-transform: uppercase; color: var(--text); }
+.song-embed-position-strip > span { height: 6px; border-radius: 0; background: var(--bg); border: 1px solid var(--border); }
+.song-embed-position-strip > .is-done { background: var(--text); }
+.song-embed-position-strip > .is-now { background: var(--orange); }
+
+/* Everything else that was soft is square. */
+.lightbox-img, .lightbox-close, .lightbox-nav, .preview-banner, .preview-banner #preview-mode-off-btn, .correction-note, .password-gate-form input, .password-gate-form button,
+.table-of-contents, .series-nav, .prev-next-link, .topics-list li, .journal-entry-type, .generic-embed iframe, .building-strip, .before-after-tag, .article-cover, .gallery img {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* Printed pages carry none of the window drawing. */
+@media print {
+  .canvas > .block, .home-tool { clip-path: none; border: 0; background: none; padding: 0; }
+  .canvas > .block::before, .canvas > .block::after, .home-tool::before, .home-tool::after, .win-title { display: none; }
+}

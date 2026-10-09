@@ -98,8 +98,7 @@
 }
 .app-native .shelf-actions button:hover { color: var(--text); background: color-mix(in srgb, var(--text) 8%, transparent); }
 .app-native .shelf-actions .shelf-delete:hover { color: var(--error-text); }
-.app-native .song-studio, .app-native .studio-shelf { --track-1: #ff8a3d; --track-2: #8fb8ff; --track-3: #ffd27a; --track-4: #c48cff; --track-5: #6ee7c8; }
-:root[data-theme="light"] .app-native .studio-shelf { --track-1: #b34d0c; --track-2: #2f5fb3; --track-3: #8a6a12; --track-4: #7a3fc4; --track-5: #0f7a63; }
+/* the five tracks are told apart by number and dither, so every track colour is the ink (the Bit bento block at the end sets it) */
 @media (max-width: 640px) {
   .app-native .studio-shelf { padding: 18px 16px 28px; }
   .app-native .shelf-starters { --shelf-pad: 16px; }
@@ -196,12 +195,9 @@
   .app-native .song-studio.studio-editor-folded { grid-template-rows: auto auto minmax(calc(var(--pl-ruler) + 1.5 * var(--pl-row) + 7px), 1fr) auto auto; }
   .app-native .song-studio.studio-songs-folded { --songs-w: 44px; }
   .app-native .song-studio.studio-sounds-folded { --sounds-w: 44px; }
-  .app-native .studio-panel {
-    display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--bg-elevated);
-    border: 1px solid var(--border); border-radius: 14px; overflow: hidden;
-  }
+  .app-native .studio-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   .app-native .studio-songs-panel { grid-area: songs; }
-  .app-native .studio-sound-panel { grid-area: sounds; border-top: 3px solid var(--panel-color, var(--accent)); }
+  .app-native .studio-sound-panel { grid-area: sounds; }
 }
 .app-native .studio-panel-head { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 14px; border-bottom: 1px solid var(--border); }
 .app-native .studio-panel-head h2 { flex: 1 1 auto; margin: 0; font-size: 0.95rem; letter-spacing: 0; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -421,7 +417,7 @@
    repeats what a control already says goes, rows get room to breathe, and the thing you are working on gets the screen. ---- */
 @media (max-width: 640px) {
   /* the Studio */
-  .app-native .song-studio { gap: 10px; padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px)); }
+  .app-native .song-studio { gap: 6px; padding: 8px 14px calc(10px + env(safe-area-inset-bottom, 0px)); }
   .app-native .studio-hint, .app-native .studio-note, .app-native .studio-keybar-hint, .app-native .studio-pad .p-hint { display: none; }
   .app-native .studio-keybar { gap: 8px; }
   .app-native .studio-pad { min-height: 56px; }
@@ -501,3 +497,213 @@
 .app-native .studio-pick { border-radius: 4px; }
 .app-native .studio-sound-panel { border-top-width: 2px; }
 .app-native :is(.studio-panel-head, .trainer-panel-head) h2 { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
+
+/* ==== Studio: Bit bento (begin) ==== */
+/* ---- Studio: Bit bento (the tool pages): windows for the panels, the shelf and the library. The Studio's own windows are in the admin stylesheet's block of the same name. ---- */
+.app-native {
+  --bb-ink: var(--text);
+  --bb-paper: var(--bg);
+  --bb-ring: var(--text);
+  --bb-ground: var(--bg);
+  --bb-orange: var(--orange, #ff6a1a);
+  --bb-o: 0 4px, 2px 4px, 2px 2px, 4px 2px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 2px, calc(100% - 2px) 2px, calc(100% - 2px) 4px, 100% 4px, 100% calc(100% - 4px), calc(100% - 2px) calc(100% - 4px), calc(100% - 2px) calc(100% - 2px), calc(100% - 4px) calc(100% - 2px), calc(100% - 4px) 100%, 4px 100%, 4px calc(100% - 2px), 2px calc(100% - 2px), 2px calc(100% - 4px), 0 calc(100% - 4px);
+  --bb-i: 0 2px, 2px 2px, 2px 0, calc(100% - 2px) 0, calc(100% - 2px) 2px, 100% 2px, 100% calc(100% - 2px), calc(100% - 2px) calc(100% - 2px), calc(100% - 2px) 100%, 2px 100%, 2px calc(100% - 2px), 0 calc(100% - 2px);
+  --bb-px: var(--font-pixel, "Silkscreen", monospace);
+  --bb-vt: var(--font-family, "VT323", monospace);
+}
+.app-native .studio-panel, .app-native .trainer-panel, .app-native .app-library {
+  position: relative; padding: 28px 2px 2px; margin: 0; border: 0; border-radius: 0; box-shadow: none; overflow: visible; color: var(--bb-ink);
+  background:
+    var(--bb-lit, linear-gradient(transparent, transparent) 0 0 / 0 0 no-repeat),
+    linear-gradient(var(--bb-paper), var(--bb-paper)) 16px 9px / 10px 10px no-repeat,
+    linear-gradient(var(--bb-ink), var(--bb-ink)) 14px 7px / 14px 14px no-repeat,
+    linear-gradient(var(--bb-paper), var(--bb-paper)) 11px 4px / 20px 20px no-repeat,
+    linear-gradient(var(--bb-ink), var(--bb-ink)) right 16px top 11px / 2px 4px no-repeat,
+    linear-gradient(var(--bb-ink), var(--bb-ink)) right 18px top 13px / 4px 2px no-repeat,
+    linear-gradient(var(--bb-paper), var(--bb-paper)) right 16px top 9px / 10px 10px no-repeat,
+    linear-gradient(var(--bb-ink), var(--bb-ink)) right 14px top 7px / 14px 14px no-repeat,
+    linear-gradient(var(--bb-paper), var(--bb-paper)) right 11px top 4px / 20px 20px no-repeat,
+    repeating-linear-gradient(var(--bb-ink) 0 1px, var(--bb-paper) 1px 2px) 8px 8px / calc(100% - 16px) 12px no-repeat,
+    linear-gradient(var(--bb-ink), var(--bb-ink)) 2px 26px / calc(100% - 4px) 2px no-repeat,
+    linear-gradient(var(--bb-ground), var(--bb-ground)) left top / 2px 4px no-repeat,
+    linear-gradient(var(--bb-ground), var(--bb-ground)) 2px 0 / 2px 2px no-repeat,
+    linear-gradient(var(--bb-ground), var(--bb-ground)) right top / 2px 4px no-repeat,
+    linear-gradient(var(--bb-ground), var(--bb-ground)) right 2px top 0 / 2px 2px no-repeat,
+    linear-gradient(var(--bb-ground), var(--bb-ground)) left bottom / 2px 4px no-repeat,
+    linear-gradient(var(--bb-ground), var(--bb-ground)) 2px bottom / 2px 2px no-repeat,
+    linear-gradient(var(--bb-ground), var(--bb-ground)) right bottom / 2px 4px no-repeat,
+    linear-gradient(var(--bb-ground), var(--bb-ground)) right 2px bottom 0 / 2px 2px no-repeat,
+    linear-gradient(var(--bb-paper), var(--bb-paper)) content-box,
+    linear-gradient(var(--bb-ring), var(--bb-ring));
+}
+.app-native .studio-panel::after, .app-native .trainer-panel::after, .app-native .app-library::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; transform: translate(6px, 6px);
+  background: repeating-conic-gradient(var(--bb-ring) 0 25%, var(--bb-ground) 0 50%) 0 0 / 2px 2px; clip-path: polygon(var(--bb-o));
+}
+.app-native .studio-sound-panel { --bb-lit: linear-gradient(var(--bb-orange), var(--bb-orange)) 18px 11px / 6px 6px no-repeat; }
+/* a panel folded to its handle has no title bar */
+.app-native .song-studio.studio-songs-folded .studio-songs-panel,
+.app-native .song-studio.studio-sounds-folded .studio-sound-panel,
+.app-native .trainer.is-left-folded .trainer-left, .app-native .trainer.is-right-folded .trainer-right,
+.app-native .has-library.lib-folded .app-library {
+  padding: 2px;
+  background:
+    linear-gradient(var(--bb-ground), var(--bb-ground)) left top / 2px 4px no-repeat, linear-gradient(var(--bb-ground), var(--bb-ground)) 2px 0 / 2px 2px no-repeat,
+    linear-gradient(var(--bb-ground), var(--bb-ground)) right top / 2px 4px no-repeat, linear-gradient(var(--bb-ground), var(--bb-ground)) right 2px top 0 / 2px 2px no-repeat,
+    linear-gradient(var(--bb-ground), var(--bb-ground)) left bottom / 2px 4px no-repeat, linear-gradient(var(--bb-ground), var(--bb-ground)) 2px bottom / 2px 2px no-repeat,
+    linear-gradient(var(--bb-ground), var(--bb-ground)) right bottom / 2px 4px no-repeat, linear-gradient(var(--bb-ground), var(--bb-ground)) right 2px bottom 0 / 2px 2px no-repeat,
+    linear-gradient(var(--bb-paper), var(--bb-paper)) content-box, linear-gradient(var(--bb-ring), var(--bb-ring));
+}
+/* the head is the title bar: its name is the plate on the stripes, its fold button is the zoom box */
+.app-native .studio-panel-head { position: absolute; left: 2px; right: 2px; top: 2px; height: 24px; padding: 0; margin: 0; display: block; border: 0; background: none; pointer-events: none; z-index: 2; }
+.app-native .studio-panel-head h2, .app-native .studio-docked-panel .studio-sound-panel .studio-panel-head h2 {
+  position: absolute; left: 50%; top: 0; transform: translateX(-50%); display: block; width: max-content; max-width: calc(100% - 96px); height: 24px; margin: 0; padding: 0 10px; overflow: hidden; white-space: nowrap; text-overflow: clip;
+  background: var(--bb-paper); color: var(--bb-ink); font: 400 16px/24px var(--bb-px); letter-spacing: 0; text-transform: uppercase;
+}
+.app-native .studio-songs-count { font: inherit; color: inherit; }
+.app-native .studio-panel-fold {
+  position: absolute; right: 8px; top: 0; width: 24px; height: 24px; min-height: 24px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; clip-path: none;
+  font-size: 0; color: transparent; pointer-events: auto; cursor: pointer; filter: none; transform: none;
+}
+.app-native .studio-panel-fold:hover { background: transparent; color: transparent; box-shadow: inset 0 0 0 2px var(--bb-orange); }
+.app-native .studio-panel-fold:focus-visible { outline: 3px dotted var(--bb-orange); outline-offset: 0; }
+.app-native .studio-docked-panel .studio-sound-panel .studio-panel-head { justify-content: flex-start; padding: 0; border: 0; }
+.app-native .studio-panel-body { padding: 10px 10px 14px; background: var(--bg); scrollbar-width: thin; scrollbar-color: var(--text) var(--bg); }
+.app-native .studio-docked-panel .studio-sound-panel .studio-panel-body { padding: 0; }
+.app-native .studio-panel-handle { color: var(--text); background: var(--bg); font: 400 16px/1 var(--bb-px); padding: 14px 0; }
+.app-native .studio-panel-handle span { letter-spacing: 0; text-transform: uppercase; }
+.app-native .studio-panel-handle:hover { background: var(--text); color: var(--bg); }
+.app-native .studio-panel-handle:focus-visible { outline: 3px dotted var(--bb-orange); outline-offset: -6px; }
+.app-native .studio-panel > * { min-width: 0; }
+
+/* ---- the songs ---- */
+.app-native .studio-songs-new { width: 100%; min-height: 40px; margin: 0 0 10px; }
+.app-native .studio-songs { gap: 0; border: 2px solid var(--text); }
+.app-native .studio-song { border: 0; border-bottom: 2px dotted var(--text); border-radius: 0; background: var(--bg); color: var(--text); box-shadow: none; position: relative; overflow: visible; }
+.app-native .studio-song:last-child { border-bottom: 0; }
+.app-native .studio-song:hover { border-color: var(--text); }
+.app-native .studio-song.is-current { border-color: var(--text); background: var(--text); color: var(--bg); box-shadow: inset 6px 0 0 var(--bb-orange); }
+.app-native .studio-song-open {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name pic" "when pic"; align-items: center; gap: 0 8px; width: 100%; min-height: 0; padding: 6px 10px 2px 14px; margin: 0;
+  color: inherit; background: transparent; border: 0; border-radius: 0; box-shadow: none; clip-path: none; font: 400 22px/1 var(--bb-vt); text-align: left;
+}
+.app-native .studio-song-open:hover { background: var(--text); color: var(--bg); }
+.app-native .studio-song.is-current .studio-song-open:hover { background: var(--text); }
+.app-native .studio-song-open:focus-visible { outline: 3px dotted var(--bb-orange); outline-offset: -6px; }
+.app-native .studio-song-name { grid-area: name; font: 400 22px/1.1 var(--bb-vt); }
+.app-native .studio-song-when { grid-area: when; font: 400 17px/1.1 var(--bb-vt); color: inherit; opacity: 1; }
+.app-native .studio-song:not(.is-current) .studio-song-when { color: var(--text-dim); }
+.app-native .studio-song:not(.is-current) .studio-song-open:hover .studio-song-when { color: var(--bg); }
+.app-native .studio-song-picture { grid-area: pic; margin: 0; padding: 3px; gap: 1px; width: 64px; background: var(--bg); border: 2px solid currentColor; border-radius: 0; }
+.app-native .studio-song.is-current .studio-song-picture { background: var(--text); }
+.app-native .studio-song-picture .shelf-row { gap: 1px; }
+.app-native .studio-song-picture .shelf-row i { height: 3px; border-radius: 0; background: transparent; }
+.app-native .studio-song-picture .shelf-row i.on { background: currentColor; }
+.app-native .studio-song-actions { display: flex; gap: 6px; padding: 2px 8px 6px 14px; }
+.app-native .studio-song-actions button {
+  min-height: 28px; padding: 0 8px; font: 400 18px/1 var(--bb-vt); color: inherit; background: transparent; border: 2px solid currentColor; border-radius: 0; box-shadow: none; clip-path: polygon(var(--bb-i)); cursor: pointer;
+}
+.app-native .studio-song-actions button:hover { background: var(--bg); color: var(--text); border-color: var(--text); }
+.app-native .studio-song.is-current .studio-song-actions button:hover { background: var(--bg); color: var(--text); border-color: var(--bg); }
+.app-native .studio-song-actions .studio-song-delete:hover { color: var(--text); }
+.app-native .studio-song-actions button:focus-visible { outline: 3px dotted var(--bb-orange); outline-offset: 1px; }
+.app-native .studio-song.is-draft .studio-song-open { grid-template-areas: "name" "when"; padding-bottom: 8px; }
+.app-native .studio-songs-empty { font: 400 20px/1.1 var(--bb-vt); color: var(--text-dim); margin: 6px 0 0; }
+.app-native .studio-songs-starters h3, .app-native .trainer-sub { font: 400 12px/14px var(--bb-px); letter-spacing: 0; text-transform: uppercase; color: var(--text); margin: 16px 0 6px; }
+.app-native .studio-songs-chips { gap: 6px; }
+.app-native .studio-songs-starters .shelf-chip, .app-native .studio-songs-new, .app-native .app-backup-row button, .app-native .lib-new, .app-native .studio-songs-backup button {
+  min-height: 36px; padding: 0 12px; font: 400 22px/1 var(--bb-vt); letter-spacing: 0; color: var(--text); background: var(--bg); border: 2px solid var(--text); border-radius: 0; box-shadow: none; clip-path: polygon(var(--bb-i)); filter: none; transform: none; cursor: pointer;
+}
+.app-native .studio-songs-chips .shelf-chip { flex: 1 1 100%; justify-content: center; }
+.app-native .studio-songs-starters .shelf-chip:hover, .app-native .studio-songs-new:hover, .app-native .app-backup-row button:hover, .app-native .lib-new:hover, .app-native .studio-songs-backup button:hover { background: var(--text); color: var(--bg); border-color: var(--text); }
+.app-native .studio-songs-new { background: var(--text); color: var(--bg); box-shadow: inset 0 0 0 2px var(--text), inset 0 0 0 4px var(--bg); min-height: 40px; }
+.app-native .studio-songs-new:hover { background: var(--bg); color: var(--text); box-shadow: inset 0 0 0 2px var(--bg), inset 0 0 0 4px var(--text); }
+.app-native .studio-songs-starters .shelf-chip:focus-visible, .app-native .studio-songs-new:focus-visible, .app-native .app-backup-row button:focus-visible, .app-native .lib-new:focus-visible { outline: 3px dotted var(--bb-orange); outline-offset: -6px; }
+.app-native .studio-songs-starters .field { display: block; position: relative; margin: 14px 0 0; }
+.app-native .studio-songs-starters .field-label { position: absolute; left: 10px; top: -9px; z-index: 1; margin: 0; padding: 0 6px; background: var(--bg); color: var(--text); }
+.app-native .studio-songs-starters .field select { width: 100%; height: 42px; font: 400 21px/1 var(--bb-vt); padding: 0 34px 0 12px; border: 2px solid var(--text); border-radius: 0; background-color: var(--bg); color: var(--text); }
+.app-native .studio-songs-starters .field:focus-within .field-label { background: var(--text); color: var(--bg); }
+.app-native .app-backup { border-top: 2px dotted var(--text); margin-top: 12px; padding-top: 10px; }
+.app-native .app-backup-row { gap: 6px; }
+.app-native .app-backup-row button { flex: 1 1 0; min-height: 36px; font-size: 20px; padding: 0 6px; }
+.app-native .app-backup-status { font: 400 18px/1.1 var(--bb-vt); color: var(--text-dim); }
+.app-native .studio-songs-backup .app-backup { border-top: 0; margin-top: 14px; padding-top: 0; }
+
+/* ---- the instrument and kit browsers in the sound panel ---- */
+.app-native .studio-pick-tabs { display: flex; flex-wrap: wrap; gap: 0; margin: 0 0 8px; padding: 0; border-radius: 0; background: none; border-bottom: 2px solid var(--text); }
+.app-native .studio-pick-tab {
+  flex: 0 0 auto; min-height: 32px; padding: 0 8px; margin: 0 2px -2px 0; font: 400 20px/1 var(--bb-vt); color: var(--text); background: var(--bg); border-style: solid; border-width: 2px 2px 0; border-color: var(--text); border-radius: 0; box-shadow: none; white-space: nowrap;
+  clip-path: polygon(0 100%, 0 4px, 2px 4px, 2px 2px, 4px 2px, 4px 0, calc(100% - 4px) 0, calc(100% - 4px) 2px, calc(100% - 2px) 2px, calc(100% - 2px) 4px, 100% 4px, 100% 100%);
+}
+.app-native .studio-pick-tab:hover { background: var(--text); color: var(--bg); }
+.app-native .studio-pick-tab[aria-pressed="true"] { background: var(--text); color: var(--bg); box-shadow: inset 0 -4px 0 var(--bb-orange); font-weight: 400; }
+.app-native .studio-pick-tab:focus-visible { outline: 3px dotted var(--bb-orange); outline-offset: -5px; }
+.app-native .studio-picks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+.app-native .studio-pick {
+  min-height: 32px; padding: 0 10px; font: 400 21px/1 var(--bb-vt); color: var(--text); background: var(--bg); border: 2px solid var(--text); border-radius: 0; box-shadow: none; text-align: left; justify-content: flex-start;
+  clip-path: polygon(var(--bb-i)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.app-native .studio-pick:hover { background: var(--text); color: var(--bg); border-color: var(--text); }
+.app-native .studio-pick[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); box-shadow: inset 6px 0 0 var(--bb-orange); padding-left: 16px; }
+.app-native .studio-pick:focus-visible { outline: 3px dotted var(--bb-orange); outline-offset: -6px; }
+
+/* ---- the shelf (a phone, and anywhere the editor is closed) ---- */
+.app-native .studio-shelf { color: var(--text); font-family: var(--bb-vt); }
+.app-native .shelf-head .shelf-title { font: 400 38px/1 var(--bb-vt); letter-spacing: 0; margin: 0 0 8px; }
+.app-native .shelf-lede { font: 400 22px/1.15 var(--bb-vt); color: var(--text-dim); }
+.app-native .shelf-sub { font: 400 12px/14px var(--bb-px); text-transform: uppercase; letter-spacing: 0; }
+.app-native .shelf-count { font: 400 20px/1 var(--bb-vt); color: var(--text-dim); margin-left: 8px; }
+.app-native .shelf-starters-label { font: 400 12px/14px var(--bb-px); text-transform: uppercase; color: var(--text); margin-right: 4px; letter-spacing: 0; }
+.app-native .shelf-new #new-song-btn, .app-native .shelf-new .btn-accent {
+  min-height: 48px; padding: 0 22px; font: 400 26px/1 var(--bb-vt); letter-spacing: 0; color: var(--bg); background: var(--text); border: 2px solid var(--text); border-radius: 0; box-shadow: inset 0 0 0 2px var(--text), inset 0 0 0 4px var(--bg);
+  clip-path: polygon(var(--bb-i)); filter: none;
+}
+.app-native .shelf-new #new-song-btn:hover, .app-native .shelf-new .btn-accent:hover { background: var(--bg); color: var(--text); box-shadow: inset 0 0 0 2px var(--bg), inset 0 0 0 4px var(--text); }
+.app-native .shelf-chip, .app-native .shelf-files button, .app-native .app-backup-row button {
+  min-height: 40px; padding: 0 14px; font: 400 22px/1 var(--bb-vt); letter-spacing: 0; color: var(--text); background: var(--bg); border: 2px solid var(--text); border-radius: 0; box-shadow: none; clip-path: polygon(var(--bb-i)); filter: none; transform: none;
+}
+.app-native .shelf-chip:hover, .app-native .shelf-files button:hover { background: var(--text); color: var(--bg); border-color: var(--text); }
+.app-native .shelf-chip:focus-visible, .app-native .shelf-files button:focus-visible, .app-native .shelf-new #new-song-btn:focus-visible { outline: 3px dotted var(--bb-orange); outline-offset: -6px; }
+.app-native .studio-shelf :focus-visible { outline: 3px dotted var(--bb-orange); outline-offset: 2px; }
+.app-native .shelf-grid { gap: 14px; }
+.app-native .shelf-empty { border: 2px dashed var(--text); border-radius: 0; background: var(--bg); color: var(--text); font: 400 22px/1.15 var(--bb-vt); }
+.app-native .shelf-card {
+  background: var(--bg); color: var(--text); border: 2px solid var(--text); border-radius: 0; overflow: visible; clip-path: none; box-shadow: 4px 4px 0 var(--text); transform: none;
+}
+.app-native .shelf-card:hover { border-color: var(--text); background: var(--bg); }
+.app-native .shelf-open { font: 400 22px/1.1 var(--bb-vt); color: var(--text); }
+.app-native .shelf-open:focus-visible { outline: 3px dotted var(--bb-orange); outline-offset: -6px; }
+.app-native .shelf-picture { background: var(--bg); border: 2px solid var(--text); border-radius: 0; padding: 8px; }
+.app-native .shelf-row i { border-radius: 0; background: transparent; height: 5px; }
+.app-native .shelf-row i.on { background: var(--text); }
+.app-native .shelf-name { font: 400 24px/1.1 var(--bb-vt); }
+.app-native .shelf-when { font: 400 18px/1.1 var(--bb-vt); color: var(--text-dim); }
+.app-native .shelf-play { color: var(--bg); background: var(--text); border: 2px solid var(--text); border-radius: 0; box-shadow: none; clip-path: polygon(var(--bb-i)); }
+.app-native .shelf-play:hover { background: var(--bg); color: var(--text); }
+.app-native .shelf-play[aria-pressed="true"] { background: var(--text); color: var(--bg); box-shadow: inset 0 -4px 0 var(--bb-orange); }
+.app-native .shelf-actions { gap: 6px; padding: 0 8px 8px; }
+.app-native .shelf-actions button { min-height: 32px; padding: 0 10px; font: 400 20px/1 var(--bb-vt); color: var(--text); background: var(--bg); border: 2px solid var(--text); border-radius: 0; box-shadow: none; clip-path: polygon(var(--bb-i)); }
+.app-native .shelf-actions button:hover, .app-native .shelf-actions .shelf-delete:hover { background: var(--text); color: var(--bg); }
+.app-native .shelf-start .field-label { font: 400 12px/16px var(--bb-px); }
+.app-native .studio-shelf .song-file-status { font: 400 20px/1.1 var(--bb-vt); }
+.app-native .studio-shelf select { font: 400 22px/1 var(--bb-vt); color: var(--text); background-color: var(--bg); border: 2px solid var(--text); border-radius: 0; min-height: 42px; padding: 0 34px 0 12px; }
+.app-native .studio-shelf .field, .app-native .app-library .field { position: relative; display: block; margin-top: 9px; }
+.app-native .studio-shelf .field-label, .app-native .app-library .field-label { position: absolute; left: 10px; top: -9px; z-index: 1; background: var(--bg); color: var(--text); padding: 0 6px; font: 400 12px/16px var(--bb-px); text-transform: uppercase; letter-spacing: 0; }
+.app-native .studio-shelf .field:focus-within .field-label, .app-native .app-library .field:focus-within .field-label { background: var(--text); color: var(--bg); }
+.app-native .studio-shelf select, .app-native .app-library select { appearance: none; -webkit-appearance: none; background-repeat: no-repeat; background-position: right 12px center; background-size: 12px 8px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' shape-rendering='crispEdges'%3E%3Cpath d='M0 0h12v2H0zM2 2h8v2H2zM4 4h4v2H4zM5 6h2v2H5z'/%3E%3C/svg%3E"); }
+:root:not([data-theme="light"]) .app-native .studio-shelf select, :root:not([data-theme="light"]) .app-native .app-library select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' shape-rendering='crispEdges'%3E%3Cpath fill='%23fff' d='M0 0h12v2H0zM2 2h8v2H2zM4 4h4v2H4zM5 6h2v2H5z'/%3E%3C/svg%3E"); }
+.app-native .shelf-starters { scroll-snap-type: x proximity; }
+.app-native .app-backup-row button, .app-native .studio-songs-backup button { white-space: nowrap; padding: 0 4px; font-size: 20px; }
+/* the drum sound's own colour is not shown anywhere in this look */
+.app-native .studio-field-small:has(#studio-sound-color) { display: none; }
+@media (min-width: 1280px) {
+  .app-native .song-studio { grid-template-rows: auto auto minmax(var(--pl-min), auto) minmax(var(--detail-min), 1fr) auto; }
+  .app-native .song-studio.studio-editor-folded { grid-template-rows: auto auto minmax(var(--pl-min), 1fr) auto auto; }
+}
+.app-native .studio-shelf .field-label, .app-native .app-library .field-label, .app-native .studio-songs-starters .field-label {
+  right: auto; margin: 0; width: max-content; max-width: calc(100% - 16px); left: 8px; padding: 0 4px; white-space: nowrap; overflow: hidden; font-size: 11px; line-height: 16px;
+}
+
+/* ==== Studio: Bit bento (end) ==== */

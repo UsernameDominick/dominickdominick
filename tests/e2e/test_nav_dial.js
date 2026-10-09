@@ -61,10 +61,11 @@ async function drag(cdp, y, from, to, steps = 12) {
         const pitch = s.links[1].cx - s.links[0].cx;
         const byDist = (k) => others.filter((l) => Math.abs(Math.abs(l.off) / pitch - k) < 0.1);
         const one = byDist(1);
-        ok(one.length >= 1 && one.every((l) => l.s < 0.9 && l.s > 0.7), `${label}, ${path}: the stops next to it are smaller`, one.map((l) => [l.label, l.s]));
+        // Bit bento draws pixel type, which blurs when scaled, so every stop is the same size; the one under the needle is the lit (inverted) one
+        ok(one.length >= 1 && one.every((l) => l.s === 1 && !l.centred), `${label}, ${path}: the stops next to it are the same size and not lit`, one.map((l) => [l.label, l.s, l.centred]));
         const two = byDist(2);
-        ok(one.length >= 1 && two.every((l) => l.s < one[0].s - 0.1), `${label}, ${path}: the next ones smaller again, a staircase down`, [one.map((l) => l.s), two.map((l) => l.s)]);
-        ok(one.length >= 1 && Math.max(...one.map((l) => l.s)) - Math.min(...one.map((l) => l.s)) < 0.03, `${label}, ${path}: and the two sides step down alike`, one.map((l) => l.s));
+        ok(one.length >= 1 && two.every((l) => l.s === one[0].s && !l.centred), `${label}, ${path}: and so are the next ones (no staircase down)`, [one.map((l) => l.s), two.map((l) => l.s)]);
+        ok(others.every((l) => !l.centred) && s.links.filter((l) => l.centred).length === 1, `${label}, ${path}: only the stop under the needle is lit`, s.links.map((l) => [l.label, l.centred]));
         ok(s.links.every((l) => l.lower && l.shown === l.shown.toLowerCase()), `${label}, ${path}: every name is lowercase`, s.links.map((l) => l.shown));
         ok(s.over <= 0 && s.cut.length === 0, `${label}, ${path}: nothing runs sideways and no name is cut`, [s.over, s.cut]);
       }
@@ -96,7 +97,7 @@ async function drag(cdp, y, from, to, steps = 12) {
       ok(cur && cur.href === "/scans" && Math.abs(cur.off) <= 1.5 && cur.centred && cur.s === 1, "clicking a stop turns the dial to it, makes it the big one and goes there", s.links.map((l) => [l.label, l.off, l.s]));
       ok(Math.abs(s.needle - needleBefore) < 0.5, "the needle stayed where it was; the ticks and stops moved under it");
       const home = s.links.find((l) => l.href === "/");
-      ok(home && home.s < 0.9, "and Home, no longer the middle one, is smaller", home);
+      ok(home && home.s === 1 && !home.centred, "and Home, no longer the middle one, is no longer lit (and not resized)", home);
       // pressing the stop you are already on does nothing
       await p.click('.tabs a.tab[href="/scans"]');
       await p.waitForTimeout(300);
@@ -252,7 +253,7 @@ async function drag(cdp, y, from, to, steps = 12) {
         const next = a.nextElementSibling; const m = /matrix\(([^,]+),/.exec(getComputedStyle(next.querySelector(".tab-ico")).transform);
         return { off: r.left + r.width / 2 - (nav.left + nav.width / 2), ready: document.querySelector(".tabs").classList.contains("dial-ready"), neighbour: m ? Number(m[1]) : 1 };
       });
-      ok(!early.ready && Math.abs(early.off) <= 0.5 && early.neighbour < 0.9, "before /nav.js has arrived the page's stop is already exactly in the middle and the neighbours already smaller", early);
+      ok(!early.ready && Math.abs(early.off) <= 0.5 && early.neighbour === 1, "before /nav.js has arrived the page's stop is already exactly in the middle and its neighbours are the same size", early);
       await ctx.close();
     }
     {

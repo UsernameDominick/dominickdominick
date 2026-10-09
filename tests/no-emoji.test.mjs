@@ -13,7 +13,7 @@ import { REACTION_EMOJI } from "../worker/db.js";
 let fail = 0;
 const ok = (c, m, extra) => { if (!c) fail++; console.log(`${c ? "PASS" : "FAIL"} — ${m}${extra !== undefined && !c ? " " + JSON.stringify(extra) : ""}`); };
 
-const ALLOWED = new Set([0xa9, 0xae, 0x2122]);
+const ALLOWED = new Set([0xa9, 0xae, 0x2122, 0x266a]); // 0x266a is the music note: a plain text mark the owner allows (CLAUDE.md rule 13)
 const isEmoji = (cp) => !ALLOWED.has(cp) && (cp === 0xfe0f || (cp >= 0xd83c && cp <= 0xd83e) || /\p{Extended_Pictographic}/u.test(String.fromCodePoint(cp)));
 const LITERAL = /\p{Extended_Pictographic}|️/gu;
 const ESCAPES = [/\\u\{([0-9a-f]+)\}/gi, /\\u([0-9a-f]{4})/gi, /&#x([0-9a-f]+);/gi, /&#(\d+);/g];

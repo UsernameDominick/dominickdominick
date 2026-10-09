@@ -3,7 +3,7 @@ import { listArticles, listProjects, getPublishedSimulation, getScan, getSong, g
 import { safeImageSrc, mediaKeyFor, paragraphPictures, bodyPictures, PICTURE_ONLY_LINE } from "./pictures.js";
 import { paragraphEmbed, bodyEmbeds, EMBED_ONLY_LINE, MAX_BODY_EMBEDS } from "./embeds.js";
 import { nowIso, visibleText } from "./text.js";
-import { navIconSvg } from "./nav-icons.js";
+import { navIconSvg, pixelIcon } from "./nav-icons.js";
 import { centreHome } from "./nav-order.js";
 import { DIAL_PRESET_SCRIPT } from "./nav-dial-script.js";
 import { uiIcon } from "./ui-icons.js";
@@ -1704,7 +1704,7 @@ async function renderBlockInner(env, block, ctx) {
         .map(
           (a) =>
             `<article class="thought${a.pinned ? " thought-pinned" : ""}">${
-              a.featured ? `<span class="featured-badge">★ Featured</span>` : ""
+              a.featured ? `<span class="featured-badge">Featured</span>` : ""
             }<time datetime="${esc(a.published_at)}">${esc(displayDate(a.published_at))}</time><h2><a href="/random/${esc(a.slug)}">${esc(
               a.title
             )}</a></h2>${a.body ? `<p class="thought-excerpt">${esc(excerpt(a.body, 150))}</p>` : ""}${renderTags(a.tags)}</article>`
@@ -1724,7 +1724,7 @@ async function renderBlockInner(env, block, ctx) {
         .map(
           (p) =>
             `<div class="project-card">${
-              p.featured ? `<span class="featured-badge">★ Featured</span>` : ""
+              p.featured ? `<span class="featured-badge">Featured</span>` : ""
             }<h2><a href="/projects/${esc(p.slug)}">${esc(p.title)}</a></h2>${p.summary ? `<p>${esc(p.summary)}</p>` : ""}${renderTags(p.tags)}</div>`
         )
         .join("\n")}</div>`;
@@ -2043,8 +2043,8 @@ export async function renderBlocks(env, blocks, ctx = {}) {
 // theme. Falls back to the defaults for anything that isn't a plain hex.
 export function faviconSvg(theme = {}) {
   const hex = (v, d) => (/^#[0-9a-f]{6}$/i.test(v || "") ? v : d);
-  const bg = hex(theme.bg, "#0c0a16");
-  const fg = hex(theme.accent, "#ff7a45");
+  const bg = hex(theme.bg, "#000000");
+  const fg = hex(theme.accent, "#ffffff");
   return `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='${bg}'/><text x='50' y='68' font-family='Arial,sans-serif' font-size='60' font-weight='700' fill='${fg}' text-anchor='middle'>D</text></svg>`;
 }
 
@@ -2068,9 +2068,10 @@ function noticePageHtml({ title, heading, paragraphs, robots = "noindex" }) {
 <style>
   html, body { margin: 0; height: 100%; }
   body {
-    background: #0c0a16;
-    color: #f4eefc;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: #000000;
+    color: #ffffff;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 18px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2079,18 +2080,18 @@ function noticePageHtml({ title, heading, paragraphs, robots = "noindex" }) {
   }
   main { max-width: 480px; }
   h1 { font-size: 1.6rem; margin-bottom: 12px; }
-  p { color: #b6a9d1; line-height: 1.5; }
-  a { color: #ff7a45; text-decoration: none; }
-  a:hover { text-decoration: underline; }
-  a:focus-visible { outline: 2px solid #ff7a45; outline-offset: 3px; }
+  p { color: #b3b3b3; line-height: 1.5; }
+  a { color: #ffffff; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; text-decoration-color: #ff6a1a; }
+  a:hover { background: #ffffff; color: #000000; }
+  a:focus-visible { outline: 2px dotted #ff6a1a; outline-offset: 3px; }
   .error-ref { font-size: 0.85rem; }
-  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: #f4eefc; }
+  code { font-family: inherit; color: #ffffff; }
   @media (prefers-color-scheme: light) {
-    body { background: #fffaf5; color: #241832; }
-    p { color: #6e5f82; }
-    a { color: #c1440e; }
-    a:focus-visible { outline-color: #c1440e; }
-    code { color: #241832; }
+    body { background: #ffffff; color: #000000; }
+    p { color: #555555; }
+    a { color: #000000; }
+    a:hover { background: #000000; color: #ffffff; }
+    code { color: #000000; }
   }
 </style>
 </head>
@@ -2140,9 +2141,9 @@ const svgIcon = (cls, paths) =>
   `<svg class="icon ${cls}" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${paths}</svg>`;
 const ICON = {
   shuffle: svgIcon("icon-shuffle", '<path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="m15 15 6 6"/><path d="M4 4l5 5"/>'),
-  pause: svgIcon("icon-pause", '<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>'),
-  sun: svgIcon("icon-sun", '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>'),
-  moon: svgIcon("icon-moon", '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>'),
+  pause: pixelIcon("pause", "icon icon-pause"),
+  sun: pixelIcon("sun", "icon icon-sun"),
+  moon: pixelIcon("moon", "icon icon-moon"),
 };
 
 // Every page used to download the simulator, song engine, song embed and
@@ -2202,6 +2203,7 @@ function finderHtml(navItems, { searchQuery = "", editUrl = null } = {}) {
   return `<div class="site-finder" id="site-finder" role="dialog" aria-modal="true" aria-label="Search and settings" hidden>
       <div class="finder-backdrop" data-finder-close></div>
       <div class="finder-panel">
+        <span class="win-title" aria-hidden="true">find</span>
         <form class="site-search finder-form" action="/search" method="get" role="search" aria-label="Search the site" autocomplete="off">
           <span class="finder-glass" aria-hidden="true">${navIconSvg("search", "Search")}</span>
           <input type="search" name="q" id="finder-input" placeholder="Search, or try “dark mode”" aria-label="Search the site and its settings" value="${esc(searchQuery || "")}" aria-controls="search-suggest-list finder-list">
@@ -2216,7 +2218,7 @@ function finderHtml(navItems, { searchQuery = "", editUrl = null } = {}) {
               ${row({ id: "font-size-toggle" }, '<span class="icon-text">Aa</span>', "Text size", '<span class="finder-state">100%</span>', "text size font bigger smaller zoom read")}
             </div>
             <div class="finder-group" data-group="go"><h2 class="finder-title">Go to</h2>
-              ${editUrl ? row({ tag: "a", href: editUrl, cls: "edit-this-btn" }, "✎", "Edit this page", "Admin", "edit admin change this page") : ""}
+              ${editUrl ? row({ tag: "a", href: editUrl, cls: "edit-this-btn" }, pixelIcon("pencil", "icon", 20), "Edit this page", "Admin", "edit admin change this page") : ""}
               ${goRows}
             </div>
           </div>
@@ -2254,7 +2256,7 @@ export function renderShell({
   const canonical = canonicalUrl || `https://dominickdominick.com${path}`;
   // The browser-chrome color follows the saved background instead of the
   // old built-in violet.
-  const themeColorDark = /^#[0-9a-f]{6}$/i.test(theme.bg || "") ? theme.bg : "#0c0a16";
+  const themeColorDark = /^#[0-9a-f]{6}$/i.test(theme.bg || "") ? theme.bg : "#000000";
   const ogSizeMatch = /width="(\d+)" height="(\d+)"/.exec(ogImageSize || "");
   const articleTags = ogType === "article" && keywords ? String(keywords).split(",").map((t) => t.trim()).filter(Boolean) : [];
   const themeVars = [];
@@ -2385,7 +2387,7 @@ export function renderShell({
 <head>
 <meta charset="UTF-8">
 <meta name="theme-color" id="theme-color-meta" content="${esc(themeColorDark)}" data-dark="${esc(themeColorDark)}">
-<script>(function(){try{var t=localStorage.getItem("theme");if(t!=="light"&&t!=="dark")t=window.matchMedia&&window.matchMedia("(prefers-color-scheme: light)").matches?"light":null;if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);if(t==="light"){var tc=document.getElementById("theme-color-meta");if(tc)tc.setAttribute("content","#fffaf5");}if(localStorage.getItem("sim-schematic")==="1")document.documentElement.classList.add("sim-schematic-pref");if(window.top!==window)document.documentElement.classList.add("in-frame");var m=localStorage.getItem("motion");if(m==="reduce")document.documentElement.setAttribute("data-motion","reduce");var fs=parseFloat(localStorage.getItem("fontScale"));if(fs)document.documentElement.style.setProperty("--font-scale",fs);}catch(e){}})();</script>
+<script>(function(){try{var t=localStorage.getItem("theme");if(t!=="light"&&t!=="dark")t=window.matchMedia&&window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);if(t==="light"){var tc=document.getElementById("theme-color-meta");if(tc)tc.setAttribute("content","#ffffff");}if(localStorage.getItem("sim-schematic")==="1")document.documentElement.classList.add("sim-schematic-pref");if(window.top!==window)document.documentElement.classList.add("in-frame");var m=localStorage.getItem("motion");if(m==="reduce")document.documentElement.setAttribute("data-motion","reduce");var fs=parseFloat(localStorage.getItem("fontScale"));if(fs)document.documentElement.style.setProperty("--font-scale",fs);}catch(e){}})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(description)}">

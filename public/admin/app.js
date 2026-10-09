@@ -867,7 +867,7 @@
   // this size.
   function renderRecentItemsPanel() {
     const favRow = (item) =>
-      `<button type="button" class="recent-item-btn" data-kind="${item.kind}" data-id="${item.id}">★ ${escapeHtml(item.title || "(untitled)")} <span class="recent-item-type">${RECENT_KIND_LABEL[item.kind] || item.kind}</span></button>`;
+      `<button type="button" class="recent-item-btn" data-kind="${item.kind}" data-id="${item.id}"><span class="px px-pin" aria-hidden="true"></span>${escapeHtml(item.title || "(untitled)")} <span class="recent-item-type">${RECENT_KIND_LABEL[item.kind] || item.kind}</span></button>`;
     const recentRow = (item) =>
       `<button type="button" class="recent-item-btn" data-kind="${item.kind}" data-id="${item.id}">${escapeHtml(item.title || "(untitled)")} <span class="recent-item-type">${RECENT_KIND_LABEL[item.kind] || item.kind}</span></button>`;
     const favorites = getFavorites().slice(0, 5);
@@ -5264,7 +5264,7 @@
   function updateFavoriteButton(btnId, kind, id) {
     const btn = el(btnId);
     const fav = isFavorite(kind, id);
-    btn.textContent = fav ? "★ Pinned" : "☆ Pin";
+    btn.textContent = fav ? "Pinned" : "Pin";
     btn.classList.toggle("is-favorite", fav);
   }
   function wireFavoriteButton(btnId, kind, getId, getTitle) {
@@ -6748,7 +6748,7 @@
     articleBase = null;
     currentArticleLocked = false;
     updateLockButton("lock-article-btn", false);
-    el("favorite-article-btn").textContent = "☆ Pin";
+    el("favorite-article-btn").textContent = "Pin";
     el("favorite-article-btn").classList.remove("is-favorite");
     el("article-title").value = "";
     el("article-slug").value = "";
@@ -7270,7 +7270,7 @@
     projectBase = null;
     currentProjectLocked = false;
     updateLockButton("lock-project-btn", false);
-    el("favorite-project-btn").textContent = "☆ Pin";
+    el("favorite-project-btn").textContent = "Pin";
     el("favorite-project-btn").classList.remove("is-favorite");
     el("project-title").value = "";
     el("project-slug").value = "";
@@ -8063,12 +8063,12 @@
             )}"><div class="media-thumb">${
               mediaItemType(item) === "image"
                 ? `<img src="${escapeHtml(item.url)}" loading="lazy" alt="${escapeHtml(item.alt_text || "")}">`
-                : `<span class="media-file-icon">${mediaItemType(item) === "audio" ? "♪" : "File"}</span>`
+                : `<span class="media-file-icon">${mediaItemType(item) === "audio" ? "Audio" : "File"}</span>`
             }<input type="checkbox" class="media-select-checkbox" aria-label="Select ${escapeHtml(mediaFilename(item))}" data-key="${escapeHtml(
               item.key
             )}"${selectedMediaKeys.has(item.key) ? " checked" : ""}><div class="media-tile-actions">${
               mediaItemType(item) === "image"
-                ? `<button type="button" class="media-edit" data-url="${escapeHtml(item.url)}" data-key="${escapeHtml(item.key)}" title="Edit image" aria-label="Edit image">✎</button>`
+                ? `<button type="button" class="media-edit" data-url="${escapeHtml(item.url)}" data-key="${escapeHtml(item.key)}" title="Edit image" aria-label="Edit image"><span class="px px-pencil" aria-hidden="true"></span></button>`
                 : ""
             }<button type="button" class="media-delete" data-key="${escapeHtml(item.key)}" title="Delete" aria-label="Delete">×</button></div></div><div class="media-meta"><div class="media-meta-top"><span class="media-filename" title="${escapeHtml(
               mediaFilename(item)
@@ -11152,7 +11152,7 @@
       run: () => { closeCommandPalette(); RECENT_KIND_RUN[r.kind](r.id); },
     }));
     const favoriteActions = getFavorites().map((f) => ({
-      label: `★ ${f.title || "(untitled)"}`,
+      label: `Pinned: ${f.title || "(untitled)"}`,
       sub: RECENT_KIND_LABEL[f.kind] || f.kind,
       run: () => { closeCommandPalette(); RECENT_KIND_RUN[f.kind](f.id); },
     }));
