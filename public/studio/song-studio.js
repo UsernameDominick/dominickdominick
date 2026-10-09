@@ -2822,6 +2822,7 @@
       tab.setAttribute("aria-selected", String(on));
       tab.tabIndex = on ? 0 : -1;
       tab.classList.toggle("is-active", on);
+      if (on) tab.scrollIntoView({ block: "nearest", inline: "nearest" }); // a row that scrolls sideways shows the open tab
     });
     $("studio-sheet-title").textContent = PANES.find((p) => p.id === id).label;
     syncSheet();
@@ -2846,6 +2847,7 @@
       const on = b.dataset.deck === id;
       b.setAttribute("aria-selected", String(on));
       b.tabIndex = on ? 0 : -1;
+      if (on) b.scrollIntoView({ block: "nearest", inline: "nearest" });
     });
     const pads = id === "pads";
     studio.classList.toggle("studio-deck-pane", !pads);

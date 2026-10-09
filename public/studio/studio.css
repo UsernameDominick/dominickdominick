@@ -3313,3 +3313,15 @@
   .app-native .song-studio[data-detail-h]:not(.studio-editor-folded) .studio-stack { max-height: calc(var(--pl-ruler) + 5 * 72px + 37px); }
 }
 .app-native .studio-split.is-snapped i { width: 78px; margin-left: -39px; background: repeating-linear-gradient(90deg, var(--bb-orange) 0 2px, var(--bg) 2px 4px); }
+
+/* Tabs (Sound, Track, Song, Patterns, Share, MIDI, and Pads on a phone): each keeps its full width with room round the word (they were squeezed
+   until the letters touched), and a row that does not fit scrolls sideways, the active tab brought into view by song-studio.js. */
+.app-native .song-studio .studio-sheet.is-docked .studio-sheet-tab, .app-native .song-studio .studio-deck-stop { flex: 1 0 auto; padding: 0 12px; }
+.app-native .song-studio .studio-sheet.is-docked .studio-sheet-tabs, .app-native .song-studio .studio-deck-dial { scroll-padding-inline: 12px; }
+/* On a touch screen the small controls are 40px, not 22 to 36 (the playlist's M, the tabs, the toggles under the keys). */
+@media (pointer: coarse) {
+  .app-native .song-studio .studio-pl-mute { flex: 0 0 40px; width: 40px; max-height: none; }
+  .app-native .song-studio .studio-sheet-tab, .app-native .song-studio .studio-sheet.is-docked .studio-sheet-tab, .app-native .song-studio .studio-deck-stop { min-height: 40px; height: 40px; }
+  .app-native .song-studio .studio-toggles .studio-fan-item.studio-toggle, .app-native .song-studio .studio-toggles .studio-fan-item.studio-toggle[data-tone] { height: 40px; min-height: 40px; }
+  .app-native .song-studio .studio-toggles #studio-quant-btn, .app-native .song-studio .studio-toggles #studio-volume-btn { height: 40px; min-height: 40px; }
+}

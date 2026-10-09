@@ -1911,9 +1911,9 @@ mark { background: var(--text); color: var(--bg); padding: 0 0.15em; border-radi
 }
 @media (max-width: 720px) {
   .topbar { --rz: 14px; }
-  .site-nav { --stop-w: 96px; }
+  .site-nav { --stop-w: 108px; } /* wide enough for SETTINGS in full (96px cut it to SETTIN...) */
   .tab { height: 44px; }
-  .tab-label { height: 44px; line-height: 40px; padding-left: 8px; padding-right: 8px; }
+  .tab-label { height: 44px; line-height: 40px; padding-left: 4px; padding-right: 4px; }
 }
 
 /* ---- The home tiles ---- */
