@@ -462,9 +462,11 @@
   }
 
   // ---------- folding and sizing the open track ----------
-  // The open track can be folded to its one row of controls (the tracks above then take the room), and on a phone, where the playlist and
-  // the open track share one column, a handle between them sets how tall the open track is (kept in this browser; Enter on the handle puts
-  // it back to automatic). The height only ever moves the handle's edge: nothing in the song changes.
+  // The open track can be folded to its one row of controls (the tracks above then take the room), and a handle between the playlist and the
+  // open track sets how tall the open track is (on a phone and on a wide screen alike; kept in this browser; Enter on the handle puts it back
+  // to automatic). The handle is a magnet: near a height that means something (as short as it goes, the playlist showing all five tracks,
+  // as tall as it goes, the automatic height) the edge is pulled onto it; Alt held down switches the pull off. The height only ever moves
+  // the handle's edge: nothing in the song changes.
   const splitEl = $("studio-split");
   let folded = lsGet("studioEditorFold", "") === "1";
   let editorH = Math.max(0, Number(lsGet("studioEditorH", "")) || 0); // px, 0 = automatic
@@ -489,23 +491,63 @@
     say(on ? "Editor folded away" : "Editor open");
   }
   // The tallest the open track can be without pushing the keys off the screen: what is left once the rest has its room.
-  function editorMax() {
+  const wideMQ = window.matchMedia("(min-width: 1024px)");
+  const cssPx = (name, fallback) => parseFloat(getComputedStyle(studio).getPropertyValue(name)) || fallback;
+  // The room the playlist and the open track share. On a wide screen the page is a grid and the handle sits on the playlist's bottom edge,
+  // so it takes no room of its own.
+  function roomForBoth() {
     const cs = getComputedStyle(studio);
     const gap = parseFloat(cs.rowGap) || 0;
     const pad = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
-    const others = [".studio-top", ".studio-controls", ".studio-deck-dial", ".studio-keyboard"].reduce((n, q) => n + ((studio.querySelector(q) || {}).offsetHeight || 0), 0);
-    const stackMin = parseFloat(getComputedStyle(stackEl).minHeight) || 70;
-    // (the handle overlaps its neighbours by 6 px each side, which is why 12 comes back)
-    return Math.max(EDITOR_MIN, studio.clientHeight - pad - others - stackMin - splitEl.offsetHeight + 12 - gap * 6);
+    const rows = [".studio-top", ".studio-controls", ".studio-deck-dial", ".studio-keyboard"].map((q) => (studio.querySelector(q) || {}).offsetHeight || 0);
+    const others = rows.reduce((n, h) => n + h, 0);
+    if (wideMQ.matches) return studio.clientHeight - pad - others - gap * rows.filter(Boolean).length; // a gap above each other row, and the one between ours
+    // (the phone's handle overlaps its neighbours by 6 px each side, which is why 12 comes back)
+    return studio.clientHeight - pad - others - splitEl.offsetHeight + 12 - gap * 6;
+  }
+  const stackMinH = () => parseFloat(getComputedStyle(stackEl).minHeight) || 70;
+  function editorMax() {
+    return Math.max(EDITOR_MIN, roomForBoth() - stackMinH());
+  }
+  // On a wide screen the playlist stops growing at five rows of 72 px, so the open track never gets less than what leaves it that.
+  function editorFloor() {
+    if (!wideMQ.matches) return EDITOR_MIN;
+    return Math.min(editorMax(), Math.max(EDITOR_MIN, roomForBoth() - (cssPx("--pl-ruler", 18) + 5 * 72 + 37)));
+  }
+  // The automatic height, measured by taking the chosen one away for a moment.
+  function autoHeight() {
+    if (!editorH) return Math.round(detailEl.getBoundingClientRect().height);
+    studio.toggleAttribute("data-detail-h", false);
+    const h = detailEl.getBoundingClientRect().height;
+    studio.toggleAttribute("data-detail-h", true);
+    return Math.round(h);
+  }
+  const MAGNET_PX = 14;
+  function magnetPoints(autoH) {
+    const lo = editorFloor();
+    const hi = editorMax();
+    const pts = [{ h: lo, name: "as short as it goes" }, { h: hi, name: "as tall as it goes" }, { h: autoH, name: "at its automatic height", auto: true }];
+    // the playlist showing all five tracks at their own height: the 1.5 rows it always keeps become 5
+    const all = hi - 3.5 * cssPx("--pl-row", 30);
+    if (all > lo + 4 && all < hi - 4) pts.push({ h: all, name: "with the playlist showing all five tracks" });
+    return pts;
+  }
+  function magnet(raw, points) {
+    let best = null;
+    points.forEach((p) => {
+      const d = Math.abs(p.h - raw);
+      if (d <= MAGNET_PX && (!best || d < best.d)) best = { p, d };
+    });
+    return best && best.p;
   }
   // `limit` keeps a height by hand inside what fits; what was kept earlier is applied as it was (the screen may have been another shape).
   function setEditorH(px, save, limit = true) {
-    editorH = px === 0 ? 0 : Math.round(Math.max(EDITOR_MIN, limit ? Math.min(editorMax(), px) : px)); // 0 is automatic; anything else is at least the smallest
+    editorH = px === 0 ? 0 : Math.round(limit ? Math.max(editorFloor(), Math.min(editorMax(), px)) : Math.max(EDITOR_MIN, px)); // 0 is automatic; anything else is at least the smallest
     if (editorH) studio.style.setProperty("--detail-h", editorH + "px");
     else studio.style.removeProperty("--detail-h");
     studio.toggleAttribute("data-detail-h", editorH > 0);
     splitEl.setAttribute("aria-valuenow", String(editorH || Math.round(detailEl.getBoundingClientRect().height)));
-    splitEl.setAttribute("aria-valuemin", String(EDITOR_MIN));
+    splitEl.setAttribute("aria-valuemin", String(Math.round(editorFloor())));
     splitEl.setAttribute("aria-valuemax", String(Math.round(editorMax())));
     if (save) lsSet("studioEditorH", editorH ? String(editorH) : "");
     requestAnimationFrame(syncPager);
@@ -515,7 +557,7 @@
   splitEl.addEventListener("pointerdown", (e) => {
     if (e.button > 0) return;
     e.preventDefault();
-    splitDrag = { id: e.pointerId, y: e.clientY, h: detailEl.getBoundingClientRect().height, moved: false };
+    splitDrag = { id: e.pointerId, y: e.clientY, h: detailEl.getBoundingClientRect().height, moved: false, points: null, snapped: null };
     try {
       splitEl.setPointerCapture(e.pointerId);
     } catch {
@@ -527,13 +569,22 @@
     if (!splitDrag || e.pointerId !== splitDrag.id) return;
     const dy = e.clientY - splitDrag.y;
     if (Math.abs(dy) > 3) splitDrag.moved = true;
-    if (splitDrag.moved) setEditorH(splitDrag.h - dy, false);
+    if (!splitDrag.moved) return;
+    if (!splitDrag.points) splitDrag.points = magnetPoints(autoHeight());
+    const raw = splitDrag.h - dy;
+    const hit = e.altKey ? null : magnet(raw, splitDrag.points);
+    setEditorH(hit ? (hit.auto ? 0 : hit.h) : raw, false);
+    splitEl.classList.toggle("is-snapped", Boolean(hit));
+    if (hit !== splitDrag.snapped) {
+      splitDrag.snapped = hit;
+      if (hit) say(`Open track ${hit.name}`);
+    }
   });
   function endSplit(e) {
     if (!splitDrag || e.pointerId !== splitDrag.id) return;
     const was = splitDrag;
     splitDrag = null;
-    splitEl.classList.remove("is-dragging");
+    splitEl.classList.remove("is-dragging", "is-snapped");
     if (was.moved) {
       setEditorH(editorH, true);
       return;
@@ -553,7 +604,7 @@
     let to = null;
     if (e.key === "ArrowUp") to = now + 24;
     else if (e.key === "ArrowDown") to = now - 24;
-    else if (e.key === "Home") to = EDITOR_MIN;
+    else if (e.key === "Home") to = editorFloor();
     else if (e.key === "End") to = editorMax();
     else if (e.key === "Enter") to = 0;
     else return;

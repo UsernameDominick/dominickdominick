@@ -1,5 +1,5 @@
-// The open track can be folded to its row of controls (the tracks take the room), and on a phone a handle between the playlist and the open
-// track sets how tall the open track is: drag it, use the arrow keys, double tap or press Enter to put it back. Both are kept in the browser.
+// The open track can be folded to its row of controls (the tracks take the room), and a handle between the playlist and the open
+// track (on a phone and on a wide screen) sets how tall the open track is: drag it, use the arrow keys, double tap or press Enter to put it back. Both are kept in the browser.
 const E2E_BASE = process.env.E2E_BASE || "http://localhost:8787";
 const { chromium, axeSource } = require("./_pw.cjs");
 const axeSrc = axeSource();
@@ -101,15 +101,49 @@ const axeSrc = axeSource();
     ok(m.errs.length === 0, "no page errors on the phone", m.errs);
     await m.context().close();
 
-    // ======== a desktop window: no handle, but it folds ========
+    // ======== a desktop window: the same handle, as a magnet, and it folds ========
     const d = await mk({ width: 1280, height: 900 });
-    ok(!(await vis(d, "#studio-split")), "on a wide screen there is no handle (the layout there is a grid)");
+    ok(await vis(d, "#studio-split") && (await d.getAttribute("#studio-split", "role")) === "separator", "on a wide screen the handle is there too");
+    const edge = await d.evaluate(() => { const s = document.getElementById("studio-split").getBoundingClientRect(); const k = document.getElementById("studio-stack").getBoundingClientRect(); return { handle: s.top + s.height / 2, stackBottom: k.bottom }; });
+    ok(Math.abs(edge.handle - edge.stackBottom) <= 14, "it sits on the bottom edge of the playlist", edge);
+    const over = () => d.evaluate(() => { const st = document.getElementById("song-studio"); return st.scrollHeight - st.clientHeight; });
     const dh0 = await h(d, "studio-detail");
+    await dragSplit(d, -70);
+    const dgrow = await h(d, "studio-detail");
+    ok(dgrow >= dh0 + 55 && dgrow <= dh0 + 85, "dragging it up makes the open track taller by about that much", [dh0, dgrow]);
+    ok(Number(await ls(d, "studioEditorH")) === dgrow, "and the height is kept", [await ls(d, "studioEditorH"), dgrow]);
+    ok((await over()) <= 4, "with nothing pushed off the screen", await over());
+    // the magnet: let go within a few pixels of the automatic height and it is the automatic height
+    await dragSplit(d, 70 - 8);
+    ok(!(await ls(d, "studioEditorH")) && Math.abs((await h(d, "studio-detail")) - dh0) <= 3, "let go near the automatic height, the edge is pulled onto it (and it is automatic again)", [await ls(d, "studioEditorH"), await h(d, "studio-detail"), dh0]);
+    await dragSplit(d, -70);
+    // with Alt held the pull is off
+    await d.keyboard.down("Alt");
+    await dragSplit(d, 70 - 8);
+    await d.keyboard.up("Alt");
+    const free = await h(d, "studio-detail");
+    ok(Boolean(await ls(d, "studioEditorH")) && Math.abs(free - (dh0 + 8)) <= 3, "with Alt held down the same drag is not pulled", [free, dh0 + 8]);
+    // the ends
+    await d.focus("#studio-split");
+    await d.keyboard.press("End");
+    await d.waitForTimeout(250);
+    const dmax = await h(d, "studio-detail");
+    ok(Number(await d.getAttribute("#studio-split", "aria-valuenow")) === dmax && dmax > dh0 && (await over()) <= 4, "End makes it as tall as it goes without pushing the keys off", [dmax, dh0, await over()]);
+    ok(await d.evaluate(() => document.getElementById("studio-stack").getBoundingClientRect().height >= 60), "(the playlist keeps a few rows)");
+    await d.keyboard.press("Home");
+    await d.waitForTimeout(250);
+    const dmin = await h(d, "studio-detail");
+    ok(dmin < dh0 && dmin >= 148 && (await over()) <= 4, "Home makes it as short as it goes", [dmin, dh0, await over()]);
+    ok(await d.evaluate(() => { const k = document.getElementById("studio-stack").getBoundingClientRect(); const e = document.getElementById("studio-detail").getBoundingClientRect(); return e.top - k.bottom < 40; }), "and the playlist and the open track stay together (no gap between them)");
+    await d.keyboard.press("Enter");
+    await d.waitForTimeout(250);
+    ok(!(await ls(d, "studioEditorH")) && Math.abs((await h(d, "studio-detail")) - dh0) <= 3, "Enter puts it back to automatic", [await h(d, "studio-detail"), dh0]);
     await d.click("#studio-fold");
     await d.waitForTimeout(400);
     const dh1 = await h(d, "studio-detail");
     const dr = await d.evaluate(() => Math.round(document.querySelector("#studio-stack .studio-card").getBoundingClientRect().height));
     ok(dh1 < 90 && dh1 < dh0 && dr > 30 && dr <= 72, "Fold works here too: the open track is one row and the rows get taller", [dh0, dh1, dr]);
+    ok(!(await vis(d, "#studio-split")), "and the handle steps aside while it is folded");
     await d.click("#studio-fold");
     await d.waitForTimeout(400);
     ok(Math.abs((await h(d, "studio-detail")) - dh0) <= 3 && (await vis(d, "#studio-grid-scroll")), "and opens again as it was", [dh0, await h(d, "studio-detail")]);
