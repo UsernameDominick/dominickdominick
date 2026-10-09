@@ -2,7 +2,7 @@
 // (public/, worker/) plus the owner's outline.md and fails on any emoji character, on the
 // emoji presentation selector (U+FE0F), and on emoji written as an escape (\u{1F525}, ▶, &#9654;, CSS "\25B6"). Symbols that
 // phones draw as emoji count too (play, pause, stop, arrows like the north-east one): the site draws icons for those
-// (worker/ui-icons.js). The copyright, registered and trade mark signs are plain text and allowed. A line that only holds an emoji
+// (a drawn icon). The copyright, registered and trade mark signs are plain text and allowed. A line that only holds an emoji
 // as data (a stored key, a character to parse) carries the comment "no-emoji: data" and may use an escape, never the character.
 import fs from "node:fs";
 import path from "node:path";

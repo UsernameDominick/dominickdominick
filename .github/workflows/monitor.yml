@@ -1,7 +1,7 @@
 name: Monitor
 
-# A smoke test of the live site every six hours (and on demand), so a problem that no deploy caused (an expired setting, a Cloudflare
-# incident, the maintenance switch left on) is noticed. A failure opens one issue; later failures add a comment to it instead of
+# A smoke test of the live site every six hours (and on demand), so a problem that no deploy caused (an expired secret, a Cloudflare
+# incident) is noticed. A failure opens one issue; later failures add a comment to it instead of
 # opening more.
 on:
   schedule:

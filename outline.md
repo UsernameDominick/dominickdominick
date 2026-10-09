@@ -2,11 +2,11 @@
 
 Current operating rules, what is shipped, open work, migrations, and manual checks. Completed implementation narratives remain in Git history.
 
-**What the site is (since 2026-10-09):** the Studio (a music maker in the browser) and a search and command dialog behind a magnifier in the nav; `/` goes to the Studio (the home page was removed). Two password-protected study modules open when their name is typed in the search. The admin panel was removed on 2026-10-09 (its code is in git history; the old pages, blocks, settings and media rows are still in the database, untouched). Everything else the site used to have (articles, projects, search, the circuit simulator, 3D scans, the photo editor, the aim trainer, hidden notes, scripts, analytics and the rest) was deleted from the code. Its last working state is the git tag `before-slim-down`; to bring something back, start from that tag.
+**What the site is (started over on 2026-10-09):** one boilerplate index page served by a small Worker, with the pipeline (CI, preview, deploy, monitor, migrate) kept as it was. Everything the site used to be (the Studio music maker, the search and command dialog, the two study modules, the nav, the old admin panel, the earlier articles, projects and tools) was deleted from the code on purpose so the owner can start over. The last working state is the git tag `before-start-over`; the older, larger site is `before-slim-down`. To bring something back, start from a tag (`git show before-start-over:path/to/file`).
 
-**Stack:** Cloudflare Workers (JavaScript), D1 (SQLite), R2, vanilla HTML/CSS/JS. Tests are plain Node scripts plus Playwright; CI is GitHub Actions.
+**Stack:** Cloudflare Workers (JavaScript) serving static files, D1 (SQLite) bound but unused for now, vanilla HTML/CSS/JS. Tests are plain Node scripts plus Playwright; CI is GitHub Actions.
 
-**Last reviewed:** 2026-10-08
+**Last reviewed:** 2026-10-09
 
 ## 0. Project and release rules
 
@@ -23,7 +23,6 @@ Current operating rules, what is shipped, open work, migrations, and manual chec
 - In the repository's Settings > Secrets and variables > Actions, add `CLOUDFLARE_API_TOKEN` (a token with Workers Scripts: Edit and D1: Edit) and `CLOUDFLARE_ACCOUNT_ID`.
 - Then switch off Cloudflare's own git build for `main` (Workers & Pages > dominickdominick > Settings > Builds), otherwise `main` is deployed twice.
 - Until the secrets exist, the deploy and preview jobs skip themselves with a notice (they do not fail), Cloudflare's own build keeps deploying `main`, and the `verify` job in `ci.yml` waits for that build and smoke-tests it.
-- Seed the preview database once with `seed/home.sql` if you want previews to show the home page.
 - **Cloudflare's bot protection and the smoke test:** Cloudflare answers requests from GitHub's runners with a challenge page (403, "Just a moment..."). The smoke test reports a challenged request as skipped, not failed, so without more setup the `verify` and `monitor` jobs only prove that Cloudflare's edge answers (real failures such as a 5xx still fail). For a full check, add a WAF custom rule in the Cloudflare dashboard (Security > WAF) that skips bot protection when the request header `X-Smoke-Key` equals a long random value, and store the same value as the repository secret `SMOKE_KEY`; the smoke script sends it when it is set. The first run on `main` (2026-10-08) hit this, and the issue it opened was closed as a false alarm.
 
 **Vercel:** the site never used it. Its GitHub integration left 14 deployment records and the `Production` and `Preview` environments on the repository. Deleting the records needs a token with Deployments write access; disconnect the Vercel project in Vercel's own dashboard so it stops adding new ones.
@@ -38,75 +37,48 @@ Current operating rules, what is shipped, open work, migrations, and manual chec
 
 **Commit messages** are a plain bulleted list of the changes, nothing else: no attribution lines, no session links, no tool names. History was rewritten on 2026-10-08 to match.
 
-**D1/R2 cautions:** `schema.sql` is the base fresh-install bootstrap; apply the Wrangler migrations after it (`npm run db:local` does both for a local database and seeds the home page from `seed/home.sql`, which must never be run against production). The `previews` block sets runtime bindings, while Wrangler migrations use the selected config's top-level D1. Use `wrangler.preview-migrations.jsonc` and verify its database name/ID against the Preview binding before `--remote`; inspect production before any forward-only live migration. Preview D1/R2 are separate from production but shared by Previews using the same IDs/names; use namespaced synthetic fixtures and clean them up. Production writes need per-instance confirmation. Preview resources: `dominickdominick-preview` D1 and `dominickdominick-media-preview` R2; production resources: `f49fb038-9dfb-419e-acfb-7d8babc9d509` and `dominickdominick-media`. **The code for the deleted features is gone but their D1 tables and rows are still there**; dropping them is a production database change that needs the owner's say-so (see section 3).
+**D1/R2 cautions:** `schema.sql` is the base fresh-install bootstrap; apply the Wrangler migrations after it (`npm run db:local` does both for a local database). The `previews` block sets runtime bindings, while Wrangler migrations use the selected config's top-level D1. Use `wrangler.preview-migrations.jsonc` and verify its database name/ID against the Preview binding before `--remote`; inspect production before any forward-only live migration. Preview D1/R2 are separate from production but shared by Previews using the same IDs/names; use namespaced synthetic fixtures and clean them up. Production writes need per-instance confirmation. Preview resources: `dominickdominick-preview` D1 and `dominickdominick-media-preview` R2; production resources: `f49fb038-9dfb-419e-acfb-7d8babc9d509` and `dominickdominick-media`. **The code for the deleted features is gone but their D1 tables and rows are still there**; dropping them is a production database change that needs the owner's say-so (see section 3).
 
-**Secrets:** `STUDY_PASSWORD` stays in Worker runtime Secrets, never in source or public content: without it the study modules fall back to the built-in default (`123`), which keeps casual visitors out and nothing more. `ADMIN_PASSWORD` and `SESSION_SECRET` are no longer read by anything and can be deleted from Cloudflare. Build variables and secrets are build-time settings; that panel does not verify runtime Worker secrets. Verify distinct test-only Preview values before protected-flow checks.
+**Secrets:** the site reads no runtime secrets now. `STUDY_PASSWORD`, `ADMIN_PASSWORD` and `SESSION_SECRET` belonged to the old site and can be deleted from Cloudflare. Any new secret stays in Worker runtime Secrets, never in source or public content. Build variables and secrets are build-time settings; that panel does not verify runtime Worker secrets. Verify distinct test-only Preview values before protected-flow checks.
 
 ## 1. What is shipped
 
-- **Old home page (gone since 2026-10-09):** one D1 page (`home`) is still stored; nothing renders or edits it.
-- **Study modules:** the A+ Core 1 drill and the WGU C777 web development drill (`worker/study/`, `public/study/`), opened from a study block in a full-screen popup after a password. Progress and weak spots stay in the browser. See `worker/study/README.md`.
-- **Studio (`/studio`):** the song builder as a page for every visitor: five fixed tracks (drums, bass, chords, melody, lead), step sequencer and piano roll, forty instruments and fifteen drum kits, MIDI keyboard input, live play (arpeggio, strum, roll), bars and patterns, song files and MIDI import/export. Songs stay in the visitor's browser (`localStorage`) and are never sent to the site. The sound is synthesized with Web Audio; there is no sample playback, effects chain or mixing desk.
-- **Look:** Bit bento (1-bit ink on paper, Mac-style windows, pixel type, one orange accent). Paper is warm cream in the light theme and soft charcoal in the dark theme (not pure white and black, which was hard on the eyes).
-- **Settings dialog:** the last stop of the nav dial. Light/dark, reduce motion, text size, and links to the pages. No search.
-- **Admin panel (removed 2026-10-09):** the login, the home page editor, the media library, the site settings, the backups, the features board and this outline's viewer, and the error log viewer are gone. Their routes answer the 404 page. The Worker no longer has the R2 bucket binding or the daily backup cron.
+- **The index page** (`public/index.html`, `style.css`, `robots.txt`): a plain, readable page that says a new site is on the way. No scripts, no inline styles.
+- **The Worker** (`worker/index.js`, `worker/security-headers.js`): answers every request from the static files and adds the security headers (CSP with no inline script and no eval, no framing by other sites, no MIME sniffing, https only).
+- **The pipeline:** unchanged (section 0). The pure tests (`tests/site.test.mjs`) and one browser test (`tests/e2e/test_index.js`) keep it honest.
 
 ## 2. Open work
 
-### Home page
-- [ ] Decide whether the home page should be indexable. It is kept out of search engines only because it holds study buttons.
-- [ ] Set `STUDY_PASSWORD` (section 0, Secrets).
-
-### Studio
-- [ ] Tempo/time-signature settings: every module assumes 16 steps per pattern, so a signature other than 4/4 needs a variable pattern length in the engine, the step grids, cached peaks and saved data. Needs a decision on which signatures.
-- [ ] Per-track clipping attribution needs per-track metering; today only the master bus is logged.
-- [ ] A longer piano-roll range or per-track step length means changing the song format.
-- [ ] Reduced-motion sweep: the skip link's slide and `@view-transition` still need a check.
-
-- [ ] Re-create the browser tests for the song builder against `/studio`: the 18 `test_song_*` tests drove it through the admin's song library and were deleted with it (the pure `tests/song-*.test.mjs` still cover the logic).
-- [ ] Rewrite `tests/e2e/test_nav_carousel.js` for the three-stop nav; it is parked in `known-failing.txt`.
-- [ ] The browser tests have not been run to the end since the cut (the first full run is the first CI run on Linux). Check `known-failing.txt` for what is still parked and why.
-
-### Testing, staging and deployment
-- [ ] Finish the one-time setup in section 0 and watch the first pull request go through the whole pipeline.
+- [ ] Decide what the new site is: its pages, its look and its content. Nothing is planned yet.
+- [ ] Finish the one-time setup in section 0 and watch a pull request go through the whole pipeline.
 - [ ] Migration history: Wrangler tracks `0001_simulation_publication` and `0002_project_related_songs`; older manual schema changes are not reconstructed.
-
-### Backups and operating costs
-- [ ] Separate R2 asset backups (R2 currently holds the only copy of the media).
-- [ ] A human restore runbook (automated restore is tested with Playwright).
-- [ ] Verify a legacy backup restore and a new backup round trip in a Preview.
-- [ ] Confirm the live Worker's `0 8 * * *` backup schedule. Preview Workers do not run Cron Triggers.
 
 ## 3. Production migration state
 
 - Production D1 `dominickdominick` has `media.private`, `width` and `height` (verified read-only 2026-09-28). Migrations `0001_simulation_publication.sql` and `0002_project_related_songs.sql` are applied to production and to Preview D1 `dominickdominick-preview` (`6b4b23d0-d680-4320-83c0-bc144f1cf3d9`).
 - `schema.sql` is the base bootstrap and intentionally omits columns added by tracked migrations. Apply tracked migrations after an empty bootstrap. The migration directory does not reconstruct older manual schema changes.
-- **Orphaned tables (decision for the owner):** `articles`, `projects`, `journal_entries`, `bom_items`, `simulations`, `scans`, `songs`, `topic_meta`, `redirects`, `templates`, `shared_blocks`, `events`, `pageviews`, `reactions`, `webhook_deliveries`, `preview_links`, `activity_log`, `media_revisions` and `media_versions` have no code reading them any more. Keeping them costs nothing and the daily backup still carries them. If they are ever dropped, do it in a numbered migration through the Migrate workflow, after a fresh backup.
+- **Orphaned tables (decision for the owner):** `articles`, `projects`, `journal_entries`, `bom_items`, `simulations`, `scans`, `songs`, `topic_meta`, `redirects`, `templates`, `shared_blocks`, `events`, `pageviews`, `reactions`, `webhook_deliveries`, `preview_links`, `activity_log`, `media_revisions` and `media_versions` have no code reading them any more. Keeping them costs nothing; there is no backup of them any more (the daily backup went with the old admin panel). If they are ever dropped, do it in a numbered migration through the Migrate workflow, after a fresh backup.
 
-## 4. Removed on 2026-10-08
+## 4. Removed
 
-The code for these was deleted (recover it from the git tag `before-slim-down`): search and the finder's search box; articles, Random, Topics, Archive, RSS and reactions; projects, journals and bills of materials; the circuit simulator and its solver; 3D scans; PicEditor and the admin photo editor; the aim trainer; Hidden Notes; the Scripts and Nodes editor; redirects, the link checker, the SEO and accessibility dashboards, preview links, preview-at-a-date, webhooks, find and replace, templates, sections, style presets; analytics, page views and events; password-protected pages; audio, video, font and scan uploads; the admin's own song library; shared blocks; block types other than the nine above; the Appearance settings (accent, fonts and control presets, which the Bit bento look already overrode).
+- **2026-10-09, on purpose, to start over:** the Studio (the browser music maker: the song engine, the step sequencer and piano roll, the instruments and kits, MIDI, the song files), the search and command dialog and the nav dial, the A+ Core 1 and C777 study modules, the stylesheet and fonts, the Bit bento look, the share pictures, the old browser tests and the Worker's page rendering. Recover any of it from the git tag `before-start-over`.
+- **Earlier on 2026-10-09:** the admin panel and everything only it used (the media route, maintenance mode, site settings, the daily backup and its R2 binding).
+- **2026-10-08:** the earlier, larger site (search, articles, projects, the circuit simulator, 3D scans, the photo editor, the aim trainer, hidden notes and the rest). Recover it from the git tag `before-slim-down`.
 
 ## 5. Recurring security, SEO and accessibility checks
 
 ### Security
 - [ ] Dependencies still pinned to versions without known CVEs (Dependabot opens the pull requests).
-- [ ] Rate limits still cover every public write endpoint (login, study unlock); check after adding any new public POST route.
-- [ ] Security headers (CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy) still present and correctly scoped.
-- [ ] Session cookie still `HttpOnly; Secure; SameSite=Strict`.
-- [ ] `javascript:`/`data:` URI neutralization (`safeHref`) still applied wherever a user-authored URL renders.
+- [ ] Rate limits on every public write endpoint, if one is ever added.
+- [ ] Security headers (CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy) still present and correctly scoped (`worker/security-headers.js` and `public/_headers`).
 - [ ] New tables/columns don't accidentally expose more than intended through a `SELECT *` in a public-facing query.
-- [ ] File uploads validated by type (images); add validation whenever a new format is introduced.
 
 ### SEO and accessibility
-- [ ] Every new public route has a `<title>`, meta description and correct canonical tag, and appears in `sitemap.xml` unless it is meant to be hidden.
-- [ ] Heading rule: one H1, no skipped levels.
-- [ ] Interactive/canvas content (the Studio) has a real text alternative, not just a generic label.
+- [ ] Every new public page has a `<title>`, a meta description and one `<h1>`.
 - [ ] Reduced motion respected for any new animation.
 - [ ] Tap targets at least 24 by 24 px on any new mobile UI.
-- [ ] Colour contrast checked for any new UI colour, not just theme tokens (paper and ink are about 12:1; dim text is about 5.5:1).
+- [ ] Text at least 16px, and colour contrast checked for any new UI colour (the starting page is about 15:1 for text and 7:1 for dim text).
 
 ## 6. Open decisions
 
 - Whether to drop the orphaned tables (section 3).
-- Whether to bring back a way to edit more than the home page (a second page, a notes page). The admin edits the home page only, and `PUT /api/admin/pages` creates pages but nothing links to them.

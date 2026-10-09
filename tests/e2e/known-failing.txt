@@ -1,8 +1,3 @@
 # Browser tests that already failed before the change being tested, one name per line (with or without .js).
 # The runner reports only failures that are NOT listed here, so a red run always means "something you did".
 # Fix the test (or the site) and delete the line; the runner says when a listed test starts passing.
-# Below: failing on 20ec3c5 (before the Bit bento look) in this sandbox: the public site is cut down to Home/Studio/Search and the
-# local database has no articles, projects or scans. Not caused by the redesign (checked against that commit).
-test_footer_share
-test_mouse_swipe
-test_nav_dial

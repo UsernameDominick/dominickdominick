@@ -50,7 +50,6 @@ jobs:
           echo "url=$url" >> "$GITHUB_OUTPUT"
       - name: Smoke test the preview
         if: steps.ready.outputs.ready == 'true'
-        # The preview database starts empty until it is seeded with seed/home.sql (see "Git, pipeline and deploy" in CLAUDE.md), so the home page is not checked here.
         run: node scripts/smoke.mjs "${{ steps.upload.outputs.url }}"
       - name: Post the address on the pull request
         if: steps.ready.outputs.ready == 'true'

@@ -42,19 +42,12 @@ function expect(name, r, ok, detail = "") {
 const status = (r) => `got ${r.res.status}`;
 
 try {
-  // There is no home page: the front door sends a visitor to the Studio.
-  const front = await get("/");
-  expect("the front door sends a visitor to the Studio", front, (r) => r.res.status === 302 && (r.res.headers.get("location") || "").endsWith("/studio"), (r) => "got " + r.res.status + " to " + r.res.headers.get("location"));
-
-  const studio = await get("/studio");
-  expect("studio answers 200", studio, (r) => r.res.status === 200, status);
-  expect("studio has its mount", studio, (r) => r.text.includes('id="studio-mount"'));
-  expect("studio has the search stop and its dialog", studio, (r) => r.text.includes('id="finder-open"') && r.text.includes('id="finder-q"'));
-  expect("studio sends a content security policy", studio, (r) => !!r.res.headers.get("content-security-policy"));
-  expect("studio stops MIME sniffing", studio, (r) => r.res.headers.get("x-content-type-options") === "nosniff");
-
-  const sitemap = await get("/sitemap.xml");
-  expect("sitemap lists the studio", sitemap, (r) => r.res.status === 200 && r.text.includes("/studio"), status);
+  const index = await get("/");
+  expect("the index answers 200", index, (r) => r.res.status === 200, status);
+  expect("the index is a page with a title and a heading", index, (r) => /<title>[^<]+<\/title>/i.test(r.text) && /<h1[ >]/i.test(r.text));
+  expect("the index sends a content security policy", index, (r) => !!r.res.headers.get("content-security-policy"));
+  expect("the index stops MIME sniffing", index, (r) => r.res.headers.get("x-content-type-options") === "nosniff");
+  expect("the index cannot be framed by another site", index, (r) => r.res.headers.get("x-frame-options") === "SAMEORIGIN");
 
   const robots = await get("/robots.txt");
   expect("robots.txt answers 200", robots, (r) => r.res.status === 200, status);
@@ -62,19 +55,9 @@ try {
   const missing = await get("/this-address-does-not-exist");
   expect("a missing address is a 404", missing, (r) => r.res.status === 404, status);
 
-  // The cut-down site: these used to exist and must stay gone.
-  for (const gone of ["/search", "/random", "/projects", "/trainer", "/piceditor", "/simulations", "/scans"]) {
-    expect(`${gone} stays removed`, await get(gone), (r) => r.res.status === 404, status);
-  }
-
-  // The admin panel is gone: its addresses are just the 404 page.
-  expect("the admin address is gone", await get("/admin"), (r) => r.res.status === 404, status);
-  expect("the admin API is gone", await get("/api/admin/pages"), (r) => r.res.status === 404, status);
-
-  // The study unlock must refuse a request with no password, for a lab asked for by name (the search dialog) and for a block that is not there.
-  const post = (body) => get("/api/study/unlock", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  expect("study unlock refuses a lab without its password", await post({ lab: "core1-lab" }), (r) => r.res.status === 401 && r.text.includes("needsPassword"), status);
-  expect("study unlock refuses a block that is not there", await post({ block: 0 }), (r) => [400, 401, 404].includes(r.res.status), status);
+  // The admin panel was removed for good: its addresses are just missing.
+  expect("the admin address stays gone", await get("/admin"), (r) => r.res.status === 404, status);
+  expect("the admin API stays gone", await get("/api/admin/pages"), (r) => r.res.status === 404, status);
 } catch (err) {
   console.log(`FAIL site reachable (${err && err.message})`);
   failures.push("site reachable");
