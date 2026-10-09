@@ -643,6 +643,10 @@
     return ctx;
   }
   ["pointerdown", "keydown", "touchend"].forEach((type) => document.addEventListener(type, () => { if (audioCtx && audioCtx.state !== "running") ensureAudio(); }, true));
+  // A phone call, an alarm or a switch to another app leaves the sound "suspended" or "interrupted" (the second is Safari's word), and
+  // coming back to the page does not wake it by itself: do it when the page is visible again, and when the system hands it back.
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && audioCtx && audioCtx.state !== "running") ensureAudio(); });
+  window.addEventListener("pageshow", () => { if (audioCtx && audioCtx.state !== "running") ensureAudio(); });
 
   // info (from the player): which pattern is sounding and where it sits in the song order. The playhead is drawn on the grids only while the
   // pattern being played is the one being edited.

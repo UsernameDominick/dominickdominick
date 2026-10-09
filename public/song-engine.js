@@ -332,7 +332,8 @@ function setMasterVolume(ctx, value) {
     send.wet.gain.setValueAtTime(send.wet.gain.value, now);
     send.wet.gain.linearRampToValueAtTime(wet, now + 0.03);
     send.feedback.gain.setValueAtTime(feedback, now);
-    send.delay.delayTime.setValueAtTime(time, now);
+    // The delay time glides to the new value: a jump is a click, and while it glides the repeats bend in pitch like a tape echo.
+    send.delay.delayTime.setTargetAtTime(time, now, 0.03);
   }
 
   // Each kit is a set of numbers the drum voices read. A kit only names what differs from DEFAULT_KIT, which holds the numbers the
@@ -1220,6 +1221,13 @@ function setMasterVolume(ctx, value) {
   // periodic checks themselves jitter a little.
   const LOOKAHEAD_MS = 25;
   const SCHEDULE_AHEAD_S = 0.1;
+  // When the page is too busy to run the loop on time (a phone doing something else, a heavy sound), it falls behind. The player then skips
+  // the steps that are already over instead of playing them all at once, keeps its place in the song true to the clock, and looks further
+  // ahead for a while (up to MAX_AHEAD_S) so the next stall is absorbed. It eases back to SCHEDULE_AHEAD_S after CALM_S of steady running,
+  // because a long lookahead is a longer wait before an edit is heard and before Stop is silent.
+  const MAX_AHEAD_S = 0.3;
+  const STALL_S = 0.06;
+  const CALM_S = 10;
 
   // A tiny seeded PRNG gives the offline render repeatable noise without
   // changing the live drums' per-hit randomness. Seed from musical content
@@ -1284,9 +1292,35 @@ function setMasterVolume(ctx, value) {
     let nextStepTime = 0;
     let timer = null;
 
+    let ahead = SCHEDULE_AHEAD_S;
+    let stalls = 0;
+    let skipped = 0;
+    let lastStallAt = 0;
+
+    // One step on: the next step's time, the next step in the bar, and the next bar of the song order at the end of one.
+    function advance() {
+      const length = isSinglePattern(songData) || loopName ? 1 : songBars(songData); // the editor may have lengthened the song while recording
+      nextStepTime += stepDurationFor(songData.tempo);
+      currentStep = (currentStep + 1) % STEPS;
+      if (currentStep === 0 && length > 1) chainIndex = (chainIndex + 1) % length;
+    }
+
     function loop() {
       const ctx = getAudioCtx();
-      while (nextStepTime < ctx.currentTime + SCHEDULE_AHEAD_S) {
+      const late = ctx.currentTime - nextStepTime;
+      if (late > STALL_S) {
+        // Fell behind: the steps whose time is already over are skipped, not played in a burst.
+        const missed = Math.floor(late / stepDurationFor(songData.tempo));
+        for (let i = 0; i < missed; i++) advance();
+        skipped += missed;
+        stalls++;
+        lastStallAt = ctx.currentTime;
+        ahead = Math.min(MAX_AHEAD_S, ahead + 0.05);
+      } else if (ahead > SCHEDULE_AHEAD_S && ctx.currentTime - lastStallAt > CALM_S) {
+        ahead = Math.max(SCHEDULE_AHEAD_S, ahead - 0.05);
+        lastStallAt = ctx.currentTime;
+      }
+      while (nextStepTime < ctx.currentTime + ahead) {
         let name;
         let length = 1;
         let view;
@@ -1309,10 +1343,7 @@ function setMasterVolume(ctx, value) {
         playingLanes = lanes;
         scheduleStep(ctx, view, currentStep, nextStepTime);
         if (onStep) onStep(currentStep, nextStepTime + swingDelay(songData, currentStep), { pattern: name, patterns: lanes, chainIndex, chainLength: length, data: view }); // the time the step actually sounds
-        if (!isSinglePattern(songData) && !loopName) length = songBars(songData); // the editor may have lengthened the song while recording
-        nextStepTime += stepDurationFor(songData.tempo);
-        currentStep = (currentStep + 1) % STEPS;
-        if (currentStep === 0 && length > 1) chainIndex = (chainIndex + 1) % length;
+        advance();
       }
       timer = setTimeout(loop, LOOKAHEAD_MS);
     }
@@ -1337,6 +1368,10 @@ function setMasterVolume(ctx, value) {
         clearTimeout(timer);
       },
       isPlaying: () => playing,
+      // How many times the loop found itself late, how many steps it skipped for that, and how far ahead it is looking now (seconds).
+      stalls: () => stalls,
+      skippedSteps: () => skipped,
+      lookahead: () => ahead,
       currentStep: () => currentStep,
       currentPattern: () => playingPattern,
       // The pattern one track is playing now (null when it is silent in this bar).

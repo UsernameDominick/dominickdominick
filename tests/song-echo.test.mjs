@@ -17,6 +17,7 @@ const playAll = (ctx, data) => { for (let s = 0; s < 16; s++) E.scheduleStep(ctx
 const STEP = 60 / 120 / 4;
 const sendOf = (ctx) => ({ delay: ctx.nodes.find((n) => n.kind === "delay"), filters: ctx.nodes.filter((n) => n.kind === "filter") });
 const lastSet = (param) => { const calls = param.calls.filter((c) => c.kind === "set"); return calls.length ? calls[calls.length - 1].v : undefined; };
+const lastTo = (param) => { const calls = param.calls.filter((c) => c.kind === "set" || c.kind === "target"); return calls.length ? calls[calls.length - 1].v : undefined; }; // a value set at once, or one the param glides to
 
 // ---- off ----
 {
@@ -36,7 +37,7 @@ const lastSet = (param) => { const calls = param.calls.filter((c) => c.kind === 
   const ctx = makeCtx(); playAll(ctx, song({ echo: 50 }));
   ok(count(ctx, "delay") === 1, "Echo on builds exactly one delay for the whole song", count(ctx, "delay"));
   const { delay } = sendOf(ctx);
-  ok(Math.abs(lastSet(delay.delayTime) - STEP * 3) < 1e-9, "the delay is a dotted eighth: three sixteenth steps at the song's tempo", { got: lastSet(delay.delayTime), want: STEP * 3 });
+  ok(Math.abs(lastTo(delay.delayTime) - STEP * 3) < 1e-9, "the delay is a dotted eighth: three sixteenth steps at the song's tempo", { got: lastTo(delay.delayTime), want: STEP * 3 });
   const master = ctx.nodes.find((n) => n.kind === "gain" && n.out.includes(delay));
   ok(!!master, "it listens to the master bus");
   const tone = delay.out[0];
@@ -67,7 +68,7 @@ const lastSet = (param) => { const calls = param.calls.filter((c) => c.kind === 
   const ctx = makeCtx(); playAll(ctx, song({ echo: 40, tempo: 120 }));
   const { delay } = sendOf(ctx);
   E.scheduleStep(ctx, song({ echo: 40, tempo: 90 }), 0, 5, () => 0.5);
-  ok(Math.abs(lastSet(delay.delayTime) - (60 / 90 / 4) * 3) < 1e-9, "a tempo change retimes the delay on the next step", lastSet(delay.delayTime));
+  ok(Math.abs(lastTo(delay.delayTime) - (60 / 90 / 4) * 3) < 1e-9, "a tempo change retimes the delay on the next step", lastTo(delay.delayTime));
   const slow = makeCtx(); E.setEcho(slow, 50, 40, true);
   ok(sendOf(slow).delay.delayTime.value < 2, "even at the slowest tempo the delay fits inside the node's two-second limit", sendOf(slow).delay.delayTime.value);
 }
