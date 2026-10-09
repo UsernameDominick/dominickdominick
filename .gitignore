@@ -8,4 +8,4 @@ node_modules/
 # Browser-test run timings (a scheduling hint only)
 tests/e2e/.timings.json
 tests/e2e/*.png
-tests/e2e/.sound-library/
+tests/e2e/sound-library/

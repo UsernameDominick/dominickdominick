@@ -2,12 +2,12 @@
 // real OfflineAudioContext, checked (finite, not silent, under full scale, no DC offset) and written out as a WAV file, so the CI run can hand the whole
 // library over as a download (the "sound-library" artifact) for the owner to LISTEN to: a pull request that changes how things sound is judged by ear.
 // Also records how long each render took per second of audio, a budget for the engine's cost. Files go to SOUND_LIBRARY_DIR (default
-// tests/e2e/.sound-library, ignored by git).
+// tests/e2e/sound-library, ignored by git).
 const fs = require("node:fs");
 const path = require("node:path");
 const E2E_BASE = process.env.E2E_BASE || "http://localhost:8787";
 const { chromium } = require("./_pw.cjs");
-const OUT = process.env.SOUND_LIBRARY_DIR || path.join(__dirname, ".sound-library");
+const OUT = process.env.SOUND_LIBRARY_DIR || path.join(__dirname, "sound-library");
 (async () => {
   let fail = 0; const ok = (c, m, x) => { console.log((c ? "PASS " : "FAIL ") + m + (x !== undefined && !c ? " " + JSON.stringify(x) : "")); if (!c) fail++; };
   const b = await chromium.launch();
