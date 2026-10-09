@@ -1,19 +1,29 @@
 # dominickdominick.com — notes for Claude
 
-A personal site on Cloudflare. **It is almost empty on purpose.** On 2026-10-09 the owner deleted everything to start over, at their own explicit instruction: the Studio music maker, the search dialog and nav, the two study modules, the admin panel, the tests, the old build pipeline and the whole git history. Nothing of it can be restored from here and nothing should be looked for or recreated unasked: the owner builds the rest themselves and wants only what is needed to do that. `README.md` has the Cloudflare resources and the database notes.
+A personal site on Cloudflare. **It is almost empty on purpose.** On 2026-10-09 the owner deleted everything to start over, at their own explicit instruction: the Studio music maker, the search dialog and nav, the two study modules, the admin panel, the tests, the old build pipeline, the README, the database files (`schema.sql` and `migrations/`) and the whole git history. Nothing of it can be restored from here and nothing should be looked for or recreated unasked: the owner builds the rest themselves and wants only what is needed to do that.
 
 ## What is here
 
 | Path | What it is |
 |---|---|
 | `public/index.html` | The whole site: a heading (`dominickdominick.com`). Everything in `public/` is served as is. |
-| `wrangler.jsonc` | The Cloudflare config: the Worker name `dominickdominick`, the compatibility date and `assets.directory` (`./public`). No Worker script and no bindings yet. Cloudflare's build reads it, so keep it valid. |
-| `schema.sql`, `migrations/` | The D1 database shape: the bootstrap, then the numbered migrations. The production database still holds the old site's tables and rows; nothing reads them. |
-| `README.md` | The Cloudflare resources (database and bucket names and ids), how to bind the database, how to apply the database files. |
+| `wrangler.jsonc` | The Cloudflare config: the Worker name `dominickdominick`, the compatibility date and `assets.directory` (`./public`). No Worker script and no bindings. Cloudflare's build reads it, so keep it valid. |
+| `CLAUDE.md` | This file. |
 
 ## How it goes live
 
 **Cloudflare publishes `main`, not GitHub.** The Worker `dominickdominick` is connected to this repository through Cloudflare's own GitHub integration (Workers Builds): each push to `main` is built and deployed with `wrangler deploy` and is live within about a minute (the owner confirmed it is Cloudflare doing it). There is no GitHub Actions workflow, no repository secret, no test and no other CI. A push to `main` ships, so look carefully before pushing, or use a branch and a pull request. A broken `wrangler.jsonc` fails the build and Cloudflare emails the owner. After a push, `https://dominickdominick.com/` shows the new page when the build is done.
+
+## In the Cloudflare account (not in the repo, left untouched)
+
+| What | Name | Id |
+|---|---|---|
+| D1 database, production | `dominickdominick` | `f49fb038-9dfb-419e-acfb-7d8babc9d509` |
+| D1 database, preview | `dominickdominick-preview` | `6b4b23d0-d680-4320-83c0-bc144f1cf3d9` |
+| R2 bucket, production | `dominickdominick-media` | |
+| R2 bucket, preview | `dominickdominick-media-preview` | |
+
+The production database still holds the old site's tables and rows (nothing reads them), and its migrations were applied there, so its schema lives in Cloudflare, not in the repo (`wrangler d1 export` can write it out). The site is not connected to it: a site of plain files has no code to use it. To connect it, add a Worker script (`"main"` in `wrangler.jsonc`) and a `d1_databases` entry with `"binding": "DB"`, the name and the id above.
 
 ## Working here
 
