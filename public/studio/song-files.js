@@ -54,7 +54,12 @@
   }
   const isObj = (v) => !!v && typeof v === "object" && !Array.isArray(v);
   const FORMAT = "dominick-song";
-  const VERSION = 1;
+  const VERSION = 1; // the version of the song FILE wrapper (exportJson / parseImport), not of the song inside it
+  // The version of a song's own data. cleanSong writes it, so a song saved by this build says which format it is, and migrateSong is the one
+  // place that brings a song saved by an earlier build (no version, or a lower one) up to date before it is cleaned. 1 = songs from before
+  // the version existed (the player-look fields and the cached peaks are ignored, not migrated); 2 = this format. Change SONG_VERSION when a
+  // later change to the song format needs old songs reshaped, and add that step to migrateSong.
+  const SONG_VERSION = 2;
   const MAX_FILE_CHARS = 2000000;
 
   // ---- MIDI ----
@@ -642,9 +647,20 @@
 
   // A clean song from anything a file might hold: only the settings the builder knows, each checked and limited, so a damaged or
   // hand-edited file can't put odd values into the song.
-  function cleanSong(raw) {
-    const src = raw && typeof raw === "object" ? raw : {};
+  // Brings a song saved by an earlier build up to the current format (a copy; the argument is left alone). A song without a version is
+  // version 1. Nothing needs reshaping yet, so this only stamps the version; the steps for later versions go in here, oldest first.
+  function migrateSong(raw) {
+    const src = raw && typeof raw === "object" && !Array.isArray(raw) ? Object.assign({}, raw) : {};
+    let v = Number(src.version);
+    if (!Number.isFinite(v) || v < 1) v = 1;
+    // if (v < 3) { ...reshape the fields version 3 changes...; v = 3; }
+    src.version = SONG_VERSION; // a song from a newer build is read as far as this build understands it
+    return src;
+  }
+  function cleanSong(input) {
+    const src = migrateSong(input);
     const song = {
+      version: SONG_VERSION,
       tempo: Math.round(clampNum(src.tempo, 40, 240, 120)),
       kit: oneOf(src.kit, KITS, "acoustic"),
       master_volume: clampNum(src.master_volume, 0, 1, 1),
@@ -789,5 +805,5 @@
     return { name: name || "Imported song", data: cleanSong(data) };
   }
 
-  window.SongFiles = { parseMidi, midiToSong, importMidi, GM_TO_ROW, BASS_NOTES, PART_KEYS, PART_NOTES, PART_OCTAVES, PATTERN_NAMES, LANE_KEYS, MAX_BARS, cleanSynth, chainParts, MELODY_VOICES, KITS, CORE_DRUMS, EXTRA_DRUMS, GM_DRUMS, buildMidi, noteNumber, exportJson, parseImport, cleanSong, PPQ, STEP_TICKS, FORMAT, VERSION };
+  window.SongFiles = { SONG_VERSION, migrateSong, parseMidi, midiToSong, importMidi, GM_TO_ROW, BASS_NOTES, PART_KEYS, PART_NOTES, PART_OCTAVES, PATTERN_NAMES, LANE_KEYS, MAX_BARS, cleanSynth, chainParts, MELODY_VOICES, KITS, CORE_DRUMS, EXTRA_DRUMS, GM_DRUMS, buildMidi, noteNumber, exportJson, parseImport, cleanSong, PPQ, STEP_TICKS, FORMAT, VERSION };
 })();

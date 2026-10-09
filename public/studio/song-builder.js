@@ -189,6 +189,7 @@
 
   function defaultSongData() {
     return {
+      version: window.SongFiles.SONG_VERSION,
       tempo: 120,
       kit: "acoustic",
       master_volume: 1,

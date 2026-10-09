@@ -152,7 +152,7 @@ ok(F.noteNumber("H4") === null && F.noteNumber("") === null && F.noteNumber("C99
   ok(c.melody.waveform === "sine" && c.melody.muted === true && c.melody.volume === 0 && Object.keys(c.melody.notes).length === 24 && c.melody.notes.C4[0] === true && !("Z9" in c.melody.notes), "the melody keeps only the 24 piano-roll notes", Object.keys(c.melody.notes).length);
   ok(!("scale" in c) && !("extra" in c) && !({}).polluted, "an unknown scale, extra keys and prototype tricks are dropped");
   ok(!("visualization" in c) && !("theme" in c) && !("page_sync" in c), "the player-look fields of a song saved long ago are ignored, not kept");
-  ok(JSON.stringify(Object.keys(c)) === JSON.stringify(["tempo", "kit", "master_volume", "humanize", "swing", "space", "echo", "private_notes", "tracks", "trackMeta", "melody"]), "the cleaned song has exactly the builder's own keys", Object.keys(c));
+  ok(JSON.stringify(Object.keys(c)) === JSON.stringify(["version", "tempo", "kit", "master_volume", "humanize", "swing", "space", "echo", "private_notes", "tracks", "trackMeta", "melody"]), "the cleaned song has exactly the builder's own keys", Object.keys(c));
   ok(JSON.stringify(F.cleanSong(F.cleanSong(song()))) === JSON.stringify(F.cleanSong(song())), "cleaning twice changes nothing");
   ok(F.cleanSong(null).tracks.kick.length === 16 && F.cleanSong("x").melody.waveform === "sine", "even nothing at all becomes a valid empty song");
   const goodScale = F.cleanSong({ tracks: {}, scale: { root: "D", type: "blues" } });
