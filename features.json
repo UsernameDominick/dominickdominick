@@ -1,7 +1,7 @@
 {
   "updated": "2026-10-09",
   "items": [
-    {"id": "c777-web-dev-drill", "area": "Study", "status": "done", "title": "C777 web development drill", "summary": "A second study page for the six units of the WGU C777 guide (HTML, CSS3, JavaScript, HTML APIs, forms, mobile) with about 690 questions, practice by unit, exam mode, timed runs and weak spots.", "date": "2026-10-09"},
+    {"id": "c777-web-dev-drill", "area": "Study", "status": "done", "title": "C777 web development drill", "summary": "A second study page for the six units of the WGU C777 guide (HTML, CSS3, JavaScript, HTML APIs, forms, mobile) with about 790 questions, practice by unit, exam mode, timed runs and weak spots.", "date": "2026-10-09"},
     {"id": "visual-header-and-footer-editor", "area": "Site & content", "status": "done", "title": "Visual header and footer editor", "summary": "Edit the header and footer on a live preview."},
     {"id": "study-popup", "area": "Site & content", "status": "done", "title": "Study popup", "summary": "Opens filling the window, movable and resizable."},
     {"id": "study-weak-spots", "area": "Site & content", "status": "done", "title": "Study weak spots", "summary": "Remembers what each person misses and builds a question set from it."},
