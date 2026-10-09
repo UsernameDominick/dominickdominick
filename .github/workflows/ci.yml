@@ -93,6 +93,16 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+      # test_readability.js photographs the Studio (a computer and a phone, dark and light) and measures its type: download this artifact to look at it.
+      - name: Screenshots and the type report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: studio-screenshots
+          path: tests/e2e/screenshots
+          if-no-files-found: ignore
+          retention-days: 7
+
   deploy:
     needs: [checks, browser]
     # Only after a push to main, and only when the checks passed (the browser job may have been skipped for a change that touches no site code).

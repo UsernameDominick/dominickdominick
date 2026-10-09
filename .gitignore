@@ -9,3 +9,4 @@ node_modules/
 tests/e2e/.timings.json
 tests/e2e/*.png
 tests/e2e/sound-library/
+tests/e2e/screenshots/
