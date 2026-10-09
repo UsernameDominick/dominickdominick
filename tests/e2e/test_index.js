@@ -10,7 +10,7 @@ const axeSrc = axeSource();
     for (const vp of [{ name: "computer", width: 1280, height: 800 }, { name: "phone", width: 390, height: 800 }]) {
       for (const scheme of ["light", "dark"]) {
         const where = `${vp.name}, ${scheme}`;
-        const ctx = await b.newContext({ viewport: { width: vp.width, height: vp.height }, colorScheme: scheme });
+        const ctx = await b.newContext({ viewport: { width: vp.width, height: vp.height }, colorScheme: scheme, bypassCSP: true }); // so axe can be injected; the policy itself is checked on the response headers below
         const p = await ctx.newPage();
         const errs = []; p.on("pageerror", (e) => errs.push(e.message)); p.on("console", (m) => { if (m.type() === "error") errs.push(m.text()); });
         const res = await p.goto(E2E_BASE + "/");
