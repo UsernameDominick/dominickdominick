@@ -1325,11 +1325,14 @@
     while (number > 47) number -= 12;
     return NOTE_NAMES[number % 12] + (Math.floor(number / 12) - 1);
   }
+  // The browser's timestamp of the MIDI message being handled (set around its handling, null otherwise): a press with a real timestamp is
+  // placed on the audio clock from that, not from the moment the page got round to it.
+  let pressStamp = null;
   // Where a hit played now lands while recording: the step that is sounding at this moment and the pattern the track plays in this bar (the
   // heard step, not the one scheduled a moment ahead). null when the track is silent in this bar.
   function recordingSpot(trackKey) {
     if (!player.isPlaying() || isCountingIn() || !$("song-record").checked) return null;
-    const now = getAudioCtx().currentTime;
+    const now = window.SongLive.pressTime(getAudioCtx(), Number.isFinite(pressStamp) ? pressStamp : performance.now()); // what the player heard when they pressed
     let heard = null;
     for (const entry of scheduledSteps) if (entry.time <= now) heard = entry;
     let step = heard ? heard.step : player.currentStep();
@@ -1521,6 +1524,14 @@
     Engine.withVolume(ctx, volume, () => (voice ? Engine.playVoicedNote(ctx, ctx.currentTime, Engine.noteToFreq(name), voice, duration * 2, part && part.synth) : Engine.playMelodyNote(ctx, ctx.currentTime, Engine.noteToFreq(name), $("song-waveform").value, duration * 2)));
   }
   function handleMidiMessage(msg) {
+    pressStamp = Number.isFinite(msg.timeStamp) ? msg.timeStamp : null;
+    try {
+      handleMidiMessageNow(msg);
+    } finally {
+      pressStamp = null;
+    }
+  }
+  function handleMidiMessageNow(msg) {
     const [status, note, velocity] = msg.data;
     const isNoteOn = status >> 4 === 9 && velocity > 0;
     if (!isNoteOn) return;

@@ -95,5 +95,31 @@
     };
   }
 
-  window.SongLive = { RATES, RATE_LABELS, CHORDS, PATTERNS, DEFAULTS, rateSeconds, chordNotes, strumPlan, arpCycle, arpPick, padVelocity, rollVelocity, bendCents, cleanPlay };
+  // When a key, pad or MIDI note was pressed, as a moment on the audio clock, in the terms of what the player HEARD. ctx.currentTime is the
+  // moment the sound is being made; what reaches the ears is later by the output latency (a phone speaker, a Bluetooth headset), and a
+  // player taps in time with what they hear, so a press compared with currentTime lands a step early or late. getOutputTimestamp() pairs the
+  // clock time that is coming out of the speakers right now with a performance.now() time: a press with its own timestamp (a MIDI message,
+  // an event) maps straight onto it, which also removes the delay of waiting in the page's event queue. Without it (older Safari) the
+  // reported output latency is taken off instead. Never more than MAX_LAG from the render clock, so a wild report cannot throw a note away.
+  const MAX_LAG = 0.25;
+  const positive = (v) => (Number.isFinite(v) && v > 0 ? v : 0);
+  function pressTime(ctx, stamp) {
+    const render = Number(ctx && ctx.currentTime) || 0;
+    if (ctx && typeof ctx.getOutputTimestamp === "function" && Number.isFinite(stamp)) {
+      let ts = null;
+      try {
+        ts = ctx.getOutputTimestamp();
+      } catch (e) {
+        ts = null;
+      }
+      if (ts && positive(ts.performanceTime) && Number.isFinite(ts.contextTime) && ts.contextTime > 0) {
+        const t = ts.contextTime + (stamp - ts.performanceTime) / 1000;
+        if (Math.abs(t - render) <= MAX_LAG) return t;
+      }
+    }
+    const lag = positive(ctx && ctx.outputLatency) || positive(ctx && ctx.baseLatency);
+    return render - Math.min(lag, MAX_LAG);
+  }
+
+  window.SongLive = { pressTime, RATES, RATE_LABELS, CHORDS, PATTERNS, DEFAULTS, rateSeconds, chordNotes, strumPlan, arpCycle, arpPick, padVelocity, rollVelocity, bendCents, cleanPlay };
 })();
