@@ -1,9 +1,8 @@
-import { getPageBySlug, listStudyPageIds, listBlocks, getSettings, logError, runScheduledBackup } from "./db.js";
+import { getSettings, logError, runScheduledBackup } from "./db.js";
 import { isAuthenticated } from "./auth.js";
 import { isPublicPath } from "./site-scope.js";
-import { renderShell, renderBlocks, isBlockShown, excerpt, esc, cleanFooterLinks, faviconSvg, renderErrorPageHtml, renderNotFoundHtml } from "./render.js";
+import { renderShell, esc, cleanFooterLinks, faviconSvg, renderErrorPageHtml, renderNotFoundHtml } from "./render.js";
 import { handleAdminApi } from "./admin-api.js";
-import { visibleText } from "./text.js";
 // STUDY (temporary): see worker/study/README.md.
 import { handleStudyUnlock } from "./study/index.js";
 import { SVG_CSP, isSvgContentType } from "./svg.js";
@@ -58,48 +57,6 @@ async function getSiteContext(env) {
   return { defaultOgImage: v.default_og_image || DEFAULT_SHARE_IMAGE, footerText };
 }
 
-// The home page, from the "home" page and its blocks in the database.
-async function renderHome(env, page, url, request) {
-  const { defaultOgImage, footerText } = await getSiteContext(env);
-  const isAdmin = !!env.__isAdmin || (await isAuthenticated(request, env));
-  const blocks = await listBlocks(env, page.id);
-  const bodyHtml = await renderBlocks(env, blocks, { isAdmin, query: url.searchParams });
-  // A page has no single body-text field to fall back to: build the fallback description from its own text and heading blocks, in
-  // reading order, so a page whose "Meta description" was never filled in does not ship an empty <meta name="description">.
-  const description =
-    visibleText(page.meta_description) ||
-    excerpt(
-      blocks
-        .filter((b) => isBlockShown(b, url.searchParams, env) && (b.type === "text" || b.type === "heading") && b.content && b.content.text)
-        .sort((a, b) => a.row - b.row || a.col - b.col)
-        .map((b) => b.content.text)
-        .join(" ")
-    ) ||
-    page.title;
-  const html = renderShell({
-    title: page.title,
-    description,
-    path: "/",
-    activeSlug: "home",
-    bodyHtml,
-    jsonLd: {
-      "@context": "https://schema.org",
-      "@type": "Person",
-      name: "Dominick",
-      url: "https://dominickdominick.com/",
-      sameAs: ["https://github.com/UsernameDominick"],
-    },
-    ogImage: visibleText(page.og_image) || defaultOgImage || null,
-    footerText,
-    // A page with a Study block is not offered to search engines (the study pages are for the people who were given the password).
-    noindex: String(bodyHtml).includes('class="study-block"'),
-    editUrl: isAdmin ? `/admin/?edit=page:${page.id}` : null,
-  });
-  // A page with address-gated blocks differs by query string, so it must never be served from a shared cache to someone else.
-  const gated = blocks.some((b) => b.style && (b.style.urlRule === "show" || b.style.urlRule === "hide"));
-  return new Response(html, { headers: { "Content-Type": "text/html;charset=UTF-8", ...(gated ? { "Cache-Control": "private, no-store" } : {}) } });
-}
-
 // The Studio: an app page (worker/app-pages.js) with a mount that public/studio.js builds the editor into.
 async function renderStudio(env, appPage, path) {
   const { defaultOgImage, footerText } = await getSiteContext(env);
@@ -134,14 +91,9 @@ async function renderNotFound(env) {
   return new Response(html, { status: 404, headers: { "Content-Type": "text/html;charset=UTF-8" } });
 }
 
-// The sitemap lists the Studio, and the home page unless it holds a Study block (those pages stay out of search results).
-async function renderSitemap(env) {
-  const home = await getPageBySlug(env, "home");
-  const studyPages = await listStudyPageIds(env);
-  const paths = ["/studio"];
-  if (home && !studyPages.has(home.id)) paths.unshift("/");
-  const urls = paths.map((p) => `  <url><loc>https://dominickdominick.com${p === "/" ? "/" : p}</loc></url>`).join("\n");
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
+// The sitemap lists the Studio (there is no other public page).
+async function renderSitemap() {
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>https://dominickdominick.com/studio</loc></url>\n</urlset>\n`;
   return new Response(xml, { headers: { "Content-Type": "application/xml;charset=UTF-8" } });
 }
 
@@ -270,7 +222,10 @@ async function route(request, env, ctx) {
   // Every other public address is the 404 page (site-scope.js).
   if (!isPublicPath(path)) return renderNotFound(env);
 
-  if (path === "/sitemap.xml") return renderSitemap(env);
+  if (path === "/sitemap.xml") return renderSitemap();
+
+  // There is no home page: the front door is the Studio.
+  if (path === "/") return Response.redirect(`${url.origin}/studio${url.search}`, 302);
 
   const appPage = appPageFor(path);
   if (appPage) return renderStudio(env, appPage, path);
@@ -312,11 +267,6 @@ async function route(request, env, ctx) {
   // single page load logs a 404 for it.
   if (path === "/favicon.ico") {
     return new Response(faviconSvg(), { headers: { "Content-Type": "image/svg+xml", "Cache-Control": "public, max-age=86400" } });
-  }
-
-  if (path === "/") {
-    const page = await getPageBySlug(env, "home");
-    if (page) return renderHome(env, page, url, request);
   }
 
   // Fall through to static assets (style.css, nav.js, the admin app, images, etc.); a miss there is the branded 404, not Cloudflare's

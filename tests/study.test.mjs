@@ -318,5 +318,25 @@ const quizLeak = walk(path.join(root, "public")).filter((f) => /\.(js|css|html)$
 ok(quizLeak.length === 0, "and neither is the study page itself", quizLeak);
 ok(!/DEFAULT_PASSWORD|STUDY_PASSWORD/.test(fs.readFileSync(path.join(root, "worker/render.js"), "utf8")), "nor in the page renderer");
 
+// ---- a lab asked for by name (the search dialog): no block on a page, the same lock
+{
+  const env = makeEnv();
+  let r = await call(env, { lab: "core1-lab" });
+  ok(r.status === 401 && (await r.json()).needsPassword === true, "a lab asked for by name, with no password, is told to type one");
+  ok(hits(env).length === 0, "(asking before a password is typed is not a guess)");
+  r = await call(env, { lab: "core1-lab", password: "wrong" });
+  ok(r.status === 401 && hits(env).length === 1, "a wrong password is refused and counted");
+  r = await call(env, { lab: "core1-lab", password: "123" });
+  ok(r.status === 200 && /LAB/.test(await r.text()), "the right password (the default, 123) opens the lab");
+  r = await call(makeEnv({ extra: { STUDY_PASSWORD: "tulip" } }), { lab: "core1-lab", password: "Tulip" });
+  ok(r.status === 200, "the site's own STUDY_PASSWORD is the one asked for when it is set");
+  for (const bad of ["nope", "__proto__", "constructor", "toString", "", 7, null, ["core1-lab"], {}]) {
+    r = await call(makeEnv(), { lab: bad, password: "123" });
+    ok(r.status === 404 || r.status === 400, `a lab of ${JSON.stringify(bad)} is not a lab (${r.status})`);
+  }
+  r = await call(makeEnv({ blocks: { 5: row({ lab: "core1-lab", password: "tulip" }) } }), { block: 5, lab: "core1-lab", password: "123" });
+  ok(r.status === 401, "a block id given with a lab means the block, with its own password");
+}
+
 console.log(fail ? `\n${fail} FAILED` : "\nALL PASS");
 process.exit(fail ? 1 : 0);

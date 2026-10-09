@@ -386,7 +386,8 @@
       return fetch("/api/study/unlock", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ block: Number(block.getAttribute("data-study-block")), password: password }),
+        // a block on a page is asked for by its id; a lab opened from the search dialog (SiteStudy.open) has none and is asked for by name
+        body: JSON.stringify(block.hasAttribute("data-study-block") ? { block: Number(block.getAttribute("data-study-block")), password: password } : { lab: lab, password: password }),
       })
         .then(function (res) {
           if (res.ok) return res.text().then(function (text) { return { html: text }; });
@@ -438,10 +439,7 @@
     return dialog;
   }
 
-  document.addEventListener("click", function (e) {
-    var button = e.target.closest && e.target.closest(".study-block .study-open");
-    if (!button) return;
-    var block = button.closest(".study-block");
+  function show(block, button) {
     if (!block._studyDialog) block._studyDialog = build(block, button);
     var dialog = block._studyDialog;
     document.documentElement.classList.add("study-is-open");
@@ -451,5 +449,22 @@
       dialog._probe();
     }
     dialog._focusStart();
+  }
+  document.addEventListener("click", function (e) {
+    var button = e.target.closest && e.target.closest(".study-block .study-open");
+    if (!button) return;
+    show(button.closest(".study-block"), button);
   });
+  // A lab asked for by name (the search dialog): the same popup, with no block on a page behind it.
+  var named = {};
+  window.SiteStudy = {
+    open: function (lab, title) {
+      if (!named[lab]) {
+        named[lab] = document.createElement("div");
+        named[lab].setAttribute("data-study-lab", lab);
+        named[lab].setAttribute("data-study-title", title || "Study");
+      }
+      show(named[lab], null);
+    },
+  };
 })();

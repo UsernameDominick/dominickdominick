@@ -657,21 +657,28 @@ function pageScriptsHtml(bodyHtml) {
   return tags.join("\n");
 }
 
-// The last stop of the nav dial: Settings, which opens the settings dialog.
+// The last stop of the nav dial: a magnifier, which opens the search and command dialog (Ctrl or Cmd with K).
 function finderTabHtml() {
-  return `<button type="button" class="tab tab-finder" id="finder-open" aria-haspopup="dialog" aria-controls="site-finder" aria-expanded="false" title="Settings (Ctrl+K)">${navIconSvg("settings", "Settings")}<span class="tab-label">Settings</span></button>`;
+  return `<button type="button" class="tab tab-finder" id="finder-open" aria-haspopup="dialog" aria-controls="site-finder" aria-expanded="false" aria-label="Search" title="Search (Ctrl+K)">${navIconSvg("search", "Search")}<span class="tab-label">Search</span></button>`;
 }
-// The Settings dialog: the site's own settings (light or dark, motion, text size) and a way to each page. The settings rows are the same
-// buttons nav.js has always wired by id.
+// The search and command dialog: type to filter its rows, or arrow through them. The rows are the site's own settings (light or dark, motion, text
+// size) and the way to the Studio; the two study modules are not listed, they only appear when their name is typed (data-secret, data-keys).
+// The settings rows are the same buttons nav.js has always wired by id.
 function finderHtml({ editUrl = null } = {}) {
   const row = (attrs, icon, label, hint) =>
     `${attrs.tag === "a" ? `<a class="finder-item${attrs.cls ? " " + attrs.cls : ""}" href="${esc(attrs.href)}">` : `<button type="button" class="finder-item${attrs.cls ? " " + attrs.cls : ""}"${attrs.id ? ` id="${attrs.id}"` : ""}${attrs.pressed ? ' aria-pressed="false"' : ""}>`}` +
     `<span class="finder-ico" aria-hidden="true">${icon}</span><span class="finder-label">${label}</span>${hint ? `<span class="finder-hint">${hint}</span>` : ""}${attrs.tag === "a" ? "</a>" : "</button>"}`;
   const goRows = NAV_PAGES.map((n) => row({ tag: "a", href: n.href }, navIconSvg(n.slug, n.label), esc(n.label), "Page")).join("");
-  return `<div class="site-finder" id="site-finder" role="dialog" aria-modal="true" aria-label="Settings" hidden>
+  // STUDY (temporary): the two study modules. Hidden until their name is typed; pressing one opens the study popup (public/study/study.js), which asks for
+  // the password.
+  const studyRow = (lab, label, keys) =>
+    `<button type="button" class="finder-item" data-study-lab="${lab}" data-study-title="${esc(label)}" data-secret data-keys="${esc(keys)}" hidden><span class="finder-ico" aria-hidden="true">${navIconSvg("studio", label)}</span><span class="finder-label">${esc(label)}</span><span class="finder-hint">Study</span></button>`;
+  return `<div class="site-finder" id="site-finder" role="dialog" aria-modal="true" aria-label="Search" hidden>
       <div class="finder-backdrop" data-finder-close></div>
       <div class="finder-panel">
-        <span class="win-title" aria-hidden="true">settings</span>
+        <span class="win-title" aria-hidden="true">search</span>
+        <form class="finder-form" role="search" onsubmit="return false"><span class="finder-ico finder-form-ico" aria-hidden="true">${navIconSvg("search", "Search")}</span><input id="finder-q" type="search" placeholder="Search" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="go" aria-label="Search the site and its commands"></form>
+        <p class="finder-none" id="finder-none" hidden>Nothing matches that.</p>
         <div class="finder-results">
           <div id="finder-list">
             <div class="finder-group" data-group="settings"><h2 class="finder-title">Settings</h2>
@@ -683,6 +690,10 @@ function finderHtml({ editUrl = null } = {}) {
               ${editUrl ? row({ tag: "a", href: editUrl, cls: "edit-this-btn" }, pixelIcon("pencil", "icon", 20), "Edit this page", "Admin") : ""}
               ${goRows}
             </div>
+            <div class="finder-group" data-group="study" data-secret hidden>
+              ${studyRow("core1-lab", "A+ Core 1 Drill", "core1|core 1|a+|comptia|study")}
+              ${studyRow("c777-lab", "C777 Web Development Drill", "c777|wgu|web development|study")}
+            </div>
           </div>
         </div>
         <p class="finder-foot"><span><kbd>↑</kbd><kbd>↓</kbd> move</span><span><kbd>Enter</kbd> open</span><span><kbd>esc</kbd> close</span><button type="button" class="finder-esc" data-finder-close aria-label="Close">esc</button></p>
@@ -690,11 +701,8 @@ function finderHtml({ editUrl = null } = {}) {
     </div>`;
 }
 
-// The pages of the site, in the order the nav dial shows them: Studio on the left, Home in the middle, Settings (the dialog) on the right.
-const NAV_PAGES = [
-  { slug: "studio", label: "studio", href: "/studio" },
-  { slug: "home", label: "home", href: "/" },
-];
+// The pages of the site, in the order the nav dial shows them: the Studio, then the search stop (the dialog). There is no home page.
+const NAV_PAGES = [{ slug: "studio", label: "studio", href: "/studio" }];
 
 export function renderShell({
   title,
@@ -716,7 +724,7 @@ export function renderShell({
   const canonical = canonicalUrl || `https://dominickdominick.com${path}`;
   const ogSizeMatch = /width="(\d+)" height="(\d+)"/.exec(ogImageSize || "");
   const stopHtml = (n) =>
-    `<a class="tab${n.slug === "home" ? " tab-home" : ""}${n.slug === activeSlug ? " is-active" : ""}" href="${n.href}"${n.slug === activeSlug ? ' aria-current="page"' : ""}>${navIconSvg(n.slug, n.label)}<span class="tab-label">${esc(n.label)}</span></a>`;
+    `<a class="tab${n.slug === activeSlug ? " is-active" : ""}" href="${n.href}"${n.slug === activeSlug ? ' aria-current="page"' : ""}>${navIconSvg(n.slug, n.label)}<span class="tab-label">${esc(n.label)}</span></a>`;
   const navHtml = NAV_PAGES.map(stopHtml).join("\n");
 
   return `<!DOCTYPE html>

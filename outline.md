@@ -2,7 +2,7 @@
 
 Current operating rules, what is shipped, open work, migrations, and manual checks. Completed implementation narratives remain in Git history.
 
-**What the site is (since 2026-10-08):** a home page, the Studio (a music maker in the browser), and two password-protected study modules that open from buttons on the home page. A slim admin at `/admin` edits the home page. Everything else the site used to have (articles, projects, search, the circuit simulator, 3D scans, the photo editor, the aim trainer, hidden notes, scripts, analytics and the rest) was deleted from the code. Its last working state is the git tag `before-slim-down`; to bring something back, start from that tag.
+**What the site is (since 2026-10-09):** the Studio (a music maker in the browser) and a search and command dialog behind a magnifier in the nav; `/` goes to the Studio (the home page was removed). Two password-protected study modules open when their name is typed in the search. A slim admin at `/admin` still edits the old home page, which no visitor sees (candidates to remove: its page editor and the blocks code). Everything else the site used to have (articles, projects, search, the circuit simulator, 3D scans, the photo editor, the aim trainer, hidden notes, scripts, analytics and the rest) was deleted from the code. Its last working state is the git tag `before-slim-down`; to bring something back, start from that tag.
 
 **Stack:** Cloudflare Workers (JavaScript), D1 (SQLite), R2, vanilla HTML/CSS/JS. Tests are plain Node scripts plus Playwright; CI is GitHub Actions.
 
@@ -44,7 +44,7 @@ Current operating rules, what is shipped, open work, migrations, and manual chec
 
 ## 1. What is shipped
 
-- **Home page:** one D1 page (`home`) rendered from blocks. Block types: heading, text, image, button, divider, spacer, quote, gallery and study. Each block can carry colour, font, size, border, a width on phones, a reading order, hide-on-desktop/mobile, a hover effect and one of five entrance animations. A page holding a study block is kept out of search engines and the sitemap on purpose.
+- **Old home page (not shown since 2026-10-09):** one D1 page (`home`) still stored and editable in the admin, rendered by nothing. Block types: heading, text, image, button, divider, spacer, quote, gallery and study. Each block can carry colour, font, size, border, a width on phones, a reading order, hide-on-desktop/mobile, a hover effect and one of five entrance animations. A page holding a study block is kept out of search engines and the sitemap on purpose.
 - **Study modules:** the A+ Core 1 drill and the WGU C777 web development drill (`worker/study/`, `public/study/`), opened from a study block in a full-screen popup after a password. Progress and weak spots stay in the browser. See `worker/study/README.md`.
 - **Studio (`/studio`):** the song builder as a page for every visitor: five fixed tracks (drums, bass, chords, melody, lead), step sequencer and piano roll, forty instruments and fifteen drum kits, MIDI keyboard input, live play (arpeggio, strum, roll), bars and patterns, song files and MIDI import/export. Songs stay in the visitor's browser (`localStorage`) and are never sent to the site. The sound is synthesized with Web Audio; there is no sample playback, effects chain or mixing desk.
 - **Look:** Bit bento (1-bit ink on paper, Mac-style windows, pixel type, one orange accent). Paper is warm cream in the light theme and soft charcoal in the dark theme (not pure white and black, which was hard on the eyes).
@@ -76,7 +76,6 @@ Current operating rules, what is shipped, open work, migrations, and manual chec
 
 ### Testing, staging and deployment
 - [ ] Finish the one-time setup in section 0 and watch the first pull request go through the whole pipeline.
-- [ ] Seed the preview database with `seed/home.sql` once, so previews show the home page, then drop `--no-home` from the preview smoke test.
 - [ ] Migration history: Wrangler tracks `0001_simulation_publication` and `0002_project_related_songs`; older manual schema changes are not reconstructed.
 
 ### Backups and operating costs

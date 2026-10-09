@@ -5,6 +5,7 @@ import { navIconName, navIconSvg, pixelIcon } from "../worker/nav-icons.js";
 assert.equal(navIconName("home", "Home"), "home");
 assert.equal(navIconName("studio", "Studio"), "studio");
 assert.equal(navIconName("settings", "Settings"), "settings");
+assert.equal(navIconName("search", "Search"), "search");
 assert.equal(navIconName("my-page", "Get in touch"), "dot");
 assert.equal(navIconName("", ""), "dot");
 assert.equal(navIconName(undefined, undefined), "dot");
@@ -15,6 +16,6 @@ assert.match(svg, /aria-hidden="true"/);
 assert.match(svg, /<path d="M/);
 
 // the pixel icons the dialog and the editor link use exist; an unknown name falls back to the dot
-for (const name of ["sun", "moon", "pause", "pencil", "settings", "home", "studio"]) assert.match(pixelIcon(name), /<path d="M/, name);
+for (const name of ["sun", "moon", "pause", "pencil", "settings", "home", "studio", "search"]) assert.match(pixelIcon(name), /<path d="M/, name);
 assert.equal(pixelIcon("no-such-icon"), pixelIcon("dot"));
 console.log("ALL PASS");

@@ -356,19 +356,6 @@ body {
   outline-offset: -5px;
 }
 
-/* The shortcut shown beside Settings, where there is a keyboard (Ctrl or Cmd with K). */
-@media (hover: hover) and (min-width: 721px) {
-  .tab-finder .tab-label::after {
-    content: "^K";
-    display: inline-block;
-    margin: 0 0 0 8px;
-    padding: 0 4px;
-    border: 2px solid currentColor;
-    font-size: 12px;
-    line-height: 14px;
-    vertical-align: 3px;
-  }
-}
 
 /* An owner-only link: a dashed ring, and a screen reader hears "(admin-only link)". */
 .tab.is-admin-only .tab-label {
@@ -2021,3 +2008,8 @@ html.finder-on { overflow: hidden; }
 
 /* A phone turned on its side must not make the text bigger by itself (iOS does that unless told not to); the text size setting is the visitor's own choice. */
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+/* The search stop of the nav dial is a magnifier: the stops are words, this one a picture, and its word is there for screen readers. */
+.tabs .tab-finder .tab-ico { display: block; width: 32px; height: 32px; margin: 0 auto; }
+.tab-finder .tab-label { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.finder-none { margin: 0 16px 12px; color: var(--text-dim); font-size: 1.1rem; }

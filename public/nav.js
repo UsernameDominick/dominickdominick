@@ -268,12 +268,16 @@
   });
 })();
 
-// The Settings dialog, opened from the last stop of the nav or with Ctrl/Cmd+K: light or dark, reduced motion and text size, and links to
-// the pages. Arrow keys move through the rows, Enter presses one, Esc closes and gives the focus back.
+// The search and command dialog, opened from the magnifier at the end of the nav or with Ctrl/Cmd+K: type to filter its rows (light or dark, reduced
+// motion, text size, the Studio), or arrow through them; Enter presses the first (or the one you are on), Esc closes and gives the focus back. Two study
+// modules are not in the list: they appear when their name is typed (data-secret, data-keys) and open the study popup (public/study/study.js, loaded
+// the first time one is pressed).
 (function () {
   var finder = document.getElementById("site-finder");
   if (!finder) return;
   var openBtn = document.getElementById("finder-open");
+  var query = document.getElementById("finder-q");
+  var none = document.getElementById("finder-none");
   var lastFocus = null;
 
   function visible(el) {
@@ -281,6 +285,50 @@
   }
   function items() {
     return [].slice.call(finder.querySelectorAll("#finder-list .finder-item")).filter(visible);
+  }
+  // Shows the rows that match what was typed. A row marked data-secret is shown only when the whole text typed is one of its keys (data-keys, separated
+  // by |), never from a part of a word: the study modules are found by their name, not listed.
+  function applyFilter() {
+    var text = ((query && query.value) || "").trim().toLowerCase();
+    var anything = false;
+    [].forEach.call(finder.querySelectorAll("#finder-list .finder-group"), function (group) {
+      var shown = 0;
+      [].forEach.call(group.querySelectorAll(".finder-item"), function (item) {
+        var match;
+        if (item.hasAttribute("data-secret")) match = text !== "" && (item.getAttribute("data-keys") || "").toLowerCase().split("|").indexOf(text) >= 0;
+        else match = text === "" || item.textContent.toLowerCase().indexOf(text) >= 0;
+        item.hidden = !match;
+        if (match) shown++;
+      });
+      group.hidden = shown === 0;
+      if (shown) anything = true;
+    });
+    if (none) none.hidden = anything || text === "";
+  }
+  function resetFilter() {
+    if (query) query.value = "";
+    applyFilter();
+  }
+  var studyLoading = false;
+  function openStudy(lab, title) {
+    close();
+    function go() { if (window.SiteStudy) window.SiteStudy.open(lab, title); }
+    if (window.SiteStudy) return go();
+    if (studyLoading) return;
+    studyLoading = true;
+    if (!document.querySelector('link[href="/study/study.css"]')) {
+      var css = document.createElement("link");
+      css.rel = "stylesheet";
+      css.href = "/study/study.css";
+      css.setAttribute("data-added-by", "nav");
+      document.head.appendChild(css);
+    }
+    var js = document.createElement("script");
+    js.src = "/study/study.js";
+    js.setAttribute("data-added-by", "nav");
+    js.onload = function () { studyLoading = false; go(); };
+    js.onerror = function () { studyLoading = false; };
+    document.head.appendChild(js);
   }
   // The dialog opens under the nav, which stays in view and can still be tapped: its top is wherever the header ends.
   function placeFinder() {
@@ -295,9 +343,12 @@
     finder.hidden = false;
     document.documentElement.classList.add("finder-on");
     if (openBtn) openBtn.setAttribute("aria-expanded", "true");
-    if (window.siteLayoutNav) window.siteLayoutNav(); // the needle turns to Settings while it is open
+    if (window.siteLayoutNav) window.siteLayoutNav(); // the needle turns to the search stop while it is open
+    resetFilter();
     if (opts && opts.focus === false) return;
-    var first = items()[0];
+    // the search box has the focus (on a phone it would raise the keyboard, so there the first row does)
+    var coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+    var first = coarse ? items()[0] : query || items()[0];
     if (first) first.focus();
   }
   function close() {
@@ -318,7 +369,10 @@
   }, true);
   finder.addEventListener("click", function (e) {
     if (e.target.closest("[data-finder-close]")) close();
+    var study = e.target.closest && e.target.closest("[data-study-lab]");
+    if (study) openStudy(study.getAttribute("data-study-lab"), study.getAttribute("data-study-title") || "Study");
   });
+  if (query) query.addEventListener("input", applyFilter);
   finder.addEventListener("keydown", function (e) {
     if (e.key === "Escape") {
       e.preventDefault();
@@ -327,15 +381,22 @@
       return;
     }
     var list = items();
+    if (e.key === "Enter" && document.activeElement === query) {
+      // Enter in the search box presses the first row that matches
+      e.preventDefault();
+      if (list[0]) list[0].click();
+      return;
+    }
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       if (!list.length) return;
       e.preventDefault();
       var i = list.indexOf(document.activeElement);
       if (e.key === "ArrowDown") (i < 0 ? list[0] : list[Math.min(list.length - 1, i + 1)]).focus();
+      else if (i <= 0 && query) query.focus();
       else list[Math.max(0, i - 1)].focus();
     } else if (e.key === "Tab") {
       // The focus stays inside while it is open.
-      var all = list.concat([].slice.call(finder.querySelectorAll(".finder-esc")));
+      var all = (query ? [query] : []).concat(list, [].slice.call(finder.querySelectorAll(".finder-esc")));
       var at = all.indexOf(document.activeElement);
       if (e.shiftKey && at <= 0) {
         e.preventDefault();

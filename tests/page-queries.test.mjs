@@ -44,24 +44,24 @@ const ctx = { waitUntil: (p) => Promise.resolve(p).catch(() => {}) };
 const get = (env, path) => worker.fetch(new Request(`https://dominickdominick.com${path}`, { headers: { "User-Agent": "Mozilla/5.0 Chrome/120" } }), env, ctx);
 const settingsQueries = (log) => log.filter((q) => /FROM settings/.test(q));
 
-// the home page
+// there is no home page: the front door sends a visitor to the Studio, and costs no database query on the way
 {
   const { env, log } = makeEnv({ site_footer: "© me", maintenance_mode: "0" });
   const res = await get(env, "/");
-  assert.equal(res.status, 200);
-  const html = await res.text();
-  assert.match(html, /© me/, "and the footer text");
+  assert.equal(res.status, 302);
+  assert.equal(res.headers.get("Location"), "https://dominickdominick.com/studio");
   const sq = settingsQueries(log);
-  console.log(`home: ${log.length} queries, ${sq.length} on settings`);
-  assert.ok(sq.length <= 3, `settings queries: ${sq.length}\n${sq.map((q) => q.slice(0, 90)).join("\n")}`);
-  assert.ok(log.length <= 12, `total queries: ${log.length}`);
+  console.log(`front door: ${log.length} queries, ${sq.length} on settings`);
+  assert.ok(log.length <= 3, `total queries: ${log.length}`);
 }
 // the Studio page (articles are off the cut-down site, worker/site-scope.js)
 {
   const { env, log } = makeEnv({ maintenance_mode: "0" });
   const res = await get(env, "/studio");
   assert.equal(res.status, 200);
-  assert.match(await res.text(), /id="studio-mount"/);
+  const html = await res.text();
+  assert.match(html, /id="studio-mount"/);
+  assert.match(html, /id="finder-open"/, "the nav has the search stop");
   const sq = settingsQueries(log);
   console.log(`studio: ${log.length} queries, ${sq.length} on settings`);
   assert.ok(sq.length <= 3, `settings queries: ${sq.length}`);

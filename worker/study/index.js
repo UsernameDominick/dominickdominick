@@ -75,7 +75,7 @@ export function gatePassword(env, content) {
   return expectedPassword(env, content);
 }
 
-// POST /api/study/unlock  { block: <block id>, password: "..." }
+// POST /api/study/unlock  { block: <block id>, password: "..." }  or  { lab: "core1-lab", password: "..." }
 // 200 with the study page as text/html, 401 wrong or missing password (`needsPassword` when none was given), 404 no such block,
 // 429 too many tries.
 export async function handleStudyUnlock(request, env) {
@@ -88,7 +88,8 @@ export async function handleStudyUnlock(request, env) {
     body = null;
   }
   if (!body || typeof body !== "object" || Array.isArray(body)) return json({ error: "Bad request." }, 400);
-  const content = await studyBlock(env, Number(body.block));
+  // A block on a page (by its id), or a lab asked for by name (the search dialog: the labs are found by typing, and are locked all the same).
+  const content = typeof body.lab === "string" && Object.prototype.hasOwnProperty.call(STUDY_LABS, body.lab) && body.block === undefined ? { lab: body.lab } : await studyBlock(env, Number(body.block));
   const expected = content ? gatePassword(env, content) : null;
   const serve = async () => {
     const key = STUDY_LABS[content.lab] ? content.lab : DEFAULT_LAB;

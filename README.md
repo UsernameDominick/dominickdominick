@@ -1,10 +1,11 @@
 # dominickdominick.com
 
-A small personal site on a Cloudflare Worker: a home page, the **Studio** (a music maker that runs in the browser), and two password-protected **study modules** that open from buttons on the home page.
+A small personal site on a Cloudflare Worker: the **Studio** (a music maker that runs in the browser: the whole public site), a search and command dialog behind a magnifier in the nav, and two password-protected **study modules** that open when their name is typed in that search.
 
 ## What is here
 
-- **Home (`/`)**: a page of blocks (heading, text, image, button, divider, spacer, quote, gallery, study) stored in D1 and edited in `/admin`.
+- **Front door (`/`)**: sends a visitor to the Studio (there is no home page).
+- **Search**: the magnifier in the nav (or Ctrl/Cmd+K) opens a dialog that filters its rows as you type: dark or light, reduced motion, text size, the Studio. Typing `core 1` or `c777` shows a study module, which asks for its password.
 - **Studio (`/studio`)**: five fixed tracks (drums, bass, chords, melody, lead) with a step sequencer, a piano roll, forty instruments, fifteen drum kits, MIDI keyboard input, live play and song files. Everything a visitor makes stays in their own browser; nothing is sent to the site.
 - **Study modules**: the A+ Core 1 drill and the WGU C777 web development drill, shown in a popup after a password. Progress is kept in the browser.
 - **Admin (`/admin`)**: the owner's page editor, image library, a few site settings, backups, and a read-only view of the features board and the project outline.

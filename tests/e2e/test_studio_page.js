@@ -84,19 +84,12 @@ const { chromium } = require("./_pw.cjs");
     await p.waitForFunction(() => { const n = document.getElementById("studio-name"); return n && n.value === "QQ Visitor Song" && !document.getElementById("song-builder-modal").hidden; }, null, { timeout: 10000 });
     ok(await p.evaluate(() => document.querySelector('#studio-grid .studio-cell[data-row="kick"][data-step="0"]').classList.contains("on")), "a card opens the song with its notes");
 
-    // slide to another tab and back: the Studio is parked, its keys asleep, and comes back as it was
-    const home = nav.find((n) => n[1] === "/");
-    await p.click(`.site-nav a[href="${home[1]}"]`);
-    await p.waitForFunction(() => location.pathname === "/" && !document.querySelector("#studio-mount"), null, { timeout: 10000 });
-    await p.waitForTimeout(400);
-    const parked = await p.evaluate(() => { const park = document.getElementById("app-parking"); return !!(park && park.hidden && park.querySelector(".studio-native") && document.getElementById("song-builder-modal").hidden); });
-    ok(parked, "on another tab the Studio is parked out of sight");
-    await p.keyboard.press("Space");
-    await p.waitForTimeout(300);
-    ok(await p.evaluate(() => !(window.SongStudioHost && window.SongStudioHost.playing && window.SongStudioHost.playing())), "and its keyboard shortcuts do nothing there");
-    await p.click('.site-nav a[href="/studio"]');
-    await p.waitForFunction(() => location.pathname === "/studio" && document.querySelector("#studio-mount .studio-native") && !document.getElementById("song-builder-modal").hidden, null, { timeout: 10000 });
-    ok(await p.evaluate(() => document.getElementById("studio-name").value === "QQ Visitor Song"), "back on Studio, the song is still open");
+    // the search dialog opens over the Studio and gives it back as it was
+    await p.click("#finder-open");
+    await p.waitForSelector("#site-finder:not([hidden])", { timeout: 5000 });
+    await p.keyboard.press("Escape");
+    await p.waitForFunction(() => document.getElementById("site-finder").hidden, null, { timeout: 5000 });
+    ok(await p.evaluate(() => document.getElementById("studio-name").value === "QQ Visitor Song" && !document.getElementById("song-builder-modal").hidden), "the search dialog opens and closes, and the song is still open");
     ok(adminCalls.length === 0, "nothing was sent to the admin API", adminCalls);
     ok(errs.length === 0, "no page errors", errs);
     await ctx.close();
