@@ -72,7 +72,56 @@ const CORE1_LAB_BRIDGE = `
 })();
 `;
 
-export const LAB_BRIDGES = { "core1-lab": CORE1_LAB_BRIDGE };
+// The C777 drill keeps all of its progress in one `state` object (no timers inside it), so the whole object is saved and put back.
+const C777_LAB_BRIDGE = `
+(function () {
+  if (window.parent === window || typeof state === "undefined" || typeof render !== "function") return;
+  var timer = null;
+  function save() {
+    timer = null;
+    try { parent.postMessage({ study: "save", state: JSON.parse(JSON.stringify(state)) }, "*"); } catch (e) {}
+  }
+  function later() { if (timer) clearTimeout(timer); timer = setTimeout(save, 400); }
+  var original = render;
+  render = function () { var r = original.apply(this, arguments); later(); return r; };
+
+  function restore(saved) {
+    if (!saved || typeof saved !== "object" || Array.isArray(saved)) return;
+    Object.keys(saved).forEach(function (k) {
+      if (!Object.prototype.hasOwnProperty.call(state, k)) return;
+      var cur = state[k], val = saved[k];
+      if (cur !== null && val !== null && (typeof cur !== typeof val || Array.isArray(cur) !== Array.isArray(val))) return;
+      state[k] = val;
+    });
+    var ok = state.queue.every(function (id) { return BY_ID[id]; });
+    if (state.screen === "quiz" && (!ok || !canResume() || (state.timed && state.timeLeft <= 0) || state.order.length === 0)) state.screen = "home";
+    if (state.screen === "results" && (!ok || state.results.length === 0)) state.screen = "home";
+    if (state.screen === "quiz" && state.timed) startClock();
+    render();
+  }
+
+  window.addEventListener("message", function (e) {
+    if (e.source !== parent) return;
+    var d = e.data;
+    if (!d || typeof d !== "object") return;
+    if (d.study === "restore") {
+      try { restore(d.state); } catch (err) { parent.postMessage({ study: "corrupt" }, "*"); }
+    } else if (d.study === "weak-restore") {
+      try { if (typeof weakRestore === "function") weakRestore(d.data); } catch (err) {}
+    } else if (d.study === "flush") {
+      save();
+    } else if (d.study === "zoom") {
+      var z = Number(d.value);
+      if (z >= 0.5 && z <= 3) document.documentElement.style.zoom = String(z);
+    }
+  });
+  window.addEventListener("pagehide", save);
+  document.addEventListener("visibilitychange", function () { if (document.hidden) save(); });
+  parent.postMessage({ study: "ready" }, "*");
+})();
+`;
+
+export const LAB_BRIDGES = { "core1-lab": CORE1_LAB_BRIDGE, "c777-lab": C777_LAB_BRIDGE };
 
 // The study page with its bridge (if it has one) just before the end of the body.
 export function withBridge(html, lab) {

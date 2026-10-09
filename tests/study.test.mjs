@@ -282,7 +282,28 @@ ok(studyPageTags("<p>hi</p>").length === 0 && studyPageTags("").length === 0 && 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const lab = fs.readFileSync(path.join(root, "worker/study/core1-lab.html"), "utf8");
 ok(/^<!DOCTYPE html>/i.test(lab) && lab.includes("A+ Core 1 Drill") && lab.length > 100000, "the study page file is the real one", lab.length);
-ok(Object.keys(STUDY_LABS).join() === "core1-lab" && typeof STUDY_LABS["core1-lab"].load === "function", "it is registered under core1-lab");
+ok(Object.keys(STUDY_LABS).join() === "core1-lab,c777-lab" && typeof STUDY_LABS["core1-lab"].load === "function", "it is registered under core1-lab (and the C777 drill beside it)");
+
+// ---- the C777 drill ----
+{
+  const c777 = fs.readFileSync(path.join(root, "worker/study/c777-lab.html"), "utf8");
+  ok(/^<!DOCTYPE html>/i.test(c777) && c777.includes("C777 Web Development Drill") && typeof STUDY_LABS["c777-lab"].load === "function", "the C777 drill is a real page and registered");
+  ok((c777.match(/<\/script>/g) || []).length === 3, "no question text ends a script tag early");
+  const data = c777.slice(c777.indexOf("const QS = [];"), c777.indexOf("</script>"));
+  const QS = new Function(data + "\nreturn QS;")();
+  ok(QS.length >= 300, "it has plenty of questions", QS.length);
+  const units = new Set(QS.map((q) => q.u));
+  ok([1, 2, 3, 4, 5, 6].every((u) => units.has(u)), "every unit of the study guide has questions");
+  const shapeBad = QS.filter((q) => !q.s || !q.c.length || q.w.length < 2 || new Set(q.c.concat(q.w)).size !== q.c.length + q.w.length);
+  ok(shapeBad.length === 0, "each has a right answer, two or more wrong ones and no repeated choice", shapeBad.slice(0, 3).map((q) => q.s));
+  const dup = QS.length - new Set(QS.map((q) => q.u + q.s + q.k)).size;
+  ok(dup === 0, "and none is asked twice", dup);
+  const bridge = LAB_BRIDGES["c777-lab"];
+  let syntax = true;
+  try { new vm.Script(bridge); } catch (e) { syntax = e.message; }
+  ok(typeof bridge === "string" && syntax === true && !/<\/script/i.test(bridge), "its progress bridge is valid browser code");
+  ok(withBridge("<body></body>", "c777-lab").includes("\"ready\""), "and is added to the page");
+}
 function walk(dir, out = []) {
   for (const name of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, name.name);

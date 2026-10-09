@@ -1,6 +1,7 @@
 {
-  "updated": "2026-10-08",
+  "updated": "2026-10-09",
   "items": [
+    {"id": "c777-web-dev-drill", "area": "Study", "status": "done", "title": "C777 web development drill", "summary": "A second study page for the six units of the WGU C777 guide (HTML, CSS3, JavaScript, HTML APIs, forms, mobile) with about 690 questions, practice by unit, exam mode, timed runs and weak spots.", "date": "2026-10-09"},
     {"id": "password-protected-pages", "area": "Site & content", "status": "done", "title": "Password-protected pages", "summary": "A page can be locked behind a password; search, 404 suggestions and the lock screen no longer leak its content."},
     {"id": "admin-only-nav-items", "area": "Site & content", "status": "done", "title": "Admin-only nav items", "summary": "Hide a nav link from visitors while you test it signed in."},
     {"id": "edit-nav-and-footer-in-one-place", "area": "Site & content", "status": "done", "title": "Edit nav and footer in one place", "summary": "The site name, built-in links, custom links and footer text live in one settings section."},

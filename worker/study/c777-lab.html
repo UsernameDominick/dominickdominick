@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>C777 Web Development Drill</title>
+<style>
+:root {
+  --bg:#10141b; --panel:#1a2029; --panel-2:#212936; --border:#2c3542; --border-soft:#232b37;
+  --text:#e9ecf1; --text-dim:#8b96a5; --text-faint:#6a7585; --amber:#e8a33d; --amber-dim:#6b551f;
+  --good:#5fd87a; --good-dim:#1e3324; --bad:#f0665a; --bad-dim:#3a2323;
+  --mono: ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+  --sans: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing:border-box; }
+html,body { margin:0; padding:0; background:var(--bg); color:var(--text); font-family:var(--sans); -webkit-font-smoothing:antialiased; }
+#app { max-width:640px; margin:0 auto; padding:20px 16px 64px; }
+button { font-family:inherit; cursor:pointer; }
+.eyebrow { font-family:var(--mono); font-size:12px; letter-spacing:.14em; color:var(--amber); font-weight:600; }
+h1 { font-size:30px; line-height:1.1; margin:8px 0 10px; letter-spacing:-.02em; font-weight:800; }
+.sub { color:var(--text-dim); font-size:14.5px; line-height:1.5; margin:0; }
+.panel { background:var(--panel); border:1px solid var(--border-soft); border-radius:10px; padding:16px; margin-top:14px; }
+.panel-title { font-family:var(--mono); font-size:11px; letter-spacing:.12em; color:var(--text-faint); margin-bottom:12px; font-weight:600; text-transform:uppercase; }
+.unit-row { display:grid; grid-template-columns:1fr 80px 38px; align-items:center; gap:10px; padding:6px 0; font-size:13px; }
+.unit-row b { color:var(--amber); font-family:var(--mono); margin-right:6px; }
+.meter { height:6px; background:var(--border-soft); border-radius:4px; overflow:hidden; }
+.meter i { display:block; height:100%; background:var(--amber); border-radius:4px; }
+.pct { font-family:var(--mono); font-size:11px; color:var(--text-faint); text-align:right; }
+.row { display:flex; flex-wrap:wrap; gap:8px; }
+.opt { background:var(--panel-2); border:1px solid var(--border); color:var(--text-dim); border-radius:8px; padding:9px 13px; font-size:13px; min-height:40px; }
+.opt.on { background:var(--amber-dim); border-color:var(--amber); color:var(--text); }
+.btn { background:var(--amber); color:#1a1305; border:0; border-radius:9px; padding:13px 18px; font-size:15px; font-weight:700; min-height:46px; }
+.btn.ghost { background:var(--panel-2); color:var(--text); border:1px solid var(--border); font-weight:600; }
+.btn.wide { width:100%; margin-top:10px; }
+.btn:disabled { opacity:.4; cursor:default; }
+label.field { display:block; font-size:12.5px; color:var(--text-dim); margin:12px 0 6px; }
+input[type=search] { width:100%; background:var(--panel-2); border:1px solid var(--border); border-radius:8px; color:var(--text); padding:11px 12px; font-size:14px; }
+.top { display:flex; justify-content:space-between; align-items:center; gap:10px; font-family:var(--mono); font-size:12px; color:var(--text-dim); margin-bottom:10px; }
+.top button { background:none; border:0; color:var(--text-dim); font-family:var(--mono); font-size:12px; padding:8px 4px; min-height:40px; }
+.bar { height:4px; background:var(--border-soft); border-radius:3px; overflow:hidden; margin-bottom:16px; }
+.bar i { display:block; height:100%; background:var(--amber); }
+.tag { display:inline-block; font-family:var(--mono); font-size:10.5px; letter-spacing:.06em; color:var(--text-dim); background:var(--panel-2); border-radius:5px; padding:3px 7px; margin-bottom:10px; }
+.stem { font-size:16.5px; line-height:1.5; margin:0 0 6px; font-weight:600; }
+.hint { color:var(--text-faint); font-size:12.5px; margin:0 0 14px; }
+pre.code { background:#0b0e13; border:1px solid var(--border-soft); border-radius:8px; padding:12px; overflow-x:auto; font-family:var(--mono); font-size:12.5px; line-height:1.55; margin:10px 0 14px; white-space:pre; color:#cfd6e0; }
+.choice { display:flex; gap:11px; width:100%; text-align:left; background:var(--panel); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:13px; margin-bottom:9px; font-size:14.5px; line-height:1.45; align-items:flex-start; }
+.choice .let { font-family:var(--mono); font-weight:700; color:var(--text-faint); min-width:18px; }
+.choice.sel { border-color:var(--amber); background:#2a2417; }
+.choice.right { border-color:var(--good); background:var(--good-dim); }
+.choice.wrong { border-color:var(--bad); background:var(--bad-dim); }
+.choice.missed { border-color:var(--good); border-style:dashed; }
+.choice code, .stem code, .why code { font-family:var(--mono); font-size:.92em; background:#0b0e13; padding:1px 5px; border-radius:4px; }
+.why { background:var(--panel); border-left:3px solid var(--amber); border-radius:6px; padding:12px 14px; margin:12px 0; font-size:14px; line-height:1.55; color:var(--text-dim); }
+.verdict { font-weight:800; font-size:15px; margin:14px 0 4px; }
+.verdict.good { color:var(--good); } .verdict.bad { color:var(--bad); }
+.score { font-size:54px; font-weight:800; letter-spacing:-.03em; margin:8px 0 2px; }
+.card { background:var(--panel); border:1px solid var(--border-soft); border-radius:10px; padding:14px; margin-bottom:10px; font-size:14px; line-height:1.5; }
+.card .q { font-weight:600; margin-bottom:6px; }
+.card .a { color:var(--good); font-size:13.5px; }
+.card .y { color:var(--bad); font-size:13.5px; }
+.card .e { color:var(--text-dim); font-size:13px; margin-top:6px; }
+.dim { color:var(--text-dim); }
+.clock { color:var(--amber); }
+.boot { padding:40px 8px; color:var(--text-dim); }
+@media (max-width:420px){ h1{font-size:26px;} .unit-row{grid-template-columns:1fr 60px 36px;} }
+@media (prefers-reduced-motion:reduce){ *{transition:none!important;animation:none!important;} }
+</style>
+</head>
+<body>
+<div id="app"><div class="boot">Loading C777 Web Development Drill…</div></div>
+<noscript><div class="boot"><strong>JavaScript is off.</strong> This study app needs it.</div></noscript>
+<script>
+// Question bank. Q(unit, topic, question, [right answers], [wrong answers], why, optional code to show).
+const QS = [];
+function Q(u, t, s, c, w, x, k) { QS.push({ u: u, t: t, s: s, c: [].concat(c), w: w, x: x || '', k: k || '' }); }
+
+// ===== Unit 1: HTML Essentials =====
+Q(1,'Trifecta','Which three technologies make up the web development "trifecta"?',['HTML, CSS and JavaScript'],['HTML, PHP and SQL','XML, CSS and Java','HTML, JSON and Python'],'HTML gives a page its structure and content, CSS its presentation, and JavaScript its behavior.');
+Q(1,'Trifecta','In the web development trifecta, which technology controls how a page LOOKS (colors, fonts, spacing)?',['CSS'],['HTML','JavaScript','HTTP'],'CSS handles presentation. HTML is the content and structure, JavaScript is behavior.');
+Q(1,'Trifecta','In the web development trifecta, which technology is responsible for the page\'s STRUCTURE and content?',['HTML'],['CSS','JavaScript','jQuery'],'HTML marks up headings, paragraphs, lists, links, images and so on.');
+Q(1,'Trifecta','Which technology adds interactivity and dynamic behavior to a web page?',['JavaScript'],['HTML','CSS','XML'],'JavaScript responds to events, changes the DOM and talks to servers.');
+Q(1,'HTML basics','What does HTML stand for?',['Hypertext Markup Language'],['Hyperlinks and Text Markup Language','Home Tool Markup Language','High Transfer Markup Language'],'HTML is Hypertext Markup Language.');
+Q(1,'HTML basics','HTML is best described as a:',['markup language'],['programming language','database language','compiled language'],'HTML describes content with tags. It has no variables, loops or logic of its own.');
+Q(1,'HTML basics','What is the purpose of an HTML tag such as `<p>`?',['To tell the browser what kind of content it surrounds'],['To run a calculation','To connect to a database','To style the page with colors only'],'Tags mark up content so a browser knows how to treat it.');
+Q(1,'HTML basics','An HTML element is made of:',['an opening tag, content and a closing tag'],['only an attribute','only the text between tags','a selector and a declaration'],'For example `<p>Hello<\/p>` is an element: opening tag, content, closing tag.');
+Q(1,'HTML basics','Which of these is an EMPTY (void) element with no closing tag?',['`<br>`'],['`<p>`','`<div>`','`<h1>`'],'`<br>`, `<hr>`, `<img>` and `<input>` have no content and no closing tag.');
+Q(1,'HTML basics','Which of these are void elements?',['`<img>`','`<hr>`'],['`<ul>`','`<table>`'],'Void elements contain no content: `<img>`, `<hr>`, `<br>`, `<input>`, `<meta>`, `<link>`.');
+Q(1,'HTML basics','What is an attribute in HTML?',['Extra information placed in an opening tag, written as name="value"'],['A block of text between tags','A CSS rule','A JavaScript variable'],'Example: `<a href="page.html">` has the attribute `href`.');
+Q(1,'HTML basics','Which file extension is used for a standard web page?',['.html'],['.css','.js','.exe'],'`.html` (or `.htm`) files hold HTML markup.');
+Q(1,'HTML basics','Which tag defines the largest, most important heading?',['`<h1>`'],['`<h6>`','`<head>`','`<header>`'],'`<h1>` is the top-level heading, `<h6>` the smallest.');
+Q(1,'HTML basics','Which tag creates a paragraph?',['`<p>`'],['`<par>`','`<para>`','`<pg>`'],'Use `<p>` for a paragraph of text.');
+Q(1,'HTML basics','Which tag inserts a line break?',['`<br>`'],['`<lb>`','`<break>`','`<nl>`'],'`<br>` forces the text onto a new line.');
+Q(1,'HTML basics','Which tag draws a horizontal rule (a thematic break line)?',['`<hr>`'],['`<line>`','`<rule>`','`<hl>`'],'`<hr>` is a void element.');
+Q(1,'HTML basics','Which tags make text bold and italic with meaning (importance and emphasis)?',['`<strong>` and `<em>`'],['`<big>` and `<small>`','`<bold>` and `<ital>`','`<b>` and `<i>` only'],'`<strong>` marks importance, `<em>` marks emphasis. `<b>` and `<i>` are only visual.');
+Q(1,'HTML basics','Which tag makes an UNORDERED (bulleted) list?',['`<ul>`'],['`<ol>`','`<dl>`','`<list>`'],'`<ul>` holds `<li>` items shown with bullets.');
+Q(1,'HTML basics','Which tag makes an ORDERED (numbered) list?',['`<ol>`'],['`<ul>`','`<nl>`','`<num>`'],'`<ol>` holds `<li>` items shown with numbers.');
+Q(1,'HTML basics','Which element is a list item inside both `<ul>` and `<ol>`?',['`<li>`'],['`<item>`','`<it>`','`<ls>`'],'Each entry is an `<li>`.');
+Q(1,'HTML basics','Which tag is used for a description list term/definition pair? (select two)',['`<dt>`','`<dd>`'],['`<li>`','`<th>`'],'A `<dl>` holds `<dt>` terms and `<dd>` descriptions.');
+Q(1,'Comments','Which is the correct way to write an HTML comment?',['`<!-- note -->`'],['`// note`','`/* note */`','`# note`'],'HTML comments start with `<!--` and end with `-->`. The others belong to JavaScript, CSS and other languages.');
+Q(1,'Structure','Which element holds ALL the visible content of a page?',['`<body>`'],['`<head>`','`<title>`','`<meta>`'],'Everything shown in the browser window lives inside `<body>`.');
+Q(1,'Structure','Which element contains metadata such as the title, character set and linked stylesheets?',['`<head>`'],['`<body>`','`<header>`','`<section>`'],'`<head>` is not shown on the page itself. Do not confuse it with `<header>`.');
+Q(1,'Structure','Which element is the root of an HTML document?',['`<html>`'],['`<body>`','`<root>`','`<doc>`'],'`<html>` wraps the whole document, containing `<head>` and `<body>`.');
+Q(1,'Structure','Where does the text of the `<title>` element appear?',['In the browser tab or title bar and in search results'],['As a heading in the page body','At the bottom of the page','Nowhere'],'The title is shown on the tab, in bookmarks and search results, not in the page body.');
+Q(1,'Structure','Which tag sets the character encoding of a page?',['`<meta charset="UTF-8">`'],['`<link charset="UTF-8">`','`<body charset="UTF-8">`','`<title charset="UTF-8">`'],'`<meta charset="UTF-8">` goes in the head.');
+Q(1,'Structure','Which attribute on `<html>` declares the page language?',['`lang`'],['`language`','`locale`','`type`'],'`<html lang="en">` helps screen readers and search engines.');
+Q(1,'Structure','Put the structural elements in the correct order, from outside to inside:',['`html` contains `head` and `body`'],['`body` contains `html` and `head`','`head` contains `html` and `body`','`html` contains `body`, and `body` contains `head`'],'`<html>` is the root with `<head>` and `<body>` as its two children.');
+Q(1,'Structure','What belongs in the `<head>` element? (select all that apply)',['`<title>`','`<meta>`','`<link>`'],['`<p>`','`<table>`'],'Head holds metadata and resources. Visible content goes in the body.');
+Q(1,'Structure','Which tag links an external CSS file to a page?',['`<link rel="stylesheet" href="style.css">`'],['`<style src="style.css">`','`<css href="style.css">`','`<script href="style.css">`'],'Use `<link>` in the head with `rel="stylesheet"`.');
+Q(1,'Structure','Which tag includes an external JavaScript file?',['`<script src="app.js"><\/script>`'],['`<js src="app.js">`','`<link href="app.js">`','`<javascript file="app.js">`'],'`<script src>` loads an external script.');
+Q(1,'DOCTYPE','What does `<!DOCTYPE html>` do?',['Tells the browser the page is written in HTML5'],['Creates the page title','Loads the CSS file','Starts a JavaScript block'],'The doctype triggers standards mode so the page renders consistently.');
+Q(1,'DOCTYPE','Where must `<!DOCTYPE html>` appear?',['On the very first line of the document, before `<html>`'],['Inside the `<head>`','Inside the `<body>`','At the end of the file'],'It must come before the `<html>` element.');
+Q(1,'DOCTYPE','Is `<!DOCTYPE html>` an HTML tag?',['No, it is a declaration (an instruction to the browser)'],['Yes, it is a container element','Yes, it is a void element with attributes','It is a JavaScript statement'],'It is not an element at all and is not case sensitive.');
+Q(1,'DOCTYPE','Compared with older HTML 4 doctypes, the HTML5 doctype is:',['much shorter and simpler'],['longer and must include a URL','identical','only valid for mobile'],'HTML5 uses just `<!DOCTYPE html>`.');
+Q(1,'Semantic','What does a "semantic" element do?',['Describes the meaning and role of its content'],['Only changes how content looks','Runs scripts','Stores data'],'Examples: `<nav>`, `<article>`, `<footer>`. Non-semantic ones like `<div>` and `<span>` say nothing about content.');
+Q(1,'Semantic','Which are semantic elements? (select all that apply)',['`<header>`','`<nav>`','`<footer>`'],['`<div>`','`<span>`'],'`<div>` and `<span>` are generic containers with no meaning.');
+Q(1,'Semantic','Which element is meant for a major block of NAVIGATION links?',['`<nav>`'],['`<menu>`','`<aside>`','`<links>`'],'`<nav>` marks the main navigation.');
+Q(1,'Semantic','Which element holds self-contained content that could stand alone, such as a blog post?',['`<article>`'],['`<section>`','`<aside>`','`<div>`'],'`<article>` is independent and reusable on its own.');
+Q(1,'Semantic','Which element groups related content under a heading within a page, such as a chapter?',['`<section>`'],['`<article>`','`<footer>`','`<span>`'],'`<section>` is a thematic grouping of content.');
+Q(1,'Semantic','Which element holds content tangentially related to the main content, like a sidebar?',['`<aside>`'],['`<side>`','`<nav>`','`<main>`'],'`<aside>` is for sidebars, pull quotes and related links.');
+Q(1,'Semantic','Which element contains the dominant, unique content of the page? There should be only one visible.',['`<main>`'],['`<body>`','`<section>`','`<article>`'],'Use one `<main>` per page.');
+Q(1,'Semantic','Which element normally holds a page or section\'s introductory content such as a logo and title?',['`<header>`'],['`<head>`','`<top>`','`<title>`'],'`<header>` is visible content. `<head>` is metadata.');
+Q(1,'Semantic','Which element normally holds copyright, contact and related links at the bottom of a page?',['`<footer>`'],['`<bottom>`','`<end>`','`<aside>`'],'`<footer>` is for closing information.');
+Q(1,'Semantic','Which pair marks up a figure and its caption?',['`<figure>` and `<figcaption>`'],['`<img>` and `<caption>`','`<picture>` and `<label>`','`<fig>` and `<title>`'],'`<figcaption>` goes inside `<figure>`.');
+Q(1,'Semantic','Which is a benefit of using semantic elements? (select two)',['Better accessibility for screen readers','Easier for search engines to understand the page'],['Pages load twice as fast','They replace the need for CSS'],'Semantics help assistive technology, SEO and maintainability. They do not change speed or replace CSS.');
+Q(1,'Semantic','Which element marks up a date or time in a machine-readable way?',['`<time>`'],['`<date>`','`<clock>`','`<datetime>`'],'`<time datetime="2024-05-01">` is the semantic way to mark a time.');
+Q(1,'Semantic','What is the difference between `<div>` and `<span>`?',['`div` is a block-level container and `span` is inline'],['`div` is inline and `span` is block-level','They are identical','`div` is only for text and `span` only for images'],'`<div>` starts on a new line and fills the width. `<span>` flows within a line of text.');
+Q(1,'Links','Which element creates a hyperlink?',['`<a>`'],['`<link>`','`<href>`','`<url>`'],'The anchor element: `<a href="page.html">Text<\/a>`.');
+Q(1,'Links','Which attribute holds the destination of a link?',['`href`'],['`src`','`link`','`target`'],'`href` stands for hypertext reference.');
+Q(1,'Links','How do you make a link open in a NEW tab or window?',['`target="_blank"`'],['`target="_self"`','`new="true"`','`open="tab"`'],'`_blank` opens a new browsing context. `_self` is the default.');
+Q(1,'Links','What is an ABSOLUTE URL?',['A full address including the protocol, such as https://example.com/page.html'],['A path from the current folder like page.html','A link to a spot on the same page','A link that opens an email'],'Absolute URLs include the scheme and domain. Relative URLs depend on the current page\'s location.');
+Q(1,'Links','What does the link `<a href="images/logo.png">` point to?',['A file in the images folder relative to the current page'],['A file at the root of another site','Something on the same line','A section on the page'],'No scheme or leading slash, so it is relative to the current document.');
+Q(1,'Links','How do you link to an element with `id="top"` on the same page?',['`<a href="#top">`'],['`<a href="top">`','`<a href="id:top">`','`<a href="@top">`'],'A fragment identifier `#id` jumps to the element with that id.');
+Q(1,'Links','Which link opens the visitor\'s email program?',['`<a href="mailto:me@example.com">`'],['`<a href="email:me@example.com">`','`<a href="mail=me@example.com">`','`<a href="send:me@example.com">`'],'The `mailto:` scheme starts an email.');
+Q(1,'Links','Which link starts a phone call on a smartphone?',['`<a href="tel:5551234567">`'],['`<a href="call:5551234567">`','`<a href="phone=5551234567">`','`<a href="dial:5551234567">`'],'The `tel:` scheme dials a number.');
+Q(1,'Links','Which attribute makes the browser download the linked file instead of opening it?',['`download`'],['`save`','`target="_download"`','`rel="download"`'],'`<a href="file.pdf" download>`.');
+Q(1,'Links','Which attribute should be added with `target="_blank"` to prevent the new page from accessing `window.opener`?',['`rel="noopener"`'],['`rel="nofollow"`','`rel="stylesheet"`','`rel="external"`'],'`noopener` is a security measure for links opened in new tabs.');
+Q(1,'Images','Which tag displays an image?',['`<img src="photo.jpg" alt="A photo">`'],['`<image href="photo.jpg">`','`<picture src="photo.jpg">`','`<img href="photo.jpg">`'],'`<img>` uses `src` for the file and `alt` for the text alternative.');
+Q(1,'Images','Why is the `alt` attribute important on images?',['It gives a text alternative for screen readers and when the image cannot load'],['It sets the image size','It makes the image load faster','It adds a border'],'`alt` helps accessibility and is shown if the file is missing.');
+Q(1,'Images','Which attributes set the displayed size of an image in HTML?',['`width` and `height`'],['`size` and `length`','`w` and `h`','`x` and `y`'],'Setting both also lets the browser reserve space while the image loads.');
+Q(1,'Images','Which image format supports transparency and is best for logos and simple graphics with a lossless result?',['PNG'],['JPEG','BMP','MP3'],'PNG is lossless and supports alpha transparency. JPEG is best for photos but has no transparency.');
+Q(1,'Images','Which image format is best for photographs because of its small file size?',['JPEG'],['PNG','GIF','SVG'],'JPEG uses lossy compression suited to photos.');
+Q(1,'Images','Which image format supports simple animation?',['GIF'],['JPEG','PNG-8 only','BMP'],'Animated GIFs show a short loop of frames.');
+Q(1,'Images','Which image type scales to any size without losing quality because it is described with shapes?',['SVG'],['JPEG','GIF','PNG'],'SVG is vector based and can be styled with CSS.');
+Q(1,'Images','What does the `<picture>` element let you do?',['Offer different image sources for different screens or formats'],['Draw a picture with code','Embed a video','Add a caption'],'`<picture>` with `<source>` elements supports responsive images.');
+Q(1,'Images','What does the `srcset` attribute on `<img>` provide?',['Several image files so the browser can choose the best one'],['A list of captions','A slideshow','A way to loop an animation'],'`srcset` lets the browser pick based on screen density and width.');
+Q(1,'Images','Which attribute makes an image a clickable region map reference?',['`usemap`'],['`map`','`area`','`clickmap`'],'`<img usemap="#name">` pairs with a `<map name="name">`.');
+Q(1,'Tables','Which tag creates a table?',['`<table>`'],['`<tab>`','`<grid>`','`<tbl>`'],'A table holds rows made of `<tr>`.');
+Q(1,'Tables','Which tag creates a table ROW?',['`<tr>`'],['`<td>`','`<th>`','`<row>`'],'`<tr>` is a table row.');
+Q(1,'Tables','Which tag creates a standard table DATA cell?',['`<td>`'],['`<th>`','`<tr>`','`<cell>`'],'`<td>` is a data cell.');
+Q(1,'Tables','Which tag creates a table HEADER cell (bold and centered by default)?',['`<th>`'],['`<td>`','`<thead>`','`<hd>`'],'`<th>` marks a header cell.');
+Q(1,'Tables','Which attribute makes a cell span multiple COLUMNS?',['`colspan`'],['`rowspan`','`span`','`cols`'],'`colspan="2"` merges the cell across two columns.');
+Q(1,'Tables','Which attribute makes a cell span multiple ROWS?',['`rowspan`'],['`colspan`','`rows`','`merge`'],'`rowspan="3"` stretches the cell down three rows.');
+Q(1,'Tables','Which tag adds a title or description to a table?',['`<caption>`'],['`<title>`','`<legend>`','`<figcaption>`'],'`<caption>` should be the first child of `<table>`.');
+Q(1,'Tables','Which elements group the header, body and footer rows of a table?',['`<thead>`, `<tbody>` and `<tfoot>`'],['`<head>`, `<body>` and `<foot>`','`<th>`, `<tb>` and `<tf>`','`<header>`, `<main>` and `<footer>`'],'These grouping elements add structure and accessibility.');
+Q(1,'Tables','Tables should be used for:',['tabular data'],['page layout','positioning the navigation','overlapping text and images'],'Use CSS for layout. Tables are for rows and columns of data.');
+Q(1,'Tables','What does this markup produce?',['A table with two rows and two cells in each row'],['A table with one row and four cells','A list of four items','A table with two columns and one row'],'Each `<tr>` is a row and each has two `<td>` cells.','<table>\n  <tr><td>A<\/td><td>B<\/td><\/tr>\n  <tr><td>C<\/td><td>D<\/td><\/tr>\n<\/table>');
+Q(1,'Multimedia','Which element embeds a video in HTML5?',['`<video>`'],['`<movie>`','`<media>`','`<embed video>`'],'`<video controls src="clip.mp4"><\/video>`.');
+Q(1,'Multimedia','Which element embeds audio in HTML5?',['`<audio>`'],['`<sound>`','`<mp3>`','`<music>`'],'`<audio controls src="song.mp3"><\/audio>`.');
+Q(1,'Multimedia','Which attribute shows play, pause and volume buttons on a `<video>` or `<audio>` element?',['`controls`'],['`buttons`','`player`','`show`'],'Without `controls` no interface is shown.');
+Q(1,'Multimedia','Which attribute starts media again from the beginning automatically when it ends?',['`loop`'],['`repeat`','`replay`','`again`'],'`loop` restarts playback.');
+Q(1,'Multimedia','Which attribute starts playback as soon as possible? Browsers often block it unless the media is muted.',['`autoplay`'],['`start`','`play`','`auto`'],'`autoplay` is restricted by many browsers to protect users.');
+Q(1,'Multimedia','Which element lets you supply multiple file formats for one `<video>` or `<audio>` so the browser picks one it supports?',['`<source>`'],['`<format>`','`<track>`','`<option>`'],'List several `<source src type>` children. The browser uses the first it can play.');
+Q(1,'Multimedia','What goes between `<video>` and `<\/video>` that the browser shows only if it cannot play video?',['Fallback text or content'],['The video file data','CSS rules','The controls'],'Old browsers display the fallback message.');
+Q(1,'Multimedia','Which element adds captions or subtitles to a video?',['`<track>`'],['`<caption>`','`<subtitle>`','`<text>`'],'`<track kind="captions" src="en.vtt" srclang="en">`.');
+Q(1,'Multimedia','Which video file format is most widely supported across browsers?',['MP4 (H.264)'],['AVI','MOV only','WMV'],'MP4 is supported by all major browsers. WebM and Ogg are also supported by some.');
+Q(1,'Multimedia','Which audio file format is supported by all major browsers? (select two)',['MP3','WAV'],['WMA','MIDI'],'MP3, WAV and Ogg are widely supported. WMA is not.');
+Q(1,'Multimedia','What does the `poster` attribute of `<video>` set?',['An image shown before the video plays'],['The video title','A caption','The loop count'],'`poster` is the preview image.');
+Q(1,'Multimedia','Which element embeds another web page (such as a YouTube player) inside a page?',['`<iframe>`'],['`<frame>`','`<embed page>`','`<include>`'],'`<iframe src="...">` embeds another document.');
+Q(1,'Responsive','What is responsive web design?',['Design that adapts the layout to different screen sizes and devices'],['Design that responds only to form submissions','A site that loads very quickly','Design only for desktop'],'It uses flexible grids, flexible images and media queries.');
+Q(1,'Responsive','Which meta tag is the key to responsive layout on mobile?',['`<meta name="viewport" content="width=device-width, initial-scale=1.0">`'],['`<meta name="mobile" content="true">`','`<meta charset="mobile">`','`<meta name="responsive">`'],'The viewport meta tag makes the page match the device width.');
+Q(1,'Responsive','Which CSS makes an image shrink to fit a narrower container?',['`max-width: 100%; height: auto;`'],['`width: 1000px;`','`float: none;`','`position: fixed;`'],'This keeps the image from overflowing and maintains its aspect ratio.');
+Q(1,'Validation','What is the purpose of the W3C Markup Validation Service?',['To check HTML for syntax and standards errors'],['To host a website','To minify JavaScript','To test page speed'],'The W3C validator reports unclosed tags, bad nesting, missing attributes and so on.');
+Q(1,'Validation','Which is a common HTML error the validator finds?',['A missing closing tag'],['A too-short page title','A page with only one image','Using lowercase tags'],'Unclosed or incorrectly nested elements are typical errors.');
+Q(1,'Validation','Which of these is correctly nested HTML?',['`<p><strong>Hello<\/strong><\/p>`'],['`<p><strong>Hello<\/p><\/strong>`','`<strong><p>Hello<\/strong><\/p>`','`<p><strong>Hello<\/p>`'],'Elements must close in the reverse order they opened.');
+Q(1,'Validation','Which statements about well-formed HTML5 are true? (select all that apply)',['Tag names are case-insensitive but lowercase is the convention','Attribute values should be in quotes','IDs should be unique on a page'],['Every element must have an id','Elements may overlap each other freely'],'Valid pages use proper nesting, unique IDs and quoted values.');
+Q(1,'Validation','Why does validating HTML matter?',['It helps ensure pages work consistently across browsers and devices'],['It makes images smaller','It encrypts the page','It guarantees top search ranking'],'Valid markup reduces rendering surprises and accessibility problems.');
+Q(1,'Validation','Which of these can the W3C validator check? (select two)',['Pasted HTML code','A URL'],['The speed of your server','Your CSS font choices'],'It can validate by URI, by file upload or by direct input.');
+Q(1,'HTML basics','Which character entity displays the less-than sign `<` as text?',['`&lt;`'],['`&gt;`','`&amp;`','`&nbsp;`'],'`&lt;` is less than, `&gt;` greater than, `&amp;` ampersand.');
+Q(1,'HTML basics','Which entity creates a non-breaking space?',['`&nbsp;`'],['`&sp;`','`&space;`','`&nb;`'],'`&nbsp;` is a space that does not collapse or wrap.');
+Q(1,'HTML basics','Which entity shows the copyright symbol?',['`&copy;`'],['`&cr;`','`&c;`','`&right;`'],'`&copy;` renders the (c) symbol.');
+Q(1,'HTML basics','Browsers treat multiple spaces in HTML text as:',['a single space'],['as many spaces as typed','an error','a line break'],'HTML collapses whitespace. Use `&nbsp;` or CSS for extra spacing.');
+Q(1,'HTML basics','Which tag preserves spacing and line breaks, usually in a monospaced font?',['`<pre>`'],['`<code>`','`<tt>`','`<space>`'],'`<pre>` shows text exactly as typed.');
+Q(1,'HTML basics','Which attribute provides a unique identifier for an element?',['`id`'],['`class`','`name`','`key`'],'`id` must be unique per page. `class` can be reused.');
+Q(1,'HTML basics','Which attribute can be shared by many elements to apply the same styling?',['`class`'],['`id`','`style`','`group`'],'A class can be used on many elements.');
+Q(1,'HTML basics','Which attribute adds inline CSS to a single element?',['`style`'],['`css`','`font`','`design`'],'Example: `<p style="color:red">`.');
+Q(1,'HTML basics','Which attribute displays a tooltip when the user hovers over an element?',['`title`'],['`tooltip`','`hint`','`alt`'],'`title` on any element shows a tooltip.');
+Q(1,'HTML basics','Which HTML5 attribute hides an element from the page?',['`hidden`'],['`invisible`','`display`','`none`'],'The `hidden` attribute is a boolean attribute that hides content.');
+
+// ===== Unit 2: CSS3 Techniques =====
+Q(2,'Basics','What does CSS stand for?',['Cascading Style Sheets'],['Computer Style Sheets','Creative Style System','Colorful Style Sheets'],'CSS is Cascading Style Sheets.');
+Q(2,'Basics','What is the main purpose of CSS?',['To control the presentation and layout of HTML content'],['To store data','To add server logic','To define the page structure'],'CSS separates presentation from content.');
+Q(2,'Basics','What is the main benefit of separating CSS from HTML?',['One stylesheet can restyle many pages'],['Pages become invisible','HTML no longer needs tags','Browsers load pages slower'],'External stylesheets keep style consistent and easy to change.');
+Q(2,'Adding CSS','Which are the three ways to add CSS to a page? (select all that apply)',['Inline','Internal (in a style element)','External (a linked file)'],['Embedded in a PHP file only','Inside a comment'],'Inline uses the style attribute, internal uses `<style>`, external uses `<link>` to a .css file.');
+Q(2,'Adding CSS','Which is the best choice for styling an entire website consistently?',['An external stylesheet'],['Inline styles on every tag','A style attribute only on the body','Comments'],'External stylesheets are shared by all pages and cached by the browser.');
+Q(2,'Adding CSS','Where does an INTERNAL stylesheet go?',['In a `<style>` element, usually inside `<head>`'],['In the `<body>` after the text','In a `<css>` tag','In the doctype'],'`<style> ... <\/style>` in the head holds page-level CSS.');
+Q(2,'Adding CSS','What does an INLINE style look like?',['`<p style="color: blue;">`'],['`<p css="color: blue;">`','`p { color: blue; }` in the body','`<style p="color:blue">`'],'The style attribute applies directly to one element.');
+Q(2,'Adding CSS','In the normal cascade (without !important), which source of style has the highest priority?',['Inline styles'],['External stylesheets','Browser defaults','Internal stylesheets'],'Inline styles override selectors from stylesheets (unless `!important` is used).');
+Q(2,'Adding CSS','Which tag correctly links an external stylesheet?',['`<link rel="stylesheet" href="styles.css">`'],['`<style src="styles.css">`','`<stylesheet>styles.css<\/stylesheet>`','`<link href="styles.css" type="javascript">`'],'The link element goes in the head.');
+Q(2,'Syntax','In `h1 { color: red; }` what is `h1`?',['The selector'],['The property','The value','The declaration'],'The selector chooses which elements the rule applies to.');
+Q(2,'Syntax','In `h1 { color: red; }` what is `color`?',['The property'],['The selector','The value','The rule set'],'A property is what you want to change.');
+Q(2,'Syntax','In `h1 { color: red; }` what is `red`?',['The value'],['The selector','The property','The declaration block'],'The value is the setting for the property.');
+Q(2,'Syntax','What is `color: red;` called?',['A declaration'],['A selector','A rule set','A comment'],'A declaration is a property and value pair. Declarations sit inside curly braces.');
+Q(2,'Syntax','Which separates a property from its value in a CSS declaration?',['A colon'],['An equals sign','A semicolon','A comma'],'Syntax: `property: value;`');
+Q(2,'Syntax','Which ends a CSS declaration?',['A semicolon'],['A colon','A period','A comma'],'Each declaration ends with `;`.');
+Q(2,'Syntax','Which are valid ways to write a CSS color? (select all that apply)',['`red`','`#ff0000`','`rgb(255, 0, 0)`'],['`color(red)`','`<red>`'],'Colors can be names, hex, RGB, HSL and more.');
+Q(2,'Syntax','What color is `#000000`?',['Black'],['White','Red','Transparent'],'`#000000` is no light at all: black. `#ffffff` is white.');
+Q(2,'Syntax','Which property changes the text color?',['`color`'],['`text-color`','`font-color`','`fgcolor`'],'`color` sets the foreground (text) color.');
+Q(2,'Syntax','Which property sets the background color?',['`background-color`'],['`bgcolor`','`color-background`','`back-color`'],'`background-color: #fff;`');
+Q(2,'Comments','Which is the correct CSS comment?',['`/* comment */`'],['`// comment`','`<!-- comment -->`','`# comment`'],'CSS only has block comments written `/* ... */`.');
+Q(2,'Comments','Can a CSS comment span multiple lines?',['Yes'],['No, only one line','Only inside a style attribute','Only in external files'],'`/* ... */` can span as many lines as you need.');
+Q(2,'Selectors','Which selector targets ALL `<p>` elements?',['`p`'],['`.p`','`#p`','`*p`'],'A bare name is an element (type) selector.');
+Q(2,'Selectors','Which selector targets elements with `class="note"`?',['`.note`'],['`#note`','`note`','`*note`'],'A dot targets a class.');
+Q(2,'Selectors','Which selector targets the element with `id="header"`?',['`#header`'],['`.header`','`header#`','`$header`'],'A hash targets an id.');
+Q(2,'Selectors','What does the universal selector `*` do?',['Selects every element'],['Selects only the first element','Selects comments','Selects ids'],'`* { margin: 0; }` applies to everything.');
+Q(2,'Selectors','What does `h1, h2, h3 { color: navy; }` do?',['Applies the rule to all three heading types'],['Applies only to h1 inside h2','Applies only to h3','Is invalid syntax'],'A comma groups selectors.');
+Q(2,'Selectors','What does `div p` select?',['Every `p` that is a descendant of a `div`'],['Only `p` that are direct children of `div`','Every `div` and every `p`','The `div` that follows a `p`'],'A space is the descendant combinator.');
+Q(2,'Selectors','What does `div > p` select?',['Only `p` elements that are direct children of a `div`'],['Every `p` anywhere inside a `div`','Every `div` and `p`','Siblings of a `div`'],'`>` is the child combinator.');
+Q(2,'Selectors','What does `h1 + p` select?',['The first `p` immediately after an `h1`'],['Every `p` inside an `h1`','All `p` elements on the page','The `h1` before a `p`'],'`+` selects the adjacent sibling.');
+Q(2,'Selectors','What does `h1 ~ p` select?',['Every `p` sibling that follows an `h1`'],['Only the first sibling `p`','Any `p` inside an `h1`','Nothing'],'`~` is the general sibling combinator.');
+Q(2,'Selectors','What does `a:hover` do?',['Styles a link while the pointer is over it'],['Styles visited links','Styles links in focus only','Styles every link permanently'],':hover is a pseudo-class for a hovered element.');
+Q(2,'Selectors','Which pseudo-class styles a link that has been visited?',['`a:visited`'],['`a:seen`','`a:old`','`a:history`'],'The link pseudo-classes are :link, :visited, :hover and :active.');
+Q(2,'Selectors','What is the correct order for the link pseudo-classes so that they all work?',[':link, :visited, :hover, :active'],[':hover, :active, :link, :visited',':active, :hover, :visited, :link',':visited, :link, :active, :hover'],'Remember LoVe HAte (LVHA).');
+Q(2,'Selectors','Which selects the first `<li>` in a list?',['`li:first-child`'],['`li:first`','`li::first`','`li:one`'],':first-child matches an element that is the first child of its parent.');
+Q(2,'Selectors','What does `p::first-line` style?',['The first line of text in a paragraph'],['The first paragraph','The first letter','The first word'],'`::first-line` and `::first-letter` are pseudo-elements.');
+Q(2,'Selectors','What does `input[type="text"]` select?',['Input elements whose type attribute is text'],['All elements with text','Only the first input','An element with the id text'],'Attribute selectors use square brackets.');
+Q(2,'Selectors','Which is true about class and id selectors? (select all that apply)',['An id should be unique on a page','A class can be used on many elements','An element can have more than one class'],['An id may be reused for many elements','Classes can only be used once'],'IDs identify one element. Classes are reusable and combinable.');
+Q(2,'Cascade','When two rules conflict, which has the highest specificity?',['An id selector'],['A class selector','An element selector','The universal selector'],'Specificity order: inline, id, class/attribute/pseudo-class, element.');
+Q(2,'Cascade','What does `!important` do?',['Overrides normal specificity for that declaration'],['Makes the text bold','Hides the rule','Marks a comment'],'`color: red !important;` wins over normal declarations. Use it sparingly.');
+Q(2,'Cascade','The "cascade" in CSS refers to:',['How conflicting rules are resolved by origin, specificity and order'],['Water-themed animation','Stacking pages vertically','Loading CSS in parallel'],'Later rules win when specificity is equal.');
+Q(2,'Cascade','Two rules have the same specificity. Which wins?',['The one that appears LAST'],['The one that appears first','The shorter one','Neither, it is an error'],'Source order is the final tiebreaker.');
+Q(2,'Cascade','What is inheritance in CSS?',['Child elements receive some property values from their parent'],['A class copies another class','Browsers copy the stylesheet','Rules inherit from `<head>`'],'Text properties like `color` and `font-family` inherit by default. Box properties like `border` do not.');
+Q(2,'Box model','From the inside out, what are the layers of the CSS box model?',['Content, padding, border, margin'],['Content, margin, border, padding','Margin, border, padding, content','Padding, content, margin, border'],'Content is surrounded by padding, then the border, then the margin.');
+Q(2,'Box model','What is the space BETWEEN the content and the border called?',['Padding'],['Margin','Outline','Spacing-gap'],'Padding is inside the border.');
+Q(2,'Box model','What is the space OUTSIDE the border, separating the element from others?',['Margin'],['Padding','Gutter','Content'],'Margin is transparent space outside the border.');
+Q(2,'Box model','Which shorthand sets padding of 10px top, 20px right, 30px bottom, 40px left?',['`padding: 10px 20px 30px 40px;`'],['`padding: 40px 30px 20px 10px;`','`padding: 10 20 30 40;`','`padding: 10px, 20px, 30px, 40px;`'],'Four values go clockwise: top, right, bottom, left.');
+Q(2,'Box model','What does `margin: 10px 20px;` mean?',['10px top and bottom, 20px left and right'],['10px left and right, 20px top and bottom','10px top, 20px everything else','10px all around'],'Two values: vertical then horizontal.');
+Q(2,'Box model','What does `margin: 0 auto;` do on a block element with a set width?',['Centers it horizontally'],['Centers it vertically','Removes the border','Hides it'],'Automatic left and right margins split the remaining space equally.');
+Q(2,'Box model','Which shorthand sets a 2px solid red border?',['`border: 2px solid red;`'],['`border: red solid 2px 1;`','`border: solid;` only','`border-style: 2px red;`'],'Width, style and color in any order, but style is required.');
+Q(2,'Box model','Which property gives a box rounded corners?',['`border-radius`'],['`corner-radius`','`round`','`border-curve`'],'`border-radius: 8px;`. `50%` on a square makes a circle.');
+Q(2,'Box model','With the DEFAULT `box-sizing: content-box`, a box has `width: 200px; padding: 10px; border: 5px solid`. What is its total width?',['230px'],['200px','210px','220px'],'200 + 10 + 10 (padding) + 5 + 5 (border) = 230px.');
+Q(2,'Box model','With `box-sizing: border-box`, a box has `width: 200px; padding: 10px; border: 5px solid`. What is its total width?',['200px'],['230px','215px','220px'],'`border-box` includes padding and border within the stated width.');
+Q(2,'Box model','What do the `width` and `height` properties set under the default box model?',['The size of the content area'],['The size including margin','The size including border','The viewport size'],'Padding, border and margin are added on top.');
+Q(2,'Box model','Which property controls what happens when content is too big for its box?',['`overflow`'],['`clip-content`','`spill`','`max-content`'],'Values: visible, hidden, scroll, auto.');
+Q(2,'Box model','Do vertical margins between two stacked block elements always add up?',['No, adjoining vertical margins collapse to the larger one'],['Yes, always','Only for inline elements','Only for tables'],'Margin collapsing: 20px over 30px gives 30px.');
+Q(2,'Box model','Which property draws a line outside the border and does NOT take up space?',['`outline`'],['`margin`','`padding`','`border-image`'],'`outline` does not change layout.');
+Q(2,'Positioning','What is the default `position` value?',['`static`'],['`relative`','`absolute`','`fixed`'],'Static elements follow normal document flow and ignore top/left/right/bottom.');
+Q(2,'Positioning','Which `position` value places an element relative to its NORMAL position and still reserves its original space?',['`relative`'],['`absolute`','`fixed`','`static`'],'Offsets move it from where it would normally be.');
+Q(2,'Positioning','Which `position` value positions an element relative to the nearest positioned ancestor and removes it from normal flow?',['`absolute`'],['`relative`','`static`','`inline`'],'If no ancestor is positioned, it is placed relative to the initial containing block.');
+Q(2,'Positioning','Which `position` value keeps an element in the same place on screen even when scrolling?',['`fixed`'],['`absolute`','`relative`','`static`'],'Fixed elements are positioned relative to the viewport.');
+Q(2,'Positioning','Which `position` value toggles between relative and fixed depending on scroll position?',['`sticky`'],['`stuck`','`float`','`pinned`'],'`position: sticky; top: 0;` sticks when the scroll reaches that offset.');
+Q(2,'Positioning','To make an absolutely positioned child sit relative to its parent, the parent should have:',['`position: relative;`'],['`display: block;`','`float: left;`','`overflow: auto;`'],'The nearest positioned ancestor is used as the reference.');
+Q(2,'Positioning','Which property controls which overlapping element appears on top?',['`z-index`'],['`stack`','`layer`','`top-order`'],'Higher z-index sits above, and it applies to positioned elements.');
+Q(2,'Positioning','Which properties offset a positioned element? (select all that apply)',['`top`','`left`','`bottom`'],['`margin-flow`','`indent-size`'],'`top`, `right`, `bottom` and `left` are the offset properties.');
+Q(2,'Positioning','What does `float: left;` do?',['Moves the element to the left and lets text wrap around it'],['Positions it at left: 0','Hides the element','Centers it'],'Floated elements are taken out of normal flow so inline content wraps around them.');
+Q(2,'Positioning','Which property stops an element from wrapping around floated elements?',['`clear`'],['`stop`','`unfloat`','`wrap: none`'],'`clear: both;` moves the element below any floats.');
+Q(2,'Positioning','What is the difference between `display: none` and `visibility: hidden`?',['`none` removes the element from layout; `hidden` hides it but keeps its space'],['They are identical','`hidden` removes it from layout; `none` keeps its space','Only `none` works on images'],'`display: none` collapses the space. `visibility: hidden` leaves an empty gap.');
+Q(2,'Positioning','Which `display` value makes an element behave like a block-level element?',['`display: block;`'],['`display: inline;`','`display: run-in;`','`display: text;`'],'Block elements start on a new line and fill the available width.');
+Q(2,'Positioning','Which `display` value lets elements sit side by side and accept width and height?',['`inline-block`'],['`inline`','`block`','`none`'],'`inline-block` flows like text but respects box sizing.');
+Q(2,'Positioning','Which `display` value turns an element into a one-dimensional layout container for rows or columns?',['`flex`'],['`grid-line`','`table-cell`','`inline`'],'Flexbox lays out items along a main axis.');
+Q(2,'Positioning','Which `display` value creates a two-dimensional layout with rows and columns?',['`grid`'],['`flex`','`column`','`table-flow`'],'CSS Grid handles rows and columns together.');
+Q(2,'Positioning','In a flex container, which property aligns items along the MAIN axis?',['`justify-content`'],['`align-content` only','`flex-grow`','`float`'],'`align-items` handles the cross axis.');
+Q(2,'Positioning','Which property sets the direction of the main axis in flexbox?',['`flex-direction`'],['`flex-wrap`','`main-axis`','`align-items`'],'Values: row, row-reverse, column, column-reverse.');
+Q(2,'Text','Which property sets the font?',['`font-family`'],['`font-style`','`text-font`','`type-face`'],'`font-family: Arial, sans-serif;` lists fallbacks.');
+Q(2,'Text','Why list several fonts in `font-family`?',['If the first is missing the browser tries the next one'],['The browser mixes them','To load them in parallel','It is required by CSS3'],'End the list with a generic family such as `serif` or `sans-serif`.');
+Q(2,'Text','Which property sets the text size?',['`font-size`'],['`text-size`','`size`','`font-height`'],'`font-size: 16px;` or `1rem`.');
+Q(2,'Text','Which unit is relative to the font size of the ROOT element?',['`rem`'],['`em`','`px`','`vh`'],'`rem` is relative to `<html>`. `em` is relative to the element\'s (or parent\'s) font size.');
+Q(2,'Text','Which unit is relative to the font size of the current element or its parent?',['`em`'],['`rem`','`pt`','`vw`'],'`2em` is twice the element\'s font size.');
+Q(2,'Text','Which property makes text bold?',['`font-weight: bold;`'],['`text-weight: bold;`','`font-style: bold;`','`bold: true;`'],'`font-weight` takes keywords or 100 to 900.');
+Q(2,'Text','Which property makes text italic?',['`font-style: italic;`'],['`font-weight: italic;`','`text-style: italic;`','`text-decoration: italic;`'],'`font-style` handles italic and oblique.');
+Q(2,'Text','Which property aligns text left, right, center or justify?',['`text-align`'],['`align-text`','`text-position`','`font-align`'],'`text-align: center;`');
+Q(2,'Text','Which property removes the underline from links?',['`text-decoration: none;`'],['`text-underline: none;`','`link-style: none;`','`font-decoration: none;`'],'`text-decoration` also supports underline, overline and line-through.');
+Q(2,'Text','Which property changes text to uppercase without retyping it?',['`text-transform: uppercase;`'],['`font-case: upper;`','`text-case: upper;`','`text-style: caps;`'],'`text-transform` can also use lowercase and capitalize.');
+Q(2,'Text','Which property sets the space between lines of text?',['`line-height`'],['`letter-spacing`','`word-spacing`','`text-indent`'],'`line-height: 1.5;` is a common, readable value.');
+Q(2,'Text','Which property sets the space between characters?',['`letter-spacing`'],['`word-spacing`','`line-height`','`text-space`'],'`word-spacing` affects the gaps between words.');
+Q(2,'Text','Which property indents the first line of a paragraph?',['`text-indent`'],['`margin-first`','`first-line`','`padding-first`'],'`text-indent: 2em;`');
+Q(2,'Text','Which property adds a shadow to text?',['`text-shadow`'],['`font-shadow`','`box-shadow`','`shadow-text`'],'`text-shadow: 2px 2px 4px #000;`');
+Q(2,'Text','Which property adds a shadow to a box?',['`box-shadow`'],['`text-shadow`','`border-shadow`','`drop-box`'],'`box-shadow: 0 2px 6px rgba(0,0,0,.3);`');
+Q(2,'Text','Which rule lets you use a custom font file you host yourself?',['`@font-face`'],['`@import-font`','`@typeface`','`@custom-font`'],'`@font-face` defines the family name and the font file source.');
+Q(2,'Text','What is a generic font family? (select all that apply)',['`serif`','`sans-serif`','`monospace`'],['`Arial`','`Times New Roman`'],'Generic families are categories. Arial and Times New Roman are specific fonts.');
+Q(2,'Backgrounds','Which property places an image behind an element?',['`background-image`'],['`image-bg`','`bg-src`','`back-img`'],'`background-image: url("photo.jpg");`');
+Q(2,'Backgrounds','Which property stops a background image from tiling?',['`background-repeat: no-repeat;`'],['`background-tile: none;`','`background-loop: off;`','`image-repeat: none;`'],'By default backgrounds repeat in both directions.');
+Q(2,'Backgrounds','Which value scales a background image to cover the whole element, cropping if needed?',['`background-size: cover;`'],['`background-size: fit;`','`background-size: stretch;`','`background-fit: cover;`'],'`contain` fits the whole image instead.');
+Q(2,'Backgrounds','Which function creates a smooth color transition for a background?',['`linear-gradient()`'],['`blend()`','`fade()`','`mix()`'],'`background: linear-gradient(to right, red, blue);`');
+Q(2,'Backgrounds','Which property controls the transparency of the whole element and its content?',['`opacity`'],['`alpha`','`transparency`','`visible`'],'`opacity: 0.5;` ranges from 0 (invisible) to 1.');
+Q(2,'Backgrounds','Which color value has a transparency channel?',['`rgba(255, 0, 0, 0.5)`'],['`rgb(255, 0, 0)`','`#ff0000`','`red`'],'The a is alpha: 0 transparent, 1 opaque.');
+Q(2,'Animations','Which at-rule defines the steps of a CSS animation?',['`@keyframes`'],['`@animate`','`@motion`','`@frames`'],'Keyframes describe the style at points in the animation.');
+Q(2,'Animations','Which property applies a keyframes animation to an element?',['`animation` (or `animation-name`)'],['`keyframes`','`motion-name`','`animate-with`'],'`animation: slide 2s ease-in-out;`');
+Q(2,'Animations','What does this CSS do?',['Moves the box from left 0 to left 100px over 2 seconds'],['Makes it fade out','Rotates it 100 degrees','Nothing, the animation is not applied'],'The `@keyframes` is applied by the `animation` property. The element must be positioned for `left` to work.','@keyframes slide {\n  from { left: 0; }\n  to   { left: 100px; }\n}\n.box {\n  position: relative;\n  animation: slide 2s;\n}');
+Q(2,'Animations','Which property sets how long one cycle of an animation takes?',['`animation-duration`'],['`animation-time`','`animation-length`','`animation-speed`'],'Example: `animation-duration: 3s;`');
+Q(2,'Animations','Which property makes an animation repeat forever?',['`animation-iteration-count: infinite;`'],['`animation-loop: true;`','`animation-repeat: always;`','`animation-count: all;`'],'The count can also be a number.');
+Q(2,'Animations','Which property delays the start of an animation?',['`animation-delay`'],['`animation-wait`','`animation-start`','`animation-pause`'],'`animation-delay: 1s;`');
+Q(2,'Animations','Which property makes an animation play forward then backward?',['`animation-direction: alternate;`'],['`animation-direction: bounce;`','`animation-flip: both;`','`animation-mode: reverse-loop;`'],'Values: normal, reverse, alternate, alternate-reverse.');
+Q(2,'Animations','Which property keeps the final keyframe styles after the animation ends?',['`animation-fill-mode: forwards;`'],['`animation-hold: true;`','`animation-end: keep;`','`animation-persist: yes;`'],'Without it the element snaps back to its original style.');
+Q(2,'Animations','In keyframes, which two keywords stand for 0% and 100%?',['`from` and `to`'],['`start` and `end`','`begin` and `finish`','`first` and `last`'],'You can also use percentages for in-between steps.');
+Q(2,'Transforms','Which property applies a 2D or 3D transformation?',['`transform`'],['`transition`','`translate-all`','`morph`'],'`transform: rotate(45deg);`');
+Q(2,'Transforms','Which are 2D transform functions? (select all that apply)',['`rotate()`','`scale()`','`translate()`'],['`rotateX()`','`perspective()`'],'`rotateX()` and `perspective()` are used for 3D.');
+Q(2,'Transforms','What does `translate(50px, 100px)` do?',['Moves the element 50px right and 100px down'],['Moves it 50px down and 100px right','Rotates it','Scales it'],'The first value is X (horizontal), the second is Y (vertical).');
+Q(2,'Transforms','What does `scale(2)` do?',['Doubles the size of the element'],['Halves the size','Rotates 2 degrees','Moves it 2px'],'`scale(0.5)` would halve it.');
+Q(2,'Transforms','What does `rotate(90deg)` do?',['Rotates the element clockwise by 90 degrees'],['Rotates it counterclockwise','Flips it vertically','Skews it 90px'],'Positive angles turn clockwise.');
+Q(2,'Transforms','Which function slants an element along an axis?',['`skew()`'],['`slant()`','`tilt()`','`lean()`'],'`skew(20deg)` slants it.');
+Q(2,'Transforms','Which are 3D transform functions? (select all that apply)',['`rotateX()`','`rotateY()`','`translateZ()`'],['`rotate()`','`skew()`'],'3D adds a Z axis.');
+Q(2,'Transforms','Which property sets the point an element rotates or scales around?',['`transform-origin`'],['`rotate-center`','`pivot`','`origin-point`'],'The default is the center of the element (50% 50%).');
+Q(2,'Transforms','Which property gives a 3D scene its depth effect?',['`perspective`'],['`depth`','`z-view`','`3d-mode`'],'Set on the parent: `perspective: 800px;`');
+Q(2,'Transforms','Does a transform change the layout space the element occupies?',['No, other elements do not move to make room'],['Yes, always','Only scale does','Only rotate does'],'Transforms are applied visually after layout.');
+Q(2,'Transitions','What does a CSS transition do?',['Animates a property change smoothly over time'],['Loads a new page','Hides the element','Plays a video'],'Transitions need a trigger such as :hover and two states.');
+Q(2,'Transitions','Which property sets how long a transition takes?',['`transition-duration`'],['`transition-time`','`transition-length`','`transition-speed`'],'`transition-duration: 0.3s;`');
+Q(2,'Transitions','Which property sets the speed curve of a transition?',['`transition-timing-function`'],['`transition-speed`','`transition-curve`','`transition-ease`'],'Values include ease, linear, ease-in, ease-out and ease-in-out.');
+Q(2,'Transitions','Which property delays the start of a transition?',['`transition-delay`'],['`transition-wait`','`transition-pause`','`transition-after`'],'`transition-delay: 1s;`');
+Q(2,'Transitions','Which property selects WHAT will animate in a transition?',['`transition-property`'],['`transition-target`','`transition-style`','`transition-name`'],'`transition-property: width;` or `all`.');
+Q(2,'Transitions','What does the `linear` timing function mean?',['Constant speed from start to finish'],['Starts slow, ends fast','Starts fast, ends slow','Bounces'],'`ease` (the default) starts slowly, speeds up and then slows at the end.');
+Q(2,'Transitions','Which declaration is a valid transition shorthand?',['`transition: width 0.5s ease 1s;`'],['`transition: 0.5s width;;`','`transition: ease width;`','`transition = width 0.5s;`'],'Order: property duration timing-function delay.');
+Q(2,'Transitions','Where should the `transition` property usually be placed so it works both ways (hover in and out)?',['On the element in its normal state'],['Only in the `:hover` rule','Only on the body','In a comment'],'Placed on the base rule, it animates entering and leaving the hover state.');
+Q(2,'Transitions','What is the difference between a transition and an animation?',['An animation can run automatically with many keyframes; a transition needs a state change and goes from one value to another'],['They are the same thing','Transitions use @keyframes','Animations only work on text'],'Animations use `@keyframes`. Transitions interpolate between two states.');
+Q(2,'Responsive CSS','Which at-rule applies styles only at certain screen widths?',['`@media`'],['`@screen-size`','`@responsive`','`@viewport-rule`'],'`@media (max-width: 600px) { ... }`');
+Q(2,'Responsive CSS','Which unit is a percentage of the viewport WIDTH?',['`vw`'],['`vh`','`rem`','`pt`'],'`1vw` is 1% of the viewport width. `vh` is of the height.');
+Q(2,'Responsive CSS','Which is a relative (flexible) unit? (select all that apply)',['`%`','`em`','`vw`'],['`px`','`cm`'],'Pixels and centimeters are fixed (absolute).');
+Q(2,'Accessibility','Which CSS practice improves accessibility?',['Using sufficient color contrast between text and background'],['Removing focus outlines','Using tiny text','Hiding all alt text'],'Good contrast helps low-vision users. Do not remove focus indicators without a replacement.');
+Q(2,'Accessibility','Why avoid removing `outline` from focused elements?',['Keyboard users need to see where they are'],['It makes pages slower','Outlines are required by HTML','It breaks the cascade'],'The focus indicator is essential to keyboard navigation.');
+Q(2,'Accessibility','Which relative unit best helps users who change their default browser font size?',['`rem` or `em`'],['`px`','`pt`','`cm`'],'Relative units scale with the user\'s preferred size.');
+
+// ===== Unit 3: JavaScript =====
+Q(3,'Basics','What is JavaScript?',['A scripting language that adds behavior and interactivity to web pages'],['A markup language','A stylesheet language','A database'],'JavaScript runs in the browser (and elsewhere) and can change the page, react to events and talk to servers.');
+Q(3,'Basics','Is JavaScript the same as Java?',['No, they are different languages'],['Yes, JavaScript is a lightweight Java','Yes, Java runs inside JavaScript','Java is a subset of JavaScript'],'They share part of a name and some syntax, but are unrelated languages.');
+Q(3,'Basics','Where does client-side JavaScript normally run?',['In the user\'s web browser'],['Only on the web server','In the database','In the router'],'The browser has a JavaScript engine.');
+Q(3,'Including JS','Which element holds JavaScript inside an HTML page?',['`<script>`'],['`<js>`','`<javascript>`','`<code>`'],'`<script> ... <\/script>`');
+Q(3,'Including JS','How do you include an external JavaScript file?',['`<script src="app.js"><\/script>`'],['`<script href="app.js"><\/script>`','`<link src="app.js">`','`<js file="app.js">`'],'Use the `src` attribute. The tag still needs a closing tag.');
+Q(3,'Including JS','What is the file extension for a JavaScript file?',['.js'],['.java','.jscript','.script'],'External scripts are `.js` files.');
+Q(3,'Including JS','Can an external `<script src="...">` element also contain inline code?',['No, the inline code is ignored when src is present'],['Yes, both run','Yes, inline runs first','It causes a syntax error'],'Use separate script elements.');
+Q(3,'Including JS','Which attribute tells the browser to run an external script after the HTML has been parsed, in order?',['`defer`'],['`wait`','`later`','`hold`'],'`defer` downloads in parallel and runs after parsing. `async` runs as soon as downloaded, in any order.');
+Q(3,'Including JS','Where is the traditional best place for a script that uses page elements, if you are not using defer?',['At the end of `<body>`'],['In the doctype','Before `<html>`','Inside a CSS rule'],'Elements must exist before the script tries to find them.');
+Q(3,'Including JS','How do you write a single-line JavaScript comment?',['`// comment`'],['`<!-- comment -->`','`# comment`','`-- comment`'],'`/* ... */` is the multi-line form.');
+Q(3,'Including JS','How do you write a multi-line JavaScript comment?',['`/* comment */`'],['`// comment //`','`<!-- comment -->`','`** comment **`'],'Same style as CSS block comments.');
+Q(3,'Output','Which method writes a message to the browser console for debugging?',['`console.log()`'],['`print()`','`debug.write()`','`echo()`'],'Open the developer tools console to view it.');
+Q(3,'Output','Which method shows a dialog with a message and an OK button?',['`alert()`'],['`prompt()`','`confirm()`','`message()`'],'`alert("Hello")`');
+Q(3,'Output','Which method shows a dialog with OK and Cancel and returns true or false?',['`confirm()`'],['`alert()`','`prompt()`','`ask()`'],'OK returns true and Cancel returns false.');
+Q(3,'Output','Which method shows a dialog with a text box and returns what the user typed?',['`prompt()`'],['`alert()`','`confirm()`','`input()`'],'`prompt("Name?")` returns a string, or null if cancelled.');
+Q(3,'Output','What does `prompt()` return if the user presses Cancel?',['`null`'],['An empty string','`false`','`undefined`'],'Pressing OK with an empty box returns an empty string.');
+Q(3,'Output','Which method writes content directly into the HTML document?',['`document.write()`'],['`window.print()`','`console.print()`','`page.write()`'],'Calling `document.write()` after the page has loaded replaces the whole page, so it is mostly used for teaching.');
+Q(3,'Output','What happens if `document.write()` is called AFTER the page has finished loading?',['It overwrites the existing page content'],['It appends to the end of the body','Nothing','It writes to the console'],'This is one reason to avoid it.');
+Q(3,'Variables','Which keywords declare a variable? (select all that apply)',['`var`','`let`','`const`'],['`int`','`string`'],'JavaScript is loosely typed, so there are no `int` or `string` declarations.');
+Q(3,'Variables','What is `const` used for?',['Declaring a variable that cannot be reassigned'],['Declaring a constant string only','Declaring a global function','Importing a module'],'A `const` binding cannot be reassigned, though an object it points to can still be changed.');
+Q(3,'Variables','Which is a valid variable name?',['`_total`'],['`2total`','`my-total`','`my total`'],'Names can contain letters, digits, `_` and `$` but cannot start with a digit or include hyphens or spaces.');
+Q(3,'Variables','Is `myVar` the same variable as `myvar`?',['No, JavaScript is case sensitive'],['Yes','Only inside functions','Only with `var`'],'Case matters in variable names and keywords.');
+Q(3,'Variables','Which is a reserved word that cannot be used as a variable name?',['`class`'],['`name`','`total`','`data`'],'Reserved words include `class`, `function`, `var`, `if` and `return`.');
+Q(3,'Variables','What value does a declared but unassigned variable hold?',['`undefined`'],['`null`','`0`','An empty string'],'`let x;` gives `undefined`.');
+Q(3,'Variables','What is the scope of a variable declared with `var` inside a function?',['The function'],['The whole program','The nearest block only','The page'],'`var` is function-scoped. `let` and `const` are block-scoped.');
+Q(3,'Variables','A variable declared OUTSIDE any function is:',['Global'],['Local','Private','Constant'],'Global variables are visible everywhere in the script.');
+Q(3,'Variables','What is the scope of a `let` variable declared inside an `if` block?',['That block only'],['The enclosing function','The whole page','Nothing, it is an error'],'`let` and `const` are block-scoped.');
+Q(3,'Data types','Which are primitive data types in JavaScript? (select all that apply)',['number','string','boolean'],['array','object'],'Arrays and objects are reference types. The primitives are number, string, boolean, null, undefined (plus symbol and bigint).');
+Q(3,'Data types','Which operator returns the type of a value as a string?',['`typeof`'],['`typeis`','`kindof`','`gettype`'],'`typeof "hi"` is `"string"`.');
+Q(3,'Data types','What does `typeof 42` return?',['`"number"`'],['`"integer"`','`"int"`','`"numeric"`'],'JavaScript has one number type for integers and decimals.');
+Q(3,'Data types','What does `typeof "42"` return?',['`"string"`'],['`"number"`','`"text"`','`"char"`'],'Anything in quotes is a string.');
+Q(3,'Data types','What does `typeof true` return?',['`"boolean"`'],['`"bool"`','`"logical"`','`"number"`'],'Booleans are `true` and `false`.');
+Q(3,'Data types','What does `typeof undefined` return?',['`"undefined"`'],['`"null"`','`"object"`','`"void"`'],'`undefined` has its own type.');
+Q(3,'Data types','What does `typeof null` return (a long-standing quirk)?',['`"object"`'],['`"null"`','`"undefined"`','`"empty"`'],'This is a historical bug kept for compatibility.');
+Q(3,'Data types','Which data type represents "no value" assigned on purpose?',['`null`'],['`undefined`','`NaN`','`0`'],'`null` is assigned deliberately. `undefined` means not assigned.');
+Q(3,'Data types','What does `NaN` stand for?',['Not a Number'],['No actual Number','Null and Nothing','Negative and Numeric'],'`NaN` is the result of an invalid numeric operation like `"abc" * 2`.');
+Q(3,'Data types','Which function checks whether a value is `NaN` after conversion?',['`isNaN()`'],['`isNumber()`','`isNull()`','`notNumber()`'],'`isNaN("abc")` is true, `isNaN("12")` is false.');
+Q(3,'Data types','What does `isNaN("hello")` return?',['`true`'],['`false`','`undefined`','An error'],'"hello" cannot be converted to a number.');
+Q(3,'Data types','What does `isNaN("25")` return?',['`false`'],['`true`','`NaN`','An error'],'"25" converts to a number, so it is not NaN.');
+Q(3,'Data types','Which are Boolean values?',['`true` and `false`'],['`yes` and `no`','`1` and `0` only','`on` and `off`'],'These are the only two boolean literals.');
+Q(3,'Data types','Which of these values is FALSY? (select all that apply)',['`0`','`""` (empty string)','`null`'],['`"false"`','`[]` (empty array)'],'Falsy values: false, 0, "", null, undefined, NaN. A non-empty string, even "false", and an empty array are truthy.');
+Q(3,'Conversion','Which function converts a string to an integer?',['`parseInt()`'],['`toInteger()`','`parseNumber()`','`int()`'],'`parseInt("42px")` returns 42.');
+Q(3,'Conversion','Which function converts a string to a decimal number?',['`parseFloat()`'],['`parseDecimal()`','`toFloat()`','`float()`'],'`parseFloat("3.14abc")` returns 3.14.');
+Q(3,'Conversion','What does `parseInt("42.9")` return?',['`42`'],['`43`','`42.9`','`NaN`'],'`parseInt` stops at the decimal point and does not round.');
+Q(3,'Conversion','What does `parseFloat("3.14")` return?',['`3.14`'],['`3`','`"3.14"`','`NaN`'],'It returns a number with the decimal part.');
+Q(3,'Conversion','What does `parseInt("hello")` return?',['`NaN`'],['`0`','`undefined`','`null`'],'It cannot find any digits, so the result is not a number.');
+Q(3,'Conversion','What does `parseInt("12abc")` return?',['`12`'],['`NaN`','`"12"`','`12abc`'],'Parsing stops at the first non-numeric character.');
+Q(3,'Conversion','What does `Number("")` return?',['`0`'],['`NaN`','`null`','`undefined`'],'An empty string converts to 0 with `Number()`.');
+Q(3,'Conversion','Which method converts a number to a string?',['`toString()`'],['`parseString()`','`toText()`','`stringify()`'],'`(42).toString()` gives `"42"`.');
+Q(3,'Conversion','Why must you convert a value from `prompt()` before doing math with it?',['`prompt()` always returns a string'],['`prompt()` returns a boolean','`prompt()` returns undefined','It does not, it returns a number'],'`"5" + "5"` gives `"55"`, not 10.');
+Q(3,'Operators','Which operator assigns a value?',['`=`'],['`==`','`===`','`=>`'],'`x = 5` assigns. `==` and `===` compare.');
+Q(3,'Operators','Which operators are arithmetic operators? (select all that apply)',['`+`','`*`','`%`'],['`&&`','`==`'],'`%` is the remainder (modulus).');
+Q(3,'Operators','What is `10 % 3`?',['`1`'],['`3`','`0`','`3.33`'],'The remainder of 10 divided by 3 is 1.');
+Q(3,'Operators','What is `7 / 2` in JavaScript?',['`3.5`'],['`3`','`4`','`3.0` as an integer'],'JavaScript division produces a decimal result.');
+Q(3,'Operators','What does `x++` do?',['Adds 1 to x'],['Doubles x','Adds 2 to x','Squares x'],'`++` is the increment operator. `--` decrements.');
+Q(3,'Operators','What is the value of `x` after `let x = 5; x += 3;`?',['`8`'],['`3`','`53`','`15`'],'`+=` adds and assigns.');
+Q(3,'Operators','What is the value of `2 + 3 * 4`?',['`14`'],['`20`','`24`','`10`'],'Multiplication happens before addition.');
+Q(3,'Operators','What is the value of `(2 + 3) * 4`?',['`20`'],['`14`','`24`','`11`'],'Parentheses change the order.');
+Q(3,'Operators','Which operator compares value AND type?',['`===`'],['`==`','`=`','`!=`'],'`5 === "5"` is false, but `5 == "5"` is true because `==` converts the type.');
+Q(3,'Operators','What does `5 == "5"` evaluate to?',['`true`'],['`false`','`undefined`','An error'],'Loose equality converts the string to a number.');
+Q(3,'Operators','What does `5 === "5"` evaluate to?',['`false`'],['`true`','`undefined`','An error'],'Strict equality requires the same type.');
+Q(3,'Operators','Which operator means "not equal" in value?',['`!=`'],['`<>`','`=!`','`!==` only'],'`!==` is the strict (value and type) form.');
+Q(3,'Operators','Which are comparison operators? (select all that apply)',['`>`','`<=`','`!==`'],['`&&`','`+=`'],'Comparison operators produce true or false.');
+Q(3,'Operators','Which are logical operators? (select all that apply)',['`&&`','`||`','`!`'],['`==`','`++`'],'AND, OR and NOT.');
+Q(3,'Operators','What does `true && false` evaluate to?',['`false`'],['`true`','`undefined`','`null`'],'AND needs both sides true.');
+Q(3,'Operators','What does `true || false` evaluate to?',['`true`'],['`false`','`undefined`','`null`'],'OR needs at least one side true.');
+Q(3,'Operators','What does `!true` evaluate to?',['`false`'],['`true`','`undefined`','`0`'],'`!` negates a boolean.');
+Q(3,'Concatenation','Which operator joins two strings?',['`+`'],['`&`','`.`','`concat` keyword'],'`"Hello " + "World"`');
+Q(3,'Concatenation','What is the result of `"5" + 5`?',['`"55"`'],['`10`','`55` as a number','`NaN`'],'If one side is a string, `+` concatenates.');
+Q(3,'Concatenation','What is the result of `"5" - 2`?',['`3`'],['`"52"`','`"3"`','`NaN`'],'`-` only does math, so the string is converted to a number.');
+Q(3,'Concatenation','What is the result of `1 + 2 + "3"`?',['`"33"`'],['`"123"`','`6`','`15`'],'1 + 2 = 3 first, then `3 + "3"` concatenates to `"33"`.');
+Q(3,'Concatenation','What is the result of `"3" + 1 + 2`?',['`"312"`'],['`6`','`"33"`','`15`'],'Left to right: `"3" + 1` is `"31"`, then `"31" + 2` is `"312"`.');
+Q(3,'Concatenation','Which string syntax lets you insert a variable\'s value with `${name}`?',['Backticks (a template literal)'],['Double quotes','Single quotes','Parentheses'],'Template literals use backticks. Quotes treat `${name}` as plain text.');
+Q(3,'Concatenation','What does `"abc".length` return?',['`3`'],['`2`','`"3"`','`undefined`'],'`length` is a property that holds the number of characters.');
+Q(3,'Methods','Which method converts a string to uppercase?',['`toUpperCase()`'],['`upperCase()`','`toUpper()`','`makeUpper()`'],'`"hi".toUpperCase()` is `"HI"`.');
+Q(3,'Methods','Which method converts a string to lowercase?',['`toLowerCase()`'],['`lowerCase()`','`toLower()`','`downCase()`'],'`"HI".toLowerCase()` is `"hi"`.');
+Q(3,'Methods','Does `toUpperCase()` change the original string?',['No, it returns a new string'],['Yes, it modifies it in place','Only for const','Only for var'],'Strings are immutable.');
+Q(3,'Methods','Which method returns the position of text within a string?',['`indexOf()`'],['`findIndex()` for strings','`position()`','`locate()`'],'`"hello".indexOf("l")` is 2, or -1 if not found.');
+Q(3,'Methods','Which method extracts part of a string?',['`substring()` or `slice()`'],['`cut()`','`extract()`','`part()`'],'`"hello".slice(1, 3)` is `"el"`.');
+Q(3,'Methods','Which method removes whitespace from both ends of a string?',['`trim()`'],['`strip()`','`clean()`','`cut()`'],'`"  hi ".trim()` is `"hi"`.');
+Q(3,'Methods','Which method replaces text in a string?',['`replace()`'],['`swap()`','`substitute()`','`change()`'],'`"cat".replace("c","b")` is `"bat"`.');
+Q(3,'Methods','Which method rounds a number to the nearest integer?',['`Math.round()`'],['`Math.near()`','`round()` alone','`Math.int()`'],'`Math.round(2.5)` is 3. `Math.floor` rounds down and `Math.ceil` rounds up.');
+Q(3,'Methods','What does `Math.floor(4.9)` return?',['`4`'],['`5`','`4.9`','`0`'],'`floor` rounds down.');
+Q(3,'Methods','What does `Math.ceil(4.1)` return?',['`5`'],['`4`','`4.1`','`0`'],'`ceil` rounds up.');
+Q(3,'Methods','What does `Math.random()` return?',['A decimal number from 0 up to but not including 1'],['An integer from 1 to 10','A decimal from 1 to 100','A random string'],'Multiply and floor it to get an integer range.');
+Q(3,'Methods','Which method returns the larger of numbers?',['`Math.max()`'],['`Math.big()`','`Math.top()`','`Math.most()`'],'`Math.max(3, 9, 4)` is 9.');
+Q(3,'Methods','Which method rounds a number to a fixed number of decimal places and returns a string?',['`toFixed()`'],['`toDecimal()`','`round()`','`toPlaces()`'],'`(3.14159).toFixed(2)` is `"3.14"`.');
+Q(3,'Objects','How do you create an object literal?',['`let car = { make: "Ford", year: 2020 };`'],['`let car = [make: "Ford"];`','`let car = (make = "Ford");`','`let car = <make="Ford">;`'],'Curly braces hold property: value pairs.');
+Q(3,'Objects','How do you read the `make` property of `car`?',['`car.make`'],['`car->make`','`car::make`','`car[make]` without quotes'],'Dot notation, or `car["make"]` with bracket notation.');
+Q(3,'Objects','What is a method in JavaScript?',['A function stored as a property of an object'],['A variable','A CSS rule','A comment'],'Example: `obj.greet = function() { ... }`.');
+Q(3,'Objects','What is the difference between a property and a method?',['A property holds data; a method is a function'],['They are the same','A method holds data; a property is a function','Properties only exist on arrays'],'Methods are called with parentheses.');
+Q(3,'Objects','What does `this` refer to inside an object\'s method?',['The object the method belongs to'],['The window always','The previous function','The HTML body'],'In a method call `obj.fn()`, `this` is `obj`.');
+Q(3,'Objects','How do you create an array?',['`let items = ["a", "b", "c"];`'],['`let items = {"a", "b", "c"};`','`let items = ("a", "b", "c");`','`let items = <a, b, c>;`'],'Arrays use square brackets.');
+Q(3,'Objects','What is the index of the FIRST item in an array?',['`0`'],['`1`','`-1`','`first`'],'Arrays are zero-indexed.');
+Q(3,'Objects','Which method adds an item to the END of an array?',['`push()`'],['`pop()`','`shift()`','`add()`'],'`pop()` removes the last item. `shift()` removes the first.');
+Q(3,'Objects','Which method removes the LAST item from an array?',['`pop()`'],['`push()`','`shift()`','`remove()`'],'`pop()` returns the removed item.');
+Q(3,'Objects','Which property gives the number of items in an array?',['`length`'],['`size`','`count`','`items`'],'`arr.length`');
+Q(3,'DOM','What does DOM stand for?',['Document Object Model'],['Data Object Method','Display Output Mode','Document Order Map'],'The DOM represents the page as a tree of objects.');
+Q(3,'DOM','What is the DOM?',['A tree-like representation of the page that scripts can read and change'],['A CSS file','A type of server','A browser plugin'],'JavaScript uses the DOM to modify HTML and CSS.');
+Q(3,'DOM','Which method finds an element by its id?',['`document.getElementById()`'],['`document.findId()`','`document.getId()`','`document.id()`'],'`document.getElementById("main")`');
+Q(3,'DOM','Which method finds the FIRST element that matches a CSS selector?',['`document.querySelector()`'],['`document.find()`','`document.select()`','`document.getSelector()`'],'`document.querySelector(".card")`; `querySelectorAll` returns all matches.');
+Q(3,'DOM','Which property changes the text inside an element?',['`textContent` (or `innerText`)'],['`value`','`text`','`label`'],'`el.textContent = "Hi"`.');
+Q(3,'DOM','Which property changes the HTML inside an element?',['`innerHTML`'],['`outerText`','`htmlContent`','`markup`'],'Be careful inserting untrusted text with `innerHTML`.');
+Q(3,'DOM','How do you change an element\'s CSS color from JavaScript?',['`el.style.color = "red";`'],['`el.css.color = "red";`','`el.color = "red";`','`el.style("color")`'],'The `style` property holds inline styles.');
+Q(3,'DOM','Which method adds a CSS class to an element?',['`el.classList.add("on")`'],['`el.addClass("on")`','`el.class.add("on")`','`el.className.push("on")`'],'`classList` also has remove and toggle.');
+Q(3,'DOM','Which method sets an attribute on an element?',['`setAttribute()`'],['`addAttr()`','`attr()`','`putAttribute()`'],'`img.setAttribute("alt", "Logo")`');
+Q(3,'DOM','Which method creates a new element?',['`document.createElement()`'],['`document.newElement()`','`document.make()`','`document.add()`'],'`document.createElement("p")`');
+Q(3,'DOM','Which method attaches a created element as the last child of another?',['`appendChild()`'],['`attachChild()`','`insertEnd()`','`pushChild()`'],'`parent.appendChild(child)`');
+Q(3,'DOM','Which object represents the browser window?',['`window`'],['`screen` only','`document`','`browser`'],'Global variables and functions are properties of `window`.');
+Q(3,'DOM','Which object represents the web page loaded in the window?',['`document`'],['`window`','`page`','`body`'],'`window.document` is the DOM entry point.');
+Q(3,'Events','What is an event in JavaScript?',['Something that happens that code can respond to, like a click'],['A scheduled meeting','A CSS rule','A type of variable'],'Events include click, keypress, load and submit.');
+Q(3,'Events','Which event fires when an element is clicked?',['`click`'],['`press`','`tap`','`select`'],'`onclick` is the attribute form.');
+Q(3,'Events','Which event fires when the mouse pointer moves over an element?',['`mouseover`'],['`mousedown`','`hover`','`mouseclick`'],'`mouseout` fires when it leaves.');
+Q(3,'Events','Which event fires when the page has finished loading?',['`load`'],['`ready`','`start`','`complete`'],'`window.onload` or `addEventListener("load", ...)`.');
+Q(3,'Events','Which event fires when a form is submitted?',['`submit`'],['`send`','`post`','`enter`'],'Listen on the form element.');
+Q(3,'Events','Which event fires when the value of an input changes and the user leaves the field?',['`change`'],['`update`','`modify`','`edit`'],'`input` fires on every keystroke.');
+Q(3,'Events','Which event fires when a key is pressed down?',['`keydown`'],['`keysend`','`typed`'],'`keydown`, `keyup` and `keypress` (deprecated) are key events.');
+Q(3,'Events','Which event fires when an element receives focus?',['`focus`'],['`active`','`select`','`enter`'],'`blur` fires when it loses focus.');
+Q(3,'Events','What is an event HANDLER?',['A function that runs when an event occurs'],['The variable that stores events','A CSS selector','A server'],'Handlers respond to events.');
+Q(3,'Events','Which is the recommended way to attach a handler?',['`el.addEventListener("click", fn)`'],['`el.listen("click", fn)`','`el.on = fn`','`el.attach(fn)`'],'`addEventListener` allows more than one handler per event.');
+Q(3,'Events','Which HTML attribute runs JavaScript when a button is clicked?',['`onclick`'],['`onpress`','`click`','`ontap`'],'`<button onclick="go()">`');
+Q(3,'Events','How can an event handler stop a form from submitting or a link from navigating?',['`event.preventDefault()`'],['`event.stop()`','`return stopEvent`','`event.cancelAll()`'],'It cancels the default action of the event.');
+Q(3,'Events','What is event handling called when a click on a child is handled by a listener on its parent?',['Event bubbling (delegation)'],['Event shadowing','Event cloning','Event hoisting'],'Events bubble up from the target to its ancestors.');
+Q(3,'Functions','Which keyword defines a function?',['`function`'],['`def`','`func`','`method`'],'`function add(a, b) { return a + b; }`');
+Q(3,'Functions','What are the values in parentheses when you CALL a function?',['Arguments'],['Parameters','Properties','Selectors'],'Parameters are the names in the definition. Arguments are the values passed in.');
+Q(3,'Functions','What are the names listed in parentheses in a function DEFINITION?',['Parameters'],['Arguments','Returns','Methods'],'`function add(a, b)` has parameters a and b.');
+Q(3,'Functions','What does the `return` statement do?',['Sends a value back to the caller and ends the function'],['Restarts the function','Prints to the console','Declares a variable'],'Code after `return` does not run.');
+Q(3,'Functions','What does a function return if it has no `return` statement?',['`undefined`'],['`null`','`0`','An error'],'Functions without return give back `undefined`.');
+Q(3,'Functions','How do you CALL a function named `greet`?',['`greet();`'],['`call greet;`','`greet;`','`run greet();`'],'Parentheses call it. Without them you only refer to the function.');
+Q(3,'Functions','What is the output?',['`7`'],['`12`','`"34"`','`undefined`'],'`add(3, 4)` returns 7.','function add(a, b) {\n  return a + b;\n}\nconsole.log(add(3, 4));');
+Q(3,'Functions','What is the output?',['`undefined`'],['`10`','`"10"`','An error'],'The function has no return statement.','function twice(n) {\n  n * 2;\n}\nconsole.log(twice(5));');
+Q(3,'Functions','What is a function expression?',['A function assigned to a variable, such as `const f = function() {};`'],['A function that never returns','A math expression','A CSS function'],'An arrow function `() => {}` is a shorter form.');
+Q(3,'Functions','Which is an arrow function?',['`const add = (a, b) => a + b;`'],['`const add = (a, b) -> a + b;`','`const add = function => (a, b);`','`const add(a, b) => a + b;`'],'Arrow functions use `=>`.');
+Q(3,'Functions','Where can a variable declared INSIDE a function be used?',['Only inside that function'],['Anywhere on the page','In other functions','In CSS'],'It has local scope.');
+Q(3,'Functions','What is a callback function?',['A function passed as an argument to be called later'],['A function that calls itself','A function that restarts the page','A function without parameters'],'`setTimeout(fn, 1000)` calls `fn` after one second.');
+Q(3,'Functions','What does `setTimeout(fn, 2000)` do?',['Runs `fn` once after 2000 milliseconds'],['Runs `fn` every 2 seconds','Waits 2 seconds and stops the page','Runs fn 2000 times'],'`setInterval` repeats.');
+Q(3,'Control flow','Which statement runs code only when a condition is true?',['`if`'],['`for`','`switch` only','`while` only'],'`if (x > 5) { ... }`');
+Q(3,'Control flow','What is the output?',['`"B"`'],['`"A"`','`"C"`','Nothing'],'`score` is 75, which is not >= 90 but is >= 70.','let score = 75;\nif (score >= 90) console.log("A");\nelse if (score >= 70) console.log("B");\nelse console.log("C");');
+Q(3,'Control flow','Which loop repeats a set number of times using an initializer, a condition and an increment?',['`for`'],['`if`','`switch`','`do`'],'`for (let i = 0; i < 5; i++)`');
+Q(3,'Control flow','How many times does this loop run?',['5'],['4','6','Infinite'],'`i` takes the values 0, 1, 2, 3 and 4.','for (let i = 0; i < 5; i++) {\n  console.log(i);\n}');
+Q(3,'Control flow','Which loop runs the body at least once before testing the condition?',['`do...while`'],['`while`','`for`','`for...in`'],'The test is at the end.');
+Q(3,'Control flow','Which statement exits a loop early?',['`break`'],['`stop`','`exit`','`end`'],'`continue` skips to the next iteration.');
+Q(3,'Control flow','What is the ternary operator?',['`condition ? valueIfTrue : valueIfFalse`'],['`condition : a ? b`','`condition ?? a || b`','`if ? then : else`'],'A compact if/else expression.');
+Q(3,'Control flow','Which statement chooses among many cases by matching a value?',['`switch`'],['`select`','`case` alone','`choose`'],'Remember `break` at the end of each case.');
+Q(3,'Errors','Which statement handles runtime errors without stopping the script?',['`try...catch`'],['`if...error`','`on error`','`handle`'],'Code in `try` that throws jumps to `catch`.');
+Q(3,'Errors','Which is a common JavaScript error caused by using a variable that was never declared?',['ReferenceError'],['TypeError only','RangeError','URIError'],'Using an undeclared name throws `ReferenceError`.');
+Q(3,'Errors','Which error type happens when you call something that is not a function, for example `x()` where x is a number?',['TypeError'],['ReferenceError','SyntaxError','RangeError'],'A value of the wrong type was used.');
+Q(3,'Errors','Which error occurs when the code breaks the language rules, like a missing closing bracket?',['SyntaxError'],['TypeError','ReferenceError','EvalError'],'It is found when the script is parsed, before it runs.');
+Q(3,'Errors','Which is a common mistake in a condition?',['Using `=` (assignment) where `==` or `===` (comparison) was intended'],['Using `===`','Using braces','Using else'],'`if (x = 5)` assigns 5 and is always truthy.');
+Q(3,'Errors','Which tool in a browser helps find JavaScript errors?',['The developer tools console'],['The page title','The address bar','The favicon'],'Press F12 or use the menu to open the developer tools.');
+Q(3,'jQuery','What is jQuery?',['A JavaScript library that simplifies DOM handling, events and AJAX'],['A database language','A CSS framework','A web server'],'jQuery wraps common tasks in short calls.');
+Q(3,'jQuery','Which symbol is the jQuery shortcut?',['`$`'],['`#`','`&`','`@`'],'`$` is an alias for the `jQuery` function.');
+Q(3,'jQuery','Which jQuery statement hides every paragraph?',['`$("p").hide();`'],['`$(p).hide;`','`jQuery.hide("p");`','`$("p").hidden();`'],'`$()` takes a CSS selector.');
+Q(3,'jQuery','Which jQuery code runs when the DOM is ready?',['`$(document).ready(function(){ ... });`'],['`$(window).start(...)`','`$(document).load(...)`','`$ready(...)`'],'This waits for the DOM before running.');
+Q(3,'jQuery','Which jQuery selector selects the element with id "menu"?',['`$("#menu")`'],['`$(".menu")`','`$("menu")`','`$("id=menu")`'],'jQuery uses CSS selector syntax.');
+Q(3,'jQuery','Which jQuery method sets the text content of an element?',['`.text("Hi")`'],['`.write("Hi")`','`.content("Hi")`','`.set("Hi")`'],'`.html()` sets HTML.');
+Q(3,'jQuery','Which jQuery method attaches a click handler?',['`.click(function(){ ... })`'],['`.press(...)`','`.tap(...)`','`.onTap(...)`'],'`.on("click", fn)` is the general form.');
+Q(3,'jQuery','How do you include jQuery in a page?',['With a `<script src="...jquery...js">` tag (a local file or a CDN) before your code'],['With a `<link>` tag','With `@import jquery`','It is built into HTML'],'The library must load before code that uses `$`.');
+Q(3,'jQuery','Which jQuery method changes a CSS property?',['`.css("color", "red")`'],['`.style("color")`','`.paint("red")`','`.setColor("red")`'],'`.css()` reads or writes styles.');
+
+// ===== Unit 4: HTML APIs =====
+Q(4,'API basics','What does API stand for?',['Application Programming Interface'],['Applied Program Integration','Automated Page Interaction','Application Process Index'],'An API is a defined way for software to talk to other software.');
+Q(4,'API basics','What is an HTML5 API?',['A set of JavaScript features built into the browser for tasks like drawing, location and storage'],['A new HTML tag family','A CSS framework','A type of web server'],'Examples: Canvas, Geolocation, Drag and Drop, History, File, Web Storage.');
+Q(4,'API basics','Why do developers use APIs?',['To reuse existing functionality instead of building it from scratch'],['To avoid using JavaScript','To make pages slower','To replace HTML'],'APIs expose features through a documented interface.');
+Q(4,'DOM API','Which API lets scripts read and change a page\'s structure, content and style?',['The DOM (Document Object Model)'],['The History API','The File API','The Geolocation API'],'The DOM models the page as a tree of nodes.');
+Q(4,'DOM API','In the DOM tree, what is the top-most node of an HTML page?',['`document`'],['`body`','`head`','`window`'],'The `document` node is the root, with `<html>` as its main child element.');
+Q(4,'DOM API','Which are node types in the DOM? (select all that apply)',['Element nodes','Text nodes','Attribute nodes'],['Image maps','Stylesheet engines'],'Elements, attributes and text are core node types.');
+Q(4,'DOM API','Which property returns the parent of a node?',['`parentNode`'],['`ancestor`','`upNode`','`owner`'],'`el.parentNode`');
+Q(4,'DOM API','Which property returns the collection of an element\'s child elements?',['`children`'],['`kids`','`descendants`','`inside`'],'`childNodes` includes text nodes as well.');
+Q(4,'DOM API','Which method removes a child element from its parent?',['`removeChild()`'],['`deleteChild()`','`dropChild()`','`cutChild()`'],'`parent.removeChild(child)`; `el.remove()` also works.');
+Q(4,'Canvas','Which element provides a drawing surface for JavaScript graphics?',['`<canvas>`'],['`<draw>`','`<paint>`','`<svg-canvas>`'],'`<canvas id="c" width="400" height="200"><\/canvas>`');
+Q(4,'Canvas','Does the `<canvas>` element draw anything by itself?',['No, you draw on it with JavaScript'],['Yes, it draws shapes by default','Yes, via CSS','Only when the width is set'],'It is only a blank container until script draws on it.');
+Q(4,'Canvas','Which method gets the drawing context of a canvas?',['`getContext("2d")`'],['`getDrawing()`','`canvas.draw("2d")`','`getPaint()`'],'The context object holds the drawing methods.');
+Q(4,'Canvas','What does this code do?',['Draws a filled red rectangle 50px wide and 30px tall at (10, 20)'],['Draws a red circle','Draws a red outline only','Draws text'],'`fillRect(x, y, width, height)`.','var ctx = canvas.getContext("2d");\nctx.fillStyle = "red";\nctx.fillRect(10, 20, 50, 30);');
+Q(4,'Canvas','Which method draws a rectangle OUTLINE?',['`strokeRect()`'],['`fillRect()`','`outlineRect()`','`lineRect()`'],'`strokeRect` draws the outline, `fillRect` fills.');
+Q(4,'Canvas','Which method erases a rectangular area of the canvas?',['`clearRect()`'],['`eraseRect()`','`deleteRect()`','`removeRect()`'],'`ctx.clearRect(0, 0, canvas.width, canvas.height)` clears all.');
+Q(4,'Canvas','Which sequence draws a straight line from (0,0) to (100,50)?',['`beginPath()`, `moveTo(0,0)`, `lineTo(100,50)`, `stroke()`'],['`line(0,0,100,50)`','`beginPath()`, `fill()`, `moveTo()`','`drawLine(0,0,100,50)`'],'Paths are built with moveTo and lineTo, then drawn with stroke or fill.');
+Q(4,'Canvas','Which method draws a circle or arc?',['`arc()`'],['`circle()`','`round()`','`ellipseRect()`'],'`ctx.arc(x, y, radius, startAngle, endAngle)`; angles are in radians.');
+Q(4,'Canvas','Which method draws filled text on a canvas?',['`fillText()`'],['`drawText()`','`writeText()`','`text()`'],'`ctx.fillText("Hi", 10, 50)`');
+Q(4,'Canvas','Which method draws an image on a canvas?',['`drawImage()`'],['`putImage()`','`addImage()`','`paintImage()`'],'`ctx.drawImage(img, x, y)`');
+Q(4,'Canvas','Which property sets the color used to fill shapes?',['`fillStyle`'],['`fillColor`','`brush`','`paint`'],'`ctx.fillStyle = "blue"`; `strokeStyle` is for outlines.');
+Q(4,'Canvas','What is the canvas coordinate origin (0, 0)?',['The top-left corner'],['The center','The bottom-left corner','The top-right corner'],'X increases to the right, Y increases downward.');
+Q(4,'Canvas','How do you set the canvas size reliably?',['With the `width` and `height` attributes on the element'],['Only with CSS width and height','With `canvas.size()`','It cannot be changed'],'CSS sizing only stretches the bitmap, which can look blurry or distorted.');
+Q(4,'Geolocation','Which API determines the user\'s geographic position?',['Geolocation API'],['History API','File API','Canvas API'],'It uses GPS, Wi-Fi or IP information.');
+Q(4,'Geolocation','Which object provides the Geolocation API?',['`navigator.geolocation`'],['`window.location`','`document.geo`','`screen.position`'],'`window.location` is the URL, not the physical location.');
+Q(4,'Geolocation','Which method gets the user\'s current position once?',['`getCurrentPosition()`'],['`getPosition()`','`locate()`','`findMe()`'],'`navigator.geolocation.getCurrentPosition(success, error)`');
+Q(4,'Geolocation','Which method keeps tracking the user\'s position as it changes?',['`watchPosition()`'],['`trackPosition()`','`followMe()`','`getAllPositions()`'],'`clearWatch()` stops it.');
+Q(4,'Geolocation','What must happen before the browser shares the user\'s location with a script?',['The user must give permission'],['The page must be on a CDN','Nothing, it is automatic','The page must use a canvas'],'Browsers ask for consent first. Many require HTTPS.');
+Q(4,'Geolocation','Which properties of `position.coords` give the location?',['`latitude` and `longitude`'],['`x` and `y`','`north` and `east`','`lat` and `lng` only'],'`position.coords.latitude` and `position.coords.longitude`.');
+Q(4,'Geolocation','What is the purpose of the second (error) callback of `getCurrentPosition()`?',['To handle failures like denied permission or no signal'],['To handle success','To set accuracy','To save the location'],'The error function receives an error code.');
+Q(4,'Geolocation','Which is a reason the Geolocation API might fail? (select all that apply)',['The user denied permission','The position is unavailable','The request timed out'],['The page has a canvas','The page uses CSS'],'The error codes are PERMISSION_DENIED, POSITION_UNAVAILABLE and TIMEOUT.');
+Q(4,'History','Which API lets scripts move through and change the browser\'s session history?',['History API'],['Geolocation API','Cache API','Canvas API'],'`window.history`');
+Q(4,'History','Which method moves back one page in the history?',['`history.back()`'],['`history.previous()`','`history.undo()`','`history.rewind()`'],'`history.forward()` moves ahead.');
+Q(4,'History','What does `history.go(-2)` do?',['Moves back two pages'],['Moves forward two pages','Goes to the second bookmark','Reloads the page twice'],'Negative numbers go back, positive go forward.');
+Q(4,'History','Which method adds an entry to the history without reloading the page?',['`history.pushState()`'],['`history.addPage()`','`history.add()`','`history.write()`'],'Single-page apps use it to update the URL.');
+Q(4,'History','Which method changes the current history entry without adding a new one?',['`history.replaceState()`'],['`history.change()`','`history.update()`','`history.edit()`'],'`pushState` adds; `replaceState` replaces.');
+Q(4,'History','Which property returns the number of entries in the history list?',['`history.length`'],['`history.count`','`history.size`','`history.total`'],'`history.length`');
+Q(4,'History','Which event fires when the user navigates through history entries created with `pushState`?',['`popstate`'],['`pushstate`','`historychange`','`navigate`'],'Use it to restore the page state.');
+Q(4,'Drag and drop','Which attribute makes an element draggable?',['`draggable="true"`'],['`drag="true"`','`movable="true"`','`dragdrop="on"`'],'Images and links are draggable by default.');
+Q(4,'Drag and drop','Which event fires on the dragged element when the drag begins?',['`dragstart`'],['`dragbegin`','`pickup`','`grab`'],'Use it to store data with `dataTransfer.setData()`.');
+Q(4,'Drag and drop','Which event fires continuously on a drop target while a dragged item is over it?',['`dragover`'],['`dragmove`','`dragenter` only','`hover`'],'You must call `event.preventDefault()` in `dragover` for the element to accept a drop.');
+Q(4,'Drag and drop','Why call `event.preventDefault()` in the `dragover` handler?',['By default elements do not allow drops, so this permits the drop'],['To stop the drag','To clear the data','To make the item invisible'],'Without it the `drop` event does not fire on that target.');
+Q(4,'Drag and drop','Which event fires on the target when the item is released over it?',['`drop`'],['`dragend`','`release`','`dragover`'],'`dragend` fires on the dragged element after the drag finishes.');
+Q(4,'Drag and drop','Which object carries data during a drag?',['`event.dataTransfer`'],['`event.clipboard`','`event.dragData`','`window.dragBox`'],'`setData(type, value)` and `getData(type)`.');
+Q(4,'Drag and drop','Which is the correct order of the main drag and drop events?',['dragstart, dragover, drop, dragend'],['drop, dragstart, dragover, dragend','dragover, dragstart, dragend, drop','dragend, dragstart, drop, dragover'],'Start, move over the target, drop and finish.');
+Q(4,'Drag and drop','Which event fires when a dragged item first enters a drop target?',['`dragenter`'],['`dragin`','`dragbegin`','`dragstart`'],'`dragleave` fires when it exits.');
+Q(4,'File API','Which API lets a web page read the content of files the user selects?',['File API (FileReader)'],['History API','Geolocation API','Canvas API'],'Access is only to files the user chooses.');
+Q(4,'File API','Which input type lets the user choose a file?',['`<input type="file">`'],['`<input type="upload">`','`<input type="browse">`','`<file>`'],'It exposes `input.files`.');
+Q(4,'File API','Which attribute allows selecting more than one file?',['`multiple`'],['`many`','`files="all"`','`multi`'],'`<input type="file" multiple>`');
+Q(4,'File API','Which object reads the contents of a selected file in JavaScript?',['`FileReader`'],['`FileOpener`','`FileStream`','`FileLoader`'],'`new FileReader()` with `readAsText()` or `readAsDataURL()`.');
+Q(4,'File API','Which `FileReader` method reads a file as text?',['`readAsText()`'],['`readText()`','`getText()`','`loadText()`'],'`readAsDataURL()` reads as a Base64 URL, and is handy for image previews.');
+Q(4,'File API','Which properties of a `File` object give its name and size? (select all that apply)',['`name`','`size`'],['`path`','`owner`'],'Files also expose `type` and `lastModified`.');
+Q(4,'File API','Why can a web page not read any file on the user\'s computer by itself?',['Browsers only allow access to files the user explicitly selects'],['Files are encrypted','JavaScript has no file features','Only on Linux'],'This is a security restriction.');
+Q(4,'Offline','What did the HTML5 Application Cache (AppCache) allow?',['Web apps to work offline by caching resources listed in a manifest'],['Faster server CPUs','Automatic database backup','Printing pages'],'AppCache is deprecated and has been replaced by Service Workers.');
+Q(4,'Offline','Which attribute on `<html>` linked a page to an AppCache manifest?',['`manifest`'],['`cache`','`offline`','`appcache`'],'`<html manifest="site.appcache">`');
+Q(4,'Offline','Which section of a cache manifest lists files to be cached?',['`CACHE:` (the explicit section)'],['`FALLBACK:` only','`NETWORK:`','`STORE:`'],'`CACHE MANIFEST` is the first line. `CACHE:`, `NETWORK:` and `FALLBACK:` are sections.');
+Q(4,'Offline','What is the first line of an AppCache manifest file?',['`CACHE MANIFEST`'],['`<!DOCTYPE manifest>`','`MANIFEST START`','`OFFLINE`'],'It must start with `CACHE MANIFEST`.');
+Q(4,'Offline','Which manifest section lists resources that ALWAYS need a network connection?',['`NETWORK:`'],['`CACHE:`','`FALLBACK:`','`ONLINE:`'],'Resources in this section are never cached.');
+Q(4,'Offline','Which manifest section gives substitute pages to use when a resource is not available offline?',['`FALLBACK:`'],['`NETWORK:`','`CACHE:`','`BACKUP:`'],'Each line pairs the original with its replacement.');
+Q(4,'Offline','What MIME type should a manifest file be served with?',['`text/cache-manifest`'],['`text/html`','`application/json`','`text/plain`'],'The server must send the correct type.');
+Q(4,'Storage','Which API stores key/value data in the browser that persists after the browser is closed?',['`localStorage`'],['`sessionStorage`','Cookies only','`history`'],'`sessionStorage` is cleared when the tab closes.');
+Q(4,'Storage','How do you save a value with Web Storage?',['`localStorage.setItem("name", "Ann");`'],['`localStorage.save("name", "Ann");`','`localStorage.add("name")`','`localStorage.put("Ann")`'],'`getItem(key)` reads and `removeItem(key)` deletes.');
+Q(4,'Storage','What type of values can Web Storage hold directly?',['Strings'],['Objects','Functions','Images'],'Use `JSON.stringify()` to store objects.');
+Q(4,'XMLHttpRequest','What does the `XMLHttpRequest` object do?',['Exchanges data with a server in the background without reloading the page'],['Draws on a canvas','Validates XML files','Plays video'],'It is the original AJAX mechanism.');
+Q(4,'XMLHttpRequest','What does AJAX stand for?',['Asynchronous JavaScript and XML'],['Advanced Java and XHTML','Automated JavaScript And XSLT','Asynchronous Java Application XML'],'The data format is not always XML. JSON is common.');
+Q(4,'XMLHttpRequest','What does "asynchronous" mean in AJAX?',['The script keeps running while it waits for the response'],['The request is encrypted','The request is slow','The request is sent twice'],'The page remains usable during the request.');
+Q(4,'XMLHttpRequest','Which statement creates an XMLHttpRequest object?',['`var xhr = new XMLHttpRequest();`'],['`var xhr = XMLHttpRequest();`','`var xhr = XHR.create();`','`var xhr = new Request.XML();`'],'Use the `new` keyword.');
+Q(4,'XMLHttpRequest','Which methods set up and send a request?',['`open()` and `send()`'],['`start()` and `go()`','`connect()` and `post()`','`request()` and `fetch()`'],'`xhr.open("GET", "data.txt", true); xhr.send();`');
+Q(4,'XMLHttpRequest','What is the third argument of `open("GET", url, true)`?',['Whether the request is asynchronous'],['Whether to cache','The timeout','The HTTP version'],'`true` is asynchronous and `false` is synchronous (blocking).');
+Q(4,'XMLHttpRequest','Which property holds the server\'s response as text?',['`responseText`'],['`responseData`','`textResult`','`result`'],'`responseXML` holds a parsed XML document.');
+Q(4,'XMLHttpRequest','Which event handler runs each time the request\'s state changes?',['`onreadystatechange`'],['`onstatechange`','`onchange`','`onrequest`'],'Check `readyState` and `status` inside it.');
+Q(4,'XMLHttpRequest','What `readyState` value means the request is complete and the response is ready?',['`4`'],['`0`','`1`','`2`'],'0 unsent, 1 opened, 2 headers received, 3 loading, 4 done.');
+Q(4,'XMLHttpRequest','Which HTTP status code means success?',['`200`'],['`404`','`500`','`301`'],'404 not found, 500 server error, 301 moved.');
+Q(4,'XMLHttpRequest','Which HTTP status code means the resource was NOT found?',['`404`'],['`200`','`500`','`403`'],'403 is forbidden and 500 is a server error.');
+Q(4,'XMLHttpRequest','When should the response be used inside `onreadystatechange`?',['When `readyState` is 4 and `status` is 200'],['When `readyState` is 0','Always','When `status` is 404'],'That means done and OK.');
+Q(4,'XMLHttpRequest','Which HTTP method is normally used to REQUEST data without changing anything on the server?',['GET'],['POST','DELETE','PUT'],'GET reads. POST usually sends data to be processed.');
+Q(4,'XMLHttpRequest','What is the same-origin policy?',['A browser rule that restricts a script from reading responses from a different origin'],['A rule that all pages use the same CSS','A rule for image sizes','A rule that URLs must be lowercase'],'Origin means protocol, host and port. CORS can relax it.');
+Q(4,'AJAX','Which is a benefit of AJAX?',['Part of a page can update without a full reload'],['It removes the need for a server','It makes HTML valid','It replaces CSS'],'Examples: live search suggestions, chat, form checks.');
+Q(4,'AJAX','Which data format is most commonly returned by modern APIs?',['JSON'],['BMP','PDF','MP3'],'JSON is lightweight and works well with JavaScript.');
+Q(4,'AJAX','Which method converts a JSON string into a JavaScript object?',['`JSON.parse()`'],['`JSON.stringify()`','`JSON.decode()` only','`JSON.make()`'],'`JSON.stringify()` does the reverse.');
+Q(4,'AJAX','Which method converts a JavaScript object into a JSON string?',['`JSON.stringify()`'],['`JSON.parse()`','`JSON.encode()`','`JSON.toString()` for objects'],'Use it before storing or sending an object.');
+Q(4,'AJAX','Is this valid JSON?',['Yes'],['No, keys must be in double quotes','No, strings must use single quotes','No, braces are not allowed'],'JSON keys and strings use double quotes, which this has.','{ "name": "Ann", "age": 30 }');
+Q(4,'AJAX','Is this valid JSON?',['No'],['Yes','Yes, if wrapped in a function','Yes, with a semicolon'],'JSON requires double-quoted keys and strings.','{ name: \'Ann\' }');
+Q(4,'AJAX','Which modern browser API makes network requests and returns Promises?',['`fetch()`'],['`getData()`','`request()`','`load()`'],'`fetch(url).then(r => r.json())`');
+Q(4,'jQuery AJAX','Which jQuery method loads data from a server into a selected element?',['`.load()`'],['`.fetch()`','`.pull()`','`.ajaxLoad()`'],'`$("#box").load("page.html")`');
+Q(4,'jQuery AJAX','Which jQuery method performs a general asynchronous request?',['`$.ajax()`'],['`$.request()`','`$.send()`','`$.async()`'],'`$.get()` and `$.post()` are shortcuts.');
+Q(4,'jQuery','What is one benefit of loading jQuery from a CDN?',['The file may already be cached in the visitor\'s browser'],['It is required by browsers','It removes the need for HTML','It encrypts the script'],'A CDN (content delivery network) serves it fast from nearby servers.');
+Q(4,'jQuery','Which jQuery method fades an element out?',['`.fadeOut()`'],['`.fade(0)`','`.disappear()`','`.dim()`'],'`.fadeIn()` and `.fadeToggle()` also exist.');
+Q(4,'jQuery','Which jQuery method slides an element up to hide it?',['`.slideUp()`'],['`.slideHide()`','`.up()`','`.collapse()`'],'`.slideDown()` shows.');
+Q(4,'jQuery','Which jQuery method runs a custom animation of CSS properties?',['`.animate()`'],['`.move()`','`.tween()`','`.motion()`'],'`$("#box").animate({left: "250px"})`');
+Q(4,'jQuery','Which jQuery method gets or sets the value of a form field?',['`.val()`'],['`.value()`','`.text()`','`.input()`'],'`$("#email").val()`');
+
+// ===== Unit 5: Forms and Validation =====
+Q(5,'Form basics','What is an HTML form used for?',['Collecting input from users and sending it to a server or script'],['Styling pages','Playing media','Drawing graphics'],'Forms contain controls such as text fields, checkboxes and buttons.');
+Q(5,'Form basics','Which element wraps the controls of a form?',['`<form>`'],['`<input>`','`<fieldset>`','`<formdata>`'],'`<form action="/submit" method="post"> ... <\/form>`');
+Q(5,'Form basics','What does the `action` attribute of `<form>` specify?',['The URL that receives the submitted data'],['The HTTP method','The button label','The form\'s name'],'If it is omitted the form is submitted to the current page URL.');
+Q(5,'Form basics','What does the `method` attribute of `<form>` specify?',['The HTTP method used to send the data (GET or POST)'],['The URL to submit to','How the form is validated','The form\'s encoding only'],'The default is GET.');
+Q(5,'Form basics','What is the default `method` of a form?',['GET'],['POST','PUT','DELETE'],'If `method` is omitted, GET is used.');
+Q(5,'Form basics','Which is true of the GET method? (select all that apply)',['Form data is appended to the URL','The result can be bookmarked','It should not be used for sensitive data like passwords'],['It hides data in the request body','It has no limit on the amount of data'],'GET puts data in the query string. POST sends it in the body.');
+Q(5,'Form basics','Which is true of the POST method? (select all that apply)',['Data is sent in the request body, not shown in the URL','It is better for sensitive or large data'],['The results can always be bookmarked','It is the default method'],'POST is not a replacement for HTTPS encryption.');
+Q(5,'Form basics','Which input does NOT appear in the URL when the form is submitted?',['A form sent with POST'],['A form sent with GET','Any form','Only password fields in a GET form'],'GET exposes values in the query string, even for password fields.');
+Q(5,'Form basics','Which attribute identifies an input so its value is sent to the server with that name?',['`name`'],['`id`','`class`','`label`'],'Controls without a `name` are not included in the submitted data.');
+Q(5,'Form basics','What is the purpose of the `id` attribute on an input?',['To uniquely identify it so a label or script can refer to it'],['To name the value sent to the server','To make it required','To style it blue'],'`<label for="email">` matches `<input id="email">`.');
+Q(5,'Form basics','Which attribute pre-fills an input with a starting value?',['`value`'],['`default`','`text`','`start`'],'`<input type="text" value="Ann">`');
+Q(5,'Form basics','Which attribute shows hint text inside an empty input?',['`placeholder`'],['`hint`','`tip`','`prompt`'],'Placeholder text disappears when typing starts and is not a replacement for a label.');
+Q(5,'Form basics','Which `enctype` must be used on a form that uploads files?',['`multipart/form-data`'],['`text/plain`','`application/json`','`application/x-www-form-urlencoded`'],'File uploads also require `method="post"`.');
+Q(5,'Form basics','What does `target="_blank"` on a form do?',['Shows the response in a new tab or window'],['Blanks the form','Validates it','Resets the fields'],'The `target` attribute works the same way as for links.');
+Q(5,'Input types','Which element creates most form fields?',['`<input>`'],['`<field>`','`<control>`','`<entry>`'],'The `type` attribute chooses the kind of input.');
+Q(5,'Input types','Which input type is the default if `type` is missing or invalid?',['`text`'],['`password`','`search`','`button`'],'An unknown type falls back to text.');
+Q(5,'Input types','Which input type hides the characters typed?',['`password`'],['`secret`','`hidden`','`mask`'],'`hidden` is not shown at all.');
+Q(5,'Input types','Which input type creates a one-of-many choice with the same `name`?',['`radio`'],['`checkbox`','`select`','`option`'],'Radios sharing a name are mutually exclusive.');
+Q(5,'Input types','Which input type allows zero or more independent choices?',['`checkbox`'],['`radio`','`toggle`','`switch`'],'Each checkbox can be on or off.');
+Q(5,'Input types','Which attribute pre-selects a checkbox or radio button?',['`checked`'],['`selected`','`on`','`default`'],'`<input type="checkbox" checked>`');
+Q(5,'Input types','Which input types are new in HTML5? (select all that apply)',['`email`','`date`','`range`'],['`text`','`password`'],'Others: number, tel, url, color, search, time, week, month, datetime-local.');
+Q(5,'Input types','Which input type shows a slider?',['`range`'],['`slide`','`number`','`slider`'],'`<input type="range" min="0" max="10">`');
+Q(5,'Input types','Which input type accepts only numbers and may show up/down arrows?',['`number`'],['`digits`','`numeric`','`integer`'],'Use `min`, `max` and `step`.');
+Q(5,'Input types','Which input type shows a color picker?',['`color`'],['`palette`','`colour`','`hex`'],'The value is a hex color string.');
+Q(5,'Input types','Which input type shows a calendar date picker?',['`date`'],['`calendar`','`day`','`datepicker`'],'Also `time`, `month`, `week` and `datetime-local`.');
+Q(5,'Input types','Which input type is intended for a telephone number?',['`tel`'],['`phone`','`number`','`call`'],'On phones it brings up a numeric keypad.');
+Q(5,'Input types','Which input type is intended for a web address and checks the URL format?',['`url`'],['`link`','`web`','`href`'],'`type="url"` checks the format when the form is submitted.');
+Q(5,'Input types','Which input type is intended for a web address and brings up an email-friendly keyboard on phones?',['`email`'],['`mail`','`address`','`text`'],'It also checks for an `@` format on submit.');
+Q(5,'Input types','Which input type creates a search box?',['`search`'],['`find`','`query`','`lookup`'],'It may show a clear button.');
+Q(5,'Input types','Which input type lets the user pick a file?',['`file`'],['`upload`','`attach`','`document`'],'Use `multiple` and `accept` as needed.');
+Q(5,'Input types','Which input type creates a button that submits the form?',['`submit`'],['`send`','`post`','`go`'],'`<input type="submit" value="Send">`; `<button type="submit">` also works.');
+Q(5,'Input types','Which input type resets all fields to their initial values?',['`reset`'],['`clear`','`undo`','`restart`'],'It does not clear fields that had a starting value.');
+Q(5,'Input types','Which input type holds data that the user does not see but is submitted?',['`hidden`'],['`secret`','`password`','`invisible`'],'Never put secrets in hidden fields because users can read the page source.');
+Q(5,'Input types','Which input type is a clickable button that does nothing by default (used with JavaScript)?',['`button`'],['`submit`','`reset`','`action`'],'`type="button"` does not submit the form.');
+Q(5,'Input types','Which input type shows a button that displays an image to submit the form?',['`image`'],['`picture`','`img`','`graphic`'],'`<input type="image" src="go.png" alt="Go">`');
+Q(5,'Form controls','Which element creates a drop-down list?',['`<select>`'],['`<dropdown>`','`<list>`','`<input type="select">`'],'Items are `<option>` elements.');
+Q(5,'Form controls','Which element defines one choice inside a `<select>`?',['`<option>`'],['`<choice>`','`<item>`','`<li>`'],'`<option value="1">One<\/option>`');
+Q(5,'Form controls','Which element groups related options inside a `<select>`?',['`<optgroup>`'],['`<group>`','`<fieldset>`','`<optset>`'],'`<optgroup label="Fruits">`.');
+Q(5,'Form controls','Which attribute allows selecting multiple options in a `<select>`?',['`multiple`'],['`many`','`multi`','`checkbox`'],'`<select multiple>`');
+Q(5,'Form controls','Which element creates a multi-line text box?',['`<textarea>`'],['`<input type="textarea">`','`<multiline>`','`<textbox>`'],'Use `rows` and `cols` (or CSS) to size it.');
+Q(5,'Form controls','Where does the default content of a `<textarea>` go?',['Between the opening and closing tags'],['In the value attribute','In the placeholder attribute only','In the name attribute'],'`<textarea>Default text<\/textarea>`');
+Q(5,'Form controls','Which element creates a clickable button that can contain HTML content?',['`<button>`'],['`<btn>`','`<click>`','`<press>`'],'Unlike `<input type="button">`, it can hold images and formatting.');
+Q(5,'Form controls','What is the default type of a `<button>` inside a form?',['`submit`'],['`button`','`reset`','`none`'],'Set `type="button"` to prevent submission.');
+Q(5,'Form controls','Which element, with `<datalist>`, offers suggested values for an input?',['`<input list="id">` paired with `<datalist id="id">`'],['`<input suggest>`','`<select list>`','`<input options>`'],'Users can pick a suggestion or type their own.');
+Q(5,'Form controls','Which element shows the result of a calculation or script in a form?',['`<output>`'],['`<result>`','`<calc>`','`<display>`'],'`<output name="total"><\/output>`');
+Q(5,'Labeling','Which element groups related controls in a form and draws a box around them?',['`<fieldset>`'],['`<formgroup>`','`<group>`','`<box>`'],'It improves organization and accessibility.');
+Q(5,'Labeling','Which element provides a caption for a `<fieldset>`?',['`<legend>`'],['`<caption>`','`<title>`','`<label>`'],'`<legend>` must be the first child of `<fieldset>`.');
+Q(5,'Labeling','Which element connects a text description to a form control?',['`<label>`'],['`<caption>`','`<text>`','`<name>`'],'Clicking the label focuses the control.');
+Q(5,'Labeling','How do you link a `<label>` to an input explicitly?',['Give the label a `for` attribute equal to the input\'s `id`'],['Give the input a `for` attribute','Give both the same `class`','Wrap them in a `<div>`'],'`<label for="email">` and `<input id="email">`.');
+Q(5,'Labeling','Which is another way to associate a label with an input?',['Place the input inside the `<label>` element'],['Place the label inside the input','Use the same name attribute','Use `<label rel>`'],'`<label>Name <input name="n"><\/label>`');
+Q(5,'Labeling','Why are labels important? (select all that apply)',['Screen readers announce them','Clicking the label focuses the input','They enlarge the click target'],['They validate the input','They encrypt the data'],'Labels aid accessibility and usability.');
+Q(5,'Labeling','Is the `placeholder` attribute a good replacement for a `<label>`?',['No, it disappears when typing and is not reliably read by assistive technology'],['Yes, always','Yes, for passwords only','Yes, if the text is short'],'Use a visible label and use placeholder only for hints.');
+Q(5,'Global attributes','Which global attribute makes an element\'s content user-editable?',['`contenteditable`'],['`editable`','`edit`','`writeable`'],'`<p contenteditable="true">`');
+Q(5,'Global attributes','Which global attribute sets the tab order of focusable elements?',['`tabindex`'],['`taborder`','`tabnum`','`focusorder`'],'`tabindex="0"` places an element in natural order. `-1` removes it from tabbing.');
+Q(5,'Global attributes','Which global attribute defines a keyboard shortcut to activate or focus an element?',['`accesskey`'],['`hotkey`','`shortcut`','`key`'],'The modifier keys vary by browser.');
+Q(5,'Global attributes','Which global attribute sets the text direction (left-to-right or right-to-left)?',['`dir`'],['`direction`','`flow`','`align`'],'`dir="rtl"` for languages such as Arabic or Hebrew.');
+Q(5,'Global attributes','Which global attribute declares the language of an element\'s content?',['`lang`'],['`language`','`locale`','`speak`'],'`<p lang="fr">`');
+Q(5,'Global attributes','Which global attribute controls spell checking on editable content?',['`spellcheck`'],['`check`','`proof`','`spell`'],'`spellcheck="true"` or `"false"`.');
+Q(5,'Global attributes','Which global attribute stores custom data on an element for scripts?',['`data-*` attributes'],['`custom-*` attributes','`store` attribute','`meta-*` attributes'],'Example: `data-user-id="42"`, read with `el.dataset.userId`.');
+Q(5,'Global attributes','Which are global attributes, valid on any HTML element? (select all that apply)',['`id`','`class`','`style`'],['`href`','`src`'],'`href` and `src` apply only to certain elements.');
+Q(5,'Global attributes','Which global attribute can mark an element as draggable?',['`draggable`'],['`movable`','`dragging`','`dnd`'],'Part of the HTML5 drag and drop API.');
+Q(5,'Global attributes','Which global attribute hides an element and removes it from the layout?',['`hidden`'],['`invisible`','`display`','`collapse`'],'The `hidden` attribute applies `display: none` by default.');
+Q(5,'Validation','What does the `required` attribute do?',['Prevents submission if the field is empty'],['Makes the field bold','Hides the field','Fills it with a default'],'The browser shows a message when a required field is empty.');
+Q(5,'Validation','Which attributes limit a number input between 1 and 10? (select all that apply)',['`min="1"`','`max="10"`'],['`low="1"`','`high="10"`'],'`step` also controls allowed increments.');
+Q(5,'Validation','Which attribute limits the number of characters in a text field?',['`maxlength`'],['`size`','`limit`','`max`'],'`size` only sets the visible width.');
+Q(5,'Validation','Which attribute sets a minimum number of characters?',['`minlength`'],['`min`','`size`','`least`'],'`minlength="8"` for a password, for example.');
+Q(5,'Validation','Which attribute checks a value against a regular expression?',['`pattern`'],['`regex`','`match`','`format`'],'`<input pattern="[0-9]{5}">` requires 5 digits.');
+Q(5,'Validation','What does `pattern="[A-Za-z]{3}"` allow?',['Exactly three letters'],['At least three letters','Three digits','Any text'],'The whole value must match the pattern.');
+Q(5,'Validation','Which pattern requires exactly five digits (a US ZIP code)?',['`[0-9]{5}`'],['`[0-9]{1,5}`','`[a-z]{5}`','`\\d*`'],'`{5}` means exactly five.');
+Q(5,'Validation','Which attribute disables HTML5 browser validation for a whole form?',['`novalidate`'],['`noverify`','`disablevalidate`','`skipvalidation`'],'`<form novalidate>`; `formnovalidate` on a button does it for that submit.');
+Q(5,'Validation','Which attribute adds a title that helps explain the required pattern?',['`title`'],['`hint`','`help`','`about`'],'Many browsers show the title text with the validation message.');
+Q(5,'Validation','Which is NOT a reliable way to protect a site on its own?',['Client-side (browser) validation alone'],['Server-side validation','Validating and escaping on the server','Parameterized queries'],'Users can bypass browser checks, so always validate again on the server.');
+Q(5,'Validation','Why validate on BOTH the client and the server?',['The client gives fast feedback; the server enforces security'],['The server is faster','They always give different results','Browsers require it'],'Client checks improve usability. Server checks cannot be bypassed.');
+Q(5,'Validation','Which CSS pseudo-classes style fields by validation state? (select all that apply)',['`:valid`','`:invalid`','`:required`'],['`:checked-ok`','`:error`'],'Also `:optional`, `:in-range` and `:out-of-range`.');
+Q(5,'Validation','Which JavaScript method on a form or input checks whether it passes HTML5 validation?',['`checkValidity()`'],['`isValid()`','`validate()`','`verify()`'],'`form.checkValidity()` returns true or false.');
+Q(5,'Validation','Which JavaScript method lets script set a custom validation error message on an input?',['`setCustomValidity()`'],['`setError()`','`customMessage()`','`validity.message()`'],'An empty string clears the error.');
+Q(5,'Validation','Which JavaScript event lets you validate before the form is sent?',['`submit`'],['`load`','`focus`','`change` only'],'Call `event.preventDefault()` if validation fails.');
+Q(5,'Validation','In a form validation function, what does `return false` from an `onsubmit` handler do?',['Cancels the submission'],['Submits the form','Reloads the page','Clears the fields'],'`<form onsubmit="return check()">`');
+Q(5,'Validation','What is wrong with this check for an empty name?',['Nothing, it correctly rejects an empty value'],['It should use `=`','It should use `isNaN`','`value` is not a property'],'`value` is the text in the input. An empty string is falsy.','var name = document.forms["f"]["name"].value;\nif (name == "") {\n  alert("Name must be filled out");\n  return false;\n}');
+Q(5,'Validation','Which JavaScript expression reads the text a user typed into `<input id="age">`?',['`document.getElementById("age").value`'],['`document.getElementById("age").text`','`document.getElementById("age").innerHTML`','`document.age.content`'],'`value` holds the field\'s current content.');
+Q(5,'Regular expressions','What is a regular expression?',['A pattern used to match text'],['A CSS selector','A type of loop','A server language'],'Used in `pattern` attributes and in JavaScript.');
+Q(5,'Regular expressions','What does `^` mean at the start of a regex?',['The match must start at the beginning of the text'],['Not','Any character','Zero or more'],'`$` anchors the end.');
+Q(5,'Regular expressions','What does `$` mean at the end of a regex?',['The match must end at the end of the text'],['A dollar sign must follow','Repeat','Optional'],'`^abc$` matches exactly "abc".');
+Q(5,'Regular expressions','What does `\\d` match?',['A single digit'],['A single letter','A whitespace','Any character'],'`\\d` is the same as `[0-9]`.');
+Q(5,'Regular expressions','What does `\\w` match?',['A letter, digit or underscore'],['Only a letter','A space','Any symbol'],'`\\W` is the opposite.');
+Q(5,'Regular expressions','What does `\\s` match?',['A whitespace character'],['A string','A symbol','A digit'],'Spaces, tabs and line breaks.');
+Q(5,'Regular expressions','What does `.` match?',['Any single character (except a line break)'],['A literal period only','Zero characters','A digit'],'Escape it as `\\.` to match a literal dot.');
+Q(5,'Regular expressions','What does `*` mean in a regex?',['Zero or more of the previous item'],['One or more','Zero or one','Exactly one'],'`a*` matches "", "a", "aaa".');
+Q(5,'Regular expressions','What does `+` mean in a regex?',['One or more of the previous item'],['Zero or more','Zero or one','Exactly two'],'`a+` needs at least one a.');
+Q(5,'Regular expressions','What does `?` mean in a regex?',['Zero or one of the previous item (optional)'],['One or more','Any character','End of text'],'`colou?r` matches color and colour.');
+Q(5,'Regular expressions','What does `{3}` mean in a regex?',['Exactly three of the previous item'],['At most three','At least three','Three different items'],'`{2,4}` means two to four.');
+Q(5,'Regular expressions','What does `[abc]` match?',['One character that is a, b or c'],['The text "abc"','Any character but a, b or c','Zero or more of them'],'Square brackets define a character class.');
+Q(5,'Regular expressions','What does `[^abc]` match?',['One character that is NOT a, b or c'],['The start of text then a, b or c','The text "^abc"','Anything'],'`^` inside brackets negates the class.');
+Q(5,'Regular expressions','What does `[A-Z]` match?',['One uppercase letter'],['The letters A and Z only','One lowercase letter','One digit'],'A range inside brackets.');
+Q(5,'Regular expressions','What does the `|` do in a regex?',['Alternation: matches either the left or the right part'],['Escapes a character','Groups items','Repeats'],'`cat|dog` matches cat or dog.');
+Q(5,'Regular expressions','Which regex matches a simple 3-digit area code followed by a dash and 4 digits, for example 555-1234?',['`^\\d{3}-\\d{4}$`'],['`^\\d{3,4}$`','`^\\w{7}$`','`^[0-9]{3}[0-9]{4}$`'],'The dash is a literal and the anchors force a full match.');
+Q(5,'Regular expressions','Which JavaScript method tests whether a string matches a regex and returns true or false?',['`regex.test(string)`'],['`regex.find(string)`','`regex.match(string)` returns a boolean','`string.has(regex)`'],'`/^\\d+$/.test("123")` is true. `string.match()` returns the matches or null.');
+Q(5,'Regular expressions','How is a regex literal written in JavaScript?',['Between forward slashes, like `/abc/`'],['Between quotes only like `"abc"`','Between angle brackets like `<abc>`','Between hashes like `#abc#`'],'Flags go after the closing slash, for example `/abc/i`.');
+Q(5,'Regular expressions','What does the `i` flag do in `/hello/i`?',['Makes the match case-insensitive'],['Ignores spaces','Matches only once','Inverts the match'],'`g` is global (find all matches).');
+Q(5,'Regular expressions','Which HTML5 pattern would accept a lowercase username of 4 to 12 letters or digits?',['`[a-z0-9]{4,12}`'],['`[a-z0-9]{4-12}`','`[a-z0-9]*4,12`','`[a-z0-9]+{4,12}`'],'`{min,max}` is the repetition syntax.');
+Q(5,'Cross-browser','What is cross-browser compatibility?',['A page working consistently across different browsers and versions'],['Using one browser only','Speed of the server','A CSS color feature'],'Browsers may support features differently.');
+Q(5,'Cross-browser','Which resource helps check whether a browser supports a given feature?',['caniuse.com'],['w3.org/validate only','wikipedia.org','google.com/maps'],'"Can I use" tracks browser support for web technologies.');
+Q(5,'Cross-browser','What does a CSS vendor prefix such as `-webkit-` or `-moz-` indicate?',['A browser-specific implementation of an experimental feature'],['A color','A shortcut to a file','A comment'],'`-webkit-` (Chrome, Safari), `-moz-` (Firefox), `-ms-` (old Edge/IE), `-o-` (old Opera).');
+Q(5,'Cross-browser','Which prefix targets Firefox?',['`-moz-`'],['`-webkit-`','`-ms-`','`-o-`'],'Moz stands for Mozilla.');
+Q(5,'Cross-browser','Which prefix is used by Chrome and Safari?',['`-webkit-`'],['`-moz-`','`-ms-`','`-chrome-`'],'WebKit-based browsers use it.');
+Q(5,'Cross-browser','What is a good practice when a feature is not supported by a browser?',['Provide a fallback or graceful degradation'],['Ignore those users','Block the browser','Remove all CSS'],'Progressive enhancement starts from a basic working version and adds features.');
+Q(5,'Cross-browser','What is progressive enhancement?',['Starting with basic content that works everywhere and adding advanced features for capable browsers'],['Making the page slower in older browsers','Only supporting new browsers','Adding Flash'],'The opposite of building for only the newest browsers.');
+Q(5,'Cross-browser','What does a polyfill do?',['Adds a missing feature to older browsers using JavaScript'],['Removes errors','Compresses images','Encrypts data'],'It lets you use a modern API while supporting older browsers.');
+Q(5,'Cross-browser','Which approach is recommended to adapt to browser differences?',['Feature detection'],['Browser sniffing by user-agent only','Ignoring differences','Testing only in one browser'],'Check whether a feature exists rather than guessing from the browser name.');
+Q(5,'Cross-browser','Which statement is true about HTML5 input types like `date` in older browsers that do not support them?',['They fall back to a plain text input'],['They crash the page','They are removed from the page','They become a button'],'Unknown types are treated as `text`.');
+Q(5,'Cross-browser','Why test pages in several browsers and devices?',['Rendering and feature support can differ'],['All browsers render identically','Only one browser matters','Testing is only for servers'],'Test at least Chrome, Firefox, Safari and Edge.');
+Q(5,'Submitting','Which HTTP method is best for a login form?',['POST'],['GET','HEAD','TRACE'],'POST keeps the credentials out of the URL. HTTPS is also needed.');
+Q(5,'Submitting','Which HTTP method is best for a search form whose results should be bookmarkable?',['GET'],['POST','PUT','DELETE'],'The search terms appear in the URL.');
+Q(5,'Submitting','What does the browser send for a GET form with `name="q"` and the user types "css"?',['The URL has `?q=css` added to the action address'],['The body contains `q=css` only','Nothing','A cookie named q'],'Query string: `action?name=value&name2=value2`.');
+Q(5,'Submitting','Which characters separate multiple name/value pairs in a query string?',['`&`'],['`;`','`,`','`+`'],'`?first=Ann&last=Lee`');
+Q(5,'Submitting','Which character starts a query string in a URL?',['`?`'],['`&`','`#`','`/`'],'The `#` starts the fragment.');
+Q(5,'Submitting','What encoding turns a space into `%20` or `+` in form data?',['URL (percent) encoding'],['Base64','Unicode escape','Gzip'],'Special characters are encoded so they travel safely in a URL.');
+Q(5,'Submitting','Which element is the standard way to give users a button that sends the form?',['`<button type="submit">` or `<input type="submit">`'],['`<input type="send">`','`<a submit>`','`<form submit>`'],'Both submit the form.');
+Q(5,'Submitting','Which method submits a form from JavaScript?',['`form.submit()`'],['`form.send()`','`form.post()`','`form.go()`'],'Note: `submit()` does not trigger the `submit` event or validation. `requestSubmit()` does.');
+Q(5,'Submitting','Which attribute on a submit button can send the form to a different URL?',['`formaction`'],['`action`','`url`','`target`'],'`<button formaction="/draft">Save draft<\/button>`');
+Q(5,'Submitting','Why should you use HTTPS for a form that collects sensitive data?',['It encrypts the data in transit'],['It makes validation unnecessary','It makes the form faster','It hides the form code'],'POST alone does not encrypt data.');
+Q(5,'Submitting','What kind of program typically receives and processes a submitted form?',['A server-side script or application'],['A CSS file','An image','A web font'],'Examples: PHP, Python, Node.js, ASP.NET.');
+Q(5,'Submitting','Which HTML control is NOT submitted with the form?',['A control without a `name` attribute'],['A text input with a name','A checked checkbox with a name','A selected option'],'Also, unchecked checkboxes and disabled controls are not sent.');
+Q(5,'Submitting','What is submitted for a checkbox with no `value` attribute that is checked?',['`on`'],['`true`','`1`','Nothing'],'The default value is `on`.');
+Q(5,'Submitting','Which attribute prevents a field from being edited but still submits it?',['`readonly`'],['`disabled`','`locked`','`frozen`'],'`disabled` fields are not submitted.');
+Q(5,'Submitting','Which attribute prevents a field from being used and from being submitted?',['`disabled`'],['`readonly`','`hidden`','`frozen`'],'Disabled controls are greyed out.');
+Q(5,'Submitting','Which attribute focuses a field automatically when the page loads?',['`autofocus`'],['`focus`','`autostart`','`first`'],'Use it on only one element per page.');
+Q(5,'Submitting','Which attribute helps browsers fill a field with saved information, for example `autocomplete="email"`?',['`autocomplete`'],['`autofill`','`remember`','`prefill`'],'`autocomplete="off"` disables suggestions.');
+
+// ===== Unit 6: Designing for Mobile Devices =====
+Q(6,'Responsive design','Who coined the term "responsive web design"?',['Ethan Marcotte'],['Tim Berners-Lee','Jeffrey Zeldman','Brendan Eich'],'He described it in an article in 2010.');
+Q(6,'Responsive design','What are the three core ingredients of responsive web design? (select all that apply)',['Fluid (flexible) grids','Flexible images and media','Media queries'],['Frames','Flash animations'],'These make one layout work across sizes.');
+Q(6,'Responsive design','What is a mobile-first approach?',['Designing for small screens first, then adding enhancements for larger screens'],['Designing only for phones','Designing for desktops first','Ignoring tablets'],'Use `min-width` media queries to add layout as the screen grows.');
+Q(6,'Responsive design','Which is a benefit of mobile-first design?',['It forces focus on essential content and performance'],['It removes the need for CSS','It guarantees top search rankings','It works without HTML'],'Starting small keeps the base page light.');
+Q(6,'Responsive design','What is the difference between a mobile website, a mobile app and responsive design?',['A mobile site is a separate site for phones; an app is installed software; responsive design adapts one site to all devices'],['They are all the same thing','An app runs only in a browser','A responsive site must be installed from an app store'],'Responsive design is one codebase for every screen size.');
+Q(6,'Responsive design','Which is an advantage of responsive design over a separate mobile site?',['One URL and one codebase to maintain'],['It needs no testing','It never needs images','It only works on desktops'],'A single URL is also better for sharing and search.');
+Q(6,'Responsive design','Which is a typical advantage of a native mobile APP over a responsive website?',['Deeper access to device features and offline use'],['No installation is needed','It works on any browser','It is cheaper to build for all platforms'],'Apps are installed through a store and can use hardware features directly.');
+Q(6,'Viewport','What does the viewport meta tag do?',['Controls how the page is sized and scaled on a mobile device'],['Sets the page title','Loads a stylesheet','Sets the language'],'Without it, phones often render the page at about 980px wide and shrink it.');
+Q(6,'Viewport','Which is the standard viewport meta tag?',['`<meta name="viewport" content="width=device-width, initial-scale=1.0">`'],['`<meta name="viewport" content="width=1000, scale=0">`','`<meta viewport="device-width">`','`<viewport width="device">`'],'It goes in the `<head>`.');
+Q(6,'Viewport','What does `width=device-width` mean?',['The page width matches the screen width of the device'],['The page is exactly 1000px','The width is half the screen','The page ignores the screen'],'It makes CSS pixels follow the device width.');
+Q(6,'Viewport','What does `initial-scale=1.0` do?',['Sets the initial zoom level to 100%'],['Doubles the text','Hides the page','Locks scrolling'],'It sets the relationship between CSS pixels and device-independent pixels.');
+Q(6,'Viewport','Why is `user-scalable=no` discouraged?',['It prevents users who need zoom from enlarging the page'],['It breaks the doctype','It slows the page','It is not valid HTML'],'Accessibility guidelines say not to block zooming.');
+Q(6,'Viewport','What is the "viewport"?',['The visible area of the page in the browser window or screen'],['The whole web page including hidden parts','The server','The page title'],'On mobile it can differ from the layout viewport.');
+Q(6,'Viewport','Which CSS unit equals 1% of the viewport height?',['`vh`'],['`vw`','`em`','`%` of the parent only'],'`100vh` is the full height of the viewport.');
+Q(6,'Viewport','Which CSS unit equals 1% of the viewport width?',['`vw`'],['`vh`','`rem`','`pt`'],'`50vw` is half the viewport width.');
+Q(6,'Media queries','What does a CSS media query do?',['Applies styles only when conditions like screen width are met'],['Plays a media file','Queries a database','Loads a video'],'`@media (max-width: 600px) { ... }`');
+Q(6,'Media queries','When do the styles inside `@media (max-width: 600px)` apply?',['When the viewport is 600px wide or narrower'],['When the viewport is 600px wide or wider','Only at exactly 600px','Never'],'`max-width` is an upper limit.');
+Q(6,'Media queries','When do the styles inside `@media (min-width: 768px)` apply?',['When the viewport is 768px wide or wider'],['When the viewport is 768px wide or narrower','Only on tablets','Only on phones'],'`min-width` is a lower limit.');
+Q(6,'Media queries','Which media query targets landscape orientation?',['`@media (orientation: landscape)`'],['`@media (rotate: wide)`','`@media (screen: landscape)`','`@media (landscape)`'],'The other value is `portrait`.');
+Q(6,'Media queries','Which media query applies only to printing?',['`@media print`'],['`@media paper`','`@media (print: true)`','`@media output`'],'It is used for print stylesheets.');
+Q(6,'Media queries','Which keyword in a media query combines two conditions that must both be true?',['`and`'],['`or`','`with`','`both`'],'`@media (min-width: 600px) and (max-width: 900px)`');
+Q(6,'Media queries','Which separator lets either of two media queries apply (logical OR)?',['A comma'],['The word `or`','A plus sign','A semicolon'],'`@media (max-width: 400px), (orientation: portrait)`');
+Q(6,'Media queries','Which media feature detects a high-density (retina) screen?',['`min-resolution` (or `-webkit-min-device-pixel-ratio`)'],['`dpi-high`','`screen-sharp`','`pixel-density: high`'],'Used to serve higher resolution images.');
+Q(6,'Media queries','Which HTML attribute loads a stylesheet only when a media condition is met?',['`media` on `<link>`'],['`query`','`when`','`device`'],'`<link rel="stylesheet" href="small.css" media="(max-width: 600px)">`');
+Q(6,'Media queries','What is a "breakpoint"?',['A viewport width at which the layout changes'],['A bug in the CSS','A page error','A video pause point'],'Common breakpoints are near 480px, 768px and 1024px, but content should drive them.');
+Q(6,'Media queries','What does this CSS do on a narrow screen?',['Stacks the two columns on top of each other'],['Hides all content','Makes the columns wider','Does nothing'],'The columns are floats or flex items that become full width.','.col { width: 50%; float: left; }\n@media (max-width: 600px) {\n  .col { width: 100%; float: none; }\n}');
+Q(6,'Media queries','Which is the usual position of media query rules in a stylesheet?',['After the base rules they override'],['Before everything','In the HTML only','Inside comments'],'Later rules win at equal specificity.');
+Q(6,'Fluid layout','What is a fluid (flexible) layout?',['A layout using relative units like percentages so it scales with the window'],['A layout fixed at 960px','A layout made of images','A layout that animates'],'Percent widths adapt to the container.');
+Q(6,'Fluid layout','Which unit makes a layout fluid?',['`%`'],['`px`','`pt`','`cm`'],'Fixed units like px do not scale with the window.');
+Q(6,'Fluid layout','Which CSS keeps an image from becoming wider than its container?',['`max-width: 100%;`'],['`min-width: 100%;`','`width: 1000px;`','`overflow: scroll;`'],'Add `height: auto` to keep proportions.');
+Q(6,'Fluid layout','What does `height: auto;` do for a responsive image?',['Keeps the aspect ratio as the width changes'],['Hides the image','Sets the height to 0','Stretches it'],'Pair it with `max-width: 100%`.');
+Q(6,'Fluid layout','Which `<img>` attributes let the browser choose an image file for the screen width?',['`srcset` and `sizes`'],['`media` and `query`','`device` and `size`','`responsive` and `scale`'],'The browser picks the best candidate.');
+Q(6,'Fluid layout','Which element lets you provide different images for different media conditions (art direction)?',['`<picture>`'],['`<figure>`','`<media>`','`<canvas>`'],'`<source media="(min-width: 800px)" srcset="wide.jpg">` inside `<picture>`.');
+Q(6,'Fluid layout','How can you make an embedded video scale down on small screens?',['`max-width: 100%; height: auto;`'],['`width: 1200px;`','`position: fixed;`','`display: none;`'],'Responsive video is scaled like images.');
+Q(6,'Fluid layout','Which CSS function picks a value between a minimum and maximum, useful for fluid type?',['`clamp()`'],['`fit()`','`range()`','`between()`'],'`font-size: clamp(1rem, 2.5vw, 2rem);`');
+Q(6,'Fluid layout','Which CSS unit is relative to the user\'s root font size and good for scalable layouts?',['`rem`'],['`px`','`mm`','`pc`'],'`1rem` equals the root font size, usually 16px.');
+Q(6,'Grid view','What is a grid-based layout?',['A layout that places content in columns and rows based on a grid'],['A layout made of tables only','A random layout','A single column'],'A responsive grid view often has 12 columns.');
+Q(6,'Grid view','In a typical 12-column responsive grid, what width is a column that spans 6 columns?',['50%'],['25%','75%','6%'],'6 of 12 is half. Width = columns / 12 × 100%.');
+Q(6,'Grid view','What width is a column spanning 4 of 12 columns?',['33.33%'],['25%','50%','40%'],'4 / 12 = one third.');
+Q(6,'Grid view','What width is a column spanning 3 of 12 columns?',['25%'],['33.33%','30%','12.5%'],'3 / 12 = one quarter.');
+Q(6,'Grid view','Which property makes padding and border count inside the width, simplifying grid math?',['`box-sizing: border-box;`'],['`box-sizing: content-box;`','`grid-sizing: border;`','`width: fit;`'],'Common reset: `* { box-sizing: border-box; }`');
+Q(6,'Grid view','Which CSS property creates a CSS Grid layout container?',['`display: grid;`'],['`grid: true;`','`layout: grid;`','`position: grid;`'],'Then use `grid-template-columns`.');
+Q(6,'Grid view','What does `grid-template-columns: repeat(3, 1fr);` create?',['Three equal-width columns'],['Three rows','One column three times as wide','A 1px grid'],'`fr` is a fraction of the available space.');
+Q(6,'Grid view','What does `fr` stand for in CSS Grid?',['Fraction of the available space'],['Frame','Fixed ratio','Fill row'],'`1fr 2fr` gives the second column twice the space of the first.');
+Q(6,'Grid view','Which function creates as many columns as fit, a responsive grid with no media queries?',['`repeat(auto-fit, minmax(200px, 1fr))`'],['`repeat(auto, 200px)`','`grid(fit, 200px)`','`columns(auto-fit)`'],'Columns are at least 200px and share the extra space.');
+Q(6,'Grid view','Which property sets the space between grid or flex items?',['`gap`'],['`space`','`spacing`','`gutter-size`'],'`gap: 16px;` works in grid and flexbox.');
+Q(6,'Flexbox','Which CSS makes flex items wrap onto new lines when they run out of room?',['`flex-wrap: wrap;`'],['`flex-flow: none;`','`wrap: true;`','`display: wrap;`'],'The default is `nowrap`.');
+Q(6,'Flexbox','What does `flex: 1;` on an item do?',['Lets it grow to share the remaining space equally'],['Hides it','Fixes it at 1px','Reverses its order'],'It is a shorthand for grow, shrink and basis.');
+Q(6,'Flexbox','In a row flex container, which property centers items vertically?',['`align-items: center;`'],['`justify-content: center;`','`text-align: center;`','`vertical-align: all;`'],'`align-items` works on the cross axis.');
+Q(6,'Flexbox','Which layout approach is best for a one-dimensional row or column of items?',['Flexbox'],['CSS Grid only','Tables','Frames'],'Grid is for two dimensions.');
+Q(6,'Frameworks','What is a CSS framework?',['A prebuilt library of CSS (and sometimes JavaScript) for layouts and components'],['A browser plugin','A server','An image format'],'Examples: Bootstrap, Foundation, Tailwind CSS.');
+Q(6,'Frameworks','Which is a popular responsive, mobile-first CSS framework?',['Bootstrap'],['jQuery','Photoshop','Apache'],'Bootstrap provides a grid and ready-made components.');
+Q(6,'Frameworks','What is an advantage of using a framework such as Bootstrap?',['Tested, consistent responsive components save development time'],['It removes the need for HTML','It makes pages smaller always','It needs no learning'],'The downside can be extra weight and a generic look.');
+Q(6,'Frameworks','What does a CSS reset or normalize stylesheet do?',['Reduces browser default style differences'],['Deletes all CSS','Compresses images','Validates the page'],'It helps consistency across browsers.');
+Q(6,'Mobile design','Which is a key consideration for touch interfaces?',['Touch targets must be large enough and spaced apart'],['Make links as small as possible','Rely on hover menus','Use tiny fonts'],'A common minimum is about 44 by 44 pixels (or 48 dp).');
+Q(6,'Mobile design','Why is relying on `:hover` a problem on mobile?',['Touch screens have no true hover state'],['Phones cannot show colors','Hover is not valid CSS','It uses too much memory'],'Important actions must not depend on hover.');
+Q(6,'Mobile design','Which is a good practice for mobile page performance? (select all that apply)',['Compress and resize images','Minimize the number of requests','Minify CSS and JavaScript'],['Use very large images and scale them down in CSS','Load every script in the head'],'Mobile connections can be slow and limited.');
+Q(6,'Mobile design','Which input attribute helps show the right keyboard on a phone?',['`type` (such as `email`, `tel` or `number`)'],['`keyboard`','`device`','`phone`'],'Specific types bring up tailored keyboards.');
+Q(6,'Mobile design','Which is a common mobile navigation pattern for limited space?',['A collapsed "hamburger" menu'],['A 20-item always-visible bar','A hover mega menu','A table of links'],'It reveals the menu on tap.');
+Q(6,'Mobile design','Which is a good approach to text on a mobile page?',['Readable font size (at least about 16px) with enough line spacing'],['Very small text to fit more','All capitals','Justified tiny text'],'Avoid forcing users to zoom to read.');
+Q(6,'Mobile design','What should be avoided on mobile because it is not supported on most devices?',['Flash content and plugins'],['Responsive images','Media queries','Semantic HTML'],'Mobile browsers do not support Flash.');
+Q(6,'Mobile design','Which is a typical difference between mobile and desktop users?',['Mobile users often have smaller screens, touch input and slower connections'],['Mobile users always have faster connections','Mobile users use mice','There are no differences'],'Design with these constraints in mind.');
+Q(6,'Mobile design','Which is true about `position: fixed` headers on small screens?',['They can take up too much of the limited screen space'],['They are required','They are not supported','They always improve usability'],'Test fixed elements carefully on phones.');
+Q(6,'Mobile design','Which is a way to save space by letting users show or hide content?',['Collapsible sections (accordions)'],['Larger images','More columns','Longer paragraphs'],'Accordions keep a page short.');
+Q(6,'Mobile design','Which are types of mobile web design approaches? (select all that apply)',['Responsive design','Adaptive design','A separate mobile site'],['Flash design','Table-based design'],'Adaptive design serves fixed layouts for certain screen sizes.');
+Q(6,'Mobile design','What is adaptive web design?',['Using several fixed layouts and picking the one that matches the device'],['One fluid layout that stretches','A design with no CSS','Designing in Flash'],'Responsive design is fluid. Adaptive uses distinct layouts at set sizes.');
+Q(6,'Testing','Which is the best way to test a mobile page?',['On real devices as well as emulators'],['Only on your desktop browser at full size','Never, because CSS handles it','Only in one browser'],'Emulation is a good start but real devices find real problems.');
+Q(6,'Testing','Which browser tool simulates mobile screen sizes?',['Device mode in the developer tools'],['The bookmarks bar','The history page','The downloads page'],'Chrome, Firefox and Safari all include one.');
+Q(6,'Testing','What is a simple way to see how a layout responds without a device?',['Resize the browser window'],['Print the page','Change the title','Disable CSS'],'Watch the layout at breakpoints.');
+Q(6,'Testing','What is mobiReady?',['A tool that tests how well a page is built for mobile devices'],['A CSS framework','A phone brand','A photo editor'],'It gave a score and report on mobile best practices.');
+Q(6,'Testing','What does the W3C mobileOK checker (and mobiReady-style tools) evaluate?',['How well a page follows mobile web best practices'],['Server speed only','The page\'s keywords','Copyright status'],'These tools check size, markup, images and usability on mobile.');
+Q(6,'Testing','Which free Google tool reports on page performance and mobile usability?',['Lighthouse (PageSpeed Insights)'],['Microsoft Paint','Notepad','FTP client'],'Lighthouse is built into Chrome DevTools.');
+Q(6,'Testing','Which should be validated for a mobile page as well as a desktop page?',['The HTML and CSS'],['Only the images','Nothing','Only the title'],'The W3C Markup Validation Service works for any page.');
+Q(6,'Testing','What does the W3C CSS Validation Service check?',['CSS for syntax and standards errors'],['HTML structure','Image sizes','Server speed'],'There is a separate service for HTML.');
+Q(6,'Testing','Which device features should you test on mobile? (select all that apply)',['Portrait and landscape orientation','Touch interaction','Different screen sizes'],['Only the mouse wheel','Only print preview'],'Orientation changes can break layouts.');
+Q(6,'Testing','Why test on a slow network connection?',['Many mobile users have slow or limited connections'],['Networks do not matter','Phones are always on fast networks','Only for desktop'],'Browser tools can throttle the connection.');
+Q(6,'Testing','What is a favicon (and touch icon) used for?',['A small icon that represents the site in tabs, bookmarks and home screens'],['A server setting','A video thumbnail','A font'],'Specified with `<link rel="icon">`.');
+
+</script>
+<script>
+(function () {
+  window.__appReady = false;
+  window.addEventListener('error', function (e) {
+    if (window.__appReady) return;
+    var h = document.getElementById('app');
+    if (h) h.textContent = 'The page hit an error while loading: ' + String((e && e.message) || '').slice(0, 300) + ' Reload it.';
+  });
+})();
+</script>
+<script>
+// ============================================================
+// C777 Web Development Drill: app logic
+// ============================================================
+const UNITS = {
+  1: 'HTML Essentials', 2: 'CSS3 Techniques', 3: 'JavaScript',
+  4: 'HTML APIs', 5: 'Forms & Validation', 6: 'Mobile Design'
+};
+const WEAK_MASTERED_STREAK = 3;
+const WEAK_SET_SIZE = 25;
+const SECONDS_PER_QUESTION = 72;
+
+function hashText(text) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  return (h >>> 0).toString(36);
+}
+QS.forEach(function (q) { q.id = 'u' + q.u + '-' + hashText(q.s + '|' + q.c[0]); });
+const BY_ID = {};
+QS.forEach(function (q) { BY_ID[q.id] = q; });
+
+var state = {
+  screen: 'home',
+  unit: 'ALL',
+  count: 20,
+  shuffle: true,
+  examMode: false,
+  timed: false,
+  timeLeft: 0,
+  queue: [],
+  idx: 0,
+  order: [],
+  sel: [],
+  checked: false,
+  results: [],
+  title: '',
+  browseUnit: 'ALL',
+  browseSearch: ''
+};
+const WEAK = { v: 1, q: {} };
+var clockHandle = null;
+var weakTimer = null;
+
+function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+// Backtick pairs in a question or explanation become inline code.
+function rich(s) { return esc(s).replace(/`([^`]+)`/g, '<code>$1</code>'); }
+function shuffleArr(a) {
+  a = a.slice();
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; }
+  return a;
+}
+function choicesOf(q) { return q.c.concat(q.w); }
+function isRight(q, idx) { return idx < q.c.length; }
+function fmt(sec) { sec = Math.max(0, sec); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); }
+
+// ---------- what the reader has missed (kept by the popup, apart from saved progress) ----------
+function weakRecord(id, correct) {
+  let e = WEAK.q[id];
+  if (!e) { if (Object.keys(WEAK.q).length >= 4000) return; e = WEAK.q[id] = { s: 0, m: 0, c: 0, d: 0 }; }
+  e.s++;
+  if (correct) e.c++; else { e.m++; e.c = 0; }
+  e.d = Math.floor(Date.now() / 86400000);
+  if (weakTimer) clearTimeout(weakTimer);
+  weakTimer = setTimeout(weakPost, 600);
+}
+function weakPost() {
+  weakTimer = null;
+  if (window.parent === window) return;
+  try { window.parent.postMessage({ study: 'weak-save', data: WEAK }, '*'); } catch (e) { /* not essential */ }
+}
+function weakRestore(data) {
+  const out = {};
+  if (data && typeof data === 'object' && data.v === 1 && data.q && typeof data.q === 'object' && !Array.isArray(data.q)) {
+    Object.keys(data.q).forEach(function (k) {
+      if (!BY_ID[k]) return;
+      const e = data.q[k];
+      if (!e || typeof e !== 'object') return;
+      const s = Math.floor(Number(e.s)), m = Math.floor(Number(e.m)), c = Math.floor(Number(e.c)), d = Math.floor(Number(e.d));
+      if (![s, m, c, d].every(Number.isFinite) || s < 1 || s > 100000 || m < 0 || m > s || c < 0 || c > s || d < 0) return;
+      out[k] = { s: s, m: m, c: c, d: d };
+    });
+  }
+  WEAK.q = out;
+  if (state.screen === 'home') render();
+}
+function isWeak(e) { return e.m > 0 && e.c < WEAK_MASTERED_STREAK; }
+function weakScore(e) { return e.m / e.s + (e.c === 0 ? 0.35 : 0) - e.c * 0.1; }
+function weakIds() {
+  return Object.keys(WEAK.q).filter(function (k) { return isWeak(WEAK.q[k]); })
+    .sort(function (a, b) { return weakScore(WEAK.q[b]) - weakScore(WEAK.q[a]); });
+}
+function unitStats(u) {
+  const ids = QS.filter(function (q) { return u === 'ALL' || q.u === u; });
+  let seen = 0, good = 0;
+  ids.forEach(function (q) { const e = WEAK.q[q.id]; if (e) { seen++; if (e.c >= WEAK_MASTERED_STREAK || (e.m === 0 && e.s >= 1)) good++; } });
+  return { total: ids.length, seen: seen, good: good };
+}
+
+// ---------- starting and running a quiz ----------
+function stopClock() { if (clockHandle) { clearInterval(clockHandle); clockHandle = null; } }
+function startClock() {
+  stopClock();
+  clockHandle = setInterval(function () {
+    state.timeLeft--;
+    if (state.timeLeft <= 0) { state.timeLeft = 0; stopClock(); finish(); return; }
+    const el = document.getElementById('clock');
+    if (el) el.textContent = fmt(state.timeLeft);
+  }, 1000);
+}
+function startQuiz(ids, title) {
+  if (!ids.length) return;
+  state.queue = ids;
+  state.title = title;
+  state.idx = 0;
+  state.results = [];
+  state.screen = 'quiz';
+  prepare();
+  if (state.timed) { state.timeLeft = Math.round(ids.length * SECONDS_PER_QUESTION); startClock(); }
+  render(); window.scrollTo(0, 0);
+}
+function pool() { return QS.filter(function (q) { return state.unit === 'ALL' || q.u === Number(state.unit); }); }
+function pickFrom(list) {
+  const ids = (state.shuffle ? shuffleArr(list) : list).map(function (q) { return q.id; });
+  return state.count > 0 ? ids.slice(0, state.count) : ids;
+}
+function startPractice() {
+  const label = state.unit === 'ALL' ? 'All units' : 'Unit ' + state.unit + ': ' + UNITS[state.unit];
+  startQuiz(pickFrom(pool()), label);
+}
+function startWeak() {
+  const ids = weakIds().slice(0, WEAK_SET_SIZE);
+  state.examMode = false; state.timed = false;
+  startQuiz(ids, 'Your weak spots');
+}
+function startUnseen() {
+  const list = pool().filter(function (q) { return !WEAK.q[q.id]; });
+  startQuiz(pickFrom(list), 'Not seen yet');
+}
+function prepare() {
+  const q = BY_ID[state.queue[state.idx]];
+  const idxs = choicesOf(q).map(function (_, i) { return i; });
+  state.order = state.shuffle ? shuffleArr(idxs) : idxs;
+  state.sel = [];
+  state.checked = false;
+}
+function toggle(pos) {
+  if (state.checked) return;
+  const q = BY_ID[state.queue[state.idx]];
+  const at = state.sel.indexOf(pos);
+  if (q.c.length === 1) state.sel = at >= 0 ? [] : [pos];
+  else if (at >= 0) state.sel.splice(at, 1);
+  else state.sel.push(pos);
+  render();
+}
+function grade() {
+  const q = BY_ID[state.queue[state.idx]];
+  const picked = state.sel.map(function (p) { return state.order[p]; });
+  const right = picked.length === q.c.length && picked.every(function (i) { return isRight(q, i); });
+  return { id: q.id, ok: right, picked: picked };
+}
+function check() {
+  if (!state.sel.length || state.checked) return;
+  const g = grade();
+  state.results.push(g);
+  weakRecord(g.id, g.ok);
+  if (state.examMode) { next(); return; }
+  state.checked = true;
+  render();
+}
+function next() {
+  if (state.idx + 1 >= state.queue.length) { finish(); return; }
+  state.idx++;
+  prepare();
+  render(); window.scrollTo(0, 0);
+}
+function finish() {
+  stopClock();
+  // Questions left blank when time runs out count as missed.
+  for (let i = state.results.length; i < state.queue.length; i++) {
+    if (i === state.results.length && state.sel.length && !state.checked && i === state.idx) {
+      const g = grade(); state.results.push(g); weakRecord(g.id, g.ok);
+    } else { state.results.push({ id: state.queue[i], ok: false, picked: [] }); weakRecord(state.queue[i], false); }
+  }
+  state.screen = 'results';
+  render(); window.scrollTo(0, 0);
+}
+function quit() { stopClock(); state.screen = 'home'; render(); window.scrollTo(0, 0); }
+function retakeMissed() {
+  const ids = state.results.filter(function (r) { return !r.ok; }).map(function (r) { return r.id; });
+  state.timed = false;
+  startQuiz(ids, 'Retake: missed');
+}
+function canResume() {
+  return state.screen === 'quiz' && state.queue.length > 0 && state.idx < state.queue.length &&
+    state.queue.every(function (id) { return BY_ID[id]; });
+}
+
+// ---------- screens ----------
+function render() {
+  document.title = 'C777 Web Development Drill';
+  const host = document.getElementById('app');
+  let html = '';
+  if (state.screen === 'quiz') html = renderQuiz();
+  else if (state.screen === 'results') html = renderResults();
+  else if (state.screen === 'browse') html = renderBrowse();
+  else html = renderHome();
+  host.innerHTML = html;
+  window.__appReady = true;
+}
+function opt(on, js, label) { return '<button type="button" class="opt' + (on ? ' on' : '') + '" onclick="' + js + '">' + label + '</button>'; }
+function renderHome() {
+  const all = unitStats('ALL');
+  const rows = Object.keys(UNITS).map(function (u) {
+    const st = unitStats(Number(u));
+    const pct = st.total ? Math.round(100 * st.good / st.total) : 0;
+    return '<div class="unit-row"><span><b>U' + u + '</b>' + esc(UNITS[u]) + ' <span class="dim">(' + st.total + ')</span></span><div class="meter"><i style="width:' + pct + '%"></i></div><span class="pct">' + pct + '%</span></div>';
+  }).join('');
+  const unitBtns = opt(state.unit === 'ALL', "setUnit('ALL')", 'All units') + Object.keys(UNITS).map(function (u) {
+    return opt(String(state.unit) === u, "setUnit('" + u + "')", 'Unit ' + u);
+  }).join('');
+  const counts = [10, 20, 40, 0].map(function (n) { return opt(state.count === n, 'setCount(' + n + ')', n === 0 ? 'Every question' : String(n)); }).join('');
+  const weak = weakIds();
+  const poolSize = pool().length;
+  const weakPanel = weak.length
+    ? '<div class="panel"><div class="panel-title">Your weak spots</div><p class="sub">' + weak.length + ' question' + (weak.length === 1 ? '' : 's') + ' you keep missing. One leaves the list after ' + WEAK_MASTERED_STREAK + ' right answers in a row.</p><button type="button" class="btn wide" onclick="startWeak()">Practice weak spots</button></div>'
+    : '';
+  return '<div class="eyebrow">WGU C777</div><h1>Web Development Drill</h1>' +
+    '<p class="sub">' + QS.length + ' questions across the six units of the study guide: HTML, CSS3, JavaScript, HTML APIs, forms and mobile design. Your answers are remembered on this device.</p>' +
+    '<div class="panel"><div class="panel-title">Progress &middot; ' + all.good + ' of ' + all.total + ' solid</div>' + rows + '</div>' +
+    '<div class="panel"><div class="panel-title">Build a quiz</div>' +
+    '<label class="field">Unit</label><div class="row">' + unitBtns + '</div>' +
+    '<label class="field">How many questions</label><div class="row">' + counts + '</div>' +
+    '<label class="field">Options</label><div class="row">' +
+    opt(state.shuffle, 'toggleOpt(\'shuffle\')', 'Shuffle') +
+    opt(state.examMode, 'toggleOpt(\'examMode\')', 'Exam mode (answers at the end)') +
+    opt(state.timed, 'toggleOpt(\'timed\')', 'Timed') + '</div>' +
+    '<button type="button" class="btn wide" onclick="startPractice()"' + (poolSize ? '' : ' disabled') + '>Start (' + (state.count > 0 ? Math.min(state.count, poolSize) : poolSize) + ' questions)</button>' +
+    '<button type="button" class="btn ghost wide" onclick="startUnseen()">Only questions I have not seen</button></div>' +
+    weakPanel +
+    '<div class="panel"><div class="panel-title">Look things up</div><button type="button" class="btn ghost wide" style="margin-top:0" onclick="goBrowse()">Browse every question and answer</button></div>';
+}
+function setUnit(u) { state.unit = u; render(); }
+function setCount(n) { state.count = n; render(); }
+function toggleOpt(k) { state[k] = !state[k]; render(); }
+
+function renderQuiz() {
+  const q = BY_ID[state.queue[state.idx]];
+  const total = state.queue.length;
+  const multi = q.c.length > 1;
+  const letters = 'ABCDEFGH';
+  const list = choicesOf(q);
+  const body = state.order.map(function (orig, pos) {
+    let cls = 'choice';
+    const picked = state.sel.indexOf(pos) >= 0;
+    if (state.checked) {
+      if (isRight(q, orig)) cls += picked ? ' right' : ' missed';
+      else if (picked) cls += ' wrong';
+    } else if (picked) cls += ' sel';
+    return '<button type="button" class="' + cls + '" onclick="toggle(' + pos + ')"' + (state.checked ? ' disabled' : '') + '><span class="let">' + letters[pos] + '</span><span>' + rich(list[orig]) + '</span></button>';
+  }).join('');
+  let foot;
+  if (state.checked) {
+    const last = state.results[state.results.length - 1];
+    foot = '<div class="verdict ' + (last.ok ? 'good' : 'bad') + '">' + (last.ok ? 'Correct' : 'Not quite') + '</div>' +
+      (q.x ? '<div class="why">' + rich(q.x) + '</div>' : '') +
+      '<button type="button" class="btn wide" onclick="next()">' + (state.idx + 1 >= total ? 'See results' : 'Next') + '</button>';
+  } else {
+    foot = '<button type="button" class="btn wide" onclick="check()"' + (state.sel.length ? '' : ' disabled') + '>' + (state.examMode ? (state.idx + 1 >= total ? 'Finish' : 'Next') : 'Check answer') + '</button>';
+  }
+  return '<div class="top"><button type="button" onclick="quit()">&larr; Quit</button><span>' + esc(state.title) + '</span>' +
+    (state.timed ? '<span class="clock" id="clock">' + fmt(state.timeLeft) + '</span>' : '<span>' + (state.idx + 1) + ' / ' + total + '</span>') + '</div>' +
+    '<div class="bar"><i style="width:' + Math.round(100 * state.idx / total) + '%"></i></div>' +
+    '<span class="tag">UNIT ' + q.u + ' &middot; ' + esc(q.t) + '</span>' +
+    '<p class="stem">' + rich(q.s) + '</p>' +
+    (q.k ? '<pre class="code">' + esc(q.k) + '</pre>' : '') +
+    '<p class="hint">' + (multi ? 'Choose ' + q.c.length + '.' : 'Choose one.') + (state.timed ? ' ' + (state.idx + 1) + ' of ' + total + '.' : '') + '</p>' +
+    body + foot;
+}
+
+function renderResults() {
+  const n = state.results.length;
+  const right = state.results.filter(function (r) { return r.ok; }).length;
+  const pct = n ? Math.round(100 * right / n) : 0;
+  const perUnit = {};
+  state.results.forEach(function (r) { const u = BY_ID[r.id].u; (perUnit[u] = perUnit[u] || { n: 0, r: 0 }).n++; if (r.ok) perUnit[u].r++; });
+  const unitRows = Object.keys(perUnit).sort().map(function (u) {
+    const p = Math.round(100 * perUnit[u].r / perUnit[u].n);
+    return '<div class="unit-row"><span><b>U' + u + '</b>' + esc(UNITS[u]) + '</span><div class="meter"><i style="width:' + p + '%"></i></div><span class="pct">' + perUnit[u].r + '/' + perUnit[u].n + '</span></div>';
+  }).join('');
+  const missed = state.results.filter(function (r) { return !r.ok; });
+  const letters = 'ABCDEFGH';
+  const missedHtml = missed.map(function (r) {
+    const q = BY_ID[r.id]; const list = choicesOf(q);
+    return '<div class="card"><div class="q">' + rich(q.s) + '</div>' + (q.k ? '<pre class="code">' + esc(q.k) + '</pre>' : '') +
+      '<div class="y">' + (r.picked.length ? 'You chose: ' + r.picked.map(function (i) { return rich(list[i]); }).join('; ') : 'No answer') + '</div>' +
+      '<div class="a">Answer: ' + q.c.map(function (i) { return rich(list[i]); }).join('; ') + '</div>' +
+      (q.x ? '<div class="e">' + rich(q.x) + '</div>' : '') + '</div>';
+  }).join('');
+  return '<div class="eyebrow">' + esc(state.title).toUpperCase() + '</div><div class="score">' + pct + '%</div>' +
+    '<p class="sub">' + right + ' of ' + n + ' right.</p>' +
+    '<div class="panel"><div class="panel-title">By unit</div>' + unitRows + '</div>' +
+    (missed.length ? '<button type="button" class="btn wide" onclick="retakeMissed()">Retake the ' + missed.length + ' I missed</button>' : '') +
+    '<button type="button" class="btn ghost wide" onclick="quit()">Back to the start</button>' +
+    (missed.length ? '<div class="panel-title" style="margin-top:22px">What you missed</div>' + missedHtml : '');
+}
+
+function goBrowse() { state.screen = 'browse'; render(); window.scrollTo(0, 0); }
+function setBrowseUnit(u) { state.browseUnit = u; render(); }
+function setBrowseSearch(v) {
+  state.browseSearch = v; render();
+  const el = document.getElementById('bsearch');
+  if (el) { el.focus(); el.setSelectionRange(v.length, v.length); }
+}
+function renderBrowse() {
+  const needle = state.browseSearch.trim().toLowerCase();
+  const list = QS.filter(function (q) {
+    if (state.browseUnit !== 'ALL' && String(q.u) !== String(state.browseUnit)) return false;
+    if (!needle) return true;
+    return (q.s + ' ' + q.t + ' ' + q.k + ' ' + q.c.join(' ') + ' ' + q.w.join(' ')).toLowerCase().indexOf(needle) >= 0;
+  });
+  const btns = opt(state.browseUnit === 'ALL', "setBrowseUnit('ALL')", 'All') + Object.keys(UNITS).map(function (u) {
+    return opt(String(state.browseUnit) === u, "setBrowseUnit('" + u + "')", 'U' + u);
+  }).join('');
+  const cards = list.slice(0, 80).map(function (q) {
+    return '<div class="card"><span class="tag">UNIT ' + q.u + ' &middot; ' + esc(q.t) + '</span><div class="q">' + rich(q.s) + '</div>' + (q.k ? '<pre class="code">' + esc(q.k) + '</pre>' : '') +
+      '<div class="a">' + q.c.map(rich).join('; ') + '</div>' +
+      '<div class="dim" style="font-size:13px;margin-top:4px">Not: ' + q.w.map(rich).join('; ') + '</div>' +
+      (q.x ? '<div class="e">' + rich(q.x) + '</div>' : '') + '</div>';
+  }).join('');
+  return '<div class="top"><button type="button" onclick="quit()">&larr; Back</button><span>' + list.length + ' questions</span></div>' +
+    '<div class="row" style="margin-bottom:10px">' + btns + '</div>' +
+    '<input id="bsearch" type="search" placeholder="Search questions and answers" value="' + esc(state.browseSearch) + '" oninput="setBrowseSearch(this.value)">' +
+    '<div style="height:12px"></div>' + cards + (list.length > 80 ? '<p class="sub">Showing the first 80. Narrow it with the search box.</p>' : '');
+}
+
+window.addEventListener('keydown', function (e) {
+  if (state.screen !== 'quiz' || e.target.tagName === 'INPUT') return;
+  const n = e.key >= '1' && e.key <= '9' ? Number(e.key) - 1 : 'abcdefgh'.indexOf(e.key.toLowerCase());
+  if (n >= 0 && n < state.order.length) toggle(n);
+  else if (e.key === 'Enter') { if (state.checked) next(); else check(); }
+});
+
+render();
+if (state.timed && state.screen === 'quiz') startClock();
+</script>

@@ -19,6 +19,10 @@ export const STUDY_LABS = {
     label: "A+ Core 1 Drill",
     load: async () => (await import("./core1-lab.html")).default,
   },
+  "c777-lab": {
+    label: "C777 Web Development Drill",
+    load: async () => (await import("./c777-lab.html")).default,
+  },
 };
 const DEFAULT_LAB = "core1-lab";
 

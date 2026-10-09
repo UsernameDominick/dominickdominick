@@ -3135,7 +3135,7 @@
     // STUDY (temporary): see worker/study/README.md.
     study: [
       { key: "label", label: "Button text", type: "text" },
-      { key: "lab", label: "Study page", type: "select", options: [["core1-lab", "A+ Core 1 Drill"]] },
+      { key: "lab", label: "Study page", type: "select", options: [["core1-lab", "A+ Core 1 Drill"], ["c777-lab", "C777 Web Development Drill"]] },
       { key: "password", label: "Password (it always asks; blank = the site's default study password). The page it is on stays out of the nav and search engines: it is found through the site's search.", type: "text", noSpellcheck: true },
     ],
     quote: [
