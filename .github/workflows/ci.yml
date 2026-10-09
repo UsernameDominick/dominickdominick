@@ -131,6 +131,8 @@ jobs:
       - name: Smoke test the live site
         id: smoke
         if: steps.ready.outputs.ready == 'true'
+        env:
+          SMOKE_KEY: ${{ secrets.SMOKE_KEY }}
         run: node scripts/smoke.mjs https://dominickdominick.com
       - name: Roll back
         if: ${{ failure() && steps.smoke.outcome == 'failure' }}
@@ -168,9 +170,17 @@ jobs:
             sleep 20
           done
           sleep 30
-      - name: Smoke test the live site
+      - name: Smoke test the live site (retrying while the new version goes out)
         id: smoke
-        run: node scripts/smoke.mjs https://dominickdominick.com
+        env:
+          SMOKE_KEY: ${{ secrets.SMOKE_KEY }}
+        run: |
+          for i in $(seq 1 20); do
+            if node scripts/smoke.mjs https://dominickdominick.com; then exit 0; fi
+            echo "Attempt $i failed; the new version may still be going out. Waiting 30 seconds."
+            sleep 30
+          done
+          exit 1
       - name: Open an issue if it failed
         if: ${{ failure() && steps.smoke.outcome == 'failure' }}
         env:

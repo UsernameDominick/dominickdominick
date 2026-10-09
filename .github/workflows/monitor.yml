@@ -23,6 +23,8 @@ jobs:
           node-version-file: .nvmrc
       - name: Smoke test the live site
         id: smoke
+        env:
+          SMOKE_KEY: ${{ secrets.SMOKE_KEY }}
         run: node scripts/smoke.mjs https://dominickdominick.com
       - name: Tell someone
         if: ${{ failure() && steps.smoke.outcome == 'failure' }}
